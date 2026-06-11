@@ -1,0 +1,5 @@
+.env
+sa-key.json
+__pycache__/
+*.pyc
+README.md

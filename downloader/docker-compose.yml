@@ -1,0 +1,47 @@
+services:
+  # ── Servicio de descarga (FastAPI) ──────────────────────────────────
+  downloader:
+    build: .
+    container_name: vigia-downloader
+    restart: unless-stopped
+    environment:
+      - GCS_BUCKET=${GCS_BUCKET:-vigia-peru-documentos}
+      - GCP_PROJECT=${GCP_PROJECT:-vivid-spot-480905-a4}
+      - VIGIA_DL_TOKEN=${VIGIA_DL_TOKEN}
+      - MAX_BYTES=${MAX_BYTES:-62914560}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/sa-key.json
+    volumes:
+      # Tu llave de service account (solo lectura). Crear según el README.
+      - ./sa-key.json:/secrets/sa-key.json:ro
+    ports:
+      # Solo localhost (para que puedas probar con curl). NO se expone al LAN.
+      # Host 8088 → contenedor 8080 (el 8080 del host ya estaba ocupado).
+      # El túnel NO usa esto: alcanza al contenedor por la red interna (downloader:8080).
+      - "127.0.0.1:8088:8080"
+
+  # ── Túnel Cloudflare (expone el servicio al orquestador en Cloud Run) ─
+  # OPCIÓN A (recomendada): túnel con NOMBRE → URL estable.
+  #   Requiere un dominio en Cloudflare. Crea el túnel en el dashboard
+  #   Zero Trust → Tunnels, apunta el hostname público a http://downloader:8080
+  #   y pega el token en TUNNEL_TOKEN del .env.
+  # OPCIÓN A (recomendada, URL estable, requiere dominio en CF) — DESACTIVADA.
+  # Descomenta y pon TUNNEL_TOKEN en .env para usarla.
+  # tunnel:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: vigia-tunnel
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+  #   depends_on:
+  #     - downloader
+
+  # OPCIÓN B (ACTIVA): túnel rápido → URL aleatoria (https://xxxx.trycloudflare.com)
+  # que cambia en cada reinicio. La URL aparece en: docker compose logs tunnel-quick
+  tunnel-quick:
+    image: cloudflare/cloudflared:latest
+    container_name: vigia-tunnel-quick
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://downloader:8080
+    depends_on:
+      - downloader
