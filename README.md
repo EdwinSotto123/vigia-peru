@@ -71,6 +71,20 @@ A **coordinator** delegates to specialized sub-agents; each runs on **Gemini 2.5
 
 ---
 
+## 🔌 MCP server — Vigía as a data source, not just an app
+
+Beyond the web app, Vigía ships a **remote [Model Context Protocol](https://modelcontextprotocol.io)
+server** (`services/vigia-mcp`, on Cloud Run) that exposes its risk signals and evidence as
+**read-only tools** to any MCP-compatible LLM client. A journalist or prosecutor can ask, from their
+own AI assistant, *"show me the red alerts in Áncash"* and get them back **with their official
+evidence attached** — no scraping, no UI.
+
+The server enforces the same non-negotiable rules: only public data (serving officials and
+state-contracting companies), risk *signals* never accusations, and read-only access (no tool ever
+writes to the database).
+
+---
+
 ## 🗄️ Data
 
 Vigía combines a **local snapshot of Peru's public-procurement lifecycle** with **live external
@@ -267,6 +281,13 @@ cd functions/agent-orchestrator-adk && pip install -r requirements.txt
 Hackathon MVP — **Transparency & Corruption** track. Full machine layer + citizen form + map, over
 a pilot region. Roadmap to national coverage, report moderation, and Comptroller/Prosecutor
 hand-off in [`ARQUITECTURA.md`](ARQUITECTURA.md).
+
+---
+
+## 📄 License
+
+Released under the **MIT License** — see [`LICENSE`](LICENSE). Open source, non-profit, no ads,
+no data monetization.
 
 ---
 
