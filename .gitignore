@@ -1,0 +1,51 @@
+# ─── Secretos / credenciales (NUNCA subir) ───────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*-key.json
+sa-key.json
+service-account*.json
+*credential*
+.cloudsql-password
+.decolecta-token
+*.key
+
+# ─── Node / Next ─────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+.vercel/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ─── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# ─── Datos pesados / locales (no van al repo) ────────────────────
+dataset/
+documentos/
+*.xlsx
+*.csv
+catalog.json
+
+# ─── Logs / temporales ───────────────────────────────────────────
+*.log
+.tmp/
+stream-body.txt
+
+# ─── Editor / OS ─────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
