@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-paper text-ink;
+  }
+  h1, h2, h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium;
+  }
+  .surface {
+    @apply rounded-2xl border border-line bg-paperSoft shadow-card;
+  }
+  .surface-deep {
+    @apply rounded-2xl border border-paperEdge bg-paperDeep;
+  }
+}
+
+/* Scrollbar discreto y cálido */
+.scrollbar-warm::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-warm::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-warm::-webkit-scrollbar-thumb {
+  background: rgba(104, 113, 128, 0.3);
+  border-radius: 8px;
+}
+.scrollbar-warm::-webkit-scrollbar-thumb:hover {
+  background: rgba(104, 113, 128, 0.5);
+}
+
+/* Patrón sutil de puntos para fondos secundarios */
+.paper-grain {
+  background-image:
+    radial-gradient(rgba(20,23,26,0.04) 1px, transparent 1px),
+    radial-gradient(rgba(20,23,26,0.03) 1px, transparent 1px);
+  background-size: 18px 18px, 22px 22px;
+  background-position: 0 0, 9px 11px;
+}
