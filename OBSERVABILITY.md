@@ -4,7 +4,7 @@
 > *glass-box*: cada decisión de cada agente es trazable, evaluable y mejorable —
 > y el propio sistema **se autoaudita** consultando su observabilidad por MCP.
 
-Track del hackathon: **Arize**. Stack: **Gemini + Google ADK (Cloud Run) + Phoenix MCP**.
+Hackathon: **Google Cloud Rapid Agent Hackathon** · Track: **Arize**. Stack: **Gemini + Google ADK (Cloud Run) + Phoenix MCP**.
 
 ---
 

@@ -39,7 +39,7 @@ agentes de IA lee el expediente, cruza los datos abiertos, y emite **señales de
                   🟡 alerta  ·  🔴 reporte  ·  ⬛ convergencia
 ```
 
-El MVP del hackathon implementa **la capa máquina completa** + el **formulario ciudadano**
+El MVP implementa **la capa máquina completa** + el **formulario ciudadano**
 + el **mapa**, sobre una región piloto.
 
 ---
@@ -164,7 +164,7 @@ Optimizaciones recientes (junio 2026):
 
 ## 6. Observabilidad y autoevaluación
 
-Requisito del track Arize, y columna vertebral de la confianza en el sistema:
+Pilar del track de observabilidad (**Arize**) y columna vertebral de la confianza en el sistema:
 
 - **OpenInference** instrumenta el **Runner de ADK** (ciclo + cada `transfer_to_agent`
   entre los 11 agentes) y **cada llamada a Gemini**. Todo se exporta a **Arize AX** y a

@@ -237,7 +237,7 @@ vigia-peru/
 │   └── img/                           # Architecture & observability screenshots
 ├── ARQUITECTURA.md                    # GCP architecture + production roadmap (ES)
 ├── SOLUCION.md                        # How it works: end-to-end data flow (ES)
-└── OBSERVABILITY.md                   # Observability setup detail — Arize track (ES)
+└── OBSERVABILITY.md                   # Observability setup detail — Arize/Phoenix (ES)
 ```
 
 ---
@@ -278,9 +278,10 @@ cd functions/agent-orchestrator-adk && pip install -r requirements.txt
 
 ## 📍 Status
 
-Hackathon MVP — **Transparency & Corruption** track. Full machine layer + citizen form + map, over
-a pilot region. Roadmap to national coverage, report moderation, and Comptroller/Prosecutor
-hand-off in [`ARQUITECTURA.md`](ARQUITECTURA.md).
+Working MVP over a pilot region: full machine layer + citizen report form + interactive map.
+Built for the **Google Cloud Rapid Agent Hackathon** (Arize observability track). Roadmap to
+national coverage, report moderation, and Comptroller/Prosecutor hand-off in
+[`ARQUITECTURA.md`](ARQUITECTURA.md).
 
 ---
 
