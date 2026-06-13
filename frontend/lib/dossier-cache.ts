@@ -1,15 +1,15 @@
 /**
  * Cache de dossiers en el cliente.
  *
- * Un análisis cacheado es **inmutable** (ya corrió el pipeline y se persistió),
- * así que no tiene sentido re-fetchearlo cada vez que el usuario entra al mismo
- * dossier. Guardamos:
- *   1. en memoria (Map de módulo) → revisita instantánea sin tocar la red.
- *   2. en sessionStorage          → sobrevive recargas de la pestaña.
+ * Cache SOLO EN MEMORIA (Map de módulo) → revisita instantánea durante la
+ * sesión SPA sin tocar la red. NO usamos sessionStorage a propósito: un dossier
+ * puede REPROCESARSE (re-análisis con datos nuevos), y persistirlo en
+ * sessionStorage hacía que, tras un reproceso, la pestaña mostrara data vieja
+ * ("cambia al recargar"). Al ser solo memoria, una RECARGA re-fetchea fresco
+ * (siempre la última corrida); la navegación in-app sigue cacheada (rápida).
  *
- * Esto reemplaza el `cache:"no-store"` + `useEffect` que re-fetcheaba 473 KB en
- * cada navegación. El fetch real va a /api/agent/history/[id], que ahora pega a
- * la API liviana (no al orquestador ADK).
+ * El fetch real va a /api/agent/history/[id], que pega a la API liviana
+ * (no al orquestador ADK) y devuelve el análisis MÁS RECIENTE.
  */
 
 const mem = new Map<string, any>();
@@ -19,32 +19,10 @@ function keyOf(rawId: string): string {
   return decodeURIComponent(rawId || "").replace(/^OECE-/i, "").trim();
 }
 
-function fromSession(key: string): any | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(`dossier:${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function toSession(key: string, data: any): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(`dossier:${key}`, JSON.stringify(data));
-  } catch {
-    // sessionStorage lleno o bloqueado → seguimos con cache en memoria.
-  }
-}
-
-/** Devuelve el dossier de cache (memoria o sessionStorage) sin tocar la red. */
+/** Devuelve el dossier de cache (solo memoria) sin tocar la red. */
 export function peekDossier(rawId: string): any | null {
   const key = keyOf(rawId);
-  if (mem.has(key)) return mem.get(key);
-  const s = fromSession(key);
-  if (s) mem.set(key, s);
-  return s;
+  return mem.has(key) ? mem.get(key) : null;
 }
 
 // Vuelos en curso, para deduplicar (hover + click no disparan dos fetches).
@@ -86,7 +64,6 @@ export async function getDossier(rawId: string): Promise<any> {
       const notFound = !res.ok || data?.error === "not_found";
       if (!notFound && !data?.error) {
         mem.set(key, data);
-        toSession(key, data);
         return data;
       }
       lastErr = new Error(data?.detail || data?.error || `Error ${res.status}`);
@@ -121,6 +98,6 @@ export function getAnalyzedList(limit = 50): Promise<any> {
 /** Warm-up fire-and-forget (para prefetch on hover). No lanza. */
 export function prefetchDossier(rawId: string): void {
   const key = keyOf(rawId);
-  if (mem.has(key) || fromSession(key) || inflight.has(key)) return;
+  if (mem.has(key) || inflight.has(key)) return;
   getDossier(key).catch(() => {});
 }
