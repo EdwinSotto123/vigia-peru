@@ -401,20 +401,34 @@ async def _run_streaming(
             "completitud": _evpct(_evals["completitud"]),
         }
         _evals["objeto"] = str(_objeto_eval or "")[:240]
+        # Resúmenes legibles para el dashboard (el front ya muestra reason/faltantes).
+        def _first_fail_reason(items, ok_key):
+            for it in (items or []):
+                if isinstance(it, dict) and not it.get(ok_key) and (it.get("reason") or "").strip():
+                    return f"{it.get('regla') or it.get('item') or 'ítem'}: {it['reason'].strip()}"
+            return None
+        _respaldo_reason = (_first_fail_reason(_evals.get("per_bandera"), "respaldada")
+                            or ("Todas las banderas con evidencia verificable." if _evals["respaldo"]["n"] else None))
+        _precio_reason = (_first_fail_reason(_evals.get("per_precio"), "plausible")
+                          or ("Veredictos coherentes con la mediana observada." if _evals["precio"]["n"] else None))
+        _cita_faltantes = [f"{c.get('regla')} (falta {', '.join(c.get('falta') or [])})"
+                           for c in (_evals.get("cita_detalle") or [])]
         for _ev in (
             {"kind": "eval", "agent": "evaluador", "evaluador": "respaldo_de_bandera",
              "ok": _evals["respaldo"]["ok"], "n": _evals["respaldo"]["n"], "pct": _evals["pct"]["respaldo"],
              "pregunta": "¿la bandera está respaldada por datos verificables (RUC, monto, fecha, artículo)?",
              "metodo": "LLM-as-judge", "objetivo": "banderas de riesgo",
-             "per_item": _evals.get("per_bandera")},
+             "reason": _respaldo_reason, "per_item": _evals.get("per_bandera")},
             {"kind": "eval", "agent": "evaluador", "evaluador": "cita_evidencia",
              "ok": _evals["cita"]["ok"], "n": _evals["cita"]["n"], "pct": _evals["pct"]["cita"],
              "pregunta": "¿cada bandera cita norma + fuente oficial (SEACE/OECE)?",
-             "metodo": "determinista (código)", "objetivo": "banderas de riesgo"},
+             "metodo": "determinista (código)", "objetivo": "banderas de riesgo",
+             "faltantes": _cita_faltantes, "per_item": _evals.get("cita_detalle")},
             {"kind": "eval", "agent": "evaluador", "evaluador": "plausibilidad_precio",
              "ok": _evals["precio"]["ok"], "n": _evals["precio"]["n"], "pct": _evals["pct"]["precio"],
              "pregunta": "¿el sobreprecio se sostiene con la mediana de mercado observada?",
-             "metodo": "LLM-as-judge", "objetivo": "ítems con precio de mercado"},
+             "metodo": "LLM-as-judge", "objetivo": "ítems con precio de mercado",
+             "reason": _precio_reason, "per_item": _evals.get("per_precio")},
             {"kind": "eval", "agent": "evaluador", "evaluador": "tono_no_acusatorio",
              "label": _evals.get("tono"), "reason": _evals.get("tono_reason"),
              "pregunta": "¿el dictamen usa lenguaje de 'señal de riesgo' y nunca acusa de delito?",
