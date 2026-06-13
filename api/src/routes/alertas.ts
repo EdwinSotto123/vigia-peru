@@ -140,6 +140,10 @@ alertasRouter.get("/:id/full", async (c) => {
        LEFT JOIN entidades e    ON e.ruc   = a.entidad_ruc
        LEFT JOIN convocatorias cv ON cv.ocid = a.ocid
       WHERE a.id::text = $1 OR a.codigo = $1 OR a.ocid = $1 OR a.codigo_convocatoria = $1
+      -- Determinismo: si varias filas matchean (p.ej. mismo codigo_convocatoria
+      -- por reprocesos), devolver SIEMPRE el análisis MÁS RECIENTE. Sin ORDER BY,
+      -- LIMIT 1 es no-determinista y la data mostrada "cambia" entre cargas.
+      ORDER BY a.analizado_en DESC NULLS LAST, a.updated_at DESC NULLS LAST
       LIMIT 1`,
     [id],
   );
@@ -213,7 +217,9 @@ alertasRouter.get("/:id", async (c) => {
      FROM alertas a
      LEFT JOIN entidades e   ON e.ruc   = a.entidad_ruc
      LEFT JOIN empresas  emp ON emp.ruc = a.proveedor_ruc
-     WHERE a.id::text = $1 OR a.codigo = $1`,
+     WHERE a.id::text = $1 OR a.codigo = $1
+     ORDER BY a.analizado_en DESC NULLS LAST, a.updated_at DESC NULLS LAST
+     LIMIT 1`,
     [id],
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
