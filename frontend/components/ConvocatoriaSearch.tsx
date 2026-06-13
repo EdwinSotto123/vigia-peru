@@ -4002,10 +4002,19 @@ function ItemsConMarketPrice({ items, market, fmtMoney }: { items: any[]; market
                 // mercado PARCIAL (pocos ítems con precio) es apples-vs-oranges y
                 // produce falsos "LOTE MUY ELEVADO". Solo damos veredicto de lote
                 // con cobertura alta (≥70% de los sub-ítems tienen mediana).
-                const cobertura = subItems.length > 0 ? nConPrecio / subItems.length : 0;
+                // El backend (analyze_market_sharded) YA calcula sobreprecio_pct
+                // y cobertura sobre el LOTE COMPLETO, aplicando el gate de ≥70%.
+                // Si ese dato existe, es la VERDAD: usarlo. Recalcular acá sobre
+                // un subconjunto (p.ej. 1 sub-ítem) contra la cuantía del lote
+                // entero produce falsos "+900% LOTE MUY ELEVADO".
+                const hasBackend = market && typeof market.cobertura_mercado === "number";
+                const cobertura = hasBackend
+                  ? market.cobertura_mercado
+                  : (subItems.length > 0 ? nConPrecio / subItems.length : 0);
                 const comparable = cobertura >= 0.7 && totalReferencial > 0 && totalMercado > 0;
-                const diffMercado = comparable
-                  ? ((totalReferencial - totalMercado) / totalMercado) * 100 : null;
+                const diffMercado = hasBackend
+                  ? (typeof market.sobreprecio_pct === "number" ? market.sobreprecio_pct : null)
+                  : (comparable ? ((totalReferencial - totalMercado) / totalMercado) * 100 : null);
                 return (
                   <tr className="border-t-2 border-clay/40 bg-clay/5 font-bold">
                     <td colSpan={4} className="px-3 py-3 text-right text-[10px] uppercase tracking-widest text-mute">
