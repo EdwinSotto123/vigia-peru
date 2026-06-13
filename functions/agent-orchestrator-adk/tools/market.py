@@ -159,6 +159,16 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         # Si la descripción del parser contiene palabras de agregación, ES lote.
         if any(kw in descr_parser for kw in AGGREGATOR_KEYWORDS):
             return False
+        # Si el parser_item tiene ~la misma descripción que el ítem OCDS, ES el
+        # OBJETO/AGREGADOR (el padre), NO un producto perdido. Sin esto, un lote
+        # como "ADQUISICIÓN DE LLANTAS PARA..." (sin keyword) se "rescataba" como
+        # un sub-ítem fantasma "1.0" que luego se preciaba → doble conteo del lote.
+        import difflib as _dl
+        if descr_parser and descr_sql and (
+            descr_parser[:35] == descr_sql[:35]
+            or _dl.SequenceMatcher(None, descr_parser[:120], descr_sql[:120]).ratio() >= 0.75
+        ):
+            return False
         # Caso 1: hay otros sub-items con padre explícito → claramente lote.
         if parser_items_con_padre:
             if any(kw in descr_sql for kw in AGGREGATOR_KEYWORDS):

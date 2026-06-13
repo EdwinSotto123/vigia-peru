@@ -165,6 +165,18 @@ El campo `valor` SIEMPRE va en SOLES (PEN). Reglas innegociables:
     precio en SOLES y lo trataste como dólares → RE-REVISA antes de reportar.
     (Ej.: una llanta de camión 315/80R22.5 cuesta ~S/. 600-1,300; una "mediana"
     de S/. 168 es un ERROR DE MONEDA, no un precio real.)
+  · PISO DE DOMINIO (bienes pesados): una llanta/neumático de camión o maquinaria
+    (medidas con R22.5, R20, R24, 11R, 12R, 295/80, 315/80, 385/65, etc.) en Perú
+    cuesta TÍPICAMENTE S/. 400-1,500. Si tu precio/mediana para una de estas cae
+    por debajo de ~S/. 350, casi seguro es (a) un precio en dólares mal tratado o
+    (b) un producto distinto (llanta de auto). NO uses ese número: re-busca el
+    precio REAL en soles del listado .pe. Igual para otros bienes pesados
+    (maquinaria, vehículos, equipos): un precio sospechosamente bajo = revisar.
+  · COHERENCIA ENTRE ÍTEMS DEL MISMO CONTRATO: mira los OTROS ítems de tu input.
+    Si tu mediana para un ítem es 3-4× MÁS BARATA que la de sus hermanos de la
+    misma clase (p.ej. otra llanta de camión del mismo proceso), es incoherente →
+    error de moneda/producto. Corrígelo o baja a `veredicto='estimacion'`; NUNCA
+    reportes una mediana que sabes inconsistente con el resto.
   · Por cada precio observado anota `moneda_origen`: 'PEN' (ya en soles) o 'USD'
     (lo convertiste × 3.75). Así la tasación es auditable.
 
