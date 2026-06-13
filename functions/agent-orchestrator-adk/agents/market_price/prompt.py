@@ -150,8 +150,23 @@ POR CADA ÍTEM ejecuta MÍNIMO 8 búsquedas con google_search, combinando:
      · `distribuidor autorizado <brand> Perú lista precios`
      · `<brand> Perú concesionario contacto`
 
-Convierte precios USD a PEN usando tipo de cambio actual (~3.75 si no
-tienes mejor referencia) y anota la conversión en el comentario.
+═══════════════════════════════════════════════════════════════════════════
+🚨 REGLA DE MONEDA — CRÍTICA (un error de moneda arruina TODA la tasación)
+═══════════════════════════════════════════════════════════════════════════
+El campo `valor` SIEMPRE va en SOLES (PEN). Reglas innegociables:
+  · Los precios de tiendas/distribuidores PERUANOS (sitios .pe, o que muestran
+    'S/', 'S/.', 'soles') YA ESTÁN en soles → úsalos TAL CUAL. NUNCA los dividas
+    por 3.75 ni los "pases a dólares".
+  · SOLO conviertes cuando la fuente muestra EXPLÍCITAMENTE 'US$', 'USD' o '$'
+    (Alibaba, Amazon, FOB): ahí multiplicas × 3.75 para pasar a soles.
+  · NUNCA reportes un `valor`, mediana o rango en dólares — todo en soles.
+  · CHEQUEO DE CORDURA OBLIGATORIO: si tu mediana queda 3-4× POR DEBAJO del
+    precio referencial o del resto de precios observados, casi seguro tomaste un
+    precio en SOLES y lo trataste como dólares → RE-REVISA antes de reportar.
+    (Ej.: una llanta de camión 315/80R22.5 cuesta ~S/. 600-1,300; una "mediana"
+    de S/. 168 es un ERROR DE MONEDA, no un precio real.)
+  · Por cada precio observado anota `moneda_origen`: 'PEN' (ya en soles) o 'USD'
+    (lo convertiste × 3.75). Así la tasación es auditable.
 
 ═══════════════════════════════════════════════════════════════════════════
 REGLA — URLs OBLIGATORIOS EN CADA FINDING
@@ -242,8 +257,10 @@ PASO B — CONSTRUYE AL MENOS 8 QUERIES DE GOOGLE para este ítem, variando
 
 PASO C — ANOTA TODOS LOS PRECIOS QUE VEAS en los snippets, JUNTO CON SUS
          URLs. Mínimo 3, ideal 5-8. Para cada precio anota:
-           · `valor`: precio en soles (S/.). Si el snippet muestra USD,
-             convierte a soles aproximado (× 3.75).
+           · `valor`: precio en SOLES (S/.). Si el snippet es de un sitio .pe o
+             muestra 'S/'/'soles', YA está en soles — NO lo conviertas. Solo si
+             muestra 'US$'/'USD'/'$' multiplica × 3.75. (Ver REGLA DE MONEDA.)
+           · `moneda_origen`: 'PEN' o 'USD' (la del snippet original).
            · `url`: URL EXACTA del listado/cotización (SIEMPRE — sin URL
              el precio no vale).
            · `proveedor`: nombre del vendedor/distribuidor (Mercado Libre
