@@ -289,6 +289,19 @@ PASO D — CALCULÁ Y LLENÁ SIEMPRE EN EL JSON (no en texto narrativo):
                 sin precios fiables  → 'estimacion'
                 hay mediana pero sin ofertado/referencial → 'sin_ofertado'
 
+           ⚠ DISCIPLINA DEL VEREDICTO — un evaluador juzga si tu veredicto se
+             sostiene con los datos observados. Marcá 'elevado' / 'muy_elevado'
+             SOLO si se cumplen AMBAS:
+               (a) tenés ≥3 `precios_observados` con `cumple_caracteristicas=true`
+                   (mismo producto, misma spec exigida), y
+               (b) el Δ% se calculó contra ESA mediana (no contra 1 precio suelto
+                   ni mezclando productos/unidades distintas).
+             Con 1-2 precios, specs que NO calzan, o unidad dudosa →
+             `veredicto='estimacion'` + `confianza='baja'` (NUNCA 'elevado').
+             En el `comentario` indicá SIEMPRE la mediana usada y cuántos precios
+             que cumplen specs la respaldan. Afirmar sobreprecio sin una mediana
+             sólida es una alucinación de precio y reprueba el evaluador.
+
 PASO E — IDENTIFICÁ `spec_restrictiva`: si el requerimiento exige UNA marca,
          UNA certificación atípica que solo unos pocos fabricantes tienen, o
          una combinación de especs que reduce la competencia a 1-2
