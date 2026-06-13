@@ -3,7 +3,8 @@
 from tools._core import *  # noqa: F401,F403
 
 def add_contextual_flag(regla: str, severidad: str, evidencia: str,
-                         norma: str, tool_context: ToolContext) -> dict:
+                         norma: str, tool_context: ToolContext,
+                         fuente: str = "") -> dict:
     """Agrega una bandera detectada por razonamiento del orquestador al
     state['pending_flags'] para que sea persistida en la siguiente llamada a
     `persist_alert_from_flags`.
@@ -16,8 +17,12 @@ def add_contextual_flag(regla: str, severidad: str, evidencia: str,
     Args:
         regla: identificador corto (ej. 'rubro_ciiu_incongruente').
         severidad: 'alta' | 'media' | 'baja'.
-        evidencia: texto factual con el hallazgo (max 500 chars).
+        evidencia: texto factual con el hallazgo, CON DATOS VERIFICABLES
+            (OCID, monto S/., RUC, DNI, fecha, artículo). Max 500 chars.
         norma: artículo o principio normativo citado.
+        fuente: URL oficial que respalda la bandera (SEACE/OECE/SUNAT/OSCE/RNP).
+            Si se omite, se usa por defecto la URL del proceso en OECE
+            Contrataciones Abiertas. Toda bandera DEBE quedar con fuente.
 
     Returns:
         dict con la bandera agregada + total de pending_flags acumulados.
@@ -29,6 +34,10 @@ def add_contextual_flag(regla: str, severidad: str, evidencia: str,
         "severidad": severidad,
         "evidencia": (evidencia or "")[:500],
         "norma": (norma or "")[:200],
+        # fuente_url: si el orquestador pasó una URL específica la usamos; si
+        # no, persist_alert_from_flags le pone la URL oficial del proceso por
+        # defecto (cita_evidencia exige norma + fuente en TODA bandera).
+        "fuente_url": ((fuente or "").strip()[:300] or None),
         "triggered": True,
         "_source": "orchestrator_paso_7.7",
     }
@@ -119,9 +128,12 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
         # código (típico cuando el flujo se cortó en un run anterior y la
         # alerta quedó con banderas obsoletas/alucinadas).
         cur.execute("DELETE FROM banderas WHERE alerta_id=%s", (alerta_id,))
+        # URL oficial por defecto: toda bandera DEBE quedar con fuente (el
+        # evaluador determinista cita_evidencia exige norma + fuente_url). Las
+        # banderas de reglas duras ya traen su fuente; las contextuales (de
+        # add_contextual_flag sin `fuente`) caen a la URL canónica del proceso.
+        _fuente_default = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
         for b in banderas:
-            # Defensive .get() para banderas que pueden venir de add_contextual_flag
-            # (sin fuente_url) o de reglas duras (con fuente_url).
             cur.execute(
                 """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
                                          fuente_url, agente_origen)
@@ -132,7 +144,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                     b.get("severidad", "media"),
                     b.get("evidencia", ""),
                     b.get("norma", ""),
-                    b.get("fuente_url"),
+                    b.get("fuente_url") or _fuente_default,
                 ),
             )
         conn.commit()
