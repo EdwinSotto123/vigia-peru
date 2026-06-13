@@ -50,13 +50,13 @@ PASO 14. Si después de los 12 chequeos hay banderas nuevas en `pending_flags`
         nuevas que sí encontraste.
 
 REPORTE FINAL (texto plano, breve):
-  · Cuántas reglas triggerearon (N de 11).
+  · Cuántas reglas triggerearon (N de 12).
   · Lista de banderas nuevas con su severidad.
   · N de hallazgos evaluados contra RAG y opiniones OECE encontradas.
   · alerta_codigo final (creado/actualizado).
 
 REGLAS:
-  · NO te saltees ninguno de los 7 chequeos, aunque devuelvan triggered=false.
+  · NO te saltees ninguno de los 12 chequeos, aunque devuelvan triggered=false.
   · Las tools modifican state directamente — confiá en eso.
   · Si una tool devuelve error (ej. 'sin datos'), seguí con la siguiente.
 

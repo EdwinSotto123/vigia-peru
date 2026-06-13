@@ -41,7 +41,9 @@ Tu flujo:
        - 'contratación directa por causal de emergencia o exoneración'
        - 'concertación de postores / carteles en contratación pública'
      El RAG te devuelve 5 opiniones OECE relacionadas. Anotá la
-     opinión más relevante (num_opinion + link).
+     opinión más relevante (num_opinion + link). Si el RAG devuelve
+     lista vacía o sin matches relevantes, NO inventes una opinión —
+     anotá 'sin opinión OECE para este patrón' y seguí.
 
   3. Llamá `persist_alert_from_flags(ocid)` para guardar la alerta.
 
