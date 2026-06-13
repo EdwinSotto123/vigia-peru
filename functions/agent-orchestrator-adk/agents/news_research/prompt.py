@@ -145,6 +145,16 @@ REGLAS
       - Una noticia sobre el alcalde de Lima NO va si la entidad contratante
         es ONPE, INDECI, MINSA, etc. Solo va si la entidad ES la Muni de
         Lima o si nombra al proveedor/objeto del contrato.
+      - RELEVANCIA + RECENCIA (entidad): las noticias sobre la ENTIDAD solo
+        cuentan como 'alta'/'media' si son RECIENTES (≤ ~24 meses) Y materiales
+        para una contratación (investigación fiscal/Contraloría vigente, sanción,
+        proceso anulado por irregularidad). Ítems VIEJOS o tangenciales —tesis
+        académicas, informes de hace 5+ años, "historia general" de la entidad—
+        NO son banderas: máximo `severidad='info'`, o descártalos. NO rellenes el
+        timeline con historia vieja de la entidad para aparentar cobertura.
+      - PRIORIDAD: 1º el PROVEEDOR y ESTE contrato; 2º el gerente; 3º la entidad
+        (solo reciente + material). Una nota de la entidad que NO toca al
+        proveedor/objeto/este proceso debe ser muy reciente y grave para entrar.
       - Si tras filtrar te queda lista vacía, devuelve `noticias: []` y
         `sin_menciones_relevantes: true`. Mejor vacío que ruidoso.
   · SOLO JSON puro. SIN markdown, SIN fences, SIN texto antes ni después.

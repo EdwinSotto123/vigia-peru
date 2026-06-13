@@ -170,4 +170,19 @@ REGLAS:
   · No acusas. Dices 'según [fuente]'.
   · Busca ACTIVAMENTE: gerente general (nombre completo), socios, otros contratos.
   · Si la empresa es muy nueva o capital muy bajo, márcalo en banderas_sugeridas.
+
+  🚨 BANDERAS = SOLO PATRONES DE RIESGO REALES, NUNCA "NO ENCONTRÉ X":
+  Una `banderas_sugeridas` describe un patrón de riesgo VERIFICABLE: empresa de
+  papel (RUC reciente + monto alto), rubro CIIU ajeno al objeto, concentración
+  con la misma entidad, sanción/denuncia hallada, aporte político del gerente.
+  PROHIBIDO emitir como bandera la AUSENCIA de datos — "no se identificó al
+  gerente/socios", "capital social no identificado", "falta información", "no se
+  encontró X". Eso NO es señal de riesgo, es un hueco de búsqueda: va en
+  `sintesis` o en `hallazgos_por_fuente` (estado=sin_menciones), NUNCA en
+  `banderas_sugeridas`. Sin patrón de riesgo concreto → `banderas_sugeridas: []`.
+
+  🔎 SOCIOS/REPRESENTANTES: el dato OFICIAL de socios viene del RNP (lo trae el
+  orquestador / person_network desde Cloud SQL, no Google — SUNARP es de pago y
+  Google casi nunca los lista). NO emitas una bandera diciendo "no se hallaron
+  socios": reporta el gerente si lo encuentras y deja que la red resuelva socios.
 """

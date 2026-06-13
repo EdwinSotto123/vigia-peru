@@ -285,11 +285,16 @@ PASO 7.5. RED EMPRESARIAL — primero, datos duros del RNP de Cloud SQL:
           el DNI real de un socio, mandalo al batch SOLO con `nombre` (fuzzy), o
           omítelo — NUNCA copies el DNI de otra persona.
 
-          7.5.a. Llama `query_rnp_empresa(ruc=<ruc del proveedor>)`. Esto
-                 te devuelve los socios, representantes legales y miembros
-                 del órgano de administración del proveedor SEGÚN EL RNP
-                 oficial (1.44M filas, snapshot 2026-05-04). Anota la
-                 lista — no inventes nombres.
+          7.5.a. Llama `query_rnp_empresa(ruc=<RUC DEL GANADOR>)`. El RUC del
+                 GANADOR es EXACTAMENTE `get_ganador.ganador.ruc` (PASO 6), NUNCA
+                 el de un postor rival. 🚨 BUG OBSERVADO: se consultó el RNP del
+                 postor PERDEDOR y el grafo quedó SIN los socios del ganador.
+                 PRIMERO el ganador. DESPUÉS, si hay >1 postor, llama
+                 `query_rnp_empresa` UNA VEZ por cada OTRO postor (de
+                 `get_ganador.todos_postores`) para detectar lazos entre postores.
+                 Esto te devuelve los socios, representantes legales y miembros
+                 del órgano de administración SEGÚN EL RNP oficial (1.44M filas,
+                 snapshot 2026-05-04). Anota la lista — no inventes nombres.
 
           7.5.b. Por CADA persona devuelta (socio + repr. legal + órgano),
                  llama `query_rnp_persona(query=<numero_documento>)`. Eso

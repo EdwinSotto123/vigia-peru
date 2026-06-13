@@ -49,6 +49,47 @@ def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
     return [(x if x in labels else labels[-1]) for x in out]
 
 
+def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list[dict]:
+    """Como _judge_array pero cada elemento es {label, reason} — para que el
+    dashboard muestre POR QUÉ cada ítem (bandera/precio) pasó o falló."""
+    from google.genai import types as gt
+    client = _gemini_client()
+    schema = gt.Schema(
+        type=gt.Type.OBJECT,
+        properties={"veredictos": gt.Schema(
+            type=gt.Type.ARRAY,
+            items=gt.Schema(
+                type=gt.Type.OBJECT,
+                properties={
+                    "label": gt.Schema(type=gt.Type.STRING, enum=labels),
+                    "reason": gt.Schema(type=gt.Type.STRING),
+                },
+                required=["label", "reason"],
+            ),
+        )},
+        required=["veredictos"],
+    )
+    cfg = gt.GenerateContentConfig(
+        temperature=0.0, response_mime_type="application/json",
+        response_schema=schema, http_options=gt.HttpOptions(timeout=60000),
+    )
+    try:
+        with _throttle_gemini():
+            resp = _gemini_call_with_retry(lambda: client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL, contents=[prompt], config=cfg))
+        arr = (json.loads(resp.text or "{}") or {}).get("veredictos") or []
+    except Exception:
+        arr = []
+    res: list[dict] = []
+    for x in arr[:n_expected]:
+        lab = str((x or {}).get("label", "")).strip()
+        res.append({"label": lab if lab in labels else labels[-1],
+                    "reason": str((x or {}).get("reason", ""))[:240]})
+    while len(res) < n_expected:
+        res.append({"label": labels[-1], "reason": ""})
+    return res
+
+
 def _judge_one(prompt: str, labels: list[str]) -> str:
     from google.genai import types as gt
     client = _gemini_client()
@@ -112,6 +153,8 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         "coherencia": None, "coherencia_reason": "",
         "completitud": {"ok": 0, "n": 0, "faltantes": []},
         "per_bandera": [],
+        "per_precio": [],
+        "cita_detalle": [],
         "n_judge_calls": 0,
     }
 
@@ -122,6 +165,11 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         ok = len(norma) > 4 and len(fuente) > 4
         out["cita"]["n"] += 1
         out["cita"]["ok"] += 1 if ok else 0
+        if not ok:
+            falta = []
+            if len(norma) <= 4: falta.append("norma")
+            if len(fuente) <= 4: falta.append("fuente_url")
+            out["cita_detalle"].append({"regla": b.get("regla"), "falta": falta})
 
     # respaldo_de_bandera (LLM, batched, máx 12).
     bl = banderas[:12]
@@ -134,17 +182,19 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "Eres un auditor de un sistema anti-corrupción. Para CADA bandera, decide "
             "si su EVIDENCIA es concreta y verificable (cita datos específicos: RUC, "
             "monto, fecha, artículo, nombre) o si es vaga/genérica/posible invención.\n"
-            "Devuelve `veredictos`: una lista alineada por índice, 'respaldada' o "
-            "'no_respaldada' por cada bandera.\n\n"
+            "Devuelve `veredictos`: lista alineada por índice; cada elemento "
+            "{label:'respaldada'|'no_respaldada', reason: 1 frase con el dato "
+            "concreto que la respalda, o qué dato verificable le falta}.\n\n"
             f"BANDERAS:\n{json.dumps(items, ensure_ascii=False)}"
         )
-        verds = _judge_array(prompt, len(bl), ["respaldada", "no_respaldada"])
+        verds = _judge_array_reason(prompt, len(bl), ["respaldada", "no_respaldada"])
         out["n_judge_calls"] += 1
         for i, b in enumerate(bl):
-            ok = verds[i] == "respaldada"
+            ok = verds[i]["label"] == "respaldada"
             out["respaldo"]["n"] += 1
             out["respaldo"]["ok"] += 1 if ok else 0
-            out["per_bandera"].append({"regla": b.get("regla"), "respaldada": ok})
+            out["per_bandera"].append({"regla": b.get("regla"), "respaldada": ok,
+                                       "reason": verds[i]["reason"]})
 
     # plausibilidad_precio (LLM, batched, máx 10 con precios observados).
     fl = [f for f in (market_findings or [])
@@ -160,14 +210,20 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         prompt = (
             "Eres un auditor de precios públicos. Para CADA ítem, decide si el VEREDICTO "
             "del agente se sostiene con los datos (mediana de mercado vs ofertado/"
-            "referencial). Devuelve `veredictos`: lista alineada, 'plausible' o 'dudoso'.\n\n"
+            "referencial). Devuelve `veredictos`: lista alineada; cada elemento "
+            "{label:'plausible'|'dudoso', reason: 1 frase de por qué (p.ej. "
+            "'mediana S/.146 implausible para llanta de camión' o 'Δ coherente')}.\n\n"
             f"ITEMS:\n{json.dumps(items, ensure_ascii=False, default=str)}"
         )
-        verds = _judge_array(prompt, len(fl), ["plausible", "dudoso"])
+        verds = _judge_array_reason(prompt, len(fl), ["plausible", "dudoso"])
         out["n_judge_calls"] += 1
-        for i in range(len(fl)):
+        for i, f in enumerate(fl):
+            ok = verds[i]["label"] == "plausible"
             out["precio"]["n"] += 1
-            out["precio"]["ok"] += 1 if verds[i] == "plausible" else 0
+            out["precio"]["ok"] += 1 if ok else 0
+            out["per_precio"].append({
+                "item": f.get("item_descripcion") or f.get("descripcion_corta"),
+                "plausible": ok, "reason": verds[i]["reason"]})
 
     # tono_no_acusatorio (LLM, dictamen) — con razón.
     if dictamen and len(dictamen.strip()) > 100:
