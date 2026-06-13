@@ -383,12 +383,12 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
 
     mensaje_base = (
         "Estos son los ítems con su requerimiento técnico detallado "
-        "extraído de las Bases Administrativas. Usá `requerimiento_tecnico_detallado` "
+        "extraído de las Bases Administrativas. Usa `requerimiento_tecnico_detallado` "
         "como contexto principal para construir queries específicas; NO te bases solo "
         "en `descripcion_corta`."
         if n_con_req > 0 else
         "No se pudo extraer requerimiento técnico detallado de las Bases (posiblemente "
-        "el PDF era escaneado o el parser falló). Trabajá con descripcion_corta y marcá "
+        "el PDF era escaneado o el parser falló). Trabaja con descripcion_corta y marca "
         "tus findings como es_estimacion=true con motivo_estimacion='requerimiento_no_disponible'."
     )
     mensaje_lote = ""
@@ -398,14 +398,14 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             f" Estos {p['n_subitems']} sub-ítems pertenecen a un LOTE OCDS de S/. "
             f"{(p.get('cuantia_total') or 0):,.2f} TOTAL (este es el monto OFERTADO por el "
             f"postor adjudicado para todo el lote — el ítem padre no se incluye "
-            f"abajo porque sus sub-ítems lo componen). Para cada sub-ítem emití "
+            f"abajo porque sus sub-ítems lo componen). Para cada sub-ítem emite "
             f"1 finding con su `precio_mediana_mercado` y su `cantidad`. EN EL JSON "
-            f"DE SALIDA llená `total_ofertado={p['cuantia_total']:.2f}` y "
+            f"DE SALIDA llena `total_ofertado={p['cuantia_total']:.2f}` y "
             f"`total_estimado_mercado` = suma(cantidad × mediana_mercado) de cada "
-            f"sub-ítem. Calculá `sobreprecio_pct = (total_ofertado - total_estimado_mercado) / "
+            f"sub-ítem. Calcula `sobreprecio_pct = (total_ofertado - total_estimado_mercado) / "
             f"total_estimado_mercado * 100` y `veredicto_global` ('alineado' si |Δ|<15, "
             f"'elevado' si 15-50, 'muy_elevado' si ≥50, 'barato' si Δ≤-15). En el "
-            f"`comentario_global` explicá la comparación contra el lote total."
+            f"`comentario_global` explica la comparación contra el lote total."
         )
 
     out = {
@@ -486,7 +486,7 @@ def read_market_input(tool_context: ToolContext) -> dict:
     ocds = state.get("ocds") or {}
     ocid_raw = ocds.get("ocid") or state.get("ocid")
     if not ocid_raw:
-        return {"error": "no hay OCDS en state — ejecutá fetch_ocds_record primero",
+        return {"error": "no hay OCDS en state — ejecuta fetch_ocds_record primero",
                 "items": []}
     # Normalizar al formato corto que usa SQL — bug detectado 2026-05-24
     ocid = _short_ocid(ocid_raw)
@@ -514,13 +514,13 @@ MARKET_RETRY = os.getenv("MARKET_RETRY", "1") == "1"
 MARKET_TIMEOUT_S = int(os.getenv("MARKET_TIMEOUT_S", "300"))
 
 _MARKET_WORKER_RULES = """
-REGLAS (aplicá a CADA ítem de tu lote):
-1. Hacé MÍNIMO 6 búsquedas Google por ítem, priorizando mercado peruano:
+REGLAS (aplica a CADA ítem de tu lote):
+1. Haz MÍNIMO 6 búsquedas Google por ítem, priorizando mercado peruano:
    site:mercadolibre.com.pe, site:plazavea.com.pe, site:tottus.com.pe,
    site:sodimac.com.pe, site:promart.pe, más "<producto> precio mayorista Perú".
-   Usá marca/modelo/specs LITERALES del requerimiento; no busques genérico.
-2. PRECIO MAYORISTA POR VOLUMEN: si cantidad 20-99 aplicá -10% al retail; 100-499 -20%;
-   500-1999 -25%; ≥2000 -30%. Antes de aplicar el factor, intentá precio mayorista REAL.
+   Usa marca/modelo/specs LITERALES del requerimiento; no busques genérico.
+2. PRECIO MAYORISTA POR VOLUMEN: si cantidad 20-99 aplica -10% al retail; 100-499 -20%;
+   500-1999 -25%; ≥2000 -30%. Antes de aplicar el factor, intenta precio mayorista REAL.
 3. Cada precio observado DEBE tener `url` real y navegable. Sin URL, el precio NO va.
    Mínimo 3 precios de fuentes distintas (o confianza 'media'/'baja' si hay 1-2).
 4. precio_mediana_mercado = mediana NUMÉRICA de los precios observados (OBLIGATORIO
@@ -528,9 +528,9 @@ REGLAS (aplicá a CADA ítem de tu lote):
 5. diff_pct = (ofertado o referencial − mediana)/mediana × 100.
    veredicto: |Δ|<15 'alineado' · 15≤Δ<50 'elevado' · Δ≥50 'muy_elevado' ·
    Δ≤-15 'barato' · sin precios fiables 'estimacion'.
-6. spec_restrictiva: si exige UNA marca/cert atípica que reduce competencia, anotalo; si no, null.
-7. NO inventes precios ni URLs. Si no encontrás nada, precios_observados=[],
-   precio_mediana_mercado=null, veredicto='estimacion', y explicalo en comentario.
+6. spec_restrictiva: si exige UNA marca/cert atípica que reduce competencia, anótalo; si no, null.
+7. NO inventes precios ni URLs. Si no encuentras nada, precios_observados=[],
+   precio_mediana_mercado=null, veredicto='estimacion', y explícalo en comentario.
 
 FORMATO POR FINDING (un objeto por ítem, usando su `numero` como item_numero):
 {
@@ -554,14 +554,14 @@ def _price_market_chunk(items_chunk: list, objeto: str, idx: int) -> dict:
     from google.genai import types
     items_json = json.dumps(items_chunk, ensure_ascii=False)
     prompt = (
-        "Sos un analista de precios de mercado peruano. Tu herramienta es Google "
+        "Eres un analista de precios de mercado peruano. Tu herramienta es Google "
         "Search (grounding en vivo).\n\n"
         f"OBJETO DEL CONTRATO: {objeto[:300]}\n"
         "⚠ Cada item_descripcion DEBE corresponder a ese objeto. NO inventes "
         "productos de otros rubros (no copies ejemplos de máquinas/vehículos).\n\n"
         f"ÍTEMS A PRECIAR EN ESTE LOTE ({len(items_chunk)}):\n{items_json}\n"
         f"{_MARKET_WORKER_RULES}\n"
-        "Devolvé SOLO JSON puro (sin fences, sin texto extra): "
+        "Devuelve SOLO JSON puro (sin fences, sin texto extra): "
         '{"findings": [ ...un objeto por cada ítem del lote... ]}'
     )
     client = _gemini_client()
@@ -665,7 +665,7 @@ def analyze_market_sharded(ocid: str, tool_context: ToolContext) -> dict:
     items = (mi or {}).get("items") or []
     if not items:
         return {"error": "no_market_input",
-                "hint": "Ejecutá fetch_ocds_record/build_market_input primero."}
+                "hint": "Ejecuta fetch_ocds_record/build_market_input primero."}
 
     ocds = state.get("ocds") or {}
     tender = ocds.get("tender") or {}
@@ -699,7 +699,7 @@ def analyze_market_sharded(ocid: str, tool_context: ToolContext) -> dict:
                     all_findings.append(f)
                     n_retry_recuperados += 1
 
-    # Normalizá la mediana a número (el modelo a veces la devuelve como string
+    # Normaliza la mediana a número (el modelo a veces la devuelve como string
     # tipo 'S/ 1,200.50'): así no descartamos ítems que SÍ tienen precio.
     for f in all_findings:
         if isinstance(f, dict):

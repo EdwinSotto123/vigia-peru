@@ -131,10 +131,10 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "evidencia": (b.get("evidencia") or "")[:400],
         } for i, b in enumerate(bl)]
         prompt = (
-            "Sos un auditor de un sistema anti-corrupción. Para CADA bandera, decidí "
+            "Eres un auditor de un sistema anti-corrupción. Para CADA bandera, decide "
             "si su EVIDENCIA es concreta y verificable (cita datos específicos: RUC, "
             "monto, fecha, artículo, nombre) o si es vaga/genérica/posible invención.\n"
-            "Devolvé `veredictos`: una lista alineada por índice, 'respaldada' o "
+            "Devuelve `veredictos`: una lista alineada por índice, 'respaldada' o "
             "'no_respaldada' por cada bandera.\n\n"
             f"BANDERAS:\n{json.dumps(items, ensure_ascii=False)}"
         )
@@ -158,9 +158,9 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "veredicto": f.get("veredicto"), "diff_pct": f.get("diff_pct"),
         } for i, f in enumerate(fl)]
         prompt = (
-            "Sos un auditor de precios públicos. Para CADA ítem, decidí si el VEREDICTO "
+            "Eres un auditor de precios públicos. Para CADA ítem, decide si el VEREDICTO "
             "del agente se sostiene con los datos (mediana de mercado vs ofertado/"
-            "referencial). Devolvé `veredictos`: lista alineada, 'plausible' o 'dudoso'.\n\n"
+            "referencial). Devuelve `veredictos`: lista alineada, 'plausible' o 'dudoso'.\n\n"
             f"ITEMS:\n{json.dumps(items, ensure_ascii=False, default=str)}"
         )
         verds = _judge_array(prompt, len(fl), ["plausible", "dudoso"])
@@ -174,10 +174,10 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         prompt = (
             "Principio innegociable: NUNCA acusamos a nadie de un delito; solo "
             "describimos 'señales de riesgo' / 'patrones detectados' / 'contradice la "
-            "opinión OECE'. Evaluá el DICTAMEN.\n"
+            "opinión OECE'. Evalúa el DICTAMEN.\n"
             "label='ok' si usa lenguaje de señal/indicio sin afirmar culpabilidad; "
             "'acusatorio' si afirma directamente delito/corrupción de una persona.\n"
-            "reason: citá la frase del dictamen que motivó tu veredicto.\n\n"
+            "reason: cita la frase del dictamen que motivó tu veredicto.\n\n"
             f"DICTAMEN (primeros 7000 chars):\n{dictamen[:7000]}"
         )
         out["tono"], out["tono_reason"] = _judge_one_reason(prompt, ["ok", "acusatorio"])
@@ -194,14 +194,14 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
     item_descs = [d for d in item_descs if d][:15]
     if (objeto or "").strip() and item_descs:
         prompt = (
-            "Sos un auditor de contrataciones públicas. El OBJETO define QUÉ compra el "
-            "Estado. Decidí si los ÍTEMS analizados son COHERENTES con ese objeto "
+            "Eres un auditor de contrataciones públicas. El OBJETO define QUÉ compra el "
+            "Estado. Decide si los ÍTEMS analizados son COHERENTES con ese objeto "
             "(mismo rubro / familia de producto) o si hay ítems SIN relación con el "
             "objeto (señal de extracción contaminada o errónea — p. ej. 'carne de pollo' "
             "en una compra de 'acelerómetros').\n"
             "label='coherente' si todos los ítems encajan con el objeto; 'incoherente' "
             "si aparece al menos un ítem ajeno.\n"
-            "reason: nombrá el/los ítems ajenos si los hay, o confirmá la coherencia.\n\n"
+            "reason: nombra el/los ítems ajenos si los hay, o confirma la coherencia.\n\n"
             f"OBJETO: {(objeto or '')[:240]}\n"
             f"ÍTEMS ANALIZADOS: {json.dumps(item_descs, ensure_ascii=False)}"
         )
