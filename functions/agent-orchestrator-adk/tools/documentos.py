@@ -43,16 +43,30 @@ def list_documents(ocid: str, tool_context: ToolContext) -> dict:
     """
     cr = tool_context.state.get("ocds") or {}
     docs_b64 = tool_context.state.get("docs_b64") or {}
-    docs = (cr.get("tender") or {}).get("documents") or []
+    # Recolectar documentos de TODAS las etapas, no solo `tender`. El contrato
+    # firmado (Orden de Compra) vive en `contracts.documents` y antes quedaba
+    # invisible → nunca se parseaba (contrato_final salía null). Mapeo de etapa
+    # para que el agente priorice (Bases/Resumen→Convocatoria, Acta→Adjudicación,
+    # Contrato/garantía→Contrato).
+    docs: list[dict] = []
+    for stage in ("tender", "awards", "contracts"):
+        node = cr.get(stage)
+        arr = node if isinstance(node, list) else ([node] if node else [])
+        for nd in arr:
+            if isinstance(nd, dict):
+                for d in (nd.get("documents") or []):
+                    if isinstance(d, dict):
+                        docs.append({**d, "_stage": stage})
     return {
         "n_documents": len(docs),
         "documents": [
             {
                 "id": d.get("id"), "title": d.get("title"),
                 "documentType": d.get("documentType"), "url": d.get("url"),
-                "format": d.get("format"), "has_b64_preloaded": d.get("url") in docs_b64,
+                "format": d.get("format"), "stage": d.get("_stage"),
+                "has_b64_preloaded": d.get("url") in docs_b64,
             }
-            for d in docs[:5]
+            for d in docs[:12]
         ],
     }
 
