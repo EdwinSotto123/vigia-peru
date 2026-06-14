@@ -2,6 +2,35 @@
 
 from tools._core import *  # noqa: F401,F403
 
+
+def _norm_txt(s: str) -> str:
+    """MAYÚSCULAS sin tildes, espacios colapsados — para comparar descripciones."""
+    import unicodedata
+    s = " ".join((s or "").strip().upper().split())
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+
+def _es_cabecera_objeto(it: dict, objeto_norm: str) -> bool:
+    """True si el ítem es la CABECERA-OBJETO del contrato (el agregador OCDS),
+    no un producto real: SIN cantidad y SIN requerimiento técnico, con descripción
+    que coincide con el objeto de la convocatoria.
+
+    Reutiliza la MISMA heurística que `market._parser_item1_es_producto_fisico`
+    (primeros 35 chars iguales o difflib ratio>=0.75 en los primeros 120) → tolera
+    el ruido OCR que hace que dos copias del mismo encabezado no coincidan literal.
+    """
+    if not objeto_norm:
+        return False
+    # Un producto real tiene cantidad o requerimiento → nunca es cabecera-objeto.
+    if it.get("cantidad") not in (None, "", 0) or (it.get("requerimiento_tecnico_detallado") or "").strip():
+        return False
+    desc = _norm_txt(it.get("descripcion_corta") or it.get("descripcion") or "")
+    if not desc:
+        return False
+    import difflib as _dl
+    return (desc[:35] == objeto_norm[:35]
+            or _dl.SequenceMatcher(None, desc[:120], objeto_norm[:120]).ratio() >= 0.75)
+
 def list_documents(ocid: str, tool_context: ToolContext) -> dict:
     """Lista los documentos publicados en SEACE para esta convocatoria.
 
@@ -1593,6 +1622,31 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         raw["lugar_fecha_acta"] = lugar_fecha_acta
     if cuantia_total and not raw.get("cuantia_total"):
         raw["cuantia_total"] = cuantia_total
+
+    # ── Quitar la CABECERA-OBJETO del contrato cuando ya hay ítems reales ──
+    # El agregador OCDS ("ADQUISICIÓN DE LLANTAS PARA...") aparece como ítem en
+    # varios documentos y, por ruido OCR, a veces sobrevive duplicado al dedup
+    # (claves distintas por 1-2 chars). Es redundante con el campo `objeto`. Lo
+    # eliminamos SOLO si queda ≥1 ítem real (con cantidad o requerimiento), para
+    # no vaciar contratos de ítem único global. Fail-safe.
+    try:
+        _tender = (tool_context.state.get("ocds") or {}).get("tender") or {}
+        _objeto_norm = _norm_txt(_tender.get("description") or _tender.get("title") or "")
+        _items = raw.get("items_consolidados") or []
+
+        def _es_real(x: dict) -> bool:
+            return (x.get("cantidad") not in (None, "", 0)) or \
+                   bool((x.get("requerimiento_tecnico_detallado") or "").strip())
+
+        if _objeto_norm and any(_es_real(x) for x in _items):
+            _filtrados = [x for x in _items if not _es_cabecera_objeto(x, _objeto_norm)]
+            if len(_filtrados) < len(_items):
+                print(f"[parser-dedup] cabecera-objeto removida: "
+                      f"{len(_items)}→{len(_filtrados)} ítems", flush=True)
+                raw["items_consolidados"] = _filtrados
+    except Exception as _e:
+        print(f"[parser-dedup] filtro cabecera-objeto falló "
+              f"({type(_e).__name__}: {str(_e)[:120]})", flush=True)
 
     tool_context.state["parser_raw_consolidated"] = raw
 
