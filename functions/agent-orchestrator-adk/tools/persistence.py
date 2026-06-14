@@ -610,24 +610,16 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         # persistido. El análisis de riesgo legal vive SOLO en `legal_analysis`.
         _final_doc.pop("red_flags_documentales", None)
         _final_doc.pop("red_flags_observadas", None)
-        # Scrub de PLACEHOLDERS: el parser a veces inventa un comité o firmantes
-        # (nombres genéricos "María García Ruiz", SICAN secuencial C-12345/C-67890)
-        # o un acta con lugar/fecha falsos ("Lima 2023-01-15") cuando el documento
-        # no los trae (típico en procesos no competitivos). Los quitamos.
-        try:
-            from tools.documentos import _scrub_personas, _acta_implausible
-            for _k in ("firmantes", "firmantes_consolidados", "comite_evaluacion"):
-                if isinstance(_final_doc.get(_k), list):
-                    _final_doc[_k] = _scrub_personas(_final_doc[_k])
-            _oc = state.get("ocds") or {}
-            _ds = (_oc.get("date") or _oc.get("publishedDate")
-                   or ((_oc.get("tender") or {}).get("tenderPeriod") or {}).get("startDate") or "")
-            _m = re.search(r"\b(20\d{2})\b", str(_ds))
-            if _acta_implausible(_final_doc.get("lugar_fecha_acta"), _m.group(1) if _m else None):
-                print("[persist] lugar_fecha_acta placeholder removida (año incoherente)", flush=True)
-                _final_doc["lugar_fecha_acta"] = None
-        except Exception as _e:
-            print(f"[persist] scrub placeholders falló: {str(_e)[:80]}", flush=True)
+        # comité / motivos de adjudicación / acta: la AUTORIDAD es
+        # `parser_raw_consolidated`, que ya viene GATED por tipo de documento (solo
+        # acepta estos campos de actas/evaluaciones/contratos, NO de Bases/TDR). El
+        # `document_analysis` del agente (LLM) puede re-inventarlos aunque el doc no
+        # los tenga (proceso no competitivo) → los forzamos desde el raw gated.
+        # Fix de raíz: no depende de blocklists de nombres ni de heurísticas de fecha.
+        if isinstance(doc_raw, dict) and doc_raw:
+            _final_doc["comite_evaluacion"] = doc_raw.get("comite_evaluacion") or []
+            _final_doc["motivos_adjudicacion"] = doc_raw.get("motivos_adjudicacion") or []
+            _final_doc["lugar_fecha_acta"] = doc_raw.get("lugar_fecha_acta")
         # Dedup FINAL de variantes del mismo bien sobre la lista que se va a persistir
         # (el agente suele listar 'EQUIPO DE FTIR' / 'Equipo FTIR' / 'Equipo de FTIR
         # Espectrofotómetro...' por separado; el merge del parser no alcanza porque
