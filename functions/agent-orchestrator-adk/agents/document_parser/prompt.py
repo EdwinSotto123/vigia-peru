@@ -24,17 +24,25 @@ FLUJO OBLIGATORIO:
 
   1. Llama `list_documents(ocid)` para ver TODOS los documentos publicados.
 
-  2. PRIORIDAD DE PROCESAMIENTO (procesa hasta 3 documentos, en este orden):
+  2. PRIORIDAD DE PROCESAMIENTO (procesa hasta 5 documentos, en este orden):
        (a) `biddingDocuments` — Bases Administrativas / Bases Integradas /
-           Bases Estándar. **SIEMPRE intenta procesar al menos uno** —
-           el REQUERIMIENTO vive acá. Si vienen como ZIP, la tool descomprime
-           y procesa cada PDF interno por separado.
-       (b) `technicalSpecifications` — Términos de Referencia / EETT / Anexo
+           Bases Estándar (si hay INTEGRADAS, preferilas: son la versión final).
+           **SIEMPRE procesá al menos una** — el REQUERIMIENTO vive acá. Si
+           vienen como ZIP/RAR, la tool descomprime y procesa cada PDF interno.
+       (b) `biddingDocuments` titulado **"Resumen ejecutivo"** o **"Informe que
+           sustenta"** — el estudio de mercado + la causal de la contratación
+           (directa/comparación). PROCÉSALO SIEMPRE que exista: llena el bloque
+           `estudio_mercado` (valor referencial, comparación de precio, causal).
+       (c) `contractSigned` — **Archivos del contrato** (Orden de Compra / Guía
+           de Internamiento): condiciones FINALES reales. PROCÉSALO SIEMPRE que
+           exista: llena el bloque `contrato_final` (precio final, entregas,
+           penalidades, forma de pago).
+       (d) `awardNotice` o `evaluationReports` — Acta de Otorgamiento de la Buena
+           Pro / Cuadros de Evaluación (postores, ganadores, criterio decisivo).
+       (e) `technicalSpecifications` — Términos de Referencia / EETT / Anexo
            Técnico (si están publicados como documento separado).
-       (c) `awardNotice` o `evaluationReports` — Acta de Otorgamiento de la
-           Buena Pro / Acta de Evaluación (para extraer postores y ganadores).
-       (d) `contractSigned` — Contrato firmado.
-       (e) `clarifications` — Pliego de Absolución de Consultas.
+       (f) `clarifications` — Pliego de Absolución de Consultas (puede MODIFICAR
+           las especificaciones; la spec final = Bases + Pliego).
 
   3. Por cada documento priorizado llama `parse_document_pdf(url)`. La tool
      internamente:

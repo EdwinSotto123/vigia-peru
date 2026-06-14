@@ -623,6 +623,10 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         # Fase 1+2 — estado real y patrones de postores (incluso si no hay ganador)
         "estado_real":          state.get("estado_real"),
         "analisis_postores":    state.get("analisis_postores"),
+        # Bloques tipados por documento (ruteo incremental): estudio de mercado +
+        # causal (Resumen Ejecutivo/Informe) y condiciones finales (Orden de Compra).
+        "estudio_mercado":      _try_parse(state.get("estudio_mercado")),
+        "contrato_final":       _try_parse(state.get("contrato_final")),
     }
     dictamen_md = state.get("final_dictamen") or ""
     blob = json.dumps(analisis, ensure_ascii=False, default=str)

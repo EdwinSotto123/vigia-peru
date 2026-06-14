@@ -42,6 +42,76 @@ def docai_enabled() -> bool:
     return bool(_PROCESSOR_ID)
 
 
+def _texto_con_layout(document) -> str:
+    """Reconstruye el texto OCR usando el LAYOUT (tokens + bounding boxes) que
+    Document AI ya devuelve GRATIS en la misma respuesta — sin Layout Parser.
+
+    Agrupa tokens en FILAS por coordenada Y y, dentro de cada fila, inserta ' | '
+    cuando hay un salto horizontal grande entre tokens (límite de columna). Así
+    los cuadros (evaluación técnica/económica, tabla de ítems) llegan a Gemini
+    como filas legibles en vez de texto plano desordenado. Devuelve "" si no hay
+    bounding boxes (el caller cae al texto plano)."""
+    full = document.text or ""
+    if not full:
+        return ""
+
+    def _seg(layout) -> str:
+        try:
+            return "".join(full[int(s.start_index or 0):int(s.end_index or 0)]
+                           for s in layout.text_anchor.text_segments)
+        except Exception:
+            return ""
+
+    def _box(el):
+        try:
+            bp = el.layout.bounding_poly
+            vs = list(bp.normalized_vertices) or list(bp.vertices)
+            if not vs:
+                return None
+            xs = [v.x for v in vs]; ys = [v.y for v in vs]
+            return (min(xs), sum(ys) / len(ys), max(xs))  # x_izq, y_centro, x_der
+        except Exception:
+            return None
+
+    out: list[str] = []
+    Y_TOL, X_GAP = 0.008, 0.04  # umbrales (coordenadas normalizadas 0..1)
+    for page in (document.pages or []):
+        toks = []
+        for t in (page.tokens or []):
+            b = _box(t); txt = _seg(t.layout)
+            if b and txt.strip():
+                toks.append((b[1], b[0], b[2], txt.strip()))  # y, x_izq, x_der, texto
+        if not toks:  # sin bbox (p.ej. imageless sin layout) → usar líneas
+            for line in (page.lines or []):
+                lt = _seg(line.layout).replace("\n", " ").strip()
+                if lt:
+                    out.append(lt)
+            out.append("")
+            continue
+        toks.sort(key=lambda z: (round(z[0], 3), z[1]))
+        rows, cur, cy = [], [], None
+        for y, xl, xr, txt in toks:
+            if cy is None or abs(y - cy) <= Y_TOL:
+                cur.append((xl, xr, txt)); cy = y if cy is None else cy
+            else:
+                rows.append(cur); cur = [(xl, xr, txt)]; cy = y
+        if cur:
+            rows.append(cur)
+        for row in rows:
+            row.sort(key=lambda z: z[0])
+            parts, prev_xr = [], None
+            for xl, xr, txt in row:
+                if prev_xr is not None:
+                    parts.append(" | " if (xl - prev_xr) > X_GAP else " ")
+                parts.append(txt)
+                prev_xr = xr
+            line = "".join(parts).strip()
+            if line:
+                out.append(line)
+        out.append("")
+    return "\n".join(out).strip()
+
+
 def _ocr_one(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None:
     """OCR de UN PDF de ≤30 páginas (una llamada sync). Texto o None."""
     from google.cloud import documentai_v1 as documentai  # type: ignore
@@ -54,6 +124,16 @@ def _ocr_one(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None
     req = documentai.ProcessRequest(name=name, raw_document=raw, imageless_mode=True)
     result = client.process_document(request=req)
     text = (result.document.text or "").strip()
+    # Aprovechar el LAYOUT (gratis) para reordenar filas/columnas de tablas. Solo
+    # se adopta si NO perdió texto vs el plano (guard anti-regresión). Flag para
+    # poder revertir sin redeploy.
+    if text and os.getenv("DOCAI_LAYOUT_TEXT", "1") != "0":
+        try:
+            rebuilt = _texto_con_layout(result.document)
+            if rebuilt and len(rebuilt) >= 0.85 * len(text):
+                text = rebuilt
+        except Exception as e:
+            print(f"[docai] layout reconstruct falló ({type(e).__name__}: {str(e)[:100]}) → texto plano", flush=True)
     n_pages = len(result.document.pages or [])
     print(f"[docai] OCR chunk OK · {n_pages} págs · {len(text):,} chars", flush=True)
     return text or None

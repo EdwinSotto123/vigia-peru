@@ -5,11 +5,13 @@
 FROM python:3.12-slim
 
 # Instalar binarios del sistema:
-#  · unrar-free: extractor RAR open source (debian main, sin restricciones).
+#  · unar (The Unarchiver): extractor libre en debian main que SÍ abre RAR5
+#    (a diferencia de unrar-free, limitado a RAR<=3). `rarfile` lo autodetecta.
+#  · libarchive-tools (bsdtar): backend RAR de respaldo para `rarfile`.
 #  · libreoffice no se instala — DOCX se convierte a PDF con python-docx.
 # Limpiamos apt cache para mantener la imagen liviana.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        unrar-free \
+        unar libarchive-tools \
         && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

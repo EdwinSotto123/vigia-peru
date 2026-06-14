@@ -26,6 +26,10 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         "web_research", "news_research", "person_network", "compliance_result",
         "normative_compliance", "alerta_codigo", "parser_raw_consolidated",
         "market_findings",
+        # Bloques tipados por documento (ruteo incremental): estudio de mercado +
+        # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra). El
+        # dictamen los cita para el "por qué" de la modalidad y el precio pagado.
+        "estudio_mercado", "contrato_final",
     ]
     out: dict = {}
     for k in keys:
@@ -97,6 +101,10 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
             "cuantia_total": raw.get("cuantia_total"),
             "modalidad": raw.get("modalidad"),
             "fundamento_legal": raw.get("fundamento_legal"),
+            # Estudio de mercado + causal (Resumen Ejecutivo) para que el análisis
+            # legal evalúe la VALIDEZ de la causal de contratación directa.
+            "estudio_mercado": state.get("estudio_mercado"),
+            "contrato_final": state.get("contrato_final"),
             "_source": "parser_raw_consolidated",
             "_note": "Fallback: document_analysis vacío o malformado, "
                      "usé parser_raw_consolidated directamente.",

@@ -536,6 +536,62 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
                 type=gtypes.Type.ARRAY,
                 items=gtypes.Schema(type=gtypes.Type.STRING),
             ),
+            "estudio_mercado": gtypes.Schema(
+                type=gtypes.Type.OBJECT, nullable=True,
+                description=(
+                    "Llenar SOLO si este documento es un RESUMEN EJECUTIVO o un "
+                    "'Informe que sustenta' la contratación (típico en contratación "
+                    "directa o comparación de precios): el estudio/indagación de mercado "
+                    "y la justificación legal. Si el documento NO es de ese tipo, dejá "
+                    "TODO el objeto en null (no inventes)."
+                ),
+                properties={
+                    "resumen": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
+                        description="Por qué se eligió esta modalidad/proveedor."),
+                    "valor_referencial": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True,
+                        description="Valor referencial/estimado del estudio de mercado."),
+                    "moneda": gtypes.Schema(type=gtypes.Type.STRING, nullable=True, description="PEN o USD."),
+                    "comparacion_precio_historico": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
+                        description="Texto LITERAL de comparación con compras previas (ej. '2025: USD 3.60 → ahora 3.80')."),
+                    "causal_articulo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
+                        description="Causal/artículo de excepción invocado, LITERAL (ej. 'art. 7.1 lit. n Ley 32069')."),
+                    "causal_texto": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
+                        description="Fundamento textual de por qué aplica la causal."),
+                    "proveedores_evaluados": gtypes.Schema(type=gtypes.Type.ARRAY,
+                        items=gtypes.Schema(type=gtypes.Type.STRING),
+                        description="Proveedores/laboratorios contactados o evaluados."),
+                    "descalificaciones": gtypes.Schema(type=gtypes.Type.ARRAY,
+                        items=gtypes.Schema(type=gtypes.Type.STRING),
+                        description="Razones por las que se descartaron otras ofertas."),
+                },
+            ),
+            "contrato_final": gtypes.Schema(
+                type=gtypes.Type.OBJECT, nullable=True,
+                description=(
+                    "Llenar SOLO si este documento es la ORDEN DE COMPRA / CONTRATO "
+                    "firmado ('Archivos del contrato'): las condiciones FINALES reales. "
+                    "Si el documento NO es orden de compra/contrato, dejá TODO en null."
+                ),
+                properties={
+                    "precio_final_total": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True,
+                        description="Monto TOTAL final contratado (lo realmente comprometido)."),
+                    "moneda": gtypes.Schema(type=gtypes.Type.STRING, nullable=True, description="PEN o USD."),
+                    "cronograma_entregas": gtypes.Schema(type=gtypes.Type.ARRAY,
+                        items=gtypes.Schema(type=gtypes.Type.OBJECT, properties={
+                            "descripcion": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
+                            "cantidad": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
+                            "plazo_dias": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
+                            "monto": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
+                        }),
+                        description="Entregas con plazo/monto si el documento las detalla."),
+                    "penalidades": gtypes.Schema(type=gtypes.Type.ARRAY,
+                        items=gtypes.Schema(type=gtypes.Type.STRING),
+                        description="Penalidades por mora/incumplimiento (texto literal)."),
+                    "forma_pago": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
+                        description="Forma/condición de pago (ej. 'carta de crédito 90/10')."),
+                    "proveedor_ruc": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
+                },
+            ),
             "resumen": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
         },
     )
@@ -831,6 +887,17 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
         "documento: 'Art. 55.1.b Ley 32069', 'Art. 2 TUO Ley 30225', 'D.S. 009-2025-EF\n"
         "Art. 12', etc.). Solo LO QUE EL DOCUMENTO CITA — no interpretes si están bien\n"
         "invocados o no. Eso lo evalúa `document_legal_analyst_agent` aparte.\n"
+        "\n"
+        "PASO 5.5 — SEGÚN EL TIPO DE DOCUMENTO, llená UNO de estos objetos (o ninguno):\n"
+        "  · Si es RESUMEN EJECUTIVO o 'Informe que sustenta' (justifica una directa o\n"
+        "    comparación de precios) → completá `estudio_mercado` (valor referencial,\n"
+        "    comparación de precio histórico LITERAL, causal/artículo invocado, texto de\n"
+        "    la causal, proveedores evaluados, descalificaciones). Es el 'POR QUÉ' del proceso.\n"
+        "  · Si es ORDEN DE COMPRA / CONTRATO firmado ('Archivos del contrato') →\n"
+        "    completá `contrato_final` (precio FINAL total + moneda, cronograma de\n"
+        "    entregas, penalidades, forma de pago, RUC del proveedor). Es lo REALMENTE pagado.\n"
+        "  · En CUALQUIER OTRO documento (Bases, acta, presentación, cuadros) → dejá\n"
+        "    AMBOS objetos en null. NO inventes; copiá montos/causales LITERALES del PDF.\n"
         "\n"
         "PASO 6 — `cuantia_total`, `fuente_financiamiento`, `modalidad` (suma alzada / precios "
         "unitarios / esquema mixto / tarifas) y `resumen` (3-4 líneas).\n"
@@ -1467,9 +1534,24 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
     lugar_fecha_acta = None
     cuantia_total = None
     algun_pdf_con_requerimiento = False
+    estudio_mercado_best = None   # bloque tipado del Resumen Ejecutivo/Informe
+    contrato_final_best = None    # bloque tipado de la Orden de Compra/Contrato
+
+    def _mas_completo(nuevo, actual):
+        """Devuelve el dict con más contenido (más campos no-nulos)."""
+        def _peso(d):
+            if not isinstance(d, dict):
+                return 0
+            return sum(1 for v in d.values() if v not in (None, "", [], {}))
+        return nuevo if _peso(nuevo) > _peso(actual) else actual
+
     for r in pdfs_procesados:
         if "error" in r:
             continue
+        if isinstance(r.get("estudio_mercado"), dict):
+            estudio_mercado_best = _mas_completo(r["estudio_mercado"], estudio_mercado_best)
+        if isinstance(r.get("contrato_final"), dict):
+            contrato_final_best = _mas_completo(r["contrato_final"], contrato_final_best)
         items_all.extend(r.get("items") or [])
         postores_all.extend(r.get("postores") or [])
         # red_flags_observadas: campo legacy, ya no se pide al parser. El análisis
@@ -1649,6 +1731,18 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
               f"({type(_e).__name__}: {str(_e)[:120]})", flush=True)
 
     tool_context.state["parser_raw_consolidated"] = raw
+
+    # ── Bloques tipados (ruteo incremental) ──
+    # El Resumen Ejecutivo / Orden de Compra suelen venir en llamadas distintas a
+    # parse_document_pdf; acumulamos quedándonos con el más completo entre corridas.
+    if estudio_mercado_best:
+        tool_context.state["estudio_mercado"] = _mas_completo(
+            estudio_mercado_best, tool_context.state.get("estudio_mercado"))
+        output_dict["tiene_estudio_mercado"] = True
+    if contrato_final_best:
+        tool_context.state["contrato_final"] = _mas_completo(
+            contrato_final_best, tool_context.state.get("contrato_final"))
+        output_dict["tiene_contrato_final"] = True
 
     # Cachear el output compacto por URL (fix #2) para no re-parsear el mismo doc.
     _pdoc_cache[document_url] = output_dict

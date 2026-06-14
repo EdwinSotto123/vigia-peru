@@ -418,6 +418,34 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             f"`comentario_global` explica la comparación contra el lote total."
         )
 
+    # ── Anclas de precio OFICIALES (ruteo incremental) ──
+    # Además de las búsquedas web, el market_agent recibe el valor referencial del
+    # estudio de mercado (Resumen Ejecutivo) y el precio FINAL del contrato (Orden
+    # de Compra). Permite comparar contra lo pagado, no solo contra el referencial.
+    em = _safe_parse_json(state.get("estudio_mercado")) or {}
+    cf = _safe_parse_json(state.get("contrato_final")) or {}
+    mensaje_ancla = ""
+    if em.get("valor_referencial") or em.get("comparacion_precio_historico"):
+        mensaje_ancla += (
+            f"\n\n📊 ESTUDIO DE MERCADO OFICIAL (Resumen Ejecutivo): valor referencial="
+            f"{em.get('valor_referencial')} {em.get('moneda') or ''}. Comparación histórica: "
+            f"{em.get('comparacion_precio_historico') or '—'}. Usá esto como ANCLA: si tus "
+            f"precios web difieren mucho del referencial oficial, explicá por qué."
+        )
+    if cf.get("precio_final_total"):
+        mensaje_ancla += (
+            f"\n\n💵 PRECIO FINAL CONTRATADO (Orden de Compra): {cf.get('precio_final_total')} "
+            f"{cf.get('moneda') or ''}. Compará el precio FINAL contra tu mediana de mercado, "
+            f"no solo contra el referencial."
+        )
+    precio_final_vs_ref = None
+    try:
+        _vr, _pf = em.get("valor_referencial"), cf.get("precio_final_total")
+        if _vr and _pf and float(_vr) > 0:
+            precio_final_vs_ref = round((float(_pf) - float(_vr)) / float(_vr) * 100, 1)
+    except Exception:
+        precio_final_vs_ref = None
+
     out = {
         "ocid": ocid,
         "items": items_finales,
@@ -430,7 +458,10 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         "padres_info": padres_info,
         "padre_lote": padres_info[0] if padres_info else None,
         "tiene_requerimiento": n_con_req > 0,
-        "mensaje_para_market_agent": mensaje_base + mensaje_lote,
+        "estudio_mercado": em or None,
+        "contrato_final": cf or None,
+        "precio_final_vs_referencial": precio_final_vs_ref,
+        "mensaje_para_market_agent": mensaje_base + mensaje_lote + mensaje_ancla,
     }
     return out
 
@@ -752,6 +783,11 @@ def analyze_market_sharded(ocid: str, tool_context: ToolContext) -> dict:
         "n_chunks": n_chunks,
         "confianza_global": ("alta" if cobertura >= 0.8 else "media" if cobertura >= 0.5 else "baja"),
         "requerimiento_disponible_para_analisis": tiene_req,
+        # Anclas oficiales (ruteo incremental): referencial del estudio de mercado,
+        # precio final del contrato, y su diferencia %.
+        "valor_referencial_oficial": ((mi or {}).get("estudio_mercado") or {}).get("valor_referencial"),
+        "precio_final_contrato": ((mi or {}).get("contrato_final") or {}).get("precio_final_total"),
+        "precio_final_vs_referencial": (mi or {}).get("precio_final_vs_referencial"),
         "observaciones_clave": (
             [f"Preciados {n_con_mediana}/{n_total} ítems con mediana de mercado "
              f"(cobertura {cobertura*100:.0f}%) vía fan-out de {n_chunks} workers paralelos "
