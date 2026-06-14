@@ -603,16 +603,26 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
     # Espectrofotómetro...' como ítems separados; el merge del parser no alcanza
     # porque el persist se queda con la lista —más larga— del agente).
     _final_doc = doc_from_agent or doc_raw
-    if isinstance(_final_doc, dict) and isinstance(_final_doc.get("items_consolidados"), list) \
-            and len(_final_doc["items_consolidados"]) > 1:
-        try:
-            from tools.documentos import _merge_item_variants
-            _antes = len(_final_doc["items_consolidados"])
-            _final_doc["items_consolidados"] = _merge_item_variants(_final_doc["items_consolidados"])
-            if len(_final_doc["items_consolidados"]) < _antes:
-                print(f"[persist] variantes de ítem fundidas: {_antes}→{len(_final_doc['items_consolidados'])}", flush=True)
-        except Exception as _e:
-            print(f"[persist] merge variantes falló: {str(_e)[:80]}", flush=True)
+    if isinstance(_final_doc, dict):
+        # GARANTÍA DETERMINISTA: el parser es extractor puro; NO debe llevar banderas.
+        # Aunque el LLM del parser emita `red_flags_documentales` por hábito (con
+        # alucinaciones tipo "Microsoft Office"/"ISO 19798"), las eliminamos del JSON
+        # persistido. El análisis de riesgo legal vive SOLO en `legal_analysis`.
+        _final_doc.pop("red_flags_documentales", None)
+        _final_doc.pop("red_flags_observadas", None)
+        # Dedup FINAL de variantes del mismo bien sobre la lista que se va a persistir
+        # (el agente suele listar 'EQUIPO DE FTIR' / 'Equipo FTIR' / 'Equipo de FTIR
+        # Espectrofotómetro...' por separado; el merge del parser no alcanza porque
+        # el persist se queda con la lista —más larga— del agente).
+        if isinstance(_final_doc.get("items_consolidados"), list) and len(_final_doc["items_consolidados"]) > 1:
+            try:
+                from tools.documentos import _merge_item_variants
+                _antes = len(_final_doc["items_consolidados"])
+                _final_doc["items_consolidados"] = _merge_item_variants(_final_doc["items_consolidados"])
+                if len(_final_doc["items_consolidados"]) < _antes:
+                    print(f"[persist] variantes de ítem fundidas: {_antes}→{len(_final_doc['items_consolidados'])}", flush=True)
+            except Exception as _e:
+                print(f"[persist] merge variantes falló: {str(_e)[:80]}", flush=True)
 
     analisis = {
         "market_analysis":      _try_parse(state.get("market_analysis")),
