@@ -144,8 +144,15 @@ async def _run_streaming(
     # Si el runner explota, igual ejecutamos safety_net (persist parcial) y
     # emitimos `final` con el snapshot que tengamos hasta el momento.
     runner_error: dict | None = None
+    # Orquestación determinista por defecto (DETERMINISTIC_PIPELINE!=0): el código
+    # maneja la secuencia de agentes en vez del LLM orquestador (que se rinde antes
+    # de terminar). =0 vuelve al orquestador-LLM (rollback).
+    _DETERMINISTIC = os.getenv("DETERMINISTIC_PIPELINE", "1") != "0"
+    _det_state: dict | None = None
 
     async def _safe_run():
+        if _DETERMINISTIC:
+            return  # la secuencia la maneja run_deterministic (abajo), no el LLM
         try:
             async for ev in runner.run_async(
                 user_id=user_id, session_id=session_id, new_message=user_msg,
@@ -159,6 +166,28 @@ async def _run_streaming(
     # se emite como eventos `metrics` al stream para mostrar en vivo que Arize
     # está midiendo. Tarifas Gemini 2.5 Flash en Vertex (USD/1M tokens, estimado).
     _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0}
+
+    # ── Pipeline DETERMINISTA: la secuencia de agentes/tools la corre el código
+    #    (deterministic.run_deterministic) → todos los agentes corren SIEMPRE, no
+    #    puede rendirse a mitad. Yields los mismos eventos al stream y deja el
+    #    `state` final en `_det_state` (que el tail usa como raw_state). ──
+    if _DETERMINISTIC:
+        from deterministic import run_deterministic
+        _det_state = dict(initial_state)
+        _det_state.setdefault("ocid", input_str)
+        yield {"kind": "phase", "name": "deterministic",
+               "msg": "pipeline determinista (secuencia en código)"}
+        try:
+            async for ev in run_deterministic(
+                input_str, runner, user_id, session_id, _det_state, events_trace, _metrics,
+            ):
+                yield ev
+        except Exception as _exc:
+            runner_error = {"kind": "runner_exception", "msg": str(_exc)[:500],
+                            "class": type(_exc).__name__}
+            yield {"kind": "error", "agent": "pipeline", "detail": str(_exc)[:300]}
+        final_response = _det_state.get("_final_response")
+
     async for event in _safe_run():
         # Sentinel: el runner falló (ej. 429 RESOURCE_EXHAUSTED).
         if isinstance(event, tuple) and len(event) == 2 and event[0] == "__RUNNER_ERROR__":
@@ -257,10 +286,14 @@ async def _run_streaming(
 
     yield {"kind": "phase", "name": "safety_net", "msg": "verificando completitud del análisis…"}
 
-    final_session = await runner.session_service.get_session(
-        app_name=APP_NAME, user_id=user_id, session_id=session_id,
-    )
-    raw_state = dict(final_session.state) if final_session and final_session.state else {}
+    if _det_state is not None:
+        # Modo determinista: `state` lo controla run_deterministic (no la sesión ADK).
+        raw_state = _det_state
+    else:
+        final_session = await runner.session_service.get_session(
+            app_name=APP_NAME, user_id=user_id, session_id=session_id,
+        )
+        raw_state = dict(final_session.state) if final_session and final_session.state else {}
     safety_actions: list[str] = []
 
     alerta_codigo = raw_state.get("alerta_codigo")
