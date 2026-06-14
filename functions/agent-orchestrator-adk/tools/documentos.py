@@ -1416,7 +1416,13 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         desc = "".join(c for c in unicodedata.normalize("NFKD", desc)
                        if not unicodedata.combining(c))
         if desc:
-            return ("d", desc, it.get("cantidad"))
+            req = (it.get("requerimiento_tecnico_detallado") or "").strip()
+            # Cabeceras de objeto/agregador (SIN requerimiento): el mismo
+            # "ADQUISICIÓN DE LLANTAS..." aparece como "ítem 1" en cada documento
+            # (acta, reporte, contrato) → dedup por descripción SOLA para no
+            # multiplicarlo. Ítems reales (con requerimiento) usan desc+cantidad
+            # para no fusionar productos distintos del mismo rubro.
+            return ("d", desc) if not req else ("d", desc, it.get("cantidad"))
         num = it.get("numero")
         if num is not None and str(num).strip():
             return ("n", str(num).strip())
