@@ -32,6 +32,52 @@ def _es_cabecera_objeto(it: dict, objeto_norm: str) -> bool:
             or _dl.SequenceMatcher(None, desc[:120], objeto_norm[:120]).ratio() >= 0.75)
 
 
+_NOMBRES_PLACEHOLDER = {
+    "MARIA GARCIA RUIZ", "ROBERTO TORRES", "ROBERTO TORRES GM", "ROBERTO TORRES G M",
+    "JUAN PEREZ LOPEZ", "JUAN PEREZ QUISPE", "JUAN PEREZ", "CARLOS SANCHEZ DIAZ",
+    "NOMBRE APELLIDO", "FUNCIONARIO X", "JUAN PEREZ PEREZ", "MARIA GARCIA",
+}
+_SICAN_PLACEHOLDER = re.compile(r"^C-?(12345|67890|00000|11111|99999|0*1)$", re.I)
+_EMPRESA_PLACEHOLDER = {"LOGISTICA VELOZ SAC", "LOGISTICA VELOZ S A C", "EMPRESA EJEMPLO"}
+
+
+def _persona_es_placeholder(p: dict) -> bool:
+    """True si una persona (firmante/comité) tiene pinta de PLACEHOLDER inventado:
+    nombre genérico de los que el LLM repite, SICAN secuencial (C-12345/C-67890)
+    sin DNI, o entidad/empresa de ejemplo. El parser a veces inventa un comité o
+    firmantes cuando el documento no los trae (ej. proceso no competitivo)."""
+    if not isinstance(p, dict):
+        return False
+    nom = _norm_txt(p.get("nombre_completo") or "")
+    if nom in _NOMBRES_PLACEHOLDER:
+        return True
+    sic = (p.get("certificacion_sican") or "").replace(" ", "")
+    if sic and _SICAN_PLACEHOLDER.match(sic) and not (p.get("dni") or "").strip():
+        return True
+    ent = _norm_txt(p.get("entidad") or "")
+    if ent in _EMPRESA_PLACEHOLDER:
+        return True
+    return False
+
+
+def _scrub_personas(lst) -> list:
+    return [p for p in (lst or []) if not _persona_es_placeholder(p)]
+
+
+def _acta_implausible(acta, ref_year) -> bool:
+    """True si la fecha del acta es incoherente con el año del proceso (ej. acta
+    '2023-01-15' en un proceso de 2026 → placeholder). Tolera ±1 año."""
+    if not isinstance(acta, dict) or not ref_year:
+        return False
+    m = re.search(r"\b(20\d{2})\b", str(acta.get("fecha") or ""))
+    if not m:
+        return False
+    try:
+        return abs(int(m.group(1)) - int(ref_year)) > 1
+    except Exception:
+        return False
+
+
 def _merge_item_variants(items: list) -> list:
     """Colapsa ítems que son el MISMO bien descrito con distinto detalle (ej.
     'EQUIPO DE FTIR' y 'Equipo de FTIR Espectrofotómetro Infrarrojo...'): si la
