@@ -178,17 +178,14 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
         legal = {}
     red_flags = legal.get("red_flags_documentales") or []
 
-    # Fallback legacy (mientras tanto, algunos pipelines viejos puedan tenerlo)
+    # Las banderas documentales vienen SOLO del document_legal_analyst (grounded en
+    # los ítems reales + cita norma/opinión OECE). Se ELIMINÓ el fallback al
+    # document_parser / parser_raw_consolidated: el parser es extractor puro y cuando
+    # emitía red_flags ALUCINABA (ej. "ítem 3 SOFTWARE DE OFIMÁTICA / Microsoft Office",
+    # "ISO 19798 impresora" en un contrato de equipos de laboratorio). Si el legal no
+    # produjo banderas, no se persiste ninguna documental.
     if not red_flags:
-        raw = state.get("parser_raw_consolidated") or {}
-        red_flags = raw.get("red_flags_observadas") or []
-    if not red_flags:
-        doc_analysis = _safe_parse_json(state.get("document_analysis"))
-        if not isinstance(doc_analysis, dict):
-            doc_analysis = {}
-        red_flags = doc_analysis.get("red_flags_documentales") or []
-    if not red_flags:
-        return {"persistidas": 0, "mensaje": "Sin red_flags documentales en state"}
+        return {"persistidas": 0, "mensaje": "Sin red_flags del legal_analyst en state"}
 
     # Normalizar alerta_codigo: si vino el OCID completo, convertir a OECE-XXXX
     raw_codigo = (alerta_codigo or "").strip()
