@@ -106,7 +106,19 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
     # vio los N sub-items), usar los del LLM.
     doc_llm = _safe_parse_json(state.get("document_analysis")) or {}
     llm_items = doc_llm.get("items_consolidados") or []
-    if len(llm_items) > len(parser_items):
+
+    def _sum_req(its):
+        return sum(len(str(it.get("requerimiento_tecnico_detallado") or ""))
+                   for it in its if isinstance(it, dict))
+    # Preferir los items del LLM si desglosó MÁS items, o si —a igual número— traen
+    # MÁS requerimiento técnico. El agente enriquece `requerimiento_tecnico_detallado`
+    # (resumen narrativo de las Bases) que la extracción RAW de la tool no tiene; sin
+    # esto, build_market_input se quedaba con el raw sin requerimiento aunque el LLM
+    # SÍ lo había extraído (bug 1221137: los 827 chars del ítem 'CPU' nunca llegaban).
+    if len(llm_items) > len(parser_items) or (
+        llm_items and len(llm_items) == len(parser_items)
+        and _sum_req(llm_items) > _sum_req(parser_items)
+    ):
         parser_items = llm_items
 
     # Indexar parser_items por número
