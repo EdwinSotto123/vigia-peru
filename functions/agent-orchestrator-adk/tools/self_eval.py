@@ -140,7 +140,8 @@ def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
 
 
 def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
-                     objeto: str = "", stages: dict | None = None) -> dict:
+                     objeto: str = "", stages: dict | None = None,
+                     news_research=None, firmantes=None) -> dict:
     """Corre 6 evaluadores LLM-as-judge / code sobre los outputs del análisis.
     ~4 llamadas Gemini (batched) + 2 evaluadores de código. Devuelve scores +
     razones + per-ítem, para que el dashboard muestre QUÉ evaluó y por qué."""
@@ -152,6 +153,8 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         "tono": None, "tono_reason": "",
         "coherencia": None, "coherencia_reason": "",
         "completitud": {"ok": 0, "n": 0, "faltantes": []},
+        "cobertura_prensa": {"ok": 0, "n": 0, "estado": None},
+        "firmantes": {"ok": 0, "n": 0, "placeholders": []},
         "per_bandera": [],
         "per_precio": [],
         "cita_detalle": [],
@@ -280,5 +283,48 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             out["completitud"]["ok"] += 1
         else:
             out["completitud"]["faltantes"].append(nombre)
+
+    # cobertura_prensa (CODE, gratis): ¿news_research trae contenido o un 'sin
+    # menciones' válido? Atrapa el bug de news_research devolviendo "" (vacío).
+    out["cobertura_prensa"]["n"] = 1
+    nr = news_research
+    if isinstance(nr, str):
+        try:
+            nr = json.loads(nr) if nr.strip() else {}
+        except Exception:
+            nr = {}
+    if isinstance(nr, dict) and (nr.get("noticias")
+                                 or nr.get("sin_menciones_relevantes") is True
+                                 or (nr.get("resumen_ejecutivo") or nr.get("sintesis") or "").strip()):
+        out["cobertura_prensa"]["ok"] = 1
+        out["cobertura_prensa"]["estado"] = "con_noticias" if nr.get("noticias") else "sin_menciones"
+    else:
+        out["cobertura_prensa"]["estado"] = "vacio"
+
+    # firmantes_plausibles (CODE, gratis): ¿hay firmantes con pinta de placeholder
+    # (entidad genérica 'POSTOR N'/'Entidad Contratante' SIN DNI)? Keyea por entidad,
+    # nunca por nombre solo. Atrapa la confabulación de firmantes del parser.
+    import re as _re_f
+    _fl = firmantes if isinstance(firmantes, list) else []
+
+    def _ph(f):
+        if not isinstance(f, dict):
+            return True
+        if str(f.get("dni") or "").strip():
+            return False
+        ent = str(f.get("entidad") or "").strip().lower()
+        if not ent:
+            return False
+        if _re_f.match(r"^(el|la)?\s*(postor|proveedor|contratista|licitante|adjudicatari)\b", ent):
+            return True
+        return ent in ("entidad contratante", "entidad", "la entidad", "el proveedor",
+                       "proveedor", "postor", "el postor", "la empresa", "empresa")
+    for f in _fl:
+        out["firmantes"]["n"] += 1
+        if _ph(f):
+            out["firmantes"]["placeholders"].append(
+                str(f.get("nombre") or f.get("nombre_completo") or "?"))
+        else:
+            out["firmantes"]["ok"] += 1
 
     return out

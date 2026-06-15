@@ -634,6 +634,35 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             except Exception as _e:
                 print(f"[persist] merge variantes falló: {str(_e)[:80]}", flush=True)
 
+        # Guard anti-placeholder de firmantes: el parser a veces invent a/templa
+        # firmantes genéricos de una proforma ("POSTOR DOS E.I.R.L.", "Juan Perez"
+        # con entidad "Entidad Contratante", sin DNI). Descartamos los que NO tienen
+        # DNI Y tienen una ENTIDAD genérica de plantilla. Keyeamos por la ENTIDAD
+        # (segura), nunca por el nombre solo — "Juan Perez" podría ser real. Los
+        # firmantes con DNI o con entidad nombrada (empresa/GORE real) se mantienen.
+        import re as _re_ph
+
+        def _firmante_placeholder(f):
+            if not isinstance(f, dict):
+                return True
+            if str(f.get("dni") or "").strip():
+                return False  # con DNI → es real
+            ent = str(f.get("entidad") or "").strip().lower()
+            if not ent:
+                return False  # sin entidad no es señal suficiente por sí sola
+            if _re_ph.match(r"^(el|la)?\s*(postor|proveedor|contratista|licitante|adjudicatari)\b", ent):
+                return True
+            return ent in ("entidad contratante", "entidad", "la entidad", "el proveedor",
+                           "proveedor", "postor", "el postor", "la empresa", "empresa")
+        for _key in ("firmantes", "firmantes_consolidados"):
+            _fl = _final_doc.get(_key)
+            if isinstance(_fl, list) and _fl:
+                _keep = [f for f in _fl if not _firmante_placeholder(f)]
+                if len(_keep) < len(_fl):
+                    print(f"[persist] firmantes placeholder descartados en {_key}: "
+                          f"{len(_fl)}→{len(_keep)}", flush=True)
+                _final_doc[_key] = _keep
+
     analisis = {
         "market_analysis":      _try_parse(state.get("market_analysis")),
         "document_analysis":    _final_doc,

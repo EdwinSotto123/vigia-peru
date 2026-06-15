@@ -380,7 +380,7 @@ async def _run_streaming(
     _evals = None
     try:
         yield {"kind": "phase", "name": "self_eval",
-               "msg": "auto-evaluando el análisis (6 evaluadores · LLM-as-judge + código)…"}
+               "msg": "auto-evaluando el análisis (8 evaluadores · LLM-as-judge + código)…"}
         from tools.self_eval import run_inline_evals
         from tools import _pg as _pg_eval
         _band: list = []
@@ -419,10 +419,38 @@ async def _run_streaming(
             "dictamen": bool((raw_state.get("final_dictamen") or final_response or "").strip()),
             "banderas": bool(_band),
         }
+        def _rp_eval(v):
+            # Parseo robusto (los output_key de los sub-agentes llegan como STRING,
+            # a veces con fences ```json o texto extra; json.loads simple falla).
+            if isinstance(v, dict):
+                return v
+            if not isinstance(v, str) or not v.strip():
+                return {}
+            s = v.strip()
+            if s.startswith("```"):
+                _nl = s.find("\n")
+                s = s[_nl + 1:] if _nl > 0 else s
+                if s.rstrip().endswith("```"):
+                    s = s.rstrip()[:-3]
+            try:
+                return json.loads(s)
+            except Exception:
+                import re as _re_rp
+                _m = _re_rp.search(r"\{[\s\S]*\}", s)
+                if _m:
+                    try:
+                        return json.loads(_m.group(0))
+                    except Exception:
+                        return {}
+                return {}
+        _da_eval = _rp_eval(raw_state.get("document_analysis"))
+        _firmantes_eval = (_da_eval.get("firmantes_consolidados") or _da_eval.get("firmantes") or [])
+        _nr_eval = _rp_eval(raw_state.get("news_research"))
         _evals = run_inline_evals(
             _band, _ma_eval.get("findings"),
             raw_state.get("final_dictamen") or final_response or "",
-            objeto=str(_objeto_eval or ""), stages=_stages_eval)
+            objeto=str(_objeto_eval or ""), stages=_stages_eval,
+            news_research=_nr_eval, firmantes=_firmantes_eval)
 
         def _evpct(d):
             n = d.get("n", 0)
@@ -432,6 +460,8 @@ async def _run_streaming(
             "precio": _evpct(_evals["precio"]), "tono": _evals.get("tono"),
             "coherencia": _evals.get("coherencia"),
             "completitud": _evpct(_evals["completitud"]),
+            "cobertura_prensa": _evpct(_evals["cobertura_prensa"]),
+            "firmantes": _evpct(_evals["firmantes"]),
         }
         _evals["objeto"] = str(_objeto_eval or "")[:240]
         # Resúmenes legibles para el dashboard (el front ya muestra reason/faltantes).
@@ -475,6 +505,17 @@ async def _run_streaming(
              "faltantes": _evals["completitud"]["faltantes"],
              "pregunta": "¿corrieron todas las etapas (documentos, mercado, red, dictamen, banderas)?",
              "metodo": "determinista (código)", "objetivo": "pipeline completo"},
+            {"kind": "eval", "agent": "evaluador", "evaluador": "cobertura_prensa",
+             "ok": _evals["cobertura_prensa"]["ok"], "n": _evals["cobertura_prensa"]["n"],
+             "pct": _evals["pct"]["cobertura_prensa"],
+             "pregunta": "¿el agente de prensa devolvió cobertura estructurada (noticias o 'sin menciones'), no vacío?",
+             "metodo": "determinista (código)", "objetivo": "investigación de prensa",
+             "reason": f"estado: {_evals['cobertura_prensa'].get('estado')}"},
+            {"kind": "eval", "agent": "evaluador", "evaluador": "firmantes_plausibles",
+             "ok": _evals["firmantes"]["ok"], "n": _evals["firmantes"]["n"],
+             "pct": _evals["pct"]["firmantes"], "faltantes": _evals["firmantes"].get("placeholders"),
+             "pregunta": "¿los firmantes extraídos son reales (no placeholders de plantilla tipo 'POSTOR N' sin DNI)?",
+             "metodo": "determinista (código)", "objetivo": "firmantes del documento"},
         ):
             events_trace.append(_ev)
             yield _ev

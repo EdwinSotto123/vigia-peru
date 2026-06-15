@@ -337,11 +337,47 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     yield {"kind": "phase", "name": "news", "msg": "buscando cobertura de prensa"}
     tender = (state.get("ocds") or {}).get("tender") or {}
     objeto = tender.get("description") or tender.get("title") or ""
-    async for e in _agent(A.news_research_agent,
-                          f"Investiga en prensa peruana: proveedor '{razon}' (RUC {ruc}); entidad "
-                          f"'{entidad.get('nombre','')}' (RUC {entidad.get('ruc','')}, región {entidad.get('region','')}); "
-                          f"objeto: {objeto[:160]}."):
+    _news_msg = (f"Investiga en prensa peruana: proveedor '{razon}' (RUC {ruc}); entidad "
+                 f"'{entidad.get('nombre','')}' (RUC {entidad.get('ruc','')}, región {entidad.get('region','')}); "
+                 f"objeto: {objeto[:160]}.")
+    async for e in _agent(A.news_research_agent, _news_msg):
         yield e
+
+    # Guardrail: news_research a veces sale VACÍO ("") — quirk de Gemini+google_search
+    # (los tokens se van al grounding/thinking y el texto final viene vacío). Reintentar
+    # una vez; si sigue vacío, default 'sin menciones' para no dejar la sección en blanco.
+    def _news_vacio():
+        nr = state.get("news_research")
+        if isinstance(nr, str):
+            return nr.strip() in ("", "{}", "[]")
+        if isinstance(nr, dict):
+            if nr.get("noticias"):
+                return False
+            if nr.get("sin_menciones_relevantes") is True:
+                return False
+            if (nr.get("sintesis") or "").strip():
+                return False
+            return True
+        return not nr
+    if _news_vacio():
+        yield {"kind": "warn", "name": "news_research", "msg": "prensa vacía — reintento"}
+        state.pop("news_research", None)
+        state.pop("_last_agent_final", None)
+        async for e in _agent(
+            A.news_research_agent,
+            _news_msg + " (REINTENTO: la pasada anterior salió vacía. Devolvé SIEMPRE el JSON "
+            "completo; si no hay prensa, noticias:[] con sin_menciones_relevantes:true y un "
+            "resumen_ejecutivo que lo diga. NUNCA respondas vacío.)"):
+            yield e
+        if _news_vacio():
+            state["news_research"] = {
+                "noticias": [], "sin_menciones_relevantes": True, "queries_realizadas": [],
+                "resumen_ejecutivo": "No se hallaron menciones de prensa materiales sobre el "
+                "proveedor, la entidad o el objeto de la contratación.",
+                "_note": "default por salida vacía del news_research_agent tras reintento",
+            }
+            yield {"kind": "warn", "name": "news_research",
+                   "msg": "prensa vacía tras reintento — default sin_menciones"}
 
     # ── 8. Funcionarios de la entidad + lookup ──
     yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
