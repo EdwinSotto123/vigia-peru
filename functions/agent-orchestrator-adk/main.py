@@ -445,12 +445,15 @@ async def _run_streaming(
                 return {}
         _da_eval = _rp_eval(raw_state.get("document_analysis"))
         _firmantes_eval = (_da_eval.get("firmantes_consolidados") or _da_eval.get("firmantes") or [])
+        _doc_items_eval = [str(it.get("descripcion_corta") or it.get("descripcion") or "")
+                           for it in (_da_eval.get("items_consolidados") or [])
+                           if isinstance(it, dict)]
         _nr_eval = _rp_eval(raw_state.get("news_research"))
         _evals = run_inline_evals(
             _band, _ma_eval.get("findings"),
             raw_state.get("final_dictamen") or final_response or "",
             objeto=str(_objeto_eval or ""), stages=_stages_eval,
-            news_research=_nr_eval, firmantes=_firmantes_eval)
+            news_research=_nr_eval, firmantes=_firmantes_eval, doc_item_descs=_doc_items_eval)
 
         def _evpct(d):
             n = d.get("n", 0)

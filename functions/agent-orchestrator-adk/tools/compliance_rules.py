@@ -1010,12 +1010,7 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
     """
     state = tool_context.state
     ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
-    doc = state.get("document_analysis") or {}
-    if isinstance(doc, str):
-        try:
-            doc = json.loads(doc) if doc.startswith("{") else {}
-        except Exception:
-            doc = {}
+    doc = _safe_parse_json(state.get("document_analysis")) or {}
     if not ocds or not doc:
         return {"regla": "inconsistencia_doc_vs_ocds", "triggered": False,
                 "motivo": "sin datos suficientes (OCDS o document_analysis vacío)"}
@@ -1026,7 +1021,8 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
     cuantia_doc = float(doc.get("cuantia_total") or 0)
 
     n_items_ocds = len(tender.get("items") or [])
-    n_items_doc = len(doc.get("items_consolidados") or [])
+    items_doc = doc.get("items_consolidados") or []
+    n_items_doc = len(items_doc)
 
     inconsistencias = []
     if cuantia_ocds > 0 and cuantia_doc > 0:
@@ -1043,6 +1039,42 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
             "n_items_ocds": n_items_ocds, "n_items_documento": n_items_doc,
         })
 
+    # INCONGRUENCIA OBJETO ↔ DOCUMENTO: compara el PRODUCTO del objeto convocado
+    # (la parte antes de META/PROYECTO/CUI) contra lo que el parser extrajo de los
+    # documentos (descripciones de ítems). CERO solape de tokens de producto = el
+    # Bases adjunto NO corresponde al objeto (Bases mal adjuntado, plantilla reusada,
+    # expediente incongruente). NO depende de items OCDS (que suelen venir vacíos).
+    # Detecta el caso 1221246: objeto "BALDOSAS DE FIBRA MINERAL" con Bases de laptops/PCs.
+    import re as _re_inc
+    _STOP = {"adquisicion", "adquisición", "servicio", "servicios", "contratacion",
+             "contratación", "para", "por", "con", "del", "las", "los", "meta", "proyecto",
+             "mejoramiento", "mantenimiento", "bien", "bienes", "obra", "obras", "general",
+             "generales", "sede", "central", "unidad", "mediante", "modalidad", "proceso",
+             "seleccion", "selección", "compra", "suministro", "item", "items", "equipo", "equipos"}
+
+    def _tok_prod(txt):
+        txt = _re_inc.sub(r"[^a-záéíóúñ0-9 ]", " ", (txt or "").lower())
+        return {w for w in txt.split() if len(w) > 3 and w not in _STOP}
+    # `tender.description` es el PRODUCTO ("ADQUISICIÓN DE BALDOSAS…"); `tender.title`
+    # suele ser el CÓDIGO del proceso ("COMPRE-COMPRE-73-…") → preferir description.
+    objeto = tender.get("description") or doc.get("objeto") or tender.get("title") or ""
+    objeto_prod = _re_inc.split(r"\b(meta|proyecto|con cui|cui\s*n)\b", objeto, maxsplit=1, flags=_re_inc.I)[0]
+    doc_descs = [str(it.get("descripcion_corta") or "") for it in items_doc if isinstance(it, dict)]
+    doc_items_txt = " ".join(doc_descs)
+    # Si los ítems del doc son PLACEHOLDERS genéricos (parser no extrajo el producto
+    # real: 'BIEN/SERVICIO PRINCIPAL 1', 'COMPONENTE A', 'Bien o servicio del ítem X'),
+    # NO es una incongruencia de rubro → no flaggear (evita falso positivo).
+    _gen = _re_inc.compile(r"bien\s*/?\s*servicio|bien o servicio|componente\s+[ab]\b|principal\s*\d|<.*>|gen[eé]ric", _re_inc.I)
+    doc_es_generico = bool(doc_descs) and all(_gen.search(d) for d in doc_descs if d)
+    obj_tok, doc_tok = _tok_prod(objeto_prod), _tok_prod(doc_items_txt)
+    if obj_tok and doc_tok and not (obj_tok & doc_tok) and not doc_es_generico:
+        inconsistencias.append({
+            "tipo": "objeto_no_corresponde_documento",
+            "objeto_producto": objeto_prod.strip()[:90],
+            "doc_items": doc_items_txt[:90],
+            "doc_resumen": (doc.get("resumen_ejecutivo") or "")[:120],
+        })
+
     result = {
         "regla": "inconsistencia_doc_vs_ocds",
         "cuantia_ocds": cuantia_ocds,
@@ -1053,17 +1085,28 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
         "triggered": len(inconsistencias) > 0,
     }
     if inconsistencias:
-        primera = inconsistencias[0]
-        if primera["tipo"] == "cuantia_distinta":
+        # Priorizar la incongruencia de OBJETO (la más grave) si está presente.
+        primera = next((i for i in inconsistencias
+                        if i["tipo"] == "objeto_no_corresponde_documento"), inconsistencias[0])
+        severidad = "media"
+        if primera["tipo"] == "objeto_no_corresponde_documento":
+            severidad = "alta"
+            result["regla"] = "objeto_no_corresponde_documento"
+            ev = (f"El objeto convocado ('{primera.get('objeto_producto')}') NO corresponde al "
+                  f"contenido de los documentos del expediente, que describen un rubro distinto "
+                  f"('{primera.get('doc_items') or primera.get('doc_resumen')}'). Posible Bases mal "
+                  f"adjuntado, plantilla reusada o expediente incongruente — la evaluación técnica "
+                  f"y de precio del proceso queda comprometida.")
+        elif primera["tipo"] == "cuantia_distinta":
             ev = (f"Discrepancia de cuantía: OCDS publica S/. {(primera.get('ocds') or 0):,.2f} "
                   f"pero el documento del expediente indica S/. {(primera.get('documento') or 0):,.2f} "
-                  f"({primera.get('diff_pct')}% de diferencia).")
+                  f"({primera.get('diff_pct')}% de diferencia). Indica manipulación de acta o publicación deficiente.")
         else:
             ev = (f"OCDS lista {primera['n_items_ocds']} ítems pero el documento "
-                  f"tiene {primera['n_items_documento']}.")
+                  f"tiene {primera['n_items_documento']}. Indica manipulación de acta o publicación deficiente.")
         result.update({
-            "severidad": "media",
-            "evidencia": ev + " Indica manipulación de acta o publicación deficiente.",
+            "severidad": severidad,
+            "evidencia": ev,
             "norma": "Art. 2 TUO Ley 30225 — Principio de Transparencia",
             "fuente_url": None,
         })

@@ -141,7 +141,7 @@ def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
 
 def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
                      objeto: str = "", stages: dict | None = None,
-                     news_research=None, firmantes=None) -> dict:
+                     news_research=None, firmantes=None, doc_item_descs=None) -> dict:
     """Corre 6 evaluadores LLM-as-judge / code sobre los outputs del análisis.
     ~4 llamadas Gemini (batched) + 2 evaluadores de código. Devuelve scores +
     razones + per-ítem, para que el dashboard muestre QUÉ evaluó y por qué."""
@@ -250,7 +250,12 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
     item_descs = [str((f.get("item_descripcion") or f.get("descripcion_corta")
                        or f.get("item") or "")).strip()
                   for f in (market_findings or []) if isinstance(f, dict)]
-    item_descs = [d for d in item_descs if d][:15]
+    # Incluir las descripciones REALES del document_analysis (no solo las del market,
+    # que a veces vienen genéricas 'Bien o servicio del ítem X'). Atrapa 1221246:
+    # objeto BALDOSAS vs ítems del documento LAPTOPS/PCs → incoherente.
+    item_descs += [str(d).strip() for d in (doc_item_descs or [])]
+    item_descs = [d for d in item_descs
+                  if d and not d.lower().startswith("bien o servicio del")][:18]
     if (objeto or "").strip() and item_descs:
         prompt = (
             "Eres un auditor de contrataciones públicas. El OBJETO define QUÉ compra el "
@@ -310,8 +315,18 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
     def _ph(f):
         if not isinstance(f, dict):
             return True
-        if str(f.get("dni") or "").strip():
-            return False
+        nombre = str(f.get("nombre") or f.get("nombre_completo") or "").strip()
+        dni = str(f.get("dni") or "").strip()
+        # Nombre placeholder literal de plantilla ("Nombre Firmante 1", "Firmante 2",
+        # "<NOMBRE...>", "XXX"). El frontend renderiza "Nombre Firmante N" cuando el
+        # nombre viene vacío → eso es lo que vio el usuario en 1221246.
+        if _re_f.search(r"nombre\s*firmante|^firmante\s*\d|<.*>|^x{2,}$", nombre.lower()):
+            return True
+        if dni:
+            return False  # con DNI → verificable, real
+        # Sin DNI Y sin nombre → firmante no identificable (placeholder de hecho).
+        if not nombre:
+            return True
         ent = str(f.get("entidad") or "").strip().lower()
         if not ent:
             return False

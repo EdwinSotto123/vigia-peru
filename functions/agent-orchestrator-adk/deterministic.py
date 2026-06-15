@@ -141,6 +141,22 @@ def _parse_event(event, metrics: dict, fallback_agent: str) -> tuple[list[dict],
     except Exception as e:
         trace.append({"agent": agent_name, "kind": "error", "detail": str(e)[:200]})
 
+    # GROUNDING (Google Search): web/news/entity/person usan grounding INTERNO de
+    # Gemini (no FunctionTools), así que no emiten function_call → antes el trace
+    # solo mostraba TRANSFER + metrics, sin las búsquedas. Surfaceamos las queries
+    # reales de grounding como un tool_call sintético para que se vea QUÉ buscaron.
+    try:
+        gm = getattr(event, "grounding_metadata", None)
+        qs = list(getattr(gm, "web_search_queries", None) or []) if gm is not None else []
+        if qs:
+            trace.append({"agent": agent_name, "kind": "tool_call", "name": "google_search",
+                          "args": {"queries": qs[:12]}})
+            trace.append({"agent": agent_name, "kind": "tool_result", "name": "google_search",
+                          "result_preview": {"n_queries": len(qs), "queries": qs[:12],
+                                             "_note": "grounding en vivo (Gemini + Google Search)"}})
+    except Exception:
+        pass
+
     metric_events: list[dict] = []
     um = getattr(event, "usage_metadata", None)
     if um is not None:
