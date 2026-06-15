@@ -233,6 +233,16 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             yield e
 
     async def _agent(agent, msg):
+        # Evento `transfer` (orquestador → sub-agente): es lo que el grafo del
+        # frontend usa para iluminar el nodo del agente (buildTrace → ev.to). En
+        # el flujo determinista el "orquestador" es el código; sin este transfer,
+        # los agentes que solo usan grounding (web/news/entity/person) no emiten
+        # tool_calls y el grafo nunca los encendería.
+        nm = getattr(agent, "name", "agent")
+        tev = {"kind": "transfer", "from": "orch", "to": nm, "agent": "orch",
+               "msg": f"orquestador delega a {nm}"}
+        events_trace.append(tev)
+        yield tev
         async for e in _run_agent(agent, msg, state, ss, user_id, metrics):
             events_trace.append(e)
             yield e
@@ -283,6 +293,12 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
 
     # ── 5. Mercado ──
     yield {"kind": "phase", "name": "market", "msg": "validando precios de mercado"}
+    # El análisis de mercado corre como tools (no sub-agente), pero igual debe
+    # iluminar el nodo "market" del grafo → transfer explícito orquestador→market.
+    _mkt = {"kind": "transfer", "from": "orch", "to": "market_price_agent", "agent": "orch",
+            "msg": "orquestador delega a market_price_agent"}
+    events_trace.append(_mkt)
+    yield _mkt
     evs, _ = _tool(T.build_market_input, "build_market_input", state, ocid=ocid)
     async for e in _emit(evs): yield e
     evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, ocid=ocid)
