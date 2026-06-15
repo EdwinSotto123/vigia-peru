@@ -3297,10 +3297,17 @@ function FactRow({
 // Mapeo visual de cada agente
 const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   vigia_orchestrator:    { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
+  pipeline:              { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
+  orquestador:           { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
   compliance_agent:      { color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Compliance" },
   document_parser_agent: { color: "bg-clay text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
+  document_legal_analyst_agent: { color: "bg-clay text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
   market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Market Price" },
   web_research_agent:    { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Web Research" },
+  news_research_agent:   { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Prensa" },
+  entity_personnel_agent:{ color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Funcionarios" },
+  person_network_agent:  { color: "bg-clay text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
+  compliance_extended_agent: { color: "bg-amber text-paper",    icon: <ScanSearch size={11} />,    label: "Compliance+" },
   report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Report Writer" },
 };
 
@@ -3398,11 +3405,11 @@ function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?: any[];
       <div className="border-b border-line bg-paper p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
-            <CheckCircle2 size={13} className="text-moss" /> Evaluadores · LLM-as-judge + código (6)
+            <CheckCircle2 size={13} className="text-moss" /> Evaluadores · LLM-as-judge + código (8)
             {hasEvals && <span className="rounded-full bg-moss/15 px-1.5 py-0.5 text-[8px] font-bold text-moss">auto-evaluado</span>}
           </div>
           <span className="text-[9px] text-mute">
-            {hasEvals ? "evaluado al cierre del análisis" : "se ejecuta al cierre del análisis"} · 4 vía LLM-as-judge · 2 deterministas
+            {hasEvals ? "evaluado al cierre del análisis" : "se ejecuta al cierre del análisis"} · 4 vía LLM-as-judge · 4 deterministas
           </span>
         </div>
         <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
