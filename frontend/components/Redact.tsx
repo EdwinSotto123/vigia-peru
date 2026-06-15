@@ -118,7 +118,19 @@ export function redactChildren(children: React.ReactNode): React.ReactNode {
 }
 
 // Para etiquetas dibujadas en CANVAS (grafo), donde no hay clic-para-revelar:
-// enmascara los DNIs de un string (sin reveal). Los nombres se dejan intactos.
+// enmascara los DNIs de un string (sin reveal).
 export function maskDnis(text?: string | null): string {
   return (text || "").replace(DNI_RE, "••••••••");
+}
+
+// Enmascara el ÚLTIMO apellido de un nombre para etiquetas de CANVAS (grafo):
+// "EDUARDO SOLANO SIU" -> "EDUARDO SOLANO •••". Sin reveal (el canvas no lo permite).
+// Un solo token (p.ej. "Funcionario", "Socio") se deja igual.
+export function maskApellido(name?: string | null): string {
+  const n = (name || "").trim();
+  if (!n) return n;
+  const parts = n.split(/\s+/);
+  if (parts.length < 2) return n;
+  const last = parts[parts.length - 1];
+  return parts.slice(0, -1).join(" ") + " " + "•".repeat(Math.min(Math.max(last.length, 3), 8));
 }
