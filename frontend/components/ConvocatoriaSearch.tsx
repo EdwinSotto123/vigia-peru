@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getAnalyzedList } from "@/lib/dossier-cache";
+import { Glass, Dni, PersonName, redactDnis, redactChildren, maskDnis } from "./Redact";
 import {
   Search,
   Loader2,
@@ -2700,7 +2701,7 @@ function ResumenHumano({
                   (b.severidad || "").toLowerCase() === "media" && "bg-amber",
                   (b.severidad || "").toLowerCase() === "baja"  && "bg-mute",
                 )} />
-                <span className="line-clamp-2">{b.evidencia || b.regla}</span>
+                <span className="line-clamp-2">{redactDnis(b.evidencia || b.regla)}</span>
               </li>
             ))}
           </ul>
@@ -3114,6 +3115,12 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
+                // Censura DNIs embebidos en la prosa del dictamen (vidrio revelable).
+                p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
+                li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,
+                strong: ({ node, children, ...props }) => <strong {...props}>{redactChildren(children)}</strong>,
+                em: ({ node, children, ...props }) => <em {...props}>{redactChildren(children)}</em>,
+                td: ({ node, children, ...props }) => <td {...props}>{redactChildren(children)}</td>,
                 a: ({ node, href, children, ...props }) => {
                   const isLongUrl = typeof href === "string" && href.length > 80;
                   return (
@@ -4456,7 +4463,7 @@ function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Bandera[]
                         <span className="text-[9px] font-mono text-mute">ítem #{b.item_afectado}</span>
                       )}
                     </div>
-                    <p className="mt-1.5 text-sm leading-relaxed text-ink line-clamp-2">{b.evidencia}</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-ink line-clamp-2">{redactDnis(b.evidencia)}</p>
                   </div>
                   <span className="mt-0.5 shrink-0 text-[10px] font-mono text-clay">
                     {isOpen ? "▼" : "▶"}
@@ -4470,13 +4477,13 @@ function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Bandera[]
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-widest text-mute">Evidencia completa</div>
-                      <p className="mt-1 text-sm leading-relaxed text-ink">{b.evidencia}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-ink">{redactDnis(b.evidencia)}</p>
                     </div>
                     {b.evidencia_textual && (
                       <div>
                         <div className="text-[9px] font-bold uppercase tracking-widest text-mute">Texto del documento</div>
                         <blockquote className="mt-1 border-l-2 border-clay/40 pl-2 text-xs italic text-inkSoft">
-                          &quot;{b.evidencia_textual}&quot;
+                          &quot;{redactDnis(b.evidencia_textual)}&quot;
                         </blockquote>
                       </div>
                     )}
@@ -4824,8 +4831,8 @@ function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: any; ban
           <ul className="mt-1.5 space-y-1">
             {empresa.socios.map((s: any, i: number) => (
               <li key={i} className="rounded-lg bg-paperSoft px-2.5 py-1.5 text-xs">
-                <strong className="text-ink">{s.nombre}</strong>
-                {s.dni && <span className="ml-1.5 font-mono text-mute">DNI {s.dni}</span>}
+                <strong className="text-ink"><PersonName name={s.nombre} /></strong>
+                {s.dni && <span className="ml-1.5 font-mono text-mute">DNI <Dni value={s.dni} /></span>}
                 {s.participacion && <span className="ml-1.5 text-mute">· {s.participacion}</span>}
                 {s.cargo && <span className="ml-1.5 text-clay">· {s.cargo}</span>}
               </li>
@@ -4843,7 +4850,7 @@ function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: any; ban
             {banderasSugeridas.map((b, i) => (
               <li key={i} className="rounded-lg bg-amber-soft px-2.5 py-1.5 text-xs">
                 <strong className="text-ink">{b.titulo}.</strong>{" "}
-                <span className="text-mute">{b.descripcion}</span>
+                <span className="text-mute">{redactDnis(b.descripcion)}</span>
               </li>
             ))}
           </ul>
@@ -4926,7 +4933,7 @@ function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: any[]; re
         {relacion && (
           <p className="mt-1 text-xs leading-relaxed text-mute">
             Relación previa con esta entidad: <strong className={cn(relacion.contratos_previos > 0 ? "text-rust" : "text-ink")}>
-              {relacion.contratos_previos} contratos previos</strong>. {relacion.detalle}
+              {relacion.contratos_previos} contratos previos</strong>. {redactDnis(relacion.detalle)}
           </p>
         )}
       </div>
@@ -4983,7 +4990,7 @@ function RedFlagsDocumentalesSection({ flags }: { flags: any[] }) {
                                           "bg-paperDeep text-mute",
               )}>● {f.severidad || "media"}</span>
             </div>
-            <p className="mt-1.5 text-sm leading-relaxed text-ink">{f.descripcion}</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-ink">{redactDnis(f.descripcion)}</p>
             {f.norma_citada && (
               <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-paperDeep px-2 py-0.5 text-[11px] text-mute">
                 <Scale size={11} className="text-clay" />
@@ -5007,7 +5014,11 @@ function FallbackText({ title, text, icon }: { title: string; text: string; icon
         <p className="mt-1 text-xs text-mute">El JSON estructurado no pudo parsearse — mostramos el texto crudo del agente.</p>
       </div>
       <article className="prose prose-sm max-w-none px-6 py-4 prose-headings:font-serif prose-headings:text-ink prose-p:text-ink prose-strong:text-ink prose-a:text-clay prose-li:text-ink prose-table:text-xs prose-th:bg-paperDeep prose-th:text-ink prose-td:text-ink">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+          p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
+          li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,
+          strong: ({ node, children, ...props }) => <strong {...props}>{redactChildren(children)}</strong>,
+        }}>{text}</ReactMarkdown>
       </article>
     </section>
   );
@@ -5182,7 +5193,7 @@ function CumplimientoNormativoSection({ nc }: { nc: any }) {
                     </td>
                     <td className="px-3 py-2 text-ink">
                       <div className="font-semibold leading-tight">{h.titulo}</div>
-                      <div className="mt-0.5 text-[11px] text-mute">{h.descripcion}</div>
+                      <div className="mt-0.5 text-[11px] text-mute">{redactDnis(h.descripcion)}</div>
                     </td>
                     <td className="px-3 py-2">
                       <span className={cn(
@@ -5551,7 +5562,7 @@ function FirmantesYAdjudicacionSection({
               {firmantes.map((f: any, i: number) => (
                 <li key={i} className="rounded-md bg-paper px-3 py-2">
                   <div className="flex items-baseline gap-2">
-                    <strong className="text-sm text-ink">{f.nombre_completo}</strong>
+                    <strong className="text-sm text-ink"><PersonName name={f.nombre_completo} /></strong>
                     {f.rol_en_documento && (
                       <span className={cn(
                         "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
@@ -5568,7 +5579,7 @@ function FirmantesYAdjudicacionSection({
                     <div className="text-[10px] text-mute">{f.entidad}</div>
                   )}
                   <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-mute">
-                    {f.dni && <span className="font-mono">DNI {f.dni}</span>}
+                    {f.dni && <span className="font-mono">DNI <Dni value={f.dni} /></span>}
                     {f.fecha_firma && (
                       <span className="inline-flex items-center gap-1">
                         <Calendar size={9} /> {f.fecha_firma}
@@ -5595,7 +5606,7 @@ function FirmantesYAdjudicacionSection({
               {comite.map((m: any, i: number) => (
                 <li key={i} className="rounded-md bg-paper px-3 py-2">
                   <div className="flex items-baseline gap-2">
-                    <strong className="text-sm text-ink">{m.nombre_completo}</strong>
+                    <strong className="text-sm text-ink"><PersonName name={m.nombre_completo} /></strong>
                     {m.rol && (
                       <span className="rounded-full bg-amber-soft px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber">
                         {String(m.rol).replace(/_/g, " ")}
@@ -5649,7 +5660,7 @@ function FirmantesYAdjudicacionSection({
                 )}
                 {m.observaciones_evaluacion && (
                   <p className="mt-1 text-xs leading-relaxed text-inkSoft">
-                    {m.observaciones_evaluacion}
+                    {redactDnis(m.observaciones_evaluacion)}
                   </p>
                 )}
                 {(m.competidores_descalificados || []).length > 0 && (
@@ -5702,7 +5713,7 @@ function FirmantesYAdjudicacionSection({
                   </div>
                 )}
                 {c.evidencia && (
-                  <p className="mt-1 text-[11px] text-inkSoft">{c.evidencia}</p>
+                  <p className="mt-1 text-[11px] text-inkSoft">{redactDnis(c.evidencia)}</p>
                 )}
                 {c.fuente_url && (
                   <a href={c.fuente_url} target="_blank" rel="noreferrer"
@@ -5884,7 +5895,7 @@ function RelationshipGraph({
 
   nodes.push({
     id: idPerson, kind: "person", label: personLabel,
-    sublabel: p.cargo_actual || (p.dni ? `DNI ${p.dni}` : undefined),
+    sublabel: p.cargo_actual || (p.dni ? `DNI ${maskDnis(String(p.dni))}` : undefined),
     meta: { dni: p.dni, cargo: p.cargo_actual, fuente_url: p.datosperu_url || p.linkedin },
   });
 
@@ -6251,8 +6262,8 @@ function RelationshipGraph({
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "company_titular",
         label: nombre,
-        sublabel: s.dni ? `DNI ${s.dni}` : (s.rol_en_postor || "socio"),
-        tooltip: `${nombre}${s.dni ? " · DNI " + s.dni : ""} · ${s.rol_en_postor || "socio"}${
+        sublabel: s.dni ? `DNI ${maskDnis(String(s.dni))}` : (s.rol_en_postor || "socio"),
+        tooltip: `${nombre}${s.dni ? " · DNI " + maskDnis(String(s.dni)) : ""} · ${s.rol_en_postor || "socio"}${
           esFuncionarioActivo ? " · ⚠ FUNCIONARIO PÚBLICO ACTIVO" : ""
         }`,
         meta: {
@@ -6758,7 +6769,7 @@ function RelationshipGraph({
                 <div>
                   <span className="font-semibold text-ink">{b.titulo || b.tipo || "Hallazgo"}</span>
                   {b.descripcion && (
-                    <span className="ml-1.5 text-inkSoft">— {String(b.descripcion).slice(0, 220)}{String(b.descripcion).length > 220 ? "…" : ""}</span>
+                    <span className="ml-1.5 text-inkSoft">— {redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</span>
                   )}
                   {b.requiere_verificacion && (
                     <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amber">⏳ requiere verificación</span>
@@ -7107,7 +7118,7 @@ function NodeDetailPanel({
           {m.dni && (
             <div className="rounded-md bg-paperSoft px-2 py-1.5">
               <dt className="text-[9px] uppercase tracking-widest text-mute">DNI</dt>
-              <dd className="font-mono font-bold text-ink">{m.dni}</dd>
+              <dd className="font-mono font-bold text-ink"><Dni value={m.dni} /></dd>
             </div>
           )}
           {m.cargo && (
@@ -7143,7 +7154,7 @@ function NodeDetailPanel({
           {m.observacion && (
             <div className="col-span-full rounded-md bg-crimson-soft px-2 py-1.5">
               <dt className="text-[9px] uppercase tracking-widest text-rust">Observación</dt>
-              <dd className="italic text-rust">{m.observacion}</dd>
+              <dd className="italic text-rust">{redactDnis(m.observacion)}</dd>
             </div>
           )}
           {m.objeto && (
@@ -7209,7 +7220,7 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
           Personas clave y red empresarial
         </h2>
         {sintesis && (
-          <p className="mt-2 text-sm leading-relaxed text-inkSoft">{sintesis}</p>
+          <p className="mt-2 text-sm leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>
         )}
       </div>
 
@@ -7227,7 +7238,7 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
                 Persona principal
               </div>
               <h3 className="font-serif text-base font-bold text-ink">
-                {hasGerente ? p.nombre_completo : "Gerente no identificado"}
+                {hasGerente ? <PersonName name={p.nombre_completo} /> : "Gerente no identificado"}
               </h3>
               {p.cargo_actual && (
                 <p className="text-xs text-inkSoft">{p.cargo_actual}</p>
@@ -7242,14 +7253,14 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
           )}
 
           {p.sintesis_personal && hasGerente && (
-            <p className="text-xs leading-relaxed text-inkSoft">{p.sintesis_personal}</p>
+            <p className="text-xs leading-relaxed text-inkSoft">{redactDnis(p.sintesis_personal)}</p>
           )}
 
           {/* Identificadores */}
           {(p.dni || p.linkedin || p.datosperu_url) && (
             <div className="flex flex-wrap gap-1.5 text-[10px]">
               {p.dni && (
-                <span className="rounded-md bg-paperDeep px-2 py-0.5 font-mono text-mute">DNI {p.dni}</span>
+                <span className="rounded-md bg-paperDeep px-2 py-0.5 font-mono text-mute">DNI <Dni value={p.dni} /></span>
               )}
               {p.linkedin && (
                 <a href={p.linkedin} target="_blank" rel="noreferrer"
@@ -7389,7 +7400,7 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
                 Empresas vinculadas
               </h3>
               {red.observaciones && (
-                <p className="mt-0.5 text-[11px] text-inkSoft">{red.observaciones}</p>
+                <p className="mt-0.5 text-[11px] text-inkSoft">{redactDnis(red.observaciones)}</p>
               )}
             </div>
           </div>
@@ -7434,7 +7445,7 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
                     </div>
                     <div className="text-xs font-semibold text-ink">{e.razon_social}</div>
                     {e.direccion && <div className="text-[10px] text-mute">📍 {e.direccion}</div>}
-                    {e.observacion && <div className="mt-0.5 text-[10px] italic text-rust">{e.observacion}</div>}
+                    {e.observacion && <div className="mt-0.5 text-[10px] italic text-rust">{redactDnis(e.observacion)}</div>}
                   </li>
                 ))}
               </ul>
@@ -7464,7 +7475,7 @@ function PersonNetworkSection({ person, web, proveedor, ctx }: { person: any; we
                   )}>● {b.severidad || "media"}</span>
                   <strong className="text-sm text-ink">{b.titulo}</strong>
                 </div>
-                <p className="mt-1 text-xs text-inkSoft">{b.descripcion}</p>
+                <p className="mt-1 text-xs text-inkSoft">{redactDnis(b.descripcion)}</p>
               </li>
             ))}
           </ul>
@@ -7611,7 +7622,7 @@ function EstructuraEntidadSection({
                       </span>
                     )}
                   </div>
-                  <strong className="mt-0.5 block text-ink">{f.nombre_completo}</strong>
+                  <strong className="mt-0.5 block text-ink"><PersonName name={f.nombre_completo} /></strong>
                   {f.area && (
                     <div className="text-[11px] text-inkSoft">{f.area}</div>
                   )}
@@ -7659,7 +7670,7 @@ function EstructuraEntidadSection({
 
           {ep.observaciones && (
             <p className="mt-2 border-t border-line pt-2 text-[11px] italic text-mute">
-              {ep.observaciones}
+              {redactDnis(ep.observaciones)}
             </p>
           )}
         </article>
@@ -7705,7 +7716,7 @@ function CausalDirectaSection({
             </div>
             <div className="rounded-md bg-paper px-2 py-1.5">
               <dt className="text-[9px] uppercase tracking-widest text-mute">Descripción</dt>
-              <dd className="text-ink">{causal.descripcion}</dd>
+              <dd className="text-ink">{redactDnis(causal.descripcion)}</dd>
             </div>
             {causal.evidencia_text && (
               <div className="rounded-md bg-paper px-2 py-1.5">
@@ -7842,7 +7853,7 @@ function NoticiasSection({ news }: { news: any }) {
           </div>
         </div>
         {sintesis && (
-          <p className="mt-2 text-sm leading-relaxed text-inkSoft">{sintesis}</p>
+          <p className="mt-2 text-sm leading-relaxed text-inkSoft">{redactDnis(sintesis)}</p>
         )}
       </div>
 
@@ -7863,7 +7874,7 @@ function NoticiasSection({ news }: { news: any }) {
                   )}>● {b.severidad || "media"}</span>
                   <strong className="text-ink">{b.titulo}</strong>
                 </div>
-                <p className="mt-1 text-inkSoft">{b.descripcion}</p>
+                <p className="mt-1 text-inkSoft">{redactDnis(b.descripcion)}</p>
                 {b.url && (
                   <a href={b.url} target="_blank" rel="noreferrer"
                      className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
@@ -7927,7 +7938,7 @@ function NoticiasSection({ news }: { news: any }) {
                       {n.titulo}
                     </h3>
                   )}
-                  <p className="mt-1 text-xs leading-relaxed text-inkSoft">{n.resumen}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-inkSoft">{redactDnis(n.resumen)}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
                     {n.actor_principal && (
                       <span className="rounded-md bg-paper px-2 py-0.5 text-mute">
