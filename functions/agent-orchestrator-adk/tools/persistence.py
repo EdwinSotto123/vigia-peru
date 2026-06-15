@@ -1,6 +1,22 @@
 """Tools del dominio: persistence."""
 
 from tools._core import *  # noqa: F401,F403
+import hashlib as _hashlib
+
+
+def _advisory_lock(cur, key_str: str) -> None:
+    """Lock xact-scoped por OCID/código: serializa corridas concurrentes del MISMO
+    proceso para que no se pisen el DELETE+INSERT de banderas (carrera real observada
+    con runs solapados — una corrida borra las banderas de la otra). Se libera solo
+    al commit/close de la transacción. Defensivo: si falla, NO rompe el persist
+    (peor caso = comportamiento previo sin lock)."""
+    try:
+        k = int.from_bytes(_hashlib.blake2b((key_str or "vigia").encode("utf-8"),
+                                            digest_size=8).digest(), "big", signed=True)
+        cur.execute("SELECT pg_advisory_xact_lock(%s)", (k,))
+    except Exception:
+        pass
+
 
 def add_contextual_flag(regla: str, severidad: str, evidencia: str,
                          norma: str, tool_context: ToolContext,
@@ -70,6 +86,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
     conn = _pg()
     try:
         cur = conn.cursor()
+        _advisory_lock(cur, codigo)
         cur.execute(
             """SELECT entidad_ruc, region, fecha_buena_pro, objeto, cuantia_referencial,
                       (SELECT empresa_ruc FROM postores p
@@ -197,6 +214,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     conn = _pg()
     try:
         cur = conn.cursor()
+        _advisory_lock(cur, raw_codigo)
         cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
         row = cur.fetchone()
         if not row:
@@ -467,6 +485,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
     conn = _pg()
     try:
         cur = conn.cursor()
+        _advisory_lock(cur, raw_codigo)
         cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
         row = cur.fetchone()
         if not row:
@@ -717,6 +736,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
     conn = _pg()
     try:
         cur = conn.cursor()
+        _advisory_lock(cur, raw_codigo)
         # Migración idempotente (corre solo en la primera invocación)
         cur.execute(
             "ALTER TABLE alertas "

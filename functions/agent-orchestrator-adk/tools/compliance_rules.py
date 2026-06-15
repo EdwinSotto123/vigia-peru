@@ -1075,6 +1075,26 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
             "doc_resumen": (doc.get("resumen_ejecutivo") or "")[:120],
         })
 
+    # EXTRACCIÓN FALLIDA: el parser corrió sobre un documento pero NO extrajo el
+    # producto real. Dos variantes: (a) produjo ítems pero TODOS vacíos o genéricos
+    # ('BIEN/SERVICIO PRINCIPAL 1', 'Bien o servicio del ítem X'); (b) NO produjo
+    # NINGÚN ítem (items_consolidados == []) pese a haber procesado el documento
+    # (resumen/tipo/requerimiento presentes). Distinto de la incongruencia (rubro
+    # distinto): acá no hay rubro, hay placeholders o vacío → el análisis del
+    # documento no es confiable (caso 1221246: Bases ilegible/escaneada/plantilla).
+    _descs_reales = [d for d in doc_descs if d and d.strip()]
+    _doc_procesado = (bool((doc.get("resumen_ejecutivo") or "").strip())
+                      or bool(doc.get("tipo_documento"))
+                      or doc.get("requerimiento_disponible") is not None)
+    _items_inservibles = bool(items_doc) and (not _descs_reales or doc_es_generico)
+    _sin_items_pese_a_doc = (n_items_doc == 0 and _doc_procesado)
+    if _items_inservibles or _sin_items_pese_a_doc:
+        inconsistencias.append({
+            "tipo": "extraccion_documento_fallida",
+            "n_items": n_items_doc,
+            "doc_resumen": (doc.get("resumen_ejecutivo") or "")[:120],
+        })
+
     result = {
         "regla": "inconsistencia_doc_vs_ocds",
         "cuantia_ocds": cuantia_ocds,
@@ -1086,8 +1106,10 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
     }
     if inconsistencias:
         # Priorizar la incongruencia de OBJETO (la más grave) si está presente.
-        primera = next((i for i in inconsistencias
-                        if i["tipo"] == "objeto_no_corresponde_documento"), inconsistencias[0])
+        _prio = ["objeto_no_corresponde_documento", "extraccion_documento_fallida",
+                 "cuantia_distinta", "items_count_distinto"]
+        primera = min(inconsistencias,
+                      key=lambda i: _prio.index(i["tipo"]) if i["tipo"] in _prio else 99)
         severidad = "media"
         if primera["tipo"] == "objeto_no_corresponde_documento":
             severidad = "alta"
@@ -1097,6 +1119,15 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
                   f"('{primera.get('doc_items') or primera.get('doc_resumen')}'). Posible Bases mal "
                   f"adjuntado, plantilla reusada o expediente incongruente — la evaluación técnica "
                   f"y de precio del proceso queda comprometida.")
+        elif primera["tipo"] == "extraccion_documento_fallida":
+            result["regla"] = "extraccion_documento_fallida"
+            _ni = primera.get("n_items") or 0
+            _det = (f"{_ni} ítem(s) extraídos, todos vacíos o genéricos" if _ni
+                    else "no se extrajo ningún ítem usable del documento procesado")
+            ev = (f"El parser no logró extraer el detalle real de los documentos del expediente "
+                  f"({_det}). El Bases podría estar mal adjuntado, ser una plantilla o estar "
+                  f"ilegible/escaneado → el análisis técnico y de precio de este proceso NO es "
+                  f"confiable y debe revisarse manualmente.")
         elif primera["tipo"] == "cuantia_distinta":
             ev = (f"Discrepancia de cuantía: OCDS publica S/. {(primera.get('ocds') or 0):,.2f} "
                   f"pero el documento del expediente indica S/. {(primera.get('documento') or 0):,.2f} "

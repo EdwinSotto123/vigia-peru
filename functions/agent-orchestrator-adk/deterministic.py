@@ -29,8 +29,46 @@ import tools as T
 
 APP_NAME = "vigia-peru"
 
-# Tarifas Gemini 2.5 Flash en Vertex (USD/1M tokens) — igual que main.py
-_COST_IN, _COST_OUT = 0.30, 2.50
+# Tarifas Gemini en Vertex (USD/1M tokens, estimado). El pipeline MEZCLA tiers:
+# Pro (report_writer/legal/person_network), Flash (default) y Flash-Lite
+# (compliance_extended). Cobrar TODO a tarifa Flash subreporta el costo real
+# (Pro ~5x in / ~4x out) → distorsiona el costo que va al span de Arize. Por eso
+# el costo se acumula POR LLAMADA con la tarifa del modelo de cada sub-agente.
+_MODEL_RATES = {
+    "pro":        (1.25, 10.00),
+    "flash-lite": (0.10, 0.40),
+    "flash":      (0.30, 2.50),
+}
+_DEFAULT_RATE = _MODEL_RATES["flash"]
+
+
+def _rate_for_model(model) -> tuple[float, float]:
+    """(in_rate, out_rate) USD/1M según substring del id del modelo. Robusto a
+    None o a un objeto Model (se castea a str)."""
+    m = str(model or "").lower()
+    if "pro" in m:
+        return _MODEL_RATES["pro"]
+    if "lite" in m:
+        return _MODEL_RATES["flash-lite"]
+    if "flash" in m:
+        return _MODEL_RATES["flash"]
+    return _DEFAULT_RATE
+
+
+def _is_empty_output(val) -> bool:
+    """True si la salida de un sub-agente es 'vacía' (quirk Gemini+google_search:
+    tokens al grounding, texto final ''). Una salida ESTRUCTURADA con al menos un
+    campo con contenido (ej. sin_data_publica:true, noticias:[...]) NO es vacía —
+    solo dispara el guardrail lo realmente hueco (''/{}/[] o dict todo-vacío)."""
+    if val is None:
+        return True
+    if isinstance(val, str):
+        return val.strip() in ("", "{}", "[]")
+    if isinstance(val, dict):
+        return not any(v not in (None, "", [], {}) for v in val.values())
+    if isinstance(val, (list, tuple, set)):
+        return len(val) == 0
+    return not val
 
 
 class _Shim:
@@ -116,9 +154,10 @@ def _sanitize_dictamen(text: str) -> str:
     return t
 
 
-def _parse_event(event, metrics: dict, fallback_agent: str) -> tuple[list[dict], list[dict], str | None]:
+def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple[list[dict], list[dict], str | None]:
     """Convierte un evento ADK en (trace_events, metric_events, final_text).
-    Acumula tokens/costo en `metrics`. Mismo parseo que main._run_streaming."""
+    Acumula tokens/costo en `metrics`. `model` = id del modelo del sub-agente que
+    emitió el evento → permite cobrar cada llamada a su tarifa real (Pro vs Flash)."""
     agent_name = getattr(event, "author", None) or fallback_agent
     trace: list[dict] = []
     final_text: str | None = None
@@ -163,11 +202,15 @@ def _parse_event(event, metrics: dict, fallback_agent: str) -> tuple[list[dict],
         pt = int(getattr(um, "prompt_token_count", 0) or 0)
         ct = int(getattr(um, "candidates_token_count", 0) or 0)
         if pt or ct:
+            in_r, out_r = _rate_for_model(model)
             metrics["prompt"] += pt
             metrics["output"] += ct
             metrics["total"] += int(getattr(um, "total_token_count", 0) or (pt + ct))
             metrics["calls"] += 1
-            metrics["cost"] = round(metrics["prompt"] / 1e6 * _COST_IN + metrics["output"] / 1e6 * _COST_OUT, 4)
+            # Costo = SUMA POR LLAMADA con la tarifa del modelo (no recálculo desde
+            # totales con una tarifa única — eso era lo que subreportaba al Pro).
+            metrics["cost"] = round(float(metrics.get("cost") or 0.0)
+                                    + pt / 1e6 * in_r + ct / 1e6 * out_r, 6)
             metric_events.append({"kind": "metrics", "agent": agent_name,
                                   "tokens_total": metrics["total"], "tokens_prompt": metrics["prompt"],
                                   "tokens_output": metrics["output"], "n_llm_calls": metrics["calls"],
@@ -175,16 +218,23 @@ def _parse_event(event, metrics: dict, fallback_agent: str) -> tuple[list[dict],
     return trace, metric_events, final_text
 
 
-def _tool(fn, fname: str, state: dict, **kwargs) -> tuple[list[dict], Any]:
-    """Llama una tool con shim sobre `state`. Devuelve (eventos_trace, resultado)."""
+def _tool(fn, fname: str, state: dict, agent: str = "pipeline", **kwargs) -> tuple[list[dict], Any]:
+    """Llama una tool con shim sobre `state`. Devuelve (eventos_trace, resultado).
+
+    `agent` etiqueta los eventos del trace. Default "pipeline" (= Orquestador en la UI).
+    Pasá el nombre de un sub-agente cuando la tool corre LÓGICAMENTE bajo él — p.ej. el
+    análisis de mercado corre como tools (fan-out sharded, sin saturar) pero conceptualmente
+    ES market_price_agent: así sus llamadas se atribuyen al nodo `market` del grafo y a
+    "Market Price" en el stream de eventos, no al Orquestador. Ninguna tool usa un kwarg
+    `agent`, así que no colisiona con `**kwargs`."""
     shim = _Shim(state)
     try:
         res = fn(tool_context=shim, **kwargs)
     except Exception as e:
         res = {"error": f"{type(e).__name__}: {str(e)[:160]}"}
     evs = [
-        {"agent": "pipeline", "kind": "tool_call", "name": fname, "args": _short_args(kwargs)},
-        {"agent": "pipeline", "kind": "tool_result", "name": fname, "result_preview": _truncate_result(res)},
+        {"agent": agent, "kind": "tool_call", "name": fname, "args": _short_args(kwargs)},
+        {"agent": agent, "kind": "tool_result", "name": fname, "result_preview": _truncate_result(res)},
     ]
     return evs, res
 
@@ -204,10 +254,11 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
         return
     sub_runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
     msg = gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=msg_text)])
+    _model = getattr(agent, "model", None)
     final_text = None
     try:
         async for event in sub_runner.run_async(user_id=user_id, session_id=sid, new_message=msg):
-            trace, metric_evs, ft = _parse_event(event, metrics, name)
+            trace, metric_evs, ft = _parse_event(event, metrics, name, model=_model)
             if ft:
                 final_text = ft
             for me in metric_evs:
@@ -217,13 +268,19 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
     except Exception as e:
         yield {"agent": name, "kind": "error", "detail": f"run: {str(e)[:200]}"}
     # Merge del state de vuelta (output_key + escrituras de tools del sub-agente).
+    # Si el merge falla, el output_key de este agente se PIERDE silenciosamente
+    # (reintroduce el bug de "sección vacía" que el pipeline vino a matar) → warn.
     try:
         sess = await session_service.get_session(app_name=APP_NAME, user_id=user_id, session_id=sid)
         if sess and sess.state:
             for k, v in dict(sess.state).items():
                 state[k] = v
-    except Exception:
-        pass
+        else:
+            yield {"agent": name, "kind": "warn",
+                   "detail": "merge: sesión del sub-agente vacía — su output_key pudo perderse"}
+    except Exception as e:
+        yield {"agent": name, "kind": "warn",
+               "detail": f"merge del state falló: {str(e)[:160]} — output del sub-agente pudo perderse"}
     state["_last_agent_final"] = final_text
 
 
@@ -275,12 +332,54 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             out.extend(evs)
         return out
 
+    async def _agent_with_retry(agent, msg, state_key, default_stub):
+        """Corre un sub-agente y, si su `state_key` quedó VACÍO (quirk de grounding),
+        reintenta 1× con instrucción explícita; si sigue vacío, deja un default
+        tipado (degradación honesta) para no dejar la sección en blanco sin aviso.
+        Generaliza el guardrail que ya tenía news_research a web/entity/person."""
+        async for e in _agent(agent, msg):
+            yield e
+        if _is_empty_output(state.get(state_key)):
+            yield {"kind": "warn", "name": state_key, "msg": f"{state_key} vacío — reintento"}
+            state.pop(state_key, None)
+            state.pop("_last_agent_final", None)
+            async for e in _agent(agent, msg + " (REINTENTO: la pasada anterior salió VACÍA. "
+                                  "Devolvé SIEMPRE el JSON COMPLETO del schema pedido; si no hay "
+                                  "datos, devolvé las listas vacías + un campo que lo indique. "
+                                  "NUNCA respondas vacío.)"):
+                yield e
+            if _is_empty_output(state.get(state_key)):
+                state[state_key] = default_stub
+                yield {"kind": "warn", "name": state_key,
+                       "msg": f"{state_key} vacío tras reintento — default tipado"}
+
     # ── 1. OCDS + registro ──
     yield {"kind": "phase", "name": "ocds", "msg": f"obteniendo OCDS de {ocid}"}
     evs, _ = _tool(T.fetch_ocds_record, "fetch_ocds_record", state, ocid=ocid)
     async for e in _emit(evs): yield e
     ocid = (state.get("ocid") or ocid).strip()  # normalizado por la tool
     alerta_codigo = _norm_codigo(ocid)
+
+    # ABORT honesto: si no se obtuvo el OCDS (relay VPS / WAF caído), los ~12 pasos
+    # siguientes correrían sobre datos VACÍOS y producirían un análisis basura que
+    # igual se persistiría y dictaminaría. Mejor abortar y dejar constancia clara.
+    _ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    _ocds_ok = isinstance(_ocds, dict) and (_ocds.get("tender") or _ocds.get("awards") or _ocds.get("ocid"))
+    if not _ocds_ok:
+        yield {"kind": "warn", "name": "ocds",
+               "msg": "OCDS no disponible (fuente OECE inaccesible) — abortando análisis"}
+        state["final_dictamen"] = (
+            f"## Análisis no disponible — {alerta_codigo}\n\n"
+            f"No se pudo obtener el registro OCDS del proceso `{ocid}` desde la fuente oficial "
+            f"(OECE Contrataciones Abiertas inaccesible en este momento). El análisis NO puede "
+            f"continuar sin los datos base del proceso y se aborta para no emitir conclusiones "
+            f"sobre información vacía. Reintentar cuando la fuente esté disponible.")
+        state["_final_response"] = "OCDS no disponible — análisis abortado."
+        state["_aborted"] = "ocds_unavailable"
+        evs, _ = _tool(T.persist_analysis_outputs, "persist_analysis_outputs", state, alerta_codigo=alerta_codigo)
+        async for e in _emit(evs): yield e
+        return
+
     evs, _ = _tool(T.register_convocatoria_in_db, "register_convocatoria_in_db", state, ocid=ocid)
     async for e in _emit(evs): yield e
 
@@ -315,11 +414,11 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             "msg": "orquestador delega a market_price_agent"}
     events_trace.append(_mkt)
     yield _mkt
-    evs, _ = _tool(T.build_market_input, "build_market_input", state, ocid=ocid)
+    evs, _ = _tool(T.build_market_input, "build_market_input", state, agent="market_price_agent", ocid=ocid)
     async for e in _emit(evs): yield e
-    evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, ocid=ocid)
+    evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, agent="market_price_agent", ocid=ocid)
     async for e in _emit(evs): yield e
-    evs, _ = _tool(T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas", state, alerta_codigo=alerta_codigo)
+    evs, _ = _tool(T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas", state, agent="market_price_agent", alerta_codigo=alerta_codigo)
     async for e in _emit(evs): yield e
 
     # ── 6. Proveedor ganador: perfil OECE + SUNAT + web_research ──
@@ -343,10 +442,13 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             async for e in _emit(evs): yield e
         evs, _ = _tool(T.read_sunat_profile, "read_sunat_profile", state)
         async for e in _emit(evs): yield e
-    async for e in _agent(A.web_research_agent,
-                          f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
-                          f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
-                          f"directivos, aportes ONPE e historial de contratos."):
+    _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
+                f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
+                f"directivos, aportes ONPE e historial de contratos.")
+    async for e in _agent_with_retry(A.web_research_agent, _web_msg, "web_research",
+                                     {"empresa": {"ruc": ruc, "razon_social": razon},
+                                      "hallazgos": [], "sin_hallazgos_relevantes": True,
+                                      "_note": "web_research sin hallazgos tras reintento"}):
         yield e
 
     # ── 7. Prensa ──
@@ -397,10 +499,12 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
 
     # ── 8. Funcionarios de la entidad + lookup ──
     yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
-    async for e in _agent(A.entity_personnel_agent,
-                          f"Investiga la estructura administrativa de '{entidad.get('nombre','')}' "
-                          f"(RUC {entidad.get('ruc','')}) en la región {entidad.get('region','')}. Devuelve los "
-                          f"funcionarios designados (gerentes, procurador, jefe OCI, etc.) con su acto resolutivo."):
+    _entity_msg = (f"Investiga la estructura administrativa de '{entidad.get('nombre','')}' "
+                   f"(RUC {entidad.get('ruc','')}) en la región {entidad.get('region','')}. Devuelve los "
+                   f"funcionarios designados (gerentes, procurador, jefe OCI, etc.) con su acto resolutivo.")
+    async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel",
+                                     {"funcionarios_designados": [], "sin_data_publica": True,
+                                      "_note": "entity_personnel sin directorio público tras reintento"}):
         yield e
     func_desig = (state.get("entity_personnel") or {})
     funcionarios = func_desig.get("funcionarios_designados") if isinstance(func_desig, dict) else None
@@ -449,9 +553,11 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
         async for e in _emit(evs): yield e
     evs, _ = _tool(T.read_person_network_context, "read_person_network_context", state)
     async for e in _emit(evs): yield e
-    async for e in _agent(A.person_network_agent,
-                          f"Analiza la red de personas para el OCID {ocid}. El contexto (RNP + datos Perú + "
-                          f"postores + firmantes + autoridades) está pre-cargado en tu instrucción."):
+    _person_msg = (f"Analiza la red de personas para el OCID {ocid}. El contexto (RNP + datos Perú + "
+                   f"postores + firmantes + autoridades) está pre-cargado en tu instrucción.")
+    async for e in _agent_with_retry(A.person_network_agent, _person_msg, "person_network",
+                                     {"vinculos_detectados": [], "sin_red_detectada": True,
+                                      "_note": "person_network sin vínculos tras reintento"}):
         yield e
 
     # ── 10. Compliance extendido (12 reglas + RAG + banderas de juicio del 7.7) ──

@@ -44,6 +44,16 @@ import functions_framework
 from agents._shared import model_fallback  # noqa: F401  (aplica el patch al importar)
 
 from arize_observability import init_arize_tracing, set_session_attrs, force_flush_tracing
+
+# Tarifa LLM por TIER (USD/1M, estimado). Agentes Pro (gemini-2.5-pro) cuestan ~5x
+# el Flash; cobrar todo a Flash subreporta el costo en el span de Arize. El camino
+# determinista cobra por modelo en deterministic._parse_event; acá (camino LLM /
+# safety-net writer) mapeamos por nombre de agente para mantener la coherencia.
+_PRO_AGENTS = {"report_writer_agent", "document_legal_analyst_agent", "person_network_agent"}
+
+
+def _rate_for_agent_name(name: str) -> tuple[float, float]:
+    return (1.25, 10.00) if name in _PRO_AGENTS else (0.30, 2.50)
 _ARIZE_ACTIVE = init_arize_tracing()
 
 from google.adk.runners import Runner
@@ -268,11 +278,14 @@ async def _run_streaming(
             pt = int(getattr(um, "prompt_token_count", 0) or 0)
             ct = int(getattr(um, "candidates_token_count", 0) or 0)
             if pt or ct:
+                _in_r, _out_r = _rate_for_agent_name(agent_name)
                 _metrics["prompt"] += pt
                 _metrics["output"] += ct
                 _metrics["total"] += int(getattr(um, "total_token_count", 0) or (pt + ct))
                 _metrics["calls"] += 1
-                _metrics["cost"] = round(_metrics["prompt"] / 1e6 * 0.30 + _metrics["output"] / 1e6 * 2.50, 4)
+                # Suma POR LLAMADA con la tarifa del tier (no recálculo desde totales).
+                _metrics["cost"] = round(float(_metrics.get("cost") or 0.0)
+                                         + pt / 1e6 * _in_r + ct / 1e6 * _out_r, 6)
                 yield {
                     "kind": "metrics", "agent": agent_name,
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
