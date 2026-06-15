@@ -117,6 +117,17 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         num = str(pi.get("numero") or "")
         if not num:
             continue
+        # COLISIÓN de número: el parser a veces numera con el MISMO número tanto
+        # el título-objeto (sin requerimiento) como el ítem real (con el
+        # requerimiento extraído de las Bases). Con last-wins se perdía el
+        # requerimiento real (bug 1221137: el ítem "CPU" con 827 chars lo pisaba
+        # el título-objeto con 0). Nos quedamos con el ítem MÁS informativo.
+        prev = parser_by_num.get(num)
+        if prev is not None:
+            prev_req = len(str(prev.get("requerimiento_tecnico_detallado") or ""))
+            new_req = len(str(pi.get("requerimiento_tecnico_detallado") or ""))
+            if new_req <= prev_req:
+                continue
         parser_by_num[num] = pi
 
     # MERGE: empezamos por los SQL items y enriquecemos. Si el parser desglosó
@@ -397,9 +408,10 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         "como contexto principal para construir queries específicas; NO te bases solo "
         "en `descripcion_corta`."
         if n_con_req > 0 else
-        "No se pudo extraer requerimiento técnico detallado de las Bases (posiblemente "
-        "el PDF era escaneado o el parser falló). Trabaja con descripcion_corta y marca "
-        "tus findings como es_estimacion=true con motivo_estimacion='requerimiento_no_disponible'."
+        "No hay requerimiento técnico detallado disponible para estos ítems (las Bases "
+        "podrían no detallarlo, ser escaneadas, o el ítem del OCDS no enlazó con el de las "
+        "Bases). Trabaja con descripcion_corta y marca tus findings como es_estimacion=true "
+        "con motivo_estimacion='requerimiento_no_disponible'."
     )
     mensaje_lote = ""
     if padres_info:
