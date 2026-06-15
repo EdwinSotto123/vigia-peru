@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getAnalyzedList } from "@/lib/dossier-cache";
-import { Glass, Dni, PersonName, redactDnis, redactChildren, maskDnis } from "./Redact";
+import { Glass, Dni, PersonName, redactDnis, redactChildren, maskDnis, maskApellido } from "./Redact";
 import {
   Search,
   Loader2,
@@ -5894,7 +5894,7 @@ function RelationshipGraph({
   const idEntidad = "entidad";
 
   nodes.push({
-    id: idPerson, kind: "person", label: personLabel,
+    id: idPerson, kind: "person", label: maskApellido(personLabel),
     sublabel: p.cargo_actual || (p.dni ? `DNI ${maskDnis(String(p.dni))}` : undefined),
     meta: { dni: p.dni, cargo: p.cargo_actual, fuente_url: p.datosperu_url || p.linkedin },
   });
@@ -5991,7 +5991,7 @@ function RelationshipGraph({
   // (partidoMunicipioContratante ya está hoisted arriba)
   familia.slice(0, 8).forEach((f: any, i: number) => {
     const id = `fa_${i}`;
-    const nombre = (f.nombre || "Familiar") as string;
+    const nombre = maskApellido((f.nombre || "Familiar") as string);
     nodes.push({
       id, kind: "pareja",
       label: nombre,
@@ -6090,7 +6090,7 @@ function RelationshipGraph({
   // Firmantes con conflicto (NUEVO) — viñetazo rojo
   cruceFirmantes.slice(0, 3).forEach((c: any, i: number) => {
     const id = `fc_${i}`;
-    const nombre = (c.firmante || "Firmante") as string;
+    const nombre = maskApellido((c.firmante || "Firmante") as string);
     nodes.push({
       id, kind: "firmante_conflicto",
       label: nombre.length > 26 ? nombre.slice(0, 23) + "…" : nombre,
@@ -6187,7 +6187,7 @@ function RelationshipGraph({
   designadosMostrados.forEach((f: any, i: number) => {
     if (!entidadContratante) return;
     const id = `fd_${i}`;
-    const nombre = (f.nombre_completo || f.nombre || "Funcionario") as string;
+    const nombre = maskApellido((f.nombre_completo || f.nombre || "Funcionario") as string);
     const cargo = (f.cargo || f.area || "Designado") as string;
     const dniFunc = String(f.dni || "");
     const isConflict = dniFunc && dniProveedor.has(dniFunc);
@@ -6261,9 +6261,9 @@ function RelationshipGraph({
       nodes.push({
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "company_titular",
-        label: nombre,
+        label: maskApellido(nombre),
         sublabel: s.dni ? `DNI ${maskDnis(String(s.dni))}` : (s.rol_en_postor || "socio"),
-        tooltip: `${nombre}${s.dni ? " · DNI " + maskDnis(String(s.dni)) : ""} · ${s.rol_en_postor || "socio"}${
+        tooltip: `${maskApellido(nombre)}${s.dni ? " · DNI " + maskDnis(String(s.dni)) : ""} · ${s.rol_en_postor || "socio"}${
           esFuncionarioActivo ? " · ⚠ FUNCIONARIO PÚBLICO ACTIVO" : ""
         }`,
         meta: {
