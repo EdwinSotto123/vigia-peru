@@ -59,6 +59,63 @@ def _short_args(kwargs: dict) -> dict:
     return out
 
 
+# ── Guardrail del dictamen ──────────────────────────────────────────────────
+# El report_writer (gemini-2.5-pro) ocasionalmente DEGENERA su salida final en
+# contratos doc-pesados: pierde la cabecera (queda solo en el "thinking") y anexa
+# boilerplate de README + tokens de control. Detectamos eso y reintentamos con
+# contexto compacto; si persiste, sanitizamos (cortamos la basura).
+_DICTAMEN_BOILERPLATE = (
+    "## usage", "## contributing", "## license", "## installation",
+    "## getting started", "import main", "some_function", "pip install",
+    "this project is licensed", "contributions are welcome",
+)
+_DICTAMEN_CTRL = ("<ctrl", "<unused", "<pad>", "<extra_id")
+
+
+def _dictamen_problems(text) -> list[str]:
+    """Detecta una salida de dictamen malformada (degeneración del modelo)."""
+    t = (text or "").strip()
+    probs: list[str] = []
+    low = t.lower()
+    for m in _DICTAMEN_BOILERPLATE:
+        if m in low:
+            probs.append(f"boilerplate:{m}")
+            break
+    for m in _DICTAMEN_CTRL:
+        if m in t:
+            probs.append(f"ctrl_token:{m}")
+            break
+    # Cabecera: el dictamen debe empezar con un heading markdown (título) en las
+    # primeras líneas. Si arranca a mitad de contenido → cabecera perdida.
+    head_lines = [ln for ln in t.splitlines()[:4] if ln.strip()]
+    if not head_lines or not head_lines[0].lstrip().startswith("#"):
+        probs.append("no_head")
+    if len(t) < 800:
+        probs.append("too_short")
+    return probs
+
+
+def _sanitize_dictamen(text: str) -> str:
+    """Último recurso: corta la cola de basura (boilerplate de README / tokens de
+    control) que el modelo pudo anexar. NO inventa contenido — solo recorta."""
+    t = text or ""
+    low = t.lower()
+    cut = len(t)
+    for m in _DICTAMEN_BOILERPLATE:
+        i = low.find(m)
+        if i != -1:
+            cut = min(cut, i)
+    for m in _DICTAMEN_CTRL:
+        i = t.find(m)
+        if i != -1:
+            cut = min(cut, i)
+    t = t[:cut].rstrip()
+    # Cerrar un code fence colgante que el recorte pudo dejar abierto.
+    if t.count("```") % 2 == 1:
+        t = t.rsplit("```", 1)[0].rstrip()
+    return t
+
+
 def _parse_event(event, metrics: dict, fallback_agent: str) -> tuple[list[dict], list[dict], str | None]:
     """Convierte un evento ADK en (trace_events, metric_events, final_text).
     Acumula tokens/costo en `metrics`. Mismo parseo que main._run_streaming."""
@@ -352,8 +409,56 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                           f"session.state. OBLIGATORIO PASO 1: llamá get_dictamen_context() antes de escribir."):
         yield e
     # Si el output_key no capturó el dictamen pero el agente devolvió texto, lo inyectamos.
-    if not state.get("final_dictamen") and (state.get("_last_agent_final") or "").strip():
-        state["final_dictamen"] = state["_last_agent_final"].strip()
+    def _capture_dictamen():
+        if not state.get("final_dictamen") and (state.get("_last_agent_final") or "").strip():
+            state["final_dictamen"] = state["_last_agent_final"].strip()
+
+    _capture_dictamen()
+
+    # Guardrail: si el dictamen salió malformado (degeneración del modelo —
+    # README alucinado / tokens de control / cabecera perdida), reintentar UNA vez
+    # con contexto compacto; si aún falla, sanitizar como último recurso.
+    probs = _dictamen_problems(state.get("final_dictamen"))
+    if probs:
+        # Sanitizamos el 1er intento ANTES de reintentar, para nunca terminar peor.
+        attempt1_clean = _sanitize_dictamen(state.get("final_dictamen") or "")
+        yield {"kind": "warn", "name": "report_writer",
+               "msg": f"dictamen malformado {probs} — reintento con contexto compacto"}
+        state["_dictamen_compact"] = True
+        state.pop("final_dictamen", None)
+        state.pop("_last_agent_final", None)
+        async for e in _agent(
+            A.report_writer_agent,
+            f"REINTENTO. El intento anterior salió malformado. Tu RESPUESTA FINAL debe ser el "
+            f"dictamen periodístico ENTERO y AUTOCONTENIDO para la alerta {alerta_codigo}: NO "
+            f"continúes ningún borrador ni asumas texto previo — reescribí TODO desde el título. "
+            f"EMPEZÁ con el título (encabezado markdown '## …') seguido de las secciones (Resumen "
+            f"ejecutivo, Hechos clave, etc.). OBLIGATORIO PASO 1: llamá get_dictamen_context() "
+            f"antes de escribir. NO incluyas bloques de código, instrucciones de instalación, "
+            f"licencias ni texto ajeno al dictamen.",
+        ):
+            yield e
+        _capture_dictamen()
+        state.pop("_dictamen_compact", None)
+        probs2 = _dictamen_problems(state.get("final_dictamen"))
+        if not probs2:
+            yield {"kind": "info", "name": "report_writer",
+                   "msg": "reintento OK — dictamen bien formado"}
+        else:
+            # Ambas pasadas fallaron: quedarse con la MEJOR sanitizada.
+            retry_clean = _sanitize_dictamen(state.get("final_dictamen") or "")
+            best = retry_clean if len(retry_clean) >= len(attempt1_clean) else attempt1_clean
+            # Si quedó sin cabecera, anteponer un título mínimo (no inventa hechos).
+            if best and not best.lstrip().startswith("#"):
+                ocds = state.get("ocds") if isinstance(state.get("ocds"), dict) else {}
+                objeto = ((ocds.get("tender") or {}).get("title") or "").strip()
+                titulo = f"## Dictamen periodístico — {alerta_codigo}"
+                if objeto:
+                    titulo += f": {objeto[:120]}"
+                best = titulo + "\n\n" + best
+            state["final_dictamen"] = best
+            yield {"kind": "warn", "name": "report_writer",
+                   "msg": f"reintento aún {probs2} — sanitizado a {len(best)} chars"}
 
     # ── 13. Persist final (con dictamen) ──
     evs, _ = _tool(T.persist_analysis_outputs, "persist_analysis_outputs", state, alerta_codigo=alerta_codigo)

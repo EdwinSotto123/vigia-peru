@@ -2,35 +2,91 @@
 
 from tools._core import *  # noqa: F401,F403
 
+def _compact_ocds(ocds):
+    """Proyección MÍNIMA del OCDS para el dictamen (entidad, monto, ganador).
+    El report_writer no necesita parties/sources/planning/items crudos — esos
+    inflan el contexto y suben el riesgo de que el modelo degenere la salida en
+    contratos doc-pesados. La data de items/postores ya viene en document_analysis."""
+    if not isinstance(ocds, dict):
+        return ocds
+    tender = ocds.get("tender") or {}
+    buyer = ocds.get("buyer") or {}
+    awards = ocds.get("awards") or []
+    return {
+        "ocid": ocds.get("ocid"),
+        "buyer": {"name": buyer.get("name"), "id": buyer.get("id")},
+        "tender": {
+            "title": tender.get("title"),
+            "description": (tender.get("description") or "")[:800] or None,
+            "value": tender.get("value"),
+            "procurementMethodDetails": tender.get("procurementMethodDetails"),
+            "mainProcurementCategory": tender.get("mainProcurementCategory"),
+            "numberOfTenderers": tender.get("numberOfTenderers"),
+        },
+        "awards": [
+            {"suppliers": [s.get("name") for s in (a.get("suppliers") or [])],
+             "value": a.get("value"), "date": a.get("date")}
+            for a in awards[:10]
+        ],
+    }
+
+
+def _cap(obj, max_str: int, max_list: int, _depth: int = 0):
+    """Tope genérico recursivo: trunca strings largos y listas largas para acotar
+    el tamaño del contexto inyectado. Defensa contra inflado futuro."""
+    if _depth > 8:
+        return obj
+    if isinstance(obj, str):
+        return obj if len(obj) <= max_str else obj[:max_str] + "…[truncado]"
+    if isinstance(obj, list):
+        capped = [_cap(x, max_str, max_list, _depth + 1) for x in obj[:max_list]]
+        if len(obj) > max_list:
+            capped.append(f"…[+{len(obj) - max_list} ítems omitidos]")
+        return capped
+    if isinstance(obj, dict):
+        return {k: _cap(v, max_str, max_list, _depth + 1) for k, v in obj.items()}
+    return obj
+
+
 def get_dictamen_context(tool_context: ToolContext) -> dict:
-    """Devuelve TODO el contexto investigativo de la convocatoria en curso,
-    leído del session.state. Esta es la ÚNICA forma en que el report_writer
-    accede a los datos reales del análisis — sin llamar esto, NO tiene
-    información y CUALQUIER cosa que escriba será alucinación.
+    """Devuelve el contexto investigativo ACOTADO de la convocatoria en curso,
+    leído del session.state. Es la ÚNICA forma en que el report_writer accede a
+    los datos reales del análisis — sin llamar esto, NO tiene información y
+    CUALQUIER cosa que escriba será alucinación.
+
+    Contexto deliberadamente acotado para estabilizar la salida del modelo: con
+    contexto > ~70K chars el report_writer (gemini-2.5-pro) degeneró la respuesta
+    final (README alucinado + tokens de control) en contratos doc-pesados. Se
+    EXCLUYEN dos bloques redundantes y se compacta `ocds`:
+      · parser_raw_consolidated → redundante con document_analysis (mismos items,
+        pre-dedup); inflaba ~20K en contratos doc-pesados.
+      · market_findings → redundante con market_analysis (su versión estructurada).
+
+    Modo compacto (`state['_dictamen_compact']`): el driver lo activa en el
+    REINTENTO tras una salida malformada — recorta aún más (suelta legal_analysis
+    y baja los topes) para maximizar la probabilidad de una salida estable.
 
     Returns:
-        Diccionario con:
-          - ocds:          metadata OCDS (entidad, monto, postores, ganador)
-          - document_analysis: items, requerimiento, red_flags, modalidad
-          - market_analysis:   findings de precios y proveedores potenciales
-          - web_research:      perfil SUNAT + historial contratista
-          - news_research:     timeline de prensa
-          - person_network:    gerente + red empresarial + aportes políticos
-          - compliance_result: reglas duras evaluadas + banderas
-          - normative_compliance: evaluación RAG cruzada con opiniones OECE
-          - alerta_codigo:   código de alerta si se persistió alguna (puede ser None)
+        Diccionario con ocds (compacto), document_analysis, legal_analysis,
+        market_analysis, web_research, news_research, person_network,
+        compliance_result, normative_compliance, alerta_codigo,
+        estudio_mercado, contrato_final.
     """
     state = tool_context.state
+    compact = bool(state.get("_dictamen_compact"))
     keys = [
         "ocds", "document_analysis", "legal_analysis", "market_analysis",
         "web_research", "news_research", "person_network", "compliance_result",
-        "normative_compliance", "alerta_codigo", "parser_raw_consolidated",
-        "market_findings",
+        "normative_compliance", "alerta_codigo",
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra). El
         # dictamen los cita para el "por qué" de la modalidad y el precio pagado.
         "estudio_mercado", "contrato_final",
     ]
+    if compact:
+        # En reintento: soltar el bloque legal extenso (normative_compliance ya
+        # trae la evaluación RAG cruzada con opiniones OECE).
+        keys = [k for k in keys if k != "legal_analysis"]
     out: dict = {}
     for k in keys:
         v = state.get(k)
@@ -42,6 +98,11 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
             out[k] = parsed if parsed else v
         else:
             out[k] = v
+    out["ocds"] = _compact_ocds(out.get("ocds"))
+    if compact:
+        out = _cap(out, max_str=1400, max_list=10)
+    else:
+        out = _cap(out, max_str=5000, max_list=40)
     return out
 
 def read_document_analysis(tool_context: ToolContext) -> dict:
