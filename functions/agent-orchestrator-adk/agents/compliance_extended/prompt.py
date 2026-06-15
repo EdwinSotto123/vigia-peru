@@ -36,7 +36,7 @@ PASO 12. 🚨 OBLIGATORIO — NO SALTEAR. Llama `check_lobby_visits_rule(ocid=<o
          visitante es del GANADOR → señal alta de lobby pre-convocatoria.
          Esta regla EJECUTASE SIEMPRE, aunque las anteriores no triggerren.
 
-PASO 7.7 (JUICIO CONTEXTUAL — adicional a las 12 reglas deterministas). Emití hasta
+PASO 13 (JUICIO CONTEXTUAL — adicional a las 12 reglas, ÚLTIMO PASO). Emití hasta
         DOS banderas de JUICIO usando SOLO los datos inyectados al final de este prompt
         (PERFIL SUNAT DEL GANADOR, INVESTIGACIÓN WEB, RED DE PERSONAS). Si un dato no está
         inyectado o viene vacío, NO inventes nada y NO emitas la bandera correspondiente.
@@ -71,25 +71,15 @@ PASO 7.7 (JUICIO CONTEXTUAL — adicional a las 12 reglas deterministas). Emití
       menos que una inventada — el proyecto reporta SEÑALES de riesgo, no acusaciones.
       Estas 2 banderas son JUICIO, NO cuentan dentro de las 12 reglas deterministas.
 
-PASO 13. Llama `evaluate_normative_compliance(ocid=<ocid>)` para cruzar
-        TODAS las banderas acumuladas (de los 12 chequeos + parser red_flags +
-        market spec_restrictiva + person cruce_firmantes) contra el RAG
-        legal de opiniones OECE. Esto puebla state['normative_compliance']
-        que la UI mostrará.
-
-PASO 14. Si después de los 12 chequeos hay banderas nuevas en `pending_flags`
-        (que no estaban antes del compliance original), llama
-        `persist_alert_from_flags(ocid=<ocid>)` para actualizar las banderas
-        de la alerta. Si la alerta no existía (compliance original no la
-        creó), persist_alert_from_flags la creará ahora con las banderas
-        nuevas que sí encontraste.
+⚠ TERMINÁ acá. NO llames ninguna otra tool después del PASO 13. El cruce de TODAS las
+banderas contra el RAG de opiniones OECE (evaluate_normative_compliance) y la persistencia
+(persist_alert_from_flags) los corre el SISTEMA automáticamente DESPUÉS de vos — NO son tu
+responsabilidad y NO tenés esas tools. Tu trabajo termina al reportar.
 
 REPORTE FINAL (texto plano, breve):
   · Cuántas reglas deterministas triggerearon (N de 12).
-  · Cuántas banderas de juicio del PASO 7.7 emitiste (0, 1 o 2) y cuáles.
+  · Cuántas banderas de juicio del PASO 13 emitiste (0, 1 o 2) y cuáles.
   · Lista de banderas nuevas con su severidad.
-  · N de hallazgos evaluados contra RAG y opiniones OECE encontradas.
-  · alerta_codigo final (creado/actualizado).
 
 REGLAS:
   · NO te saltees ninguno de los 12 chequeos, aunque devuelvan triggered=false.

@@ -14,8 +14,6 @@ from tools import (
     check_postor_unico_mayoritario_rule_tool,
     check_inconsistencia_doc_vs_ocds_rule_tool,
     check_lobby_visits_rule_tool,
-    evaluate_normative_compliance_tool,
-    persist_alert_from_flags_tool,
     add_contextual_flag_tool,
 )
 
@@ -50,6 +48,4 @@ TOOLS = [
     check_inconsistencia_doc_vs_ocds_rule_tool,
     check_lobby_visits_rule_tool,
     add_contextual_flag_tool,
-    evaluate_normative_compliance_tool,
-    persist_alert_from_flags_tool,
 ]

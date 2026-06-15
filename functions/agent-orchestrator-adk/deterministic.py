@@ -560,13 +560,20 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                                       "_note": "person_network sin vínculos tras reintento"}):
         yield e
 
-    # ── 10. Compliance extendido (12 reglas + RAG + banderas de juicio del 7.7) ──
+    # ── 10. Compliance extendido (12 reglas + banderas de juicio del 7.7) ──
     yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
     async for e in _agent(A.compliance_extended_agent,
-                          f"Corre los chequeos extendidos para el OCID {ocid}, evalúa contextualmente "
-                          f"(CIIU↔objeto, capacidad operativa, causal de directa, conflicto de interés), "
-                          f"cruza todo contra el RAG OECE y persiste las banderas en la alerta {alerta_codigo}."):
+                          f"Corre los chequeos extendidos para el OCID {ocid} y evalúa contextualmente "
+                          f"(capacidad operativa, conflicto de interés funcionario↔empresa) con los datos "
+                          f"inyectados. Emití banderas de juicio SOLO si la evidencia las respalda."):
         yield e
+    # El cruce RAG y la persistencia los corre el DRIVER, NO el agente flash-lite: en
+    # contratos reales el agente se RENDÍA tras las 12 reglas (no llegaba a llamar
+    # evaluate_normative_compliance) y `normative_compliance` quedaba vacío. Determinista:
+    # evaluate_normative_compliance puebla state['normative_compliance'] cruzando TODAS las
+    # banderas acumuladas (12 reglas + parser + market + person + juicio) contra el RAG OECE.
+    evs, _ = _tool(T.evaluate_normative_compliance, "evaluate_normative_compliance", state, ocid=ocid)
+    async for e in _emit(evs): yield e
     # persistir cualquier pending_flag acumulado
     evs, _ = _tool(T.persist_alert_from_flags, "persist_alert_from_flags", state, ocid=ocid)
     async for e in _emit(evs): yield e
