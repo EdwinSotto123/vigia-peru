@@ -2776,15 +2776,23 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
   const nAlta = banderasArr.filter(b => (b.severidad || "").toLowerCase() === "alta").length;
   const nMedia = banderasArr.filter(b => (b.severidad || "").toLowerCase() === "media").length;
 
+  // Orden secuencial: VEREDICTO (resumen portada + dictamen) → EVIDENCIA → MÉTODO (auditoría al final).
   const TABS = [
     { key: "resumen",    label: "Resumen",         icon: <ShieldAlert size={13}/>, badge: nBanderas || null, badgeColor: "bg-rust" },
+    { key: "dictamen",   label: "Dictamen",        icon: <Pen size={13}/>,         badge: nDictamen ? "✓" : null, badgeColor: "bg-moss" },
     { key: "items",      label: "Items + Mercado", icon: <Package size={13}/>,     badge: nItems || null,    badgeColor: "bg-clay" },
     { key: "proveedor",  label: "Proveedor + Red", icon: <Building2 size={13}/>,   badge: nRed || null,      badgeColor: "bg-amber" },
     { key: "documentos", label: "Documentos",      icon: <FileText size={13}/>,    badge: nDocs || null,     badgeColor: "bg-clay" },
     { key: "prensa",     label: "Prensa",          icon: <Newspaper size={13}/>,   badge: nNoticias || null, badgeColor: "bg-moss" },
     { key: "trace",      label: "Auditoría",       icon: <Sparkles size={13}/>,    badge: nEvents || null,   badgeColor: "bg-mute" },
-    { key: "dictamen",   label: "Dictamen",        icon: <Pen size={13}/>,         badge: nDictamen ? "✓" : null, badgeColor: "bg-moss" },
   ] as Array<{ key: string; label: string; icon: any; badge: number | string | null; badgeColor: string }>;
+
+  // Resumen ejecutivo extraído del dictamen → portada con CTA "leer dictamen completo".
+  const _resumenEjecutivo = (() => {
+    const m = _dictamenText.match(/#{2,3}\s*Resumen ejecutivo\s*\n+([\s\S]*?)(?:\n#{2,3}\s|$)/i);
+    const raw = (m ? m[1] : _dictamenText) || "";
+    return raw.replace(/[#*`>\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 400);
+  })();
 
   const fmtMoney = (n: number | string | undefined) => {
     const v = Number(n) || 0;
@@ -2820,6 +2828,23 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
           fmtMoney={fmtMoney}
           onClickResumen={() => setActiveTab("resumen")}
         />
+
+        {/* PORTADA: resumen ejecutivo del dictamen + CTA — solo en el tab Resumen */}
+        {activeTab === "resumen" && _resumenEjecutivo && (
+          <div className="surface p-4">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+              <Pen size={11} /> Resumen ejecutivo
+            </div>
+            <p className="mt-1.5 text-sm leading-relaxed text-inkSoft line-clamp-4">{_resumenEjecutivo}…</p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("dictamen")}
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-clay px-3 py-1.5 text-xs font-bold text-paper transition-colors hover:bg-rust"
+            >
+              Leer dictamen completo <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
 
         {/* BANNER INCONSISTENCIA — si docs sugieren adjudicación pero OCDS aún no */}
         {result.estado_real?.estado_inconsistente && (
@@ -3177,7 +3202,8 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         </section>
       )}
 
-        {/* DIAGNOSTIC */}
+        {/* DIAGNÓSTICO TÉCNICO — solo en el tab Auditoría (antes aparecía al pie de CADA tab) */}
+        {activeTab === "trace" && (
         <details className="surface p-4 text-xs">
           <summary className="cursor-pointer font-semibold text-ink">
             🔧 Diagnóstico técnico
@@ -3201,6 +3227,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             </div>
           </div>
         </details>
+        )}
 
         {/* DISCLAIMER FOOTER */}
         <p className="border-t border-line pt-3 text-[10px] leading-relaxed text-mute">
