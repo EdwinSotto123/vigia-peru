@@ -2732,6 +2732,10 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
   const nDocs = (result.documentos || []).length;
   const nNoticias = (result.news_research?.noticias || []).length;
   const nEvents = (result.agent_trace || []).length;
+  const _traceArr = (result.agent_trace || []) as any[];
+  const nToolCalls = _traceArr.filter((e) => e.kind === "tool_call").length;
+  const nAgentes = new Set(_traceArr.map((e) => e.agent).filter(Boolean)).size;
+  const _lm = (result.llm_metrics || {}) as any;
 
   // Badge "Proveedor + Red": empresas vinculadas + partidos + contratos
   const _pn = result.person_network || {};
@@ -2990,55 +2994,53 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         />
       )}
 
-      {/* Análisis de competencia (TODOS los postores) — colapsable */}
-      {activeTab === "proveedor" && result.analisis_postores?.postores?.length > 0 && (
-        <CollapsibleSection
-          title="Análisis de competencia"
-          subtitle={result.analisis_postores.evidencia}
-          icon={<Users size={13} />}
-          defaultOpen={!(result.postores || []).some((p: any) => p.es_ganador)}
-        >
-          <AnalisisPostoresSection data={result.analisis_postores} />
-        </CollapsibleSection>
-      )}
-
-      {/* Secciones secundarias colapsables — orden: contratos · política · fuentes */}
-      {activeTab === "proveedor" && (result.web_research?.otros_contratos_con_estado || []).length > 0 && (
-        <CollapsibleSection
-          title="Otros contratos con el Estado"
-          subtitle={`${(result.web_research?.otros_contratos_con_estado || []).length} contratos públicos del proveedor`}
-          icon={<Receipt size={13} />}
-        >
-          <OtrosContratosSection
-            otros={result.web_research.otros_contratos_con_estado || []}
-            relacion={result.web_research.relacion_proveedor_entidad}
-            fmtMoney={fmtMoney}
-          />
-        </CollapsibleSection>
-      )}
-
+      {/* Secciones secundarias del proveedor — masonry 2-col (competencia · contratos · política · fuentes) */}
       {activeTab === "proveedor" && (
-        <CollapsibleSection
-          title="Vinculaciones políticas"
-          subtitle="Aportes ONPE · candidaturas JNE"
-          icon={<ShieldAlert size={13} />}
-        >
-          <AportesPoliticosSection
-            web={result.web_research}
-            person={result.person_network}
-            ctx={(result as any).person_network_context}
-          />
-        </CollapsibleSection>
-      )}
-
-      {activeTab === "proveedor" && (result.web_research?.hallazgos_por_fuente || []).length > 0 && (
-        <CollapsibleSection
-          title="Fuentes consultadas"
-          subtitle={`${(result.web_research?.hallazgos_por_fuente || []).length} portales públicos verificados`}
-          icon={<Globe size={13} />}
-        >
-          <FuentesConsultadasSection hallazgos={result.web_research.hallazgos_por_fuente} />
-        </CollapsibleSection>
+        <div className="columns-1 gap-3 md:columns-2 [&>*]:mb-3 [&>*]:break-inside-avoid">
+          {result.analisis_postores?.postores?.length > 0 && (
+            <CollapsibleSection
+              title="Análisis de competencia"
+              subtitle={result.analisis_postores.evidencia}
+              icon={<Users size={13} />}
+              defaultOpen={!(result.postores || []).some((p: any) => p.es_ganador)}
+            >
+              <AnalisisPostoresSection data={result.analisis_postores} />
+            </CollapsibleSection>
+          )}
+          {(result.web_research?.otros_contratos_con_estado || []).length > 0 && (
+            <CollapsibleSection
+              title="Otros contratos con el Estado"
+              subtitle={`${(result.web_research?.otros_contratos_con_estado || []).length} contratos públicos del proveedor`}
+              icon={<Receipt size={13} />}
+            >
+              <OtrosContratosSection
+                otros={result.web_research.otros_contratos_con_estado || []}
+                relacion={result.web_research.relacion_proveedor_entidad}
+                fmtMoney={fmtMoney}
+              />
+            </CollapsibleSection>
+          )}
+          <CollapsibleSection
+            title="Vinculaciones políticas"
+            subtitle="Aportes ONPE · candidaturas JNE"
+            icon={<ShieldAlert size={13} />}
+          >
+            <AportesPoliticosSection
+              web={result.web_research}
+              person={result.person_network}
+              ctx={(result as any).person_network_context}
+            />
+          </CollapsibleSection>
+          {(result.web_research?.hallazgos_por_fuente || []).length > 0 && (
+            <CollapsibleSection
+              title="Fuentes consultadas"
+              subtitle={`${(result.web_research?.hallazgos_por_fuente || []).length} portales públicos verificados`}
+              icon={<Globe size={13} />}
+            >
+              <FuentesConsultadasSection hallazgos={result.web_research.hallazgos_por_fuente} />
+            </CollapsibleSection>
+          )}
+        </div>
       )}
 
       {activeTab === "documentos" && result.convocatoria && (
@@ -3275,18 +3277,42 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
           </dl>
         </div>
 
-        {/* ENLACE A AUDITORÍA TÉCNICA */}
-        <button
-          type="button"
-          onClick={() => setActiveTab("trace")}
-          className="surface flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-paperDeep"
-        >
-          <div>
-            <div className="text-[11px] font-semibold text-ink">Auditoría técnica</div>
-            <div className="text-[10px] text-mute">Pasos del análisis, pipeline ejecutado</div>
-          </div>
-          <ChevronRight size={14} className="shrink-0 text-mute" />
-        </button>
+        {/* AUDITORÍA TÉCNICA — resumen del pipeline (no solo un enlace vacío) */}
+        {nEvents > 0 && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("trace")}
+            className="surface w-full p-3 text-left transition-colors hover:bg-paperDeep"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                <Sparkles size={12} className="text-clay" /> Auditoría técnica
+              </div>
+              <ChevronRight size={14} className="shrink-0 text-mute" />
+            </div>
+            <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+              <div className="rounded-md bg-paperDeep p-1.5">
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nEvents}</dd>
+                <dt className="mt-0.5 text-[9px] text-mute">pasos</dt>
+              </div>
+              <div className="rounded-md bg-paperDeep p-1.5">
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nAgentes}</dd>
+                <dt className="mt-0.5 text-[9px] text-mute">agentes</dt>
+              </div>
+              <div className="rounded-md bg-paperDeep p-1.5">
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nToolCalls}</dd>
+                <dt className="mt-0.5 text-[9px] text-mute">tools</dt>
+              </div>
+            </dl>
+            {(_lm.tokens_total || _lm.cost_usd != null) && (
+              <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5 text-[10px] text-mute">
+                <span className="font-mono">{_lm.tokens_total ? `${(_lm.tokens_total / 1000).toFixed(0)}K tokens` : "Gemini + grounding"}</span>
+                {_lm.cost_usd != null && <span className="font-mono text-clay">${Number(_lm.cost_usd).toFixed(3)}</span>}
+              </div>
+            )}
+            <div className="mt-1.5 text-[10px] font-medium text-clay">Ver los {nEvents} pasos del pipeline →</div>
+          </button>
+        )}
       </aside>
     </div>
   );
