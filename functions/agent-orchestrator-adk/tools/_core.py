@@ -237,16 +237,20 @@ def _normalize_name_for_search(s: str) -> str:
     return _re.sub(r"\s+", " ", s.upper()).strip()
 
 def _short_ocid(ocid: str) -> str:
-    """Normaliza el OCID al formato corto (sólo el sufijo numérico) que es como
-    está guardado en `convocatorias.ocid` y `convocatoria_items.ocid` en SQL.
-
-    Ejemplos:
-      'ocds-dgv273-seacev3-1212353' → '1212353'
-      '1212353' → '1212353'
+    """Normaliza el OCID al sufijo corto (como se guarda en `convocatorias.ocid`).
+    Quita el prefijo OCDS COMPLETO, sirviendo a los DOS esquemas del SEACE:
+      'ocds-dgv273-seacev3-1212353'       → '1212353'        (flat)
+      'ocds-dgv273-seacev3-2026-10404-12' → '2026-10404-12'  (año-secuencia-versión)
+      '1212353'                           → '1212353'
+    (Antes hacía rsplit('-')[-1] y devolvía solo '12' (la versión) para los OCID
+    año-secuencia → rompía código corto, URL del proceso y código de alerta.)
     """
     if not ocid:
         return ocid
     s = str(ocid)
+    _PFX = "ocds-dgv273-seacev3-"
+    if s.startswith(_PFX):
+        return s[len(_PFX):]
     if s.startswith("ocds-"):
         return s.rsplit("-", 1)[-1]
     return s

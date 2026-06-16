@@ -2,6 +2,16 @@
 
 from tools._core import *  # noqa: F401,F403
 
+# El OCID OECE tiene DOS esquemas: flat ('ocds-dgv273-seacev3-1221284') y
+# año-secuencia ('ocds-dgv273-seacev3-2026-10404-12'). En el 2º, el número de
+# convocatoria (ej. 1195235) es el `tender.id`, NO el sufijo del OCID. Si alguien
+# usa el `tender.id` como si fuera el OCID, OECE devuelve 404.
+_OCID_HINT = ("El número ingresado podría ser el `tender.id` (código de convocatoria SEACE), "
+              "no el OCID. Algunos procesos usan OCID con formato año-secuencia "
+              "(ej. ocds-dgv273-seacev3-2026-10404-12). Buscá el OCID real en el portal OECE "
+              "(contratacionesabiertas.oece.gob.pe) e ingresalo completo.")
+
+
 def fetch_ocds_record(ocid: str, tool_context: ToolContext) -> dict:
     """Obtiene el OCDS record desde el OECE para una convocatoria.
     Si el caller pre-cargó el OCDS en state, lo usa para evitar el WAF de OECE
@@ -15,7 +25,11 @@ def fetch_ocds_record(ocid: str, tool_context: ToolContext) -> dict:
         Diccionario con buyer_nombre, buyer_ruc, objeto, tipo_proceso,
         cuantia, fecha_buena_pro, n_items, n_postores, n_documentos, suppliers.
     """
-    if ocid and not ocid.startswith("ocds-") and ocid.isdigit():
+    # El input puede ser el OCID completo, el sufijo flat ('1221284') o el sufijo
+    # año-secuencia ('2026-10404-12'). Anteponemos el prefijo a CUALQUIER sufijo que
+    # empiece con dígito (antes solo a los puramente numéricos → los año-secuencia,
+    # que llevan guiones, NO recibían prefijo y daban 404 aun pasando el OCID correcto).
+    if ocid and not str(ocid).startswith("ocds-") and re.match(r"^\d", str(ocid)):
         ocid = f"ocds-dgv273-seacev3-{ocid}"
 
     cr = tool_context.state.get("ocds_preloaded") or tool_context.state.get("ocds")
@@ -45,7 +59,8 @@ def fetch_ocds_record(ocid: str, tool_context: ToolContext) -> dict:
             try:
                 r = requests.get(rec_url, headers=BROWSER, timeout=30)
                 if r.status_code != 200:
-                    return {"error": f"OECE HTTP {r.status_code}", "ocid": ocid}
+                    return {"error": f"OECE HTTP {r.status_code}", "ocid": ocid,
+                            "hint": _OCID_HINT if r.status_code == 404 else ""}
                 raw = r.json()
             except Exception as e:
                 return {"error": f"fetch failed: {e}", "ocid": ocid}
@@ -53,7 +68,7 @@ def fetch_ocds_record(ocid: str, tool_context: ToolContext) -> dict:
         cr = recs[0].get("compiledRelease") if recs else None
 
     if not cr:
-        return {"error": "no OCDS record", "ocid": ocid}
+        return {"error": "no OCDS record", "ocid": ocid, "hint": _OCID_HINT}
 
     tool_context.state["ocds"] = cr
     # state['ocid'] siempre en formato corto para consistencia con SQL
