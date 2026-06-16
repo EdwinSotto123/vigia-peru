@@ -82,7 +82,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                 "mensaje": "Sin banderas — no se creó alerta"}
     score = min(sum({"alta": 35, "media": 18, "baja": 8}.get(b.get("severidad"), 5)
                     for b in banderas), 100)
-    codigo = f"OECE-{ocid.split('-')[-1]}"
+    codigo = f"OECE-{_short_ocid(ocid)}"  # _short_ocid → soporta flat y año-secuencia (no 'OECE-12')
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -207,7 +207,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     # Normalizar alerta_codigo: si vino el OCID completo, convertir a OECE-XXXX
     raw_codigo = (alerta_codigo or "").strip()
     if raw_codigo.startswith("ocds-"):
-        raw_codigo = "OECE-" + raw_codigo.split("-")[-1]
+        raw_codigo = "OECE-" + _short_ocid(raw_codigo)
     if raw_codigo and not raw_codigo.startswith("OECE-") and raw_codigo.isdigit():
         raw_codigo = f"OECE-{raw_codigo}"
 
@@ -478,7 +478,7 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
     # Normalizar alerta_codigo
     raw_codigo = (alerta_codigo or "").strip()
     if raw_codigo.startswith("ocds-"):
-        raw_codigo = "OECE-" + raw_codigo.split("-")[-1]
+        raw_codigo = "OECE-" + _short_ocid(raw_codigo)
     if raw_codigo and not raw_codigo.startswith("OECE-") and raw_codigo.isdigit():
         raw_codigo = f"OECE-{raw_codigo}"
 
@@ -717,7 +717,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
     # eso, lo convertimos a 'OECE-XXXXXXX'.
     raw_codigo = (alerta_codigo or "").strip()
     if raw_codigo.startswith("ocds-"):
-        raw_codigo = "OECE-" + raw_codigo.split("-")[-1]
+        raw_codigo = "OECE-" + _short_ocid(raw_codigo)
     if raw_codigo and not raw_codigo.startswith("OECE-") and raw_codigo.isdigit():
         raw_codigo = f"OECE-{raw_codigo}"
 

@@ -285,12 +285,15 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
 
 
 def _norm_codigo(ocid: str) -> str:
+    """Código de alerta canónico 'OECE-<sufijo>'. Vía _short_ocid soporta los dos
+    esquemas: flat ('OECE-1221284') y año-secuencia ('OECE-2026-10404-12'). Antes
+    hacía split('-')[-1] → 'OECE-12' (la versión) para los OCID año-secuencia (roto)."""
     c = (ocid or "").strip()
-    if c.startswith("ocds-"):
-        return "OECE-" + c.split("-")[-1]
-    if c and not c.startswith("OECE-") and c.isdigit():
-        return f"OECE-{c}"
-    return c
+    if not c:
+        return c
+    if c.startswith("OECE-"):
+        return c
+    return "OECE-" + T._short_ocid(c)
 
 
 async def run_deterministic(input_str: str, runner, user_id: str, session_id: str,
