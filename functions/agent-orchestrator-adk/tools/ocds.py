@@ -298,7 +298,12 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                      (ocid, numero_item, descripcion, descripcion_corta, cantidad, unidad,
                       cuantia_referencial, precio_unit_ref, cubso)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                (ocid, int(it.get("position") or i + 1),
+                # numero_item = índice del loop (1..N), SIEMPRE único. Antes era
+                # `position or i+1`, pero el OCDS a veces trae items con `position`
+                # DUPLICADA (caso real 2026-10404-12: 2 items con position '1') →
+                # chocaba la constraint única (ocid, numero_item) y register fallaba
+                # entero (→ sin convocatoria → persist_alert violaba la FK → 0 alertas).
+                (ocid, i + 1,
                  it.get("description") or "", (it.get("description") or "")[:80],
                  qty, ((it.get("unit") or {}).get("name")) or "UND",
                  tot, tot / max(qty, 1), cubso),
