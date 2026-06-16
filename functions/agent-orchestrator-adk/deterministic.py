@@ -18,6 +18,8 @@ Selección por flag en main.py: `DETERMINISTIC_PIPELINE` (default on).
 """
 from __future__ import annotations
 
+import asyncio
+import os
 import uuid
 from typing import Any, AsyncIterator
 
@@ -28,6 +30,15 @@ import agents as A
 import tools as T
 
 APP_NAME = "vigia-peru"
+
+# Paralelización de los 3 agentes de investigación INDEPENDIENTES (web ∥ prensa ∥
+# funcionarios). Los tres son grounding-only (solo google_search) y escriben ÚNICAMENTE
+# su propio output_key (verificado: web_research/news_research/entity_personnel) → no
+# tocan acumuladores compartidos, así que correrlos concurrentes y mergear solo su
+# output_key es seguro. Corta ~3×latencia-secuencial → ~1×la-del-más-lento en esa franja
+# (la causa raíz de que los contratos doc-pesados muriesen en el wall de 3600s de Cloud
+# Run). Flag para rollback instantáneo a secuencial sin redeploy.
+_PARALLEL_RESEARCH = os.getenv("PARALLEL_RESEARCH", "1") != "0"
 
 # Tarifas Gemini en Vertex (USD/1M tokens, estimado). El pipeline MEZCLA tiers:
 # Pro (report_writer/legal/person_network), Flash (default) y Flash-Lite
@@ -284,6 +295,73 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
     state["_last_agent_final"] = final_text
 
 
+def _merge_metrics(dst: dict, src: dict) -> None:
+    """Suma las métricas de un sub-run aislado al acumulador global (in-place)."""
+    for k in ("prompt", "output", "total", "calls"):
+        dst[k] = (dst.get(k) or 0) + (src.get(k) or 0)
+    dst["cost"] = round(float(dst.get("cost") or 0.0) + float(src.get("cost") or 0.0), 6)
+
+
+def _metrics_event(metrics: dict, agent_name: str) -> dict:
+    """Evento `metrics` con los totales corrientes del acumulador global."""
+    return {"kind": "metrics", "agent": agent_name,
+            "tokens_total": metrics.get("total", 0), "tokens_prompt": metrics.get("prompt", 0),
+            "tokens_output": metrics.get("output", 0), "n_llm_calls": metrics.get("calls", 0),
+            "cost_usd": metrics.get("cost", 0.0)}
+
+
+async def _run_agent_isolated(agent, msg_text: str, base_state: dict, output_key: str,
+                              session_service, user_id: str
+                              ) -> tuple[list[dict], str | None, dict, dict]:
+    """Variante AISLADA de `_run_agent` para correr sub-agentes CONCURRENTEMENTE.
+
+    A diferencia de `_run_agent`, NO muta el `state` compartido ni el `metrics` global
+    (lo haría con races bajo `asyncio.gather`). En su lugar:
+      · siembra una sesión fresca con `dict(base_state)` (snapshot read-only),
+      · COLECTA los eventos del trace en una lista (no los yieldea),
+      · acumula tokens/costo en un `metrics` LOCAL,
+      · extrae SOLO `output_key` del state final del sub-agente (web/news/entity son
+        grounding-only → escriben únicamente su output_key; no hay otras escrituras).
+    Devuelve (eventos, final_text, delta={output_key: valor}, metrics_local). El caller
+    mergea `delta` al state y SUMA `metrics_local` al global tras el join."""
+    name = getattr(agent, "name", "agent")
+    sid = str(uuid.uuid4())
+    local_metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0}
+    evs_out: list[dict] = []
+    try:
+        await session_service.create_session(app_name=APP_NAME, user_id=user_id,
+                                              session_id=sid, state=dict(base_state))
+    except Exception as e:
+        evs_out.append({"agent": name, "kind": "error", "detail": f"create_session: {str(e)[:160]}"})
+        return evs_out, None, {}, local_metrics
+    sub_runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
+    msg = gtypes.Content(role="user", parts=[gtypes.Part.from_text(text=msg_text)])
+    _model = getattr(agent, "model", None)
+    final_text = None
+    try:
+        async for event in sub_runner.run_async(user_id=user_id, session_id=sid, new_message=msg):
+            trace, _metric_evs, ft = _parse_event(event, local_metrics, name, model=_model)
+            if ft:
+                final_text = ft
+            # Descartamos los metric_evs locales (totales por-agente); el caller re-emite
+            # UN evento `metrics` con el total GLOBAL tras sumar este sub-run → contador monótono.
+            evs_out.extend(trace)
+    except Exception as e:
+        evs_out.append({"agent": name, "kind": "error", "detail": f"run: {str(e)[:200]}"})
+    delta: dict = {}
+    try:
+        sess = await session_service.get_session(app_name=APP_NAME, user_id=user_id, session_id=sid)
+        if sess and sess.state and output_key in sess.state:
+            delta[output_key] = sess.state[output_key]
+        else:
+            evs_out.append({"agent": name, "kind": "warn",
+                            "detail": f"merge: output_key '{output_key}' ausente en el sub-agente — sección pudo perderse"})
+    except Exception as e:
+        evs_out.append({"agent": name, "kind": "warn",
+                        "detail": f"merge del state aislado falló: {str(e)[:160]}"})
+    return evs_out, final_text, delta, local_metrics
+
+
 def _norm_codigo(ocid: str) -> str:
     """Código de alerta canónico 'OECE-<sufijo>'. Vía _short_ocid soporta los dos
     esquemas: flat ('OECE-1221284') y año-secuencia ('OECE-2026-10404-12'). Antes
@@ -335,13 +413,11 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             out.extend(evs)
         return out
 
-    async def _agent_with_retry(agent, msg, state_key, default_stub):
-        """Corre un sub-agente y, si su `state_key` quedó VACÍO (quirk de grounding),
-        reintenta 1× con instrucción explícita; si sigue vacío, deja un default
-        tipado (degradación honesta) para no dejar la sección en blanco sin aviso.
-        Generaliza el guardrail que ya tenía news_research a web/entity/person."""
-        async for e in _agent(agent, msg):
-            yield e
+    async def _retry_if_empty(agent, msg, state_key, default_stub):
+        """Tail del guardrail (sin la primera corrida): si `state_key` quedó VACÍO,
+        reintenta 1× con instrucción explícita; si sigue vacío, deja un default tipado.
+        Se usa tanto tras la corrida secuencial como tras la corrida PARALELA (donde la
+        primera pasada ya se hizo concurrente y solo falta el reintento del vacío)."""
         if _is_empty_output(state.get(state_key)):
             yield {"kind": "warn", "name": state_key, "msg": f"{state_key} vacío — reintento"}
             state.pop(state_key, None)
@@ -355,6 +431,33 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                 state[state_key] = default_stub
                 yield {"kind": "warn", "name": state_key,
                        "msg": f"{state_key} vacío tras reintento — default tipado"}
+
+    async def _agent_with_retry(agent, msg, state_key, default_stub):
+        """Corre un sub-agente y, si su `state_key` quedó VACÍO (quirk de grounding),
+        reintenta 1× con instrucción explícita; si sigue vacío, deja un default
+        tipado (degradación honesta) para no dejar la sección en blanco sin aviso.
+        Generaliza el guardrail que ya tenía news_research a web/entity/person."""
+        async for e in _agent(agent, msg):
+            yield e
+        async for e in _retry_if_empty(agent, msg, state_key, default_stub):
+            yield e
+
+    def _news_vacio():
+        """True si news_research quedó vacío (quirk Gemini+google_search: tokens al
+        grounding/thinking, texto final ''). Definido acá arriba para usarse tanto en
+        el camino secuencial como en el paralelo."""
+        nr = state.get("news_research")
+        if isinstance(nr, str):
+            return nr.strip() in ("", "{}", "[]")
+        if isinstance(nr, dict):
+            if nr.get("noticias"):
+                return False
+            if nr.get("sin_menciones_relevantes") is True:
+                return False
+            if (nr.get("sintesis") or "").strip():
+                return False
+            return True
+        return not nr
 
     # ── 1. OCDS + registro ──
     yield {"kind": "phase", "name": "ocds", "msg": f"obteniendo OCDS de {ocid}"}
@@ -445,70 +548,107 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             async for e in _emit(evs): yield e
         evs, _ = _tool(T.read_sunat_profile, "read_sunat_profile", state)
         async for e in _emit(evs): yield e
+    # Objeto del proceso (lo usa el mensaje de prensa).
+    tender = (state.get("ocds") or {}).get("tender") or {}
+    objeto = tender.get("description") or tender.get("title") or ""
+    # Mensajes de los 3 agentes de investigación INDEPENDIENTES (empresa · prensa · funcionarios).
     _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
                 f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
                 f"directivos, aportes ONPE e historial de contratos.")
-    async for e in _agent_with_retry(A.web_research_agent, _web_msg, "web_research",
-                                     {"empresa": {"ruc": ruc, "razon_social": razon},
-                                      "hallazgos": [], "sin_hallazgos_relevantes": True,
-                                      "_note": "web_research sin hallazgos tras reintento"}):
-        yield e
-
-    # ── 7. Prensa ──
-    yield {"kind": "phase", "name": "news", "msg": "buscando cobertura de prensa"}
-    tender = (state.get("ocds") or {}).get("tender") or {}
-    objeto = tender.get("description") or tender.get("title") or ""
     _news_msg = (f"Investiga en prensa peruana: proveedor '{razon}' (RUC {ruc}); entidad "
                  f"'{entidad.get('nombre','')}' (RUC {entidad.get('ruc','')}, región {entidad.get('region','')}); "
                  f"objeto: {objeto[:160]}.")
-    async for e in _agent(A.news_research_agent, _news_msg):
-        yield e
-
-    # Guardrail: news_research a veces sale VACÍO ("") — quirk de Gemini+google_search
-    # (los tokens se van al grounding/thinking y el texto final viene vacío). Reintentar
-    # una vez; si sigue vacío, default 'sin menciones' para no dejar la sección en blanco.
-    def _news_vacio():
-        nr = state.get("news_research")
-        if isinstance(nr, str):
-            return nr.strip() in ("", "{}", "[]")
-        if isinstance(nr, dict):
-            if nr.get("noticias"):
-                return False
-            if nr.get("sin_menciones_relevantes") is True:
-                return False
-            if (nr.get("sintesis") or "").strip():
-                return False
-            return True
-        return not nr
-    if _news_vacio():
-        yield {"kind": "warn", "name": "news_research", "msg": "prensa vacía — reintento"}
-        state.pop("news_research", None)
-        state.pop("_last_agent_final", None)
-        async for e in _agent(
-            A.news_research_agent,
-            _news_msg + " (REINTENTO: la pasada anterior salió vacía. Devolvé SIEMPRE el JSON "
-            "completo; si no hay prensa, noticias:[] con sin_menciones_relevantes:true y un "
-            "resumen_ejecutivo que lo diga. NUNCA respondas vacío.)"):
-            yield e
-        if _news_vacio():
-            state["news_research"] = {
-                "noticias": [], "sin_menciones_relevantes": True, "queries_realizadas": [],
-                "resumen_ejecutivo": "No se hallaron menciones de prensa materiales sobre el "
-                "proveedor, la entidad o el objeto de la contratación.",
-                "_note": "default por salida vacía del news_research_agent tras reintento",
-            }
-            yield {"kind": "warn", "name": "news_research",
-                   "msg": "prensa vacía tras reintento — default sin_menciones"}
-
-    # ── 8. Funcionarios de la entidad + lookup ──
-    yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
     _entity_msg = (f"Investiga la estructura administrativa de '{entidad.get('nombre','')}' "
                    f"(RUC {entidad.get('ruc','')}) en la región {entidad.get('region','')}. Devuelve los "
                    f"funcionarios designados (gerentes, procurador, jefe OCI, etc.) con su acto resolutivo.")
-    async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel",
-                                     {"funcionarios_designados": [], "sin_data_publica": True,
-                                      "_note": "entity_personnel sin directorio público tras reintento"}):
-        yield e
+    _web_stub = {"empresa": {"ruc": ruc, "razon_social": razon}, "hallazgos": [],
+                 "sin_hallazgos_relevantes": True, "_note": "web_research sin hallazgos tras reintento"}
+    _entity_stub = {"funcionarios_designados": [], "sin_data_publica": True,
+                    "_note": "entity_personnel sin directorio público tras reintento"}
+
+    async def _news_guardrail():
+        """Reintento+default del quirk de salida vacía de news_research (esquema propio,
+        distinto del _retry_if_empty genérico). Reusado por ambos caminos."""
+        if _news_vacio():
+            yield {"kind": "warn", "name": "news_research", "msg": "prensa vacía — reintento"}
+            state.pop("news_research", None)
+            state.pop("_last_agent_final", None)
+            async for e in _agent(
+                A.news_research_agent,
+                _news_msg + " (REINTENTO: la pasada anterior salió vacía. Devolvé SIEMPRE el JSON "
+                "completo; si no hay prensa, noticias:[] con sin_menciones_relevantes:true y un "
+                "resumen_ejecutivo que lo diga. NUNCA respondas vacío.)"):
+                yield e
+            if _news_vacio():
+                state["news_research"] = {
+                    "noticias": [], "sin_menciones_relevantes": True, "queries_realizadas": [],
+                    "resumen_ejecutivo": "No se hallaron menciones de prensa materiales sobre el "
+                    "proveedor, la entidad o el objeto de la contratación.",
+                    "_note": "default por salida vacía del news_research_agent tras reintento",
+                }
+                yield {"kind": "warn", "name": "news_research",
+                       "msg": "prensa vacía tras reintento — default sin_menciones"}
+
+    if _PARALLEL_RESEARCH:
+        # ── 6-8 PARALELO: empresa ∥ prensa ∥ funcionarios. Los 3 son grounding-only e
+        # independientes → correrlos concurrentes recorta ~3×latencia a ~1×la-del-más-lento
+        # (la franja que hacía a los contratos doc-pesados morir en el wall de 3600s).
+        yield {"kind": "phase", "name": "research_parallel",
+               "msg": "investigación paralela: empresa ∥ prensa ∥ funcionarios"}
+        _base = dict(state)  # snapshot read-only para sembrar las 3 sesiones aisladas
+        _specs = [
+            (A.web_research_agent, _web_msg, "web_research"),
+            (A.news_research_agent, _news_msg, "news_research"),
+            (A.entity_personnel_agent, _entity_msg, "entity_personnel"),
+        ]
+        # Transfers en vivo → encienden los 3 nodos del grafo a la vez.
+        for ag, _m, _k in _specs:
+            nm = getattr(ag, "name", "agent")
+            tev = {"kind": "transfer", "from": "orch", "to": nm, "agent": "orch",
+                   "msg": f"orquestador delega a {nm} (paralelo)"}
+            events_trace.append(tev)
+            yield tev
+        _results = await asyncio.gather(
+            *[_run_agent_isolated(ag, msg, _base, ok, ss, user_id) for ag, msg, ok in _specs],
+            return_exceptions=True)
+        for (ag, _m, _k), res in zip(_specs, _results):
+            nm = getattr(ag, "name", "agent")
+            if isinstance(res, Exception):
+                ev = {"kind": "error", "agent": nm, "detail": f"parallel run: {str(res)[:200]}"}
+                events_trace.append(ev)
+                yield ev
+                continue
+            evs_a, _ft, delta_a, lm_a = res
+            state.update(delta_a)             # SOLO el output_key del agente (merge seguro)
+            for e in evs_a:
+                events_trace.append(e)
+                yield e
+            _merge_metrics(metrics, lm_a)     # suma tokens/costo de este sub-run al global
+            mev = _metrics_event(metrics, nm)
+            events_trace.append(mev)
+            yield mev
+        state["_last_agent_final"] = None
+        # Guardrails de vacío (raros) — secuenciales tras el join.
+        async for e in _retry_if_empty(A.web_research_agent, _web_msg, "web_research", _web_stub):
+            yield e
+        async for e in _news_guardrail():
+            yield e
+        async for e in _retry_if_empty(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
+            yield e
+    else:
+        # ── 6-8 SECUENCIAL (flujo original; rollback con PARALLEL_RESEARCH=0) ──
+        async for e in _agent_with_retry(A.web_research_agent, _web_msg, "web_research", _web_stub):
+            yield e
+        yield {"kind": "phase", "name": "news", "msg": "buscando cobertura de prensa"}
+        async for e in _agent(A.news_research_agent, _news_msg):
+            yield e
+        async for e in _news_guardrail():
+            yield e
+        yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
+        async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
+            yield e
+
+    # ── Lookup de funcionarios descubiertos (común a ambos caminos) ──
     func_desig = (state.get("entity_personnel") or {})
     funcionarios = func_desig.get("funcionarios_designados") if isinstance(func_desig, dict) else None
     if funcionarios:
