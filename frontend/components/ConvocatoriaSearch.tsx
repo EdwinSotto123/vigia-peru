@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getAnalyzedList } from "@/lib/dossier-cache";
-import { Glass, Dni, PersonName, redactDnis, redactChildren, maskDnis, maskApellido } from "./Redact";
+import { Glass, Dni, PersonName, redactDnis, redactChildren, maskDnis, maskApellido, setRedactNames } from "./Redact";
 import {
   Search,
   Loader2,
@@ -2743,6 +2743,25 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
     (_persona.candidaturas || []).length +
     (_persona.aportes_campañas || _persona.aportes_campanas || []).length +
     ((result.web_research?.otros_contratos_con_estado) || []).length;
+
+  // Diccionario de nombres de personas PRIVADAS conocidas (gerente, firmantes, comité,
+  // socios, funcionarios designados, familia) → para censurar su apellido también en la
+  // PROSA (síntesis, dictamen, evidencia), no solo en las tarjetas. Los funcionarios
+  // ELECTOS (alcalde, regidores) NO se incluyen: son públicos y el sujeto del escrutinio.
+  // setRedactNames puebla el diccionario que lee redactDnis; corre en el body del dossier
+  // (antes que los hijos con la prosa rendericen).
+  const _da_red = result.document_analysis || {};
+  setRedactNames([
+    _persona.nombre_completo,
+    ...((_da_red.firmantes || []) as any[]).map((f) => f?.nombre_completo),
+    ...((_da_red.comite_evaluacion || []) as any[]).map((m) => m?.nombre_completo || m?.nombre),
+    ...((_pn.cruce_firmantes_ganador || []) as any[]).map((c) => c?.firmante),
+    ...(((result as any).entity_personnel?.funcionarios_designados || []) as any[]).map((f) => f?.nombre_completo || f?.nombre),
+    ...((_pn.pareja_o_familia || []) as any[]).map((f) => f?.nombre),
+    ...((result.web_research?.empresa?.socios || []) as any[]).map((s) => s?.nombre),
+    ...(((result as any).proveedor?.socios || []) as any[]).map((s) => s?.nombre),
+    ...((_red.socios || []) as any[]).map((s) => s?.nombre),
+  ]);
 
   // Badge dictamen: presencia (1 = ✓)
   const _dictamenText = result.dictamen?.dictamen_markdown || "";

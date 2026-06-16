@@ -88,25 +88,52 @@ export function PersonName({
   );
 }
 
-// Redacta DNIs embebidos en TEXTO LIBRE (evidencia de banderas, dictamen) →
-// devuelve nodos React con los DNIs en vidrio revelable. Si no hay DNI, retorna el texto tal cual.
+// Diccionario de nombres de personas PRIVADAS conocidas (del análisis estructurado)
+// para censurar su apellido también cuando aparecen en TEXTO LIBRE (síntesis, prosa,
+// dictamen). Se puebla con setRedactNames() en el render del dossier. Confiable porque
+// matchea nombres CONOCIDOS, no adivina con NER. Los funcionarios ELECTOS no se incluyen.
+let _names: string[] = [];
+const _esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function setRedactNames(names: Array<string | null | undefined>) {
+  _names = Array.from(
+    new Set(
+      (names || [])
+        .map((n) => String(n || "").trim())
+        .filter((n) => n.split(/\s+/).filter(Boolean).length >= 2),
+    ),
+  ).sort((a, b) => b.length - a.length); // más largo primero → evita match parcial
+}
+
+// Redacta DNIs y NOMBRES conocidos embebidos en TEXTO LIBRE (evidencia, síntesis,
+// dictamen) → nodos React: DNI en vidrio; del nombre se vidria el ÚLTIMO token
+// (consistente con PersonName en las tarjetas). No-op si no hay nada que redactar.
 export function redactDnis(text: any): React.ReactNode {
   if (typeof text !== "string" || !text) return text;
-  DNI_RE.lastIndex = 0;
-  if (!DNI_RE.test(text)) return text;
-  DNI_RE.lastIndex = 0;
+  const namePart = _names.length ? _names.map(_esc).join("|") + "|" : "";
+  const re = new RegExp("(" + namePart + "\\b\\d{8}\\b)", "gi");
+  if (!re.test(text)) return text;
+  re.lastIndex = 0;
   const out: React.ReactNode[] = [];
   let last = 0;
   let i = 0;
   let m: RegExpExecArray | null;
-  while ((m = DNI_RE.exec(text)) !== null) {
+  while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    out.push(
-      <Glass key={`dni-${i++}`} label="DNI — clic para revelar">
-        {m[0]}
-      </Glass>,
-    );
-    last = m.index + m[0].length;
+    const tok = m[0];
+    if (/^\d{8}$/.test(tok)) {
+      out.push(<Glass key={`r${i++}`} label="DNI — clic para revelar">{tok}</Glass>);
+    } else {
+      const tk = tok.split(/\s+/);
+      out.push(
+        <span key={`r${i++}`}>
+          {tk.slice(0, -1).join(" ")}{" "}
+          <Glass label="Apellido — clic para revelar">{tk[tk.length - 1]}</Glass>
+        </span>,
+      );
+    }
+    if (m.index === re.lastIndex) re.lastIndex++; // guard anti-loop
+    last = m.index + tok.length;
   }
   if (last < text.length) out.push(text.slice(last));
   return <>{out}</>;
