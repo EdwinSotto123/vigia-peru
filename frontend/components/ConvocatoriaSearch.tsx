@@ -3478,25 +3478,55 @@ function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?: any[];
   );
 }
 
+// Convierte URLs sueltas dentro de un texto en enlaces clicables.
+function linkify(text: string): React.ReactNode {
+  const parts = String(text || "").split(/(https?:\/\/[^\s"'<>)\]]+)/g);
+  return parts.map((p, i) =>
+    /^https?:\/\//.test(p) ? (
+      <a key={i} href={p} target="_blank" rel="noreferrer"
+        className="text-clay underline decoration-clay/40 hover:text-rust break-all"
+        onClick={(e) => e.stopPropagation()}>{p}</a>
+    ) : (
+      <span key={i}>{p}</span>
+    ),
+  );
+}
+
 function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
-  // Agrupar por bloques de agente activo
   const agentes = Array.from(new Set(trace.map((e) => e.agent).filter(Boolean))) as string[];
+  // Agrupar eventos CONSECUTIVOS por agente activo → fases colapsables (159 filas → ~16 grupos)
+  const groups: { agent: string; events: { ev: AgentTraceEvent; idx: number }[] }[] = [];
+  trace.forEach((ev, idx) => {
+    const ag = ev.agent || "?";
+    const last = groups[groups.length - 1];
+    if (last && last.agent === ag) last.events.push({ ev, idx });
+    else groups.push({ agent: ag, events: [{ ev, idx }] });
+  });
+  const nTools = trace.filter((e) => e.kind === "tool_call").length;
+  const nErr = trace.filter((e) => e.kind === "error").length;
+  const [allOpen, setAllOpen] = useState(false);
 
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
-          <Sparkles size={11} className="mr-1 inline" />
-          Auditoría técnica · {trace.length} pasos
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+              <Sparkles size={11} className="mr-1 inline" />
+              Auditoría técnica · {trace.length} pasos · {nTools} tools
+              {nErr > 0 && <span className="ml-1 text-rust">· {nErr} error{nErr > 1 ? "es" : ""}</span>}
+            </div>
+            <h2 className="mt-1 font-serif text-xl font-bold text-ink">Pasos del análisis</h2>
+            <p className="mt-1 text-xs leading-relaxed text-mute">
+              El pipeline corre una secuencia fija de agentes; cada sub-agente ejecuta su
+              propio loop de tools (Gemini + grounding). Cada fase es desplegable.
+            </p>
+          </div>
+          <button type="button" onClick={() => setAllOpen((o) => !o)}
+            className="shrink-0 rounded-md border border-line bg-paper px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mute hover:border-clay/40 hover:text-clay">
+            {allOpen ? "Colapsar todo" : "Expandir todo"}
+          </button>
         </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-          Pasos del análisis
-        </h2>
-        <p className="mt-1 text-xs leading-relaxed text-mute">
-          El orquestador (Gemini 2.5 Pro) razonó qué tools llamar en cada
-          paso. Cada sub-agente (Doc Parser, Web Research, Report Writer)
-          corrió su propio agent loop con sus tools. Acá ves la secuencia real.
-        </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {agentes.map((a) => {
             const v = AGENT_VISUAL[a] || { color: "bg-mute text-paper", icon: null, label: a };
@@ -3509,10 +3539,49 @@ function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
         </div>
       </div>
 
-      <ol className="divide-y divide-line">
-        {trace.map((e, i) => <AgentTraceRow key={i} idx={i} ev={e} />)}
-      </ol>
+      <div className="divide-y divide-line">
+        {groups.map((g, gi) => <TracePhaseGroup key={`${gi}-${allOpen}`} group={g} forceOpen={allOpen} />)}
+      </div>
     </section>
+  );
+}
+
+function TracePhaseGroup({ group, forceOpen }: { group: { agent: string; events: { ev: AgentTraceEvent; idx: number }[] }; forceOpen: boolean }) {
+  const { agent, events } = group;
+  const visual = AGENT_VISUAL[agent] || { color: "bg-mute text-paper", icon: null, label: agent };
+  const tools = events.filter((e) => e.ev.kind === "tool_call");
+  const hasError = events.some((e) => e.ev.kind === "error");
+  const hasThought = events.some((e) => e.ev.kind === "thought");
+  const transferTo = events.find((e) => e.ev.kind === "transfer")?.ev.to;
+  const [open, setOpen] = useState(forceOpen || hasError);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const idxStart = events[0].idx;
+  const idxEnd = events[events.length - 1].idx;
+  const toolNames = Array.from(new Set(tools.map((e) => e.ev.name))).slice(0, 4);
+  const resumen = tools.length > 0
+    ? `${tools.length} tool${tools.length > 1 ? "s" : ""} · ${toolNames.join(", ")}${Array.from(new Set(tools.map((e) => e.ev.name))).length > 4 ? "…" : ""}`
+    : transferTo ? `delega → ${transferTo}` : hasThought ? "razonamiento del modelo" : "—";
+
+  return (
+    <div className={cn(hasError && "bg-rust/[0.04]")}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paperSoft">
+        <ChevronRight size={14} className={cn("shrink-0 text-mute transition-transform", open && "rotate-90")} />
+        <span className="hidden shrink-0 font-mono text-[10px] text-mute sm:inline">{pad(idxStart)}–{pad(idxEnd)}</span>
+        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", visual.color)}>
+          {visual.icon} {visual.label}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-mute">{resumen}</span>
+        {hasThought && !hasError && <Sparkles size={12} className="shrink-0 text-clay" />}
+        {hasError && <span className="shrink-0 rounded bg-rust px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-paper">⚠ error</span>}
+        <span className="shrink-0 rounded-full bg-paperDeep px-1.5 py-0.5 font-mono text-[9px] text-mute">{events.length}</span>
+      </button>
+      {open && (
+        <ol className="divide-y divide-line/60 border-t border-line/60 bg-paperSoft/30">
+          {events.map(({ ev, idx }) => <AgentTraceRow key={idx} idx={idx} ev={ev} />)}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -3631,7 +3700,7 @@ function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
             </button>
           </div>
           <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-relaxed text-ink">
-            {fullPayload}
+            {linkify(fullPayload)}
           </pre>
         </div>
       )}
