@@ -283,6 +283,110 @@ def _split_pdf_by_pages(blob: bytes, label: str,
         return [(label, blob)]
 
 
+def _llm_consolidate_items(items: list, objeto: str = "") -> list:
+    """Consolida los ítems crudos (extraídos de VARIOS documentos del mismo proceso:
+    Bases, Acta, Cuadro, Contrato) en la lista canónica, con UN pase LLM chico que
+    reemplaza las heurísticas de string (`_merge_item_variants`, `_es_cabecera_objeto`).
+
+    El LLM SOLO clusteriza (decide qué índices son el MISMO bien físico descrito
+    distinto, y cuáles son la cabecera-objeto del contrato repetida como ítem). El
+    MERGE de campos lo hace el CÓDIGO: conserva la extracción LITERAL de la variante
+    más completa — el LLM NO reescribe specs (clave para fidelidad: ej. no inventa ni
+    altera la EETT). NO filtra por dominio: TODOS los bienes se muestran tal cual.
+
+    Robustez: valida cobertura total de índices; si el LLM falla, devuelve vacío o no
+    cubre todo → fallback al merge heurístico. Idempotente.
+    """
+    its = [it for it in (items or []) if isinstance(it, dict)]
+    if len(its) <= 1:
+        return its
+    try:
+        from google.genai import types as gtypes
+        catalogo = [{"i": i,
+                     "desc": str(it.get("descripcion_corta") or it.get("descripcion") or "")[:200],
+                     "cant": it.get("cantidad"), "und": it.get("unidad")}
+                    for i, it in enumerate(its)]
+        schema = gtypes.Schema(
+            type=gtypes.Type.OBJECT,
+            properties={
+                "grupos": gtypes.Schema(
+                    type=gtypes.Type.ARRAY,
+                    description="Cada sub-lista = índices de ítems que son EL MISMO bien físico.",
+                    items=gtypes.Schema(type=gtypes.Type.ARRAY, items=gtypes.Schema(type=gtypes.Type.INTEGER)),
+                ),
+                "indices_objeto_global": gtypes.Schema(
+                    type=gtypes.Type.ARRAY, nullable=True,
+                    description="Índices que son solo el TÍTULO/objeto global del contrato (no un producto).",
+                    items=gtypes.Schema(type=gtypes.Type.INTEGER)),
+            },
+        )
+        sys_inst = (
+            "Sos un consolidador de ítems de contrataciones públicas peruanas (SEACE/OECE). "
+            "Recibís ítems extraídos de VARIOS documentos del MISMO proceso; el mismo bien "
+            "físico suele repetirse con redacción distinta (ej. 'EQUIPO DE FTIR', 'Equipo FTIR "
+            "Espectrofotómetro', 'Espectrofotómetro FTIR' = 1 bien). Agrupá por índice.\n"
+            "REGLAS:\n"
+            "1. Agrupá SOLO ítems que son el mismo bien físico (aunque la redacción difiera). "
+            "Bienes DISTINTOS → grupos separados (cada uno su grupo, aunque sea de 1 índice).\n"
+            "2. NO elimines ni filtres ítems por 'no corresponder al objeto'. Mostramos TODOS "
+            "los bienes TAL CUAL están en los documentos (aunque parezcan fuera de rubro).\n"
+            "3. Si un índice es solo el TÍTULO/OBJETO global del contrato repetido como ítem "
+            "(no un producto concreto, sino el nombre de la adquisición completa), ponelo en "
+            "`indices_objeto_global`.\n"
+            "4. COBERTURA: cada índice 0..N-1 debe aparecer EXACTAMENTE UNA vez (en algún grupo "
+            "o en indices_objeto_global). No inventes índices.\n"
+            "Devolvé SOLO JSON conforme al schema."
+        )
+        prompt = (f"OBJETO del contrato (referencia, NO para filtrar): '{(objeto or '')[:200]}'.\n\n"
+                  f"ÍTEMS ({len(catalogo)}):\n{json.dumps(catalogo, ensure_ascii=False)}")
+        config = gtypes.GenerateContentConfig(
+            temperature=0.0, top_p=0.1, response_mime_type="application/json",
+            response_schema=schema, max_output_tokens=8192,
+            http_options=gtypes.HttpOptions(timeout=60000),
+            system_instruction=sys_inst,
+        )
+        client = _gemini_client()
+        model = os.getenv("CONSOLIDATE_MODEL", DEFAULT_GEMINI_MODEL)
+        with _throttle_gemini():
+            resp = _gemini_call_with_retry(
+                lambda: client.models.generate_content(
+                    model=model, contents=[gtypes.Part.from_text(text=prompt)], config=config))
+        data = _safe_parse_json((resp.text or "").strip()) or {}
+        grupos = [g for g in (data.get("grupos") or []) if isinstance(g, list)]
+        objeto_idx = {i for i in (data.get("indices_objeto_global") or []) if isinstance(i, int)}
+        # Validar cobertura EXACTA de índices (cada uno una vez) — si no, fallback.
+        vistos: list[int] = []
+        for g in grupos:
+            vistos += [i for i in g if isinstance(i, int)]
+        vistos += list(objeto_idx)
+        if sorted(set(vistos)) != list(range(len(its))) or len(vistos) != len(set(vistos)):
+            print(f"[parser-llm-dedup] cobertura inválida ({len(set(vistos))}/{len(its)}, dups={len(vistos)-len(set(vistos))}) → fallback heurístico", flush=True)
+            return _merge_item_variants(its)
+        # MERGE por grupo (CÓDIGO, no LLM): base = variante con más requerimiento; se
+        # completan SOLO campos vacíos desde las otras (no se reescribe nada existente).
+        out: list[dict] = []
+        for g in grupos:
+            grp = [its[i] for i in g if 0 <= i < len(its)]
+            if not grp:
+                continue
+            grp.sort(key=lambda x: len(str(x.get("requerimiento_tecnico_detallado") or "")), reverse=True)
+            base = dict(grp[0])
+            for other in grp[1:]:
+                for k, v in other.items():
+                    if base.get(k) in (None, "", [], {}, 0) and v not in (None, "", [], {}, 0):
+                        base[k] = v
+            out.append(base)
+        # Cabecera-objeto: se aparta SOLO si quedan ítems reales (fail-safe; nunca vaciar).
+        if not out:
+            return _merge_item_variants(its)
+        print(f"[parser-llm-dedup] {len(its)}→{len(out)} ítems · {len(grupos)} bienes únicos · "
+              f"{len(objeto_idx)} cabecera-objeto apartada (vía LLM)", flush=True)
+        return out
+    except Exception as e:
+        print(f"[parser-llm-dedup] falló ({type(e).__name__}: {str(e)[:140]}) → fallback heurístico", flush=True)
+        return _merge_item_variants(items or [])
+
+
 def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
     """Procesa un PDF (bytes) con Gemini. Devuelve dict con extracción
     o {"error": ...}.
@@ -1784,40 +1888,22 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
     if cuantia_total and not raw.get("cuantia_total"):
         raw["cuantia_total"] = cuantia_total
 
-    # ── Quitar la CABECERA-OBJETO del contrato cuando ya hay ítems reales ──
-    # El agregador OCDS ("ADQUISICIÓN DE LLANTAS PARA...") aparece como ítem en
-    # varios documentos y, por ruido OCR, a veces sobrevive duplicado al dedup
-    # (claves distintas por 1-2 chars). Es redundante con el campo `objeto`. Lo
-    # eliminamos SOLO si queda ≥1 ítem real (con cantidad o requerimiento), para
-    # no vaciar contratos de ítem único global. Fail-safe.
+    # ── Consolidación de ítems vía LLM (reemplaza las heurísticas de string) ──
+    # Un pase LLM chico funde las variantes del MISMO bien (ej. 'EQUIPO DE FTIR' ×3
+    # desde Bases/Acta/Contrato → 1) y aparta la cabecera-objeto del contrato. El LLM
+    # solo clusteriza; el merge de campos lo hace el código (extracción literal intacta,
+    # no reescribe specs). NO filtra por dominio: muestra todos los bienes tal cual.
+    # Fallback heurístico (_merge_item_variants) si el LLM falla. (Reemplaza el viejo
+    # _es_cabecera_objeto + _merge_item_variants por keywords/ratio.)
     try:
         _tender = (tool_context.state.get("ocds") or {}).get("tender") or {}
-        _objeto_norm = _norm_txt(_tender.get("description") or _tender.get("title") or "")
-        _items = raw.get("items_consolidados") or []
-
-        def _es_real(x: dict) -> bool:
-            return (x.get("cantidad") not in (None, "", 0)) or \
-                   bool((x.get("requerimiento_tecnico_detallado") or "").strip())
-
-        if _objeto_norm and any(_es_real(x) for x in _items):
-            _filtrados = [x for x in _items if not _es_cabecera_objeto(x, _objeto_norm)]
-            if len(_filtrados) < len(_items):
-                print(f"[parser-dedup] cabecera-objeto removida: "
-                      f"{len(_items)}→{len(_filtrados)} ítems", flush=True)
-                raw["items_consolidados"] = _filtrados
-    except Exception as _e:
-        print(f"[parser-dedup] filtro cabecera-objeto falló "
-              f"({type(_e).__name__}: {str(_e)[:120]})", flush=True)
-
-    # Colapsar variantes del MISMO bien (descripción contenida) para no inflar
-    # items_consolidados (ej. 'EQUIPO DE FTIR' ×3 desde Bases/Acta/Contrato → 1).
-    try:
+        _objeto = _tender.get("description") or _tender.get("title") or ""
         _antes = len(raw.get("items_consolidados") or [])
-        raw["items_consolidados"] = _merge_item_variants(raw.get("items_consolidados") or [])
-        if len(raw["items_consolidados"]) < _antes:
-            print(f"[parser-dedup] variantes fundidas: {_antes}→{len(raw['items_consolidados'])} ítems", flush=True)
+        raw["items_consolidados"] = _llm_consolidate_items(raw.get("items_consolidados") or [], _objeto)
+        if len(raw["items_consolidados"]) != _antes:
+            print(f"[parser-dedup] consolidación: {_antes}→{len(raw['items_consolidados'])} ítems", flush=True)
     except Exception as _e:
-        print(f"[parser-dedup] merge variantes falló ({type(_e).__name__}: {str(_e)[:100]})", flush=True)
+        print(f"[parser-dedup] consolidación falló ({type(_e).__name__}: {str(_e)[:100]})", flush=True)
 
     tool_context.state["parser_raw_consolidated"] = raw
 
