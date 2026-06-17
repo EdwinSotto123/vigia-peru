@@ -4764,6 +4764,25 @@ function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney: (n: an
         const totalOfertado = market.total_ofertado ?? market?.padre_lote?.cuantia_total;
         if (typeof computedTotalMercado !== "number" || typeof totalOfertado !== "number" || totalOfertado <= 0)
           return null;
+        // GATE de comparabilidad: SOLO comparamos ofertado vs mercado si la cobertura es
+        // ALTA (≥70% de ítems con mediana). Con cobertura baja, `computedTotalMercado`
+        // solo cubre los ítems que SÍ se tasaron (ej. 2/8) y compararlo contra el total
+        // del contrato produce un sobreprecio FALSO (ej. +2776% por enfrentar S/73K del
+        // lote completo vs S/3K de 2 ítems). El backend ya deja sobreprecio_pct=null en
+        // ese caso; lo respetamos y NO emitimos un veredicto que sería una falsa acusación.
+        const cob = typeof market.cobertura_mercado === "number" ? market.cobertura_mercado : null;
+        const comparable = cob !== null ? cob >= 0.7 : (typeof market.sobreprecio_pct === "number");
+        if (!comparable) {
+          return (
+            <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-[11px] text-mute">
+              Cobertura de mercado insuficiente
+              {typeof market.n_con_mediana === "number" && typeof market.n_items === "number"
+                ? ` (${market.n_con_mediana}/${market.n_items} ítems tasados)` : ""}:
+              el estimado solo cubre esos ítems, NO es comparable con el total del contrato.
+              Sin veredicto de sobreprecio para no emitir una señal falsa.
+            </div>
+          );
+        }
         const diff = totalOfertado - computedTotalMercado;
         const diffPct = (diff / computedTotalMercado) * 100;
         return (
