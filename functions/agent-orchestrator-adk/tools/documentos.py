@@ -302,7 +302,7 @@ def _llm_consolidate_items(items: list, objeto: str = "") -> list:
         return its
     try:
         from google.genai import types as gtypes
-        catalogo = [{"i": i,
+        catalogo = [{"i": i, "num": it.get("numero"),
                      "desc": str(it.get("descripcion_corta") or it.get("descripcion") or "")[:200],
                      "cant": it.get("cantidad"), "und": it.get("unidad")}
                     for i, it in enumerate(its)]
@@ -326,8 +326,15 @@ def _llm_consolidate_items(items: list, objeto: str = "") -> list:
             "físico suele repetirse con redacción distinta (ej. 'EQUIPO DE FTIR', 'Equipo FTIR "
             "Espectrofotómetro', 'Espectrofotómetro FTIR' = 1 bien). Agrupá por índice.\n"
             "REGLAS:\n"
-            "1. Agrupá SOLO ítems que son el mismo bien físico (aunque la redacción difiera). "
-            "Bienes DISTINTOS → grupos separados (cada uno su grupo, aunque sea de 1 índice).\n"
+            "1. Agrupá SOLO ítems que son el MISMO bien físico (la misma cosa descrita con otras "
+            "palabras en distintos documentos). Bienes DISTINTOS → grupos separados.\n"
+            "1b. CONSERVADOR con el `num` (número de ítem de la tabla del documento): ítems con "
+            "`num` DISTINTO son renglones DISTINTOS del requerimiento → NO los fundas aunque los "
+            "nombres se parezcan (ej. num=1 'AMPLIFICADOR DE AUDIO' y num=3 'AMPLIFICADOR DE AUDIO "
+            "DE 600 W' son DOS amplificadores distintos → grupos separados). Fundí ítems con `num` "
+            "distinto SOLO si la descripción es esencialmente IDÉNTICA (mismo producto, mismas "
+            "specs, solo reordenado). Mismo `num` (renglón repetido entre documentos) → SÍ fundir. "
+            "Ante la duda, NO fundas (mejor dos ítems separados que perder uno).\n"
             "2. NO elimines ni filtres ítems por 'no corresponder al objeto'. Mostramos TODOS "
             "los bienes TAL CUAL están en los documentos (aunque parezcan fuera de rubro).\n"
             "3. Si un índice es solo el TÍTULO/OBJETO global del contrato repetido como ítem "

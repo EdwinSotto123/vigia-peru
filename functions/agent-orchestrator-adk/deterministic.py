@@ -406,16 +406,23 @@ def _backfill_document_analysis(state: dict) -> str:
     da = da if isinstance(da, dict) else {}
     raw_items = raw.get("items_consolidados") or []
     da_items = da.get("items_consolidados") or []
-    n_raw, n_da = _n_items_reales(raw_items), _n_items_reales(da_items)
-    msg = f"raw={len(raw_items)}(reales={n_raw}) da={len(da_items)}(reales={n_da})"
-    if n_raw > n_da:
+    msg = f"raw={len(raw_items)} da={len(da_items)}"
+    # La tool (parse_document_pdf) es la AUTORIDAD de extracción estructurada: al AGENTE
+    # se le devuelve solo un RESUMEN con conteos (NO los ítems), así que su
+    # document_analysis a veces es PLACEHOLDER del schema ("Descripción corta del Ítem N
+    # extraída de las Bases", "POSTOR DE BASES 1", "NOMBRE FIRMANTE BASES"). Por eso, si la
+    # tool extrajo algo, GANA SIEMPRE (incondicional — antes se gateaba con n_raw>n_da y
+    # los placeholders, contados como "reales", empataban y ganaban). Se conserva el
+    # `resumen_ejecutivo`/`modalidad`/etc. narrativos del agente.
+    if raw_items:
         da["items_consolidados"] = raw_items
-        for k in ("firmantes_consolidados", "postores_consolidados",
-                  "comite_evaluacion", "motivos_adjudicacion", "lugar_fecha_acta"):
-            if raw.get(k) and not da.get(k):
+        for k in ("firmantes_consolidados", "firmantes", "postores_consolidados",
+                  "postores_extraidos", "comite_evaluacion", "motivos_adjudicacion",
+                  "lugar_fecha_acta", "cuantia_total"):
+            if raw.get(k) not in (None, "", [], {}):
                 da[k] = raw[k]
         state["document_analysis"] = da
-        msg += f" → BACKFILL items_consolidados={len(raw_items)} desde parser_raw_consolidated"
+        msg += f" → estructura desde la TOOL (items={len(raw_items)}, autoritativa sobre el LLM)"
     return msg
 
 
