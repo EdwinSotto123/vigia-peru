@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import uuid
 from typing import Any, AsyncIterator
 
@@ -362,24 +361,6 @@ async def _run_agent_isolated(agent, msg_text: str, base_state: dict, output_key
         evs_out.append({"agent": name, "kind": "warn",
                         "detail": f"merge del state aislado falló: {str(e)[:160]}"})
     return evs_out, final_text, delta, local_metrics
-
-
-# Placeholder genérico que el LLM document_parser emite cuando NO transcribe los
-# ítems reales que la tool ya extrajo (p.ej. "Item 3 del proceso de selección" /
-# "Requerimiento técnico detallado para el item 3 según las Bases Administrativas").
-_GENERIC_ITEM = re.compile(r"item\s+\d+\s+del\s+proceso|requerimiento t.cnico detallado para el item", re.I)
-
-
-def _n_items_reales(items) -> int:
-    """Cuenta ítems con descripción REAL (no placeholder genérico ni vacía)."""
-    n = 0
-    for it in (items or []):
-        if not isinstance(it, dict):
-            continue
-        d = str(it.get("descripcion_corta") or it.get("descripcion") or it.get("nombre") or "")
-        if d.strip() and not _GENERIC_ITEM.search(d):
-            n += 1
-    return n
 
 
 def _backfill_document_analysis(state: dict) -> str:
