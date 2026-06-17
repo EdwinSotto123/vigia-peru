@@ -52,6 +52,18 @@ import {
   fetchAllDocsFromOcds,
 } from "@/lib/oece-bridge";
 
+// El portal OECE resuelve /proceso/<OCID COMPLETO>. El código de alerta / conv.ocid a
+// veces es el sufijo corto ("1212446" o "2026-10404-12") → /proceso/1212446 da 404.
+// Reconstruimos el OCID del esquema SEACE v3 (verificado: record/1212446=404,
+// record/ocds-dgv273-seacev3-1212446=200). Soporta sufijo plano, año-secuencia,
+// "OECE-..." y OCID ya completo.
+function oeceProcesoUrl(ocidOrCodigo: string | null | undefined): string {
+  const s = String(ocidOrCodigo || "").trim();
+  if (!s) return "https://contratacionesabiertas.oece.gob.pe/";
+  const full = s.startsWith("ocds-") ? s : `ocds-dgv273-seacev3-${s.replace(/^OECE-/i, "")}`;
+  return `https://contratacionesabiertas.oece.gob.pe/proceso/${full}`;
+}
+
 const SAMPLES = [
   { id: "1203694", label: "Mun. Callao · herramientas S/. 93K" },
   { id: "1202858", label: "Chira Piura · maquinaria S/. 7.1M" },
@@ -355,7 +367,7 @@ export function ConvocatoriaSearch() {
           console.log(`[Vigía] relay bloqueado para ${ocid} — el backend lo traerá por el downloader local`);
         } else if (!ocds) {
           // Convocatoria inexistente (404) vs error de red.
-          const url = `https://contratacionesabiertas.oece.gob.pe/proceso/${ocid}`;
+          const url = oeceProcesoUrl(ocid);
           const msg =
             ocdsRes.reason === "not_found"
               ? `La convocatoria ${ocid} no existe o ya no es accesible en el portal OECE (404). ` +
@@ -910,7 +922,7 @@ function AnalisisPostoresSection({ data }: { data: any }) {
                   {list.length > 0 && (
                     <div className="ml-3 mt-0.5 flex flex-wrap gap-1">
                       {list.slice(0, 8).map((oc, j) => (
-                        <a key={j} href={`https://contratacionesabiertas.oece.gob.pe/proceso/${oc}`}
+                        <a key={j} href={oeceProcesoUrl(oc)}
                            target="_blank" rel="noreferrer"
                            className="rounded bg-paperDeep px-1.5 py-0 text-[9px] text-clay hover:bg-paperSoft">
                           {oc.replace(/^ocds-[a-z0-9]+-seacev3-/i, "")}
@@ -2480,7 +2492,7 @@ function ShareableHeader({
     }
   };
 
-  const oeceUrl = `https://contratacionesabiertas.oece.gob.pe/proceso/${conv.ocid || codigo}`;
+  const oeceUrl = oeceProcesoUrl(conv.ocid || codigo);
 
   return (
     <header className="surface px-4 py-3">
