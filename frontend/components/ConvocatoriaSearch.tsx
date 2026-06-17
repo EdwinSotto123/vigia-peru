@@ -1594,7 +1594,14 @@ function ExpandableThought({ text }: { text: string }) {
 function LiveEventsPanel({ events }: { events: any[] }) {
   const last = events.slice(-30);
   const tail = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { tail.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [events.length]);
+  // Auto-scroll SOLO si el usuario ya está cerca del fondo: si subió a leer un nodo,
+  // NO lo arrastramos hacia abajo cuando avanza un paso (era molesto). getBoundingClientRect
+  // es relativo al viewport → funciona con el scroll de la página.
+  useEffect(() => {
+    const el = tail.current;
+    if (el && el.getBoundingClientRect().top <= window.innerHeight + 300)
+      el.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [events.length]);
 
   // Conteos para mini-stats
   const byKind: Record<string, number> = {};
@@ -2297,7 +2304,12 @@ function LiveTracePanel({ events }: { events: any[] }) {
   const steps = events.filter((e) => e && KINDS.includes(e.kind));
   const last = steps.slice(-24);
   const tail = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { tail.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [steps.length]);
+  // Auto-scroll SOLO si el usuario ya está cerca del fondo (no lo arrastramos si subió a leer).
+  useEffect(() => {
+    const el = tail.current;
+    if (el && el.getBoundingClientRect().top <= window.innerHeight + 300)
+      el.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [steps.length]);
   let nTools = 0, nRes = 0;
   for (const e of events) { if (e.kind === "tool_call") nTools++; else if (e.kind === "tool_result") nRes++; }
   return (
@@ -3650,8 +3662,39 @@ function TracePhaseGroup({ group, forceOpen }: { group: { agent: string; events:
   );
 }
 
+// Qué hace cada tool/agente — alimenta el botón de info (ⓘ) del tracking.
+const TOOL_INFO: Record<string, string> = {
+  fetch_ocds_record: "Trae el registro OCDS oficial del proceso desde el portal OECE (objeto, ítems, montos, postores, adjudicación).",
+  register_convocatoria_in_db: "Registra la convocatoria y sus ítems en la base de datos de Vigía.",
+  list_documents: "Lista los documentos publicados del expediente (Bases, Acta de Buena Pro, Contrato…).",
+  parse_document_pdf: "Descarga el documento, hace OCR con Document AI y extrae los ítems con sus especificaciones técnicas del REQUERIMIENTO (las Bases).",
+  read_document_analysis: "Lee la extracción estructurada del documento (ítems, firmantes, comité) para que otros agentes la usen.",
+  persist_doc_flags_as_banderas: "Guarda como banderas las observaciones legales del documento.",
+  build_market_input: "Arma la lista de ítems a tasar (combina los del OCDS con las specs extraídas de la Bases).",
+  analyze_market_sharded: "Tasa cada ítem contra el mercado real (Google Search en paralelo) y detecta sobreprecios.",
+  persist_market_flags_as_banderas: "Guarda como banderas los sobreprecios detectados en el análisis de mercado.",
+  get_ganador: "Identifica al proveedor ganador, los postores y la entidad contratante.",
+  query_oece_perfil: "Consulta el perfil OECE del proveedor (historial de contratos y señales).",
+  query_sunat_decolecta: "Consulta SUNAT (vía decolecta): RUC, estado, antigüedad, CIIU y representante legal.",
+  query_edad_ciiu_web: "Busca en web la edad del RUC y el CIIU cuando SUNAT no responde.",
+  read_sunat_profile: "Lee el perfil SUNAT ya cargado en el análisis.",
+  query_rnp_empresa: "Consulta el RNP: socios, representantes legales y órganos de administración de la empresa.",
+  batch_person_lookup: "Cruza un lote de personas (DNI/nombre) contra las bases de Vigía (PEP, aportes, cargos públicos).",
+  detect_puerta_giratoria: "Detecta si el titular de la empresa ocupó un cargo público en la entidad contratante (puerta giratoria).",
+  detect_aporte_a_partido: "Detecta aportes de campaña (ONPE) del proveedor al partido que gobierna la entidad.",
+  read_person_network_context: "Arma el contexto de la red de personas (socios, firmantes, autoridades) para el análisis.",
+  add_contextual_flag: "Registra una bandera de riesgo contextual detectada por un agente.",
+  evaluate_normative_compliance: "Cruza cada hallazgo contra el corpus de opiniones jurídicas del OECE (RAG) para citar jurisprudencia administrativa.",
+  persist_alert_from_flags: "Consolida todas las banderas detectadas en la alerta final.",
+  persist_analysis_outputs: "Guarda el análisis completo (todas las secciones + el dictamen) en la base de datos.",
+  get_dictamen_context: "Reúne todo el análisis (ítems, mercado, red, normativa) para que el redactor escriba el dictamen.",
+  query_legal_rag: "Busca en el corpus de opiniones jurídicas del OECE la doctrina relevante para un hallazgo.",
+  google_search: "Búsqueda en vivo en Google (grounding de Gemini) sobre la empresa, funcionarios, prensa o precios de mercado.",
+};
+
 function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
   const [expanded, setExpanded] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const agent = ev.agent || "?";
   const visual = AGENT_VISUAL[agent] || { color: "bg-mute text-paper", icon: null, label: agent };
 
@@ -3722,6 +3765,8 @@ function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
   }
 
   const canExpand = hasMore && !!fullPayload;
+  const isTool = (ev.kind === "tool_call" || ev.kind === "tool_result") && !!ev.name;
+  const info = isTool ? (TOOL_INFO[ev.name as string] || "Paso del pipeline de análisis.") : null;
   return (
     <li className={cn("px-5 py-2.5 transition-colors", canExpand ? "cursor-pointer hover:bg-paperSoft" : "hover:bg-paperSoft/40")}>
       <div className="flex items-start gap-3" onClick={() => canExpand && setExpanded(v => !v)}>
@@ -3738,12 +3783,28 @@ function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
           ev.kind === "error"       && "bg-rust text-paper",
         )}>{kindLabel}</span>
         <div className="flex flex-wrap items-baseline gap-1 min-w-0 flex-1">{preview}</div>
+        {info && (
+          <button
+            type="button"
+            title={info}
+            aria-label="Qué hace esta herramienta"
+            className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line font-mono text-[9px] font-bold text-mute hover:border-clay hover:text-clay"
+            onClick={(e) => { e.stopPropagation(); setInfoOpen(v => !v); }}
+          >
+            i
+          </button>
+        )}
         {canExpand && (
           <span className="mt-0.5 shrink-0 text-[10px] font-mono text-clay">
             {expanded ? "▼ ocultar" : "▶ ver"}
           </span>
         )}
       </div>
+      {infoOpen && info && (
+        <div className="mt-1.5 ml-9 rounded-md border border-clay/30 bg-clay/5 px-3 py-2 text-[11px] leading-relaxed text-ink">
+          <span className="font-mono font-bold text-clay">ⓘ {ev.name}</span> — {info}
+        </div>
+      )}
       {expanded && fullPayload && (
         <div className="mt-2 ml-9 rounded-md border border-line bg-paperSoft p-3">
           <div className="mb-1.5 flex items-center justify-between">
