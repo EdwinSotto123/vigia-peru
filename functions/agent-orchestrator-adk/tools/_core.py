@@ -94,8 +94,15 @@ def _gemini_call_with_retry(fn, *, max_attempts: int = 6, base_delay: float = 2.
             )
             if not transient or attempt == max_attempts - 1:
                 last_exc = e
+                if transient:
+                    # Saturación que AGOTÓ los reintentos → la llamada falla de verdad
+                    # (un worker de market que cae acá deja su ítem sin precio). Antes
+                    # era SILENCIOSO; ahora se loguea para poder medir saturación real.
+                    print(f"[gemini-retry] AGOTADO tras {attempt + 1} intentos · {msg[:120]}", flush=True)
                 break
             sleep_s = base_delay * (2 ** attempt) + random.uniform(0, 1.0)
+            _kind = "429/RESOURCE_EXHAUSTED" if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else "5xx/transitorio"
+            print(f"[gemini-retry] {_kind} · intento {attempt + 1}/{max_attempts} · backoff {min(sleep_s, 60.0):.1f}s", flush=True)
             time.sleep(min(sleep_s, 60.0))
             last_exc = e
     if last_exc:
