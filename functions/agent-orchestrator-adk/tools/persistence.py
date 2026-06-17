@@ -639,19 +639,11 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             _final_doc["comite_evaluacion"] = doc_raw.get("comite_evaluacion") or []
             _final_doc["motivos_adjudicacion"] = doc_raw.get("motivos_adjudicacion") or []
             _final_doc["lugar_fecha_acta"] = doc_raw.get("lugar_fecha_acta")
-        # Dedup FINAL de variantes del mismo bien sobre la lista que se va a persistir
-        # (el agente suele listar 'EQUIPO DE FTIR' / 'Equipo FTIR' / 'Equipo de FTIR
-        # Espectrofotómetro...' por separado; el merge del parser no alcanza porque
-        # el persist se queda con la lista —más larga— del agente).
-        if isinstance(_final_doc.get("items_consolidados"), list) and len(_final_doc["items_consolidados"]) > 1:
-            try:
-                from tools.documentos import _merge_item_variants
-                _antes = len(_final_doc["items_consolidados"])
-                _final_doc["items_consolidados"] = _merge_item_variants(_final_doc["items_consolidados"])
-                if len(_final_doc["items_consolidados"]) < _antes:
-                    print(f"[persist] variantes de ítem fundidas: {_antes}→{len(_final_doc['items_consolidados'])}", flush=True)
-            except Exception as _e:
-                print(f"[persist] merge variantes falló: {str(_e)[:80]}", flush=True)
+        # SIN dedup fuzzy de ítems acá: los ítems ya vienen de la extracción única de la
+        # Bases (parser_raw_consolidated, deduplicada por _item_key exacto). El viejo
+        # `_merge_item_variants` (token-overlap) SOBRE-FUSIONABA productos legítimamente
+        # distintos (ej. 'AMPLIFICADOR DE AUDIO' #1 vs 'AMPLIFICADOR DE AUDIO DE 600 W' #3
+        # → 1) — se eliminó como parte de la simplificación del flujo de ítems.
 
         # Guard anti-placeholder de firmantes: el parser a veces invent a/templa
         # firmantes genéricos de una proforma ("POSTOR DOS E.I.R.L.", "Juan Perez"
