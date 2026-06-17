@@ -1731,7 +1731,21 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
             estudio_mercado_best = _mas_completo(r["estudio_mercado"], estudio_mercado_best)
         if isinstance(r.get("contrato_final"), dict):
             contrato_final_best = _mas_completo(r["contrato_final"], contrato_final_best)
-        items_all.extend(r.get("items") or [])
+        # Los ÍTEMS con especificaciones viven en el documento de REQUERIMIENTO
+        # (Bases Administrativas / EETT / TDR). Acta de Buena Pro, Cuadro de evaluación,
+        # Invitación y Contrato solo repiten el TÍTULO del contrato como "ítem" (sin
+        # specs) → ese era el RUIDO que después había que deduplicar (cabecera-objeto,
+        # 9→7, 15→7...). Tomamos ítems SOLO de fuentes de requerimiento: el LLM marcó
+        # contiene_requerimiento=true, O algún ítem trae requerimiento_tecnico_detallado
+        # real (robusto si el LLM no marcó el flag). Misma filosofía que el gate de
+        # comité/motivos por _es_doc_de_adjudicacion (abajo). Si NINGÚN doc resulta
+        # fuente de requerimiento, items_consolidados queda vacío y lo cubren los ítems
+        # del OCDS (SQL) + la bandera extraccion_documento_fallida — sin meter ruido.
+        _es_fuente_req = bool(r.get("contiene_requerimiento")) or any(
+            isinstance(it, dict) and len(str(it.get("requerimiento_tecnico_detallado") or "").strip()) > 40
+            for it in (r.get("items") or []))
+        if _es_fuente_req:
+            items_all.extend(r.get("items") or [])
         postores_all.extend(r.get("postores") or [])
         # red_flags_observadas: campo legacy, ya no se pide al parser. El análisis
         # legal lo hace `document_legal_analyst_agent` aparte. Si algún parser
