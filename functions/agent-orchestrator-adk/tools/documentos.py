@@ -26,50 +26,6 @@ def _es_doc_de_adjudicacion(tipo: str) -> bool:
     return any(k in t for k in _TIPOS_ADJUDICACION)
 
 
-def _merge_item_variants(items: list) -> list:
-    """Colapsa ítems que son el MISMO bien descrito con distinto detalle (ej.
-    'EQUIPO DE FTIR' y 'Equipo de FTIR Espectrofotómetro Infrarrojo...'): si la
-    descripción normalizada de uno está CONTENIDA en la del otro, se funden — se
-    queda la descripción más larga + el requerimiento más largo + campos faltantes.
-    NO fusiona bienes distintos (FTIR vs ultrasonido no comparten tokens). Evita que
-    el mismo equipo descrito en Bases/Acta/Contrato aparezca 3 veces."""
-    _STOP = {"DE", "DEL", "LA", "EL", "LOS", "LAS", "Y", "CON", "PARA", "POR",
-             "UN", "UNA", "EN", "SDO", "DLA"}
-
-    def _toks(s: str) -> set:
-        return {w for w in _norm_txt(s).split() if len(w) >= 3 and w not in _STOP}
-
-    out: list = []
-    for it in items:
-        d = _norm_txt(it.get("descripcion_corta") or it.get("descripcion") or "")
-        if len(d) < 8:
-            out.append(it); continue
-        td = _toks(d)
-        target = None
-        for ex in out:
-            de = _norm_txt(ex.get("descripcion_corta") or ex.get("descripcion") or "")
-            if not de:
-                continue
-            te = _toks(de)
-            # Misma cadena, una contenida en la otra, o el set de tokens
-            # significativos de una ⊆ el de la otra (≥2 tokens en el menor).
-            small, big = (td, te) if len(td) <= len(te) else (te, td)
-            if (d == de or ((d in de or de in d) and min(len(d), len(de)) >= 12)
-                    or (len(small) >= 2 and small <= big)):
-                target = ex; break
-        if target is None:
-            out.append(it); continue
-        de = _norm_txt(target.get("descripcion_corta") or target.get("descripcion") or "")
-        if len(d) > len(de):  # quedarse con la descripción más detallada
-            target["descripcion_corta"] = it.get("descripcion_corta") or it.get("descripcion")
-        rq_n = it.get("requerimiento_tecnico_detallado") or ""
-        if len(rq_n) > len(target.get("requerimiento_tecnico_detallado") or ""):
-            target["requerimiento_tecnico_detallado"] = rq_n
-        for k, v in it.items():  # completar campos vacíos del target
-            if v not in (None, "", [], {}) and target.get(k) in (None, "", [], {}):
-                target[k] = v
-    return out
-
 def list_documents(ocid: str, tool_context: ToolContext) -> dict:
     """Lista los documentos publicados en SEACE para esta convocatoria.
 
