@@ -283,16 +283,9 @@ def _split_pdf_by_pages(blob: bytes, label: str,
         return [(label, blob)]
 
 
-def _parse_single_pdf_with_gemini(blob: bytes, source_label: str, objeto_contrato: str = "") -> dict:
+def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
     """Procesa un PDF (bytes) con Gemini. Devuelve dict con extracción
     o {"error": ...}.
-
-    `objeto_contrato`: el OBJETO de la contratación (del OCDS oficial). Se inyecta en
-    el prompt para GROUNDEAR la extracción: las Bases municipales peruanas reutilizan
-    plantillas de otras obras y dejan ítems de OTRO rubro pegados (ej. un 'tablero para
-    bombas' en una compra audiovisual). Con el objeto, Gemini marca cada ítem con
-    `pertenece_al_objeto` y el sistema excluye los residuos de plantilla SIN heurísticas
-    de keywords. Si viene vacío, no se groundea (no se filtra nada).
 
     Estrategia híbrida:
       1. Analiza la layout del PDF con PyMuPDF.
@@ -377,17 +370,6 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str, objeto_contrat
                         "descripcion_corta": gtypes.Schema(
                             type=gtypes.Type.STRING,
                             description="TÍTULO del ítem (1 línea, ≤200 chars). NO meter specs acá.",
-                        ),
-                        "pertenece_al_objeto": gtypes.Schema(
-                            type=gtypes.Type.BOOLEAN, nullable=True,
-                            description=(
-                                "true si este ítem corresponde al OBJETO de ESTA contratación "
-                                "(el rubro de lo que se adquiere); false SOLO si es CLARAMENTE de "
-                                "otro rubro — residuo de una plantilla reutilizada en las Bases "
-                                "(ej. 'tablero para bombas de agua' en una compra de equipos de "
-                                "audio/video). Juzgá por el rubro del bien, no por la obra global. "
-                                "Default true si no estás seguro o si no se te dio el objeto."
-                            ),
                         ),
                         "cantidad": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
                         "unidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
@@ -889,25 +871,8 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str, objeto_contrat
             f"rasterizadas (con contenido en imagen).\n\n"
         )
 
-    objeto_note = ""
-    if (objeto_contrato or "").strip():
-        objeto_note = (
-            f"═══ OBJETO DE ESTA CONTRATACIÓN (del OCDS oficial) ═══\n"
-            f"'{objeto_contrato.strip()[:500]}'\n\n"
-            "GROUNDING DE DOMINIO (importante): el objeto de arriba es lo que se ADQUIERE en "
-            "ESTA contratación. Las Bases municipales peruanas A MENUDO reutilizan plantillas "
-            "de OTRAS obras y dejan pegados ítems de un rubro distinto (ej. un 'tablero de "
-            "arranque para bombas de agua' dentro de una compra de equipos de audio/video). "
-            "Para CADA ítem que extraigas, decidí `pertenece_al_objeto`: true si el ítem "
-            "corresponde a lo que se adquiere en este objeto; false SOLO si es CLARAMENTE de "
-            "otro rubro (residuo de plantilla). Juzgá por el rubro del bien, NO por la obra "
-            "global (una compra de 'sistema de audio/video' NO incluye bombas, motores ni "
-            "tuberías aunque la obra sea una plaza). NO BORRES los ítems false: extraélos "
-            "igual con su flag; el filtrado lo hace el sistema. Si dudás, poné true.\n\n"
-        )
     prompt = (
         f"PDF a procesar: {source_label}.\n\n"
-        f"{objeto_note}"
         f"{layout_note}"
         f"{docai_note}"
         f"{render_note}"
@@ -1584,18 +1549,9 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
             pass
     _eff_timeout = max(30.0, min(float(PARSE_OVERALL_TIMEOUT_S), _deadline - _now))
 
-    # Objeto de la contratación (del OCDS) → se inyecta en CADA parse para groundear la
-    # extracción de ítems al rubro real (filtra residuos de plantilla reutilizada).
-    _tender_obj = (tool_context.state.get("ocds") or {}).get("tender") or {}
-    _objeto_contrato = (_tender_obj.get("description") or _tender_obj.get("title") or "").strip()
-    if not _objeto_contrato:
-        _its_ocds = _tender_obj.get("items") or []
-        if _its_ocds and isinstance(_its_ocds[0], dict):
-            _objeto_contrato = (_its_ocds[0].get("description") or "").strip()
-
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=PARSE_MAX_WORKERS)
     futures = {
-        ex.submit(_parse_single_pdf_with_gemini, b, name, _objeto_contrato): i
+        ex.submit(_parse_single_pdf_with_gemini, b, name): i
         for i, (name, b) in enumerate(pdf_blobs)
     }
     try:
@@ -1862,26 +1818,6 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
             print(f"[parser-dedup] variantes fundidas: {_antes}→{len(raw['items_consolidados'])} ítems", flush=True)
     except Exception as _e:
         print(f"[parser-dedup] merge variantes falló ({type(_e).__name__}: {str(_e)[:100]})", flush=True)
-
-    # ── Partición por DOMINIO: ítems que Gemini marcó fuera del objeto (residuos de
-    # plantilla reutilizada en las Bases, ej. 'tablero para bombas' en compra A/V) →
-    # se SACAN de items_consolidados (no se tasan ni cuentan) pero se PRESERVAN en
-    # items_fuera_de_objeto para trazabilidad. Reemplaza el filtrado por keywords con
-    # un juicio GROUNDED del LLM. Fail-safe: solo filtra si queda ≥1 ítem dentro. ──
-    try:
-        _items_all = raw.get("items_consolidados") or []
-        _fuera = [x for x in _items_all if isinstance(x, dict) and x.get("pertenece_al_objeto") is False]
-        _dentro = [x for x in _items_all if not (isinstance(x, dict) and x.get("pertenece_al_objeto") is False)]
-        if _fuera and _dentro:  # nunca vaciar: si TODOS dieron false, no filtramos (probable error del LLM)
-            raw["items_consolidados"] = _dentro
-            raw["items_fuera_de_objeto"] = (raw.get("items_fuera_de_objeto") or []) + _fuera
-            print(f"[parser-dominio] {len(_fuera)} ítem(s) fuera del objeto apartados "
-                  f"(residuo de plantilla): {[str(x.get('descripcion_corta'))[:40] for x in _fuera]}", flush=True)
-        elif _fuera and not _dentro:
-            print(f"[parser-dominio] TODOS los {len(_fuera)} ítems dieron pertenece_al_objeto=false "
-                  f"→ NO filtro (probable error del LLM, conservo todos)", flush=True)
-    except Exception as _e:
-        print(f"[parser-dominio] partición fuera-de-objeto falló ({type(_e).__name__}: {str(_e)[:100]})", flush=True)
 
     tool_context.state["parser_raw_consolidated"] = raw
 
