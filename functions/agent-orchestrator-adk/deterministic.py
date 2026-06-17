@@ -19,7 +19,9 @@ Selección por flag en main.py: `DETERMINISTIC_PIPELINE` (default on).
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import re
 import uuid
 from typing import Any, AsyncIterator
 
@@ -362,6 +364,61 @@ async def _run_agent_isolated(agent, msg_text: str, base_state: dict, output_key
     return evs_out, final_text, delta, local_metrics
 
 
+# Placeholder genérico que el LLM document_parser emite cuando NO transcribe los
+# ítems reales que la tool ya extrajo (p.ej. "Item 3 del proceso de selección" /
+# "Requerimiento técnico detallado para el item 3 según las Bases Administrativas").
+_GENERIC_ITEM = re.compile(r"item\s+\d+\s+del\s+proceso|requerimiento t.cnico detallado para el item", re.I)
+
+
+def _n_items_reales(items) -> int:
+    """Cuenta ítems con descripción REAL (no placeholder genérico ni vacía)."""
+    n = 0
+    for it in (items or []):
+        if not isinstance(it, dict):
+            continue
+        d = str(it.get("descripcion_corta") or it.get("descripcion") or it.get("nombre") or "")
+        if d.strip() and not _GENERIC_ITEM.search(d):
+            n += 1
+    return n
+
+
+def _backfill_document_analysis(state: dict) -> str:
+    """Backfill DETERMINISTA de `document_analysis` desde `parser_raw_consolidated`.
+
+    `parse_document_pdf` (tool) extrae los ítems REALES y los stashea en
+    `state['parser_raw_consolidated']`; al agente le devuelve solo un RESUMEN compacto
+    (conteos), por lo que el LLM document_parser A VECES escribe `items_consolidados`
+    GENÉRICO ("Item N del proceso de selección") o vacío aunque OCR'eó los reales (bug
+    intermitente verificado: 1212446 → 1 genérico; 1211719 → vacío; pero 1202511 → 35
+    reales en la MISMA revisión). Acá, en CÓDIGO, preferimos la extracción autoritativa
+    de la tool sobre el placeholder del LLM, de modo que legal/market/compliance reciban
+    los ítems reales (el rescate equivalente en persist no alcanzaba porque depende de que
+    `parser_raw_consolidated` siga en state al final). Idempotente; no-op si la tool no
+    extrajo nada o si el agente ya trae ítems reales. Devuelve un log de conteos."""
+    raw = state.get("parser_raw_consolidated")
+    raw = raw if isinstance(raw, dict) else {}
+    da = state.get("document_analysis")
+    if isinstance(da, str):
+        try:
+            da = json.loads(da)
+        except Exception:
+            da = {}
+    da = da if isinstance(da, dict) else {}
+    raw_items = raw.get("items_consolidados") or []
+    da_items = da.get("items_consolidados") or []
+    n_raw, n_da = _n_items_reales(raw_items), _n_items_reales(da_items)
+    msg = f"raw={len(raw_items)}(reales={n_raw}) da={len(da_items)}(reales={n_da})"
+    if n_raw > n_da:
+        da["items_consolidados"] = raw_items
+        for k in ("firmantes_consolidados", "postores_consolidados",
+                  "comite_evaluacion", "motivos_adjudicacion", "lugar_fecha_acta"):
+            if raw.get(k) and not da.get(k):
+                da[k] = raw[k]
+        state["document_analysis"] = da
+        msg += f" → BACKFILL items_consolidados={len(raw_items)} desde parser_raw_consolidated"
+    return msg
+
+
 def _norm_codigo(ocid: str) -> str:
     """Código de alerta canónico 'OECE-<sufijo>'. Vía _short_ocid soporta los dos
     esquemas: flat ('OECE-1221284') y año-secuencia ('OECE-2026-10404-12'). Antes
@@ -502,6 +559,17 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                           f"Administrativas/Integradas, Resumen Ejecutivo y Archivos del contrato; extrae el "
                           f"REQUERIMIENTO técnico por ítem. OBLIGATORIO: llamá parse_document_pdf al menos una vez."):
         yield e
+
+    # ── 3.5 Backfill determinista de ítems: la extracción AUTORITATIVA de la tool
+    # (parser_raw_consolidated) gana sobre el placeholder genérico que el LLM a veces
+    # escribe. Va ANTES de legal/market para que toda la cadena reciba los ítems reales.
+    _bf = _backfill_document_analysis(state)
+    print(f"[driver] document_analysis backfill · {_bf}", flush=True)
+    if "BACKFILL" in _bf:
+        _bfev = {"kind": "warn", "name": "document_parser",
+                 "msg": f"ítems reales recuperados de la extracción del parser ({_bf})"}
+        events_trace.append(_bfev)
+        yield _bfev
 
     # ── 4. Análisis legal + persistir banderas documentales ──
     yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
