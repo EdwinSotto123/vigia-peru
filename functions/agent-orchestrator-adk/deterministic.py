@@ -414,19 +414,8 @@ def _backfill_document_analysis(state: dict) -> str:
                   "comite_evaluacion", "motivos_adjudicacion", "lugar_fecha_acta"):
             if raw.get(k) and not da.get(k):
                 da[k] = raw[k]
+        state["document_analysis"] = da
         msg += f" → BACKFILL items_consolidados={len(raw_items)} desde parser_raw_consolidated"
-    # Filtro de DOMINIO sobre la lista FINAL: aparta los ítems que el parser marcó fuera
-    # del objeto (pertenece_al_objeto=false; residuos de plantilla) para que NO aparezcan
-    # en el dossier ni se tasen. Fail-safe: nunca vaciar la lista. Los preserva en
-    # items_fuera_de_objeto para trazabilidad.
-    _final_items = da.get("items_consolidados") or []
-    _fuera = [x for x in _final_items if isinstance(x, dict) and x.get("pertenece_al_objeto") is False]
-    if _fuera and len(_fuera) < len(_final_items):
-        da["items_consolidados"] = [x for x in _final_items
-                                    if not (isinstance(x, dict) and x.get("pertenece_al_objeto") is False)]
-        da["items_fuera_de_objeto"] = (da.get("items_fuera_de_objeto") or []) + _fuera
-        msg += f" · {len(_fuera)} fuera-de-objeto apartados ({[str(x.get('descripcion_corta'))[:30] for x in _fuera]})"
-    state["document_analysis"] = da
     return msg
 
 

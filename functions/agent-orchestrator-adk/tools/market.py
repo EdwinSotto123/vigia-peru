@@ -121,16 +121,6 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
     ):
         parser_items = llm_items
 
-    # Filtro de DOMINIO (defensivo): no tasar ítems que el parser marcó fuera del objeto
-    # (residuos de plantilla, ej. 'tablero para bombas' en compra A/V). El parser ya los
-    # aparta de items_consolidados, pero si vinieron por el path del LLM los excluimos acá.
-    # Fail-safe: nunca dejar la lista vacía (si TODOS dieran false, es error del LLM).
-    _fuera_obj = [it for it in parser_items if isinstance(it, dict) and it.get("pertenece_al_objeto") is False]
-    if _fuera_obj and len(_fuera_obj) < len(parser_items):
-        parser_items = [it for it in parser_items if not (isinstance(it, dict) and it.get("pertenece_al_objeto") is False)]
-        print(f"[market] {len(_fuera_obj)} ítem(s) fuera del objeto excluidos de tasación: "
-              f"{[str(it.get('descripcion_corta'))[:40] for it in _fuera_obj]}", flush=True)
-
     # Indexar parser_items por número
     parser_by_num: dict = {}
     for pi in parser_items:
