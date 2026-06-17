@@ -135,27 +135,21 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
                 s = s[:-3].strip()
         return s
 
-    v = state.get("document_analysis")
-    if v is not None:
-        if isinstance(v, dict):
-            # Si trae datos reales, devolverlos. Si está vacío, caer a fallback.
-            if v.get("items") or v.get("items_consolidados") or v.get("firmantes"):
-                return v
-        if isinstance(v, str):
-            cleaned = _strip_fences(v)
-            parsed = _safe_parse_json(cleaned)
-            if parsed and (parsed.get("items") or parsed.get("items_consolidados")
-                           or parsed.get("firmantes")):
-                return parsed
-
-    # Fallback: el parser raw consolidado que parse_document_pdf escribe
-    # directamente en state (sin pasar por LLM, garantiza dict válido).
+    # PRIORIDAD INVERTIDA (fix 2026-06-17): la AUTORIDAD es `parser_raw_consolidated`
+    # (extracción DETERMINISTA de la tool parse_document_pdf), NO el document_analysis del
+    # AGENTE. El document_parser_AGENTE recibe de la tool solo un RESUMEN compacto (conteos,
+    # NO los ítems), así que cuando arma su document_analysis a veces ECHA el schema como
+    # valor — placeholders tipo "Descripción corta del Ítem N extraída de las Bases",
+    # "POSTOR DE BASES 1", "NOMBRE FIRMANTE BASES". Esa basura envenenaba al legal_analyst
+    # (leía ítems/firmantes inventados). La tool SÍ tiene los datos reales. Antes esto solo
+    # se usaba como fallback "si document_analysis vacío"; ahora gana SIEMPRE que tenga datos.
     raw = state.get("parser_raw_consolidated")
-    if raw and isinstance(raw, dict):
-        # Normalizar al shape esperado por legal_analyst
+    if isinstance(raw, dict) and (raw.get("items_consolidados") or raw.get("firmantes")
+                                  or raw.get("postores_consolidados") or raw.get("postores_extraidos")):
         return {
             "items": raw.get("items_consolidados", []),
             "items_consolidados": raw.get("items_consolidados", []),
+            "postores_extraidos": raw.get("postores_extraidos") or raw.get("postores_consolidados") or [],
             "firmantes": raw.get("firmantes", []),
             "comite_evaluacion": raw.get("comite_evaluacion", []),
             "motivos_adjudicacion": raw.get("motivos_adjudicacion", []),
@@ -167,9 +161,21 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
             "estudio_mercado": state.get("estudio_mercado"),
             "contrato_final": state.get("contrato_final"),
             "_source": "parser_raw_consolidated",
-            "_note": "Fallback: document_analysis vacío o malformado, "
-                     "usé parser_raw_consolidated directamente.",
+            "_note": "Extracción determinista de la tool (autoritativa sobre el LLM del parser).",
         }
+
+    # Fallback: el output del AGENTE (solo si la tool no dejó nada extraído).
+    v = state.get("document_analysis")
+    if v is not None:
+        if isinstance(v, dict):
+            if v.get("items") or v.get("items_consolidados") or v.get("firmantes"):
+                return v
+        if isinstance(v, str):
+            cleaned = _strip_fences(v)
+            parsed = _safe_parse_json(cleaned)
+            if parsed and (parsed.get("items") or parsed.get("items_consolidados")
+                           or parsed.get("firmantes")):
+                return parsed
 
     return {
         "error": "document_analysis no está en state — el parser aún no corrió.",
