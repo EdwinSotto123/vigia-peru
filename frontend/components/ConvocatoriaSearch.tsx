@@ -2953,7 +2953,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
               </p>
             )}
           </div>
-          <ItemsConMarketPrice items={result.items || []} market={result.market_analysis} fmtMoney={fmtMoney} />
+          <ItemsConMarketPrice items={result.items || []} allItems={result.document_analysis?.items_consolidados || []} market={result.market_analysis} fmtMoney={fmtMoney} />
         </section>
       )}
 
@@ -3966,7 +3966,7 @@ const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: strin
   sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "S/ OFERTADO" },
 };
 
-function ItemsConMarketPrice({ items, market, fmtMoney }: { items: any[]; market: any; fmtMoney: (n: any) => string }) {
+function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items: any[]; allItems?: any[]; market: any; fmtMoney: (n: any) => string }) {
   // State para expandir filas (mostrar todas las características de un ítem)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const toggleRow = (key: string) => {
@@ -4011,26 +4011,52 @@ function ItemsConMarketPrice({ items, market, fmtMoney }: { items: any[]; market
       esLote: true,
     });
   }
-  // Sub-items: vienen de findings (con item_numero "1.1", "2", "3"…)
   const padreNum = padreLote ? normalizeNum(padreLote.numero) : null;
-  for (const f of findings) {
-    const k = normalizeNum(f.item_numero);
-    if (padreNum && k === padreNum) continue; // skip findings que apunten al padre
-    itemsExpandidos.push({ ocdsItem: null, finding: f, key: k || String(itemsExpandidos.length) });
-  }
-  // Si no hay padre detectado, usar los items OCDS originales como antes
-  if (!padreLote) {
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const f: any = findingByNumero.get(normalizeNum(it.numero)) || findings[i];
-      if (itemsExpandidos.some(x => x.finding === f)) continue;
-      itemsExpandidos.unshift({ ocdsItem: it, finding: f, key: String(it.numero || i + 1) });
+  // Sub-items = la lista COMPLETA de productos físicos del REQUERIMIENTO
+  // (document_analysis.items_consolidados), cada uno con su finding de mercado si se
+  // tasó, o null (no tasado / timeout del market). ANTES la tabla se armaba SOLO desde
+  // `findings` (los ítems con precio) → los que el market no alcanzó a tasar
+  // DESAPARECÍAN (se veían 2 de 8). El precio se matchea por numero y, como respaldo,
+  // por descripción (el numero de los findings diverge del del parser: '1.0' vs '1').
+  const normDesc = (s: any) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 50);
+  const findingByDesc = new Map(findings.map((f: any) => [normDesc(f.item_descripcion), f]));
+  if (allItems.length > 0) {
+    for (const ai of allItems) {
+      const k = normalizeNum(ai.numero);
+      if (padreNum && k === padreNum) continue; // el lote padre no es un sub-ítem
+      const f = findingByNumero.get(k) || findingByDesc.get(normDesc(ai.descripcion_corta || ai.descripcion)) || null;
+      itemsExpandidos.push({
+        ocdsItem: {
+          numero: ai.numero,
+          descripcion: ai.descripcion_corta || ai.descripcion,
+          cantidad: ai.cantidad,
+          unidad: ai.unidad,
+          requerimiento: ai.requerimiento_tecnico_detallado || "",
+        },
+        finding: f,
+        key: String(ai.numero ?? itemsExpandidos.length),
+      });
+    }
+  } else {
+    // Fallback (sin lista del parser): comportamiento anterior basado en findings.
+    for (const f of findings) {
+      const k = normalizeNum(f.item_numero);
+      if (padreNum && k === padreNum) continue;
+      itemsExpandidos.push({ ocdsItem: null, finding: f, key: k || String(itemsExpandidos.length) });
+    }
+    if (!padreLote) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const f: any = findingByNumero.get(normalizeNum(it.numero)) || findings[i];
+        if (itemsExpandidos.some(x => x.finding === f)) continue;
+        itemsExpandidos.unshift({ ocdsItem: it, finding: f, key: String(it.numero || i + 1) });
+      }
     }
   }
   return (
     <>
       {/* TABLA RESUMEN — comparación a primera vista */}
-      {findings.length > 0 && (
+      {(findings.length > 0 || itemsExpandidos.some(x => !x.esLote)) && (
         <div className="overflow-x-auto border-b border-line bg-paperSoft">
           <table className="w-full border-collapse text-[11px]">
             <thead>
@@ -4264,6 +4290,19 @@ function ItemsConMarketPrice({ items, market, fmtMoney }: { items: any[]; market
                 )}
               </div>
             </div>
+
+            {/* Ítem SIN tasar (el market no alcanzó a preciarlo — timeout/cobertura):
+                mostramos su requerimiento para que NO quede desnudo en la tabla. */}
+            {!f && (
+              <div className="mt-3 ml-10 rounded-xl border border-line bg-paperSoft p-3 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-mute">
+                  <Receipt size={10} /> sin tasación de mercado (no se alcanzó a preciar)
+                </span>
+                {ocdsItem?.requerimiento && (
+                  <p className="mt-2 leading-relaxed text-mute">{String(ocdsItem.requerimiento).slice(0, 400)}</p>
+                )}
+              </div>
+            )}
 
             {/* MARKET PRICE — análisis del agente por ítem */}
             {f && v && (
