@@ -764,6 +764,33 @@ def analyze_market_sharded(ocid: str, tool_context: ToolContext) -> dict:
                     all_findings.append(f)
                     n_retry_recuperados += 1
 
+    # Relleno DETERMINISTA: todo ítem que quedó SIN finding (el worker lo dropeó de su
+    # array pese a la regla "un objeto por ítem", o su chunk falló) recibe una ESTIMACIÓN
+    # explícita con el motivo. Así el ítem NO desaparece de la tabla ni queda mudo: se ve
+    # que NO se tasó y por qué (no es saturación de API — se confirmó con los logs de retry).
+    _con_finding = {str(f.get("item_numero")) for f in all_findings if isinstance(f, dict)}
+    _n_rellenados = 0
+    for it in items:
+        num = str(it.get("numero"))
+        if num in _con_finding:
+            continue
+        all_findings.append({
+            "item_numero": it.get("numero"),
+            "item_descripcion": it.get("descripcion_corta") or it.get("descripcion") or "",
+            "cantidad": it.get("cantidad"), "unidad": it.get("unidad"),
+            "precio_unitario_referencial": it.get("precio_unitario_referencial"),
+            "precios_observados": [],
+            "caracteristicas_solicitadas_clave": [],
+            "precio_mediana_mercado": None, "rango_min": None, "rango_max": None,
+            "diff_pct": None, "veredicto": "estimacion", "es_estimacion": True,
+            "motivo_estimacion": "El tasador no devolvió resultado para este ítem tras 2 pases "
+                                 "(no es saturación de API; ítem genérico o de nicho difícil de cotizar).",
+            "comentario": "Sin tasación de mercado en esta corrida.",
+        })
+        _n_rellenados += 1
+    if _n_rellenados:
+        print(f"[market] {_n_rellenados} ítem(s) sin finding rellenados como ESTIMACIÓN", flush=True)
+
     # Normaliza la mediana a número (el modelo a veces la devuelve como string
     # tipo 'S/ 1,200.50'): así no descartamos ítems que SÍ tienen precio.
     for f in all_findings:
