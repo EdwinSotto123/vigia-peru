@@ -3662,34 +3662,86 @@ function TracePhaseGroup({ group, forceOpen }: { group: { agent: string; events:
   );
 }
 
-// Qué hace cada tool/agente — alimenta el botón de info (ⓘ) del tracking.
+// Qué hace cada tool / regla / agente — alimenta el botón de info (ⓘ) del tracking.
+// Cubre TODAS las tools del pipeline (OCDS, documentos, mercado, proveedor, personas,
+// reglas de compliance, RAG legal, persistencia) + los agentes (para los `transfer`).
 const TOOL_INFO: Record<string, string> = {
+  // ── OCDS / registro ──
   fetch_ocds_record: "Trae el registro OCDS oficial del proceso desde el portal OECE (objeto, ítems, montos, postores, adjudicación).",
-  register_convocatoria_in_db: "Registra la convocatoria y sus ítems en la base de datos de Vigía.",
-  list_documents: "Lista los documentos publicados del expediente (Bases, Acta de Buena Pro, Contrato…).",
-  parse_document_pdf: "Descarga el documento, hace OCR con Document AI y extrae los ítems con sus especificaciones técnicas del REQUERIMIENTO (las Bases).",
-  read_document_analysis: "Lee la extracción estructurada del documento (ítems, firmantes, comité) para que otros agentes la usen.",
-  persist_doc_flags_as_banderas: "Guarda como banderas las observaciones legales del documento.",
-  build_market_input: "Arma la lista de ítems a tasar (combina los del OCDS con las specs extraídas de la Bases).",
-  analyze_market_sharded: "Tasa cada ítem contra el mercado real (Google Search en paralelo) y detecta sobreprecios.",
+  register_convocatoria_in_db: "Registra la convocatoria y sus ítems del OCDS en la base de datos de Vigía.",
+  // ── Documentos ──
+  list_documents: "Lista los documentos publicados del expediente (Bases, Acta de Buena Pro, Contrato, Resumen Ejecutivo…).",
+  parse_document_pdf: "Descarga el documento, hace OCR con Document AI y extrae los ítems con sus especificaciones técnicas del REQUERIMIENTO (la Bases).",
+  read_document_analysis: "Lee la extracción estructurada del documento (ítems, firmantes, comité, motivos) para que otros agentes la usen.",
+  persist_doc_flags_as_banderas: "Guarda como banderas las observaciones legales del documento (las emite el analista legal).",
+  // ── Mercado ──
+  build_market_input: "Arma la lista de ítems a tasar combinando los del OCDS (cantidad/precio) con las specs extraídas de la Bases.",
+  list_items_for_pricing: "Lista los ítems de la convocatoria que necesitan validación de precio.",
+  read_market_input: "Lee la lista de ítems ya preparada para el análisis de mercado.",
+  analyze_market_sharded: "Tasa cada ítem contra el mercado real (Google Search en paralelo, por chunks) y detecta sobreprecios.",
+  record_market_finding: "Registra el resultado de tasación de un ítem (mediana, rango, referencias, veredicto).",
+  analyze_postores_pattern: "Analiza el patrón de postores: direcciones compartidas, co-ocurrencia y posibles consorcios coordinados.",
   persist_market_flags_as_banderas: "Guarda como banderas los sobreprecios detectados en el análisis de mercado.",
+  // ── Proveedor / SUNAT / RNP ──
   get_ganador: "Identifica al proveedor ganador, los postores y la entidad contratante.",
-  query_oece_perfil: "Consulta el perfil OECE del proveedor (historial de contratos y señales).",
+  query_oece_perfil: "Consulta el perfil OECE del proveedor (historial de contratos con el Estado y señales).",
   query_sunat_decolecta: "Consulta SUNAT (vía decolecta): RUC, estado, antigüedad, CIIU y representante legal.",
-  query_edad_ciiu_web: "Busca en web la edad del RUC y el CIIU cuando SUNAT no responde.",
+  query_edad_ciiu_web: "Busca en web la edad del RUC y el CIIU cuando SUNAT no responde (fallback).",
   read_sunat_profile: "Lee el perfil SUNAT ya cargado en el análisis.",
   query_rnp_empresa: "Consulta el RNP: socios, representantes legales y órganos de administración de la empresa.",
-  batch_person_lookup: "Cruza un lote de personas (DNI/nombre) contra las bases de Vigía (PEP, aportes, cargos públicos).",
-  detect_puerta_giratoria: "Detecta si el titular de la empresa ocupó un cargo público en la entidad contratante (puerta giratoria).",
-  detect_aporte_a_partido: "Detecta aportes de campaña (ONPE) del proveedor al partido que gobierna la entidad.",
+  query_rnp_persona: "Consulta el RNP por persona: en qué empresas figura como socio o representante.",
+  detect_estado_real: "Verifica el estado REAL de un RUC/persona (activo, baja, suspendido) frente a lo declarado.",
+  // ── Personas / red ──
+  batch_person_lookup: "Cruza un lote de personas (DNI/nombre) contra las bases de Vigía (PEP, aportes ONPE, cargos públicos, candidaturas).",
+  query_pep: "Verifica si una persona es PEP (Persona Expuesta Políticamente).",
+  query_onpe_aportantes: "Consulta ONPE: aportes de campaña de la persona/empresa a partidos políticos.",
+  query_jne_candidaturas: "Consulta JNE: candidaturas y hojas de vida de la persona.",
+  scrape_jne_hoja_vida: "Extrae la hoja de vida de un candidato desde el portal del JNE.",
+  query_autoridades_entidad: "Consulta las autoridades electas y funcionarios designados de la entidad contratante.",
+  query_visitas_de_persona: "Consulta el registro de visitas oficiales de una persona (gestión de intereses / lobby).",
   read_person_network_context: "Arma el contexto de la red de personas (socios, firmantes, autoridades) para el análisis.",
-  add_contextual_flag: "Registra una bandera de riesgo contextual detectada por un agente.",
+  detect_puerta_giratoria: "Detecta puerta giratoria: si el titular de la empresa ocupó un cargo público en la entidad que lo contrató.",
+  detect_aporte_a_partido_del_alcalde: "Detecta si el proveedor aportó a la campaña del alcalde/partido que gobierna la entidad (cruce C3).",
+  // ── Reglas de compliance (banderas rojas) ──
+  check_unique_bidder_rule: "Regla dura: procesos con UN solo postor donde por norma debería haber competencia (cruce C2).",
+  check_postor_unico_mayoritario_rule: "Regla: único postor ganando ≥95% del valor referencial (competencia inexistente).",
+  check_edad_ruc_ganador_rule: "Regla: la empresa ganadora tiene RUC reciente respecto al monto del contrato.",
+  check_ruc_ultra_nuevo_rule: "Regla: RUC del ganador con <90 días de antigüedad ganando un contrato grande (cruce C1, modelo Funes).",
+  check_sanctioned_provider_rule: "Regla dura: el ganador tiene sanción/inhabilitación vigente para contratar (Art. 50 TUO Ley 30225).",
+  check_ciiu_vs_objeto_rule: "Regla: el giro (CIIU) del proveedor no corresponde al objeto de lo que se adquiere.",
+  check_directa_fundamento_rule: "Regla: contratación directa sin causal/fundamento legal válido acreditado (Art. 27 Ley 30225).",
+  check_plazo_convocatoria_rule: "Regla: el plazo entre convocatoria y presentación de ofertas es menor al mínimo legal.",
+  check_non_competitive_process_rule: "Regla: proceso adjudicado sin competencia real (directa / único postor).",
+  check_tipo_proceso_vs_monto_rule: "Regla: el tipo de proceso no corresponde al monto (posible fraccionamiento o elusión de un proceso mayor).",
+  check_concentracion_entidad_rule: "Regla: el mismo proveedor concentra una proporción anómala de adjudicaciones de la misma entidad.",
+  check_recurrencia_firmante_rule: "Regla: el mismo funcionario firma recurrentemente las adjudicaciones al mismo proveedor.",
+  check_inconsistencia_doc_vs_ocds_rule: "Regla: incongruencia entre el documento parseado y el OCDS (objeto/ítems no coinciden o la extracción falló).",
+  check_testaferro_multi_ruc_rule: "Regla: una misma persona figura en múltiples RUCs/empresas postoras (posible testaferro o consorcio encubierto).",
+  check_lobby_visits_rule: "Regla: visitas de gestión de intereses (lobby) del proveedor a la entidad antes de la adjudicación.",
+  // ── Legal / RAG ──
   evaluate_normative_compliance: "Cruza cada hallazgo contra el corpus de opiniones jurídicas del OECE (RAG) para citar jurisprudencia administrativa.",
+  query_legal_rag: "Busca en el corpus de opiniones jurídicas del OECE la doctrina relevante para un hallazgo.",
+  lookup_opinion_oece: "Recupera el texto de una opinión jurídica específica del OECE por su número.",
+  // ── Contexto / persistencia ──
+  add_contextual_flag: "Registra una bandera de riesgo contextual detectada por un agente (capacidad, conflicto, señal OECE).",
+  get_alerta_full_context: "Reúne todo el contexto persistido de la alerta para un agente.",
+  get_dictamen_context: "Reúne todo el análisis (ítems, mercado, red, normativa) para que el redactor escriba el dictamen.",
   persist_alert_from_flags: "Consolida todas las banderas detectadas en la alerta final.",
   persist_analysis_outputs: "Guarda el análisis completo (todas las secciones + el dictamen) en la base de datos.",
-  get_dictamen_context: "Reúne todo el análisis (ítems, mercado, red, normativa) para que el redactor escriba el dictamen.",
-  query_legal_rag: "Busca en el corpus de opiniones jurídicas del OECE la doctrina relevante para un hallazgo.",
+  // ── Grounding ──
   google_search: "Búsqueda en vivo en Google (grounding de Gemini) sobre la empresa, funcionarios, prensa o precios de mercado.",
+  // ── Agentes (eventos `transfer`) ──
+  orch: "Orquestador: ejecuta la secuencia fija de agentes del pipeline desde el código (determinista, no se rinde).",
+  compliance_agent: "Evalúa las reglas duras (sanción, único postor, edad RUC) y crea la alerta base.",
+  document_parser_agent: "Procesa los documentos del expediente: OCR (Document AI) + extracción de ítems y specs de la Bases.",
+  document_legal_analyst_agent: "Analiza legalmente el requerimiento y emite banderas documentales citando la norma/opinión OECE.",
+  market_price_agent: "Tasa los ítems contra el mercado real (Google Search) y detecta sobreprecios.",
+  web_research_agent: "Investiga en web a la empresa ganadora: prensa, sanciones, directivos, aportes ONPE e historial de contratos.",
+  news_research_agent: "Busca cobertura de prensa peruana sobre el proveedor, la entidad y el objeto de la contratación.",
+  entity_personnel_agent: "Descubre los funcionarios designados de la entidad contratante (con su acto resolutivo).",
+  person_network_agent: "Mapea la red de personas: socios, representantes, firmantes, autoridades y los vínculos entre ellos.",
+  compliance_extended_agent: "Corre los chequeos normativos extendidos (12 reglas) + las banderas de juicio y prepara el cruce RAG.",
+  report_writer_agent: "Redacta el dictamen final con el análisis consolidado y las citas normativas del OECE.",
 };
 
 function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
@@ -3765,8 +3817,10 @@ function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
   }
 
   const canExpand = hasMore && !!fullPayload;
-  const isTool = (ev.kind === "tool_call" || ev.kind === "tool_result") && !!ev.name;
-  const info = isTool ? (TOOL_INFO[ev.name as string] || "Paso del pipeline de análisis.") : null;
+  // Clave de info: tool_call/tool_result → nombre de la tool; transfer → agente destino.
+  const infoKey = (ev.kind === "tool_call" || ev.kind === "tool_result") ? ev.name
+                : ev.kind === "transfer" ? (ev as any).to : undefined;
+  const info = infoKey ? (TOOL_INFO[infoKey as string] || "Paso del pipeline de análisis.") : null;
   return (
     <li className={cn("px-5 py-2.5 transition-colors", canExpand ? "cursor-pointer hover:bg-paperSoft" : "hover:bg-paperSoft/40")}>
       <div className="flex items-start gap-3" onClick={() => canExpand && setExpanded(v => !v)}>
