@@ -87,7 +87,7 @@ export async function getDossier(rawId: string): Promise<any> {
 // debe traer la lista fresca.
 let listInflight: Promise<any> | null = null;
 
-export function getAnalyzedList(limit = 50): Promise<any> {
+export function getAnalyzedList(limit = 500): Promise<any> {
   if (listInflight) return listInflight;
   listInflight = fetch(`/api/agent/history?limit=${limit}`)
     .then((r) => r.json())

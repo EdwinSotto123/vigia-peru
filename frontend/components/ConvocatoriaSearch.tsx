@@ -290,8 +290,10 @@ export function ConvocatoriaSearch() {
 
   // Prefetch del cache para alimentar el autocomplete del input principal.
   // getAnalyzedList deduplica con la lista "Análisis previos" → 1 sola request.
+  // Mismo límite (500) que la lista: el dedup es por vuelo en curso, NO por límite,
+  // así que ambos callers deben pedir lo mismo o el primero define cuántos llegan.
   useEffect(() => {
-    getAnalyzedList(50)
+    getAnalyzedList(500)
       .then(d => setCached(d?.items || []))
       .catch(() => setCached([]));
   }, []);
@@ -1241,15 +1243,19 @@ function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) =>
   const [cat, setCat] = useState<CatFilter>("todas");
   const [sort, setSort] = useState<SortKey>("reciente");
   const [shuffleKey, setShuffleKey] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 24; // 12 filas en el grid de 2 columnas → poco scroll por página
 
   useEffect(() => {
-    getAnalyzedList(50)
+    getAnalyzedList(500)
       .then((d) => {
         if (d?.error) setErr(d.error);
         else setItems(d.items || []);
       })
       .catch((e) => setErr(e.message));
   }, []);
+  // Volver a la página 1 cuando cambian filtros/orden/búsqueda (no quedar en una página vacía).
+  useEffect(() => { setPage(1); }, [q, sev, region, cat, sort]);
 
   const fmtMoney = (n: number) => {
     if (!n) return "—";
@@ -1316,6 +1322,14 @@ function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) =>
     if (sort === "monto") return (b.monto || 0) - (a.monto || 0);
     return String(b.analizado_en || "").localeCompare(String(a.analizado_en || ""));
   });
+
+  // Paginación en cliente: se renderiza SOLO una página (PAGE_SIZE) a la vez — evita
+  // saturar el DOM con todos los análisis y reduce el scroll. Los filtros/orden ya
+  // corrieron sobre el total, así que paginar es puramente de presentación.
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageItems = sorted.slice(pageStart, pageStart + PAGE_SIZE);
 
   const handleShuffle = () => {
     if (sorted.length === 0) return;
@@ -1481,7 +1495,7 @@ function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) =>
 
         {sorted.length !== items.length && (
           <div className="text-[11px] text-mute">
-            Mostrando <strong className="text-ink">{sorted.length}</strong> de {items.length}.
+            <strong className="text-ink">{sorted.length}</strong> de {items.length} coinciden con los filtros.
             {(q || sev !== "todos" || region !== "todas" || cat !== "todas") && (
               <button
                 onClick={() => { setQ(""); setSev("todos"); setRegion("todas"); setCat("todas"); }}
@@ -1498,8 +1512,8 @@ function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) =>
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
-          {sorted.map((it: any, i: number) => (
-            <li key={i} className="surface group relative overflow-hidden p-0 transition-all hover:shadow-md hover:border-clay/40">
+          {pageItems.map((it: any, i: number) => (
+            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="surface group relative overflow-hidden p-0 transition-all hover:shadow-md hover:border-clay/40">
               <button
                 type="button"
                 onClick={() => onSelect(it.codigo_convocatoria || it.ocid)}
@@ -1562,6 +1576,46 @@ function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) =>
             </li>
           ))}
         </ul>
+      )}
+
+      {/* PAGINACIÓN — solo se renderiza una página a la vez (PAGE_SIZE). Si hay ≤9
+          páginas mostramos todos los números; si hay más, prev/next + indicador. */}
+      {sorted.length > 0 && totalPages > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            className="rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+          >← Anterior</button>
+          {totalPages <= 9 ? (
+            Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPage(p)}
+                className={cn(
+                  "min-w-[30px] rounded-full border px-2 py-1 text-[11px] font-mono font-semibold transition-colors",
+                  p === safePage ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink hover:bg-paperDeep",
+                )}
+              >{p}</button>
+            ))
+          ) : (
+            <span className="px-2 font-mono text-[11px] font-bold text-ink">página {safePage} de {totalPages}</span>
+          )}
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            className="rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+          >Siguiente →</button>
+        </div>
+      )}
+      {sorted.length > 0 && (
+        <div className="mt-2 text-center text-[11px] text-mute">
+          Mostrando <strong className="text-ink">{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, sorted.length)}</strong> de {sorted.length}
+          {sorted.length !== items.length && ` (filtrados de ${items.length})`}
+        </div>
       )}
     </section>
   );
