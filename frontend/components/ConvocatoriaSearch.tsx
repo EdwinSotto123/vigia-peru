@@ -4293,13 +4293,20 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
               {/* FILA DE TOTALES — comparación triple del lote */}
               {(() => {
                 const subItems = itemsExpandidos.filter(x => !x.esLote);
-                let totalMercado = 0;
+                let totalMercado = 0, totalMin = 0, totalMax = 0;
                 let nConPrecio = 0;
                 for (const x of subItems) {
                   const med = x.finding?.precio_mediana_mercado;
                   const cant = x.finding?.cantidad ?? x.ocdsItem?.cantidad;
                   if (typeof med === "number" && typeof cant === "number") {
                     totalMercado += med * cant;
+                    // Rango AGREGADO del lote: Σ(cantidad × precio mínimo) y Σ(cantidad × precio
+                    // máximo) por sub-ítem. Si un ítem no trae rango, usamos su mediana para mín y
+                    // máx (no rompe la suma). Da el piso y el techo de mercado del lote completo.
+                    const lo = typeof x.finding?.rango_min === "number" ? x.finding.rango_min : med;
+                    const hi = typeof x.finding?.rango_max === "number" ? x.finding.rango_max : med;
+                    totalMin += lo * cant;
+                    totalMax += hi * cant;
                     nConPrecio++;
                   }
                 }
@@ -4329,7 +4336,7 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                 return (
                   <tr className="border-t-2 border-clay/40 bg-clay/5 font-bold">
                     <td colSpan={4} className="px-3 py-3 text-right text-[10px] uppercase tracking-widest text-mute">
-                      Total estimado de mercado<br/>(Σ cantidad × mediana de sub-ítems)
+                      Total de mercado del lote<br/>(Σ cantidad × precio · mediana, mín y máx)
                     </td>
                     <td className="px-3 py-3 text-right font-mono text-ink">
                       {totalReferencial > 0 ? fmtMoney(totalReferencial) : "—"}
@@ -4337,7 +4344,13 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                     </td>
                     <td className="px-3 py-3 text-right font-mono text-ink">
                       {totalMercado > 0 ? fmtMoney(totalMercado) : "—"}
-                      <div className="text-[9px] font-normal text-mute">{nConPrecio}/{subItems.length} sub-ítems con mercado</div>
+                      <div className="text-[9px] font-normal text-mute">mediana del lote</div>
+                      {totalMercado > 0 && totalMax > totalMin && (
+                        <div className="mt-0.5 text-[9px] font-normal text-clay">
+                          mín {fmtMoney(totalMin)} · máx {fmtMoney(totalMax)}
+                        </div>
+                      )}
+                      <div className="mt-0.5 text-[9px] font-normal text-mute">{nConPrecio}/{subItems.length} sub-ítems con mercado</div>
                     </td>
                     <td className={cn("px-3 py-3 text-right font-mono",
                       diffMercado != null
@@ -4866,6 +4879,21 @@ function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney: (n: an
     }
     return hits > 0 ? total : null;
   })();
+  // Rango AGREGADO del lote para el veredicto: Σ(cantidad × precio mín) y Σ(cantidad × máx)
+  // por sub-ítem (mismo criterio que la tabla). Da el piso y el techo de mercado del lote.
+  const mercadoRango = (() => {
+    const findings = market?.findings || [];
+    let lo = 0, hi = 0, hits = 0;
+    for (const f of findings) {
+      const med = f.precio_mediana_mercado, cant = f.cantidad;
+      if (typeof med === "number" && typeof cant === "number") {
+        lo += (typeof f.rango_min === "number" ? f.rango_min : med) * cant;
+        hi += (typeof f.rango_max === "number" ? f.rango_max : med) * cant;
+        hits++;
+      }
+    }
+    return hits > 0 && hi > lo ? { lo, hi } : null;
+  })();
   return (
     <section className={cn("rounded-2xl border p-5", v.bg)}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -4909,12 +4937,20 @@ function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney: (n: an
         <Kpi
           icon={<Coins size={14} />}
           label={typeof market.total_estimado_mercado === "number" && market.total_estimado_mercado > 0
-            ? "Estimado de mercado"
-            : "Estimado de mercado (suma de sub-ítems)"}
+            ? "Estimado de mercado (mediana)"
+            : "Estimado de mercado (mediana, suma de sub-ítems)"}
           value={fmtMoney(computedTotalMercado)}
           tone="ink"
         />
       </div>
+      {mercadoRango && (
+        <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-center text-[11px] text-mute">
+          Rango de mercado del lote (Σ cantidad × precio):{" "}
+          <span className="font-mono font-bold text-clay">mín {fmtMoney(mercadoRango.lo)}</span>
+          <span className="text-mute"> · </span>
+          <span className="font-mono font-bold text-clay">máx {fmtMoney(mercadoRango.hi)}</span>
+        </div>
+      )}
       {(() => {
         const totalOfertado = market.total_ofertado ?? market?.padre_lote?.cuantia_total;
         if (typeof computedTotalMercado !== "number" || typeof totalOfertado !== "number" || totalOfertado <= 0)
