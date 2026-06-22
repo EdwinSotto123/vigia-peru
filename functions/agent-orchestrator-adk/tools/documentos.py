@@ -1672,19 +1672,29 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         "fundamento_legal": [],
         "documentos": [],
     }
-    # ── Dedupe + normalización de la lista acumulada ──
-    # El mismo módulo que extrae los ítems es responsable de eliminar la info
-    # duplicada (no se normaliza a posteriori). Esto se ejecuta en cada llamada a
-    # parse_document_pdf, sobre la lista acumulada cross-documento, justo antes de
-    # persistir. Cubre el "001" vs "1" (normalización dura), el OCR ruidoso (pase
-    # LLM chico) y el título del contrato colándose como ítem (lookalike score).
-    raw["items_consolidados"].extend(items_consolidados)
-    _tender_obj = (tool_context.state.get("ocds") or {}).get("tender") or {}
-    _objeto_contrato = (_tender_obj.get("description") or _tender_obj.get("title") or "").strip()
-    _antes_dedup = len(raw["items_consolidados"])
-    raw["items_consolidados"] = _dedupe_and_normalize_items(raw["items_consolidados"], _objeto_contrato)
-    if len(raw["items_consolidados"]) != _antes_dedup:
-        print(f"[parser-dedup] {_antes_dedup}→{len(raw['items_consolidados'])} ítems (acumulado cross-doc)", flush=True)
+    # Dedup items por clave SEMÁNTICA (fix #1) — antes era por `numero`, que dejaba
+    # pasar el mismo ítem numerado distinto en dos documentos ('2' vs '02').
+    existing_keys = {}
+    for _it in raw["items_consolidados"]:
+        _k = _item_key(_it)
+        if _k is not None:
+            existing_keys[_k] = _it
+    for it in items_consolidados:
+        k = _item_key(it)
+        if k is None:
+            raw["items_consolidados"].append(it)
+            continue
+        prev = existing_keys.get(k)
+        if prev is None:
+            raw["items_consolidados"].append(it)
+            existing_keys[k] = it
+        else:
+            # Ya existe (mismo ítem desde otro doc): conservamos el requerimiento
+            # técnico más largo y descartamos el duplicado.
+            new_req = it.get("requerimiento_tecnico_detallado") or ""
+            cur_req = prev.get("requerimiento_tecnico_detallado") or ""
+            if len(new_req) > len(cur_req):
+                prev["requerimiento_tecnico_detallado"] = new_req
     # Dedup postores por RUC
     seen_rucs = {p.get("ruc") for p in raw["postores_consolidados"] if p.get("ruc")}
     for p in postores_all:
@@ -1751,159 +1761,6 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
     tool_context.state["_parsed_doc_cache"] = _pdoc_cache
 
     return output_dict
-
-
-# ── Dedupe + normalización de la LISTA ACUMULADA ───────────────────────────────
-# El mismo `parse_document_pdf` que extrae los ítems debe ELIMINAR la info duplicada,
-# no normalizar a posteriori. Por eso este módulo define un único punto de consolidación
-# que corre al final de CADA llamada (cuando ya está la lista acumulada cross-documento):
-#   1. Normalización dura del campo `numero` (001 → 1, 02 → 2, 1.0 → 1) — barato y
-#      elimina el caso del "001 Diésel B5" vs "1 DIESEL B5" del mismo bien.
-#   2. UN solo pase LLM chico que (a) funde variantes del MISMO bien físico (mismo
-#      producto con redacción distinta por OCR) y (b) descarta la CABECERA del contrato
-#      colándose como ítem (ej. "ADQUISICIÓN DE COMBUSTIBLE..." sin specs reales).
-# La normalización dura reduce los falsos positivos del LLM; el LLM se enfoca en el juicio.
-# Si falla, cae al dedup heurístico por numero normalizado.
-
-import re as _re
-_NUM_NORM = _re.compile(r"^0+|[^\d]")
-
-
-def _normalize_numero(n) -> str:
-    """Normaliza un numero de ítem: 001 → 1, 02 → 2, 1.0 → 1, '1.0' → '1', '' → ''.
-    Idempotente. Devuelve el numero como string canónico (sin ceros a la izquierda
-    y sin sub-decimales) o '' si no se puede inferir un entero razonable."""
-    if n is None:
-        return ""
-    s = str(n).strip()
-    if not s:
-        return ""
-    # Quitar sub-decimal .0 común en números de OCDS
-    if "." in s:
-        head, _, tail = s.partition(".")
-        if tail and tail.strip("0") == "":
-            s = head
-    # Quitar ceros a la izquierda
-    s = _NUM_NORM.sub("", s, count=1) if s.startswith("0") else s
-    return s
-
-
-def _header_lookalike_score(item_desc: str, objeto_contrato: str) -> float:
-    """0..1: cuánto se parece la descripción de un ítem al objeto del contrato
-    (sin normalizar). Cabeceras de Acta/Cuadro se parecen MUCHO al objeto (>=0.75).
-    Items REALES tienen descripciones distintas del objeto."""
-    d = (item_desc or "").strip().lower()
-    o = (objeto_contrato or "").strip().lower()
-    if not d or not o:
-        return 0.0
-    import difflib as _dl
-    return _dl.SequenceMatcher(None, d[:120], o[:120]).ratio()
-
-
-def _dedupe_and_normalize_items(items: list, objeto_contrato: str = "") -> list:
-    """Consolida la lista acumulada de ítems de los N documentos parseados: aplica
-    normalización dura del numero, descarta la cabecera del contrato colándose como
-    ítem, y funde variantes del mismo bien físico con un pase LLM chico.
-
-    Robusto: valida cobertura de índices; si el LLM falla, conserva la lista con
-    solo la normalización dura. Idempotente.
-    """
-    its = [it for it in (items or []) if isinstance(it, dict)]
-    if not its:
-        return its
-
-    # 1. Normalización dura del `numero` (elimina el "001" vs "1" del mismo bien).
-    for it in its:
-        n = _normalize_numero(it.get("numero"))
-        if n and n != str(it.get("numero") or "").strip():
-            it["numero"] = n
-
-    # 2. Descartar la CABECERA del contrato colándose como ítem. Es un ítem cuya
-    # descripción se parece MUCHO al objeto del contrato (>0.75) Y no trae
-    # requerimiento técnico real. Aparece cuando la tool del Acta/Cuadro/Contrato
-    # emite el título del contrato como ítem (ya filtrado por el gate de la fuente de
-    # requerimiento, pero algunos pasan). Conserva la lista si TODOS dan lookalike
-    # alto (sería descartar todo = bug).
-    if objeto_contrato:
-        keep, dropped = [], []
-        for it in its:
-            req = str(it.get("requerimiento_tecnico_detallado") or "").strip()
-            score = _header_lookalike_score(it.get("descripcion_corta") or it.get("descripcion") or "", objeto_contrato)
-            # Ítems con specs reales (>40 chars de requerimiento) NO se descartan aunque
-            # el score sea alto (puede haber coincidencia con el objeto por azar).
-            if score >= 0.75 and len(req) < 40:
-                dropped.append((it, score))
-            else:
-                keep.append(it)
-        if dropped and keep:
-            print(f"[parser-dedup] {len(dropped)} cabecera(s) descartada(s) (similitud con objeto ≥0.75, sin specs): "
-                  f"{[str(d[0].get('descripcion_corta'))[:40] for d in dropped]}", flush=True)
-            its = keep
-        elif dropped and not keep:
-            print(f"[parser-dedup] todos los {len(dropped)} items dan lookalike alto → conservo todos (fail-safe)", flush=True)
-
-    # 3. Pase LLM chico: funde variantes del MISMO bien físico. El LLM solo CLUSTERIZA
-    # (decide qué índices son el mismo bien); el merge de campos lo hace el código
-    # (extracción LITERAL intacta). Si falla, conserva `its` (el dedup por numero
-    # normalizado ya eliminó los "001" vs "1").
-    if len(its) <= 1:
-        return its
-    try:
-        from google.genai import types as gtypes
-        catalogo = [{"i": i, "num": it.get("numero"), "desc": str(it.get("descripcion_corta") or it.get("descripcion") or "")[:160],
-                     "cant": it.get("cantidad"), "und": it.get("unidad")}
-                    for i, it in enumerate(its)]
-        schema = gtypes.Schema(type=gtypes.Type.OBJECT, properties={
-            "grupos": gtypes.Schema(type=gtypes.Type.ARRAY,
-                description="Cada sub-lista = índices que son EL MISMO bien físico (a fundir).",
-                items=gtypes.Schema(type=gtypes.Type.ARRAY, items=gtypes.Schema(type=gtypes.Type.INTEGER))),
-        }, required=["grupos"])
-        prompt = (
-            "Agrupá índices que representen EL MISMO bien físico (mismo producto real) en una "
-            "contratación peruana. Items con distinto bien físico → grupos separados. "
-            "Items con mismo bien físico descrito distinto por OCR → funde en un grupo. "
-            "ÍTEMS REALES (con specs/requerimiento técnico) NO se descartan aunque se parezcan "
-            "al objeto del contrato; solo se descartan si su descripción ES EL TÍTULO del "
-            "contrato repetido como ítem (eso ya lo hace el código antes de este pase, no lo "
-            "hagas acá). COBERTURA: cada índice 0..N-1 debe aparecer EXACTAMENTE UNA vez.\n\n"
-            f"ÍTEMS ({len(catalogo)}):\n{json.dumps(catalogo, ensure_ascii=False)}"
-        )
-        cfg = gtypes.GenerateContentConfig(temperature=0.0, top_p=0.1, response_mime_type="application/json",
-                                           response_schema=schema, max_output_tokens=4096,
-                                           http_options=gtypes.HttpOptions(timeout=45000),
-                                           system_instruction=("Sos un consolidador de ítems de "
-                                               "contrataciones públicas peruanas (SEACE/OECE)."))
-        client = _gemini_client()
-        model = os.getenv("CONSOLIDATE_MODEL", DEFAULT_GEMINI_MODEL)
-        with _throttle_gemini():
-            resp = _gemini_call_with_retry(
-                lambda: client.models.generate_content(model=model, contents=[gtypes.Part.from_text(text=prompt)], config=cfg))
-        data = _safe_parse_json((resp.text or "").strip()) or {}
-        grupos = [g for g in (data.get("grupos") or []) if isinstance(g, list)]
-        # Validar cobertura EXACTA
-        vistos = [i for g in grupos for i in g if isinstance(i, int)]
-        if sorted(set(vistos)) != list(range(len(its))) or len(vistos) != len(set(vistos)):
-            print(f"[parser-dedup] LLM cobertura inválida ({len(set(vistos))}/{len(its)}) → conservo lista dedupeada por numero", flush=True)
-            return its
-        # Merge por grupo (código; conserva la extracción literal)
-        out: list[dict] = []
-        for g in grupos:
-            grp = [its[i] for i in g if 0 <= i < len(its)]
-            if not grp:
-                continue
-            grp.sort(key=lambda x: len(str(x.get("requerimiento_tecnico_detallado") or "")), reverse=True)
-            base = dict(grp[0])
-            for other in grp[1:]:
-                for k, v in other.items():
-                    if base.get(k) in (None, "", [], {}, 0) and v not in (None, "", [], {}, 0):
-                        base[k] = v
-            out.append(base)
-        print(f"[parser-dedup] {len(its)}→{len(out)} ítems · {len(grupos)} bienes únicos (1 pase LLM al final)", flush=True)
-        return out
-    except Exception as e:
-        print(f"[parser-dedup] LLM falló ({type(e).__name__}: {str(e)[:140]}) → conservo lista dedupeada por numero", flush=True)
-        return its
-
 
 # ── FunctionTool wrappers ──
 list_documents_tool = FunctionTool(func=list_documents)
