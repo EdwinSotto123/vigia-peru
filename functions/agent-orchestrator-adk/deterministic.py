@@ -559,6 +559,34 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
         events_trace.append(_bfev)
         yield _bfev
 
+    # ── 3.6 Sanitización por LLM (capa 2): lista canónica única de productos
+    # Sobre los items crudos acumulados cross-doc, el LLM decide (no genera): normaliza
+    # `numero`, funde variantes del mismo bien físico por OCR ruidoso, descarta la cabecera
+    # del contrato colándose. El merge de campos lo hace el código sobre los crudos. Fail-safe:
+    # si el LLM falla o devuelve cobertura inválida, conserva los crudos (no rompe nada).
+    raw = state.get("parser_raw_consolidated") or {}
+    raw_items = raw.get("items_consolidados") or []
+    if len(raw_items) >= 2:
+        _tender_obj = (state.get("ocds") or {}).get("tender") or {}
+        _objeto_contrato = (_tender_obj.get("description") or _tender_obj.get("title") or "").strip()
+        _antes_san = len(raw_items)
+        _sanitized = T.sanitize_items_with_llm(raw_items, _objeto_contrato)
+        if _sanitized and len(_sanitized) < _antes_san:
+            print(f"[driver] sanitize: {_antes_san}→{len(_sanitized)} ítems (canónico único)", flush=True)
+            raw["items_consolidados"] = _sanitized
+            state["parser_raw_consolidated"] = raw
+            # Propagar al document_analysis del agente (que es lo que renderiza el front).
+            _da = state.get("document_analysis")
+            if isinstance(_da, dict):
+                _da["items_consolidados"] = _sanitized
+                state["document_analysis"] = _da
+            _sanev = {"kind": "warn", "name": "document_parser",
+                      "msg": f"ítems canónicos tras sanitización por LLM: {len(_sanitized)} (de {_antes_san} crudos)"}
+            events_trace.append(_sanev)
+            yield _sanev
+        else:
+            print(f"[driver] sanitize: {_antes_san} ítems (sin cambios por LLM)", flush=True)
+
     # ── 4. Análisis legal + persistir banderas documentales ──
     yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
     async for e in _agent(A.document_legal_analyst_agent,
