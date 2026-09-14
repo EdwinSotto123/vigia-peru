@@ -67,9 +67,26 @@ en Lima con systemd/Docker (instrucciones en su propio README).
 | Pipeline | `DETERMINISTIC_PIPELINE`, `PARALLEL_RESEARCH`, `PARSE_*`, `MARKET_*`, `SANITIZE_ITEMS_MODEL` |
 | Observabilidad | `PHOENIX_API_KEY` (secreto), `PHOENIX_COLLECTOR_ENDPOINT`, `ARIZE_API_KEY`, `ARIZE_SPACE_ID`, `ARIZE_PROJECT` |
 
-## 3. Terraform
+## 3. Cloud Build (CI/CD)
 
-Declara la plataforma: APIs, Cloud SQL (Postgres 14, pgvector), 3 buckets, 4
+`cloudbuild.yaml` en la raíz despliega los servicios desde su carpeta. Manual:
+
+```bash
+gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY=api,frontend
+```
+
+Trigger en push a `main`: ver el comentario del archivo. El `.env.production` del
+frontend (NEXT_PUBLIC_FIREBASE_*) vive en el secreto `frontend-env-production` y
+Cloud Build lo materializa antes del build.
+
+Secretos adicionales de "Financia una auditoría": `admin-token` (validación manual
+de pagos y Cloud Scheduler) y `frontend-env-production`. El job de Cloud Scheduler
+`vigia-financiamiento-asignar` (cada 10 min) llama a `POST /admin/asignar`, que asigna
+contratos FIFO a contribuciones pagadas y refresca `zona_estado` / `ranking_impacto`.
+
+## 4. Terraform
+
+Declara la plataforma: APIs, Cloud SQL (Postgres 16, pgvector), 3 buckets, 4
 secretos + bindings por secreto, roles de la service account de runtime, la SA
 del relay y los 4 servicios Cloud Run con su configuración (CPU/RAM/escala/
 secretos/conexión SQL). La **imagen** de cada servicio la actualizan los scripts

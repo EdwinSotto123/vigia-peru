@@ -20,6 +20,7 @@ import { DetectionCarousel } from "@/components/landing/DetectionCarousel";
 import { FuentesCarousel } from "@/components/landing/FuentesCarousel";
 import { PipelineInteractive } from "@/components/landing/PipelineInteractive";
 import { CinematicHero } from "@/components/landing/CinematicHero";
+import { FinanciaSection } from "@/components/landing/FinanciaSection";
 import { ComoFunciona } from "@/components/landing/ComoFunciona";
 import { ScrollStory } from "@/components/landing/ScrollStory";
 import { ImpactoODS } from "@/components/landing/ImpactoODS";
@@ -216,6 +217,9 @@ export default function LandingPage() {
       {/* (Fuentes → ahora pestaña dentro de PlataformaTabs) */}
 
       {/* ─── QUIÉNES SOMOS · compacto a una pantalla ─── */}
+      {/* ─── FINANCIA UNA AUDITORÍA ─── */}
+      <FinanciaSection />
+
       <section id="organizacion" className="container-page py-16 scroll-mt-20">
         {/* Header */}
         <div className="grid items-end gap-6 lg:grid-cols-[1.4fr,1fr]">
@@ -294,19 +298,19 @@ export default function LandingPage() {
                 <Heart size={10} className="fill-amber" /> Apoya el proyecto
               </div>
               <h3 className="mt-3 font-serif text-xl font-bold leading-tight">
-                Donar mantiene la vigilancia <em className="text-amber">libre</em>.
+                Financiar una auditoría mantiene la vigilancia <em className="text-amber">libre</em>.
               </h3>
               <p className="mt-2 text-[12px] leading-relaxed text-paper/70">
-                Donar no compra influencia. Cada aporte se publica anonimizado en
-                cuentas claras.
+                Financias capacidad de análisis, no resultados. Cada aporte tiene un
+                comprobante público con los contratos que hizo posible leer.
               </p>
 
               <Link
-                href="/donar"
+                href="/financiar"
                 className="mt-4 group flex w-full items-center justify-center gap-2 rounded-xl bg-amber px-4 py-3 text-sm font-semibold text-coal transition-transform hover:scale-[1.02]"
               >
                 <Heart size={14} className="fill-rust text-rust" />
-                Donar a Vigía Perú
+                Financiar una auditoría
                 <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link

@@ -23,7 +23,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { METRICAS_MOCK, RESUMEN_REGIONES, formatSoles } from "@/lib/mock-data";
 import { getAlertas } from "@/lib/api-client";
 
-// Tasas medidas por análisis end-to-end (documentadas en /donar). Los totales
+// Tasas medidas por análisis end-to-end (documentadas en /financiar). Los totales
 // se DERIVAN del conteo real de análisis cacheados en Cloud SQL — no son cifras
 // inventadas. La arquitectura es 6 agentes Pro + 5 Flash por corrida.
 const RATE = {
@@ -145,7 +145,7 @@ export default async function AppOverviewPage() {
               Operación · IA
             </h3>
             <Link
-              href="/donar"
+              href="/financiar"
               className="inline-flex items-center gap-0.5 text-[10px] font-medium text-clay hover:underline"
             >
               cuentas claras <ArrowUpRight size={10} />
@@ -216,7 +216,7 @@ export default async function AppOverviewPage() {
           </div>
 
           <Link
-            href="/donar"
+            href="/financiar"
             className="mt-auto pt-4 inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-2 text-[11px] font-semibold text-paper hover:bg-coal"
           >
             <Sparkles size={11} /> Apoyar el proyecto

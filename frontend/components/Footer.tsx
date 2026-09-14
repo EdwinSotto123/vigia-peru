@@ -34,13 +34,13 @@ export function Footer() {
           {/* CTA donar + GitHub stacked */}
           <div className="flex flex-col gap-2.5">
             <Link
-              href="/donar"
+              href="/financiar"
               className="group flex items-center justify-between gap-3 rounded-xl bg-amber px-5 py-3.5 text-ink transition-transform hover:scale-[1.02]"
             >
               <div className="flex items-center gap-2.5">
                 <Heart size={16} className="fill-rust text-rust" />
                 <span className="font-serif text-base font-bold leading-tight">
-                  Donar a Vigía Perú
+                  Financiar una auditoría
                 </span>
               </div>
               <ArrowUpRight
@@ -104,9 +104,9 @@ export function Footer() {
           </FooterCol>
 
           <FooterCol title="Proyecto">
-            <Link href="/donar">
+            <Link href="/financiar">
               <Heart size={12} className="inline mr-1.5 fill-amber text-amber" />
-              Donar
+              Financiar
             </Link>
             <a href="mailto:hola@vigiaperu.org">
               <Mail size={12} className="inline mr-1.5" /> hola@vigiaperu.org

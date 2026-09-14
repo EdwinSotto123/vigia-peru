@@ -23,6 +23,7 @@ const NAV = [
   { href: "/#detecta", label: "Detecta" },
   { href: "/#plataforma", label: "Plataforma" },
   { href: "/#organizacion", label: "Quiénes somos" },
+  { href: "/#financiar", label: "Financiar" },
   { href: "/preguntas", label: "FAQ" },
 ];
 
@@ -54,10 +55,10 @@ export function Header() {
         <div className="flex items-center gap-2">
           {showNav && (
             <Link
-              href="/donar"
+              href="/financiar"
               className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-mute transition-colors hover:bg-paperSoft hover:text-rust sm:inline-flex"
             >
-              <Heart size={14} className="text-rust" /> Donar
+              <Heart size={14} className="text-rust" /> Financiar
             </Link>
           )}
           <UserMenu />

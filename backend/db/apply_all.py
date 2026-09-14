@@ -40,6 +40,7 @@ ORDER = [
     "06_documentos_opiniones.sql",
     "07_alertas_extras.sql",
     "08_penalidades.sql",
+    "09_financiamiento.sql",
 ]
 
 
@@ -70,6 +71,21 @@ def apply_file(conn, path: Path) -> None:
     with conn.cursor() as cur:
         cur.execute(sql)
     conn.commit()
+
+
+def seed_zonas(conn) -> int:
+    """Carga backend/db/seed/zonas.csv (INEI: 25 dptos, 196 provs, 1 892 distritos) si la tabla está vacía."""
+    csv_path = ROOT / "backend" / "db" / "seed" / "zonas.csv"
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM zonas")
+        if cur.fetchone()[0] > 0 or not csv_path.exists():
+            return 0
+        with csv_path.open(encoding="utf-8") as f:
+            cur.copy_expert("COPY zonas (ubigeo, nivel, nombre, padre_ubigeo, lat, lon) FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')", f)
+        n = cur.rowcount
+        cur.execute("SELECT refresh_financiamiento()")
+    conn.commit()
+    return n
 
 
 def list_tables(conn) -> list[str]:
@@ -120,6 +136,10 @@ def main() -> int:
             print(f"  ✗ {e}", flush=True)
             conn.rollback()
             return 1
+
+    n = seed_zonas(conn)
+    if n:
+        print(f"→ zonas: {n} filas cargadas (INEI)")
 
     print("\n→ extensiones instaladas:")
     for ext in list_extensions(conn):
