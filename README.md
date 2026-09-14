@@ -235,12 +235,13 @@ vigia-peru/
 │   ├── mcp/                   # Remote MCP server (read-only tools for external LLM clients) · Cloud Run
 │   ├── relay/                 # Residential relay in Lima (FastAPI) — .gob.pe WAF bypass · VPS
 │   ├── db/                    # Postgres schema: migrations/ (01..08), schemas/ (external datasets), apply_all.py
-│   └── scripts/               # Ingestion, seed, dataset catalog, offline evals
+│   ├── scripts/               # Ingestion, seed, dataset catalog, offline evals
+│   └── scrapers/              # Automated ingestion pipelines (PNDA, OCDS, MEF, ONPE, JNE) — see its README
 ├── infrastructure/
 │   ├── terraform/             # GCP platform as code (Cloud SQL, buckets, secrets, IAM, Cloud Run)
 │   ├── deploy/                # One deploy script per service (gcloud run deploy --source)
 │   └── docker-compose.yml     # Local Postgres + PostGIS for development
-├── docs/                      # DATA.md, DATASET_MAP.md, MARCO_NORMATIVO.md, SUBMISSION.md, img/
+├── docs/                      # DATA.md, DATASET_MAP.md, MARCO_NORMATIVO.md, hackathon/, img/
 ├── ARQUITECTURA.md            # GCP architecture as built (ES)
 ├── SOLUCION.md                # How it works: end-to-end data flow (ES)
 └── OBSERVABILITY.md           # Observability setup detail — Arize/Phoenix (ES)

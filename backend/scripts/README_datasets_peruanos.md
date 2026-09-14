@@ -1,61 +1,23 @@
-# Datasets peruanos — guía de carga
+# Datasets peruanos — de dónde salen y cómo se cargan
 
-Tres datasets oficiales que el `person_network_agent` puede consultar vía Cloud SQL. Las tools (`query_onpe_aportantes`, `query_jne_candidaturas`, `query_pep`) ya están deployadas y son **schema-aware**: si la tabla no existe aún, devuelven `dataset_no_disponible: true` sin romper el pipeline. Apenas cargás la tabla, la tool empieza a aportar valor.
+> El catálogo completo de fuentes (URL real, estado de acceso verificado, pipeline
+> que la automatiza) vive en [`../scrapers/README.md`](../scrapers/README.md).
+> Este archivo solo describe las tablas auxiliares que consulta el
+> `person_network_agent` y sus loaders manuales.
 
-## 1. ONPE Aportantes (financiamiento político)
+Las tools (`query_onpe_aportantes`, `query_jne_candidaturas`, `query_pep`,
+`query_visitas`) son **schema-aware**: si la tabla no existe devuelven
+`dataset_no_disponible: true` sin romper el pipeline.
 
-**Fuente**: https://www.datosabiertos.gob.pe/dataset/aportantes-onpe
-**Schema**: `backend/db/schemas/onpe_aportantes_schema.sql`
-**Cargar**:
+| Tabla | Esquema | Loader manual | Pipeline automático |
+|---|---|---|---|
+| `onpe_aportantes` | `../db/schemas/onpe_aportantes_schema.sql` | `load_aportantes_onpe.py --csv <export de Claridad>` | `scrapers/onpe_claridad` (Playwright) |
+| `jne_candidaturas` | `../db/schemas/jne_candidaturas_schema.sql` | `load_jne_candidaturas.py --root dataset/ELECCIONES` | `scrapers/jne_infogob` (Playwright) |
+| `osce_sancionados` | `../db/schemas/osce_sancionados_schema.sql` | `load_sancionados_osce.py --xlsx <buscador OSCE>` | `scrapers/pnda_sancionados` ✅ |
+| `visitas_entidades` | `../db/schemas/visitas_entidades_schema.sql` | `load_visitas_entidades.py --xlsx <mes>` | `scrapers/pnda_visitas` ✅ |
+| `dji_funcionarios`, `dji_empleos` | `../db/schemas/dji_schema.sql` | — | `scrapers/pnda_dji` |
+| `peps` | `../db/schemas/peps_schema.sql` | — | sin fuente abierta (SBS/UIF); alternativa: servidores públicos SERVIR |
 
-```bash
-# 1. Crear tabla
-gcloud sql connect vigia-db --user=postgres --database=vigia < backend/db/schemas/onpe_aportantes_schema.sql
-
-# 2. Descargar dataset (CSV anual desde datos abiertos)
-curl -L "https://www.datosabiertos.gob.pe/sites/default/files/Aportantes-2022-2026.csv" \
-  -o /tmp/onpe.csv
-
-# 3. Normalizar + upload a GCS + import a Cloud SQL
-python backend/scripts/onpe_aportantes_load.py --csv /tmp/onpe.csv
-```
-
-## 2. JNE Candidaturas
-
-**Fuente**: PNDA via CKAN o https://plataformaelectoral.jne.gob.pe/
-**Schema**: `backend/db/schemas/jne_candidaturas_schema.sql`
-
-Hay dataset abierto en CKAN-PNDA: `https://www.datosabiertos.gob.pe/dataset/candidatos-elecciones`.
-
-```bash
-gcloud sql connect vigia-db --user=postgres --database=vigia < backend/db/schemas/jne_candidaturas_schema.sql
-python backend/scripts/jne_candidaturas_load.py --csv /tmp/jne_candidatos.csv
-```
-
-## 3. PEPs (Personas Expuestas Políticamente)
-
-**Fuente**: SBS UIF — lista oficial PEPs Perú.
-**Schema**: `backend/db/schemas/peps_schema.sql`
-
-No hay dataset abierto directo. Opciones:
-- Compilar manualmente desde resoluciones SBS (~10K registros).
-- Usar el listado de **Servidores Públicos** del SERVIR (más amplio, ~500K).
-
-```bash
-gcloud sql connect vigia-db --user=postgres --database=vigia < backend/db/schemas/peps_schema.sql
-python backend/scripts/peps_load.py --csv /tmp/peps.csv
-```
-
-## Verificar después de cargar
-
-```bash
-curl "https://agent-orchestrator-adk-36169102688.us-central1.run.app/?action=load&ocid=<algún_ocid>"
-# Reprocesá una convocatoria nueva — el person_network_agent va a llamar las
-# 3 tools automáticamente (ver PASO 7.5.c.bis en el prompt del orquestador).
-```
-
-## Notas
-
-- Las tools normalizan el query: si pasás "Pérez Mendoza", busca también "PEREZ MENDOZA" (sin tildes).
-- Si pasás un DNI (8 dígitos numéricos), match exacto por `numero_documento`.
-- Cualquier persona faltante en los datasets no detiene el flujo — el agente igual hace su Google Search OSINT.
+Todos los loaders aceptan `--dsn` (o leen `PGHOST/PGUSER/PGDATABASE/PGPASSWORD`) y
+`--dry-run`. Normalizan nombres a mayúsculas sin tildes (`*_norm`) y documentos a
+8 (DNI) / 11 (RUC) dígitos para que los cruces del agente sean por igualdad.
