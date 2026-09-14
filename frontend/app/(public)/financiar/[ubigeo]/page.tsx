@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronRight, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { Avatar } from "@/components/financiar/RankingTable";
-import { ESTADO_FILL, ESTADO_LABEL, formatPEN, getZona, pct } from "@/lib/financiamiento";
+import { ESTADO_FILL, ESTADO_LABEL, formatPEN, getPago, getZona, pct } from "@/lib/financiamiento";
 
 export const revalidate = 60;
 
@@ -13,9 +13,10 @@ export async function generateMetadata({ params }: { params: { ubigeo: string } 
 }
 
 export default async function ZonaPage({ params }: { params: { ubigeo: string } }) {
-  const d = await getZona(params.ubigeo);
+  const [d, pago] = await Promise.all([getZona(params.ubigeo), getPago()]);
   if (!d) notFound();
   const { zona, breadcrumb, hijas, aliados, cola } = d;
+  const metodos = pago ? [pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[] : [];
   const restantes = Math.max(0, zona.totalCola - zona.financiados);
   const pFin = pct(zona.financiados, zona.totalCola);
   const pProc = pct(zona.procesados, zona.totalCola);
@@ -118,7 +119,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
 
         <div className="lg:sticky lg:top-24 lg:self-start">
           {zona.totalCola > 0 ? (
-            <ContribuirForm ubigeo={zona.ubigeo} zonaNombre={zona.nombre} precioPen={zona.precioPen} restantes={restantes || zona.totalCola} />
+            <ContribuirForm ubigeo={zona.ubigeo} zonaNombre={zona.nombre} precioPen={zona.precioPen} restantes={restantes || zona.totalCola} metodos={metodos} />
           ) : (
             <div className="rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
               Todavía no ingresamos contratos de <strong className="text-ink">{zona.nombre}</strong>. La ingesta diaria del OECE los va sumando; vuelve pronto o financia una zona vecina.

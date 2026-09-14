@@ -146,6 +146,8 @@ export const getEstadoGlobal = () => getJson<EstadoGlobal>("/financiamiento/esta
 export const getRecientes = () =>
   getJson<{ data: ContribucionReciente[] }>("/financiamiento/recientes", 60).then((r) => r?.data ?? null);
 
+export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);
+
 export const getComprobante = (codigo: string) =>
   getJson<Comprobante>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30);
 

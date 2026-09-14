@@ -9,11 +9,13 @@
  *   GET /financiamiento/impacto/:codigo                         comprobante público de una contribución
  *   GET /financiamiento/aliados/:slug                           perfil público de un financiador
  *   GET /financiamiento/recientes                               últimas contribuciones confirmadas
+ *   GET /financiamiento/pago                                    medios de pago (Yape/Plin/cuentas/QR) — públicos
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { getPagosConfig } from "./contribuciones.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -202,4 +204,10 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
      ORDER BY co.pagada_at DESC`, [f.rows[0].id]);
   cache(c, 120);
   return c.json({ aliado: f.rows[0], contribuciones: cs.rows });
+});
+
+// ─── GET /financiamiento/pago ────────────────────────────────────────────────
+financiamientoRouter.get("/pago", async (c) => {
+  cache(c, 60);
+  return c.json(await getPagosConfig());
 });

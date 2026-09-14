@@ -4,9 +4,7 @@
  *   POST /contribuciones                       crea una contribución en `pendiente_pago` (fase 0: transferencia/Yape)
  *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload)
  *   GET  /contribuciones/:codigo               estado (privado: incluye email enmascarado) — requiere token
- *   POST /admin/contribuciones/:codigo/validar   marca `pagada` y asigna contratos FIFO (ADMIN_TOKEN)
- *   POST /admin/contribuciones/:codigo/rechazar
- *   POST /admin/asignar                          re-corre la asignación para todas las contribuciones abiertas
+ *   (las rutas /admin/* viven en routes/admin.ts)
  *
  * Reglas de independencia codificadas acá (docs/design/FINANCIA_UNA_AUDITORIA.md §6):
  *   · No existe ningún campo para elegir contratos: la asignación es `asignar_contribucion()` (SQL, FIFO).
@@ -20,7 +18,20 @@ import { pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
 
 export const contribucionesRouter = new Hono();
-export const adminContribucionesRouter = new Hono();
+
+/** Config pública de pagos (Yape/Plin/cuentas/QR) editada desde /admin/pagos. */
+export async function getPagosConfig() {
+  const r = await pool.query("SELECT valor FROM ajustes WHERE clave = 'pagos'");
+  const v = r.rows[0]?.valor ?? {};
+  return {
+    yape: v.yape?.numero ? { numero: v.yape.numero, titular: v.yape.titular ?? "", qrUrl: v.yape.qr_url || null } : null,
+    plin: v.plin?.numero ? { numero: v.plin.numero, titular: v.plin.titular ?? "", qrUrl: v.plin.qr_url || null } : null,
+    cuentas: Array.isArray(v.cuentas) ? v.cuentas : [],
+    instrucciones: v.instrucciones || "Transfiere el monto exacto indicando el código de tu aporte como concepto y sube el comprobante. Validamos en menos de 48 h.",
+    contactoEmail: v.contacto_email || null,
+    configurado: Boolean(v.yape?.numero || v.plin?.numero || (Array.isArray(v.cuentas) && v.cuentas.length)),
+  };
+}
 
 const slugify = (s: string) =>
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
@@ -100,21 +111,15 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
       [codigo, financiadorId, ubigeo, contratos, tarifa.rows[0].id, monto, metodo, mensajePublico ?? null]);
     await client.query("COMMIT");
 
+    const pagos = await getPagosConfig();
     return c.json({
       codigo,
       estado: "pendiente_pago",
       montoPen: monto,
       contratos,
       zona: zona.rows[0].nombre,
-      // Fase 0: instrucciones de pago manual. Los datos vienen de env para no fijarlos en código.
-      pago: {
-        metodo,
-        concepto: codigo,
-        yape: process.env.PAGO_YAPE_NUMERO ?? null,
-        plin: process.env.PAGO_PLIN_NUMERO ?? null,
-        transferencia: process.env.PAGO_CCI ? { banco: process.env.PAGO_BANCO ?? "", cci: process.env.PAGO_CCI, titular: process.env.PAGO_TITULAR ?? "" } : null,
-        instrucciones: `Transfiere S/ ${monto.toFixed(2)} indicando el código ${codigo} como concepto y sube el comprobante. Validamos en menos de 48 h.`,
-      },
+      // Fase 0: instrucciones de pago manual, editables desde el panel admin (ajustes.pagos).
+      pago: { metodo, concepto: codigo, ...pagos },
     }, 201);
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
@@ -150,70 +155,4 @@ contribucionesRouter.get("/:codigo", async (c) => {
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
   return c.json(r.rows[0]);
-});
-
-// ─── Admin (fase 0: validación manual) ───────────────────────────────────────
-adminContribucionesRouter.use("*", async (c, next) => {
-  const token = process.env.ADMIN_TOKEN;
-  const got = c.req.header("x-admin-token") ?? "";
-  if (!token || got !== token) return c.json({ error: "forbidden" }, 403);
-  await next();
-});
-
-adminContribucionesRouter.post("/contribuciones/:codigo/validar", async (c) => {
-  const codigo = c.req.param("codigo").toUpperCase();
-  const body = await c.req.json().catch(() => ({}));
-  const validador = typeof body?.validador === "string" ? body.validador : "admin";
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const r = await client.query(
-      `UPDATE contribuciones SET estado = 'pagada', pagada_at = now(), validada_por = $2,
-              pasarela_ref = COALESCE($3, pasarela_ref)
-       WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING id`,
-      [codigo, validador, typeof body?.referencia === "string" ? body.referencia : null]);
-    if (!r.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "not_found_or_not_pending" }, 404); }
-    const asig = await client.query("SELECT asignar_contribucion($1) AS n", [r.rows[0].id]);
-    await client.query("SELECT refresh_financiamiento()");
-    await client.query("COMMIT");
-    return c.json({ ok: true, codigo, estado: asig.rows[0].n > 0 ? "en_proceso" : "pagada", asignados: asig.rows[0].n });
-  } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
-    return c.json({ error: "internal", detail: (e as Error).message }, 500);
-  } finally {
-    client.release();
-  }
-});
-
-adminContribucionesRouter.post("/contribuciones/:codigo/rechazar", async (c) => {
-  const codigo = c.req.param("codigo").toUpperCase();
-  const r = await pool.query(
-    `UPDATE contribuciones SET estado = 'rechazada' WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING codigo`, [codigo]);
-  if (!r.rows.length) return c.json({ error: "not_found_or_not_pending" }, 404);
-  return c.json({ ok: true, codigo, estado: "rechazada" });
-});
-
-adminContribucionesRouter.get("/contribuciones", async (c) => {
-  const estado = new URL(c.req.url).searchParams.get("estado") ?? "pendiente_pago";
-  const r = await pool.query(
-    `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.pasarela, co.pasarela_ref AS "pasarelaRef",
-            co.comprobante_url AS "comprobanteUrl", co.created_at AS "createdAt", z.nombre AS zona, co.ubigeo,
-            f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.visible, f.motivo_no_visible AS "motivoNoVisible"
-     FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id JOIN zonas z ON z.ubigeo = co.ubigeo
-     WHERE co.estado = $1 ORDER BY co.created_at DESC LIMIT 200`, [estado]);
-  return c.json({ data: r.rows });
-});
-
-// Re-asigna contribuciones abiertas (p. ej. entraron contratos nuevos a una zona vaciada).
-adminContribucionesRouter.post("/asignar", async (c) => {
-  const r = await pool.query(
-    `SELECT id, codigo FROM contribuciones WHERE estado IN ('pagada','en_proceso')
-       AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id)`);
-  const out: Record<string, number> = {};
-  for (const row of r.rows) {
-    const a = await pool.query("SELECT asignar_contribucion($1) AS n", [row.id]);
-    out[row.codigo] = a.rows[0].n;
-  }
-  await pool.query("SELECT refresh_financiamiento()");
-  return c.json({ asignados: out });
 });
