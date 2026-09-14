@@ -11,7 +11,7 @@ import { Storage } from "@google-cloud/storage";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BUCKET = process.env.REPORTES_BUCKET || "hacklatam-vigia-reportes";
+const BUCKET = process.env.REPORTES_BUCKET || "vigia-peru-reportes";
 
 let _storage: Storage | null = null;
 function getStorage() {
@@ -51,10 +51,15 @@ export async function POST(req: Request) {
     const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
     const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const tipo = detectarTipo(file);
-    const path = `reportes/${stamp}.${ext}`;
+    // Comprobantes de pago (Financia una auditoría): datos personales → bucket de
+    // documentos (no público) bajo comprobantes/. Los admins los abren desde la consola.
+    const kind = form.get("kind");
+    const esComprobante = kind === "comprobante";
+    const bucketName = esComprobante ? (process.env.DOCS_BUCKET ?? "vigia-peru-documentos") : BUCKET;
+    const path = esComprobante ? `comprobantes/${stamp}.${ext}` : `reportes/${stamp}.${ext}`;
 
     const buf = Buffer.from(await file.arrayBuffer());
-    const bucket = getStorage().bucket(BUCKET);
+    const bucket = getStorage().bucket(bucketName);
     const blob = bucket.file(path);
     await blob.save(buf, {
       contentType: file.type || "application/octet-stream",
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
       metadata: { cacheControl: "public, max-age=31536000" },
     });
 
-    const url = `https://storage.googleapis.com/${BUCKET}/${path}`;
+    const url = `https://storage.googleapis.com/${bucketName}/${path}`;
     return NextResponse.json({
       ok: true, url, path, tipo,
       filename: file.name,

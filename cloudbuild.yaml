@@ -1,0 +1,62 @@
+# Cloud Build · despliegue continuo de Vigía Perú.
+#
+# Trigger sugerido (Cloud Build → Triggers → GitHub → push a main):
+#   gcloud builds triggers create github --name=vigia-main --repo-name=vigia-peru \
+#     --repo-owner=EdwinSotto123 --branch-pattern='^main$' --build-config=cloudbuild.yaml
+#
+# Cada paso construye y despliega un servicio desde su carpeta con `gcloud run deploy --source`
+# (Cloud Build usa buildpacks o el Dockerfile de la carpeta). Los env vars y secretos ya
+# configurados en el servicio se conservan (--update-env-vars mergea).
+# Ejecución manual:  gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY=api,frontend
+substitutions:
+  _REGION: us-central1
+  _SQL: vivid-spot-480905-a4:us-central1:vigia-db
+  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",api,"* ]] || { echo "skip api"; exit 0; }
+        gcloud run deploy vigia-peru-api --source backend/api --region ${_REGION} --allow-unauthenticated \
+          --add-cloudsql-instances ${_SQL} --quiet
+
+  - id: frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",frontend,"* ]] || { echo "skip frontend"; exit 0; }
+        # NEXT_PUBLIC_* de Firebase: se inyectan desde Secret Manager al build (frontend/.env.production no está en git)
+        gcloud secrets versions access latest --secret=frontend-env-production > frontend/.env.production 2>/dev/null || true
+        gcloud run deploy vigia-peru-frontend --source frontend --region ${_REGION} --allow-unauthenticated --memory 1Gi --quiet
+
+  - id: agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",agent,"* ]] || { echo "skip agent"; exit 0; }
+        gcloud run deploy agent-orchestrator-adk --source backend/agent --region ${_REGION} --allow-unauthenticated \
+          --memory 8Gi --cpu 2 --timeout 3600 --concurrency 1 --max-instances 5 \
+          --add-cloudsql-instances ${_SQL} --quiet
+
+  - id: mcp
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",mcp,"* ]] || { echo "skip mcp"; exit 0; }
+        gcloud run deploy vigia-mcp --source backend/mcp --region ${_REGION} --allow-unauthenticated \
+          --add-cloudsql-instances ${_SQL} --quiet
+
+timeout: 2400s

@@ -8,6 +8,8 @@ import { alertasRouter } from "./routes/alertas.js";
 import { entidadesRouter } from "./routes/entidades.js";
 import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
+import { financiamientoRouter } from "./routes/financiamiento.js";
+import { contribucionesRouter, adminContribucionesRouter } from "./routes/contribuciones.js";
 
 const app = new Hono();
 
@@ -45,6 +47,9 @@ app.route("/alertas", alertasRouter);
 app.route("/entidades", entidadesRouter);
 app.route("/reportes", reportesRouter);
 app.route("/upload", uploadRouter);
+app.route("/financiamiento", financiamientoRouter);
+app.route("/contribuciones", contribucionesRouter);
+app.route("/admin", adminContribucionesRouter);
 
 // ─── Error handler ─────────────────────────────────────────────
 app.onError((err, c) => {
