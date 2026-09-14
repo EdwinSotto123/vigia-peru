@@ -4,26 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard,
   MapPin,
-  Building2,
   FileText,
   Sparkles,
-  HelpCircle,
-  Search,
-  ScanSearch,
   ArrowLeft,
   Menu,
   X,
   Lock,
   Home,
-  AlertTriangle,
-  MessageSquareWarning,
+  Activity,
+  Users,
+  Heart,
+  LogOut,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { signOut } from "@/lib/auth";
-import { LogOut, Shield } from "lucide-react";
+import { FLAGS } from "@/lib/flags";
 
 type Item = {
   href: string;
@@ -39,27 +37,13 @@ type Item = {
 
 type Section = { title?: string; items: Item[] };
 
+/**
+ * Navegación pública del dashboard. El mapa es el hub: entidades, alertas y
+ * denuncias se exploran desde el panel de cada región (las rutas /app/entidades,
+ * /app/alertas y /app/denuncias siguen existiendo, solo dejan de estar en la barra).
+ * El análisis a demanda vive en /admin/analisis.
+ */
 const SECTIONS: Section[] = [
-  {
-    items: [
-      {
-        href: "/app",
-        label: "Inicio",
-        icon: <LayoutDashboard size={16} />,
-        hint: "Resumen del país",
-        match: (p) => p === "/app",
-      },
-      {
-        href: "/app/convocatoria",
-        label: "Analizar contrato",
-        icon: <ScanSearch size={16} />,
-        hint: "Pipeline agéntico · a demanda",
-        featured: true,
-        match: (p) =>
-          p.startsWith("/app/convocatoria") || p.startsWith("/convocatoria"),
-      },
-    ],
-  },
   {
     title: "Explorar",
     items: [
@@ -67,30 +51,32 @@ const SECTIONS: Section[] = [
         href: "/app/mapa",
         label: "Mapa",
         icon: <MapPin size={16} />,
-        hint: "Choropleth Perú",
-        match: (p) => p.startsWith("/app/mapa") || p.startsWith("/region"),
-      },
-      {
-        href: "/app/entidades",
-        label: "Entidades",
-        icon: <Building2 size={16} />,
-        hint: "Ranking riesgo",
+        hint: "Elige tu región",
         match: (p) =>
-          p.startsWith("/app/entidades") || p.startsWith("/entidad"),
+          p === "/app" ||
+          p.startsWith("/app/mapa") ||
+          p.startsWith("/region") ||
+          p.startsWith("/app/entidades") ||
+          p.startsWith("/entidad") ||
+          p.startsWith("/app/alertas") ||
+          p.startsWith("/alerta") ||
+          p.startsWith("/app/denuncias") ||
+          p.startsWith("/app/convocatoria") ||
+          p.startsWith("/convocatoria"),
       },
       {
-        href: "/app/alertas",
-        label: "Alertas",
-        icon: <AlertTriangle size={16} />,
-        hint: "Top del mes",
-        match: (p) => p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+        href: "/auditoria",
+        label: "Auditoría en vivo",
+        icon: <Activity size={16} />,
+        hint: "Cola → procesando → listo",
+        match: (p) => p.startsWith("/auditoria"),
       },
       {
-        href: "/app/denuncias",
-        label: "Denuncias",
-        icon: <MessageSquareWarning size={16} />,
-        hint: "Ciudadanas · libre",
-        match: (p) => p.startsWith("/app/denuncias"),
+        href: "/aliados",
+        label: "Aliados",
+        icon: <Users size={16} />,
+        hint: "Quienes financian la lectura",
+        match: (p) => p.startsWith("/aliados") || p.startsWith("/aliado/"),
       },
     ],
   },
@@ -98,20 +84,32 @@ const SECTIONS: Section[] = [
     title: "Acción",
     items: [
       {
+        href: "/financiar",
+        label: "Financiar",
+        icon: <Heart size={16} />,
+        hint: "Capacidad de auditoría",
+        featured: true,
+        match: (p) => p.startsWith("/financiar") || p.startsWith("/impacto"),
+      },
+      {
         href: "/reporte/nuevo",
         label: "Denunciar",
         icon: <FileText size={16} />,
         hint: "Foto + geo · público",
         match: (p) => p.startsWith("/reporte"),
       },
-      {
-        href: "/noticia",
-        label: "IA · Generador",
-        icon: <Sparkles size={16} />,
-        hint: "Borrador editorial",
-        requiresAuth: true,
-        match: (p) => p.startsWith("/noticia"),
-      },
+      ...(FLAGS.editorial
+        ? [
+            {
+              href: "/noticia",
+              label: "IA · Generador",
+              icon: <Sparkles size={16} />,
+              hint: "Borrador editorial",
+              requiresAuth: true,
+              match: (p: string) => p.startsWith("/noticia"),
+            } satisfies Item,
+          ]
+        : []),
     ],
   },
 ];
@@ -165,7 +163,7 @@ export function DashboardSidebar() {
           </div>
 
           <Link
-            href="/app"
+            href="/app/mapa"
             className="mb-4 flex items-center gap-2.5 rounded-2xl border border-line bg-paper p-3 transition-colors hover:bg-paperDeep"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-paper">
@@ -176,7 +174,7 @@ export function DashboardSidebar() {
                 Vigía <span className="text-rust">Perú</span>
               </span>
               <span className="text-[9px] uppercase tracking-widest text-mute">
-                Centro de mando
+                Mapa de auditoría
               </span>
             </span>
           </Link>
@@ -216,7 +214,7 @@ export function DashboardSidebar() {
 
           {/* Footer */}
           <div className="mt-auto space-y-2 pt-6">
-            {!loading && !user && (
+            {FLAGS.editorial && !loading && !user && (
               <div className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-3">
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-clay">
                   <Lock size={11} /> Acceso limitado

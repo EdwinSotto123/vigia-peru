@@ -10,6 +10,7 @@ import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
 import { financiamientoRouter } from "./routes/financiamiento.js";
 import { contribucionesRouter } from "./routes/contribuciones.js";
+import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
 
 const app = new Hono();
@@ -48,6 +49,7 @@ app.route("/alertas", alertasRouter);
 app.route("/entidades", entidadesRouter);
 app.route("/reportes", reportesRouter);
 app.route("/upload", uploadRouter);
+app.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)
 app.route("/financiamiento", financiamientoRouter);
 app.route("/contribuciones", contribucionesRouter);
 app.route("/admin", adminRouter);

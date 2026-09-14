@@ -458,6 +458,8 @@ Nunca confiar en el `status` que viene en el webhook; siempre consultar el pago.
 
 ## 8. Plan de implementación
 
+> **Estado 2026-09-14:** fases 0 (cola real desde OCDS), 1 (modelo + API), 2 (mapa de campaña), 3 (contribución fase 0 + panel admin), 4 (dispatcher + trazabilidad en vivo), 5 parcial (comprobante, ranking, perfil, muro de aliados, imagen OG; falta badge SVG/PDF) y 7 parcial (`/auditoria` con estado en vivo; falta costo real desde Arize) están **implementadas y desplegadas**. Pendiente: fase 6 (pasarela Mercado Pago), emails al financiador, geometría distrital, disparo del relay VPS.
+
 | Fase | Entregable | Esfuerzo | Depende de |
 |---|---|---|---|
 | **0. Cola real** | `oece_ocds` diario para 3 regiones piloto (Lima, Áncash, Cusco) · tabla `zonas` cargada del INEI · geometría distrital en el frontend | 3 días | scrapers (listo) |

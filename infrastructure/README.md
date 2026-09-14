@@ -35,6 +35,7 @@ borra lo existente).
 | `deploy/api.sh` | `vigia-peru-api` | `backend/api/` |
 | `deploy/agent.sh` | `agent-orchestrator-adk` | `backend/agent/` |
 | `deploy/mcp.sh` | `vigia-mcp` | `backend/mcp/` |
+| `deploy/dispatcher.sh` | **Job** `vigia-dispatcher` + Scheduler `vigia-dispatcher-run` | `backend/dispatcher/` |
 
 ```bash
 bash infrastructure/deploy/api.sh
@@ -84,7 +85,33 @@ validación de pagos y Cloud Scheduler; para entrar: `gcloud secrets versions ac
 `vigia-financiamiento-asignar` (cada 10 min) llama a `POST /admin/asignar`, que asigna
 contratos FIFO a contribuciones pagadas y refresca `zona_estado` / `ranking_impacto`.
 
-## 4. Terraform
+## 4. Dispatcher (procesamiento automático y en vivo)
+
+`backend/dispatcher` es un **Cloud Run Job** (`vigia-dispatcher`), no un servicio. Cloud
+Scheduler `vigia-dispatcher-run` lo ejecuta cada 5 min; cada ejecución reclama hasta
+`DISPATCHER_PARALLEL` (2) contratos de `procesamientos` con `FOR UPDATE SKIP LOCKED`
+(ejecuciones solapadas no se pisan), llama al orquestador por streaming y persiste cada
+fase para que el público la vea en `/auditoria` (`GET /financiamiento/procesamientos`).
+Solo procesa lo que `asignar_contribucion()` ya asignó a un aporte pagado.
+
+```bash
+bash infrastructure/deploy/dispatcher.sh                                   # deploy job + scheduler
+gcloud run jobs execute vigia-dispatcher --region us-central1 --wait       # corrida manual
+gcloud run jobs executions list --job vigia-dispatcher --region us-central1
+gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="vigia-dispatcher"' --limit 30
+```
+
+Estados de `procesamientos.estado`: `encolado → procesando → procesado | error` (3 intentos;
+>20 min sin latido = se re-encola solo). Re-encolar a mano:
+
+```sql
+UPDATE procesamientos SET estado='encolado', intentos=0, error=NULL, worker=NULL WHERE ocid='…';
+```
+
+o desde el panel: `POST /admin/procesamientos/:ocid/reencolar` (`x-admin-token`).
+Monitor: `GET /admin/procesamientos` (incluye `worker`, `error`, `latidoAt`).
+
+## 5. Terraform
 
 Declara la plataforma: APIs, Cloud SQL (Postgres 16, pgvector), 3 buckets, 4
 secretos + bindings por secreto, roles de la service account de runtime, la SA

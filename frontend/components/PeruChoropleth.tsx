@@ -67,6 +67,12 @@ export interface PeruChoroplethProps {
   onSelectProvincia: (regionId: string, provincia: ProvinciaData) => void;
   // Pines opcionales que se overlay sobre el choropleth
   points?: MapPoint[];
+  /**
+   * Capa alternativa de color por regionId (p. ej. estado de financiamiento
+   * con ESTADO_FILL). Si está presente reemplaza la escala por métrica; las
+   * regiones sin entrada se pintan como "sin datos".
+   */
+  fillOverride?: Record<string, string> | null;
 }
 
 export function PeruChoropleth({
@@ -77,6 +83,7 @@ export function PeruChoropleth({
   onSelectRegion,
   onSelectProvincia,
   points = [],
+  fillOverride = null,
 }: PeruChoroplethProps) {
   const [deptData, setDeptData] = useState<DeptGeo | null>(null);
   const [provData, setProvData] = useState<ProvGeo | null>(null);
@@ -306,7 +313,11 @@ export function PeruChoropleth({
                 <path
                   key={p.id}
                   d={p.d}
-                  fill={fillForValue(p.value, max)}
+                  fill={
+                    fillOverride
+                      ? fillOverride[p.id] ?? "#EEF1F4"
+                      : fillForValue(p.value, max)
+                  }
                   stroke={isSelected ? "#1B1611" : "#76695A"}
                   strokeWidth={
                     isSelected ? sw.deptSelected : sw.dept

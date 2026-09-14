@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { Activity, ChevronRight, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { Avatar } from "@/components/financiar/RankingTable";
+import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { ESTADO_FILL, ESTADO_LABEL, formatPEN, getPago, getZona, pct } from "@/lib/financiamiento";
+import { getProcesamientos } from "@/lib/auditoria";
 
 export const revalidate = 60;
 
@@ -16,6 +18,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
   const [d, pago] = await Promise.all([getZona(params.ubigeo), getPago()]);
   if (!d) notFound();
   const { zona, breadcrumb, hijas, aliados, cola } = d;
+  const enVivo = zona.financiados > 0 ? await getProcesamientos({ ubigeo: zona.ubigeo, limit: 60 }) : null;
   const metodos = pago ? [pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[] : [];
   const restantes = Math.max(0, zona.totalCola - zona.financiados);
   const pFin = pct(zona.financiados, zona.totalCola);
@@ -71,6 +74,30 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Monto contratado</dt><dd className="font-mono text-ink">{formatPEN(cola.montoReferencial)}</dd></div>
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Entidades</dt><dd className="font-mono text-ink">{cola.entidades}</dd></div>
             </dl>
+          </div>
+
+          {/* en vivo ahora */}
+          <div className="mt-6 rounded-2xl border border-line p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="inline-flex items-center gap-2 font-semibold text-ink">
+                <Activity size={16} className={zona.financiados > 0 ? "text-amber" : "text-mute"} aria-hidden />
+                En vivo ahora en {zona.nombre}
+              </h2>
+              {zona.financiados > 0 && (
+                <Link href={`/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className="text-xs text-mute hover:underline">
+                  Ver tablero completo →
+                </Link>
+              )}
+            </div>
+            {zona.financiados > 0 ? (
+              <div className="mt-3">
+                <TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-mute">
+                Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis.
+              </p>
+            )}
           </div>
 
           {/* hijas */}

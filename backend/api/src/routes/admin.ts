@@ -16,6 +16,8 @@
  *   GET   /admin/config/pagos · PUT /admin/config/pagos
  *   GET   /admin/log
  *   POST  /admin/asignar                               re-asigna abiertas + refresh (lo llama Cloud Scheduler)
+ *   GET   /admin/procesamientos?estado=                monitor del dispatcher (+ worker, error, latido)
+ *   POST  /admin/procesamientos/:ocid/reencolar        vuelve a encolar (intentos=0)
  */
 
 import { Hono } from "hono";
@@ -265,4 +267,35 @@ adminRouter.post("/asignar", async (c) => {
   }
   await pool.query("SELECT refresh_financiamiento()");
   return c.json({ asignados: out });
+});
+
+// ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────
+adminRouter.get("/procesamientos", async (c) => {
+  const url = new URL(c.req.url);
+  const estado = url.searchParams.get("estado") ?? "";
+  const vals: unknown[] = [];
+  let where = "";
+  if (["encolado", "procesando", "procesado", "error"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
+  const r = await pool.query(
+    `SELECT v.ocid, v.estado, v.fase_actual AS "faseActual", v.fase_index AS "faseIndex", v.intentos,
+            v.encolado_at AS "encoladoAt", v.iniciado_at AS "iniciadoAt", v.finalizado_at AS "finalizadoAt",
+            v.contribucion_codigo AS "contribucionCodigo", v.financiador, v.financiador_visible AS "financiadorVisible",
+            v.ubigeo, v.zona, v.titulo, v.entidad, v.monto_pen::float AS "montoPen", v.alerta_codigo AS "alertaCodigo", v.score, v.banderas::int,
+            p.worker, p.error, p.latido_at AS "latidoAt", jsonb_array_length(p.eventos) AS eventos
+     FROM procesamientos_publico v JOIN procesamientos p ON p.ocid = v.ocid
+     ${where}
+     ORDER BY CASE v.estado WHEN 'procesando' THEN 0 WHEN 'error' THEN 1 WHEN 'encolado' THEN 2 ELSE 3 END,
+              COALESCE(v.finalizado_at, v.iniciado_at, v.encolado_at) DESC, v.ocid
+     LIMIT 200`, vals);
+  return c.json({ data: r.rows });
+});
+
+adminRouter.post("/procesamientos/:ocid/reencolar", async (c) => {
+  const ocid = c.req.param("ocid");
+  const r = await pool.query(
+    `UPDATE procesamientos SET estado = 'encolado', intentos = 0, error = NULL, worker = NULL, fase_actual = NULL, fase_index = NULL
+     WHERE ocid = $1 RETURNING ocid`, [ocid]);
+  if (!r.rows.length) return c.json({ error: "not_found" }, 404);
+  await log(actor(c), "reencolar", `procesamiento:${ocid}`);
+  return c.json({ ok: true, ocid, estado: "encolado" });
 });
