@@ -7,7 +7,7 @@ scripts de deploy por servicio y el entorno local.
 infrastructure/
 ├── terraform/            # Plataforma GCP: APIs, Cloud SQL, buckets, Secret Manager, IAM, Cloud Run
 ├── deploy/               # Un script por servicio: gcloud run deploy --source
-├── docker/               # Imagen Postgres 14 + PostGIS + pgvector para dev local
+├── docker/               # Imagen Postgres 16 + PostGIS + pgvector para dev local
 └── docker-compose.yml    # Levanta esa base en 127.0.0.1:5432
 ```
 
