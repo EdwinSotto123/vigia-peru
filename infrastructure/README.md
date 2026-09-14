@@ -79,8 +79,8 @@ Trigger en push a `main`: ver el comentario del archivo. El `.env.production` de
 frontend (NEXT_PUBLIC_FIREBASE_*) vive en el secreto `frontend-env-production` y
 Cloud Build lo materializa antes del build.
 
-Secretos adicionales de "Financia una auditoría": `admin-token` (validación manual
-de pagos y Cloud Scheduler) y `frontend-env-production`. El job de Cloud Scheduler
+Secretos adicionales de "Financia una auditoría": `admin-token` (login del panel `/admin`,
+validación de pagos y Cloud Scheduler; para entrar: `gcloud secrets versions access latest --secret=admin-token`) y `frontend-env-production`. El job de Cloud Scheduler
 `vigia-financiamiento-asignar` (cada 10 min) llama a `POST /admin/asignar`, que asigna
 contratos FIFO a contribuciones pagadas y refresca `zona_estado` / `ranking_impacto`.
 

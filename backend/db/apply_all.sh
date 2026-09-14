@@ -13,7 +13,7 @@ cd "$(dirname "$0")/migrations"
 
 PSQL_FLAGS="-h ${PGHOST:-127.0.0.1} -U ${PGUSER:-postgres} -d ${PGDATABASE:-vigia} --set ON_ERROR_STOP=on"
 
-for f in 01_extensions.sql 02_core.sql 03_contrataciones.sql 04_alertas_red.sql 05_mef_cache.sql 06_documentos_opiniones.sql 07_alertas_extras.sql 08_penalidades.sql 09_financiamiento.sql; do
+for f in 01_extensions.sql 02_core.sql 03_contrataciones.sql 04_alertas_red.sql 05_mef_cache.sql 06_documentos_opiniones.sql 07_alertas_extras.sql 08_penalidades.sql 09_financiamiento.sql 10_admin_config.sql; do
   echo "→ aplicando $f"
   psql ${PSQL_FLAGS} -f "$f"
 done

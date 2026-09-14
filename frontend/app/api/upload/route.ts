@@ -56,7 +56,9 @@ export async function POST(req: Request) {
     const kind = form.get("kind");
     const esComprobante = kind === "comprobante";
     const bucketName = esComprobante ? (process.env.DOCS_BUCKET ?? "vigia-peru-documentos") : BUCKET;
-    const path = esComprobante ? `comprobantes/${stamp}.${ext}` : `reportes/${stamp}.${ext}`;
+    // pagos/ = QR de Yape/Plin (público por diseño, lo sube el admin)
+    const prefix = esComprobante ? "comprobantes" : kind === "pago" ? "pagos" : "reportes";
+    const path = `${prefix}/${stamp}.${ext}`;
 
     const buf = Buffer.from(await file.arrayBuffer());
     const bucket = getStorage().bucket(bucketName);

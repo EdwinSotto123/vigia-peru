@@ -41,6 +41,7 @@ ORDER = [
     "07_alertas_extras.sql",
     "08_penalidades.sql",
     "09_financiamiento.sql",
+    "10_admin_config.sql",
 ]
 
 
