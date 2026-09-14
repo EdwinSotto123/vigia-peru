@@ -18,3 +18,7 @@ build/
 Thumbs.db
 *.log
 tsconfig.tsbuildinfo
+
+# Next.js lee .env.production en `next build` (solo NEXT_PUBLIC_*, no secretos).
+# Se permite en el build de Cloud Run; sigue gitignored.
+!.env.production

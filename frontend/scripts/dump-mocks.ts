@@ -2,7 +2,7 @@
  * Vuelca los mocks de `frontend/lib/` a JSON para el seed de Cloud SQL.
  *
  * Uso (desde el folder `frontend/`):
- *   npx tsx scripts/dump-mocks.ts > ../scripts/seed/mocks.json
+ *   npx tsx scripts/dump-mocks.ts > ../backend/scripts/seed/mocks.json
  *
  * Se ejecuta desde la raíz del frontend porque ahí está el tsconfig con
  * los path aliases (`@/lib/...`).

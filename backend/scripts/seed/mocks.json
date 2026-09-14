@@ -1,0 +1,1214 @@
+{
+  "entidades": [
+    {
+      "id": "ent-001",
+      "ruc": "20131369981",
+      "nombre": "Municipalidad Distrital de Independencia",
+      "tipo": "municipal_distrital",
+      "region": "Áncash",
+      "provincia": "Huaraz",
+      "distrito": "Independencia",
+      "alertas": 2,
+      "reportes": 1,
+      "contratos": 84,
+      "contratosVigilados": 12,
+      "monto": 4280000,
+      "scorePromedio": 86,
+      "serie": [
+        0,
+        1,
+        1,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-002",
+      "ruc": "20165498220",
+      "nombre": "Municipalidad Distrital de Yungay",
+      "tipo": "municipal_distrital",
+      "region": "Áncash",
+      "provincia": "Yungay",
+      "distrito": "Yungay",
+      "alertas": 2,
+      "reportes": 2,
+      "contratos": 51,
+      "contratosVigilados": 8,
+      "monto": 4250000,
+      "scorePromedio": 91,
+      "serie": [
+        0,
+        1,
+        1,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-003",
+      "ruc": "20131380894",
+      "nombre": "Municipalidad Provincial de Lima",
+      "tipo": "municipal_provincial",
+      "region": "Lima",
+      "provincia": "Lima",
+      "alertas": 2,
+      "reportes": 0,
+      "contratos": 412,
+      "contratosVigilados": 38,
+      "monto": 18900000,
+      "scorePromedio": 65,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-004",
+      "ruc": "20527268878",
+      "nombre": "Gobierno Regional de Cusco",
+      "tipo": "gobierno_regional",
+      "region": "Cusco",
+      "alertas": 2,
+      "reportes": 1,
+      "contratos": 287,
+      "contratosVigilados": 24,
+      "monto": 7140000,
+      "scorePromedio": 64,
+      "serie": [
+        0,
+        1,
+        1,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-005",
+      "ruc": "20484020611",
+      "nombre": "Gobierno Regional de Piura",
+      "tipo": "gobierno_regional",
+      "region": "Piura",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 198,
+      "contratosVigilados": 15,
+      "monto": 6700000,
+      "scorePromedio": 88,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-006",
+      "ruc": "20530906978",
+      "nombre": "Gobierno Regional de La Libertad",
+      "tipo": "gobierno_regional",
+      "region": "La Libertad",
+      "alertas": 2,
+      "reportes": 0,
+      "contratos": 234,
+      "contratosVigilados": 18,
+      "monto": 6700000,
+      "scorePromedio": 82,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-007",
+      "ruc": "20171298320",
+      "nombre": "Municipalidad Provincial de Carhuaz",
+      "tipo": "municipal_provincial",
+      "region": "Áncash",
+      "provincia": "Carhuaz",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 42,
+      "contratosVigilados": 6,
+      "monto": 980000,
+      "scorePromedio": 78,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-008",
+      "ruc": "20171587029",
+      "nombre": "Municipalidad Distrital de Recuay",
+      "tipo": "municipal_distrital",
+      "region": "Áncash",
+      "provincia": "Recuay",
+      "distrito": "Recuay",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 38,
+      "contratosVigilados": 5,
+      "monto": 540000,
+      "scorePromedio": 71,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-009",
+      "ruc": "20162498770",
+      "nombre": "Municipalidad Distrital de Caraz",
+      "tipo": "municipal_distrital",
+      "region": "Áncash",
+      "provincia": "Huaylas",
+      "distrito": "Caraz",
+      "alertas": 1,
+      "reportes": 1,
+      "contratos": 46,
+      "contratosVigilados": 7,
+      "monto": 1490000,
+      "scorePromedio": 93,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-010",
+      "ruc": "20174521329",
+      "nombre": "Municipalidad Distrital de San Sebastián",
+      "tipo": "municipal_distrital",
+      "region": "Cusco",
+      "provincia": "Cusco",
+      "distrito": "San Sebastián",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 52,
+      "contratosVigilados": 6,
+      "monto": 1750000,
+      "scorePromedio": 52,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-011",
+      "ruc": "20174892011",
+      "nombre": "Municipalidad Distrital de Wanchaq",
+      "tipo": "municipal_distrital",
+      "region": "Cusco",
+      "provincia": "Cusco",
+      "distrito": "Wanchaq",
+      "alertas": 1,
+      "reportes": 1,
+      "contratos": 49,
+      "contratosVigilados": 7,
+      "monto": 3100000,
+      "scorePromedio": 67,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-012",
+      "ruc": "20131370645",
+      "nombre": "Ministerio de Salud",
+      "tipo": "ministerio",
+      "region": "Lima",
+      "alertas": 3,
+      "reportes": 1,
+      "contratos": 1248,
+      "contratosVigilados": 96,
+      "monto": 12400000,
+      "scorePromedio": 72,
+      "serie": [
+        1,
+        2,
+        2,
+        2,
+        3,
+        3
+      ]
+    },
+    {
+      "id": "ent-013",
+      "ruc": "20131372718",
+      "nombre": "Ministerio de Transportes y Comunicaciones",
+      "tipo": "ministerio",
+      "region": "Lima",
+      "alertas": 4,
+      "reportes": 0,
+      "contratos": 2104,
+      "contratosVigilados": 175,
+      "monto": 38200000,
+      "scorePromedio": 78,
+      "serie": [
+        1,
+        2,
+        3,
+        3,
+        4,
+        4
+      ]
+    },
+    {
+      "id": "ent-014",
+      "ruc": "20131370998",
+      "nombre": "Ministerio de Educación",
+      "tipo": "ministerio",
+      "region": "Lima",
+      "alertas": 2,
+      "reportes": 1,
+      "contratos": 894,
+      "contratosVigilados": 62,
+      "monto": 9800000,
+      "scorePromedio": 66,
+      "serie": [
+        0,
+        1,
+        1,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-015",
+      "ruc": "20100027461",
+      "nombre": "PETROPERÚ S.A.",
+      "tipo": "empresa_publica",
+      "region": "Lima",
+      "alertas": 2,
+      "reportes": 0,
+      "contratos": 612,
+      "contratosVigilados": 48,
+      "monto": 22400000,
+      "scorePromedio": 81,
+      "serie": [
+        0,
+        1,
+        1,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "ent-016",
+      "ruc": "20100139560",
+      "nombre": "SEDAPAL S.A.",
+      "tipo": "empresa_publica",
+      "region": "Lima",
+      "alertas": 1,
+      "reportes": 1,
+      "contratos": 384,
+      "contratosVigilados": 28,
+      "monto": 11700000,
+      "scorePromedio": 74,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-017",
+      "ruc": "20158395621",
+      "nombre": "Municipalidad Provincial de Trujillo",
+      "tipo": "municipal_provincial",
+      "region": "La Libertad",
+      "provincia": "Trujillo",
+      "alertas": 2,
+      "reportes": 1,
+      "contratos": 156,
+      "contratosVigilados": 16,
+      "monto": 6700000,
+      "scorePromedio": 82,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "ent-018",
+      "ruc": "20217083083",
+      "nombre": "Gobierno Regional de Áncash",
+      "tipo": "gobierno_regional",
+      "region": "Áncash",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 312,
+      "contratosVigilados": 25,
+      "monto": 5400000,
+      "scorePromedio": 79,
+      "serie": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-019",
+      "ruc": "20193393175",
+      "nombre": "Municipalidad Provincial de Huancayo",
+      "tipo": "municipal_provincial",
+      "region": "Junín",
+      "provincia": "Huancayo",
+      "alertas": 2,
+      "reportes": 1,
+      "contratos": 134,
+      "contratosVigilados": 13,
+      "monto": 5800000,
+      "scorePromedio": 71,
+      "serie": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "ent-020",
+      "ruc": "20100143288",
+      "nombre": "ENAPU S.A.",
+      "tipo": "empresa_publica",
+      "region": "Lima",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 198,
+      "contratosVigilados": 12,
+      "monto": 4900000,
+      "scorePromedio": 68,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-021",
+      "ruc": "20131378972",
+      "nombre": "Contraloría General de la República",
+      "tipo": "organismo_autonomo",
+      "region": "Lima",
+      "alertas": 0,
+      "reportes": 0,
+      "contratos": 184,
+      "contratosVigilados": 4,
+      "monto": 0,
+      "scorePromedio": 0,
+      "serie": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ent-022",
+      "ruc": "20165498003",
+      "nombre": "Municipalidad Distrital de Pataz",
+      "tipo": "municipal_distrital",
+      "region": "La Libertad",
+      "provincia": "Pataz",
+      "distrito": "Pataz",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 28,
+      "contratosVigilados": 4,
+      "monto": 2900000,
+      "scorePromedio": 90,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-023",
+      "ruc": "20531507385",
+      "nombre": "Gobierno Regional de Arequipa",
+      "tipo": "gobierno_regional",
+      "region": "Arequipa",
+      "alertas": 1,
+      "reportes": 1,
+      "contratos": 247,
+      "contratosVigilados": 18,
+      "monto": 4200000,
+      "scorePromedio": 73,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-024",
+      "ruc": "20447382937",
+      "nombre": "Municipalidad Provincial de Maynas",
+      "tipo": "municipal_provincial",
+      "region": "Loreto",
+      "provincia": "Maynas",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 89,
+      "contratosVigilados": 9,
+      "monto": 2500000,
+      "scorePromedio": 58,
+      "serie": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ent-025",
+      "ruc": "20210826820",
+      "nombre": "Municipalidad Provincial de Espinar",
+      "tipo": "municipal_provincial",
+      "region": "Cusco",
+      "provincia": "Espinar",
+      "alertas": 1,
+      "reportes": 0,
+      "contratos": 62,
+      "contratosVigilados": 8,
+      "monto": 2580000,
+      "scorePromedio": 81,
+      "serie": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "tipo_labels": {
+    "municipal_distrital": "Municipalidad Distrital",
+    "municipal_provincial": "Municipalidad Provincial",
+    "gobierno_regional": "Gobierno Regional",
+    "ministerio": "Ministerio",
+    "empresa_publica": "Empresa Pública",
+    "organismo_autonomo": "Organismo Autónomo"
+  },
+  "alertas": [
+    {
+      "id": "ALT-2026-0001",
+      "codigoconvocatoria": "1245678-2026",
+      "entidad": "Municipalidad Distrital de Independencia",
+      "rucEntidad": "20131369981",
+      "proveedor": "CONSTRUCTORA ANDINA EXPRESS SAC",
+      "rucProveedor": "20612478819",
+      "edadRucDias": 47,
+      "unicoPostor": true,
+      "montoSoles": 2840000,
+      "fechaBuenaPro": "2026-03-14",
+      "objeto": "Mejoramiento del servicio educativo I.E. N° 86015 - Huaraz",
+      "region": "Áncash",
+      "provincia": "Huaraz",
+      "distrito": "Independencia",
+      "lat": -9.5118,
+      "lon": -77.5301,
+      "score": 86,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "alta",
+          "evidencia": "RUC creado hace 47 días, ganó contrato por S/. 2.84M",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "unico_postor_alto",
+          "norma": "Art. 27 Reglamento Ley 32069",
+          "severidad": "alta",
+          "evidencia": "Único postor con oferta al 99.2% del valor referencial",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D008-2025"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1245678-2026"
+    },
+    {
+      "id": "ALT-2026-0002",
+      "codigoconvocatoria": "1267901-2026",
+      "entidad": "Gobierno Regional de Cusco",
+      "rucEntidad": "20527268878",
+      "proveedor": "INVERSIONES MARCAVALLE EIRL",
+      "rucProveedor": "20611239402",
+      "edadRucDias": 412,
+      "unicoPostor": false,
+      "montoSoles": 5120000,
+      "fechaBuenaPro": "2026-02-08",
+      "objeto": "Rehabilitación de carretera Cusco - Pisac, tramo II",
+      "region": "Cusco",
+      "provincia": "Calca",
+      "distrito": "Pisac",
+      "lat": -13.4147,
+      "lon": -71.8492,
+      "score": 64,
+      "banderas": [
+        {
+          "regla": "adenda_25",
+          "norma": "Art. 34 TUO Ley 30225",
+          "severidad": "alta",
+          "evidencia": "Adenda añadió S/. 1.6M sobre monto original S/. 5.1M (31%)",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D037-2024"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1267901-2026"
+    },
+    {
+      "id": "ALT-2026-0003",
+      "codigoconvocatoria": "1289012-2026",
+      "entidad": "Municipalidad Provincial de Carhuaz",
+      "rucEntidad": "20171298320",
+      "proveedor": "SERVICIOS GENERALES TINCO SAC",
+      "rucProveedor": "20612998001",
+      "edadRucDias": 22,
+      "unicoPostor": true,
+      "montoSoles": 980000,
+      "fechaBuenaPro": "2026-04-02",
+      "objeto": "Adquisición de materiales para obras de saneamiento",
+      "region": "Áncash",
+      "provincia": "Carhuaz",
+      "distrito": "Carhuaz",
+      "lat": -9.276,
+      "lon": -77.6437,
+      "score": 78,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "alta",
+          "evidencia": "RUC creado hace 22 días, ganó contrato por S/. 980K",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "unico_postor_alto",
+          "norma": "Art. 27 Reglamento Ley 32069",
+          "severidad": "media",
+          "evidencia": "Único postor con oferta al 97.8% del valor referencial",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D008-2025"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1289012-2026"
+    },
+    {
+      "id": "ALT-2026-0004",
+      "codigoconvocatoria": "1301455-2026",
+      "entidad": "Municipalidad Distrital de San Sebastián",
+      "rucEntidad": "20174521329",
+      "proveedor": "INGENIERÍA ANDINA DEL SUR SRL",
+      "rucProveedor": "20602874119",
+      "edadRucDias": 1820,
+      "unicoPostor": false,
+      "montoSoles": 1750000,
+      "fechaBuenaPro": "2026-03-25",
+      "objeto": "Construcción de losa deportiva multifuncional",
+      "region": "Cusco",
+      "provincia": "Cusco",
+      "distrito": "San Sebastián",
+      "lat": -13.531,
+      "lon": -71.9075,
+      "score": 52,
+      "banderas": [
+        {
+          "regla": "miembro_comite_sin_sican",
+          "norma": "Art. 8 Reglamento Ley 32069",
+          "severidad": "media",
+          "evidencia": "2 de 3 miembros del comité sin certificación SICAN vigente",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1301455-2026"
+    },
+    {
+      "id": "ALT-2026-0005",
+      "codigoconvocatoria": "1322034-2026",
+      "entidad": "Municipalidad Distrital de Yungay",
+      "rucEntidad": "20165498220",
+      "proveedor": "CORPORACIÓN VIAL RÁNRAHIRCA SAC",
+      "rucProveedor": "20613789012",
+      "edadRucDias": 65,
+      "unicoPostor": true,
+      "montoSoles": 4250000,
+      "fechaBuenaPro": "2026-01-19",
+      "objeto": "Mejoramiento de la transitabilidad vehicular Av. Yungay norte",
+      "region": "Áncash",
+      "provincia": "Yungay",
+      "distrito": "Yungay",
+      "lat": -9.1378,
+      "lon": -77.7458,
+      "score": 91,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "alta",
+          "evidencia": "RUC creado hace 65 días, ganó contrato por S/. 4.25M",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "unico_postor_alto",
+          "norma": "Art. 27 Reglamento Ley 32069",
+          "severidad": "alta",
+          "evidencia": "Único postor con oferta al 99.8% del valor referencial",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D008-2025"
+        },
+        {
+          "regla": "socio_sancionado",
+          "norma": "Art. 50 TUO Ley 30225",
+          "severidad": "alta",
+          "evidencia": "Socio mayoritario figura como inhabilitado en otro RUC sancionado",
+          "fuenteUrl": "https://apps.osce.gob.pe/perfilprov-ui/inhabilitado.xhtml",
+          "opinionOece": "D012-2024"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1322034-2026"
+    },
+    {
+      "id": "ALT-2026-0006",
+      "codigoconvocatoria": "1340900-2026",
+      "entidad": "Municipalidad Provincial de Lima",
+      "rucEntidad": "20131380894",
+      "proveedor": "CONSORCIO VÍA EXPRESA NORTE",
+      "rucProveedor": "20614921770",
+      "edadRucDias": 178,
+      "unicoPostor": false,
+      "montoSoles": 18900000,
+      "fechaBuenaPro": "2026-02-26",
+      "objeto": "Mantenimiento periódico de la Vía Expresa - tramo norte",
+      "region": "Lima",
+      "provincia": "Lima",
+      "distrito": "Lima",
+      "lat": -12.0608,
+      "lon": -77.0345,
+      "score": 58,
+      "banderas": [
+        {
+          "regla": "fraccionamiento",
+          "norma": "Art. 20 Reglamento Ley 32069",
+          "severidad": "media",
+          "evidencia": "5 órdenes al mismo contratista por mismo objeto en 23 días, suma > umbral",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D024-2023"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1340900-2026"
+    },
+    {
+      "id": "ALT-2026-0007",
+      "codigoconvocatoria": "1351200-2026",
+      "entidad": "Gobierno Regional de Piura",
+      "rucEntidad": "20484020611",
+      "proveedor": "CONSTRUCTORA DEL PACÍFICO NORTE SAC",
+      "rucProveedor": "20602345678",
+      "edadRucDias": 34,
+      "unicoPostor": true,
+      "montoSoles": 6700000,
+      "fechaBuenaPro": "2026-03-30",
+      "objeto": "Construcción del centro de salud Piura - Castilla",
+      "region": "Piura",
+      "provincia": "Piura",
+      "distrito": "Castilla",
+      "lat": -5.1936,
+      "lon": -80.6203,
+      "score": 88,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "alta",
+          "evidencia": "RUC creado hace 34 días, ganó contrato por S/. 6.7M",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "aportante_es_ganador",
+          "norma": "Ley 30689 - financiamiento de partidos políticos",
+          "severidad": "alta",
+          "evidencia": "Socio aportó S/. 35K al partido del gobernador regional en 2022",
+          "fuenteUrl": "https://claridadportal.onpe.gob.pe/",
+          "opinionOece": null
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1351200-2026"
+    },
+    {
+      "id": "ALT-2026-0008",
+      "codigoconvocatoria": "1370012-2026",
+      "entidad": "Municipalidad Distrital de Recuay",
+      "rucEntidad": "20171587029",
+      "proveedor": "TRANSPORTES Y SERVICIOS HUARAZ SAC",
+      "rucProveedor": "20603127480",
+      "edadRucDias": 290,
+      "unicoPostor": true,
+      "montoSoles": 540000,
+      "fechaBuenaPro": "2026-04-11",
+      "objeto": "Servicio de alquiler de maquinaria pesada",
+      "region": "Áncash",
+      "provincia": "Recuay",
+      "distrito": "Recuay",
+      "lat": -9.7218,
+      "lon": -77.4533,
+      "score": 71,
+      "banderas": [
+        {
+          "regla": "unico_postor_alto",
+          "norma": "Art. 27 Reglamento Ley 32069",
+          "severidad": "alta",
+          "evidencia": "Único postor con oferta al 98.5% del valor referencial",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D008-2025"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1370012-2026"
+    },
+    {
+      "id": "ALT-2026-0009",
+      "codigoconvocatoria": "1389560-2026",
+      "entidad": "Municipalidad Distrital de Wanchaq",
+      "rucEntidad": "20174892011",
+      "proveedor": "PROYECTOS DE INFRAESTRUCTURA SUR SAC",
+      "rucProveedor": "20602995118",
+      "edadRucDias": 89,
+      "unicoPostor": false,
+      "montoSoles": 3100000,
+      "fechaBuenaPro": "2026-02-15",
+      "objeto": "Construcción de mercado municipal Wanchaq",
+      "region": "Cusco",
+      "provincia": "Cusco",
+      "distrito": "Wanchaq",
+      "lat": -13.5311,
+      "lon": -71.9404,
+      "score": 67,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "media",
+          "evidencia": "RUC creado hace 89 días",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "plazo_corto",
+          "norma": "Art. 64 Reglamento Ley 32069",
+          "severidad": "media",
+          "evidencia": "Plazo convocatoria→presentación: 6 días (mínimo legal: 8)",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D037-2025"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1389560-2026"
+    },
+    {
+      "id": "ALT-2026-0010",
+      "codigoconvocatoria": "1410023-2026",
+      "entidad": "Municipalidad Distrital de Caraz",
+      "rucEntidad": "20162498770",
+      "proveedor": "EDIFICACIONES MODERNAS HUAYLAS EIRL",
+      "rucProveedor": "20614102983",
+      "edadRucDias": 18,
+      "unicoPostor": true,
+      "montoSoles": 1490000,
+      "fechaBuenaPro": "2026-04-22",
+      "objeto": "Construcción de cerco perimétrico complejo deportivo",
+      "region": "Áncash",
+      "provincia": "Huaylas",
+      "distrito": "Caraz",
+      "lat": -9.0464,
+      "lon": -77.8089,
+      "score": 93,
+      "banderas": [
+        {
+          "regla": "edad_ruc_baja",
+          "norma": "Heurística — modelo Funes",
+          "severidad": "alta",
+          "evidencia": "RUC creado hace 18 días, ganó contrato por S/. 1.49M",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": null
+        },
+        {
+          "regla": "unico_postor_alto",
+          "norma": "Art. 27 Reglamento Ley 32069",
+          "severidad": "alta",
+          "evidencia": "Único postor con oferta al 99.9% del valor referencial",
+          "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/",
+          "opinionOece": "D008-2025"
+        }
+      ],
+      "fuenteUrl": "https://contratacionesabiertas.osce.gob.pe/contracts/1410023-2026"
+    }
+  ],
+  "reportes": [
+    {
+      "id": "RPT-2026-0042",
+      "categoria": "obra_paralizada",
+      "descripcion": "Esta pista lleva 8 meses sin avanzar. Pusieron el cartel pero los trabajadores se fueron en agosto.",
+      "fotoUrl": "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800",
+      "lat": -9.5128,
+      "lon": -77.5295,
+      "region": "Áncash",
+      "fecha": "2026-04-12",
+      "confirmado": true
+    },
+    {
+      "id": "RPT-2026-0058",
+      "categoria": "obra_fantasma",
+      "descripcion": "El alcalde inauguró este colegio en Facebook hace dos meses pero por dentro está vacío, sin ventanas ni techo.",
+      "fotoUrl": "https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?w=800",
+      "lat": -9.1395,
+      "lon": -77.7472,
+      "region": "Áncash",
+      "fecha": "2026-04-28",
+      "confirmado": true
+    },
+    {
+      "id": "RPT-2026-0061",
+      "categoria": "obra_paralizada",
+      "descripcion": "Maquinaria oxidándose, sin obreros desde febrero.",
+      "fotoUrl": "https://images.unsplash.com/photo-1517089152318-42ec560349c0?w=800",
+      "lat": -13.4138,
+      "lon": -71.8505,
+      "region": "Cusco",
+      "fecha": "2026-05-02",
+      "confirmado": false
+    },
+    {
+      "id": "RPT-2026-0073",
+      "categoria": "funcionario_sospechoso",
+      "descripcion": "El subgerente maneja una camioneta nueva que no figura en su declaración jurada del año pasado.",
+      "lat": -9.0471,
+      "lon": -77.8094,
+      "region": "Áncash",
+      "fecha": "2026-05-09",
+      "confirmado": false
+    },
+    {
+      "id": "RPT-2026-0080",
+      "categoria": "irregularidad_general",
+      "descripcion": "El mercado se inauguró pero no tiene servicios. Comerciantes pagaron por puestos que no existen.",
+      "fotoUrl": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800",
+      "lat": -13.5315,
+      "lon": -71.9398,
+      "region": "Cusco",
+      "fecha": "2026-05-13",
+      "confirmado": false
+    },
+    {
+      "id": "RPT-2026-0085",
+      "categoria": "obra_paralizada",
+      "descripcion": "Un año exacto sin avance en la pista de la avenida principal.",
+      "lat": -9.276,
+      "lon": -77.6441,
+      "region": "Áncash",
+      "fecha": "2026-05-15",
+      "confirmado": false
+    }
+  ],
+  "convergencias": [
+    {
+      "id": "CNV-2026-001",
+      "alertaId": "ALT-2026-0001",
+      "reporteIds": [
+        "RPT-2026-0042"
+      ],
+      "lat": -9.5123,
+      "lon": -77.5298,
+      "resumen": "Alerta de único postor con RUC de 47 días coincide con reporte ciudadano de obra paralizada hace 8 meses."
+    },
+    {
+      "id": "CNV-2026-002",
+      "alertaId": "ALT-2026-0005",
+      "reporteIds": [
+        "RPT-2026-0058"
+      ],
+      "lat": -9.1386,
+      "lon": -77.7465,
+      "resumen": "Alerta de tres banderas rojas (RUC nuevo + único postor + socio sancionado) sobre obra que el alcalde declaró inaugurada en Facebook."
+    },
+    {
+      "id": "CNV-2026-003",
+      "alertaId": "ALT-2026-0009",
+      "reporteIds": [
+        "RPT-2026-0080"
+      ],
+      "lat": -13.5313,
+      "lon": -71.9401,
+      "resumen": "Mercado Wanchaq: alerta de plazo legal incumplido + reporte ciudadano de obra inaugurada sin servicios."
+    }
+  ],
+  "expediente_chira_piura": {
+    "alertaIdHint": null,
+    "codigoProceso": "01/2026-GRP-PECHP-406000",
+    "objeto": "ADQUISICIÓN DE MAQUINARIA PESADA — Expediente técnico 'Mejoramiento de los servicios operativos o misionales institucionales en la Dirección de Operación y Mantenimiento del PECHP, Distrito de Piura, Provincia de Piura' · CUI 2644512 · II Etapa Componente Equipamiento.",
+    "entidad": {
+      "ruc": "20154477536",
+      "nombre": "Proyecto Especial Chira Piura",
+      "ubicacion": "Panamericana Norte Km 3.5, Piura - Sullana"
+    },
+    "tipoProceso": "Procedimiento de Selección No Competitivo · Contratación Directa por Emergencia",
+    "fundamentoLegal": [
+      "Ley 32069 — Art. 55.1 lit. b (situación de emergencia)",
+      "Reglamento (D.S. 009-2025-EF) — Art. 100 lit. b",
+      "D.S. 005-2026-PCM — Estado de Emergencia por lluvias",
+      "D.S. 039-2026-PCM — Prórroga del estado de emergencia"
+    ],
+    "modalidadPago": "Suma Alzada · Pago Único",
+    "fechaConvocatoria": "2026-04-14",
+    "fechaPresentacion": "2026-04-15",
+    "fechaBuenaPro": "2026-04-15",
+    "cuantiaTotal": 7110018.88,
+    "fuenteFinanciamiento": "Recursos Ordinarios",
+    "items": [
+      {
+        "numero": 1,
+        "descripcion": "Excavadora Hidráulica Sobre Orugas, con Alcance Horizontal a Nivel de Suelo de 9 metros",
+        "descripcionCorta": "Excavadora hidráulica 9m alcance",
+        "cantidad": 2,
+        "unidad": "UND",
+        "cuantiaReferencial": 2042744.26,
+        "precioUnitarioReferencial": 1021372.13,
+        "especsRedFlag": "Homologación MTC del fabricante + emisiones Tier 3 + alcance 9m + potencia ≥ 210 HP → universo restringido a Caterpillar, Komatsu y similares de gama alta",
+        "marketRef": {
+          "promedio": 985000,
+          "rangoMin": 920000,
+          "rangoMax": 1080000,
+          "fuente": "Mediana Q1 2026 (CAT 320GC, Komatsu PC200 nuevas en Perú)",
+          "veredicto": "alineado",
+          "diferenciaPct": 3.7,
+          "nota": "Precio compatible con gama premium (Caterpillar/Komatsu). Marcas chinas (XCMG, SANY) hubieran ofertado ~25% menos pero no califican por especs MTC."
+        }
+      },
+      {
+        "numero": 2,
+        "descripcion": "Cargador Frontal Sobre Ruedas",
+        "descripcionCorta": "Cargador frontal",
+        "cantidad": 2,
+        "unidad": "UND",
+        "cuantiaReferencial": 1686074.62,
+        "precioUnitarioReferencial": 843037.31,
+        "especsRedFlag": "Mismas restricciones que el ítem 1 (homologación MTC + Tier 3)",
+        "marketRef": {
+          "promedio": 820000,
+          "rangoMin": 760000,
+          "rangoMax": 880000,
+          "fuente": "Mediana Q1 2026 (CAT 950GC, Komatsu WA320)",
+          "veredicto": "alineado",
+          "diferenciaPct": 2.8,
+          "nota": "Alineado con gama premium. Volvo y Hyundai HL están dentro del rango."
+        }
+      },
+      {
+        "numero": 3,
+        "descripcion": "Camión Rígido Volquete 6x4 de 15 m³",
+        "descripcionCorta": "Volquete 6×4 · 15 m³",
+        "cantidad": 4,
+        "unidad": "UND",
+        "cuantiaReferencial": 3381200,
+        "precioUnitarioReferencial": 845300,
+        "marketRef": {
+          "promedio": 695000,
+          "rangoMin": 600000,
+          "rangoMax": 790000,
+          "fuente": "Mediana Q1 2026 (FAW J6P, Hino 700, Mercedes Axor en Perú)",
+          "veredicto": "elevado",
+          "diferenciaPct": 21.6,
+          "nota": "+S/. 150K por unidad sobre la mediana de mercado. Los volquetes son commodity con múltiples marcas competidoras — no hay justificación técnica para el premium. Sobreprecio agregado: S/. 600K en las 4 unidades."
+        }
+      }
+    ],
+    "postores": [
+      {
+        "ruc": "20100028698",
+        "razonSocial": "FERREYROS SOCIEDAD ANÓNIMA",
+        "tipo": "persona_juridica",
+        "rnpVigente": true,
+        "ofertas": [
+          {
+            "itemNumero": 1,
+            "montoOfertado": 2042744.26,
+            "porcentajeReferencial": 100,
+            "admitida": true,
+            "calificada": true,
+            "ganador": true
+          },
+          {
+            "itemNumero": 2,
+            "montoOfertado": 1686074.62,
+            "porcentajeReferencial": 100,
+            "admitida": true,
+            "calificada": true,
+            "ganador": true
+          }
+        ],
+        "banderas": [
+          "Único postor en ítems 1 y 2",
+          "Oferta exactamente al 100% del valor referencial",
+          "Representante autorizado Caterpillar — gama coincide con especs MTC"
+        ]
+      },
+      {
+        "ruc": "20612103624",
+        "razonSocial": "CORPVECA S.A.C.",
+        "tipo": "persona_juridica",
+        "rnpVigente": true,
+        "ofertas": [
+          {
+            "itemNumero": 3,
+            "montoOfertado": 3381200,
+            "porcentajeReferencial": 100,
+            "admitida": true,
+            "calificada": true,
+            "ganador": true
+          }
+        ],
+        "banderas": [
+          "Único postor en ítem 3",
+          "Oferta exactamente al 100% del valor referencial",
+          "Sobreprecio del 22% sobre mediana de mercado (volquete commodity)"
+        ]
+      }
+    ],
+    "ganadores": [
+      {
+        "itemNumero": 1,
+        "postorRuc": "20100028698",
+        "postorNombre": "FERREYROS S.A.",
+        "monto": 2042744.26,
+        "fundamento": "Único postor admitido y calificado. Cumple experiencia y especificaciones técnicas conforme a numeral 3.5 del Capítulo III de las bases."
+      },
+      {
+        "itemNumero": 2,
+        "postorRuc": "20100028698",
+        "postorNombre": "FERREYROS S.A.",
+        "monto": 1686074.62,
+        "fundamento": "Único postor admitido y calificado. Cumple experiencia y especificaciones técnicas."
+      },
+      {
+        "itemNumero": 3,
+        "postorRuc": "20612103624",
+        "postorNombre": "CORPVECA S.A.C.",
+        "monto": 3381200,
+        "fundamento": "Único postor admitido y calificado. Cumple experiencia y especificaciones técnicas."
+      }
+    ],
+    "documentos": [
+      {
+        "tipo": "bases",
+        "nombre": "Bases Administrativas Estándar",
+        "fecha": "2026-04-14",
+        "paginas": 25,
+        "tamano": "21.7 MB",
+        "url": "/documentos/caso-chira-piura/bases-administrativas.pdf",
+        "agente": "document_parser_agent",
+        "resumenAgente": "Extrajo cuantía total (S/. 7.11M), 3 ítems, fuente RRO, modalidad suma alzada, especs técnicas detalladas en cap. III."
+      },
+      {
+        "tipo": "acta_buena_pro",
+        "nombre": "Acta de Otorgamiento de Buena Pro",
+        "fecha": "2026-04-15",
+        "paginas": 3,
+        "tamano": "866 KB",
+        "url": "/documentos/caso-chira-piura/acta-buena-pro.pdf",
+        "agente": "document_parser_agent",
+        "resumenAgente": "2 postores únicos. Cada ítem con 1 solo postor. Todos al 100% del valor referencial. Sin descuento competitivo."
+      },
+      {
+        "tipo": "reporte_buena_pro",
+        "nombre": "Reporte de Otorgamiento de Buena Pro",
+        "fecha": "2026-04-15",
+        "tamano": "412 KB",
+        "url": "/documentos/caso-chira-piura/reporte-buena-pro.pdf",
+        "agente": "document_parser_agent",
+        "resumenAgente": "Confirma adjudicación. Ferreyros se lleva ítems 1+2 (S/. 3.73M), Corpveca ítem 3 (S/. 3.38M)."
+      }
+    ],
+    "marketAnalysis": {
+      "totalOfertado": 7110018.88,
+      "totalEstimadoMercado": 6490000,
+      "sobreprecio": 620018.88,
+      "sobreprecioPct": 9.6,
+      "veredicto": "elevado",
+      "notas": [
+        "Excavadora y cargador frontal: alineados con gama premium (Caterpillar). Justificable por homologación MTC.",
+        "Volquetes: 22% sobre mediana de mercado. Commodity con múltiples marcas calificables — no se justifica el premium.",
+        "Patrón sistemático: las 3 ofertas son exactamente al 100% del valor referencial. Sin competencia real.",
+        "Especificaciones técnicas restrictivas reducen el universo de proveedores → único postor por ítem."
+      ]
+    }
+  },
+  "generated_at": "2026-05-17T19:16:08.218Z"
+}

@@ -74,7 +74,7 @@ A **coordinator** delegates to specialized sub-agents; each runs on **Gemini 2.5
 ## 🔌 MCP server — Vigía as a data source, not just an app
 
 Beyond the web app, Vigía ships a **remote [Model Context Protocol](https://modelcontextprotocol.io)
-server** (`services/vigia-mcp`, on Cloud Run) that exposes its risk signals and evidence as
+server** (`backend/mcp`, on Cloud Run) that exposes its risk signals and evidence as
 **read-only tools** to any MCP-compatible LLM client. A journalist or prosecutor can ask, from their
 own AI assistant, *"show me the red alerts in Áncash"* and get them back **with their official
 evidence attached** — no scraping, no UI.
@@ -225,22 +225,26 @@ Trust in an 11-agent system depends on being able to **see and evaluate every de
 
 ```
 vigia-peru/
-├── frontend/                          # Web app (Next.js 14): map, dossiers, citizen reports
-├── functions/agent-orchestrator-adk/  # 11-agent orchestrator (Python + ADK)
-│   ├── agents/                        #   one subfolder per agent (prompt + config)
-│   └── tools/                         #   OCDS, Document AI, market, legal RAG, persistence
-├── api/                               # Read API (Hono/TS) over Cloud SQL
-├── downloader/                        # Residential relay in Lima (FastAPI) — .gob.pe WAF bypass
-├── services/vigia-mcp/                # Remote MCP server (exposes data as read-only tools)
-├── docs/
-│   ├── DATA.md                        # Data sources, tables, join keys (detailed)
-│   └── img/                           # Architecture & observability screenshots
-├── ARQUITECTURA.md                    # GCP architecture + production roadmap (ES)
-├── SOLUCION.md                        # How it works: end-to-end data flow (ES)
-└── OBSERVABILITY.md                   # Observability setup detail — Arize/Phoenix (ES)
+├── frontend/                  # Web app (Next.js 14): map, dossiers, citizen reports · Cloud Run
+├── backend/
+│   ├── agent/                 # 11-agent orchestrator (Python + Google ADK) · Cloud Run
+│   │   ├── agents/            #   one subfolder per agent (prompt + config)
+│   │   ├── tools/             #   OCDS, Document AI, market, legal RAG, persistence
+│   │   └── deterministic.py   #   the pipeline sequence, in code
+│   ├── api/                   # Read API (Hono/TS) over Cloud SQL · Cloud Run
+│   ├── mcp/                   # Remote MCP server (read-only tools for external LLM clients) · Cloud Run
+│   ├── relay/                 # Residential relay in Lima (FastAPI) — .gob.pe WAF bypass · VPS
+│   ├── db/                    # Postgres schema: migrations/ (01..08), schemas/ (external datasets), apply_all.py
+│   └── scripts/               # Ingestion, seed, dataset catalog, offline evals
+├── infrastructure/
+│   ├── terraform/             # GCP platform as code (Cloud SQL, buckets, secrets, IAM, Cloud Run)
+│   ├── deploy/                # One deploy script per service (gcloud run deploy --source)
+│   └── docker-compose.yml     # Local Postgres + PostGIS for development
+├── docs/                      # DATA.md, DATASET_MAP.md, MARCO_NORMATIVO.md, SUBMISSION.md, img/
+├── ARQUITECTURA.md            # GCP architecture as built (ES)
+├── SOLUCION.md                # How it works: end-to-end data flow (ES)
+└── OBSERVABILITY.md           # Observability setup detail — Arize/Phoenix (ES)
 ```
-
----
 
 ## ⚖️ Non-negotiable rules (legal + ethical)
 
@@ -264,11 +268,18 @@ Each component ships a `.env.example`. In broad strokes:
 # Frontend
 cd frontend && npm install && cp .env.example .env.local && npm run dev
 
+# Local database (Postgres 14 + PostGIS + pgvector)
+docker compose -f infrastructure/docker-compose.yml up -d
+python backend/db/apply_all.py            # PGHOST=127.0.0.1 PGPASSWORD=vigia by default
+
 # Read API
-cd api && npm install && cp .env.example .env && npm run dev
+cd backend/api && npm install && cp .env.example .env && npm run dev
 
 # Orchestrator (requires GCP / Vertex AI credentials)
-cd functions/agent-orchestrator-adk && pip install -r requirements.txt
+cd backend/agent && pip install -r requirements.txt && functions-framework --target=orchestrate
+
+# Deploy (see infrastructure/README.md)
+bash infrastructure/deploy/frontend.sh
 ```
 
 > Credentials (Cloud SQL, Vertex, Document AI, Arize/Phoenix) live in environment variables or

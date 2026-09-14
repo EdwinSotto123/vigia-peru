@@ -1,0 +1,28 @@
+# Entorno local de Vigía Perú.
+#   docker compose -f infrastructure/docker-compose.yml up -d
+#   python backend/db/apply_all.py        # PGHOST=127.0.0.1 PGPASSWORD=vigia (defaults abajo)
+#
+# Solo levanta la base de datos. El frontend, la API y el orquestador se corren
+# con sus propios comandos (ver README raíz) porque necesitan credenciales GCP.
+services:
+  db:
+    build:
+      context: ./docker
+      dockerfile: postgres.Dockerfile
+    container_name: vigia-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vigia
+      POSTGRES_DB: vigia
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - vigia-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vigia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  vigia-pgdata:

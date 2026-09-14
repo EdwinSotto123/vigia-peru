@@ -2,7 +2,7 @@
 
 > Documento de visión técnica para entender **qué hace** Vigía Perú, **cómo fluyen los
 > datos** y **cómo está construido**. Para el detalle de infraestructura ver
-> [`ARQUITECTURA.md`](ARQUITECTURA.md); para el dataset local, [`DATASET_MAP.md`](DATASET_MAP.md);
+> [`ARQUITECTURA.md`](ARQUITECTURA.md); para el dataset local, [`docs/DATA.md`](docs/DATA.md);
 > para la visión de producto, [`proyecto/proyecto.md`](proyecto/proyecto.md).
 
 ---

@@ -27,7 +27,7 @@ interface Agent {
   model: "pro" | "flash";
 }
 
-// Agentes reales del backend en producción (functions/agent-orchestrator-adk/agents.py)
+// Agentes reales del backend en producción (backend/agent/agents.py)
 const AGENTS: Agent[] = [
   {
     id: "orchestrator",

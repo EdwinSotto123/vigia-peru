@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Aplica los .sql en orden contra la BD `vigia` en Cloud SQL.
+# Requiere variables:
+#   PGHOST       = IP pública de la instancia Cloud SQL
+#   PGUSER       = postgres (por defecto)
+#   PGPASSWORD   = la que generaste al crear la instancia
+#   PGDATABASE   = vigia
+# Uso:
+#   PGHOST=34.x.x.x PGPASSWORD='xxx' bash 99_apply_all.sh
+
+set -e
+cd "$(dirname "$0")/migrations"
+
+PSQL_FLAGS="-h ${PGHOST:-127.0.0.1} -U ${PGUSER:-postgres} -d ${PGDATABASE:-vigia} --set ON_ERROR_STOP=on"
+
+for f in 01_extensions.sql 02_core.sql 03_contrataciones.sql 04_alertas_red.sql 05_mef_cache.sql 06_documentos_opiniones.sql 07_alertas_extras.sql 08_penalidades.sql; do
+  echo "→ aplicando $f"
+  psql ${PSQL_FLAGS} -f "$f"
+done
+
+echo "✓ schema aplicado"

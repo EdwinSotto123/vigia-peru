@@ -49,3 +49,19 @@ stream-body.txt
 .idea/
 .vscode/
 *.swp
+
+# ─── Config local de agentes de IA / notas de trabajo (no se publican) ─────
+.agents/
+.codex/
+.gemini/
+.playwright-mcp/
+catalog_summary.txt
+
+# ─── PDFs de demo (pesados, se sirven desde GCS en prod) ────────────────
+frontend/public/documentos/
+
+# ─── Terraform (estado y credenciales locales) ─────────────────
+infrastructure/terraform/.terraform/
+infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/imports.tf
+infrastructure/terraform/*.tfstate*

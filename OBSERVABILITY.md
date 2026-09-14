@@ -10,9 +10,9 @@ Hackathon: **Google Cloud Rapid Agent Hackathon** · Track: **Arize**. Stack: **
 
 ## 1. Tracing (OpenInference → Phoenix + Arize AX)
 
-El orquestador ADK (`functions/agent-orchestrator-adk/`) está instrumentado con
+El orquestador ADK (`backend/agent/`) está instrumentado con
 **OpenInference** (`GoogleGenAIInstrumentor`) en
-[`arize_observability.py`](functions/agent-orchestrator-adk/arize_observability.py).
+[`arize_observability.py`](backend/agent/arize_observability.py).
 Cada run emite un árbol de spans: `invocation` → `agent_run` → `call_llm` /
 `execute_tool`, con prompts, tokens y latencia.
 
@@ -47,7 +47,7 @@ Evaluadores creados en Arize (vía `ax` CLI, reproducible):
 | `tono_no_acusatorio` | guardrail legal: ¿no acusa de delito? | ok / acusatorio |
 
 Además, un eval offline reproducible:
-[`scripts/evals_vigia.py`](scripts/evals_vigia.py) (stdlib + Gemini) corre los 4
+[`backend/scripts/evals_vigia.py`](backend/scripts/evals_vigia.py) (stdlib + Gemini) corre los 4
 evaluadores sobre los análisis y reporta los % de calidad.
 
 ## 4. Bonus — auto-mejora (self-improvement loop)
