@@ -11,7 +11,7 @@
 substitutions:
   _REGION: us-central1
   _SQL: vivid-spot-480905-a4:us-central1:vigia-db
-  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp
+  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp,dispatcher
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -58,5 +58,21 @@ steps:
         [[ ",${_DEPLOY}," == *",mcp,"* ]] || { echo "skip mcp"; exit 0; }
         gcloud run deploy vigia-mcp --source backend/mcp --region ${_REGION} --allow-unauthenticated \
           --add-cloudsql-instances ${_SQL} --quiet
+
+  - id: dispatcher
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",dispatcher,"* ]] || { echo "skip dispatcher"; exit 0; }
+        # Cloud Run JOB (no servicio): lo dispara Cloud Scheduler vigia-dispatcher-run cada 5 min.
+        # $$ = dólar literal para bash (Cloud Build solo sustituye ${_X})
+        AGENT_URL="$$(gcloud run services describe agent-orchestrator-adk --region ${_REGION} --format='value(status.url)')"
+        gcloud run jobs deploy vigia-dispatcher --source backend/dispatcher --region ${_REGION} \
+          --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 512Mi \
+          --set-cloudsql-instances ${_SQL} \
+          --set-env-vars "AGENT_URL=$${AGENT_URL},PGHOST=/cloudsql/${_SQL},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=2,DISPATCHER_MAX_MINUTES=55" \
+          --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
 
 timeout: 2400s

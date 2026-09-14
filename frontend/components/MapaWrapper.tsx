@@ -12,14 +12,17 @@ import {
   ChevronUp,
   ChevronDown,
   MessageSquareWarning,
-  MapPin as MapPinIcon,
+  Landmark,
 } from "lucide-react";
 import { REGIONES, type MetricaId, metricLabel } from "@/lib/peru-data";
 import { formatSoles, ALERTAS_MOCK } from "@/lib/mock-data";
 import { getReportes, getAlertas } from "@/lib/api-client";
+import { getZonas, ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado } from "@/lib/financiamiento";
 import { coordsForRegionWithJitter } from "@/lib/region-coords";
 import { AgentsRibbon } from "./AgentsRibbon";
 import { RegionDetailPanel } from "./RegionDetailPanel";
+import { UBIGEO_REGION } from "./mapa/region-match";
+import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import { Marquee } from "./magicui/Marquee";
 import { cn } from "@/lib/utils";
 import type { MapPoint } from "./PeruChoropleth";
@@ -36,9 +39,19 @@ const METRICS: { id: MetricaId; label: string; icon: React.ReactNode }[] = [
   { id: "score", label: "Score", icon: <Activity size={14} /> },
 ];
 
-export function MapaWrapper() {
+export function MapaWrapper({
+  initialRegionId = null,
+  initialTab,
+}: {
+  /** Región preseleccionada (p. ej. desde `/app/mapa?region=ancash`). */
+  initialRegionId?: string | null;
+  /** Pestaña inicial del panel de zona. */
+  initialTab?: ZonaTab;
+} = {}) {
   const [metric, setMetric] = useState<MetricaId>("alertas");
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(
+    initialRegionId && REGIONES.some((r) => r.id === initialRegionId) ? initialRegionId : null,
+  );
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
   const [provinciaActiva, setProvinciaActiva] = useState<any | null>(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -46,6 +59,9 @@ export function MapaWrapper() {
   // Toggle de capas de pines
   const [showAlertas, setShowAlertas] = useState(true);
   const [showDenuncias, setShowDenuncias] = useState(true);
+  // Capa opcional: pinta cada departamento por estado de financiamiento de su auditoría.
+  const [showFinanciamiento, setShowFinanciamiento] = useState(false);
+  const [zonas, setZonas] = useState<Zona[] | null>(null);
   const [reportes, setReportes] = useState<any[]>([]);
   const [alertasApi, setAlertasApi] = useState<any[]>([]);
 
@@ -60,6 +76,24 @@ export function MapaWrapper() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // Estado de financiamiento por departamento: se pide una sola vez, al activar la capa.
+  useEffect(() => {
+    if (!showFinanciamiento || zonas !== null) return;
+    let alive = true;
+    getZonas("departamento").then((z) => { if (alive) setZonas(z ?? []); });
+    return () => { alive = false; };
+  }, [showFinanciamiento, zonas]);
+
+  const fillFinanciamiento = useMemo<Record<string, string> | null>(() => {
+    if (!showFinanciamiento) return null;
+    const out: Record<string, string> = {};
+    for (const z of zonas ?? []) {
+      const regionId = UBIGEO_REGION[z.ubigeo];
+      if (regionId) out[regionId] = ESTADO_FILL[z.estado];
+    }
+    return out;
+  }, [showFinanciamiento, zonas]);
 
   // Construir lista de pines unificada.
   // Alertas: priorizamos API real con coords derivadas de la región contratante;
@@ -127,7 +161,9 @@ export function MapaWrapper() {
     [],
   );
 
-  const tickerAlertas = [...ALERTAS_MOCK].sort((a, b) => b.score - a.score).slice(0, 8);
+  const tickerAlertas = [...(alertasApi.length > 0 ? alertasApi : ALERTAS_MOCK)]
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 8);
 
   // Abre el drawer móvil cuando se selecciona una región
   const handleSelectRegion = (id: string | null) => {
@@ -148,9 +184,9 @@ export function MapaWrapper() {
           en vivo
         </div>
         <Marquee className="[--duration:60s] [--gap:2.5rem] pl-24" pauseOnHover>
-          {tickerAlertas.map((a) => (
+          {tickerAlertas.map((a: any) => (
             <div
-              key={a.id}
+              key={a.id ?? a.codigo}
               className="flex items-center gap-2 whitespace-nowrap text-xs"
             >
               <span className="rounded bg-amber-soft px-1.5 py-0.5 font-mono text-[10px] text-amber">
@@ -219,6 +255,17 @@ export function MapaWrapper() {
               <span className="hidden sm:inline">Denuncias</span>
               <span className="font-mono text-[10px] opacity-80">{reportes.length}</span>
             </button>
+            <button
+              onClick={() => setShowFinanciamiento((v) => !v)}
+              title={`${showFinanciamiento ? "Ocultar" : "Mostrar"} estado de financiamiento de la auditoría por región`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                showFinanciamiento ? "bg-moss text-paper" : "text-mute hover:bg-paper hover:text-ink",
+              )}
+            >
+              <Landmark size={13} />
+              <span className="hidden sm:inline">Financiamiento</span>
+            </button>
           </div>
 
           {/* Breadcrumb o quick totals */}
@@ -271,6 +318,7 @@ export function MapaWrapper() {
                   setMobileDrawerOpen(true);
                 }}
                 points={points}
+                fillOverride={fillFinanciamiento}
               />
             </div>
 
@@ -292,33 +340,49 @@ export function MapaWrapper() {
                 Visualizando
               </div>
               <div className="text-right font-serif text-sm font-bold text-ink">
-                {metricLabel(metric)}
+                {showFinanciamiento ? "Estado de financiamiento" : metricLabel(metric)}
               </div>
             </div>
 
             {/* Legend (vista país) */}
             {!selectedRegion && (
               <div className="absolute bottom-3 right-3 z-10 animate-fadeIn space-y-2 rounded-2xl border border-line bg-paperSoft/95 px-3 py-2 backdrop-blur-sm sm:bottom-4 sm:right-4">
-                <div>
-                  <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-mute">
-                    Intensidad
+                {showFinanciamiento ? (
+                  <div>
+                    <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-mute">
+                      Auditoría por región
+                    </div>
+                    <div className="space-y-0.5 text-[9px] text-mute">
+                      {(["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[]).map((e) => (
+                        <div key={e} className="flex items-center gap-1.5">
+                          <span className="inline-block h-2.5 w-2.5 rounded-sm border border-paperEdge" style={{ background: ESTADO_FILL[e] }} />
+                          <span>{ESTADO_LABEL[e]}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {["#E8DFC7", "#D9B97A", "#C28840", "#A05A1F", "#7A2E18", "#4A150C"].map(
-                      (c) => (
-                        <span
-                          key={c}
-                          className="h-3 w-5 rounded-sm border border-paperEdge"
-                          style={{ background: c }}
-                        />
-                      ),
-                    )}
+                ) : (
+                  <div>
+                    <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-mute">
+                      Intensidad
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {["#E8DFC7", "#D9B97A", "#C28840", "#A05A1F", "#7A2E18", "#4A150C"].map(
+                        (c) => (
+                          <span
+                            key={c}
+                            className="h-3 w-5 rounded-sm border border-paperEdge"
+                            style={{ background: c }}
+                          />
+                        ),
+                      )}
+                    </div>
+                    <div className="mt-1 flex justify-between text-[9px] text-mute">
+                      <span>0</span>
+                      <span>más alertas</span>
+                    </div>
                   </div>
-                  <div className="mt-1 flex justify-between text-[9px] text-mute">
-                    <span>0</span>
-                    <span>más alertas</span>
-                  </div>
-                </div>
+                )}
                 {(showAlertas || showDenuncias) && points.length > 0 && (
                   <div className="border-t border-line pt-2">
                     <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">
@@ -379,6 +443,8 @@ export function MapaWrapper() {
               onClose={() => handleSelectRegion(null)}
               onClearProvincia={() => setProvinciaActiva(null)}
               alertasApi={alertasApi}
+              reportes={reportes}
+              initialTab={initialTab}
             />
           </aside>
 
@@ -420,6 +486,8 @@ export function MapaWrapper() {
                     onClose={() => handleSelectRegion(null)}
                     onClearProvincia={() => setProvinciaActiva(null)}
                     alertasApi={alertasApi}
+                    reportes={reportes}
+                    initialTab={initialTab}
                   />
                 </div>
               </div>

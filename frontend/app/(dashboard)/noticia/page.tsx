@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles,
   Copy,
@@ -19,6 +19,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { FLAGS } from "@/lib/flags";
 
 const TONOS = [
   { id: "investigativo", label: "Investigativo", hint: "Sobrio, factual, estilo OjoPúblico" },
@@ -33,6 +34,12 @@ const LARGOS = [
 ];
 
 export default function NoticiaPage() {
+  const router = useRouter();
+  // Herramienta interna: sin el flag editorial, esta ruta no existe para el público.
+  useEffect(() => {
+    if (!FLAGS.editorial) router.replace("/app/mapa");
+  }, [router]);
+  if (!FLAGS.editorial) return null;
   return (
     <Suspense fallback={<div className="container-page py-10">Cargando…</div>}>
       <NoticiaInner />

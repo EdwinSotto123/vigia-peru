@@ -1,13 +1,54 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Clock, ShieldCheck, Share2 } from "lucide-react";
+import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { Avatar } from "@/components/financiar/RankingTable";
-import { formatPEN, getComprobante, pct } from "@/lib/financiamiento";
+import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
+import { CompartirButton } from "@/components/auditoria/CompartirButton";
+import { formatPEN, getComprobante, pct, type Comprobante } from "@/lib/financiamiento";
+import { getProcesamientos, type Procesamiento } from "@/lib/auditoria";
 
 export const revalidate = 30;
 
 export async function generateMetadata({ params }: { params: { codigo: string } }) {
-  return { title: `Comprobante de impacto ${params.codigo.toUpperCase()} — Vigía Perú` };
+  const codigo = params.codigo.toUpperCase();
+  const c = await getComprobante(codigo);
+  const description = c
+    ? `${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`
+    : "Comprobante público de una auditoría financiada en Vigía Perú.";
+  return {
+    title: `Comprobante de impacto ${codigo} — Vigía Perú`,
+    description,
+    openGraph: { title: c ? `Auditoría financiada por ${c.financiador}` : `Comprobante de impacto ${codigo}`, description },
+    twitter: { card: "summary_large_image" },
+  };
+}
+
+/**
+ * Semilla del tablero en vivo a partir del detalle del comprobante: así la página
+ * pinta la lista al instante y sigue funcionando si el endpoint de procesamientos
+ * no responde (el tablero la reemplaza en cuanto llega la primera respuesta).
+ */
+function semillaDesdeComprobante(c: Comprobante): Procesamiento[] {
+  return c.detalle.map((k) => ({
+    ocid: k.ocid,
+    estado: k.procesadaAt ? "procesado" : "encolado",
+    faseActual: k.procesadaAt ? "final" : null,
+    faseIndex: k.procesadaAt ? 10 : null,
+    iniciadoAt: null,
+    finalizadoAt: k.procesadaAt,
+    intentos: 0,
+    contribucionCodigo: c.codigo,
+    financiador: c.financiador,
+    financiadorVisible: true,
+    ubigeo: c.ubigeo,
+    zona: c.zona,
+    titulo: k.titulo,
+    entidad: k.entidad,
+    montoPen: k.valorReferencial,
+    alertaCodigo: k.alertaCodigo,
+    score: k.score,
+    banderas: k.banderas,
+  }));
 }
 
 const ESTADO: Record<string, { label: string; tone: string }> = {
@@ -24,10 +65,14 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
   if (!c) notFound();
   const est = ESTADO[c.estado] ?? { label: c.estado, tone: "text-mute" };
   const p = pct(c.resumen.procesados, c.contratos);
+  // El tablero en vivo arranca con lo que ya sabe el API de procesamientos; si aún no
+  // responde (o la contribución no tiene asignaciones), usa el detalle del comprobante.
+  const enVivo = await getProcesamientos({ codigo: c.codigo, limit: 300 });
+  const semilla = enVivo && enVivo.length ? enVivo : semillaDesdeComprobante(c);
 
   return (
     <div className="container-page py-10">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <div className="rounded-3xl border border-line bg-paper p-8 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -66,31 +111,17 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             <div className="h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
           </div>
 
-          {/* contratos */}
+          {/* contratos en vivo */}
           <div className="mt-8">
             <h2 className="font-semibold text-ink">Contratos procesados con este aporte</h2>
-            {c.detalle.length ? (
-              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line">
-                {c.detalle.map((k) => (
-                  <li key={k.ocid} className="flex items-center gap-3 px-4 py-3 text-sm">
-                    <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${k.procesadaAt ? (k.banderas > 0 ? "bg-rust" : "bg-moss") : "bg-line"}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-ink">{k.titulo ?? k.ocid}</div>
-                      <div className="text-[11px] text-mute">{k.entidad ?? "—"} · <span className="font-mono">{k.ocid}</span>{k.valorReferencial ? ` · ${formatPEN(k.valorReferencial)}` : ""}</div>
-                    </div>
-                    <div className="text-right text-[11px]">
-                      {k.procesadaAt ? (
-                        k.alertaCodigo ? <Link href={`/app/convocatoria/${encodeURIComponent(k.ocid)}`} className="font-mono text-ink hover:underline">{k.banderas} señales →</Link> : <span className="text-mute">procesado</span>
-                      ) : <span className="text-mute">en cola</span>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-mute">
-                {c.estado === "pendiente_pago" ? "Los contratos se asignan al confirmar el pago." : "Esperando contratos nuevos en la cola de esta zona."}
-              </p>
-            )}
+            <p className="mt-0.5 text-[13px] text-mute">
+              {c.estado === "pendiente_pago"
+                ? "Los contratos se asignan al confirmar el pago. Desde ese momento verás aquí cada uno avanzar en vivo."
+                : "Cada contrato pasa de la cola al análisis y al dictamen. Haz clic en uno para verlo fase por fase."}
+            </p>
+            <div className="mt-4">
+              <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
+            </div>
           </div>
 
           <div className="mt-8 flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[13px] text-mute">
@@ -98,9 +129,14 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             <span>Este aporte financió capacidad de procesamiento. Los contratos se asignaron por antigüedad y los resultados fueron producidos por el pipeline de Vigía Perú sin intervención del financiador.</span>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-mute"><Share2 size={14} /> vigia.pe/impacto/{c.codigo}</span>
-            <Link href="/financiar" className="rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
+          <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
+            <CompartirButton
+              path={`/impacto/${c.codigo}`}
+              titulo={`Auditoría financiada por ${c.financiador} · Vigía Perú`}
+              texto={`${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`}
+            />
+            <span className="font-mono text-[12px] text-mute">vigia.pe/impacto/{c.codigo}</span>
+            <Link href="/financiar" className="ml-auto rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
           </div>
         </div>
       </div>

@@ -14,7 +14,7 @@ backend/scrapers/
 ├── pnda_visitas/        ✅ probado   registro de visitas en línea (mensual)  → visitas_entidades
 ├── pnda_dji/            ⚙ listo     declaraciones juradas de intereses      → dji_funcionarios / dji_empleos
 ├── pnda_oece/           ⚙ listo     datasets OECE (ofertantes, consorcios, SICAN, obras…) → crudos
-├── oece_ocds/           ⚙ listo     API OCDS, releases nuevos por fecha/región → convocatorias
+├── oece_ocds/           ✅ probado   API OCDS, releases por fecha de convocatoria → convocatorias + entidades con ubigeo (cola real)
 ├── mef_presupuesto/     ⚙ listo     API MEF → mef-budget.json + mef_* en DB
 ├── onpe_claridad/       🧭 esqueleto Playwright sobre Claridad (Cloudflare) → onpe_aportantes
 ├── jne_infogob/         🧭 esqueleto Playwright sobre Infogob (SPA)         → jne_candidaturas
@@ -45,7 +45,8 @@ sin navegador.
 
 | Tabla / carpeta local | Fuente real | Acceso hoy | Pipeline | Estado |
 |---|---|---|---|---|
-| `convocatorias`, `postores`, `convocatoria_items` | OECE Contrataciones Abiertas — API OCDS `contratacionesabiertas.oece.gob.pe/api/v1` | ✅ REST sin auth desde PE · ❌ 403 desde GCP (WAF) → relay Lima | `oece_ocds` | en uso (orquestador) |
+| `convocatorias`, `entidades` (cola real, todo el Perú, con ubigeo distrital) | OECE Contrataciones Abiertas — API OCDS `contratacionesabiertas.oece.gob.pe/api/v1/releasesAfter` | ✅ REST sin auth desde PE · ❌ 403 desde GCP (WAF) → laptop/VPS | `oece_ocds` | **probado** (backfill 90 días 2026-09-14) |
+| `postores`, `convocatoria_items`, documentos | OECE — API OCDS `record/<ocid>` (expediente completo) | ídem · relay Lima | orquestador (`tools/ocds.py`) | en uso (al analizar) |
 | `dataset/{datos_de_la_convocatoria, adjudicacion, contratos, ordenes, PAC, …}` | CONOSCE / `bi.seace.gob.pe` (datos abiertos SEACE) | 🟡 401 anónimo — descarga manual con usuario | — | snapshot mayo 2026 |
 | `dataset/listdo_de_ofertantes`, `proveedores_y_consorcios`, `sican_*`, `PRONUNCIAMIENTOS` | PNDA — datasets OECE | ✅ CSV/XLSX directo | `pnda_oece` | listo |
 | `rnp_conformacion_juridica` (1.44 M) | OECE RNP — conformación jurídica (portal RNP / CONOSCE) | 🟡 no está en PNDA; descarga manual | — | snapshot |
@@ -75,7 +76,7 @@ lo deja listo para el `compliance_agent`.
 
 | Pipeline | Cuándo | Por qué |
 |---|---|---|
-| `oece_ocds` | diario 06:00 | releases nuevos del día anterior, por región piloto |
+| `oece_ocds` | diario 06:00 | convocatorias de los últimos 7 días (ventana rodante, upsert idempotente), todo el Perú → `infrastructure/deploy/scrapers-job.sh` |
 | `pnda_sancionados` | semanal | el Tribunal resuelve todas las semanas |
 | `pnda_visitas` | mensual, día 15 | la PNDA publica el mes cerrado con ~2 semanas de retraso |
 | `pnda_dji` | mensual | Contraloría actualiza los CSV cada 1-2 meses |
@@ -85,9 +86,54 @@ lo deja listo para el `compliance_agent`.
 | `jne_infogob` | por proceso electoral | 2026: generales (abril) y regionales-municipales (octubre) |
 
 Dónde correrlos: **no en GCP** (los `.gob.pe` bloquean IPs de nube). Opciones: el VPS
-de Lima (`backend/relay`) con `cron`, o una laptop con `Task Scheduler`. Con
+de Lima (`backend/relay`) con `cron`, o una laptop con `Task Scheduler` — en ambos casos con
+`infrastructure/deploy/scrapers-job.sh` y la IP del host en `authorized-networks` de Cloud SQL
+(`gcloud sql instances patch vigia-db --authorized-networks=<IP>/32`). Con
 `SCRAPER_GCS_BUCKET` los crudos quedan en GCS y la carga a Cloud SQL puede correr
 después desde un Cloud Run Job.
+
+## Cola real (`oece_ocds`) — de dónde salen los contratos que se financian
+
+La cola de auditoría (`cola_auditoria` → `zona_estado` → mapa y `/financiar/[ubigeo]`) se
+llena con **todas las convocatorias del Perú** publicadas en la API OCDS del OECE, mapeadas
+al distrito de la entidad convocante. Es una ingesta *liviana*: no llama a SUNAT ni baja
+documentos; el análisis completo lo hace el orquestador cuando un aporte financia el contrato.
+
+Lo que se verificó de la API (2026-09-14, desde IP peruana):
+
+| Endpoint | Sirve para | Gotcha |
+|---|---|---|
+| `GET /api/v1/releasesAfter?size=100&startDate=D&endDate=D` | **backfill y diario** | `startDate`/`endDate` filtran por `tender.tenderPeriod.startDate` (fecha de convocatoria), inclusivos. Cursor en `links.next`; sin tope de resultados. |
+| `GET /api/v1/releases?page=N&date_gte=D` | explorar a mano | Devuelve **siempre 20** por página (ignora `limit`/`size`) y corta en **10 000** resultados. No usar para volumen. |
+| `GET /api/v1/record/<ocid>` | expediente completo (orquestador) | 403 desde GCP → relay Lima. |
+
+Detalles que importan:
+
+- Un proceso aparece en muchos releases (planning, tender, award… ~10 por proceso): se deduplica
+  por ocid quedándose con el release más reciente. Un día hábil ≈ 3 000-5 000 releases ≈ 250-400 convocatorias.
+- `convocatorias.ocid` guarda el **sufijo corto** del OCID (`1249710`, `2026-10404-12`), igual que
+  `tools/_core._short_ocid` en el orquestador: así la alerta que persiste el pipeline cierra la asignación.
+- `parties[buyer].address = {department, region (=provincia), locality (=distrito)}` →
+  `_core/ubigeo.py` resuelve el ubigeo INEI por nombre normalizado (tildes, guiones, mayúsculas) y
+  por prefijo cuando el OCDS trunca el distrito (`SANTA CRUZ DE TOLED`). Backfill 2026-06-15 → 09-14:
+  **18 370 convocatorias, 100 % con ubigeo, 99,5 % a nivel distrito**; los pocos a nivel provincia son
+  distritos nuevos que faltan en `backend/db/seed/zonas.csv` (p. ej. San Antonio, Mariscal Nieto, 180107).
+- `ON CONFLICT` no pisa lo que ya cargó el orquestador (objeto, cuantía, `ocds_payload` completo);
+  sólo completa vacíos y actualiza `estado_tender`.
+- Al final llama `refresh_financiamiento()` (≈30 s con 18 k filas): el mapa y `/financiamiento/estado` quedan al día.
+- 429/5xx/timeouts: reintentos progresivos (2 → 40 s) además del `Retry` de la sesión.
+
+```bash
+python -m backend.scrapers.oece_ocds.pipeline --since 2026-09-13 --max-pages 2 --dry-run  # lista tríos sin ubigeo
+python -m backend.scrapers.oece_ocds.pipeline --since 2026-06-15 --until 2026-07-31       # backfill (≈5 min / 45 días)
+python -m backend.scrapers.oece_ocds.pipeline                                             # diario: últimos 7 días
+bash infrastructure/deploy/scrapers-job.sh                                                # lo que corre el cron
+```
+
+**Dónde corre**: no en GCP. `infrastructure/deploy/scrapers-job.sh` está pensado para `crontab` en el
+VPS de Lima o Task Scheduler + Git Bash en una laptop. La IP pública del host tiene que estar en
+`authorized-networks` de Cloud SQL: `gcloud sql instances patch vigia-db --authorized-networks=<IP>/32`
+(la contraseña la lee de `.cloudsql-password` o `PGPASSWORD`).
 
 ## Cómo agregar una fuente
 

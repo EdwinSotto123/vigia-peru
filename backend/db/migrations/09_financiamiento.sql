@@ -217,8 +217,10 @@ END $$;
 -- Cuando el pipeline persiste una alerta de un contrato asignado, cerramos la asignación.
 CREATE OR REPLACE FUNCTION cerrar_asignacion_por_alerta() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  -- El orquestador persiste alertas con el OCID corto ('1216608'); la cola puede tener el largo
+  -- ('ocds-dgv273-seacev3-1216608'). Comparamos por sufijo para cubrir ambos (ver 12_procesamientos.sql).
   UPDATE asignaciones SET procesada_at = COALESCE(procesada_at, now()), alerta_id = COALESCE(alerta_id, NEW.id)
-  WHERE ocid = NEW.ocid;
+  WHERE ocid = NEW.ocid OR regexp_replace(ocid, '^ocds-dgv273-seacev3-', '') = regexp_replace(NEW.ocid, '^ocds-dgv273-seacev3-', '');
   UPDATE contribuciones c SET estado = 'procesada'
   WHERE c.estado = 'en_proceso'
     AND (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = c.id AND s.procesada_at IS NOT NULL) >= c.contratos;

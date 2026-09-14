@@ -78,10 +78,11 @@ export function Footer() {
           </div>
 
           <FooterCol title="Plataforma">
-            <Link href="/app">Mapa de alertas</Link>
-            <Link href="/app#entidades">Ranking de entidades</Link>
-            <Link href="/reporte/nuevo">Reportar una obra</Link>
-            <Link href="/noticia">Generador de notas</Link>
+            <Link href="/app/mapa">Mapa de auditoría</Link>
+            <Link href="/financiar">Financiar una auditoría</Link>
+            <Link href="/auditoria">Auditoría en vivo</Link>
+            <Link href="/aliados">Aliados de transparencia</Link>
+            <Link href="/reporte/nuevo">Denunciar una obra</Link>
             <Link href="/preguntas">Preguntas frecuentes</Link>
           </FooterCol>
 

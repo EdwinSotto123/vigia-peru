@@ -5,8 +5,13 @@ import { usePathname } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Logo } from "./Logo";
 import { UserMenu } from "./auth/UserMenu";
+import { cn } from "@/lib/utils";
 
-/** Rutas donde el Header pasa a modo "dashboard": minimal, porque el sidebar manda. */
+/**
+ * Rutas donde el Header pasa a modo "dashboard": minimal, porque el sidebar manda.
+ * Las rutas públicas nuevas (/auditoria, /aliados, /aliado, /financiar, /impacto)
+ * NO van acá: llevan el header completo.
+ */
 const DASHBOARD_PATHS = [
   "/app",
   "/region",
@@ -18,12 +23,13 @@ const DASHBOARD_PATHS = [
   "/preguntas",
 ];
 
+/** Navegación pública. El orden es el recorrido del producto: mapa → financiar → ver en vivo → aliados → denunciar. */
 const NAV = [
-  { href: "/#como", label: "Cómo funciona" },
-  { href: "/#detecta", label: "Detecta" },
-  { href: "/#plataforma", label: "Plataforma" },
-  { href: "/#organizacion", label: "Quiénes somos" },
-  { href: "/#financiar", label: "Financiar" },
+  { href: "/app/mapa", label: "Mapa" },
+  { href: "/financiar", label: "Financiar" },
+  { href: "/auditoria", label: "Auditoría en vivo" },
+  { href: "/aliados", label: "Aliados" },
+  { href: "/reporte/nuevo", label: "Denunciar" },
   { href: "/preguntas", label: "FAQ" },
 ];
 
@@ -45,7 +51,11 @@ export function Header() {
         {showNav && (
           <nav className="hidden items-center gap-0.5 md:flex">
             {NAV.map((n) => (
-              <NavLink key={n.href} href={n.href}>
+              <NavLink
+                key={n.href}
+                href={n.href}
+                active={pathname === n.href || pathname.startsWith(`${n.href}/`)}
+              >
                 {n.label}
               </NavLink>
             ))}
@@ -64,7 +74,7 @@ export function Header() {
           <UserMenu />
           {showNav && (
             <Link
-              href="/app"
+              href="/app/mapa"
               className="hidden rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition-all hover:scale-[1.03] hover:bg-coal sm:inline-flex"
             >
               Ver el mapa →
@@ -76,11 +86,23 @@ export function Header() {
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href={href}
-      className="rounded-lg px-3 py-2 text-sm font-medium text-mute transition-colors hover:bg-paperSoft hover:text-ink"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-paperSoft hover:text-ink",
+        active ? "text-ink" : "text-mute",
+      )}
     >
       {children}
     </Link>

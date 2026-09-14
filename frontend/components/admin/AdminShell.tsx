@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, FlaskConical, Activity } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@ const NAV = [
   { href: "/admin/contribuciones", label: "Contribuciones", icon: Receipt },
   { href: "/admin/financiadores", label: "Financiadores", icon: Users },
   { href: "/admin/pagos", label: "Medios de pago", icon: Wallet },
+  { href: "/admin/procesamientos", label: "Procesamiento", icon: Activity },
+  { href: "/admin/analisis", label: "Análisis a demanda", icon: FlaskConical },
   { href: "/admin/bitacora", label: "Bitácora", icon: ScrollText },
 ];
 

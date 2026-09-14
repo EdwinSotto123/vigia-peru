@@ -42,6 +42,8 @@ ORDER = [
     "08_penalidades.sql",
     "09_financiamiento.sql",
     "10_admin_config.sql",
+    "11_convocatorias_ubigeo.sql",
+    "12_procesamientos.sql",
 ]
 
 
