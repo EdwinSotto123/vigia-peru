@@ -2,7 +2,7 @@
 
 // Redacción de datos personales para la demo / cumplimiento legal.
 //
-// Regla del proyecto (CLAUDE.md §8.2): no publicamos datos personales de
+// Regla del proyecto (ver README, principios): no publicamos datos personales de
 // ciudadanos. Acá los "censuramos" visualmente tipo VIDRIO ESMERILADO (blur) y
 // se revelan al hacer clic. DNI siempre censurado; del nombre completo se censura
 // SOLO el último apellido (el resto del nombre se muestra).

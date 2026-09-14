@@ -78,7 +78,7 @@ export function PresupuestoRegional({
           El cache local de MEF no incluye este departamento. Para precachear corré:
         </p>
         <pre className="mx-auto mt-2 inline-block rounded-lg border border-line bg-paper px-3 py-1.5 text-left font-mono text-[10px] text-ink">
-          python scripts/fetch_mef_budget.py --only "{mefDept}"
+          python backend/scripts/fetch_mef_budget.py --only "{mefDept}"
         </pre>
       </div>
     );

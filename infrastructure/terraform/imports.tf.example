@@ -1,0 +1,69 @@
+# La infraestructura YA existe (creada a mano con gcloud durante el hackathon).
+# Para que Terraform la adopte sin recrearla, renombrar este archivo a imports.tf,
+# correr `terraform plan` (debe mostrar cambios mínimos) y luego `terraform apply`.
+# Después del primer apply exitoso, borrar imports.tf.
+
+import {
+  to = google_sql_database_instance.vigia
+  id = "vivid-spot-480905-a4/vigia-db"
+}
+
+import {
+  to = google_sql_database.vigia
+  id = "vivid-spot-480905-a4/vigia-db/vigia"
+}
+
+import {
+  to = google_storage_bucket.documentos
+  id = "vigia-peru-documentos"
+}
+
+import {
+  to = google_storage_bucket.reportes
+  id = "vigia-peru-reportes"
+}
+
+import {
+  to = google_storage_bucket.rag
+  id = "hacklatam-rag-leyes"
+}
+
+import {
+  to = google_secret_manager_secret.cloudsql_password
+  id = "projects/vivid-spot-480905-a4/secrets/cloudsql-password"
+}
+
+import {
+  to = google_secret_manager_secret.external["google-api-key"]
+  id = "projects/vivid-spot-480905-a4/secrets/google-api-key"
+}
+
+import {
+  to = google_secret_manager_secret.external["phoenix-api-key"]
+  id = "projects/vivid-spot-480905-a4/secrets/phoenix-api-key"
+}
+
+import {
+  to = google_secret_manager_secret.external["pinecone-api-key"]
+  id = "projects/vivid-spot-480905-a4/secrets/pinecone-api-key"
+}
+
+import {
+  to = google_cloud_run_v2_service.agent
+  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/agent-orchestrator-adk"
+}
+
+import {
+  to = google_cloud_run_v2_service.api
+  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-peru-api"
+}
+
+import {
+  to = google_cloud_run_v2_service.mcp
+  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-mcp"
+}
+
+import {
+  to = google_cloud_run_v2_service.frontend
+  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-peru-frontend"
+}

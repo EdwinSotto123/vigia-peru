@@ -68,7 +68,7 @@ export async function EjecucionPresupuestal({
               <li>
                 · Para entidades a nivel <strong>departamental</strong>{" "}
                 (Gobiernos Regionales) el cache pre-fetcheado por{" "}
-                <code className="rounded bg-paperDeep px-1 font-mono">scripts/fetch_mef_budget.py</code>{" "}
+                <code className="rounded bg-paperDeep px-1 font-mono">backend/scripts/fetch_mef_budget.py</code>{" "}
                 sí está disponible — la pantalla regional <code className="font-mono">/region/&lt;id&gt;</code> carga al toque.
               </li>
             </ul>

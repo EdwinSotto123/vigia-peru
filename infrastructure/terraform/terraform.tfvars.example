@@ -1,0 +1,8 @@
+# Copiar a terraform.tfvars (gitignored) y completar.
+project_id     = "vivid-spot-480905-a4"
+project_number = "36169102688"
+region         = "us-central1"
+
+# sql_tier            = "db-f1-micro"
+# agent_max_instances = 5
+# firebase_project_id = "simplia-project"

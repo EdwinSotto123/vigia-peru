@@ -559,7 +559,7 @@ function MissingGeoJSON() {
           Generala una vez con:
         </p>
         <pre className="w-full rounded-xl border border-line bg-paperDeep px-4 py-3 text-left font-mono text-xs leading-relaxed text-ink">
-          python scripts/fetch_peru_geo.py
+          python backend/scripts/fetch_peru_geo.py
         </pre>
       </div>
     </div>

@@ -1,6 +1,6 @@
 /**
  * Helper compartido para leer el cache de MEF pre-fetcheado por
- * `scripts/fetch_mef_budget.py`. Usado por:
+ * `backend/scripts/fetch_mef_budget.py`. Usado por:
  *  - app/api/mef/region/[dept]/route.ts
  *  - app/(dashboard)/region/[id]/page.tsx (server-side prefetch)
  *
@@ -101,7 +101,7 @@ async function loadEntities(): Promise<Record<string, EntityCacheEntry>> {
 /**
  * Trae el presupuesto de una entidad. Estrategia:
  *   1. Si pasaste RUC: busca en `mef-entities.json` (pre-fetcheado por
- *      `scripts/fetch_mef_entities.py`)
+ *      `backend/scripts/fetch_mef_entities.py`)
  *   2. Si el cache devuelve "ok" o "partial" con data → devuelvo eso
  *   3. Fallback: `fetchMefBudget(keyword)` live (con cache en memoria, ver
  *      lib/mef.ts)

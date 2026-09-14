@@ -26,7 +26,7 @@ tarjeta con instrucciones para correr el script.
 | Lenguaje | TypeScript estricto |
 | Estilos | Tailwind CSS con tokens semánticos |
 | Mapa | **d3-geo** (proyección geoMercator + geoPath) sobre SVG nativo |
-| Datos del mapa | **geoBoundaries ADM1** vía `scripts/fetch_peru_geo.py` |
+| Datos del mapa | **geoBoundaries ADM1** vía `backend/scripts/fetch_peru_geo.py` |
 | Animaciones de UI | **Magic UI** (NumberTicker, BorderBeam, Marquee) — open source MIT |
 | Íconos | `lucide-react` |
 | Fuentes | Inter (sans), Source Serif Pro (display), JetBrains Mono (números) |
@@ -86,7 +86,7 @@ frontend/
 │   ├── peru-data.ts                # Datos por región/provincia + helpers
 │   └── utils.ts                    # cn() + normalizeRegionId()
 ├── public/
-│   └── peru-departments.json       # ← generado por scripts/fetch_peru_geo.py
+│   └── peru-departments.json       # ← generado por backend/scripts/fetch_peru_geo.py
 └── types/
 ```
 
