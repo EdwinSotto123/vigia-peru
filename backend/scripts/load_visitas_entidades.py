@@ -123,8 +123,8 @@ def duracion_minutos(ti, to) -> int | None:
 
 
 def parse_row(row: tuple) -> dict | None:
-    if len(row) < 12:
-        return None
+    # El XLSX de la PNDA a veces omite las últimas columnas vacías (Observación): rellenamos.
+    row = tuple(row) + (None,) * (12 - len(row)) if len(row) < 12 else row
     visitante = clean(row[3])
     entidad_visitada = clean(row[2])
     if not visitante or not entidad_visitada:
@@ -171,8 +171,13 @@ def main():
 
     rows: list[dict] = []
     bad = 0
-    for i, row in enumerate(ws.iter_rows(values_only=True)):
-        if i == 0:
+    header_seen = False
+    for row in ws.iter_rows(values_only=True):
+        # El export manual trae la cabecera en la fila 1; el de la PNDA trae un título
+        # ("PLATAFORMA DE REGISTRO") arriba. Saltamos todo hasta la fila de cabecera.
+        if not header_seen:
+            if row and clean(row[0]).lower().startswith("fecha de registro"):
+                header_seen = True
             continue
         r = parse_row(row)
         if r is None:
