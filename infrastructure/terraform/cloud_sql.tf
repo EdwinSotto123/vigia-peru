@@ -5,12 +5,13 @@ resource "random_password" "sql" {
 
 resource "google_sql_database_instance" "vigia" {
   name             = var.sql_instance_name
-  database_version = "POSTGRES_14"
+  database_version = "POSTGRES_16" # as-built (verificado 2026-09-14)
   region           = var.region
 
   settings {
     tier              = var.sql_tier
     availability_type = "ZONAL"
+    disk_type         = "PD_SSD" # hoy está en PD_HDD; SSD cuesta ~US$0.9/mes más por 10 GB y es 3-4× más rápido
     disk_autoresize   = true
 
     ip_configuration {

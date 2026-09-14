@@ -269,7 +269,7 @@ Each component ships a `.env.example`. In broad strokes:
 # Frontend
 cd frontend && npm install && cp .env.example .env.local && npm run dev
 
-# Local database (Postgres 14 + PostGIS + pgvector)
+# Local database (Postgres 16 + PostGIS + pgvector)
 docker compose -f infrastructure/docker-compose.yml up -d
 python backend/db/apply_all.py            # PGHOST=127.0.0.1 PGPASSWORD=vigia by default
 

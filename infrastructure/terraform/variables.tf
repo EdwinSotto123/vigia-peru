@@ -20,9 +20,9 @@ variable "sql_instance_name" {
 }
 
 variable "sql_tier" {
-  description = "Tier de Cloud SQL. db-f1-micro alcanza para demo; subir para producción."
+  description = "Tier de Cloud SQL. Hoy corre db-custom-2-7680 (2 vCPU / 7.5 GB, ~US$100/mes); db-custom-1-3840 (~US$50) alcanza para la carga actual."
   type        = string
-  default     = "db-f1-micro"
+  default     = "db-custom-1-3840"
 }
 
 variable "bucket_documentos" {
