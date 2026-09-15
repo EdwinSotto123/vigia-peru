@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
+import { RefreshCw, RotateCcw, ExternalLink, Loader2, Play } from "lucide-react";
 import { AdminShell, Badge, Kpi } from "@/components/admin/AdminShell";
 import { adminFetch, fmtDate } from "@/lib/admin";
+import { useDialog } from "@/components/admin/Dialog";
 
 /**
  * Monitor del dispatcher: qué contratos financiados están en cola, procesándose
@@ -105,18 +106,38 @@ export default function AdminProcesamientosPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  async function reencolar(p: ProcAdmin) {
-    if (!confirm(`¿Re-encolar ${p.ocid}? Se reinician los intentos y el dispatcher lo tomará en su próxima corrida.`)) return;
-    setBusy(p.ocid);
+  const { open, toast } = useDialog();
+
+  function reencolar(p: ProcAdmin) {
+    open({
+      title: `Re-encolar ${p.ocid}`, confirmLabel: "Re-encolar",
+      body: <>Se reinician los intentos y el dispatcher lo toma en su próxima corrida (cada 5 min).</>,
+      onConfirm: async () => {
+        await adminFetch(`/procesamientos/${encodeURIComponent(p.ocid)}/reencolar`, { method: "POST", body: "{}" });
+        toast(`${p.ocid} re-encolado`); load();
+      },
+    });
+  }
+
+  function reencolarErrores() {
+    open({
+      title: "Re-encolar todos los contratos con error", tone: "danger", confirmLabel: "Re-encolar todos",
+      body: <>Reinicia intentos de todos los procesamientos en estado <strong>error</strong>. Úsalo después de arreglar la causa (p. ej. relay caído).</>,
+      onConfirm: async () => {
+        const r = await adminFetch<{ reencolados: number }>("/procesamientos/reencolar-errores", { method: "POST", body: "{}" });
+        toast(`${r.reencolados} re-encolados`); load();
+      },
+    });
+  }
+
+  async function procesarAhora() {
+    setBusy("run");
     try {
-      await adminFetch(`/procesamientos/${encodeURIComponent(p.ocid)}/reencolar`, { method: "POST", body: "{}" });
-      setMsg(`${p.ocid} re-encolado`);
-      load();
-    } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
+      await adminFetch("/dispatcher/run", { method: "POST", body: "{}" });
+      toast("Dispatcher lanzado · toma los contratos en cola en ~1 min");
+      setTimeout(load, 8000);
+    } catch (e) { toast((e as Error).message, "error"); }
+    finally { setBusy(null); }
   }
 
   const counts = useMemo(() => {
@@ -135,12 +156,22 @@ export default function AdminProcesamientosPage() {
       title="Procesamiento"
       subtitle="Contratos financiados: cola → procesando → procesado. Lo mueve el dispatcher (Cloud Run Job, cada 5 min)."
       actions={
-        <button
-          onClick={load}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs text-ink hover:bg-paperDeep"
-        >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Actualizar
-        </button>
+        <>
+          {counts.error > 0 && (
+            <button onClick={reencolarErrores} className="inline-flex items-center gap-1.5 rounded-lg border border-rust/40 bg-paper px-3 py-1.5 text-xs text-rust hover:bg-crimson-soft">
+              Re-encolar {counts.error} con error
+            </button>
+          )}
+          <button onClick={procesarAhora} disabled={busy === "run"} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper disabled:opacity-60">
+            {busy === "run" ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />} Procesar ahora
+          </button>
+          <button
+            onClick={load}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs text-ink hover:bg-paperDeep"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Actualizar
+          </button>
+        </>
       }
     >
       {msg && (

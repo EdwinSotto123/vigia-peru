@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, EyeOff, AlertTriangle, ExternalLink } from "lucide-react";
 import { AdminShell, Badge } from "@/components/admin/AdminShell";
 import { adminFetch, fmtPEN, fmtDate } from "@/lib/admin";
+import { useDialog } from "@/components/admin/Dialog";
 
 interface F {
   id: number; tipo: string; nombrePublico: string | null; slug: string | null; ruc: string | null; email: string; logoUrl: string | null;
@@ -15,28 +16,42 @@ interface F {
 export default function FinanciadoresPage() {
   const [rows, setRows] = useState<F[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const { open, toast } = useDialog();
   async function load() { try { setRows((await adminFetch<{ data: F[] }>("/financiadores")).data); } catch (e) { setMsg((e as Error).message); } }
   useEffect(() => { load(); }, []);
 
-  async function toggle(f: F) {
+  function toggle(f: F) {
+    const nombre = f.nombrePublico ?? f.email;
     if (f.visible) {
-      const motivo = prompt(`Motivo para ocultar a "${f.nombrePublico ?? f.email}" del ranking y muro:`);
-      if (motivo === null) return;
-      await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: false, motivoNoVisible: motivo || "decision_admin" }) });
+      open({
+        title: `Ocultar a ${nombre}`, tone: "danger", confirmLabel: "Ocultar del ranking y muro",
+        body: <>No toca su dinero ni sus asignaciones: solo deja de aparecer en ranking, muro y comprobantes públicos (regla 3 de independencia).</>,
+        fields: [{ name: "motivo", label: "Motivo", type: "select", defaultValue: "decision_admin", options: [
+          { value: "decision_admin", label: "Decisión del equipo" }, { value: "sancion_vigente_osce", label: "Sanción OSCE vigente" },
+          { value: "proveedor_con_alertas_activas", label: "Proveedor con alertas activas" }, { value: "solicitud_del_financiador", label: "Lo pidió el financiador" }] }],
+        onConfirm: async (v) => { await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: false, motivoNoVisible: v.motivo }) }); toast(`${nombre} oculto`); load(); },
+      });
     } else {
-      if (!confirm(`¿Volver visible a "${f.nombrePublico ?? f.email}"?${f.sancionVigente ? "\n\nOJO: tiene sanción OSCE vigente." : ""}${f.alertasActivas ? "\n\nOJO: aparece como proveedor en alertas activas." : ""}`)) return;
-      await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: true }) });
+      open({
+        title: `Volver visible a ${nombre}`, tone: "success", confirmLabel: "Mostrar",
+        body: <>{f.sancionVigente && <p className="text-rust">Ojo: tiene sanción OSCE vigente.</p>}{f.alertasActivas && <p className="text-rust">Ojo: aparece como proveedor en alertas activas.</p>}<p>Volverá a aparecer en ranking, muro y comprobantes.</p></>,
+        onConfirm: async () => { await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: true }) }); toast(`${nombre} visible`); load(); },
+      });
     }
-    load();
   }
 
-  async function editar(f: F) {
-    const nombre = prompt("Nombre público:", f.nombrePublico ?? "");
-    if (nombre === null) return;
-    const logo = prompt("URL del logo (vacío = sin cambios):", f.logoUrl ?? "");
-    if (logo === null) return;
-    await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ nombrePublico: nombre || null, logoUrl: logo || null }) });
-    load();
+  function editar(f: F) {
+    open({
+      title: "Editar financiador", confirmLabel: "Guardar",
+      fields: [
+        { name: "nombre", label: "Nombre público", defaultValue: f.nombrePublico ?? "", placeholder: "Vacío = anónimo" },
+        { name: "logo", label: "URL del logo", defaultValue: f.logoUrl ?? "", placeholder: "https://…/logo.png", hint: "PNG/SVG cuadrado, fondo transparente." },
+      ],
+      onConfirm: async (v) => {
+        await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ nombrePublico: v.nombre || null, logoUrl: v.logo || null }) });
+        toast("Financiador actualizado"); load();
+      },
+    });
   }
 
   return (

@@ -19,6 +19,16 @@ async function proxy(req: NextRequest, { params }: { params: { path: string[] } 
   const init: RequestInit = { method: req.method, headers, cache: "no-store" };
   if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer();
   const r = await fetch(target, init);
+  // Token vencido/rotado: el API responde 403 {"error":"forbidden"} → convertimos en 401 y
+  // borramos la cookie para que el cliente vuelva al login en vez de mostrar "forbidden".
+  if (r.status === 403) {
+    const body = await r.clone().json().catch(() => null);
+    if (body?.error === "forbidden") {
+      const res = NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      res.cookies.set("vigia_admin", "", { path: "/", maxAge: 0 });
+      return res;
+    }
+  }
   const out = new NextResponse(r.body, { status: r.status });
   const rct = r.headers.get("content-type");
   if (rct) out.headers.set("content-type", rct);

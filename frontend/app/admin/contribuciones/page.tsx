@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Check, X, FileImage, Search, Loader2, ExternalLink, EyeOff } from "lucide-react";
 import { AdminShell, Badge } from "@/components/admin/AdminShell";
 import { adminFetch, fmtPEN, fmtDate, ESTADO_UI, type ContribucionAdmin } from "@/lib/admin";
+import { useDialog } from "@/components/admin/Dialog";
 
 const TABS = [
   { k: "pendiente_pago", l: "Pendientes" }, { k: "pagada", l: "Pagadas" }, { k: "en_proceso", l: "En proceso" },
@@ -20,6 +21,7 @@ function Page() {
   const [sel, setSel] = useState<ContribucionAdmin | null>(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { open, toast } = useDialog();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -29,23 +31,36 @@ function Page() {
   }, [estado, q]);
   useEffect(() => { load(); }, [load]);
 
-  async function validar(c: ContribucionAdmin) {
-    if (!confirm(`¿Confirmar el pago de ${c.codigo} (${fmtPEN(c.montoPen)})? Se asignarán ${c.contratos} contratos de ${c.zona} por antigüedad.`)) return;
-    const ref = prompt("Referencia del pago (N° de operación, opcional):") ?? "";
-    try {
-      const r = await adminFetch<{ asignados: number; estado: string }>(`/contribuciones/${c.codigo}/validar`, { method: "POST", body: JSON.stringify({ referencia: ref || undefined }) });
-      setMsg(`${c.codigo} validada · ${r.asignados} contratos asignados${r.asignados < c.contratos ? ` (los ${c.contratos - r.asignados} restantes se asignan cuando entren contratos nuevos a la zona)` : ""}`);
-      setSel(null); load();
-    } catch (e) { setMsg((e as Error).message); }
+  function validar(c: ContribucionAdmin) {
+    open({
+      title: `Confirmar pago de ${c.codigo}`,
+      tone: "success",
+      confirmLabel: "Confirmar y asignar contratos",
+      body: <>Se marcará <strong>{fmtPEN(c.montoPen)}</strong> como recibido y se asignarán <strong>{c.contratos}</strong> contratos de <strong>{c.zona}</strong> por antigüedad (FIFO). El financiador recibe su comprobante de impacto.</>,
+      fields: [
+        { name: "referencia", label: "Referencia del pago", placeholder: "N° de operación Yape/Plin o transferencia", hint: "Opcional, queda en la bitácora." },
+        { name: "nota", label: "Nota interna", type: "textarea", placeholder: "Ej. verificado en el extracto del 14/09" },
+      ],
+      onConfirm: async (v) => {
+        const r = await adminFetch<{ asignados: number; estado: string }>(`/contribuciones/${c.codigo}/validar`, { method: "POST", body: JSON.stringify({ referencia: v.referencia || undefined, nota: v.nota || undefined }) });
+        toast(`${c.codigo} validada · ${r.asignados} contratos asignados${r.asignados < c.contratos ? ` (${c.contratos - r.asignados} esperan contratos nuevos en la zona)` : ""}`);
+        setSel(null); load();
+      },
+    });
   }
 
-  async function rechazar(c: ContribucionAdmin) {
-    const motivo = prompt(`Motivo del rechazo de ${c.codigo}:`);
-    if (motivo === null) return;
-    try {
-      await adminFetch(`/contribuciones/${c.codigo}/rechazar`, { method: "POST", body: JSON.stringify({ motivo }) });
-      setMsg(`${c.codigo} rechazada`); setSel(null); load();
-    } catch (e) { setMsg((e as Error).message); }
+  function rechazar(c: ContribucionAdmin) {
+    open({
+      title: `Rechazar ${c.codigo}`,
+      tone: "danger",
+      confirmLabel: "Rechazar aporte",
+      body: <>El aporte queda como rechazado y no asigna contratos. El motivo se guarda en la bitácora.</>,
+      fields: [{ name: "motivo", label: "Motivo", type: "textarea", required: true, placeholder: "Ej. el comprobante no corresponde al monto" }],
+      onConfirm: async (v) => {
+        await adminFetch(`/contribuciones/${c.codigo}/rechazar`, { method: "POST", body: JSON.stringify({ motivo: v.motivo }) });
+        toast(`${c.codigo} rechazada`); setSel(null); load();
+      },
+    });
   }
 
   return (
