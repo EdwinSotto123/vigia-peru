@@ -134,7 +134,16 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
 
           {/* Documentos */}
           <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Documentos oficiales ({c.documentos.length})</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Documentos oficiales ({c.documentos.length})</h2>
+              {c.documentosEnVigia && c.documentos.length > 0 && (
+                <span className="text-[10px] text-mute" title="Los documentos se conservan 90 días en el almacén de Vigía; después se vuelven a descargar solo si alguien financia el análisis.">
+                  {c.documentosEnVigia.n > 0 && c.documentosEnVigia.expiraAt
+                    ? `${c.documentosEnVigia.n} en el almacén de Vigía hasta el ${formatFecha(c.documentosEnVigia.expiraAt.slice(0, 10))}`
+                    : "no descargados: se bajan al financiar"}
+                </span>
+              )}
+            </div>
             {c.documentos.length ? (
               <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper">
                 {c.documentos.map((d, i) => (
@@ -203,6 +212,24 @@ function AnalisisCard({ c, riesgo }: { c: Detalle; riesgo: ReturnType<typeof rie
           Leer el dictamen completo <ArrowUpRight size={14} />
         </Link>
         {c.alerta.analizadoEn && <p className="mt-2 text-center text-[10px] text-mute">Analizado el {formatFecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
+      </section>
+    );
+  }
+
+  if (estado === "esperando_documentos") {
+    return (
+      <section className="rounded-2xl border border-line bg-paper p-4">
+        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
+          <Clock size={12} className="text-clay" /> Esperando documentos
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink">
+          Este contrato ya fue financiado. Sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}: el lote nocturno los baja desde el SEACE y el análisis arranca al día siguiente.
+        </p>
+        {c.pedidoDescarga && (
+          <p className="mt-2 text-[11px] text-mute">
+            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"} · solicitado el {formatFecha(c.pedidoDescarga.solicitadoAt.slice(0, 10))}
+          </p>
+        )}
       </section>
     );
   }

@@ -4,6 +4,7 @@
   python -m backend.batch.descargar records    --lote <releases-…> [--max-por-noche 20000] [--paralelo 4]
   python -m backend.batch.descargar records    --ocids ocids.txt
   python -m backend.batch.descargar documentos --lote <records-…> --politica clave|todo [--max-gb-por-noche 20]
+  python -m backend.batch.descargar pedidos   [--max 200]                     # financiados sin docs en GCS (migración 15)
   python -m backend.batch.descargar <tipo> --lote <id-del-mismo-tipo>        # reanudar
 
 Layout local (gitignored, `dataset/_batch/`):
@@ -485,7 +486,7 @@ def cmd_documentos(args: argparse.Namespace) -> None:
         rec_lote = est.lote(args.lote) if args.lote else None
         if not rec_lote or rec_lote["tipo"] != "records":
             raise SystemExit("--lote debe ser un lote de records (o de documentos para reanudar)")
-        ya = est.claves_completadas("documentos")
+        ya = set() if getattr(args, "incluir_existentes", False) else est.claves_completadas("documentos")
         nuevos: dict[str, dict] = {}
         n_docs = n_records = 0
         for it in est.items(args.lote, "completed"):
@@ -524,6 +525,67 @@ def cmd_documentos(args: argparse.Namespace) -> None:
     _imprimir_lote(lote_id)
 
 
+# ── pedidos de descarga (migración 15) ──────────────────────────────────
+def _pg():
+    import psycopg
+    from backend.scrapers._core.pipeline import pg_dsn
+    return psycopg.connect(pg_dsn())
+
+
+def cmd_pedidos(args: argparse.Namespace) -> None:
+    """Contratos que alguien financió y cuyos documentos no están (o expiraron) en GCS.
+    Toma los `pedidos_descarga` pendientes de Cloud SQL, baja record + TODOS sus documentos y
+    deja dos lotes (records, documentos) para `subir` + `vigia-ingest`, que cierra los pedidos
+    (`cerrar_pedidos_atendidos()`) y re-encola los procesamientos. Imprime los ids de lote
+    (uno por línea) como últimas líneas de stdout."""
+    with _pg() as conn, conn.cursor() as cur:
+        # 3 noches sin lograrlo → fallido, y el procesamiento queda en error (visible en /admin).
+        cur.execute("""UPDATE pedidos_descarga SET estado = 'fallido', error = COALESCE(error, 'sin documentos tras 3 noches')
+                       WHERE estado = 'descargando' AND intentos >= 3 AND tomado_at < now() - interval '20 hours'
+                       RETURNING ocid""")
+        fallidos = [r[0] for r in cur.fetchall()]
+        if fallidos:
+            cur.execute("""UPDATE procesamientos SET estado = 'error', error = 'documentos no descargables tras 3 noches'
+                           WHERE estado = 'esperando_documentos' AND ocid = ANY(%s)""", (fallidos,))
+            log.warning("   %d pedidos fallidos tras 3 noches: %s", len(fallidos), ", ".join(fallidos[:10]))
+        cur.execute("""UPDATE pedidos_descarga p SET estado = 'descargando', tomado_at = now(), intentos = intentos + 1
+                       FROM (SELECT id FROM pedidos_descarga
+                              WHERE estado = 'pendiente' OR (estado = 'descargando' AND tomado_at < now() - interval '20 hours')
+                              ORDER BY solicitado_at LIMIT %s FOR UPDATE SKIP LOCKED) t
+                       WHERE p.id = t.id
+                       RETURNING p.id, p.ocid,
+                         (SELECT c.ocds_payload->>'ocid' FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto(p.ocid) LIMIT 1)""",
+                    (args.max,))
+        pedidos = cur.fetchall()
+        conn.commit()
+    log.info("━━ pedidos · %d contratos financiados esperan documentos", len(pedidos))
+    if not pedidos:
+        return
+    carpeta = BATCH_DIR / "pedidos"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    archivo = carpeta / f"{time.strftime('%Y%m%d-%H%M%S')}.txt"
+    lineas = []
+    for _id, corto, full in pedidos:
+        full = full if (full or "").startswith("ocds-") else (corto if corto.startswith("ocds-") else OCID_PREFIX + corto)
+        lineas.append(full)
+    archivo.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+    # record siempre de nuevo (puede haber cambiado: adjudicación, contrato) y todos los documentos.
+    cmd_records(argparse.Namespace(lote=None, ocids=str(archivo), max_por_noche=len(lineas), paralelo=args.paralelo,
+                                   incluir_existentes=True, reponer=False))
+    lote_rec = (BATCH_DIR / "ultimo_lote").read_text(encoding="utf-8").strip()
+    cmd_documentos(argparse.Namespace(lote=lote_rec, politica="todo", paralelo=1, pausa=args.pausa,
+                                      max_gb_por_noche=args.max_gb_por_noche, reponer=False, incluir_existentes=True))
+    lote_doc = (BATCH_DIR / "ultimo_lote").read_text(encoding="utf-8").strip()
+    with _pg() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE pedidos_descarga SET lote_id = %s WHERE id = ANY(%s)",
+                    (lote_rec, [p[0] for p in pedidos]))
+        conn.commit()
+    print(lote_rec, flush=True)
+    if lote_doc != lote_rec:
+        print(lote_doc, flush=True)
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -556,7 +618,15 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--pausa", type=float, default=PAUSA_DOCS, help="segundos entre documentos (default 1.5)")
     d.add_argument("--max-gb-por-noche", type=float, default=20.0)
     d.add_argument("--reponer", action="store_true")
+    d.add_argument("--incluir-existentes", action="store_true", help="re-bajar también documentos ya descargados (tras expirar en GCS)")
     d.set_defaults(fn=cmd_documentos)
+
+    q = sub.add_parser("pedidos", help="contratos financiados sin documentos en GCS (pedidos_descarga): record + todos los docs")
+    q.add_argument("--max", type=int, default=200, help="pedidos por noche (default 200)")
+    q.add_argument("--paralelo", type=int, default=4, help="hilos para los records")
+    q.add_argument("--pausa", type=float, default=PAUSA_DOCS)
+    q.add_argument("--max-gb-por-noche", type=float, default=20.0)
+    q.set_defaults(fn=cmd_pedidos)
 
     args = ap.parse_args(argv)
     archivo = configurar_logs(args.verbose)

@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Cpu, Download, WifiOff } from "lucide-react";
+import { Cpu, Download, Moon, WifiOff } from "lucide-react";
 import { PUBLIC_API_BASE, TOTAL_FASES, duracion, faseLabel } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,8 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
     { label: "Pendientes de procesamiento", value: e.pendiente_de_procesamiento ?? 0, tone: (e.pendiente_de_procesamiento ?? 0) > 0 ? "clay" : undefined },
   ];
   const activos = data?.activos ?? [];
+  const pedidos = data?.pedidos ?? null;
+  const esperando = e.esperando_documentos ?? 0;
   const agentes = data?.agentesActivos ?? [];
   const lote = data?.lote ?? null;
   const drift = Math.max(0, Math.round((ahora - recibidoAt.current) / 1000));   // segundos desde el último dato
@@ -97,7 +99,12 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
         {fallo && (
           <span className="inline-flex items-center gap-1 text-rust"><WifiOff size={11} /> sin conexión con el API</span>
         )}
-        {!fallo && activos.length === 0 && agentes.length === 0 && !lote && (
+        {esperando > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-clay" title="Contratos financiados cuyos documentos se descargan en el lote nocturno">
+            <Moon size={11} /> {esperando} esperan documentos{pedidos?.fallidos ? <span className="text-rust"> · {pedidos.fallidos} sin documentos</span> : null}
+          </span>
+        )}
+        {!fallo && activos.length === 0 && agentes.length === 0 && !lote && esperando === 0 && (
           <span className="text-mute">ningún contrato en análisis · los agentes esperan la próxima asignación</span>
         )}
         {activos.map((a) => (

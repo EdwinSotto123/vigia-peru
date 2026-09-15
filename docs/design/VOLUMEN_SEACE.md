@@ -262,3 +262,42 @@ son 6–8 M documentos ≈ **3–4 meses solo de requests**, más el ancho de ba
    se sirven al público ya van a `vigia-peru-reportes` (Standard, egress $0.12/GiB fuera de GCP).
 5. **Descarga desde IP peruana, ritmo serial** (1 doc / 1.2 s, 4 hilos para `/record`), reanudable con
    el estado SQLite del Workstream B; lotes nocturnos con tope de GB.
+
+---
+
+## 9. Año 2026 en concreto (medido + extrapolación marcada)
+
+**Cuántos procesos.** Medidos: enero 940, mayo 7 212, 1–15 de septiembre 2 550 ocids únicos;
+el backfill de 90 días (15-jun → 14-sep) cargó 18 413 = **≈ 6 000 procesos/mes**. Con enero bajo
+(cierre fiscal) y el resto a ~6 000/mes: **≈ 43 000–46 000 procesos hasta el 15-sep-2026** y
+**≈ 60 000–67 000 en todo 2026** [extrapolación]. Releases (versiones): ≈ 14 por proceso → ≈ 0.6–0.9 M.
+
+**Cuántos GB.**
+
+| Qué | Cálculo | Hasta hoy | Todo 2026 |
+|---|---|---|---|
+| Metadata (record JSON completo) | 13.8 KB media × procesos | **0.6 GB** crudo · 0.15 GB gz | 0.9 GB · 0.25 GB gz |
+| Documentos, contratos jóvenes (media 21.5 MB, 4.25 docs) | 21.5 MB × procesos | **≈ 0.95 TB** | ≈ 1.3–1.4 TB |
+| Documentos cuando maduren (≈ 8.5 docs, ≈ 45 MB) | 45 MB × procesos | ≈ 2.0 TB | **≈ 2.7–3.0 TB** |
+| Solo tipos clave (bases + buena pro + contrato) | −12 % | ≈ 0.85 TB | ≈ 1.2 TB (jóvenes) |
+| Derivados si se analizara TODO (200 KB/contrato, Postgres) | 0.2 MB × procesos | 9 GB | 13 GB |
+
+**Cuánto cuesta guardarlo en GCS us-central1** (precios §6; 1 TB = 931 GiB):
+
+| Escenario 2026 | Standard | Nearline | Coldline | Archive |
+|---|---|---|---|---|
+| Metadata completa (0.9 GB) | **$0.02/mes** (Always Free) | — | — | — |
+| Documentos de todo 2026, jóvenes (1.35 TB) | **$25/mes** | $12.6 | $5.0 | $1.5 |
+| Documentos de todo 2026, maduros (2.85 TB) | **$53/mes** | $26.5 | $10.6 | $3.2 |
+| **Política vigente: 90 días de retención** (≈ 18 000 contratos × 21.5 MB ≈ 390 GB, 30 d Standard → Nearline → borrado a 90 d) | 130 GB Std $2.6 + 260 GB NL $2.6 = **≈ $5/mes** en régimen | | | |
+| + documentos bajo demanda de lo financiado (1 000 contratos/mes, §6 B) | +$1.5–3.2/mes | | | |
+
+Egress no cuenta: Cloud Run lee el bucket en la misma región ($0). Descargar los ≈ 195 000
+documentos de 2026 desde una laptop a 1 archivo/1.2 s son **≈ 65 h de requests** (8 noches de 8 h) y
+≈ 1 TB de ancho de banda (≈ 45 h a 50 Mbit/s): factible, pero no en una noche.
+
+**Conclusión operativa (implementada en la migración 15):** metadata de todo 2026 (y del histórico)
+siempre en Postgres/GCS por centavos; documentos solo 90 días y solo de lo que se descarga; lo que
+alguien financia después de esa ventana se vuelve a bajar esa noche (`pedidos_descarga`) y se
+analiza al día siguiente. El costo de almacenamiento queda en **≈ US$5–8/mes** en vez de US$25–53.
+

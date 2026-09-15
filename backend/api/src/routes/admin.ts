@@ -351,7 +351,7 @@ adminRouter.get("/procesamientos", async (c) => {
   const estado = url.searchParams.get("estado") ?? "";
   const vals: unknown[] = [];
   let where = "";
-  if (["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
+  if (["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento", "esperando_documentos"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
   const r = await pool.query(
     `SELECT v.ocid, v.estado, v.fase_actual AS "faseActual", v.fase_index AS "faseIndex", v.intentos,
             v.encolado_at AS "encoladoAt", v.iniciado_at AS "iniciadoAt", v.finalizado_at AS "finalizadoAt",
@@ -364,6 +364,31 @@ adminRouter.get("/procesamientos", async (c) => {
               COALESCE(v.finalizado_at, v.iniciado_at, v.encolado_at) DESC, v.ocid
      LIMIT 200`, vals);
   return c.json({ data: r.rows });
+});
+
+// Pedidos de descarga (migración 15): qué espera al batch nocturno y qué falló.
+adminRouter.get("/pedidos", async (c) => {
+  const r = await pool.query(
+    `SELECT p.id, p.ocid, p.motivo, p.estado, p.solicitado_at AS "solicitadoAt", p.tomado_at AS "tomadoAt",
+            p.atendido_at AS "atendidoAt", p.intentos, p.lote_id AS "loteId", p.error,
+            c.objeto AS titulo, e.nombre AS entidad
+     FROM pedidos_descarga p
+     LEFT JOIN convocatorias c ON ocid_corto(c.ocid) = ocid_corto(p.ocid)
+     LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+     ORDER BY CASE p.estado WHEN 'descargando' THEN 0 WHEN 'pendiente' THEN 1 WHEN 'fallido' THEN 2 ELSE 3 END, p.solicitado_at DESC
+     LIMIT 200`).catch(() => ({ rows: [] }));
+  return c.json({ data: r.rows });
+});
+
+// Reabre un pedido fallido (y vuelve a poner el procesamiento a esperar).
+adminRouter.post("/pedidos/:id/reintentar", async (c) => {
+  const id = Number(c.req.param("id"));
+  const r = await pool.query(
+    `UPDATE pedidos_descarga SET estado = 'pendiente', intentos = 0, error = NULL, tomado_at = NULL WHERE id = $1 AND estado = 'fallido' RETURNING ocid`, [id]);
+  if (!r.rows.length) return c.json({ error: "not_found" }, 404);
+  await pool.query(`UPDATE procesamientos SET estado = 'esperando_documentos', error = 'esperando documentos: se descargan en el lote nocturno' WHERE ocid = $1 AND estado = 'error'`, [r.rows[0].ocid]);
+  await log(actor(c), "reintentar_pedido", `pedido:${id}`, { ocid: r.rows[0].ocid });
+  return c.json({ ok: true, ocid: r.rows[0].ocid });
 });
 
 adminRouter.post("/procesamientos/:ocid/reencolar", async (c) => {

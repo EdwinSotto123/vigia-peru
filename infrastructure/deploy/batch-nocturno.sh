@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Flujo nocturno del SEACE desde IP peruana (laptop o VPS de Lima). NO corre en GCP.
-#   releases (últimos N días) → records nuevos → documentos clave → subir a GCS → job vigia-ingest
+#   pedidos (financiados sin docs) → releases (últimos N días) → records nuevos → documentos clave → subir a GCS → job vigia-ingest
 #
 #   bash infrastructure/deploy/batch-nocturno.sh                 # ventana: últimos 7 días
 #   DIAS=30 bash infrastructure/deploy/batch-nocturno.sh          # ventana más larga
 #   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/batch-nocturno.sh   # histórico por tramos
-#   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube)
+#   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200
 #
 # Programación:
 #   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
@@ -31,6 +31,13 @@ LOTES=()
 
 echo "── $(date -Is) · batch nocturno · $DESDE → $HASTA · bucket gs://$BUCKET_BATCH"
 
+# 0. pedidos de descarga: contratos financiados cuyos documentos no están (o expiraron) en GCS.
+#    Van primero: son los que alguien ya pagó. record + TODOS los docs; la ingesta los re-encola.
+if [[ -z "${SIN_PEDIDOS:-}" ]]; then
+  mapfile -t L_PED < <("$PY" -m backend.batch.descargar pedidos --max "${MAX_PEDIDOS:-200}" --max-gb-por-noche "${MAX_GB_PEDIDOS:-20}" | tail -n2 | grep -E '^(records|documentos)-')
+  for l in "${L_PED[@]}"; do [[ -n "$l" ]] && LOTES+=("$l"); done
+fi
+
 # 1. releases (los logs van a stderr; stdout = id del lote)
 L_REL="$("$PY" -m backend.batch.descargar releases --desde "$DESDE" --hasta "$HASTA" --ventana 7d | tail -n1)"
 [[ -n "$L_REL" ]] || { echo "✗ releases no devolvió lote"; exit 1; }
@@ -46,10 +53,12 @@ if [[ -z "${SIN_DOCUMENTOS:-}" && -n "$L_REC" ]]; then
   [[ -n "$L_DOC" ]] && LOTES+=("$L_DOC")
 fi
 
-# 4. subir (reanudable; escribe el manifiesto de cada lote)
+# 4. subir (reanudable; escribe el manifiesto de cada lote). El bucket es el almacén: --limpiar borra
+#    cada archivo local ya verificado en GCS (CONSERVAR_LOCAL=1 para dejarlos en dataset/_batch/).
 ARGS=()
 for l in "${LOTES[@]}"; do ARGS+=(--lote "$l"); done
-"$PY" -m backend.batch.subir "${ARGS[@]}" --bucket "$BUCKET_BATCH" --paralelo 8 || echo "⚠ subir terminó con fallos; el job igual ingiere lo que sí subió"
+[[ ${#LOTES[@]} -gt 0 ]] || { echo "── nada que subir"; exit 0; }
+"$PY" -m backend.batch.subir "${ARGS[@]}" --bucket "$BUCKET_BATCH" --paralelo 8 $( [[ -z "${CONSERVAR_LOCAL:-}" ]] && echo --limpiar ) || echo "⚠ subir terminó con fallos; el job igual ingiere lo que sí subió"
 
 # 5. ingesta en GCP (Cloud Run Job; --wait espera y devuelve el exit code del job)
 if [[ -z "${SIN_INGESTA:-}" ]]; then

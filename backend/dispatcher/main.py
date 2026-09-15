@@ -45,6 +45,10 @@ MAX_MIN = int(os.getenv("DISPATCHER_MAX_MINUTES", "55"))
 STREAM_TIMEOUT = int(os.getenv("DISPATCHER_STREAM_TIMEOUT", "1200"))
 GRACE_MIN = int(os.getenv("DISPATCHER_GRACE_MINUTES", "20"))
 PREFETCH_OCDS = os.getenv("DISPATCHER_PREFETCH_OCDS", "1") == "1"
+# Migración 15: si el contrato no tiene documentos vigentes en GCS, no se procesa: se abre un
+# pedido de descarga (lo atiende el batch nocturno desde IP peruana) y queda esperando_documentos.
+# Con 0 (corrida manual desde una laptop en Perú con relay/downloader vivo) se procesa igual.
+REQUIERE_DOCS_GCS = os.getenv("DISPATCHER_REQUIERE_DOCS_GCS", "1") == "1"
 OECE_BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1"
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -104,7 +108,7 @@ def actualizar(ocid: str, cambios: dict, evento: dict | None = None) -> None:
     _query(f"UPDATE procesamientos SET {', '.join(sets)} WHERE ocid = %s", (*vals, ocid))
 
 
-OK, FAIL, ABORT, PENDIENTE = "ok", "fail", "abort", "pendiente"
+OK, FAIL, ABORT, PENDIENTE, ESPERA = "ok", "fail", "abort", "pendiente", "espera"
 
 
 def alerta_persistida(ocid: str, desde: dt.datetime | None = None) -> bool:
@@ -187,6 +191,33 @@ def dejar_pendiente(ocid: str, motivo: str | None) -> None:
     )
 
 
+def documentos_en_gcs(ocid: str) -> dict[str, str] | None:
+    """{url_origen: gs://…} de los documentos vigentes del contrato (migración 15). None si la
+    migración no está aplicada (se procesa como siempre)."""
+    try:
+        rows = _query("SELECT url_origen, url_gcs FROM documentos_vigentes(%s)", (ocid,))
+    except psycopg2.Error as e:
+        log.warning("documentos_vigentes no disponible: %s", str(e).splitlines()[0][:120])
+        return None
+    return {u: g for u, g in rows if u and g}
+
+
+def record_en_db(ocid: str) -> dict | None:
+    """compiledRelease completo guardado por la ingesta de records (tiene `parties`); el release
+    recortado de /releasesAfter no sirve para el orquestador."""
+    try:
+        rows = _query("SELECT ocds_payload FROM convocatorias WHERE ocid = %s", (ocid,))
+    except psycopg2.Error:
+        return None
+    cr = rows[0][0] if rows else None
+    return cr if isinstance(cr, dict) and cr.get("parties") and cr.get("ocid") else None
+
+
+def esperar_documentos(ocid: str) -> None:
+    """Sin documentos en GCS: pedido de descarga + procesamiento en `esperando_documentos`."""
+    _query("SELECT esperar_documentos(%s)", (ocid,))
+
+
 def prefetch_ocds(ocid: str) -> dict | None:
     """compiledRelease del OECE si esta IP puede verlo (laptop/VPS en Perú). Desde GCP el WAF
     responde 403 y el orquestador usa su propia cadena (relay VPS → Worker → directo)."""
@@ -229,9 +260,16 @@ def procesar(ocid: str) -> str:
         dejar_pendiente(ocid, clas["motivo_no_procesable"])
         log.info("⏸ %s pendiente de procesamiento · %s/%s · %s", ocid, clas["tipo"], clas["etapa"], clas["motivo_no_procesable"])
         return PENDIENTE
+    docs = documentos_en_gcs(ocid)
+    if docs is not None and not docs and REQUIERE_DOCS_GCS:
+        esperar_documentos(ocid)
+        log.info("⏳ %s esperando documentos · pedido de descarga abierto (lote nocturno)", ocid)
+        return ESPERA
     try:
-        ocds = prefetch_ocds(ocid)
-        body = {"input": ocid, "ocds": ocds, "docs_b64": {}, "doc_urls": {}}
+        ocds = record_en_db(ocid) or prefetch_ocds(ocid)
+        body = {"input": ocid, "ocds": ocds, "docs_b64": {}, "doc_urls": docs or {}}
+        if docs:
+            log.info("%d documentos desde GCS para %s", len(docs), ocid)
         if clas is not None:
             body["clasificacion"] = {k: clas[k] for k in ("tipo", "etapa", "agentes", "validaciones_pendientes")}
             log.info("clasificación %s: %s/%s · %d agentes%s", ocid, clas["tipo"], clas["etapa"], len(clas["agentes"]),
@@ -290,7 +328,7 @@ def main() -> int:
         return 2
     log.info("worker=%s parallel=%d max=%d min agent=%s", WORKER, PARALLEL, MAX_MIN, AGENT_URL)
     deadline = time.time() + MAX_MIN * 60
-    procesados = fallidos = abortados = pendientes = 0
+    procesados = fallidos = abortados = pendientes = esperando = 0
     fuente_caida = False  # un aborto del orquestador (OECE inaccesible) frena la corrida; el scheduler reintenta en 5 min
     with cf.ThreadPoolExecutor(max_workers=PARALLEL) as pool:
         en_curso: dict[cf.Future[str], str] = {}
@@ -316,6 +354,8 @@ def main() -> int:
                     fuente_caida = True
                 elif resultado == PENDIENTE:
                     pendientes += 1
+                elif resultado == ESPERA:
+                    esperando += 1
                 else:
                     fallidos += 1
             try:
@@ -325,7 +365,8 @@ def main() -> int:
             if (time.time() >= deadline or fuente_caida) and not en_curso:
                 log.info("corto la corrida: %s", "fuente OECE inaccesible" if fuente_caida else f"tope de {MAX_MIN} min")
                 break
-    log.info("fin · procesados=%d fallidos=%d abortados=%d pendientes_de_procesamiento=%d", procesados, fallidos, abortados, pendientes)
+    log.info("fin · procesados=%d fallidos=%d abortados=%d pendientes_de_procesamiento=%d esperando_documentos=%d",
+             procesados, fallidos, abortados, pendientes, esperando)
     return 0
 
 

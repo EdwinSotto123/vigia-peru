@@ -13,7 +13,7 @@ import { useDialog } from "@/components/admin/Dialog";
  * Fuente: GET /api/admin/procesamientos · POST /api/admin/procesamientos/:ocid/reencolar
  */
 
-type Estado = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento";
+type Estado = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento" | "esperando_documentos";
 
 interface ProcAdmin {
   ocid: string;
@@ -40,6 +40,7 @@ const ESTADO_UI: Record<Estado, { label: string; cls: string }> = {
   procesado: { label: "Procesado", cls: "bg-moss/10 text-moss" },
   error: { label: "Error", cls: "bg-crimson-soft text-crimson" },
   pendiente_de_procesamiento: { label: "Pendiente", cls: "bg-paperDeep text-amber" },
+  esperando_documentos: { label: "Esperando docs", cls: "bg-amber-soft/60 text-clay" },
 };
 
 const TABS: { k: Estado | "todos"; l: string }[] = [
@@ -48,6 +49,7 @@ const TABS: { k: Estado | "todos"; l: string }[] = [
   { k: "encolado", l: "En cola" },
   { k: "error", l: "Error" },
   { k: "pendiente_de_procesamiento", l: "Pendientes" },
+  { k: "esperando_documentos", l: "Esperando documentos" },
   { k: "procesado", l: "Procesados" },
 ];
 
@@ -143,7 +145,7 @@ export default function AdminProcesamientosPage() {
   }
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0 };
+    const c: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0 };
     for (const r of rows ?? []) c[r.estado] = (c[r.estado] ?? 0) + 1;
     return c;
   }, [rows]);
@@ -180,12 +182,13 @@ export default function AdminProcesamientosPage() {
         <div className="mb-4 rounded-xl border border-line bg-paper px-4 py-2 text-sm text-ink">{msg}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <Kpi label="En cola" value={counts.encolado} />
         <Kpi label="Procesando" value={counts.procesando} tone="amber" />
         <Kpi label="Procesados" value={counts.procesado} tone="moss" />
         <Kpi label="Con error" value={counts.error} tone={counts.error > 0 ? "rust" : "ink"} hint="máx. 3 intentos" />
         <Kpi label="Pendientes" value={counts.pendiente_de_procesamiento} tone={counts.pendiente_de_procesamiento > 0 ? "amber" : "ink"} hint="tipo/etapa sin análisis aplicable" />
+        <Kpi label="Esperando docs" value={counts.esperando_documentos} tone={counts.esperando_documentos > 0 ? "amber" : "ink"} hint="los baja el lote nocturno" />
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -281,6 +284,76 @@ export default function AdminProcesamientosPage() {
           </tbody>
         </table>
       </section>
+
+      <PedidosDescarga onChange={load} />
     </AdminShell>
+  );
+}
+
+interface Pedido {
+  id: number; ocid: string; motivo: string; estado: "pendiente" | "descargando" | "listo" | "fallido";
+  solicitadoAt: string; tomadoAt: string | null; atendidoAt: string | null; intentos: number; loteId: string | null;
+  error: string | null; titulo: string | null; entidad: string | null;
+}
+
+const PEDIDO_UI: Record<Pedido["estado"], { label: string; cls: string }> = {
+  pendiente: { label: "Esta noche", cls: "bg-amber-soft text-amber" },
+  descargando: { label: "Descargando", cls: "bg-amber-soft/60 text-clay" },
+  listo: { label: "Listo", cls: "bg-moss/10 text-moss" },
+  fallido: { label: "Fallido", cls: "bg-crimson-soft text-crimson" },
+};
+
+/** Pedidos de descarga (migración 15): contratos financiados sin documentos en GCS; los atiende el batch nocturno. */
+function PedidosDescarga({ onChange }: { onChange: () => void }) {
+  const [rows, setRows] = useState<Pedido[] | null>(null);
+  const { toast } = useDialog();
+  const load = useCallback(() => { adminFetch<{ data: Pedido[] }>("/pedidos").then((r) => setRows(r.data)).catch(() => setRows([])); }, []);
+  useEffect(() => { load(); }, [load]);
+  const abiertos = (rows ?? []).filter((p) => p.estado !== "listo");
+  const listos = (rows ?? []).filter((p) => p.estado === "listo").length;
+  async function reintentar(p: Pedido) {
+    try {
+      await adminFetch(`/pedidos/${p.id}/reintentar`, { method: "POST", body: "{}" });
+      toast(`${p.ocid} vuelve a la cola de descarga`); load(); onChange();
+    } catch (e) { toast((e as Error).message, "error"); }
+  }
+  return (
+    <section className="mt-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-serif text-lg font-bold text-ink">Pedidos de descarga</h2>
+        <span className="text-[11px] text-mute">{abiertos.length} abiertos · {listos} atendidos · los baja el lote nocturno (<code>descargar pedidos</code>) desde IP peruana</span>
+      </div>
+      <div className="mt-2 overflow-hidden rounded-2xl border border-line bg-paper">
+        <table className="w-full text-sm">
+          <thead className="bg-paperDeep text-left text-[11px] uppercase tracking-wide text-mute">
+            <tr><th className="px-3 py-2">Contrato</th><th>Estado</th><th>Solicitado</th><th>Noches</th><th>Lote</th><th></th></tr>
+          </thead>
+          <tbody>
+            {rows === null && <tr><td colSpan={6} className="px-3 py-6 text-center text-mute">Cargando…</td></tr>}
+            {rows !== null && !abiertos.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-mute">Ningún contrato financiado espera documentos.</td></tr>}
+            {abiertos.map((p) => (
+              <tr key={p.id} className="border-t border-line align-top">
+                <td className="max-w-md px-3 py-2">
+                  <Link href={`/app/contratos/${encodeURIComponent(p.ocid)}`} className="font-mono text-xs text-ink hover:underline">{p.ocid}</Link>
+                  <div className="truncate text-[12px] text-mute" title={p.titulo ?? ""}>{p.titulo ?? "—"}</div>
+                  {p.error && <div className="text-[11px] text-rust">{p.error}</div>}
+                </td>
+                <td><span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${PEDIDO_UI[p.estado].cls}`}>{PEDIDO_UI[p.estado].label}</span></td>
+                <td className="text-[12px] text-mute">{fmtDate(p.solicitadoAt)}</td>
+                <td className="font-mono text-xs">{p.intentos}</td>
+                <td className="font-mono text-[11px] text-mute">{p.loteId ?? "—"}</td>
+                <td className="px-2 py-2 text-right">
+                  {p.estado === "fallido" && (
+                    <button onClick={() => reintentar(p)} className="inline-flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-[11px] text-ink hover:bg-paperDeep">
+                      <RotateCcw size={11} /> Reintentar
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
