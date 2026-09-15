@@ -67,6 +67,29 @@ def Lista(modelo):  # noqa: N802 — se usa como tipo: Lista(X) ≡ list[X] tole
     return Annotated[list[modelo], WrapValidator(_lista_tolerante)]
 
 
+def _opcional_tolerante(v, handler, info):
+    """WrapValidator para un sub-objeto opcional: si no valida (p. ej. `hallado` sin evidencia)
+    se descarta SOLO ese bloque (→ None) y se anota; la salida del agente sobrevive."""
+    if v is None:
+        return None
+    try:
+        return handler(v)
+    except ValidationError as e:
+        col = _COLECTOR.get()
+        if col is not None:
+            col.append({
+                "donde": f"schema.{info.field_name}",
+                "motivo": "bloque_invalido",
+                "detalle": "; ".join(f"{'.'.join(str(x) for x in err.get('loc', ()))}: {err.get('msg')}"
+                                     for err in e.errors()[:3])[:300],
+            })
+        return None
+
+
+def Opcional(modelo):  # noqa: N802 — Opcional(X) ≡ X | None tolerante
+    return Annotated[modelo | None, WrapValidator(_opcional_tolerante)]
+
+
 class _Base(BaseModel):
     """Base común: ignora claves desconocidas (los modelos a veces agregan campos)."""
 
@@ -244,9 +267,9 @@ class LegalOutput(_Raiz, Hallazgo):
     """Salida de document_legal_analyst_agent (output_key `legal_analysis`)."""
 
     red_flags_documentales: Lista(RedFlagDocumental) = Field(default_factory=list)
-    cumplimiento_principios: CumplimientoPrincipios | None = None
-    direccionamiento_detectado: Direccionamiento | None = None
-    causal_directa_evaluacion: CausalDirectaEval | None = None
+    cumplimiento_principios: Opcional(CumplimientoPrincipios) = None
+    direccionamiento_detectado: Opcional(Direccionamiento) = None
+    causal_directa_evaluacion: Opcional(CausalDirectaEval) = None
     resumen_ejecutivo: str | None = Field(default=None, max_length=2000)
 
     def _derivar_evidencia(self):
@@ -335,7 +358,7 @@ class EmpresaPerfil(_Base):
     ciiu: str | None = Field(default=None, max_length=40)
     direccion_legal: str | None = Field(default=None, max_length=300)
     estado_domicilio: str | None = Field(default=None, max_length=60)
-    gerente_general: PersonaCargo | None = None
+    gerente_general: Opcional(PersonaCargo) = None
     socios: Lista(PersonaCargo) = Field(default_factory=list)
     representantes: Lista(PersonaCargo) = Field(default_factory=list)
 
@@ -391,11 +414,11 @@ class BanderaSugerida(Hallazgo):
 class WebResearchOutput(_Raiz, Hallazgo):
     """Salida de web_research_agent (output_key `web_research`)."""
 
-    empresa: EmpresaPerfil | None = None
+    empresa: Opcional(EmpresaPerfil) = None
     hallazgos_por_fuente: Lista(HallazgoFuente) = Field(default_factory=list)
     otros_contratos_con_estado: Lista(ContratoEstado) = Field(default_factory=list)
-    historial_resumido: HistorialResumido | None = None
-    relacion_proveedor_entidad: RelacionProveedorEntidad | None = None
+    historial_resumido: Opcional(HistorialResumido) = None
+    relacion_proveedor_entidad: Opcional(RelacionProveedorEntidad) = None
     hallazgos_prensa: Lista(NotaPrensa) = Field(default_factory=list)
     banderas_sugeridas: Lista(BanderaSugerida) = Field(default_factory=list)
     sintesis: str | None = Field(default=None, max_length=2000)
@@ -709,9 +732,9 @@ class PersonNetworkOutput(_Raiz, Hallazgo):
     cuatro listas tipadas (firmantes, autoridades, postores, familia), todas con `confianza`
     y `evidencia[]`."""
 
-    persona_principal: PersonaPrincipal | None = None
+    persona_principal: Opcional(PersonaPrincipal) = None
     pareja_o_familia: Lista(Familiar) = Field(default_factory=list)
-    red_empresarial: RedEmpresarial | None = None
+    red_empresarial: Opcional(RedEmpresarial) = None
     vinculo_autoridades: Lista(VinculoAutoridad) = Field(default_factory=list)
     cruce_firmantes_ganador: Lista(CruceFirmante) = Field(default_factory=list)
     lazos_entre_postores: Lista(LazoPostores) = Field(default_factory=list)

@@ -1,6 +1,7 @@
 """Tools del dominio: sunat."""
 
 from tools._core import *  # noqa: F401,F403
+from tools._core import downloader_base
 
 def query_sunat_decolecta(ruc: str, tool_context: ToolContext) -> dict:
     """Consulta el endpoint de decolecta para obtener datos SUNAT del RUC.
@@ -168,7 +169,7 @@ def _oece_fetch_json(url: str):
     """GET una URL de OECE y devuelve el JSON. Usa el downloader local (IP
     residencial PE) si está configurado — OECE bloquea las IPs de Cloud Run con
     403. Fallback a GET directo (suele fallar desde GCP)."""
-    dl_base = os.getenv("LOCAL_DOWNLOADER_URL", "").strip()
+    dl_base = downloader_base()
     if dl_base:
         try:
             r = requests.post(
@@ -322,7 +323,7 @@ def _fetch_text_via_downloader(url: str):
     """Trae el BODY (texto/HTML) de una URL vía el downloader local (IP PE +
     headers de navegador → pasa anti-bots que rechazan UAs mínimos). Fallback
     directo si no hay downloader."""
-    dl_base = os.getenv("LOCAL_DOWNLOADER_URL", "").strip()
+    dl_base = downloader_base()
     if dl_base:
         try:
             r = requests.post(

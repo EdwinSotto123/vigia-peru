@@ -25,6 +25,8 @@ _PROCESSOR_ID = os.getenv("DOCAI_PROCESSOR_ID", "").strip()
 
 # Document AI sync = 30 págs/llamada. Chunkeаmos a 30 para minimizar #llamadas OCR.
 _PAGES_PER_OCR_CALL = 30
+# Chunks de un mismo documento (>30 págs) OCR-eados a la vez (orden por índice preservado).
+_CHUNK_WORKERS = max(1, int(os.getenv("DOCAI_CHUNK_WORKERS", "3") or 3))
 
 _client = None
 
@@ -220,26 +222,41 @@ def extract_docai(pdf_bytes: bytes, mime_type: str = "application/pdf",
             paginas = _ocr_one_paginas(pdf_bytes, mime_type, page_offset)
         else:
             # >30 págs → chunkear, OCR de cada chunk, concatenar páginas.
+            import concurrent.futures
             import fitz  # pymupdf
             src = fitz.open(stream=pdf_bytes, filetype="pdf")
+            chunks: list[tuple[int, int, bytes]] = []
             try:
                 for start in range(0, n_pages, _PAGES_PER_OCR_CALL):
                     end = min(n_pages - 1, start + _PAGES_PER_OCR_CALL - 1)
                     dst = fitz.open()
                     dst.insert_pdf(src, from_page=start, to_page=end)
-                    chunk_bytes = dst.tobytes()
+                    chunks.append((start, end, dst.tobytes()))
                     dst.close()
-                    try:
-                        paginas.extend(_ocr_one_paginas(chunk_bytes, mime_type, page_offset + start))
-                    except Exception as e:
-                        msg = f"{type(e).__name__}: {str(e)[:140]}"
-                        print(f"[docai] chunk págs {start + 1}-{end + 1} falló ({msg}) → páginas vacías", flush=True)
-                        recortes.append({"donde": "ocr_docai", "limite": "chunk_fallido",
-                                         "omitido": f"páginas {page_offset + start + 1}-{page_offset + end + 1} ({msg})"})
-                        paginas.extend({"n": page_offset + i + 1, "texto": "", "chars": 0, "error": msg}
-                                       for i in range(start, end + 1))
             finally:
                 src.close()
+
+            def _ocr_chunk(start: int, end: int, chunk_bytes: bytes) -> tuple[list[dict], dict | None]:
+                try:
+                    return _ocr_one_paginas(chunk_bytes, mime_type, page_offset + start), None
+                except Exception as e:
+                    msg = f"{type(e).__name__}: {str(e)[:140]}"
+                    print(f"[docai] chunk págs {start + 1}-{end + 1} falló ({msg}) → páginas vacías", flush=True)
+                    rec = {"donde": "ocr_docai", "limite": "chunk_fallido",
+                           "omitido": f"páginas {page_offset + start + 1}-{page_offset + end + 1} ({msg})"}
+                    return [{"n": page_offset + i + 1, "texto": "", "chars": 0, "error": msg}
+                            for i in range(start, end + 1)], rec
+
+            # Chunks en paralelo (_CHUNK_WORKERS), resultados reordenados por índice.
+            resultados: list = [None] * len(chunks)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(_CHUNK_WORKERS, len(chunks))) as ex:
+                futs = {ex.submit(_ocr_chunk, a, b, cb): i for i, (a, b, cb) in enumerate(chunks)}
+                for fut in concurrent.futures.as_completed(futs):
+                    resultados[futs[fut]] = fut.result()
+            for pags, rec in resultados:
+                paginas.extend(pags)
+                if rec:
+                    recortes.append(rec)
     except Exception as e:
         print(f"[docai] OCR falló ({type(e).__name__}: {str(e)[:160]}) → fallback a render", flush=True)
         return None

@@ -12,12 +12,18 @@ Unifica el juicio que antes corría offline en backend/scripts/evals_vigia.py.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 
 from tools._core import (  # noqa: F401
     _gemini_client, _gemini_call_with_retry, _throttle_gemini, DEFAULT_GEMINI_MODEL,
 )
+
+# Los jueces LLM (respaldo, precio, tono, coherencia) son llamadas independientes a Gemini:
+# corren a la vez en un pool de hilos (EVAL_CONCURRENCY, default 4) en vez de en serie.
+# =1 → secuencial (rollback).
+_EVAL_CONCURRENCY = max(1, int(os.getenv("EVAL_CONCURRENCY", "4") or 4))
 
 
 def _judge_model() -> str:
@@ -251,12 +257,30 @@ def _contexto_bandera(b: dict, state: dict | None) -> dict:
     return out
 
 
+def _correr_jueces(jueces: dict[str, tuple]) -> dict:
+    """Corre los jueces LLM {nombre: (fn, args)} concurrentes (hasta EVAL_CONCURRENCY hilos;
+    cada fn ya es robusta a fallos y devuelve un default). Devuelve {nombre: resultado}."""
+    if not jueces:
+        return {}
+    if _EVAL_CONCURRENCY <= 1 or len(jueces) == 1:
+        return {n: fn(*args) for n, (fn, args) in jueces.items()}
+    res: dict = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(_EVAL_CONCURRENCY, len(jueces))) as ex:
+        futs = {n: ex.submit(fn, *args) for n, (fn, args) in jueces.items()}
+        for n, fut in futs.items():
+            try:
+                res[n] = fut.result()
+            except Exception as e:  # no debería: cada juez captura sus excepciones
+                print(f"[self-eval] juez {n} falló: {str(e)[:120]}", flush=True)
+    return res
+
+
 def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
                      objeto: str = "", stages: dict | None = None,
                      news_research=None, firmantes=None, doc_item_descs=None,
                      state: dict | None = None) -> dict:
-    """Corre 6 evaluadores LLM-as-judge / code sobre los outputs del análisis.
-    ~4 llamadas Gemini (batched) + 2 evaluadores de código. Devuelve scores +
+    """Corre 8 evaluadores LLM-as-judge / code sobre los outputs del análisis.
+    ~4 llamadas Gemini (batched, EN PARALELO) + 4 evaluadores de código. Devuelve scores +
     razones + per-ítem, para que el dashboard muestre QUÉ evaluó y por qué.
 
     `state` (opcional, lo pasa main.py): da a los jueces el OCDS compacto, la
@@ -277,6 +301,10 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
         "cita_detalle": [],
         "n_judge_calls": 0,
     }
+    # {nombre: (fn_juez, args)} — se encolan y corren juntos en _correr_jueces.
+    _jueces: dict[str, tuple] = {}
+    bl: list = []
+    fl: list = []
 
     # cita_evidencia (CODE, gratis): norma + fuente_url presentes.
     for b in banderas:
@@ -315,14 +343,7 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             f"CONTEXTO OCDS (fuente oficial):\n{json.dumps(ctx_ocds, ensure_ascii=False, default=str)}\n\n"
             f"BANDERAS:\n{json.dumps(items, ensure_ascii=False, default=str)}"
         )
-        verds = _judge_array_reason(prompt, len(bl), ["respaldada", "no_respaldada"])
-        out["n_judge_calls"] += 1
-        for i, b in enumerate(bl):
-            ok = verds[i]["label"] == "respaldada"
-            out["respaldo"]["n"] += 1
-            out["respaldo"]["ok"] += 1 if ok else 0
-            out["per_bandera"].append({"regla": b.get("regla"), "respaldada": ok,
-                                       "reason": verds[i]["reason"]})
+        _jueces["respaldo"] = (_judge_array_reason, (prompt, len(bl), ["respaldada", "no_respaldada"]))
 
     # plausibilidad_precio (LLM, batched, máx 10 con precios observados).
     fl = [f for f in (market_findings or [])
@@ -343,15 +364,7 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "'mediana S/.146 implausible para llanta de camión' o 'Δ coherente')}.\n\n"
             f"ITEMS:\n{json.dumps(items, ensure_ascii=False, default=str)}"
         )
-        verds = _judge_array_reason(prompt, len(fl), ["plausible", "dudoso"])
-        out["n_judge_calls"] += 1
-        for i, f in enumerate(fl):
-            ok = verds[i]["label"] == "plausible"
-            out["precio"]["n"] += 1
-            out["precio"]["ok"] += 1 if ok else 0
-            out["per_precio"].append({
-                "item": f.get("item_descripcion") or f.get("descripcion_corta"),
-                "plausible": ok, "reason": verds[i]["reason"]})
+        _jueces["precio"] = (_judge_array_reason, (prompt, len(fl), ["plausible", "dudoso"]))
 
     # tono_no_acusatorio (LLM, dictamen) — con razón.
     if dictamen and len(dictamen.strip()) > 100:
@@ -364,8 +377,7 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             "reason: cita la frase del dictamen que motivó tu veredicto.\n\n"
             f"DICTAMEN (primeros 7000 chars):\n{dictamen[:7000]}"
         )
-        out["tono"], out["tono_reason"] = _judge_one_reason(prompt, ["ok", "acusatorio"])
-        out["n_judge_calls"] += 1
+        _jueces["tono"] = (_judge_one_reason, (prompt, ["ok", "acusatorio"]))
 
     # coherencia_objeto_items (LLM, con razón) — atrapa extracción contaminada /
     # sobre-extracción: ¿los ítems analizados pertenecen al objeto de la convocatoria?
@@ -394,9 +406,32 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             f"OBJETO: {(objeto or '')[:240]}\n"
             f"ÍTEMS ANALIZADOS: {json.dumps(item_descs, ensure_ascii=False)}"
         )
-        out["coherencia"], out["coherencia_reason"] = _judge_one_reason(
-            prompt, ["coherente", "incoherente"])
-        out["n_judge_calls"] += 1
+        _jueces["coherencia"] = (_judge_one_reason, (prompt, ["coherente", "incoherente"]))
+
+    # ── Jueces LLM en paralelo (pool de hilos) y volcado de resultados ──
+    _res = _correr_jueces(_jueces)
+    out["n_judge_calls"] += len(_jueces)
+    if "respaldo" in _res:
+        verds = _res["respaldo"]
+        for i, b in enumerate(bl):
+            ok = verds[i]["label"] == "respaldada"
+            out["respaldo"]["n"] += 1
+            out["respaldo"]["ok"] += 1 if ok else 0
+            out["per_bandera"].append({"regla": b.get("regla"), "respaldada": ok,
+                                       "reason": verds[i]["reason"]})
+    if "precio" in _res:
+        verds = _res["precio"]
+        for i, f in enumerate(fl):
+            ok = verds[i]["label"] == "plausible"
+            out["precio"]["n"] += 1
+            out["precio"]["ok"] += 1 if ok else 0
+            out["per_precio"].append({
+                "item": f.get("item_descripcion") or f.get("descripcion_corta"),
+                "plausible": ok, "reason": verds[i]["reason"]})
+    if "tono" in _res:
+        out["tono"], out["tono_reason"] = _res["tono"]
+    if "coherencia" in _res:
+        out["coherencia"], out["coherencia_reason"] = _res["coherencia"]
 
     # completitud_analisis (CODE, gratis): ¿corrieron todas las etapas esperadas?
     stages = stages or {}

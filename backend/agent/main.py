@@ -433,7 +433,7 @@ async def _run_streaming(
         safety_actions.append(f"persist_exception:{str(e)[:80]}")
 
     # ─── Self-eval INLINE (track Arize): el orquestador juzga sus propios
-    #     outputs con 4 evaluadores LLM-as-judge. Emite los scores al stream,
+    #     outputs con 8 evaluadores (4 LLM-as-judge en paralelo + 4 de código). Emite los scores al stream,
     #     quedan en el agent_trace, se anotan en el span raíz (Phoenix) y van al
     #     resultado. Unifica lo que antes corría offline en backend/scripts/evals_vigia.py.
     _evals = None
@@ -508,7 +508,10 @@ async def _run_streaming(
                            for it in (_da_eval.get("items_consolidados") or [])
                            if isinstance(it, dict)]
         _nr_eval = _rp_eval(raw_state.get("news_research"))
-        _evals = run_inline_evals(
+        # Los 4 jueces LLM corren en paralelo dentro de run_inline_evals (EVAL_CONCURRENCY);
+        # la función es síncrona → en un hilo para no bloquear el event loop del stream.
+        _evals = await asyncio.to_thread(
+            run_inline_evals,
             _band, _ma_eval.get("findings"),
             raw_state.get("final_dictamen") or final_response or "",
             objeto=str(_objeto_eval or ""), stages=_stages_eval,

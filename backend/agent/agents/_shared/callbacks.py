@@ -63,8 +63,32 @@ def before_tool_log(tool, args, tool_context):
     return None
 
 
+# Acumuladores de lista del state que las tools extienden IN-PLACE
+# (`state.setdefault(k, []).append(x)`). El runner ADK trabaja sobre una copia profunda de
+# la sesión y persiste SOLO `state_delta` (escrituras por setitem): un append a una lista
+# que ya existía al sembrar la sesión no entra al delta y se PERDÍA al cerrar la sesión
+# (p. ej. las 12 reglas de compliance_extended cuando `pending_flags` ya venía del
+# compliance). Tras cada tool se "toca" la clave (setitem con el mismo objeto) para que
+# viaje en el delta. Verificado en tests/test_state_acumuladores.py.
+_ACUMULADORES_STATE = ("pending_flags", "recortes", "descartes", "grounding_urls", "market_findings")
+
+
+def _tocar_acumuladores(tool_context) -> None:
+    try:
+        st = tool_context.state
+        for k in _ACUMULADORES_STATE:
+            if k in st:
+                v = st[k]
+                if isinstance(v, list):
+                    st[k] = v
+    except Exception:
+        pass
+
+
 def after_tool_log(tool, args, tool_context, tool_response):
-    """Loggea el resultado del tool (truncado)."""
+    """Loggea el resultado del tool (truncado) y asegura que los acumuladores de lista
+    modificados in-place entren al `state_delta` de la sesión."""
+    _tocar_acumuladores(tool_context)
     try:
         if isinstance(tool_response, dict):
             preview = {}

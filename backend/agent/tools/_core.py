@@ -19,10 +19,16 @@ import requests
 from google.adk.tools import FunctionTool, ToolContext
 import datetime as _dt
 
-_GEMINI_CALL_SEM = threading.Semaphore(2)
+# Concurrencia de las llamadas DIRECTAS a Gemini desde tools (extracción del parser,
+# RAG legal, jueces de la self-eval, sanitize). Los sub-agentes ADK no pasan por acá.
+# Default 4 (antes 2, que serializaba el lote de documentos —3 workers— y los jueces);
+# env GEMINI_CALL_CONCURRENCY para ajustar sin redeploy de código. El intervalo mínimo
+# entre llamadas (0.25 s) solo espacia los ARRANQUES: no serializa las llamadas en vuelo.
+_GEMINI_CALL_CONCURRENCY = max(1, int(os.getenv("GEMINI_CALL_CONCURRENCY", "4") or 4))
+_GEMINI_CALL_SEM = threading.Semaphore(_GEMINI_CALL_CONCURRENCY)
 _GEMINI_LAST_CALL_T = [0.0]
 _GEMINI_LAST_CALL_LOCK = threading.Lock()
-_GEMINI_MIN_INTERVAL_S = 0.25
+_GEMINI_MIN_INTERVAL_S = float(os.getenv("GEMINI_MIN_INTERVAL_S", "0.25") or 0.25)
 PG_HOST = os.getenv("PGHOST", "/cloudsql/vivid-spot-480905-a4:us-central1:vigia-db")
 PG_USER = os.getenv("PGUSER", "postgres")
 PG_PASS = os.getenv("PGPASSWORD", "")
@@ -351,4 +357,37 @@ def _today_iso() -> str:
     """Fecha de hoy en ISO (yyyy-mm-dd) — UTC para consistencia."""
     return _dt.date.today().isoformat()
 
-__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
+__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
+
+
+# ── Downloader local (relay residencial PE): cortacircuito ───────────────────
+# Si el VPS está caído, cada llamada con timeout=60 s costaba hasta un minuto en
+# perfil del proveedor, OCDS y documentos (126 s medidos en un análisis). Se
+# comprueba /health una vez (3 s) y se recuerda el resultado DOWNLOADER_CB_TTL_S.
+_DL_CB = {"hasta": 0.0, "ok": False}
+_DL_CB_TTL = int(os.getenv("DOWNLOADER_CB_TTL_S", "600"))
+
+
+def downloader_base() -> str:
+    """URL base del downloader local si está configurado Y respondió /health hace
+    menos de DOWNLOADER_CB_TTL_S; '' en caso contrario (los llamadores saltan al
+    siguiente paso de su cadena sin esperar timeouts)."""
+    import time as _t
+    base = os.getenv("LOCAL_DOWNLOADER_URL", "").strip().rstrip("/")
+    if not base:
+        return ""
+    now = _t.time()
+    if now < _DL_CB["hasta"]:
+        return base if _DL_CB["ok"] else ""
+    ok = False
+    try:
+        import requests as _rq
+        r = _rq.get(f"{base}/health", timeout=(3, 5))
+        ok = r.status_code == 200
+    except Exception:
+        ok = False
+    _DL_CB.update(hasta=now + (_DL_CB_TTL if not ok else 60), ok=ok)
+    if not ok:
+        print(json.dumps({"_vigia": True, "kind": "warn", "name": "downloader",
+                          "msg": f"downloader local sin respuesta; se omite {_DL_CB_TTL}s"}), flush=True)
+    return base if ok else ""

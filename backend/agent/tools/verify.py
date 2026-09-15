@@ -463,12 +463,13 @@ def verificar_bandera(flag: dict, state: dict) -> dict:
 
 # ─── Verificación del dictamen ──────────────────────────────────────────────
 def _banderas_persistidas(state: dict) -> list[dict]:
+    """La BD es la verdad (varios agentes/hilos persisten): si hay `alerta_codigo` se lee de ahí;
+    el state solo sirve de respaldo cuando no hay conexión."""
     b = state.get("banderas")
-    if isinstance(b, list) and b:
-        return [x for x in b if isinstance(x, dict)]
+    en_state = [x for x in b if isinstance(x, dict)] if isinstance(b, list) else []
     codigo = state.get("alerta_codigo")
     if not codigo:
-        return []
+        return en_state
     try:
         conn = _pg()
         try:
@@ -476,12 +477,13 @@ def _banderas_persistidas(state: dict) -> list[dict]:
             cur.execute(
                 "SELECT b.regla, b.severidad, b.evidencia, b.norma, b.fuente_url, b.agente_origen "
                 "FROM banderas b JOIN alertas a ON a.id=b.alerta_id WHERE a.codigo=%s", (codigo,))
-            return [{"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
-                     "fuente_url": r[4], "agente_origen": r[5]} for r in cur.fetchall()]
+            filas = [{"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
+                      "fuente_url": r[4], "agente_origen": r[5]} for r in cur.fetchall()]
+            return filas or en_state
         finally:
             conn.close()
     except Exception:
-        return []
+        return en_state
 
 
 def verificar_dictamen(md: str, state: dict) -> dict:

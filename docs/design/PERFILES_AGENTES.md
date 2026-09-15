@@ -246,3 +246,102 @@ seguridad para despliegues parciales.
 6. **`_rate_for_agent_name` resuelve el modelo real del agente** en vez de un set fijo de "agentes Pro".
 7. **Sin tier `RESEARCH` separado**: 3.5-flash cuesta más que 3.6-flash (1.50/9.00 vs 0.75/3.75), así que
    web/news/entity usan DEFAULT (3.6-flash, thinking low) y no 3.5-flash como sugería §3.3.
+
+## 8. Latencia
+
+Medición 2026-09-15, perfil `bienes`, contrato `1245947` (7 documentos, texto ya en `documentos_texto`),
+orquestador corrido **en local** contra Cloud SQL (34.71.244.66) y Vertex AI global — mismo código que
+Cloud Run pero con más latencia de BD por consulta (compliance/OCDS salen más lentos que en producción).
+Cliente: `POST {url}?stream=1` con el body del dispatcher, timestamp por evento `phase`.
+
+### 8.1 Qué cambió
+
+| # | Cambio | Dónde | Flag / rollback |
+|---|---|---|---|
+| 1 | **DAG paralelo**: `compliance ∥ [parser → legal ∥ market] ∥ [proveedor → web ∥ prensa ∥ funcionarios]`, luego `person_network → compliance_extended → dictamen`. Tools síncronas de cada rama en hilo (`asyncio.to_thread`); agentes ADK en sesión aislada con merge **solo de las claves que escribieron** (`_run_agent_delta` + `_aplicar_delta`: acumuladores por append-dedupe); eventos de las ramas por cola (en vivo, orden entre ramas libre); `metrics`/`events_trace` solo desde el event loop. | `deterministic.py` (bloque "DAG paralelo": dependencias y claves por rama) | `PIPELINE_DAG=0` → secuencia histórica |
+| 2 | Concurrencia de llamadas directas a Gemini 2 → 4 (el semáforo serializaba el lote de 3 documentos y los jueces) | `tools/_core.py` | `GEMINI_CALL_CONCURRENCY`, `GEMINI_MIN_INTERVAL_S` |
+| 3 | Parser: documentos del lote en paralelo (`PARSE_CONCURRENCY`, default 3, alias `PARSE_LOTE_WORKERS`), **unidades de un ZIP** OCR-eadas a la vez con offsets de página precalculados, **chunks Document AI** (>30 págs) en paralelo, **rangos** de un documento largo (>600 k chars) extraídos en paralelo. Orden de prioridad conservado (resultados por índice), lock por sha256 y recortes intactos. | `tools/documentos.py`, `tools/docai.py` | `PARSE_CONCURRENCY=1`, `PARSE_UNIT_WORKERS=1`, `DOCAI_CHUNK_WORKERS=1`; `PARSE_SKIP_TEXTO_CACHE=1` solo para medir |
+| 4 | Self-eval: los 4 jueces LLM (respaldo, precio, tono, coherencia) en un pool de hilos; `run_inline_evals` en `asyncio.to_thread` desde `main.py` | `tools/self_eval.py`, `main.py` | `EVAL_CONCURRENCY=1` |
+| 5 | Thinking `high → medium` en `report_writer` y `person_network` (legal sigue en `high`); `MAX_OUTPUT_TOKENS_REPORT_WRITER = 16384` (antes default 65 k; el tope incluye los tokens de thinking) | `agents/report_writer/config.py`, `agents/person_network/config.py` | `THINKING_REPORT_WRITER=high`, `THINKING_PERSON_NETWORK=high` |
+| 6 | Contexto del writer sin redundancias: `requerimiento_tecnico_detallado` (alias de `texto_literal`, hasta 4 000 chars por ítem), `firmantes_consolidados`/`postores_consolidados` (duplicados de `firmantes`/`postores_extraidos`), telemetría de `documentos[*]` (gs, url, sha256, cache, tiempos, usos), `documento_sha256` por evidencia, `perfil` completo. Sin quitar información única. | `tools/state_loaders.py::_compact_document_analysis` | — |
+| 7 | Corrección: los acumuladores de lista que una tool de un sub-agente extiende **in-place** (`state.setdefault("pending_flags", []).append(...)`) se perdían al cerrar la sesión ADK si la clave ya existía al sembrarla (el runner trabaja sobre una copia profunda y persiste solo `state_delta`) — afectaba a las 12 reglas de `compliance_extended`. `after_tool_log` ahora "toca" la clave para que viaje en el delta. Reproducido y verificado en `tests/test_state_acumuladores.py`. | `agents/_shared/callbacks.py` | — |
+
+Tests: `backend/agent/tests/test_dag.py` (orden de dependencias con stubs, merge de deltas/acumuladores,
+fallo de una rama sin tumbar a las otras, ningún evento perdido, métricas monótonas, modo secuencial) y
+`tests/test_state_acumuladores.py` (LLM simulado, sin red). `python -m pytest backend/agent/tests -q` → 115 passed.
+
+### 8.2 Antes / después por fase (mismo contrato, local)
+
+Columnas: **Cloud Run antes** = medición del 2026-09-15 en el servicio desplegado (referencia del pedido);
+**local antes** = código previo, `PIPELINE_DAG=0`; **local después** = todos los cambios (dos corridas: B y C).
+En el DAG las fases de las tres ramas se solapan: se listan sus duraciones individuales (∥) y, en negrita, la
+duración del bloque completo (camino crítico = `parser → legal`).
+
+| Fase | Cloud Run antes | Local antes (A) | Local después (B) | Local después (C) |
+|---|---:|---:|---:|---:|
+| ocds + registro | 1 s | 16.8 s | 15.0 s | 14.0 s |
+| compliance | 13 s | 77.7 s | 62.3 s ∥ | 42.9 s ∥ |
+| document_parser (7 docs en caché + sanitize) | 94 s | 39.6 s | 28.7 s ∥ | 23.9 s ∥ |
+| legal (thinking high) | 48 s | 50.5 s | 130.7 s ∥ | 52.8 s ∥ |
+| market goods_retail | 20 s | 63.4 s | 39.9 s ∥ | 21.8 s ∥ |
+| proveedor (OECE + SUNAT) | 126 s (relay caído) | 7.3 s | 10.4 s ∥ | 8.3 s ∥ |
+| research_parallel (web ∥ prensa ∥ funcionarios) | 25 s | 140.7 s | 71.8 s ∥ | 42.8 s ∥ |
+| **bloque DAG (las 3 ramas)** | 326 s (suma) | 379 s (suma) | **160.8 s** | **76.7 s** |
+| person_network (tools RNP/DATOS_PERU + agente) | 76 s | 84.5 s | 75.4 s (43 + 32) | 65.2 s (40 + 25) |
+| compliance_extended + RAG normativo + persist | 5 s | 41.1 s | 25.7 s | 27.3 s |
+| checkpoint | — | 3.1 s | 3.3 s | 3.4 s |
+| report_writer | 139 s | 144.1 s | 79.9 s | 42.3 s |
+| persist final | — | 3.4 s | 3.6 s | 3.3 s |
+| self_eval | 22 s | 114.3 s | 40.5 s | 32.7 s |
+| **Total** | **570 s** | **786.5 s** | **404.9 s (−48 %)** | **266.4 s (−66 %)** |
+| `llm_metrics.cost_usd` | 0.2409 | 0.2118 | 0.1942 | 0.1912 |
+| llamadas LLM / tokens | 20 / 169 k | 19 / 148 k | 20 / 146 k | 20 / 147 k |
+
+Variación entre B y C: latencia de Vertex (legal 131 s vs 53 s con los mismos datos, 5 llamadas en ambas)
+y del grounding de Google Search. Con el DAG, el total queda gobernado por `max(rama)` + la cola
+secuencial (`person_network → compliance_extended → writer → self_eval`), que ya es la mitad del wall.
+
+### 8.3 Medidas aisladas (misma entrada, para separar cada cambio)
+
+| Componente | Antes | Después | Notas |
+|---|---:|---:|---|
+| Parser sin caché (`1216608`, perfil otros, 4 docs / 31 págs, `PARSE_SKIP_TEXTO_CACHE=1`) | 172.3 s (1 worker, semáforo 2) | **82.2 s** (3 workers, semáforo 4) | mismos 4/4 OK, mismo orden de consolidación, ZIP de 2 unidades OCR-eado en paralelo (9.1 → 7.9 s); ítems 1 vs 2 por variación del extractor |
+| report_writer sobre el state final de A (2 corridas por nivel) | high: 54.5 s / 44.9 s · out 10.6 k / 8.5 k tok · 0.0549 / 0.0471 USD | **medium: 42.7 s / 42.7 s** · out 8.4 k / 8.0 k tok · 0.0467 / 0.0452 USD | prompt 26.9 k → 20.2 k tokens por el contexto recortado (62 019 → 48 128 chars en este contrato; −22 %, más en contratos con muchos ítems) |
+| person_network sobre el mismo `person_network_context` | high: 40.1 s · out 7.6 k tok · 0.0339 USD | **medium: 28.8 s** · out 5.1 k tok · 0.0245 USD | misma `persona_principal` (DNI 02546088), 0 vínculos en ambos, todas las secciones del schema |
+| self_eval sobre el mismo state (4 banderas, 1 ítem con precios) | 46.2 s (`EVAL_CONCURRENCY=1`) | **26.7 s** (`=4`) | veredictos idénticos: respaldo 4/4, precio 1/1, tono ok |
+
+### 8.4 Calidad del dictamen (thinking high vs medium, mismo contexto)
+
+`tools.verify.verificar_dictamen` sobre las cuatro salidas del writer (8.3):
+
+| | high #1 | high #2 | medium #1 | medium #2 |
+|---|---|---|---|---|
+| banderas citadas | red_flag_documental, sobreprecio_lote_muy_elevado, sobreprecio_muy_elevado | ídem | ídem | ídem |
+| banderas inexistentes / URLs / RUC / DNI sin respaldo | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| longitud | 14 436 chars | 10 808 | 14 523 | 13 073 |
+| secciones del perfil (resumen, hechos, precios, requerimiento, proveedor, red, cumplimiento, recortes) | todas | todas | todas | todas |
+| `_dictamen_problems` | ninguno | ninguno | ninguno | ninguno |
+
+`medium` se mantiene para writer y person_network. `legal` queda en `high`.
+
+### 8.5 Qué NO mejoró y por qué
+
+- **Camino crítico `parser → legal`**: legal es el agente más caro (5 llamadas, ~55 k tokens de prompt, thinking
+  high) y ahora define el bloque DAG (53–131 s según latencia de Vertex). No se bajó su thinking (razonamiento
+  normativo) ni su contexto; sería el siguiente candidato (RAG legal prefetch en código, menos idas y vueltas).
+- **Cola secuencial tras el join** (`person_network` 65–75 s, `compliance_extended` 26 s, writer 42–80 s,
+  self_eval 33–40 s): `person_network` necesita firmantes (parser) + funcionarios (entity) + RNP, y
+  `compliance_extended` inyecta `person_network`; el writer necesita todo. De los ~40 s de tools previas a
+  `person_network` (RNP del ganador y de 4 postores + `batch_person_lookup`, consultas a BD en serie) no se
+  tocó nada: son el candidato obvio (fan-out de `query_rnp_empresa`).
+- **OCDS (14–17 s) y compliance (43–78 s) en local**: dominados por la latencia de Cloud SQL desde fuera de GCP
+  (en Cloud Run miden 1 s y 13 s); el DAG los solapa pero no los acorta.
+- **Mercado no determinista**: en A el grounding devolvió 3 precios (mediana S/ 1.6 → `muy_elevado`); en B
+  1 precio y en C 3 con un outlier descartado → `sin_dato`, sin bandera de sobreprecio y por eso sin alerta
+  nueva ni `alerta_codigo` en el state (el writer vio `banderas: null`; los 9–10 k chars de B/C no son
+  comparables con A). No es efecto del DAG (mismo `_modo`, mismas queries, misma duración); la comparación de
+  calidad del writer se hizo con el mismo state (8.4).
+- **`max_output_tokens` del writer no acelera** por sí mismo: solo acota una degeneración (README/boilerplate
+  anexado). 16 k y no 8 k porque el tope incluye los tokens de thinking (3–5 k en `medium`, 5–6 k en `high`).
+- **Cloud Run**: no se desplegó; los números de producción se deben re-medir tras el deploy (la latencia de BD
+  desaparece y el bloque DAG debería quedar en ~max(parser+legal, compliance, proveedor+research)).
