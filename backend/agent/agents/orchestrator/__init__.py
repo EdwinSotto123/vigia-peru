@@ -9,6 +9,7 @@ from google.adk.tools import AgentTool
 
 from agents._shared.callbacks import CALLBACKS
 from agents._shared.instructions import with_today_header
+from agents._shared.models import build_planner
 from . import config
 from . import prompt
 
@@ -59,11 +60,15 @@ from agents.compliance_extended import compliance_extended_agent
 from agents.report_writer import report_writer_agent
 
 
+_planner = build_planner("vigia_orchestrator", config.MODEL, getattr(config, "THINKING", None))
+_kw = {"planner": _planner} if _planner is not None else {}
+
 vigia_orchestrator = Agent(
     name="vigia_orchestrator",
     model=config.MODEL,
     description=prompt.DESCRIPTION,
     instruction=with_today_header(prompt.INSTRUCTION),
+    **_kw,
     tools=[
         # Tools directas (orden preservado del monolito)
         fetch_ocds_record_tool,

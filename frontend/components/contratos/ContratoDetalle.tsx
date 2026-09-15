@@ -6,11 +6,12 @@
 
 import Link from "next/link";
 import {
-  ArrowLeft, ArrowUpRight, Building2, CheckCircle2, Clock, ExternalLink, FileText, Heart, MapPin, ShieldAlert,
+  ArrowLeft, ArrowUpRight, Building2, CheckCircle2, Clock, Heart, MapPin, ShieldAlert,
 } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { Glass, PersonName } from "@/components/Redact";
 import { EstadoContratoPill } from "./ContratosLista";
+import { DocumentosContrato } from "./DocumentosContrato";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import {
@@ -144,24 +145,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                 </span>
               )}
             </div>
-            {c.documentos.length ? (
-              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper">
-                {c.documentos.map((d, i) => (
-                  <li key={`${d.url}-${i}`}>
-                    <a href={d.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-paperSoft">
-                      <FileText size={14} className="shrink-0 text-mute" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-ink">{d.titulo ?? tipoDocLabel(d.tipo)}</span>
-                        <span className="block text-[10px] text-mute">{tipoDocLabel(d.tipo)}{d.formato ? ` · ${d.formato.toUpperCase()}` : ""}{d.fecha ? ` · ${formatFecha(d.fecha)}` : ""} · SEACE</span>
-                      </span>
-                      <ExternalLink size={13} className="shrink-0 text-mute opacity-60 group-hover:opacity-100" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-mute">Sin documentos publicados en el registro.</p>
-            )}
+            <DocumentosContrato ocid={c.ocid} documentos={c.documentos} />
           </section>
         </div>
 

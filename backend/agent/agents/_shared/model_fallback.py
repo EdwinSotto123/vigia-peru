@@ -7,25 +7,50 @@ como crash del agent loop. Este patch reintenta con backoff y cambia de modelo
 según `_FALLBACK_CHAIN`.
 
 Se aplica al IMPORTAR este módulo (idempotente, guard `_vigia_patched`).
-Extraído textual del agents.py monolítico.
+
+Es la ÚNICA capa de reintentos del pipeline (los raw calls de tools/_core.py ya no
+apilan la suya): cada llamada tiene un techo TOTAL `GEMINI_CALL_DEADLINE_S` (default 600 s)
+que acota reintentos + saltos de modelo; superado el techo se propaga el último error.
 """
 from __future__ import annotations
 
 import asyncio as _asyncio
 import json as _json_mp
+import os as _os_mp
 import random as _random_mp
 import time as _time_mp
 
 
+# Verificado 2026-09-15 (Vertex global): 3.6-flash, 3.5-flash, 3.5-flash-lite y 2.5-* responden;
+# 3.6-pro / 3.5-pro / 3.6-flash-lite NO existen (404) → nunca en las cadenas.
 _FALLBACK_CHAIN = {
-    "gemini-2.5-pro":         ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-2.5-flash-lite"],
-    "gemini-2.5-flash":       ["gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
-    "gemini-3.5-flash":       ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
-    "gemini-2.5-flash-lite":  ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-2.5-pro"],
+    "gemini-3.6-flash":       ["gemini-3.5-flash", "gemini-2.5-flash"],
+    "gemini-3.5-flash":       ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    "gemini-3.5-flash-lite":  ["gemini-2.5-flash-lite", "gemini-3.5-flash"],
+    "gemini-2.5-pro":         ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.5-flash"],
+    "gemini-2.5-flash":       ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash-lite"],
+    "gemini-2.5-flash-lite":  ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"],
 }
 
 _RETRY_DELAYS = [10, 20, 40, 80]  # segundos por attempt
 _MAX_FALLBACK_HOPS = 3            # cuántos modelos distintos probamos antes de raise
+
+
+def _deadline_s() -> float:
+    """Techo TOTAL (segundos) por llamada a generate_content: reintentos + saltos de modelo."""
+    try:
+        return float(_os_mp.getenv("GEMINI_CALL_DEADLINE_S", "600"))
+    except ValueError:
+        return 600.0
+
+
+def _next_wait(t0: float, delay: float):
+    """Espera (con jitter) para el próximo intento, o None si excedería el deadline."""
+    jitter = _random_mp.uniform(0, 3)
+    wait_s = delay + jitter
+    if (_time_mp.monotonic() - t0) + wait_s >= _deadline_s():
+        return None
+    return wait_s
 
 
 def _mp_log(**fields):
@@ -103,6 +128,8 @@ def _apply_gemini_fallback_patch():
             tried = []
             current = model
             last_exc = None
+            t0 = _time_mp.monotonic()
+            agotado = False
 
             for hop in range(_MAX_FALLBACK_HOPS + 1):
                 for attempt, delay in enumerate(_RETRY_DELAYS):
@@ -115,12 +142,16 @@ def _apply_gemini_fallback_patch():
                             raise
                         last_exc = e
                         if attempt < len(_RETRY_DELAYS) - 1:
-                            jitter = _random_mp.uniform(0, 3)
-                            wait_s = delay + jitter
+                            wait_s = _next_wait(t0, delay)
+                            if wait_s is None:
+                                agotado = True
+                                break
                             _mp_log(kind="503_retry", model=current, hop=hop, attempt=attempt + 1,
                                     wait_s=round(wait_s, 1))
                             await _asyncio.sleep(wait_s)
                 tried.append(current)
+                if agotado:
+                    break
                 chain = _FALLBACK_CHAIN.get(current, [])
                 next_model = next((m for m in chain if m not in tried), None)
                 if not next_model:
@@ -129,7 +160,8 @@ def _apply_gemini_fallback_patch():
                         already_tried=tried)
                 current = next_model
 
-            _mp_log(kind="fallback_exhausted", models_tried=tried)
+            _mp_log(kind="fallback_exhausted", models_tried=tried,
+                    elapsed_s=round(_time_mp.monotonic() - t0, 1), deadline_s=_deadline_s())
             raise last_exc if last_exc else RuntimeError("fallback exhausted")
 
         _async_generate_with_fallback._vigia_patched = True
@@ -143,6 +175,8 @@ def _apply_gemini_fallback_patch():
             tried = []
             current = model
             last_exc = None
+            t0 = _time_mp.monotonic()
+            agotado = False
 
             for hop in range(_MAX_FALLBACK_HOPS + 1):
                 for attempt, delay in enumerate(_RETRY_DELAYS):
@@ -155,12 +189,16 @@ def _apply_gemini_fallback_patch():
                             raise
                         last_exc = e
                         if attempt < len(_RETRY_DELAYS) - 1:
-                            jitter = _random_mp.uniform(0, 3)
-                            wait_s = delay + jitter
+                            wait_s = _next_wait(t0, delay)
+                            if wait_s is None:
+                                agotado = True
+                                break
                             _mp_log(kind="503_retry_sync", model=current, hop=hop, attempt=attempt + 1,
                                     wait_s=round(wait_s, 1))
                             _time_mp.sleep(wait_s)
                 tried.append(current)
+                if agotado:
+                    break
                 chain = _FALLBACK_CHAIN.get(current, [])
                 next_model = next((m for m in chain if m not in tried), None)
                 if not next_model:
@@ -169,7 +207,8 @@ def _apply_gemini_fallback_patch():
                         already_tried=tried)
                 current = next_model
 
-            _mp_log(kind="fallback_exhausted_sync", models_tried=tried)
+            _mp_log(kind="fallback_exhausted_sync", models_tried=tried,
+                    elapsed_s=round(_time_mp.monotonic() - t0, 1), deadline_s=_deadline_s())
             raise last_exc if last_exc else RuntimeError("fallback exhausted")
 
         _sync_generate_with_fallback._vigia_patched = True

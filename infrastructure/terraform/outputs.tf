@@ -25,3 +25,8 @@ output "sql_public_ip" {
 output "relay_service_account" {
   value = google_service_account.relay.email
 }
+
+output "agente_urls" {
+  description = "URLs de los servicios de agentes por perfil (servicios/obras/otros); bienes = agent_url"
+  value       = { for k, s in google_cloud_run_v2_service.agente_perfil : k => s.uri }
+}

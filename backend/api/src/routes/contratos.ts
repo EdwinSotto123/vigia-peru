@@ -21,6 +21,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { signReadUrl } from "../lib/storage.js";
 
 export const contratosRouter = new Hono();
 
@@ -263,6 +264,27 @@ contratosRouter.get("/geo", async (c) => {
 });
 
 // ─── GET /contratos/:ocid ────────────────────────────────────────────────────
+// URL firmada (15 min) para ver/descargar un documento guardado en el almacén de Vigía.
+//   GET /contratos/:ocid/documento?url=<url_origen SEACE>
+contratosRouter.get("/:ocid/documento", async (c) => {
+  const ocid = c.req.param("ocid");
+  const url = c.req.query("url") ?? "";
+  if (!url) return c.json({ error: "falta url" }, 400);
+  const r = await pool.query(
+    `SELECT d.url_gcs AS "urlGcs", d.formato, d.titulo, d.bytes, d.expira_at AS "expiraAt"
+     FROM documentos_gcs d
+     WHERE ocid_corto(d.ocid) = ocid_corto($1) AND d.url_origen = $2 AND d.borrado_at IS NULL AND d.expira_at > now()
+     ORDER BY d.creado_at DESC LIMIT 1`, [ocid, url]).catch(() => ({ rows: [] as any[] }));
+  const d = r.rows[0];
+  if (!d) return c.json({ error: "no_disponible", detail: "El documento no está en el almacén de Vigía (se descarga al financiar el análisis)." }, 404);
+  const mime: Record<string, string> = { pdf: "application/pdf", zip: "application/zip", rar: "application/vnd.rar", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+  const formato = String(d.formato ?? "").toLowerCase();
+  const nombre = `${ocid}-${(d.titulo ?? "documento").replace(/[^\w.-]+/g, "_").slice(0, 80)}.${formato || "bin"}`;
+  const firmada = await signReadUrl(d.urlGcs, { filename: nombre, contentType: mime[formato] });
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ url: firmada, formato, bytes: d.bytes, expiraAt: d.expiraAt, previsualizable: formato === "pdf", venceEnSeg: 900 });
+});
+
 contratosRouter.get("/:ocid", async (c) => {
   const ocid = c.req.param("ocid");
   if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
@@ -279,7 +301,13 @@ contratosRouter.get("/:ocid", async (c) => {
             c.ocds_payload->'tender'->>'description' AS descripcion,
             (c.ocds_payload->'tender'->>'numberOfTenderers')::int AS "postores",
             COALESCE(c.ocds_payload->'tender'->'items', c.ocds_payload->'awards'->0->'items', '[]'::jsonb) AS items_raw,
-            COALESCE(c.ocds_payload->'tender'->'documents', '[]'::jsonb) AS docs_raw,
+            -- documentos de tender + awards + contracts (el record completo trae los tres niveles)
+            (SELECT COALESCE(jsonb_agg(d || jsonb_build_object('seccion', s)), '[]'::jsonb) FROM (
+               SELECT d, 'tender' AS s FROM jsonb_array_elements(COALESCE(c.ocds_payload->'tender'->'documents', '[]'::jsonb)) d
+               UNION ALL SELECT d, 'award' FROM jsonb_array_elements(COALESCE(c.ocds_payload->'awards', '[]'::jsonb)) a,
+                                             jsonb_array_elements(COALESCE(a->'documents', '[]'::jsonb)) d
+               UNION ALL SELECT d, 'contract' FROM jsonb_array_elements(COALESCE(c.ocds_payload->'contracts', '[]'::jsonb)) k,
+                                                jsonb_array_elements(COALESCE(k->'documents', '[]'::jsonb)) d) x) AS docs_raw,
             c.ocds_payload->'awards' AS awards_raw,
             a.id AS alerta_id, a.codigo AS "alertaCodigo",
             ${ex.motivo} AS "motivoNoProcesable", ${ex.agentes} AS "agentesAplicables", ${ex.validaciones} AS "validacionesPendientes",
@@ -311,8 +339,8 @@ contratosRouter.get("/:ocid", async (c) => {
               alerta_codigo AS "alertaCodigo", score, banderas::int
        FROM procesamientos_publico WHERE ocid = $1`, [row.ocid]),
     // Migración 15: documentos vigentes en GCS (retención 90 días) y pedido de descarga abierto.
-    pool.query(`SELECT count(*)::int AS n, max(expira_at) AS "expiraAt" FROM documentos_vigentes($1)`, [row.ocid])
-      .then((q) => q.rows[0]).catch(() => null),
+    pool.query(`SELECT url_origen AS "urlOrigen", url_gcs AS "urlGcs", expira_at AS "expiraAt" FROM documentos_vigentes($1)`, [row.ocid])
+      .then((q) => q.rows as { urlOrigen: string; urlGcs: string; expiraAt: string }[]).catch(() => null),
     pool.query(`SELECT estado, solicitado_at AS "solicitadoAt" FROM pedidos_descarga WHERE ocid_corto(ocid) = ocid_corto($1) AND estado IN ('pendiente','descargando') LIMIT 1`, [row.ocid])
       .then((q) => q.rows[0] ?? null).catch(() => null),
   ]);
@@ -327,6 +355,7 @@ contratosRouter.get("/:ocid", async (c) => {
     cubso: it?.classification?.scheme === "CUBSO" ? it.classification.id ?? null : null,
     estado: it?.statusDetails ?? it?.status ?? null,
   }));
+  const vigentesPorUrl = new Map((docsGcs ?? []).map((v) => [v.urlOrigen, v]));
   const documentos = (Array.isArray(docs_raw) ? docs_raw : [])
     .filter((d: any) => d?.url)
     .map((d: any) => ({
@@ -335,7 +364,13 @@ contratosRouter.get("/:ocid", async (c) => {
       url: d.url,
       formato: d.format ?? null,
       fecha: d.datePublished ? String(d.datePublished).slice(0, 10) : null,
+      seccion: d.seccion ?? "tender",
+      // Migración 15: copia vigente en el almacén de Vigía → se puede previsualizar con URL firmada.
+      enVigia: vigentesPorUrl.has(d.url),
     }));
+  const docsGcsResumen = docsGcs
+    ? { n: docsGcs.length, expiraAt: docsGcs.reduce<string | null>((m, v) => (!m || v.expiraAt > m ? v.expiraAt : m), null) }
+    : null;
   const adjudicaciones = (Array.isArray(awards_raw) ? awards_raw : []).map((aw: any) => ({
     id: aw?.id ?? null,
     fecha: aw?.date ? String(aw.date).slice(0, 10) : null,
@@ -352,7 +387,7 @@ contratosRouter.get("/:ocid", async (c) => {
     adjudicaciones,
     alerta: alerta?.rows[0] ?? null,
     procesamiento: proc.rows[0] ?? null,
-    documentosEnVigia: docsGcs ? { n: docsGcs.n, expiraAt: docsGcs.expiraAt } : null,
+    documentosEnVigia: docsGcsResumen,
     pedidoDescarga: pedido,
     clasificacion: {
       tipo: resumen.tipo ?? null,

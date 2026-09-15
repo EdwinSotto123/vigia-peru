@@ -1,7 +1,127 @@
-"""Tools del dominio: persistence."""
+"""Tools del dominio: persistence.
+
+Reglas de persistencia (WS V · auditoría #1, #2, §6.1-1, §6.2-5, §6.2-9):
+  · Cada agente borra SOLO sus propias banderas (`agente_origen`) — nunca las de otros.
+  · El `score` de la alerta se recalcula SIEMPRE con TODAS las banderas persistidas.
+  · Toda bandera pasa por `verify.verificar_bandera` antes del INSERT; las que no
+    superan la verificación (RUC/DNI/monto no respaldado) van a state['descartes'] y
+    NO se persisten. El resultado queda en `banderas.verificacion` (JSONB).
+  · `pending_doc_flags` y `pending_market_flags` (diferidas porque la alerta aún no
+    existía) se consumen en `persist_analysis_outputs` y se limpian del state.
+  · Un output de agente que no parsea como JSON se persiste como
+    `{"estado": "sin_dato", "_parse_failed": true}` (no texto crudo) y se registra warn.
+"""
 
 from tools._core import *  # noqa: F401,F403
 import hashlib as _hashlib
+from tools import verify as _verify
+
+# Pesos de score por severidad según origen (los de compliance ya eran 35/18/8; los
+# demás agentes 25/12/5). Se mantienen, pero ahora se suman sobre TODAS las banderas.
+_PESOS = {"compliance_agent": {"alta": 35, "media": 18, "baja": 8}}
+_PESOS_DEFAULT = {"alta": 25, "media": 12, "baja": 5}
+_verificacion_col_ok = [False]
+
+
+def _peso(agente: str | None, severidad: str | None) -> int:
+    return _PESOS.get(agente or "", _PESOS_DEFAULT).get(severidad or "", 5)
+
+
+def _asegurar_columna_verificacion(cur) -> None:
+    """Migración 18 defensiva (idempotente, una vez por proceso)."""
+    if _verificacion_col_ok[0]:
+        return
+    try:
+        cur.execute("ALTER TABLE banderas ADD COLUMN IF NOT EXISTS verificacion JSONB")
+        _verificacion_col_ok[0] = True
+    except Exception:
+        pass
+
+
+def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
+                    agente_origen, verificacion) -> None:
+    _asegurar_columna_verificacion(cur)
+    cur.execute(
+        """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
+                                 fuente_url, agente_origen, verificacion)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)""",
+        (alerta_id, (regla or "sin_regla")[:80], severidad if severidad in ("alta", "media", "baja") else "media",
+         (evidencia or "")[:500], (norma or "")[:300], (fuente_url or None),
+         agente_origen, json.dumps(verificacion or {}, ensure_ascii=False, default=str)),
+    )
+
+
+def _leer_banderas(cur, alerta_id) -> list[dict]:
+    _asegurar_columna_verificacion(cur)
+    cur.execute(
+        "SELECT regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion "
+        "FROM banderas WHERE alerta_id=%s ORDER BY CASE severidad WHEN 'alta' THEN 1 "
+        "WHEN 'media' THEN 2 ELSE 3 END, id", (alerta_id,))
+    out = []
+    for r in cur.fetchall():
+        ver = r[6]
+        if isinstance(ver, str):
+            ver = _safe_parse_json(ver)
+        out.append({"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
+                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver})
+    return out
+
+
+def _recalcular_score(cur, alerta_id, state=None) -> tuple[int, list[dict]]:
+    """score = min(100, Σ peso(agente, severidad)) sobre TODAS las banderas de la alerta.
+    Actualiza `alertas.score` y `reglas_disparadas`; deja state['banderas'] con la
+    lista completa (todos los agentes) y devuelve (score, banderas)."""
+    banderas = _leer_banderas(cur, alerta_id)
+    score = min(sum(_peso(b.get("agente_origen"), b.get("severidad")) for b in banderas), 100)
+    reglas = sorted({b["regla"] for b in banderas if b.get("regla")})
+    cur.execute("UPDATE alertas SET score=%s, reglas_disparadas=%s, updated_at=NOW() WHERE id=%s",
+                (score, reglas, alerta_id))
+    if state is not None:
+        state["banderas"] = banderas
+        state["score"] = score
+    return score, banderas
+
+
+def _verificar_o_descartar(flag: dict, state: dict, donde: str, agente: str) -> bool:
+    """True si la bandera pasa la verificación determinista; si no, la registra en
+    state['descartes'] y devuelve False."""
+    try:
+        res = _verify.verificar_bandera(flag, state)
+    except Exception as e:  # la verificación nunca debe tumbar el persist
+        res = {"ok": True, "motivos": [f"verificacion_error:{str(e)[:80]}"], "n_checks": 0}
+        flag["verificacion"] = res
+    if res.get("ok"):
+        return True
+    entry = {
+        "donde": donde, "agente": agente, "regla": flag.get("regla"),
+        "severidad": flag.get("severidad"),
+        "evidencia": (str(flag.get("evidencia") or flag.get("descripcion") or ""))[:240],
+        "motivos": [m for m in res.get("motivos", []) if m.endswith("no_respaldado")][:8],
+    }
+    descartes = state.setdefault("descartes", [])
+    if not any(d.get("regla") == entry["regla"] and d.get("evidencia") == entry["evidencia"]
+               for d in descartes if isinstance(d, dict)):
+        descartes.append(entry)
+    try:
+        print(json.dumps({"_vigia": True, "kind": "bandera_descartada", "donde": donde,
+                          "regla": flag.get("regla"), "motivos": res.get("motivos", [])[:6]},
+                         ensure_ascii=False), flush=True)
+    except Exception:
+        pass
+    return False
+
+
+def _normalizar_red_flag(rf) -> tuple[str, str, str] | None:
+    """(descr, severidad, norma) desde un red_flag del legal (str o dict)."""
+    if isinstance(rf, str):
+        return rf, "media", None
+    if isinstance(rf, dict):
+        descr = rf.get("descripcion") or rf.get("texto") or rf.get("evidencia") or str(rf)
+        sev = (rf.get("severidad") or "media").lower()
+        if sev not in ("alta", "media", "baja"):
+            sev = "media"
+        return descr, sev, (rf.get("norma_citada") or rf.get("norma"))
+    return None
 
 
 def _advisory_lock(cur, key_str: str) -> None:
@@ -76,12 +196,30 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
     Returns:
         Diccionario con alerta_codigo, alerta_id, score, banderas_persistidas.
     """
-    banderas = tool_context.state.get("pending_flags") or []
+    state = tool_context.state
+    pendientes = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict)]
+    # Dedupe (regla + evidencia): las reglas pueden correr dos veces (agente LLM + driver).
+    banderas: list[dict] = []
+    _vistas: set = set()
+    for b in pendientes:
+        k = (b.get("regla"), (b.get("evidencia") or "")[:200])
+        if k in _vistas:
+            continue
+        _vistas.add(k)
+        banderas.append(b)
     if not banderas:
         return {"alerta_codigo": None, "score": 0, "banderas_persistidas": 0,
                 "mensaje": "Sin banderas — no se creó alerta"}
-    score = min(sum({"alta": 35, "media": 18, "baja": 8}.get(b.get("severidad"), 5)
-                    for b in banderas), 100)
+    # Verificación determinista ANTES de tocar la BD: lo no respaldado se descarta.
+    banderas = [b for b in banderas
+                if _verificar_o_descartar(b, state, "persist_alert_from_flags", "compliance_agent")]
+    n_descartadas = len(_vistas) - len(banderas)
+    if not banderas:
+        return {"alerta_codigo": None, "score": 0, "banderas_persistidas": 0,
+                "banderas_descartadas": n_descartadas,
+                "mensaje": "Todas las banderas fueron descartadas por la verificación determinista"}
+    # Score provisional (solo para el INSERT inicial; se recalcula con TODAS al final).
+    score = min(sum(_peso("compliance_agent", b.get("severidad")) for b in banderas), 100)
     codigo = f"OECE-{_short_ocid(ocid)}"  # _short_ocid → soporta flat y año-secuencia (no 'OECE-12')
     conn = _pg()
     try:
@@ -140,37 +278,34 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
              ocid.split("-")[-1], f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
         )
         alerta_id = cur.fetchone()[0]
-        # LIMPIAR TODAS las banderas viejas de esta alerta — cada run empieza
-        # desde cero para evitar acumulación entre reprocesamientos del mismo
-        # código (típico cuando el flujo se cortó en un run anterior y la
-        # alerta quedó con banderas obsoletas/alucinadas).
-        cur.execute("DELETE FROM banderas WHERE alerta_id=%s", (alerta_id,))
+        # Limpiar SOLO las banderas propias (compliance_agent) — cada run del compliance
+        # empieza desde cero, pero las de document_legal_analyst / market_price NO se
+        # tocan (hallazgo #1: antes `DELETE … WHERE alerta_id` borraba todas y el score
+        # se recalculaba solo con las de compliance).
+        cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen='compliance_agent'",
+                    (alerta_id,))
         # URL oficial por defecto: toda bandera DEBE quedar con fuente (el
         # evaluador determinista cita_evidencia exige norma + fuente_url). Las
         # banderas de reglas duras ya traen su fuente; las contextuales (de
         # add_contextual_flag sin `fuente`) caen a la URL canónica del proceso.
         _fuente_default = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
         for b in banderas:
-            cur.execute(
-                """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
-                                         fuente_url, agente_origen)
-                   VALUES (%s, %s, %s, %s, %s, %s, 'compliance_agent')""",
-                (
-                    alerta_id,
-                    b.get("regla", "sin_regla"),
-                    b.get("severidad", "media"),
-                    b.get("evidencia", ""),
-                    b.get("norma", ""),
-                    b.get("fuente_url") or _fuente_default,
-                ),
-            )
+            _insert_bandera(cur, alerta_id, b.get("regla", "sin_regla"), b.get("severidad", "media"),
+                            b.get("evidencia", ""), b.get("norma", ""),
+                            b.get("fuente_url") or _fuente_default, "compliance_agent",
+                            b.get("verificacion"))
+        # Score con TODAS las banderas de la alerta (compliance + legal + market + …).
+        score, todas = _recalcular_score(cur, alerta_id, state)
         conn.commit()
-        tool_context.state["alerta_codigo"] = codigo
-        tool_context.state["score"] = score
-        tool_context.state["banderas"] = banderas
+        state["alerta_codigo"] = codigo
+        # pending_flags queda solo con lo verificado (sin duplicados ni descartadas):
+        # evaluate_normative_compliance y el writer no deben ver banderas descartadas.
+        state["pending_flags"] = banderas
         return {
             "alerta_codigo": codigo, "alerta_id": str(alerta_id),
             "score": score, "banderas_persistidas": len(banderas),
+            "banderas_descartadas": n_descartadas,
+            "banderas_total_alerta": len(todas),
         }
     finally:
         conn.close()
@@ -239,40 +374,37 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
             (alerta_id,),
         )
 
-        persistidas = []
-        score_extra = 0
-        for rf in red_flags:
-            if isinstance(rf, str):
-                descr, sev, norma = rf, "media", None
-            elif isinstance(rf, dict):
-                descr = rf.get("descripcion") or rf.get("texto") or rf.get("evidencia") or str(rf)
-                sev = (rf.get("severidad") or "media").lower()
-                if sev not in ("alta", "media", "baja"):
-                    sev = "media"
-                norma = rf.get("norma_citada") or rf.get("norma")
-            else:
-                continue
-
-            norma_final = (norma or "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia")[:300]
-            cur.execute(
-                """INSERT INTO banderas
-                       (alerta_id, regla, severidad, evidencia, norma,
-                        fuente_url, agente_origen)
-                   VALUES (%s, %s, %s, %s, %s, %s, 'document_legal_analyst_agent')""",
-                (alerta_id, "red_flag_documental", sev, descr[:500], norma_final, _fuente_oficial),
-            )
-            persistidas.append({"severidad": sev, "evidencia": descr[:200], "norma": norma_final})
-            score_extra += {"alta": 25, "media": 12, "baja": 5}.get(sev, 5)
-
-        # Sumar al score de la alerta (capped a 100)
         cur.execute("SELECT score FROM alertas WHERE id=%s", (alerta_id,))
         cur_score = (cur.fetchone() or [0])[0] or 0
-        new_score = min(int(cur_score) + score_extra, 100)
-        cur.execute("UPDATE alertas SET score=%s, updated_at=NOW() WHERE id=%s", (new_score, alerta_id))
 
+        persistidas = []
+        descartadas = 0
+        for rf in red_flags:
+            norm = _normalizar_red_flag(rf)
+            if not norm:
+                continue
+            descr, sev, norma = norm
+            norma_final = (norma or "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia")[:300]
+            flag = {"regla": "red_flag_documental", "severidad": sev, "evidencia": descr[:500],
+                    "norma": norma_final, "fuente_url": _fuente_oficial}
+            if isinstance(rf, dict):
+                for k in ("evidencia_textual", "documento", "pagina", "cita", "evidencia"):
+                    if rf.get(k) is not None and k not in flag:
+                        flag[k] = rf[k]
+            if not _verificar_o_descartar(flag, state, "persist_doc_flags_as_banderas",
+                                          "document_legal_analyst_agent"):
+                descartadas += 1
+                continue
+            _insert_bandera(cur, alerta_id, "red_flag_documental", sev, descr, norma_final,
+                            _fuente_oficial, "document_legal_analyst_agent", flag.get("verificacion"))
+            persistidas.append({"severidad": sev, "evidencia": descr[:200], "norma": norma_final})
+
+        # Score con TODAS las banderas de la alerta (no incremental: idempotente en reruns).
+        new_score, _ = _recalcular_score(cur, alerta_id, state)
         conn.commit()
         return {
             "persistidas": len(persistidas),
+            "descartadas": descartadas,
             "score_anterior": int(cur_score),
             "score_nuevo": new_score,
             "banderas": persistidas,
@@ -499,35 +631,34 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
         alerta_id = row[0]
         _fuente_oficial = f"https://contratacionesabiertas.oece.gob.pe/proceso/{state.get('ocid') or raw_codigo.replace('OECE-', '')}"
 
-        # Idempotencia: borrar previas del mismo agente
+        # Idempotencia: borrar previas del mismo agente (solo las propias)
         cur.execute(
             "DELETE FROM banderas WHERE alerta_id=%s AND agente_origen='market_price_agent'",
             (alerta_id,),
         )
-
-        score_extra = 0
-        for b in banderas_a_persistir:
-            cur.execute(
-                """INSERT INTO banderas
-                       (alerta_id, regla, severidad, evidencia, norma,
-                        fuente_url, agente_origen)
-                   VALUES (%s, %s, %s, %s, %s, %s, 'market_price_agent')""",
-                (alerta_id, b["regla"], b["severidad"], b["evidencia"][:500],
-                 b["norma"][:300], _fuente_oficial),
-            )
-            score_extra += {"alta": 25, "media": 12, "baja": 5}.get(b["severidad"], 5)
-
         cur.execute("SELECT score FROM alertas WHERE id=%s", (alerta_id,))
         cur_score = (cur.fetchone() or [0])[0] or 0
-        new_score = min(int(cur_score) + score_extra, 100)
-        cur.execute("UPDATE alertas SET score=%s, updated_at=NOW() WHERE id=%s",
-                    (new_score, alerta_id))
+
+        persistidas = []
+        descartadas = 0
+        for b in banderas_a_persistir:
+            b.setdefault("fuente_url", _fuente_oficial)
+            if not _verificar_o_descartar(b, state, "persist_market_flags_as_banderas", "market_price_agent"):
+                descartadas += 1
+                continue
+            _insert_bandera(cur, alerta_id, b["regla"], b["severidad"], b["evidencia"], b["norma"],
+                            _fuente_oficial, "market_price_agent", b.get("verificacion"))
+            persistidas.append(b)
+
+        new_score, _ = _recalcular_score(cur, alerta_id, state)
         conn.commit()
+        state.pop("pending_market_flags", None)
         return {
-            "persistidas": len(banderas_a_persistir),
+            "persistidas": len(persistidas),
+            "descartadas": descartadas,
             "score_anterior": int(cur_score),
             "score_nuevo": new_score,
-            "banderas": banderas_a_persistir,
+            "banderas": persistidas,
         }
     except Exception as e:
         return {"error": str(e)[:200], "alerta_codigo": alerta_codigo}
@@ -553,8 +684,9 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         Diccionario con `persisted`, `bytes_saved`, `alerta_codigo`.
     """
     state = tool_context.state
+    warns: list[str] = []
     # Intenta parsear los outputs que vienen como JSON string del LLM
-    def _try_parse(s):
+    def _try_parse(s, clave: str = "?"):
         if not s:
             return s
         if not isinstance(s, str):
@@ -583,16 +715,21 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 return json.loads(m.group(0))
             except Exception:
                 pass
-        # 4. Fallback: preservar el texto crudo en lugar de retornar None.
-        # Esto permite que el frontend muestre el raw output del sub-agente
-        # como fallback (existe `news_research_raw` en el shape adapter).
-        return {"_raw_text": s[:50000], "_parse_failed": True}
+        # 4. Sin fallback a texto crudo (auditoría §6.2-9): un output que no parsea
+        # es `sin_dato` explícito + warn; el texto libre no se persiste ni se muestra
+        # como si fuera análisis.
+        warns.append(f"{clave}: output del agente no parseable como JSON ({len(s)} chars) → sin_dato")
+        state.setdefault("descartes", []).append({
+            "donde": "persist_analysis_outputs", "agente": clave,
+            "motivos": ["json_no_parseable"], "chars": len(s)})
+        return {"estado": "sin_dato", "_parse_failed": True,
+                "_motivo": "output del agente no parseable como JSON"}
 
     # document_analysis: combinar el output del agente (que puede tener resumen
     # narrativo) con el parser_raw_consolidated (que tiene la data completa
     # de cada PDF procesado: items, firmantes, motivos, comité). El raw gana
     # en data estructurada; el output del agente aporta el resumen ejecutivo.
-    doc_from_agent = _try_parse(state.get("document_analysis")) or {}
+    doc_from_agent = _try_parse(state.get("document_analysis"), "document_analysis") or {}
     doc_raw = state.get("parser_raw_consolidated") or {}
     if isinstance(doc_from_agent, dict) and doc_raw:
         # Mergeamos: si el agente NO tiene un campo o lo tiene vacío, usamos el del raw
@@ -675,11 +812,11 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 _final_doc[_key] = _keep
 
     analisis = {
-        "market_analysis":      _try_parse(state.get("market_analysis")),
+        "market_analysis":      _try_parse(state.get("market_analysis"), "market_analysis"),
         "document_analysis":    _final_doc,
-        "web_research":         _try_parse(state.get("web_research")),
-        "news_research":        _try_parse(state.get("news_research")),
-        "person_network":       _try_parse(state.get("person_network")),
+        "web_research":         _try_parse(state.get("web_research"), "web_research"),
+        "news_research":        _try_parse(state.get("news_research"), "news_research"),
+        "person_network":       _try_parse(state.get("person_network"), "person_network"),
         # Pre-fetched data por persona — el frontend lo usa para mostrar
         # vinculaciones políticas (ONPE/JNE/PEP/visitas) de TODAS las personas
         # investigadas (titular + socios + familia + firmantes + comité),
@@ -687,8 +824,14 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "person_network_context": state.get("person_network_context"),
         # CAPA 3 — funcionarios designados de la entidad (gerentes municipales,
         # procurador, asesor legal, OCI). Output del entity_personnel_agent.
-        "entity_personnel": _try_parse(state.get("entity_personnel")),
+        "entity_personnel": _try_parse(state.get("entity_personnel"), "entity_personnel"),
         "normative_compliance": state.get("normative_compliance"),
+        # WS V: trazabilidad de lo que NO entró al análisis y del control del dictamen.
+        "recortes":             state.get("recortes") or [],
+        "descartes":            state.get("descartes") or [],
+        "validaciones_pendientes": state.get("validaciones_pendientes"),
+        "verificacion_dictamen": state.get("verificacion_dictamen"),
+        "perfil":               state.get("perfil") or state.get("pipeline_profile"),
         "compliance_summary":   state.get("compliance_result"),
         # Causal de Contratación Directa (si aplica) + acto resolutivo encontrado
         "causal_directa_invocada": state.get("causal_directa_invocada"),
@@ -698,9 +841,15 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "analisis_postores":    state.get("analisis_postores"),
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
         # causal (Resumen Ejecutivo/Informe) y condiciones finales (Orden de Compra).
-        "estudio_mercado":      _try_parse(state.get("estudio_mercado")),
-        "contrato_final":       _try_parse(state.get("contrato_final")),
+        "estudio_mercado":      _try_parse(state.get("estudio_mercado"), "estudio_mercado"),
+        "contrato_final":       _try_parse(state.get("contrato_final"), "contrato_final"),
     }
+    for w in warns:
+        try:
+            print(json.dumps({"_vigia": True, "kind": "warn", "donde": "persist_analysis_outputs",
+                              "msg": w}, ensure_ascii=False), flush=True)
+        except Exception:
+            pass
     dictamen_md = state.get("final_dictamen") or ""
     blob = json.dumps(analisis, ensure_ascii=False, default=str)
 
@@ -801,43 +950,56 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             _stub_created = True
             print(f"[persist_analysis] stub creado para {raw_codigo} (convocatoria_existia={conv is not None})")
 
-        # Si hay pending_doc_flags (skipeados antes porque no había alerta),
-        # los insertamos ahora.
-        pending_flags = state.get("pending_doc_flags") or []
+        # Banderas DIFERIDAS (skipeadas antes porque la alerta no existía):
+        # pending_doc_flags (legal) y pending_market_flags (mercado; hallazgo #2: antes
+        # nadie las consumía). Se verifican, se insertan con su agente de origen, se
+        # recalcula el score con TODAS y se limpian del state (no se re-insertan en los
+        # siguientes checkpoints).
+        pending_doc = state.get("pending_doc_flags") or []
+        pending_market = state.get("pending_market_flags") or []
         n_pending_inserted = 0
-        if pending_flags:
+        n_pending_descartadas = 0
+        _fuente_proc = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
+        if pending_doc or pending_market:
             cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
             r = cur.fetchone()
             if r:
                 alerta_id = r[0]
-                score_bump = 0
-                for rf in pending_flags:
-                    if isinstance(rf, str):
-                        descr, sev, norma = rf, "media", None
-                    elif isinstance(rf, dict):
-                        descr = rf.get("descripcion") or rf.get("texto") or rf.get("evidencia") or str(rf)
-                        sev = (rf.get("severidad") or "media").lower()
-                        if sev not in ("alta", "media", "baja"):
-                            sev = "media"
-                        norma = rf.get("norma_citada") or rf.get("norma")
-                    else:
+                if pending_doc:
+                    cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen IN "
+                                "('document_parser_agent','document_legal_analyst_agent')", (alerta_id,))
+                for rf in pending_doc:
+                    norm = _normalizar_red_flag(rf)
+                    if not norm:
                         continue
+                    descr, sev, norma = norm
                     norma_final = (norma or "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia")[:300]
-                    cur.execute(
-                        """INSERT INTO banderas
-                               (alerta_id, regla, severidad, evidencia, norma,
-                                fuente_url, agente_origen)
-                           VALUES (%s, %s, %s, %s, %s, %s, 'document_parser_agent')""",
-                        (alerta_id, "red_flag_documental", sev, descr[:500], norma_final,
-                         f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
-                    )
+                    flag = {"regla": "red_flag_documental", "severidad": sev, "evidencia": descr[:500],
+                            "norma": norma_final, "fuente_url": _fuente_proc}
+                    if not _verificar_o_descartar(flag, state, "persist_analysis_outputs(pending_doc)",
+                                                  "document_legal_analyst_agent"):
+                        n_pending_descartadas += 1
+                        continue
+                    _insert_bandera(cur, alerta_id, "red_flag_documental", sev, descr, norma_final,
+                                    _fuente_proc, "document_legal_analyst_agent", flag.get("verificacion"))
                     n_pending_inserted += 1
-                    score_bump += {"alta": 25, "media": 12, "baja": 5}.get(sev, 5)
-                if score_bump:
-                    cur.execute(
-                        "UPDATE alertas SET score = LEAST(COALESCE(score, 0) + %s, 100), updated_at = NOW() WHERE id = %s",
-                        (score_bump, alerta_id),
-                    )
+                if pending_market:
+                    cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen='market_price_agent'",
+                                (alerta_id,))
+                for b in pending_market:
+                    if not isinstance(b, dict):
+                        continue
+                    b.setdefault("fuente_url", _fuente_proc)
+                    if not _verificar_o_descartar(b, state, "persist_analysis_outputs(pending_market)",
+                                                  "market_price_agent"):
+                        n_pending_descartadas += 1
+                        continue
+                    _insert_bandera(cur, alerta_id, b.get("regla"), b.get("severidad"), b.get("evidencia"),
+                                    b.get("norma"), _fuente_proc, "market_price_agent", b.get("verificacion"))
+                    n_pending_inserted += 1
+                _recalcular_score(cur, alerta_id, state)
+                state.pop("pending_doc_flags", None)
+                state.pop("pending_market_flags", None)
 
         cur.execute(
             """UPDATE alertas
@@ -860,6 +1022,8 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             "alerta_codigo_input": alerta_codigo,
             "stub_alerta_created": _stub_created,
             "doc_flags_diferidas_inserted": n_pending_inserted,
+            "flags_diferidas_descartadas": n_pending_descartadas,
+            "warns": warns,
             "rows_updated": rows,
             "bytes_saved": len(blob),
             "dictamen_chars": len(dictamen_md),

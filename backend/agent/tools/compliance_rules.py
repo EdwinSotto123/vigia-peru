@@ -1,55 +1,192 @@
-"""Tools del dominio: compliance_rules."""
+"""Tools del dominio: compliance_rules.
+
+Reglas deterministas de cumplimiento. Desde el WS V (plan 2026-09-15) TODAS las
+reglas `check_*_rule` aceptan dos kwargs opcionales que el driver pasa desde el
+perfil (`agents/_shared/profiles.py`):
+
+    reglas_activas: frozenset[str] | None   # nombres de reglas habilitadas; None = todas
+    topes_uit:      dict | None             # topes por tipo de proceso; None = defaults
+
+Como los FunctionTool de ADK no pueden declarar `frozenset`, los wrappers `*_tool`
+exponen solo `(ocid, tool_context)` y leen el perfil de `state['reglas_activas']` /
+`state['topes_uit']` si el driver los dejó ahí (ver `_as_tool`).
+"""
 
 from tools._core import *  # noqa: F401,F403
 from tools.legal import query_legal_rag
+from tools import verify as _verify
 
-def check_unique_bidder_rule(ocid: str, tool_context: ToolContext) -> dict:
+# Claves aceptadas en `topes_uit` (todas opcionales; default = comportamiento anterior):
+#   uit / uit_soles                          → valor de la UIT en soles (5350)
+#   comparacion_precios / comparacion_precios_max → tope superior de CP (15 UIT)
+#   adjudicacion_simplificada / adjudicacion_simplificada_max / licitacion_publica
+#                                            → tope superior de AS = mínimo de LP (400 UIT;
+#                                              obras: 1800)
+_TOPES_DEFAULT = {"uit_soles": 5350.0, "comparacion_precios_max": 15.0,
+                  "adjudicacion_simplificada_max": 400.0}
+
+
+def _tope(topes: dict | None, default: float, *claves: str) -> float:
+    for k in claves:
+        if isinstance(topes, dict) and topes.get(k) is not None:
+            try:
+                return float(topes[k])
+            except (TypeError, ValueError):
+                continue
+    return default
+
+
+def _perfil_reglas(tool_context, reglas_activas):
+    """reglas_activas explícito > state['reglas_activas'] > None (todas)."""
+    if reglas_activas is not None:
+        return frozenset(reglas_activas)
+    try:
+        v = tool_context.state.get("reglas_activas")
+    except Exception:
+        v = None
+    if isinstance(v, (list, tuple, set, frozenset)):
+        return frozenset(str(x) for x in v)
+    return None
+
+
+def _perfil_topes(tool_context, topes_uit):
+    if topes_uit is not None:
+        return topes_uit
+    try:
+        v = tool_context.state.get("topes_uit")
+    except Exception:
+        v = None
+    return v if isinstance(v, dict) else None
+
+
+def _regla_omitida(nombre: str, reglas: frozenset | None) -> dict | None:
+    """Si el perfil no activa `nombre`, devuelve el resultado neutro (sin bandera)."""
+    if reglas is not None and nombre not in reglas:
+        return {"regla": nombre, "triggered": False, "omitida": True,
+                "estado": "sin_dato", "motivo": "regla no activa en el perfil"}
+    return None
+
+
+def _as_tool(fn):
+    """FunctionTool con firma simple `(ocid, tool_context)`: ADK no sabe declarar
+    `frozenset[str] | None`, y los sub-agentes LLM no deben elegir el perfil."""
+    def _w(ocid: str, tool_context: ToolContext) -> dict:
+        return fn(ocid, tool_context)
+    _w.__name__ = fn.__name__
+    _w.__qualname__ = fn.__qualname__
+    _w.__doc__ = fn.__doc__
+    return FunctionTool(func=_w)
+
+
+def _n_postores_ocds(ocds: dict) -> int | None:
+    """Número de postores según el OCDS: numberOfTenderers > tender.tenderers >
+    parties[role=tenderer]. None si el registro no lo informa."""
+    if not isinstance(ocds, dict):
+        return None
+    tender = ocds.get("tender") or {}
+    n = tender.get("numberOfTenderers")
+    try:
+        if n is not None and int(n) > 0:
+            return int(n)
+    except (TypeError, ValueError):
+        pass
+    tenderers = tender.get("tenderers") or []
+    if tenderers:
+        return len({(t.get("id") or t.get("name")) for t in tenderers if isinstance(t, dict)}) or len(tenderers)
+    parties = [p for p in (ocds.get("parties") or [])
+               if isinstance(p, dict) and "tenderer" in (p.get("roles") or [])]
+    if parties:
+        return len(parties)
+    return None
+
+
+def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
+                             reglas_activas: frozenset[str] | None = None,
+                             topes_uit: dict | None = None) -> dict:
     """Evalúa la regla C2 — único postor con oferta ≥ 95% del valor referencial.
+
+    Postores: `tender.numberOfTenderers` / `tender.tenderers` / `parties[role=tenderer]`
+    del OCDS; si el OCDS no lo informa, `ofertas` de la BD SOLO si registra ofertas
+    no ganadoras (ganadora=false: el registro incluyó a todos los postores). Sin dato
+    de postores → `estado: sin_dato` y NO se emite bandera (antes `ofertas` solo
+    tenía ganadores y la regla disparaba siempre que hubiera award: falso positivo).
 
     Args:
         ocid: OCID de la convocatoria.
 
     Returns:
-        Diccionario con triggered (bool), severidad, evidencia, norma,
-        n_items, n_items_con_unico_postor, pct_promedio.
+        Diccionario con triggered (bool), estado, n_postores, pct_ganador,
+        severidad, evidencia, norma.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("unico_postor_alto", reglas)
+    if om:
+        return om
+    state = tool_context.state
+    ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    n_postores = _n_postores_ocds(ocds)
+    fuente_n = "ocds" if n_postores is not None else None
+
+    pct = None
     conn = _pg()
     try:
         cur = conn.cursor()
+        if n_postores is None:
+            cur.execute(
+                """SELECT COUNT(DISTINCT p.empresa_ruc),
+                          COUNT(*) FILTER (WHERE NOT o.ganadora)
+                     FROM postores p JOIN ofertas o ON o.postor_id=p.id
+                    WHERE p.ocid=%s""", (ocid,))
+            n_bd, n_no_ganadoras = cur.fetchone() or (0, 0)
+            if n_bd and n_no_ganadoras:
+                n_postores, fuente_n = int(n_bd), "ofertas_bd"
         cur.execute(
-            """WITH per_item AS (
-                 SELECT i.id, COUNT(DISTINCT p.empresa_ruc) AS n,
-                        MAX(o.porcentaje_referencial) FILTER (WHERE o.ganadora) AS pct
-                   FROM convocatoria_items i
-                   LEFT JOIN ofertas o ON o.item_id=i.id
-                   LEFT JOIN postores p ON p.id=o.postor_id
-                  WHERE i.ocid=%s GROUP BY i.id
-               )
-               SELECT COUNT(*), COUNT(*) FILTER (WHERE n=1 AND pct>=95),
-                      ROUND(AVG(pct)::numeric, 2) FROM per_item""",
-            (ocid,),
-        )
-        total, unicos, pct_avg = cur.fetchone()
-        result = {
-            "regla": "unico_postor_alto",
-            "n_items": total or 0,
-            "n_items_con_unico_postor_alto": unicos or 0,
-            "pct_promedio_ganadores": float(pct_avg or 0),
-            "triggered": False,
-        }
-        if total and unicos == total and total > 0:
-            result.update({
-                "triggered": True, "severidad": "alta",
-                "evidencia": f"{total}/{total} ítems con 1 solo postor al {pct_avg or 0}% del valor referencial",
-                "norma": "Art. 27 Reglamento Ley 32069 — competencia mínima",
-                "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
-            })
-            tool_context.state.setdefault("pending_flags", []).append(result)
-        return result
+            """SELECT ROUND(AVG(o.porcentaje_referencial)::numeric, 2)
+                 FROM ofertas o JOIN convocatoria_items i ON i.id=o.item_id
+                WHERE i.ocid=%s AND o.ganadora""", (ocid,))
+        row = cur.fetchone()
+        pct = float(row[0]) if row and row[0] is not None else None
     finally:
         conn.close()
 
-def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext) -> dict:
+    if pct is None:
+        tender = ocds.get("tender") or {}
+        ref = (tender.get("value") or {}).get("amount")
+        adj = sum(float(((a.get("value") or {}).get("amount")) or 0)
+                  for a in (ocds.get("awards") or []) if isinstance(a, dict))
+        try:
+            if ref and adj:
+                pct = round(adj / float(ref) * 100, 2)
+        except (TypeError, ValueError, ZeroDivisionError):
+            pct = None
+
+    result = {
+        "regla": "unico_postor_alto",
+        "n_postores": n_postores,
+        "fuente_n_postores": fuente_n,
+        "pct_ganador_vs_referencial": pct,
+        "triggered": False,
+        "estado": "sin_dato" if n_postores is None else "hallado",
+    }
+    if n_postores is None:
+        result["motivo"] = "el OCDS no informa numberOfTenderers/tenderers y la BD no registra ofertas no ganadoras"
+        return result
+    if n_postores == 1 and pct is not None and pct >= 95:
+        result.update({
+            "triggered": True, "severidad": "alta",
+            "evidencia": (f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y "
+                          f"oferta ganadora al {pct}% del valor referencial."),
+            "norma": "Art. 27 Reglamento Ley 32069 — competencia mínima",
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+        })
+        tool_context.state.setdefault("pending_flags", []).append(result)
+    elif n_postores == 1:
+        result["motivo"] = "un solo postor pero oferta < 95% del referencial (o sin porcentaje)"
+    return result
+
+def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext,
+                                   reglas_activas: frozenset[str] | None = None,
+                                   topes_uit: dict | None = None) -> dict:
     """Evalúa C4 + C7 — proveedor adjudicado con sanción OSCE vigente o
     con SOCIOS/representantes sancionados (inhabilitado vía consorcio).
 
@@ -64,6 +201,10 @@ def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext) -> dict
           - empresas_sancionadas_directas[]
           - empresas_con_socios_sancionados[] (C7 — inhabilitado vía consorcio)
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("proveedor_sancionado_osce", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -144,7 +285,9 @@ def check_sanctioned_provider_rule(ocid: str, tool_context: ToolContext) -> dict
     finally:
         conn.close()
 
-def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext,
+                                       reglas_activas: frozenset[str] | None = None,
+                                       topes_uit: dict | None = None) -> dict:
     """Evalúa la regla C8 — el tipo de proceso es no competitivo (contratación
     directa, exoneración, situación de emergencia) y por tanto reduce
     competencia legalmente.
@@ -155,6 +298,10 @@ def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext) -> 
     Returns:
         Diccionario con triggered, tipo_proceso detectado, evidencia.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("procedimiento_no_competitivo", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -182,7 +329,9 @@ def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext) -> 
     finally:
         conn.close()
 
-def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext,
+                                  reglas_activas: frozenset[str] | None = None,
+                                  topes_uit: dict | None = None) -> dict:
     """Evalúa si el plazo entre publicación de convocatoria y buena pro
     cumple el mínimo legal según tipo de proceso.
 
@@ -192,6 +341,10 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext) -> dict:
     Returns:
         Diccionario con triggered, severidad, evidencia, norma.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("plazo_convocatoria_minimo", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -249,7 +402,9 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext) -> dict:
     finally:
         conn.close()
 
-def check_tipo_proceso_vs_monto_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_tipo_proceso_vs_monto_rule(ocid: str, tool_context: ToolContext,
+                                     reglas_activas: frozenset[str] | None = None,
+                                     topes_uit: dict | None = None) -> dict:
     """Verifica que el tipo de proceso elegido corresponda al monto referencial.
     Por ejemplo, una contratación de S/. 5M debería ir por Licitación Pública,
     no por Adjudicación Simplificada o Comparación de Precios.
@@ -260,6 +415,11 @@ def check_tipo_proceso_vs_monto_rule(ocid: str, tool_context: ToolContext) -> di
     Returns:
         Diccionario con triggered, severidad, evidencia, norma.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("tipo_proceso_vs_monto", reglas)
+    if om:
+        return om
+    topes = _perfil_topes(tool_context, topes_uit)
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -275,43 +435,46 @@ def check_tipo_proceso_vs_monto_rule(ocid: str, tool_context: ToolContext) -> di
             return {"regla": "tipo_proceso_vs_monto", "triggered": False, "motivo": "sin datos"}
         tipo_norm = (tipo or "").upper()
         cuantia_f = float(cuantia)
-        # UIT 2026 = S/. 5,350 (referencial)
-        UIT = 5350.0
-        # Topes referenciales del Anexo IV LCE (en UITs):
-        #   AS bienes/servicios: > 8 UIT y ≤ 400 UIT
-        #   AS obras: > 8 UIT y ≤ 1800 UIT
-        #   CP (Comparación de Precios): ≤ 15 UIT bienes/servicios estándar
-        #   LP: > 400 UIT bienes/servicios o > 1800 UIT obras
-        #   SIE: bienes con ficha técnica
+        # Topes del perfil (Anexo IV LCE, en UIT). Defaults = bienes/servicios:
+        #   CP ≤ 15 UIT · AS ≤ 400 UIT (obras: 1800, lo pasa el perfil en `topes_uit`)
+        #   LP > 400 UIT bienes/servicios o > 1800 UIT obras
+        UIT = _tope(topes, _TOPES_DEFAULT["uit_soles"], "uit_soles", "uit")
+        tope_cp = _tope(topes, _TOPES_DEFAULT["comparacion_precios_max"],
+                        "comparacion_precios_max", "comparacion_precios")
+        tope_as = _tope(topes, _TOPES_DEFAULT["adjudicacion_simplificada_max"],
+                        "adjudicacion_simplificada_max", "adjudicacion_simplificada",
+                        "licitacion_publica")
         en_uit = cuantia_f / UIT
         result = {
             "regla": "tipo_proceso_vs_monto",
             "tipo_proceso": tipo,
             "cuantia_soles": cuantia_f,
             "cuantia_uit": round(en_uit, 1),
+            "topes_uit": {"uit_soles": UIT, "comparacion_precios_max": tope_cp,
+                          "adjudicacion_simplificada_max": tope_as},
             "triggered": False,
         }
-        if ("COMPARACION" in tipo_norm or "CP-" in tipo_norm) and en_uit > 15:
+        if ("COMPARACION" in tipo_norm or "CP-" in tipo_norm) and en_uit > tope_cp:
             result.update({
                 "triggered": True,
                 "severidad": "alta",
                 "evidencia": (
                     f"Tipo 'Comparación de Precios' usado con monto {cuantia_f:.2f} soles "
-                    f"({en_uit:.1f} UIT) — excede el tope de 15 UIT para CP. "
+                    f"({en_uit:.1f} UIT) — excede el tope de {tope_cp:g} UIT para CP. "
                     f"Debería haber ido por Adjudicación Simplificada o Licitación Pública."
                 ),
                 "norma": "Anexo IV TUO Ley 30225 / Ley 32069 — tipos de procedimiento según monto",
                 "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
-        elif ("ADJUDICACION SIMPLIFICADA" in tipo_norm or "AS-" in tipo_norm) and en_uit > 400:
+        elif ("ADJUDICACION SIMPLIFICADA" in tipo_norm or "AS-" in tipo_norm) and en_uit > tope_as:
             result.update({
                 "triggered": True,
                 "severidad": "alta",
                 "evidencia": (
                     f"Tipo 'Adjudicación Simplificada' usado con monto {cuantia_f:.2f} soles "
-                    f"({en_uit:.1f} UIT) — excede el tope de 400 UIT para AS en bienes/servicios. "
-                    f"Debería haber ido por Licitación Pública."
+                    f"({en_uit:.1f} UIT) — excede el tope de {tope_as:g} UIT para AS según el "
+                    f"tipo de contratación. Debería haber ido por Licitación Pública."
                 ),
                 "norma": "Anexo IV TUO Ley 30225 / Ley 32069",
                 "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
@@ -345,75 +508,123 @@ def _identificar_causal_directa(fundamento_textos: list[str], objeto_contrato: s
     return {"causal_letra": None, "descripcion": None, "evidencia_text": None,
             "requiere_acto_resolutivo": False, "match": False}
 
-def _buscar_acto_resolutivo(state: dict) -> dict:
-    """Busca en los documentos parseados el número de resolución, D.S., D.U.,
-    acuerdo regional, etc. que sustenta una causal de Contratación Directa
-    (típicamente declaratoria de emergencia o desabastecimiento).
+_ACTO_PATTERNS = [
+    ("D.S.",    r"((?:D\.\s?S\.|Decreto\s+Supremo)\s*N[°º\.\s]*\s*\d{1,4}\s*-\s*\d{4}(?:-[A-Z]+)?)", "Decreto Supremo"),
+    ("D.U.",    r"((?:D\.\s?U\.|Decreto\s+de\s+Urgencia)\s*N[°º\.\s]*\s*\d{1,4}\s*-\s*\d{4})", "Decreto de Urgencia"),
+    ("RM",      r"((?:R\.\s?M\.|Resoluci[oó]n\s+Ministerial)\s*N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Resolución Ministerial"),
+    ("RVM",     r"((?:R\.\s?V\.\s?M\.|Resoluci[oó]n\s+Viceministerial)\s*N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Resolución Viceministerial"),
+    ("RJ",      r"((?:R\.\s?J\.|Resoluci[oó]n\s+Jefatural)\s*N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Resolución Jefatural"),
+    ("RA",      r"((?:R\.\s?A\.|Resoluci[oó]n\s+de\s+Alcald[ií]a|Resoluci[oó]n\s+Ejecutiva\s+Regional|Resoluci[oó]n\s+Gerencial(?:\s+General)?|Resoluci[oó]n\s+Directoral|Resoluci[oó]n\s+de\s+Gerencia\s+General)\s*N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Resolución de la entidad"),
+    ("ACUERDO", r"(Acuerdo\s+(?:Regional|Municipal|de\s+Concejo|de\s+Consejo\s+Regional)\s+N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Acuerdo Regional/Municipal"),
+    ("ORD",     r"(Ordenanza\s+(?:Regional|Municipal)\s+N[°º\.\s]*\s*\d{1,5}\s*-\s*\d{4}(?:-[\w/]+)?)", "Ordenanza"),
+]
+_FECHA_CERCANA_RE = r"(\d{1,2}\s+de\s+\w+\s+(?:del?\s+)?\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})"
 
-    Retorna {encontrado, tipo, numero, fecha, fragmento}.
+
+def _buscar_acto_resolutivo(state: dict) -> dict:
+    """Busca el acto resolutivo (D.S., D.U., R.M., acuerdo regional, resolución de
+    alcaldía/gerencia, ordenanza) que sustenta una causal de Contratación Directa.
+
+    Orden de búsqueda (hallazgo #5 de la auditoría):
+      1. TEXTO COMPLETO de los documentos (`documentos_texto` por sha256 en state) →
+         devuelve `documento_sha256`, `pagina` y `cita` literal.
+      2. Bloques tipados del parser: `estudio_mercado.causal_articulo/causal_texto`,
+         `sustento_directa.acto_aprobatorio` (bloque del perfil OTROS).
+      3. Resúmenes del parser (fundamento_legal, motivos, requerimientos) — fuente
+         DÉBIL: si SOLO hubo resúmenes y no se encontró, `solo_resumenes=true` y la
+         regla degrada la bandera a MEDIA con `requiere_verificacion`.
+
+    Retorna {encontrado, tipo, numero, fecha_proxima, fragmento/cita, fuente,
+             documento_sha256, pagina, texto_completo_disponible, solo_resumenes}.
     """
     import re as _re
+
+    # 1) Texto completo por sha256 (tabla documentos_texto del WS D)
+    textos = _verify.textos_documentos(state)
+    texto_completo = bool(textos)
+    for _tipo, pattern, descripcion in _ACTO_PATTERNS:
+        hit = _verify.buscar_en_documentos(state, _re.compile(pattern, _re.IGNORECASE))
+        if hit:
+            fecha_m = _re.search(_FECHA_CERCANA_RE, hit["cita"])
+            return {
+                "encontrado": True, "tipo": descripcion, "numero": hit["match"],
+                "fecha_proxima": fecha_m.group(1) if fecha_m else None,
+                "fragmento": hit["cita"], "cita": hit["cita"],
+                "fuente": "documentos_texto", "documento_sha256": hit["sha256"],
+                "pagina": hit["pagina"], "texto_completo_disponible": True,
+                "solo_resumenes": False,
+            }
+
+    # 2) Bloques tipados del parser (estudio de mercado / sustento de la directa)
     raw = state.get("parser_raw_consolidated") or {}
     doc_analysis = state.get("document_analysis")
     if isinstance(doc_analysis, str):
         doc_analysis = _safe_parse_json(doc_analysis) or {}
+    em = _safe_parse_json(state.get("estudio_mercado")) or {}
+    tipados: list[str] = []
+    for src in (em, (raw.get("sustento_directa") if isinstance(raw, dict) else None) or {},
+                (doc_analysis or {}).get("sustento_directa") or {}):
+        if not isinstance(src, dict):
+            continue
+        for k in ("causal_articulo", "causal_texto", "acto_aprobatorio", "informe_tecnico",
+                  "informe_legal", "acto_resolutivo"):
+            v = src.get(k)
+            if isinstance(v, str):
+                tipados.append(v)
+            elif isinstance(v, dict):
+                tipados.append(" ".join(str(x) for x in v.values() if x))
+    corpus_tipado = "\n".join(tipados)
+    for _tipo, pattern, descripcion in _ACTO_PATTERNS:
+        m = _re.search(pattern, corpus_tipado, _re.IGNORECASE)
+        if m:
+            frag = corpus_tipado[max(0, m.start() - 100):m.end() + 200]
+            fecha_m = _re.search(_FECHA_CERCANA_RE, frag)
+            return {"encontrado": True, "tipo": descripcion, "numero": m.group(1),
+                    "fecha_proxima": fecha_m.group(1) if fecha_m else None,
+                    "fragmento": frag.strip()[:400], "cita": frag.strip()[:240],
+                    "fuente": "parser_bloque_tipado", "documento_sha256": None, "pagina": None,
+                    "texto_completo_disponible": texto_completo, "solo_resumenes": not texto_completo}
 
-    # Concatenar todo el texto disponible de los documentos parseados
+    # 3) Resúmenes del parser (fuente débil)
     texts: list[str] = []
-    for src in (raw, doc_analysis or {}):
+    for src in (raw if isinstance(raw, dict) else {}, doc_analysis or {}):
         for k in ("fundamento_legal", "motivos_adjudicacion", "lugar_fecha_acta",
                   "raw_text_excerpt", "considerandos"):
             v = src.get(k)
             if isinstance(v, str):
                 texts.append(v)
             elif isinstance(v, list):
-                for x in v:
-                    texts.append(str(x))
-        # Items pueden tener fragmentos también
+                texts.extend(str(x) for x in v)
         for it in (src.get("items") or src.get("items_consolidados") or []):
-            for k in ("requerimiento_tecnico_detallado",):
-                v = it.get(k)
-                if isinstance(v, str):
-                    texts.append(v)
-
+            if isinstance(it, dict):
+                for k in ("requerimiento_tecnico_detallado", "texto_literal"):
+                    v = it.get(k)
+                    if isinstance(v, str):
+                        texts.append(v)
     corpus = "\n".join(texts)
-    if not corpus.strip():
-        return {"encontrado": False, "motivo": "documentos sin texto parseable"}
-
-    # Patrones para actos resolutivos peruanos
-    patterns = [
-        ("D.S.",    r"(D\.S\.\s*N[°\.\s]+\s*\d{1,4}\s*-\s*\d{4})",          "Decreto Supremo"),
-        ("D.U.",    r"(D\.U\.\s*N[°\.\s]+\s*\d{1,4}\s*-\s*\d{4})",          "Decreto de Urgencia"),
-        ("RM",      r"(R\.M\.\s*N[°\.\s]+\s*\d{1,5}\s*-\s*\d{4}(?:-\w+)?)",  "Resolución Ministerial"),
-        ("RVM",     r"(R\.V\.M\.\s*N[°\.\s]+\s*\d{1,5}\s*-\s*\d{4}(?:-\w+)?)","Resolución Viceministerial"),
-        ("RJ",      r"(R\.J\.\s*N[°\.\s]+\s*\d{1,5}\s*-\s*\d{4}(?:-\w+)?)",  "Resolución Jefatural"),
-        ("ACUERDO", r"(Acuerdo\s+(?:Regional|Municipal|de\s+Concejo)\s+N[°\.\s]+\s*\d{1,5}\s*-\s*\d{4}(?:-\w+)?)",
-                                                                              "Acuerdo Regional/Municipal"),
-        ("ORD",     r"(Ordenanza\s+(?:Regional|Municipal)\s+N[°\.\s]+\s*\d{1,5}\s*-\s*\d{4}(?:-\w+)?)",
-                                                                              "Ordenanza"),
-    ]
-    import re as _re2
-    for tipo, pattern, descripcion in patterns:
-        m = _re2.search(pattern, corpus, _re2.IGNORECASE)
+    if not corpus.strip() and not texto_completo and not corpus_tipado.strip():
+        return {"encontrado": False, "motivo": "documentos sin texto parseable",
+                "texto_completo_disponible": False, "solo_resumenes": True}
+    for _tipo, pattern, descripcion in _ACTO_PATTERNS:
+        m = _re.search(pattern, corpus, _re.IGNORECASE)
         if m:
-            # Capturar fecha cercana al match si existe
-            ctx_start = max(0, m.start() - 100)
-            ctx_end = min(len(corpus), m.end() + 200)
-            fragmento = corpus[ctx_start:ctx_end]
-            fecha_m = _re2.search(
-                r"(\d{1,2}\s+de\s+\w+\s+(?:del?\s+)?\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})",
-                fragmento,
-            )
-            return {
-                "encontrado": True,
-                "tipo": descripcion,
-                "numero": m.group(1),
-                "fecha_proxima": fecha_m.group(1) if fecha_m else None,
-                "fragmento": fragmento.strip()[:400],
-            }
-    return {"encontrado": False, "motivo": "ningún acto resolutivo identificado en los documentos"}
+            frag = corpus[max(0, m.start() - 100):m.end() + 200]
+            fecha_m = _re.search(_FECHA_CERCANA_RE, frag)
+            return {"encontrado": True, "tipo": descripcion, "numero": m.group(1),
+                    "fecha_proxima": fecha_m.group(1) if fecha_m else None,
+                    "fragmento": frag.strip()[:400], "cita": frag.strip()[:240],
+                    "fuente": "parser_resumen", "documento_sha256": None, "pagina": None,
+                    "texto_completo_disponible": texto_completo, "solo_resumenes": not texto_completo}
+    return {"encontrado": False,
+            "motivo": ("ningún acto resolutivo identificado en el texto completo de los documentos"
+                       if texto_completo else
+                       "ningún acto resolutivo en los resúmenes del parser (sin texto completo disponible)"),
+            "texto_completo_disponible": texto_completo, "solo_resumenes": not texto_completo,
+            "documentos_revisados": len(textos)}
 
-def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext,
+                                  reglas_activas: frozenset[str] | None = None,
+                                  topes_uit: dict | None = None) -> dict:
     """Si el tipo de proceso es Contratación Directa, verifica que la causal
     legal del Art. 27 TUO Ley 30225 / Art. 55 Ley 32069 esté:
       1. IDENTIFICADA (cuál de las letras a/b/c/.../k se invoca).
@@ -429,6 +640,10 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext) -> dict:
         Diccionario con causal_invocada, acto_resolutivo, triggered, severidad,
         evidencia, norma.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("directa_sin_fundamento", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -500,18 +715,26 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext) -> dict:
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
         elif causal["match"] and causal["requiere_acto_resolutivo"] and acto and not acto.get("encontrado"):
-            # Identificamos causal de emergencia/desabastecimiento pero NO se
-            # encuentra el acto resolutivo que la declara → bandera ALTA específica
+            # Identificamos causal de emergencia/desabastecimiento pero NO se encuentra
+            # el acto resolutivo que la declara. ALTA solo si se revisó el TEXTO COMPLETO
+            # de los documentos; si solo hubo resúmenes del parser → MEDIA con
+            # `requiere_verificacion` (hallazgo #5: el acto puede estar en el PDF y no
+            # en el resumen).
+            solo_resumenes = bool(acto.get("solo_resumenes"))
             result.update({
                 "triggered": True,
-                "severidad": "alta",
+                "severidad": "media" if solo_resumenes else "alta",
+                "requiere_verificacion": solo_resumenes,
                 "regla": "directa_emergencia_sin_acto_resolutivo",
                 "evidencia": (
                     f"La Contratación Directa invocó causal '{causal['descripcion']}' "
-                    f"(Art. 27 lit. {causal['causal_letra']}), pero NO se encuentra en los "
-                    f"documentos publicados el acto resolutivo que declara la situación "
-                    f"(D.S./D.U./Resolución/Acuerdo Regional). Sin acto resolutivo "
-                    f"acreditable, la causal carece de sustento legal."
+                    f"(Art. 27 lit. {causal['causal_letra']}), pero no se identifica "
+                    + ("en el texto completo de los documentos publicados "
+                       if not solo_resumenes else
+                       "en los resúmenes disponibles de los documentos (texto completo no disponible: "
+                       "requiere verificación manual del expediente) ")
+                    + "el acto resolutivo que declara la situación (D.S./D.U./Resolución/Acuerdo "
+                    "Regional). Sin acto resolutivo acreditable, la causal carece de sustento legal."
                 ),
                 "norma": "Art. 27.1 lit. a) TUO Ley 30225 — la situación de emergencia "
                          "debe estar acreditada por declaratoria oficial",
@@ -537,7 +760,9 @@ def check_directa_fundamento_rule(ocid: str, tool_context: ToolContext) -> dict:
     finally:
         conn.close()
 
-def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext,
+                                reglas_activas: frozenset[str] | None = None,
+                                topes_uit: dict | None = None) -> dict:
     """Evalúa si el proveedor adjudicado tiene un RUC muy reciente (<2 años)
     para un contrato de monto considerable (>S/. 100K). Lee del state los
     perfiles SUNAT cargados por query_sunat_decolecta.
@@ -548,6 +773,10 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext) -> dict:
     Returns:
         Diccionario con triggered, severidad, evidencia.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("ruc_ganador_muy_nuevo", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -613,7 +842,9 @@ def check_edad_ruc_ganador_rule(ocid: str, tool_context: ToolContext) -> dict:
     finally:
         conn.close()
 
-def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext,
+                              reglas_activas: frozenset[str] | None = None,
+                              topes_uit: dict | None = None) -> dict:
     """Verifica que el CIIU principal del proveedor sea coherente con el objeto
     del contrato. Si el CIIU es 'venta de textiles' y el contrato es 'compra de
     equipos médicos', es señal de proveedor improvisado o testaferro.
@@ -624,6 +855,10 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext) -> dict:
     Returns:
         Diccionario con triggered, severidad, evidencia.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("ciiu_vs_objeto", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -648,13 +883,16 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext) -> dict:
         objeto_low = (objeto or "").lower()
         # Heurística simple: si CIIU contiene "textil/calzado/restaurant/cosmetic"
         # y el objeto es algo muy distinto (computadora, médico, vehículo, asfalto, etc.)
+        # Keywords ESPECÍFICAS por rubro. Se sacaron los términos ambiguos que
+        # producían categorías falsas ("mayor"/"menor" → alimentos por "venta al por
+        # mayor"; "obra"/"materiales" → construcción en cualquier objeto).
         objeto_keywords = {
-            "computer": ["computadora", "informatica", "software", "tecnologia"],
-            "construccion": ["construccion", "obra", "ferreteria", "materiales"],
-            "alimentos": ["alimentos", "comestibles", "bebidas", "mayor", "menor"],
-            "vehiculos": ["vehiculo", "maquinaria", "motor", "transporte"],
-            "salud": ["medico", "farmaceutico", "hospital", "salud"],
-            "textil": ["textil", "calzado", "ropa", "uniforme"],
+            "computer": ["computadora", "informatica", "software", "tecnologia", "laptop", "impresora"],
+            "construccion": ["construccion", "ferreteria", "cemento", "agregados", "edificacion", "asfalto"],
+            "alimentos": ["alimento", "comestible", "bebida", "viveres", "carne", "lacteo", "abarrote"],
+            "vehiculos": ["vehiculo", "maquinaria", "motor", "transporte", "camion", "volquete"],
+            "salud": ["medico", "farmaceutico", "hospital", "salud", "medicamento", "insumo medico"],
+            "textil": ["textil", "calzado", "ropa", "uniforme", "confeccion"],
         }
         ciiu_full = (ciiu + " " + " ".join(str(a) for a in activs)).lower()
         # Detectar categoría del objeto
@@ -693,100 +931,179 @@ def check_ciiu_vs_objeto_rule(ocid: str, tool_context: ToolContext) -> dict:
     finally:
         conn.close()
 
-def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext) -> dict:
-    """Detecta si el proveedor adjudicado tiene historial de concentración con
-    la entidad contratante actual. Lee del state['web_research'].otros_contratos.
+def _ganador_ruc(ocid: str, state: dict, cur=None) -> tuple[str | None, str | None]:
+    """(ruc, razon_social) del ganador: BD (ofertas ganadora) → OCDS awards.suppliers."""
+    ruc, nombre = None, None
+    if cur is not None:
+        try:
+            cur.execute(
+                """SELECT e.ruc, e.razon_social FROM postores p
+                     JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                     JOIN empresas e ON e.ruc=p.empresa_ruc
+                    WHERE p.ocid=%s LIMIT 1""", (ocid,))
+            row = cur.fetchone()
+            if row:
+                ruc, nombre = row[0], row[1]
+        except Exception:
+            ruc = None
+    if not ruc:
+        ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+        for a in (ocds.get("awards") or []):
+            for sup in (a.get("suppliers") or []):
+                pid = str(sup.get("id") or "")
+                digits = "".join(ch for ch in pid if ch.isdigit())
+                if len(digits) == 11:
+                    return digits, sup.get("name")
+    return ruc, nombre
+
+
+def _tokens_objeto(txt: str) -> set[str]:
+    import re as _re
+    _STOP = {"adquisicion", "adquisición", "servicio", "servicios", "contratacion", "contratación",
+             "para", "por", "con", "del", "las", "los", "meta", "proyecto", "mejoramiento",
+             "mantenimiento", "bien", "bienes", "obra", "obras", "general", "generales", "sede",
+             "central", "unidad", "mediante", "modalidad", "proceso", "seleccion", "selección",
+             "compra", "suministro", "item", "items", "equipo", "equipos", "municipalidad",
+             "distrital", "provincial", "gobierno", "regional", "entidad"}
+    txt = _re.sub(r"[^a-záéíóúñ0-9 ]", " ", (txt or "").lower())
+    return {w for w in txt.split() if len(w) > 3 and w not in _STOP}
+
+
+def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
+                                     reglas_activas: frozenset[str] | None = None,
+                                     topes_uit: dict | None = None) -> dict:
+    """Detecta si el proveedor adjudicado concentra contratos con la entidad
+    contratante actual. Cuenta en `convocatorias` (BD propia: procesos ingestados
+    del SEACE), NO en lo que `web_research` (LLM con grounding) "dijo haber visto"
+    (hallazgo #8). Dispara con ≥3 contratos previos con la misma entidad Y ≥40 % de
+    su historial en la BD; el alcance (solo procesos en la base de Vigía) queda
+    explícito en la evidencia.
 
     Args:
         ocid: OCID de la convocatoria.
 
     Returns:
-        Diccionario con triggered, severidad, evidencia.
+        Diccionario con triggered, severidad, evidencia, ocids_misma_entidad.
     """
-    web = _safe_parse_json(tool_context.state.get("web_research"))
-    web = web or {}
-    historial = web.get("historial_resumido") or {}
-    otros = web.get("otros_contratos_con_estado") or []
-    relacion = web.get("relacion_proveedor_entidad") or {}
-
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("concentracion_entidad", reglas)
+    if om:
+        return om
+    state = tool_context.state
     conn = _pg()
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT (SELECT nombre FROM entidades e WHERE e.ruc=c.entidad_ruc) "
-            "FROM convocatorias c WHERE c.ocid=%s", (ocid,),
-        )
+            "SELECT c.entidad_ruc, (SELECT nombre FROM entidades e WHERE e.ruc=c.entidad_ruc) "
+            "FROM convocatorias c WHERE c.ocid=%s", (ocid,))
         row = cur.fetchone()
-        entidad_nombre = (row and row[0]) or ""
+        entidad_ruc = (row and row[0]) or None
+        entidad_nombre = (row and row[1]) or ""
+        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
+        if not prov_ruc:
+            return {"regla": "concentracion_entidad", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin proveedor adjudicado identificable"}
+        cur.execute(
+            """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
+                 FROM convocatorias c
+                 LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                 LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)""",
+            (prov_ruc, ocid, prov_ruc))
+        rows = cur.fetchall()
     finally:
         conn.close()
 
-    # Contratos con la entidad actual
-    contratos_misma_entidad = [
-        c for c in otros
-        if entidad_nombre and entidad_nombre.lower() in str(c.get("entidad", "")).lower()
-    ]
-    n_misma_entidad = len(contratos_misma_entidad)
-    n_total = historial.get("n_contratos_estado_hallados") or len(otros)
-    pct_concentracion = (n_misma_entidad / n_total * 100) if n_total else 0
-
+    n_total = len(rows)
+    misma = [r for r in rows if entidad_ruc and r[1] == entidad_ruc]
+    n_misma = len(misma)
+    pct = (n_misma / n_total * 100) if n_total else 0.0
     result = {
         "regla": "concentracion_entidad",
-        "n_contratos_misma_entidad": n_misma_entidad,
-        "n_total_contratos": n_total,
-        "pct_concentracion": round(pct_concentracion, 1),
-        "contratos_previos_misma_entidad": contratos_misma_entidad[:5],
+        "proveedor_ruc": prov_ruc,
+        "n_contratos_misma_entidad": n_misma,
+        "n_total_contratos_en_base": n_total,
+        "pct_concentracion": round(pct, 1),
+        "ocids_misma_entidad": [r[0] for r in misma][:10],
+        "estado": "hallado" if n_total else "sin_dato",
+        "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía, no el universo SEACE.",
         "triggered": False,
     }
-    if n_misma_entidad >= 3 or pct_concentracion >= 40:
+    if n_misma >= 3 and pct >= 40:
         result.update({
             "triggered": True,
             "severidad": "media",
             "evidencia": (
-                f"El proveedor tiene {n_misma_entidad} contratos previos con "
-                f"{entidad_nombre or 'esta entidad'} ({pct_concentracion:.0f}% de su historial "
-                f"detectado). Patrón de concentración con un solo comprador."
+                f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) registra {n_misma} procesos previos "
+                f"con {entidad_nombre or 'esta entidad'} sobre {n_total} procesos suyos en la base de "
+                f"Vigía ({pct:.0f}%). Procesos: {', '.join(result['ocids_misma_entidad'][:5])}. "
+                f"Patrón de concentración con un solo comprador (alcance: base propia, no universo SEACE)."
             ),
             "norma": "Heurística — concentración cliente público debilita la competencia natural",
-            "fuente_url": None,
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
         })
         tool_context.state.setdefault("pending_flags", []).append(result)
     return result
 
-def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
+                                    reglas_activas: frozenset[str] | None = None,
+                                    topes_uit: dict | None = None) -> dict:
     """Detecta si algún firmante de la entidad coincide con personas vinculadas
     al proveedor (gerente, socios). Usa el cruce_firmantes_ganador que pobló
-    person_network_agent.
+    person_network_agent, pero SOLO promueve a bandera los cruces con
+    `fuente_url` verificable (http) y `confianza_match == 'alta'` (hallazgo #8):
+    el resto queda como `cruces_no_verificables` (no bandera).
 
     Args:
         ocid: OCID de la convocatoria.
 
     Returns:
-        Diccionario con triggered, severidad, evidencia.
+        Diccionario con triggered, severidad, evidencia, cruces_no_verificables.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("firmante_vinculado_ganador", reglas)
+    if om:
+        return om
     person = _safe_parse_json(tool_context.state.get("person_network")) or {}
     cruces = person.get("cruce_firmantes_ganador") or []
-    # Solo contar cruces con tipo_relacion ≠ sin_relacion y severidad alta/media
-    cruces_relevantes = [
-        c for c in cruces
-        if c.get("tipo_relacion") and c.get("tipo_relacion") != "sin_relacion"
-        and c.get("severidad") in ("alta", "media")
-    ]
+    relevantes, no_verificables = [], []
+    for c in cruces:
+        if not isinstance(c, dict):
+            continue
+        if not c.get("tipo_relacion") or c.get("tipo_relacion") == "sin_relacion":
+            continue
+        if c.get("severidad") not in ("alta", "media"):
+            continue
+        fuente = str(c.get("fuente_url") or "").strip()
+        conf = str(c.get("confianza_match") or c.get("confianza") or "").strip().lower()
+        if fuente.startswith("http") and conf == "alta":
+            relevantes.append(c)
+        else:
+            falta = []
+            if not fuente.startswith("http"):
+                falta.append("fuente_url")
+            if conf != "alta":
+                falta.append(f"confianza_match={conf or 'ausente'}")
+            no_verificables.append({**c, "_no_verificable_por": falta})
     result = {
         "regla": "firmante_vinculado_ganador",
-        "n_cruces_detectados": len(cruces_relevantes),
-        "detalle": cruces_relevantes[:5],
-        "triggered": len(cruces_relevantes) > 0,
+        "n_cruces_detectados": len(relevantes),
+        "n_cruces_no_verificables": len(no_verificables),
+        "detalle": relevantes[:5],
+        "cruces_no_verificables": no_verificables[:5],
+        "estado": "hallado" if relevantes else ("no_verificable" if no_verificables else "sin_dato"),
+        "triggered": len(relevantes) > 0,
     }
-    if cruces_relevantes:
-        primero = cruces_relevantes[0]
+    if relevantes:
+        primero = relevantes[0]
         result.update({
             "severidad": primero.get("severidad", "media"),
             "evidencia": (
                 f"Posible vínculo entre firmante '{primero.get('firmante')}' "
                 f"({primero.get('cargo_firmante')}) y persona del proveedor "
                 f"'{primero.get('persona_proveedor')}': "
-                f"{primero.get('evidencia', primero.get('tipo_relacion'))}"
+                f"{primero.get('evidencia', primero.get('tipo_relacion'))} "
+                f"(confianza alta, fuente: {primero.get('fuente_url')})"
             ),
             "norma": "Heurística — Art. 50 TUO Ley 30225 / Ley 30057 — impedimentos por vínculo personal",
             "fuente_url": primero.get("fuente_url"),
@@ -794,7 +1111,9 @@ def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext) -> dic
         tool_context.state.setdefault("pending_flags", []).append(result)
     return result
 
-def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext,
+                                    reglas_activas: frozenset[str] | None = None,
+                                    topes_uit: dict | None = None) -> dict:
     """C9 — Testaferro multi-RUC: detecta cuando el representante legal / socio /
     titular del ganador aparece como representante de ≥3 empresas distintas que
     también ganaron contratos del Estado. Patrón típico de testaferro.
@@ -802,6 +1121,10 @@ def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext) -> dic
     Fuente: cruza datos de `query_rnp_empresa` + alertas históricas en BD.
     Norma: Art. 50 TUO Ley 30225 (impedimentos) + Art. 11 inc. m (consorcio sin declarar).
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("testaferro_multi_ruc", reglas)
+    if om:
+        return om
     state = tool_context.state
     rnp_empresa = state.get("rnp_empresa_proveedor") or {}
     socios = rnp_empresa.get("socios") or []
@@ -869,7 +1192,9 @@ def check_testaferro_multi_ruc_rule(ocid: str, tool_context: ToolContext) -> dic
     finally:
         conn.close()
 
-def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext,
+                               reglas_activas: frozenset[str] | None = None,
+                               topes_uit: dict | None = None) -> dict:
     """C10 — RUC ultra-nuevo: el proveedor adjudicado tiene RUC con
     `fecha_inicio_actividades` < 90 días antes de la buena pro y el monto ≥ 8 UIT
     (~S/. 41,200 con UIT 2026 = S/. 5,150). Patrón típico de empresa creada
@@ -880,6 +1205,10 @@ def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext) -> dict:
 
     Norma: Art. 50 lit. d TUO Ley 30225 + Opinión OECE 056-2023 (empresa de papel).
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("ruc_ultra_nuevo", reglas)
+    if om:
+        return om
     state = tool_context.state
     sunat_profiles = state.get("sunat_profiles") or {}
     UIT_2026 = 5150
@@ -951,7 +1280,9 @@ def check_ruc_ultra_nuevo_rule(ocid: str, tool_context: ToolContext) -> dict:
     finally:
         conn.close()
 
-def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext,
+                                        reglas_activas: frozenset[str] | None = None,
+                                        topes_uit: dict | None = None) -> dict:
     """C11 — Postor único en ≥70% de ítems (refina C2). `check_unique_bidder_rule`
     solo dispara si 100% de ítems tienen 1 postor; esta detecta el caso donde
     HAY varios postores nominales pero la mayoría de ítems se adjudicó sin
@@ -959,6 +1290,10 @@ def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext) ->
 
     Norma: Art. 2 TUO Ley 30225 — Principio de Competencia Efectiva.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("postor_unico_mayoritario", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -1000,7 +1335,9 @@ def check_postor_unico_mayoritario_rule(ocid: str, tool_context: ToolContext) ->
     finally:
         conn.close()
 
-def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) -> dict:
+def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
+                                          reglas_activas: frozenset[str] | None = None,
+                                          topes_uit: dict | None = None) -> dict:
     """C12 — Inconsistencia documento ↔ OCDS: el monto/items extraídos del PDF
     por el `document_parser_agent` difieren del OCDS publicado por OECE. Indica:
     (a) manipulación del acta, (b) error de publicación, o (c) el OCDS no
@@ -1008,6 +1345,10 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
 
     Norma: principio de transparencia (Art. 2 TUO) + Art. 64 — publicidad de actos.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("inconsistencia_doc_vs_ocds", reglas)
+    if om:
+        return om
     state = tool_context.state
     ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
     doc = _safe_parse_json(state.get("document_analysis")) or {}
@@ -1023,6 +1364,13 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
     n_items_ocds = len(tender.get("items") or [])
     items_doc = doc.get("items_consolidados") or []
     n_items_doc = len(items_doc)
+    # Solo ÍTEMS RAÍZ para comparar conteos: el parser desglosa sub-ítems
+    # (`padre_ocds_item` ≠ null, `subitems`, `es_subitem`) que el OCDS nunca lista;
+    # compararlos disparaba "items_count_distinto" por diseño (auditoría §2.1).
+    items_raiz = [it for it in items_doc if isinstance(it, dict)
+                  and not it.get("padre_ocds_item") and not it.get("es_subitem")
+                  and not it.get("padre")]
+    n_items_raiz = len(items_raiz)
 
     inconsistencias = []
     if cuantia_ocds > 0 and cuantia_doc > 0:
@@ -1033,10 +1381,11 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
                 "ocds": cuantia_ocds, "documento": cuantia_doc,
                 "diff_pct": round(diff_pct, 1),
             })
-    if n_items_ocds > 0 and n_items_doc > 0 and n_items_ocds != n_items_doc:
+    if n_items_ocds > 0 and n_items_raiz > 0 and n_items_ocds != n_items_raiz:
         inconsistencias.append({
             "tipo": "items_count_distinto",
-            "n_items_ocds": n_items_ocds, "n_items_documento": n_items_doc,
+            "n_items_ocds": n_items_ocds, "n_items_documento": n_items_raiz,
+            "n_items_documento_con_subitems": n_items_doc,
         })
 
     # INCONGRUENCIA OBJETO ↔ DOCUMENTO: compara el PRODUCTO del objeto convocado
@@ -1054,7 +1403,10 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
 
     def _tok_prod(txt):
         txt = _re_inc.sub(r"[^a-záéíóúñ0-9 ]", " ", (txt or "").lower())
-        return {w for w in txt.split() if len(w) > 3 and w not in _STOP}
+        # singular simple (laptops→laptop, equipos→equipo) para no marcar incongruencia
+        # por número gramatical.
+        return {(w[:-1] if w.endswith("s") and len(w) > 4 else w)
+                for w in txt.split() if len(w) > 3 and w not in _STOP}
     # `tender.description` es el PRODUCTO ("ADQUISICIÓN DE BALDOSAS…"); `tender.title`
     # suele ser el CÓDIGO del proceso ("COMPRE-COMPRE-73-…") → preferir description.
     objeto = tender.get("description") or doc.get("objeto") or tender.get("title") or ""
@@ -1131,10 +1483,13 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext) 
         elif primera["tipo"] == "cuantia_distinta":
             ev = (f"Discrepancia de cuantía: OCDS publica S/. {(primera.get('ocds') or 0):,.2f} "
                   f"pero el documento del expediente indica S/. {(primera.get('documento') or 0):,.2f} "
-                  f"({primera.get('diff_pct')}% de diferencia). Indica manipulación de acta o publicación deficiente.")
+                  f"({primera.get('diff_pct')}% de diferencia). Discrepancia entre el registro OCDS y el "
+                  f"expediente documental; requiere verificación manual (puede ser un acta parcial, "
+                  f"un ítem desierto o una publicación desactualizada).")
         else:
             ev = (f"OCDS lista {primera['n_items_ocds']} ítems pero el documento "
-                  f"tiene {primera['n_items_documento']}. Indica manipulación de acta o publicación deficiente.")
+                  f"tiene {primera['n_items_documento']} ítems raíz. Discrepancia entre el registro OCDS y "
+                  f"el expediente documental; requiere verificación manual.")
         result.update({
             "severidad": severidad,
             "evidencia": ev,
@@ -1160,8 +1515,20 @@ def evaluate_normative_compliance(ocid: str, tool_context: ToolContext) -> dict:
     # Acumular hallazgos de todas las fuentes
     hallazgos: list[dict] = []
 
-    # 1) Banderas duras del compliance (pending_flags + las ya persistidas)
+    # 1) Banderas duras del compliance (pending_flags). Solo las que superan la
+    #    verificación determinista: una bandera con RUC/monto no respaldado no debe
+    #    "fundamentarse" con una opinión OECE (auditoría #3).
     for b in state.get("pending_flags") or []:
+        if not isinstance(b, dict):
+            continue
+        ver = b.get("verificacion")
+        if not isinstance(ver, dict):
+            try:
+                ver = _verify.verificar_bandera(b, state)
+            except Exception:
+                ver = {"ok": True}
+        if ver.get("ok") is False:
+            continue
         hallazgos.append({
             "fuente": "compliance_rule",
             "titulo": b.get("regla", "regla"),
@@ -1221,9 +1588,29 @@ def evaluate_normative_compliance(ocid: str, tool_context: ToolContext) -> dict:
                 "severidad": c.get("severidad", "media"),
             })
 
-    # Consultar RAG por cada hallazgo (cap a 10 para no inflar)
+    # Dedupe (misma fuente+título) y prioridad por severidad. Ya NO se corta a 10:
+    # el tope es RAG_MAX_HALLAZGOS (default 60) y, si se supera, el recorte queda
+    # registrado en state['recortes'] (auditoría 6.1-4).
+    _vistos: set = set()
+    _dedup: list[dict] = []
+    for h in hallazgos:
+        k = (h.get("fuente"), (h.get("titulo") or "")[:80], (h.get("descripcion") or "")[:120])
+        if k in _vistos:
+            continue
+        _vistos.add(k)
+        _dedup.append(h)
+    _sev = {"alta": 0, "media": 1, "baja": 2}
+    _dedup.sort(key=lambda h: _sev.get(str(h.get("severidad")), 3))
+    _max = int(os.getenv("RAG_MAX_HALLAZGOS", "60"))
+    if len(_dedup) > _max:
+        state.setdefault("recortes", []).append({
+            "donde": "evaluate_normative_compliance", "limite": _max,
+            "omitido": len(_dedup) - _max,
+            "detalle": "hallazgos de menor severidad sin cruce RAG"})
+    hallazgos = _dedup[:_max]
+
     evaluaciones = []
-    for h in hallazgos[:10]:
+    for h in hallazgos:
         question = f"{h['titulo']}: {h['descripcion']}"
         try:
             rag_resp = query_legal_rag(question, tool_context)
@@ -1239,12 +1626,325 @@ def evaluate_normative_compliance(ocid: str, tool_context: ToolContext) -> dict:
     out = {
         "ocid": ocid,
         "n_hallazgos_evaluados": len(evaluaciones),
+        "n_hallazgos_totales": len(_dedup),
+        "truncado": len(_dedup) > _max,
         "evaluaciones": evaluaciones,
     }
     tool_context.state["normative_compliance"] = out
     return out
 
-def check_lobby_visits_rule(ocid: str, tool_context: ToolContext) -> dict:
+
+# ─── Reglas nuevas por perfil (WS V · Task V3) ─────────────────────────────
+
+def check_adicional_acumulado_rule(ocid: str, tool_context: ToolContext,
+                                   reglas_activas: frozenset[str] | None = None,
+                                   topes_uit: dict | None = None) -> dict:
+    """OBRAS — adicionales acumulados. Fuentes (en orden): bloque `obra.adicionales[]`
+    del parser (pct_acumulado o montos vs presupuesto), `contracts[].value` vs
+    `awards[].value` del OCDS (el contrato vigente supera lo adjudicado) y docs
+    `contractAmendment`/`contracts[].amendments[]`. MEDIA si el acumulado supera
+    15 % (tope sin autorización) y ALTA si supera 50 % (tope máximo con CGR). Si
+    solo hay enmiendas sin monto → `estado: no_verificable` (sin bandera).
+
+    Args:
+        ocid: OCID de la convocatoria.
+
+    Returns:
+        Diccionario con triggered, pct_acumulado, fuente, n_adendas, severidad, evidencia.
+    """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("adicional_acumulado", reglas)
+    if om:
+        return om
+    state = tool_context.state
+    ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    raw = state.get("parser_raw_consolidated") or {}
+    obra = (raw.get("obra") if isinstance(raw, dict) else None) or {}
+    pct, fuente, detalle = None, None, {}
+
+    adicionales = obra.get("adicionales") or []
+    if isinstance(adicionales, list) and adicionales:
+        pcts = [a.get("pct_acumulado") for a in adicionales if isinstance(a, dict)
+                and isinstance(a.get("pct_acumulado"), (int, float))]
+        montos = [float(a.get("monto") or 0) for a in adicionales if isinstance(a, dict)]
+        presupuesto = ((obra.get("expediente_tecnico") or {}).get("presupuesto_total")
+                       or obra.get("presupuesto_total"))
+        if pcts:
+            pct, fuente = float(max(pcts)), "parser_obra_adicionales"
+        elif montos and presupuesto:
+            try:
+                pct, fuente = sum(montos) / float(presupuesto) * 100, "parser_obra_adicionales"
+            except (TypeError, ValueError, ZeroDivisionError):
+                pct = None
+        detalle = {"n_adicionales": len(adicionales),
+                   "resoluciones": [a.get("resolucion") for a in adicionales if isinstance(a, dict)][:5]}
+
+    if pct is None:
+        adj = sum(float(((a.get("value") or {}).get("amount")) or 0)
+                  for a in (ocds.get("awards") or []) if isinstance(a, dict))
+        con = sum(float(((c.get("value") or {}).get("amount")) or 0)
+                  for c in (ocds.get("contracts") or []) if isinstance(c, dict))
+        if adj > 0 and con > 0 and con > adj:
+            pct, fuente = (con - adj) / adj * 100, "ocds_contract_vs_award"
+            detalle = {"monto_adjudicado": adj, "monto_contrato": con}
+
+    n_amend_docs = 0
+    for c in (ocds.get("contracts") or []):
+        if not isinstance(c, dict):
+            continue
+        n_amend_docs += len(c.get("amendments") or [])
+        n_amend_docs += sum(1 for d in (c.get("documents") or [])
+                            if isinstance(d, dict) and str(d.get("documentType") or "").lower() == "contractamendment")
+    result = {"regla": "adicional_acumulado", "pct_acumulado": round(pct, 1) if pct is not None else None,
+              "fuente": fuente, "n_adendas_ocds": n_amend_docs, "detalle": detalle,
+              "estado": "hallado" if pct is not None else ("no_verificable" if n_amend_docs else "sin_dato"),
+              "triggered": False}
+    if pct is not None and pct > 15:
+        sev = "alta" if pct > 50 else "media"
+        result.update({
+            "triggered": True, "severidad": sev,
+            "evidencia": (f"Adicionales de obra acumulados: {pct:.1f}% del monto contractual "
+                          f"(fuente: {fuente}; {n_amend_docs} adenda(s) en el OCDS). "
+                          + ("Supera el 50% máximo autorizable." if pct > 50 else
+                             "Supera el 15% que la entidad puede aprobar sin autorización previa de la CGR.")),
+            "norma": "Art. 34 TUO Ley 30225 / Art. 205 Reglamento — prestaciones adicionales de obra (15% / 50%)",
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    return result
+
+
+def check_personal_clave_vinculado_rule(ocid: str, tool_context: ToolContext,
+                                        reglas_activas: frozenset[str] | None = None,
+                                        topes_uit: dict | None = None) -> dict:
+    """SERVICIOS — personal clave del TDR/propuesta (bloque `servicio.personal_clave[]`
+    del parser) que coincide por nombre normalizado con firmantes/comité de la
+    entidad o con funcionarios designados (entity_personnel). Si el bloque no trae
+    nombres (solo perfiles exigidos) → `estado: sin_dato`.
+
+    Args:
+        ocid: OCID de la convocatoria.
+
+    Returns:
+        Diccionario con triggered, coincidencias[], severidad, evidencia.
+    """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("personal_clave_vinculado", reglas)
+    if om:
+        return om
+    state = tool_context.state
+    raw = state.get("parser_raw_consolidated") or {}
+    servicio = (raw.get("servicio") if isinstance(raw, dict) else None) or {}
+    personal = [p for p in (servicio.get("personal_clave") or []) if isinstance(p, dict)]
+    con_nombre = [(p, _normalize_persona(p.get("nombre") or p.get("nombre_completo") or ""))
+                  for p in personal]
+    con_nombre = [(p, n) for p, n in con_nombre if len(n.split()) >= 2]
+    if not con_nombre:
+        return {"regla": "personal_clave_vinculado", "triggered": False, "estado": "sin_dato",
+                "n_personal_clave": len(personal),
+                "motivo": "el bloque de personal clave no trae nombres (solo perfiles exigidos)"}
+
+    doc = _safe_parse_json(state.get("document_analysis")) or {}
+    candidatos: list[tuple[str, str, str]] = []   # (nombre_norm, rol, origen)
+    for k in ("firmantes", "firmantes_consolidados", "comite_evaluacion"):
+        for f in (doc.get(k) or (raw.get(k) if isinstance(raw, dict) else None) or []):
+            if isinstance(f, dict):
+                n = _normalize_persona(f.get("nombre") or f.get("nombre_completo") or "")
+                if n:
+                    candidatos.append((n, f.get("cargo") or k, "documento"))
+    ep = _safe_parse_json(state.get("entity_personnel")) or {}
+    for f in (ep.get("funcionarios_designados") or ep.get("funcionarios") or []):
+        if isinstance(f, dict):
+            n = _normalize_persona(f.get("nombre") or f.get("nombre_completo") or "")
+            if n and (f.get("fuente_url") or f.get("fuente") or f.get("url")):
+                candidatos.append((n, f.get("cargo") or "funcionario", "entity_personnel"))
+
+    coincidencias = []
+    for p, n in con_nombre:
+        toks = set(n.split())
+        for cn, rol, origen in candidatos:
+            ctoks = set(cn.split())
+            # Coincidencia exacta o de ≥3 tokens (dos apellidos + nombre): nunca por un apellido solo.
+            if n == cn or len(toks & ctoks) >= 3:
+                coincidencias.append({"personal_clave": p.get("nombre") or p.get("nombre_completo"),
+                                      "cargo_propuesto": p.get("cargo"), "coincide_con": cn,
+                                      "rol_en_entidad": rol, "origen": origen})
+    result = {"regla": "personal_clave_vinculado", "n_personal_clave": len(personal),
+              "coincidencias": coincidencias[:5], "estado": "hallado" if coincidencias else "sin_dato",
+              "triggered": bool(coincidencias)}
+    if coincidencias:
+        c0 = coincidencias[0]
+        result.update({
+            "severidad": "alta",
+            "evidencia": (f"El personal clave propuesto '{c0['personal_clave']}' ({c0['cargo_propuesto']}) "
+                          f"coincide con '{c0['coincide_con']}' ({c0['rol_en_entidad']}) de la entidad "
+                          f"contratante según {c0['origen']}."),
+            "norma": "Art. 11 TUO Ley 30225 — impedimentos; Ley 27588 — incompatibilidades de funcionarios",
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    return result
+
+
+def check_fraccionamiento_rule(ocid: str, tool_context: ToolContext,
+                               reglas_activas: frozenset[str] | None = None,
+                               topes_uit: dict | None = None) -> dict:
+    """Fraccionamiento: misma entidad + mismo proveedor + objeto similar (solape de
+    tokens ≥ 0.5) en una ventana de ±90 días, contando en `convocatorias` (BD propia).
+    MEDIA; ALTA si además la suma de los procesos supera el tope de la modalidad
+    usada (p. ej. varias CP que juntas exceden 15 UIT).
+
+    Args:
+        ocid: OCID de la convocatoria.
+
+    Returns:
+        Diccionario con triggered, procesos_relacionados[], severidad, evidencia.
+    """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("fraccionamiento", reglas)
+    if om:
+        return om
+    topes = _perfil_topes(tool_context, topes_uit)
+    state = tool_context.state
+    conn = _pg()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT entidad_ruc, objeto, fecha_convocatoria, cuantia_referencial, tipo_proceso "
+                    "FROM convocatorias WHERE ocid=%s", (ocid,))
+        row = cur.fetchone()
+        if not row or not row[0] or not row[2]:
+            return {"regla": "fraccionamiento", "triggered": False, "estado": "sin_dato",
+                    "motivo": "convocatoria sin entidad/fecha en BD"}
+        entidad_ruc, objeto, fecha, cuantia, tipo = row
+        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
+        if not prov_ruc:
+            return {"regla": "fraccionamiento", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin proveedor adjudicado identificable"}
+        cur.execute(
+            """SELECT DISTINCT c.ocid, c.objeto, c.fecha_convocatoria, c.cuantia_referencial, c.tipo_proceso
+                 FROM convocatorias c
+                 LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                 LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                WHERE c.ocid<>%s AND c.entidad_ruc=%s
+                  AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                  AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '90 days' AND %s::date + INTERVAL '90 days'""",
+            (prov_ruc, ocid, entidad_ruc, prov_ruc, fecha, fecha))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    base = _tokens_objeto(objeto or "")
+    relacionados = []
+    for r in rows:
+        toks = _tokens_objeto(r[1] or "")
+        if not base or not toks:
+            continue
+        sim = len(base & toks) / len(base | toks)
+        if sim >= 0.5:
+            relacionados.append({"ocid": r[0], "objeto": (r[1] or "")[:120],
+                                 "fecha": str(r[2])[:10], "cuantia": float(r[3] or 0),
+                                 "tipo_proceso": r[4], "similitud": round(sim, 2)})
+    result = {"regla": "fraccionamiento", "proveedor_ruc": prov_ruc,
+              "procesos_relacionados": relacionados[:10], "estado": "hallado" if relacionados else "sin_dato",
+              "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
+    if relacionados:
+        suma = float(cuantia or 0) + sum(r["cuantia"] for r in relacionados)
+        UIT = _tope(topes, _TOPES_DEFAULT["uit_soles"], "uit_soles", "uit")
+        tipo_u = (tipo or "").upper()
+        tope = None
+        if "COMPARACION" in tipo_u or "CP-" in tipo_u:
+            tope = _tope(topes, _TOPES_DEFAULT["comparacion_precios_max"], "comparacion_precios_max", "comparacion_precios")
+        elif "ADJUDICACION SIMPLIFICADA" in tipo_u or "AS-" in tipo_u:
+            tope = _tope(topes, _TOPES_DEFAULT["adjudicacion_simplificada_max"],
+                         "adjudicacion_simplificada_max", "adjudicacion_simplificada", "licitacion_publica")
+        elif "DIRECTA" in tipo_u or "MENOR" in tipo_u:
+            tope = 8.0
+        excede = tope is not None and (suma / UIT) > tope
+        result.update({
+            "triggered": True, "severidad": "alta" if excede else "media",
+            "suma_soles": round(suma, 2), "suma_uit": round(suma / UIT, 1), "tope_uit_modalidad": tope,
+            "evidencia": (f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) obtuvo {len(relacionados)} proceso(s) "
+                          f"adicional(es) de objeto similar con la misma entidad en ±90 días "
+                          f"({', '.join(r['ocid'] for r in relacionados[:4])}); suma S/ {suma:,.2f} "
+                          f"({suma / UIT:.1f} UIT)"
+                          + (f", por encima del tope de {tope:g} UIT de la modalidad '{tipo}'." if excede else ".")),
+            "norma": "Art. 20 TUO Ley 30225 / Art. 36 Ley 32069 — prohibición de fraccionamiento",
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    return result
+
+
+def check_directa_recurrente_rule(ocid: str, tool_context: ToolContext,
+                                  reglas_activas: frozenset[str] | None = None,
+                                  topes_uit: dict | None = None) -> dict:
+    """OTROS — proveedor con ≥ 3 contrataciones directas (cualquier entidad) en los 12
+    meses previos a la convocatoria, contadas en `convocatorias` (BD propia). MEDIA.
+
+    Args:
+        ocid: OCID de la convocatoria.
+
+    Returns:
+        Diccionario con triggered, n_directas_12m, procesos[], severidad, evidencia.
+    """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("directa_recurrente", reglas)
+    if om:
+        return om
+    state = tool_context.state
+    conn = _pg()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT fecha_convocatoria, tipo_proceso FROM convocatorias WHERE ocid=%s", (ocid,))
+        row = cur.fetchone()
+        fecha = (row and row[0]) or None
+        prov_ruc, prov_nombre = _ganador_ruc(ocid, state, cur)
+        if not prov_ruc:
+            return {"regla": "directa_recurrente", "triggered": False, "estado": "sin_dato",
+                    "motivo": "sin proveedor adjudicado identificable"}
+        if fecha:
+            cur.execute(
+                """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
+                     FROM convocatorias c
+                     LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                     LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                    WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                      AND UPPER(COALESCE(c.tipo_proceso,'')) LIKE '%%DIRECTA%%'
+                      AND c.fecha_convocatoria BETWEEN %s::date - INTERVAL '12 months' AND %s::date""",
+                (prov_ruc, ocid, prov_ruc, fecha, fecha))
+        else:
+            cur.execute(
+                """SELECT DISTINCT c.ocid, c.entidad_ruc, c.fecha_convocatoria, c.cuantia_referencial
+                     FROM convocatorias c
+                     LEFT JOIN postores p ON p.ocid=c.ocid AND p.empresa_ruc=%s
+                     LEFT JOIN ofertas o ON o.postor_id=p.id AND o.ganadora
+                    WHERE c.ocid<>%s AND (c.proveedor_ruc=%s OR o.id IS NOT NULL)
+                      AND UPPER(COALESCE(c.tipo_proceso,'')) LIKE '%%DIRECTA%%'
+                      AND c.fecha_convocatoria >= NOW() - INTERVAL '12 months'""",
+                (prov_ruc, ocid, prov_ruc))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    procesos = [{"ocid": r[0], "entidad_ruc": r[1], "fecha": str(r[2])[:10], "cuantia": float(r[3] or 0)}
+                for r in rows]
+    result = {"regla": "directa_recurrente", "proveedor_ruc": prov_ruc, "n_directas_12m": len(procesos),
+              "procesos": procesos[:10], "estado": "hallado" if procesos else "sin_dato",
+              "_nota_alcance": "Conteos sobre procesos ingestados en la base de Vigía.", "triggered": False}
+    if len(procesos) >= 3:
+        result.update({
+            "triggered": True, "severidad": "media",
+            "evidencia": (f"{prov_nombre or 'El proveedor'} (RUC {prov_ruc}) acumula {len(procesos)} contrataciones "
+                          f"directas en los 12 meses previos ({', '.join(p['ocid'] for p in procesos[:4])}), "
+                          f"además de la presente. Recurrencia en procedimientos no competitivos."),
+            "norma": "Art. 27 TUO Ley 30225 / Art. 55 Ley 32069 — carácter excepcional de la contratación directa",
+            "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
+        })
+        state.setdefault("pending_flags", []).append(result)
+    return result
+
+def check_lobby_visits_rule(ocid: str, tool_context: ToolContext,
+                            reglas_activas: frozenset[str] | None = None,
+                            topes_uit: dict | None = None) -> dict:
     """Evalúa lobby pre-convocatoria — socios/representantes del ganador o
     de cualquier postor que visitaron a la ENTIDAD CONTRATANTE en los 180 días
     previos a la fecha de convocatoria.
@@ -1258,6 +1958,10 @@ def check_lobby_visits_rule(ocid: str, tool_context: ToolContext) -> dict:
     Returns:
         dict con triggered, evidencia, visitas[], severidad.
     """
+    reglas = _perfil_reglas(tool_context, reglas_activas)
+    om = _regla_omitida("lobby_visits_pre_convocatoria", reglas)
+    if om:
+        return om
     conn = _pg()
     try:
         cur = conn.cursor()
@@ -1622,21 +2326,50 @@ def _detect_estado_real_persist(ocid: str, tool_context: ToolContext) -> dict:
     return r
 
 # ── FunctionTool wrappers ──
-check_unique_bidder_rule_tool = FunctionTool(func=check_unique_bidder_rule)
-check_sanctioned_provider_rule_tool = FunctionTool(func=check_sanctioned_provider_rule)
-check_non_competitive_process_rule_tool = FunctionTool(func=check_non_competitive_process_rule)
-check_plazo_convocatoria_rule_tool = FunctionTool(func=check_plazo_convocatoria_rule)
-check_tipo_proceso_vs_monto_rule_tool = FunctionTool(func=check_tipo_proceso_vs_monto_rule)
-check_directa_fundamento_rule_tool = FunctionTool(func=check_directa_fundamento_rule)
-check_edad_ruc_ganador_rule_tool = FunctionTool(func=check_edad_ruc_ganador_rule)
-check_ciiu_vs_objeto_rule_tool = FunctionTool(func=check_ciiu_vs_objeto_rule)
-check_concentracion_entidad_rule_tool = FunctionTool(func=check_concentracion_entidad_rule)
-check_recurrencia_firmante_rule_tool = FunctionTool(func=check_recurrencia_firmante_rule)
-check_testaferro_multi_ruc_rule_tool = FunctionTool(func=check_testaferro_multi_ruc_rule)
-check_ruc_ultra_nuevo_rule_tool = FunctionTool(func=check_ruc_ultra_nuevo_rule)
-check_postor_unico_mayoritario_rule_tool = FunctionTool(func=check_postor_unico_mayoritario_rule)
-check_inconsistencia_doc_vs_ocds_rule_tool = FunctionTool(func=check_inconsistencia_doc_vs_ocds_rule)
-check_lobby_visits_rule_tool = FunctionTool(func=check_lobby_visits_rule)
+# Las reglas se exponen con firma simple (ocid, tool_context); el perfil (reglas_activas,
+# topes_uit) llega por kwargs desde el driver o por state['reglas_activas'/'topes_uit'].
+check_unique_bidder_rule_tool = _as_tool(check_unique_bidder_rule)
+check_sanctioned_provider_rule_tool = _as_tool(check_sanctioned_provider_rule)
+check_non_competitive_process_rule_tool = _as_tool(check_non_competitive_process_rule)
+check_plazo_convocatoria_rule_tool = _as_tool(check_plazo_convocatoria_rule)
+check_tipo_proceso_vs_monto_rule_tool = _as_tool(check_tipo_proceso_vs_monto_rule)
+check_directa_fundamento_rule_tool = _as_tool(check_directa_fundamento_rule)
+check_edad_ruc_ganador_rule_tool = _as_tool(check_edad_ruc_ganador_rule)
+check_ciiu_vs_objeto_rule_tool = _as_tool(check_ciiu_vs_objeto_rule)
+check_concentracion_entidad_rule_tool = _as_tool(check_concentracion_entidad_rule)
+check_recurrencia_firmante_rule_tool = _as_tool(check_recurrencia_firmante_rule)
+check_testaferro_multi_ruc_rule_tool = _as_tool(check_testaferro_multi_ruc_rule)
+check_ruc_ultra_nuevo_rule_tool = _as_tool(check_ruc_ultra_nuevo_rule)
+check_postor_unico_mayoritario_rule_tool = _as_tool(check_postor_unico_mayoritario_rule)
+check_inconsistencia_doc_vs_ocds_rule_tool = _as_tool(check_inconsistencia_doc_vs_ocds_rule)
+check_lobby_visits_rule_tool = _as_tool(check_lobby_visits_rule)
+check_adicional_acumulado_rule_tool = _as_tool(check_adicional_acumulado_rule)
+check_personal_clave_vinculado_rule_tool = _as_tool(check_personal_clave_vinculado_rule)
+check_fraccionamiento_rule_tool = _as_tool(check_fraccionamiento_rule)
+check_directa_recurrente_rule_tool = _as_tool(check_directa_recurrente_rule)
+
+# Reglas disponibles por nombre (para que el driver/perfil las itere sin importar cada una).
+REGLAS_POR_NOMBRE = {
+    "unico_postor_alto": check_unique_bidder_rule,
+    "proveedor_sancionado_osce": check_sanctioned_provider_rule,
+    "procedimiento_no_competitivo": check_non_competitive_process_rule,
+    "plazo_convocatoria_minimo": check_plazo_convocatoria_rule,
+    "tipo_proceso_vs_monto": check_tipo_proceso_vs_monto_rule,
+    "directa_sin_fundamento": check_directa_fundamento_rule,
+    "ruc_ganador_muy_nuevo": check_edad_ruc_ganador_rule,
+    "ciiu_vs_objeto": check_ciiu_vs_objeto_rule,
+    "concentracion_entidad": check_concentracion_entidad_rule,
+    "firmante_vinculado_ganador": check_recurrencia_firmante_rule,
+    "testaferro_multi_ruc": check_testaferro_multi_ruc_rule,
+    "ruc_ultra_nuevo": check_ruc_ultra_nuevo_rule,
+    "postor_unico_mayoritario": check_postor_unico_mayoritario_rule,
+    "inconsistencia_doc_vs_ocds": check_inconsistencia_doc_vs_ocds_rule,
+    "lobby_visits_pre_convocatoria": check_lobby_visits_rule,
+    "adicional_acumulado": check_adicional_acumulado_rule,
+    "personal_clave_vinculado": check_personal_clave_vinculado_rule,
+    "fraccionamiento": check_fraccionamiento_rule,
+    "directa_recurrente": check_directa_recurrente_rule,
+}
 evaluate_normative_compliance_tool = FunctionTool(func=evaluate_normative_compliance)
 detect_estado_real_tool = FunctionTool(func=_detect_estado_real_persist)
 analyze_postores_pattern_tool = FunctionTool(func=analyze_postores_pattern)

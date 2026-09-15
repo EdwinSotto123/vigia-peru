@@ -12,7 +12,13 @@ Antes de llamar al orquestador consulta la clasificación tipo × etapa de la co
 procesable, el body lleva `clasificacion` {tipo, etapa, agentes, validaciones_pendientes} y el
 orquestador corre solo los agentes que aplican. Sin clasificación (NULL) → todo corre como antes.
 
-Env: AGENT_URL (orquestador), PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD/PGSSLMODE,
+Enrutado por tipo de contratación: hay un servicio de agentes por perfil (mismo código,
+`PIPELINE_PROFILE` distinto): AGENT_URL_BIENES, AGENT_URL_SERVICIOS, AGENT_URL_OBRAS y
+AGENT_URL_OTROS (consultoría, convenio, directa, otro). `AGENT_URL` (histórico) es el fallback
+SOLO para bienes y para contratos sin clasificación. Si el servicio del tipo no está configurado,
+el contrato queda `pendiente_de_procesamiento` (no se manda servicios/obras al de bienes).
+
+Env: AGENT_URL / AGENT_URL_<TIPO> (ver arriba), PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD/PGSSLMODE,
 DISPATCHER_PARALLEL (default 2), DISPATCHER_MAX_MINUTES (default 55),
 DISPATCHER_STREAM_TIMEOUT (segundos sin datos del stream, default 1200),
 DISPATCHER_GRACE_MINUTES (si el stream corta sin `final`, minutos que se espera a que la alerta
@@ -40,6 +46,12 @@ from .events import VISIBLES, reduce_event
 log = logging.getLogger("dispatcher")
 
 AGENT_URL = os.environ.get("AGENT_URL", "").rstrip("/")
+# Tipo de clasificación (backend/core/clasificacion.py) → perfil del servicio de agentes.
+PERFIL_DE_TIPO: dict[str, str] = {
+    "bienes": "bienes", "servicios": "servicios", "obras": "obras",
+    "consultoria": "otros", "convenio": "otros", "directa": "otros", "otro": "otros",
+}
+PERFILES = ("bienes", "servicios", "obras", "otros")
 PARALLEL = int(os.getenv("DISPATCHER_PARALLEL", "2"))
 MAX_MIN = int(os.getenv("DISPATCHER_MAX_MINUTES", "55"))
 STREAM_TIMEOUT = int(os.getenv("DISPATCHER_STREAM_TIMEOUT", "1200"))
@@ -158,6 +170,35 @@ def terminar(ocid: str, resultado: str, error: str | None) -> None:
         )
 
 
+def perfil_de(tipo: str | None) -> str | None:
+    """Perfil que atiende `tipo` (None si el tipo es desconocido)."""
+    if not tipo:
+        return None
+    return PERFIL_DE_TIPO.get(str(tipo).strip().lower())
+
+
+def url_para(tipo: str | None, env: dict | None = None) -> tuple[str | None, str | None]:
+    """(url, perfil) del servicio de agentes para `tipo`.
+
+    · `AGENT_URL_<PERFIL>` si está configurada.
+    · Sin tipo (contrato sin clasificar) o tipo bienes → fallback a `AGENT_URL` (histórico).
+    · Tipo de otro perfil sin URL configurada → (None, perfil): el caller lo deja pendiente.
+    · Tipo desconocido → (None, None)."""
+    env = os.environ if env is None else env
+    perfil = perfil_de(tipo) if tipo else None
+    if tipo and perfil is None:
+        return None, None
+    if perfil is not None:
+        url = (env.get(f"AGENT_URL_{perfil.upper()}") or "").rstrip("/")
+        if url:
+            return url, perfil
+    if perfil in (None, "bienes"):
+        base = (env.get("AGENT_URL") or "").rstrip("/")
+        if base:
+            return base, perfil or "bienes"
+    return None, perfil
+
+
 def clasificacion_de(ocid: str) -> dict | None:
     """Clasificación persistida en `convocatorias` (migración 13). None si no está clasificada
     (columnas NULL) o si la migración aún no se aplicó: en ambos casos se procesa como siempre."""
@@ -260,11 +301,20 @@ def procesar(ocid: str) -> str:
         dejar_pendiente(ocid, clas["motivo_no_procesable"])
         log.info("⏸ %s pendiente de procesamiento · %s/%s · %s", ocid, clas["tipo"], clas["etapa"], clas["motivo_no_procesable"])
         return PENDIENTE
+    tipo = clas["tipo"] if clas is not None else None
+    agent_url, perfil = url_para(tipo)
+    if not agent_url:
+        motivo = (f"servicio de agentes para {tipo} no desplegado (AGENT_URL_{(perfil or '').upper()})"
+                  if perfil else f"tipo de contratación desconocido: {tipo!r}")
+        dejar_pendiente(ocid, motivo)
+        log.info("⏸ %s pendiente de procesamiento · %s", ocid, motivo)
+        return PENDIENTE
     docs = documentos_en_gcs(ocid)
     if docs is not None and not docs and REQUIERE_DOCS_GCS:
         esperar_documentos(ocid)
         log.info("⏳ %s esperando documentos · pedido de descarga abierto (lote nocturno)", ocid)
         return ESPERA
+    log.info("servicio %s (%s) para %s · %s", perfil, agent_url, ocid, tipo or "sin clasificación")
     try:
         ocds = record_en_db(ocid) or prefetch_ocds(ocid)
         body = {"input": ocid, "ocds": ocds, "docs_b64": {}, "doc_urls": docs or {}}
@@ -276,7 +326,13 @@ def procesar(ocid: str) -> str:
                      f" · pendientes {clas['validaciones_pendientes']}" if clas["validaciones_pendientes"] else "")
         if ocds:
             log.info("OCDS precargado para %s (%s)", ocid, str((ocds.get("tender") or {}).get("title") or "")[:60])
-        with requests.post(f"{AGENT_URL}?stream=1", json=body, stream=True, timeout=(30, STREAM_TIMEOUT)) as r:
+        with requests.post(f"{agent_url}?stream=1", json=body, stream=True, timeout=(30, STREAM_TIMEOUT)) as r:
+            if r.status_code == 409:
+                # El servicio rechazó el tipo (perfil ≠ tipo): mala configuración de URLs, no un
+                # fallo del contrato → pendiente sin consumir intento.
+                dejar_pendiente(ocid, f"el servicio {perfil} rechazó el tipo {tipo!r} (409 tipo_no_aceptado)")
+                log.error("⏸ %s 409 tipo_no_aceptado en %s (%s)", ocid, perfil, agent_url)
+                return PENDIENTE
             r.raise_for_status()
             for line in r.iter_lines(decode_unicode=True):
                 if not line:
@@ -323,10 +379,12 @@ def procesar(ocid: str) -> str:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname).1s dispatcher · %(message)s")
-    if not AGENT_URL:
-        log.error("falta AGENT_URL")
+    urls = {p: (os.getenv(f"AGENT_URL_{p.upper()}") or "").rstrip("/") for p in PERFILES}
+    if not AGENT_URL and not any(urls.values()):
+        log.error("falta AGENT_URL (o AGENT_URL_BIENES/SERVICIOS/OBRAS/OTROS)")
         return 2
-    log.info("worker=%s parallel=%d max=%d min agent=%s", WORKER, PARALLEL, MAX_MIN, AGENT_URL)
+    log.info("worker=%s parallel=%d max=%d min agent=%s · por perfil: %s", WORKER, PARALLEL, MAX_MIN,
+             AGENT_URL or "-", ", ".join(f"{p}={u or '-'}" for p, u in urls.items()))
     deadline = time.time() + MAX_MIN * 60
     procesados = fallidos = abortados = pendientes = esperando = 0
     fuente_caida = False  # un aborto del orquestador (OECE inaccesible) frena la corrida; el scheduler reintenta en 5 min

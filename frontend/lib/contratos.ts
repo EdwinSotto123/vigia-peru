@@ -59,6 +59,10 @@ export interface ContratoDocumento {
   url: string;
   formato: string | null;
   fecha: string | null;
+  /** tender · award · contract (de qué parte del expediente sale). */
+  seccion?: "tender" | "award" | "contract";
+  /** Copia vigente en el almacén de Vigía (retención 90 días): se puede previsualizar con URL firmada. */
+  enVigia?: boolean;
 }
 
 export interface BanderaResumen {

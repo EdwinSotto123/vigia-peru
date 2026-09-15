@@ -17,7 +17,13 @@ from tools import (
     add_contextual_flag_tool,
 )
 
-MODEL = _MODEL_FAST
+MODEL = _MODEL_DEFAULT
+# Tier/thinking según docs/design/AUDITORIA_ORQUESTADOR.md §3.3 — 12 reglas deterministas + 2 banderas de JUICIO: DEFAULT (no flash-lite: no debe emitir juicio).
+# Overrides por env: THINKING_COMPLIANCE_EXTENDED, TEMPERATURE_COMPLIANCE_EXTENDED, MAX_OUTPUT_TOKENS_COMPLIANCE_EXTENDED.
+THINKING = 'low'            # minimal | low | medium | high | None (Gemini 3: thinking_level)
+TEMPERATURE = None           # None = default del modelo (Gemini 3 recomienda no bajarla)
+MAX_OUTPUT_TOKENS = None
+OUTPUT_SCHEMA = None   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'compliance_extended'
 USES_TODAY_HEADER = False
 # Inyectamos el contexto investigativo que necesitan las 2 banderas de JUICIO del

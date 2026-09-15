@@ -19,6 +19,8 @@
  *   GET   /admin/procesamientos?estado=                monitor del dispatcher (+ worker, error, latido)
  *   POST  /admin/procesamientos/:ocid/reencolar        vuelve a encolar (intentos=0)
  *   GET   /admin/clasificacion/resumen                 tipo × etapa × procesable + motivos (migración 13)
+ *   GET   /admin/cobertura                             por mes: record completo, docs vigentes en GCS, análisis; lotes (migración 16)
+ *   GET   /admin/pedidos · POST /admin/pedidos/:id/reintentar   pedidos de descarga (migración 15)
  */
 
 import { Hono } from "hono";
@@ -364,6 +366,30 @@ adminRouter.get("/procesamientos", async (c) => {
               COALESCE(v.finalizado_at, v.iniciado_at, v.encolado_at) DESC, v.ocid
      LIMIT 200`, vals);
   return c.json({ data: r.rows });
+});
+
+// Cobertura (migración 16): qué tenemos de cada mes — record completo, documentos vigentes en GCS,
+// clasificación, análisis — más los lotes ingeridos y el estado del bucket según la DB.
+let coberturaCache: { at: number; body: unknown } | null = null;
+adminRouter.get("/cobertura", async (c) => {
+  if (coberturaCache && Date.now() - coberturaCache.at < 60_000) return c.json(coberturaCache.body);
+  const [meses, lotes, docs, gcs] = await Promise.all([
+    pool.query(`SELECT mes, contratos, con_record AS "conRecord", con_docs AS "conDocs", docs_publicados::int AS "docsPublicados",
+                       docs_vigentes::int AS "docsVigentes", clasificados, analizados, en_cola AS "enCola"
+                FROM cobertura_resumen()`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT id, tipo, estado, total::int, ok::int, fallidos::int, iniciado_at AS "iniciadoAt", finalizado_at AS "finalizadoAt", error
+                FROM lotes_ingesta ORDER BY iniciado_at DESC NULLS LAST LIMIT 30`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT count(*)::int AS total, count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS vigentes,
+                       COALESCE(sum(bytes) FILTER (WHERE borrado_at IS NULL AND expira_at > now()), 0)::bigint AS "bytesVigentes",
+                       min(expira_at) FILTER (WHERE borrado_at IS NULL AND expira_at > now()) AS "proximaExpiracion",
+                       count(DISTINCT formato) AS formatos
+                FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
+    pool.query(`SELECT formato, count(*)::int AS n, COALESCE(sum(bytes),0)::bigint AS bytes FROM documentos_gcs
+                WHERE borrado_at IS NULL AND expira_at > now() GROUP BY formato ORDER BY n DESC`).catch(() => ({ rows: [] })),
+  ]);
+  const body = { meses: meses.rows, lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, generadoAt: new Date().toISOString() };
+  coberturaCache = { at: Date.now(), body };
+  return c.json(body);
 });
 
 // Pedidos de descarga (migración 15): qué espera al batch nocturno y qué falló.

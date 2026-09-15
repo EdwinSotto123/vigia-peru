@@ -11,7 +11,8 @@
 substitutions:
   _REGION: us-central1
   _SQL: vivid-spot-480905-a4:us-central1:vigia-db
-  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp,dispatcher,ingest
+  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,agentes,mcp,dispatcher,ingest
+  _AR_REPO: us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -47,7 +48,20 @@ steps:
         [[ ",${_DEPLOY}," == *",agent,"* ]] || { echo "skip agent"; exit 0; }
         gcloud run deploy agent-orchestrator-adk --source backend/agent --region ${_REGION} --allow-unauthenticated \
           --memory 8Gi --cpu 2 --timeout 3600 --concurrency 1 --max-instances 5 \
-          --add-cloudsql-instances ${_SQL} --quiet
+          --add-cloudsql-instances ${_SQL} --update-env-vars PIPELINE_PROFILE=bienes --quiet
+
+  - id: agentes
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",agentes,"* ]] || { echo "skip agentes"; exit 0; }
+        # Los 4 servicios de agentes (bienes/servicios/obras/otros) con UNA imagen:
+        # infrastructure/deploy/agentes.sh construye backend/agent con Cloud Build, actualiza
+        # agent-orchestrator-adk (--update-env-vars, nunca set) y replica el spec a los otros tres.
+        pip3 install --quiet pyyaml
+        PYTHON=python3 AR_REPO=${_AR_REPO} bash infrastructure/deploy/agentes.sh all
 
   - id: mcp
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -68,11 +82,14 @@ steps:
         [[ ",${_DEPLOY}," == *",dispatcher,"* ]] || { echo "skip dispatcher"; exit 0; }
         # Cloud Run JOB (no servicio): lo dispara Cloud Scheduler vigia-dispatcher-run cada 5 min.
         # $$ = dólar literal para bash (Cloud Build solo sustituye ${_X})
-        AGENT_URL="$$(gcloud run services describe agent-orchestrator-adk --region ${_REGION} --format='value(status.url)')"
+        # Un servicio de agentes por tipo (backend/dispatcher/main.py url_para): el que no exista queda vacío.
+        url_de() { gcloud run services describe "$$1" --region ${_REGION} --format='value(status.url)' 2>/dev/null || true; }
+        AGENT_URL="$$(url_de agent-orchestrator-adk)"
+        A_SERV="$$(url_de agente-servicios)"; A_OBRAS="$$(url_de agente-obras)"; A_OTROS="$$(url_de agente-otros)"
         gcloud run jobs deploy vigia-dispatcher --source backend/dispatcher --region ${_REGION} \
           --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 512Mi \
           --set-cloudsql-instances ${_SQL} \
-          --set-env-vars "AGENT_URL=$${AGENT_URL},PGHOST=/cloudsql/${_SQL},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=2,DISPATCHER_MAX_MINUTES=55" \
+          --set-env-vars "AGENT_URL=$${AGENT_URL},AGENT_URL_BIENES=$${AGENT_URL},AGENT_URL_SERVICIOS=$${A_SERV},AGENT_URL_OBRAS=$${A_OBRAS},AGENT_URL_OTROS=$${A_OTROS},PGHOST=/cloudsql/${_SQL},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=2,DISPATCHER_MAX_MINUTES=55" \
           --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
 
   - id: ingest

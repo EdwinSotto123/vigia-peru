@@ -1,4 +1,12 @@
-"""Tools del dominio: documentos."""
+"""Tools del dominio: documentos.
+
+Dos caminos conviven:
+  · `parse_documentos_lote` / `parse_documentos_seleccionados` (WS D, 2026-09-15): selección
+    determinista (tools/doc_select.py), OCR una sola vez por sha256 (tabla documentos_texto,
+    páginas ⟦p.N⟧), extracción con schema base + bloque del perfil y evidencia verificable.
+  · `list_documents` / `parse_document_pdf` (legacy, tool del LlmAgent): misma expansión de
+    contenedores sin topes y mismo schema, pero por URL y sin caché entre corridas.
+"""
 
 from tools._core import *  # noqa: F401,F403
 
@@ -61,9 +69,34 @@ def list_documents(ocid: str, tool_context: ToolContext) -> dict:
                 "format": d.get("format"), "stage": d.get("_stage"),
                 "has_b64_preloaded": d.get("url") in docs_b64,
             }
-            for d in docs[:12]
+            for d in docs
         ],
+        "_note": "La selección y el parseo en lote los hace parse_documentos_seleccionados (determinista).",
     }
+
+def _item_key(it: dict):
+    """Clave semántica para dedup de ítems (fix #1): descripción normalizada +
+    cantidad. Evita que el MISMO ítem, numerado distinto en dos documentos
+    ('2' vs '02', '1.0' vs '01'), sobreviva duplicado y duplique el trabajo del
+    market agent. Devuelve None si no hay descripción ni número."""
+    import unicodedata
+    desc = (it.get("descripcion_corta") or it.get("descripcion") or "").strip().upper()
+    desc = " ".join(desc.split())
+    desc = "".join(c for c in unicodedata.normalize("NFKD", desc)
+                   if not unicodedata.combining(c))
+    if desc:
+        req = (it.get("requerimiento_tecnico_detallado") or "").strip()
+        # Cabeceras de objeto/agregador (SIN requerimiento): el mismo
+        # "ADQUISICIÓN DE LLANTAS..." aparece como "ítem 1" en cada documento
+        # (acta, reporte, contrato) → dedup por descripción SOLA para no
+        # multiplicarlo. Ítems reales (con requerimiento) usan desc+cantidad
+        # para no fusionar productos distintos del mismo rubro.
+        return ("d", desc) if not req else ("d", desc, it.get("cantidad"))
+    num = it.get("numero")
+    if num is not None and str(num).strip():
+        return ("n", str(num).strip())
+    return None
+
 
 def _analyze_pdf_layout(blob: bytes) -> dict:
     """Analiza la estructura de un PDF para detectar páginas cuyo contenido
@@ -217,6 +250,1692 @@ def _split_pdf_by_pages(blob: bytes, label: str,
         return [(label, blob)]
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Parser en LOTE (WS D · plan 2026-09-15): documentos elegidos de forma determinista
+# (tools/doc_select.py), OCR UNA sola vez por sha256 (tabla documentos_texto, páginas con
+# marcador ⟦p.N⟧), extracción con schema base + bloque del perfil y evidencia
+# {documento_sha256, pagina, cita} por ítem/firmante/postor/comité/motivo. Ningún tope es
+# silencioso: cada recorte va a state['recortes'] = [{donde, limite, omitido}].
+# ═══════════════════════════════════════════════════════════════════════════════
+import hashlib as _hashlib
+import subprocess as _subprocess
+import tempfile as _tempfile
+
+from tools.doc_select import (  # noqa: F401  (re-exportado vía `from tools import *`)
+    seleccionar_documentos, rank_documento, recorte_seleccion, PRIORIDAD_DEFAULT, MAX_DOCS_DEFAULT,
+)
+
+# Versión del extractor de TEXTO (OCR + layout + marcadores). Cambiarla invalida la caché
+# de `documentos_texto` (se vuelve a hacer OCR). La extracción estructurada se cachea
+# aparte por (bloque, PARSER_SCHEMA_VERSION, modelo) dentro de `extraccion` JSONB.
+VERSION_PARSER = os.getenv("PARSER_TEXT_VERSION", "texto-v1")
+PARSER_SCHEMA_VERSION = os.getenv("PARSER_SCHEMA_VERSION", "schema-v2")
+# Chars de texto OCR por llamada Gemini (≈ 150K tokens). Documentos más largos se parten
+# por páginas en varias llamadas y se fusionan — no se omite nada.
+PARSE_MAX_CHARS_POR_LLAMADA = int(os.getenv("PARSE_MAX_CHARS_POR_LLAMADA", "600000"))
+PARSE_LOTE_WORKERS = int(os.getenv("PARSE_LOTE_WORKERS", "3"))
+PARSE_REUSE_EXTRACCION = os.getenv("PARSE_REUSE_EXTRACCION", "1") != "0"
+TEXTO_LITERAL_MAX = 4000
+CITA_MAX = 240
+
+_BLOQUES_VALIDOS = ("servicio", "obra", "sustento_directa")
+_IMG_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".webp")
+
+
+# ── Schema del parser: base + bloque del perfil ────────────────────────────────────────
+def _schema_evidencia(desc: str = "") -> "gtypes.Schema":
+    from google.genai import types as gtypes
+    return gtypes.Schema(
+        type=gtypes.Type.ARRAY,
+        description=(desc or "Respaldo LITERAL de este dato en el documento: "
+                     "`pagina` = número N del marcador ⟦p.N⟧ donde aparece; `cita` = fragmento "
+                     f"textual copiado tal cual (≤ {CITA_MAX} chars). Sin evidencia el dato NO se persiste."),
+        items=gtypes.Schema(
+            type=gtypes.Type.OBJECT,
+            properties={
+                "pagina": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
+                "cita": gtypes.Schema(type=gtypes.Type.STRING),
+            },
+            required=["cita"],
+        ),
+    )
+
+
+def _schema_bloque(bloque: str | None) -> "gtypes.Schema | None":
+    """Bloque extra del schema según `parser_bloque` del perfil (§4.2 de la auditoría)."""
+    from google.genai import types as gtypes
+    S, T = gtypes.Schema, gtypes.Type
+    if not bloque:
+        return None
+    if bloque == "servicio":
+        return S(type=T.OBJECT, nullable=True, description=(
+            "SOLO para Términos de Referencia / Bases de un SERVICIO o CONSULTORÍA: la unidad de "
+            "análisis es el entregable/actividad y la tarifa (HH, mes, visita, km), no un bien físico. "
+            "Dejá null si el documento no describe un servicio."),
+            properties={
+                "alcance": S(type=T.STRING, nullable=True, description="Alcance del servicio, LITERAL (≤ 1500 chars)."),
+                "actividades": S(type=T.ARRAY, items=S(type=T.STRING), description="Actividades/tareas exigidas, literales."),
+                "entregables": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "nombre": S(type=T.STRING), "plazo_dias": S(type=T.INTEGER, nullable=True),
+                    "porcentaje_pago": S(type=T.NUMBER, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["nombre"])),
+                "plazo_total_dias": S(type=T.INTEGER, nullable=True),
+                "personal_clave": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "cargo": S(type=T.STRING), "profesion": S(type=T.STRING, nullable=True),
+                    "experiencia_min_anios": S(type=T.NUMBER, nullable=True),
+                    "dedicacion": S(type=T.STRING, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["cargo"])),
+                "experiencia_postor": S(type=T.OBJECT, nullable=True, properties={
+                    "monto_facturado_min": S(type=T.NUMBER, nullable=True),
+                    "n_contratos": S(type=T.INTEGER, nullable=True),
+                    "rubro": S(type=T.STRING, nullable=True)}),
+                "tarifas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "concepto": S(type=T.STRING), "unidad": S(type=T.STRING, nullable=True),
+                    "precio_unitario": S(type=T.NUMBER, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["concepto"])),
+                "penalidades": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "tipo": S(type=T.STRING), "formula": S(type=T.STRING, nullable=True),
+                    "tope_pct": S(type=T.NUMBER, nullable=True)}, required=["tipo"])),
+                "subcontratacion_permitida": S(type=T.BOOLEAN, nullable=True),
+                "forma_pago": S(type=T.STRING, nullable=True),
+                "lugar_prestacion": S(type=T.STRING, nullable=True),
+                "evidencia": _schema_evidencia(),
+            })
+    if bloque == "obra":
+        return S(type=T.OBJECT, nullable=True, description=(
+            "SOLO para OBRAS: expediente técnico, presupuesto y ejecución (adicionales, ampliaciones, "
+            "valorizaciones). Dejá null si el documento no es de una obra."),
+            properties={
+                "expediente_tecnico": S(type=T.OBJECT, nullable=True, properties={
+                    "memoria": S(type=T.STRING, nullable=True, description="Memoria descriptiva, LITERAL (≤ 1500 chars)."),
+                    "presupuesto_total": S(type=T.NUMBER, nullable=True),
+                    "partidas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                        "codigo": S(type=T.STRING, nullable=True), "descripcion": S(type=T.STRING),
+                        "metrado": S(type=T.NUMBER, nullable=True), "unidad": S(type=T.STRING, nullable=True),
+                        "precio_unitario": S(type=T.NUMBER, nullable=True), "parcial": S(type=T.NUMBER, nullable=True),
+                        "pagina": S(type=T.INTEGER, nullable=True)}, required=["descripcion"])),
+                    "gastos_generales_pct": S(type=T.NUMBER, nullable=True),
+                    "utilidad_pct": S(type=T.NUMBER, nullable=True),
+                    "plazo_dias": S(type=T.INTEGER, nullable=True),
+                    "cronograma": S(type=T.STRING, nullable=True)}),
+                "residente_requisitos": S(type=T.STRING, nullable=True),
+                "supervisor_requisitos": S(type=T.STRING, nullable=True),
+                "garantia_fiel_cumplimiento": S(type=T.STRING, nullable=True),
+                "adelantos": S(type=T.STRING, nullable=True),
+                "adicionales": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "monto": S(type=T.NUMBER, nullable=True),
+                    "pct_acumulado": S(type=T.NUMBER, nullable=True), "motivo": S(type=T.STRING, nullable=True),
+                    "resolucion": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)})),
+                "ampliaciones_plazo": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "dias": S(type=T.INTEGER, nullable=True),
+                    "motivo": S(type=T.STRING, nullable=True), "resolucion": S(type=T.STRING, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)})),
+                "valorizaciones": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "periodo": S(type=T.STRING, nullable=True),
+                    "monto": S(type=T.NUMBER, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)})),
+                "evidencia": _schema_evidencia(),
+            })
+    if bloque == "sustento_directa":
+        return S(type=T.OBJECT, nullable=True, description=(
+            "SOLO para contratación DIRECTA / convenio / consultoría por causal: la causal invocada y el "
+            "expediente que la sustenta (informes, acto aprobatorio, cotizaciones). Dejá null si el "
+            "documento no sustenta una directa ni es un convenio."),
+            properties={
+                "causal_articulo": S(type=T.STRING, nullable=True, description="Artículo/literal invocado, LITERAL."),
+                "causal_texto": S(type=T.STRING, nullable=True, description="Fundamento textual de la causal (≤ 1500 chars)."),
+                "informe_tecnico": S(type=T.OBJECT, nullable=True, properties={
+                    "numero": S(type=T.STRING, nullable=True), "fecha": S(type=T.STRING, nullable=True),
+                    "firmante": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)}),
+                "informe_legal": S(type=T.OBJECT, nullable=True, properties={
+                    "numero": S(type=T.STRING, nullable=True), "fecha": S(type=T.STRING, nullable=True),
+                    "firmante": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)}),
+                "acto_aprobatorio": S(type=T.OBJECT, nullable=True, properties={
+                    "tipo": S(type=T.STRING, nullable=True, description="resolución de alcaldía / acuerdo de concejo / resolución ejecutiva regional / …"),
+                    "numero": S(type=T.STRING, nullable=True), "fecha": S(type=T.STRING, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}),
+                "cotizaciones": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "proveedor": S(type=T.STRING), "ruc": S(type=T.STRING, nullable=True),
+                    "monto": S(type=T.NUMBER, nullable=True), "fecha": S(type=T.STRING, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["proveedor"])),
+                "proveedor_unico_justificacion": S(type=T.STRING, nullable=True),
+                "fecha_publicacion_seace": S(type=T.STRING, nullable=True),
+                "convenio": S(type=T.OBJECT, nullable=True, properties={
+                    "entidades_parte": S(type=T.ARRAY, items=S(type=T.STRING)),
+                    "objeto": S(type=T.STRING, nullable=True), "aportes": S(type=T.STRING, nullable=True),
+                    "vigencia": S(type=T.STRING, nullable=True)}),
+                "evidencia": _schema_evidencia(),
+            })
+    raise ValueError(f"parser_bloque desconocido: {bloque!r} (válidos: {_BLOQUES_VALIDOS})")
+
+
+def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
+    """Schema de extracción: base (ítems, postores, firmantes, comité, motivos, estudio de
+    mercado, contrato final) + bloque del perfil. Cada ítem/firmante/postor/comité/motivo
+    lleva `evidencia: [{pagina, cita}]`; el requerimiento va LITERAL en `texto_literal`."""
+    from google.genai import types as gtypes
+    S, T = gtypes.Schema, gtypes.Type
+    props = {
+        "cuantia_total": S(type=T.NUMBER, nullable=True),
+        "fuente_financiamiento": S(type=T.STRING, nullable=True),
+        "modalidad": S(type=T.STRING, nullable=True),
+        "tipo_documento_detectado": S(
+            type=T.STRING, nullable=True,
+            description=(
+                "Tipo de documento OECE detectado a partir del contenido: "
+                "bases_administrativas, bases_integradas, terminos_de_referencia, expediente_tecnico, "
+                "resumen_ejecutivo, informe_sustento, acta_buena_pro, cuadro_evaluacion, contrato, "
+                "orden_de_compra, adenda, propuesta_economica, absolucion_consultas, otro."
+            ),
+        ),
+        "contiene_requerimiento": S(
+            type=T.BOOLEAN, nullable=True,
+            description=(
+                "True si en este documento aparece la sección 'REQUERIMIENTO' / 'Términos de "
+                "Referencia' / 'Especificaciones Técnicas' / 'Expediente técnico' con detalle técnico."
+            ),
+        ),
+        "items": S(
+            type=T.ARRAY,
+            items=S(
+                type=T.OBJECT,
+                properties={
+                    "numero": S(type=T.STRING, nullable=True,
+                        description="Número del ítem como string: '1', '1.1', '2'. Sub-numeración con punto si el OCDS agrupa varios productos en un ítem."),
+                    "padre_ocds_item": S(type=T.STRING, nullable=True,
+                        description="Si es desglose de un ítem padre del OCDS, número del padre."),
+                    "descripcion_corta": S(type=T.STRING, description="TÍTULO del ítem tal como aparece (1 línea, ≤200 chars)."),
+                    "cantidad": S(type=T.NUMBER, nullable=True),
+                    "unidad": S(type=T.STRING, nullable=True, description="UND, KG, M3, LITRO, SACO, MES, HH, SERVICIO, etc."),
+                    "precio_unitario_referencial": S(type=T.NUMBER, nullable=True),
+                    "cuantia_referencial_item": S(type=T.NUMBER, nullable=True),
+                    "marca_o_modelo_exigido": S(type=T.STRING, nullable=True,
+                        description="Texto exacto de marca/modelo cuando aparece ('o similar' incluido). Null si genérico o no aplica."),
+                    "certificaciones_exigidas": S(type=T.ARRAY, items=S(type=T.STRING),
+                        description="Normas/certificaciones exigidas, cada string LITERAL (≤80 chars)."),
+                    "valores_tecnicos_clave": S(type=T.OBJECT, nullable=True,
+                        description="Valores numéricos discretos del requerimiento. Solo los que aparezcan.",
+                        properties={
+                            "potencia_min_hp": S(type=T.NUMBER, nullable=True),
+                            "potencia_min_kw": S(type=T.NUMBER, nullable=True),
+                            "capacidad_volumen": S(type=T.STRING, nullable=True),
+                            "capacidad_carga_ton": S(type=T.NUMBER, nullable=True),
+                            "peso_operativo_ton": S(type=T.STRING, nullable=True),
+                            "alcance_m": S(type=T.NUMBER, nullable=True),
+                            "ano_fabricacion_min": S(type=T.INTEGER, nullable=True),
+                            "estado": S(type=T.STRING, nullable=True),
+                            "presentacion": S(type=T.STRING, nullable=True),
+                            "color": S(type=T.STRING, nullable=True),
+                            "material": S(type=T.STRING, nullable=True),
+                        }),
+                    "garantia": S(type=T.OBJECT, nullable=True, properties={
+                        "meses": S(type=T.INTEGER, nullable=True), "horas": S(type=T.INTEGER, nullable=True),
+                        "alcance": S(type=T.STRING, nullable=True)}),
+                    "condiciones_entrega": S(type=T.OBJECT, nullable=True, properties={
+                        "plazo_dias_calendario": S(type=T.INTEGER, nullable=True),
+                        "lugar_entrega": S(type=T.STRING, nullable=True),
+                        "modalidad": S(type=T.STRING, nullable=True)}),
+                    "requisitos_postor": S(type=T.OBJECT, nullable=True,
+                        description="Requisitos al postor (no al bien/servicio).",
+                        properties={
+                            "experiencia_minima_soles": S(type=T.NUMBER, nullable=True),
+                            "anos_experiencia_min": S(type=T.NUMBER, nullable=True),
+                            "n_contratos_similares": S(type=T.INTEGER, nullable=True),
+                            "certificaciones_postor": S(type=T.ARRAY, items=S(type=T.STRING)),
+                            "infraestructura_exigida": S(type=T.STRING, nullable=True),
+                            "personal_clave": S(type=T.ARRAY, items=S(type=T.STRING)),
+                        }),
+                    "penalidades": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                        "causal": S(type=T.STRING), "monto_o_porcentaje": S(type=T.STRING, nullable=True),
+                        "base_calculo": S(type=T.STRING, nullable=True)}, required=["causal"])),
+                    "subitems": S(type=T.ARRAY,
+                        description="Si el ítem es un PAQUETE/LOTE/CANASTA con N productos distintos, listalos acá.",
+                        items=S(type=T.OBJECT, properties={
+                            "descripcion": S(type=T.STRING), "cantidad": S(type=T.NUMBER, nullable=True),
+                            "unidad": S(type=T.STRING, nullable=True), "presentacion": S(type=T.STRING, nullable=True),
+                            "specs_clave": S(type=T.STRING, nullable=True)}, required=["descripcion"])),
+                    "texto_literal": S(type=T.STRING, nullable=True,
+                        description=(
+                            f"EXTRACTO LITERAL (copiado tal cual, SIN resumir ni reescribir) del requerimiento "
+                            "técnico de este ítem: especificaciones, normas, garantía, plazo, requisitos del postor. "
+                            f"Copiá el requerimiento COMPLETO hasta agotar los {TEXTO_LITERAL_MAX} chars (no elijas un "
+                            "fragmento corto: si hay 3 páginas de especificaciones, transcribí las 3 hasta el tope). "
+                            "Si es más largo que el tope, copiá desde el inicio y declará en `texto_literal_paginas` "
+                            "TODAS las páginas que abarca. Null si el documento no tiene requerimiento para este ítem."
+                        )),
+                    "texto_literal_paginas": S(type=T.ARRAY, items=S(type=T.INTEGER),
+                        description="Páginas (N de ⟦p.N⟧) donde vive el requerimiento de este ítem."),
+                    "evidencia": _schema_evidencia(),
+                },
+                required=["descripcion_corta"],
+            ),
+        ),
+        "postores": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+            "ruc": S(type=T.STRING, nullable=True), "razon_social": S(type=T.STRING),
+            "monto_oferta": S(type=T.NUMBER, nullable=True), "es_ganador": S(type=T.BOOLEAN, nullable=True),
+            "item": S(type=T.STRING, nullable=True), "evidencia": _schema_evidencia()},
+            required=["razon_social"])),
+        "firmantes": S(type=T.ARRAY,
+            description="Personas que FIRMAN el documento (actas, cuadros, contratos). Solo con DNI, entidad real o firma visible.",
+            items=S(type=T.OBJECT, properties={
+                "nombre_completo": S(type=T.STRING), "dni": S(type=T.STRING, nullable=True),
+                "cargo": S(type=T.STRING, nullable=True), "rol_en_documento": S(type=T.STRING, nullable=True),
+                "entidad": S(type=T.STRING, nullable=True), "fecha_firma": S(type=T.STRING, nullable=True),
+                "evidencia": _schema_evidencia()}, required=["nombre_completo"])),
+        "comite_evaluacion": S(type=T.ARRAY,
+            description="Composición del Comité de Selección si el documento lo lista (solo actas/cuadros/contratos).",
+            items=S(type=T.OBJECT, properties={
+                "nombre_completo": S(type=T.STRING), "cargo": S(type=T.STRING, nullable=True),
+                "rol": S(type=T.STRING, nullable=True), "certificacion_sican": S(type=T.STRING, nullable=True),
+                "evidencia": _schema_evidencia()}, required=["nombre_completo"])),
+        "motivos_adjudicacion": S(type=T.ARRAY,
+            description="Para cada ganador, el motivo documentado en el acta/reporte de buena pro.",
+            items=S(type=T.OBJECT, properties={
+                "ganador_razon_social": S(type=T.STRING), "ganador_ruc": S(type=T.STRING, nullable=True),
+                "item_adjudicado": S(type=T.STRING, nullable=True), "criterio_decisivo": S(type=T.STRING, nullable=True),
+                "posicion_ranking": S(type=T.INTEGER, nullable=True),
+                "observaciones_evaluacion": S(type=T.STRING, nullable=True),
+                "competidores_descalificados": S(type=T.ARRAY, items=S(type=T.STRING)),
+                "evidencia": _schema_evidencia()}, required=["ganador_razon_social"])),
+        "lugar_fecha_acta": S(type=T.OBJECT, nullable=True, properties={
+            "lugar": S(type=T.STRING, nullable=True), "fecha": S(type=T.STRING, nullable=True),
+            "hora": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)}),
+        "fundamento_legal": S(type=T.ARRAY, items=S(type=T.STRING),
+            description="Normas/artículos citados LITERALMENTE por el documento."),
+        "estudio_mercado": S(type=T.OBJECT, nullable=True,
+            description="SOLO si el documento es un Resumen Ejecutivo / Informe que sustenta la contratación: estudio de mercado y causal. Si no, null.",
+            properties={
+                "resumen": S(type=T.STRING, nullable=True),
+                "valor_referencial": S(type=T.NUMBER, nullable=True),
+                "moneda": S(type=T.STRING, nullable=True),
+                "comparacion_precio_historico": S(type=T.STRING, nullable=True),
+                "causal_articulo": S(type=T.STRING, nullable=True),
+                "causal_texto": S(type=T.STRING, nullable=True),
+                "proveedores_evaluados": S(type=T.ARRAY, items=S(type=T.STRING)),
+                "descalificaciones": S(type=T.ARRAY, items=S(type=T.STRING)),
+                "evidencia": _schema_evidencia(),
+            }),
+        "contrato_final": S(type=T.OBJECT, nullable=True,
+            description="SOLO si el documento es la ORDEN DE COMPRA/SERVICIO o el CONTRATO firmado: condiciones finales. Si no, null.",
+            properties={
+                "precio_final_total": S(type=T.NUMBER, nullable=True),
+                "moneda": S(type=T.STRING, nullable=True),
+                "cronograma_entregas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "descripcion": S(type=T.STRING, nullable=True), "cantidad": S(type=T.NUMBER, nullable=True),
+                    "plazo_dias": S(type=T.INTEGER, nullable=True), "monto": S(type=T.NUMBER, nullable=True)})),
+                "penalidades": S(type=T.ARRAY, items=S(type=T.STRING)),
+                "forma_pago": S(type=T.STRING, nullable=True),
+                "proveedor_ruc": S(type=T.STRING, nullable=True),
+                "plazo_ejecucion_dias": S(type=T.INTEGER, nullable=True),
+                "fecha_suscripcion": S(type=T.STRING, nullable=True),
+                "evidencia": _schema_evidencia(),
+            }),
+        "resumen": S(type=T.STRING, nullable=True, description="3-4 líneas describiendo el documento REAL."),
+    }
+    if bloque:
+        props[bloque] = _schema_bloque(bloque)
+    return S(type=T.OBJECT, properties=props)
+
+
+# ── Contenedores: ZIP / RAR / DOCX / XLSX / DOC / imágenes → unidades de texto ────────
+def _sha256_hex(blob: bytes) -> str:
+    return _hashlib.sha256(blob).hexdigest()
+
+
+def _unidad(nombre: str, kind: str, data=None, paginas=None) -> dict:
+    """kind ∈ {'pdf' (data=bytes), 'paginas' (paginas=[{texto}] ya extraídas), 'imagenes' (data=pdf sintético)}."""
+    return {"nombre": nombre, "kind": kind, "data": data, "paginas": paginas}
+
+
+def _paginar_texto(texto: str, max_chars: int = 4500) -> list[str]:
+    t = (texto or "").strip()
+    if not t:
+        return []
+    return [t[i:i + max_chars] for i in range(0, len(t), max_chars)]
+
+
+def _docx_a_unidades(blob: bytes, nombre: str) -> list[dict]:
+    """DOCX → páginas de texto (párrafos + tablas, python-docx) + una unidad 'imagenes'
+    (PDF sintético con las imágenes embebidas) para OCR. Sin pasar el texto por Document AI."""
+    out: list[dict] = []
+    text_chunks: list[str] = []
+    try:
+        from docx import Document
+        d = Document(io.BytesIO(blob))
+        for para in d.paragraphs:
+            t = (para.text or "").strip()
+            if t:
+                text_chunks.append(t)
+        for tbl in d.tables:
+            for row in tbl.rows:
+                cells = [(c.text or "").strip() for c in row.cells]
+                line = " | ".join(c for c in cells if c)
+                if line.strip(" |"):
+                    text_chunks.append(line)
+    except Exception as e:
+        print(f"[lote] python-docx falló en {nombre[:60]}: {str(e)[:100]}", flush=True)
+    pags = _paginar_texto("\n".join(text_chunks))
+    if pags:
+        out.append(_unidad(nombre, "paginas", paginas=[{"texto": p} for p in pags]))
+    images: list[tuple[str, bytes]] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            for name in z.namelist():
+                if name.startswith("word/media/") and name.lower().endswith(_IMG_EXTS):
+                    try:
+                        images.append((name, z.read(name)))
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+    if images:
+        synth = _images_to_synthetic_pdf(images)
+        if synth:
+            out.append(_unidad(f"{nombre} (imágenes embebidas)", "imagenes", data=synth))
+    return out
+
+
+def _xlsx_a_unidades(blob: bytes, nombre: str) -> tuple[list[dict], list[dict]]:
+    """XLSX → una página por hoja (filas ' | '); requiere openpyxl (si falta → recorte)."""
+    try:
+        import openpyxl
+    except Exception:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "formato_no_soportado",
+                     "omitido": f"{nombre} (openpyxl no instalado)"}]
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(blob), read_only=True, data_only=True)
+    except Exception as e:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "xlsx_ilegible",
+                     "omitido": f"{nombre} ({str(e)[:80]})"}]
+    paginas: list[dict] = []
+    for ws in wb.worksheets:
+        lines = []
+        for row in ws.iter_rows(values_only=True):
+            cells = ["" if v is None else str(v).strip() for v in row]
+            if any(cells):
+                lines.append(" | ".join(cells).rstrip(" |"))
+        txt = f"[hoja: {ws.title}]\n" + "\n".join(lines)
+        for chunk in _paginar_texto(txt, 12000):
+            paginas.append({"texto": chunk})
+    return ([_unidad(nombre, "paginas", paginas=paginas)] if paginas else []), []
+
+
+def _xls_a_unidades(blob: bytes, nombre: str) -> tuple[list[dict], list[dict]]:
+    try:
+        import xlrd  # type: ignore
+    except Exception:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "formato_no_soportado",
+                     "omitido": f"{nombre} (.xls: xlrd no instalado)"}]
+    try:
+        wb = xlrd.open_workbook(file_contents=blob)
+        paginas = []
+        for sh in wb.sheets():
+            lines = []
+            for r in range(sh.nrows):
+                cells = [str(sh.cell_value(r, c)).strip() for c in range(sh.ncols)]
+                if any(cells):
+                    lines.append(" | ".join(cells).rstrip(" |"))
+            for chunk in _paginar_texto(f"[hoja: {sh.name}]\n" + "\n".join(lines), 12000):
+                paginas.append({"texto": chunk})
+        return ([_unidad(nombre, "paginas", paginas=paginas)] if paginas else []), []
+    except Exception as e:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "xls_ilegible",
+                     "omitido": f"{nombre} ({str(e)[:80]})"}]
+
+
+def _doc_a_unidades(blob: bytes, nombre: str) -> tuple[list[dict], list[dict]]:
+    """`.doc` legado → texto con `antiword` si está en PATH (no está en la imagen de Cloud
+    Run por defecto); si no, recorte formato_no_soportado."""
+    import shutil
+    tool = shutil.which("antiword")
+    if not tool:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "formato_no_soportado",
+                     "omitido": f"{nombre} (.doc: antiword no disponible)"}]
+    try:
+        with _tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as tf:
+            tf.write(blob)
+            path = tf.name
+        try:
+            res = _subprocess.run([tool, "-t", path], capture_output=True, timeout=60)
+            txt = res.stdout.decode("utf-8", errors="replace")
+        finally:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+        pags = [{"texto": p} for p in _paginar_texto(txt)]
+        if not pags:
+            return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "doc_sin_texto", "omitido": nombre}]
+        return [_unidad(nombre, "paginas", paginas=pags)], []
+    except Exception as e:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "doc_ilegible",
+                     "omitido": f"{nombre} ({str(e)[:80]})"}]
+
+
+def _leer_rar(blob: bytes) -> list[tuple[str, bytes]]:
+    """Lista [(nombre, bytes)] de un RAR con `rarfile` (backends unar/bsdtar/7z/unrar)."""
+    import rarfile
+    with _tempfile.NamedTemporaryFile(suffix=".rar", delete=False) as tf:
+        tf.write(blob)
+        rar_path = tf.name
+    out: list[tuple[str, bytes]] = []
+    try:
+        with rarfile.RarFile(rar_path) as rf:
+            for info in rf.infolist():
+                if info.is_dir():
+                    continue
+                try:
+                    out.append((info.filename, rf.read(info)))
+                except Exception as e:
+                    out.append((info.filename, b""))
+                    print(f"[lote] rar: no pude leer {info.filename[:60]}: {str(e)[:80]}", flush=True)
+    finally:
+        try:
+            os.unlink(rar_path)
+        except Exception:
+            pass
+    return out
+
+
+def _expandir_contenedor(blob: bytes, nombre: str, prioridad: tuple[str, ...] | None = None,
+                         depth: int = 0) -> tuple[list[dict], list[dict]]:
+    """Blob de cualquier formato → (unidades de texto, recortes). SIN topes de cantidad: un ZIP
+    con 9 PDFs produce 9 unidades ordenadas por la prioridad del perfil (título del archivo),
+    no por `namelist()`. Lo que no se puede abrir (7z, .doc sin antiword, PDF cifrado, RAR
+    sin backend) queda como recorte `formato_no_soportado` / `*_ilegible` — nunca en silencio."""
+    recortes: list[dict] = []
+    unidades: list[dict] = []
+    if not blob:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "vacio", "omitido": nombre}]
+    if depth > 3:
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "profundidad_zip>3", "omitido": nombre}]
+    low = nombre.lower()
+    head = blob[:8]
+
+    def _hijos(entries: list[tuple[str, bytes]], prefix: str) -> None:
+        # Orden determinista: prioridad del perfil sobre el nombre del archivo, luego nombre.
+        ranked = sorted(entries, key=lambda e: (rank_documento(e[0], None, prioridad or PRIORIDAD_DEFAULT)[0],
+                                                e[0].lower()))
+        imgs: list[tuple[str, bytes]] = []
+        for name, data in ranked:
+            base = name.rsplit("/", 1)[-1]
+            if not base or name.endswith("/"):
+                continue
+            if base.lower().endswith(_IMG_EXTS):
+                imgs.append((name, data))
+                continue
+            u, r = _expandir_contenedor(data, f"{prefix}{name}", prioridad, depth + 1)
+            unidades.extend(u)
+            recortes.extend(r)
+        if imgs:
+            synth = _images_to_synthetic_pdf(imgs)
+            if synth:
+                unidades.append(_unidad(f"{prefix}{len(imgs)} imágenes (escaneo→PDF)", "imagenes", data=synth))
+            else:
+                recortes.append({"donde": f"contenedor:{prefix[:80]}", "limite": "imagenes_ilegibles",
+                                 "omitido": [n for n, _ in imgs][:20]})
+
+    if head[:4] == b"Rar!":
+        try:
+            entries = _leer_rar(blob)
+        except Exception as e:
+            return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "rar_no_extraible",
+                         "omitido": f"{nombre} ({type(e).__name__}: {str(e)[:100]})"}]
+        _hijos(entries, f"{nombre}/")
+        return unidades, recortes
+    if head[:2] == b"PK":
+        if _is_docx_blob(blob):
+            return _docx_a_unidades(blob, nombre), []
+        if low.endswith(".xlsx") or _es_xlsx_blob(blob):
+            return _xlsx_a_unidades(blob, nombre)
+        try:
+            with zipfile.ZipFile(io.BytesIO(blob)) as z:
+                entries = []
+                for info in z.infolist():
+                    if info.is_dir():
+                        continue
+                    try:
+                        entries.append((info.filename, z.read(info)))
+                    except Exception as e:
+                        recortes.append({"donde": f"contenedor:{nombre[:80]}", "limite": "zip_entrada_ilegible",
+                                         "omitido": f"{info.filename} ({str(e)[:60]})"})
+        except zipfile.BadZipFile:
+            return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "zip_corrupto", "omitido": nombre}]
+        _hijos(entries, f"{nombre}/")
+        return unidades, recortes
+    if head[:4] == b"%PDF":
+        try:
+            import fitz
+            d = fitz.open(stream=blob, filetype="pdf")
+            if d.is_encrypted and not d.authenticate(""):
+                d.close()
+                return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "pdf_cifrado", "omitido": nombre}]
+            d.close()
+        except Exception:
+            pass
+        return [_unidad(nombre, "pdf", data=blob)], []
+    if head[:6] == b"7z\xbc\xaf\x27\x1c":
+        return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "formato_no_soportado", "omitido": f"{nombre} (.7z)"}]
+    if head[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":  # OLE2: .doc / .xls
+        if low.endswith(".xls"):
+            return _xls_a_unidades(blob, nombre)
+        return _doc_a_unidades(blob, nombre)
+    if low.endswith(_IMG_EXTS) or head[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"II*\x00", b"MM\x00*"):
+        synth = _images_to_synthetic_pdf([(nombre, blob)])
+        if synth:
+            return [_unidad(nombre, "imagenes", data=synth)], []
+    if low.endswith((".txt", ".csv", ".md")):
+        try:
+            txt = blob.decode("utf-8", errors="replace")
+            return [_unidad(nombre, "paginas", paginas=[{"texto": p} for p in _paginar_texto(txt)])], []
+        except Exception:
+            pass
+    return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "formato_no_soportado",
+                 "omitido": f"{nombre} (bytes {blob[:4].hex()}, {len(blob)} B)"}]
+
+
+def _es_xlsx_blob(blob: bytes) -> bool:
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            return any(n == "xl/workbook.xml" for n in z.namelist())
+    except Exception:
+        return False
+
+
+# ── Texto por página: Document AI o PyMuPDF (+ Gemini Vision para páginas rasterizadas) ──
+def _paginas_pymupdf(pdf: bytes, page_offset: int) -> tuple[list[dict], list[dict]]:
+    """Fallback sin Document AI: texto extraíble por página; las páginas rasterizadas
+    (texto < 300 chars con imagen > 25 % del área) se transcriben con Gemini Vision en
+    lotes de ≤ 8 PNGs. Devuelve (paginas, recortes)."""
+    import fitz
+    recortes: list[dict] = []
+    layout = _analyze_pdf_layout(pdf)
+    d = fitz.open(stream=pdf, filetype="pdf")
+    paginas: list[dict] = []
+    try:
+        for i in range(len(d)):
+            t = (d[i].get_text() or "").strip()
+            paginas.append({"n": page_offset + i + 1, "texto": t, "chars": len(t)})
+    finally:
+        d.close()
+    need = list(layout.get("needs_render_pages") or [])
+    if need:
+        try:
+            rendered = _render_pdf_pages_to_png(pdf, need, dpi=160)
+            for k in range(0, len(rendered), 8):
+                lote = rendered[k:k + 8]
+                textos = _ocr_paginas_gemini(lote)
+                for (idx, _png), txt in zip(lote, textos):
+                    if txt and len(txt) > paginas[idx]["chars"]:
+                        paginas[idx] = {"n": page_offset + idx + 1, "texto": txt, "chars": len(txt), "ocr": "gemini_vision"}
+        except Exception as e:
+            recortes.append({"donde": "ocr_gemini_vision", "limite": "fallo",
+                             "omitido": f"páginas rasterizadas {[page_offset + i + 1 for i in need][:30]} ({str(e)[:80]})"})
+    return paginas, recortes
+
+
+def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
+    """Transcripción literal de ≤ 8 páginas PNG con Gemini (solo fallback sin Document AI)."""
+    from google.genai import types as gtypes
+    client = _gemini_client()
+    schema = gtypes.Schema(type=gtypes.Type.OBJECT, properties={
+        "paginas": gtypes.Schema(type=gtypes.Type.ARRAY, items=gtypes.Schema(type=gtypes.Type.OBJECT, properties={
+            "indice": gtypes.Schema(type=gtypes.Type.INTEGER), "texto": gtypes.Schema(type=gtypes.Type.STRING)},
+            required=["indice", "texto"]))}, required=["paginas"])
+    parts = [gtypes.Part.from_text(text=(
+        f"Adjunto {len(rendered)} imágenes de páginas escaneadas (índices 0..{len(rendered) - 1}, en ese orden). "
+        "Transcribí LITERALMENTE todo el texto de cada una (tablas como filas con ' | '). No resumas, no "
+        "inventes, no completes. Si una página es ilegible, devolvé texto vacío para ese índice."))]
+    for _idx, png in rendered:
+        parts.append(gtypes.Part.from_bytes(data=png, mime_type="image/png"))
+    cfg = gtypes.GenerateContentConfig(response_mime_type="application/json", response_schema=schema,
+                                       max_output_tokens=65535, temperature=0.0,
+                                       http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS))
+    with _throttle_gemini():
+        resp = _gemini_call_with_retry(lambda: client.models.generate_content(
+            model=DEFAULT_GEMINI_MODEL, contents=parts, config=cfg))
+    data = _safe_parse_json((resp.text or "").strip()) or {}
+    out = [""] * len(rendered)
+    for p in (data.get("paginas") or []):
+        try:
+            i = int(p.get("indice"))
+            if 0 <= i < len(out):
+                out[i] = str(p.get("texto") or "").strip()
+        except Exception:
+            continue
+    return out
+
+
+def _texto_de_unidades(unidades: list[dict]) -> dict:
+    """Todas las unidades → páginas con numeración GLOBAL continua ({n, texto, chars, archivo}),
+    texto con marcadores ⟦archivo: …⟧ / ⟦p.N⟧, motor y recortes."""
+    from tools.docai import docai_enabled, extract_docai, marcar_paginas
+    use_docai = False
+    try:
+        use_docai = docai_enabled()
+    except Exception:
+        pass
+    paginas: list[dict] = []
+    recortes: list[dict] = []
+    motores: set[str] = set()
+    truncado = False
+    for u in unidades:
+        offset = len(paginas)
+        nombre = u["nombre"]
+        if u["kind"] == "paginas":
+            for i, p in enumerate(u["paginas"] or []):
+                t = (p.get("texto") or "").strip()
+                paginas.append({"n": offset + i + 1, "texto": t, "chars": len(t), "archivo": nombre})
+            motores.add("texto_nativo")
+            continue
+        pdf = u["data"]
+        res = None
+        if use_docai:
+            try:
+                res = extract_docai(pdf, page_offset=offset)
+            except Exception as e:
+                print(f"[lote] docai falló en {nombre[:60]}: {str(e)[:100]}", flush=True)
+                res = None
+        if res:
+            for p in res["paginas"]:
+                p["archivo"] = nombre
+            paginas.extend(res["paginas"])
+            recortes.extend(res.get("recortes") or [])
+            truncado = truncado or bool(res.get("truncado"))
+            motores.add("docai")
+        else:
+            try:
+                pags, rec = _paginas_pymupdf(pdf, offset)
+            except Exception as e:
+                recortes.append({"donde": f"ocr:{nombre[:80]}", "limite": "pdf_ilegible", "omitido": f"{nombre} ({str(e)[:80]})"})
+                truncado = True
+                continue
+            for p in pags:
+                p["archivo"] = nombre
+            paginas.extend(pags)
+            recortes.extend(rec)
+            motores.add("pymupdf+gemini_vision" if any(p.get("ocr") for p in pags) else "pymupdf")
+    # Texto con marcadores; cabecera ⟦archivo⟧ cuando cambia la unidad (contenedores).
+    partes: list[str] = []
+    cur_archivo = None
+    multi = len({p.get("archivo") for p in paginas}) > 1
+    for p in paginas:
+        if multi and p.get("archivo") != cur_archivo:
+            cur_archivo = p.get("archivo")
+            partes.append(f"⟦archivo: {cur_archivo}⟧")
+        partes.append(f"⟦p.{p['n']}⟧\n{p.get('texto') or ''}")
+    texto = "\n".join(partes).strip()
+    motor = "+".join(sorted(motores)) if len(motores) > 1 else (next(iter(motores)) if motores else "ninguno")
+    return {"paginas": paginas, "texto": texto, "n_paginas": len(paginas), "chars": sum(p["chars"] for p in paginas),
+            "motor": motor, "truncado": truncado or any(p.get("error") for p in paginas), "recortes": recortes}
+
+
+# ── Caché en BD: documentos_texto ──────────────────────────────────────────────────────
+def _texto_cache_get(sha256: str) -> dict | None:
+    """Fila de documentos_texto con la versión actual del extractor de texto, o None."""
+    if not sha256:
+        return None
+    try:
+        conn = _pg()
+    except Exception:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT n_paginas, texto, paginas, truncado, motor, formato, extraccion, recortes
+                 FROM documentos_texto WHERE sha256=%s AND version_parser=%s""",
+            (sha256, VERSION_PARSER),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        n_paginas, texto, paginas, truncado, motor, formato, extraccion, recortes = row
+        if isinstance(paginas, str):
+            paginas = json.loads(paginas)
+        if isinstance(extraccion, str):
+            extraccion = json.loads(extraccion)
+        if isinstance(recortes, str):
+            recortes = json.loads(recortes)
+        return {"n_paginas": n_paginas, "texto": texto or "", "paginas": paginas or [], "truncado": bool(truncado),
+                "motor": motor, "formato": formato, "extraccion": extraccion or {}, "recortes": recortes or [],
+                "chars": sum(int(p.get("chars") or 0) for p in (paginas or []))}
+    except Exception as e:
+        print(f"[lote] documentos_texto no disponible (get): {str(e)[:120]}", flush=True)
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _texto_cache_put(sha256: str, ocid: str | None, url_gcs: str | None, formato: str | None, tx: dict) -> bool:
+    if not sha256:
+        return False
+    try:
+        conn = _pg()
+    except Exception:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO documentos_texto (sha256, ocid, url_gcs, formato, n_paginas, motor, version_parser,
+                                             texto, paginas, truncado, recortes, actualizado_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, now())
+               ON CONFLICT (sha256) DO UPDATE SET
+                 ocid=COALESCE(EXCLUDED.ocid, documentos_texto.ocid), url_gcs=COALESCE(EXCLUDED.url_gcs, documentos_texto.url_gcs),
+                 formato=EXCLUDED.formato, n_paginas=EXCLUDED.n_paginas, motor=EXCLUDED.motor,
+                 version_parser=EXCLUDED.version_parser, texto=EXCLUDED.texto, paginas=EXCLUDED.paginas,
+                 truncado=EXCLUDED.truncado, recortes=EXCLUDED.recortes, extraccion=NULL, actualizado_at=now()""",
+            (sha256, _short_ocid(ocid) if ocid else None, url_gcs, formato, tx["n_paginas"], tx["motor"], VERSION_PARSER,
+             tx["texto"], json.dumps(tx["paginas"], ensure_ascii=False), bool(tx["truncado"]),
+             json.dumps(tx.get("recortes") or [], ensure_ascii=False)),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[lote] documentos_texto no disponible (put): {str(e)[:120]}", flush=True)
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _extraccion_cache_put(sha256: str, clave: str, extraccion: dict) -> bool:
+    if not sha256:
+        return False
+    try:
+        conn = _pg()
+    except Exception:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE documentos_texto
+                  SET extraccion = COALESCE(extraccion, '{}'::jsonb) || %s::jsonb, actualizado_at = now()
+                WHERE sha256 = %s""",
+            (json.dumps({clave: extraccion}, ensure_ascii=False, default=str), sha256),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[lote] documentos_texto no disponible (extraccion): {str(e)[:120]}", flush=True)
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+# ── Extracción estructurada sobre el texto (con reintento por rango de páginas) ────────
+_SYSTEM_LOTE = (
+    "Sos un extractor experto en documentos del Sistema Electrónico de Contrataciones del Estado "
+    "(SEACE) del Perú y del OECE (ex-OSCE): Bases Administrativas/Integradas, Términos de Referencia "
+    "(TDR), Especificaciones Técnicas (EETT), Expedientes Técnicos, Resúmenes Ejecutivos e informes "
+    "que sustentan una contratación directa, Actas de Buena Pro, Cuadros de evaluación, Contratos, "
+    "Órdenes de compra/servicio, Adendas y Propuestas.\n\n"
+    "ENTRADA: el TEXTO OCR del documento completo. Cada página empieza con un marcador ⟦p.N⟧ (N = número "
+    "de página). Si el documento es un paquete (ZIP/RAR), cada archivo interno empieza con ⟦archivo: nombre⟧ "
+    "y la numeración de páginas es continua a lo largo de todos los archivos.\n\n"
+    "SALIDA: SOLO JSON conforme al schema. Sos un EXTRACTOR PURO: volcás HECHOS del documento a campos "
+    "discretos. NO emitís juicios legales ni banderas de riesgo (eso lo hace otro agente sobre tu output).\n\n"
+    "REGLAS DE INTEGRIDAD (innegociables):\n"
+    "  · NUNCA inventes contenido. Si un dato no está en el texto, el campo va null / lista vacía. Preferí "
+    "campo vacío a campo inventado. JAMÁS uses placeholders ni ejemplos de memoria (marcas, RUC, nombres, "
+    "normas, cifras) que no aparezcan literalmente en el texto.\n"
+    "  · EVIDENCIA OBLIGATORIA: cada ítem, postor, firmante, miembro de comité, motivo de adjudicación, "
+    "estudio de mercado, contrato final y bloque del perfil lleva `evidencia: [{pagina, cita}]` con la "
+    "página del marcador ⟦p.N⟧ donde aparece y una cita textual copiada tal cual (≤ 240 chars). Sin "
+    "evidencia el dato no se persiste; con evidencia falsa (cita que no está en esa página) el dato se "
+    "descarta y se cuenta como alucinación.\n"
+    "  · `texto_literal` de cada ítem es un EXTRACTO LITERAL (copiado, sin resumir ni reescribir) del "
+    "requerimiento técnico de ese ítem, hasta 4000 chars, con `texto_literal_paginas` = páginas que abarca. "
+    "El resumen legible lo hace otro agente: vos no resumís.\n"
+    "  · Copiá marcas, normas, cifras y nombres LITERALES del texto — no traduzcas, no normalices, no completes.\n"
+    "  · BASES / TDR / EETT / RESUMEN EJECUTIVO son PRE-adjudicación: NO tienen firmantes del comité, "
+    "motivos de adjudicación ni acta. En esos documentos dejá `firmantes=[]`, `comite_evaluacion=[]`, "
+    "`motivos_adjudicacion=[]`, `lugar_fecha_acta=null`. Solo ACTAS / CUADROS DE EVALUACIÓN / CONTRATOS "
+    "los tienen.\n"
+    "  · FIRMANTE válido solo si hay (a) DNI visible, o (b) entidad REAL con nombre concreto, o (c) firma "
+    "legible al pie con nombre. Plantillas/proformas ('POSTOR 1', 'EL CONTRATISTA', 'Juan Pérez') → no van.\n"
+    "  · El OBJETO del contrato viene del OCDS y debe coincidir con lo que extraés. Si tu extracción "
+    "discrepa radicalmente, revisá tu lectura del texto.\n"
+    "  · Si el texto es ilegible o está vacío: contiene_requerimiento=false, items=[], resumen='No se pudo "
+    "extraer información legible del documento'.\n"
+)
+
+
+def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[int, int] | None,
+                 tipo_hint: str | None) -> str:
+    objeto = str(ocds_ctx.get("objeto") or "")[:600]
+    entidad = str(ocds_ctx.get("entidad") or "")[:200]
+    items_ocds = ocds_ctx.get("items") or []
+    items_txt = "\n".join(f"  - ítem {i + 1}: {str(it)[:200]}" for i, it in enumerate(items_ocds[:40]))
+    rango_txt = (f"Este texto cubre SOLO las páginas {rango[0]}-{rango[1]} del documento (extracción por rango: "
+                 "extraé todo lo que haya en estas páginas; lo demás lo cubren otras llamadas).\n") if rango else ""
+    bloque_txt = ""
+    if bloque == "servicio":
+        bloque_txt = ("BLOQUE `servicio` (perfil SERVICIOS/CONSULTORÍA): si el documento describe el servicio (TDR/Bases), "
+                      "completá alcance (literal), actividades, entregables con plazo y % de pago, plazo total, personal "
+                      "clave (cargo, profesión, años, dedicación), experiencia exigida al postor, tarifas (concepto/unidad/precio), "
+                      "penalidades, si se permite subcontratar, forma de pago y lugar. Cada entregable/personal/tarifa con su página.\n")
+    elif bloque == "obra":
+        bloque_txt = ("BLOQUE `obra` (perfil OBRAS): expediente técnico (memoria literal, presupuesto total, partidas con "
+                      "metrado/unidad/precio/parcial, GG % y utilidad %, plazo, cronograma), requisitos de residente y supervisor, "
+                      "garantía de fiel cumplimiento, adelantos; y si es adenda/valorización: adicionales (n, monto, % acumulado, "
+                      "motivo, resolución), ampliaciones de plazo y valorizaciones. Cada partida/adicional con su página.\n")
+    elif bloque == "sustento_directa":
+        bloque_txt = ("BLOQUE `sustento_directa` (perfil OTROS: directa/convenio/consultoría por causal): causal invocada "
+                      "(artículo y texto LITERAL), informe técnico e informe legal (número, fecha, firmante), acto aprobatorio "
+                      "(tipo, número, fecha), cotizaciones (proveedor, RUC, monto, fecha), justificación de proveedor único, fecha "
+                      "de publicación en SEACE; para convenios: entidades parte, objeto, aportes, vigencia.\n")
+    return (
+        f"DOCUMENTO: {label}\n"
+        + (f"Tipo declarado en SEACE: {tipo_hint}\n" if tipo_hint else "")
+        + f"CONTEXTO OCDS — entidad: {entidad} · objeto: {objeto}\n"
+        + (f"Ítems del OCDS (referencia para numerar; NO para inventar):\n{items_txt}\n" if items_txt else "")
+        + rango_txt
+        + "\nHacé esto, en orden:\n"
+        "PASO 1 — `tipo_documento_detectado` por el contenido; `contiene_requerimiento` si hay sección REQUERIMIENTO / "
+        "TDR / EETT / expediente técnico con detalle.\n"
+        "PASO 2 — `items[]`: un objeto por ítem del proceso (cada fila de una tabla de ítems es un ítem; si el OCDS "
+        "tiene 1 ítem que agrupa varios productos, sub-numerá 1.1, 1.2 con `padre_ocds_item`='1' y conservá el padre). "
+        "Para cada ítem: campos discretos (cantidad, unidad, precios, marca, normas, valores técnicos, garantía, entrega, "
+        "requisitos del postor, penalidades, subitems) + `texto_literal` (extracto literal ≤ 4000 chars) + "
+        "`texto_literal_paginas` + `evidencia`.\n"
+        "PASO 3 — `postores`, `firmantes`, `comite_evaluacion`, `motivos_adjudicacion`, `lugar_fecha_acta` SOLO si el "
+        "documento es acta/cuadro/contrato (con evidencia y página).\n"
+        "PASO 4 — `fundamento_legal`: normas citadas literalmente por el documento.\n"
+        "PASO 5 — `estudio_mercado` SOLO si es Resumen Ejecutivo / informe de sustento; `contrato_final` SOLO si es "
+        "contrato / orden de compra o servicio firmado. En cualquier otro documento ambos van null.\n"
+        + (f"PASO 6 — {bloque_txt}" if bloque_txt else "")
+        + "PASO FINAL — `cuantia_total`, `fuente_financiamiento`, `modalidad` y `resumen` (3-4 líneas del documento REAL).\n"
+        "Devolvé SOLO JSON. Sin markdown, sin fences, sin texto antes ni después."
+    )
+
+
+def _finish_reason(resp) -> str:
+    try:
+        return str(resp.candidates[0].finish_reason or "")
+    except Exception:
+        return ""
+
+
+def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict,
+                      rango: tuple[int, int] | None, tipo_hint: str | None) -> tuple[dict, bool, dict]:
+    """Una llamada Gemini sobre `texto`. Devuelve (data, truncado, uso)."""
+    from google.genai import types as gtypes
+    client = _gemini_client()
+    cfg_kwargs = dict(
+        response_mime_type="application/json",
+        response_schema=_parser_schema(bloque),
+        max_output_tokens=65535,
+        http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
+        system_instruction=_SYSTEM_LOTE,
+    )
+    temp = os.getenv("PARSER_TEMPERATURE", "").strip()
+    if temp:
+        try:
+            cfg_kwargs["temperature"] = float(temp)
+        except ValueError:
+            pass
+    config = gtypes.GenerateContentConfig(**cfg_kwargs)
+    parts = [
+        gtypes.Part.from_text(text="═══ TEXTO OCR DEL DOCUMENTO (marcadores ⟦p.N⟧ por página) ═══\n" + texto),
+        gtypes.Part.from_text(text=_prompt_lote(label, bloque, ocds_ctx, rango, tipo_hint)),
+    ]
+    model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
+    t0 = time.monotonic()
+    with _throttle_gemini():
+        resp = _gemini_call_with_retry(lambda: client.models.generate_content(
+            model=model, contents=parts, config=config))
+    dt = time.monotonic() - t0
+    raw_text = (resp.text or "").strip()
+    fr = _finish_reason(resp)
+    truncado = "MAX_TOKENS" in fr.upper()
+    try:
+        data = json.loads(raw_text)
+    except Exception:
+        data = _safe_parse_json(raw_text)
+        truncado = True  # solo se pudo recuperar cerrando llaves → hubo corte
+    if not isinstance(data, dict):
+        data = {}
+    um = getattr(resp, "usage_metadata", None)
+    uso = {"modelo": model, "segundos": round(dt, 1), "finish_reason": fr,
+           "tokens_prompt": int(getattr(um, "prompt_token_count", 0) or 0) if um else 0,
+           "tokens_output": int(getattr(um, "candidates_token_count", 0) or 0) if um else 0,
+           "tokens_thoughts": int(getattr(um, "thoughts_token_count", 0) or 0) if um else 0}
+    print(f"[lote-llm] {label[:50]} rango={rango} · {len(texto):,} chars → {uso['tokens_output']} tok out · "
+          f"{dt:.0f}s · {fr}{' · TRUNCADO' if truncado else ''}", flush=True)
+    return data, truncado, uso
+
+
+def _merge_extraccion(a, b):
+    """Fusión recursiva de dos extracciones (de rangos/llamadas distintas del MISMO doc):
+    listas → concatenación con dedupe exacto; dicts → unión campo a campo; escalares →
+    el primero no vacío."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        out = dict(a)
+        for k, v in b.items():
+            out[k] = _merge_extraccion(a.get(k), v) if k in a else v
+        return out
+    if isinstance(a, list) and isinstance(b, list):
+        out = list(a)
+        seen = {json.dumps(x, sort_keys=True, default=str) for x in a}
+        for x in b:
+            key = json.dumps(x, sort_keys=True, default=str)
+            if key not in seen:
+                out.append(x)
+                seen.add(key)
+        return out
+    if a in (None, "", [], {}):
+        return b
+    return a
+
+
+def _texto_rango(paginas: list[dict], a: int, b: int) -> str:
+    partes = []
+    cur = None
+    multi = len({p.get("archivo") for p in paginas}) > 1
+    for p in paginas:
+        if a <= p["n"] <= b:
+            if multi and p.get("archivo") != cur:
+                cur = p.get("archivo")
+                partes.append(f"⟦archivo: {cur}⟧")
+            partes.append(f"⟦p.{p['n']}⟧\n{p.get('texto') or ''}")
+    return "\n".join(partes)
+
+
+def _extraer_rango(paginas: list[dict], a: int, b: int, label: str, bloque: str | None, ocds_ctx: dict,
+                   tipo_hint: str | None, recortes: list[dict], usos: list[dict], depth: int = 0,
+                   rango_explicito: bool = False) -> dict:
+    """Extrae las páginas [a, b]. Si el JSON llega truncado (MAX_TOKENS) y el rango tiene más
+    de una página, se parte en dos y se re-pide cada mitad (hasta depth 2); si aun así se
+    trunca, se registra el recorte y se devuelve lo recuperado con `_truncado=True`."""
+    texto = _texto_rango(paginas, a, b)
+    data, truncado, uso = _llamar_extractor(texto, label, bloque, ocds_ctx, (a, b) if rango_explicito else None, tipo_hint)
+    usos.append({**uso, "rango": [a, b]})
+    if not truncado:
+        return data
+    if b > a and depth < 2:
+        mid = (a + b) // 2
+        print(f"[lote] JSON truncado en págs {a}-{b} → re-pido {a}-{mid} y {mid + 1}-{b}", flush=True)
+        left = _extraer_rango(paginas, a, mid, label, bloque, ocds_ctx, tipo_hint, recortes, usos, depth + 1, True)
+        right = _extraer_rango(paginas, mid + 1, b, label, bloque, ocds_ctx, tipo_hint, recortes, usos, depth + 1, True)
+        merged = _merge_extraccion(left, right)
+        merged["_truncado"] = bool(left.get("_truncado") or right.get("_truncado"))
+        return merged
+    recortes.append({"donde": f"extraccion:{label[:80]}", "limite": "max_output_tokens=65535",
+                     "omitido": f"páginas {a}-{b}: JSON truncado tras {depth} subdivisiones; se conserva lo recuperado"})
+    data["_truncado"] = True
+    return data
+
+
+def _extraer_documento(tx: dict, label: str, bloque: str | None, ocds_ctx: dict, tipo_hint: str | None) -> dict:
+    """Extracción estructurada de TODO el documento: se parte por páginas en llamadas de ≤
+    PARSE_MAX_CHARS_POR_LLAMADA chars (nada se omite) y se fusiona. Devuelve la extracción con
+    `_recortes`, `_usos` (tokens/tiempos por llamada) y `_truncado`."""
+    paginas = tx["paginas"]
+    recortes: list[dict] = []
+    usos: list[dict] = []
+    if not paginas:
+        return {"_truncado": True, "_recortes": [{"donde": f"extraccion:{label[:80]}", "limite": "sin_texto", "omitido": label}],
+                "_usos": [], "items": [], "resumen": "Documento sin texto extraíble"}
+    # Rangos por chars
+    rangos: list[tuple[int, int]] = []
+    a = paginas[0]["n"]
+    acc = 0
+    for p in paginas:
+        if acc + p["chars"] > PARSE_MAX_CHARS_POR_LLAMADA and acc > 0:
+            rangos.append((a, p["n"] - 1))
+            a = p["n"]
+            acc = 0
+        acc += p["chars"]
+    rangos.append((a, paginas[-1]["n"]))
+    if len(rangos) > 1:
+        print(f"[lote] {label[:60]}: {tx['chars']:,} chars → {len(rangos)} llamadas por rango de páginas", flush=True)
+    result: dict = {}
+    for i, (ra, rb) in enumerate(rangos):
+        parte = _extraer_rango(paginas, ra, rb, label, bloque, ocds_ctx, tipo_hint, recortes, usos,
+                               rango_explicito=len(rangos) > 1)
+        result = _merge_extraccion(result, parte) if result else parte
+    result["_truncado"] = bool(result.get("_truncado")) or any(r.get("limite", "").startswith("max_output") for r in recortes)
+    result["_recortes"] = recortes
+    result["_usos"] = usos
+    return result
+
+
+# ── Post-proceso: evidencia verificable, sha256 por dato, alias de compat ──────────────
+def _cita_en_pagina(cita: str, texto_pagina: str) -> bool:
+    """¿La cita (normalizada) aparece en el texto de la página? Tolerante a espacios/tildes/caja;
+    con citas largas basta con que aparezca un prefijo de 60 chars normalizados."""
+    c = _norm_txt(cita or "")
+    t = _norm_txt(texto_pagina or "")
+    if not c or not t:
+        return False
+    if c in t:
+        return True
+    c2 = re.sub(r"[^A-Z0-9 ]", " ", c)
+    t2 = re.sub(r"[^A-Z0-9 ]", " ", t)
+    c2 = " ".join(c2.split()); t2 = " ".join(t2.split())
+    if c2 and c2 in t2:
+        return True
+    return len(c2) > 60 and c2[:60] in t2
+
+
+def _verificar_evidencia(obj: dict, paginas_by_n: dict[int, dict], sha256: str | None, stats: dict) -> None:
+    """Marca cada evidencia como verificada/no verificada contra el texto de la página y
+    estampa `documento_sha256`. No borra nada: V (verify.py) decide qué persistir."""
+    if not isinstance(obj, dict):
+        return
+    obj["documento_sha256"] = sha256
+    evs = obj.get("evidencia")
+    if not isinstance(evs, list):
+        obj["evidencia"] = []
+        return
+    out = []
+    for ev in evs:
+        if not isinstance(ev, dict):
+            continue
+        cita = str(ev.get("cita") or "")[:CITA_MAX]
+        pagina = ev.get("pagina")
+        try:
+            pagina = int(pagina) if pagina is not None else None
+        except Exception:
+            pagina = None
+        ok = False
+        if pagina is not None and pagina in paginas_by_n:
+            ok = _cita_en_pagina(cita, paginas_by_n[pagina].get("texto") or "")
+            if not ok:  # tolerancia ±1 página (tablas que cruzan de página)
+                for q in (pagina - 1, pagina + 1):
+                    if q in paginas_by_n and _cita_en_pagina(cita, paginas_by_n[q].get("texto") or ""):
+                        ok = True
+                        pagina = q
+                        break
+        stats["total"] = stats.get("total", 0) + 1
+        stats["verificadas"] = stats.get("verificadas", 0) + (1 if ok else 0)
+        out.append({"pagina": pagina, "cita": cita, "verificada": ok, "documento_sha256": sha256})
+    obj["evidencia"] = out
+
+
+def _post_procesar(data: dict, tx: dict, sha256: str | None) -> dict:
+    """Aplica verificación de evidencia a ítems/postores/firmantes/comité/motivos/bloques,
+    recorta `texto_literal` al tope, y deja `requerimiento_tecnico_detallado` como ALIAS de
+    `texto_literal` para los consumidores existentes (market, legal, self-eval)."""
+    paginas_by_n = {int(p["n"]): p for p in (tx.get("paginas") or []) if p.get("n") is not None}
+    stats: dict = {}
+    for it in (data.get("items") or []):
+        if not isinstance(it, dict):
+            continue
+        tl = it.get("texto_literal")
+        if isinstance(tl, str) and len(tl) > TEXTO_LITERAL_MAX:
+            it["texto_literal"] = tl[:TEXTO_LITERAL_MAX]
+            it["texto_literal_truncado"] = True
+        if it.get("texto_literal") and not it.get("requerimiento_tecnico_detallado"):
+            it["requerimiento_tecnico_detallado"] = it["texto_literal"]
+        _verificar_evidencia(it, paginas_by_n, sha256, stats)
+    for key in ("postores", "firmantes", "comite_evaluacion", "motivos_adjudicacion"):
+        for obj in (data.get(key) or []):
+            _verificar_evidencia(obj, paginas_by_n, sha256, stats)
+    for key in ("estudio_mercado", "contrato_final", *_BLOQUES_VALIDOS):
+        obj = data.get(key)
+        if isinstance(obj, dict):
+            _verificar_evidencia(obj, paginas_by_n, sha256, stats)
+    data["_evidencia_stats"] = stats
+    return data
+
+
+def _perfil_params(state: dict, parser_bloque=None, prioridad=None, max_docs=None) -> tuple[str | None, tuple[str, ...], int]:
+    """(parser_bloque, doc_prioridad, parse_max_docs) desde argumentos, state['perfil'] (dataclass
+    Profile de P, dict o nombre) o defaults de BIENES."""
+    perfil = state.get("perfil")
+    if isinstance(perfil, str):
+        try:
+            from agents._shared import profiles as _prof  # type: ignore
+            perfil = _prof.get_profile() if perfil == getattr(_prof, "PROFILE", None) else perfil
+        except Exception:
+            pass
+
+    def _g(name, default):
+        if isinstance(perfil, dict):
+            return perfil.get(name, default)
+        return getattr(perfil, name, default) if perfil is not None else default
+
+    bloque = parser_bloque if parser_bloque is not None else _g("parser_bloque", None)
+    if bloque not in (None, *_BLOQUES_VALIDOS):
+        print(f"[lote] parser_bloque desconocido {bloque!r} → sin bloque", flush=True)
+        bloque = None
+    prio = tuple(prioridad or _g("doc_prioridad", None) or PRIORIDAD_DEFAULT)
+    mx = int(max_docs or _g("parse_max_docs", None) or MAX_DOCS_DEFAULT)
+    return bloque, prio, mx
+
+
+def _ocds_ctx(state: dict) -> dict:
+    cr = state.get("ocds") or {}
+    tender = cr.get("tender") or {}
+    return {"objeto": tender.get("description") or tender.get("title") or "",
+            "entidad": (cr.get("buyer") or {}).get("name") or "",
+            "items": [f"{(it.get('description') or '')[:140]} · cant {it.get('quantity')} {((it.get('unit') or {}).get('name') or '')}"
+                      for it in (tender.get("items") or []) if isinstance(it, dict)]}
+
+
+def _bytes_de_doc(doc: dict, state: dict) -> tuple[bytes | None, str, str | None]:
+    """Bytes del documento: gs:// del DocRef → cadena histórica (_fetch_doc_bytes: b64 inline,
+    doc_urls, downloader local, relay, directo)."""
+    gs = doc.get("gs")
+    if gs:
+        blob, err = _download_from_gcs(gs)
+        if blob is not None:
+            return blob, "gcs", None
+        print(f"[lote] gcs falló para {gs[:80]}: {err}", flush=True)
+    url = doc.get("url")
+    if url:
+        class _Ctx:
+            __slots__ = ("state",)
+
+            def __init__(self, st):
+                self.state = st
+        return _fetch_doc_bytes(url, _Ctx(state))
+    return None, "failed", "sin gs:// ni url"
+
+
+_INFLIGHT_LOCK = threading.Lock()
+_INFLIGHT: dict[str, threading.Event] = {}
+
+
+def _sha_por_url_get(ocid: str | None, url: str | None) -> str | None:
+    """sha256 conocido para (ocid, url) en `documentos` (migración 17) — evita bajar de nuevo un
+    documento que no está en documentos_gcs pero cuyo texto ya está cacheado."""
+    if not ocid or not url:
+        return None
+    try:
+        conn = _pg()
+    except Exception:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT sha256 FROM documentos WHERE ocid=%s AND blob_url=%s AND sha256 IS NOT NULL LIMIT 1",
+                    (_short_ocid(ocid), url))
+        row = cur.fetchone()
+        return row[0] if row else None
+    except Exception:
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _sha_por_url_put(ocid: str | None, url: str | None, sha256: str, doc: dict) -> None:
+    if not ocid or not url or not sha256:
+        return
+    try:
+        conn = _pg()
+    except Exception:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE documentos SET sha256=%s WHERE ocid=%s AND blob_url=%s", (sha256, _short_ocid(ocid), url))
+        if cur.rowcount == 0:
+            cur.execute(
+                """INSERT INTO documentos (ocid, tipo, nombre, blob_url, metadata, seccion, ocds_doc_id, sha256)
+                   VALUES (%s, 'otro', %s, %s, %s, %s, %s, %s) ON CONFLICT (ocid, blob_url) DO UPDATE SET sha256=EXCLUDED.sha256""",
+                (_short_ocid(ocid), doc.get("titulo") or "(sin título)", url,
+                 json.dumps({"ocds_documentType": doc.get("tipo"), "format": doc.get("formato")}),
+                 doc.get("seccion"), str(doc.get("id") or "") or None, sha256))
+        conn.commit()
+    except Exception as e:
+        print(f"[lote] documentos.sha256 no actualizable: {str(e)[:100]}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _esperar_sha(sha: str) -> bool:
+    """Si otro hilo del MISMO lote ya está procesando este sha (bytes idénticos publicados
+    con dos URLs), espera a que termine y devuelve True (→ leer de caché). Si no, reclama el
+    sha y devuelve False."""
+    with _INFLIGHT_LOCK:
+        ev = _INFLIGHT.get(sha)
+        if ev is None:
+            _INFLIGHT[sha] = threading.Event()
+            return False
+    ev.wait(timeout=PARSE_OVERALL_TIMEOUT_S)
+    return True
+
+
+def _liberar_sha(sha: str) -> None:
+    with _INFLIGHT_LOCK:
+        ev = _INFLIGHT.pop(sha, None)
+    if ev is not None:
+        ev.set()
+
+
+def _procesar_doc(doc: dict, state: dict, bloque: str, prioridad: tuple[str, ...], ocds_ctx: dict) -> dict:
+    """Pipeline de UN documento: caché de texto → (descarga → expansión → OCR → persistir) →
+    caché de extracción → (extracción → persistir) → post-proceso. Devuelve un dict con
+    `tx` (texto), `ext` (extracción), `recortes`, `tiempos`, `sha256`, `cache`."""
+    t0 = time.monotonic()
+    label = f"{doc.get('titulo') or doc.get('id') or 'documento'}"
+    if doc.get("formato"):
+        label += f" [{doc['formato']}]"
+    out = {"doc": doc, "sha256": doc.get("sha256"), "recortes": [], "tiempos": {}, "cache": {"texto": False, "extraccion": False}}
+    ocid = state.get("ocid") or state.get("ocid_preloaded")
+    sha = doc.get("sha256") or _sha_por_url_get(ocid, doc.get("url"))
+    if sha and not doc.get("sha256"):
+        doc["sha256"] = sha
+        doc["_sha_desde_documentos"] = True
+        out["sha256"] = sha
+    reclamado: str | None = None
+    if sha:
+        if _esperar_sha(sha):
+            out["cache"]["esperado_en_lote"] = True
+        else:
+            reclamado = sha
+    try:
+        tx = _texto_cache_get(sha) if sha else None
+        blob = None
+        if tx is None:
+            blob, fuente, err = _bytes_de_doc(doc, state)
+            out["tiempos"]["descarga_s"] = round(time.monotonic() - t0, 1)
+            if blob is None:
+                out["error"] = f"download_failed: {err}"
+                out["recortes"].append({"donde": f"descarga:{label[:80]}", "limite": "descarga_fallida", "omitido": f"{label} ({err})"})
+                return out
+            if not sha:
+                sha = _sha256_hex(blob)
+                out["sha256"] = sha
+                doc["sha256"] = sha
+                if _esperar_sha(sha):
+                    out["cache"]["esperado_en_lote"] = True
+                else:
+                    reclamado = sha
+                tx = _texto_cache_get(sha)
+            out["fuente"] = fuente
+        return _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob, t0, prioridad)
+    finally:
+        if reclamado:
+            _liberar_sha(reclamado)
+
+
+def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob, t0, prioridad) -> dict:
+    """Segunda mitad de _procesar_doc: OCR (si hace falta) + extracción + post-proceso."""
+    if tx is not None:
+        out["cache"]["texto"] = True
+        out["recortes"].extend(tx.get("recortes") or [])   # recortes del OCR original (chunks perdidos, etc.)
+        print(f"[lote] texto en caché · {label[:60]} · {tx['n_paginas']} págs · {tx['chars']:,} chars", flush=True)
+    else:
+        t1 = time.monotonic()
+        unidades, rec = _expandir_contenedor(blob, doc.get("titulo") or doc.get("url") or "documento", prioridad)
+        out["recortes"].extend(rec)
+        if not unidades:
+            out["error"] = "sin_contenido_procesable"
+            return out
+        tx = _texto_de_unidades(unidades)
+        tx["extraccion"] = {}
+        out["recortes"].extend(tx.get("recortes") or [])
+        out["tiempos"]["ocr_s"] = round(time.monotonic() - t1, 1)
+        out["unidades"] = [{"nombre": u["nombre"], "kind": u["kind"]} for u in unidades]
+        _texto_cache_put(sha, state.get("ocid") or state.get("ocid_preloaded"), doc.get("gs"), doc.get("formato"), tx)
+        print(f"[lote] OCR · {label[:60]} · {len(unidades)} unidad(es) · {tx['n_paginas']} págs · {tx['chars']:,} chars · "
+              f"{tx['motor']} · {out['tiempos']['ocr_s']}s", flush=True)
+    out["tx"] = tx
+    # ── extracción (cacheada por bloque + versión de schema + modelo) ──
+    model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
+    clave = f"{bloque or 'base'}@{PARSER_SCHEMA_VERSION}@{model}"
+    ext = None
+    if PARSE_REUSE_EXTRACCION and isinstance(tx.get("extraccion"), dict) and isinstance(tx["extraccion"].get(clave), dict):
+        ext = tx["extraccion"][clave]
+        out["cache"]["extraccion"] = True
+        print(f"[lote] extracción en caché · {label[:60]} · {clave}", flush=True)
+    if ext is None:
+        t2 = time.monotonic()
+        ext = _extraer_documento(tx, label, bloque, ocds_ctx, doc.get("tipo"))
+        out["tiempos"]["extraccion_s"] = round(time.monotonic() - t2, 1)
+        out["recortes"].extend(ext.get("_recortes") or [])
+        ext = _post_procesar(ext, tx, sha)
+        _extraccion_cache_put(sha, clave, ext)   # incluye _recortes/_usos: en caché también se reportan
+    else:
+        out["recortes"].extend(ext.get("_recortes") or [])
+    out["ext"] = ext
+    out["tiempos"]["total_s"] = round(time.monotonic() - t0, 1)
+    # Dejar el sha en `documentos` (ocid, url) también para los que vinieron de documentos_gcs:
+    # cuando el blob expire (90 días) el texto sigue localizable por URL sin volver a bajarlo.
+    if doc.get("url") and sha and not doc.get("_sha_desde_documentos"):
+        _sha_por_url_put(state.get("ocid") or state.get("ocid_preloaded"), doc["url"], sha, doc)
+    return out
+
+
+def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str | None = None,
+                          prioridad: tuple[str, ...] | None = None) -> dict:
+    """OCR una sola vez (documentos_texto por sha256, páginas con marcadores ⟦p.N⟧), extracción con
+    schema (base + bloque del perfil) y evidencia {documento_sha256, pagina, cita}. Escribe
+    state['parser_raw_consolidated'], state['documentos_texto'] = {sha256: {n_paginas, chars, truncado}},
+    y añade a state['recortes'].
+
+    `docs`: lista de DocRef de `seleccionar_documentos`. El perfil sale de los kwargs o de
+    state['perfil'] (defaults de bienes). Devuelve un resumen compacto (conteos, por documento,
+    recortes, tiempos) apto para el trace."""
+    t_ini = time.monotonic()
+    bloque, prio, _mx = _perfil_params(state, parser_bloque, prioridad)
+    ocds_ctx = _ocds_ctx(state)
+    state.setdefault("recortes", [])
+    state.setdefault("documentos_texto", {})
+    docs = [d for d in (docs or []) if isinstance(d, dict)]
+    if not docs:
+        state["recortes"].append({"donde": "parser_lote", "limite": "sin_documentos", "omitido": "ningún documento elegible"})
+        return {"n_docs": 0, "n_ok": 0, "recortes": state["recortes"][-1:], "_note": "sin documentos"}
+
+    # Presupuesto global compartido con el resto del pipeline (mismo mecanismo que parse_document_pdf).
+    now = time.monotonic()
+    deadline = state.get("_parse_deadline")
+    if not isinstance(deadline, (int, float)):
+        deadline = now + PARSE_GLOBAL_BUDGET_S
+        state["_parse_deadline"] = deadline
+    budget = max(60.0, deadline - now)
+
+    resultados: list[dict | None] = [None] * len(docs)
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, PARSE_LOTE_WORKERS))
+    futures = {ex.submit(_procesar_doc, d, state, bloque, prio, ocds_ctx): i for i, d in enumerate(docs)}
+    try:
+        for fut in concurrent.futures.as_completed(futures, timeout=budget):
+            i = futures[fut]
+            try:
+                resultados[i] = fut.result()
+            except Exception as e:
+                resultados[i] = {"doc": docs[i], "error": f"{type(e).__name__}: {str(e)[:160]}", "recortes": [], "tiempos": {},
+                                 "sha256": docs[i].get("sha256"), "cache": {}}
+    except concurrent.futures.TimeoutError:
+        pend = [i for i in futures.values() if resultados[i] is None]
+        state["recortes"].append({"donde": "parser_lote", "limite": f"PARSE_GLOBAL_BUDGET_S={PARSE_GLOBAL_BUDGET_S} (restaban {budget:.0f}s)",
+                                  "omitido": [{"id": docs[i].get("id"), "titulo": docs[i].get("titulo")} for i in pend]})
+        for i in pend:
+            resultados[i] = {"doc": docs[i], "error": "parse timeout", "recortes": [], "tiempos": {}, "sha256": docs[i].get("sha256"), "cache": {}}
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+
+    # ── Consolidación cross-doc (misma forma que parse_document_pdf + bloques + documentos[]) ──
+    raw = state.get("parser_raw_consolidated") or {}
+    raw.setdefault("items_consolidados", [])
+    raw.setdefault("items_otros_documentos", [])
+    raw.setdefault("postores_consolidados", [])
+    raw.setdefault("firmantes_consolidados", [])
+    raw.setdefault("comite_evaluacion", [])
+    raw.setdefault("motivos_adjudicacion", [])
+    raw.setdefault("red_flags_observadas", [])
+    raw.setdefault("fundamento_legal", [])
+    raw.setdefault("documentos", [])
+    raw.setdefault("resumenes", [])
+    if bloque:
+        raw.setdefault(f"bloque_{bloque}", {})
+
+    existing_keys = {}
+    for _it in raw["items_consolidados"]:
+        _k = _item_key(_it)
+        if _k is not None:
+            existing_keys[_k] = _it
+    seen_firm = {((f.get("nombre_completo") or "").upper(), (f.get("cargo") or "").upper()) for f in raw["firmantes_consolidados"]}
+    seen_rucs = {p.get("ruc") for p in raw["postores_consolidados"] if p.get("ruc")}
+    seen_nombres = {_norm_razon(p.get("razon_social")) for p in raw["postores_consolidados"]}
+    estudio_best = state.get("estudio_mercado")
+    contrato_best = state.get("contrato_final")
+    gate_items: list[dict] = []
+    gate_adj: list[dict] = []
+    resumen_docs: list[dict] = []
+
+    for r in resultados:
+        if not r:
+            continue
+        doc = r["doc"]
+        sha = r.get("sha256")
+        tx = r.get("tx") or {}
+        ext = r.get("ext") or {}
+        for rec in (r.get("recortes") or []):
+            state["recortes"].append(rec)
+        if sha:
+            state["documentos_texto"][sha] = {
+                "n_paginas": tx.get("n_paginas"), "chars": tx.get("chars"), "truncado": bool(tx.get("truncado")) or bool(ext.get("_truncado")),
+                "titulo": doc.get("titulo"), "tipo": doc.get("tipo"), "seccion": doc.get("seccion"), "formato": doc.get("formato"),
+                "motor": tx.get("motor"), "cache_texto": bool((r.get("cache") or {}).get("texto")),
+                "cache_extraccion": bool((r.get("cache") or {}).get("extraccion")),
+                "tipo_documento_detectado": ext.get("tipo_documento_detectado"),
+            }
+        entrada_doc = {
+            "id": doc.get("id"), "url": doc.get("url"), "gs": doc.get("gs"), "titulo": doc.get("titulo"), "tipo": doc.get("tipo"),
+            "seccion": doc.get("seccion"), "formato": doc.get("formato"), "sha256": sha,
+            "n_paginas": tx.get("n_paginas"), "chars": tx.get("chars"), "motor": tx.get("motor"),
+            "unidades": r.get("unidades"), "cache": r.get("cache"), "tiempos": r.get("tiempos"),
+            "tipo_documento_detectado": ext.get("tipo_documento_detectado"),
+            "contiene_requerimiento": bool(ext.get("contiene_requerimiento")),
+            "n_items": len(ext.get("items") or []), "n_firmantes": len(ext.get("firmantes") or []),
+            "truncado": bool(tx.get("truncado")) or bool(ext.get("_truncado")),
+            "evidencia": ext.get("_evidencia_stats"), "usos": ext.get("_usos"), "error": r.get("error"),
+        }
+        raw["documentos"].append(entrada_doc)
+        resumen_docs.append(entrada_doc)
+        if r.get("error") or not ext:
+            continue
+        # Ítems: los de documentos con REQUERIMIENTO van a items_consolidados; el resto no se
+        # pierde: va a items_otros_documentos y queda registrado como recorte (antes: gate mudo).
+        items = [it for it in (ext.get("items") or []) if isinstance(it, dict)]
+        es_fuente_req = bool(ext.get("contiene_requerimiento")) or any(
+            len(str(it.get("texto_literal") or it.get("requerimiento_tecnico_detallado") or "").strip()) > 40 for it in items)
+        if es_fuente_req:
+            for it in items:
+                k = _item_key(it)
+                if k is None:
+                    raw["items_consolidados"].append(it)
+                    continue
+                prev = existing_keys.get(k)
+                if prev is None:
+                    raw["items_consolidados"].append(it)
+                    existing_keys[k] = it
+                else:
+                    new_req = it.get("texto_literal") or it.get("requerimiento_tecnico_detallado") or ""
+                    cur_req = prev.get("texto_literal") or prev.get("requerimiento_tecnico_detallado") or ""
+                    if len(new_req) > len(cur_req):
+                        prev["texto_literal"] = new_req
+                        prev["requerimiento_tecnico_detallado"] = new_req
+                        prev["texto_literal_paginas"] = it.get("texto_literal_paginas")
+                        prev["documento_sha256"] = it.get("documento_sha256")
+                    ev_prev = prev.get("evidencia") or []
+                    prev["evidencia"] = ev_prev + [e for e in (it.get("evidencia") or []) if e not in ev_prev]
+                    for kk, vv in it.items():
+                        if prev.get(kk) in (None, "", [], {}) and vv not in (None, "", [], {}):
+                            prev[kk] = vv
+        elif items:
+            raw["items_otros_documentos"].extend({**it, "_documento": doc.get("titulo")} for it in items)
+            gate_items.append({"documento": doc.get("titulo"), "sha256": sha, "n_items": len(items)})
+        for p in (ext.get("postores") or []):
+            if not isinstance(p, dict):
+                continue
+            nom = _norm_razon(p.get("razon_social"))
+            if p.get("ruc") and p["ruc"] in seen_rucs:
+                continue
+            if nom and nom in seen_nombres:
+                # mismo postor ya visto (con o sin RUC): completar campos vacíos, no duplicar
+                prev = next((q for q in raw["postores_consolidados"] if _norm_razon(q.get("razon_social")) == nom), None)
+                if prev is not None:
+                    for kk, vv in p.items():
+                        if prev.get(kk) in (None, "", [], {}) and vv not in (None, "", [], {}):
+                            prev[kk] = vv
+                    if p.get("ruc"):
+                        seen_rucs.add(p["ruc"])
+                continue
+            if p.get("ruc"):
+                seen_rucs.add(p["ruc"])
+            if nom:
+                seen_nombres.add(nom)
+            raw["postores_consolidados"].append(p)
+        for f in (ext.get("firmantes") or []):
+            if not isinstance(f, dict):
+                continue
+            key = ((f.get("nombre_completo") or "").strip().upper(), (f.get("cargo") or "").strip().upper())
+            if not key[0] or key in seen_firm:
+                continue
+            seen_firm.add(key)
+            raw["firmantes_consolidados"].append(f)
+        if _es_doc_de_adjudicacion(ext.get("tipo_documento_detectado")):
+            raw["comite_evaluacion"].extend(x for x in (ext.get("comite_evaluacion") or []) if isinstance(x, dict))
+            raw["motivos_adjudicacion"].extend(x for x in (ext.get("motivos_adjudicacion") or []) if isinstance(x, dict))
+            if ext.get("lugar_fecha_acta") and not raw.get("lugar_fecha_acta"):
+                raw["lugar_fecha_acta"] = ext["lugar_fecha_acta"]
+        elif (ext.get("comite_evaluacion") or ext.get("motivos_adjudicacion")):
+            gate_adj.append({"documento": doc.get("titulo"), "tipo_detectado": ext.get("tipo_documento_detectado"),
+                             "n_comite": len(ext.get("comite_evaluacion") or []), "n_motivos": len(ext.get("motivos_adjudicacion") or [])})
+        raw["fundamento_legal"] = list(dict.fromkeys(raw["fundamento_legal"] + [str(x) for x in (ext.get("fundamento_legal") or [])]))
+        if ext.get("cuantia_total") and not raw.get("cuantia_total"):
+            raw["cuantia_total"] = ext["cuantia_total"]
+        for k in ("modalidad", "fuente_financiamiento"):
+            if ext.get(k) and not raw.get(k):
+                raw[k] = ext[k]
+        if ext.get("resumen"):
+            raw["resumenes"].append({"documento": doc.get("titulo"), "sha256": sha, "resumen": ext["resumen"]})
+        if isinstance(ext.get("estudio_mercado"), dict) and any(v not in (None, "", [], {}) for k, v in ext["estudio_mercado"].items() if k not in ("evidencia", "documento_sha256")):
+            estudio_best = _mas_completo_lote(ext["estudio_mercado"], estudio_best)
+        if isinstance(ext.get("contrato_final"), dict) and any(v not in (None, "", [], {}) for k, v in ext["contrato_final"].items() if k not in ("evidencia", "documento_sha256")):
+            contrato_best = _mas_completo_lote(ext["contrato_final"], contrato_best)
+        if bloque and isinstance(ext.get(bloque), dict):
+            raw[f"bloque_{bloque}"] = _merge_extraccion(raw.get(f"bloque_{bloque}") or {}, ext[bloque])
+
+    if gate_items:
+        state["recortes"].append({"donde": "consolidacion_items", "limite": "solo_documentos_con_requerimiento",
+                                  "omitido": gate_items})
+    if gate_adj:
+        state["recortes"].append({"donde": "consolidacion_comite_motivos", "limite": "solo_actas_cuadros_contratos",
+                                  "omitido": gate_adj})
+    raw["firmantes"] = raw["firmantes_consolidados"]
+    raw["requerimiento_disponible"] = any(d.get("contiene_requerimiento") for d in raw["documentos"])
+    if raw["resumenes"]:
+        raw["resumen_ejecutivo"] = " · ".join(f"[{x['documento']}] {x['resumen']}" for x in raw["resumenes"])[:4000]
+    state["parser_raw_consolidated"] = raw
+    if estudio_best:
+        state["estudio_mercado"] = estudio_best
+    if contrato_best:
+        state["contrato_final"] = contrato_best
+    if bloque:
+        raw[bloque] = raw.get(f"bloque_{bloque}") or {}          # alias corto (el driver lo lee como raw["servicio"], …)
+        state[f"parser_bloque_{bloque}"] = raw[bloque]
+    # document_analysis: si ningún LLM-agente lo escribió, lo armamos desde el raw para el
+    # frontend/persistencia (mismo contenido que produce _backfill_document_analysis).
+    da = state.get("document_analysis")
+    if not isinstance(da, dict) or not da:
+        state["document_analysis"] = {
+            "items_consolidados": raw["items_consolidados"], "postores_extraidos": raw["postores_consolidados"],
+            "firmantes": raw["firmantes_consolidados"], "comite_evaluacion": raw["comite_evaluacion"],
+            "motivos_adjudicacion": raw["motivos_adjudicacion"], "lugar_fecha_acta": raw.get("lugar_fecha_acta"),
+            "fundamento_legal": raw["fundamento_legal"], "modalidad": raw.get("modalidad"),
+            "fuente_financiamiento": raw.get("fuente_financiamiento"), "cuantia_total": raw.get("cuantia_total"),
+            "requerimiento_disponible": raw["requerimiento_disponible"], "resumen_ejecutivo": raw.get("resumen_ejecutivo"),
+            "documentos": raw["documentos"], "_source": "parse_documentos_lote",
+        }
+    # caché por URL para la tool legacy (si el agente LLM la llama sobre el mismo doc → HIT)
+    pdc = state.get("_parsed_doc_cache") or {}
+    for d in resumen_docs:
+        if d.get("url"):
+            pdc[d["url"]] = {"n_pdfs_procesados": 1, "n_items_consolidados": d.get("n_items"), "_url": d["url"],
+                             "_note": "procesado por parse_documentos_lote; detalle en state['parser_raw_consolidated']"}
+    state["_parsed_doc_cache"] = pdc
+
+    total_s = round(time.monotonic() - t_ini, 1)
+    n_ok = sum(1 for d in resumen_docs if not d.get("error"))
+    ev_tot = sum((d.get("evidencia") or {}).get("total", 0) for d in resumen_docs)
+    ev_ok = sum((d.get("evidencia") or {}).get("verificadas", 0) for d in resumen_docs)
+    resumen = {
+        "n_docs": len(docs), "n_ok": n_ok, "n_error": len(docs) - n_ok,
+        "n_cache_texto": sum(1 for d in resumen_docs if (d.get("cache") or {}).get("texto")),
+        "n_cache_extraccion": sum(1 for d in resumen_docs if (d.get("cache") or {}).get("extraccion")),
+        "n_items_consolidados": len(raw["items_consolidados"]), "n_items_otros_documentos": len(raw["items_otros_documentos"]),
+        "n_postores": len(raw["postores_consolidados"]), "n_firmantes": len(raw["firmantes_consolidados"]),
+        "n_paginas_total": sum(int(d.get("n_paginas") or 0) for d in resumen_docs),
+        "chars_total": sum(int(d.get("chars") or 0) for d in resumen_docs),
+        "evidencia": {"total": ev_tot, "verificadas": ev_ok},
+        "bloque": bloque, "segundos": total_s,
+        "documentos": [{k: d.get(k) for k in ("id", "titulo", "tipo", "formato", "sha256", "n_paginas", "chars", "motor",
+                                                "n_items", "n_firmantes", "cache", "tiempos", "truncado", "error",
+                                                "tipo_documento_detectado")} for d in resumen_docs],
+        "recortes": [r for r in state["recortes"]],
+        "_note": "Detalle completo en state['parser_raw_consolidated'] y state['documentos_texto']",
+    }
+    print(f"[lote] {n_ok}/{len(docs)} docs · {resumen['n_paginas_total']} págs · {resumen['chars_total']:,} chars · "
+          f"{len(raw['items_consolidados'])} ítems · {len(raw['firmantes_consolidados'])} firmantes · "
+          f"evidencia {ev_ok}/{ev_tot} verificada · {len(state['recortes'])} recortes · {total_s}s", flush=True)
+    return resumen
+
+
+def _norm_razon(s: str | None) -> str:
+    """Razón social comparable: MAYÚSCULAS sin tildes ni puntuación ('S.A.C.' == 'SAC')."""
+    return " ".join(re.sub(r"[^A-Z0-9 ]", "", _norm_txt(s or "")).split())
+
+
+def _mas_completo_lote(nuevo, actual):
+    def _peso(d):
+        if not isinstance(d, dict):
+            return 0
+        return sum(1 for k, v in d.items() if k not in ("evidencia", "documento_sha256") and v not in (None, "", [], {}))
+    return nuevo if _peso(nuevo) > _peso(actual) else actual
+
+
+def parse_documentos_seleccionados(ocid: str, tool_context: ToolContext) -> dict:
+    """Selecciona (determinista, por prioridad del perfil) y parsea EN LOTE todos los documentos
+    del proceso: OCR una sola vez por sha256, extracción con evidencia por página. Una sola
+    llamada reemplaza a list_documents + N × parse_document_pdf.
+
+    Args:
+        ocid: OCID de la convocatoria (largo o corto).
+
+    Returns:
+        Resumen compacto: n_docs, n_ok, ítems/firmantes consolidados, páginas, recortes.
+        El detalle queda en state['parser_raw_consolidated'] y state['documentos_texto'].
+    """
+    state = tool_context.state
+    bloque, prio, mx = _perfil_params(state)
+    elegidos, omitidos = seleccionar_documentos(
+        state.get("ocid") or ocid, state.get("ocds") or {}, state.get("doc_urls") or {}, prio, mx,
+        doc_ids=state.get("doc_ids"),
+    )
+    state.setdefault("recortes", [])
+    rec = recorte_seleccion(elegidos, omitidos, mx)
+    if rec:
+        state["recortes"].append(rec)
+    state["documentos_seleccionados"] = elegidos
+    state["documentos_omitidos"] = omitidos
+    res = parse_documentos_lote(state, elegidos, parser_bloque=bloque, prioridad=prio)
+    res["n_omitidos_seleccion"] = len(omitidos)
+    return res
+
+
+parse_documentos_seleccionados_tool = FunctionTool(func=parse_documentos_seleccionados)
+
+
+def _paginas_a_pdf_sintetico(paginas: list[dict]) -> bytes | None:
+    """Páginas de texto ({texto}) → PDF sintético (una página A4 por entrada) para el
+    pipeline legacy de parse_document_pdf."""
+    try:
+        import fitz
+    except Exception:
+        return None
+    out = fitz.open()
+    try:
+        for p in paginas:
+            page = out.new_page(width=595, height=842)
+            try:
+                page.insert_textbox(fitz.Rect(36, 36, 559, 806), str(p.get("texto") or "")[:6000],
+                                    fontsize=9, fontname="helv")
+            except Exception:
+                pass
+        if len(out) == 0:
+            return None
+        return out.tobytes()
+    finally:
+        out.close()
+
+
 def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
     """Procesa un PDF (bytes) con Gemini. Devuelve dict con extracción
     o {"error": ...}.
@@ -260,354 +1979,18 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
     rendered: list[tuple[int, bytes]] = []
     if pages_to_render:
         rendered = _render_pdf_pages_to_png(blob, pages_to_render, dpi=160)
-    schema = gtypes.Schema(
-        type=gtypes.Type.OBJECT,
-        properties={
-            "cuantia_total": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-            "fuente_financiamiento": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-            "modalidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-            "tipo_documento_detectado": gtypes.Schema(
-                type=gtypes.Type.STRING, nullable=True,
-                description=(
-                    "Tipo de documento OECE detectado a partir del contenido: "
-                    "bases_administrativas, terminos_de_referencia, expediente_tecnico, "
-                    "acta_buena_pro, contrato, propuesta_economica, otro."
-                ),
-            ),
-            "contiene_requerimiento": gtypes.Schema(
-                type=gtypes.Type.BOOLEAN, nullable=True,
-                description=(
-                    "True si en este PDF aparece la sección 'REQUERIMIENTO' / "
-                    "'Términos de Referencia' / 'Especificaciones Técnicas' con detalle "
-                    "técnico por ítem (marca, modelo, normas, dimensiones, certificaciones, "
-                    "potencia, capacidad, materiales, etc.)."
-                ),
-            ),
-            "items": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                items=gtypes.Schema(
-                    type=gtypes.Type.OBJECT,
-                    properties={
-                        "numero": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description=(
-                                "Número del ítem como string: '1', '1.1', '1.2', '2', '2a'. "
-                                "Si el OCDS tenía 1 ítem que agrupa varios productos, asignales "
-                                "sub-numeración con punto (1.1, 1.2, ...)."
-                            ),
-                        ),
-                        "padre_ocds_item": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description=(
-                                "Si es desglose de un ítem padre del OCDS, número del padre. "
-                                "Ej. canasta '1' con 10 sub-productos → cada sub tiene padre_ocds_item='1'."
-                            ),
-                        ),
-                        "descripcion_corta": gtypes.Schema(
-                            type=gtypes.Type.STRING,
-                            description="TÍTULO del ítem (1 línea, ≤200 chars). NO meter specs acá.",
-                        ),
-                        "cantidad": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                        "unidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="UND, KG, M3, LITRO, SACO, BOLSA, etc."),
-                        "precio_unitario_referencial": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                        "cuantia_referencial_item": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True,
-                            description="Cuantía total del ítem = precio_unitario × cantidad."),
-                        "marca_o_modelo_exigido": gtypes.Schema(
-                            type=gtypes.Type.STRING, nullable=True,
-                            description=(
-                                "Texto exacto de marca/modelo cuando aparece en el "
-                                "documento, con sus eventuales modificadores ('o "
-                                "similar', 'o equivalente'). Null si el ítem es "
-                                "genérico. NO uses ejemplos de tu memoria — copiá "
-                                "literal lo que aparece en el PDF."
-                            ),
-                        ),
-                        "certificaciones_exigidas": gtypes.Schema(
-                            type=gtypes.Type.ARRAY,
-                            items=gtypes.Schema(type=gtypes.Type.STRING),
-                            description=(
-                                "Lista de certificaciones/normas exigidas al BIEN: 'EPA Tier 3', "
-                                "'Homologación MTC', 'ROPS/FOPS', 'NTP 350.026', 'DIGESA', etc. "
-                                "Cada entrada ≤80 chars (solo el nombre de la norma)."
-                            ),
-                        ),
-                        "valores_tecnicos_clave": gtypes.Schema(
-                            type=gtypes.Type.OBJECT,
-                            nullable=True,
-                            description=(
-                                "Valores numéricos discretos extraídos del REQUERIMIENTO técnico. "
-                                "Llená SOLO los que aparezcan; deja null el resto. Esto es lo que "
-                                "market_price_agent usa para hacer queries específicas."
-                            ),
-                            properties={
-                                "potencia_min_hp": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "potencia_min_kw": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "capacidad_volumen": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="Ej. '1.0 m3', '20 litros', '12L', '50 kg'."),
-                                "capacidad_carga_ton": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "peso_operativo_ton": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                "alcance_m": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "ano_fabricacion_min": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                                "estado": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="'nueva sin uso', 'usada certificada', etc."),
-                                "presentacion": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="Para consumibles: 'saco de 50kg', 'lata 140g', 'balde 20L'."),
-                                "color": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                "material": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                            },
-                        ),
-                        "garantia": gtypes.Schema(
-                            type=gtypes.Type.OBJECT,
-                            nullable=True,
-                            properties={
-                                "meses": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                                "horas": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True,
-                                    description="Para maquinaria: garantía expresada en horas de uso."),
-                                "alcance": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="Ej. 'comercial', 'fábrica', 'integral con repuestos'."),
-                            },
-                        ),
-                        "condiciones_entrega": gtypes.Schema(
-                            type=gtypes.Type.OBJECT,
-                            nullable=True,
-                            properties={
-                                "plazo_dias_calendario": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                                "lugar_entrega": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                "modalidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="'única', 'parcial', 'a demanda'."),
-                            },
-                        ),
-                        "requisitos_postor": gtypes.Schema(
-                            type=gtypes.Type.OBJECT,
-                            nullable=True,
-                            description="Requisitos al postor para participar (no al bien).",
-                            properties={
-                                "experiencia_minima_soles": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "anos_experiencia_min": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                "n_contratos_similares": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                                "certificaciones_postor": gtypes.Schema(
-                                    type=gtypes.Type.ARRAY,
-                                    items=gtypes.Schema(type=gtypes.Type.STRING),
-                                    description="Ej. 'concesionario autorizado MTC', 'representante oficial de marca'."),
-                                "infraestructura_exigida": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                    description="Ej. 'taller propio con stock de repuestos', 'almacén refrigerado'."),
-                                "personal_clave": gtypes.Schema(
-                                    type=gtypes.Type.ARRAY,
-                                    items=gtypes.Schema(type=gtypes.Type.STRING),
-                                    description="Lista corta de personal exigido (ej. '1 mecánico CIP', '2 técnicos certificados')."),
-                            },
-                        ),
-                        "penalidades": gtypes.Schema(
-                            type=gtypes.Type.ARRAY,
-                            items=gtypes.Schema(
-                                type=gtypes.Type.OBJECT,
-                                properties={
-                                    "causal": gtypes.Schema(type=gtypes.Type.STRING),
-                                    "monto_o_porcentaje": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                    "base_calculo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                },
-                                required=["causal"],
-                            ),
-                            description="Penalidades específicas mencionadas (mora, calidad, etc.).",
-                        ),
-                        "subitems": gtypes.Schema(
-                            type=gtypes.Type.ARRAY,
-                            description=(
-                                "Si este ítem es un PAQUETE / LOTE / CANASTA que contiene N "
-                                "productos físicos distintos, listalos acá con cantidad+unidad+"
-                                "spec corta. Si el ítem es atómico (1 solo bien), dejá lista vacía."
-                            ),
-                            items=gtypes.Schema(
-                                type=gtypes.Type.OBJECT,
-                                properties={
-                                    "descripcion": gtypes.Schema(type=gtypes.Type.STRING),
-                                    "cantidad": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                                    "unidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                                    "presentacion": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                        description="Ej. 'saco 50kg', 'bolsa 1kg', 'lata 170g'."),
-                                    "specs_clave": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                                        description="1 línea con specs (color, calidad, norma) si aparece."),
-                                },
-                                required=["descripcion"],
-                            ),
-                        ),
-                        "requerimiento_tecnico_detallado": gtypes.Schema(
-                            type=gtypes.Type.STRING, nullable=True,
-                            description=(
-                                "RESUMEN NARRATIVO denso (300-1000 chars) del requerimiento para "
-                                "este ítem, integrando tipo de bien + marcas/modelos + valores "
-                                "numéricos clave + certificaciones + garantía + requisitos del "
-                                "postor + condiciones de entrega. Es lo que verá el writer del "
-                                "dictamen. Los DETALLES estructurados ya van en los campos "
-                                "discretos arriba — acá hacés la versión LEGIBLE. NO transcribas "
-                                "literalmente 20K chars de specs por componente — comprimí lo "
-                                "esencial. Si no hay requerimiento para este ítem, devolvé null."
-                            ),
-                        ),
-                    },
-                    required=["descripcion_corta"],
-                ),
-            ),
-            "postores": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                items=gtypes.Schema(
-                    type=gtypes.Type.OBJECT,
-                    properties={
-                        "ruc": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                        "razon_social": gtypes.Schema(type=gtypes.Type.STRING),
-                        "monto_oferta": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                        "es_ganador": gtypes.Schema(type=gtypes.Type.BOOLEAN, nullable=True),
-                        "item": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                    },
-                    required=["razon_social"],
-                ),
-            ),
-            "firmantes": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                description=(
-                    "Lista de personas que firman el documento. Aplica especialmente "
-                    "a actas de buena pro, reportes de evaluación, contratos. "
-                    "INCLUÍ a TODOS los firmantes que aparezcan al pie (presidente del "
-                    "comité, miembros del comité, jefe de abastecimiento, gerente "
-                    "general que aprueba, representante legal del proveedor)."
-                ),
-                items=gtypes.Schema(
-                    type=gtypes.Type.OBJECT,
-                    properties={
-                        "nombre_completo": gtypes.Schema(type=gtypes.Type.STRING),
-                        "dni": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                        "cargo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="Cargo institucional (ej. 'Jefe de Abastecimiento', 'Presidente del Comité')."),
-                        "rol_en_documento": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="Rol respecto al documento: 'aprobador', 'evaluador', 'presidente_comite', 'representante_proveedor', 'testigo'."),
-                        "entidad": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="Institución a la que pertenece (entidad contratante o empresa proveedora)."),
-                        "fecha_firma": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                    },
-                    required=["nombre_completo"],
-                ),
-            ),
-            "comite_evaluacion": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                description=(
-                    "Composición formal del Comité de Selección o Comisión Evaluadora. "
-                    "Si el comité no se detalla en el documento (común en contrataciones "
-                    "directas), dejar lista vacía."
-                ),
-                items=gtypes.Schema(
-                    type=gtypes.Type.OBJECT,
-                    properties={
-                        "nombre_completo": gtypes.Schema(type=gtypes.Type.STRING),
-                        "cargo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                        "rol": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="presidente, miembro_titular, miembro_suplente, secretario."),
-                        "certificacion_sican": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                    },
-                    required=["nombre_completo"],
-                ),
-            ),
-            "motivos_adjudicacion": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                description=(
-                    "Para CADA postor ganador, el motivo por el que ganó según lo "
-                    "documentado en el acta o reporte de buena pro: criterio decisivo, "
-                    "posición en ranking, observaciones de la evaluación, ajustes de "
-                    "precio aplicados."
-                ),
-                items=gtypes.Schema(
-                    type=gtypes.Type.OBJECT,
-                    properties={
-                        "ganador_razon_social": gtypes.Schema(type=gtypes.Type.STRING),
-                        "ganador_ruc": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                        "item_adjudicado": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                        "criterio_decisivo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="ej. 'menor precio', 'único postor admitido', 'mejor calificación técnica', 'sorteo'."),
-                        "posicion_ranking": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                        "observaciones_evaluacion": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                            description="Razones específicas que el comité documenta para esta adjudicación."),
-                        "competidores_descalificados": gtypes.Schema(
-                            type=gtypes.Type.ARRAY, items=gtypes.Schema(type=gtypes.Type.STRING),
-                            description="Razones por las que se descalificaron otros postores (defectos en propuesta, no presentación, etc.)."),
-                    },
-                    required=["ganador_razon_social"],
-                ),
-            ),
-            "lugar_fecha_acta": gtypes.Schema(
-                type=gtypes.Type.OBJECT,
-                nullable=True,
-                description="Lugar y fecha de emisión del acta (cuando aplique).",
-                properties={
-                    "lugar": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                    "fecha": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                    "hora": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                },
-            ),
-            "fundamento_legal": gtypes.Schema(
-                type=gtypes.Type.ARRAY,
-                items=gtypes.Schema(type=gtypes.Type.STRING),
-            ),
-            "estudio_mercado": gtypes.Schema(
-                type=gtypes.Type.OBJECT, nullable=True,
-                description=(
-                    "Llenar SOLO si este documento es un RESUMEN EJECUTIVO o un "
-                    "'Informe que sustenta' la contratación (típico en contratación "
-                    "directa o comparación de precios): el estudio/indagación de mercado "
-                    "y la justificación legal. Si el documento NO es de ese tipo, dejá "
-                    "TODO el objeto en null (no inventes)."
-                ),
-                properties={
-                    "resumen": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                        description="Por qué se eligió esta modalidad/proveedor."),
-                    "valor_referencial": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True,
-                        description="Valor referencial/estimado del estudio de mercado."),
-                    "moneda": gtypes.Schema(type=gtypes.Type.STRING, nullable=True, description="PEN o USD."),
-                    "comparacion_precio_historico": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                        description="Texto LITERAL de comparación con compras previas (ej. '2025: USD 3.60 → ahora 3.80')."),
-                    "causal_articulo": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                        description="Causal/artículo de excepción invocado, LITERAL (ej. 'art. 7.1 lit. n Ley 32069')."),
-                    "causal_texto": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                        description="Fundamento textual de por qué aplica la causal."),
-                    "proveedores_evaluados": gtypes.Schema(type=gtypes.Type.ARRAY,
-                        items=gtypes.Schema(type=gtypes.Type.STRING),
-                        description="Proveedores/laboratorios contactados o evaluados."),
-                    "descalificaciones": gtypes.Schema(type=gtypes.Type.ARRAY,
-                        items=gtypes.Schema(type=gtypes.Type.STRING),
-                        description="Razones por las que se descartaron otras ofertas."),
-                },
-            ),
-            "contrato_final": gtypes.Schema(
-                type=gtypes.Type.OBJECT, nullable=True,
-                description=(
-                    "Llenar SOLO si este documento es la ORDEN DE COMPRA / CONTRATO "
-                    "firmado ('Archivos del contrato'): las condiciones FINALES reales. "
-                    "Si el documento NO es orden de compra/contrato, dejá TODO en null."
-                ),
-                properties={
-                    "precio_final_total": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True,
-                        description="Monto TOTAL final contratado (lo realmente comprometido)."),
-                    "moneda": gtypes.Schema(type=gtypes.Type.STRING, nullable=True, description="PEN o USD."),
-                    "cronograma_entregas": gtypes.Schema(type=gtypes.Type.ARRAY,
-                        items=gtypes.Schema(type=gtypes.Type.OBJECT, properties={
-                            "descripcion": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                            "cantidad": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                            "plazo_dias": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
-                            "monto": gtypes.Schema(type=gtypes.Type.NUMBER, nullable=True),
-                        }),
-                        description="Entregas con plazo/monto si el documento las detalla."),
-                    "penalidades": gtypes.Schema(type=gtypes.Type.ARRAY,
-                        items=gtypes.Schema(type=gtypes.Type.STRING),
-                        description="Penalidades por mora/incumplimiento (texto literal)."),
-                    "forma_pago": gtypes.Schema(type=gtypes.Type.STRING, nullable=True,
-                        description="Forma/condición de pago (ej. 'carta de crédito 90/10')."),
-                    "proveedor_ruc": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-                },
-            ),
-            "resumen": gtypes.Schema(type=gtypes.Type.STRING, nullable=True),
-        },
-    )
+    schema = _parser_schema(None)
+    _cfg_extra = {}
+    _t = os.getenv("PARSER_TEMPERATURE", "").strip()
+    if _t:
+        try:
+            _cfg_extra["temperature"] = float(_t)
+        except ValueError:
+            pass
     config = gtypes.GenerateContentConfig(
-        temperature=0.0, top_p=0.1,
+        **_cfg_extra,
         response_mime_type="application/json",
-        response_schema=schema, max_output_tokens=65535,  # Gemini 2.5 max
+        response_schema=schema, max_output_tokens=65535,
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),  # techo por-llamada
         system_instruction=(
             "Sos un extractor experto en documentos del Sistema Electrónico de "
@@ -671,12 +2054,13 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
             "        adentro (típico en bases de alimentos, kits escolares)\n"
             "        →  `subitems` (lista anidada, NO uses sub-numeración\n"
             "        en items[] para esto; usá esta lista)\n"
-            "      - El narrativo legible que verá el dictamen\n"
-            "        →  `requerimiento_tecnico_detallado` (resumen DENSO 300-1000 chars)\n"
+            "      - El requerimiento del ítem, LITERAL (sin resumir, ≤ 4000 chars)\n"
+            "        →  `texto_literal` + `texto_literal_paginas` + `evidencia` [{pagina, cita}]\n"
             "\n"
-            "  · NO transcribas literal. NO copies bloques de 20K chars. La spec\n"
-            "    técnica viene en CAMPOS DISCRETOS — esos son tu output principal.\n"
-            "    `requerimiento_tecnico_detallado` es solo el resumen para humanos.\n"
+            "  · La spec técnica va en CAMPOS DISCRETOS y, además, copiada LITERAL en\n"
+            "    `texto_literal` (hasta 4000 chars por ítem). NO resumas ni reescribas.\n"
+            "  · EVIDENCIA: cada ítem/postor/firmante/comité/motivo lleva `evidencia`\n"
+            "    [{pagina, cita}] con la página del marcador ⟦p.N⟧ y una cita textual.\n"
             "\n"
             "  · NO inventés especificaciones que no estén en el PDF/imágenes. Si un\n"
             "    campo no aparece, dejalo null.\n"
@@ -690,7 +2074,7 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
             "  · NO inventás especificaciones que no estén en el PDF/imágenes.\n"
             "  · Si el documento NO contiene la sección REQUERIMIENTO (ej. es solo un "
             "acta o un contrato), dejá `contiene_requerimiento=false` y "
-            "`requerimiento_tecnico_detallado=null` en cada ítem.\n"
+            "`texto_literal=null` en cada ítem.\n"
             "  · Detectás marcas/modelos explícitos que aparezcan en el documento, "
             "y por separado las certificaciones/normas técnicas (MTC, Euro, Tier, "
             "ISO, NTP, DIGESA, SENASA, ASTM, EPA, etc.). Copiá los strings LITERALES "
@@ -870,24 +2254,13 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
         "        [{descripcion: 'Arroz superior', cantidad: 2, unidad: 'BOLSA',\n"
         "          presentacion: '1kg', specs_clave: 'grano largo, taquillado'}, ...]\n"
         "\n"
-        "  RESUMEN PARA EL DICTAMEN (`requerimiento_tecnico_detallado`, 300-1000 chars):\n"
-        "    Narrativa legible que combina lo más relevante de los campos discretos\n"
-        "    arriba, SIEMPRE construida sobre el contenido REAL del PDF que estás\n"
-        "    procesando. Es para que el dictamen periodístico pueda citar texto.\n"
-        "    NO es transcripción literal — es resumen denso.\n"
-        "    🚨 Si el ítem es cemento, redactalo sobre cemento; si es uniforme, sobre\n"
-        "    uniforme; si es servicio, sobre el servicio. JAMÁS arrastres ejemplos\n"
-        "    de excavadora, maquinaria pesada, marcas, normas o magnitudes que no\n"
-        "    aparezcan literalmente en el PDF procesado. Si el documento no tiene\n"
-        "    suficiente detalle técnico, escribí menos — preferí 200 chars precisos\n"
-        "    a 1000 chars inventados.\n"
-        "\n"
-        "  ⚠ NO TRUNQUES NI INVENTES. Si el documento tiene 80 páginas y describe\n"
-        "    cilindros, voltajes, presiones específicas — esos van DENTRO de los\n"
-        "    campos discretos correspondientes (potencia, certificaciones, etc.).\n"
-        "    Pero NO necesitás meter todos los sub-bullets de 'Sistema Eléctrico',\n"
-        "    'Sistema Hidráulico', 'Componentes Internos' en el resumen narrativo —\n"
-        "    eso es ruido para el dictamen. Quedate con lo que define el producto.\n"
+        "  REQUERIMIENTO LITERAL (`texto_literal`, ≤ 4000 chars):\n"
+        "    Extracto copiado tal cual del documento con las especificaciones del ítem\n"
+        "    (marca, normas, dimensiones, garantía, plazo, requisitos del postor). NO es\n"
+        "    resumen: no reescribas, no completes con tu memoria. Anotá en\n"
+        "    `texto_literal_paginas` las páginas (⟦p.N⟧) que abarca y en `evidencia`\n"
+        "    una cita textual con su página. Si el documento no tiene requerimiento\n"
+        "    para el ítem, null.\n"
         "\n"
         "PASO 4 — Identificá `postores` (RUC, razón social, monto, ganador) si el PDF/imágenes los "
         "mencionan (típicamente en actas y propuestas).\n"
@@ -934,6 +2307,11 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
         data = _safe_parse_json(text)
         if not isinstance(data, dict) or not data:
             return {"error": f"non-json response: {text[:200]}"}
+        if "MAX_TOKENS" in _finish_reason(resp).upper():
+            data["_truncado"] = True
+        for _it in (data.get("items") or []):
+            if isinstance(_it, dict) and _it.get("texto_literal") and not _it.get("requerimiento_tecnico_detallado"):
+                _it["requerimiento_tecnico_detallado"] = _it["texto_literal"]
         data["_size_bytes"] = len(blob)
         data["_source"] = source_label
         data["_pdf_layout"] = {
@@ -1307,137 +2685,25 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
             "_fetch_attempts": fetch_error,
         }
 
+    # Expansión de contenedores SIN topes (ZIP/RAR anidados, DOCX, XLSX, imágenes): cada
+    # archivo interno es una unidad, ordenada por la prioridad del perfil. Lo que no se
+    # pudo abrir queda en state['recortes'] (antes: 3 PDF + 3 DOCX por ZIP, sin registro).
+    _prio = _perfil_params(tool_context.state)[1]
+    _unidades, _rec = _expandir_contenedor(blob, document_url.rsplit("/", 1)[-1][:80], _prio)
+    if _rec:
+        tool_context.state.setdefault("recortes", [])
+        tool_context.state["recortes"].extend(_rec)
     pdf_blobs: list[tuple[str, bytes]] = []
-    docx_blobs_converted = 0  # contador para diagnóstico
-    rar_blobs_extracted = 0
-
-    # CASO 0 — RAR: extraer con rarfile + binario unrar-free (instalado en Dockerfile)
-    if blob[:4] == b"Rar!":
-        try:
-            import rarfile
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".rar", delete=False) as tf:
-                tf.write(blob)
-                rar_path = tf.name
-            try:
-                with rarfile.RarFile(rar_path) as rf:
-                    names = rf.namelist()
-                    pdf_inside = [n for n in names if n.lower().endswith(".pdf")]
-                    docx_inside = [n for n in names if n.lower().endswith(".docx")]
-                    if not pdf_inside and not docx_inside:
-                        return {
-                            "error": "rar_no_pdfs_or_docxs",
-                            "url": document_url,
-                            "files_inside": names[:8],
-                        }
-                    for name in pdf_inside[:3]:
-                        try:
-                            pdf_blobs.append((f"{name} (de RAR)", rf.read(name)))
-                            rar_blobs_extracted += 1
-                        except Exception:
-                            continue
-                    for name in docx_inside[:3]:
-                        try:
-                            inner = rf.read(name)
-                            synth = _docx_to_synthetic_pdf(inner)
-                            if synth:
-                                pdf_blobs.append((f"{name} (RAR→DOCX→PDF sintético)", synth))
-                                rar_blobs_extracted += 1
-                                docx_blobs_converted += 1
-                        except Exception:
-                            continue
-            finally:
-                try:
-                    os.unlink(rar_path)
-                except Exception:
-                    pass
-        except rarfile.BadRarFile:
-            return {"error": "bad_rar", "url": document_url}
-        except Exception as e:
-            return {
-                "error": f"rar_extraction_failed: {str(e)[:200]}",
-                "url": document_url,
-                "hint": "Verificá que unrar-free esté instalado en la imagen Docker.",
-            }
-        if not pdf_blobs:
-            return {
-                "error": "rar_no_extractable_content",
-                "url": document_url,
-                "hint": "El RAR no contenía PDFs ni DOCXs procesables.",
-            }
-        # OK, ya tenemos pdf_blobs poblados desde el RAR — saltar al
-        # pipeline de procesamiento (línea ~3000+).
-    # CASO 1 — el blob ES un DOCX (SEACE V3 publica algunas bases en DOCX)
-    elif _is_docx_blob(blob):
-        synth_pdf = _docx_to_synthetic_pdf(blob)
-        if not synth_pdf:
-            return {"error": "docx_conversion_failed", "url": document_url,
-                    "hint": "python-docx no pudo extraer contenido del DOCX."}
-        label = document_url.rsplit("/", 1)[-1][:80] + " (DOCX→PDF sintético)"
-        pdf_blobs.append((label, synth_pdf))
-        docx_blobs_converted += 1
-    elif blob[:2] == b"PK":
-        # CASO 2 — ZIP genérico: extraer PDFs, DOCXs, imágenes y ZIPs anidados.
-        IMG_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp")
-        def _extract_from_zip(zip_bytes: bytes, prefix: str = "", depth: int = 0) -> None:
-            """Extrae recursivamente PDFs/DOCXs/imágenes/ZIP-anidados.
-            Modifica `pdf_blobs` y `docx_blobs_converted` por referencia.
-            """
-            nonlocal docx_blobs_converted
-            if depth > 2:  # safety contra zip-bomb
-                return
-            try:
-                with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
-                    names = z.namelist()
-                    # PDFs directos
-                    for name in [n for n in names if n.lower().endswith(".pdf")][:3]:
-                        try: pdf_blobs.append((f"{prefix}{name}", z.read(name)))
-                        except Exception: continue
-                    # DOCXs → PDF sintético
-                    for name in [n for n in names if n.lower().endswith(".docx")][:3]:
-                        try:
-                            inner = z.read(name)
-                            synth = _docx_to_synthetic_pdf(inner)
-                            if synth:
-                                pdf_blobs.append((f"{prefix}{name} (DOCX→PDF)", synth))
-                                docx_blobs_converted += 1
-                        except Exception: continue
-                    # ZIPs anidados — recursión hasta depth=2
-                    for name in [n for n in names if n.lower().endswith(".zip")][:3]:
-                        try:
-                            inner_zip = z.read(name)
-                            _extract_from_zip(inner_zip, prefix=f"{prefix}{name}/", depth=depth + 1)
-                        except Exception: continue
-                    # Imágenes → PDF sintético (1 imagen = 1 página). Útil para bases escaneadas.
-                    image_blobs: list[tuple[str, bytes]] = []
-                    for name in [n for n in names if n.lower().endswith(IMG_EXTS)][:10]:
-                        try: image_blobs.append((name, z.read(name)))
-                        except Exception: continue
-                    if image_blobs:
-                        synth = _images_to_synthetic_pdf(image_blobs)
-                        if synth:
-                            pdf_blobs.append((f"{prefix}{len(image_blobs)} imágenes (escaneo→PDF)", synth))
-            except zipfile.BadZipFile:
-                pass
-
-        prev_len = len(pdf_blobs)
-        _extract_from_zip(blob)
-        if len(pdf_blobs) == prev_len:
-            # Después de recursión total, no encontramos nada procesable
-            try:
-                with zipfile.ZipFile(io.BytesIO(blob)) as z:
-                    files_inside = z.namelist()[:10]
-            except Exception:
-                files_inside = []
-            return {"error": "zip_no_pdfs_docx_or_images",
-                    "files_inside": files_inside,
-                    "hint": "El ZIP no contenía PDFs, DOCXs ni imágenes procesables. Puede tener .doc legado, .xls, archivos firmados o estar corrupto."}
-    elif blob[:4] == b"%PDF":
-        label = document_url.rsplit("/", 1)[-1][:80]
-        pdf_blobs.append((label, blob))
-    else:
-        return {"error": "not_a_pdf_or_zip_or_docx", "size": len(blob),
-                "first_bytes_hex": blob[:8].hex()}
+    for _u in _unidades:
+        if _u["kind"] in ("pdf", "imagenes") and _u.get("data"):
+            pdf_blobs.append((_u["nombre"], _u["data"]))
+        elif _u["kind"] == "paginas":
+            _synth = _paginas_a_pdf_sintetico(_u.get("paginas") or [])
+            if _synth:
+                pdf_blobs.append((f"{_u['nombre']} (texto→PDF sintético)", _synth))
+    if not pdf_blobs:
+        return {"error": "sin_contenido_procesable", "url": document_url, "size": len(blob),
+                "first_bytes_hex": blob[:8].hex(), "recortes": _rec}
 
     # Estrategia de partición según el extractor disponible:
     #   · CON Document AI: NO shardeаmos para Gemini. El doc entero va como 1
@@ -1509,29 +2775,6 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         # los encolados y seguimos el pipeline. Sus llamadas Gemini liberan el
         # semáforo de _throttle_gemini cuando terminen por su cuenta.
         ex.shutdown(wait=False, cancel_futures=True)
-
-    def _item_key(it: dict):
-        """Clave semántica para dedup de ítems (fix #1): descripción normalizada +
-        cantidad. Evita que el MISMO ítem, numerado distinto en dos documentos
-        ('2' vs '02', '1.0' vs '01'), sobreviva duplicado y duplique el trabajo del
-        market agent. Devuelve None si no hay descripción ni número."""
-        import unicodedata
-        desc = (it.get("descripcion_corta") or it.get("descripcion") or "").strip().upper()
-        desc = " ".join(desc.split())
-        desc = "".join(c for c in unicodedata.normalize("NFKD", desc)
-                       if not unicodedata.combining(c))
-        if desc:
-            req = (it.get("requerimiento_tecnico_detallado") or "").strip()
-            # Cabeceras de objeto/agregador (SIN requerimiento): el mismo
-            # "ADQUISICIÓN DE LLANTAS..." aparece como "ítem 1" en cada documento
-            # (acta, reporte, contrato) → dedup por descripción SOLA para no
-            # multiplicarlo. Ítems reales (con requerimiento) usan desc+cantidad
-            # para no fusionar productos distintos del mismo rubro.
-            return ("d", desc) if not req else ("d", desc, it.get("cantidad"))
-        num = it.get("numero")
-        if num is not None and str(num).strip():
-            return ("n", str(num).strip())
-        return None
 
     items_all: list[dict] = []
     postores_all: list[dict] = []
@@ -1920,3 +3163,4 @@ def sanitize_items_with_llm(raw_items, objeto: str = "", tool_context=None) -> l
 list_documents_tool = FunctionTool(func=list_documents)
 parse_document_pdf_tool = FunctionTool(func=parse_document_pdf)
 sanitize_items_with_llm_tool = FunctionTool(func=sanitize_items_with_llm)
+# parse_documentos_seleccionados_tool se define junto al parser en lote (arriba).

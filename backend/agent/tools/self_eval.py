@@ -13,10 +13,74 @@ Unifica el juicio que antes corría offline en backend/scripts/evals_vigia.py.
 from __future__ import annotations
 
 import json
+import os
 
 from tools._core import (  # noqa: F401
     _gemini_client, _gemini_call_with_retry, _throttle_gemini, DEFAULT_GEMINI_MODEL,
 )
+
+
+def _judge_model() -> str:
+    """Modelo de los jueces: `agents._shared.models._MODEL_JUDGE` (lo define el WS P;
+    distinto del generador) → env GEMINI_MODEL_JUDGE → gemini-3.5-flash. Nunca el
+    mismo tier que escribió el dictamen (auditoría §2.4)."""
+    try:
+        from agents._shared.models import _MODEL_JUDGE  # type: ignore
+        if _MODEL_JUDGE:
+            return str(_MODEL_JUDGE)
+    except Exception:
+        pass
+    return os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash")
+
+
+# Umbrales de bloqueo (env). Si la self-eval detecta respaldo bajo, tono acusatorio o
+# ítems incoherentes con el objeto, `debe_bloquear` devuelve (True, motivo) y el driver
+# marca `alertas.estado='revision'` (no se publica).
+_EVAL_MIN_RESPALDO = float(os.getenv("EVAL_MIN_RESPALDO", "0.6"))
+_EVAL_MIN_CITA = float(os.getenv("EVAL_MIN_CITA", "0.8"))
+_EVAL_MIN_PRECIO = float(os.getenv("EVAL_MIN_PRECIO", "0.5"))
+_EVAL_BLOQUEA_TONO = os.getenv("EVAL_BLOQUEA_TONO", "1") != "0"
+_EVAL_BLOQUEA_COHERENCIA = os.getenv("EVAL_BLOQUEA_COHERENCIA", "1") != "0"
+
+
+def debe_bloquear(resultado_eval: dict) -> tuple[bool, str]:
+    """Decide si el análisis debe quedar en `revision` en vez de publicarse.
+
+    Bloquea cuando (cualquiera):
+      · respaldo_de_bandera < EVAL_MIN_RESPALDO (default 0.6) con ≥ 2 banderas juzgadas;
+      · tono_no_acusatorio == 'acusatorio' (EVAL_BLOQUEA_TONO);
+      · coherencia_objeto_items == 'incoherente' (EVAL_BLOQUEA_COHERENCIA);
+      · cita_evidencia < EVAL_MIN_CITA (default 0.8) con ≥ 3 banderas;
+      · plausibilidad_precio < EVAL_MIN_PRECIO (default 0.5) con ≥ 3 ítems juzgados.
+    Devuelve (bloquear, motivo legible). Con un resultado vacío/None → (False, "").
+    """
+    if not isinstance(resultado_eval, dict) or not resultado_eval:
+        return False, ""
+
+    def _ratio(k):
+        d = resultado_eval.get(k) or {}
+        n = int(d.get("n") or 0)
+        return (int(d.get("ok") or 0) / n if n else None), n
+
+    motivos: list[str] = []
+    r, n = _ratio("respaldo")
+    if r is not None and n >= 2 and r < _EVAL_MIN_RESPALDO:
+        motivos.append(f"respaldo de banderas {r:.0%} < {_EVAL_MIN_RESPALDO:.0%} ({n} juzgadas)")
+    if _EVAL_BLOQUEA_TONO and str(resultado_eval.get("tono") or "").lower() == "acusatorio":
+        motivos.append("dictamen con tono acusatorio" +
+                       (f": {str(resultado_eval.get('tono_reason'))[:120]}" if resultado_eval.get("tono_reason") else ""))
+    if _EVAL_BLOQUEA_COHERENCIA and str(resultado_eval.get("coherencia") or "").lower() == "incoherente":
+        motivos.append("ítems incoherentes con el objeto" +
+                       (f": {str(resultado_eval.get('coherencia_reason'))[:120]}" if resultado_eval.get("coherencia_reason") else ""))
+    r, n = _ratio("cita")
+    if r is not None and n >= 3 and r < _EVAL_MIN_CITA:
+        motivos.append(f"banderas sin norma/fuente {1 - r:.0%} ({n})")
+    r, n = _ratio("precio")
+    if r is not None and n >= 3 and r < _EVAL_MIN_PRECIO:
+        motivos.append(f"veredictos de precio plausibles {r:.0%} < {_EVAL_MIN_PRECIO:.0%}")
+    if motivos:
+        return True, "; ".join(motivos)
+    return False, ""
 
 
 def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
@@ -39,7 +103,7 @@ def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL, contents=[prompt], config=cfg))
+                model=_judge_model(), contents=[prompt], config=cfg))
         arr = (json.loads(resp.text or "{}") or {}).get("veredictos") or []
     except Exception:
         arr = []
@@ -76,7 +140,7 @@ def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL, contents=[prompt], config=cfg))
+                model=_judge_model(), contents=[prompt], config=cfg))
         arr = (json.loads(resp.text or "{}") or {}).get("veredictos") or []
     except Exception:
         arr = []
@@ -105,7 +169,7 @@ def _judge_one(prompt: str, labels: list[str]) -> str:
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL, contents=[prompt], config=cfg))
+                model=_judge_model(), contents=[prompt], config=cfg))
         lab = str((json.loads(resp.text or "{}") or {}).get("label", "")).strip()
         return lab if lab in labels else labels[-1]
     except Exception:
@@ -131,7 +195,7 @@ def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
-                model=DEFAULT_GEMINI_MODEL, contents=[prompt], config=cfg))
+                model=_judge_model(), contents=[prompt], config=cfg))
         d = json.loads(resp.text or "{}") or {}
         lab = str(d.get("label", "")).strip()
         return (lab if lab in labels else labels[-1], str(d.get("reason", ""))[:280])
@@ -139,12 +203,65 @@ def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
         return (labels[-1], "")
 
 
+def _contexto_ocds(state: dict | None) -> dict:
+    """Proyección mínima del OCDS para que el juez coteje RUC/montos/nombres."""
+    ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
+    if not isinstance(ocds, dict):
+        return {}
+    tender = ocds.get("tender") or {}
+    return {
+        "entidad": (ocds.get("buyer") or {}).get("name"),
+        "objeto": (tender.get("description") or tender.get("title") or "")[:240],
+        "valor_referencial": tender.get("value"),
+        "tipo_proceso": tender.get("procurementMethodDetails"),
+        "numberOfTenderers": tender.get("numberOfTenderers"),
+        "postores": [t.get("name") for t in (tender.get("tenderers") or []) if isinstance(t, dict)][:15],
+        "adjudicaciones": [{"proveedores": [f"{s.get('name')} ({s.get('id')})" for s in (a.get("suppliers") or [])],
+                            "valor": a.get("value"), "fecha": a.get("date")}
+                           for a in (ocds.get("awards") or []) if isinstance(a, dict)][:10],
+    }
+
+
+def _contexto_bandera(b: dict, state: dict | None) -> dict:
+    """Verificación determinista + citas literales del documento para UNA bandera
+    (auditoría §2.4: el juez antes juzgaba la prosa sin ver la fuente)."""
+    out: dict = {}
+    ver = b.get("verificacion")
+    if not ver and state:
+        try:
+            from tools import verify as _v
+            ver = _v.verificar_bandera(dict(b), state)
+        except Exception:
+            ver = None
+    if isinstance(ver, dict):
+        out["verificacion_determinista"] = {"ok": ver.get("ok"), "motivos": (ver.get("motivos") or [])[:8]}
+    if state:
+        try:
+            from tools import verify as _v
+            ids = _v.extraer_identificadores(str(b.get("evidencia") or ""))
+            citas = []
+            for token in (ids["rucs"] + ids["dnis"])[:3]:
+                hit = _v.buscar_en_documentos(state, token)
+                if hit:
+                    citas.append({"busca": token, "pagina": hit["pagina"], "cita": hit["cita"]})
+            if citas:
+                out["citas_documento"] = citas
+        except Exception:
+            pass
+    return out
+
+
 def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
                      objeto: str = "", stages: dict | None = None,
-                     news_research=None, firmantes=None, doc_item_descs=None) -> dict:
+                     news_research=None, firmantes=None, doc_item_descs=None,
+                     state: dict | None = None) -> dict:
     """Corre 6 evaluadores LLM-as-judge / code sobre los outputs del análisis.
     ~4 llamadas Gemini (batched) + 2 evaluadores de código. Devuelve scores +
-    razones + per-ítem, para que el dashboard muestre QUÉ evaluó y por qué."""
+    razones + per-ítem, para que el dashboard muestre QUÉ evaluó y por qué.
+
+    `state` (opcional, lo pasa main.py): da a los jueces el OCDS compacto, la
+    verificación determinista de cada bandera y citas literales de
+    `documentos_texto`, para que juzguen la CITA y no la prosa."""
     banderas = [b for b in (banderas or []) if isinstance(b, dict)]
     out = {
         "respaldo": {"ok": 0, "n": 0},
@@ -175,20 +292,28 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
             out["cita_detalle"].append({"regla": b.get("regla"), "falta": falta})
 
     # respaldo_de_bandera (LLM, batched, máx 12).
-    bl = banderas[:12]
+    _max_band = int(os.getenv("EVAL_MAX_BANDERAS", "24"))
+    bl = banderas[:_max_band]
     if bl:
         items = [{
             "i": i, "regla": b.get("regla"), "norma": b.get("norma"),
             "evidencia": (b.get("evidencia") or "")[:400],
+            **_contexto_bandera(b, state),
         } for i, b in enumerate(bl)]
+        ctx_ocds = _contexto_ocds(state)
         prompt = (
             "Eres un auditor de un sistema anti-corrupción. Para CADA bandera, decide "
-            "si su EVIDENCIA es concreta y verificable (cita datos específicos: RUC, "
-            "monto, fecha, artículo, nombre) o si es vaga/genérica/posible invención.\n"
+            "si su EVIDENCIA está respaldada por datos verificables: cita RUC, monto, "
+            "fecha, artículo o nombre que COINCIDEN con el CONTEXTO OCDS, con la "
+            "`verificacion_determinista` (ok=true y motivos sin 'no_respaldado') o con "
+            "las `citas_documento` (texto literal del expediente). Es 'no_respaldada' si "
+            "es vaga/genérica, si contradice el contexto o si sus identificadores no "
+            "aparecen en ninguna fuente.\n"
             "Devuelve `veredictos`: lista alineada por índice; cada elemento "
             "{label:'respaldada'|'no_respaldada', reason: 1 frase con el dato "
             "concreto que la respalda, o qué dato verificable le falta}.\n\n"
-            f"BANDERAS:\n{json.dumps(items, ensure_ascii=False)}"
+            f"CONTEXTO OCDS (fuente oficial):\n{json.dumps(ctx_ocds, ensure_ascii=False, default=str)}\n\n"
+            f"BANDERAS:\n{json.dumps(items, ensure_ascii=False, default=str)}"
         )
         verds = _judge_array_reason(prompt, len(bl), ["respaldada", "no_respaldada"])
         out["n_judge_calls"] += 1

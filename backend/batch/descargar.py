@@ -397,6 +397,31 @@ def cmd_records(args: argparse.Namespace) -> None:
 
 
 # ── documentos ──────────────────────────────────────────────────────────
+_gcs_cliente = None
+
+
+def leer_record_item(it: dict) -> dict | None:
+    """Record de un ítem de lote: del archivo local o, si `subir --limpiar` ya lo borró, del bucket
+    (`meta.archivos[0].gs`). None si no está en ningún lado."""
+    global _gcs_cliente
+    path = BATCH_DIR / it["ruta"] if it.get("ruta") else None
+    if path and path.exists():
+        return leer_gz(path)
+    gs = ((it.get("meta") or {}).get("archivos") or [{}])[0].get("gs")
+    if not gs:
+        return None
+    try:
+        from google.cloud import storage
+        if _gcs_cliente is None:
+            _gcs_cliente = storage.Client()
+        bucket, _, name = gs[5:].partition("/")
+        raw = _gcs_cliente.bucket(bucket).blob(name).download_as_bytes()
+        return json.loads(gzip.decompress(raw).decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        log.warning("   no pude leer %s desde GCS: %s", it.get("clave"), str(e)[:120])
+        return None
+
+
 def documentos_de_record(rec: dict) -> list[dict]:
     """Documentos de tender + awards + contracts del compiledRelease, con `seccion`."""
     comp = rec.get("compiledRelease") or rec
@@ -490,11 +515,11 @@ def cmd_documentos(args: argparse.Namespace) -> None:
         nuevos: dict[str, dict] = {}
         n_docs = n_records = 0
         for it in est.items(args.lote, "completed"):
-            path = BATCH_DIR / it["ruta"]
-            if not path.exists():
+            rec = leer_record_item(it)
+            if rec is None:
                 continue
             n_records += 1
-            for d in documentos_de_record(leer_gz(path)):
+            for d in documentos_de_record(rec):
                 n_docs += 1
                 if args.politica == "clave" and d.get("documentType") not in DOC_TIPOS_CLAVE:
                     continue

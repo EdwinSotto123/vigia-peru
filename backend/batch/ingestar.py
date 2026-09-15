@@ -369,6 +369,17 @@ class Ingesta:
                           it["sha256"], meta.get("bytes_reales") or it.get("bytes"), meta.get("url"),
                           extension_de(meta), pub, lote_id))
             claves.append(it["clave"])
+        # Dos documentos del mismo contrato con bytes idénticos (p. ej. bases y contrato iguales)
+        # comparten (ocid, sha256): el UPSERT no admite la misma clave dos veces en un comando.
+        vistos: set[tuple] = set()
+        unicas = []
+        for f in filas:
+            k = (f[0], f[5])
+            if k in vistos:
+                continue
+            vistos.add(k)
+            unicas.append(f)
+        filas = unicas
         if not self.dry_run and filas:
             with self.conn.cursor() as cur:
                 if self.hay_retencion:
@@ -442,7 +453,7 @@ class Ingesta:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--lote", action="append", default=[], help="id de lote (repetible); sin esto, descubre los pendientes")
+    ap.add_argument("--lote", nargs="+", action="extend", default=[], help="ids de lote (uno o varios); sin esto, descubre los pendientes")
     ap.add_argument("--bucket", default=BUCKET_DEFAULT)
     ap.add_argument("--prefijo", default=PREFIJO_DEFAULT)
     ap.add_argument("--dry-run", action="store_true")

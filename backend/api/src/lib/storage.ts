@@ -41,3 +41,22 @@ export async function signUploadUrl(opts: {
   const blobUrl = `https://storage.googleapis.com/${bucketName}/${opts.filename}`;
   return { uploadUrl, blobUrl };
 }
+
+/**
+ * URL firmada de LECTURA (v4, 15 min) para un objeto `gs://bucket/ruta` — usada para
+ * previsualizar/descargar documentos del SEACE guardados en el bucket de lotes (retención 90 días).
+ * El bucket es privado: el enlace vence solo y no expone el resto del almacén.
+ */
+export async function signReadUrl(gsUri: string, opts: { expiresInMs?: number; filename?: string; contentType?: string } = {}): Promise<string> {
+  const m = /^gs:\/\/([^/]+)\/(.+)$/.exec(gsUri);
+  if (!m) throw new Error(`gs uri inválida: ${gsUri}`);
+  const file = storage.bucket(m[1]).file(m[2]);
+  const [url] = await file.getSignedUrl({
+    version: "v4",
+    action: "read",
+    expires: Date.now() + (opts.expiresInMs ?? 15 * 60 * 1000),
+    ...(opts.filename ? { responseDisposition: `inline; filename="${opts.filename.replace(/["\r\n]/g, "")}"` } : {}),
+    ...(opts.contentType ? { responseType: opts.contentType } : {}),
+  });
+  return url;
+}
