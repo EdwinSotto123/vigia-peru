@@ -255,6 +255,81 @@ adminRouter.get("/log", async (c) => {
   return c.json({ data: r.rows });
 });
 
+
+// ─── Salud del sistema (para el resumen del panel) ───────────────────────────
+adminRouter.get("/salud", async (c) => {
+  const [ingesta, proc, ult, pend, sched] = await Promise.all([
+    pool.query(`SELECT max(created_at) AS "ultimaIngesta",
+                       count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS "ultimas24h",
+                       count(*)::int AS total, count(ubigeo)::int AS "conUbigeo"
+                FROM convocatorias`),
+    pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
+    pool.query(`SELECT p.ocid, p.finalizado_at AS "finalizadoAt",
+                       EXTRACT(EPOCH FROM (p.finalizado_at - p.iniciado_at))::int AS "segundos",
+                       cv.objeto AS titulo, a.score
+                FROM procesamientos p JOIN convocatorias cv ON cv.ocid = p.ocid
+                LEFT JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
+                WHERE p.estado = 'procesado' ORDER BY p.finalizado_at DESC NULLS LAST LIMIT 5`),
+    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente_pago')::int AS "pendientesValidar",
+                       count(*) FILTER (WHERE estado IN ('pagada','en_proceso')
+                         AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id))::int AS "esperandoContratos"
+                FROM contribuciones`),
+    pool.query(`SELECT max(iniciado_at) AS "ultimoInicio", max(latido_at) AS "ultimoLatido",
+                       count(*) FILTER (WHERE estado = 'procesando')::int AS "activos"
+                FROM procesamientos`),
+  ]);
+  // Relay residencial (VPS Lima): sin él, el orquestador en GCP no obtiene el OCDS.
+  const relayUrl = process.env.LOCAL_DOWNLOADER_URL ?? null;
+  let relayOk: boolean | null = null;
+  if (relayUrl) {
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(relayUrl.replace(/\/$/, "") + "/health", { signal: ctl.signal }).catch(() => fetch(relayUrl, { signal: ctl.signal }));
+      clearTimeout(t); relayOk = r.ok || r.status < 500;
+    } catch { relayOk = false; }
+  }
+  const porEstado = Object.fromEntries(proc.rows.map((r) => [r.estado, r.n]));
+  const ultimaIngesta: Date | null = ingesta.rows[0].ultimaIngesta;
+  const horasSinIngesta = ultimaIngesta ? (Date.now() - new Date(ultimaIngesta).getTime()) / 36e5 : null;
+  return c.json({
+    ingesta: { ...ingesta.rows[0], horasSinIngesta, ok: horasSinIngesta !== null && horasSinIngesta < 36 },
+    procesamientos: { porEstado, ultimos: ult.rows, ...sched.rows[0] },
+    contribuciones: pend.rows[0],
+    relay: { url: relayUrl, ok: relayOk },
+    generadoEn: new Date().toISOString(),
+  });
+});
+
+// ─── Dispatcher: ejecutar el Cloud Run Job ahora ─────────────────────────────
+// Usa el token de la service account del servicio (metadata server), sin librerías.
+adminRouter.post("/dispatcher/run", async (c) => {
+  const project = process.env.GCS_PROJECT_ID ?? process.env.GOOGLE_CLOUD_PROJECT;
+  const region = process.env.DISPATCHER_REGION ?? "us-central1";
+  const job = process.env.DISPATCHER_JOB ?? "vigia-dispatcher";
+  if (!project) return c.json({ error: "no_project" }, 500);
+  try {
+    const tok = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", { headers: { "Metadata-Flavor": "Google" } });
+    if (!tok.ok) return c.json({ error: "no_metadata_token", detail: "solo funciona desplegado en Cloud Run" }, 500);
+    const { access_token } = (await tok.json()) as { access_token: string };
+    const r = await fetch(`https://run.googleapis.com/v2/projects/${project}/locations/${region}/jobs/${job}:run`, {
+      method: "POST", headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" }, body: "{}",
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return c.json({ error: "run_failed", detail: j?.error?.message ?? r.status }, 502);
+    await log(actor(c), "dispatcher_run", `job:${job}`, { operation: j?.name });
+    return c.json({ ok: true, operation: j?.name ?? null });
+  } catch (e) {
+    return c.json({ error: "internal", detail: (e as Error).message }, 500);
+  }
+});
+
+// ─── Re-encolar todos los que quedaron en error ──────────────────────────────
+adminRouter.post("/procesamientos/reencolar-errores", async (c) => {
+  const r = await pool.query(`UPDATE procesamientos SET estado = 'encolado', intentos = 0, error = NULL, worker = NULL WHERE estado = 'error' RETURNING ocid`);
+  await log(actor(c), "reencolar_errores", "procesamientos", { n: r.rowCount });
+  return c.json({ ok: true, reencolados: r.rowCount });
+});
+
 // ─── Re-asignación (Cloud Scheduler) ─────────────────────────────────────────
 adminRouter.post("/asignar", async (c) => {
   const r = await pool.query(
