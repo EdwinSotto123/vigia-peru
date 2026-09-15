@@ -64,10 +64,31 @@ const TIPO_FALLBACK = `CASE c.categoria WHEN 'goods' THEN 'bienes' WHEN 'service
 interface Exprs {
   tipo: string; etapa: string; modalidad: string; procesable: string; motivo: string;
   agentes: string; validaciones: string; proveedorRuc: string; proveedorNombre: string;
-  estadoProc: string; riesgo: string;
+  estadoProc: string; riesgo: string; operativo: string;
 }
 
-function exprs(cols: Set<string>): Exprs {
+// Migración 19: alcance activo (tipos × etapas) leído de `ajustes` una vez por minuto e inlineado
+// en la SQL como literales validados — la función estado_operativo() por fila costaba ~6 ms × 18 k.
+const TIPOS_OK = ["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro"];
+const ETAPAS_OK = ["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada", "desierta", "cancelada", "nula", "desconocida"];
+let alcanceCache: { at: number; tipos: string[]; etapas: string[] } | null = null;
+async function alcanceActivo(): Promise<{ tipos: string[]; etapas: string[] }> {
+  if (alcanceCache && Date.now() - alcanceCache.at < 60_000) return alcanceCache;
+  let tipos = TIPOS_OK, etapas = ETAPAS_OK;
+  try {
+    const r = await pool.query("SELECT valor FROM ajustes WHERE clave = 'procesamiento'");
+    const v = r.rows[0]?.valor;
+    if (v && Array.isArray(v.tipos_activos) && Array.isArray(v.etapas_activas)) {
+      tipos = v.tipos_activos.filter((x: unknown) => typeof x === "string" && TIPOS_OK.includes(x));
+      etapas = v.etapas_activas.filter((x: unknown) => typeof x === "string" && ETAPAS_OK.includes(x));
+    }
+  } catch { /* sin la tabla/fila → todo activo (comportamiento anterior) */ }
+  alcanceCache = { at: Date.now(), tipos, etapas };
+  return alcanceCache;
+}
+const sqlArray = (xs: string[]) => `ARRAY[${xs.map((x) => `'${x}'`).join(",")}]::text[]`;
+
+function exprs(cols: Set<string>, alcance?: { tipos: string[]; etapas: string[] }): Exprs {
   const supplier = `c.ocds_payload->'awards'->0->'suppliers'->0`;
   const proveedorRuc = cols.has("proveedor_ruc")
     ? `COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(${supplier}->>'id', '^PE-RUC-', ''), ''))`
@@ -89,6 +110,12 @@ function exprs(cols: Set<string>): Exprs {
                       WHEN a.id IS NOT NULL THEN 'procesado'
                       WHEN ${col(cols, "procesable", "boolean")} = false THEN 'pendiente_de_procesamiento'
                       ELSE 'sin_analizar' END`,
+    // Migración 19: en_cola (tipo/etapa activos) · documentos_listos (docs en GCS, análisis aún no activo) · sin_documentos
+    operativo: cols.has("tipo_contratacion") && alcance
+      ? `CASE WHEN c.tipo_contratacion = ANY(${sqlArray(alcance.tipos)}) AND c.etapa = ANY(${sqlArray(alcance.etapas)}) THEN 'en_cola'
+              WHEN EXISTS (SELECT 1 FROM documentos_gcs d WHERE d.ocid = c.ocid AND d.borrado_at IS NULL AND d.expira_at > now()) THEN 'documentos_listos'
+              ELSE 'sin_documentos' END`
+      : `'en_cola'`,
     riesgo: `CASE WHEN a.score IS NULL THEN 'sin_analizar' WHEN a.score >= 70 THEN 'alto' WHEN a.score >= 40 THEN 'medio' ELSE 'bajo' END`,
   };
 }
@@ -109,6 +136,7 @@ const ListQuery = z.object({
   monto_max: z.coerce.number().min(0).optional(),
   riesgo: z.enum(RIESGOS).optional(),
   estado: z.enum(["sin_analizar", "pendiente_de_procesamiento", "encolado", "procesando", "procesado", "error"]).optional(),
+  operativo: z.enum(["en_cola", "documentos_listos", "sin_documentos"]).optional(),
   orden: z.enum(["fecha", "monto", "score"]).default("fecha"),
 });
 
@@ -136,6 +164,7 @@ function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[]): s
   if (q.monto_max != null) w.push(`c.cuantia_referencial <= ${add(q.monto_max)}`);
   if (q.riesgo) w.push(`${ex.riesgo} = ${add(q.riesgo)}`);
   if (q.estado) w.push(`${ex.estadoProc} = ${add(q.estado)}`);
+  if (q.operativo) w.push(`${ex.operativo} = ${add(q.operativo)}`);
   return w;
 }
 
@@ -160,6 +189,7 @@ function selectResumen(ex: Exprs): string {
     cz.ubigeo::text AS ubigeo, z.nombre AS zona, z.lat::float AS lat, z.lon::float AS lon,
     ${ex.procesable} AS procesable,
     ${ex.estadoProc} AS "estadoProcesamiento",
+    ${ex.operativo} AS "estadoOperativo",
     a.score, COALESCE(b.n, 0)::int AS banderas,
     ${ex.proveedorNombre} AS proveedor, ${ex.proveedorRuc} AS "proveedorRuc"`;
 }
@@ -174,7 +204,7 @@ contratosRouter.get("/", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
   const cols = await colsDisponibles();
-  const ex = exprs(cols);
+  const ex = exprs(cols, await alcanceActivo());
   const vals: unknown[] = [];
   const w = buildWhere(q, ex, vals);
   const where = w.length ? `WHERE ${w.join(" AND ")}` : "";
@@ -233,7 +263,7 @@ contratosRouter.get("/geo", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
   const cols = await colsDisponibles();
-  const ex = exprs(cols);
+  const ex = exprs(cols, await alcanceActivo());
   const vals: unknown[] = [];
   const w = buildWhere({ ...q, page: 1, size: 1, orden: "fecha" }, ex, vals);
   w.push(`cz.ubigeo IS NOT NULL`);
@@ -289,7 +319,7 @@ contratosRouter.get("/:ocid", async (c) => {
   const ocid = c.req.param("ocid");
   if (!/^[\w.-]{1,64}$/.test(ocid)) return c.json({ error: "invalid_ocid" }, 400);
   const cols = await colsDisponibles();
-  const ex = exprs(cols);
+  const ex = exprs(cols, await alcanceActivo());
   const emp = cols.has("proveedor_ruc")
     ? `LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc`
     : `LEFT JOIN empresas emp ON emp.ruc = NULLIF(regexp_replace(c.ocds_payload->'awards'->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')`;

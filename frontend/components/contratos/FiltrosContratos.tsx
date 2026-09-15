@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, Search, X } from "lucide-react";
-import { ETAPAS, ORDENES, RIESGOS, TIPOS, contratosQueryString, type ContratosQuery } from "@/lib/contratos";
+import { ETAPAS, OPERATIVOS, ORDENES, RIESGOS, TIPOS, contratosQueryString, type ContratosQuery } from "@/lib/contratos";
 
 interface Props {
   query: ContratosQuery;
@@ -38,7 +38,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, total }: Prop
     timer.current = window.setTimeout(() => navegar({ q: v.trim() || undefined }), 350);
   };
 
-  const activos = [query.tipo, query.etapa, query.ubigeo, query.riesgo, query.entidad, query.monto_min, query.monto_max, query.q].filter((v) => v != null && v !== "").length;
+  const activos = [query.tipo, query.etapa, query.ubigeo, query.riesgo, query.operativo, query.entidad, query.monto_min, query.monto_max, query.q].filter((v) => v != null && v !== "").length;
   const sel = "h-8 rounded-lg border border-line bg-paper px-2 text-xs text-ink outline-none focus:border-clay";
 
   return (
@@ -71,6 +71,10 @@ export function FiltrosContratos({ query, regiones, entidadNombre, total }: Prop
         <select value={query.riesgo ?? ""} onChange={(e) => navegar({ riesgo: (e.target.value || undefined) as ContratosQuery["riesgo"] })} className={sel} aria-label="Señal de riesgo">
           <option value="">Toda señal</option>
           {RIESGOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <select value={query.operativo ?? ""} onChange={(e) => navegar({ operativo: (e.target.value || undefined) as ContratosQuery["operativo"] })} className={sel} aria-label="Estado operativo">
+          <option value="">Cola y documentos</option>
+          {OPERATIVOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <Monto label="Monto mín." value={query.monto_min} onCommit={(v) => navegar({ monto_min: v })} />
         <Monto label="Monto máx." value={query.monto_max} onCommit={(v) => navegar({ monto_max: v })} />

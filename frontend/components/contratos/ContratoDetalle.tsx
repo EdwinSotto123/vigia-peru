@@ -58,7 +58,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           <Badge tone="ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</Badge>
           <Badge>{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</Badge>
           {c.modalidad && <Badge>{c.modalidad}</Badge>}
-          <EstadoContratoPill estado={c.estadoProcesamiento} />
+          <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
         </div>
       </header>
 
@@ -233,6 +233,24 @@ function AnalisisCard({ c, riesgo }: { c: Detalle; riesgo: ReturnType<typeof rie
         <p className="mt-3 text-[11px] leading-relaxed text-mute">
           Cuando el proceso avance de etapa o los agentes soporten este tipo, entrará a la cola de su zona. No se cobra por lo que no se puede analizar.
         </p>
+      </section>
+    );
+  }
+
+  // Migración 19: tipo/etapa fuera del alcance activo → decir qué hay, sin CTA de financiar.
+  if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
+    const listo = c.estadoOperativo === "documentos_listos";
+    return (
+      <section className="rounded-2xl border border-line bg-paper p-4">
+        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
+          <Clock size={12} className={listo ? "text-moss" : "text-mute"} /> {listo ? "Documentos listos para procesarse" : "Análisis en preparación"}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink">
+          {listo
+            ? `Los documentos de este contrato ya están descargados y clasificados. El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo; cuando se active, entrará a la cola de su zona en orden de llegada.`
+            : `El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo. Hoy se procesan contratos de bienes con adjudicación o contrato.`}
+        </p>
+        <Pendientes v={c.clasificacion.validacionesPendientes} />
       </section>
     );
   }

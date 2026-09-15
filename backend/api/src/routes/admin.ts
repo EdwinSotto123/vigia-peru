@@ -252,6 +252,31 @@ adminRouter.put("/config/pagos", async (c) => {
   return c.json({ ok: true, valor: body.data });
 });
 
+// ─── Procesamiento activo (migración 19): qué tipos × etapas entran a la cola ───────────
+const ProcesamientoSchema = z.object({
+  tipos_activos: z.array(z.enum(["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro"])).min(1),
+  etapas_activas: z.array(z.enum(["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada"])).min(1),
+  nota: z.string().max(300).optional().default(""),
+});
+
+adminRouter.get("/config/procesamiento", async (c) => {
+  const r = await pool.query("SELECT valor, updated_at AS \"updatedAt\", updated_by AS \"updatedBy\" FROM ajustes WHERE clave = 'procesamiento'");
+  const cola = await pool.query("SELECT count(*)::int AS n FROM cola_auditoria").catch(() => ({ rows: [{ n: null }] }));
+  return c.json({ ...(r.rows[0] ?? { valor: {} }), cola: cola.rows[0].n });
+});
+
+adminRouter.put("/config/procesamiento", async (c) => {
+  const body = ProcesamientoSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  await pool.query(
+    `INSERT INTO ajustes (clave, valor, updated_at, updated_by) VALUES ('procesamiento', $1, now(), $2)
+     ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+    [JSON.stringify(body.data), actor(c)]);
+  await pool.query("SELECT refresh_financiamiento()").catch(() => null);
+  await log(actor(c), "editar_procesamiento", "ajustes:procesamiento", body.data);
+  return c.json({ ok: true, valor: body.data });
+});
+
 // ─── Bitácora ────────────────────────────────────────────────────────────────
 adminRouter.get("/log", async (c) => {
   const r = await pool.query(`SELECT actor, accion, objeto, detalle, created_at AS "createdAt" FROM admin_log ORDER BY created_at DESC LIMIT 100`);
