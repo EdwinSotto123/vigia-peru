@@ -15,7 +15,7 @@ export type EtapaContrato =
   | "planificacion" | "convocada" | "adjudicada" | "contratada" | "en_ejecucion"
   | "finalizada" | "desierta" | "cancelada" | "nula" | "desconocida";
 export type RiesgoContrato = "alto" | "medio" | "bajo" | "sin_analizar";
-export type EstadoContrato = "sin_analizar" | "pendiente_de_procesamiento" | "encolado" | "procesando" | "procesado" | "error";
+export type EstadoContrato = "sin_analizar" | "pendiente_de_procesamiento" | "esperando_documentos" | "encolado" | "procesando" | "procesado" | "error";
 export type OrdenContratos = "fecha" | "monto" | "score";
 
 export interface ContratoResumen {
@@ -92,6 +92,10 @@ export interface ContratoDetalle extends ContratoResumen {
   alerta: { id: string; codigo: string; score: number | null; estado: string; analizadoEn: string | null; banderas: BanderaResumen[] } | null;
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
+  /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */
+  documentosEnVigia: { n: number; expiraAt: string | null } | null;
+  /** Pedido de descarga abierto (el batch nocturno lo atiende). */
+  pedidoDescarga: { estado: "pendiente" | "descargando"; solicitadoAt: string } | null;
 }
 
 export interface ContratoZona {
@@ -270,6 +274,8 @@ export interface ResumenProcesamientoVivo {
   activos: ProcesamientoActivo[];
   lote: LoteIngesta | null;
   descargados24h: number;
+  /** Pedidos de descarga (migración 15); null si la tabla no existe. */
+  pedidos: { pendientes: number; descargando: number; listos24h: number; fallidos: number } | null;
   agentesActivos: string[];
 }
 

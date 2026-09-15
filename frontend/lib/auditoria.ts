@@ -10,7 +10,7 @@
 
 import { API_BASE } from "./api-client";
 
-export type EstadoProc = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento";
+export type EstadoProc = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento" | "esperando_documentos";
 
 export interface Procesamiento {
   ocid: string;
@@ -69,6 +69,7 @@ export const ESTADO_PROC: Record<EstadoProc, { label: string; cls: string }> = {
   procesado: { label: "Procesado", cls: "bg-moss/10 text-moss" },
   error: { label: "Reintentando", cls: "bg-crimson-soft text-crimson" },
   pendiente_de_procesamiento: { label: "Pendiente de procesamiento", cls: "bg-paperDeep text-amber" },
+  esperando_documentos: { label: "Esperando documentos", cls: "bg-amber-soft/60 text-clay" },
 };
 
 /** URL del API utilizable desde client components (NEXT_PUBLIC_* se inyecta en build). */
@@ -149,4 +150,4 @@ export function duracion(ms: number): string {
   return `${h} h ${String(m % 60).padStart(2, "0")} min`;
 }
 
-export const esActivo = (estado: EstadoProc) => estado === "encolado" || estado === "procesando";
+export const esActivo = (estado: EstadoProc) => estado === "encolado" || estado === "procesando" || estado === "esperando_documentos";

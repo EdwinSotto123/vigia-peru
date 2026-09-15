@@ -69,7 +69,7 @@ async function hayLotesIngesta(): Promise<boolean> {
 }
 
 procesamientosRouter.get("/resumen", async (c) => {
-  const [r, hoy, activos, descargados, lote] = await Promise.all([
+  const [r, hoy, activos, descargados, pedidos, lote] = await Promise.all([
     pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
     pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
     pool.query(
@@ -77,6 +77,12 @@ procesamientosRouter.get("/resumen", async (c) => {
               GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
        FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
     pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
+    // Migración 15: pedidos de descarga (contratos financiados sin documentos en GCS).
+    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente')::int AS pendientes,
+                       count(*) FILTER (WHERE estado = 'descargando')::int AS descargando,
+                       count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int AS "listos24h",
+                       count(*) FILTER (WHERE estado = 'fallido')::int AS fallidos
+                FROM pedidos_descarga`).then((q) => q.rows[0]).catch(() => null),
     (async () => {
       if (!(await hayLotesIngesta())) return null;
       try {
@@ -90,7 +96,7 @@ procesamientosRouter.get("/resumen", async (c) => {
       }
     })(),
   ]);
-  const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0 };
+  const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0 };
   for (const x of r.rows) porEstado[x.estado] = x.n;
   const agentesActivos = Array.from(new Set(
     activos.rows.map((a) => a.faseActual as string | null).filter((f): f is string => !!f && f !== "started" && f !== "final"),
@@ -102,6 +108,7 @@ procesamientosRouter.get("/resumen", async (c) => {
     activos: activos.rows,
     lote,
     descargados24h: descargados.rows[0].n,
+    pedidos,
     agentesActivos,
   });
 });

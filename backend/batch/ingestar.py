@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import os
 import logging
 import sys
 import time
@@ -92,6 +93,11 @@ SQL_DOCUMENTOS = """
       url_gcs = EXCLUDED.url_gcs, tipo = COALESCE(EXCLUDED.tipo, documentos_gcs.tipo),
       titulo = COALESCE(EXCLUDED.titulo, documentos_gcs.titulo), bytes = COALESCE(EXCLUDED.bytes, documentos_gcs.bytes),
       formato = COALESCE(EXCLUDED.formato, documentos_gcs.formato), lote_id = EXCLUDED.lote_id"""
+
+# Migración 15: al re-subir un documento (p. ej. tras expirar) renueva su vigencia.
+SQL_DOCUMENTOS_RETENCION = SQL_DOCUMENTOS + """,
+      creado_at = now(), borrado_at = NULL, expira_at = now() + make_interval(days => %(dias)s)"""
+RETENCION_DIAS = int(os.getenv("RETENCION_DIAS", "90"))
 
 
 # ── GCS ─────────────────────────────────────────────────────────────────
@@ -181,6 +187,8 @@ class Ingesta:
         self.ix = self._zona_index()
         self.hay_clasificacion = self._columna_existe("convocatorias", "tipo_contratacion")
         self.hay_documentos = self._tabla_existe("documentos_gcs")
+        self.hay_retencion = self.hay_documentos and self._columna_existe("documentos_gcs", "expira_at")
+        self.hay_pedidos = self._tabla_existe("pedidos_descarga")
         self.hay_lotes = self._tabla_existe("lotes_ingesta")
         if _clasificar is None:
             log.warning("backend.core.clasificacion no disponible: se ingiere sin clasificar")
@@ -363,7 +371,10 @@ class Ingesta:
             claves.append(it["clave"])
         if not self.dry_run and filas:
             with self.conn.cursor() as cur:
-                execute_values(cur, SQL_DOCUMENTOS, filas, page_size=500)
+                if self.hay_retencion:
+                    execute_values(cur, SQL_DOCUMENTOS_RETENCION.replace("%(dias)s", str(RETENCION_DIAS)), filas, page_size=500)
+                else:
+                    execute_values(cur, SQL_DOCUMENTOS, filas, page_size=500)
         self._marcar_items(lote_id, claves, "ok")
         self.conn.commit()
         log.info("   %d documentos registrados", len(filas))
@@ -404,6 +415,18 @@ class Ingesta:
             listos = {r[0] for r in cur.fetchall()}
         return [l for l in en_bucket if l not in listos]
 
+    def cerrar_pedidos(self) -> int:
+        """Migración 15: pedidos de descarga atendidos → `listo` y sus procesamientos vuelven a la cola."""
+        if self.dry_run or not self.hay_pedidos:
+            return 0
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT cerrar_pedidos_atendidos()")
+            n = cur.fetchone()[0]
+        self.conn.commit()
+        if n:
+            log.info("   %d procesamientos re-encolados (pedidos de descarga atendidos)", n)
+        return n
+
     def refrescar(self) -> None:
         if self.dry_run or not self.convocatorias_tocadas:
             return
@@ -438,6 +461,7 @@ def main(argv: list[str] | None = None) -> int:
             log.info("no hay lotes pendientes en gs://%s/%slotes/", args.bucket, alm.prefijo)
             return 0
         resultados = [ing.ingerir_lote(l) for l in lotes]
+        ing.cerrar_pedidos()
         ing.refrescar()
     finally:
         ing.close()

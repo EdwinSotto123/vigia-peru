@@ -59,7 +59,7 @@ def archivos_de_item(item: dict) -> list[Path]:
 
 
 class Subidor:
-    def __init__(self, bucket: str, prefijo: str, paralelo: int = 8, dry_run: bool = False):
+    def __init__(self, bucket: str, prefijo: str, paralelo: int = 8, dry_run: bool = False, limpiar: bool = False):
         from google.cloud import storage  # import tardío: la laptop de descarga no siempre lo tiene
 
         self.cliente = storage.Client()
@@ -68,8 +68,9 @@ class Subidor:
         self.prefijo = prefijo if prefijo.endswith("/") or not prefijo else prefijo + "/"
         self.paralelo = paralelo
         self.dry_run = dry_run
+        self.limpiar = limpiar          # borrar el archivo local una vez verificado en GCS (el bucket es el almacén)
         self.lock = threading.Lock()
-        self.stats = {"subidos": 0, "saltados": 0, "bytes": 0, "fallidos": 0}
+        self.stats = {"subidos": 0, "saltados": 0, "bytes": 0, "fallidos": 0, "borrados": 0}
 
     def uri(self, ruta_relativa: str) -> str:
         return f"gs://{self.bucket_name}/{self.prefijo}{ruta_relativa}"
@@ -110,6 +111,20 @@ class Subidor:
         meta["archivos"] = subidos
         if not self.dry_run:
             est.marcar(lote_id, item["clave"], "completed", subido_at=dt.datetime.now().isoformat(timespec="seconds"), meta=meta)
+            if self.limpiar:
+                for p in archivos:
+                    try:
+                        p.unlink()
+                        with self.lock:
+                            self.stats["borrados"] += 1
+                    except OSError as e:
+                        log.warning("   no pude borrar %s: %s", p, e)
+                # carpeta vacía de documentos/<aa>/<ocid> o de la ventana de releases
+                for p in {a.parent for a in archivos}:
+                    try:
+                        p.rmdir()
+                    except OSError:
+                        pass
 
     def subir_lote(self, est: Estado, lote_id: str) -> tuple[str | None, dict]:
         lote = est.lote(lote_id)
@@ -136,9 +151,10 @@ class Subidor:
             return None, self.stats
         manifest_uri = self.escribir_manifiesto(est, lote_id)
         r = est.resumen(lote_id)
-        log.info("━━ subir · lote %s · subidos %d · ya estaban %d · fallidos %d · %.1f MB · %.0fs · manifiesto %s (%d ítems)",
+        log.info("━━ subir · lote %s · subidos %d · ya estaban %d · fallidos %d · %.1f MB · %.0fs · manifiesto %s (%d ítems)%s",
                  lote_id, self.stats["subidos"], self.stats["saltados"], fallidos, self.stats["bytes"] / 1e6,
-                 time.time() - t0, manifest_uri, r["subidos"])
+                 time.time() - t0, manifest_uri, r["subidos"],
+                 f" · {self.stats['borrados']} archivos locales borrados" if self.limpiar else "")
         return manifest_uri, self.stats
 
     def escribir_manifiesto(self, est: Estado, lote_id: str) -> str:
@@ -172,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--prefijo", default=PREFIJO_DEFAULT)
     ap.add_argument("--paralelo", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--limpiar", action="store_true", help="borrar cada archivo local una vez verificado en GCS (el bucket es el almacén; el estado SQLite se conserva)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
     configurar_logs(args.verbose)
@@ -185,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     if not lotes:
         log.info("nada que subir (pasá --lote <id> o --pendientes)")
         return 0
-    sub = Subidor(args.bucket, args.prefijo, args.paralelo, args.dry_run)
+    sub = Subidor(args.bucket, args.prefijo, args.paralelo, args.dry_run, limpiar=args.limpiar)
     codigo = 0
     for lote_id in lotes:
         manifest, stats = sub.subir_lote(est, lote_id)

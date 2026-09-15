@@ -1,0 +1,4 @@
+{"rule": [
+  {"action": {"type": "SetStorageClass", "storageClass": "NEARLINE"}, "condition": {"age": 30, "matchesPrefix": ["batch/documentos/"]}},
+  {"action": {"type": "Delete"}, "condition": {"age": 90, "matchesPrefix": ["batch/documentos/"]}}
+]}

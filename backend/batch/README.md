@@ -85,6 +85,28 @@ de GB (política *metadata-first*, ver `docs/design/VOLUMEN_SEACE.md`).
   reintentar el mismo archivo. Si aun así acumula 25 × 403 seguidos, corta la noche (los ítems
   quedan `failed` con intentos < 3 y se reintentan otra noche con `--lote <id> --reponer`).
 
+## Retención (90 días) y pedidos de descarga bajo demanda — migración 15
+
+- **Metadata para siempre, documentos 90 días.** `convocatorias` (release/record, ~14 KB) se conserva
+  siempre. Los documentos en `gs://vigia-peru-batch/batch/documentos/` pasan a Nearline a los 30 días
+  y **se borran a los 90** (lifecycle del bucket: `infrastructure/deploy/gcs-lifecycle-batch.json`,
+  aplicado con `gcloud storage buckets update gs://vigia-peru-batch --lifecycle-file=…`). En la DB
+  `documentos_gcs.expira_at` (= subida + `RETENCION_DIAS`, default 90) dice hasta cuándo son legibles;
+  `documentos_vigentes(ocid)` es la única fuente de verdad para el dispatcher y la API.
+- **Si alguien financia un contrato sin documentos vigentes** (nunca bajados o ya expirados), el
+  dispatcher (`DISPATCHER_REQUIERE_DOCS_GCS=1`) no lo procesa: llama `esperar_documentos(ocid)` →
+  fila en `pedidos_descarga` + procesamiento en `esperando_documentos` (visible en `/app/auditoria`,
+  el detalle del contrato y `/admin/procesamientos`).
+- **Esa noche** `batch-nocturno.sh` corre primero `descargar pedidos` (los toma como `descargando`,
+  baja el **record de nuevo** —puede haber adjudicación/contrato nuevos— y **todos** sus documentos,
+  sin filtro de tipo), los sube y `vigia-ingest` los registra renovando `expira_at`; al cerrar la
+  corrida `cerrar_pedidos_atendidos()` marca el pedido `listo` y re-encola el procesamiento → el
+  dispatcher lo analiza en su siguiente corrida (≤ 5 min), es decir, **al día siguiente**.
+- Tres noches sin conseguir los documentos → pedido `fallido`, procesamiento `error` con motivo;
+  en `/admin/procesamientos` se puede **Reintentar** (vuelve a `pendiente`).
+- Si un contrato se procesa dos veces (p. ej. re-análisis meses después), el ciclo se repite solo:
+  documentos expirados → pedido → descarga → análisis. Nada se re-descarga mientras esté vigente.
+
 ## Layout local (`dataset/_batch/`, gitignored)
 
 ```

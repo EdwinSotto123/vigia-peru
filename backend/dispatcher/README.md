@@ -6,6 +6,8 @@ la asignación es `asignar_contribucion()` (FIFO en SQL).
 
 ```
 procesamientos.estado:  encolado → procesando (fase_actual avanza) → procesado
+                            ↘ esperando_documentos (sin docs en GCS → batch nocturno → encolado)
+                            ↘ pendiente_de_procesamiento (tipo/etapa sin análisis aplicable)
                                                                   ↘ error (3 intentos)
 ```
 
@@ -40,6 +42,7 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
 | `DISPATCHER_STREAM_TIMEOUT` | 1200 | segundos sin datos del stream antes de darlo por cortado |
 | `DISPATCHER_GRACE_MINUTES` | 20 | si el stream corta sin `final`, cuánto esperar (sondeando la DB) a que el orquestador —que sigue corriendo— persista la alerta |
 | `DISPATCHER_PREFETCH_OCDS` | 1 | intenta bajar el `compiledRelease` desde esta IP y lo pasa precargado al orquestador (sirve desde laptop/VPS en Perú; desde GCP el WAF lo bloquea y el orquestador usa su cadena relay → Worker → directo) |
+| `DISPATCHER_REQUIERE_DOCS_GCS` | 1 | si el contrato no tiene documentos vigentes en GCS (`documentos_vigentes()`, migración 15) no se procesa: abre un `pedido_descarga`, queda `esperando_documentos` y el batch nocturno (`descargar pedidos`) lo baja desde IP peruana; la ingesta lo re-encola al día siguiente. Con `0` (corrida manual con relay/downloader vivo) se procesa igual |
 
 ## Correr local (contra prod, un contrato)
 

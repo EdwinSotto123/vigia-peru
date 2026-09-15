@@ -295,7 +295,7 @@ contratosRouter.get("/:ocid", async (c) => {
   const row = r.rows[0];
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
-  const [alerta, proc] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido] = await Promise.all([
     alerta_id
       ? pool.query(
         `SELECT a.id, a.codigo, a.score, a.estado, a.analizado_en AS "analizadoEn",
@@ -310,6 +310,11 @@ contratosRouter.get("/:ocid", async (c) => {
               financiador_visible AS "financiadorVisible", ubigeo, zona, titulo, entidad, monto_pen::float AS "montoPen",
               alerta_codigo AS "alertaCodigo", score, banderas::int
        FROM procesamientos_publico WHERE ocid = $1`, [row.ocid]),
+    // Migración 15: documentos vigentes en GCS (retención 90 días) y pedido de descarga abierto.
+    pool.query(`SELECT count(*)::int AS n, max(expira_at) AS "expiraAt" FROM documentos_vigentes($1)`, [row.ocid])
+      .then((q) => q.rows[0]).catch(() => null),
+    pool.query(`SELECT estado, solicitado_at AS "solicitadoAt" FROM pedidos_descarga WHERE ocid_corto(ocid) = ocid_corto($1) AND estado IN ('pendiente','descargando') LIMIT 1`, [row.ocid])
+      .then((q) => q.rows[0] ?? null).catch(() => null),
   ]);
 
   const items = (Array.isArray(items_raw) ? items_raw : []).map((it: any, i: number) => ({
@@ -347,6 +352,8 @@ contratosRouter.get("/:ocid", async (c) => {
     adjudicaciones,
     alerta: alerta?.rows[0] ?? null,
     procesamiento: proc.rows[0] ?? null,
+    documentosEnVigia: docsGcs ? { n: docsGcs.n, expiraAt: docsGcs.expiraAt } : null,
+    pedidoDescarga: pedido,
     clasificacion: {
       tipo: resumen.tipo ?? null,
       etapa: resumen.etapa ?? null,
