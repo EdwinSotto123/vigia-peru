@@ -17,6 +17,8 @@ import { useEffect, useMemo, useState } from "react";
 import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado, pct } from "@/lib/financiamiento";
 
 const VB_W = 480;
@@ -30,9 +32,11 @@ interface Props {
   zonas: Zona[];                 // departamentos (nivel 1) con estado
   compact?: boolean;             // versión landing: sin panel, solo mapa + leyenda
   initialUbigeo?: string | null; // abrir ya en un departamento
+  linkToHub?: boolean;           // compact: clic en un departamento → /app/mapa?region=… (el único mapa interactivo)
 }
 
-export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Props) {
+export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false }: Props) {
+  const router = useRouter();
   const [depts, setDepts] = useState<DeptFC | null>(null);
   const [provs, setProvs] = useState<ProvFC | null>(null);
   const [selected, setSelected] = useState<string | null>(initialUbigeo);   // ubigeo de departamento (2 dígitos)
@@ -139,10 +143,13 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Pr
                     stroke="#FFFFFF"
                     strokeWidth={isSel ? 0.6 : 0.9}
                     opacity={dim ? 0.25 : 1}
-                    className={compact ? "" : "cursor-pointer transition-opacity"}
+                    className={compact && !linkToHub ? "" : "cursor-pointer transition-opacity"}
                     onMouseEnter={() => setHover(p.code)}
                     onMouseLeave={() => setHover(null)}
-                    onClick={() => !compact && setSelected(isSel ? null : p.code)}
+                    onClick={() => {
+                      if (compact) { if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`); return; }
+                      setSelected(isSel ? null : p.code);
+                    }}
                   />
                   {z?.estado === "pendiente" && !sinFinanciamiento && !dim && (
                     <path d={p.d} fill="#D9DEE4" opacity={0.55} pointerEvents="none" />
