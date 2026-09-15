@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Landmark } from "lucide-react";
-import { CampaignMap } from "@/components/financiar/CampaignMap";
+import { ZonaPicker } from "@/components/financiar/ZonaPicker";
 import { RankingTable } from "@/components/financiar/RankingTable";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { getEstadoGlobal, getRanking, getRecientes, getZonas, formatPEN } from "@/lib/financiamiento";
@@ -43,8 +43,8 @@ export default async function FinanciarPage() {
               contratos pendientes. Los resultados son públicos, siempre.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#mapa" className="inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
-                Ver el mapa de auditoría <ArrowRight size={16} />
+              <a href="#zonas" className="inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+                Elegir mi zona <ArrowRight size={16} />
               </a>
               <a href="#independencia" className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep">
                 <ShieldCheck size={16} /> Cómo se protege la independencia
@@ -64,25 +64,19 @@ export default async function FinanciarPage() {
         </div>
       </section>
 
-      {/* ─── MAPA ─── */}
-      <section id="mapa" className="container-page scroll-mt-20 py-16">
+      {/* ─── ELIGE TU ZONA (sin mapa: el mapa vive en /app/mapa) ─── */}
+      <section id="zonas" className="container-page scroll-mt-20 py-16">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="font-serif text-3xl font-bold text-ink">Mapa de auditoría</h2>
+            <h2 className="font-serif text-3xl font-bold text-ink">Elige la zona que quieres auditar</h2>
             <p className="mt-1 max-w-2xl text-sm text-mute">
-              Cada región muestra cuántos contratos esperan análisis y cuánto falta para cubrirlos.
-              Haz clic para ver provincias y financiar una zona concreta.
+              Busca tu departamento, provincia o distrito. Verás cuántos contratos esperan lectura y cuánto cuesta cubrirlos.
+              Si prefieres verlo en el mapa, <Link href="/app/mapa" className="underline">ábrelo aquí</Link>.
             </p>
           </div>
-          <div className="text-xs text-mute">Actualizado cada 5 minutos · fuente: SEACE/OECE vía OCDS</div>
+          <div className="text-xs text-mute">Fuente: SEACE/OECE vía OCDS · actualizado a diario</div>
         </div>
-        {zonas ? (
-          <CampaignMap zonas={zonas} />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-line p-10 text-center text-sm text-mute">
-            El servicio de datos no respondió. Vuelve a intentar en unos minutos.
-          </div>
-        )}
+        <ZonaPicker zonas={zonas ?? []} precioPen={precio} />
       </section>
 
       {/* ─── RANKING + RECIENTES ─── */}

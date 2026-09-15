@@ -53,11 +53,11 @@ export async function HeroCompacto() {
           <div>
             <div className="overflow-hidden rounded-3xl border border-line bg-paperSoft shadow-card">
               <div className="flex items-center justify-between border-b border-line bg-paper px-4 py-2.5">
-                <span className="inline-flex items-center gap-2 text-xs font-semibold text-ink"><Radio size={12} className="text-rust" /> Mapa de auditoría · en vivo</span>
+                <span className="inline-flex items-center gap-2 text-xs font-semibold text-ink"><Radio size={12} className="text-rust" /> Mapa de auditoría · toca una región</span>
                 <span className="font-mono text-[10px] text-mute">SEACE · OECE · OCDS</span>
               </div>
               <div className="p-4 sm:p-5">
-                {zonas ? <CampaignMap zonas={zonas} compact /> : <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>}
+                {zonas ? <CampaignMap zonas={zonas} compact linkToHub /> : <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>}
               </div>
             </div>
             {top.length > 0 && (
