@@ -101,7 +101,7 @@ export async function MapaHubSection() {
                 <ul className="mt-3 divide-y divide-line">
                   {topCola.map((z) => {
                     const regionId = UBIGEO_REGION[z.ubigeo];
-                    const href = regionId ? `/app/mapa?region=${regionId}` : `/financiar/${z.ubigeo}`;
+                    const href = regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;
                     const pct = z.totalCola > 0 ? Math.min(100, Math.round((z.financiados / z.totalCola) * 100)) : 0;
                     return (
                       <li key={z.ubigeo}>

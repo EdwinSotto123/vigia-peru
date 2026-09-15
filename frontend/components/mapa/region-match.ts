@@ -3,7 +3,7 @@
  *
  * - `REGION_UBIGEO`: regionId (slug de `lib/peru-data` y `properties.id` del
  *   geojson) → ubigeo INEI de departamento (`properties.code`). Es la llave que
- *   une el mapa de alertas con "Financia una auditoría" (`/financiar/[ubigeo]`).
+ *   une el mapa de alertas con "Financia una auditoría" (`/app/financiar/[ubigeo]`).
  * - `belongsToRegion`: las alertas/entidades/reportes de la base traen `region`
  *   a veces como departamento ("Áncash"), a veces como provincia ("Huamanga").
  *   Comparamos normalizado contra el nombre del departamento y sus provincias.

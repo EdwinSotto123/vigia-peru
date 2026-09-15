@@ -105,7 +105,7 @@ export default async function LandingPage() {
               title="Tres meses de investigación, en tres minutos."
               body="Cada contrato procesado deja un dictamen con red de personas, señales que citan artículo de ley y opiniones OECE, y links a las fuentes oficiales. Tú verificas y publicas."
               action="Ver la auditoría en vivo →"
-              href="/auditoria"
+              href="/app/auditoria"
             />
             <AudienceCard
               icon={<Persona tool={<Gavel size={12} />} />}

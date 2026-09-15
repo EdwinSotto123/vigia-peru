@@ -19,7 +19,6 @@ import { formatSoles, ALERTAS_MOCK } from "@/lib/mock-data";
 import { getReportes, getAlertas } from "@/lib/api-client";
 import { getZonas, ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado } from "@/lib/financiamiento";
 import { coordsForRegionWithJitter } from "@/lib/region-coords";
-import { AgentsRibbon } from "./AgentsRibbon";
 import { RegionDetailPanel } from "./RegionDetailPanel";
 import { UBIGEO_REGION } from "./mapa/region-match";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
@@ -60,7 +59,7 @@ export function MapaWrapper({
   const [showAlertas, setShowAlertas] = useState(true);
   const [showDenuncias, setShowDenuncias] = useState(true);
   // Capa opcional: pinta cada departamento por estado de financiamiento de su auditoría.
-  const [showFinanciamiento, setShowFinanciamiento] = useState(false);
+  const [showFinanciamiento, setShowFinanciamiento] = useState(true);   // cola real por región; el selector de métricas mock se retiró
   const [zonas, setZonas] = useState<Zona[] | null>(null);
   const [reportes, setReportes] = useState<any[]>([]);
   const [alertasApi, setAlertasApi] = useState<any[]>([]);
@@ -174,7 +173,6 @@ export function MapaWrapper({
 
   return (
     <div className="space-y-4">
-      <AgentsRibbon />
 
       {/* Marquee de alertas */}
       <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft py-1 shadow-card">
@@ -208,25 +206,6 @@ export function MapaWrapper({
       <div className="surface relative overflow-hidden rounded-3xl">
         {/* TOP STRIP */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-paperDeep px-4 py-3 sm:px-5">
-          {/* Metric switcher */}
-          <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
-            {METRICS.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setMetric(m.id)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                  metric === m.id
-                    ? "bg-ink text-paper"
-                    : "text-mute hover:bg-paper hover:text-ink",
-                )}
-              >
-                {m.icon}
-                <span className="hidden sm:inline">{m.label}</span>
-              </button>
-            ))}
-          </div>
-
           {/* Layer toggles — pines de alertas/denuncias */}
           <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
             <button
@@ -303,7 +282,7 @@ export function MapaWrapper({
         </div>
 
         {/* MAP + PANEL */}
-        <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
           {/* Map area */}
           <div className="relative">
             <div className="aspect-[480/700] max-h-[680px] w-full overflow-hidden">

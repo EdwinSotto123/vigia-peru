@@ -195,7 +195,7 @@ export default function AdminProcesamientosPage() {
             {t.l}
           </button>
         ))}
-        <Link href="/auditoria" target="_blank" className="ml-auto inline-flex items-center gap-1 text-xs text-mute hover:text-ink">
+        <Link href="/app/auditoria" target="_blank" className="ml-auto inline-flex items-center gap-1 text-xs text-mute hover:text-ink">
           <ExternalLink size={12} /> Tablero público
         </Link>
       </div>
@@ -256,7 +256,7 @@ export default function AdminProcesamientosPage() {
                 <td className="px-4 py-2 text-right">
                   <div className="inline-flex items-center gap-1">
                     <Link
-                      href={`/auditoria/${encodeURIComponent(p.ocid)}`}
+                      href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
                       target="_blank"
                       className="inline-flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-[11px] text-ink hover:bg-paperDeep"
                     >

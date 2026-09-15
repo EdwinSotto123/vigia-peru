@@ -27,6 +27,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { ENTIDADES, TIPO_SHORT, type Entidad } from "@/lib/mock-entities";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
+import { REGIONES } from "@/lib/peru-data";
 
 const CATEGORIAS_OBRA = [
   { id: "obra_paralizada", label: "Obra paralizada", emoji: "🚧" },
@@ -58,6 +59,8 @@ function ReporteNuevoInner() {
   const search = useSearchParams();
   const initialModo: Modo = search.get("modo") === "entidad" ? "entidad" : "obra";
   const initialRuc = search.get("ruc") ?? "";
+  // Viene del hub del mapa: /reporte/nuevo?region=lima → prellenamos la región.
+  const initialRegion = REGIONES.find((r) => r.id === (search.get("region") ?? "").toLowerCase())?.nombre ?? "";
 
   const [modo, setModo] = useState<Modo>(initialModo);
   const [submitting, setSubmitting] = useState(false);
@@ -130,6 +133,7 @@ function ReporteNuevoInner() {
         <Confirmacion id={ok} modo={modo} />
       ) : modo === "obra" ? (
         <FormObra
+          initialRegion={initialRegion}
           submitting={submitting}
           setSubmitting={setSubmitting}
           onDone={setOk}
@@ -201,12 +205,15 @@ function FormObra({
   submitting,
   setSubmitting,
   onDone,
+  initialRegion = "",
 }: {
   submitting: boolean;
   setSubmitting: (b: boolean) => void;
   onDone: (id: string) => void;
+  initialRegion?: string;
 }) {
   const [categoria, setCategoria] = useState<string>("");
+  const [region, setRegion] = useState(initialRegion);
   const [descripcion, setDescripcion] = useState("");
   const [archivos, setArchivos] = useState<File[]>([]);
   const [subidos, setSubidos] = useState<MediaSubido[]>([]);
@@ -284,6 +291,7 @@ function FormObra({
         media: subidos,
         lat: ubicacion?.lat ?? null, lon: ubicacion?.lon ?? null,
         direccionTexto: direccionTexto || null,
+        region: region || null,
         provincia: provincia || null,
         distrito: distrito || null,
         montoEstimado: montoEstimado ? Number(montoEstimado) : null,
@@ -417,6 +425,14 @@ function FormObra({
           onChange={(e) => setDireccionTexto(e.target.value)}
           className="mt-3 w-full rounded-xl border border-line bg-paperSoft px-4 py-2.5 text-sm"
         />
+        <select
+          value={region}
+          onChange={(e) => setRegion(e.target.value)}
+          className="mt-2 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm text-ink"
+        >
+          <option value="">Región (departamento)</option>
+          {REGIONES.map((r) => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+        </select>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <input
             type="text"

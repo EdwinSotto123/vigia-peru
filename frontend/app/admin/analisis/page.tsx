@@ -28,7 +28,7 @@ export default function AdminAnalisisPage() {
             <Activity size={12} /> Procesamiento automático
           </Link>
           <Link
-            href="/auditoria"
+            href="/app/auditoria"
             target="_blank"
             className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs text-ink hover:bg-paperDeep"
           >

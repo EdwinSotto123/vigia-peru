@@ -36,10 +36,13 @@ entidadesRouter.get("/", async (c) => {
        COALESCE(a.monto, 0)::float AS monto,
        COALESCE(a.score_avg, 0)::int AS "scorePromedio",
        (e.metadata->>'reportes_mock')::int             AS reportes,
-       (e.metadata->>'contratos')::int                 AS contratos,
-       (e.metadata->>'contratos_vigilados')::int       AS "contratosVigilados",
+       COALESCE(cv.contratos, (e.metadata->>'contratos')::int, 0)::int AS contratos,
+       COALESCE(a.alertas, (e.metadata->>'contratos_vigilados')::int, 0)::int AS "contratosVigilados",
        e.metadata->'serie_mock'                        AS serie
      FROM entidades e
+     LEFT JOIN (
+       SELECT entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias GROUP BY entidad_ruc
+     ) cv ON cv.entidad_ruc = e.ruc
      LEFT JOIN (
        SELECT entidad_ruc,
               COUNT(*)::int AS alertas,
@@ -76,7 +79,10 @@ entidadesRouter.get("/:ruc", async (c) => {
     pool.query(
       `SELECT e.*,
               COALESCE(a.alertas, 0)::int AS alertas,
-              COALESCE(a.monto, 0)::float AS monto
+              COALESCE(a.monto, 0)::float AS monto,
+              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc)::int AS contratos,
+              (SELECT count(*) FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE c.entidad_ruc = e.ruc)::int AS "contratosEnCola",
+              (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre"
          FROM entidades e
          LEFT JOIN (
            SELECT entidad_ruc, COUNT(*) AS alertas, SUM(monto_adjudicado) AS monto

@@ -306,7 +306,8 @@ function DenunciaCard({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={reporte.fotoUrl}
-                alt={reporte.descripcion}
+                alt=""
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />

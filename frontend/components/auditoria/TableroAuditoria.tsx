@@ -209,7 +209,7 @@ function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
   const transcurrido = p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   return (
     <Link
-      href={`/auditoria/${encodeURIComponent(p.ocid)}`}
+      href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
       className={`block rounded-xl border bg-paper p-3 transition-all hover:-translate-y-0.5 hover:shadow-card ${
         p.estado === "procesando" ? "border-amber/50 ring-1 ring-amber/20" : "border-line"
       }`}

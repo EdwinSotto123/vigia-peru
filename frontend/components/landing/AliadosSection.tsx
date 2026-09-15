@@ -24,10 +24,10 @@ export async function AliadosSection() {
             <Mini v={String(estado?.regionesConAuditoria ?? 0)} l="regiones con auditoría" />
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/financiar" className="group inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+            <Link href="/app/financiar" className="group inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
               Financiar una auditoría <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <Link href="/financiar#independencia" className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep">
+            <Link href="/app/financiar#independencia" className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep">
               <ShieldCheck size={16} /> Reglas de independencia
             </Link>
           </div>

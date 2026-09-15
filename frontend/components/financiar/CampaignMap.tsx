@@ -310,7 +310,7 @@ function ZonaPanel({ zona, provincias }: { zona: Zona; provincias: Zona[] }) {
           <ul className="mt-2 max-h-40 space-y-1 overflow-auto pr-1 text-sm">
             {provincias.filter((z) => z.totalCola > 0).map((z) => (
               <li key={z.ubigeo} className="flex items-center justify-between">
-                <Link href={`/financiar/${z.ubigeo}`} className="flex items-center gap-2 hover:underline">
+                <Link href={`/app/financiar/${z.ubigeo}`} className="flex items-center gap-2 hover:underline">
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[z.estado] }} />{z.nombre}
                 </Link>
                 <span className="font-mono text-xs text-mute">{z.financiados}/{z.totalCola}</span>
@@ -322,7 +322,7 @@ function ZonaPanel({ zona, provincias }: { zona: Zona; provincias: Zona[] }) {
       )}
 
       <Link
-        href={`/financiar/${zona.ubigeo}`}
+        href={`/app/financiar/${zona.ubigeo}`}
         className="mt-5 flex w-full items-center justify-center rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01]"
       >
         {restantes > 0 ? `Financiar auditoría · quedan ${restantes.toLocaleString("es-PE")} contratos` : "Ver auditoría de la zona"}

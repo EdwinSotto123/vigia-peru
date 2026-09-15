@@ -71,7 +71,7 @@ export function AlertasDeZona({
           Sin señales de riesgo publicadas en {nombre} todavía. Los contratos de la zona se analizan a
           medida que su auditoría se financia.
         </p>
-        <Link href="/financiar" className="mt-3 inline-block text-[11px] font-medium text-clay hover:underline">
+        <Link href="/app/financiar" className="mt-3 inline-block text-[11px] font-medium text-clay hover:underline">
           Financiar la auditoría de {nombre} →
         </Link>
       </div>

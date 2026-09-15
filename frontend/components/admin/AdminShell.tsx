@@ -43,7 +43,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
           })}
         </nav>
         <div className="space-y-1 border-t border-paper/10 p-3 text-sm">
-          <Link href="/financiar" target="_blank" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-paper/65 hover:bg-paper/5 hover:text-paper">
+          <Link href="/app/financiar" target="_blank" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-paper/65 hover:bg-paper/5 hover:text-paper">
             <ExternalLink size={16} /> Ver sitio público
           </Link>
           <button onClick={logout} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-paper/65 hover:bg-paper/5 hover:text-paper">

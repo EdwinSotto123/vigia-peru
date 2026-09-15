@@ -26,8 +26,8 @@ const DASHBOARD_PATHS = [
 /** Navegación pública. El orden es el recorrido del producto: mapa → financiar → ver en vivo → aliados → denunciar. */
 const NAV = [
   { href: "/app/mapa", label: "Mapa" },
-  { href: "/auditoria", label: "Auditoría en vivo" },
-  { href: "/aliados", label: "Aliados" },
+  { href: "/app/auditoria", label: "Auditoría en vivo" },
+  { href: "/app/aliados", label: "Aliados" },
   { href: "/reporte/nuevo", label: "Denunciar" },
   { href: "/preguntas", label: "FAQ" },
 ];
@@ -65,7 +65,7 @@ export function Header() {
           <UserMenu />
           {showNav && (
             <Link
-              href="/financiar"
+              href="/app/financiar"
               className="hidden items-center gap-1.5 rounded-full bg-amber px-4 py-2 text-sm font-semibold text-coal transition-all hover:scale-[1.03] sm:inline-flex"
             >
               <Heart size={14} className="fill-rust text-rust" /> Financiar una auditoría

@@ -26,7 +26,7 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
             <div className="text-ink">
               <span className="font-semibold">{c.financiador}</span> financió la auditoría de{" "}
               <span className="font-mono">{c.contratos}</span> contratos en{" "}
-              <Link href={`/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
+              <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
             </div>
             {c.mensajePublico && <div className="mt-0.5 text-[13px] italic text-mute">“{c.mensajePublico}”</div>}
             <div className="mt-1 text-[11px] text-mute">

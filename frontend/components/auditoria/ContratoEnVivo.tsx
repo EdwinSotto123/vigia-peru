@@ -102,7 +102,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-mute">
-        <Link href={`/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 hover:underline">
+        <Link href={`/app/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 hover:underline">
           <ChevronLeft size={14} /> Auditoría en vivo
         </Link>
         <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true">
@@ -133,7 +133,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
             <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
               <span className="inline-flex items-center gap-1"><Landmark size={13} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
-              <Link href={`/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
+              <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
               {p.montoPen != null && p.montoPen > 0 && <span className="font-mono text-ink">{formatPEN(p.montoPen)}</span>}
             </div>
           </div>
@@ -226,14 +226,14 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
             <Link href={`/impacto/${p.contribucionCodigo}`} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-mute hover:bg-paperDeep">
               Comprobante de impacto <ArrowUpRight size={13} aria-hidden />
             </Link>
-            <Link href={`/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-mute hover:bg-paperDeep">
+            <Link href={`/app/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-mute hover:bg-paperDeep">
               Más contratos en vivo <ArrowUpRight size={13} aria-hidden />
             </Link>
           </div>
 
           <div className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-moss" aria-hidden />
-            <span>El pipeline no sabe quién financió este análisis. Los resultados se publican aunque señalen al financiador. <Link href="/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
+            <span>El pipeline no sabe quién financió este análisis. Los resultados se publican aunque señalen al financiador. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
           </div>
         </div>
       </div>

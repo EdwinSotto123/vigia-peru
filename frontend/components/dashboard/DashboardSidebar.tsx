@@ -65,18 +65,18 @@ const SECTIONS: Section[] = [
           p.startsWith("/convocatoria"),
       },
       {
-        href: "/auditoria",
+        href: "/app/auditoria",
         label: "Auditoría en vivo",
         icon: <Activity size={16} />,
         hint: "Cola → procesando → listo",
-        match: (p) => p.startsWith("/auditoria"),
+        match: (p) => p.startsWith("/app/auditoria"),
       },
       {
-        href: "/aliados",
+        href: "/app/aliados",
         label: "Aliados",
         icon: <Users size={16} />,
         hint: "Quienes financian la lectura",
-        match: (p) => p.startsWith("/aliados") || p.startsWith("/aliado/"),
+        match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
       },
     ],
   },
@@ -84,12 +84,12 @@ const SECTIONS: Section[] = [
     title: "Acción",
     items: [
       {
-        href: "/financiar",
+        href: "/app/financiar",
         label: "Financiar",
         icon: <Heart size={16} />,
         hint: "Capacidad de auditoría",
         featured: true,
-        match: (p) => p.startsWith("/financiar") || p.startsWith("/impacto"),
+        match: (p) => p.startsWith("/app/financiar") || p.startsWith("/impacto"),
       },
       {
         href: "/reporte/nuevo",
