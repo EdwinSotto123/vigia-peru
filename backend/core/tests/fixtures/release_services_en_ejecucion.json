@@ -1,0 +1,163 @@
+{
+ "id": "ocds-dgv273-seacev3-1225235-2026-08-26T10:28:18.490264-05:00",
+ "tag": [
+  "planning",
+  "tender",
+  "award",
+  "contract",
+  "implementation"
+ ],
+ "date": "2026-08-26T10:28:18.490251-05:00",
+ "ocid": "ocds-dgv273-seacev3-1225235",
+ "buyer": {
+  "id": "PE-CONSUCODE-200445",
+  "name": "INSTITUTO VIAL PROVINCIAL MUNICIPAL DEL SANTA"
+ },
+ "tender": {
+  "id": "1225235",
+  "items": [
+   {
+    "id": "21306799",
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 158848.2,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "SERVICIO DE MANTENIMIENTO RUTINARIO DEL CAMINO VECINAL NO PAVIMENTADO, TRAMO: EMP. AN-883 (KM 0+370) ¿ PALILLO ¿ CHACANA ¿ LAMPANIN ¿ DV. QUILCAY ¿ AGUAQUITA (KM 36+390), L=36,020 KM, CACERES DEL PERU - SANTA ¿ ANCASH",
+    "statusDetails": "CONTRATADO",
+    "classification": {
+     "id": "7214100300230730",
+     "scheme": "CUBSO",
+     "description": "SERVICIO DE MANTENIMIENTO RUTINARIO DE CAMINOS"
+    },
+    "additionalClassifications": [
+     {
+      "id": "72141003",
+      "scheme": "UNSPSC",
+      "description": "Servicios de mantenimiento de pistas y carreteras"
+     }
+    ]
+   }
+  ],
+  "title": "CP-ABR-3-2026-IVPM-SANTA-2",
+  "value": {
+   "amount": 158848.2,
+   "currency": "PEN",
+   "amount_PEN": 158848.2,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986001946",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=beb28ebf-b4ee-4ad2-8e0d-7053b1efbeaa",
+    "title": "Bases Integradas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-22T22:13:34-05:00"
+   },
+   {
+    "id": "24831474986001101",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=7742cb07-48f0-4d85-bf01-6ad7020544f6",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "clarifications",
+    "datePublished": "2026-06-22T17:08:28-05:00"
+   },
+   {
+    "id": "24831474985993353",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=3d6ddd74-c58e-4b03-909b-1c95469ca6ca",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-15T22:43:00-05:00"
+   },
+   {
+    "id": "24831474986015832",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=c293b3cb-30e3-45df-9c80-36e26e85946e",
+    "title": "Documentos de Presentación de Propuestas",
+    "format": "zip",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-03T18:18:25-05:00"
+   },
+   {
+    "id": "24831474986015833",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=81fcc86a-84e3-4b22-b7b8-f59840bb7154",
+    "title": "Documentos de Calificación y Evaluación",
+    "format": "zip",
+    "language": "es",
+    "documentType": "evaluationReports",
+    "datePublished": "2026-07-03T18:18:26-05:00"
+   },
+   {
+    "id": "24831474986015834",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=730591f6-b441-4ac2-9d78-abf20e267684",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-07-03T18:18:26-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-20612046949",
+    "name": "ARV CORPORATION S.A.C."
+   },
+   {
+    "id": "PE-RUC-20443107593",
+    "name": "AMC INGENIEROS S.R.LTDA."
+   },
+   {
+    "id": "PE-RUC-20605201416",
+    "name": "ZARZOSA INVERSIONES E INGENIERIA E.I.R.L."
+   },
+   {
+    "id": "PE-RUC-20605408631",
+    "name": "CORPORACION & PROYECTOS SAGITARIO S.A.C"
+   },
+   {
+    "id": "PE-RUC-20532078980",
+    "name": "CONSULTORIA CONSTRUCTORA E INVERSIONES RCC S.A.C."
+   }
+  ],
+  "description": "SERVICIO DE MANTENIMIENTO RUTINARIO DEL CAMINO VECINAL NO PAVIMENTADO, TRAMO: EMP. AN-883 (KM 0+370) ¿ PALILLO ¿ CHACANA ¿ LAMPANIN ¿ DV. QUILCAY ¿ AGUAQUITA (KM 36+390), L=36,020 KM, CACERES DEL PERU - SANTA ¿ ANCASH",
+  "tenderPeriod": {
+   "endDate": "2026-06-15T00:00:00-05:00",
+   "startDate": "2026-06-15T00:00:00-05:00"
+  },
+  "datePublished": "2026-06-15T22:43:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-06-19T23:59:00-05:00",
+   "startDate": "2026-06-16T00:01:00-05:00",
+   "durationInDays": 3
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-200445",
+   "name": "INSTITUTO VIAL PROVINCIAL MUNICIPAL DEL SANTA"
+  },
+  "numberOfTenderers": 5,
+  "mainProcurementCategory": "services",
+  "procurementMethodDetails": "Concurso Público Abreviado",
+  "additionalProcurementCategories": [
+   "services"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1225235",
+  "entidad_ruc": "20532070067",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

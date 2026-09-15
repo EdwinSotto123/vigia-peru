@@ -13,7 +13,7 @@ import { useDialog } from "@/components/admin/Dialog";
  * Fuente: GET /api/admin/procesamientos · POST /api/admin/procesamientos/:ocid/reencolar
  */
 
-type Estado = "encolado" | "procesando" | "procesado" | "error";
+type Estado = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento";
 
 interface ProcAdmin {
   ocid: string;
@@ -39,6 +39,7 @@ const ESTADO_UI: Record<Estado, { label: string; cls: string }> = {
   procesando: { label: "Procesando", cls: "bg-amber-soft text-amber" },
   procesado: { label: "Procesado", cls: "bg-moss/10 text-moss" },
   error: { label: "Error", cls: "bg-crimson-soft text-crimson" },
+  pendiente_de_procesamiento: { label: "Pendiente", cls: "bg-paperDeep text-amber" },
 };
 
 const TABS: { k: Estado | "todos"; l: string }[] = [
@@ -46,6 +47,7 @@ const TABS: { k: Estado | "todos"; l: string }[] = [
   { k: "procesando", l: "Procesando" },
   { k: "encolado", l: "En cola" },
   { k: "error", l: "Error" },
+  { k: "pendiente_de_procesamiento", l: "Pendientes" },
   { k: "procesado", l: "Procesados" },
 ];
 
@@ -141,7 +143,7 @@ export default function AdminProcesamientosPage() {
   }
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0 };
+    const c: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0 };
     for (const r of rows ?? []) c[r.estado] = (c[r.estado] ?? 0) + 1;
     return c;
   }, [rows]);
@@ -178,11 +180,12 @@ export default function AdminProcesamientosPage() {
         <div className="mb-4 rounded-xl border border-line bg-paper px-4 py-2 text-sm text-ink">{msg}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Kpi label="En cola" value={counts.encolado} />
         <Kpi label="Procesando" value={counts.procesando} tone="amber" />
         <Kpi label="Procesados" value={counts.procesado} tone="moss" />
         <Kpi label="Con error" value={counts.error} tone={counts.error > 0 ? "rust" : "ink"} hint="máx. 3 intentos" />
+        <Kpi label="Pendientes" value={counts.pendiente_de_procesamiento} tone={counts.pendiente_de_procesamiento > 0 ? "amber" : "ink"} hint="tipo/etapa sin análisis aplicable" />
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">

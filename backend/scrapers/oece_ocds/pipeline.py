@@ -31,11 +31,13 @@ import argparse
 import collections
 import datetime as dt
 import json
+import re
 import time
 from pathlib import Path
 
 import requests
 
+from backend.core.clasificacion import clasificar
 from .._core import http
 from .._core.pipeline import Pipeline, log, pg_dsn
 from .._core.ubigeo import ZonaIndex, resolve_ubigeo
@@ -53,6 +55,10 @@ def short_ocid(ocid: str) -> str:
     s = str(ocid or "")
     if s.startswith(OCID_PREFIX):
         return s[len(OCID_PREFIX):]
+    # SEACE v2 (≤2013): 'ocds-dgv273-seacev2-2012-123-4' → 'v2-2012-123-4' para no chocar con v3.
+    m = re.match(r"^ocds-dgv273-seacev(\d)-(.+)$", s)
+    if m:
+        return m.group(2) if m.group(1) == "3" else f"v{m.group(1)}-{m.group(2)}"
     if s.startswith("ocds-"):
         return s.rsplit("-", 1)[-1]
     return s
@@ -97,6 +103,9 @@ def normalize_release(rel: dict, ix: ZonaIndex) -> dict | None:
     periodo = tender.get("tenderPeriod") or {}
     fecha = (periodo.get("startDate") or tender.get("datePublished") or rel.get("date") or "")[:10] or None
     departamento, provincia, distrito = addr.get("department"), addr.get("region"), addr.get("locality")
+    # Tipo × etapa × agentes (backend/core/clasificacion.py) sobre el release completo:
+    # acá aún están parties/awards; el payload guardado es recortado.
+    clas = clasificar(rel, entidad_ruc_hint=ruc)
     return {
         "ocid": ocid,
         "codigo": str(tender.get("id") or ocid),
@@ -111,6 +120,7 @@ def normalize_release(rel: dict, ix: ZonaIndex) -> dict | None:
         "ubigeo": resolve_ubigeo(ix, departamento, provincia, distrito),
         "categoria": tender.get("mainProcurementCategory"),
         "estado_tender": tender.get("status"),
+        "clasificacion": clas.as_dict(),        # dict: la fila se serializa a NDJSON en fetch()
         "payload": {k: rel.get(k) for k in ("ocid", "id", "date", "tag", "buyer", "tender") if k in rel},
     }
 
@@ -276,9 +286,12 @@ class OcdsIncrementalPipeline(Pipeline):
                      for r in ents.values()],
                     page_size=500)
                 # No se pisa lo que ya cargó el orquestador (objeto, cuantía, payload completo).
+                # La clasificación SÍ se actualiza siempre: el release nuevo trae la etapa más reciente.
                 execute_values(cur, """
                     INSERT INTO convocatorias (ocid, codigo, entidad_ruc, objeto, cuantia_referencial, fecha_convocatoria,
-                                               region, ubigeo, categoria, estado_tender, fuente, ocds_payload)
+                                               region, ubigeo, categoria, estado_tender, fuente, ocds_payload,
+                                               tipo_contratacion, etapa, modalidad, procesable, motivo_no_procesable,
+                                               agentes_aplicables, validaciones_pendientes, proveedor_ruc, clasificado_at)
                     VALUES %s
                     ON CONFLICT (ocid) DO UPDATE SET
                       ubigeo              = COALESCE(convocatorias.ubigeo, EXCLUDED.ubigeo),
@@ -288,10 +301,22 @@ class OcdsIncrementalPipeline(Pipeline):
                       region              = COALESCE(convocatorias.region, EXCLUDED.region),
                       categoria           = COALESCE(convocatorias.categoria, EXCLUDED.categoria),
                       estado_tender       = COALESCE(EXCLUDED.estado_tender, convocatorias.estado_tender),
+                      tipo_contratacion   = EXCLUDED.tipo_contratacion,
+                      etapa               = EXCLUDED.etapa,
+                      modalidad           = EXCLUDED.modalidad,
+                      procesable          = EXCLUDED.procesable,
+                      motivo_no_procesable = EXCLUDED.motivo_no_procesable,
+                      agentes_aplicables  = EXCLUDED.agentes_aplicables,
+                      validaciones_pendientes = EXCLUDED.validaciones_pendientes,
+                      proveedor_ruc       = COALESCE(EXCLUDED.proveedor_ruc, convocatorias.proveedor_ruc),
+                      clasificado_at      = now(),
                       updated_at          = now()""",
                     [(r["ocid"], r["codigo"], r["entidad_ruc"], r["objeto"], r["cuantia"], r["fecha"], r["region"],
-                      r["ubigeo"], r["categoria"], r["estado_tender"], "ocds_api", Json(r["payload"]))
-                     for r in rows],
+                      r["ubigeo"], r["categoria"], r["estado_tender"], "ocds_api", Json(r["payload"]),
+                      c["tipo"], c["etapa"], c["modalidad"], c["procesable"], c["motivo_no_procesable"],
+                      list(c["agentes"]), list(c["validaciones_pendientes"]), c["proveedor_ruc"])
+                     for r in rows for c in (r["clasificacion"],)],
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s, now())",
                     page_size=500)
                 conn.commit()
                 log.info("   → convocatorias upsert %d · entidades %d", len(rows), len(ents))

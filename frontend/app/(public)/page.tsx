@@ -80,12 +80,6 @@ export default async function LandingPage() {
                 <Camera size={16} /> Denunciar una obra
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <Link
-                href="/app/denuncias"
-                className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-6 py-3 text-sm font-semibold text-ink hover:bg-paperDeep"
-              >
-                Ver las denuncias publicadas
-              </Link>
             </div>
           </div>
 
@@ -95,8 +89,8 @@ export default async function LandingPage() {
               label="Ciudadano"
               title="Reportas lo que ves. El mapa hace el resto."
               body="Obra paralizada, fantasma, sobreprecio o calidad deficiente. Pin rojo + alerta automática sobre el mismo contrato = caso convergente público."
-              action="Reportar algo →"
-              href="/reporte/nuevo"
+              action="Ver las denuncias publicadas →"
+              href="/app/denuncias"
               accent
             />
             <AudienceCard

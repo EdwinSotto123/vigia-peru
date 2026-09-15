@@ -34,7 +34,8 @@ const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: str
   { key: "procesado", label: "Procesado", icon: <CheckCircle2 size={14} />, vacio: "Todavía no se publicó ningún resultado." },
 ];
 
-const columnaDe = (estado: EstadoProc): Columna => (estado === "error" ? "encolado" : estado);
+// error y pendiente_de_procesamiento se muestran en la columna "En cola" con su propia píldora.
+const columnaDe = (estado: EstadoProc): Columna => (estado === "procesando" || estado === "procesado" ? estado : "encolado");
 
 interface Props {
   ubigeo?: string;

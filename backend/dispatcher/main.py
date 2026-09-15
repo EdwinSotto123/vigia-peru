@@ -6,6 +6,12 @@ DISPATCHER_PARALLEL contratos con `reclamar_procesamientos()` (SKIP LOCKED: vari
 ejecuciones pueden solaparse sin pisarse) y termina al vaciar la cola o al llegar a
 DISPATCHER_MAX_MINUTES (deja de reclamar; los análisis en curso se terminan igual).
 
+Antes de llamar al orquestador consulta la clasificación tipo × etapa de la convocatoria
+(migración 13, `backend/core/clasificacion.py`): si `procesable = false` el contrato pasa a
+`pendiente_de_procesamiento` (con el motivo en `error`) sin gastar orquestador; si es
+procesable, el body lleva `clasificacion` {tipo, etapa, agentes, validaciones_pendientes} y el
+orquestador corre solo los agentes que aplican. Sin clasificación (NULL) → todo corre como antes.
+
 Env: AGENT_URL (orquestador), PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD/PGSSLMODE,
 DISPATCHER_PARALLEL (default 2), DISPATCHER_MAX_MINUTES (default 55),
 DISPATCHER_STREAM_TIMEOUT (segundos sin datos del stream, default 1200),
@@ -98,7 +104,7 @@ def actualizar(ocid: str, cambios: dict, evento: dict | None = None) -> None:
     _query(f"UPDATE procesamientos SET {', '.join(sets)} WHERE ocid = %s", (*vals, ocid))
 
 
-OK, FAIL, ABORT = "ok", "fail", "abort"
+OK, FAIL, ABORT, PENDIENTE = "ok", "fail", "abort", "pendiente"
 
 
 def alerta_persistida(ocid: str, desde: dt.datetime | None = None) -> bool:
@@ -148,6 +154,39 @@ def terminar(ocid: str, resultado: str, error: str | None) -> None:
         )
 
 
+def clasificacion_de(ocid: str) -> dict | None:
+    """Clasificación persistida en `convocatorias` (migración 13). None si no está clasificada
+    (columnas NULL) o si la migración aún no se aplicó: en ambos casos se procesa como siempre."""
+    try:
+        rows = _query(
+            "SELECT tipo_contratacion, etapa, procesable, motivo_no_procesable, agentes_aplicables, "
+            "validaciones_pendientes FROM convocatorias WHERE ocid = %s",
+            (ocid,),
+        )
+    except psycopg2.Error as e:  # p. ej. columnas inexistentes (migración 13 sin aplicar)
+        log.warning("clasificación de %s no disponible: %s", ocid, str(e).splitlines()[0][:120])
+        return None
+    if not rows or rows[0][0] is None:
+        return None
+    tipo, etapa, procesable, motivo, agentes, validaciones = rows[0]
+    return {
+        "tipo": tipo, "etapa": etapa,
+        "procesable": procesable is not False,
+        "motivo_no_procesable": motivo,
+        "agentes": list(agentes or []),
+        "validaciones_pendientes": list(validaciones or []),
+    }
+
+
+def dejar_pendiente(ocid: str, motivo: str | None) -> None:
+    """No procesable: queda `pendiente_de_procesamiento` sin consumir intento ni orquestador."""
+    _query(
+        "UPDATE procesamientos SET estado = 'pendiente_de_procesamiento', intentos = greatest(intentos - 1, 0), "
+        "error = %s, worker = NULL, fase_actual = NULL, fase_index = NULL WHERE ocid = %s",
+        (f"pendiente de procesamiento: {motivo or 'no procesable'}"[:500], ocid),
+    )
+
+
 def prefetch_ocds(ocid: str) -> dict | None:
     """compiledRelease del OECE si esta IP puede verlo (laptop/VPS en Perú). Desde GCP el WAF
     responde 403 y el orquestador usa su propia cadena (relay VPS → Worker → directo)."""
@@ -177,16 +216,26 @@ def _evento(ev: dict, cambios: dict) -> dict:
 
 
 def procesar(ocid: str) -> str:
-    """Un contrato: stream del orquestador → fases en DB. Devuelve OK, FAIL o ABORT."""
+    """Un contrato: stream del orquestador → fases en DB. Devuelve OK, FAIL, ABORT o PENDIENTE
+    (no procesable según la matriz tipo × etapa: no se llama al orquestador)."""
     log.info("▶ %s", ocid)
     t0 = time.time()
     t0_utc = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1)  # margen por desfase de relojes
     state: dict = {}
     resultado = FAIL
     err: str | None = None
+    clas = clasificacion_de(ocid)
+    if clas is not None and not clas["procesable"]:
+        dejar_pendiente(ocid, clas["motivo_no_procesable"])
+        log.info("⏸ %s pendiente de procesamiento · %s/%s · %s", ocid, clas["tipo"], clas["etapa"], clas["motivo_no_procesable"])
+        return PENDIENTE
     try:
         ocds = prefetch_ocds(ocid)
         body = {"input": ocid, "ocds": ocds, "docs_b64": {}, "doc_urls": {}}
+        if clas is not None:
+            body["clasificacion"] = {k: clas[k] for k in ("tipo", "etapa", "agentes", "validaciones_pendientes")}
+            log.info("clasificación %s: %s/%s · %d agentes%s", ocid, clas["tipo"], clas["etapa"], len(clas["agentes"]),
+                     f" · pendientes {clas['validaciones_pendientes']}" if clas["validaciones_pendientes"] else "")
         if ocds:
             log.info("OCDS precargado para %s (%s)", ocid, str((ocds.get("tender") or {}).get("title") or "")[:60])
         with requests.post(f"{AGENT_URL}?stream=1", json=body, stream=True, timeout=(30, STREAM_TIMEOUT)) as r:
@@ -241,7 +290,7 @@ def main() -> int:
         return 2
     log.info("worker=%s parallel=%d max=%d min agent=%s", WORKER, PARALLEL, MAX_MIN, AGENT_URL)
     deadline = time.time() + MAX_MIN * 60
-    procesados = fallidos = abortados = 0
+    procesados = fallidos = abortados = pendientes = 0
     fuente_caida = False  # un aborto del orquestador (OECE inaccesible) frena la corrida; el scheduler reintenta en 5 min
     with cf.ThreadPoolExecutor(max_workers=PARALLEL) as pool:
         en_curso: dict[cf.Future[str], str] = {}
@@ -265,6 +314,8 @@ def main() -> int:
                 elif resultado == ABORT:
                     abortados += 1
                     fuente_caida = True
+                elif resultado == PENDIENTE:
+                    pendientes += 1
                 else:
                     fallidos += 1
             try:
@@ -274,7 +325,7 @@ def main() -> int:
             if (time.time() >= deadline or fuente_caida) and not en_curso:
                 log.info("corto la corrida: %s", "fuente OECE inaccesible" if fuente_caida else f"tope de {MAX_MIN} min")
                 break
-    log.info("fin · procesados=%d fallidos=%d abortados=%d", procesados, fallidos, abortados)
+    log.info("fin · procesados=%d fallidos=%d abortados=%d pendientes_de_procesamiento=%d", procesados, fallidos, abortados, pendientes)
     return 0
 
 

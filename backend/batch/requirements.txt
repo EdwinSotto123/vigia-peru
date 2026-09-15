@@ -1,0 +1,4 @@
+# backend/batch · descarga nocturna (laptop/VPS) y job de ingesta (Cloud Run `vigia-ingest`).
+requests>=2.32
+psycopg2-binary>=2.9
+google-cloud-storage>=2.16

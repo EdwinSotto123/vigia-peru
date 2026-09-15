@@ -239,7 +239,7 @@ function FormObra({
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => setUbicacion({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => alert("No pudimos obtener tu ubicación. Podés escribirla manualmente."),
+      () => alert("No pudimos obtener tu ubicación. Puedes escribirla manualmente."),
       { enableHighAccuracy: true, timeout: 8000 },
     );
   };

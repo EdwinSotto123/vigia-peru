@@ -63,10 +63,10 @@ function LoginInner() {
             <Shield size={22} strokeWidth={2.2} />
           </div>
           <h1 className="font-serif text-3xl font-bold text-ink">
-            Bienvenido de vuelta
+            Inicia sesión
           </h1>
           <p className="mt-1 text-sm text-mute">
-            Entrá con tu user-id y contraseña para acceder a Vigía.
+            Ingresa con tu usuario y contraseña. La cuenta es opcional: sirve para seguir tus denuncias y aportes.
           </p>
         </div>
 
@@ -74,7 +74,7 @@ function LoginInner() {
           {/* userId */}
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-mute">
-              User-id
+              Usuario
             </label>
             <div className="relative">
               <AtSign
@@ -156,7 +156,7 @@ function LoginInner() {
         </form>
 
         <p className="mt-4 text-center text-[11px] text-mute">
-          Tu user-id es único y privado. No usamos email para el demo.
+          Tu usuario es único y privado. No pedimos correo electrónico.
         </p>
       </div>
     </div>

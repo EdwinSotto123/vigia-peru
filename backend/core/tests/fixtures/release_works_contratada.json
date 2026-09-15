@@ -1,0 +1,178 @@
+{
+ "id": "ocds-dgv273-seacev3-1220672-2026-09-14T09:59:12.291693-05:00",
+ "tag": [
+  "planning",
+  "tender",
+  "award",
+  "contract"
+ ],
+ "date": "2026-09-14T09:59:12.291681-05:00",
+ "ocid": "ocds-dgv273-seacev3-1220672",
+ "buyer": {
+  "id": "PE-CONSUCODE-1827",
+  "name": "MUNICIPALIDAD DISTRITAL DE UCHIZA"
+ },
+ "tender": {
+  "id": "1220672",
+  "items": [
+   {
+    "id": "21293804",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 13827086.34,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "CONSTRUCCION DE MUROS DE CONTENCION",
+    "statusDetails": "CONTRATADO",
+    "classification": {
+     "id": "7215270700228223",
+     "scheme": "CUBSO",
+     "description": "CONSTRUCCION DE MUROS DE CONTENCION"
+    },
+    "additionalClassifications": [
+     {
+      "id": "72152707",
+      "scheme": "UNSPSC",
+      "description": "Servicios de construcción de muros de retención"
+     }
+    ]
+   }
+  ],
+  "title": "LP-SM-1-2026-MDU/CS-1",
+  "value": {
+   "amount": 13827086.34,
+   "currency": "PEN",
+   "amount_PEN": 13827086.34,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474985998490",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=cca346f6-bd7a-4bb3-a180-24fcb591b72d",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "dateModified": "2026-07-20T18:53:21-05:00",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-18T20:06:00-05:00"
+   },
+   {
+    "id": "24831474986034665",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=14464b7e-85fa-4b47-adb0-88161a418db5",
+    "title": "Pliego de absolución de consultas y observaciones",
+    "format": "pdf",
+    "language": "es",
+    "dateModified": "2026-07-20T18:53:21-05:00",
+    "documentType": "clarifications",
+    "datePublished": "2026-07-20T18:53:21-05:00"
+   },
+   {
+    "id": "24831474986034666",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=58110551-c1cf-4a53-a16a-17813f633f5e",
+    "title": "Bases Integradas",
+    "format": "rar",
+    "language": "es",
+    "dateModified": "2026-07-20T18:53:21-05:00",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-20T18:53:21-05:00"
+   },
+   {
+    "id": "24831474986063162",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=0c73c610-1607-416a-9909-f9ea0773e5a2",
+    "title": "Documentos de Presentación de Propuestas",
+    "format": "zip",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-08-18T19:04:01-05:00"
+   },
+   {
+    "id": "24831474986063163",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=8f0e3e15-a04f-4633-82db-a617076c8e23",
+    "title": "Documentos de Calificación y Evaluación",
+    "format": "zip",
+    "language": "es",
+    "documentType": "evaluationReports",
+    "datePublished": "2026-08-18T19:04:01-05:00"
+   },
+   {
+    "id": "24831474986063164",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=5c35de13-1a53-467f-aa66-abe472a6994d",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-08-18T19:04:01-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-1818762",
+    "name": "CONSORCIO ORIENTE"
+   },
+   {
+    "id": "PE-RUC-20603013540",
+    "name": "DICONST JAROME SOCIEDAD COMERCIAL DE RESPONSABILIDAD LIMITADA"
+   },
+   {
+    "id": "PE-RUC-20601523745",
+    "name": "JOMIEL INGENIEROS & ARQUITECTOS S.A.C."
+   },
+   {
+    "id": "PE-RUC-20611544406",
+    "name": "GRUPO INGENIERIA Y ADMINISTRACION S.A.C."
+   },
+   {
+    "id": "PE-RUC-20600481861",
+    "name": "PACHACUTEC INGENIEROS SOCIEDAD COMERCIAL DE RESPONSABILIDAD LIMITADA"
+   },
+   {
+    "id": "PE-RUC-20615442667",
+    "name": "TATO GROUP S.A.C."
+   },
+   {
+    "id": "PE-RUC-20603089236",
+    "name": "GAROTH GRUPO EMPRESARIAL SOCIEDAD ANONIMA CERRADA"
+   },
+   {
+    "id": "PE-RUC-20530786138",
+    "name": "VICSA E.I.R.L."
+   }
+  ],
+  "description": "CONTRATACION PARA LA EJECUCION DE OBRA: \"CREACION DE LOS SERVICIOS DE PROTECCIÓN EN LA RIBERA DE LAS QUEBRADAS VULNERABLES ANTE EL PELIGRO EN LA QUEBRADA IPSHUMA, LOCALIDAD DE UCHIZA, DISTRITO DE UCHIZA DE LA PROVINCIA DE TOCACHE DEL DEPARTAMENTO DE SAN MARTIN CON CUI 2598946",
+  "tenderPeriod": {
+   "endDate": "2026-06-18T00:00:00-05:00",
+   "startDate": "2026-06-18T00:00:00-05:00"
+  },
+  "datePublished": "2026-06-18T20:06:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-06-30T23:59:00-05:00",
+   "startDate": "2026-06-19T00:01:00-05:00",
+   "durationInDays": 11
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-1827",
+   "name": "MUNICIPALIDAD DISTRITAL DE UCHIZA"
+  },
+  "numberOfTenderers": 8,
+  "procurementMethod": "open",
+  "mainProcurementCategory": "works",
+  "procurementMethodDetails": "Licitación Pública",
+  "additionalProcurementCategories": [
+   "works"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1220672",
+  "entidad_ruc": "20160770032",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

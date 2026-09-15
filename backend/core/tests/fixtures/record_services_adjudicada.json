@@ -1,0 +1,293 @@
+{
+ "tag": [
+  "compiled"
+ ],
+ "id": "ocds-dgv273-seacev3-2026-2439-29-2026-07-24T10:24:19.672210-05:00",
+ "date": "2026-07-24T10:24:19.672197-05:00",
+ "ocid": "ocds-dgv273-seacev3-2026-2439-29",
+ "publishedDate": "2026-07-24T10:24:19.672216-05:00",
+ "initiationType": "tender",
+ "buyer": {
+  "id": "PE-CONSUCODE-2439",
+  "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+ },
+ "planning": {
+  "budget": {
+   "description": "Fondos Públicos"
+  }
+ },
+ "tender": {
+  "id": "1230475",
+  "title": "CP-ABR-2-2026-SIMA PERU SA-1",
+  "description": "EXAMENES MEDICOS OCUPACIONALES ANUAL PARA EL PERSONAL SIMA CHIMBOTE",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-2439",
+   "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+  },
+  "datePublished": "2026-07-02T16:21:00-05:00",
+  "procurementMethodDetails": "Concurso Público Abreviado",
+  "mainProcurementCategory": "services",
+  "additionalProcurementCategories": [
+   "services"
+  ],
+  "value": {
+   "amount": 54516.0,
+   "currency": "PEN",
+   "currencyName": "Soles",
+   "amount_PEN": 54516.0
+  },
+  "tenderPeriod": {
+   "startDate": "2026-07-02T00:00:00-05:00",
+   "endDate": "2026-07-02T00:00:00-05:00"
+  },
+  "enquiryPeriod": {
+   "startDate": "2026-07-03T00:01:00-05:00",
+   "endDate": "2026-07-07T23:59:00-05:00",
+   "durationInDays": 4
+  },
+  "items": [
+   {
+    "id": "21320744",
+    "position": "1",
+    "description": "EXAMENES MEDICOS",
+    "statusDetails": "CONSENTIDO",
+    "status": "complete",
+    "classification": {
+     "id": "8512180300302644",
+     "description": "SERVICIO DE EXAMENES MEDICOS DE LABORATORIO",
+     "scheme": "CUBSO"
+    },
+    "additionalClassifications": [
+     {
+      "id": "85121803",
+      "description": "Servicios de laboratorios biológicos",
+      "scheme": "UNSPSC"
+     }
+    ],
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 54516.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    }
+   }
+  ],
+  "documents": [
+   {
+    "id": "24831474986013484",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=ac458378-0ff5-485b-825d-3fb344bbdb72",
+    "datePublished": "2026-07-02T16:21:00-05:00",
+    "format": "pdf",
+    "documentType": "biddingDocuments",
+    "title": "Bases Administrativas",
+    "language": "es"
+   },
+   {
+    "id": "24831474986020367",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=a4149d7f-d75a-46b3-81c8-2f58d1c12e16",
+    "datePublished": "2026-07-08T15:42:46-05:00",
+    "format": "pdf",
+    "documentType": "biddingDocuments",
+    "title": "Bases Integradas",
+    "language": "es"
+   },
+   {
+    "id": "24831474986019843",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=d6f33439-b0df-4aac-bc49-ad1c8a45b413",
+    "datePublished": "2026-07-08T08:36:44-05:00",
+    "format": "pdf",
+    "documentType": "clarifications",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "language": "es"
+   },
+   {
+    "id": "24831474986029039",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=742614c9-391b-4c61-9e28-1b9187e186e8",
+    "datePublished": "2026-07-15T16:30:46-05:00",
+    "format": "zip",
+    "documentType": "evaluationReports",
+    "title": "Documentos de Calificación y Evaluación",
+    "language": "es"
+   },
+   {
+    "id": "24831474986029040",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=7660e001-5a3b-4c1d-9210-b644b8521509",
+    "datePublished": "2026-07-15T16:30:46-05:00",
+    "format": "zip",
+    "documentType": "awardNotice",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "language": "es"
+   }
+  ],
+  "hasTenderInformationProtectedByLaw": false,
+  "tenderers": [
+   {
+    "id": "PE-RUC-20609027682",
+    "name": "CENTRO MEDICO SANTA FE R & B S.R.L."
+   },
+   {
+    "id": "PE-RUC-20536408186",
+    "name": "ORGANIZACION IBEROAMERICANA DE SALUD OCUPACIONAL S.A.C."
+   },
+   {
+    "id": "PE-RUC-20541660870",
+    "name": "SERVICIOS DE SALUD OCUPACIONAL, SEGURIDAD Y MEDIO AMBIENTE S.A.C."
+   }
+  ],
+  "numberOfTenderers": 3
+ },
+ "parties": [
+  {
+   "id": "PE-CONSUCODE-2439",
+   "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A.",
+   "identifier": {
+    "id": "2439",
+    "scheme": "PE-CONSUCODE",
+    "legalName": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+   },
+   "additionalIdentifiers": [
+    {
+     "id": "20100003351",
+     "scheme": "PE-RUC",
+     "legalName": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+    }
+   ],
+   "address": {
+    "streetAddress": "CONTRALMIRANTE MORA N° 1102",
+    "locality": "CALLAO",
+    "region": "CALLAO",
+    "department": "CALLAO",
+    "countryName": "PERU"
+   },
+   "contactPoint": {
+    "telephone": "4131100",
+    "url": "https://WWW.SIMA.COM.PE"
+   },
+   "roles": [
+    "buyer",
+    "procuringEntity"
+   ]
+  },
+  {
+   "id": "PE-RUC-20609027682",
+   "name": "CENTRO MEDICO SANTA FE R & B S.R.L.",
+   "identifier": {
+    "scheme": "PE-RUC",
+    "id": "20609027682",
+    "legalName": "CENTRO MEDICO SANTA FE R & B S.R.L."
+   },
+   "contactPoint": {
+    "email": "Ver datos en Ficha del Proveedor",
+    "telephone": "Ver dato en ficha del proveedor"
+   },
+   "roles": [
+    "tenderer"
+   ]
+  },
+  {
+   "id": "PE-RUC-20536408186",
+   "name": "ORGANIZACION IBEROAMERICANA DE SALUD OCUPACIONAL S.A.C.",
+   "identifier": {
+    "scheme": "PE-RUC",
+    "id": "20536408186",
+    "legalName": "ORGANIZACION IBEROAMERICANA DE SALUD OCUPACIONAL S.A.C."
+   },
+   "contactPoint": {
+    "email": "Ver datos en Ficha del Proveedor",
+    "telephone": "Ver dato en ficha del proveedor"
+   },
+   "roles": [
+    "tenderer"
+   ]
+  },
+  {
+   "id": "PE-RUC-20541660870",
+   "name": "SERVICIOS DE SALUD OCUPACIONAL, SEGURIDAD Y MEDIO AMBIENTE S.A.C.",
+   "identifier": {
+    "scheme": "PE-RUC",
+    "id": "20541660870",
+    "legalName": "SERVICIOS DE SALUD OCUPACIONAL, SEGURIDAD Y MEDIO AMBIENTE S.A.C."
+   },
+   "contactPoint": {
+    "email": "Ver datos en Ficha del Proveedor",
+    "telephone": "Ver dato en ficha del proveedor"
+   },
+   "roles": [
+    "tenderer",
+    "supplier"
+   ]
+  }
+ ],
+ "sources": [
+  {
+   "id": "seace_v3",
+   "name": "Sistema Electrónico de Contrataciones del Estado - Versión 3",
+   "url": "https://prodapp2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml"
+  }
+ ],
+ "dataSegmentation": {
+  "id": "2026-07",
+  "criteria": [
+   "añoInicioConvocatoria",
+   "mesInicioConvocatoria"
+  ]
+ },
+ "awards": [
+  {
+   "id": "1230475-20541660870",
+   "value": {
+    "amount": 54362.6,
+    "currency": "PEN",
+    "currencyName": "Soles"
+   },
+   "items": [
+    {
+     "id": "21320744",
+     "position": "1",
+     "description": "EXAMENES MEDICOS",
+     "statusDetails": "CONSENTIDO",
+     "status": "active",
+     "classification": {
+      "id": "8512180300302644",
+      "description": "SERVICIO DE EXAMENES MEDICOS DE LABORATORIO",
+      "scheme": "CUBSO"
+     },
+     "additionalClassifications": [
+      {
+       "id": "85121803",
+       "description": "Servicios de laboratorios biológicos",
+       "scheme": "UNSPSC"
+      }
+     ],
+     "quantity": 1.0,
+     "totalValue": {
+      "amount": 54362.6,
+      "currency": "PEN",
+      "currencyName": "Soles"
+     },
+     "unit": {
+      "id": "36",
+      "name": "Servicio",
+      "scheme": "PE-SEACE3-UnidadMedida"
+     }
+    }
+   ],
+   "date": "2026-07-15T00:00:00-05:00",
+   "suppliers": [
+    {
+     "id": "PE-RUC-20541660870",
+     "name": "SERVICIOS DE SALUD OCUPACIONAL, SEGURIDAD Y MEDIO AMBIENTE S.A.C."
+    }
+   ]
+  }
+ ],
+ "_fixture": {
+  "ocid": "2026-2439-29",
+  "fuente": "GET /api/v1/record/<ocid> → records[0].compiledRelease (2026-09-15)"
+ }
+}

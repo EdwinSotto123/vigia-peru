@@ -6,7 +6,12 @@ Endpoint:
   Body: {
     "input": "1203694",                           // código o OCID
     "ocds": { ...compiledRelease... },            // pre-fetched para evitar WAF
-    "docs_b64": { url: base64, ... }              // PDFs pre-cargados (mismo motivo)
+    "docs_b64": { url: base64, ... },             // PDFs pre-cargados (mismo motivo)
+    "clasificacion": {                            // opcional (dispatcher): matriz tipo × etapa
+      "tipo": "bienes", "etapa": "convocada",     //   (backend/core/clasificacion.py)
+      "agentes": ["compliance", ...],             //   solo estos sub-agentes corren
+      "validaciones_pendientes": ["infobras_avance"]  // el dictamen las lista, sin inventar
+    }                                             // sin `clasificacion` → corren TODOS (análisis a demanda)
   }
 
 Response:
@@ -74,11 +79,28 @@ def _build_runner() -> Runner:
     )
 
 
+def _normalizar_clasificacion(clasificacion) -> dict | None:
+    """Valida el bloque `clasificacion` del body. Devuelve None si no viene o está vacío
+    (→ compatibilidad: sin `agentes_permitidos` en el state corren todos los agentes)."""
+    if not isinstance(clasificacion, dict):
+        return None
+    agentes = [str(a) for a in (clasificacion.get("agentes") or []) if a]
+    if not agentes:
+        return None
+    return {
+        "tipo": clasificacion.get("tipo"),
+        "etapa": clasificacion.get("etapa"),
+        "agentes": agentes,
+        "validaciones_pendientes": [str(v) for v in (clasificacion.get("validaciones_pendientes") or []) if v],
+    }
+
+
 async def _run_streaming(
     input_str: str,
     ocds: dict | None,
     docs_b64: dict | None,
     doc_urls: dict | None,
+    clasificacion: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Async generator que yields cada evento del orquestador en tiempo real.
 
@@ -97,6 +119,13 @@ async def _run_streaming(
         initial_state["docs_b64"] = docs_b64
     if doc_urls:
         initial_state["doc_urls"] = doc_urls
+    _clas = _normalizar_clasificacion(clasificacion)
+    if _clas:
+        # El pipeline determinista consulta `agentes_permitidos` (deterministic.permitido) y
+        # el report_writer lista `validaciones_pendientes` al final del dictamen.
+        initial_state["clasificacion"] = _clas
+        initial_state["agentes_permitidos"] = _clas["agentes"]
+        initial_state["validaciones_pendientes"] = _clas["validaciones_pendientes"]
 
     await runner.session_service.create_session(
         app_name=APP_NAME, user_id=user_id, session_id=session_id,
@@ -311,11 +340,14 @@ async def _run_streaming(
 
     alerta_codigo = raw_state.get("alerta_codigo")
     has_dictamen = bool(raw_state.get("final_dictamen"))
+    # Si la matriz tipo × etapa excluyó al report_writer, no forzarlo acá.
+    _perm = raw_state.get("agentes_permitidos")
+    writer_permitido = not isinstance(_perm, list) or "report_writer" in _perm
     # Heurística: `persist_analysis_outputs` deja `dictamen_markdown` en
     # alertas y suele dejar la key `_persisted` en state — pero acá nos
     # basta con saber si llegamos al PASO 9. Si NO hay final_dictamen,
     # el orquestador NO llegó al writer y por ende NO persistió.
-    if alerta_codigo and not has_dictamen:
+    if alerta_codigo and not has_dictamen and writer_permitido:
         print(f"[safety-net] orquestador se rindió antes del writer — "
               f"corriendo report_writer + persist manualmente. "
               f"alerta_codigo={alerta_codigo}")
@@ -692,12 +724,13 @@ async def _run(
     ocds: dict | None,
     docs_b64: dict | None,
     doc_urls: dict | None,
+    clasificacion: dict | None = None,
 ) -> dict:
     """Wrapper non-streaming: consume el generator y retorna el snapshot final.
     Mantiene compat con clientes que no usan ?stream=1.
     """
     final: dict | None = None
-    async for ev in _run_streaming(input_str, ocds, docs_b64, doc_urls):
+    async for ev in _run_streaming(input_str, ocds, docs_b64, doc_urls, clasificacion):
         if ev.get("kind") == "final":
             final = ev
     if final is None:
@@ -1044,6 +1077,7 @@ def orchestrate(request):
         ocds_p = body.get("ocds")
         docs_b64_p = body.get("docs_b64")
         doc_urls_p = body.get("doc_urls")
+        clas_p = body.get("clasificacion")
 
         def _generate():
             import queue as _queue
@@ -1054,7 +1088,7 @@ def orchestrate(request):
             def _worker():
                 async def _async():
                     try:
-                        async for ev in _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p):
+                        async for ev in _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p):
                             q.put(ev)
                     except Exception as ex:
                         q.put({"kind": "error", "detail": str(ex)[:400]})
@@ -1091,6 +1125,7 @@ def orchestrate(request):
             body.get("ocds"),
             body.get("docs_b64"),
             body.get("doc_urls"),
+            body.get("clasificacion"),
         ))
     except Exception as e:
         return (json.dumps({"error": "runner_failed", "detail": str(e)}),

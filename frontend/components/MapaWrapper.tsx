@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   ArrowLeft,
   ChevronRight,
   Coins,
+  FileSearch,
   GitMerge,
   ChevronUp,
   ChevronDown,
@@ -20,8 +21,11 @@ import { getReportes, getAlertas } from "@/lib/api-client";
 import { getZonas, ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado } from "@/lib/financiamiento";
 import { coordsForRegionWithJitter } from "@/lib/region-coords";
 import { RegionDetailPanel } from "./RegionDetailPanel";
-import { UBIGEO_REGION } from "./mapa/region-match";
+import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
+import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
+import { ContratoPinLeyenda, colorPorSenales, radioPorTotal } from "./contratos/ContratoPin";
+import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { Marquee } from "./magicui/Marquee";
 import { cn } from "@/lib/utils";
 import type { MapPoint } from "./PeruChoropleth";
@@ -64,6 +68,21 @@ export function MapaWrapper({
   const [reportes, setReportes] = useState<any[]>([]);
   const [alertasApi, setAlertasApi] = useState<any[]>([]);
 
+  // Capa "Contratos": puntos agregados por zona (/contratos/geo). País → provincias;
+  // con región elegida → sus distritos. Nunca 18 k puntos crudos.
+  const [showContratos, setShowContratos] = useState(true);
+  const [geo, setGeo] = useState<ContratoZona[]>([]);
+  const geoCache = useRef<Map<string, ContratoZona[]>>(new Map());
+  const [distrito, setDistrito] = useState<{ ubigeo: string; nombre: string } | null>(null);
+  const [ocidSel, setOcidSel] = useState<string | null>(null);
+  const [ubigeoSel, setUbigeoSel] = useState<string | null>(null);      // zona del contrato seleccionado en la lista
+  const [hoverUbigeo, setHoverUbigeo] = useState<string | null>(null);  // fila con el mouse encima
+  const [hoverPunto, setHoverPunto] = useState<string | null>(null);    // punto con el mouse encima
+  const [panelTab, setPanelTab] = useState<ZonaTab | undefined>(initialTab);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const urlLeida = useRef(false);
+  const urlInicial = useRef<{ ubigeo: string | null; ocid: string | null } | null>(null);  // pendiente de absorber en el estado
+
   // Fetch alertas REALES + denuncias en paralelo
   useEffect(() => {
     let alive = true;
@@ -93,6 +112,125 @@ export function MapaWrapper({
     }
     return out;
   }, [showFinanciamiento, zonas]);
+
+  // Estado inicial desde la URL (?ubigeo=<distrito>&ocid=) — se lee una vez en el cliente.
+  useEffect(() => {
+    if (urlLeida.current) return;
+    urlLeida.current = true;
+    const sp = new URLSearchParams(window.location.search);
+    const u = sp.get("ubigeo");
+    const o = sp.get("ocid");
+    const ubigeoOk = u && /^\d{6}$/.test(u) ? u : null;
+    const ocidOk = o && /^[\w.-]{1,64}$/.test(o) ? o : null;
+    urlInicial.current = { ubigeo: ubigeoOk, ocid: ocidOk };
+    if (ubigeoOk) {
+      setDistrito({ ubigeo: ubigeoOk, nombre: "" });
+      const rid = UBIGEO_REGION[ubigeoOk.slice(0, 2)];
+      if (rid && !selectedRegionId) setSelectedRegionId(rid);
+      setPanelTab("cola");
+    }
+    if (ocidOk) setOcidSel(ocidOk);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // La URL refleja región, pestaña, distrito y contrato (sin navegar: replaceState).
+  useEffect(() => {
+    if (!urlLeida.current) return;
+    // No pisar la URL hasta que el estado haya absorbido lo que traía (evita un parpadeo sin ?ubigeo/?ocid).
+    const ini = urlInicial.current;
+    if (ini && ((distrito?.ubigeo ?? null) !== ini.ubigeo || ocidSel !== ini.ocid)) return;
+    urlInicial.current = null;
+    const sp = new URLSearchParams(window.location.search);
+    const set = (k: string, v: string | null | undefined) => (v ? sp.set(k, v) : sp.delete(k));
+    set("region", selectedRegionId);
+    set("tab", selectedRegionId ? panelTab : null);
+    set("ubigeo", selectedRegionId ? distrito?.ubigeo : null);
+    set("ocid", selectedRegionId ? ocidSel : null);
+    const qs = sp.toString();
+    const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", url);
+  }, [selectedRegionId, panelTab, distrito, ocidSel]);
+
+  // Puntos de contratos según nivel: sin región → provincias del país; con región → sus distritos.
+  const geoKey = selectedRegionId ? `distrito:${REGION_UBIGEO[selectedRegionId] ?? ""}` : "provincia:";
+  useEffect(() => {
+    if (!showContratos) return;
+    const cached = geoCache.current.get(geoKey);
+    if (cached) { setGeo(cached); return; }
+    let alive = true;
+    const [nivel, ub] = geoKey.split(":") as ["distrito" | "provincia", string];
+    getContratosGeo({ nivel, ubigeo: ub || undefined }).then((d) => {
+      if (!alive) return;
+      geoCache.current.set(geoKey, d ?? []);
+      setGeo(d ?? []);
+    });
+    return () => { alive = false; };
+  }, [showContratos, geoKey]);
+
+  // Nombre del distrito cuando llegó por URL (solo el ubigeo).
+  useEffect(() => {
+    if (distrito && !distrito.nombre) {
+      const z = geo.find((g) => g.ubigeo === distrito.ubigeo);
+      if (z) setDistrito({ ubigeo: z.ubigeo, nombre: z.nombre });
+    }
+  }, [geo, distrito]);
+
+  const totalContratos = useMemo(() => geo.reduce((n, z) => n + z.total, 0), [geo]);
+
+  const puntosContratos = useMemo<MapPoint[]>(() => {
+    if (!showContratos || !geo.length) return [];
+    const max = Math.max(...geo.map((z) => z.total), 1);
+    const resaltada = (u: string) => {
+      const objetivo = hoverUbigeo ?? ubigeoSel;
+      return !!objetivo && (objetivo === u || (u.length === 4 && objetivo.startsWith(u)));
+    };
+    return geo.map((z) => ({
+      id: `c-${z.ubigeo}`,
+      kind: "contratos" as const,
+      lat: z.lat, lon: z.lon,
+      label: z.nombre,
+      ubigeo: z.ubigeo,
+      total: z.total,
+      r: radioPorTotal(z.total, max),
+      color: colorPorSenales(z),
+      selected: distrito?.ubigeo === z.ubigeo || resaltada(z.ubigeo),
+      hovered: hoverPunto === z.ubigeo,
+    }));
+  }, [showContratos, geo, distrito, hoverUbigeo, ubigeoSel, hoverPunto]);
+
+  const seleccionarContrato = useCallback((c: ContratoResumen | null) => {
+    setOcidSel(c?.ocid ?? null);
+    setUbigeoSel(c?.ubigeo ?? null);
+    if (c && typeof window !== "undefined" && window.innerWidth < 1024) {
+      mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, []);
+
+  const onPointClick = useCallback((pt: MapPoint) => {
+    if (pt.kind !== "contratos" || !pt.ubigeo) return;
+    if (pt.ubigeo.length === 4) {
+      // Provincia (vista país): entrar a su departamento; ahí se ven los distritos.
+      const rid = UBIGEO_REGION[pt.ubigeo.slice(0, 2)];
+      if (rid) { setSelectedRegionId(rid); setProvinciaActiva(null); setMobileDrawerOpen(true); }
+      setDistrito(null); setOcidSel(null); setUbigeoSel(null);
+      setPanelTab("cola");
+      return;
+    }
+    setDistrito((d) => (d?.ubigeo === pt.ubigeo ? null : { ubigeo: pt.ubigeo!, nombre: pt.label ?? "" }));
+    setOcidSel(null); setUbigeoSel(null);
+    setPanelTab("cola");
+    setMobileDrawerOpen(true);
+  }, []);
+
+  const mapaContratos = useMemo<MapaContratos>(() => ({
+    activa: showContratos,
+    distritoUbigeo: distrito?.ubigeo ?? null,
+    distritoNombre: distrito?.nombre || null,
+    ocidSeleccionado: ocidSel,
+    seleccionar: seleccionarContrato,
+    hover: (c) => setHoverUbigeo(c?.ubigeo ?? null),
+    limpiarDistrito: () => { setDistrito(null); setOcidSel(null); setUbigeoSel(null); },
+  }), [showContratos, distrito, ocidSel, seleccionarContrato]);
 
   // Construir lista de pines unificada.
   // Alertas: priorizamos API real con coords derivadas de la región contratante;
@@ -137,8 +275,9 @@ export function MapaWrapper({
         });
       }
     }
-    return out;
-  }, [showAlertas, showDenuncias, reportes, alertasApi]);
+    // Los puntos de contratos van primero (debajo): las alertas/denuncias quedan clicables encima.
+    return [...puntosContratos, ...out];
+  }, [showAlertas, showDenuncias, reportes, alertasApi, puntosContratos]);
 
   const selectedRegion = useMemo(
     () => REGIONES.find((r) => r.id === selectedRegionId) ?? null,
@@ -169,9 +308,14 @@ export function MapaWrapper({
     setSelectedRegionId(id);
     setProvinciaActiva(null);
     setMobileDrawerOpen(id !== null);
+    setDistrito(null);
+    setOcidSel(null);
+    setUbigeoSel(null);
+    if (id === null) setPanelTab(initialTab);
   };
 
   return (
+    <MapaContratosContext.Provider value={mapaContratos}>
     <div className="space-y-4">
 
       {/* Marquee de alertas */}
@@ -235,6 +379,18 @@ export function MapaWrapper({
               <span className="font-mono text-[10px] opacity-80">{reportes.length}</span>
             </button>
             <button
+              onClick={() => setShowContratos((v) => !v)}
+              title={`${showContratos ? "Ocultar" : "Mostrar"} contratos por zona`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                showContratos ? "bg-ink text-paper" : "text-mute hover:bg-paper hover:text-ink",
+              )}
+            >
+              <FileSearch size={13} />
+              <span className="hidden sm:inline">Contratos</span>
+              {totalContratos > 0 && <span className="font-mono text-[10px] opacity-80">{totalContratos.toLocaleString("es-PE")}</span>}
+            </button>
+            <button
               onClick={() => setShowFinanciamiento((v) => !v)}
               title={`${showFinanciamiento ? "Ocultar" : "Mostrar"} estado de financiamiento de la auditoría por región`}
               className={cn(
@@ -276,6 +432,14 @@ export function MapaWrapper({
                     <span className="text-rust">{provinciaActiva.nombre}</span>
                   </>
                 )}
+                {distrito && (
+                  <>
+                    <ChevronRight size={12} className="text-mute" />
+                    <button onClick={mapaContratos.limpiarDistrito} className="text-ink hover:text-clay" title="Quitar filtro de distrito">
+                      {distrito.nombre || distrito.ubigeo}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -284,7 +448,7 @@ export function MapaWrapper({
         {/* MAP + PANEL */}
         <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
           {/* Map area */}
-          <div className="relative">
+          <div className="relative" ref={mapRef}>
             <div className="aspect-[480/700] max-h-[680px] w-full overflow-hidden">
               <PeruChoropleth
                 metric={metric}
@@ -298,6 +462,8 @@ export function MapaWrapper({
                 }}
                 points={points}
                 fillOverride={fillFinanciamiento}
+                onPointClick={onPointClick}
+                onPointHover={(pt) => setHoverPunto(pt?.kind === "contratos" ? pt.ubigeo ?? null : null)}
               />
             </div>
 
@@ -362,7 +528,15 @@ export function MapaWrapper({
                     </div>
                   </div>
                 )}
-                {(showAlertas || showDenuncias) && points.length > 0 && (
+                {showContratos && geo.length > 0 && (
+                  <div className="border-t border-line pt-2">
+                    <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">
+                      Contratos por zona
+                    </div>
+                    <ContratoPinLeyenda />
+                  </div>
+                )}
+                {(showAlertas || showDenuncias) && points.some((p) => p.kind !== "contratos") && (
                   <div className="border-t border-line pt-2">
                     <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">
                       Pines
@@ -423,7 +597,7 @@ export function MapaWrapper({
               onClearProvincia={() => setProvinciaActiva(null)}
               alertasApi={alertasApi}
               reportes={reportes}
-              initialTab={initialTab}
+              initialTab={panelTab}
             />
           </aside>
 
@@ -466,7 +640,7 @@ export function MapaWrapper({
                     onClearProvincia={() => setProvinciaActiva(null)}
                     alertasApi={alertasApi}
                     reportes={reportes}
-                    initialTab={initialTab}
+                    initialTab={panelTab}
                   />
                 </div>
               </div>
@@ -475,6 +649,7 @@ export function MapaWrapper({
         </div>
       </div>
     </div>
+    </MapaContratosContext.Provider>
   );
 }
 

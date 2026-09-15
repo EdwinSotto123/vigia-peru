@@ -11,6 +11,7 @@ import {
   regionMetric,
 } from "@/lib/peru-data";
 import { normalizeRegionId } from "@/lib/utils";
+import { ContratoPin } from "./contratos/ContratoPin";
 
 const VB_W = 480;
 const VB_H = 700;
@@ -49,13 +50,21 @@ export interface MapPoint {
   id: string;
   lat: number;
   lon: number;
-  kind: "alerta" | "reporte";
+  kind: "alerta" | "reporte" | "contratos";
   label?: string;
   // Para alertas: 0-100. Para reportes: categoria.
   score?: number;
   categoria?: string;
   confirmado?: boolean;
   href?: string;
+  // Para "contratos" (punto agregado por zona): radio en unidades del viewBox,
+  // color por señales, total de contratos y ubigeo de la zona.
+  r?: number;
+  color?: string;
+  total?: number;
+  ubigeo?: string;
+  selected?: boolean;
+  hovered?: boolean;
 }
 
 export interface PeruChoroplethProps {
@@ -67,6 +76,9 @@ export interface PeruChoroplethProps {
   onSelectProvincia: (regionId: string, provincia: ProvinciaData) => void;
   // Pines opcionales que se overlay sobre el choropleth
   points?: MapPoint[];
+  /** Clic en un punto sin `href` (p. ej. un punto agregado de contratos). */
+  onPointClick?: (pt: MapPoint) => void;
+  onPointHover?: (pt: MapPoint | null) => void;
   /**
    * Capa alternativa de color por regionId (p. ej. estado de financiamiento
    * con ESTADO_FILL). Si está presente reemplaza la escala por métrica; las
@@ -84,6 +96,8 @@ export function PeruChoropleth({
   onSelectProvincia,
   points = [],
   fillOverride = null,
+  onPointClick,
+  onPointHover,
 }: PeruChoroplethProps) {
   const [deptData, setDeptData] = useState<DeptGeo | null>(null);
   const [provData, setProvData] = useState<ProvGeo | null>(null);
@@ -475,6 +489,24 @@ export function PeruChoropleth({
                 const proj = projection([pt.lon, pt.lat]);
                 if (!proj) return null;
                 const [px, py] = proj;
+                if (pt.kind === "contratos") {
+                  return (
+                    <ContratoPin
+                      key={`pt-${pt.id}`}
+                      px={px}
+                      py={py}
+                      r={pt.r ?? 3}
+                      color={pt.color ?? "#5B6B7A"}
+                      total={pt.total ?? 0}
+                      nombre={pt.label ?? ""}
+                      zoom={zoomScale}
+                      selected={pt.selected}
+                      hovered={pt.hovered}
+                      onClick={onPointClick ? () => onPointClick(pt) : undefined}
+                      onHover={onPointHover ? (on) => onPointHover(on ? pt : null) : undefined}
+                    />
+                  );
+                }
                 const isAlerta = pt.kind === "alerta";
                 const score = pt.score ?? 0;
                 // Tamaño y color para alertas según score
@@ -502,7 +534,7 @@ export function PeruChoropleth({
                       cx={px} cy={py} r={r}
                       fill={fill} stroke={stroke} strokeWidth={sw2}
                       style={{ cursor: pt.href ? "pointer" : "default" }}
-                      onClick={() => { if (pt.href) window.location.assign(pt.href); }}
+                      onClick={() => { if (pt.href) window.location.assign(pt.href); else onPointClick?.(pt); }}
                     >
                       <title>{`${isAlerta ? "Alerta" : "Denuncia"}${pt.label ? " · " + pt.label : ""}${
                         isAlerta && score ? " · score " + score : ""

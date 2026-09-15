@@ -13,6 +13,7 @@ import {
   Lock,
   Home,
   Activity,
+  FileSearch,
   Users,
   Heart,
   LogOut,
@@ -63,6 +64,13 @@ const SECTIONS: Section[] = [
           p.startsWith("/app/denuncias") ||
           p.startsWith("/app/convocatoria") ||
           p.startsWith("/convocatoria"),
+      },
+      {
+        href: "/app/contratos",
+        label: "Contratos",
+        icon: <FileSearch size={16} />,
+        hint: "Todo el SEACE, contrato a contrato",
+        match: (p) => p.startsWith("/app/contratos"),
       },
       {
         href: "/app/auditoria",

@@ -44,6 +44,8 @@ ORDER = [
     "10_admin_config.sql",
     "11_convocatorias_ubigeo.sql",
     "12_procesamientos.sql",
+    "13_clasificacion.sql",
+    "14_lotes.sql",
 ]
 
 
