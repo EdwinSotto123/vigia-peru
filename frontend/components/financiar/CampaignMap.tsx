@@ -101,9 +101,20 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Pr
   const hovered = hover ? byUbigeo.get(hover) : null;
   const selectedZona = selected ? byUbigeo.get(selected) : null;
 
+  // Mientras ninguna zona tenga financiamiento, el mapa pinta por INTENSIDAD de cola
+  // (cuántos contratos esperan) en vez de un gris uniforme; en cuanto hay aportes,
+  // vuelve a los colores por estado.
+  const maxCola = useMemo(() => Math.max(1, ...zonas.map((z) => z.totalCola)), [zonas]);
+  const sinFinanciamiento = useMemo(() => zonas.every((z) => z.financiados === 0), [zonas]);
   const fillFor = (code: string) => {
     const z = byUbigeo.get(code);
-    return ESTADO_FILL[(z?.estado ?? "sin_datos") as ZonaEstado];
+    if (!z || z.totalCola === 0) return ESTADO_FILL.sin_datos;
+    if (sinFinanciamiento && z.estado === "pendiente") {
+      const t = Math.sqrt(z.totalCola / maxCola);           // raíz: Lima no aplasta al resto
+      const l = 92 - t * 52;                                 // 92% (casi blanco) → 40% (clay oscuro)
+      return `hsl(28 55% ${l.toFixed(0)}%)`;
+    }
+    return ESTADO_FILL[z.estado as ZonaEstado];
   };
 
   return (
@@ -124,7 +135,7 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Pr
                 <g key={p.code}>
                   <path
                     d={p.d}
-                    fill={z?.estado === "pendiente" ? "url(#hatch-pendiente)" : fillFor(p.code)}
+                    fill={z?.estado === "pendiente" && !sinFinanciamiento ? "url(#hatch-pendiente)" : fillFor(p.code)}
                     stroke="#FFFFFF"
                     strokeWidth={isSel ? 0.6 : 0.9}
                     opacity={dim ? 0.25 : 1}
@@ -133,7 +144,7 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Pr
                     onMouseLeave={() => setHover(null)}
                     onClick={() => !compact && setSelected(isSel ? null : p.code)}
                   />
-                  {z?.estado === "pendiente" && !dim && (
+                  {z?.estado === "pendiente" && !sinFinanciamiento && !dim && (
                     <path d={p.d} fill="#D9DEE4" opacity={0.55} pointerEvents="none" />
                   )}
                 </g>
@@ -192,7 +203,13 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null }: Pr
 
         {/* Leyenda */}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-mute">
-          {(["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[]).map((e) => (
+          {sinFinanciamiento && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-3 w-16 rounded-sm border border-line" style={{ background: "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))" }} />
+              menos → más contratos en cola
+            </span>
+          )}
+          {(sinFinanciamiento ? (["parcial", "financiada", "procesada"] as ZonaEstado[]) : (["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[])).map((e) => (
             <span key={e} className="inline-flex items-center gap-1.5">
               <span className="inline-block h-3 w-3 rounded-sm border border-line" style={{ background: ESTADO_FILL[e] }} />
               {ESTADO_LABEL[e]}

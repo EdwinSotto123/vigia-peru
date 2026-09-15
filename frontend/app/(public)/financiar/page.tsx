@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Scale, Receipt, Trophy, Landmark, Users, Building2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Landmark } from "lucide-react";
 import { CampaignMap } from "@/components/financiar/CampaignMap";
 import { RankingTable } from "@/components/financiar/RankingTable";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
@@ -85,27 +85,6 @@ export default async function FinanciarPage() {
         )}
       </section>
 
-      {/* ─── CÓMO FUNCIONA ─── */}
-      <section className="border-y border-line bg-paperDeep py-16">
-        <div className="container-page">
-          <h2 className="font-serif text-3xl font-bold text-ink">Cómo funciona</h2>
-          <div className="mt-8 grid gap-6 md:grid-cols-4">
-            <Step n="1" icon={<Landmark size={18} />} title="Elige una zona">
-              Departamento, provincia o distrito. Ves cuántos contratos hay en cola y cuánto cuesta auditarlos.
-            </Step>
-            <Step n="2" icon={<Receipt size={18} />} title="Financia N contratos">
-              {formatPEN(precio)} por contrato. Mínimo 5. Empresa, organización o persona — también anónimo.
-            </Step>
-            <Step n="3" icon={<Scale size={18} />} title="Vigía audita en orden">
-              Los contratos se asignan por antigüedad (FIFO). Nadie elige cuáles. El pipeline no sabe quién financió.
-            </Step>
-            <Step n="4" icon={<Trophy size={18} />} title="Recibes tu comprobante de impacto">
-              Página pública con cada contrato procesado, las señales halladas y tu lugar en el ranking.
-            </Step>
-          </div>
-        </div>
-      </section>
-
       {/* ─── RANKING + RECIENTES ─── */}
       <section className="container-page grid gap-10 py-16 lg:grid-cols-[1.2fr_1fr]">
         <div>
@@ -150,19 +129,6 @@ export default async function FinanciarPage() {
         </div>
       </section>
 
-      {/* ─── PARA QUIÉN ─── */}
-      <section className="container-page py-16">
-        <div className="grid gap-6 md:grid-cols-2">
-          <Audience icon={<Building2 size={20} />} title="Empresas y organizaciones">
-            Reconocimiento público proporcional: "Auditoría financiada por …", insignia para tu web y memoria,
-            ranking de impacto y un comprobante con cada contrato que tu aporte hizo posible leer.
-          </Audience>
-          <Audience icon={<Users size={20} />} title="Ciudadanos y colectivos">
-            Desde 5 contratos ({formatPEN(precio * 5)}). Puedes aparecer con tu nombre, como colectivo ("Vecinos de …")
-            o anónimo. El ranking cuenta contratos: 300 vecinos valen lo mismo que una empresa.
-          </Audience>
-        </div>
-      </section>
     </div>
   );
 }
@@ -179,32 +145,11 @@ function Metric({ label, value, prefix = "", hint }: { label: string; value: num
   );
 }
 
-function Step({ n, icon, title, children }: { n: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-line bg-paper p-5">
-      <div className="flex items-center gap-2 text-clay">
-        <span className="font-mono text-xs">{n}</span>{icon}
-      </div>
-      <h3 className="mt-2 font-semibold text-ink">{title}</h3>
-      <p className="mt-1 text-sm leading-relaxed text-mute">{children}</p>
-    </div>
-  );
-}
-
 function Rule({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <li className="rounded-xl border border-paper/15 bg-paper/5 p-4">
       <div className="text-sm font-semibold text-paper">{title}</div>
       <p className="mt-1 text-[13px] leading-relaxed text-paper/65">{children}</p>
     </li>
-  );
-}
-
-function Audience({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-line p-6">
-      <div className="flex items-center gap-2 text-ink">{icon}<h3 className="font-serif text-xl font-bold">{title}</h3></div>
-      <p className="mt-2 text-sm leading-relaxed text-mute">{children}</p>
-    </div>
   );
 }

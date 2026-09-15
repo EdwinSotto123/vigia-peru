@@ -1,52 +1,50 @@
 import Link from "next/link";
-import { ArrowRight, HeartHandshake, Heart } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
+import { getEstadoGlobal, formatPEN } from "@/lib/financiamiento";
 
-/**
- * "Gracias a…" en la landing (server component): el top de aliados del mes en
- * formato compacto + enlace al muro completo. Reconocimiento por contratos
- * financiados, no por soles.
- */
-export function AliadosSection() {
+/** Aliados + cifras de financiamiento en una sola sección (antes: "Financia" con mapa + "Aliados"). */
+export async function AliadosSection() {
+  const estado = await getEstadoGlobal();
   return (
-    <section id="aliados" className="scroll-mt-20 border-y border-line bg-paperSoft py-20">
-      <div className="container-page">
-        <div className="grid items-end gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-clay">
-              <HeartHandshake size={11} /> Aliados de transparencia
-            </div>
-            <h2 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
-              Gracias a ellos, hay contratos que <em className="text-moss">sí se leyeron</em>.
-            </h2>
-          </div>
-          <p className="text-sm leading-relaxed text-mute">
-            Empresas, colectivos y personas que financiaron capacidad de auditoría. El reconocimiento es
-            público y verificable: cada aporte tiene un comprobante de impacto con los contratos que hizo
-            posible leer y las señales halladas. Nadie paga por resultados ni elige qué se analiza.
+    <section id="aliados" className="scroll-mt-20 py-16">
+      <div className="container-page grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+        <div>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-mute">Aliados de transparencia</span>
+          <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
+            Gracias a ellos, hay contratos que <em className="text-moss">sí se leyeron</em>.
+          </h2>
+          <p className="mt-3 text-mute">
+            Empresas, colectivos y personas que financian capacidad de auditoría. Reciben reconocimiento público
+            y un comprobante con cada contrato que su aporte hizo posible leer. El ranking cuenta contratos, no soles.
           </p>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <Mini v={(estado?.contratosFinanciados ?? 0).toLocaleString("es-PE")} l="contratos financiados" />
+            <Mini v={formatPEN(estado?.montoPen ?? 0)} l="destinados a auditoría" />
+            <Mini v={String(estado?.regionesConAuditoria ?? 0)} l="regiones con auditoría" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/financiar" className="group inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+              Financiar una auditoría <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/financiar#independencia" className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep">
+              <ShieldCheck size={16} /> Reglas de independencia
+            </Link>
+          </div>
         </div>
-
-        <div className="mt-10">
+        <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
           <MuroAliados compact />
-        </div>
-
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link
-            href="/aliados"
-            className="group inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep"
-          >
-            Ver todos los aliados
-            <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
-          </Link>
-          <Link
-            href="/financiar"
-            className="inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]"
-          >
-            <Heart size={15} className="text-amber" /> Sumarme como aliado
-          </Link>
         </div>
       </div>
     </section>
+  );
+}
+
+function Mini({ v, l }: { v: string; l: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-paperSoft p-3">
+      <div className="font-mono text-lg font-semibold text-ink">{v}</div>
+      <div className="text-[10px] uppercase tracking-wide text-mute">{l}</div>
+    </div>
   );
 }
