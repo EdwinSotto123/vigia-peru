@@ -35,7 +35,7 @@ export async function MuroAliados({ compact = false }: { compact?: boolean }) {
       <div className="rounded-2xl border border-dashed border-line p-8 text-center">
         <HeartHandshake size={22} className="mx-auto text-mute" aria-hidden />
         <p className="mt-2 text-sm text-mute">Todavía no hay aportes confirmados. El primer aliado abre este muro.</p>
-        <Link href="/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-paper">
+        <Link href="/app/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-paper">
           Financiar una auditoría <ArrowRight size={14} aria-hidden />
         </Link>
       </div>
@@ -61,7 +61,7 @@ export async function MuroAliados({ compact = false }: { compact?: boolean }) {
           </p>
         )}
         <div className="mt-4">
-          <Link href="/aliados" className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline">
+          <Link href="/app/aliados" className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline">
             Ver todos los aliados <ArrowRight size={14} aria-hidden />
           </Link>
         </div>

@@ -38,7 +38,7 @@ export async function HeroCompacto() {
               <Link href="/app/mapa" className="group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02] sm:text-base">
                 Explorar el mapa <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <Link href="/financiar" className="inline-flex items-center gap-2 rounded-full bg-amber px-6 py-3.5 text-sm font-semibold text-coal transition-transform hover:scale-[1.02] sm:text-base">
+              <Link href="/app/financiar" className="inline-flex items-center gap-2 rounded-full bg-amber px-6 py-3.5 text-sm font-semibold text-coal transition-transform hover:scale-[1.02] sm:text-base">
                 <Landmark size={16} /> Financiar una auditoría
               </Link>
             </div>

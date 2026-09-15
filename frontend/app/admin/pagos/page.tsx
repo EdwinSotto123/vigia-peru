@@ -49,7 +49,7 @@ export default function PagosPage() {
   return (
     <AdminShell title="Medios de pago" subtitle="Lo que ve el financiador al registrar un aporte (fase 0: pago manual + comprobante)" actions={
       <>
-        <Link href="/financiar/15" target="_blank" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs text-ink hover:bg-paperDeep"><Eye size={12} /> Ver como financiador</Link>
+        <Link href="/app/financiar/15" target="_blank" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs text-ink hover:bg-paperDeep"><Eye size={12} /> Ver como financiador</Link>
         <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper disabled:opacity-50">{saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Guardar</button>
       </>
     }>

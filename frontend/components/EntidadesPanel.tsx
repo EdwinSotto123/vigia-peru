@@ -232,7 +232,7 @@ function EntidadRow({
         <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-mute">
           <span>
             <FileText size={10} className="mr-1 inline" />
-            {ent.contratos} contratos · {ent.contratosVigilados} vigilados
+            {(ent.contratos ?? 0).toLocaleString("es-PE")} contratos · {ent.contratosVigilados ?? 0} con alertas
           </span>
         </div>
       </div>

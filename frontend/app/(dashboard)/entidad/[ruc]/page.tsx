@@ -14,11 +14,9 @@ import {
 } from "lucide-react";
 import { entidadById, TIPO_LABELS, type Entidad } from "@/lib/mock-entities";
 import { formatSoles, severidadColor } from "@/lib/mock-data";
-import { Sparkline } from "@/components/charts/Sparkline";
 import { MESES_SERIE } from "@/lib/peru-data";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
-import { AnalizarOtraConvocatoria } from "@/components/AnalizarOtraConvocatoria";
 import { Suspense } from "react";
 import { getEntidad } from "@/lib/api-client";
 
@@ -31,11 +29,17 @@ export default async function EntidadProfile({
   let ent: Entidad | null = null;
   let alertasRel: any[] = [];
   let source: "api" | "mock" = "api";
+  let enCola = 0;
+  let ubigeo: string | null = null;
+  let zonaNombre: string | null = null;
 
   try {
     const apiResp = await getEntidad(params.ruc);
     if (apiResp?.entidad) {
       const e = apiResp.entidad;
+      enCola = Number(e.contratosEnCola || 0);
+      ubigeo = e.ubigeo || null;
+      zonaNombre = e.zonaNombre || null;
       ent = {
         id: e.ruc,
         ruc: e.ruc,
@@ -46,8 +50,8 @@ export default async function EntidadProfile({
         distrito: e.distrito || "",
         alertas: Number(e.alertas || (apiResp.alertas || []).length),
         reportes: 0,
-        contratos: 0,
-        contratosVigilados: 0,
+        contratos: Number(e.contratos || 0),
+        contratosVigilados: Number(e.alertas || 0),
         monto: Number(e.monto || 0),
         scorePromedio: (apiResp.alertas || []).reduce(
           (a: number, x: any) => a + (Number(x.score) || 0), 0
@@ -151,27 +155,30 @@ export default async function EntidadProfile({
         />
       </section>
 
-      {/* Sparkline + score */}
+      {/* Cola de auditoría de la entidad + score */}
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="surface lg:col-span-2 p-5">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-serif text-lg font-bold text-ink">
-                Alertas activadas — últimos 6 meses
-              </h3>
-              <p className="text-xs text-mute">
-                Cada barra suma las banderas duras (C1-C8) que se dispararon ese mes.
-              </p>
+              <h3 className="font-serif text-lg font-bold text-ink">Contratos de esta entidad sin leer</h3>
+              <p className="text-xs text-mute">Convocatorias de los últimos 90 días (OECE) que Vigía todavía no analizó.</p>
             </div>
             <Activity size={18} className="text-clay" />
           </div>
-          <Sparkline
-            values={ent.serie}
-            labels={MESES_SERIE}
-            color="#A0512D"
-            width={520}
-            height={120}
-          />
+          <div className="mt-4 flex flex-wrap items-end gap-6">
+            <div>
+              <div className="font-mono text-5xl font-bold text-ink">{enCola.toLocaleString("es-PE")}</div>
+              <div className="text-xs text-mute">en cola de auditoría · de {ent.contratos.toLocaleString("es-PE")} registradas</div>
+            </div>
+            {enCola > 0 && ubigeo ? (
+              <Link href={`/app/financiar/${ubigeo}`} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+                Financiar la auditoría de {zonaNombre ?? "su zona"} →
+              </Link>
+            ) : (
+              <p className="text-sm text-mute">{enCola === 0 ? "Sin contratos pendientes de esta entidad en la cola." : "Zona no identificada aún."}</p>
+            )}
+          </div>
+          <p className="mt-3 text-[11px] text-mute">Los contratos se asignan por antigüedad dentro de la zona; no se puede elegir una entidad concreta.</p>
         </div>
         <div className="surface p-5">
           <h3 className="font-serif text-lg font-bold text-ink">Score</h3>
@@ -210,12 +217,6 @@ export default async function EntidadProfile({
           subtitle={`${ent.nombre} · datos reales de MEF`}
         />
       </Suspense>
-
-      {/* Analizar otra convocatoria de la entidad */}
-      <AnalizarOtraConvocatoria
-        rucEntidad={ent.ruc}
-        nombreEntidad={ent.nombre}
-      />
 
       {/* Alertas asociadas — convocatorias ya analizadas */}
       <section className="surface overflow-hidden p-0">

@@ -8,22 +8,24 @@ import type { Alerta } from "@/types";
  * Lista top de alertas. Recibe la data por props para que el caller decida
  * de dónde la trae (API real, mock, etc.).
  */
-export function TopAlertasList({ alertas }: { alertas: Alerta[] }) {
-  const top = [...alertas].sort((a, b) => b.score - a.score).slice(0, 6);
+export function TopAlertasList({ alertas, limit = 6, hideHeader = false }: { alertas: Alerta[]; limit?: number; hideHeader?: boolean }) {
+  const top = [...alertas].sort((a, b) => b.score - a.score).slice(0, limit);
 
   return (
     <div className="surface overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-line px-6 py-4">
-        <div>
-          <h3 className="font-serif text-xl font-bold">Top alertas del mes</h3>
-          <p className="text-sm text-ash">
-            Ordenadas por score de riesgo. Click para ver el dossier.
-          </p>
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <div>
+            <h3 className="font-serif text-xl font-bold">Top alertas del mes</h3>
+            <p className="text-sm text-ash">
+              Ordenadas por score de riesgo. Click para ver el dossier.
+            </p>
+          </div>
+          <Link href="/app/alertas" className="text-sm font-medium text-navy hover:underline">
+            Ver todas
+          </Link>
         </div>
-        <Link href="/" className="text-sm font-medium text-navy hover:underline">
-          Ver todas
-        </Link>
-      </div>
+      )}
       {top.length === 0 ? (
         <p className="px-6 py-10 text-center text-sm text-mute">
           Sin alertas activas. El motor las publica aquí apenas el pipeline

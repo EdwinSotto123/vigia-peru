@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { PresupuestoRegional } from "@/components/PresupuestoRegional";
+import { REGION_TO_MEF_DEPT } from "@/lib/peru-data";
 import {
   X,
   MapPin,
@@ -32,7 +34,7 @@ import { EntidadesDeZona } from "./EntidadesDeZona";
 import { AlertasDeZona } from "./AlertasDeZona";
 import { belongsToRegion } from "./region-match";
 
-export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias";
+export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias" | "presupuesto";
 
 export interface ZonaHubPanelProps {
   /** Slug de `lib/peru-data` (p. ej. "ancash"). */
@@ -94,9 +96,9 @@ export function ZonaHubPanel({
   );
 
   const zona = detalle?.zona ?? null;
-  const financiarHref = ubigeo ? `/financiar/${ubigeo}` : "/financiar";
+  const financiarHref = ubigeo ? `/app/financiar/${ubigeo}` : "/app/financiar";
   const denunciarHref = `/reporte/nuevo?region=${encodeURIComponent(regionId)}`;
-  const enVivoHref = ubigeo ? `/auditoria?ubigeo=${ubigeo}` : "/auditoria";
+  const enVivoHref = ubigeo ? `/app/auditoria?ubigeo=${ubigeo}` : "/app/auditoria";
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-paperSoft">
@@ -151,7 +153,7 @@ export function ZonaHubPanel({
       )}
 
       {/* Tabs */}
-      <div className="flex shrink-0 items-stretch border-b border-line bg-paperSoft">
+      <div className="scrollbar-none flex shrink-0 items-stretch overflow-x-auto border-b border-line bg-paperSoft">
         <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={<LineChart size={12} />}>
           Resumen
         </TabBtn>
@@ -182,6 +184,9 @@ export function ZonaHubPanel({
         >
           Denuncias
         </TabBtn>
+        <TabBtn active={tab === "presupuesto"} onClick={() => setTab("presupuesto")} icon={<Landmark size={12} />}>
+          Presupuesto
+        </TabBtn>
       </div>
 
       {/* Contenido */}
@@ -205,6 +210,7 @@ export function ZonaHubPanel({
         {tab === "denuncias" && (
           <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />
         )}
+        {tab === "presupuesto" && <PresupuestoRegional mefDept={REGION_TO_MEF_DEPT[regionId] ?? null} regionId={regionId} />}
       </div>
 
       {/* Footer: las dos acciones siempre a mano (el resumen ya las muestra en grande) */}
@@ -397,18 +403,19 @@ function ResumenTab({
         </button>
       </div>
 
-      <Link
-        href={`/region/${regionId}`}
-        className="group flex items-center justify-between rounded-xl border border-dashed border-line bg-paperDeep px-3 py-2.5 text-xs transition-colors hover:border-clay hover:bg-paper"
+      <button
+        type="button"
+        onClick={() => goTo("presupuesto")}
+        className="group flex w-full items-center justify-between rounded-xl border border-dashed border-line bg-paperDeep px-3 py-2.5 text-xs transition-colors hover:border-clay hover:bg-paper"
       >
         <span className="text-mute">
-          Presupuesto MEF y análisis completo de <strong className="text-ink">{nombre}</strong>
+          Presupuesto MEF de <strong className="text-ink">{nombre}</strong>: PIA, PIM y ejecución
         </span>
         <span className="inline-flex items-center gap-0.5 font-semibold text-clay">
           Ver
           <ArrowRight size={11} className="transition-transform group-hover:translate-x-0.5" />
         </span>
-      </Link>
+      </button>
     </div>
   );
 }
@@ -472,7 +479,7 @@ function ColaTab({
               return (
                 <li key={h.ubigeo}>
                   <Link
-                    href={`/financiar/${h.ubigeo}`}
+                    href={`/app/financiar/${h.ubigeo}`}
                     className="group block rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-clay/60 hover:bg-paperDeep"
                   >
                     <div className="flex items-baseline justify-between gap-2 text-[11px]">

@@ -69,7 +69,7 @@ export function ZonaPicker({ zonas, precioPen }: { zonas: Zona[]; precioPen: num
                     <span className="font-medium text-ink">{d.nombre}</span>
                     <span className="ml-auto font-mono text-xs text-mute">{d.totalCola.toLocaleString("es-PE")} · S/ {(d.totalCola * precioPen).toLocaleString("es-PE")}</span>
                   </button>
-                  <Link href={`/financiar/${d.ubigeo}`} className="rounded-lg bg-ink px-2.5 py-1 text-xs font-semibold text-paper">Financiar</Link>
+                  <Link href={`/app/financiar/${d.ubigeo}`} className="rounded-lg bg-ink px-2.5 py-1 text-xs font-semibold text-paper">Financiar</Link>
                 </div>
                 {abierto === d.ubigeo && (
                   <ul className="border-t border-line bg-paperSoft">
@@ -101,7 +101,7 @@ export function ZonaPicker({ zonas, precioPen }: { zonas: Zona[]; precioPen: num
 function Fila({ z, precioPen, nested = false }: { z: Zona; precioPen: number; nested?: boolean }) {
   return (
     <li>
-      <Link href={`/financiar/${z.ubigeo}`} className={`flex items-center gap-2 py-2.5 pr-3 text-sm hover:bg-paperDeep ${nested ? "pl-10" : "px-3"}`}>
+      <Link href={`/app/financiar/${z.ubigeo}`} className={`flex items-center gap-2 py-2.5 pr-3 text-sm hover:bg-paperDeep ${nested ? "pl-10" : "px-3"}`}>
         <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[z.estado] }} />
         <span className="text-ink">{z.nombre}</span>
         <span className="text-[11px] text-mute">{z.nivel}</span>

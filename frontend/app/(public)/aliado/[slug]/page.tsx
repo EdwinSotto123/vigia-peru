@@ -44,7 +44,7 @@ export default async function AliadoPage({ params }: { params: { slug: string } 
               <div>
                 <Link href={`/impacto/${c.codigo}`} className="font-mono text-ink hover:underline">{c.codigo}</Link>
                 <span className="text-mute"> · </span>
-                <Link href={`/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
+                <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
                 <div className="text-[11px] text-mute">{new Date(c.pagadaAt).toLocaleDateString("es-PE")} · {c.estado.replace("_", " ")}</div>
               </div>
               <div className="text-right font-mono text-sm text-ink">{c.procesados}/{c.contratos}<div className="text-[10px] uppercase text-mute">{c.senales} señales</div></div>

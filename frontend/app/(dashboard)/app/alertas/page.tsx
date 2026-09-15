@@ -21,7 +21,7 @@ export default async function AlertasPage() {
       <PageHeader
         eyebrow="Alertas activas"
         icon={<AlertTriangle size={11} className="text-clay" />}
-        title="Top alertas del mes"
+        title="Señales de riesgo detectadas"
         subtitle="Ordenadas por score de riesgo. Click cualquier alerta para ver el dossier completo con red de personas y fuentes."
         actions={
           <span
@@ -37,7 +37,7 @@ export default async function AlertasPage() {
           </span>
         }
       />
-      <TopAlertasList alertas={alertas} />
+      <TopAlertasList alertas={alertas} limit={50} hideHeader />
     </div>
   );
 }

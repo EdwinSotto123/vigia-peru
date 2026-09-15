@@ -34,7 +34,7 @@ export function Footer() {
           {/* CTA donar + GitHub stacked */}
           <div className="flex flex-col gap-2.5">
             <Link
-              href="/financiar"
+              href="/app/financiar"
               className="group flex items-center justify-between gap-3 rounded-xl bg-amber px-5 py-3.5 text-ink transition-transform hover:scale-[1.02]"
             >
               <div className="flex items-center gap-2.5">
@@ -79,9 +79,9 @@ export function Footer() {
 
           <FooterCol title="Plataforma">
             <Link href="/app/mapa">Mapa de auditoría</Link>
-            <Link href="/financiar">Financiar una auditoría</Link>
-            <Link href="/auditoria">Auditoría en vivo</Link>
-            <Link href="/aliados">Aliados de transparencia</Link>
+            <Link href="/app/financiar">Financiar una auditoría</Link>
+            <Link href="/app/auditoria">Auditoría en vivo</Link>
+            <Link href="/app/aliados">Aliados de transparencia</Link>
             <Link href="/reporte/nuevo">Denunciar una obra</Link>
             <Link href="/preguntas">Preguntas frecuentes</Link>
           </FooterCol>
@@ -105,7 +105,7 @@ export function Footer() {
           </FooterCol>
 
           <FooterCol title="Proyecto">
-            <Link href="/financiar">
+            <Link href="/app/financiar">
               <Heart size={12} className="inline mr-1.5 fill-amber text-amber" />
               Financiar
             </Link>

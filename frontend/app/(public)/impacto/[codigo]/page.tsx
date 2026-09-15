@@ -93,7 +93,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
 
           <p className="mt-6 text-lg text-ink">
             Financió la auditoría de <strong className="font-mono">{c.contratos}</strong> contratos en{" "}
-            <Link href={`/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
+            <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
             <span className="text-mute"> ({c.nivel})</span>.
           </p>
           <p className="mt-1 text-sm text-mute">
@@ -136,7 +136,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
               texto={`${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`}
             />
             <span className="font-mono text-[12px] text-mute">vigia.pe/impacto/{c.codigo}</span>
-            <Link href="/financiar" className="ml-auto rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
+            <Link href="/app/financiar" className="ml-auto rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
           </div>
         </div>
       </div>

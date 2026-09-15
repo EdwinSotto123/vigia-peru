@@ -127,7 +127,7 @@ export default function AdminHome() {
           <tbody>
             {(data?.cola ?? []).map((z) => (
               <tr key={z.ubigeo} className="border-t border-line">
-                <td className="py-2"><Link href={`/financiar/${z.ubigeo}`} target="_blank" className="hover:underline">{z.nombre}</Link></td>
+                <td className="py-2"><Link href={`/app/financiar/${z.ubigeo}`} target="_blank" className="hover:underline">{z.nombre}</Link></td>
                 <td><span className="inline-flex items-center gap-1.5 text-xs"><span className="h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[z.estado as ZonaEstado] }} />{ESTADO_LABEL[z.estado as ZonaEstado]}</span></td>
                 <td className="text-right font-mono">{z.pendientes}</td><td className="text-right font-mono">{z.financiados}</td><td className="text-right font-mono">{z.procesados}</td><td className="text-right font-mono">{z.totalCola}</td>
               </tr>
@@ -155,7 +155,7 @@ export default function AdminHome() {
             {!salud?.procesamientos.ultimos.length && <li className="py-2 text-mute">Nada procesado aún. Valida un aporte y el dispatcher empieza.</li>}
             {(salud?.procesamientos.ultimos ?? []).map((u) => (
               <li key={u.ocid} className="flex items-center justify-between gap-3 py-2">
-                <Link href={`/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className="min-w-0 truncate hover:underline">{u.titulo ?? u.ocid}</Link>
+                <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className="min-w-0 truncate hover:underline">{u.titulo ?? u.ocid}</Link>
                 <span className="shrink-0 font-mono text-xs text-mute">{u.score != null ? `score ${u.score} · ` : ""}{u.segundos != null ? `${Math.round(u.segundos / 60)} min` : ""}</span>
               </li>
             ))}
