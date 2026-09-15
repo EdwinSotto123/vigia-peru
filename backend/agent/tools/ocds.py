@@ -1,6 +1,7 @@
 """Tools del dominio: ocds."""
 
 from tools._core import *  # noqa: F401,F403
+from tools._core import downloader_base
 
 # El OCID OECE tiene DOS esquemas: flat ('ocds-dgv273-seacev3-1221284') y
 # año-secuencia ('ocds-dgv273-seacev3-2026-10404-12'). En el 2º, el número de
@@ -39,7 +40,7 @@ def fetch_ocds_record(ocid: str, tool_context: ToolContext) -> dict:
         raw = None
         # 1) Puente local (IP residencial PE) — OECE bloquea datacenter con 403.
         #    Si está configurado, traemos la metadata por la IP del usuario.
-        dl_base = os.getenv("LOCAL_DOWNLOADER_URL", "").strip()
+        dl_base = downloader_base()
         if dl_base:
             try:
                 fr = requests.post(

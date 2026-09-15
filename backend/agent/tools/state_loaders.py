@@ -55,6 +55,63 @@ def _compact_ocds(ocds):
     }
 
 
+# Campos de `document_analysis.documentos[*]` que sirven al dictamen (el resto —gs, url,
+# sha256, cache, tiempos, usos, unidades, motor— es telemetría del parser).
+_DOC_CAMPOS_DICTAMEN = ("id", "titulo", "tipo", "seccion", "formato", "n_paginas", "n_items", "n_firmantes",
+                        "tipo_documento_detectado", "contiene_requerimiento", "truncado", "error")
+
+
+def _sin_sha(ev):
+    if isinstance(ev, list):
+        return [{k: v for k, v in e.items() if k != "documento_sha256"} if isinstance(e, dict) else e for e in ev]
+    return ev
+
+
+def _compact_document_analysis(da):
+    """Proyección de `document_analysis` para el writer SIN lo redundante (verificado en un
+    contexto real: 28 k de 62 k chars eran document_analysis):
+      · `requerimiento_tecnico_detallado` es ALIAS de `texto_literal` por ítem (hasta 4 000
+        chars duplicados por ítem) → se deja solo `texto_literal`;
+      · `firmantes_consolidados` == `firmantes` y `postores_consolidados` == `postores_extraidos`;
+      · `documentos[*]` se reduce a los campos útiles (sin telemetría del OCR);
+      · `documento_sha256` (por ítem/evidencia/firmante/…) no es citable en el dictamen.
+    No se quita ninguna información única. Devuelve una COPIA (no muta el state)."""
+    if not isinstance(da, dict):
+        return da
+    out = {}
+    for k, v in da.items():
+        if k in ("_source", "_note"):
+            continue
+        if k == "firmantes_consolidados" and v == da.get("firmantes"):
+            continue
+        if k == "postores_consolidados" and v == da.get("postores_extraidos"):
+            continue
+        if k == "documentos" and isinstance(v, list):
+            out[k] = [{c: d.get(c) for c in _DOC_CAMPOS_DICTAMEN if d.get(c) not in (None, "", [], {})}
+                      if isinstance(d, dict) else d for d in v]
+            continue
+        if isinstance(v, list):
+            nv = []
+            for it in v:
+                if not isinstance(it, dict):
+                    nv.append(it)
+                    continue
+                it2 = {}
+                for ik, iv in it.items():
+                    if ik == "documento_sha256":
+                        continue
+                    if ik == "requerimiento_tecnico_detallado" and iv == it.get("texto_literal"):
+                        continue
+                    it2[ik] = _sin_sha(iv) if ik == "evidencia" else iv
+                nv.append(it2)
+            out[k] = nv
+        elif isinstance(v, dict):
+            out[k] = {ik: (_sin_sha(iv) if ik == "evidencia" else iv) for ik, iv in v.items() if ik != "documento_sha256"}
+        else:
+            out[k] = v
+    return out
+
+
 def _paginar(obj, max_str: int, max_list: int, _depth: int = 0):
     """Paginación por sección: en vez de cortar silenciosamente (viejo `_cap`), cada
     lista que supera `max_list` se reemplaza por {"items": [...], "_truncado": true,
@@ -174,6 +231,11 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
         else:
             out[k] = v
     out["ocds"] = _compact_ocds(out.get("ocds"))
+    out["document_analysis"] = _compact_document_analysis(out.get("document_analysis"))
+    # `perfil` completo (listas de prioridad de documentos, reglas, topes) no aporta al texto:
+    # las secciones del dictamen ya viajan en el mensaje del writer.
+    if isinstance(out.get("perfil"), dict):
+        out["perfil"] = {k: out["perfil"].get(k) for k in ("nombre", "market_estrategia", "legal_vectores")}
     out["banderas"] = _banderas_para_dictamen(state)
     out["reglas_evaluadas"] = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict)]
     out["n_banderas"] = len(out["banderas"] or [])

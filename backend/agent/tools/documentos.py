@@ -9,6 +9,7 @@ Dos caminos conviven:
 """
 
 from tools._core import *  # noqa: F401,F403
+from tools._core import downloader_base
 
 
 def _norm_txt(s: str) -> str:
@@ -273,8 +274,18 @@ PARSER_SCHEMA_VERSION = os.getenv("PARSER_SCHEMA_VERSION", "schema-v2")
 # Chars de texto OCR por llamada Gemini (≈ 150K tokens). Documentos más largos se parten
 # por páginas en varias llamadas y se fusionan — no se omite nada.
 PARSE_MAX_CHARS_POR_LLAMADA = int(os.getenv("PARSE_MAX_CHARS_POR_LLAMADA", "600000"))
-PARSE_LOTE_WORKERS = int(os.getenv("PARSE_LOTE_WORKERS", "3"))
+# Documentos del lote procesados A LA VEZ (descarga → OCR → extracción, cada uno en su hilo):
+# PARSE_CONCURRENCY (default 3; alias histórico PARSE_LOTE_WORKERS). El orden de prioridad del
+# perfil se conserva en la consolidación (resultados indexados por posición, no por llegada);
+# el lock por sha256 (_esperar_sha) evita OCR doble de bytes idénticos dentro del lote.
+PARSE_LOTE_WORKERS = int(os.getenv("PARSE_CONCURRENCY") or os.getenv("PARSE_LOTE_WORKERS", "3"))
 PARSE_REUSE_EXTRACCION = os.getenv("PARSE_REUSE_EXTRACCION", "1") != "0"
+# Solo para MEDIR (benchmark): ignora el texto cacheado en documentos_texto y vuelve a hacer
+# OCR (la extracción cacheada también se ignora porque cuelga del texto). Default 0.
+PARSE_SKIP_TEXTO_CACHE = os.getenv("PARSE_SKIP_TEXTO_CACHE", "0") == "1"
+# Unidades de un contenedor (ZIP con varios PDF) y rangos de páginas de un documento largo
+# (> PARSE_MAX_CHARS_POR_LLAMADA) se OCR-ean / extraen a la vez con este pool (orden preservado).
+PARSE_UNIT_WORKERS = max(1, int(os.getenv("PARSE_UNIT_WORKERS", "3") or 3))
 TEXTO_LITERAL_MAX = 4000
 CITA_MAX = 240
 
@@ -918,15 +929,11 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
     recortes: list[dict] = []
     motores: set[str] = set()
     truncado = False
-    for u in unidades:
-        offset = len(paginas)
+
+    def _ocr_unidad(u: dict, offset: int) -> tuple[list[dict], list[dict], bool, str | None]:
+        """OCR de UNA unidad PDF con numeración global desde `offset` →
+        (paginas, recortes, truncado, motor). Nunca levanta."""
         nombre = u["nombre"]
-        if u["kind"] == "paginas":
-            for i, p in enumerate(u["paginas"] or []):
-                t = (p.get("texto") or "").strip()
-                paginas.append({"n": offset + i + 1, "texto": t, "chars": len(t), "archivo": nombre})
-            motores.add("texto_nativo")
-            continue
         pdf = u["data"]
         res = None
         if use_docai:
@@ -938,22 +945,78 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
         if res:
             for p in res["paginas"]:
                 p["archivo"] = nombre
-            paginas.extend(res["paginas"])
-            recortes.extend(res.get("recortes") or [])
-            truncado = truncado or bool(res.get("truncado"))
-            motores.add("docai")
-        else:
-            try:
-                pags, rec = _paginas_pymupdf(pdf, offset)
-            except Exception as e:
-                recortes.append({"donde": f"ocr:{nombre[:80]}", "limite": "pdf_ilegible", "omitido": f"{nombre} ({str(e)[:80]})"})
-                truncado = True
+            return res["paginas"], list(res.get("recortes") or []), bool(res.get("truncado")), "docai"
+        try:
+            pags, rec = _paginas_pymupdf(pdf, offset)
+        except Exception as e:
+            return [], [{"donde": f"ocr:{nombre[:80]}", "limite": "pdf_ilegible", "omitido": f"{nombre} ({str(e)[:80]})"}], True, None
+        for p in pags:
+            p["archivo"] = nombre
+        return pags, rec, False, ("pymupdf+gemini_vision" if any(p.get("ocr") for p in pags) else "pymupdf")
+
+    # Offsets de página GLOBALES precalculados (conteo con PyMuPDF, barato) → las unidades PDF
+    # se OCR-ean EN PARALELO (PARSE_UNIT_WORKERS) conservando la numeración y el orden. Si
+    # alguna unidad no se puede contar, se cae al recorrido secuencial histórico.
+    pdf_units = [u for u in unidades if u["kind"] != "paginas"]
+    offsets: dict[int, int] | None = {}
+    if len(pdf_units) > 1 and PARSE_UNIT_WORKERS > 1:
+        acc = 0
+        for idx, u in enumerate(unidades):
+            offsets[idx] = acc
+            if u["kind"] == "paginas":
+                acc += len(u["paginas"] or [])
+            else:
+                n = _n_paginas_pdf(u["data"])
+                if n is None:
+                    offsets = None
+                    break
+                acc += n
+    else:
+        offsets = None
+
+    if offsets is not None:
+        resultados: dict[int, tuple] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(PARSE_UNIT_WORKERS, len(pdf_units))) as ex:
+            futs = {ex.submit(_ocr_unidad, u, offsets[idx]): idx
+                    for idx, u in enumerate(unidades) if u["kind"] != "paginas"}
+            for fut in concurrent.futures.as_completed(futs):
+                idx = futs[fut]
+                try:
+                    resultados[idx] = fut.result()
+                except Exception as e:  # _ocr_unidad no levanta; por si acaso
+                    u = unidades[idx]
+                    resultados[idx] = ([], [{"donde": f"ocr:{u['nombre'][:80]}", "limite": "pdf_ilegible",
+                                             "omitido": f"{u['nombre']} ({str(e)[:80]})"}], True, None)
+        for idx, u in enumerate(unidades):
+            if u["kind"] == "paginas":
+                offset = offsets[idx]
+                for i, p in enumerate(u["paginas"] or []):
+                    t = (p.get("texto") or "").strip()
+                    paginas.append({"n": offset + i + 1, "texto": t, "chars": len(t), "archivo": u["nombre"]})
+                motores.add("texto_nativo")
                 continue
-            for p in pags:
-                p["archivo"] = nombre
+            pags, rec, trunc, motor = resultados[idx]
             paginas.extend(pags)
             recortes.extend(rec)
-            motores.add("pymupdf+gemini_vision" if any(p.get("ocr") for p in pags) else "pymupdf")
+            truncado = truncado or trunc
+            if motor:
+                motores.add(motor)
+    else:
+        for u in unidades:
+            offset = len(paginas)
+            nombre = u["nombre"]
+            if u["kind"] == "paginas":
+                for i, p in enumerate(u["paginas"] or []):
+                    t = (p.get("texto") or "").strip()
+                    paginas.append({"n": offset + i + 1, "texto": t, "chars": len(t), "archivo": nombre})
+                motores.add("texto_nativo")
+                continue
+            pags, rec, trunc, motor = _ocr_unidad(u, offset)
+            paginas.extend(pags)
+            recortes.extend(rec)
+            truncado = truncado or trunc
+            if motor:
+                motores.add(motor)
     # Texto con marcadores; cabecera ⟦archivo⟧ cuando cambia la unidad (contenedores).
     partes: list[str] = []
     cur_archivo = None
@@ -967,6 +1030,18 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
     motor = "+".join(sorted(motores)) if len(motores) > 1 else (next(iter(motores)) if motores else "ninguno")
     return {"paginas": paginas, "texto": texto, "n_paginas": len(paginas), "chars": sum(p["chars"] for p in paginas),
             "motor": motor, "truncado": truncado or any(p.get("error") for p in paginas), "recortes": recortes}
+
+
+def _n_paginas_pdf(pdf_bytes: bytes) -> int | None:
+    """Páginas de un PDF (PyMuPDF); None si no se puede abrir."""
+    try:
+        import fitz
+        src = fitz.open(stream=pdf_bytes, filetype="pdf")
+        n = src.page_count
+        src.close()
+        return n
+    except Exception:
+        return None
 
 
 # ── Caché en BD: documentos_texto ──────────────────────────────────────────────────────
@@ -1297,10 +1372,33 @@ def _extraer_documento(tx: dict, label: str, bloque: str | None, ocds_ctx: dict,
     if len(rangos) > 1:
         print(f"[lote] {label[:60]}: {tx['chars']:,} chars → {len(rangos)} llamadas por rango de páginas", flush=True)
     result: dict = {}
-    for i, (ra, rb) in enumerate(rangos):
-        parte = _extraer_rango(paginas, ra, rb, label, bloque, ocds_ctx, tipo_hint, recortes, usos,
-                               rango_explicito=len(rangos) > 1)
-        result = _merge_extraccion(result, parte) if result else parte
+    if len(rangos) > 1 and PARSE_UNIT_WORKERS > 1:
+        # Rangos de un mismo documento largo: llamadas independientes → en paralelo, fusión en
+        # el orden de las páginas (los recortes/usos de cada rango se agregan tras el join).
+        partes: list[dict | None] = [None] * len(rangos)
+        recs: list[list] = [[] for _ in rangos]
+        usos_r: list[list] = [[] for _ in rangos]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(PARSE_UNIT_WORKERS, len(rangos))) as ex:
+            futs = {ex.submit(_extraer_rango, paginas, ra, rb, label, bloque, ocds_ctx, tipo_hint,
+                              recs[i], usos_r[i], 0, True): i for i, (ra, rb) in enumerate(rangos)}
+            for fut in concurrent.futures.as_completed(futs):
+                i = futs[fut]
+                try:
+                    partes[i] = fut.result()
+                except Exception as e:
+                    ra, rb = rangos[i]
+                    recs[i].append({"donde": f"extraccion:{label[:80]}", "limite": "error_llamada",
+                                    "omitido": f"páginas {ra}-{rb}: {type(e).__name__}: {str(e)[:120]}"})
+                    partes[i] = {"_truncado": True}
+        for i, parte in enumerate(partes):
+            recortes.extend(recs[i])
+            usos.extend(usos_r[i])
+            result = _merge_extraccion(result, parte) if result else (parte or {})
+    else:
+        for i, (ra, rb) in enumerate(rangos):
+            parte = _extraer_rango(paginas, ra, rb, label, bloque, ocds_ctx, tipo_hint, recortes, usos,
+                                   rango_explicito=len(rangos) > 1)
+            result = _merge_extraccion(result, parte) if result else parte
     result["_truncado"] = bool(result.get("_truncado")) or any(r.get("limite", "").startswith("max_output") for r in recortes)
     result["_recortes"] = recortes
     result["_usos"] = usos
@@ -1538,7 +1636,7 @@ def _procesar_doc(doc: dict, state: dict, bloque: str, prioridad: tuple[str, ...
         else:
             reclamado = sha
     try:
-        tx = _texto_cache_get(sha) if sha else None
+        tx = _texto_cache_get(sha) if (sha and not PARSE_SKIP_TEXTO_CACHE) else None
         blob = None
         if tx is None:
             blob, fuente, err = _bytes_de_doc(doc, state)
@@ -1555,7 +1653,7 @@ def _procesar_doc(doc: dict, state: dict, bloque: str, prioridad: tuple[str, ...
                     out["cache"]["esperado_en_lote"] = True
                 else:
                     reclamado = sha
-                tx = _texto_cache_get(sha)
+                tx = None if PARSE_SKIP_TEXTO_CACHE else _texto_cache_get(sha)
             out["fuente"] = fuente
         return _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob, t0, prioridad)
     finally:
@@ -2399,7 +2497,7 @@ def _fetch_doc_bytes(document_url: str, tool_context: ToolContext) -> tuple[byte
     #      CONFIABLE: SEACE bloquea IPs de datacenter (Cloud Run, colos de CF)
     #      con 403 pero acepta IPs residenciales PE. El servicio corre en la
     #      máquina del usuario, descarga con su IP, sube a GCS y devuelve gs://.
-    dl_base = os.getenv("LOCAL_DOWNLOADER_URL", "").strip()
+    dl_base = downloader_base()
     if dl_base:
         try:
             ocid_hint = (
