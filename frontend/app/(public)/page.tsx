@@ -1,33 +1,16 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Sparkles,
-  Database,
-  ShieldCheck,
-  Newspaper,
-  Camera,
-  Gavel,
-  Heart,
-  Code2,
-  Lock,
-  Server,
-  MapPin,
-} from "lucide-react";
-import { CinematicHero } from "@/components/landing/CinematicHero";
-import { DetectionCarousel } from "@/components/landing/DetectionCarousel";
-import { MapaHubSection } from "@/components/landing/MapaHubSection";
-import { ComoFunciona } from "@/components/landing/ComoFunciona";
-import { FinanciaSection } from "@/components/landing/FinanciaSection";
+import { ArrowRight, Newspaper, Camera, Gavel, MapPin } from "lucide-react";
+import { HeroCompacto } from "@/components/landing/HeroCompacto";
+import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto";
 import { AliadosSection } from "@/components/landing/AliadosSection";
-import { PlataformaTabs } from "@/components/landing/PlataformaTabs";
-import { SectionDots } from "@/components/landing/SectionDots";
+import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { Marquee } from "@/components/magicui/Marquee";
 import { getAlertas } from "@/lib/api-client";
 import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
 
 /**
- * Landing. Orden = recorrido del producto: hero → el mapa como interfaz →
- * cómo funciona → financiar → aliados → denunciar → plataforma → quiénes somos → CTA.
+ * Landing compacta (un solo mapa): hero+mapa → cómo funciona (+ qué detecta) →
+ * aliados (+ cifras de financiamiento) → denuncia ciudadana → confianza → CTA.
  */
 export default async function LandingPage() {
   // Marquee "en vivo": alertas reales; el mock solo si el API no responde.
@@ -43,12 +26,9 @@ export default async function LandingPage() {
 
   return (
     <>
-      <SectionDots />
+      <HeroCompacto />
 
-      {/* ─── HERO cinematográfico ─── */}
-      <CinematicHero />
-
-      {/* Marquee de alertas en vivo · transición al cuerpo editorial */}
+      {/* ─── EN VIVO · alertas reales ─── */}
       <section className="border-y border-line bg-paperDeep">
         <div className="relative overflow-hidden py-2">
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-paperDeep to-transparent" />
@@ -74,34 +54,10 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ─── EL MAPA ES LA INTERFAZ · cola, procesados hoy, señales ─── */}
-      <MapaHubSection />
+      <ComoFuncionaCompacto />
 
-      {/* ─── CÓMO FUNCIONA · 3 pasos ─── */}
-      <ComoFunciona />
-
-      {/* ─── QUÉ DETECTA · señales de riesgo ─── */}
-      <section id="detecta" className="container-page py-20 scroll-mt-20">
-        <div className="mb-8 max-w-2xl">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-mute">Qué detecta</span>
-          <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
-            Señales de riesgo que los 11 agentes buscan en cada contrato
-          </h2>
-          <p className="mt-3 text-mute">
-            Cada bandera cita la norma y la opinión del OECE que la sustenta, y enlaza a la evidencia oficial.
-            Señalamos patrones; no acusamos.
-          </p>
-        </div>
-        <DetectionCarousel />
-      </section>
-
-      {/* ─── FINANCIA UNA AUDITORÍA ─── */}
-      <FinanciaSection />
-
-      {/* ─── ALIADOS · gracias a… ─── */}
       <AliadosSection />
 
-      {/* ─── DENUNCIA CIUDADANA ─── */}
       <section id="denunciar" className="scroll-mt-20 py-20">
         <div className="container-page">
           <div className="mx-auto max-w-2xl text-center">
@@ -163,113 +119,7 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ─── LA PLATAFORMA · pestañas (cómo lo hace · motor · fuentes) ─── */}
-      <PlataformaTabs />
-
-      {/* ─── QUIÉNES SOMOS · compacto a una pantalla ─── */}
-      <section id="organizacion" className="container-page py-16 scroll-mt-20">
-        {/* Header */}
-        <div className="grid items-end gap-6 lg:grid-cols-[1.4fr,1fr]">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-moss/30 bg-moss/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-moss">
-              <Heart size={11} className="fill-moss" /> Organización sin fines de lucro
-            </div>
-            <h2 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink sm:text-4xl">
-              Construido para no
-              <span className="text-rust"> depender de nadie</span>.
-            </h2>
-          </div>
-          <p className="text-sm leading-relaxed text-mute">
-            Vigía Perú no recibe dinero del Estado, ni de empresas que contratan
-            con él, ni de partidos políticos. La única forma de garantizar que el
-            sistema publique <strong className="text-ink">lo que detecta</strong>,
-            no lo que conviene.
-          </p>
-        </div>
-
-        {/* 3 compromisos en grid horizontal compacto */}
-        <div className="mt-7 grid gap-3 sm:grid-cols-3">
-          <CompromisoMini
-            icon={<Code2 size={14} />}
-            title="100% open source"
-            body="Todo el código en GitHub. Una herramienta anticorrupción cerrada sería una contradicción."
-          />
-          <CompromisoMini
-            icon={<Lock size={14} />}
-            title="Sin conflictos de interés"
-            body="Cero plata de empresas postoras o funcionarios. Aliados publicados con contratos financiados y fecha."
-          />
-          <CompromisoMini
-            icon={<ShieldCheck size={14} />}
-            title="Sin publicidad, sin venta de datos"
-            body="Dictámenes, alertas y mapa son públicos. No hay producto premium escondido."
-          />
-        </div>
-
-        {/* Cuentas claras + financiar — fila horizontal */}
-        <div className="mt-7 grid gap-0 overflow-hidden rounded-2xl border border-line bg-paperSoft lg:grid-cols-[1.5fr,1fr]">
-          {/* Costos */}
-          <div className="p-6 sm:p-7">
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-clay">
-                <Server size={10} /> Cuentas claras · mes pasado
-              </div>
-              <span className="font-mono text-[11px] text-mute">25 regiones</span>
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <CostoMini icon={<Sparkles size={12} />} label="Gemini 2.5" detail="~80 llamadas × 250 análisis" monto="S/. 412" color="rust" />
-              <CostoMini icon={<Server size={12} />} label="Cloud Run + SQL" detail="Postgres 6.4M filas" monto="S/. 285" color="clay" />
-              <CostoMini icon={<Database size={12} />} label="APIs externas" detail="SUNAT + Google Search" monto="S/. 148" color="moss" />
-              <CostoMini icon={<Code2 size={12} />} label="Desarrollo" detail="2 personas part-time" monto="ad honorem" color="ink" />
-            </div>
-
-            <div className="mt-4 flex items-baseline justify-between rounded-xl bg-ink px-4 py-3 text-paper">
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-amber">
-                  Total mensual
-                </div>
-                <div className="text-[10px] text-paper/55">
-                  17 aliados × S/. 50 lo cubren
-                </div>
-              </div>
-              <div className="font-mono text-2xl font-bold text-amber">S/. 845</div>
-            </div>
-          </div>
-
-          {/* CTA financiar */}
-          <div className="relative overflow-hidden border-t border-line bg-ink p-6 text-paper lg:border-l lg:border-t-0">
-            <div className="absolute right-[-30px] top-[-30px] h-32 w-32 rounded-full bg-amber/15 blur-3xl" />
-            <div className="relative">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber">
-                <Heart size={10} className="fill-amber" /> Apoya el proyecto
-              </div>
-              <h3 className="mt-3 font-serif text-xl font-bold leading-tight">
-                Financiar una auditoría mantiene la vigilancia <em className="text-amber">libre</em>.
-              </h3>
-              <p className="mt-2 text-[12px] leading-relaxed text-paper/70">
-                Financias capacidad de análisis, no resultados. Cada aporte tiene un
-                comprobante público con los contratos que hizo posible leer.
-              </p>
-
-              <Link
-                href="/financiar"
-                className="mt-4 group flex w-full items-center justify-center gap-2 rounded-xl bg-amber px-4 py-3 text-sm font-semibold text-coal transition-transform hover:scale-[1.02]"
-              >
-                <Heart size={14} className="fill-rust text-rust" />
-                Financiar una auditoría
-                <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-              </Link>
-              <Link
-                href="/preguntas#transparencia"
-                className="mt-2 block text-center text-[11px] text-paper/55 underline-offset-2 hover:text-paper hover:underline"
-              >
-                Ver el balance público →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ConfianzaSection />
 
       {/* ─── CTA FINAL ─── */}
       <section className="container-page py-24">
@@ -320,69 +170,6 @@ export default async function LandingPage() {
   );
 }
 
-function CompromisoMini({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-paper p-4">
-      <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-ink text-paper">
-          {icon}
-        </span>
-        <h3 className="font-serif text-sm font-bold leading-tight text-ink">
-          {title}
-        </h3>
-      </div>
-      <p className="mt-2 text-[12px] leading-snug text-mute">{body}</p>
-    </div>
-  );
-}
-
-function CostoMini({
-  icon,
-  label,
-  detail,
-  monto,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  detail: string;
-  monto: string;
-  color: "rust" | "clay" | "moss" | "ink";
-}) {
-  const colorMap = {
-    rust: "bg-rust/10 text-rust",
-    clay: "bg-clay/10 text-clay",
-    moss: "bg-moss/15 text-moss",
-    ink: "bg-ink/10 text-ink",
-  };
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-line bg-paper p-2.5">
-      <span
-        className={
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-md " +
-          colorMap[color]
-        }
-      >
-        {icon}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-[12px] font-semibold text-ink">{label}</div>
-        <div className="truncate text-[10px] text-mute">{detail}</div>
-      </div>
-      <div className="font-mono text-[12px] font-bold text-ink">{monto}</div>
-    </div>
-  );
-}
-
-/** Silueta de persona + su herramienta (badge). SVG humano para las tarjetas de audiencia. */
 function Persona({ tool }: { tool: React.ReactNode }) {
   return (
     <span className="relative inline-flex items-center justify-center">
