@@ -19,6 +19,48 @@ const TIPOS = ["bienes", "servicios", "consultoria", "obras", "convenio", "direc
 const ETAPAS = ["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada", "desierta", "cancelada", "nula", "desconocida", "sin_clasificar"];
 
 /** Matriz tipo × etapa con la cuenta de contratos y cuántos son procesables (docs/design/MATRIZ_TIPO_ETAPA.md). */
+interface ProcConfig { valor: { tipos_activos: string[]; etapas_activas: string[]; nota?: string }; updatedAt?: string; updatedBy?: string; cola: number | null }
+const TIPOS_CFG = ["bienes", "servicios", "consultoria", "obras", "convenio", "directa"];
+const ETAPAS_CFG = ["convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada"];
+
+/** Migración 19: qué tipos × etapas entran hoy a la cola financiable. Lo demás se descarga y clasifica igual. */
+function ProcesamientoActivo() {
+  const [cfg, setCfg] = useState<ProcConfig | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = () => adminFetch<ProcConfig>("/config/procesamiento").then(setCfg).catch((e) => setMsg(e.message));
+  useEffect(() => { load(); }, []);
+  if (!cfg) return null;
+  const v = cfg.valor;
+  const toggle = (k: "tipos_activos" | "etapas_activas", x: string) => {
+    const cur = new Set(v[k] ?? []); cur.has(x) ? cur.delete(x) : cur.add(x);
+    setCfg({ ...cfg, valor: { ...v, [k]: Array.from(cur) } });
+  };
+  async function guardar() {
+    setSaving(true); setMsg(null);
+    try {
+      await adminFetch("/config/procesamiento", { method: "PUT", body: JSON.stringify({ tipos_activos: v.tipos_activos, etapas_activas: v.etapas_activas, nota: v.nota ?? "" }) });
+      setMsg("Guardado. La cola financiable se recalculó."); load();
+    } catch (e) { setMsg((e as Error).message); } finally { setSaving(false); }
+  }
+  const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-[12px] ${on ? "border-ink bg-ink text-paper" : "border-line bg-paper text-mute hover:text-ink"}`;
+  return (
+    <div className="mb-6 rounded-2xl border border-line bg-paper p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-[11px] uppercase tracking-wide text-mute">Procesamiento activo (entra a la cola financiable)</div>
+        <div className="text-[11px] text-mute">cola hoy: <span className="font-mono text-ink">{cfg.cola?.toLocaleString("es-PE") ?? "—"}</span>{cfg.updatedAt ? ` · ${fmtDate(cfg.updatedAt)} · ${cfg.updatedBy ?? ""}` : ""}</div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5"><span className="mr-1 text-[12px] text-mute">Tipos:</span>{TIPOS_CFG.map((t) => <button key={t} type="button" onClick={() => toggle("tipos_activos", t)} className={chip(v.tipos_activos?.includes(t))}>{t}</button>)}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="mr-1 text-[12px] text-mute">Etapas:</span>{ETAPAS_CFG.map((t) => <button key={t} type="button" onClick={() => toggle("etapas_activas", t)} className={chip(v.etapas_activas?.includes(t))}>{t.replace("_", " ")}</button>)}</div>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={guardar} disabled={saving} className="rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button>
+        {msg && <span className="text-[12px] text-mute">{msg}</span>}
+        <span className="text-[11px] text-mute">Los tipos no activos se siguen descargando y clasificando; sus contratos aparecen como “documentos listos”.</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ClasificacionPage() {
   const [r, setR] = useState<Resumen | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -42,6 +84,7 @@ export default function ClasificacionPage() {
   return (
     <AdminShell title="Clasificación" subtitle="Tipo de contratación × etapa: qué se puede analizar y qué queda pendiente de procesamiento">
       {err && <div className="rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2 text-sm text-rust">{err}</div>}
+      <ProcesamientoActivo />
       {r && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

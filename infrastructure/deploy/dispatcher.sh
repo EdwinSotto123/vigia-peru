@@ -25,7 +25,7 @@ cd "$REPO_ROOT/backend/dispatcher"
 gcloud run jobs deploy vigia-dispatcher --source . --region "$REGION" \
   --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 512Mi \
   --set-cloudsql-instances "$SQL_CONNECTION" \
-  --set-env-vars "AGENT_URL=${AGENT_URL},AGENT_URL_BIENES=${AGENT_URL_BIENES},AGENT_URL_SERVICIOS=${AGENT_URL_SERVICIOS},AGENT_URL_OBRAS=${AGENT_URL_OBRAS},AGENT_URL_OTROS=${AGENT_URL_OTROS},PGHOST=/cloudsql/${SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=2,DISPATCHER_MAX_MINUTES=55" \
+  --set-env-vars "AGENT_URL=${AGENT_URL},AGENT_URL_BIENES=${AGENT_URL_BIENES},AGENT_URL_SERVICIOS=${AGENT_URL_SERVICIOS},AGENT_URL_OBRAS=${AGENT_URL_OBRAS},AGENT_URL_OTROS=${AGENT_URL_OTROS},PGHOST=/cloudsql/${SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=${DISPATCHER_PARALLEL:-1},DISPATCHER_MAX_MINUTES=55" \
   --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
 
 # Scheduler → ejecuta el job vía la API de Cloud Run (la SA necesita run.jobs.run; la de Compute ya es editor).

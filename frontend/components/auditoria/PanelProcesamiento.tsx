@@ -99,6 +99,12 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
         {fallo && (
           <span className="inline-flex items-center gap-1 text-rust"><WifiOff size={11} /> sin conexión con el API</span>
         )}
+        {data?.procesamientoActivo && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-mute" title={data.procesamientoActivo.nota ?? ""}>
+            análisis activo: <span className="text-ink">{data.procesamientoActivo.tipos_activos.join(", ")}</span>
+            {data.documentosListos ? <> · {data.documentosListos.contratos.toLocaleString("es-PE")} contratos con documentos listos</> : null}
+          </span>
+        )}
         {esperando > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-clay" title="Contratos financiados cuyos documentos se descargan en el lote nocturno">
             <Moon size={11} /> {esperando} esperan documentos{pedidos?.fallidos ? <span className="text-rust"> · {pedidos.fallidos} sin documentos</span> : null}

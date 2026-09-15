@@ -36,6 +36,8 @@ export interface ContratoResumen {
   lon: number | null;
   procesable: boolean | null;
   estadoProcesamiento: EstadoContrato;
+  /** Migración 19: en_cola (tipo/etapa con análisis activo) · documentos_listos (docs en GCS, análisis aún no activo) · sin_documentos. */
+  estadoOperativo?: EstadoOperativo | null;
   score: number | null;
   banderas: number;
   proveedor: string | null;
@@ -124,6 +126,13 @@ export interface ContratosPagina {
   size: number;
 }
 
+export type EstadoOperativo = "en_cola" | "documentos_listos" | "sin_documentos";
+export const OPERATIVOS: { value: EstadoOperativo; label: string }[] = [
+  { value: "en_cola", label: "En cola (análisis activo)" },
+  { value: "documentos_listos", label: "Documentos listos · análisis en preparación" },
+  { value: "sin_documentos", label: "Sin documentos aún" },
+];
+
 export interface ContratosQuery {
   page?: number;
   size?: number;
@@ -136,6 +145,7 @@ export interface ContratosQuery {
   monto_max?: number | string;
   riesgo?: RiesgoContrato | "";
   estado?: EstadoContrato | "";
+  operativo?: EstadoOperativo | "";
   orden?: OrdenContratos | "";
 }
 
@@ -227,6 +237,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     monto_min: num("monto_min"),
     monto_max: num("monto_max"),
     riesgo: RIESGOS.some((t) => t.value === s("riesgo")) ? (s("riesgo") as RiesgoContrato) : undefined,
+    operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
   };
 }
@@ -278,6 +289,9 @@ export interface ResumenProcesamientoVivo {
   activos: ProcesamientoActivo[];
   lote: LoteIngesta | null;
   descargados24h: number;
+  /** Migración 19: qué se analiza hoy y cuántos contratos tienen documentos listos. */
+  procesamientoActivo: { tipos_activos: string[]; etapas_activas: string[]; nota?: string } | null;
+  documentosListos: { n: number; contratos: number } | null;
   /** Pedidos de descarga (migración 15); null si la tabla no existe. */
   pedidos: { pendientes: number; descargando: number; listos24h: number; fallidos: number } | null;
   agentesActivos: string[];

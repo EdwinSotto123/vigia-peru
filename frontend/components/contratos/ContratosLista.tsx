@@ -51,7 +51,17 @@ export const useMapaContratos = () => useContext(MapaContratosContext);
 
 // ─── Píldora de estado (reusa EstadoPill para todo estado que lib/auditoria conozca) ──
 
-export function EstadoContratoPill({ estado }: { estado: EstadoContrato }) {
+export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContrato; operativo?: string | null }) {
+  // Migración 19: sin analizar pero fuera del alcance activo → decir qué hay (documentos listos o no).
+  if (estado === "sin_analizar" && operativo && operativo !== "en_cola") {
+    const listo = operativo === "documentos_listos";
+    return (
+      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", listo ? "border border-moss/40 text-moss" : "bg-paperDeep text-mute")} role="status"
+            title={listo ? "Documentos descargados; el análisis de este tipo de contratación aún no está activo" : "Este tipo de contratación aún no está activo y sus documentos no se han descargado"}>
+        {listo ? "Docs listos" : "Sin documentos"}
+      </span>
+    );
+  }
   if (estado in ESTADO_PROC) return <EstadoPill estado={estado as EstadoProc} />;
   const e = ESTADO_CONTRATO_EXTRA[estado as keyof typeof ESTADO_CONTRATO_EXTRA] ?? ESTADO_CONTRATO_EXTRA.sin_analizar;
   return (
@@ -250,7 +260,7 @@ function FilaTabla({ c, selected, onSelect, onHover }: { c: ContratoResumen; sel
       <td className="px-3 py-2"><Badges tipo={c.tipo} etapa={c.etapa} /></td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{formatMonto(c.montoPen, c.moneda)}</td>
       <td className="px-3 py-2 font-mono text-[11px] tabular-nums text-mute">{formatFecha(c.fecha)}</td>
-      <td className="px-3 py-2"><EstadoContratoPill estado={c.estadoProcesamiento} /></td>
+      <td className="px-3 py-2"><EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} /></td>
       <td className={cn("px-3 py-2 text-right font-mono tabular-nums", RIESGO_CLS[riesgo])}>
         {c.score ?? "—"}
         {c.banderas > 0 && <span className="ml-1 text-[9px] text-mute">·{c.banderas}</span>}
@@ -304,7 +314,7 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
           <Badges tipo={c.tipo} etapa={c.etapa} />
         </button>
         <span className="flex shrink-0 items-center gap-1.5">
-          <EstadoContratoPill estado={c.estadoProcesamiento} />
+          <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
           {c.score != null && <span className={cn("font-mono text-[11px] tabular-nums", RIESGO_CLS[riesgo])}>{c.score}</span>}
           <Link
             href={`/app/contratos/${encodeURIComponent(c.ocid)}`}

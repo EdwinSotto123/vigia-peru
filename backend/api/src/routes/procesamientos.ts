@@ -69,7 +69,7 @@ async function hayLotesIngesta(): Promise<boolean> {
 }
 
 procesamientosRouter.get("/resumen", async (c) => {
-  const [r, hoy, activos, descargados, pedidos, lote] = await Promise.all([
+  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote] = await Promise.all([
     pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
     pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
     pool.query(
@@ -77,6 +77,11 @@ procesamientosRouter.get("/resumen", async (c) => {
               GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
        FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
     pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
+    // Migración 19: qué tipos/etapas se analizan hoy + cuántos contratos tienen documentos listos.
+    pool.query(`SELECT valor FROM ajustes WHERE clave = 'procesamiento'`).then((q) => q.rows[0]?.valor ?? null).catch(() => null),
+    pool.query(`SELECT count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS n,
+                       count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos
+                FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
     // Migración 15: pedidos de descarga (contratos financiados sin documentos en GCS).
     pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente')::int AS pendientes,
                        count(*) FILTER (WHERE estado = 'descargando')::int AS descargando,
@@ -108,6 +113,8 @@ procesamientosRouter.get("/resumen", async (c) => {
     activos: activos.rows,
     lote,
     descargados24h: descargados.rows[0].n,
+    procesamientoActivo,
+    documentosListos,
     pedidos,
     agentesActivos,
   });
