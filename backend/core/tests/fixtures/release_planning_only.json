@@ -1,0 +1,46 @@
+{
+ "ocid": "ocds-dgv273-seacev3-2026-2439-17",
+ "id": "ocds-dgv273-seacev3-2026-planning-2439-17-2026-09-14T09:59:19.148108-05:00",
+ "date": "2026-09-14T09:59:19.148095-05:00",
+ "tag": [
+  "planning"
+ ],
+ "buyer": {
+  "id": "PE-CONSUCODE-2439",
+  "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+ },
+ "planning": {
+  "budget": {
+   "amount": {
+    "amount": 0.0,
+    "currency": "PEN",
+    "amount_PEN": 0.0,
+    "currencyName": "Soles"
+   }
+  },
+  "rationale": "Programación del proceso en el PAC"
+ },
+ "tender": {
+  "id": "1247203",
+  "title": "LP-ABR-9-2026-SIMA-1",
+  "description": "ADQUISICION DE VESTUARIO",
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Licitación Pública Abreviada",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-2439",
+   "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+  },
+  "value": {
+   "amount": 0.0,
+   "currency": "PEN",
+   "amount_PEN": 0.0,
+   "currencyName": "Soles"
+  }
+ },
+ "_fixture": {
+  "ocid": "2026-2439-17",
+  "entidad_ruc": "20100003351",
+  "sintetico": true,
+  "fuente": "derivada de release_goods_convocada_lpa.json: tag solo 'planning', sin items/documentos/tenderPeriod. En 18 413 releases reales (jun-sep 2026) no existe ninguno con tag solo-planning: SEACE publica planning+tender juntos."
+ }
+}

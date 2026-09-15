@@ -115,7 +115,7 @@ export default async function Image({ params }: { params: { codigo: string } }) 
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
             <div style={{ fontSize: 28, fontWeight: 700 }}>Vigía Perú</div>
-            <div style={{ fontSize: 22, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: AMBER }}>vigia.pe/impacto/{codigo}</div>
+            <div style={{ fontSize: 22, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: AMBER }}>{codigo}</div>
           </div>
         </div>
       </div>

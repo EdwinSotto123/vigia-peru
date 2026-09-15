@@ -135,7 +135,6 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
               titulo={`Auditoría financiada por ${c.financiador} · Vigía Perú`}
               texto={`${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`}
             />
-            <span className="font-mono text-[12px] text-mute">vigia.pe/impacto/{c.codigo}</span>
             <Link href="/app/financiar" className="ml-auto rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
           </div>
         </div>

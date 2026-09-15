@@ -76,10 +76,10 @@ function SignupInner() {
             <Shield size={22} strokeWidth={2.2} />
           </div>
           <h1 className="font-serif text-3xl font-bold text-ink">
-            Creá tu cuenta
+            Crea tu cuenta
           </h1>
           <p className="mt-1 text-sm text-mute">
-            Elige un user-id único y una contraseña. Sin email — sin tracking.
+            Elige un usuario único y una contraseña. Sin correo, sin rastreo: la cuenta solo sirve para seguir tus denuncias y aportes.
           </p>
         </div>
 
@@ -87,7 +87,7 @@ function SignupInner() {
           {/* userId */}
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-mute">
-              User-id (único)
+              Usuario (único)
             </label>
             <div className="relative">
               <AtSign

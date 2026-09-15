@@ -18,6 +18,7 @@
  *   POST  /admin/asignar                               re-asigna abiertas + refresh (lo llama Cloud Scheduler)
  *   GET   /admin/procesamientos?estado=                monitor del dispatcher (+ worker, error, latido)
  *   POST  /admin/procesamientos/:ocid/reencolar        vuelve a encolar (intentos=0)
+ *   GET   /admin/clasificacion/resumen                 tipo × etapa × procesable + motivos (migración 13)
  */
 
 import { Hono } from "hono";
@@ -350,7 +351,7 @@ adminRouter.get("/procesamientos", async (c) => {
   const estado = url.searchParams.get("estado") ?? "";
   const vals: unknown[] = [];
   let where = "";
-  if (["encolado", "procesando", "procesado", "error"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
+  if (["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
   const r = await pool.query(
     `SELECT v.ocid, v.estado, v.fase_actual AS "faseActual", v.fase_index AS "faseIndex", v.intentos,
             v.encolado_at AS "encoladoAt", v.iniciado_at AS "iniciadoAt", v.finalizado_at AS "finalizadoAt",
@@ -373,4 +374,41 @@ adminRouter.post("/procesamientos/:ocid/reencolar", async (c) => {
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
   await log(actor(c), "reencolar", `procesamiento:${ocid}`);
   return c.json({ ok: true, ocid, estado: "encolado" });
+});
+
+// ─── Clasificación tipo × etapa (backend/core/clasificacion.py, migración 13) ───
+adminRouter.get("/clasificacion/resumen", async (c) => {
+  const [celdas, motivos, validaciones, totales] = await Promise.all([
+    pool.query(`
+      SELECT COALESCE(tipo_contratacion, 'sin_clasificar') AS tipo, COALESCE(etapa, 'sin_clasificar') AS etapa,
+             procesable, count(*)::int AS n
+      FROM convocatorias GROUP BY 1, 2, 3 ORDER BY n DESC`),
+    pool.query(`
+      SELECT motivo_no_procesable AS motivo, count(*)::int AS n
+      FROM convocatorias WHERE procesable = false GROUP BY 1 ORDER BY n DESC LIMIT 10`),
+    pool.query(`
+      SELECT v AS validacion, count(*)::int AS n
+      FROM convocatorias, unnest(validaciones_pendientes) v GROUP BY 1 ORDER BY n DESC LIMIT 10`),
+    pool.query(`
+      SELECT count(*)::int AS total,
+             count(*) FILTER (WHERE clasificado_at IS NOT NULL)::int AS clasificadas,
+             count(*) FILTER (WHERE procesable)::int AS procesables,
+             count(*) FILTER (WHERE procesable = false)::int AS "noProcesables",
+             (SELECT count(*) FROM procesamientos WHERE estado = 'pendiente_de_procesamiento')::int AS "pendientesDeProcesamiento",
+             max(clasificado_at) AS "ultimaClasificacion"
+      FROM convocatorias`),
+  ]);
+  const porTipo: Record<string, number> = {};
+  const porEtapa: Record<string, number> = {};
+  for (const r of celdas.rows) {
+    porTipo[r.tipo] = (porTipo[r.tipo] ?? 0) + r.n;
+    porEtapa[r.etapa] = (porEtapa[r.etapa] ?? 0) + r.n;
+  }
+  return c.json({
+    totales: totales.rows[0],
+    celdas: celdas.rows,            // [{tipo, etapa, procesable, n}]
+    porTipo, porEtapa,
+    motivosNoProcesable: motivos.rows,
+    validacionesPendientes: validaciones.rows,
+  });
 });

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Activity, ArrowRight, CheckCircle2, Clock, Cpu, ShieldCheck } from "lucide-react";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
-import { getProcesamientos, getResumenProcesamientos } from "@/lib/auditoria";
+import { PanelProcesamiento } from "@/components/auditoria/PanelProcesamiento";
+import { getProcesamientos } from "@/lib/auditoria";
+import { getResumenVivo } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -16,7 +18,7 @@ export const revalidate = 10;
 export default async function AuditoriaPage({ searchParams }: { searchParams?: { ubigeo?: string } }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
   const [resumen, zonas, initial] = await Promise.all([
-    getResumenProcesamientos(),
+    getResumenVivo(),
     getZonas("departamento"),
     getProcesamientos({ ubigeo, limit: 100 }),
   ]);
@@ -25,14 +27,12 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
     .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
     .map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre, hint: z.financiados > 0 ? `${z.financiados.toLocaleString("es-PE")} financiados` : undefined }));
   const zonaActual = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo)?.nombre : undefined;
-  const enCola = (resumen?.porEstado.encolado ?? 0) + (resumen?.porEstado.error ?? 0);
-  const procesando = resumen?.porEstado.procesando ?? 0;
 
   return (
     <div className="bg-paper">
       {/* ─── HERO ─── */}
       <section className="border-b border-line bg-paperDeep">
-        <div className="container-page grid gap-8 py-12 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+        <div className="container-page space-y-6 py-10">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-mute">
               <Activity size={12} /> Tablero público · se actualiza solo
@@ -46,11 +46,8 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
               Aquí lo ves ocurrir, contrato por contrato.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi icon={<Clock size={14} />} label="En cola" value={enCola} />
-            <Kpi icon={<Cpu size={14} />} label="Procesando" value={procesando} vivo={procesando > 0} />
-            <Kpi icon={<CheckCircle2 size={14} />} label="Procesados hoy" value={resumen?.procesadosHoy ?? 0} />
-          </div>
+          {/* Una franja + una fila "ahora mismo": descargados, cola, procesando, procesados hoy, errores, pendientes */}
+          <PanelProcesamiento initial={resumen} pollMs={5000} />
         </div>
       </section>
 
@@ -88,23 +85,6 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function Kpi({ icon, label, value, vivo = false }: { icon: React.ReactNode; label: string; value: number; vivo?: boolean }) {
-  return (
-    <div className={`rounded-2xl border bg-paper p-4 transition-all ${vivo ? "border-amber/50 ring-1 ring-amber/20" : "border-line"}`}>
-      <div className="font-mono text-2xl font-semibold text-ink">{value.toLocaleString("es-PE")}</div>
-      <div className={`mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wide ${vivo ? "text-amber" : "text-mute"}`}>
-        {vivo ? (
-          <span className="relative flex h-1.5 w-1.5" aria-hidden>
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber opacity-70" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber" />
-          </span>
-        ) : icon}
-        {label}
-      </div>
     </div>
   );
 }

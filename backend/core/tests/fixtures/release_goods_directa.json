@@ -1,0 +1,206 @@
+{
+ "id": "ocds-dgv273-seacev3-1211237-2026-05-08T10:37:23.945563-05:00",
+ "tag": [
+  "compiled"
+ ],
+ "date": "2026-05-08T10:37:23.945541-05:00",
+ "ocid": "ocds-dgv273-seacev3-1211237",
+ "buyer": {
+  "id": "PE-CONSUCODE-35",
+  "name": "GOBIERNO REGIONAL DE AYACUCHO SEDE CENTRAL"
+ },
+ "awards": [
+  {
+   "id": "1211237-20574739161",
+   "date": "2026-05-06T00:00:00-05:00",
+   "items": [
+    {
+     "id": "21265134",
+     "unit": {
+      "id": "40",
+      "name": "Unidad",
+      "scheme": "PE-SEACE3-UnidadMedida"
+     },
+     "status": "pending",
+     "position": "1",
+     "quantity": 4020,
+     "totalValue": {
+      "amount": 108640,
+      "currency": "PEN",
+      "currencyName": "Soles"
+     },
+     "description": "ADQUISICION DE ASFALTO EN FRIO X 25 KG Y EMULSION ASFALTICA",
+     "statusDetails": "ADJUDICADO"
+    }
+   ],
+   "value": {
+    "amount": 108640,
+    "currency": "PEN",
+    "currencyName": "Soles"
+   },
+   "suppliers": [
+    {
+     "id": "PE-RUC-20574739161",
+     "name": "GRUPO A&M MULTISERVIS E.I.R.L."
+    }
+   ]
+  }
+ ],
+ "tender": {
+  "id": "1211237",
+  "items": [
+   {
+    "id": "21265134",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 4020,
+    "totalValue": {
+     "amount": 108640,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "ADQUISICION DE ASFALTO EN FRIO X 25 KG Y EMULSION ASFALTICA",
+    "statusDetails": "ADJUDICADO"
+   }
+  ],
+  "title": "DIRECTA-DIRECTA-16-2026-GRA-SEDE CENTRA-1",
+  "value": {
+   "amount": 108640,
+   "currency": "PEN",
+   "amount_PEN": 108640,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474985939106",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=b1117616-5efa-4dc6-bf44-1a60cd88c6bd",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-05-05T18:43:00-05:00"
+   },
+   {
+    "id": "24831474985941251",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=ae2b10e9-0bdd-44b6-9ab6-df8232b0f1f8",
+    "title": "Documentos de Presentación de Propuestas",
+    "format": "zip",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-05-06T19:12:01-05:00"
+   },
+   {
+    "id": "24831474985941252",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=b65b56e4-d161-4ba5-8a17-eee6d4b88f6d",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-05-06T19:12:01-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-20574739161",
+    "name": "GRUPO A&M MULTISERVIS E.I.R.L."
+   }
+  ],
+  "description": "ADQUISICION DE ASFALTO EN FRIO X 25 kg  y  EMULSION ALFALTICA , PARA LA ACTIVIDAD EJECUCION DE LOS TRABAJOS DE RECUPERACION DE LA PLATAFORMA VIAL EN LA RUTA NACIONAL PE 28A EN EL TRAMO PTE. MESIE (KM 143 + 000) OCOLLO (KM 264+2000)",
+  "datePublished": "2026-05-05T18:43:00-05:00",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-35",
+   "name": "GOBIERNO REGIONAL DE AYACUCHO SEDE CENTRAL"
+  },
+  "numberOfTenderers": 1,
+  "procurementMethod": "direct",
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Contratación Directa",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "parties": [
+  {
+   "id": "PE-CONSUCODE-35",
+   "name": "GOBIERNO REGIONAL DE AYACUCHO SEDE CENTRAL",
+   "roles": [
+    "buyer",
+    "procuringEntity"
+   ],
+   "address": {
+    "region": "HUAMANGA",
+    "locality": "AYACUCHO",
+    "department": "AYACUCHO",
+    "countryName": "PERU",
+    "streetAddress": "CALLAO Nº 122"
+   },
+   "identifier": {
+    "id": "35",
+    "scheme": "PE-CONSUCODE",
+    "legalName": "GOBIERNO REGIONAL DE AYACUCHO SEDE CENTRAL"
+   },
+   "contactPoint": {
+    "telephone": "066-312905"
+   },
+   "additionalIdentifiers": [
+    {
+     "id": "20452393493",
+     "scheme": "PE-RUC",
+     "legalName": "GOBIERNO REGIONAL DE AYACUCHO SEDE CENTRAL"
+    }
+   ]
+  },
+  {
+   "id": "PE-RUC-20574739161",
+   "name": "GRUPO A&M MULTISERVIS E.I.R.L.",
+   "roles": [
+    "tenderer",
+    "supplier"
+   ],
+   "address": {
+    "countryName": "PERU"
+   },
+   "identifier": {
+    "id": "20574739161",
+    "scheme": "PE-RUC",
+    "legalName": "GRUPO A&M MULTISERVIS E.I.R.L."
+   },
+   "contactPoint": {
+    "email": "Ver datos en Ficha del Proveedor",
+    "telephone": "Ver dato en ficha del proveedor"
+   }
+  }
+ ],
+ "sources": [
+  {
+   "id": "seace_v3",
+   "url": "https://prodapp2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml",
+   "name": "Sistema Electrónico de Contrataciones del Estado - Versión 3"
+  }
+ ],
+ "planning": {
+  "budget": {
+   "description": "Fondos Públicos"
+  }
+ },
+ "publishedDate": "2026-05-08T10:37:23.945568-05:00",
+ "initiationType": "tender",
+ "dataSegmentation": {
+  "id": "2026-05",
+  "criteria": [
+   "añoPublicacionProceso",
+   "mesPublicacionProceso"
+  ]
+ },
+ "_fixture": {
+  "ocid": "1211237",
+  "entidad_ruc": "20452393493",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

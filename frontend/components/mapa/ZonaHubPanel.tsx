@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { EntidadesDeZona } from "./EntidadesDeZona";
 import { AlertasDeZona } from "./AlertasDeZona";
 import { belongsToRegion } from "./region-match";
+import { ContratosLista, useMapaContratos } from "@/components/contratos/ContratosLista";
 
 export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias" | "presupuesto";
 
@@ -70,6 +71,12 @@ export function ZonaHubPanel({
 }: ZonaHubPanelProps) {
   const [tab, setTab] = useState<ZonaTab>(initialTab);
   const [detalle, setDetalle] = useState<ZonaDetalle | null | undefined>(undefined);
+  const mapa = useMapaContratos();
+
+  // Clic en un punto de contratos del mapa → pestaña Cola con ese distrito.
+  useEffect(() => {
+    if (mapa?.distritoUbigeo) setTab("cola");
+  }, [mapa?.distritoUbigeo]);
 
   // Al cambiar de región volvemos al resumen y recargamos financiamiento.
   useEffect(() => {
@@ -204,7 +211,7 @@ export function ZonaHubPanel({
             goTo={setTab}
           />
         )}
-        {tab === "cola" && <ColaTab nombre={nombre} detalle={detalle} financiarHref={financiarHref} />}
+        {tab === "cola" && <ColaTab nombre={nombre} ubigeo={ubigeo} detalle={detalle} />}
         {tab === "entidades" && <EntidadesDeZona regionId={regionId} nombre={nombre} />}
         {tab === "alertas" && <AlertasDeZona regionId={regionId} nombre={nombre} alertas={alertas} />}
         {tab === "denuncias" && (
@@ -422,13 +429,18 @@ function ResumenTab({
 
 function ColaTab({
   nombre,
+  ubigeo,
   detalle,
-  financiarHref,
 }: {
   nombre: string;
+  ubigeo: string;
   detalle: ZonaDetalle | null | undefined;
-  financiarHref: string;
 }) {
+  const mapa = useMapaContratos();
+  const distrito = mapa?.distritoUbigeo ?? null;
+  const zonaLista = distrito ? (mapa?.distritoNombre ?? `distrito ${distrito}`) : nombre;
+  const query = useMemo(() => ({ ubigeo: distrito ?? ubigeo }), [distrito, ubigeo]);
+
   if (detalle === undefined) {
     return (
       <div className="space-y-2">
@@ -462,10 +474,42 @@ function ColaTab({
           </p>
         )}
         <p className="mt-3 text-[10px] leading-relaxed text-mute">
-          No se lista contrato por contrato a propósito: quien financia no elige qué se analiza. La cola se
-          procesa en orden de llegada.
+          Se procesan en orden de llegada. Quien financia no elige cuáles.
+          {zona.totalCola - zona.financiados > 0
+            ? ` Quedan ${(zona.totalCola - zona.financiados).toLocaleString("es-PE")} sin financiar.`
+            : " Toda la cola está financiada."}
         </p>
       </section>
+
+      {/* Contrato por contrato, conectado con los puntos del mapa */}
+      {ubigeo && (
+        <section>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <h4 className="min-w-0 truncate text-[10px] font-bold uppercase tracking-widest text-mute">
+              Contratos de {zonaLista}
+            </h4>
+            {distrito && mapa && (
+              <button type="button" onClick={mapa.limpiarDistrito} className="shrink-0 text-[10px] text-mute hover:text-ink hover:underline">
+                ver todo {nombre}
+              </button>
+            )}
+          </div>
+          {!distrito && mapa?.activa && (
+            <p className="mb-1.5 text-[10px] text-mute">Toca un punto del mapa para ver solo ese distrito.</p>
+          )}
+          <ContratosLista
+            key={query.ubigeo}
+            query={query}
+            size={20}
+            navegacion="interna"
+            compacto
+            selectedOcid={mapa?.ocidSeleccionado ?? null}
+            onSelect={mapa?.seleccionar}
+            onHover={mapa?.hover}
+            onCargada={(p) => { if (distrito && p.total === 1 && p.data[0]) mapa?.seleccionar(p.data[0]); }}
+          />
+        </section>
+      )}
 
       {provinciasConCola.length > 0 && (
         <section>
@@ -474,7 +518,7 @@ function ColaTab({
             <span className="text-[10px] text-mute">{provinciasConCola.length}</span>
           </div>
           <ul className="space-y-1.5">
-            {provinciasConCola.slice(0, 12).map((h) => {
+            {provinciasConCola.slice(0, 6).map((h) => {
               const p = pct(h.financiados, h.totalCola);
               return (
                 <li key={h.ubigeo}>
@@ -521,16 +565,6 @@ function ColaTab({
           </ul>
         </section>
       )}
-
-      <Link
-        href={financiarHref}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]"
-      >
-        <Heart size={14} className="text-amber" />
-        {zona.totalCola - zona.financiados > 0
-          ? `Financiar · quedan ${(zona.totalCola - zona.financiados).toLocaleString("es-PE")} contratos`
-          : `Ver la auditoría de ${nombre}`}
-      </Link>
     </div>
   );
 }

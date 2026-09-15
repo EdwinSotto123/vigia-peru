@@ -1,0 +1,144 @@
+{
+ "id": "ocds-dgv273-seacev3-2026-2439-29-2026-07-24T10:24:19.672210-05:00",
+ "tag": [
+  "planning",
+  "tender",
+  "award"
+ ],
+ "date": "2026-07-24T10:24:19.672197-05:00",
+ "ocid": "ocds-dgv273-seacev3-2026-2439-29",
+ "buyer": {
+  "id": "PE-CONSUCODE-2439",
+  "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+ },
+ "tender": {
+  "id": "1230475",
+  "items": [
+   {
+    "id": "21320744",
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 54516.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "EXAMENES MEDICOS",
+    "statusDetails": "CONSENTIDO",
+    "classification": {
+     "id": "8512180300302644",
+     "scheme": "CUBSO",
+     "description": "SERVICIO DE EXAMENES MEDICOS DE LABORATORIO"
+    },
+    "additionalClassifications": [
+     {
+      "id": "85121803",
+      "scheme": "UNSPSC",
+      "description": "Servicios de laboratorios biológicos"
+     }
+    ]
+   }
+  ],
+  "title": "CP-ABR-2-2026-SIMA PERU SA-1",
+  "value": {
+   "amount": 54516.0,
+   "currency": "PEN",
+   "amount_PEN": 54516.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986020367",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=a4149d7f-d75a-46b3-81c8-2f58d1c12e16",
+    "title": "Bases Integradas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-08T15:42:46-05:00"
+   },
+   {
+    "id": "24831474986019843",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=d6f33439-b0df-4aac-bc49-ad1c8a45b413",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "clarifications",
+    "datePublished": "2026-07-08T08:36:44-05:00"
+   },
+   {
+    "id": "24831474986029039",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=742614c9-391b-4c61-9e28-1b9187e186e8",
+    "title": "Documentos de Calificación y Evaluación",
+    "format": "zip",
+    "language": "es",
+    "documentType": "evaluationReports",
+    "datePublished": "2026-07-15T16:30:46-05:00"
+   },
+   {
+    "id": "24831474986029040",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=7660e001-5a3b-4c1d-9210-b644b8521509",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-07-15T16:30:46-05:00"
+   },
+   {
+    "id": "24831474986013484",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=ac458378-0ff5-485b-825d-3fb344bbdb72",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-02T16:21:00-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-20609027682",
+    "name": "CENTRO MEDICO SANTA FE R & B S.R.L."
+   },
+   {
+    "id": "PE-RUC-20536408186",
+    "name": "ORGANIZACION IBEROAMERICANA DE SALUD OCUPACIONAL S.A.C."
+   },
+   {
+    "id": "PE-RUC-20541660870",
+    "name": "SERVICIOS DE SALUD OCUPACIONAL, SEGURIDAD Y MEDIO AMBIENTE S.A.C."
+   }
+  ],
+  "description": "EXAMENES MEDICOS OCUPACIONALES ANUAL PARA EL PERSONAL SIMA CHIMBOTE",
+  "tenderPeriod": {
+   "endDate": "2026-07-02T00:00:00-05:00",
+   "startDate": "2026-07-02T00:00:00-05:00"
+  },
+  "datePublished": "2026-07-02T16:21:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-07-07T23:59:00-05:00",
+   "startDate": "2026-07-03T00:01:00-05:00",
+   "durationInDays": 4
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-2439",
+   "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+  },
+  "numberOfTenderers": 3,
+  "mainProcurementCategory": "services",
+  "procurementMethodDetails": "Concurso Público Abreviado",
+  "additionalProcurementCategories": [
+   "services"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "2026-2439-29",
+  "entidad_ruc": "20100003351",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

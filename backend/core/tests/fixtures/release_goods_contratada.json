@@ -1,0 +1,134 @@
+{
+ "id": "ocds-dgv273-seacev3-1228227-2026-07-18T10:17:21.739471-05:00",
+ "tag": [
+  "planning",
+  "tender",
+  "award",
+  "contract"
+ ],
+ "date": "2026-07-18T10:17:21.739458-05:00",
+ "ocid": "ocds-dgv273-seacev3-1228227",
+ "buyer": {
+  "id": "PE-CONSUCODE-10247",
+  "name": "EJERCITO PERUANO"
+ },
+ "tender": {
+  "id": "1228227",
+  "items": [
+   {
+    "id": "21314709",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 2.0,
+    "totalValue": {
+     "amount": 212000.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "ADQUISICION DE RESERVORIOS FLEXIBLES COMPLETOS",
+    "statusDetails": "CONTRATADO"
+   }
+  ],
+  "title": "LP-ABR-12-2026-EP/UO 0732.-1",
+  "value": {
+   "amount": 212000.0,
+   "currency": "PEN",
+   "amount_PEN": 212000.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986009354",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=930ff4c0-13e2-4440-87a3-92c9360c5be7",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "clarifications",
+    "datePublished": "2026-06-30T09:03:14-05:00"
+   },
+   {
+    "id": "24831474986003792",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=fa5f066e-17b3-4d5d-a66d-7dd267316463",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-23T21:01:00-05:00"
+   },
+   {
+    "id": "24831474986025763",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=a3521b11-9f13-47d1-bdd8-f2f3e00d3a13",
+    "title": "Documentos de Presentación de Propuestas",
+    "format": "zip",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-13T18:00:05-05:00"
+   },
+   {
+    "id": "24831474986025764",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=c86f9f2d-8e55-40bf-bbb6-0895b913f070",
+    "title": "Documentos de Calificación y Evaluación",
+    "format": "zip",
+    "language": "es",
+    "documentType": "evaluationReports",
+    "datePublished": "2026-07-13T18:00:05-05:00"
+   },
+   {
+    "id": "24831474986025765",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=ae7d4e54-2713-42a0-a593-c189893e6a1a",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-07-13T18:00:05-05:00"
+   },
+   {
+    "id": "24831474986010168",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=001d15a1-8317-4a75-a979-516de29659ab",
+    "title": "Bases Integradas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-30T17:20:01-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-20508320664",
+    "name": "RM LOGISTIC S.A.C."
+   }
+  ],
+  "description": "Adquisición de dos (02) reservorios flexibles (bladers) para combustible turbo JET A-1 para la V DE AF-2026",
+  "tenderPeriod": {
+   "endDate": "2026-06-23T00:00:00-05:00",
+   "startDate": "2026-06-23T00:00:00-05:00"
+  },
+  "datePublished": "2026-06-23T21:01:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-06-26T23:59:00-05:00",
+   "startDate": "2026-06-24T00:01:00-05:00",
+   "durationInDays": 2
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-10247",
+   "name": "EJERCITO PERUANO"
+  },
+  "numberOfTenderers": 1,
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Licitación Pública Abreviada",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1228227",
+  "entidad_ruc": "20131369124",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

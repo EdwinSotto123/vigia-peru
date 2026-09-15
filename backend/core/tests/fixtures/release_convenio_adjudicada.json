@@ -1,0 +1,114 @@
+{
+ "id": "ocds-dgv273-seacev3-1245665-2026-09-10T10:20:07.231565-05:00",
+ "tag": [
+  "planning",
+  "tender",
+  "award"
+ ],
+ "date": "2026-09-10T10:20:07.231552-05:00",
+ "ocid": "ocds-dgv273-seacev3-1245665",
+ "buyer": {
+  "id": "PE-CONSUCODE-1891",
+  "name": "UNIVERSIDAD NACIONAL DE INGENIERIA"
+ },
+ "tender": {
+  "id": "1245665",
+  "items": [
+   {
+    "id": "21358862",
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "complete",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 5000.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "SERVICIO DE ASISTENCIA TECNICA EN PROYECTOS DE INVESTIGACION",
+    "statusDetails": "CONSENTIDO",
+    "classification": {
+     "id": "8010160400279114",
+     "scheme": "CUBSO",
+     "description": "SERVICIO DE COORDINACION DE PROYECTOS DE INVESTIGACION"
+    },
+    "additionalClassifications": [
+     {
+      "id": "80101604",
+      "scheme": "UNSPSC",
+      "description": "Administración o planificación de proyectos"
+     }
+    ]
+   }
+  ],
+  "title": "CONV-PROC-47-2026-UNI-1",
+  "value": {
+   "amount": 5000.0,
+   "currency": "PEN",
+   "amount_PEN": 5000.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986076719",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=8dea580f-34ef-4f3a-b21d-fb3e60f9bca8",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-08-28T17:58:00-05:00"
+   },
+   {
+    "id": "24831474986087743",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=9f1a184f-ec25-4396-9eb2-372780b0d43f",
+    "title": "Documentos de Presentación de Propuestas",
+    "format": "zip",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-09-07T23:31:07-05:00"
+   },
+   {
+    "id": "24831474986087744",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=2b11075a-48cb-47f8-81f2-7d78cf913548",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "format": "zip",
+    "language": "es",
+    "documentType": "awardNotice",
+    "datePublished": "2026-09-07T23:31:07-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-10444403875",
+    "name": "VEGA CHACON JAIME RICARDO"
+   }
+  ],
+  "description": "SERVICIO DE ASISTENCIA TECNICA EN PROYECTOS DE INVESTIGACION",
+  "tenderPeriod": {
+   "endDate": "2026-08-28T00:00:00-05:00",
+   "startDate": "2026-08-28T00:00:00-05:00"
+  },
+  "datePublished": "2026-08-28T17:58:00-05:00",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-1891",
+   "name": "UNIVERSIDAD NACIONAL DE INGENIERIA"
+  },
+  "numberOfTenderers": 1,
+  "procurementMethod": "open",
+  "mainProcurementCategory": "services",
+  "procurementMethodDetails": "Convenio",
+  "additionalProcurementCategories": [
+   "services"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1245665",
+  "entidad_ruc": "20169004359",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

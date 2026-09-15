@@ -12,6 +12,7 @@ import { financiamientoRouter } from "./routes/financiamiento.js";
 import { contribucionesRouter } from "./routes/contribuciones.js";
 import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
+import { contratosRouter } from "./routes/contratos.js";
 
 const app = new Hono();
 
@@ -52,6 +53,7 @@ app.route("/upload", uploadRouter);
 app.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /financiamiento (prefijo)
 app.route("/financiamiento", financiamientoRouter);
 app.route("/contribuciones", contribucionesRouter);
+app.route("/contratos", contratosRouter);
 app.route("/admin", adminRouter);
 
 // ─── Error handler ─────────────────────────────────────────────

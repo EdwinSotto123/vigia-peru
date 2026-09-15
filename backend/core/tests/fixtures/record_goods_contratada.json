@@ -1,0 +1,292 @@
+{
+ "tag": [
+  "compiled"
+ ],
+ "id": "ocds-dgv273-seacev3-1228227-2026-07-18T10:17:21.739471-05:00",
+ "date": "2026-07-18T10:17:21.739458-05:00",
+ "ocid": "ocds-dgv273-seacev3-1228227",
+ "publishedDate": "2026-07-18T10:17:21.739477-05:00",
+ "initiationType": "tender",
+ "buyer": {
+  "id": "PE-CONSUCODE-10247",
+  "name": "EJERCITO PERUANO"
+ },
+ "planning": {
+  "budget": {
+   "description": "Fondos Públicos",
+   "amount": {
+    "amount": 212000.0,
+    "currency": "PEN",
+    "currencyName": "Soles"
+   }
+  }
+ },
+ "tender": {
+  "id": "1228227",
+  "title": "LP-ABR-12-2026-EP/UO 0732.-1",
+  "description": "Adquisición de dos (02) reservorios flexibles (bladers) para combustible turbo JET A-1 para la V DE AF-2026",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-10247",
+   "name": "EJERCITO PERUANO"
+  },
+  "datePublished": "2026-06-23T21:01:00-05:00",
+  "procurementMethodDetails": "Licitación Pública Abreviada",
+  "mainProcurementCategory": "goods",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "value": {
+   "amount": 212000.0,
+   "currency": "PEN",
+   "currencyName": "Soles",
+   "amount_PEN": 212000.0
+  },
+  "tenderPeriod": {
+   "startDate": "2026-06-23T00:00:00-05:00",
+   "endDate": "2026-06-23T00:00:00-05:00"
+  },
+  "enquiryPeriod": {
+   "startDate": "2026-06-24T00:01:00-05:00",
+   "endDate": "2026-06-26T23:59:00-05:00",
+   "durationInDays": 2
+  },
+  "items": [
+   {
+    "id": "21314709",
+    "position": "1",
+    "description": "ADQUISICION DE RESERVORIOS FLEXIBLES COMPLETOS",
+    "statusDetails": "CONTRATADO",
+    "status": "complete",
+    "quantity": 2.0,
+    "totalValue": {
+     "amount": 212000.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    }
+   }
+  ],
+  "documents": [
+   {
+    "id": "24831474986003792",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=fa5f066e-17b3-4d5d-a66d-7dd267316463",
+    "datePublished": "2026-06-23T21:01:00-05:00",
+    "format": "pdf",
+    "documentType": "biddingDocuments",
+    "title": "Bases Administrativas",
+    "language": "es"
+   },
+   {
+    "id": "24831474986010168",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=001d15a1-8317-4a75-a979-516de29659ab",
+    "datePublished": "2026-06-30T17:20:01-05:00",
+    "format": "pdf",
+    "documentType": "biddingDocuments",
+    "title": "Bases Integradas",
+    "language": "es"
+   },
+   {
+    "id": "24831474986009354",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=930ff4c0-13e2-4440-87a3-92c9360c5be7",
+    "datePublished": "2026-06-30T09:03:14-05:00",
+    "format": "pdf",
+    "documentType": "clarifications",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "language": "es"
+   },
+   {
+    "id": "24831474986025763",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=a3521b11-9f13-47d1-bdd8-f2f3e00d3a13",
+    "datePublished": "2026-07-13T18:00:05-05:00",
+    "format": "zip",
+    "documentType": "biddingDocuments",
+    "title": "Documentos de Presentación de Propuestas",
+    "language": "es"
+   },
+   {
+    "id": "24831474986025764",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=c86f9f2d-8e55-40bf-bbb6-0895b913f070",
+    "datePublished": "2026-07-13T18:00:05-05:00",
+    "format": "zip",
+    "documentType": "evaluationReports",
+    "title": "Documentos de Calificación y Evaluación",
+    "language": "es"
+   },
+   {
+    "id": "24831474986025765",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=ae7d4e54-2713-42a0-a593-c189893e6a1a",
+    "datePublished": "2026-07-13T18:00:05-05:00",
+    "format": "zip",
+    "documentType": "awardNotice",
+    "title": "Documentos de Otorgamiento de Buena Pro",
+    "language": "es"
+   }
+  ],
+  "hasTenderInformationProtectedByLaw": false,
+  "tenderers": [
+   {
+    "id": "PE-RUC-20508320664",
+    "name": "RM LOGISTIC S.A.C."
+   }
+  ],
+  "numberOfTenderers": 1
+ },
+ "parties": [
+  {
+   "id": "PE-CONSUCODE-10247",
+   "name": "EJERCITO PERUANO",
+   "identifier": {
+    "id": "10247",
+    "scheme": "PE-CONSUCODE",
+    "legalName": "EJERCITO PERUANO"
+   },
+   "additionalIdentifiers": [
+    {
+     "id": "20131369124",
+     "scheme": "PE-RUC",
+     "legalName": "EJERCITO PERUANO"
+    }
+   ],
+   "address": {
+    "streetAddress": "AV. BOULEVARD LIMA",
+    "locality": "SAN BORJA",
+    "region": "LIMA",
+    "department": "LIMA",
+    "countryName": "PERU"
+   },
+   "contactPoint": {
+    "telephone": "956091695"
+   },
+   "roles": [
+    "buyer",
+    "procuringEntity"
+   ]
+  },
+  {
+   "id": "PE-RUC-20508320664",
+   "name": "RM LOGISTIC S.A.C.",
+   "identifier": {
+    "scheme": "PE-RUC",
+    "id": "20508320664",
+    "legalName": "RM LOGISTIC S.A.C."
+   },
+   "contactPoint": {
+    "email": "Ver datos en Ficha del Proveedor",
+    "telephone": "Ver dato en ficha del proveedor"
+   },
+   "roles": [
+    "tenderer",
+    "supplier"
+   ]
+  }
+ ],
+ "sources": [
+  {
+   "id": "seace_v3",
+   "name": "Sistema Electrónico de Contrataciones del Estado - Versión 3",
+   "url": "https://prodapp2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml"
+  }
+ ],
+ "dataSegmentation": {
+  "id": "2026-06",
+  "criteria": [
+   "añoInicioConvocatoria",
+   "mesInicioConvocatoria"
+  ]
+ },
+ "awards": [
+  {
+   "id": "1228227-20508320664",
+   "value": {
+    "amount": 212000.0,
+    "currency": "PEN",
+    "currencyName": "Soles"
+   },
+   "items": [
+    {
+     "id": "21314709",
+     "position": "1",
+     "description": "ADQUISICION DE RESERVORIOS FLEXIBLES COMPLETOS",
+     "statusDetails": "CONTRATADO",
+     "status": "active",
+     "quantity": 2.0,
+     "totalValue": {
+      "amount": 212000.0,
+      "currency": "PEN",
+      "currencyName": "Soles"
+     },
+     "unit": {
+      "id": "40",
+      "name": "Unidad",
+      "scheme": "PE-SEACE3-UnidadMedida"
+     }
+    }
+   ],
+   "date": "2026-07-13T00:00:00-05:00",
+   "suppliers": [
+    {
+     "id": "PE-RUC-20508320664",
+     "name": "RM LOGISTIC S.A.C."
+    }
+   ]
+  }
+ ],
+ "contracts": [
+  {
+   "id": "2408674",
+   "awardID": "1228227-20508320664",
+   "title": "067-2026",
+   "description": "ADQUISICIÓN DE DOS (02) RESERVORIOS FLEXIBLES (BLADERS) PARA COMBUSTIBLE TURBO JET A-1 PARA LA V DE AF-2026",
+   "period": {
+    "startDate": "2026-07-17T00:00:00-05:00",
+    "endDate": "2026-09-08T00:00:00-05:00",
+    "durationInDays": 53
+   },
+   "value": {
+    "amount": 212000.0,
+    "currency": "PEN",
+    "currencyName": "Soles"
+   },
+   "dateSigned": "2026-07-16T00:00:00-05:00",
+   "items": [
+    {
+     "id": "21314709",
+     "position": "1",
+     "description": "ADQUISICION DE RESERVORIOS FLEXIBLES COMPLETOS",
+     "statusDetails": "Contratado",
+     "status": "active",
+     "quantity": 2.0,
+     "totalValue": {
+      "amount": 212000.0,
+      "currency": "PEN",
+      "currencyName": "Soles"
+     },
+     "unit": {
+      "id": "40",
+      "name": "Unidad",
+      "scheme": "PE-SEACE3-UnidadMedida"
+     }
+    }
+   ],
+   "documents": [
+    {
+     "id": "153139818",
+     "documentType": "contractSigned",
+     "title": "Archivos del contrato",
+     "url": "https://prod4.seace.gob.pe:9000/api/con/documentos/descargar/153139818",
+     "datePublished": "2026-07-16T22:41:52-05:00",
+     "format": "application/pdf",
+     "language": "es"
+    }
+   ]
+  }
+ ],
+ "_fixture": {
+  "ocid": "1228227",
+  "fuente": "GET /api/v1/record/<ocid> → records[0].compiledRelease (2026-09-15)"
+ }
+}

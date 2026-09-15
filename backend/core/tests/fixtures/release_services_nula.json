@@ -1,0 +1,123 @@
+{
+ "id": "ocds-dgv273-seacev3-2026-61561-2-2026-08-23T10:35:25.834188-05:00",
+ "tag": [
+  "planning",
+  "tender"
+ ],
+ "date": "2026-08-23T10:35:25.834175-05:00",
+ "ocid": "ocds-dgv273-seacev3-2026-61561-2",
+ "buyer": {
+  "id": "PE-CONSUCODE-201925",
+  "name": "ESTABLECIMIENTO DE SALUD MUNICIPAL"
+ },
+ "tender": {
+  "id": "1238460",
+  "items": [
+   {
+    "id": "21341696",
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "unsuccessful",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 297600.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "Servicio De Portería Y Guardianía Para El Establecimiento De Salud Municipal - EsAMU",
+    "statusDetails": "NULO",
+    "classification": {
+     "id": "8011150100354182",
+     "scheme": "CUBSO",
+     "description": "SERVICIO DE INTERMEDIACION LABORAL"
+    },
+    "additionalClassifications": [
+     {
+      "id": "80111501",
+      "scheme": "UNSPSC",
+      "description": "Desarrollo de gestión"
+     }
+    ]
+   }
+  ],
+  "title": "CP-ABR-4-2026-OC/ESAMU-1",
+  "value": {
+   "amount": 297600.0,
+   "currency": "PEN",
+   "amount_PEN": 297600.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986048932",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=2a1632ec-5e90-418b-b827-2a35825f29ab",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-08-05T14:37:00-05:00"
+   }
+  ],
+  "tenderers": [
+   {
+    "id": "PE-RUC-20456254439",
+    "name": "DANAC S.A.C."
+   },
+   {
+    "id": "PE-RUC-20604554846",
+    "name": "PERUVIAN VEK SECURITY INTERNACIONAL S.A.C."
+   },
+   {
+    "id": "PE-RUC-20605245031",
+    "name": "CR-BAU CONSTRUCCIONES E.I.R.L."
+   },
+   {
+    "id": "PE-RUC-20613381610",
+    "name": "RS LOS PROFESIONALES S.A.C."
+   },
+   {
+    "id": "PE-RUC-20611716835",
+    "name": "URA & TES SEGURIDAD PRIVADA S.A.C."
+   },
+   {
+    "id": "PE-RUC-20605313338",
+    "name": "CONSORCIO DANAC E.I.R.L."
+   },
+   {
+    "id": "PE-RUC-20605515836",
+    "name": "PR BAU S.A.C."
+   }
+  ],
+  "description": "CONTRATACION DEL SERVICIO DE PORTERIA Y GUARDIANIA PARA EL ESTABLECIMIENTO DE SALUD MUNICIPAL - ESAMU",
+  "tenderPeriod": {
+   "endDate": "2026-08-05T00:00:00-05:00",
+   "startDate": "2026-08-05T00:00:00-05:00"
+  },
+  "datePublished": "2026-08-05T14:37:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-08-11T23:59:00-05:00",
+   "startDate": "2026-08-06T00:01:00-05:00",
+   "durationInDays": 5
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-201925",
+   "name": "ESTABLECIMIENTO DE SALUD MUNICIPAL"
+  },
+  "numberOfTenderers": 7,
+  "mainProcurementCategory": "services",
+  "procurementMethodDetails": "Concurso Público Abreviado",
+  "additionalProcurementCategories": [
+   "services"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "2026-61561-2",
+  "entidad_ruc": "20600575806",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

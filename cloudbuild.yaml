@@ -11,7 +11,7 @@
 substitutions:
   _REGION: us-central1
   _SQL: vivid-spot-480905-a4:us-central1:vigia-db
-  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp,dispatcher
+  _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,mcp,dispatcher,ingest
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -73,6 +73,30 @@ steps:
           --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 512Mi \
           --set-cloudsql-instances ${_SQL} \
           --set-env-vars "AGENT_URL=$${AGENT_URL},PGHOST=/cloudsql/${_SQL},PGUSER=postgres,PGDATABASE=vigia,DISPATCHER_PARALLEL=2,DISPATCHER_MAX_MINUTES=55" \
+          --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
+
+  - id: ingest
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [[ ",${_DEPLOY}," == *",ingest,"* ]] || { echo "skip ingest"; exit 0; }
+        # Cloud Run JOB (no servicio): lo ejecuta infrastructure/deploy/batch-nocturno.sh desde la laptop/VPS
+        # al terminar de subir los lotes a gs://vigia-peru-batch. Mismo contexto mínimo que ingest-job.sh.
+        CTX="$$(mktemp -d)"
+        mkdir -p "$$CTX/backend/scrapers"
+        cp -r backend/batch "$$CTX/backend/batch"
+        cp -r backend/scrapers/_core "$$CTX/backend/scrapers/_core"
+        cp -r backend/scrapers/oece_ocds "$$CTX/backend/scrapers/oece_ocds"
+        cp backend/scrapers/__init__.py "$$CTX/backend/scrapers/__init__.py"
+        [[ -d backend/core ]] && cp -r backend/core "$$CTX/backend/core"
+        find "$$CTX" -type d \( -name __pycache__ -o -name tests \) -prune -exec rm -rf {} +
+        cp backend/batch/Dockerfile "$$CTX/Dockerfile"
+        gcloud run jobs deploy vigia-ingest --source "$$CTX" --region ${_REGION} \
+          --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 1Gi \
+          --set-cloudsql-instances ${_SQL} \
+          --set-env-vars "PGHOST=/cloudsql/${_SQL},PGUSER=postgres,PGDATABASE=vigia,BATCH_BUCKET=vigia-peru-batch,BATCH_PREFIJO=batch/" \
           --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
 
 timeout: 2400s

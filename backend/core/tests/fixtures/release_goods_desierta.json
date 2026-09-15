@@ -1,0 +1,98 @@
+{
+ "id": "ocds-dgv273-seacev3-1229153-2026-08-01T10:19:06.525151-05:00",
+ "tag": [
+  "planning",
+  "tender"
+ ],
+ "date": "2026-08-01T10:19:06.525138-05:00",
+ "ocid": "ocds-dgv273-seacev3-1229153",
+ "buyer": {
+  "id": "PE-CONSUCODE-2320",
+  "name": "MUNICIPALIDAD DISTRITAL DE POMALCA"
+ },
+ "tender": {
+  "id": "1229153",
+  "items": [
+   {
+    "id": "21317296",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "unsuccessful",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 200075.13,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "ADQUISICIÓN DE COMBUSTIBLE PARA LAS UNIDADES MÓVILES Y EQUIPOS DE LA MUNICIPALIDAD DISTRITAL DE POMALCA",
+    "statusDetails": "DESIERTO"
+   }
+  ],
+  "title": "LP-ABR-2-2026-MDP/CS-1",
+  "value": {
+   "amount": 200075.13,
+   "currency": "PEN",
+   "amount_PEN": 200075.13,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986014647",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=c07434e9-7f76-40e4-9634-dd9f9de5d7af",
+    "title": "Acta de no formulación de consultas y observaciones",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "clarifications",
+    "datePublished": "2026-07-03T08:15:16-05:00"
+   },
+   {
+    "id": "24831474986015102",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=6a545c7a-c353-41ee-a456-a9db3df7a868",
+    "title": "Bases Integradas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-07-03T14:47:56-05:00"
+   },
+   {
+    "id": "24831474986007735",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=74351c24-0104-4477-8fcf-2bb89e756406",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-06-26T14:35:00-05:00"
+   }
+  ],
+  "description": "ADQUISICIÓN DE COMBUSTIBLE PARA LAS UNIDADES MÓVILES Y EQUIPOS DE LA MUNICIPALIDAD DISTRITAL DE POMALCA",
+  "tenderPeriod": {
+   "endDate": "2026-06-26T00:00:00-05:00",
+   "startDate": "2026-06-26T00:00:00-05:00"
+  },
+  "datePublished": "2026-06-26T14:35:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-07-02T23:59:00-05:00",
+   "startDate": "2026-06-27T00:01:00-05:00",
+   "durationInDays": 5
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-2320",
+   "name": "MUNICIPALIDAD DISTRITAL DE POMALCA"
+  },
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Licitación Pública Abreviada",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1229153",
+  "entidad_ruc": "20396129508",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

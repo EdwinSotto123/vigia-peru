@@ -1,0 +1,76 @@
+{
+ "id": "ocds-dgv273-seacev3-1248959-2026-09-13T12:05:45.967087-05:00",
+ "tag": [
+  "planning",
+  "tender"
+ ],
+ "date": "2026-09-13T12:05:45.967075-05:00",
+ "ocid": "ocds-dgv273-seacev3-1248959",
+ "buyer": {
+  "id": "PE-CONSUCODE-227",
+  "name": "MUNICIPALIDAD PROVINCIAL DE HUAYLAS - CARAZ"
+ },
+ "tender": {
+  "id": "1248959",
+  "items": [
+   {
+    "id": "21367197",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "active",
+    "position": "1",
+    "quantity": 956.0,
+    "totalValue": {
+     "amount": 0.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "CONTRATACION DEL SUMINISTRO DE MATERIAL AGREGADO DE CANTERA",
+    "statusDetails": "CONVOCADO"
+   }
+  ],
+  "title": "SIE-SIE-16-2026-MPHY/OC-1",
+  "value": {
+   "amount": 0.0,
+   "currency": "PEN",
+   "amount_PEN": 0.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986091204",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=d68ad20f-6af9-44fa-b42f-96629cf10968",
+    "title": "Bases Administrativas",
+    "format": "docx",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-09-10T08:48:00-05:00"
+   }
+  ],
+  "description": "CONTRATACION DEL SUMINISTRO DE MATERIAL AGREGADO",
+  "tenderPeriod": {
+   "endDate": "2026-09-10T00:00:00-05:00",
+   "startDate": "2026-09-10T00:00:00-05:00"
+  },
+  "datePublished": "2026-09-10T08:48:00-05:00",
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-227",
+   "name": "MUNICIPALIDAD PROVINCIAL DE HUAYLAS - CARAZ"
+  },
+  "procurementMethod": "open",
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Subasta Inversa Electrónica",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1248959",
+  "entidad_ruc": "20146925767",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

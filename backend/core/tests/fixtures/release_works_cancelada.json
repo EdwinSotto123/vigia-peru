@@ -1,0 +1,93 @@
+{
+ "id": "ocds-dgv273-seacev3-1238077-2026-08-06T10:26:50.411544-05:00",
+ "tag": [
+  "planning",
+  "tender"
+ ],
+ "date": "2026-08-06T10:26:50.411531-05:00",
+ "ocid": "ocds-dgv273-seacev3-1238077",
+ "buyer": {
+  "id": "PE-CONSUCODE-955",
+  "name": "MUNICIPALIDAD DISTRITAL DE KICHKI"
+ },
+ "tender": {
+  "id": "1238077",
+  "items": [
+   {
+    "id": "21340930",
+    "unit": {
+     "id": "36",
+     "name": "Servicio",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "cancelled",
+    "position": "2",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 5252452.29,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "EJECUCIÓN DE LA OBRA ¿MEJORAMIENTO DE LOS SERVICIOS DE EDUCACIÓN DEL NIVEL INICIAL EN LA I.E.I. N.° 161 DE SAN PEDRO DE CANI DEL DISTRITO DE QUISQUI (KICHKI) - PROVINCIA DE HUÁNUCO - DEPARTAMENTO DE HUÁNUCO¿, CUI N.° 2484444",
+    "statusDetails": "CANCELADO",
+    "classification": {
+     "id": "7212140600359845",
+     "scheme": "CUBSO",
+     "description": "AMPLIACION DE INFRAESTRUCTURA DE CENTROS EDUCATIVOS"
+    },
+    "additionalClassifications": [
+     {
+      "id": "72121406",
+      "scheme": "UNSPSC",
+      "description": "Servicios de construcción de escuelas"
+     }
+    ]
+   }
+  ],
+  "title": "LP-SM-2-2026-MDQ/CS-1",
+  "value": {
+   "amount": 5252452.29,
+   "currency": "PEN",
+   "amount_PEN": 5252452.29,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986045530",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=5f11c532-b473-45f0-9857-3d111ebb5608",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-08-03T14:32:00-05:00"
+   }
+  ],
+  "description": "EJECUCIÓN DE LA OBRA ¿MEJORAMIENTO DE LOS SERVICIOS DE EDUCACIÓN DEL NIVEL INICIAL EN LA I.E.I. N.° 161 DE SAN PEDRO DE CANI DEL DISTRITO DE QUISQUI (KICHKI) - PROVINCIA DE HUÁNUCO - DEPARTAMENTO DE HUÁNUCO¿, CUI N.° 2484444",
+  "tenderPeriod": {
+   "endDate": "2026-08-03T00:00:00-05:00",
+   "startDate": "2026-08-03T00:00:00-05:00"
+  },
+  "datePublished": "2026-08-03T14:32:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-08-13T23:59:00-05:00",
+   "startDate": "2026-08-04T00:01:00-05:00",
+   "durationInDays": 9
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-955",
+   "name": "MUNICIPALIDAD DISTRITAL DE KICHKI"
+  },
+  "procurementMethod": "open",
+  "mainProcurementCategory": "works",
+  "procurementMethodDetails": "Licitación Pública",
+  "additionalProcurementCategories": [
+   "works"
+  ],
+  "hasTenderInformationProtectedByLaw": false
+ },
+ "_fixture": {
+  "ocid": "1238077",
+  "entidad_ruc": "20166913561",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

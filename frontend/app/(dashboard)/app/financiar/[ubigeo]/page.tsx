@@ -65,9 +65,12 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
 
           {/* qué hay en la cola */}
           <div className="mt-6 rounded-2xl border border-line p-5">
-            <h2 className="font-semibold text-ink">Qué hay en la cola</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-ink">Qué hay en la cola</h2>
+              <Link href={`/app/contratos?ubigeo=${zona.ubigeo}`} className="text-xs text-mute hover:underline">Ver los contratos →</Link>
+            </div>
             <p className="mt-1 text-sm text-mute">
-              Lo que sabemos de los contratos pendientes — sin listarlos uno por uno, porque el financiador no elige cuáles se procesan.
+              Los contratos son públicos y puedes verlos, pero se procesan en orden de llegada: el financiador no elige cuáles.
             </p>
             <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Contratos</dt><dd className="font-mono text-ink">{cola.contratos.toLocaleString("es-PE")}</dd></div>

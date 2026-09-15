@@ -1,0 +1,80 @@
+{
+ "id": "ocds-dgv273-seacev3-2026-2439-17-2026-09-14T09:59:19.148108-05:00",
+ "tag": [
+  "planning",
+  "tender"
+ ],
+ "date": "2026-09-14T09:59:19.148095-05:00",
+ "ocid": "ocds-dgv273-seacev3-2026-2439-17",
+ "buyer": {
+  "id": "PE-CONSUCODE-2439",
+  "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+ },
+ "tender": {
+  "id": "1247203",
+  "items": [
+   {
+    "id": "21362733",
+    "unit": {
+     "id": "40",
+     "name": "Unidad",
+     "scheme": "PE-SEACE3-UnidadMedida"
+    },
+    "status": "active",
+    "position": "1",
+    "quantity": 1.0,
+    "totalValue": {
+     "amount": 0.0,
+     "currency": "PEN",
+     "currencyName": "Soles"
+    },
+    "description": "ADQUISICION DE VESTUARIO",
+    "statusDetails": "CONVOCADO"
+   }
+  ],
+  "title": "LP-ABR-9-2026-SIMA-1",
+  "value": {
+   "amount": 0.0,
+   "currency": "PEN",
+   "amount_PEN": 0.0,
+   "currencyName": "Soles"
+  },
+  "documents": [
+   {
+    "id": "24831474986083266",
+    "url": "https://prod1.seace.gob.pe/SeaceWeb-PRO/SdescargarArchivoAlfresco?fileCode=f895c2fb-74a4-49d9-baca-788f87c7edd3",
+    "title": "Bases Administrativas",
+    "format": "pdf",
+    "language": "es",
+    "documentType": "biddingDocuments",
+    "datePublished": "2026-09-03T16:09:00-05:00"
+   }
+  ],
+  "description": "ADQUISICION DE VESTUARIO",
+  "tenderPeriod": {
+   "endDate": "2026-09-03T00:00:00-05:00",
+   "startDate": "2026-09-03T00:00:00-05:00"
+  },
+  "datePublished": "2026-09-03T16:09:00-05:00",
+  "enquiryPeriod": {
+   "endDate": "2026-09-08T23:59:00-05:00",
+   "startDate": "2026-09-04T00:01:00-05:00",
+   "durationInDays": 4
+  },
+  "procuringEntity": {
+   "id": "PE-CONSUCODE-2439",
+   "name": "SERVICIO INDUSTRIAL DE LA MARINA S.A."
+  },
+  "mainProcurementCategory": "goods",
+  "procurementMethodDetails": "Licitación Pública Abreviada",
+  "additionalProcurementCategories": [
+   "goods"
+  ],
+  "hasTenderInformationProtectedByLaw": true
+ },
+ "_fixture": {
+  "ocid": "2026-2439-17",
+  "entidad_ruc": "20100003351",
+  "fuente": "convocatorias.ocds_payload (release recortado, ingesta oece_ocds)"
+ }
+}

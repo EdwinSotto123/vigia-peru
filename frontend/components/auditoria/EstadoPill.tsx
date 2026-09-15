@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, RotateCw } from "lucide-react";
+import { CheckCircle2, Clock, PauseCircle, RotateCw } from "lucide-react";
 import { ESTADO_PROC, type EstadoProc } from "@/lib/auditoria";
 
 /**
@@ -18,6 +18,7 @@ export function EstadoPill({ estado, size = "sm" }: { estado: EstadoProc; size?:
       )}
       {estado === "encolado" && <Clock size={11} aria-hidden />}
       {estado === "procesado" && <CheckCircle2 size={11} aria-hidden />}
+      {estado === "pendiente_de_procesamiento" && <PauseCircle size={11} aria-hidden />}
       {estado === "error" && <RotateCw size={11} className="animate-spin [animation-duration:3s]" aria-hidden />}
       {label}
     </span>

@@ -15,6 +15,13 @@ Modelo de state:
     = sin contaminación de conversación entre agentes (solo comparten state).
 
 Selección por flag en main.py: `DETERMINISTIC_PIPELINE` (default on).
+
+Matriz tipo × etapa (backend/core/clasificacion.py): si el state trae
+`agentes_permitidos` (lo manda el dispatcher vía `clasificacion` en el body), cada
+sub-agente corre solo si está en la lista — los demás emiten un `phase` "omitido: …"
+para que el tablero lo muestre. Sin esa clave corren TODOS (análisis a demanda del
+admin: flujo idéntico al anterior). `validaciones_pendientes` va al report_writer, que
+las lista al final del dictamen sin inventar nada.
 """
 from __future__ import annotations
 
@@ -40,6 +47,39 @@ APP_NAME = "vigia-peru"
 # (la causa raíz de que los contratos doc-pesados muriesen en el wall de 3600s de Cloud
 # Run). Flag para rollback instantáneo a secuencial sin redeploy.
 _PARALLEL_RESEARCH = os.getenv("PARALLEL_RESEARCH", "1") != "0"
+
+
+def permitido(state: dict, nombre: str) -> bool:
+    """¿Corre el sub-agente `nombre` (nombre canónico: compliance, document_parser,
+    document_legal_analyst, market, web_research, news_research, entity_personnel,
+    person_network, compliance_extended, report_writer)? Sin `agentes_permitidos` en el
+    state → True para todos (compatibilidad con el análisis a demanda)."""
+    perm = state.get("agentes_permitidos")
+    if not isinstance(perm, (list, tuple, set)):
+        return True
+    return nombre in perm
+
+
+# Texto de cada validación pendiente para el dictamen (códigos de
+# backend/core/clasificacion.VALIDACIONES; el orquestador no importa ese paquete).
+_VALIDACION_TEXTO = {
+    "infobras_avance": "Avance físico/financiero de la obra (INFOBRAS) no disponible: no se verificó la ejecución.",
+    "market_sin_items_fisicos": "Sin ítems físicos con cantidad y unidad: no se comparó precio de mercado.",
+    "sin_documentos_descargables": "Sin bases, buena pro ni contrato publicados: no se analizaron documentos.",
+    "proveedor_sin_ruc": "El record no identifica al proveedor (RUC): no se investigó a la empresa ni su red.",
+    "entidad_sin_ruc": "Sin RUC de la entidad: no se investigó a sus funcionarios.",
+}
+
+
+def _bloque_validaciones(state: dict) -> str:
+    """Instrucción para el report_writer con las validaciones pendientes (vacío si no hay)."""
+    vals = state.get("validaciones_pendientes")
+    if not isinstance(vals, (list, tuple)) or not vals:
+        return ""
+    lineas = "\n".join(f"- {_VALIDACION_TEXTO.get(str(v), str(v))}" for v in vals)
+    return ("\n\nVALIDACIONES PENDIENTES (datos que NO se pudieron verificar en esta corrida). Cerrá el "
+            "dictamen con una sección '## Validaciones pendientes' que las liste TAL CUAL, sin inventar "
+            "resultados ni conclusiones sobre ellas:\n" + lineas)
 
 # Tarifas Gemini en Vertex (USD/1M tokens, estimado). El pipeline MEZCLA tiers:
 # Pro (report_writer/legal/person_network), Flash (default) y Flash-Lite
@@ -431,6 +471,18 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             events_trace.append(e)
             yield e
 
+    _clas = state.get("clasificacion") if isinstance(state.get("clasificacion"), dict) else {}
+    _tipo_etapa = f"{_clas.get('tipo') or '?'}/{_clas.get('etapa') or '?'}"
+
+    def _perm(nombre: str) -> bool:
+        return permitido(state, nombre)
+
+    def _omitido(nombre: str) -> dict:
+        """Evento `phase` del agente saltado por la matriz tipo × etapa (el tablero lo muestra)."""
+        ev = {"kind": "phase", "name": nombre, "msg": f"omitido: no aplica a {_tipo_etapa}"}
+        events_trace.append(ev)
+        return ev
+
     async def _agent(agent, msg):
         # Evento `transfer` (orquestador → sub-agente): es lo que el grafo del
         # frontend usa para iluminar el nodo del agente (buildTrace → ev.to). En
@@ -534,19 +586,30 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     evs, _ = _tool(T.register_convocatoria_in_db, "register_convocatoria_in_db", state, ocid=ocid)
     async for e in _emit(evs): yield e
 
+    if state.get("agentes_permitidos"):
+        yield {"kind": "phase", "name": "clasificacion",
+               "msg": f"matriz tipo × etapa {_tipo_etapa}: agentes {', '.join(state['agentes_permitidos'])}"}
+
     # ── 2. Compliance (reglas duras + crea alerta) ──
-    yield {"kind": "phase", "name": "compliance", "msg": "evaluando reglas duras"}
-    async for e in _agent(A.compliance_agent,
-                          f"Evalúa la convocatoria OCID {ocid} contra las 3 reglas duras y crea la alerta."):
-        yield e
+    # Siempre está en la matriz (crea la alerta que persiste todo lo demás); igual se respeta la lista.
+    if _perm("compliance"):
+        yield {"kind": "phase", "name": "compliance", "msg": "evaluando reglas duras"}
+        async for e in _agent(A.compliance_agent,
+                              f"Evalúa la convocatoria OCID {ocid} contra las 3 reglas duras y crea la alerta."):
+            yield e
+    else:
+        yield _omitido("compliance")
 
     # ── 3. Document parser ──
-    yield {"kind": "phase", "name": "document_parser", "msg": "procesando documentos SEACE"}
-    async for e in _agent(A.document_parser_agent,
-                          f"Procesa los documentos publicados en SEACE para el OCID {ocid}. PRIORIZA Bases "
-                          f"Administrativas/Integradas, Resumen Ejecutivo y Archivos del contrato; extrae el "
-                          f"REQUERIMIENTO técnico por ítem. OBLIGATORIO: llamá parse_document_pdf al menos una vez."):
-        yield e
+    if _perm("document_parser"):
+        yield {"kind": "phase", "name": "document_parser", "msg": "procesando documentos SEACE"}
+        async for e in _agent(A.document_parser_agent,
+                              f"Procesa los documentos publicados en SEACE para el OCID {ocid}. PRIORIZA Bases "
+                              f"Administrativas/Integradas, Resumen Ejecutivo y Archivos del contrato; extrae el "
+                              f"REQUERIMIENTO técnico por ítem. OBLIGATORIO: llamá parse_document_pdf al menos una vez."):
+            yield e
+    else:
+        yield _omitido("document_parser")
 
     # ── 3.5 Backfill determinista de ítems: la extracción AUTORITATIVA de la tool
     # (parser_raw_consolidated) gana sobre el placeholder genérico que el LLM a veces
@@ -588,28 +651,34 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             print(f"[driver] sanitize: {_antes_san} ítems (sin cambios por LLM)", flush=True)
 
     # ── 4. Análisis legal + persistir banderas documentales ──
-    yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
-    async for e in _agent(A.document_legal_analyst_agent,
-                          f"Analiza legalmente el documento extraído para el OCID {ocid}. Llamá "
-                          f"read_document_analysis() para obtener el JSON real del parser antes de emitir banderas."):
-        yield e
-    evs, _ = _tool(T.persist_doc_flags_as_banderas, "persist_doc_flags_as_banderas", state, alerta_codigo=alerta_codigo)
-    async for e in _emit(evs): yield e
+    if _perm("document_legal_analyst"):
+        yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
+        async for e in _agent(A.document_legal_analyst_agent,
+                              f"Analiza legalmente el documento extraído para el OCID {ocid}. Llamá "
+                              f"read_document_analysis() para obtener el JSON real del parser antes de emitir banderas."):
+            yield e
+        evs, _ = _tool(T.persist_doc_flags_as_banderas, "persist_doc_flags_as_banderas", state, alerta_codigo=alerta_codigo)
+        async for e in _emit(evs): yield e
+    else:
+        yield _omitido("document_legal_analyst")
 
     # ── 5. Mercado ──
-    yield {"kind": "phase", "name": "market", "msg": "validando precios de mercado"}
-    # El análisis de mercado corre como tools (no sub-agente), pero igual debe
-    # iluminar el nodo "market" del grafo → transfer explícito orquestador→market.
-    _mkt = {"kind": "transfer", "from": "orch", "to": "market_price_agent", "agent": "orch",
-            "msg": "orquestador delega a market_price_agent"}
-    events_trace.append(_mkt)
-    yield _mkt
-    evs, _ = _tool(T.build_market_input, "build_market_input", state, agent="market_price_agent", ocid=ocid)
-    async for e in _emit(evs): yield e
-    evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, agent="market_price_agent", ocid=ocid)
-    async for e in _emit(evs): yield e
-    evs, _ = _tool(T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas", state, agent="market_price_agent", alerta_codigo=alerta_codigo)
-    async for e in _emit(evs): yield e
+    if _perm("market"):
+        yield {"kind": "phase", "name": "market", "msg": "validando precios de mercado"}
+        # El análisis de mercado corre como tools (no sub-agente), pero igual debe
+        # iluminar el nodo "market" del grafo → transfer explícito orquestador→market.
+        _mkt = {"kind": "transfer", "from": "orch", "to": "market_price_agent", "agent": "orch",
+                "msg": "orquestador delega a market_price_agent"}
+        events_trace.append(_mkt)
+        yield _mkt
+        evs, _ = _tool(T.build_market_input, "build_market_input", state, agent="market_price_agent", ocid=ocid)
+        async for e in _emit(evs): yield e
+        evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, agent="market_price_agent", ocid=ocid)
+        async for e in _emit(evs): yield e
+        evs, _ = _tool(T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas", state, agent="market_price_agent", alerta_codigo=alerta_codigo)
+        async for e in _emit(evs): yield e
+    else:
+        yield _omitido("market")
 
     # ── 6. Proveedor ganador: perfil OECE + SUNAT + web_research ──
     yield {"kind": "phase", "name": "proveedor", "msg": "perfilando al proveedor adjudicado"}
@@ -621,7 +690,10 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     entidad = (gan or {}).get("entidad") or {}
     postores = (gan or {}).get("todos_postores") or []
     fuente_oece = f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"
-    if ruc:
+    # El perfil OECE/SUNAT alimenta a web_research, person_network y compliance_extended:
+    # si la matriz no incluye ninguno, no se consulta (get_ganador sí, para el dictamen).
+    _investiga_proveedor = any(_perm(a) for a in ("web_research", "person_network", "compliance_extended"))
+    if ruc and _investiga_proveedor:
         evs, perfil = _tool(T.query_oece_perfil, "query_oece_perfil", state, ruc=ruc)
         async for e in _emit(evs): yield e
         async for e in _emit(_flags_from_senales((perfil or {}).get("senales"), fuente_oece)): yield e
@@ -673,19 +745,26 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                 yield {"kind": "warn", "name": "news_research",
                        "msg": "prensa vacía tras reintento — default sin_menciones"}
 
-    if _PARALLEL_RESEARCH:
+    _specs_todas = [
+        (A.web_research_agent, _web_msg, "web_research"),
+        (A.news_research_agent, _news_msg, "news_research"),
+        (A.entity_personnel_agent, _entity_msg, "entity_personnel"),
+    ]
+    _specs = [sp for sp in _specs_todas if _perm(sp[2])]
+    for _ag, _m, _k in _specs_todas:
+        if not _perm(_k):
+            yield _omitido(_k)
+
+    if not _specs:
+        pass  # los 3 omitidos por la matriz: nada que investigar
+    elif _PARALLEL_RESEARCH:
         # ── 6-8 PARALELO: empresa ∥ prensa ∥ funcionarios. Los 3 son grounding-only e
         # independientes → correrlos concurrentes recorta ~3×latencia a ~1×la-del-más-lento
         # (la franja que hacía a los contratos doc-pesados morir en el wall de 3600s).
         yield {"kind": "phase", "name": "research_parallel",
-               "msg": "investigación paralela: empresa ∥ prensa ∥ funcionarios"}
-        _base = dict(state)  # snapshot read-only para sembrar las 3 sesiones aisladas
-        _specs = [
-            (A.web_research_agent, _web_msg, "web_research"),
-            (A.news_research_agent, _news_msg, "news_research"),
-            (A.entity_personnel_agent, _entity_msg, "entity_personnel"),
-        ]
-        # Transfers en vivo → encienden los 3 nodos del grafo a la vez.
+               "msg": "investigación paralela: " + " ∥ ".join(sp[2] for sp in _specs)}
+        _base = dict(state)  # snapshot read-only para sembrar las sesiones aisladas
+        # Transfers en vivo → encienden los nodos del grafo a la vez.
         for ag, _m, _k in _specs:
             nm = getattr(ag, "name", "agent")
             tev = {"kind": "transfer", "from": "orch", "to": nm, "agent": "orch",
@@ -713,24 +792,30 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             yield mev
         state["_last_agent_final"] = None
         # Guardrails de vacío (raros) — secuenciales tras el join.
-        async for e in _retry_if_empty(A.web_research_agent, _web_msg, "web_research", _web_stub):
-            yield e
-        async for e in _news_guardrail():
-            yield e
-        async for e in _retry_if_empty(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
-            yield e
+        if _perm("web_research"):
+            async for e in _retry_if_empty(A.web_research_agent, _web_msg, "web_research", _web_stub):
+                yield e
+        if _perm("news_research"):
+            async for e in _news_guardrail():
+                yield e
+        if _perm("entity_personnel"):
+            async for e in _retry_if_empty(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
+                yield e
     else:
         # ── 6-8 SECUENCIAL (flujo original; rollback con PARALLEL_RESEARCH=0) ──
-        async for e in _agent_with_retry(A.web_research_agent, _web_msg, "web_research", _web_stub):
-            yield e
-        yield {"kind": "phase", "name": "news", "msg": "buscando cobertura de prensa"}
-        async for e in _agent(A.news_research_agent, _news_msg):
-            yield e
-        async for e in _news_guardrail():
-            yield e
-        yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
-        async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
-            yield e
+        if _perm("web_research"):
+            async for e in _agent_with_retry(A.web_research_agent, _web_msg, "web_research", _web_stub):
+                yield e
+        if _perm("news_research"):
+            yield {"kind": "phase", "name": "news", "msg": "buscando cobertura de prensa"}
+            async for e in _agent(A.news_research_agent, _news_msg):
+                yield e
+            async for e in _news_guardrail():
+                yield e
+        if _perm("entity_personnel"):
+            yield {"kind": "phase", "name": "entity_personnel", "msg": "descubriendo funcionarios de la entidad"}
+            async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
+                yield e
 
     # ── Lookup de funcionarios descubiertos (común a ambos caminos) ──
     func_desig = (state.get("entity_personnel") or {})
@@ -743,57 +828,65 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             async for e in _emit(evs): yield e
 
     # ── 9. Red de personas (RNP ganador + postores + batch + puerta giratoria) ──
-    yield {"kind": "phase", "name": "person_network", "msg": "mapeando la red de personas"}
-    socios_personas: list[dict] = []
-    if ruc:
-        evs, rnp = _tool(T.query_rnp_empresa, "query_rnp_empresa", state, ruc=ruc)
-        async for e in _emit(evs): yield e
-        for grupo in ("socios", "representantes_legales", "organos_administracion"):
-            for i, s in enumerate((rnp or {}).get(grupo) or []):
-                if isinstance(s, dict) and (s.get("numero_documento") or s.get("nombre")):
-                    socios_personas.append({"id": f"{grupo}_{i}", "dni": s.get("numero_documento") or "",
-                                            "nombre": s.get("nombre") or "", "rol": grupo[:-1] if grupo.endswith("s") else grupo})
-    # RNP de postores rivales
-    for j, p in enumerate(postores):
-        pr = (p or {}).get("ruc") if isinstance(p, dict) else None
-        if pr and pr != ruc:
-            evs, _ = _tool(T.query_rnp_empresa, "query_rnp_empresa", state, ruc=pr)
+    if not _perm("person_network"):
+        yield _omitido("person_network")
+    else:
+        yield {"kind": "phase", "name": "person_network", "msg": "mapeando la red de personas"}
+        socios_personas: list[dict] = []
+        if ruc:
+            evs, rnp = _tool(T.query_rnp_empresa, "query_rnp_empresa", state, ruc=ruc)
             async for e in _emit(evs): yield e
-    # batch con todas las personas (ganador/socios/firmantes)
-    da = state.get("document_analysis") or {}
-    firmantes = (da.get("firmantes_consolidados") or da.get("firmantes") or []) if isinstance(da, dict) else []
-    personas_all = list(socios_personas)
-    if ganador.get("dni_persona_natural"):
-        personas_all.insert(0, {"id": "gerente", "dni": ganador["dni_persona_natural"], "nombre": razon, "rol": "titular"})
-    for i, f in enumerate(firmantes):
-        if isinstance(f, dict) and (f.get("dni") or f.get("nombre_completo")):
-            personas_all.append({"id": f"firmante_{i}", "dni": f.get("dni") or "",
-                                 "nombre": f.get("nombre_completo") or "", "rol": "firmante"})
-    if personas_all:
-        evs, _ = _tool(T.batch_person_lookup, "batch_person_lookup", state, personas=personas_all)
+            for grupo in ("socios", "representantes_legales", "organos_administracion"):
+                for i, s in enumerate((rnp or {}).get(grupo) or []):
+                    if isinstance(s, dict) and (s.get("numero_documento") or s.get("nombre")):
+                        socios_personas.append({"id": f"{grupo}_{i}", "dni": s.get("numero_documento") or "",
+                                                "nombre": s.get("nombre") or "", "rol": grupo[:-1] if grupo.endswith("s") else grupo})
+        # RNP de postores rivales
+        for j, p in enumerate(postores):
+            pr = (p or {}).get("ruc") if isinstance(p, dict) else None
+            if pr and pr != ruc:
+                evs, _ = _tool(T.query_rnp_empresa, "query_rnp_empresa", state, ruc=pr)
+                async for e in _emit(evs): yield e
+        # batch con todas las personas (ganador/socios/firmantes)
+        da = state.get("document_analysis") or {}
+        firmantes = (da.get("firmantes_consolidados") or da.get("firmantes") or []) if isinstance(da, dict) else []
+        personas_all = list(socios_personas)
+        if ganador.get("dni_persona_natural"):
+            personas_all.insert(0, {"id": "gerente", "dni": ganador["dni_persona_natural"], "nombre": razon, "rol": "titular"})
+        for i, f in enumerate(firmantes):
+            if isinstance(f, dict) and (f.get("dni") or f.get("nombre_completo")):
+                personas_all.append({"id": f"firmante_{i}", "dni": f.get("dni") or "",
+                                     "nombre": f.get("nombre_completo") or "", "rol": "firmante"})
+        if personas_all:
+            evs, _ = _tool(T.batch_person_lookup, "batch_person_lookup", state, personas=personas_all)
+            async for e in _emit(evs): yield e
+        # puerta giratoria / aporte (si hay DNI de gerente)
+        dni_ger = ganador.get("dni_persona_natural") or ""
+        if dni_ger and entidad.get("ruc"):
+            evs, _ = _tool(T.detect_puerta_giratoria, "detect_puerta_giratoria", state,
+                           dni_gerente=dni_ger, entidad_contratante_ruc=entidad.get("ruc"))
+            async for e in _emit(evs): yield e
+        evs, _ = _tool(T.read_person_network_context, "read_person_network_context", state)
         async for e in _emit(evs): yield e
-    # puerta giratoria / aporte (si hay DNI de gerente)
-    dni_ger = ganador.get("dni_persona_natural") or ""
-    if dni_ger and entidad.get("ruc"):
-        evs, _ = _tool(T.detect_puerta_giratoria, "detect_puerta_giratoria", state,
-                       dni_gerente=dni_ger, entidad_contratante_ruc=entidad.get("ruc"))
-        async for e in _emit(evs): yield e
-    evs, _ = _tool(T.read_person_network_context, "read_person_network_context", state)
-    async for e in _emit(evs): yield e
-    _person_msg = (f"Analiza la red de personas para el OCID {ocid}. El contexto (RNP + datos Perú + "
-                   f"postores + firmantes + autoridades) está pre-cargado en tu instrucción.")
-    async for e in _agent_with_retry(A.person_network_agent, _person_msg, "person_network",
-                                     {"vinculos_detectados": [], "sin_red_detectada": True,
-                                      "_note": "person_network sin vínculos tras reintento"}):
-        yield e
+        _person_msg = (f"Analiza la red de personas para el OCID {ocid}. El contexto (RNP + datos Perú + "
+                       f"postores + firmantes + autoridades) está pre-cargado en tu instrucción.")
+        async for e in _agent_with_retry(A.person_network_agent, _person_msg, "person_network",
+                                         {"vinculos_detectados": [], "sin_red_detectada": True,
+                                          "_note": "person_network sin vínculos tras reintento"}):
+            yield e
 
     # ── 10. Compliance extendido (12 reglas + banderas de juicio del 7.7) ──
-    yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
-    async for e in _agent(A.compliance_extended_agent,
-                          f"Corre los chequeos extendidos para el OCID {ocid} y evalúa contextualmente "
-                          f"(capacidad operativa, conflicto de interés funcionario↔empresa) con los datos "
-                          f"inyectados. Emití banderas de juicio SOLO si la evidencia las respalda."):
-        yield e
+    if _perm("compliance_extended"):
+        yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
+        async for e in _agent(A.compliance_extended_agent,
+                              f"Corre los chequeos extendidos para el OCID {ocid} y evalúa contextualmente "
+                              f"(capacidad operativa, conflicto de interés funcionario↔empresa) con los datos "
+                              f"inyectados. Emití banderas de juicio SOLO si la evidencia las respalda."):
+            yield e
+    else:
+        yield _omitido("compliance_extended")
+    # El cruce RAG y la persistencia de banderas corren SIEMPRE (son del driver, no del agente):
+    # cruzan lo acumulado por compliance/parser/market aunque el extendido se haya omitido.
     # El cruce RAG y la persistencia los corre el DRIVER, NO el agente flash-lite: en
     # contratos reales el agente se RENDÍA tras las 12 reglas (no llegaba a llamar
     # evaluate_normative_compliance) y `normative_compliance` quedaba vacío. Determinista:
@@ -811,10 +904,22 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     async for e in _emit(evs): yield e
 
     # ── 12. Dictamen ──
+    if not _perm("report_writer"):
+        yield _omitido("report_writer")
+        evs, _ = _tool(T.persist_analysis_outputs, "persist_analysis_outputs", state, alerta_codigo=alerta_codigo)
+        async for e in _emit(evs): yield e
+        state["_final_response"] = "Análisis completado (sin dictamen: no aplica a la etapa)."
+        return
     yield {"kind": "phase", "name": "report_writer", "msg": "escribiendo dictamen periodístico"}
+    _validaciones = _bloque_validaciones(state)
+    _etapa = str(_clas.get("etapa") or "")
+    _breve = ("" if _etapa not in ("desierta", "cancelada", "nula") else
+              f" El proceso quedó {_etapa}: dictamen BREVE (causal, contexto y lo que sí se verificó); "
+              f"no especules sobre proveedores ni ejecución.")
     async for e in _agent(A.report_writer_agent,
                           f"Escribí el dictamen periodístico para la alerta {alerta_codigo} usando la data en "
-                          f"session.state. OBLIGATORIO PASO 1: llamá get_dictamen_context() antes de escribir."):
+                          f"session.state. OBLIGATORIO PASO 1: llamá get_dictamen_context() antes de escribir."
+                          + _breve + _validaciones):
         yield e
     # Si el output_key no capturó el dictamen pero el agente devolvió texto, lo inyectamos.
     def _capture_dictamen():
@@ -843,7 +948,7 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             f"EMPEZÁ con el título (encabezado markdown '## …') seguido de las secciones (Resumen "
             f"ejecutivo, Hechos clave, etc.). OBLIGATORIO PASO 1: llamá get_dictamen_context() "
             f"antes de escribir. NO incluyas bloques de código, instrucciones de instalación, "
-            f"licencias ni texto ajeno al dictamen.",
+            f"licencias ni texto ajeno al dictamen." + _validaciones,
         ):
             yield e
         _capture_dictamen()
