@@ -228,6 +228,21 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
         if any(r in (p.get("roles") or []) for r in ("supplier", "tenderer"))
         and (p.get("identifier") or {}).get("scheme") == "PE-RUC"
     ]
+    # Postores que se presentaron (no solo los adjudicados): `tender.tenderers[]` y
+    # `parties[role=tenderer]`. Se registran como ofertas con ganadora=false para que
+    # la regla C2 (único postor) cuente postores reales y no solo ganadores.
+    tenderer_rucs: list[str] = []
+    for t in (tender.get("tenderers") or []):
+        tid = str((t or {}).get("id") or "").replace("PE-RUC-", "").strip()
+        if len(tid) == 11 and tid.isdigit() and tid not in tenderer_rucs:
+            tenderer_rucs.append(tid)
+            if not any(s["ruc"] == tid for s in suppliers):
+                suppliers.append({"ruc": tid, "name": (t or {}).get("name") or f"RUC {tid}"})
+    for p in parties:
+        if "tenderer" in (p.get("roles") or []) and (p.get("identifier") or {}).get("scheme") == "PE-RUC":
+            tid = str((p.get("identifier") or {}).get("id") or "").strip()
+            if len(tid) == 11 and tid.isdigit() and tid not in tenderer_rucs:
+                tenderer_rucs.append(tid)
 
     DOC_TYPE_MAP = {
         "biddingDocuments": "bases", "technicalSpecifications": "expediente_tecnico",
@@ -344,20 +359,70 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                            VALUES (%s, %s, %s, %s, TRUE, TRUE, TRUE)""",
                         (pid, iid, monto, round(pct, 3)),
                     )
-        cur.execute("DELETE FROM documentos WHERE ocid=%s", (ocid,))
-        docs = tender.get("documents") or []
-        for d in docs:
-            cur.execute(
-                """INSERT INTO documentos (ocid, tipo, nombre, blob_url, fecha, metadata)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (ocid, DOC_TYPE_MAP.get(d.get("documentType"), "otro"),
-                 d.get("title") or "(sin título)", d.get("url"),
-                 (d.get("datePublished") or "")[:10] or None,
-                 json.dumps({"ocds_documentType": d.get("documentType"), "format": d.get("format")})),
-            )
+        # Postores NO ganadores: una oferta por (postor × ítem) con ganadora=false y sin
+        # monto (el OCDS de OECE no publica el monto de las ofertas perdedoras). ON CONFLICT
+        # respeta las ofertas ganadoras ya insertadas arriba.
+        for ruc in tenderer_rucs:
+            pid = postor_by_ruc.get(ruc)
+            if not pid:
+                continue
+            for iid in item_id_by_cubso.values():
+                cur.execute(
+                    """INSERT INTO ofertas (postor_id, item_id, monto_ofertado, porcentaje_referencial,
+                                            admitida, calificada, ganadora)
+                       VALUES (%s, %s, NULL, NULL, NULL, NULL, FALSE)
+                       ON CONFLICT (postor_id, item_id) DO NOTHING""",
+                    (pid, iid),
+                )
+        # Catálogo de documentos: TODAS las secciones (tender/awards/contracts) y upsert por
+        # (ocid, blob_url) — ya no se borra la tabla en cada corrida (migración 17). Las
+        # columnas seccion/ocds_doc_id/sha256 existen desde la 17; si la instancia no la
+        # tiene aplicada, se cae al INSERT histórico (solo tender, sin borrar).
+        docs: list[dict] = []
+        for stage, seccion in (("tender", "tender"), ("awards", "award"), ("contracts", "contract")):
+            node = cr.get(stage)
+            arr = node if isinstance(node, list) else ([node] if node else [])
+            for nd in arr:
+                if isinstance(nd, dict):
+                    for d in (nd.get("documents") or []):
+                        if isinstance(d, dict) and d.get("url"):
+                            docs.append({**d, "_seccion": seccion})
+        try:
+            cur.execute("SAVEPOINT docs_upsert")
+            for d in docs:
+                cur.execute(
+                    """INSERT INTO documentos (ocid, tipo, nombre, blob_url, fecha, metadata, seccion, ocds_doc_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (ocid, blob_url) DO UPDATE SET
+                         tipo=EXCLUDED.tipo, nombre=EXCLUDED.nombre, fecha=COALESCE(EXCLUDED.fecha, documentos.fecha),
+                         metadata=EXCLUDED.metadata, seccion=EXCLUDED.seccion, ocds_doc_id=EXCLUDED.ocds_doc_id""",
+                    (ocid, DOC_TYPE_MAP.get(d.get("documentType"), "otro"),
+                     d.get("title") or "(sin título)", d.get("url"),
+                     (d.get("datePublished") or "")[:10] or None,
+                     json.dumps({"ocds_documentType": d.get("documentType"), "format": d.get("format")}),
+                     d["_seccion"], str(d.get("id") or "") or None),
+                )
+            cur.execute("RELEASE SAVEPOINT docs_upsert")
+        except Exception as _e:
+            print(f"[register] upsert documentos (migración 17) falló → inserción simple: {str(_e)[:120]}", flush=True)
+            cur.execute("ROLLBACK TO SAVEPOINT docs_upsert")
+            for d in docs:
+                cur.execute("SELECT 1 FROM documentos WHERE ocid=%s AND blob_url=%s LIMIT 1", (ocid, d.get("url")))
+                if cur.fetchone():
+                    continue
+                cur.execute(
+                    """INSERT INTO documentos (ocid, tipo, nombre, blob_url, fecha, metadata)
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (ocid, DOC_TYPE_MAP.get(d.get("documentType"), "otro"),
+                     d.get("title") or "(sin título)", d.get("url"),
+                     (d.get("datePublished") or "")[:10] or None,
+                     json.dumps({"ocds_documentType": d.get("documentType"), "format": d.get("format"),
+                                 "seccion": d["_seccion"]})),
+                )
         conn.commit()
         return {"ok": True, "ocid_saved": ocid, "n_items": len(items),
-                "n_postores": len(postor_by_ruc), "n_docs": len(docs)}
+                "n_postores": len(postor_by_ruc), "n_tenderers": len(tenderer_rucs),
+                "n_docs": len(docs)}
     finally:
         conn.close()
 

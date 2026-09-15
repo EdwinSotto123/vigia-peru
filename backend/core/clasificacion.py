@@ -49,7 +49,7 @@ MOTIVO_ETAPA_PLANIFICACION = "etapa_planificacion"   # sin postores ni bases: na
 # Validaciones pendientes (códigos estables; el frontend y el dictamen los describen).
 VALIDACIONES = {
     "infobras_avance": "Avance físico/financiero de la obra (INFOBRAS) no disponible: no se verificó la ejecución.",
-    "market_sin_items_fisicos": "Sin ítems físicos con cantidad y unidad: no se comparó precio de mercado.",
+    "market_sin_items_fisicos": "Sin ítems físicos con cantidad y unidad: no se comparó precio de mercado (solo bienes).",
     "sin_documentos_descargables": "Sin bases, buena pro ni contrato publicados: no se analizaron documentos.",
     "proveedor_sin_ruc": "El record no identifica al proveedor (RUC): no se investigó a la empresa ni su red.",
     "entidad_sin_ruc": "Sin RUC de la entidad: no se investigó a sus funcionarios.",
@@ -91,9 +91,13 @@ def _ordenar(agentes) -> list[str]:
 
 
 def _construir_matriz() -> dict[tuple[str, str], list[str]]:
-    base = ["compliance", "document_parser", "document_legal_analyst", "entity_personnel", "report_writer"]
+    # `market` corre en TODOS los tipos: la estrategia la decide el perfil del servicio
+    # (`agents/_shared/profiles.py` → `market_estrategia`: goods_retail para bienes,
+    # historico_seace para servicios/consultoría, presupuesto_obra para obras, cotizaciones
+    # para convenio/directa). La matriz ya no lo omite a ciegas para no-bienes.
+    base = ["compliance", "document_parser", "document_legal_analyst", "market", "entity_personnel", "report_writer"]
     investigacion = ["web_research", "news_research", "person_network", "compliance_extended"]
-    base_convenio = ["compliance", "document_parser", "document_legal_analyst", "report_writer"]
+    base_convenio = ["compliance", "document_parser", "document_legal_analyst", "market", "report_writer"]
     # En las etapas negativas el dictamen es breve (causal + contexto). Se incluye report_writer
     # también para convenio/directa: una corrida sin dictamen deja una alerta ilegible.
     negativas = ["compliance", "report_writer"]
@@ -104,14 +108,10 @@ def _construir_matriz() -> dict[tuple[str, str], list[str]]:
         m[(tipo, "planificacion")] = []
         for etapa in ETAPAS_NEGATIVAS:
             m[(tipo, etapa)] = list(negativas)
-        if tipo == "bienes":
-            m[(tipo, "convocada")] = _ordenar(base + ["market"])
-            for etapa in ETAPAS_POST_ADJUDICACION:
-                m[(tipo, etapa)] = list(AGENTES)
-        elif tipo in ("servicios", "consultoria", "obras"):
+        if tipo in ("bienes", "servicios", "consultoria", "obras"):
             m[(tipo, "convocada")] = _ordenar(base)
             for etapa in ETAPAS_POST_ADJUDICACION:
-                m[(tipo, etapa)] = _ordenar(base + investigacion)       # sin market
+                m[(tipo, etapa)] = _ordenar(base + investigacion)       # los 10
         else:  # convenio · directa
             m[(tipo, "convocada")] = _ordenar(base_convenio)
             m[(tipo, "adjudicada")] = _ordenar(base_convenio + ["person_network", "web_research", "news_research"])
@@ -337,7 +337,10 @@ def clasificar(release_o_record: dict, *, entidad_ruc_hint: str | None = None, n
                 pendientes.append(codigo)
 
     # Datos requeridos por agente (ver §1 del plan / MATRIZ_TIPO_ETAPA.md).
-    if "market" in agentes:
+    # `market_sin_items_fisicos` solo aplica a BIENES (precio unitario × cantidad en retail);
+    # en servicios/obras/convenio/directa el mercado se compara por histórico SEACE,
+    # presupuesto del expediente o cotizaciones del sustento (no necesita ítems físicos).
+    if "market" in agentes and tipo == "bienes":
         cat = _norm(tender.get("mainProcurementCategory"))
         if not any(_item_fisico(i, cat) for i in _items(rel)):
             _omitir("market", "market_sin_items_fisicos")

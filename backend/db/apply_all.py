@@ -47,6 +47,9 @@ ORDER = [
     "13_clasificacion.sql",
     "14_lotes.sql",
     "15_retencion_pedidos.sql",
+    "16_cobertura.sql",
+    "17_documentos_texto.sql",
+    "18_verificacion.sql",
 ]
 
 

@@ -23,7 +23,10 @@ alertasRouter.get("/", async (c) => {
   if (region)            { vals.push(region);    conds.push(`a.region = $${vals.length}`); }
   if (estado)            { vals.push(estado);    conds.push(`a.estado = $${vals.length}`); }
   if (scoreMin != null)  { vals.push(scoreMin);  conds.push(`a.score >= $${vals.length}`); }
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  // Las alertas que la self-eval del orquestador bloqueó (estado 'revision': respaldo bajo,
+  // tono acusatorio o dictamen incoherente) NO se publican: se revisan en /admin antes.
+  conds.push(`a.estado <> 'revision'`);
+  const where = `WHERE ${conds.join(" AND ")}`;
 
   vals.push(limit, offset);
   const r = await pool.query(
@@ -94,7 +97,8 @@ alertasRouter.get("/analizadas", async (c) => {
                 COUNT(*) FILTER (WHERE severidad='baja')  AS n_baja
            FROM banderas WHERE alerta_id = a.id
        ) bc ON TRUE
-      WHERE a.analizado_en IS NOT NULL OR a.score > 0 OR COALESCE(bc.n_banderas, 0) > 0
+      WHERE (a.analizado_en IS NOT NULL OR a.score > 0 OR COALESCE(bc.n_banderas, 0) > 0)
+        AND a.estado <> 'revision'
       ORDER BY COALESCE(a.analizado_en, a.created_at, a.updated_at) DESC NULLS LAST
       LIMIT $1`,
     [limit],

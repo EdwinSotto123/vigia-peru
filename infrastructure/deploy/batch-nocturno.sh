@@ -5,7 +5,7 @@
 #   bash infrastructure/deploy/batch-nocturno.sh                 # ventana: últimos 7 días
 #   DIAS=30 bash infrastructure/deploy/batch-nocturno.sh          # ventana más larga
 #   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/batch-nocturno.sh   # histórico por tramos
-#   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200
+#   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200 · REFRESCAR_RECORDS=1 (re-bajar records ya vistos)
 #
 # Programación:
 #   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
@@ -44,7 +44,7 @@ L_REL="$("$PY" -m backend.batch.descargar releases --desde "$DESDE" --hasta "$HA
 LOTES+=("$L_REL")
 
 # 2. records nuevos (los ya bajados en noches anteriores se saltan)
-L_REC="$("$PY" -m backend.batch.descargar records --lote "$L_REL" --max-por-noche "$MAX_RECORDS" --paralelo 4 | tail -n1)"
+L_REC="$("$PY" -m backend.batch.descargar records --lote "$L_REL" --max-por-noche "$MAX_RECORDS" --paralelo 4 ${REFRESCAR_RECORDS:+--incluir-existentes} | tail -n1)"
 [[ -n "$L_REC" ]] && LOTES+=("$L_REC")
 
 # 3. documentos clave (bases, buena pro, contrato) con tope de GB; se corta solo si el SEACE bloquea (403 seguidos)
@@ -62,8 +62,9 @@ for l in "${LOTES[@]}"; do ARGS+=(--lote "$l"); done
 
 # 5. ingesta en GCP (Cloud Run Job; --wait espera y devuelve el exit code del job)
 if [[ -z "${SIN_INGESTA:-}" ]]; then
-  JOB_ARGS="$(IFS=,; printf '%s' "$(for l in "${LOTES[@]}"; do printf -- '--lote,%s,' "$l"; done)")"
-  gcloud run jobs execute vigia-ingest --region "$REGION" --args="${JOB_ARGS%,}" --wait \
+  # gcloud no admite repetir --lote dentro de --args: ingestar acepta varios ids tras un solo --lote
+  JOB_ARGS="--lote,$(IFS=,; echo "${LOTES[*]}")"
+  gcloud run jobs execute vigia-ingest --region "$REGION" --args="$JOB_ARGS" --wait \
     || echo "⚠ vigia-ingest terminó con error; revisar: gcloud run jobs executions list --job vigia-ingest --region $REGION"
 fi
 

@@ -12,6 +12,12 @@ from tools import (
 )
 
 MODEL = _MODEL_DEFAULT
+# Tier/thinking según docs/design/AUDITORIA_ORQUESTADOR.md §3.3 — Loop de 7 tools sin juicio profundo: DEFAULT con thinking low.
+# Overrides por env: THINKING_COMPLIANCE, TEMPERATURE_COMPLIANCE, MAX_OUTPUT_TOKENS_COMPLIANCE.
+THINKING = 'low'            # minimal | low | medium | high | None (Gemini 3: thinking_level)
+TEMPERATURE = None           # None = default del modelo (Gemini 3 recomienda no bajarla)
+MAX_OUTPUT_TOKENS = None
+OUTPUT_SCHEMA = None   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'compliance_result'
 USES_TODAY_HEADER = False
 STATE_INJECTIONS = None

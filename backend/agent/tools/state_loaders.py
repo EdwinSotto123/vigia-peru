@@ -3,90 +3,159 @@
 from tools._core import *  # noqa: F401,F403
 
 def _compact_ocds(ocds):
-    """Proyección MÍNIMA del OCDS para el dictamen (entidad, monto, ganador).
-    El report_writer no necesita parties/sources/planning/items crudos — esos
-    inflan el contexto y suben el riesgo de que el modelo degenere la salida en
-    contratos doc-pesados. La data de items/postores ya viene en document_analysis."""
+    """Proyección del OCDS para el dictamen: entidad, monto, ganador, postores,
+    ítems raíz y documentos (conteo + títulos). No lleva `parties`/`planning`/
+    `sources` crudos (inflan el contexto), pero SÍ los datos que el writer necesita
+    para no inventar: `numberOfTenderers`, `tenderers`, `items`, `documents`."""
     if not isinstance(ocds, dict):
         return ocds
     tender = ocds.get("tender") or {}
     buyer = ocds.get("buyer") or {}
     awards = ocds.get("awards") or []
+    contracts = ocds.get("contracts") or []
+    docs = tender.get("documents") or []
     return {
         "ocid": ocds.get("ocid"),
         "buyer": {"name": buyer.get("name"), "id": buyer.get("id")},
         "tender": {
             "title": tender.get("title"),
-            "description": (tender.get("description") or "")[:800] or None,
+            "description": (tender.get("description") or "")[:1200] or None,
             "value": tender.get("value"),
+            "procurementMethod": tender.get("procurementMethod"),
             "procurementMethodDetails": tender.get("procurementMethodDetails"),
             "mainProcurementCategory": tender.get("mainProcurementCategory"),
+            "status": tender.get("status"),
             "numberOfTenderers": tender.get("numberOfTenderers"),
+            "tenderers": [{"id": t.get("id"), "name": t.get("name")}
+                          for t in (tender.get("tenderers") or []) if isinstance(t, dict)][:30],
+            "items": [{"id": it.get("id"), "description": (it.get("description") or "")[:200],
+                       "quantity": it.get("quantity"), "unit": (it.get("unit") or {}).get("name"),
+                       "totalValue": it.get("totalValue")}
+                      for it in (tender.get("items") or []) if isinstance(it, dict)][:60],
+            "n_items": len(tender.get("items") or []),
+            "tenderPeriod": tender.get("tenderPeriod"),
+            "n_documents": len(docs),
+            "documents": [{"title": d.get("title"), "documentType": d.get("documentType"),
+                           "datePublished": (d.get("datePublished") or "")[:10]}
+                          for d in docs if isinstance(d, dict)][:30],
         },
         "awards": [
-            {"suppliers": [s.get("name") for s in (a.get("suppliers") or [])],
+            {"id": a.get("id"), "status": a.get("status"),
+             "suppliers": [{"id": s.get("id"), "name": s.get("name")} for s in (a.get("suppliers") or [])],
              "value": a.get("value"), "date": a.get("date")}
-            for a in awards[:10]
+            for a in awards[:20] if isinstance(a, dict)
         ],
+        "n_awards": len(awards),
+        "contracts": [
+            {"id": c.get("id"), "status": c.get("status"), "value": c.get("value"),
+             "dateSigned": c.get("dateSigned"), "n_amendments": len(c.get("amendments") or [])}
+            for c in contracts[:20] if isinstance(c, dict)
+        ],
+        "n_contracts": len(contracts),
     }
 
 
-def _cap(obj, max_str: int, max_list: int, _depth: int = 0):
-    """Tope genérico recursivo: trunca strings largos y listas largas para acotar
-    el tamaño del contexto inyectado. Defensa contra inflado futuro."""
+def _paginar(obj, max_str: int, max_list: int, _depth: int = 0):
+    """Paginación por sección: en vez de cortar silenciosamente (viejo `_cap`), cada
+    lista que supera `max_list` se reemplaza por {"items": [...], "_truncado": true,
+    "_omitidos": n, "_total": N} y cada string larga termina en un marcador con el
+    conteo de chars omitidos. El writer SIEMPRE sabe qué no vio."""
     if _depth > 8:
         return obj
     if isinstance(obj, str):
-        return obj if len(obj) <= max_str else obj[:max_str] + "…[truncado]"
+        if len(obj) <= max_str:
+            return obj
+        return obj[:max_str] + f" …[_truncado: {len(obj) - max_str} chars omitidos]"
     if isinstance(obj, list):
-        capped = [_cap(x, max_str, max_list, _depth + 1) for x in obj[:max_list]]
+        items = [_paginar(x, max_str, max_list, _depth + 1) for x in obj[:max_list]]
         if len(obj) > max_list:
-            capped.append(f"…[+{len(obj) - max_list} ítems omitidos]")
-        return capped
+            return {"items": items, "_truncado": True, "_omitidos": len(obj) - max_list,
+                    "_total": len(obj)}
+        return items
     if isinstance(obj, dict):
-        return {k: _cap(v, max_str, max_list, _depth + 1) for k, v in obj.items()}
+        return {k: _paginar(v, max_str, max_list, _depth + 1) for k, v in obj.items()}
     return obj
 
 
+def _banderas_para_dictamen(state) -> list[dict] | None:
+    """Banderas PERSISTIDAS (todos los agentes) leídas de BD por alerta_codigo; si la
+    BD no responde, las que dejó `persist_alert_from_flags` en state['banderas']."""
+    codigo = state.get("alerta_codigo")
+    if codigo:
+        try:
+            conn = _pg()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name='banderas' "
+                            "AND column_name='verificacion'")
+                con_ver = cur.fetchone() is not None
+                cur.execute(
+                    "SELECT b.regla, b.severidad, b.evidencia, b.norma, b.fuente_url, b.agente_origen"
+                    + (", b.verificacion" if con_ver else ", NULL") +
+                    " FROM banderas b JOIN alertas a ON a.id=b.alerta_id WHERE a.codigo=%s "
+                    "ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id",
+                    (codigo,))
+                rows = cur.fetchall()
+                if rows:
+                    out = []
+                    for r in rows:
+                        ver = r[6]
+                        if isinstance(ver, str):
+                            ver = _safe_parse_json(ver)
+                        out.append({"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
+                                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver})
+                    return out
+            finally:
+                conn.close()
+        except Exception:
+            pass
+    b = state.get("banderas")
+    return [x for x in b if isinstance(x, dict)] if isinstance(b, list) else None
+
+
 def get_dictamen_context(tool_context: ToolContext) -> dict:
-    """Devuelve el contexto investigativo ACOTADO de la convocatoria en curso,
-    leído del session.state. Es la ÚNICA forma en que el report_writer accede a
-    los datos reales del análisis — sin llamar esto, NO tiene información y
-    CUALQUIER cosa que escriba será alucinación.
+    """Devuelve el contexto investigativo de la convocatoria en curso, leído del
+    session.state. Es la ÚNICA forma en que el report_writer accede a los datos
+    reales del análisis — sin llamar esto, NO tiene información y CUALQUIER cosa
+    que escriba será alucinación.
 
-    Contexto deliberadamente acotado para estabilizar la salida del modelo: con
-    contexto > ~70K chars el report_writer (gemini-2.5-pro) degeneró la respuesta
-    final (README alucinado + tokens de control) en contratos doc-pesados. Se
-    EXCLUYEN dos bloques redundantes y se compacta `ocds`:
-      · parser_raw_consolidated → redundante con document_analysis (mismos items,
-        pre-dedup); inflaba ~20K en contratos doc-pesados.
-      · market_findings → redundante con market_analysis (su versión estructurada).
+    Incluye (WS V · auditoría #6 y §6.1-4):
+      · `banderas`: las PERSISTIDAS en BD por todos los agentes (compliance, legal,
+        market), con `verificacion`. El dictamen solo puede citar estas.
+      · `reglas_evaluadas`: pending_flags (resultado de las reglas deterministas).
+      · `entity_personnel`, `estado_real`, `analisis_postores`,
+        `causal_directa_invocada`, `acto_resolutivo_directa`, `sunat_decolecta`.
+      · `recortes` / `descartes` / `validaciones_pendientes`: lo que NO entró al
+        análisis, para la sección "Recortes y datos no verificables".
+      · `normative_compliance` completo (ya sin corte a 10 hallazgos).
 
-    Modo compacto (`state['_dictamen_compact']`): el driver lo activa en el
-    REINTENTO tras una salida malformada — recorta aún más (suelta legal_analysis
-    y baja los topes) para maximizar la probabilidad de una salida estable.
+    Paginación: cada sección se recorta con marca explícita (`_truncado`,
+    `_omitidos`, `_total`) — nunca un corte silencioso. En el REINTENTO
+    (`state['_dictamen_compact']`) bajan los topes pero NO se elimina
+    `legal_analysis`. Un output no parseable llega como
+    {"estado": "sin_dato", "_parse_failed": true}, nunca como texto crudo.
 
     Returns:
-        Diccionario con ocds (compacto), document_analysis, legal_analysis,
-        market_analysis, web_research, news_research, person_network,
-        compliance_result, normative_compliance, alerta_codigo,
-        estudio_mercado, contrato_final.
+        Diccionario con ocds (compacto), banderas, document_analysis, legal_analysis,
+        market_analysis, web_research, news_research, person_network, entity_personnel,
+        compliance_result, normative_compliance, reglas_evaluadas, estado_real,
+        analisis_postores, causal_directa_invocada, acto_resolutivo_directa,
+        sunat_decolecta, estudio_mercado, contrato_final, recortes, descartes,
+        validaciones_pendientes, alerta_codigo, perfil.
     """
     state = tool_context.state
     compact = bool(state.get("_dictamen_compact"))
     keys = [
         "ocds", "document_analysis", "legal_analysis", "market_analysis",
-        "web_research", "news_research", "person_network", "compliance_result",
-        "normative_compliance", "alerta_codigo",
+        "web_research", "news_research", "person_network", "entity_personnel",
+        "compliance_result", "normative_compliance", "alerta_codigo",
+        "estado_real", "analisis_postores", "causal_directa_invocada",
+        "acto_resolutivo_directa", "sunat_decolecta",
         # Bloques tipados por documento (ruteo incremental): estudio de mercado +
-        # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra). El
-        # dictamen los cita para el "por qué" de la modalidad y el precio pagado.
+        # causal (Resumen Ejecutivo) y condiciones FINALES (Orden de Compra).
         "estudio_mercado", "contrato_final",
+        "recortes", "descartes", "validaciones_pendientes", "perfil",
     ]
-    if compact:
-        # En reintento: soltar el bloque legal extenso (normative_compliance ya
-        # trae la evaluación RAG cruzada con opiniones OECE).
-        keys = [k for k in keys if k != "legal_analysis"]
     out: dict = {}
     for k in keys:
         v = state.get(k)
@@ -95,14 +164,27 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
             continue
         if isinstance(v, str):
             parsed = _safe_parse_json(v)
-            out[k] = parsed if parsed else v
+            if parsed:
+                out[k] = parsed
+            elif k in ("compliance_result", "alerta_codigo", "perfil"):
+                out[k] = v          # texto legítimo (síntesis / código / nombre del perfil)
+            else:
+                out[k] = {"estado": "sin_dato", "_parse_failed": True,
+                          "_motivo": "output del agente no parseable como JSON"}
         else:
             out[k] = v
     out["ocds"] = _compact_ocds(out.get("ocds"))
+    out["banderas"] = _banderas_para_dictamen(state)
+    out["reglas_evaluadas"] = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict)]
+    out["n_banderas"] = len(out["banderas"] or [])
+    out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. Las secciones con "
+                    "`_truncado: true` fueron paginadas; `_omitidos` dice cuántos elementos no se "
+                    "muestran. `recortes`/`descartes`/`validaciones_pendientes` deben listarse en "
+                    "la sección 'Recortes y datos no verificables'.")
     if compact:
-        out = _cap(out, max_str=1400, max_list=10)
+        out = _paginar(out, max_str=1600, max_list=15)
     else:
-        out = _cap(out, max_str=5000, max_list=40)
+        out = _paginar(out, max_str=6000, max_list=60)
     return out
 
 def read_document_analysis(tool_context: ToolContext) -> dict:

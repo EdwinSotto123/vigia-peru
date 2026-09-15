@@ -19,7 +19,10 @@ from backend.core.clasificacion import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TODOS = list(AGENTES)
-SIN_MARKET = [a for a in AGENTES if a != "market"]
+# `market` corre en todos los tipos (la estrategia la decide el perfil del servicio); solo se
+# omite en bienes sin ítems físicos.
+CONVOCADA = ["compliance", "document_parser", "document_legal_analyst", "market", "entity_personnel", "report_writer"]
+CONVENIO_ADJ = ["compliance", "document_parser", "document_legal_analyst", "market", "web_research", "news_research", "person_network", "report_writer"]
 
 
 def load(name: str) -> tuple[dict, str | None]:
@@ -35,21 +38,21 @@ def clas(name: str, **kw) -> Clasificacion:
 # ── Esperados explícitos por fixture ────────────────────────────────────────
 ESPERADOS = {
     # fixture                              tipo          etapa           procesable  agentes
-    "release_goods_convocada_lpa.json":   ("bienes",      "convocada",    True,  ["compliance", "document_parser", "document_legal_analyst", "market", "entity_personnel", "report_writer"]),
-    "release_goods_convocada_sie.json":   ("bienes",      "convocada",    True,  ["compliance", "document_parser", "document_legal_analyst", "market", "entity_personnel", "report_writer"]),
+    "release_goods_convocada_lpa.json":   ("bienes",      "convocada",    True,  CONVOCADA),
+    "release_goods_convocada_sie.json":   ("bienes",      "convocada",    True,  CONVOCADA),
     "release_goods_contratada.json":      ("bienes",      "contratada",   True,  TODOS),
     "record_goods_contratada.json":       ("bienes",      "contratada",   True,  TODOS),
-    "release_services_adjudicada.json":   ("servicios",   "adjudicada",   True,  SIN_MARKET),
-    "record_services_adjudicada.json":    ("servicios",   "adjudicada",   True,  SIN_MARKET),
-    "release_works_contratada.json":      ("obras",       "contratada",   True,  SIN_MARKET),
-    "release_consultoria_convocada.json": ("consultoria", "convocada",    True,  ["compliance", "document_parser", "document_legal_analyst", "entity_personnel", "report_writer"]),
-    "release_convenio_adjudicada.json":   ("convenio",    "adjudicada",   True,  ["compliance", "document_parser", "document_legal_analyst", "web_research", "news_research", "person_network", "report_writer"]),
-    "release_goods_directa.json":         ("directa",     "adjudicada",   True,  ["compliance", "document_parser", "document_legal_analyst", "web_research", "news_research", "person_network", "report_writer"]),
+    "release_services_adjudicada.json":   ("servicios",   "adjudicada",   True,  TODOS),
+    "record_services_adjudicada.json":    ("servicios",   "adjudicada",   True,  TODOS),
+    "release_works_contratada.json":      ("obras",       "contratada",   True,  TODOS),
+    "release_consultoria_convocada.json": ("consultoria", "convocada",    True,  CONVOCADA),
+    "release_convenio_adjudicada.json":   ("convenio",    "adjudicada",   True,  CONVENIO_ADJ),
+    "release_goods_directa.json":         ("directa",     "adjudicada",   True,  CONVENIO_ADJ),
     "release_planning_only.json":         ("bienes",      "planificacion", False, []),
     "release_goods_desierta.json":        ("bienes",      "desierta",     True,  ["compliance", "report_writer"]),
     "release_services_nula.json":         ("servicios",   "nula",         True,  ["compliance", "report_writer"]),
     "release_works_cancelada.json":       ("obras",       "cancelada",    True,  ["compliance", "report_writer"]),
-    "release_services_en_ejecucion.json": ("servicios",   "en_ejecucion", True,  SIN_MARKET),
+    "release_services_en_ejecucion.json": ("servicios",   "en_ejecucion", True,  TODOS),
 }
 
 
@@ -166,11 +169,27 @@ def test_etapa_desconocida_sin_datos():
     assert clasificar({}).tipo == "otro"
 
 
-def test_market_se_omite_sin_items_fisicos():
+def test_market_se_omite_sin_items_fisicos_solo_en_bienes():
     rel = _rel()
     rel["tender"]["items"] = [{"id": "1", "statusDetails": "CONVOCADO", "quantity": 0, "unit": {"name": "Unidad"}}]
     c = clasificar(rel, entidad_ruc_hint="20100000001")
     assert "market" not in c.agentes and c.validaciones_pendientes == ["market_sin_items_fisicos"]
+    # Servicios / obras / consultoría: market corre igual (histórico SEACE / presupuesto), la
+    # estrategia la decide el perfil; no hay validación pendiente por falta de ítems físicos.
+    for cat, mod in (("services", "Concurso Público"), ("works", "Licitación Pública"), ("services", "Concurso Público para Consultoría")):
+        rel = _rel(cat, mod)
+        rel["tender"]["items"] = [{"id": "1", "statusDetails": "CONVOCADO", "quantity": 1, "unit": {"name": "Servicio"}}]
+        c = clasificar(rel, entidad_ruc_hint="20100000001")
+        assert "market" in c.agentes and "market_sin_items_fisicos" not in c.validaciones_pendientes, (cat, mod)
+
+
+def test_market_en_todos_los_tipos_soportados():
+    """La matriz ya no omite market para servicios/consultoría/obras/convenio/directa."""
+    for tipo in TIPOS:
+        if tipo == "otro":
+            continue
+        for etapa in ("convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada"):
+            assert "market" in MATRIZ[(tipo, etapa)], (tipo, etapa)
 
 
 def test_parser_y_legal_se_omiten_sin_documentos_clave():
@@ -220,7 +239,7 @@ def test_matriz_orden_canonico_y_compliance_siempre():
         assert ags == [a for a in AGENTES if a in ags], (tipo, etapa)   # orden del pipeline
         if etapa != "planificacion":
             assert "compliance" in ags and "report_writer" in ags, (tipo, etapa)
-        if tipo != "bienes" and etapa not in ("contratada", "en_ejecucion", "finalizada"):
+        if etapa in ("desierta", "cancelada", "nula", "planificacion"):
             assert "market" not in ags, (tipo, etapa)
 
 

@@ -26,6 +26,7 @@ las lista al final del dictamen sin inventar nada.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import uuid
@@ -36,8 +37,40 @@ from google.genai import types as gtypes
 
 import agents as A
 import tools as T
+from agents._shared.profiles import Profile, get_profile
 
 APP_NAME = "vigia-peru"
+
+# ── Interfaces de otros workstreams (pueden no existir todavía) ─────────────
+# Cada import cae a None y el driver conserva el comportamiento actual en ese punto.
+try:  # WS D · selección determinista + lote de documentos con texto persistido
+    from tools.doc_select import seleccionar_documentos as _seleccionar_documentos
+except (ImportError, AttributeError):
+    _seleccionar_documentos = None
+try:  # WS D · entrada de `recortes` cuando la selección dejó documentos fuera por el tope
+    from tools.doc_select import recorte_seleccion as _recorte_seleccion
+except (ImportError, AttributeError):
+    _recorte_seleccion = None
+try:  # WS D
+    from tools.documentos import parse_documentos_lote as _parse_documentos_lote
+except (ImportError, AttributeError):
+    _parse_documentos_lote = None
+try:  # WS M · mercado por estrategia del perfil
+    from tools.market import analizar_mercado as _analizar_mercado
+except (ImportError, AttributeError):
+    _analizar_mercado = None
+try:  # WS V · verificación determinista del dictamen
+    from tools.verify import verificar_dictamen as _verificar_dictamen
+except (ImportError, AttributeError):
+    _verificar_dictamen = None
+try:  # WS V · reglas por slug (para correrlas en código cuando el perfil omite el agente)
+    from tools.compliance_rules import REGLAS_POR_NOMBRE as _REGLAS_POR_NOMBRE
+except (ImportError, AttributeError):
+    _REGLAS_POR_NOMBRE = None
+try:  # WS M · schemas pydantic con evidencia obligatoria
+    from agents._shared import schemas as _schemas
+except (ImportError, AttributeError):
+    _schemas = None
 
 # Paralelización de los 3 agentes de investigación INDEPENDIENTES (web ∥ prensa ∥
 # funcionarios). Los tres son grounding-only (solo google_search) y escriben ÚNICAMENTE
@@ -49,15 +82,102 @@ APP_NAME = "vigia-peru"
 _PARALLEL_RESEARCH = os.getenv("PARALLEL_RESEARCH", "1") != "0"
 
 
-def permitido(state: dict, nombre: str) -> bool:
+def permitido(state: dict, nombre: str, profile: Profile | None = None) -> bool:
     """¿Corre el sub-agente `nombre` (nombre canónico: compliance, document_parser,
     document_legal_analyst, market, web_research, news_research, entity_personnel,
-    person_network, compliance_extended, report_writer)? Sin `agentes_permitidos` en el
-    state → True para todos (compatibilidad con el análisis a demanda)."""
+    person_network, compliance_extended, report_writer)?
+
+    = intersección de la matriz tipo × etapa (`agentes_permitidos`, lo manda el dispatcher)
+    con los agentes del PERFIL del servicio (`PIPELINE_PROFILE`). Sin `agentes_permitidos`
+    → decide solo el perfil (análisis a demanda); sin perfil → bienes (todos)."""
+    prof = profile or get_profile()
+    if nombre not in prof.agentes:
+        return False
     perm = state.get("agentes_permitidos")
     if not isinstance(perm, (list, tuple, set)):
         return True
     return nombre in perm
+
+
+# Nombres de las fases/agentes que emite este driver (los tests de perfiles verifican que
+# `Profile.agentes` ⊆ FASES). Mismo orden que backend/dispatcher/events.FASES.
+FASES: tuple[str, ...] = (
+    "compliance", "document_parser", "document_legal_analyst", "market",
+    "web_research", "news_research", "entity_personnel", "person_network",
+    "compliance_extended", "report_writer",
+)
+
+
+def _kwargs_soportados(fn, **extra) -> dict:
+    """Filtra `extra` a los kwargs que `fn` acepta (para pasar parámetros de perfil a tools
+    de otros WS que pueden no haberlos incorporado todavía)."""
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return {}
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(extra)
+    return {k: v for k, v in extra.items() if k in params}
+
+
+def _registrar_recorte(state: dict, donde: str, limite, omitido) -> None:
+    """Todo tope aplicado queda registrado (ningún recorte silencioso)."""
+    state.setdefault("recortes", []).append({"donde": donde, "limite": limite, "omitido": omitido})
+
+
+def _registrar_descarte(state: dict, donde: str, motivo: str, detalle=None) -> None:
+    state.setdefault("descartes", []).append({"donde": donde, "motivo": motivo, "detalle": detalle})
+
+
+def _parse_json_flexible(v):
+    """dict desde un output_key que puede venir como dict, str JSON o str con fences."""
+    if isinstance(v, dict):
+        return v
+    if not isinstance(v, str) or not v.strip():
+        return None
+    s = v.strip()
+    if s.startswith("```"):
+        nl = s.find("\n")
+        s = s[nl + 1:] if nl > 0 else s
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+    try:
+        return json.loads(s)
+    except Exception:
+        i, j = s.find("{"), s.rfind("}")
+        if i != -1 and j > i:
+            try:
+                return json.loads(s[i:j + 1])
+            except Exception:
+                return None
+    return None
+
+
+def _validar_schema(state: dict, key: str, schema_name: str) -> dict | None:
+    """Valida `state[key]` contra `agents._shared.schemas.<schema_name>` (WS M) en el DRIVER.
+
+    No se usa `output_schema` nativo en los agentes con google_search: verificado en vivo que
+    con 3.6-flash `response_schema` + grounding deja `grounding_chunks` vacío (URLs no
+    verificables). Aquí el JSON en texto se valida con pydantic; si no valida, la salida se
+    conserva tal cual (para no perder información) pero queda anotada en `descartes` y se
+    devuelve el evento `warn`. Si el schema aún no existe (WS M) → no-op."""
+    if _schemas is None:
+        return None
+    schema = getattr(_schemas, schema_name, None)
+    if schema is None:
+        return None
+    data = _parse_json_flexible(state.get(key))
+    if data is None:
+        _registrar_descarte(state, key, "salida_no_json")
+        return {"kind": "warn", "name": key, "msg": f"{key}: salida no es JSON (schema {schema_name} no aplicable)"}
+    try:
+        validado = schema.model_validate(data)
+        state[key] = validado.model_dump(exclude_none=True)
+        return None
+    except Exception as e:
+        _registrar_descarte(state, key, "schema_invalido", str(e)[:400])
+        return {"kind": "warn", "name": key,
+                "msg": f"{key}: no cumple {schema_name} — {str(e)[:160]}"}
 
 
 # Texto de cada validación pendiente para el dictamen (códigos de
@@ -81,30 +201,80 @@ def _bloque_validaciones(state: dict) -> str:
             "dictamen con una sección '## Validaciones pendientes' que las liste TAL CUAL, sin inventar "
             "resultados ni conclusiones sobre ellas:\n" + lineas)
 
-# Tarifas Gemini en Vertex (USD/1M tokens, estimado). El pipeline MEZCLA tiers:
-# Pro (report_writer/legal/person_network), Flash (default) y Flash-Lite
-# (compliance_extended). Cobrar TODO a tarifa Flash subreporta el costo real
-# (Pro ~5x in / ~4x out) → distorsiona el costo que va al span de Arize. Por eso
-# el costo se acumula POR LLAMADA con la tarifa del modelo de cada sub-agente.
+
+_MAX_LINEAS_RECORTES = 25
+
+
+def _bloque_recortes(state: dict) -> str:
+    """Instrucción para el report_writer con los recortes (topes aplicados) y descartes
+    (hallazgos sin evidencia verificable) de la corrida. Vacío si no hubo ninguno. Si hay más
+    de _MAX_LINEAS_RECORTES, se listan los primeros y el conteo del resto (recorte declarado)."""
+    recortes = state.get("recortes") if isinstance(state.get("recortes"), list) else []
+    descartes = state.get("descartes") if isinstance(state.get("descartes"), list) else []
+    if not recortes and not descartes:
+        return ""
+    lineas: list[str] = []
+    for r in recortes:
+        if isinstance(r, dict):
+            lineas.append(f"- recorte en {r.get('donde')}: límite {r.get('limite')}, omitido: "
+                          f"{json.dumps(r.get('omitido'), ensure_ascii=False, default=str)[:200]}")
+        else:
+            lineas.append(f"- recorte: {str(r)[:200]}")
+    for d in descartes:
+        if isinstance(d, dict):
+            lineas.append(f"- descarte en {d.get('donde')}: {d.get('motivo')} "
+                          f"{json.dumps(d.get('detalle'), ensure_ascii=False, default=str)[:160] if d.get('detalle') else ''}")
+        else:
+            lineas.append(f"- descarte: {str(d)[:200]}")
+    resto = len(lineas) - _MAX_LINEAS_RECORTES
+    if resto > 0:
+        lineas = lineas[:_MAX_LINEAS_RECORTES] + [f"- … y {resto} recortes/descartes más (ver analisis_full.recortes)"]
+    return ("\n\nRECORTES Y DATOS NO VERIFICABLES de esta corrida (topes aplicados por el pipeline y "
+            "hallazgos descartados por falta de evidencia). Incluí una sección '## Recortes y datos no "
+            "verificables' que los liste TAL CUAL, sin inferir conclusiones a partir de lo omitido:\n"
+            + "\n".join(lineas))
+
+# Tarifas Gemini en Vertex (USD/1M tokens; lista pública consultada 2026-09-15 —
+# [verificar] contra cloud.google.com/vertex-ai/generative-ai/pricing antes de facturar:
+# 3.6-flash está en tarifa introductoria 0.75/3.75 hasta 2026-12-31, lista 1.50/7.50).
+# El pipeline MEZCLA tiers; cobrar todo a una tarifa única distorsiona el costo que va al
+# span de Arize → el costo se acumula POR LLAMADA con la tarifa del modelo del sub-agente.
+# Los tokens de THINKING (`thoughts_token_count`) se cobran como salida (así los factura Vertex).
 _MODEL_RATES = {
-    "pro":        (1.25, 10.00),
-    "flash-lite": (0.10, 0.40),
-    "flash":      (0.30, 2.50),
+    "gemini-3.6-flash":      (0.75, 3.75),
+    "gemini-3.5-flash-lite": (0.30, 2.50),
+    "gemini-3.5-flash":      (1.50, 9.00),
+    "gemini-3-flash":        (0.50, 3.00),
+    "gemini-2.5-pro":        (1.25, 10.00),
+    "gemini-2.5-flash-lite": (0.10, 0.40),
+    "gemini-2.5-flash":      (0.30, 2.50),
 }
-_DEFAULT_RATE = _MODEL_RATES["flash"]
+_DEFAULT_RATE = _MODEL_RATES["gemini-3.6-flash"]
 
 
 def _rate_for_model(model) -> tuple[float, float]:
-    """(in_rate, out_rate) USD/1M según substring del id del modelo. Robusto a
-    None o a un objeto Model (se castea a str)."""
+    """(in_rate, out_rate) USD/1M según el id del modelo (prefijo más largo que matchee;
+    'lite' antes que su base). Robusto a None o a un objeto Model (se castea a str)."""
     m = str(model or "").lower()
+    if "/" in m:
+        m = m.rsplit("/", 1)[-1]
+    for key in sorted(_MODEL_RATES, key=len, reverse=True):
+        if m.startswith(key):
+            return _MODEL_RATES[key]
     if "pro" in m:
-        return _MODEL_RATES["pro"]
+        return _MODEL_RATES["gemini-2.5-pro"]
     if "lite" in m:
-        return _MODEL_RATES["flash-lite"]
-    if "flash" in m:
-        return _MODEL_RATES["flash"]
+        return _MODEL_RATES["gemini-3.5-flash-lite"]
     return _DEFAULT_RATE
+
+
+def _usage_tokens(um) -> tuple[int, int, int, int]:
+    """(prompt, candidates, thoughts, total) desde usage_metadata; thoughts se suma a salida."""
+    pt = int(getattr(um, "prompt_token_count", 0) or 0)
+    ct = int(getattr(um, "candidates_token_count", 0) or 0)
+    tt = int(getattr(um, "thoughts_token_count", 0) or 0)
+    total = int(getattr(um, "total_token_count", 0) or (pt + ct + tt))
+    return pt, ct, tt, total
 
 
 def _is_empty_output(val) -> bool:
@@ -251,18 +421,18 @@ def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple
     metric_events: list[dict] = []
     um = getattr(event, "usage_metadata", None)
     if um is not None:
-        pt = int(getattr(um, "prompt_token_count", 0) or 0)
-        ct = int(getattr(um, "candidates_token_count", 0) or 0)
-        if pt or ct:
+        pt, ct, tt, total = _usage_tokens(um)
+        if pt or ct or tt:
             in_r, out_r = _rate_for_model(model)
             metrics["prompt"] += pt
-            metrics["output"] += ct
-            metrics["total"] += int(getattr(um, "total_token_count", 0) or (pt + ct))
+            metrics["output"] += ct + tt
+            metrics["thoughts"] = int(metrics.get("thoughts") or 0) + tt
+            metrics["total"] += total
             metrics["calls"] += 1
             # Costo = SUMA POR LLAMADA con la tarifa del modelo (no recálculo desde
-            # totales con una tarifa única — eso era lo que subreportaba al Pro).
+            # totales con una tarifa única). Los tokens de thinking se cobran como salida.
             metrics["cost"] = round(float(metrics.get("cost") or 0.0)
-                                    + pt / 1e6 * in_r + ct / 1e6 * out_r, 6)
+                                    + pt / 1e6 * in_r + (ct + tt) / 1e6 * out_r, 6)
             metric_events.append({"kind": "metrics", "agent": agent_name,
                                   "tokens_total": metrics["total"], "tokens_prompt": metrics["prompt"],
                                   "tokens_output": metrics["output"], "n_llm_calls": metrics["calls"],
@@ -338,7 +508,7 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
 
 def _merge_metrics(dst: dict, src: dict) -> None:
     """Suma las métricas de un sub-run aislado al acumulador global (in-place)."""
-    for k in ("prompt", "output", "total", "calls"):
+    for k in ("prompt", "output", "total", "calls", "thoughts"):
         dst[k] = (dst.get(k) or 0) + (src.get(k) or 0)
     dst["cost"] = round(float(dst.get("cost") or 0.0) + float(src.get("cost") or 0.0), 6)
 
@@ -474,13 +644,40 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     _clas = state.get("clasificacion") if isinstance(state.get("clasificacion"), dict) else {}
     _tipo_etapa = f"{_clas.get('tipo') or '?'}/{_clas.get('etapa') or '?'}"
 
+    # ── Perfil del servicio (PIPELINE_PROFILE): agentes, estrategia de mercado, reglas,
+    # topes, prioridad de documentos, secciones del dictamen. Va al state para que las
+    # tools de los otros WS lo lean vía tool_context.state["perfil"].
+    profile = get_profile()
+    state["perfil"] = profile.as_state()
+    # WS V lee estas dos claves directamente (compliance_rules._perfil_reglas/_perfil_topes).
+    state["reglas_activas"] = sorted(profile.reglas_activas)
+    state["topes_uit"] = dict(profile.topes_uit)
+    state.setdefault("recortes", [])    # [{donde, limite, omitido}] — ningún tope silencioso
+    state.setdefault("descartes", [])   # [{donde, motivo, detalle}] — nada sin evidencia se persiste
+    _agentes_activos = [a for a in profile.agentes if permitido(state, a, profile)]
+    _pev = {"kind": "phase", "name": "perfil",
+            "msg": f"{profile.nombre} · mercado={profile.market_estrategia} · "
+                   f"agentes: {', '.join(_agentes_activos) or 'ninguno'}"}
+    events_trace.append(_pev)
+    yield _pev
+
     def _perm(nombre: str) -> bool:
-        return permitido(state, nombre)
+        return permitido(state, nombre, profile)
 
     def _omitido(nombre: str) -> dict:
-        """Evento `phase` del agente saltado por la matriz tipo × etapa (el tablero lo muestra)."""
-        ev = {"kind": "phase", "name": nombre, "msg": f"omitido: no aplica a {_tipo_etapa}"}
+        """Evento `phase` del agente saltado por la matriz tipo × etapa o por el perfil
+        (el tablero lo muestra)."""
+        motivo = (f"no aplica al perfil {profile.nombre}" if nombre not in profile.agentes
+                  else f"no aplica a {_tipo_etapa}")
+        ev = {"kind": "phase", "name": nombre, "msg": f"omitido: {motivo}"}
         events_trace.append(ev)
+        return ev
+
+    def _validar(key: str, schema_name: str):
+        """Validación pydantic (WS M) de la salida de un sub-agente; devuelve evento o None."""
+        ev = _validar_schema(state, key, schema_name)
+        if ev:
+            events_trace.append(ev)
         return ev
 
     async def _agent(agent, msg):
@@ -603,11 +800,79 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     # ── 3. Document parser ──
     if _perm("document_parser"):
         yield {"kind": "phase", "name": "document_parser", "msg": "procesando documentos SEACE"}
-        async for e in _agent(A.document_parser_agent,
-                              f"Procesa los documentos publicados en SEACE para el OCID {ocid}. PRIORIZA Bases "
-                              f"Administrativas/Integradas, Resumen Ejecutivo y Archivos del contrato; extrae el "
-                              f"REQUERIMIENTO técnico por ítem. OBLIGATORIO: llamá parse_document_pdf al menos una vez."):
-            yield e
+        _lote_ok = False
+        if _seleccionar_documentos is not None and _parse_documentos_lote is not None:
+            # WS D · selección DETERMINISTA por prioridad del perfil (sin LLM) + OCR una sola
+            # vez (documentos_texto por sha256, páginas con marcador) + extracción con el
+            # schema base + bloque del perfil. Los omitidos por tope quedan en `recortes`.
+            _tev = {"kind": "transfer", "from": "orch", "to": "document_parser_agent", "agent": "orch",
+                    "msg": "orquestador delega a document_parser_agent (lote determinista)"}
+            events_trace.append(_tev)
+            yield _tev
+            try:
+                _doc_ids = state.get("doc_ids")
+                _doc_ids = [str(d) for d in _doc_ids] if isinstance(_doc_ids, (list, tuple)) and _doc_ids else None
+                elegidos, omitidos = _seleccionar_documentos(
+                    ocid, state.get("ocds") or {}, state.get("doc_urls") or {},
+                    profile.doc_prioridad, profile.parse_max_docs,
+                    **_kwargs_soportados(_seleccionar_documentos, doc_ids=_doc_ids))
+                if _doc_ids and "doc_ids" not in _kwargs_soportados(_seleccionar_documentos, doc_ids=_doc_ids):
+                    _ids = set(_doc_ids)
+                    _antes = len(elegidos)
+                    elegidos = [d for d in elegidos if str((d or {}).get("id")) in _ids]
+                    if len(elegidos) < _antes:
+                        _registrar_recorte(state, "doc_select.doc_ids", len(_ids), _antes - len(elegidos))
+                if _recorte_seleccion is not None:
+                    _rec = _recorte_seleccion(elegidos, omitidos or [], profile.parse_max_docs)
+                    if _rec:
+                        state.setdefault("recortes", []).append(_rec)
+                else:
+                    for om in (omitidos or []):
+                        _registrar_recorte(state, "doc_select", profile.parse_max_docs, om)
+                _sel_ev = [{"agent": "document_parser_agent", "kind": "tool_call", "name": "seleccionar_documentos",
+                            "args": {"prioridad": list(profile.doc_prioridad), "max_docs": profile.parse_max_docs}},
+                           {"agent": "document_parser_agent", "kind": "tool_result", "name": "seleccionar_documentos",
+                            "result_preview": {"elegidos": [{k: (d or {}).get(k) for k in ("id", "tipo", "titulo", "formato")}
+                                                            for d in elegidos],
+                                               "n_omitidos": len(omitidos or [])}}]
+                async for e in _emit(_sel_ev): yield e
+                if elegidos:
+                    _ev_call = {"agent": "document_parser_agent", "kind": "tool_call", "name": "parse_documentos_lote",
+                                "args": {"n_docs": len(elegidos), "bloque": profile.parser_bloque}}
+                    async for e in _emit([_ev_call]): yield e
+                    res = _parse_documentos_lote(
+                        state, elegidos,
+                        **_kwargs_soportados(_parse_documentos_lote, parser_bloque=profile.parser_bloque,
+                                             prioridad=profile.doc_prioridad))
+                    async for e in _emit([{"agent": "document_parser_agent", "kind": "tool_result",
+                                           "name": "parse_documentos_lote", "result_preview": _truncate_result(res)}]):
+                        yield e
+                    _raw = state.get("parser_raw_consolidated") or {}
+                    _lote_ok = isinstance(_raw, dict) and bool(
+                        _raw.get("items_consolidados") or _raw.get("bloque_servicio") or _raw.get("bloque_obra")
+                        or _raw.get("bloque_sustento_directa") or _raw.get("requerimiento_tecnico_detallado")
+                        or _raw.get("firmantes_consolidados") or state.get("documentos_texto"))
+                else:
+                    yield {"kind": "warn", "name": "document_parser",
+                           "msg": "sin documentos seleccionables para el lote — se intenta el flujo del agente"}
+            except Exception as e:
+                yield {"kind": "warn", "name": "document_parser",
+                       "msg": f"lote de documentos falló ({str(e)[:160]}) — fallback al agente"}
+        if _lote_ok:
+            # WS D: parse_documentos_lote ya escribió parser_raw_consolidated, documentos_texto,
+            # document_analysis, estudio_mercado y contrato_final → la fase termina acá, sin LLM.
+            _n_docs = len(state.get("documentos_texto") or {}) if isinstance(state.get("documentos_texto"), dict) else 0
+            _n_items = len((state.get("parser_raw_consolidated") or {}).get("items_consolidados") or [])
+            yield {"kind": "info", "name": "document_parser",
+                   "msg": f"lote determinista: {_n_docs} documento(s) con texto, {_n_items} ítem(s); sin agente LLM"}
+        else:
+            # Fallback (lote vacío o WS D ausente): el agente LLM llama parse_documentos_seleccionados
+            # (una sola vez) o, en la versión legacy, list_documents + parse_document_pdf.
+            async for e in _agent(A.document_parser_agent,
+                                  f"Procesa los documentos publicados en SEACE para el OCID {ocid}. PRIORIZA Bases "
+                                  f"Administrativas/Integradas, Resumen Ejecutivo y Archivos del contrato; extrae el "
+                                  f"REQUERIMIENTO técnico por ítem. OBLIGATORIO: llamá la tool de parseo al menos una vez."):
+                yield e
     else:
         yield _omitido("document_parser")
 
@@ -654,27 +919,53 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     if _perm("document_legal_analyst"):
         yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
         async for e in _agent(A.document_legal_analyst_agent,
-                              f"Analiza legalmente el documento extraído para el OCID {ocid}. Llamá "
+                              f"Analiza legalmente el documento extraído para el OCID {ocid} (perfil "
+                              f"{profile.nombre}: vectores '{profile.legal_vectores}'). Llamá "
                               f"read_document_analysis() para obtener el JSON real del parser antes de emitir banderas."):
             yield e
+        _vev = _validar("legal_analysis", "LegalOutput")
+        if _vev:
+            yield _vev
         evs, _ = _tool(T.persist_doc_flags_as_banderas, "persist_doc_flags_as_banderas", state, alerta_codigo=alerta_codigo)
         async for e in _emit(evs): yield e
     else:
         yield _omitido("document_legal_analyst")
 
-    # ── 5. Mercado ──
+    # ── 5. Mercado (estrategia según perfil: goods_retail | historico_seace |
+    #      presupuesto_obra | cotizaciones) ──
     if _perm("market"):
-        yield {"kind": "phase", "name": "market", "msg": "validando precios de mercado"}
+        yield {"kind": "phase", "name": "market",
+               "msg": f"validando precios de mercado ({profile.market_estrategia})"}
         # El análisis de mercado corre como tools (no sub-agente), pero igual debe
         # iluminar el nodo "market" del grafo → transfer explícito orquestador→market.
         _mkt = {"kind": "transfer", "from": "orch", "to": "market_price_agent", "agent": "orch",
                 "msg": "orquestador delega a market_price_agent"}
         events_trace.append(_mkt)
         yield _mkt
-        evs, _ = _tool(T.build_market_input, "build_market_input", state, agent="market_price_agent", ocid=ocid)
-        async for e in _emit(evs): yield e
-        evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, agent="market_price_agent", ocid=ocid)
-        async for e in _emit(evs): yield e
+        _mercado_ok = False
+        if _analizar_mercado is not None:
+            # WS M · una sola entrada por estrategia; URLs solo desde grounding_metadata;
+            # mediana/Δ%/veredicto en código; `sin_dato` cuando no hay base de comparación.
+            _ev_call = {"agent": "market_price_agent", "kind": "tool_call", "name": "analizar_mercado",
+                        "args": {"estrategia": profile.market_estrategia}}
+            async for e in _emit([_ev_call]): yield e
+            try:
+                res = _analizar_mercado(state, profile.market_estrategia)
+                _mercado_ok = True
+            except Exception as e:
+                res = {"error": f"{type(e).__name__}: {str(e)[:160]}"}
+            async for e in _emit([{"agent": "market_price_agent", "kind": "tool_result",
+                                   "name": "analizar_mercado", "result_preview": _truncate_result(res)}]):
+                yield e
+            if not _mercado_ok:
+                yield {"kind": "warn", "name": "market",
+                       "msg": f"analizar_mercado({profile.market_estrategia}) falló — fallback al fan-out retail"}
+        if not _mercado_ok:
+            # Flujo vigente (goods_retail): build_market_input + fan-out sharded con google_search.
+            evs, _ = _tool(T.build_market_input, "build_market_input", state, agent="market_price_agent", ocid=ocid)
+            async for e in _emit(evs): yield e
+            evs, _ = _tool(T.analyze_market_sharded, "analyze_market_sharded", state, agent="market_price_agent", ocid=ocid)
+            async for e in _emit(evs): yield e
         evs, _ = _tool(T.persist_market_flags_as_banderas, "persist_market_flags_as_banderas", state, agent="market_price_agent", alerta_codigo=alerta_codigo)
         async for e in _emit(evs): yield e
     else:
@@ -817,6 +1108,15 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             async for e in _agent_with_retry(A.entity_personnel_agent, _entity_msg, "entity_personnel", _entity_stub):
                 yield e
 
+    # Validación pydantic (WS M) de las salidas de investigación; no descarta la salida,
+    # anota en `descartes` y avisa.
+    for _k, _sn in (("web_research", "WebResearchOutput"), ("news_research", "NewsOutput"),
+                    ("entity_personnel", "EntityPersonnelOutput")):
+        if _perm(_k):
+            _vev = _validar(_k, _sn)
+            if _vev:
+                yield _vev
+
     # ── Lookup de funcionarios descubiertos (común a ambos caminos) ──
     func_desig = (state.get("entity_personnel") or {})
     funcionarios = func_desig.get("funcionarios_designados") if isinstance(func_desig, dict) else None
@@ -874,8 +1174,14 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
                                          {"vinculos_detectados": [], "sin_red_detectada": True,
                                           "_note": "person_network sin vínculos tras reintento"}):
             yield e
+        _vev = _validar("person_network", "PersonNetworkOutput")
+        if _vev:
+            yield _vev
 
     # ── 10. Compliance extendido (12 reglas + banderas de juicio del 7.7) ──
+    # Parámetros de perfil para las reglas (WS V los acepta como kwargs; hasta entonces las
+    # reglas los leen de state["perfil"] o los ignoran).
+    _reglas_kw = {"reglas_activas": profile.reglas_activas, "topes_uit": profile.topes_uit}
     if _perm("compliance_extended"):
         yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
         async for e in _agent(A.compliance_extended_agent,
@@ -885,6 +1191,27 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             yield e
     else:
         yield _omitido("compliance_extended")
+        # Perfil sin el agente extendido (p. ej. `otros`): las reglas ACTIVAS del perfil
+        # igual corren, en CÓDIGO (sin LLM, sin banderas de juicio). Las 3 duras ya corrieron
+        # en compliance; acá van las extendidas cuyo tool `check_<regla>_rule` exista.
+        _duras = ("unique_bidder", "sanctioned_provider", "non_competitive_process")
+
+        def _regla_fn(slug: str):
+            if isinstance(_REGLAS_POR_NOMBRE, dict) and callable(_REGLAS_POR_NOMBRE.get(slug)):
+                return _REGLAS_POR_NOMBRE[slug]
+            fn = getattr(T, f"check_{slug}_rule", None)
+            return fn if callable(fn) else None
+        _reglas_codigo = [(r, _regla_fn(r)) for r in sorted(profile.reglas_activas) if r not in _duras]
+        _reglas_codigo = [(r, fn) for r, fn in _reglas_codigo if fn is not None]
+        if _reglas_codigo:
+            yield {"kind": "phase", "name": "compliance_rules",
+                   "msg": f"reglas del perfil {profile.nombre} en código (sin LLM): "
+                          + ", ".join(r for r, _ in _reglas_codigo)}
+            for r, fn in _reglas_codigo:
+                evs, _ = _tool(fn, getattr(fn, "__name__", f"check_{r}_rule"), state,
+                               agent="compliance_extended_agent", ocid=ocid,
+                               **_kwargs_soportados(fn, **_reglas_kw))
+                async for e in _emit(evs): yield e
     # El cruce RAG y la persistencia de banderas corren SIEMPRE (son del driver, no del agente):
     # cruzan lo acumulado por compliance/parser/market aunque el extendido se haya omitido.
     # El cruce RAG y la persistencia los corre el DRIVER, NO el agente flash-lite: en
@@ -892,7 +1219,8 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
     # evaluate_normative_compliance) y `normative_compliance` quedaba vacío. Determinista:
     # evaluate_normative_compliance puebla state['normative_compliance'] cruzando TODAS las
     # banderas acumuladas (12 reglas + parser + market + person + juicio) contra el RAG OECE.
-    evs, _ = _tool(T.evaluate_normative_compliance, "evaluate_normative_compliance", state, ocid=ocid)
+    evs, _ = _tool(T.evaluate_normative_compliance, "evaluate_normative_compliance", state, ocid=ocid,
+                   **_kwargs_soportados(T.evaluate_normative_compliance, **_reglas_kw))
     async for e in _emit(evs): yield e
     # persistir cualquier pending_flag acumulado
     evs, _ = _tool(T.persist_alert_from_flags, "persist_alert_from_flags", state, ocid=ocid)
@@ -911,15 +1239,21 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
         state["_final_response"] = "Análisis completado (sin dictamen: no aplica a la etapa)."
         return
     yield {"kind": "phase", "name": "report_writer", "msg": "escribiendo dictamen periodístico"}
-    _validaciones = _bloque_validaciones(state)
+    _validaciones = _bloque_validaciones(state) + _bloque_recortes(state)
     _etapa = str(_clas.get("etapa") or "")
+    _tipo = str(_clas.get("tipo") or "")
     _breve = ("" if _etapa not in ("desierta", "cancelada", "nula") else
               f" El proceso quedó {_etapa}: dictamen BREVE (causal, contexto y lo que sí se verificó); "
               f"no especules sobre proveedores ni ejecución.")
+    if profile.nombre == "otros" and _tipo in ("directa", "convenio"):
+        _breve += (f" Contratación {_tipo}: dictamen BREVE centrado en la causal invocada, el expediente de "
+                   f"sustento (informes, acto resolutivo, cotizaciones) y lo verificado; sin especular.")
+    _secciones = ("\n\nSECCIONES DEL DICTAMEN (perfil " + profile.nombre + "), en este orden: "
+                  + " · ".join(profile.dictamen_secciones) + ".")
     async for e in _agent(A.report_writer_agent,
                           f"Escribí el dictamen periodístico para la alerta {alerta_codigo} usando la data en "
                           f"session.state. OBLIGATORIO PASO 1: llamá get_dictamen_context() antes de escribir."
-                          + _breve + _validaciones):
+                          + _breve + _secciones + _validaciones):
         yield e
     # Si el output_key no capturó el dictamen pero el agente devolvió texto, lo inyectamos.
     def _capture_dictamen():
@@ -972,6 +1306,23 @@ async def run_deterministic(input_str: str, runner, user_id: str, session_id: st
             state["final_dictamen"] = best
             yield {"kind": "warn", "name": "report_writer",
                    "msg": f"reintento aún {probs2} — sanitizado a {len(best)} chars"}
+
+    # ── 12.5 Verificación determinista del dictamen (WS V): banderas citadas que no existen
+    #      en `banderas`, URLs sin respaldo en ningún output → `verificacion_dictamen` en state
+    #      (persist lo guarda en analisis_full) y warn si quedó degradado.
+    if _verificar_dictamen is not None and state.get("final_dictamen"):
+        try:
+            _ver = _verificar_dictamen(state["final_dictamen"], state)
+            state["verificacion_dictamen"] = _ver
+            _v = _ver or {}
+            _partes = [f"{len(_v.get(k) or [])} {lbl}" for k, lbl in (
+                ("banderas_no_existentes", "bandera(s) inexistentes"), ("urls_no_respaldadas", "URL(s) sin respaldo"),
+                ("rucs_no_respaldados", "RUC sin respaldo"), ("dnis_no_respaldados", "DNI sin respaldo")) if _v.get(k)]
+            if _v.get("degradado") or _partes:
+                yield {"kind": "warn", "name": "report_writer",
+                       "msg": "dictamen: " + (", ".join(_partes) or "sanitizado") + (" — degradado" if _v.get("degradado") else "")}
+        except Exception as e:
+            yield {"kind": "warn", "name": "report_writer", "msg": f"verificar_dictamen falló: {str(e)[:160]}"}
 
     # ── 13. Persist final (con dictamen) ──
     evs, _ = _tool(T.persist_analysis_outputs, "persist_analysis_outputs", state, alerta_codigo=alerta_codigo)

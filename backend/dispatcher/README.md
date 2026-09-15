@@ -17,7 +17,11 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
 1. `reclamar_procesamientos(n, worker)` — toma hasta `DISPATCHER_PARALLEL` contratos
    encolados con `FOR UPDATE SKIP LOCKED` (varias ejecuciones solapadas no se pisan) y
    re-encola los que llevan >20 min sin latido.
-2. `POST {AGENT_URL}?stream=1` con `{"input": "<ocid>"}` → lee el NDJSON del orquestador.
+2. Elige el **servicio de agentes por tipo** (`url_para(tipo)`, tabla de abajo) y hace
+   `POST {AGENT_URL_<PERFIL>}?stream=1` con `{"input", "ocds", "doc_urls", "clasificacion"}` →
+   lee el NDJSON del orquestador. Si el servicio del tipo no está desplegado, el contrato queda
+   `pendiente_de_procesamiento` (nunca se manda servicios/obras/otros al de bienes). Un `409
+   tipo_no_aceptado` (perfil ≠ tipo: URLs mal configuradas) también lo deja pendiente.
 3. Por cada evento `phase | warn | error | final` actualiza `fase_actual`, `fase_index`,
    `latido_at` y anexa el evento a `eventos` (`events.py` reduce el stream; las fases
    canónicas son las 10 de `FASES`, compartidas con `frontend/lib/auditoria.ts`).
@@ -35,7 +39,11 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
 
 | Variable | Default | Uso |
 |---|---|---|
-| `AGENT_URL` | — | URL del orquestador (`agent-orchestrator-adk`) |
+| `AGENT_URL_BIENES` | — | servicio `agent-orchestrator-adk` (`PIPELINE_PROFILE=bienes`) |
+| `AGENT_URL_SERVICIOS` | — | servicio `agente-servicios` (tipo `servicios`) |
+| `AGENT_URL_OBRAS` | — | servicio `agente-obras` (tipo `obras`) |
+| `AGENT_URL_OTROS` | — | servicio `agente-otros` (tipos `consultoria`, `convenio`, `directa`, `otro`) |
+| `AGENT_URL` | — | fallback histórico: SOLO para `bienes` y para contratos sin clasificación (a demanda) |
 | `PGHOST` `PGPORT` `PGUSER` `PGDATABASE` `PGPASSWORD` `PGSSLMODE` | libpq | Cloud SQL (socket `/cloudsql/…` en el job) |
 | `DISPATCHER_PARALLEL` | 2 | análisis concurrentes por ejecución |
 | `DISPATCHER_MAX_MINUTES` | 55 | ventana para reclamar contratos |
@@ -52,7 +60,9 @@ AGENT_URL=https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app PGHOST=34.71.24
 DISPATCHER_PARALLEL=1 DISPATCHER_MAX_MINUTES=15 python -m backend.dispatcher.main
 ```
 
-Tests: `python -m pytest backend/dispatcher/tests -v`. Deploy: `bash infrastructure/deploy/dispatcher.sh`.
+Tests: `python -m pytest backend/dispatcher/tests -v` (`test_routing.py` cubre tipo → servicio).
+Deploy: `bash infrastructure/deploy/dispatcher.sh` (lee las 4 URLs de los servicios desplegados con
+`infrastructure/deploy/agentes.sh all`; las que no existan quedan vacías y su tipo espera).
 
 ## Operación
 

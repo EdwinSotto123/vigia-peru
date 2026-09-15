@@ -11,8 +11,14 @@ Endpoint:
       "tipo": "bienes", "etapa": "convocada",     //   (backend/core/clasificacion.py)
       "agentes": ["compliance", ...],             //   solo estos sub-agentes corren
       "validaciones_pendientes": ["infobras_avance"]  // el dictamen las lista, sin inventar
-    }                                             // sin `clasificacion` → corren TODOS (análisis a demanda)
+    },                                            // sin `clasificacion` → corren TODOS (análisis a demanda)
+    "doc_ids": ["..."]                            // opcional: restringe el lote de documentos a estos ids
   }
+
+  Perfil del servicio: env PIPELINE_PROFILE=bienes|servicios|obras|otros
+  (agents/_shared/profiles.py). Si `clasificacion.tipo` no es del perfil → HTTP 409
+  {error:"tipo_no_aceptado", perfil, tipo} (evento NDJSON `error` con ?stream=1).
+  GET / (sin action) → {ok, perfil, modelos}.
 
 Response:
   {
@@ -49,26 +55,30 @@ import functions_framework
 from agents._shared import model_fallback  # noqa: F401  (aplica el patch al importar)
 
 from arize_observability import init_arize_tracing, set_session_attrs, force_flush_tracing
+from agents._shared.profiles import acepta, get_profile, perfil_para_tipo
+from agents._shared.models import modelos_activos
 
-# Tarifa LLM por TIER (USD/1M, estimado). Agentes Pro (gemini-2.5-pro) cuestan ~5x
-# el Flash; cobrar todo a Flash subreporta el costo en el span de Arize. El camino
-# determinista cobra por modelo en deterministic._parse_event; acá (camino LLM /
-# safety-net writer) mapeamos por nombre de agente para mantener la coherencia.
-_PRO_AGENTS = {"report_writer_agent", "document_legal_analyst_agent", "person_network_agent"}
-
-
-def _rate_for_agent_name(name: str) -> tuple[float, float]:
-    return (1.25, 10.00) if name in _PRO_AGENTS else (0.30, 2.50)
 _ARIZE_ACTIVE = init_arize_tracing()
 
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types as gtypes
 
+import agents as _agents
 from agents import vigia_orchestrator
+from deterministic import _kwargs_soportados, _rate_for_model, _usage_tokens
 
 
 APP_NAME = "vigia-peru"
+PROFILE = get_profile()
+
+
+def _rate_for_agent_name(name: str) -> tuple[float, float]:
+    """Tarifa (in, out) USD/1M del MODELO real del agente `name` (camino LLM / safety-net
+    writer). Reusa la tabla de deterministic._rate_for_model (3.x/2.5 + thinking)."""
+    ag = getattr(_agents, name, None) if name else None
+    model = getattr(ag, "model", None) if ag is not None else None
+    return _rate_for_model(model)
 
 
 def _build_runner() -> Runner:
@@ -101,6 +111,7 @@ async def _run_streaming(
     docs_b64: dict | None,
     doc_urls: dict | None,
     clasificacion: dict | None = None,
+    doc_ids: list | None = None,
 ) -> AsyncIterator[dict]:
     """Async generator que yields cada evento del orquestador en tiempo real.
 
@@ -119,6 +130,8 @@ async def _run_streaming(
         initial_state["docs_b64"] = docs_b64
     if doc_urls:
         initial_state["doc_urls"] = doc_urls
+    if isinstance(doc_ids, (list, tuple)) and doc_ids:
+        initial_state["doc_ids"] = [str(d) for d in doc_ids if d]  # WS D restringe el lote a estos
     _clas = _normalizar_clasificacion(clasificacion)
     if _clas:
         # El pipeline determinista consulta `agentes_permitidos` (deterministic.permitido) y
@@ -176,6 +189,7 @@ async def _run_streaming(
 
     # Eventos sintéticos del lifecycle del stream
     yield {"kind": "session", "session_id": session_id, "ts": time.time()}
+    yield {"kind": "phase", "name": "perfil", "msg": PROFILE.nombre}
     yield {"kind": "phase", "name": "started", "msg": f"despachando agentes para {input_str}"}
 
     # Capturar excepciones del runner (ej. 429 RESOURCE_EXHAUSTED de Gemini)
@@ -204,7 +218,7 @@ async def _run_streaming(
     # Acumulador de tokens/costo (de usage_metadata de cada respuesta del LLM) —
     # se emite como eventos `metrics` al stream para mostrar en vivo que Arize
     # está midiendo. Tarifas Gemini 2.5 Flash en Vertex (USD/1M tokens, estimado).
-    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0}
+    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0, "thoughts": 0}
 
     # ── Pipeline DETERMINISTA: la secuencia de agentes/tools la corre el código
     #    (deterministic.run_deterministic) → todos los agentes corren SIEMPRE, no
@@ -304,17 +318,17 @@ async def _run_streaming(
         # SOLO para el stream en vivo (no se persisten en el trace).
         um = getattr(event, "usage_metadata", None)
         if um is not None:
-            pt = int(getattr(um, "prompt_token_count", 0) or 0)
-            ct = int(getattr(um, "candidates_token_count", 0) or 0)
-            if pt or ct:
+            pt, ct, tt, _total = _usage_tokens(um)
+            if pt or ct or tt:
                 _in_r, _out_r = _rate_for_agent_name(agent_name)
                 _metrics["prompt"] += pt
-                _metrics["output"] += ct
-                _metrics["total"] += int(getattr(um, "total_token_count", 0) or (pt + ct))
+                _metrics["output"] += ct + tt       # thinking se cobra como salida
+                _metrics["thoughts"] = int(_metrics.get("thoughts") or 0) + tt
+                _metrics["total"] += _total
                 _metrics["calls"] += 1
-                # Suma POR LLAMADA con la tarifa del tier (no recálculo desde totales).
+                # Suma POR LLAMADA con la tarifa del modelo real (no recálculo desde totales).
                 _metrics["cost"] = round(float(_metrics.get("cost") or 0.0)
-                                         + pt / 1e6 * _in_r + ct / 1e6 * _out_r, 6)
+                                         + pt / 1e6 * _in_r + (ct + tt) / 1e6 * _out_r, 6)
                 yield {
                     "kind": "metrics", "agent": agent_name,
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
@@ -498,7 +512,8 @@ async def _run_streaming(
             _band, _ma_eval.get("findings"),
             raw_state.get("final_dictamen") or final_response or "",
             objeto=str(_objeto_eval or ""), stages=_stages_eval,
-            news_research=_nr_eval, firmantes=_firmantes_eval, doc_item_descs=_doc_items_eval)
+            news_research=_nr_eval, firmantes=_firmantes_eval, doc_item_descs=_doc_items_eval,
+            **_kwargs_soportados(run_inline_evals, state=raw_state))  # WS V: jueces con documentos_texto/ocds
 
         def _evpct(d):
             n = d.get("n", 0)
@@ -568,6 +583,39 @@ async def _run_streaming(
             events_trace.append(_ev)
             yield _ev
         safety_actions.append(f"self_eval_done:{_evals.get('n_judge_calls', 0)}calls")
+
+        # ── Self-eval BLOQUEANTE (WS V: tools.self_eval.debe_bloquear): si el respaldo
+        #    de banderas es bajo, el tono es acusatorio o el dictamen es incoherente, la
+        #    alerta pasa a estado 'revision' y NO se publica (la API pública la excluye).
+        #    Hasta que V exista, `_debe_bloquear` no está y no se bloquea nada.
+        try:
+            from tools.self_eval import debe_bloquear as _debe_bloquear  # WS V
+        except (ImportError, AttributeError):
+            _debe_bloquear = None
+        if _debe_bloquear is not None and _cod:
+            try:
+                _bloq, _motivo = _debe_bloquear(_evals)
+            except Exception as _e:
+                _bloq, _motivo = False, f"debe_bloquear falló: {str(_e)[:120]}"
+                print(f"[self-eval] {_motivo}")
+            if _bloq:
+                try:
+                    _conn_b = _pg_eval()
+                    try:
+                        _cur_b = _conn_b.cursor()
+                        _cur_b.execute("UPDATE alertas SET estado = 'revision' WHERE codigo = %s", (_cod,))
+                        _conn_b.commit()
+                    finally:
+                        _conn_b.close()
+                    raw_state["revision"] = {"motivo": _motivo, "alerta_codigo": _cod}
+                    _wev = {"kind": "warn", "name": "self_eval",
+                            "msg": f"alerta {_cod} en REVISIÓN (no publicada): {_motivo}"}
+                    events_trace.append(_wev)
+                    yield _wev
+                    safety_actions.append(f"revision:{str(_motivo)[:80]}")
+                except Exception as _e:
+                    print(f"[self-eval] no se pudo marcar revision: {_e}")
+                    safety_actions.append(f"revision_exception:{str(_e)[:80]}")
     except Exception as _e:
         print(f"[self-eval] falló: {_e}")
         safety_actions.append(f"self_eval_exception:{str(_e)[:80]}")
@@ -588,9 +636,13 @@ async def _run_streaming(
                 "agent_trace": events_trace,
                 "llm_metrics": {
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
-                    "tokens_output": _metrics["output"], "n_llm_calls": _metrics["calls"],
-                    "cost_usd": _metrics["cost"],
+                    "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
+                    "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
                 },
+                "perfil": PROFILE.nombre,
+                "recortes": raw_state.get("recortes") or [],
+                "descartes": raw_state.get("descartes") or [],
+                "verificacion_dictamen": raw_state.get("verificacion_dictamen"),
             }
             if _evals:
                 _extra["self_evals"] = _evals
@@ -623,10 +675,11 @@ async def _run_streaming(
     if _evals:
         state["self_evals"] = _evals
     # Persistir métricas LLM finales para que el resultado (no solo el vivo) las muestre.
+    state["perfil_nombre"] = PROFILE.nombre
     state["llm_metrics"] = {
         "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
-        "tokens_output": _metrics["output"], "n_llm_calls": _metrics["calls"],
-        "cost_usd": _metrics["cost"],
+        "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
+        "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
         # trace_id de Phoenix para que el frontend ofrezca el deep-link a la traza
         # completa (orquestación ADK + cada call a Gemini, vía OpenInference).
         "phoenix_trace_id": _phoenix_trace_hex or None,
@@ -635,6 +688,7 @@ async def _run_streaming(
     final_payload = {
         "kind": "final",
         "session_id": session_id,
+        "perfil": PROFILE.nombre,
         "events": events_trace,
         "final_response": final_response,
         "state": state,
@@ -725,18 +779,20 @@ async def _run(
     docs_b64: dict | None,
     doc_urls: dict | None,
     clasificacion: dict | None = None,
+    doc_ids: list | None = None,
 ) -> dict:
     """Wrapper non-streaming: consume el generator y retorna el snapshot final.
     Mantiene compat con clientes que no usan ?stream=1.
     """
     final: dict | None = None
-    async for ev in _run_streaming(input_str, ocds, docs_b64, doc_urls, clasificacion):
+    async for ev in _run_streaming(input_str, ocds, docs_b64, doc_urls, clasificacion, doc_ids):
         if ev.get("kind") == "final":
             final = ev
     if final is None:
-        return {"session_id": None, "events": [], "final_response": None, "state": {}}
+        return {"session_id": None, "perfil": PROFILE.nombre, "events": [], "final_response": None, "state": {}}
     return {
         "session_id": final.get("session_id"),
+        "perfil": PROFILE.nombre,
         "events": final.get("events", []),
         "final_response": final.get("final_response"),
         "state": final.get("state", {}),
@@ -994,9 +1050,18 @@ def orchestrate(request):
     if request.method == "OPTIONS":
         return ("", 204, cors)
 
-    # GET routing: ?action=list o ?action=load&ocid=...
+    # GET routing: sin action → health con perfil y modelos; ?action=list|load|random
     if request.method == "GET":
-        action = request.args.get("action", "list")
+        action = request.args.get("action")
+        if not action:
+            return (json.dumps({"ok": True, "perfil": PROFILE.nombre,
+                                "tipos_aceptados": sorted(PROFILE.tipos_aceptados),
+                                "agentes": list(PROFILE.agentes),
+                                "market_estrategia": PROFILE.market_estrategia,
+                                "modelos": modelos_activos(),
+                                "deterministic": os.getenv("DETERMINISTIC_PIPELINE", "1") != "0"},
+                               ensure_ascii=False), 200,
+                    {"Content-Type": "application/json; charset=utf-8", **cors})
         try:
             if action == "list":
                 limit = int(request.args.get("limit", "20"))
@@ -1071,13 +1136,34 @@ def orchestrate(request):
         return (json.dumps({"error": "missing 'input'"}), 400,
                 {"Content-Type": "application/json", **cors})
 
+    _es_stream = request.args.get("stream") in ("1", "true", "yes")
+
+    # ── Gate por perfil: este servicio solo analiza los tipos de su PIPELINE_PROFILE.
+    #    Sin `clasificacion` (o sin tipo) → acepta (análisis a demanda del admin).
+    _tipo_req = None
+    if isinstance(body.get("clasificacion"), dict):
+        _tipo_req = body["clasificacion"].get("tipo")
+    if not acepta(PROFILE, _tipo_req):
+        _rechazo = {"error": "tipo_no_aceptado", "perfil": PROFILE.nombre, "tipo": _tipo_req,
+                    "perfil_correcto": perfil_para_tipo(_tipo_req)}
+        if _es_stream:
+            from flask import Response  # type: ignore
+            _line = json.dumps({"kind": "error", "agent": "pipeline", "error_kind": "tipo_no_aceptado",
+                                "detail": f"perfil {PROFILE.nombre} no acepta tipo {_tipo_req!r}", **_rechazo},
+                               ensure_ascii=False) + "\n"
+            return Response(_line, status=409,
+                            headers={"Content-Type": "application/x-ndjson; charset=utf-8", **cors})
+        return (json.dumps(_rechazo, ensure_ascii=False), 409,
+                {"Content-Type": "application/json; charset=utf-8", **cors})
+
     # ── STREAMING MODE: ?stream=1 → NDJSON line-per-event ──
     # Cada línea es un JSON con `{kind, ...}`. La última tiene `kind: "final"`.
-    if request.args.get("stream") in ("1", "true", "yes"):
+    if _es_stream:
         ocds_p = body.get("ocds")
         docs_b64_p = body.get("docs_b64")
         doc_urls_p = body.get("doc_urls")
         clas_p = body.get("clasificacion")
+        doc_ids_p = body.get("doc_ids")
 
         def _generate():
             import queue as _queue
@@ -1088,7 +1174,7 @@ def orchestrate(request):
             def _worker():
                 async def _async():
                     try:
-                        async for ev in _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p):
+                        async for ev in _run_streaming(input_str, ocds_p, docs_b64_p, doc_urls_p, clas_p, doc_ids_p):
                             q.put(ev)
                     except Exception as ex:
                         q.put({"kind": "error", "detail": str(ex)[:400]})
@@ -1126,6 +1212,7 @@ def orchestrate(request):
             body.get("docs_b64"),
             body.get("doc_urls"),
             body.get("clasificacion"),
+            body.get("doc_ids"),
         ))
     except Exception as e:
         return (json.dumps({"error": "runner_failed", "detail": str(e)}),

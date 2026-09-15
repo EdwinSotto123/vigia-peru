@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, FlaskConical, Grid3x3, Activity } from "lucide-react";
+import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, FlaskConical, Grid3x3, Database, Activity } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/admin/pagos", label: "Medios de pago", icon: Wallet },
   { href: "/admin/procesamientos", label: "Procesamiento", icon: Activity },
   { href: "/admin/clasificacion", label: "Clasificación", icon: Grid3x3 },
+  { href: "/admin/cobertura", label: "Cobertura", icon: Database },
   { href: "/admin/analisis", label: "Análisis a demanda", icon: FlaskConical },
   { href: "/admin/bitacora", label: "Bitácora", icon: ScrollText },
 ];

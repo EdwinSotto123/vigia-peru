@@ -1,6 +1,6 @@
 functions-framework==3.*
-google-adk>=1.0.0
-google-genai>=0.8.0
+google-adk==1.19.0      # pin: cada deploy resolvía otra versión (thinking via planner, output_schema+tools)
+google-genai==1.52.0    # pin: ThinkingConfig.thinking_level, thought signatures, grounding_metadata
 google-cloud-storage>=2.18
 google-cloud-documentai>=2.20
 pg8000==1.31.*
@@ -8,6 +8,7 @@ requests==2.32.*
 pymupdf>=1.24,<2
 python-docx>=1.1
 rarfile>=4.2
+openpyxl>=3.1           # WS D: .xls/.xlsx dentro de ZIP/RAR
 
 # ─── Arize AI · observabilidad LLM ──────────────────────────────
 # Traces de cada call a Gemini + cada sub-agente ADK exportadas a

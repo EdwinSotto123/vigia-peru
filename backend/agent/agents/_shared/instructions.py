@@ -45,11 +45,82 @@ def with_today_header(static_str: str):
     return _provider
 
 
+import os as _os
+
+# Tope de chars por bloque inyectado. Antes se cortaba el JSON serializado a 40 000
+# chars A MITAD DE STRING (auditoría 1.4-8): el sub-agente recibía JSON inválido y lo
+# "completaba". Ahora se serializa por secciones y, si excede, se recortan listas y
+# strings con marcas `_truncado`/`_omitidos` hasta que quepa: el JSON SIEMPRE es válido.
+_INJECTION_MAX_CHARS = int(_os.getenv("STATE_INJECTION_MAX_CHARS", "40000"))
+_SHRINK_STEPS = [(60, 4000), (30, 2500), (15, 1500), (8, 900), (4, 500), (2, 300), (1, 200)]
+
+
+def _shrink(obj, max_list: int, max_str: int, _depth: int = 0):
+    """Recorta listas/strings con marca explícita (misma convención que
+    tools.state_loaders._paginar)."""
+    if _depth > 10:
+        return obj
+    if isinstance(obj, str):
+        if len(obj) <= max_str:
+            return obj
+        return obj[:max_str] + f" …[_truncado: {len(obj) - max_str} chars omitidos]"
+    if isinstance(obj, list):
+        items = [_shrink(x, max_list, max_str, _depth + 1) for x in obj[:max_list]]
+        if len(obj) > max_list:
+            return {"items": items, "_truncado": True, "_omitidos": len(obj) - max_list,
+                    "_total": len(obj)}
+        return items
+    if isinstance(obj, dict):
+        return {k: _shrink(v, max_list, max_str, _depth + 1) for k, v in obj.items()}
+    return obj
+
+
+def _dumps(data) -> str:
+    return _json.dumps(data, ensure_ascii=False, default=str)
+
+
+def serializar_acotado(data, max_chars: int = _INJECTION_MAX_CHARS) -> tuple[str, dict | None]:
+    """Serializa `data` a JSON válido de ≤ max_chars. Devuelve (blob, recorte) donde
+    `recorte` es None si entró entero o {limite, pasos, secciones_omitidas} si hubo
+    que recortar. Estrategia: (1) entero; (2) listas/strings cada vez más cortas con
+    marcas `_truncado`; (3) si aun así no cabe, se omiten secciones de nivel 1 (las
+    últimas) dejando `_secciones_omitidas` en el objeto."""
+    blob = _dumps(data)
+    if len(blob) <= max_chars:
+        return blob, None
+    for i, (ml, ms) in enumerate(_SHRINK_STEPS):
+        shr = _shrink(data, ml, ms)
+        blob = _dumps(shr)
+        if len(blob) <= max_chars:
+            return blob, {"limite": max_chars, "pasos": i + 1, "secciones_omitidas": []}
+    # Último recurso: omitir secciones enteras (de nivel 1) hasta que quepa.
+    if isinstance(data, dict):
+        shr = _shrink(data, *_SHRINK_STEPS[-1])
+        keys = list(shr.keys())
+        omitidas: list[str] = []
+        while keys:
+            cand = {k: shr[k] for k in keys}
+            cand["_secciones_omitidas"] = omitidas
+            blob = _dumps(cand)
+            if len(blob) <= max_chars:
+                return blob, {"limite": max_chars, "pasos": len(_SHRINK_STEPS),
+                              "secciones_omitidas": list(omitidas)}
+            omitidas.append(keys.pop())
+    # Escalar: ni una sección cabe (string gigante) → placeholder válido.
+    blob = _dumps({"_truncado": True, "_motivo": "bloque demasiado grande para inyectar",
+                   "_chars": len(_dumps(data))})
+    return blob, {"limite": max_chars, "pasos": len(_SHRINK_STEPS), "secciones_omitidas": ["*"]}
+
+
 def make_state_aware_instruction(static_str: str, injections: list):
     """Convierte un prompt estático en un InstructionProvider que en cada
     llamada lee `state[key]` (de `injections` = lista de (key, label)) y lo
     concatena al final del prompt como JSON. Reemplaza el patrón roto de pegar
     JSONs grandes en el `request` del sub-agente.
+
+    El JSON inyectado SIEMPRE es válido: si excede STATE_INJECTION_MAX_CHARS se
+    recortan listas/strings con `_truncado`/`_omitidos` (nunca un corte a mitad de
+    string) y el recorte queda anotado en state['recortes'] cuando el state lo permite.
     """
     def _provider(ctx):
         try:
@@ -65,16 +136,53 @@ def make_state_aware_instruction(static_str: str, injections: list):
                 data = None
             if not data:
                 continue
+            if isinstance(data, str):
+                # Output de otro agente guardado como string JSON → parsear para poder
+                # recortar por secciones; si no parsea, se inyecta como string acotado.
+                try:
+                    parsed = _json.loads(data)
+                    data = parsed if isinstance(parsed, (dict, list)) else data
+                except Exception:
+                    pass
             try:
-                blob = _json.dumps(data, ensure_ascii=False, default=str)[:40000]
+                if isinstance(data, str):
+                    # Texto libre (no JSON): se inyecta tal cual, acotado con marca.
+                    if len(data) > _INJECTION_MAX_CHARS:
+                        blob = (data[:_INJECTION_MAX_CHARS]
+                                + f"\n…[_truncado: {len(data) - _INJECTION_MAX_CHARS} chars omitidos]")
+                        recorte = {"limite": _INJECTION_MAX_CHARS, "pasos": 1, "secciones_omitidas": []}
+                    else:
+                        blob, recorte = data, None
+                else:
+                    blob, recorte = serializar_acotado(data)
             except Exception:
                 continue
+            aviso = ""
+            if recorte:
+                aviso = (f"(RECORTADO para caber en {recorte['limite']} chars: las listas con "
+                         f"`_truncado: true` tienen `_omitidos` elementos que NO ves"
+                         + (f"; secciones omitidas: {recorte['secciones_omitidas']}"
+                            if recorte["secciones_omitidas"] else "")
+                         + ". No completes lo que falta: decláralo como no disponible.)\n")
+                try:
+                    rec = state.get("recortes") if hasattr(state, "get") else None
+                    entry = {"donde": f"inyeccion:{state_key}", "limite": recorte["limite"],
+                             "omitido": f"pasos={recorte['pasos']} secciones={recorte['secciones_omitidas']}"}
+                    if isinstance(rec, list):
+                        if entry not in rec:
+                            rec.append(entry)
+                            state["recortes"] = rec
+                    else:
+                        state["recortes"] = [entry]
+                except Exception:
+                    pass
             parts.append(
                 f"\n\n═══════════════════════════════════════════════════════════════════════════\n"
                 f"{label} — INYECTADO DESDE session.state['{state_key}']\n"
                 f"(Esta sección la inyecta el runtime ADK en cada arranque del sub-agente. "
                 f"NO depende de que el orquestador pegue JSON en el mensaje. Si está "
                 f"presente, es la fuente de verdad — usala como input principal de tu análisis.)\n"
+                f"{aviso}"
                 f"═══════════════════════════════════════════════════════════════════════════\n"
                 f"{blob}\n"
             )

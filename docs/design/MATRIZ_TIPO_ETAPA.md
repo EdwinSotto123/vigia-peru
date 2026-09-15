@@ -89,12 +89,27 @@ Agentes (orden del pipeline): `compliance`, `document_parser`, `document_legal_a
 
 | tipo \ etapa | planificacion | convocada | adjudicada | contratada · en_ejecucion · finalizada | desierta · cancelada · nula |
 |---|---|---|---|---|---|
-| **bienes** | PENDIENTE | compliance · document_parser · document_legal_analyst · **market** · entity_personnel · report_writer | + web_research · news_research · person_network · compliance_extended (los 10) | los 10 | compliance · report_writer (breve) |
-| **servicios** | PENDIENTE | compliance · document_parser · document_legal_analyst · entity_personnel · report_writer (**sin market**: no hay precio unitario comparable) | + web_research · news_research · person_network · compliance_extended | igual (sin market) | compliance · report_writer (breve) |
+| **bienes** | PENDIENTE | compliance · document_parser · document_legal_analyst · **market** (`goods_retail`) · entity_personnel · report_writer | + web_research · news_research · person_network · compliance_extended (los 10) | los 10 | compliance · report_writer (breve) |
+| **servicios** | PENDIENTE | igual que bienes con **market `historico_seace`** (convocatorias similares en la BD propia + tarifa mensual/entregable del TDR) | los 10 | los 10 | compliance · report_writer (breve) |
 | **consultoria** | PENDIENTE | igual que servicios | igual que servicios | igual que servicios | igual |
-| **obras** | PENDIENTE | igual que servicios (**sin market**: el mercado de obras es el expediente técnico, no soportado) | igual que servicios | igual + `validaciones_pendientes: [infobras_avance]` | igual |
-| **convenio · directa** | PENDIENTE | compliance (causal art. 27) · document_parser · document_legal_analyst · report_writer | + person_network · web_research · news_research | los 10 (market se omite solo si no hay ítems físicos) | compliance · report_writer (breve) |
+| **obras** | PENDIENTE | igual que servicios con **market `presupuesto_obra`** (partidas/GG/adicionales del expediente + obras similares) | los 10 | los 10 + `validaciones_pendientes: [infobras_avance]` | igual |
+| **convenio · directa** | PENDIENTE | compliance (causal art. 27) · document_parser · document_legal_analyst · **market `cotizaciones`** · report_writer | + person_network · web_research · news_research | los 10 | compliance · report_writer (breve) |
 | **otro / desconocida** | PENDIENTE DE PROCESAMIENTO (`procesable=false`, motivo `tipo_no_soportado` / `etapa_desconocida`) | | | | |
+
+`market` corre en **todos** los tipos; la matriz ya no lo omite a ciegas para no-bienes. Qué
+compara lo decide la **estrategia del perfil** del servicio (`agents/_shared/profiles.py` →
+`market_estrategia`, ejecutada por `tools/market.analizar_mercado(state, estrategia)`):
+
+| Estrategia | Perfil | Base de comparación | Veredicto → bandera `sobreprecio_*` |
+|---|---|---|---|
+| `goods_retail` | bienes | precios unitarios en marketplaces peruanos (Gemini + google_search); URLs **solo** de `grounding_metadata.grounding_chunks`; mediana / Δ % / veredicto en código | sí, con ≥ 3 precios con fuente de grounding (`MARKET_MIN_PRECIOS`) |
+| `historico_seace` | servicios · consultoría | convocatorias de objeto similar (CUBSO + `unaccent`/`pg_trgm`, 24 meses) en `convocatorias`; p25/p50/p75 y posición del monto; costo mensual / por entregable del bloque `servicio` del parser | **no por defecto** (`comparacion_no_normalizada`: montos totales sin normalizar por alcance); opt-in `MARKET_HIST_VEREDICTO=1` |
+| `presupuesto_obra` | obras | partidas vs presupuesto total, GG + utilidad, adicionales acumulados (bloque `obra`); obras similares en BD; INFOBRAS como validación pendiente | no por defecto (idem) |
+| `cotizaciones` | otros (convenio · directa · consultoría) | cotizaciones del expediente (bloque `sustento_directa`) vs monto adjudicado; cotizante = ganador; cotizantes vinculados vía `person_network` | sí, con ≥ 2 cotizaciones de terceros |
+
+Sin base de comparación (monto reservado, sin bloque del parser, sin comparables) el
+resultado es `estado: "sin_dato"` con `motivo_estimacion` explícito; nunca se inventan
+referencias.
 
 `MATRIZ[(tipo, etapa)]` en `clasificacion.py` cubre las 54 combinaciones soportadas
 (6 tipos × 9 etapas). El test `test_matriz_cubre_todo_tipo_x_etapa_soportado` lo garantiza.
@@ -103,7 +118,7 @@ Agentes (orden del pipeline): `compliance`, `document_parser`, `document_legal_a
 
 | Agente | Requiere | Código en `validaciones_pendientes` |
 |---|---|---|
-| `market` | ≥ 1 ítem con `quantity > 0`, `unit.name` y físico (categoría goods, o clasificación CUBSO/UNSPSC con segmento < 70) | `market_sin_items_fisicos` |
+| `market` (solo **bienes**) | ≥ 1 ítem con `quantity > 0`, `unit.name` y físico (categoría goods, o clasificación CUBSO/UNSPSC con segmento < 70). En servicios/obras/convenio/directa no se exige: la estrategia del perfil no necesita ítems físicos | `market_sin_items_fisicos` |
 | `document_parser` (+ `document_legal_analyst`, que analiza lo que el parser extrajo) | ≥ 1 documento `biddingDocuments` / `awardNotice` / `contractSigned` con URL (en tender, awards o contracts) | `sin_documentos_descargables` |
 | `web_research` · `news_research` · `person_network` · `compliance_extended` | RUC del proveedor. **Solo se verifica con record completo** (clave `awards` presente): con release recortado en etapa post-adjudicación el orquestador lo resuelve al traer el record, no se omite a ciegas | `proveedor_sin_ruc` |
 | `entity_personnel` | RUC de la entidad (party buyer, o `convocatorias.entidad_ruc` como pista) | `entidad_sin_ruc` |
@@ -121,8 +136,8 @@ legible (por eso también va en las etapas negativas de convenio/directa, como d
 | `otro` (sin categoría ni modalidad) | `procesable=false`, `tipo_no_soportado` | Único caso real: un registro interno `ocds-vigia-01/…` con solo `fundamento_legal`. |
 | `desconocida` | `procesable=false`, `etapa_desconocida` | Payload sin tender/tags/ítems. |
 | obras en ejecución | `infobras_avance` | INFOBRAS no está integrado; el dictamen lo declara en vez de suponer el avance. |
-| market en servicios/obras/consultoría | no está en la matriz | Sin precio unitario comparable (servicios) o mercado = expediente técnico (obras). |
-| convenio contratado sin ítems físicos | `market_sin_items_fisicos` | 490 casos reales: convenios de servicios (`unit = Servicio`). |
+| market en servicios/obras/consultoría/convenio/directa | corre con la estrategia del perfil (`historico_seace` / `presupuesto_obra` / `cotizaciones`); el veredicto del histórico es informativo (`comparacion_no_normalizada`) | Comparar montos totales de objetos "similares" sin normalizar por alcance no es señal de sobreprecio; sí lo son las cotizaciones del propio expediente. |
+| bienes sin ítems físicos | `market_sin_items_fisicos` | Sin cantidad × unidad no hay precio unitario que contrastar en retail. |
 
 ## 5. Flujo en producción
 
@@ -155,7 +170,9 @@ Por etapa: convocada 6 069 · contratada 5 086 · adjudicada 4 397 · desierta 2
 cancelada 201 · en_ejecucion 29 · desconocida 1.
 **Procesables: 18 412 · pendientes de procesamiento: 1** (`tipo_no_soportado`).
 Validaciones pendientes: `infobras_avance` 739 · `market_sin_items_fisicos` 493 ·
-`proveedor_sin_ruc` 6. `cola_auditoria`: 18 353 → 18 352.
+`proveedor_sin_ruc` 6. `cola_auditoria`: 18 353 → 18 352. (Con la matriz 2026-09-15 —market en
+todos los tipos y `market_sin_items_fisicos` solo en bienes— los 493 de convenio/servicios
+dejan de marcarse al reclasificar: `python -m backend.core.clasificacion --reclasificar`.)
 
 | n | tipo | etapa | | n | tipo | etapa |
 |---|---|---|---|---|---|---|

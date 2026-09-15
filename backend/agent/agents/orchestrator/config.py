@@ -8,3 +8,4 @@ from agents._shared.models import _MODEL_SMART, _MODEL_DEFAULT, _MODEL_FAST
 MODEL = _MODEL_DEFAULT
 USES_TODAY_HEADER = True
 OUTPUT_KEY = None
+THINKING = "low"   # decide qué tool llamar; no necesita razonamiento profundo

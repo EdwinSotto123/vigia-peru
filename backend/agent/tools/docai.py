@@ -42,18 +42,27 @@ def docai_enabled() -> bool:
     return bool(_PROCESSOR_ID)
 
 
-def _texto_con_layout(document) -> str:
-    """Reconstruye el texto OCR usando el LAYOUT (tokens + bounding boxes) que
+PAGE_MARK = "⟦p.{n}⟧"
+
+
+def marcar_paginas(paginas: list[dict]) -> str:
+    """Texto plano con marcador ⟦p.N⟧ al inicio de cada página (N = número 1-based
+    global del documento). Es lo que ve el extractor para poder citar página."""
+    return "\n".join(f"{PAGE_MARK.format(n=p['n'])}\n{p.get('texto') or ''}" for p in paginas).strip()
+
+
+def _paginas_con_layout(document, page_offset: int = 0) -> list[dict]:
+    """Reconstruye el texto OCR POR PÁGINA usando el LAYOUT (tokens + bounding boxes) que
     Document AI ya devuelve GRATIS en la misma respuesta — sin Layout Parser.
 
-    Agrupa tokens en FILAS por coordenada Y y, dentro de cada fila, inserta ' | '
-    cuando hay un salto horizontal grande entre tokens (límite de columna). Así
-    los cuadros (evaluación técnica/económica, tabla de ítems) llegan a Gemini
-    como filas legibles en vez de texto plano desordenado. Devuelve "" si no hay
-    bounding boxes (el caller cae al texto plano)."""
+    Agrupa tokens en FILAS por coordenada Y y, dentro de cada fila, inserta ' | ' cuando hay
+    un salto horizontal grande entre tokens (límite de columna). Así los cuadros (evaluación
+    técnica/económica, tabla de ítems) llegan a Gemini como filas legibles. Si una página no
+    trae bounding boxes cae a sus `lines`, y si tampoco, al segmento de texto de la página.
+    Devuelve [{n, texto, chars}] con n = page_offset + índice (1-based)."""
     full = document.text or ""
     if not full:
-        return ""
+        return []
 
     def _seg(layout) -> str:
         try:
@@ -73,47 +82,75 @@ def _texto_con_layout(document) -> str:
         except Exception:
             return None
 
-    out: list[str] = []
     Y_TOL, X_GAP = 0.008, 0.04  # umbrales (coordenadas normalizadas 0..1)
-    for page in (document.pages or []):
+    paginas: list[dict] = []
+    for i, page in enumerate(document.pages or []):
+        out: list[str] = []
         toks = []
         for t in (page.tokens or []):
             b = _box(t); txt = _seg(t.layout)
             if b and txt.strip():
                 toks.append((b[1], b[0], b[2], txt.strip()))  # y, x_izq, x_der, texto
-        if not toks:  # sin bbox (p.ej. imageless sin layout) → usar líneas
+        if toks:
+            toks.sort(key=lambda z: (round(z[0], 3), z[1]))
+            rows, cur, cy = [], [], None
+            for y, xl, xr, txt in toks:
+                if cy is None or abs(y - cy) <= Y_TOL:
+                    cur.append((xl, xr, txt)); cy = y if cy is None else cy
+                else:
+                    rows.append(cur); cur = [(xl, xr, txt)]; cy = y
+            if cur:
+                rows.append(cur)
+            for row in rows:
+                row.sort(key=lambda z: z[0])
+                parts, prev_xr = [], None
+                for xl, xr, txt in row:
+                    if prev_xr is not None:
+                        parts.append(" | " if (xl - prev_xr) > X_GAP else " ")
+                    parts.append(txt)
+                    prev_xr = xr
+                line = "".join(parts).strip()
+                if line:
+                    out.append(line)
+        else:  # sin bbox (p.ej. imageless sin layout) → usar líneas
             for line in (page.lines or []):
                 lt = _seg(line.layout).replace("\n", " ").strip()
                 if lt:
                     out.append(lt)
-            out.append("")
-            continue
-        toks.sort(key=lambda z: (round(z[0], 3), z[1]))
-        rows, cur, cy = [], [], None
-        for y, xl, xr, txt in toks:
-            if cy is None or abs(y - cy) <= Y_TOL:
-                cur.append((xl, xr, txt)); cy = y if cy is None else cy
-            else:
-                rows.append(cur); cur = [(xl, xr, txt)]; cy = y
-        if cur:
-            rows.append(cur)
-        for row in rows:
-            row.sort(key=lambda z: z[0])
-            parts, prev_xr = [], None
-            for xl, xr, txt in row:
-                if prev_xr is not None:
-                    parts.append(" | " if (xl - prev_xr) > X_GAP else " ")
-                parts.append(txt)
-                prev_xr = xr
-            line = "".join(parts).strip()
-            if line:
-                out.append(line)
-        out.append("")
-    return "\n".join(out).strip()
+            if not out:
+                try:
+                    out.append(_seg(page.layout).strip())
+                except Exception:
+                    pass
+        texto = "\n".join(out).strip()
+        paginas.append({"n": page_offset + i + 1, "texto": texto, "chars": len(texto)})
+    return paginas
 
 
-def _ocr_one(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None:
-    """OCR de UN PDF de ≤30 páginas (una llamada sync). Texto o None."""
+def _paginas_planas(document, page_offset: int = 0) -> list[dict]:
+    """Texto plano por página (segmentos de `page.layout`), sin reconstrucción de tablas."""
+    full = document.text or ""
+    paginas: list[dict] = []
+    for i, page in enumerate(document.pages or []):
+        try:
+            texto = "".join(full[int(s.start_index or 0):int(s.end_index or 0)]
+                            for s in page.layout.text_anchor.text_segments).strip()
+        except Exception:
+            texto = ""
+        paginas.append({"n": page_offset + i + 1, "texto": texto, "chars": len(texto)})
+    if not paginas and full.strip():
+        paginas.append({"n": page_offset + 1, "texto": full.strip(), "chars": len(full.strip())})
+    return paginas
+
+
+def _texto_con_layout(document) -> str:
+    """Compat: texto de todo el documento con marcadores ⟦p.N⟧ (una página por bloque)."""
+    return marcar_paginas(_paginas_con_layout(document))
+
+
+def _ocr_one_paginas(pdf_bytes: bytes, mime_type: str = "application/pdf",
+                     page_offset: int = 0) -> list[dict]:
+    """OCR de UN PDF de ≤30 páginas (una llamada sync) → [{n, texto, chars}] (n global)."""
     from google.cloud import documentai_v1 as documentai  # type: ignore
     client = _docai_client()
     name = client.processor_path(_PROJECT, _LOCATION, _PROCESSOR_ID)
@@ -123,66 +160,102 @@ def _ocr_one(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None
     # propio error PAGE_LIMIT_EXCEEDED del modo normal).
     req = documentai.ProcessRequest(name=name, raw_document=raw, imageless_mode=True)
     result = client.process_document(request=req)
-    text = (result.document.text or "").strip()
-    # Aprovechar el LAYOUT (gratis) para reordenar filas/columnas de tablas. Solo
-    # se adopta si NO perdió texto vs el plano (guard anti-regresión). Flag para
-    # poder revertir sin redeploy.
-    if text and os.getenv("DOCAI_LAYOUT_TEXT", "1") != "0":
+    planas = _paginas_planas(result.document, page_offset)
+    paginas = planas
+    # Aprovechar el LAYOUT (gratis) para reordenar filas/columnas de tablas. Solo se
+    # adopta si NO perdió texto vs el plano (guard anti-regresión, por página). Flag
+    # para poder revertir sin redeploy.
+    if os.getenv("DOCAI_LAYOUT_TEXT", "1") != "0":
         try:
-            rebuilt = _texto_con_layout(result.document)
-            if rebuilt and len(rebuilt) >= 0.85 * len(text):
-                text = rebuilt
+            con_layout = _paginas_con_layout(result.document, page_offset)
+            if con_layout and len(con_layout) == len(planas):
+                paginas = [
+                    l if l["chars"] >= 0.85 * p["chars"] else p
+                    for l, p in zip(con_layout, planas)
+                ]
         except Exception as e:
             print(f"[docai] layout reconstruct falló ({type(e).__name__}: {str(e)[:100]}) → texto plano", flush=True)
-    n_pages = len(result.document.pages or [])
-    print(f"[docai] OCR chunk OK · {n_pages} págs · {len(text):,} chars", flush=True)
-    return text or None
+    n_chars = sum(p["chars"] for p in paginas)
+    print(f"[docai] OCR chunk OK · {len(paginas)} págs · {n_chars:,} chars", flush=True)
+    return paginas
 
 
-def extract_text_docai(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None:
-    """OCR del PDF COMPLETO → un solo texto.
+def _ocr_one(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None:
+    """Compat: texto (con ⟦p.N⟧) de UN PDF de ≤30 páginas. Texto o None."""
+    paginas = _ocr_one_paginas(pdf_bytes, mime_type)
+    return marcar_paginas(paginas) or None
 
-    Para >30 páginas, parte en chunks de 30, hace OCR de cada uno y concatena.
-    Devuelve el texto del documento entero (str) o None si no está configurado/falló.
-    """
-    if not _PROCESSOR_ID or not pdf_bytes:
-        return None
 
-    # Contar páginas con PyMuPDF para decidir si chunkear. (open/close explícito:
-    # el `with` no está en pymupdf <1.24.4 y rompería silenciosamente.)
-    n_pages = None
+def _n_paginas(pdf_bytes: bytes) -> int | None:
+    """Cuenta páginas con PyMuPDF (open/close explícito: el `with` no está en pymupdf
+    <1.24.4 y rompería silenciosamente). None si no se pudo abrir."""
     try:
         import fitz  # pymupdf
         _src = fitz.open(stream=pdf_bytes, filetype="pdf")
-        n_pages = _src.page_count
+        n = _src.page_count
         _src.close()
+        return n
     except Exception:
-        n_pages = None
+        return None
 
+
+def extract_docai(pdf_bytes: bytes, mime_type: str = "application/pdf",
+                  page_offset: int = 0) -> dict | None:
+    """OCR del PDF COMPLETO → {"paginas": [{n, texto, chars}], "texto": str con ⟦p.N⟧,
+    "n_paginas": int, "motor": "docai", "truncado": bool, "recortes": [...]}.
+
+    Para >30 páginas, parte en chunks de 30 y hace OCR de cada uno. Si UN chunk falla, el
+    resto del documento igual se devuelve: las páginas del chunk fallido quedan con texto
+    vacío, `truncado=True` y un recorte {donde, limite, omitido} con el rango perdido (antes
+    un chunk fallido devolvía None para TODO el documento). None solo si Document AI no está
+    configurado o el PDF no se pudo abrir en absoluto."""
+    if not _PROCESSOR_ID or not pdf_bytes:
+        return None
+    n_pages = _n_paginas(pdf_bytes)
+    recortes: list[dict] = []
+    paginas: list[dict] = []
     try:
         # ≤30 págs (o no pudimos contar) → una sola llamada OCR.
         if not n_pages or n_pages <= _PAGES_PER_OCR_CALL:
-            return _ocr_one(pdf_bytes, mime_type)
-
-        # >30 págs → chunkeаr, OCR de cada chunk, concatenar el texto.
-        import fitz  # pymupdf
-        parts: list[str] = []
-        src = fitz.open(stream=pdf_bytes, filetype="pdf")
-        try:
-            for start in range(0, n_pages, _PAGES_PER_OCR_CALL):
-                end = min(n_pages - 1, start + _PAGES_PER_OCR_CALL - 1)
-                dst = fitz.open()
-                dst.insert_pdf(src, from_page=start, to_page=end)
-                chunk_bytes = dst.tobytes()
-                dst.close()
-                t = _ocr_one(chunk_bytes, mime_type)
-                if t:
-                    parts.append(f"\n──── páginas {start + 1}-{end + 1} de {n_pages} ────\n{t}")
-        finally:
-            src.close()
-        full = "\n".join(parts).strip()
-        print(f"[docai] OCR documento completo · {n_pages} págs en {len(parts)} chunks · {len(full):,} chars totales", flush=True)
-        return full or None
+            paginas = _ocr_one_paginas(pdf_bytes, mime_type, page_offset)
+        else:
+            # >30 págs → chunkear, OCR de cada chunk, concatenar páginas.
+            import fitz  # pymupdf
+            src = fitz.open(stream=pdf_bytes, filetype="pdf")
+            try:
+                for start in range(0, n_pages, _PAGES_PER_OCR_CALL):
+                    end = min(n_pages - 1, start + _PAGES_PER_OCR_CALL - 1)
+                    dst = fitz.open()
+                    dst.insert_pdf(src, from_page=start, to_page=end)
+                    chunk_bytes = dst.tobytes()
+                    dst.close()
+                    try:
+                        paginas.extend(_ocr_one_paginas(chunk_bytes, mime_type, page_offset + start))
+                    except Exception as e:
+                        msg = f"{type(e).__name__}: {str(e)[:140]}"
+                        print(f"[docai] chunk págs {start + 1}-{end + 1} falló ({msg}) → páginas vacías", flush=True)
+                        recortes.append({"donde": "ocr_docai", "limite": "chunk_fallido",
+                                         "omitido": f"páginas {page_offset + start + 1}-{page_offset + end + 1} ({msg})"})
+                        paginas.extend({"n": page_offset + i + 1, "texto": "", "chars": 0, "error": msg}
+                                       for i in range(start, end + 1))
+            finally:
+                src.close()
     except Exception as e:
         print(f"[docai] OCR falló ({type(e).__name__}: {str(e)[:160]}) → fallback a render", flush=True)
         return None
+    if not paginas:
+        return None
+    total = sum(p["chars"] for p in paginas)
+    print(f"[docai] OCR documento completo · {len(paginas)} págs · {total:,} chars totales"
+          + (f" · {len(recortes)} chunk(s) perdidos" if recortes else ""), flush=True)
+    return {"paginas": paginas, "texto": marcar_paginas(paginas), "n_paginas": len(paginas),
+            "motor": "docai", "truncado": bool(recortes), "recortes": recortes}
+
+
+def extract_text_docai(pdf_bytes: bytes, mime_type: str = "application/pdf") -> str | None:
+    """Compat: OCR del PDF COMPLETO → un solo texto con marcadores ⟦p.N⟧ por página.
+    None si Document AI no está configurado o falló del todo (ver `extract_docai`)."""
+    res = extract_docai(pdf_bytes, mime_type)
+    if not res:
+        return None
+    return res["texto"] or None

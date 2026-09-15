@@ -75,11 +75,36 @@ def _table_exists(cur, table_name: str) -> bool:
     )
     return cur.fetchone() is not None
 
-def _gemini_call_with_retry(fn, *, max_attempts: int = 6, base_delay: float = 2.0):
-    """Llama a `fn()` (sync) con retry exponencial + jitter en caso de 429.
-    `fn` ya debe estar dentro del semáforo si aplica. Devuelve el resultado
-    de fn() o re-raisea la última excepción si se agotaron los attempts.
-    """
+_GEMINI_CALL_DEADLINE_S = float(os.getenv("GEMINI_CALL_DEADLINE_S", "600"))
+_GEMINI_CORE_RETRIES = int(os.getenv("GEMINI_CORE_RETRIES", "0"))
+
+
+def _fallback_patch_activo() -> bool:
+    """True si `agents._shared.model_fallback` ya parchó `Models.generate_content`
+    (una capa de reintentos + salto de modelo). En ese caso este helper NO vuelve a
+    reintentar: antes se apilaban 6 × (4 intentos × 4 modelos) ≈ 1 h por llamada
+    saturada (auditoría §3.1 / 6.4-4)."""
+    try:
+        from google.genai import models as _m
+        return bool(getattr(getattr(_m, "Models", None).generate_content, "_vigia_patched", False))
+    except Exception:
+        return False
+
+
+def _gemini_call_with_retry(fn, *, max_attempts: int | None = None, base_delay: float = 2.0,
+                            deadline_s: float | None = None):
+    """Llama a `fn()` (sync). UNA sola capa de reintentos:
+      · si el patch de `model_fallback` está activo (siempre en el orquestador), la
+        llamada se hace UNA vez y los reintentos/fallback de modelo los hace el patch;
+      · si no (scripts sueltos), reintenta transitorios (429/503/500) con backoff, pero
+        acotado por `deadline_s` total (env GEMINI_CALL_DEADLINE_S, default 600 s) y
+        `max_attempts` (env GEMINI_CORE_RETRIES; default 0 = sin reintento propio).
+    Devuelve el resultado de fn() o re-raisea la última excepción."""
+    if deadline_s is None:
+        deadline_s = _GEMINI_CALL_DEADLINE_S
+    if max_attempts is None:
+        max_attempts = 1 if _fallback_patch_activo() else max(1, _GEMINI_CORE_RETRIES + 1)
+    t0 = time.time()
     last_exc = None
     for attempt in range(max_attempts):
         try:
@@ -92,19 +117,17 @@ def _gemini_call_with_retry(fn, *, max_attempts: int = 6, base_delay: float = 2.
                 or "503" in msg or "UNAVAILABLE" in msg
                 or "500 INTERNAL" in msg or "DeadlineExceeded" in msg
             )
-            if not transient or attempt == max_attempts - 1:
-                last_exc = e
-                if transient:
-                    # Saturación que AGOTÓ los reintentos → la llamada falla de verdad
-                    # (un worker de market que cae acá deja su ítem sin precio). Antes
-                    # era SILENCIOSO; ahora se loguea para poder medir saturación real.
-                    print(f"[gemini-retry] AGOTADO tras {attempt + 1} intentos · {msg[:120]}", flush=True)
-                break
-            sleep_s = base_delay * (2 ** attempt) + random.uniform(0, 1.0)
-            _kind = "429/RESOURCE_EXHAUSTED" if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else "5xx/transitorio"
-            print(f"[gemini-retry] {_kind} · intento {attempt + 1}/{max_attempts} · backoff {min(sleep_s, 60.0):.1f}s", flush=True)
-            time.sleep(min(sleep_s, 60.0))
             last_exc = e
+            sleep_s = min(base_delay * (2 ** attempt) + random.uniform(0, 1.0), 60.0)
+            agotado = (time.time() - t0 + sleep_s) > deadline_s
+            if not transient or attempt == max_attempts - 1 or agotado:
+                if transient and max_attempts > 1:
+                    print(f"[gemini-retry] AGOTADO tras {attempt + 1} intentos "
+                          f"({'deadline' if agotado else 'max_attempts'}) · {msg[:120]}", flush=True)
+                break
+            _kind = "429/RESOURCE_EXHAUSTED" if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else "5xx/transitorio"
+            print(f"[gemini-retry] {_kind} · intento {attempt + 1}/{max_attempts} · backoff {sleep_s:.1f}s", flush=True)
+            time.sleep(sleep_s)
     if last_exc:
         raise last_exc
 
@@ -125,17 +148,33 @@ def _throttle_gemini():
             _GEMINI_CALL_SEM.release()
     return _Ctx()
 
-def _safe_parse_json(s):
+def _marcar_truncado(obj, motivo: str):
+    """Deja constancia en el objeto de que el JSON venía cortado (auditoría 6.1-7).
+    Solo puede marcarse un dict; una lista se envuelve para no perder la marca."""
+    if isinstance(obj, dict):
+        obj["_truncado"] = True
+        obj["_truncado_motivo"] = motivo
+        return obj
+    if isinstance(obj, list):
+        return {"items": obj, "_truncado": True, "_truncado_motivo": motivo}
+    return obj
+
+
+def _safe_parse_json(s, truncated: bool = False):
     """Best-effort JSON parse. Devuelve dict (o el valor original si ya es dict).
     NUNCA levanta excepción. Útil para parsear outputs de LLM que pueden venir
     como JSON string, JSON malformado, fenced markdown, o ya como dict.
+
+    `truncated=True` (el caller vio `finish_reason=MAX_TOKENS`) o la reparación del
+    intento 4 (JSON cortado) marcan el resultado con `_truncado: true` +
+    `_truncado_motivo` para que nadie trate un parcial como completo.
     """
     if s is None:
         return {}
     if isinstance(s, dict):
-        return s
+        return _marcar_truncado(s, "max_output_tokens") if truncated else s
     if isinstance(s, list):
-        return s
+        return _marcar_truncado(s, "max_output_tokens") if truncated else s
     if not isinstance(s, str):
         return {}
     s = s.strip()
@@ -143,7 +182,8 @@ def _safe_parse_json(s):
         return {}
     # Intento 1: parse directo
     try:
-        return json.loads(s)
+        out = json.loads(s)
+        return _marcar_truncado(out, "max_output_tokens") if truncated else out
     except Exception:
         pass
     # Intento 2: buscar primer { … último } con regex y parsear
@@ -170,9 +210,10 @@ def _safe_parse_json(s):
             return {}
         candidate = s[start:]
         # Si termina con coma o medio-string, recortamos hasta el último } o ] sano
-        # Estrategia: contar braces/brackets y cerrar los faltantes
-        depth_obj = 0
-        depth_arr = 0
+        # Estrategia: pila de aperturas ({ / [) y cierre en orden inverso (un "]"
+        # antes de un "}" pendiente dejaba JSON inválido cuando el corte caía dentro
+        # de un objeto anidado en una lista).
+        stack: list[str] = []
         in_string = False
         escape = False
         last_safe = -1
@@ -188,37 +229,36 @@ def _safe_parse_json(s):
                 continue
             if in_string:
                 continue
-            if ch == "{":
-                depth_obj += 1
-            elif ch == "}":
-                depth_obj -= 1
-                if depth_obj == 0 and depth_arr == 0:
+            if ch in "{[":
+                stack.append(ch)
+            elif ch in "}]":
+                if stack:
+                    stack.pop()
+                if not stack:
                     last_safe = i
-            elif ch == "[":
-                depth_arr += 1
-            elif ch == "]":
-                depth_arr -= 1
-                if depth_obj == 0 and depth_arr == 0:
-                    last_safe = i
-        # Si el JSON cerró bien en algún punto, usar hasta ahí
+        # Si el JSON cerró bien en algún punto, usar hasta ahí (lo que sigue es
+        # basura o un segundo objeto): marcado como truncado igual, porque el
+        # resto del texto se descarta.
         if last_safe > 0:
             try:
-                return json.loads(candidate[:last_safe + 1])
+                out = json.loads(candidate[:last_safe + 1])
+                return _marcar_truncado(out, "json_reparado_cola_descartada")
             except Exception:
                 pass
         # Si quedaron braces/brackets pendientes, cerrarlos en el último punto
         # sano (último , antes del corte → reemplazar por nada, cerrar)
-        truncated = candidate
+        reparado = candidate
         # Si está en mitad de string, cerrarla
         if in_string:
-            truncated += '"'
-        # Eliminar coma final si la hay
-        truncated = re.sub(r",\s*$", "", truncated.rstrip())
-        # Cerrar brackets pendientes
-        truncated += "]" * max(depth_arr, 0)
-        truncated += "}" * max(depth_obj, 0)
+            reparado += '"'
+        # Eliminar coma final, o un "clave": sin valor, si los hay
+        reparado = re.sub(r",\s*$", "", reparado.rstrip())
+        reparado = re.sub(r',?\s*"[^"]*"\s*:\s*$', "", reparado)
+        # Cerrar en orden inverso de apertura
+        reparado += "".join("}" if c == "{" else "]" for c in reversed(stack))
         try:
-            return json.loads(truncated)
+            out = json.loads(reparado)
+            return _marcar_truncado(out, "json_truncado_reparado")
         except Exception:
             pass
     except Exception:
@@ -311,4 +351,4 @@ def _today_iso() -> str:
     """Fecha de hoy en ISO (yyyy-mm-dd) — UTC para consistencia."""
     return _dt.date.today().isoformat()
 
-__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
+__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']

@@ -8,10 +8,11 @@ FROM python:3.12-slim
 #  · unar (The Unarchiver): extractor libre en debian main que SÍ abre RAR5
 #    (a diferencia de unrar-free, limitado a RAR<=3). `rarfile` lo autodetecta.
 #  · libarchive-tools (bsdtar): backend RAR de respaldo para `rarfile`.
+#  · antiword: texto de .doc (Word 97-2003) dentro de ZIP/RAR (WS D, parse_documentos_lote).
 #  · libreoffice no se instala — DOCX se convierte a PDF con python-docx.
 # Limpiamos apt cache para mantener la imagen liviana.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        unar libarchive-tools \
+        unar libarchive-tools antiword \
         && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
