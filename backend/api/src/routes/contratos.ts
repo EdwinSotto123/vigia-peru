@@ -21,6 +21,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { RESULTADO_SQL } from "./procesamientos.js";
 import { signReadUrl } from "../lib/storage.js";
 
 export const contratosRouter = new Hono();
@@ -354,19 +355,13 @@ contratosRouter.get("/:ocid", async (c) => {
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
   const [alerta, proc, docsGcs, pedido] = await Promise.all([
-    alerta_id
-      ? pool.query(
-        `SELECT a.id, a.codigo, a.score, a.estado, a.analizado_en AS "analizadoEn",
-                COALESCE((SELECT json_agg(json_build_object('regla', b.regla, 'severidad', b.severidad, 'evidencia', left(b.evidencia, 280), 'norma', b.norma)
-                                          ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id)
-                          FROM banderas b WHERE b.alerta_id = a.id), '[]'::json) AS banderas
-         FROM alertas a WHERE a.id = $1`, [alerta_id])
-      : Promise.resolve(null),
+    // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
+    alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     pool.query(
       `SELECT ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
               finalizado_at AS "finalizadoAt", intentos, contribucion_codigo AS "contribucionCodigo", financiador,
               financiador_visible AS "financiadorVisible", ubigeo, zona, titulo, entidad, monto_pen::float AS "montoPen",
-              alerta_codigo AS "alertaCodigo", score, banderas::int
+              alerta_codigo AS "alertaCodigo", score, banderas::int, fases, alerta_estado AS "alertaEstado"
        FROM procesamientos_publico WHERE ocid = $1`, [row.ocid]),
     // Migración 15: documentos vigentes en GCS (retención 90 días) y pedido de descarga abierto.
     pool.query(`SELECT url_origen AS "urlOrigen", url_gcs AS "urlGcs", expira_at AS "expiraAt" FROM documentos_vigentes($1)`, [row.ocid])

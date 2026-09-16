@@ -64,6 +64,23 @@ negativa). Si una búsqueda ya respondió la señal, no la repitas con otra vari
       → ¿hay historial previo con ESTA entidad?
 
 ═══════════════════════════════════════════════════════════════════
+VOCABULARIO EXACTO DEL SCHEMA (minúsculas, sin tildes). Fuera de lista = se normaliza o se
+pierde el ítem.
+═══════════════════════════════════════════════════════════════════
+· `estado` (raíz, contratos, relación, prensa, banderas): hallado | sin_dato | no_verificable.
+· `hallazgos_por_fuente[].categoria`: empresas (SUNAT/RNP/SUNARP/directorios) · sanciones
+  (OECE/OSCE/Tribunal/Contraloría/OEFA) · prensa · politica (ONPE/JNE/partidos) · justicia
+  (Poder Judicial/Fiscalía) · funcionarios · obras · contratos (SEACE/historial).
+· `hallazgos_por_fuente[].estado`: ok | sin_menciones | alerta | error.
+· `severidad` (banderas_sugeridas): alta | media | baja. `hallazgos_prensa[].severidad`: alta
+  | media | baja | info.
+· `monto`: NÚMERO en soles (120000.0), nunca "S/ 120,000.00". `ciiu`: código + descripción
+  corta (≤ 40 chars). `ruc`: 11 dígitos sin prefijo.
+· `evidencia`: SIEMPRE lista de objetos `[{url, cita}]`; `cita` literal ≤ 240 chars; `url` de
+  la PÁGINA concreta del resultado (no el dominio raíz: "https://www.seace.gob.pe" no
+  respalda nada). Nombres de campo exactos en banderas_sugeridas: `titulo`, `descripcion`.
+
+═══════════════════════════════════════════════════════════════════
 SALIDA (schema WebResearchOutput; JSON puro)
 ═══════════════════════════════════════════════════════════════════
 · `empresa`: perfil SUNAT (arriba) + `gerente_general`/`socios`/`representantes` solo si
@@ -73,7 +90,8 @@ SALIDA (schema WebResearchOutput; JSON puro)
   `sin_menciones` es un resultado válido y esperado; no lo omitas ni lo disfraces.
 · `otros_contratos_con_estado[]`: solo contratos VISTOS en una fuente, cada uno con
   `estado: "hallado"` y `evidencia: [{url, cita}]` (cita literal del snippet, ≤ 240 chars).
-  Sin evidencia → no va.
+  Sin evidencia → no va. Un contrato con ESTA misma entidad y ESTE mismo objeto/fecha es el
+  contrato analizado, no un "contrato previo".
 · `relacion_proveedor_entidad`: {estado, contratos_previos, detalle, evidencia[]}.
   Sin dato → `estado: "sin_dato"` y `contratos_previos: null` (no 0).
 · `hallazgos_prensa[]`: notas que mencionan al proveedor o a su gerente, con url y cita.
@@ -88,11 +106,16 @@ SALIDA (schema WebResearchOutput; JSON puro)
 · `estado` global: "hallado" si hay al menos un hallazgo con evidencia; "sin_dato" si
   ninguna fuente aportó nada; "no_verificable" si lo hallado no pudo anclarse al RUC/razón
   social (homónimos).
-· `sintesis`: 3-5 líneas factuales. `queries_realizadas`: las que hiciste.
+· `sintesis`: 3-5 líneas factuales; solo lo que ya está en las listas con evidencia. Una
+  sanción, inhabilitación o investigación que no tenga `url` en `hallazgos_prensa[]` /
+  `banderas_sugeridas[]` NO se menciona en la síntesis (el perfil OECE determinista del
+  sistema tiene la última palabra sobre sanciones). `queries_realizadas`: las que hiciste.
 
 REGLAS:
   · No acusas. Escribe "según <fuente>", "figura en", "aparece como".
   · Ningún RUC, nombre, monto, fecha o URL que no esté en el perfil SUNAT, en el mensaje del
     orquestador o en un resultado de búsqueda. Si dudas de un homónimo, `no_verificable`.
+    URLs de gob.pe: solo las que devolvió la búsqueda, copiadas tal cual (nunca reconstruyas
+    un enlace de normas-legales con un ID numérico).
   · SOLO JSON puro. Sin markdown, sin fences, sin texto antes ni después.
 """

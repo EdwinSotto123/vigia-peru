@@ -15,15 +15,18 @@ import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Inbox, WifiOff }
 import { formatPEN } from "@/lib/financiamiento";
 import {
   PUBLIC_API_BASE,
-  TOTAL_FASES,
   duracion,
-  faseLabel,
-  faseProgreso,
+  estadoVisible,
+  faseHumana,
+  fasesEfectivas,
   haceCuanto,
   procesamientosQueryString,
+  progresoCarriles,
+  progresoFases,
   type EstadoProc,
   type Procesamiento,
 } from "@/lib/auditoria";
+import { MiniCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
 
 type Columna = "encolado" | "procesando" | "procesado";
@@ -54,7 +57,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
   const [cargado, setCargado] = useState<boolean>(initial != null);
   const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial != null ? Date.now() : null);
   const [fallo, setFallo] = useState(false);
-  const [ahora, setAhora] = useState(() => Date.now());
+  const [ahora, setAhora] = useState(0);   // 0 hasta montar: el HTML del servidor no lleva cronómetros
   const [tab, setTab] = useState<Columna>("procesando");
   const tabElegida = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -99,6 +102,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
 
   // Reloj de 1 s para "actualizado hace Ns" y los tiempos transcurridos.
   useEffect(() => {
+    setAhora(Date.now());
     const id = window.setInterval(() => setAhora(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
@@ -143,7 +147,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-moss opacity-60" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-moss" />
               </span>
-              en vivo · {actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : "conectando…"}
+              en vivo · {ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : "conectando…"}
             </span>
           )}
         </div>
@@ -205,9 +209,11 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
 }
 
 function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
-  const progreso = faseProgreso(p);
+  const estado = estadoVisible(p);
   const conSenales = p.banderas > 0;
-  const transcurrido = p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
+  const transcurrido = ahora > 0 && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
+  const fases = p.estado === "procesando" ? fasesEfectivas(p) : null;
+  const prog = fases ? progresoFases(fases, estado) : null;
   return (
     <Link
       href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
@@ -217,7 +223,7 @@ function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">{p.titulo ?? p.ocid}</p>
-        <EstadoPill estado={p.estado} />
+        <EstadoPill estado={estado} />
       </div>
       <p className="mt-1 truncate text-[12px] text-mute">{p.entidad ?? "Entidad no identificada"}</p>
       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
@@ -225,17 +231,17 @@ function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
         {p.montoPen != null && p.montoPen > 0 && <span className="font-mono">{formatPEN(p.montoPen)}</span>}
       </p>
 
-      {p.estado === "procesando" && (
+      {p.estado === "procesando" && fases && prog && (
         <div className="mt-2.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-amber">{faseLabel(p.faseActual)}</span>
-            <span className="font-mono text-mute">
-              {Math.min(TOTAL_FASES, (p.faseIndex ?? 0) + 1)}/{TOTAL_FASES}
+          <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="min-w-0 truncate text-amber" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
+            <span className="shrink-0 font-mono tabular-nums text-mute">
+              {prog.hechas}/{prog.aplicables}
               {transcurrido != null && transcurrido > 0 && ` · ${duracion(transcurrido)}`}
             </span>
           </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progreso} aria-label="Avance del análisis">
-            <div className="h-full rounded-full bg-amber transition-all duration-700 ease-out" style={{ width: `${Math.max(4, progreso)}%` }} />
+          <div className="mt-1.5" aria-label={`Avance del análisis: ${prog.pct}%`}>
+            <MiniCarriles carriles={progresoCarriles(fases, estado)} />
           </div>
         </div>
       )}
@@ -244,13 +250,18 @@ function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
         <p className="mt-2 text-[11px] text-crimson">Reintento automático · intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
       )}
 
-      {p.estado === "procesado" && (
-        <div className="mt-2.5 flex items-center justify-between text-[12px]">
-          <span className={`inline-flex items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-moss"}`}>
+      {estado === "revision" && (
+        <p className="mt-2 text-[11px] text-clay">La autoevaluación pidió revisión humana antes de publicar.</p>
+      )}
+
+      {estado === "procesado" && (
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[12px]">
+          <span className={`inline-flex flex-wrap items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-moss"}`}>
             {conSenales ? <AlertTriangle size={13} aria-hidden /> : <CheckCircle2 size={13} aria-hidden />}
             {conSenales ? `${p.banderas} ${p.banderas === 1 ? "señal de riesgo" : "señales de riesgo"}` : "sin señales"}
+            {p.score != null && <span className="ml-1 font-mono text-[11px] tabular-nums text-mute">· score {Math.round(p.score)}</span>}
           </span>
-          <span className="inline-flex items-center gap-0.5 text-mute">ver análisis <ArrowUpRight size={12} aria-hidden /></span>
+          <span className="inline-flex items-center gap-0.5 text-mute">ver resultado <ArrowUpRight size={12} aria-hidden /></span>
         </div>
       )}
 

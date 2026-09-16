@@ -225,6 +225,8 @@ class _FakeCursor:
         self._rows = []
         if "pg_advisory_xact_lock" in s or s.startswith("alter table") or s.startswith("insert into entidades"):
             return
+        if s.startswith("update alertas set monto_adjudicado"):   # T8 (R1): montos adjudicado/referencial
+            return
         if "from convocatorias where ocid" in s:
             return                                   # convocatoria no registrada → fallback OCDS
         if s.startswith("insert into alertas"):
@@ -246,9 +248,12 @@ class _FakeCursor:
                 self.db.banderas = [b for b in self.db.banderas
                                     if not (b["alerta_id"] == aid and b["agente_origen"] == "market_price_agent")]
             elif "agente_origen in" in s:
+                # lista literal del SQL: ('document_parser_agent','document_legal_analyst_agent') o
+                # ('person_network_agent','web_research_agent','news_research_agent') (puente lote 1)
+                import re as _re
+                agentes = tuple(_re.findall(r"'([a-z_]+)'", s.split("agente_origen in", 1)[1]))
                 self.db.banderas = [b for b in self.db.banderas
-                                    if not (b["alerta_id"] == aid and b["agente_origen"] in
-                                            ("document_parser_agent", "document_legal_analyst_agent"))]
+                                    if not (b["alerta_id"] == aid and b["agente_origen"] in agentes)]
             else:
                 raise AssertionError(f"DELETE global de banderas prohibido: {sql}")
             return
@@ -274,6 +279,8 @@ class _FakeCursor:
                 if a["id"] == p[0]:
                     self._rows = [(a["score"],)]
             return
+        if s.startswith("update alertas set monto_adjudicado"):
+            return  # T8: corrección de montos en el checkpoint (sin efecto en el fake)
         if s.startswith("update alertas set analisis_full"):
             self.rowcount = 1 if p[2] in self.db.alertas else 0
             return

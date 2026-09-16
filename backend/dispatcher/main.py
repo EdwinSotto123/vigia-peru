@@ -41,7 +41,7 @@ import psycopg2
 import requests
 from psycopg2.extras import Json
 
-from .events import VISIBLES, reduce_event
+from .events import VISIBLES, canonico, reduce_event
 
 log = logging.getLogger("dispatcher")
 
@@ -108,12 +108,16 @@ def latir(ocids: list[str]) -> None:
 
 
 def actualizar(ocid: str, cambios: dict, evento: dict | None = None) -> None:
-    """Persiste los cambios de estado + latido; opcionalmente anexa un evento visible."""
+    """Persiste los cambios de estado + latido; opcionalmente anexa un evento visible.
+    `fases` (migración 20) se guarda entero: el reductor devuelve el mapa completo cada vez que cambia."""
     sets, vals = ["latido_at = now()"], []
     for k in ("fase_actual", "fase_index", "error"):
         if k in cambios:
             sets.append(f"{k} = %s")
             vals.append(cambios[k])
+    if isinstance(cambios.get("fases"), dict):
+        sets.append("fases = %s::jsonb")
+        vals.append(Json(cambios["fases"]))
     if evento is not None:
         sets.append("eventos = eventos || %s::jsonb")
         vals.append(Json([evento]))
@@ -148,11 +152,13 @@ def esperar_alerta(ocid: str, desde: dt.datetime) -> bool:
 
 def terminar(ocid: str, resultado: str, error: str | None) -> None:
     if resultado == OK:
-        # El trigger trg_alertas_cerrar_procesamiento normalmente ya lo marcó; cerramos igual por si la alerta
-        # se actualizó (ON CONFLICT DO UPDATE no dispara el trigger de INSERT).
+        # Desde la migración 20 el trigger trg_alertas_cerrar_procesamiento NO cierra un procesamiento con
+        # worker vivo (la alerta se inserta en el checkpoint, antes del dictamen y la autoevaluación): lo cierra
+        # el dispatcher al recibir `final`, con la hora real de término. Si ya estaba cerrado (stream cortado,
+        # instancia vieja), se respeta la hora que tenga.
         _query(
-            "UPDATE procesamientos SET estado = 'procesado', finalizado_at = COALESCE(finalizado_at, now()), "
-            "fase_actual = 'final', fase_index = 10, error = NULL, worker = NULL WHERE ocid = %s",
+            "UPDATE procesamientos SET finalizado_at = CASE WHEN estado = 'procesando' THEN now() ELSE COALESCE(finalizado_at, now()) END, "
+            "estado = 'procesado', fase_actual = 'final', fase_index = 10, error = NULL, worker = NULL WHERE ocid = %s",
             (ocid,),
         )
     elif resultado == ABORT:
@@ -278,11 +284,12 @@ def prefetch_ocds(ocid: str) -> dict | None:
         return None
 
 
-def _evento(ev: dict, cambios: dict) -> dict:
+def _evento(ev: dict, cambios: dict, ts: str) -> dict:
     return {
-        "ts": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "ts": ts,
         "kind": ev.get("kind"),
-        "name": cambios.get("fase_actual") or ev.get("name") or ev.get("agent"),
+        "name": (cambios.get("fase_actual") if ev.get("kind") == "phase" and not str(ev.get("msg") or "").startswith("omitido") else None)
+                or canonico(ev.get("name") or ev.get("agent")) or None,
         "msg": str(ev.get("msg") or ev.get("detail") or "")[:200] or None,
     }
 
@@ -333,6 +340,14 @@ def procesar(ocid: str) -> str:
                 dejar_pendiente(ocid, f"el servicio {perfil} rechazó el tipo {tipo!r} (409 tipo_no_aceptado)")
                 log.error("⏸ %s 409 tipo_no_aceptado en %s (%s)", ocid, perfil, agent_url)
                 return PENDIENTE
+            if r.status_code in (429, 500, 502, 503) and "application/x-ndjson" not in (r.headers.get("content-type") or ""):
+                # Cloud Run sin instancia disponible (cuota de memoria / max-instances) o servicio
+                # saturado: no es culpa del contrato → vuelve a la cola sin consumir intento y esta
+                # corrida deja de reclamar (el scheduler reintenta en 5 min).
+                err = f"sin capacidad en {perfil}: HTTP {r.status_code}"
+                log.warning("⏸ %s %s", ocid, err)
+                terminar(ocid, ABORT, err)
+                return ABORT
             r.raise_for_status()
             for line in r.iter_lines(decode_unicode=True):
                 if not line:
@@ -343,9 +358,10 @@ def procesar(ocid: str) -> str:
                     continue
                 if not isinstance(ev, dict) or ev.get("kind") not in VISIBLES:
                     continue
-                cambios = reduce_event(state, ev)
+                ts = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+                cambios = reduce_event(state, ev, ts)
                 state.update(cambios)
-                actualizar(ocid, cambios, _evento(ev, cambios))
+                actualizar(ocid, cambios, _evento(ev, cambios, ts))
                 if cambios.get("terminado"):
                     resultado = ABORT if cambios.get("abortado") else OK
         if resultado == OK and not alerta_persistida(ocid):

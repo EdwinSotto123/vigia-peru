@@ -5,7 +5,12 @@
  *   GET /financiamiento/procesamientos?ubigeo=15&codigo=VIG-2026-00002&estado=procesando&limit=100
  *   GET /financiamiento/procesamientos/resumen        conteo por estado + procesados hoy + activos (fase, segundos)
  *                                                     + lote de ingesta en curso + descargados 24 h + agentes activos
- *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}]
+ *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}] + fases + resultado
+ *                                                     (score, señales, mercado, documentos leídos) + estimado (mediana)
+ *
+ * Migración 20: `fases` {fase: {estado: corriendo|hecho|omitido|error, desde, hasta, motivo}} lo escribe el
+ * dispatcher (DAG paralelo: varias fases corren a la vez); `alertaEstado` = 'revision' cuando la
+ * autoevaluación bloqueó la publicación.
  *
  * Se monta ANTES de /financiamiento para que no lo capture financiamientoRouter.
  * Cache corta (3-10 s): el frontend hace polling.
@@ -23,7 +28,49 @@ const cache = (c: Context, s: number) => c.header("Cache-Control", `public, s-ma
 const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
   finalizado_at AS "finalizadoAt", intentos, contribucion_codigo AS "contribucionCodigo", financiador,
   financiador_visible AS "financiadorVisible", ubigeo, zona, titulo, entidad, monto_pen::float AS "montoPen",
-  alerta_codigo AS "alertaCodigo", score, banderas::int`;
+  alerta_codigo AS "alertaCodigo", score, banderas::int, fases, alerta_estado AS "alertaEstado"`;
+
+/** Cuánto suele tardar un análisis (mediana de los procesados en 7 días) para el "estimado" del tablero. */
+const ESTIMADO_SQL = `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finalizado_at - iniciado_at)))::int AS "medianaSeg",
+  count(*)::int AS n
+  FROM procesamientos WHERE estado = 'procesado' AND iniciado_at IS NOT NULL AND finalizado_at > iniciado_at
+   AND finalizado_at >= now() - interval '7 days'`;
+
+/**
+ * Resumen liviano del análisis para la tarjeta de resultados (sin cargar el dossier):
+ * señales con norma/evidencia/verificación, mercado (mediana vs ofertado), documentos leídos,
+ * recortes y validaciones pendientes. Todo sale de alertas + banderas + analisis_full.
+ */
+export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analizado_en AS "analizadoEn",
+  COALESCE((SELECT json_agg(json_build_object('regla', b.regla, 'severidad', b.severidad, 'evidencia', left(b.evidencia, 320),
+                                              'norma', b.norma, 'fuenteUrl', b.fuente_url, 'agente', b.agente_origen,
+                                              'verificada', (b.verificacion->>'ok')::boolean)
+                            ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id)
+            FROM banderas b WHERE b.alerta_id = a.id), '[]'::json) AS banderas,
+  CASE WHEN jsonb_typeof(a.analisis_full->'market_analysis') = 'object' THEN json_build_object(
+    'estado', a.analisis_full->'market_analysis'->>'estado',
+    'veredicto', a.analisis_full->'market_analysis'->>'veredicto_global',
+    'nItems', (a.analisis_full->'market_analysis'->>'n_items')::int,
+    'nConMediana', (a.analisis_full->'market_analysis'->>'n_con_mediana')::int,
+    'totalOfertado', (a.analisis_full->'market_analysis'->>'total_ofertado')::float,
+    'totalMercado', (a.analisis_full->'market_analysis'->>'total_estimado_mercado')::float,
+    'sobreprecioPct', (a.analisis_full->'market_analysis'->>'sobreprecio_pct')::float,
+    'items', (SELECT COALESCE(json_agg(json_build_object(
+                'item', f->>'item_descripcion', 'unidad', f->>'unidad', 'veredicto', f->>'veredicto',
+                'ofertado', (f->>'precio_unitario_ofertado')::float, 'mediana', (f->>'precio_mediana_mercado')::float,
+                'diffPct', (f->>'diff_pct')::float, 'nPrecios', (f->>'n_precios')::int)), '[]'::json)
+              FROM (SELECT f FROM jsonb_array_elements(COALESCE(a.analisis_full->'market_analysis'->'findings', '[]'::jsonb)) f LIMIT 12) x)
+  ) ELSE NULL END AS mercado,
+  CASE WHEN jsonb_typeof(a.analisis_full->'document_analysis'->'documentos') = 'array' THEN (
+    SELECT json_build_object('n', count(*), 'paginas', COALESCE(sum((d->>'n_paginas')::int), 0),
+                             'conError', count(*) FILTER (WHERE d->>'error' IS NOT NULL),
+                             'titulos', json_agg(left(d->>'titulo', 60)))
+    FROM jsonb_array_elements(a.analisis_full->'document_analysis'->'documentos') d) ELSE NULL END AS documentos,
+  CASE WHEN jsonb_typeof(a.analisis_full->'recortes') = 'array' THEN jsonb_array_length(a.analisis_full->'recortes') ELSE 0 END AS recortes,
+  CASE WHEN jsonb_typeof(a.analisis_full->'validaciones_pendientes') = 'array' THEN a.analisis_full->'validaciones_pendientes' ELSE '[]'::jsonb END AS "validacionesPendientes",
+  a.analisis_full->'self_evals'->'pct' AS autoevaluacion,
+  (a.dictamen_markdown IS NOT NULL AND length(a.dictamen_markdown) > 200) AS "dictamenListo"
+  FROM alertas a WHERE a.id = $1`;
 
 const ORDER = `ORDER BY CASE estado WHEN 'procesando' THEN 0 WHEN 'encolado' THEN 1 WHEN 'procesado' THEN 2 WHEN 'error' THEN 3 ELSE 4 END,
   COALESCE(finalizado_at, iniciado_at, encolado_at) DESC, ocid`;
@@ -69,11 +116,11 @@ async function hayLotesIngesta(): Promise<boolean> {
 }
 
 procesamientosRouter.get("/resumen", async (c) => {
-  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote] = await Promise.all([
+  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado] = await Promise.all([
     pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
     pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
     pool.query(
-      `SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo,
+      `SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo, fases,
               GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
        FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
     pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
@@ -100,6 +147,7 @@ procesamientosRouter.get("/resumen", async (c) => {
         return null;
       }
     })(),
+    pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null),
   ]);
   const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0 };
   for (const x of r.rows) porEstado[x.estado] = x.n;
@@ -117,15 +165,32 @@ procesamientosRouter.get("/resumen", async (c) => {
     documentosListos,
     pedidos,
     agentesActivos,
+    estimado,
   });
 });
 
 procesamientosRouter.get("/:ocid", async (c) => {
   const ocid = c.req.param("ocid");
   const r = await pool.query(
-    `SELECT ${COLS}, (SELECT p.eventos FROM procesamientos p WHERE p.ocid = v.ocid) AS eventos
+    `SELECT ${COLS}, alerta_id AS "alertaId", (SELECT p.eventos FROM procesamientos p WHERE p.ocid = v.ocid) AS eventos
      FROM procesamientos_publico v WHERE ocid = $1`, [ocid]);
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
+  const { alertaId, ...row } = r.rows[0];
+  const [resultado, estimado] = await Promise.all([
+    alertaId && row.estado === "procesado"
+      ? pool.query(RESULTADO_SQL, [alertaId]).then((q) => q.rows[0] ?? null).catch(() => null)
+      : Promise.resolve(null),
+    row.estado === "procesando" || row.estado === "encolado"
+      ? pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  // Motivo de la revisión humana: lo dejó la autoevaluación como warn en la bitácora.
+  let revisionMotivo: string | null = null;
+  if (resultado?.estado === "revision") {
+    const ev = (Array.isArray(row.eventos) ? row.eventos : []).find(
+      (e: { kind?: string; name?: string; msg?: string | null }) => e.kind === "warn" && e.name === "self_eval" && /REVISI/i.test(e.msg ?? ""));
+    revisionMotivo = ev?.msg?.replace(/^.*?\(no publicada\):\s*/i, "") ?? null;
+  }
   cache(c, 3);
-  return c.json(r.rows[0]);
+  return c.json({ ...row, resultado: resultado ? { ...resultado, revisionMotivo } : null, estimado });
 });

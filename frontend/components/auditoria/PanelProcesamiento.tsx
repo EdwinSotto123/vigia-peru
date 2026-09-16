@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Cpu, Download, Moon, WifiOff } from "lucide-react";
-import { PUBLIC_API_BASE, TOTAL_FASES, duracion, faseLabel } from "@/lib/auditoria";
+import { PUBLIC_API_BASE, duracion, faseHumana, fasesEfectivas, progresoFases } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ interface Props {
 export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
   const [data, setData] = useState<ResumenProcesamientoVivo | null>(initial ?? null);
   const [fallo, setFallo] = useState(false);
-  const [ahora, setAhora] = useState(() => Date.now());
+  const [ahora, setAhora] = useState(0);   // 0 hasta montar: sin desajuste de hidratación en los cronómetros
   const recibidoAt = useRef<number>(Date.now());
 
   useEffect(() => {
@@ -47,6 +47,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
     };
     void cargar();
     const id = window.setInterval(() => { if (document.visibilityState === "visible") void cargar(); }, Math.max(2000, pollMs));
+    setAhora(Date.now());
     const tick = window.setInterval(() => setAhora(Date.now()), 1000);
     return () => { vivo = false; ctrl?.abort(); window.clearInterval(id); window.clearInterval(tick); };
   }, [pollMs]);
@@ -67,7 +68,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
   const esperando = e.esperando_documentos ?? 0;
   const agentes = data?.agentesActivos ?? [];
   const lote = data?.lote ?? null;
-  const drift = Math.max(0, Math.round((ahora - recibidoAt.current) / 1000));   // segundos desde el último dato
+  const drift = ahora > 0 ? Math.max(0, Math.round((ahora - recibidoAt.current) / 1000)) : 0;   // segundos desde el último dato
 
   return (
     <div className="rounded-2xl border border-line bg-paper" aria-live="polite">
@@ -113,24 +114,26 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
         {!fallo && activos.length === 0 && agentes.length === 0 && !lote && esperando === 0 && (
           <span className="text-mute">ningún contrato en análisis · los agentes esperan la próxima asignación</span>
         )}
-        {activos.map((a) => (
-          <Link
-            key={a.ocid}
-            href={`/app/contratos/${encodeURIComponent(a.ocid)}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-amber/40 bg-amber-soft px-2 py-0.5 text-ink hover:border-amber"
-            title={a.titulo ?? a.ocid}
-          >
-            <span className="font-mono">{a.ocid}</span>
-            <span className="text-mute">fase {Math.min(TOTAL_FASES, (a.faseIndex ?? 0) + (a.faseActual && a.faseActual !== "started" ? 1 : 0))}/{TOTAL_FASES}</span>
-            <span className="text-amber">{faseLabel(a.faseActual)}</span>
-            <span className="font-mono text-mute">{duracion((a.desdeSeg + drift) * 1000)}</span>
-          </Link>
-        ))}
-        {agentes.map((ag) => (
-          <span key={ag} className="rounded-full border border-line bg-paper px-2 py-0.5 text-mute">
-            {faseLabel(ag)}
-          </span>
-        ))}
+        {activos.map((a) => {
+          const seg = a.desdeSeg + drift;
+          // iniciadoAt en el epoch + "ahora" = segundos transcurridos: faseHumana mide la espera sin tocar Date.now() en el render.
+          const p = { estado: "procesando" as const, faseActual: a.faseActual, faseIndex: a.faseIndex, fases: a.fases ?? null, iniciadoAt: new Date(0).toISOString() };
+          const fases = fasesEfectivas(p);
+          const prog = progresoFases(fases, "procesando");
+          return (
+            <Link
+              key={a.ocid}
+              href={`/app/auditoria/${encodeURIComponent(a.ocid)}`}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber/40 bg-amber-soft px-2 py-0.5 text-ink hover:border-amber"
+              title={a.titulo ?? a.ocid}
+            >
+              <span className="font-mono">{a.ocid}</span>
+              <span className="font-mono tabular-nums text-mute">{prog.hechas}/{prog.aplicables}</span>
+              <span className="truncate text-amber">{faseHumana(p, seg * 1000, fases)}</span>
+              <span className="font-mono tabular-nums text-mute">{duracion(seg * 1000)}</span>
+            </Link>
+          );
+        })}
         {lote && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2 py-0.5 text-mute" title={`Lote ${lote.id}${lote.tipo ? ` · ${lote.tipo}` : ""}`}>
             <Download size={11} />

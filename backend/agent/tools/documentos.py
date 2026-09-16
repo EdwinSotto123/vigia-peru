@@ -35,6 +35,307 @@ def _es_doc_de_adjudicacion(tipo: str) -> bool:
     return any(k in t for k in _TIPOS_ADJUDICACION)
 
 
+# ── Etapa del documento (lote 1 · T7) ─────────────────────────────────────────────────
+# Un documento es de REQUERIMIENTO (bases, integradas, TDR, EETT, expediente, resumen
+# ejecutivo, informe de sustento, absolución) o de CONTRATACIÓN (propuesta, acta, cuadro,
+# contrato, orden de compra/servicio, adenda, garantía, resolución de ejecución). Solo los
+# primeros alimentan `items_consolidados` (precio REFERENCIAL, marca EXIGIDA); los ítems de
+# los segundos van a `items_contratados` (precio CONTRATADO/OFERTADO, marca OFERTADA) y se
+# cruzan por clave normalizada. Antes la OC con `contiene_requerimiento=true` entraba como
+# fuente de requerimiento y su marca se fundía en el ítem de las bases ("las bases exigen la
+# marca SOMOS DEL NORTE": inventado).
+_TIPOS_REQUERIMIENTO_KW = ("bases", "termino", "referencia", "especificacion", "eett", "tdr", "expediente",
+                           "resumen", "sustento", "ficha", "requerimiento", "absolucion", "consulta", "pliego",
+                           "estudio_mercado", "estudio de mercado", "informe_tecnico", "informe tecnico")
+_TIPOS_CONTRATACION_KW = ("contrato", "orden_de_compra", "orden_de_servicio", "orden de compra", "orden de servicio",
+                          "acta", "buena_pro", "buena pro", "cuadro", "evaluac", "calificac", "propuesta", "oferta",
+                          "adenda", "garantia", "fianza", "conformidad", "resolucion", "adjudic", "otorgamiento",
+                          "ampliacion", "penalidad", "valorizacion", "presentacion")
+_CATS_REQUERIMIENTO = ("bases_integradas", "bases", "tdr", "eett", "expediente_tecnico", "presupuesto",
+                       "resumen_ejecutivo", "informe", "absolucion", "cotizaciones")
+_CATS_CONTRATACION = ("acta", "cuadro_comparativo", "propuesta", "contrato", "orden", "adenda", "valorizaciones",
+                      "resolucion")
+
+
+def _es_doc_contratacion(tipo_detectado: str | None, doc: dict | None = None) -> bool:
+    """True si el documento pertenece a la etapa de contratación/adjudicación (sus ítems
+    NO son requerimiento). Decide por `tipo_documento_detectado`; si el LLM no lo detectó
+    ('otro'/None), por título + documentType del DocRef (tools/doc_select)."""
+    t = _norm_txt(tipo_detectado or "").lower().replace("_", " ")
+    if t and t not in ("otro", "null", "none", "desconocido"):
+        if any(k.replace("_", " ") in t for k in _TIPOS_REQUERIMIENTO_KW):
+            return False
+        if any(k.replace("_", " ") in t for k in _TIPOS_CONTRATACION_KW):
+            return True
+    if doc:
+        try:
+            from tools.doc_select import categorias_de
+            cats = categorias_de(doc.get("titulo"), doc.get("tipo"))
+        except Exception:
+            cats = []
+        if any(c in cats for c in _CATS_REQUERIMIENTO):
+            return False
+        if any(c in cats for c in _CATS_CONTRATACION):
+            return True
+    return False
+
+
+def _es_doc_resultado(tipo_detectado: str | None, doc: dict | None = None) -> bool:
+    """Documento que FIJA el resultado de la selección (acta de buena pro, cuadro de evaluación,
+    contrato, orden): sus montos/ganador/puntajes mandan al fusionar postores. El reporte de
+    presentación de propuestas (solo quién ofertó) NO lo es."""
+    t = _norm_txt(tipo_detectado or "").lower().replace("_", " ")
+    if "propuesta" in t or "presentacion" in t:
+        return False
+    if t and _es_doc_de_adjudicacion(t):
+        return True
+    if doc and not t:
+        titulo = _norm_txt(doc.get("titulo") or "").lower()
+        if "propuesta" in titulo or "presentacion" in titulo:
+            return False
+        return any(k in titulo for k in ("acta", "buena pro", "otorgamiento", "cuadro", "evaluac", "contrato", "orden de"))
+    return False
+
+
+def _origen_precio(tipo_detectado: str | None, doc: dict | None = None) -> str:
+    """Etiqueta del origen de un precio contratado/ofertado: contrato > orden_de_compra >
+    oferta_ganadora (acta/cuadro/propuesta) > adenda > otro."""
+    t = _norm_txt(tipo_detectado or "").lower().replace("_", " ")
+    titulo = _norm_txt((doc or {}).get("titulo") or "").lower()
+    for src in (t, titulo):
+        if "orden" in src:
+            return "orden_de_compra"
+        if "contrato" in src or "contract" in src:
+            return "contrato"
+        if any(k in src for k in ("acta", "cuadro", "propuesta", "oferta", "buena pro", "otorgamiento", "evaluac")):
+            return "oferta_ganadora"
+        if any(k in src for k in ("adenda", "ampliacion", "adicional")):
+            return "adenda"
+    return "documento_contratacion"
+
+
+_RUC_PESOS = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+
+
+def _solo_digitos(ruc) -> str:
+    return re.sub(r"\D", "", str(ruc or ""))
+
+
+def ruc_valido(ruc) -> bool:
+    """RUC peruano de 11 dígitos con dígito verificador (módulo 11, pesos 5432765432).
+    Un RUC mal leído por el OCR (un dígito cambiado) NO pasa y, por tanto, no crea un postor
+    fantasma (1225090: 'DIAGNOSTICA PERUANA B.A.C.' 20501867286 como tercer postor)."""
+    r = _solo_digitos(ruc)
+    if len(r) != 11 or r[:2] not in ("10", "15", "16", "17", "20"):
+        return False
+    s = sum(int(d) * w for d, w in zip(r[:10], _RUC_PESOS))
+    c = 11 - (s % 11)
+    c = {10: 0, 11: 1}.get(c, c)
+    return c == int(r[10])
+
+
+def _corregir_ruc(ruc, candidatos) -> str | None:
+    """Si `ruc` (leído por OCR) difiere en UN solo dígito de un RUC válido conocido (OCDS
+    tenderers/suppliers), devuelve el conocido; si no, None."""
+    r = _solo_digitos(ruc)
+    if len(r) != 11:
+        return None
+    for c in candidatos or ():
+        c = _solo_digitos(c)
+        if len(c) == 11 and sum(1 for a, b in zip(r, c) if a != b) == 1:
+            return c
+    return None
+
+
+def _rucs_ocds(state: dict) -> dict[str, str]:
+    """{ruc: nombre} de tender.tenderers, parties[tenderer|supplier] y awards[].suppliers."""
+    out: dict[str, str] = {}
+    cr = (state or {}).get("ocds") or {}
+    tender = cr.get("tender") or {}
+    for t in (tender.get("tenderers") or []):
+        if isinstance(t, dict):
+            rid = _solo_digitos(str(t.get("id") or "").replace("PE-RUC-", ""))
+            if len(rid) == 11:
+                out.setdefault(rid, str(t.get("name") or ""))
+    for pty in (cr.get("parties") or []):
+        if not isinstance(pty, dict):
+            continue
+        roles = pty.get("roles") or []
+        if any(r in roles for r in ("tenderer", "supplier")):
+            ident = pty.get("identifier") or {}
+            if ident.get("scheme") == "PE-RUC":
+                rid = _solo_digitos(ident.get("id"))
+                if len(rid) == 11:
+                    out.setdefault(rid, str(pty.get("name") or ""))
+    for a in (cr.get("awards") or []):
+        for sup in ((a or {}).get("suppliers") or []):
+            if isinstance(sup, dict):
+                rid = _solo_digitos(str(sup.get("id") or "").replace("PE-RUC-", ""))
+                if len(rid) == 11:
+                    out.setdefault(rid, str(sup.get("name") or ""))
+    return out
+
+
+def _ganadores_ocds(state: dict) -> set[str]:
+    cr = (state or {}).get("ocds") or {}
+    out: set[str] = set()
+    for a in (cr.get("awards") or []):
+        if not isinstance(a, dict):
+            continue
+        if str(a.get("status") or "active").lower() in ("cancelled", "unsuccessful"):
+            continue
+        for sup in (a.get("suppliers") or []):
+            if isinstance(sup, dict):
+                rid = _solo_digitos(str(sup.get("id") or "").replace("PE-RUC-", ""))
+                if len(rid) == 11:
+                    out.add(rid)
+    for pty in (cr.get("parties") or []):
+        if isinstance(pty, dict) and "supplier" in (pty.get("roles") or []):
+            rid = _solo_digitos((pty.get("identifier") or {}).get("id"))
+            if len(rid) == 11:
+                out.add(rid)
+    return out
+
+
+def _mismo_nombre(a: str, b: str) -> bool:
+    """Razón social comparable: mismo conjunto de tokens ('ABEL CARPIO COBOS' == 'CARPIO COBOS
+    ABEL'), o similitud ≥ 0.9 tras normalizar ('DIAGNOSTICA PERUANA B.A.C.' ~ '... S.A.C.')."""
+    import difflib
+    na, nb = _norm_razon(a), _norm_razon(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    _sufijos = {"SAC", "SA", "SRL", "EIRL", "SCRL", "SOCIEDAD", "ANONIMA", "CERRADA", "EMPRESA", "INDIVIDUAL",
+                "RESPONSABILIDAD", "LIMITADA", "BAC", "COMERCIAL", "DE", "DEL", "LA", "EL", "Y", "E"}
+    ta = {t for t in na.split() if t not in _sufijos and len(t) > 1}
+    tb = {t for t in nb.split() if t not in _sufijos and len(t) > 1}
+    if ta and tb and ta == tb:
+        return True
+    return difflib.SequenceMatcher(None, na, nb).ratio() >= 0.9
+
+
+_CAMPOS_OFERTA = ("monto_oferta", "es_ganador", "puntaje", "estado", "orden_prelacion", "item")
+
+
+def _pagina_principal(obj: dict) -> int | None:
+    """Página de la primera evidencia verificada (o de la primera, si ninguna lo está)."""
+    evs = [e for e in (obj.get("evidencia") or []) if isinstance(e, dict)]
+    for e in evs:
+        if e.get("verificada") and e.get("pagina") is not None:
+            return e["pagina"]
+    for e in evs:
+        if e.get("pagina") is not None:
+            return e["pagina"]
+    return None
+
+
+def _fusionar_postor(lista: list[dict], p: dict, es_adjudicacion: bool, sha: str | None,
+                     rucs_conocidos: dict[str, str] | None = None) -> dict | None:
+    """Incorpora el postor `p` a `lista` FUSIONANDO por RUC (válido) o por razón social
+    normalizada. Nunca descarta: el mismo RUC visto antes (reporte de propuestas sin montos)
+    se COMPLETA con `monto_oferta`/`es_ganador`/`puntaje`/`estado` del acta/cuadro; si el
+    nuevo dato viene de un documento de adjudicación y el previo no, el del acta manda.
+    RUC inválido (dígito verificador) → se intenta corregir contra los RUC del OCDS (1 dígito
+    de diferencia); si no se puede, se guarda en `ruc_ocr` y el postor se fusiona por nombre.
+    Devuelve la entrada consolidada (o None si `p` no tiene ni RUC ni nombre)."""
+    if not isinstance(p, dict):
+        return None
+    nombre = str(p.get("razon_social") or "").strip()
+    ruc_raw = _solo_digitos(p.get("ruc"))
+    ruc = ruc_raw if ruc_valido(ruc_raw) else None
+    ruc_ocr = None
+    if ruc_raw and not ruc:
+        fix = _corregir_ruc(ruc_raw, list((rucs_conocidos or {}).keys()))
+        if fix:
+            ruc, ruc_ocr = fix, ruc_raw
+        else:
+            ruc_ocr = ruc_raw
+    if not ruc and not nombre:
+        return None
+    prev = None
+    if ruc:
+        prev = next((q for q in lista if q.get("ruc") == ruc), None)
+    if prev is None and nombre:
+        prev = next((q for q in lista if _mismo_nombre(q.get("razon_social"), nombre)), None)
+    nuevo = {k: v for k, v in p.items() if k not in ("ruc",)}
+    nuevo["ruc"] = ruc
+    if ruc_ocr:
+        nuevo["ruc_ocr"] = ruc_ocr
+    if ruc and rucs_conocidos and rucs_conocidos.get(ruc):
+        nuevo["razon_social_ocds"] = rucs_conocidos[ruc]
+    nuevo["_fuente_adjudicacion"] = bool(es_adjudicacion)
+    nuevo["fuentes"] = [sha] if sha else []
+    if sha and not nuevo.get("documento_sha256"):
+        nuevo["documento_sha256"] = sha
+    nuevo["pagina"] = _pagina_principal(p)
+    if prev is None:
+        lista.append(nuevo)
+        return nuevo
+    # ── fusión ──
+    if ruc and not prev.get("ruc"):
+        prev["ruc"] = ruc
+    if ruc_ocr and not prev.get("ruc_ocr") and prev.get("ruc") != ruc_ocr:
+        prev["ruc_ocr"] = ruc_ocr
+    if nuevo.get("razon_social_ocds") and not prev.get("razon_social_ocds"):
+        prev["razon_social_ocds"] = nuevo["razon_social_ocds"]
+    manda_nuevo = es_adjudicacion and not prev.get("_fuente_adjudicacion")
+    for k in _CAMPOS_OFERTA:
+        v = nuevo.get(k)
+        if v in (None, "", [], {}):
+            continue
+        if prev.get(k) in (None, "", [], {}) or (manda_nuevo and k != "item"):
+            prev[k] = v
+    if manda_nuevo:
+        prev["_fuente_adjudicacion"] = True
+        if sha:
+            prev["documento_sha256"] = sha
+            prev["pagina"] = nuevo.get("pagina") if nuevo.get("pagina") is not None else prev.get("pagina")
+    elif prev.get("pagina") is None and nuevo.get("pagina") is not None:
+        prev["pagina"] = nuevo["pagina"]
+    if sha and sha not in prev.setdefault("fuentes", []):
+        prev["fuentes"].append(sha)
+    ev_prev = prev.get("evidencia") or []
+    prev["evidencia"] = ev_prev + [e for e in (nuevo.get("evidencia") or []) if e not in ev_prev]
+    for k, v in nuevo.items():
+        if k in ("evidencia", "fuentes", "_fuente_adjudicacion", "ruc", "ruc_ocr", "pagina", "documento_sha256"):
+            continue
+        if prev.get(k) in (None, "", [], {}) and v not in (None, "", [], {}):
+            prev[k] = v
+    return prev
+
+
+def _ofertas_desde_postores(postores: list[dict]) -> list[dict]:
+    """`ofertas[]` completas {postor, ruc, monto, orden, es_ganador, estado, fuente, pagina}
+    ordenadas por orden de prelación (si el acta lo trae) o por monto ascendente."""
+    con_monto = [p for p in postores if isinstance(p, dict) and isinstance(p.get("monto_oferta"), (int, float))
+                 and p["monto_oferta"] > 0]
+    def _k(p):
+        o = p.get("orden_prelacion")
+        return (0, float(o)) if isinstance(o, (int, float)) else (1, float(p["monto_oferta"]))
+    out = []
+    for i, p in enumerate(sorted(con_monto, key=_k), start=1):
+        out.append({"postor": p.get("razon_social"), "ruc": p.get("ruc"), "monto": float(p["monto_oferta"]),
+                    "orden": int(p["orden_prelacion"]) if isinstance(p.get("orden_prelacion"), (int, float)) else i,
+                    "es_ganador": bool(p.get("es_ganador")) if p.get("es_ganador") is not None else None,
+                    "estado": p.get("estado"), "fuente": p.get("documento_sha256"), "pagina": p.get("pagina")})
+    return out
+
+
+def _mismo_firmante(a: dict, b: dict) -> bool:
+    """'YHONY E. QUISPE CANAZA' y 'Yhony Edwin Quispe Canaza' son la misma persona: los
+    tokens largos (≥ 3 letras) de uno están contenidos en el otro y comparten ≥ 2."""
+    na = [t for t in _norm_razon(a.get("nombre_completo")).split() if len(t) >= 3]
+    nb = [t for t in _norm_razon(b.get("nombre_completo")).split() if len(t) >= 3]
+    if not na or not nb:
+        return False
+    sa, sb = set(na), set(nb)
+    inter = sa & sb
+    if len(inter) < 2:
+        return False
+    return sa <= sb or sb <= sa or len(inter) >= 3
+
+
 def list_documents(ocid: str, tool_context: ToolContext) -> dict:
     """Lista los documentos publicados en SEACE para esta convocatoria.
 
@@ -75,16 +376,45 @@ def list_documents(ocid: str, tool_context: ToolContext) -> dict:
         "_note": "La selección y el parseo en lote los hace parse_documentos_seleccionados (determinista).",
     }
 
+_LOOKALIKES = str.maketrans({"Μ": "M", "Α": "A", "Β": "B", "Ε": "E", "Η": "H", "Ι": "I", "Κ": "K", "Ν": "N",
+                              "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X", "Ζ": "Z", "І": "I", "О": "O", "А": "A",
+                              "Е": "E", "Р": "P", "С": "C", "Т": "T", "Н": "H", "К": "K", "М": "M", "В": "B"})
+
+
+def _desc_compacta(desc: str) -> str:
+    """Descripción como clave: MAYÚSCULAS sin tildes, lookalikes griegos/cirílicos del OCR
+    (Μ→M), sin espacios ni puntuación ('DRYWALL 0.90 mm' == 'DRYWALL0.90 MM …')."""
+    d = _norm_txt(str(desc or "")).translate(_LOOKALIKES)
+    return re.sub(r"[^A-Z0-9]", "", d)
+
+
+def _buscar_item_similar(existing_keys: dict, k):
+    """Clave ('d', desc[, cantidad]) → ítem ya consolidado cuya descripción compacta sea
+    ≥ 0.92 similar (difflib) con la MISMA cantidad; None si no hay. Evita el ítem duplicado
+    por ruido OCR (total de mercado doble) sin fundir productos distintos."""
+    import difflib
+    if not k or k[0] != "d":
+        return None
+    desc = k[1]
+    cant = k[2] if len(k) > 2 else None
+    for k2, it in existing_keys.items():
+        if k2[0] != "d" or (len(k2) > 2) != (len(k) > 2):
+            continue
+        if len(k2) > 2 and k2[2] != cant:
+            continue
+        if abs(len(k2[1]) - len(desc)) > max(4, int(0.15 * len(desc))):
+            continue
+        if difflib.SequenceMatcher(None, k2[1], desc).ratio() >= 0.92:
+            return it
+    return None
+
+
 def _item_key(it: dict):
     """Clave semántica para dedup de ítems (fix #1): descripción normalizada +
     cantidad. Evita que el MISMO ítem, numerado distinto en dos documentos
     ('2' vs '02', '1.0' vs '01'), sobreviva duplicado y duplique el trabajo del
     market agent. Devuelve None si no hay descripción ni número."""
-    import unicodedata
-    desc = (it.get("descripcion_corta") or it.get("descripcion") or "").strip().upper()
-    desc = " ".join(desc.split())
-    desc = "".join(c for c in unicodedata.normalize("NFKD", desc)
-                   if not unicodedata.combining(c))
+    desc = _desc_compacta(it.get("descripcion_corta") or it.get("descripcion") or "")
     if desc:
         req = (it.get("requerimiento_tecnico_detallado") or "").strip()
         # Cabeceras de objeto/agregador (SIN requerimiento): el mismo
@@ -261,6 +591,7 @@ def _split_pdf_by_pages(blob: bytes, label: str,
 import hashlib as _hashlib
 import subprocess as _subprocess
 import tempfile as _tempfile
+from collections import OrderedDict as _OrderedDict
 
 from tools.doc_select import (  # noqa: F401  (re-exportado vía `from tools import *`)
     seleccionar_documentos, rank_documento, recorte_seleccion, PRIORIDAD_DEFAULT, MAX_DOCS_DEFAULT,
@@ -270,7 +601,9 @@ from tools.doc_select import (  # noqa: F401  (re-exportado vía `from tools imp
 # de `documentos_texto` (se vuelve a hacer OCR). La extracción estructurada se cachea
 # aparte por (bloque, PARSER_SCHEMA_VERSION, modelo) dentro de `extraccion` JSONB.
 VERSION_PARSER = os.getenv("PARSER_TEXT_VERSION", "texto-v1")
-PARSER_SCHEMA_VERSION = os.getenv("PARSER_SCHEMA_VERSION", "schema-v2")
+# schema-v3 (lote 1 · T7): precio/marca por etapa (referencial vs ofertado/contratado), postores
+# con puntaje/estado/orden, invitados, procedimiento_seleccion, ejecucion_contractual, folio.
+PARSER_SCHEMA_VERSION = os.getenv("PARSER_SCHEMA_VERSION", "schema-v3")
 # Chars de texto OCR por llamada Gemini (≈ 150K tokens). Documentos más largos se parten
 # por páginas en varias llamadas y se fusionan — no se omite nada.
 PARSE_MAX_CHARS_POR_LLAMADA = int(os.getenv("PARSE_MAX_CHARS_POR_LLAMADA", "600000"))
@@ -299,12 +632,15 @@ def _schema_evidencia(desc: str = "") -> "gtypes.Schema":
     return gtypes.Schema(
         type=gtypes.Type.ARRAY,
         description=(desc or "Respaldo LITERAL de este dato en el documento: "
-                     "`pagina` = número N del marcador ⟦p.N⟧ donde aparece; `cita` = fragmento "
-                     f"textual copiado tal cual (≤ {CITA_MAX} chars). Sin evidencia el dato NO se persiste."),
+                     "`pagina` = número N del marcador ⟦p.N⟧ bajo el que aparece la cita (índice real de "
+                     "página del archivo, NUNCA el número impreso al pie); `cita` = fragmento textual copiado "
+                     f"tal cual (≤ {CITA_MAX} chars). Sin evidencia el dato NO se persiste."),
         items=gtypes.Schema(
             type=gtypes.Type.OBJECT,
             properties={
                 "pagina": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True),
+                "folio": gtypes.Schema(type=gtypes.Type.INTEGER, nullable=True,
+                                       description="Número IMPRESO en la página (folio/pie 'Página 22 de 69'), si se ve. Distinto de `pagina`."),
                 "cita": gtypes.Schema(type=gtypes.Type.STRING),
             },
             required=["cita"],
@@ -419,7 +755,29 @@ def _schema_bloque(bloque: str | None) -> "gtypes.Schema | None":
     raise ValueError(f"parser_bloque desconocido: {bloque!r} (válidos: {_BLOQUES_VALIDOS})")
 
 
-def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
+# Gemini rechaza (400 INVALID_ARGUMENT) un response_schema demasiado grande: con los bloques de
+# procedimiento de selección + ejecución contractual + ítems, el schema completo supera el límite.
+# Por eso los bloques pesados entran solo cuando el documento puede contenerlos (por tipo/título).
+_SECCIONES_OPCIONALES = ("procedimiento_seleccion", "ejecucion_contractual", "contrato_final", "estudio_mercado")
+PARSER_SCHEMA_MAX_CHARS = int(os.getenv("PARSER_SCHEMA_MAX_CHARS", "20500"))
+
+
+def secciones_para_documento(label: str | None, tipo_hint: str | None, seccion: str | None = None) -> set[str]:
+    """Qué bloques opcionales del schema aplican a un documento según su título/tipo OCDS/sección."""
+    t = f"{label or ''} {tipo_hint or ''} {seccion or ''}".lower()
+    out: set[str] = set()
+    if any(k in t for k in ("acta", "buena pro", "evaluaci", "calificaci", "cuadro", "integrada", "absoluci", "consulta",
+                            "observaci", "propuesta", "oferta", "award", "tender")):
+        out.add("procedimiento_seleccion")
+    if any(k in t for k in ("contrato", "contract", "orden de", "adenda", "ampliaci", "penalidad", "resoluci", "garant",
+                            "conformidad", "entrega")):
+        out.update({"ejecucion_contractual", "contrato_final"})
+    if any(k in t for k in ("estudio", "mercado", "indagaci", "informe", "sustento", "cotizaci")):
+        out.add("estudio_mercado")
+    return out
+
+
+def _parser_schema(bloque: str | None = None, secciones: set[str] | None = None) -> "gtypes.Schema":
     """Schema de extracción: base (ítems, postores, firmantes, comité, motivos, estudio de
     mercado, contrato final) + bloque del perfil. Cada ítem/firmante/postor/comité/motivo
     lleva `evidencia: [{pagina, cita}]`; el requerimiento va LITERAL en `texto_literal`."""
@@ -457,10 +815,23 @@ def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
                     "descripcion_corta": S(type=T.STRING, description="TÍTULO del ítem tal como aparece (1 línea, ≤200 chars)."),
                     "cantidad": S(type=T.NUMBER, nullable=True),
                     "unidad": S(type=T.STRING, nullable=True, description="UND, KG, M3, LITRO, SACO, MES, HH, SERVICIO, etc."),
-                    "precio_unitario_referencial": S(type=T.NUMBER, nullable=True),
-                    "cuantia_referencial_item": S(type=T.NUMBER, nullable=True),
+                    "precio_unitario_referencial": S(type=T.NUMBER, nullable=True,
+                        description="SOLO en bases/TDR/EETT/resumen ejecutivo/estudio de mercado: precio unitario del valor referencial. En contrato/orden/acta/propuesta va null (usá precio_unitario_contratado / precio_unitario_ofertado)."),
+                    "cuantia_referencial_item": S(type=T.NUMBER, nullable=True,
+                        description="Valor referencial / cuantía total del ítem (bases, resumen ejecutivo o reporte del acta)."),
+                    "precio_unitario_ofertado": S(type=T.NUMBER, nullable=True,
+                        description="SOLO en propuesta económica / acta / cuadro de evaluación: precio unitario ofertado por el ganador."),
+                    "precio_unitario_contratado": S(type=T.NUMBER, nullable=True,
+                        description="SOLO en contrato / orden de compra o servicio: precio unitario pactado."),
+                    "subtotal_contratado": S(type=T.NUMBER, nullable=True,
+                        description="SOLO en contrato / orden: subtotal del ítem (cantidad × precio unitario)."),
                     "marca_o_modelo_exigido": S(type=T.STRING, nullable=True,
-                        description="Texto exacto de marca/modelo cuando aparece ('o similar' incluido). Null si genérico o no aplica."),
+                        description=("SOLO en bases/TDR/EETT y SOLO si el texto del requerimiento dice literalmente "
+                                     "'marca', 'modelo', 'o equivalente' u 'o similar' junto a un nombre comercial: copiá el texto exacto. "
+                                     "Null si el requerimiento es genérico, si solo hay códigos de parte, o si el documento es "
+                                     "contrato/orden/acta/propuesta (ahí la marca va en marca_ofertada).")),
+                    "marca_ofertada": S(type=T.STRING, nullable=True,
+                        description="SOLO en contrato/orden/propuesta/acta: marca y modelo del producto ofertado o contratado, literal."),
                     "certificaciones_exigidas": S(type=T.ARRAY, items=S(type=T.STRING),
                         description="Normas/certificaciones exigidas, cada string LITERAL (≤80 chars)."),
                     "valores_tecnicos_clave": S(type=T.OBJECT, nullable=True,
@@ -482,15 +853,18 @@ def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
                         "meses": S(type=T.INTEGER, nullable=True), "horas": S(type=T.INTEGER, nullable=True),
                         "alcance": S(type=T.STRING, nullable=True)}),
                     "condiciones_entrega": S(type=T.OBJECT, nullable=True, properties={
-                        "plazo_dias_calendario": S(type=T.INTEGER, nullable=True),
+                        "plazo_dias_calendario": S(type=T.INTEGER, nullable=True, description="Plazo de ENTREGA (no el de suministro/vigencia)."),
+                        "plazo_dias_tipo": S(type=T.STRING, nullable=True, description="'habiles' o 'calendario', tal como lo diga el texto."),
                         "lugar_entrega": S(type=T.STRING, nullable=True),
                         "modalidad": S(type=T.STRING, nullable=True)}),
                     "requisitos_postor": S(type=T.OBJECT, nullable=True,
                         description="Requisitos al postor (no al bien/servicio).",
                         properties={
-                            "experiencia_minima_soles": S(type=T.NUMBER, nullable=True),
-                            "anos_experiencia_min": S(type=T.NUMBER, nullable=True),
-                            "n_contratos_similares": S(type=T.INTEGER, nullable=True),
+                            "experiencia_minima_soles": S(type=T.NUMBER, nullable=True, description="Monto facturado acumulado exigido como experiencia."),
+                            "anos_experiencia_min": S(type=T.NUMBER, nullable=True,
+                                description="SOLO si se exige antigüedad mínima del postor. NO la ventana estándar ('durante los 10 años anteriores') para computar la facturación."),
+                            "n_contratos_similares": S(type=T.INTEGER, nullable=True,
+                                description="SOLO si se exige un número mínimo de contratos. NO el tope 'máximo de 20 contrataciones'."),
                             "certificaciones_postor": S(type=T.ARRAY, items=S(type=T.STRING)),
                             "infraestructura_exigida": S(type=T.STRING, nullable=True),
                             "personal_clave": S(type=T.ARRAY, items=S(type=T.STRING)),
@@ -520,16 +894,37 @@ def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
                 required=["descripcion_corta"],
             ),
         ),
-        "postores": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+        "postores": S(type=T.ARRAY,
+            description=("TODOS los postores/participantes que el documento nombra (reporte de propuestas, acta, "
+                         "cuadro, Formato 11): con su RUC, el precio de su oferta (sección 'precio de la oferta' / "
+                         "orden de prelación), si ganó, puntaje total y estado. Un postor por fila, aunque no haya ganado."),
+            items=S(type=T.OBJECT, properties={
             "ruc": S(type=T.STRING, nullable=True), "razon_social": S(type=T.STRING),
-            "monto_oferta": S(type=T.NUMBER, nullable=True), "es_ganador": S(type=T.BOOLEAN, nullable=True),
+            "monto_oferta": S(type=T.NUMBER, nullable=True, description="Precio ofertado por ESTE postor (número, sin separadores)."),
+            "es_ganador": S(type=T.BOOLEAN, nullable=True),
+            "puntaje": S(type=T.NUMBER, nullable=True, description="Puntaje total (técnico + económico) si el cuadro/acta lo trae."),
+            "orden_prelacion": S(type=T.INTEGER, nullable=True),
+            "estado": S(type=T.STRING, nullable=True,
+                        description="admitido | no_admitido | descalificado | desierto | invitado | participante_sin_oferta — según el documento."),
+            "motivo_estado": S(type=T.STRING, nullable=True, description="Razón literal de la no admisión / descalificación, si la hay."),
             "item": S(type=T.STRING, nullable=True), "evidencia": _schema_evidencia()},
             required=["razon_social"])),
+        "invitados": S(type=T.ARRAY,
+            description=("SOLO si el documento trae una lista de proveedores INVITADOS (Comparación de Precios: "
+                         "'Formato de invitación', 'Anexo 1', informe de invitación): cada invitado con RUC y nombre."),
+            items=S(type=T.OBJECT, properties={
+                "ruc": S(type=T.STRING, nullable=True), "razon_social": S(type=T.STRING),
+                "fecha_invitacion": S(type=T.STRING, nullable=True),
+                "evidencia": _schema_evidencia()}, required=["razon_social"])),
+        "cuantia_reservada": S(type=T.BOOLEAN, nullable=True,
+            description="True si las bases dicen que el valor referencial / cuantía NO se publica (reservada, 'no se dará a conocer')."),
         "firmantes": S(type=T.ARRAY,
             description="Personas que FIRMAN el documento (actas, cuadros, contratos). Solo con DNI, entidad real o firma visible.",
             items=S(type=T.OBJECT, properties={
                 "nombre_completo": S(type=T.STRING), "dni": S(type=T.STRING, nullable=True),
-                "cargo": S(type=T.STRING, nullable=True), "rol_en_documento": S(type=T.STRING, nullable=True),
+                "cargo": S(type=T.STRING, nullable=True),
+                "rol_en_documento": S(type=T.STRING, nullable=True,
+                    description="area_usuaria (firma el requerimiento/EETT en las bases), comite, oec, contratista, entidad, elaboro, aprobo, otro."),
                 "entidad": S(type=T.STRING, nullable=True), "fecha_firma": S(type=T.STRING, nullable=True),
                 "evidencia": _schema_evidencia()}, required=["nombre_completo"])),
         "comite_evaluacion": S(type=T.ARRAY,
@@ -580,10 +975,104 @@ def _parser_schema(bloque: str | None = None) -> "gtypes.Schema":
                 "fecha_suscripcion": S(type=T.STRING, nullable=True),
                 "evidencia": _schema_evidencia(),
             }),
+        "procedimiento_seleccion": S(type=T.OBJECT, nullable=True,
+            description=("Reglas y resultado de la EVALUACIÓN: factores de evaluación con puntaje máximo (bases/integradas), "
+                         "puntajes por postor y factor (acta/cuadro), consultas y observaciones absueltas (pliego) y "
+                         "modificaciones introducidas al integrar las bases (bases integradas / pliego). Null si el documento no trae nada de esto."),
+            properties={
+                "factores_evaluacion": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "factor": S(type=T.STRING), "puntaje_max": S(type=T.NUMBER, nullable=True),
+                    "criterio": S(type=T.STRING, nullable=True, description="Cómo se asigna el puntaje, literal (≤ 300 chars)."),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["factor"])),
+                "puntajes_por_postor": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "ruc": S(type=T.STRING, nullable=True), "razon_social": S(type=T.STRING, nullable=True),
+                    "factor": S(type=T.STRING, description="Nombre del factor, o 'total' / 'tecnico' / 'economico'."),
+                    "puntaje": S(type=T.NUMBER, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)},
+                    required=["factor"])),
+                "consultas_observaciones": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "postor": S(type=T.STRING, nullable=True, description="Participante que consulta/observa."),
+                    "tema": S(type=T.STRING, nullable=True, description="Qué pide, literal resumido (≤ 300 chars)."),
+                    "absuelta": S(type=T.STRING, nullable=True, description="se_acoge | se_acoge_parcialmente | no_se_acoge | sin_dato"),
+                    "cambio_en_bases": S(type=T.STRING, nullable=True, description="Qué cambió en las bases a raíz de esta consulta, literal (≤ 300 chars); null si nada."),
+                    "pagina": S(type=T.INTEGER, nullable=True)})),
+                "modificaciones_integracion": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "texto_original": S(type=T.STRING, nullable=True), "texto_integrado": S(type=T.STRING, nullable=True),
+                    "a_pedido_de": S(type=T.STRING, nullable=True, description="Participante cuya consulta originó el cambio, si consta."),
+                    "pagina": S(type=T.INTEGER, nullable=True)})),
+                "evidencia": _schema_evidencia(),
+            }),
+        "ejecucion_contractual": S(type=T.OBJECT, nullable=True,
+            description=("SOLO en documentos de EJECUCIÓN del contrato (adendas, resoluciones sobre ampliación de plazo, "
+                         "penalidades, actas de entrega/conformidad, cartas): lo que pasó DESPUÉS de firmar. Null en bases/actas de buena pro/OC."),
+            properties={
+                "ampliaciones_plazo": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "dias_solicitados": S(type=T.INTEGER, nullable=True),
+                    "solicitada_por": S(type=T.STRING, nullable=True), "fecha_solicitud": S(type=T.STRING, nullable=True),
+                    "resolucion": S(type=T.STRING, nullable=True, description="Número/fecha del acto que resuelve."),
+                    "resultado": S(type=T.STRING, nullable=True, description="procedente | improcedente | parcial | sin_dato"),
+                    "motivo": S(type=T.STRING, nullable=True, description="Fundamento literal (≤ 300 chars)."),
+                    "pagina": S(type=T.INTEGER, nullable=True)})),
+                "penalidades_aplicadas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "tipo": S(type=T.STRING, description="mora | otra"), "monto": S(type=T.NUMBER, nullable=True),
+                    "motivo": S(type=T.STRING, nullable=True), "documento": S(type=T.STRING, nullable=True),
+                    "pagina": S(type=T.INTEGER, nullable=True)}, required=["tipo"])),
+                "adendas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "tipo": S(type=T.STRING, nullable=True, description="ampliacion_plazo | adicional | reduccion | cambio_condiciones | otra"),
+                    "objeto": S(type=T.STRING, nullable=True), "monto": S(type=T.NUMBER, nullable=True),
+                    "fecha": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)})),
+                "entregas": S(type=T.ARRAY, items=S(type=T.OBJECT, properties={
+                    "n": S(type=T.INTEGER, nullable=True), "fecha_prevista": S(type=T.STRING, nullable=True),
+                    "fecha_real": S(type=T.STRING, nullable=True), "cantidad": S(type=T.NUMBER, nullable=True),
+                    "observacion": S(type=T.STRING, nullable=True), "pagina": S(type=T.INTEGER, nullable=True)})),
+                "resolucion_contrato": S(type=T.STRING, nullable=True, description="Si el contrato se resolvió: causal y fecha, literal."),
+                "evidencia": _schema_evidencia(),
+            }),
         "resumen": S(type=T.STRING, nullable=True, description="3-4 líneas describiendo el documento REAL."),
     }
     if bloque:
         props[bloque] = _schema_bloque(bloque)
+    if secciones is not None:
+        for k in _SECCIONES_OPCIONALES:
+            if k not in secciones:
+                props.pop(k, None)
+    # Presupuesto de tamaño (medido 2026-09-15: Gemini 3.6 acepta ≈ 20 k chars de schema y rechaza
+    # ≈ 23 k con 400 INVALID_ARGUMENT). Se descartan bloques opcionales del menos al más valioso.
+    import json as _json
+    orden_descarte = ["estudio_mercado", "contrato_final", "ejecucion_contractual", "procedimiento_seleccion"]
+    if bloque:
+        orden_descarte.append(bloque)
+    descartados: list[str] = []
+    while len(_json.dumps(S(type=T.OBJECT, properties=props).model_dump(exclude_none=True))) > PARSER_SCHEMA_MAX_CHARS and orden_descarte:
+        k = orden_descarte.pop(0)
+        if k in props:
+            props.pop(k)
+            descartados.append(k)
+    if descartados:
+        print(f"[lote] schema recortado por tamaño: sin {descartados} (se piden en una 2.ª llamada)", flush=True)
+    _ULTIMOS_DESCARTES[:] = descartados
+    return S(type=T.OBJECT, properties=props)
+
+
+# Bloques que no cupieron en la última construcción del schema (los recupera _llamar_extractor
+# con una segunda llamada solo con ellos).
+_ULTIMOS_DESCARTES: list[str] = []
+
+
+def _schema_solo(bloques: list[str], bloque_perfil: str | None) -> "gtypes.Schema":
+    """Schema mínimo con solo `bloques` (para la 2.ª pasada)."""
+    from google.genai import types as gtypes
+    S, T = gtypes.Schema, gtypes.Type
+    full = _parser_schema(bloque_perfil, set(_SECCIONES_OPCIONALES) | {bloque_perfil} if bloque_perfil else set(_SECCIONES_OPCIONALES))
+    # `full` puede haber recortado; reconstruimos cada bloque pedido desde las funciones fuente.
+    props = {}
+    for k in bloques:
+        if k == bloque_perfil:
+            props[k] = _schema_bloque(k)
+        elif k in full.properties:
+            props[k] = full.properties[k]
+        else:
+            props[k] = _parser_schema(None, {k}).properties.get(k)
+    props = {k: v for k, v in props.items() if v is not None}
     return S(type=T.OBJECT, properties=props)
 
 
@@ -604,44 +1093,168 @@ def _paginar_texto(texto: str, max_chars: int = 4500) -> list[str]:
     return [t[i:i + max_chars] for i in range(0, len(t), max_chars)]
 
 
+_W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+def _docx_rels_media(z: "zipfile.ZipFile") -> dict[str, str]:
+    """rId → nombre de entrada del ZIP (word/media/imageN.ext) según document.xml.rels."""
+    import xml.etree.ElementTree as ET
+    rels: dict[str, str] = {}
+    try:
+        root = ET.fromstring(z.read("word/_rels/document.xml.rels"))
+    except Exception:
+        return rels
+    for rel in root:
+        rid, tgt = rel.get("Id"), (rel.get("Target") or "")
+        if not rid or not tgt or str(rel.get("TargetMode") or "").lower() == "external":
+            continue
+        tgt = tgt.lstrip("/")
+        if not tgt.startswith("word/"):
+            tgt = "word/" + tgt
+        rels[rid] = tgt
+    return rels
+
+
+def _docx_media_en_orden(z: "zipfile.ZipFile") -> tuple[list[str], dict[str, str]]:
+    """Imágenes de word/media en ORDEN DE APARICIÓN en el cuerpo (r:embed / r:link de
+    word/document.xml) y luego las no referenciadas (namelist). Devuelve (nombres, rId→nombre).
+    Antes se usaba `namelist()`: el requerimiento escaneado (image4…image12) quedaba
+    intercalado (p.27 = image6, p.30 = image1, …) y el LLM leía las EETT desordenadas."""
+    rels = _docx_rels_media(z)
+    disponibles = {n for n in z.namelist() if n.startswith("word/media/") and n.lower().endswith(_IMG_EXTS)}
+    orden: list[str] = []
+    try:
+        xml = z.read("word/document.xml").decode("utf-8", errors="replace")
+        for m in re.finditer(r'r:(?:embed|link)="([^"]+)"', xml):
+            name = rels.get(m.group(1))
+            if name and name in disponibles and name not in orden:
+                orden.append(name)
+    except Exception:
+        pass
+
+    def _nat(n: str):
+        m = re.search(r"(\d+)", n.rsplit("/", 1)[-1])
+        return (int(m.group(1)) if m else 10 ** 9, n)
+    for n in sorted(disponibles - set(orden), key=_nat):
+        orden.append(n)
+    return orden, rels
+
+
+def _docx_bloques(d, rels: dict[str, str]) -> list[dict]:
+    """Cuerpo del DOCX en orden real: [{texto, salto_antes, imagenes:[nombre…]}] por párrafo
+    o tabla. `salto_antes` = hubo w:br type=page / w:lastRenderedPageBreak / sectPr antes del
+    bloque → permite paginar como Word y no en trozos ficticios de 4500 chars."""
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+    W = "{%s}" % _W_NS
+    R = "{%s}" % _R_NS
+    bloques: list[dict] = []
+    pendiente_salto = False
+    body = d.element.body
+    for child in body.iterchildren():
+        tag = child.tag
+        if tag == W + "p":
+            texto = (Paragraph(child, d).text or "").strip()
+            # saltos de página dentro del párrafo
+            saltos = [br for br in child.iter(W + "br") if br.get(W + "type") == "page"]
+            saltos += list(child.iter(W + "lastRenderedPageBreak"))
+            imgs = []
+            for blip in child.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}blip"):
+                rid = blip.get(R + "embed") or blip.get(R + "link")
+                name = rels.get(rid or "")
+                if name:
+                    imgs.append(name)
+            for imd in child.iter("{urn:schemas-microsoft-com:vml}imagedata"):
+                rid = imd.get(R + "id")
+                name = rels.get(rid or "")
+                if name and name not in imgs:
+                    imgs.append(name)
+            if texto or imgs:
+                bloques.append({"texto": texto, "salto_antes": pendiente_salto or bool(saltos), "imagenes": imgs})
+                pendiente_salto = False
+            elif saltos:
+                pendiente_salto = True
+            if child.find(".//" + W + "sectPr") is not None:
+                pendiente_salto = True
+        elif tag == W + "tbl":
+            filas = []
+            try:
+                for row in Table(child, d).rows:
+                    cells = [(c.text or "").strip().replace("\n", " ") for c in row.cells]
+                    line = " | ".join(c for c in cells if c)
+                    if line.strip(" |"):
+                        filas.append(line)
+            except Exception:
+                pass
+            if filas:
+                bloques.append({"texto": "\n".join(filas), "salto_antes": pendiente_salto, "imagenes": []})
+                pendiente_salto = False
+        elif tag == W + "sectPr":
+            pendiente_salto = True
+    return bloques
+
+
 def _docx_a_unidades(blob: bytes, nombre: str) -> list[dict]:
-    """DOCX → páginas de texto (párrafos + tablas, python-docx) + una unidad 'imagenes'
-    (PDF sintético con las imágenes embebidas) para OCR. Sin pasar el texto por Document AI."""
+    """DOCX → páginas de texto (cuerpo en orden: párrafos y tablas intercalados, cortado por
+    los saltos de página reales del documento; si no hay, trozos ⟦bloque⟧ de 4500 chars) +
+    una unidad 'imagenes' (PDF sintético) con las imágenes embebidas EN ORDEN DE APARICIÓN
+    en el cuerpo (r:embed), para OCR. Cada imagen deja un marcador
+    `[imagen N: word/media/imageK.jpg]` en el texto donde estaba."""
     out: list[dict] = []
-    text_chunks: list[str] = []
+    orden_imgs: list[str] = []
+    rels: dict[str, str] = {}
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            orden_imgs, rels = _docx_media_en_orden(z)
+    except Exception:
+        pass
+    idx_img = {n: i + 1 for i, n in enumerate(orden_imgs)}
+    paginas_txt: list[str] = []
     try:
         from docx import Document
         d = Document(io.BytesIO(blob))
-        for para in d.paragraphs:
-            t = (para.text or "").strip()
-            if t:
-                text_chunks.append(t)
-        for tbl in d.tables:
-            for row in tbl.rows:
-                cells = [(c.text or "").strip() for c in row.cells]
-                line = " | ".join(c for c in cells if c)
-                if line.strip(" |"):
-                    text_chunks.append(line)
+        bloques = _docx_bloques(d, rels)
+        hay_saltos = any(b["salto_antes"] for b in bloques)
+        cur: list[str] = []
+        for b in bloques:
+            if b["salto_antes"] and cur:
+                paginas_txt.append("\n".join(cur))
+                cur = []
+            if b["texto"]:
+                cur.append(b["texto"])
+            for n in b["imagenes"]:
+                cur.append(f"[imagen {idx_img.get(n, '?')}: {n} — ver páginas OCR de 'imágenes embebidas']")
+        if cur:
+            paginas_txt.append("\n".join(cur))
+        if not hay_saltos:
+            paginas_txt = _paginar_texto("\n".join(paginas_txt))
+        else:
+            # páginas reales pero muy largas (tablas enormes) → sub-cortar para no exceder el tope
+            rec: list[str] = []
+            for pg in paginas_txt:
+                rec.extend(_paginar_texto(pg, 12000) or [""])
+            paginas_txt = [x for x in rec if x.strip()]
     except Exception as e:
         print(f"[lote] python-docx falló en {nombre[:60]}: {str(e)[:100]}", flush=True)
-    pags = _paginar_texto("\n".join(text_chunks))
-    if pags:
-        out.append(_unidad(nombre, "paginas", paginas=[{"texto": p} for p in pags]))
+    if paginas_txt:
+        out.append(_unidad(nombre, "paginas", paginas=[{"texto": p} for p in paginas_txt]))
     images: list[tuple[str, bytes]] = []
     try:
         with zipfile.ZipFile(io.BytesIO(blob)) as z:
-            for name in z.namelist():
-                if name.startswith("word/media/") and name.lower().endswith(_IMG_EXTS):
-                    try:
-                        images.append((name, z.read(name)))
-                    except Exception:
-                        continue
+            for name in orden_imgs:
+                try:
+                    images.append((name, z.read(name)))
+                except Exception:
+                    continue
     except Exception:
         pass
     if images:
         synth = _images_to_synthetic_pdf(images)
         if synth:
-            out.append(_unidad(f"{nombre} (imágenes embebidas)", "imagenes", data=synth))
+            u = _unidad(f"{nombre} (imágenes embebidas)", "imagenes", data=synth)
+            u["orden_imagenes"] = [n for n, _ in images]
+            out.append(u)
     return out
 
 
@@ -748,13 +1361,15 @@ def _leer_rar(blob: bytes) -> list[tuple[str, bytes]]:
 
 
 def _expandir_contenedor(blob: bytes, nombre: str, prioridad: tuple[str, ...] | None = None,
-                         depth: int = 0) -> tuple[list[dict], list[dict]]:
+                         depth: int = 0, vistos: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
     """Blob de cualquier formato → (unidades de texto, recortes). SIN topes de cantidad: un ZIP
     con 9 PDFs produce 9 unidades ordenadas por la prioridad del perfil (título del archivo),
     no por `namelist()`. Lo que no se puede abrir (7z, .doc sin antiword, PDF cifrado, RAR
     sin backend) queda como recorte `formato_no_soportado` / `*_ilegible` — nunca en silencio."""
     recortes: list[dict] = []
     unidades: list[dict] = []
+    if vistos is None:
+        vistos = {}
     if not blob:
         return [], [{"donde": f"contenedor:{nombre[:80]}", "limite": "vacio", "omitido": nombre}]
     if depth > 3:
@@ -774,7 +1389,17 @@ def _expandir_contenedor(blob: bytes, nombre: str, prioridad: tuple[str, ...] | 
             if base.lower().endswith(_IMG_EXTS):
                 imgs.append((name, data))
                 continue
-            u, r = _expandir_contenedor(data, f"{prefix}{name}", prioridad, depth + 1)
+            # Mismo archivo publicado varias veces dentro del paquete (acta repetida como
+            # "cuadro de evaluación"): se procesa UNA vez y el duplicado queda registrado
+            # como recorte `duplicado_sha256` (señal formal: cuadro de evaluación ausente).
+            if data:
+                sha = _sha256_hex(data)
+                if sha in vistos:
+                    recortes.append({"donde": f"contenedor:{prefix[:80]}", "limite": "duplicado_sha256",
+                                     "omitido": f"{name} (= copia byte a byte de {vistos[sha]})"})
+                    continue
+                vistos[sha] = f"{prefix}{name}"
+            u, r = _expandir_contenedor(data, f"{prefix}{name}", prioridad, depth + 1, vistos)
             unidades.extend(u)
             recortes.extend(r)
         if imgs:
@@ -932,7 +1557,23 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
 
     def _ocr_unidad(u: dict, offset: int) -> tuple[list[dict], list[dict], bool, str | None]:
         """OCR de UNA unidad PDF con numeración global desde `offset` →
-        (paginas, recortes, truncado, motor). Nunca levanta."""
+        (paginas, recortes, truncado, motor). Nunca levanta. El mismo PDF (sha256) dentro
+        del proceso (acta repetida en dos ZIPs distintos del mismo lote) se OCR-ea UNA vez."""
+        nombre = u["nombre"]
+        pdf = u["data"]
+        sha_u = _sha256_hex(pdf) if pdf else None
+        cached = _unit_cache_get(sha_u) if sha_u else None
+        if cached is not None:
+            pags = [{**p, "n": offset + i + 1, "archivo": nombre} for i, p in enumerate(cached["paginas"])]
+            print(f"[lote] unidad {nombre[:50]} · sha {sha_u[:8]} ya OCR-eada en este proceso → reutilizo {len(pags)} págs", flush=True)
+            return pags, [dict(r) for r in cached["recortes"]], cached["truncado"], cached["motor"]
+        pags, rec, trunc, motor = _ocr_unidad_real(u, offset)
+        if sha_u and pags and not trunc:
+            _unit_cache_put(sha_u, {"paginas": [{k: v for k, v in p.items() if k not in ("n", "archivo")} for p in pags],
+                                    "recortes": rec, "truncado": trunc, "motor": motor})
+        return pags, rec, trunc, motor
+
+    def _ocr_unidad_real(u: dict, offset: int) -> tuple[list[dict], list[dict], bool, str | None]:
         nombre = u["nombre"]
         pdf = u["data"]
         res = None
@@ -1032,6 +1673,29 @@ def _texto_de_unidades(unidades: list[dict]) -> dict:
             "motor": motor, "truncado": truncado or any(p.get("error") for p in paginas), "recortes": recortes}
 
 
+_UNIT_CACHE: "_OrderedDict[str, dict]" = _OrderedDict()
+_UNIT_CACHE_LOCK = threading.Lock()
+_UNIT_CACHE_MAX = max(0, int(os.getenv("PARSE_UNIT_CACHE_MAX", "64") or 64))
+
+
+def _unit_cache_get(sha: str) -> dict | None:
+    with _UNIT_CACHE_LOCK:
+        r = _UNIT_CACHE.get(sha)
+        if r is not None:
+            _UNIT_CACHE.move_to_end(sha)
+        return r
+
+
+def _unit_cache_put(sha: str, res: dict) -> None:
+    if _UNIT_CACHE_MAX <= 0:
+        return
+    with _UNIT_CACHE_LOCK:
+        _UNIT_CACHE[sha] = res
+        _UNIT_CACHE.move_to_end(sha)
+        while len(_UNIT_CACHE) > _UNIT_CACHE_MAX:
+            _UNIT_CACHE.popitem(last=False)
+
+
 def _n_paginas_pdf(pdf_bytes: bytes) -> int | None:
     """Páginas de un PDF (PyMuPDF); None si no se puede abrir."""
     try:
@@ -1044,11 +1708,40 @@ def _n_paginas_pdf(pdf_bytes: bytes) -> int | None:
         return None
 
 
-# ── Caché en BD: documentos_texto ──────────────────────────────────────────────────────
+# ── Caché en BD: documentos_texto (+ memoria del proceso: si la BD no está, el mismo PDF
+#    publicado 2-3 veces en el lote igual se OCR-ea una sola vez) ─────────────────────────
+_TX_MEM: "_OrderedDict[str, dict]" = _OrderedDict()
+_TX_MEM_LOCK = threading.Lock()
+_TX_MEM_MAX = max(0, int(os.getenv("PARSE_TEXTO_MEM_MAX", "64") or 64))
+
+
+def _tx_mem_get(sha256: str) -> dict | None:
+    with _TX_MEM_LOCK:
+        tx = _TX_MEM.get(sha256)
+        if tx is not None:
+            _TX_MEM.move_to_end(sha256)
+            return json.loads(json.dumps(tx, ensure_ascii=False, default=str))
+    return None
+
+
+def _tx_mem_put(sha256: str, tx: dict) -> None:
+    if _TX_MEM_MAX <= 0 or not sha256:
+        return
+    with _TX_MEM_LOCK:
+        _TX_MEM[sha256] = {k: v for k, v in tx.items() if k != "extraccion"} | {"extraccion": dict(tx.get("extraccion") or {})}
+        _TX_MEM.move_to_end(sha256)
+        while len(_TX_MEM) > _TX_MEM_MAX:
+            _TX_MEM.popitem(last=False)
+
+
 def _texto_cache_get(sha256: str) -> dict | None:
-    """Fila de documentos_texto con la versión actual del extractor de texto, o None."""
+    """Fila de documentos_texto con la versión actual del extractor de texto, o None
+    (antes, la copia en memoria del proceso)."""
     if not sha256:
         return None
+    mem = _tx_mem_get(sha256)
+    if mem is not None:
+        return mem
     try:
         conn = _pg()
     except Exception:
@@ -1086,6 +1779,7 @@ def _texto_cache_get(sha256: str) -> dict | None:
 def _texto_cache_put(sha256: str, ocid: str | None, url_gcs: str | None, formato: str | None, tx: dict) -> bool:
     if not sha256:
         return False
+    _tx_mem_put(sha256, tx)
     try:
         conn = _pg()
     except Exception:
@@ -1120,6 +1814,9 @@ def _texto_cache_put(sha256: str, ocid: str | None, url_gcs: str | None, formato
 def _extraccion_cache_put(sha256: str, clave: str, extraccion: dict) -> bool:
     if not sha256:
         return False
+    with _TX_MEM_LOCK:
+        if sha256 in _TX_MEM:
+            _TX_MEM[sha256].setdefault("extraccion", {})[clave] = json.loads(json.dumps(extraccion, ensure_ascii=False, default=str))
     try:
         conn = _pg()
     except Exception:
@@ -1169,10 +1866,37 @@ _SYSTEM_LOTE = (
     "requerimiento técnico de ese ítem, hasta 4000 chars, con `texto_literal_paginas` = páginas que abarca. "
     "El resumen legible lo hace otro agente: vos no resumís.\n"
     "  · Copiá marcas, normas, cifras y nombres LITERALES del texto — no traduzcas, no normalices, no completes.\n"
-    "  · BASES / TDR / EETT / RESUMEN EJECUTIVO son PRE-adjudicación: NO tienen firmantes del comité, "
-    "motivos de adjudicación ni acta. En esos documentos dejá `firmantes=[]`, `comite_evaluacion=[]`, "
-    "`motivos_adjudicacion=[]`, `lugar_fecha_acta=null`. Solo ACTAS / CUADROS DE EVALUACIÓN / CONTRATOS "
-    "los tienen.\n"
+    "  · PÁGINA = el número N del marcador ⟦p.N⟧ bajo el que está el texto que citás (índice real del archivo). "
+    "NUNCA uses el número impreso al pie de la hoja (folio 'Página 22 de 69'): si lo ves, ponelo en `folio`.\n"
+    "  · ETAPA DEL DOCUMENTO — precios y marcas van en el campo de SU etapa:\n"
+    "      – BASES / INTEGRADAS / TDR / EETT / EXPEDIENTE / RESUMEN EJECUTIVO (requerimiento): "
+    "`precio_unitario_referencial`, `cuantia_referencial_item`, `marca_o_modelo_exigido`. La marca exigida SOLO "
+    "si el requerimiento dice literalmente 'marca', 'modelo', 'o equivalente' u 'o similar' junto a un nombre "
+    "comercial; códigos de parte o accesorios con nombre propio NO son una marca exigida (van en texto_literal). "
+    "`marca_ofertada`, `precio_unitario_ofertado` y `precio_unitario_contratado` quedan null.\n"
+    "      – PROPUESTA / ACTA / CUADRO DE EVALUACIÓN: `precio_unitario_ofertado` y `marca_ofertada`; "
+    "`precio_unitario_referencial` y `marca_o_modelo_exigido` null (aunque el acta repita el valor referencial: "
+    "ese va en `cuantia_referencial_item`).\n"
+    "      – CONTRATO / ORDEN DE COMPRA O SERVICIO / ADENDA: `precio_unitario_contratado`, `subtotal_contratado` y "
+    "`marca_ofertada`; `precio_unitario_referencial` y `marca_o_modelo_exigido` null. La OC repite las EETT: eso "
+    "NO la convierte en requerimiento (`contiene_requerimiento=false`).\n"
+    "  · POSTORES: en reportes de propuestas, actas, cuadros y Formato 11 listá a TODOS los postores (ganador y "
+    "perdedores) con su RUC, `monto_oferta` (sección 'precio de la oferta' / 'orden de prelación'), `puntaje`, "
+    "`orden_prelacion` y `estado` (admitido / no_admitido / descalificado / desierto / participante_sin_oferta). "
+    "Los proveedores INVITADOS (Comparación de Precios: formato de invitación / anexo) van en `invitados`, no en "
+    "`postores`, salvo que además hayan ofertado.\n"
+    "  · BASES / TDR / EETT / RESUMEN EJECUTIVO son PRE-adjudicación: NO tienen comité, motivos de adjudicación ni "
+    "acta. En esos documentos dejá `comite_evaluacion=[]`, `motivos_adjudicacion=[]`, `lugar_fecha_acta=null`. "
+    "Sí podés listar en `firmantes` a quienes FIRMAN el requerimiento/EETT (residente, inspector, área usuaria, "
+    "jefe que aprueba) con `rol_en_documento='area_usuaria'` si su nombre y cargo son visibles (sellos/firmas). "
+    "Comité, OEC, motivos y acta solo en ACTAS / CUADROS DE EVALUACIÓN / CONTRATOS.\n"
+    "  · EVALUACIÓN Y CONSULTAS (`procedimiento_seleccion`): en bases/integradas volcá los factores de evaluación "
+    "con su puntaje máximo; en actas/cuadros los puntajes por postor y factor; en el pliego de absolución cada "
+    "consulta/observación (quién la hizo, tema, si se acogió y qué cambió en las bases); en bases integradas las "
+    "modificaciones respecto de las bases originales y a pedido de quién.\n"
+    "  · EJECUCIÓN (`ejecucion_contractual`): en adendas, resoluciones y cartas posteriores al contrato volcá "
+    "ampliaciones de plazo (días pedidos, quién, resultado procedente/improcedente, acto que resuelve), penalidades "
+    "aplicadas, adendas y entregas (prevista/real). Null en bases, actas de buena pro y OC originales.\n"
     "  · FIRMANTE válido solo si hay (a) DNI visible, o (b) entidad REAL con nombre concreto, o (c) firma "
     "legible al pie con nombre. Plantillas/proformas ('POSTOR 1', 'EL CONTRATISTA', 'Juan Pérez') → no van.\n"
     "  · El OBJETO del contrato viene del OCDS y debe coincidir con lo que extraés. Si tu extracción "
@@ -1217,14 +1941,20 @@ def _prompt_lote(label: str, bloque: str | None, ocds_ctx: dict, rango: tuple[in
         "TDR / EETT / expediente técnico con detalle.\n"
         "PASO 2 — `items[]`: un objeto por ítem del proceso (cada fila de una tabla de ítems es un ítem; si el OCDS "
         "tiene 1 ítem que agrupa varios productos, sub-numerá 1.1, 1.2 con `padre_ocds_item`='1' y conservá el padre). "
-        "Para cada ítem: campos discretos (cantidad, unidad, precios, marca, normas, valores técnicos, garantía, entrega, "
-        "requisitos del postor, penalidades, subitems) + `texto_literal` (extracto literal ≤ 4000 chars) + "
-        "`texto_literal_paginas` + `evidencia`.\n"
-        "PASO 3 — `postores`, `firmantes`, `comite_evaluacion`, `motivos_adjudicacion`, `lugar_fecha_acta` SOLO si el "
-        "documento es acta/cuadro/contrato (con evidencia y página).\n"
-        "PASO 4 — `fundamento_legal`: normas citadas literalmente por el documento.\n"
+        "Para cada ítem: campos discretos (cantidad, unidad, precio SEGÚN LA ETAPA del documento —referencial en bases, "
+        "ofertado en propuesta/acta, contratado en contrato/OC—, marca exigida SOLO en bases y SOLO si el texto dice "
+        "'marca'/'modelo'/'o equivalente', marca ofertada en OC/contrato/propuesta, normas, valores técnicos, garantía, "
+        "entrega con tipo de días, requisitos del postor, penalidades, subitems) + `texto_literal` (extracto literal "
+        "≤ 4000 chars) + `texto_literal_paginas` + `evidencia`.\n"
+        "PASO 3 — `postores` (TODOS, con monto/puntaje/orden/estado) e `invitados` si el documento los lista; "
+        "`comite_evaluacion`, `motivos_adjudicacion`, `lugar_fecha_acta` SOLO si es acta/cuadro/contrato; `firmantes` "
+        "en actas/cuadros/contratos y, en bases, quienes firman el requerimiento (rol area_usuaria). Todo con evidencia y página.\n"
+        "PASO 4 — `fundamento_legal`: normas citadas literalmente por el documento. `cuantia_reservada` si las bases dicen "
+        "que el valor referencial no se publica.\n"
         "PASO 5 — `estudio_mercado` SOLO si es Resumen Ejecutivo / informe de sustento; `contrato_final` SOLO si es "
-        "contrato / orden de compra o servicio firmado. En cualquier otro documento ambos van null.\n"
+        "contrato / orden de compra o servicio firmado; `procedimiento_seleccion` si hay factores de evaluación, puntajes, "
+        "consultas absueltas o modificaciones de la integración; `ejecucion_contractual` SOLO en documentos posteriores al "
+        "contrato (adendas, resoluciones de ampliación, penalidades, entregas). En cualquier otro caso van null.\n"
         + (f"PASO 6 — {bloque_txt}" if bloque_txt else "")
         + "PASO FINAL — `cuantia_total`, `fuente_financiamiento`, `modalidad` y `resumen` (3-4 líneas del documento REAL).\n"
         "Devolvé SOLO JSON. Sin markdown, sin fences, sin texto antes ni después."
@@ -1245,7 +1975,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
     client = _gemini_client()
     cfg_kwargs = dict(
         response_mime_type="application/json",
-        response_schema=_parser_schema(bloque),
+        response_schema=_parser_schema(bloque, secciones_para_documento(label, tipo_hint)),
         max_output_tokens=65535,
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
         system_instruction=_SYSTEM_LOTE,
@@ -1261,6 +1991,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         gtypes.Part.from_text(text="═══ TEXTO OCR DEL DOCUMENTO (marcadores ⟦p.N⟧ por página) ═══\n" + texto),
         gtypes.Part.from_text(text=_prompt_lote(label, bloque, ocds_ctx, rango, tipo_hint)),
     ]
+    descartados = list(_ULTIMOS_DESCARTES)
     model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
     t0 = time.monotonic()
     with _throttle_gemini():
@@ -1277,6 +2008,34 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         truncado = True  # solo se pudo recuperar cerrando llaves → hubo corte
     if not isinstance(data, dict):
         data = {}
+    # 2.ª pasada: los bloques que no cupieron en el schema (límite de Gemini) se piden aparte
+    # sobre el mismo texto y se fusionan. Cuesta una llamada extra solo en documentos de
+    # contrato/acta con perfil no-bienes.
+    if descartados:
+        try:
+            cfg2 = dict(cfg_kwargs)
+            cfg2["response_schema"] = _schema_solo(descartados, bloque)
+            cfg2["max_output_tokens"] = 16384
+            parts2 = [parts[0], gtypes.Part.from_text(text=(
+                f"Del TEXTO OCR anterior extraé SOLO los bloques {descartados} (documento: {label}; "
+                f"tipo declarado: {tipo_hint or 'desconocido'}). Si el documento no contiene ese bloque, devolvé null. "
+                "Cada dato con `evidencia` (página y cita literal). Devolvé SOLO JSON."))]
+            with _throttle_gemini():
+                resp2 = _gemini_call_with_retry(lambda: client.models.generate_content(
+                    model=model, contents=parts2, config=gtypes.GenerateContentConfig(**cfg2)))
+            d2 = _safe_parse_json((resp2.text or "").strip()) or {}
+            if isinstance(d2, dict):
+                for k in descartados:
+                    if d2.get(k) is not None and data.get(k) in (None, {}, []):
+                        data[k] = d2[k]
+            um2 = getattr(resp2, "usage_metadata", None)
+            if um2:
+                dt += 0.0
+                data.setdefault("_uso_segunda_pasada", {"tokens_prompt": int(getattr(um2, "prompt_token_count", 0) or 0),
+                                                       "tokens_output": int(getattr(um2, "candidates_token_count", 0) or 0),
+                                                       "bloques": descartados})
+        except Exception as e:  # noqa: BLE001 — la 2.ª pasada nunca tumba la extracción principal
+            print(f"[lote] 2.ª pasada ({descartados}) falló: {str(e)[:120]}", flush=True)
     um = getattr(resp, "usage_metadata", None)
     uso = {"modelo": model, "segundos": round(dt, 1), "finish_reason": fr,
            "tokens_prompt": int(getattr(um, "prompt_token_count", 0) or 0) if um else 0,
@@ -1423,9 +2182,60 @@ def _cita_en_pagina(cita: str, texto_pagina: str) -> bool:
     return len(c2) > 60 and c2[:60] in t2
 
 
+_FOLIO_RX = (
+    re.compile(r"p[aá]g(?:ina)?\.?\s*(?:n[°º]?\s*)?(\d{1,3})\s*(?:de|/)\s*\d{1,3}", re.I),
+    re.compile(r"^\s*(?:p[aá]g(?:ina)?\.?\s*)?(\d{1,3})\s*(?:de|/)\s*\d{1,3}\s*$", re.I | re.M),
+    re.compile(r"^\s*(?:-\s*)?(\d{1,3})\s*(?:-\s*)?$", re.M),
+)
+
+
+def _detectar_folio(texto: str) -> int | None:
+    """Número IMPRESO de página (folio) si el pie/cabecera lo trae: 'Página 22 de 69',
+    '22 / 69' o un número suelto en las 3 últimas / 2 primeras líneas. None si no se ve.
+    Es informativo: la página citada es SIEMPRE el índice real ⟦p.N⟧."""
+    t = (texto or "").strip()
+    if not t:
+        return None
+    lineas = [l for l in t.splitlines() if l.strip()]
+    borde = "\n".join(lineas[-3:] + lineas[:2])
+    pie = "\n".join(lineas[-2:])
+    for i, rx in enumerate(_FOLIO_RX):
+        m = rx.search(borde if i < 2 else pie)   # el número suelto solo cuenta en el pie
+        if m:
+            try:
+                n = int(m.group(1))
+                if 0 < n < 1000:
+                    return n
+            except Exception:
+                continue
+    return None
+
+
+def _tokens_cita(cita: str) -> list[str]:
+    c = re.sub(r"[^A-Z0-9 ]", " ", _norm_txt(cita or ""))
+    return [t for t in c.split() if len(t) >= 3 or t.isdigit()]
+
+
+def _cita_tokens_en_pagina(cita: str, texto_pagina: str) -> bool:
+    """Bolsa de tokens: ≥ 85 % de los tokens de la cita (mín. 4) están en la página. Cubre
+    filas de tabla que el OCR reordena o parte en dos líneas (Formato 11, tablas de la OC)."""
+    toks = _tokens_cita(cita)
+    if len(toks) < 4:
+        return False
+    t = " " + re.sub(r"[^A-Z0-9 ]", " ", _norm_txt(texto_pagina or "")) + " "
+    t = " ".join(t.split())
+    t = f" {t} "
+    hits = sum(1 for k in toks if f" {k} " in t)
+    return hits / len(toks) >= 0.85
+
+
 def _verificar_evidencia(obj: dict, paginas_by_n: dict[int, dict], sha256: str | None, stats: dict) -> None:
     """Marca cada evidencia como verificada/no verificada contra el texto de la página y
-    estampa `documento_sha256`. No borra nada: V (verify.py) decide qué persistir."""
+    estampa `documento_sha256`. No borra nada: V (verify.py) decide qué persistir.
+    Orden: página declarada → ±1 → TODAS las páginas (el LLM a veces cita el folio impreso
+    en vez del índice ⟦p.N⟧: se corrige `pagina` y se conserva `pagina_declarada`) → bolsa de
+    tokens en la página declarada ±1 (`verificacion='tokens'`). `folio` = número impreso
+    detectado en la página final, si lo hay."""
     if not isinstance(obj, dict):
         return
     obj["documento_sha256"] = sha256
@@ -1443,27 +2253,92 @@ def _verificar_evidencia(obj: dict, paginas_by_n: dict[int, dict], sha256: str |
             pagina = int(pagina) if pagina is not None else None
         except Exception:
             pagina = None
+        declarada = pagina
         ok = False
+        metodo = None
         if pagina is not None and pagina in paginas_by_n:
             ok = _cita_en_pagina(cita, paginas_by_n[pagina].get("texto") or "")
+            if ok:
+                metodo = "literal"
             if not ok:  # tolerancia ±1 página (tablas que cruzan de página)
                 for q in (pagina - 1, pagina + 1):
                     if q in paginas_by_n and _cita_en_pagina(cita, paginas_by_n[q].get("texto") or ""):
-                        ok = True
-                        pagina = q
+                        ok, pagina, metodo = True, q, "literal"
                         break
+        if not ok and len(_tokens_cita(cita)) >= 3:
+            # folio impreso ≠ índice real: buscar la cita literal en todo el documento
+            for q, pg in sorted(paginas_by_n.items()):
+                if q == declarada:
+                    continue
+                if _cita_en_pagina(cita, pg.get("texto") or ""):
+                    ok, pagina, metodo = True, q, "literal"
+                    break
+        if not ok and declarada is not None:
+            for q in (declarada, declarada - 1, declarada + 1):
+                if q in paginas_by_n and _cita_tokens_en_pagina(cita, paginas_by_n[q].get("texto") or ""):
+                    ok, pagina, metodo = True, q, "tokens"
+                    break
         stats["total"] = stats.get("total", 0) + 1
         stats["verificadas"] = stats.get("verificadas", 0) + (1 if ok else 0)
-        out.append({"pagina": pagina, "cita": cita, "verificada": ok, "documento_sha256": sha256})
+        e = {"pagina": pagina, "cita": cita, "verificada": ok, "documento_sha256": sha256}
+        if metodo:
+            e["verificacion"] = metodo
+        if ok and declarada is not None and declarada != pagina:
+            e["pagina_declarada"] = declarada
+            stats["paginas_corregidas"] = stats.get("paginas_corregidas", 0) + 1
+        folio = None
+        if pagina is not None and pagina in paginas_by_n:
+            folio = _detectar_folio(paginas_by_n[pagina].get("texto") or "")
+        if folio is None:
+            try:
+                folio = int(ev["folio"]) if ev.get("folio") is not None else None
+            except Exception:
+                folio = None
+        if folio is not None:
+            e["folio"] = folio
+        out.append(e)
     obj["evidencia"] = out
 
 
-def _post_procesar(data: dict, tx: dict, sha256: str | None) -> dict:
+_KW_MARCA = ("MARCA", "MODELO", "EQUIVALENTE", "SIMILAR")
+
+
+def _marca_respaldada(marca: str, paginas: list[dict]) -> tuple[bool, int | None]:
+    """¿El texto del documento contiene la marca Y, en esa misma página, la palabra
+    'marca'/'modelo'/'equivalente'/'similar'? Si no, la marca no fue EXIGIDA por ese
+    documento (vino de otro lado o el LLM la infirió de códigos de parte)."""
+    m = _norm_txt(marca or "")
+    m = re.sub(r"\b(O|U)\s+(SIMILAR|EQUIVALENTE)\b", " ", m)
+    m = re.sub(r"[^A-Z0-9 ]", " ", m)
+    m = " ".join(m.split())
+    if len(m) < 2:
+        return False, None
+    for pg in paginas or []:
+        t = " ".join(re.sub(r"[^A-Z0-9 ]", " ", _norm_txt(pg.get("texto") or "")).split())
+        if m in t and any(k in t for k in _KW_MARCA):
+            return True, pg.get("n")
+    return False, None
+
+
+def _post_procesar(data: dict, tx: dict, sha256: str | None, doc: dict | None = None) -> dict:
     """Aplica verificación de evidencia a ítems/postores/firmantes/comité/motivos/bloques,
     recorta `texto_literal` al tope, y deja `requerimiento_tecnico_detallado` como ALIAS de
-    `texto_literal` para los consumidores existentes (market, legal, self-eval)."""
-    paginas_by_n = {int(p["n"]): p for p in (tx.get("paginas") or []) if p.get("n") is not None}
+    `texto_literal` para los consumidores existentes (market, legal, self-eval).
+
+    Además (lote 1 · T7) etiqueta cada ítem con la ETAPA del documento y remapea los campos
+    según ella: en documentos de CONTRATACIÓN (contrato/OC/acta/propuesta) el precio va a
+    `precio_unitario_contratado` (u `ofertado`) y la marca a `marca_ofertada`; nunca quedan
+    como `precio_unitario_referencial` / `marca_o_modelo_exigido`. En documentos de
+    REQUERIMIENTO, `marca_o_modelo_exigido` solo sobrevive si el texto del documento trae
+    la marca junto a 'marca'/'modelo'/'equivalente'/'similar' (si no → `marca_no_respaldada`)."""
+    paginas = tx.get("paginas") or []
+    paginas_by_n = {int(p["n"]): p for p in paginas if p.get("n") is not None}
     stats: dict = {}
+    tipo = data.get("tipo_documento_detectado")
+    contratacion = _es_doc_contratacion(tipo, doc)
+    data["_etapa"] = "contratacion" if contratacion else "requerimiento"
+    descartes: list[dict] = list(data.get("_descartes_parser") or [])
+    origen = _origen_precio(tipo, doc) if contratacion else None
     for it in (data.get("items") or []):
         if not isinstance(it, dict):
             continue
@@ -1474,13 +2349,68 @@ def _post_procesar(data: dict, tx: dict, sha256: str | None) -> dict:
         if it.get("texto_literal") and not it.get("requerimiento_tecnico_detallado"):
             it["requerimiento_tecnico_detallado"] = it["texto_literal"]
         _verificar_evidencia(it, paginas_by_n, sha256, stats)
-    for key in ("postores", "firmantes", "comite_evaluacion", "motivos_adjudicacion"):
+        it["_tipo_documento"] = tipo
+        it["_etapa"] = data["_etapa"]
+        if contratacion:
+            pu = it.get("precio_unitario_contratado") or it.get("precio_unitario_ofertado") or it.get("precio_unitario_referencial")
+            if origen in ("contrato", "orden_de_compra", "adenda"):
+                it["precio_unitario_contratado"] = pu
+                it.setdefault("precio_unitario_ofertado", None)
+            else:
+                it["precio_unitario_ofertado"] = pu
+                it.setdefault("precio_unitario_contratado", None)
+            it["origen_precio"] = origen if pu else None
+            marca = it.get("marca_ofertada") or it.get("marca_o_modelo_exigido")
+            it["marca_ofertada"] = marca or None
+            if it.get("marca_o_modelo_exigido"):
+                descartes.append({"campo": "marca_o_modelo_exigido", "valor": it["marca_o_modelo_exigido"],
+                                  "motivo": f"documento de contratación ({tipo}): es marca ofertada, no exigida",
+                                  "item": it.get("descripcion_corta")})
+            it["marca_o_modelo_exigido"] = None
+            it["precio_unitario_referencial"] = None
+        else:
+            marca = it.get("marca_o_modelo_exigido")
+            if marca:
+                ok, pg = _marca_respaldada(marca, paginas)
+                if ok:
+                    it["marca_exigida_pagina"] = pg
+                else:
+                    it["marca_no_respaldada"] = marca
+                    it["marca_o_modelo_exigido"] = None
+                    descartes.append({"campo": "marca_o_modelo_exigido", "valor": marca,
+                                      "motivo": "el texto del requerimiento no exige esa marca (sin 'marca'/'modelo'/'o equivalente' junto al nombre)",
+                                      "item": it.get("descripcion_corta")})
+            if it.get("marca_ofertada"):
+                it["marca_ofertada"] = None
+        # texto_literal_paginas: si TODAS las evidencias verificadas se corrigieron con el
+        # mismo desfase (folio impreso vs índice real), desplazar también estas páginas.
+        deltas = {e["pagina"] - e["pagina_declarada"] for e in (it.get("evidencia") or [])
+                  if isinstance(e, dict) and e.get("verificada") and e.get("pagina_declarada") is not None}
+        if len(deltas) == 1 and isinstance(it.get("texto_literal_paginas"), list):
+            d = deltas.pop()
+            if d:
+                it["texto_literal_paginas_declaradas"] = list(it["texto_literal_paginas"])
+                it["texto_literal_paginas"] = [int(x) + d for x in it["texto_literal_paginas"] if isinstance(x, (int, float))]
+    for key in ("postores", "firmantes", "comite_evaluacion", "motivos_adjudicacion", "invitados"):
         for obj in (data.get(key) or []):
             _verificar_evidencia(obj, paginas_by_n, sha256, stats)
-    for key in ("estudio_mercado", "contrato_final", *_BLOQUES_VALIDOS):
+    for key in ("estudio_mercado", "contrato_final", "procedimiento_seleccion", "ejecucion_contractual", *_BLOQUES_VALIDOS):
         obj = data.get(key)
         if isinstance(obj, dict):
             _verificar_evidencia(obj, paginas_by_n, sha256, stats)
+            # sub-listas con `pagina`: estampar sha (la página la puso el LLM; folio si se detecta)
+            for lk, lv in obj.items():
+                if isinstance(lv, list):
+                    for el in lv:
+                        if isinstance(el, dict):
+                            el["documento_sha256"] = sha256
+                            pg = el.get("pagina")
+                            if isinstance(pg, int) and pg in paginas_by_n:
+                                f = _detectar_folio(paginas_by_n[pg].get("texto") or "")
+                                if f is not None:
+                                    el["folio"] = f
+    if descartes:
+        data["_descartes_parser"] = descartes
     data["_evidencia_stats"] = stats
     return data
 
@@ -1696,7 +2626,7 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
         ext = _extraer_documento(tx, label, bloque, ocds_ctx, doc.get("tipo"))
         out["tiempos"]["extraccion_s"] = round(time.monotonic() - t2, 1)
         out["recortes"].extend(ext.get("_recortes") or [])
-        ext = _post_procesar(ext, tx, sha)
+        ext = _post_procesar(ext, tx, sha, doc)
         _extraccion_cache_put(sha, clave, ext)   # incluye _recortes/_usos: en caché también se reportan
     else:
         out["recortes"].extend(ext.get("_recortes") or [])
@@ -1777,14 +2707,23 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         _k = _item_key(_it)
         if _k is not None:
             existing_keys[_k] = _it
-    seen_firm = {((f.get("nombre_completo") or "").upper(), (f.get("cargo") or "").upper()) for f in raw["firmantes_consolidados"]}
-    seen_rucs = {p.get("ruc") for p in raw["postores_consolidados"] if p.get("ruc")}
-    seen_nombres = {_norm_razon(p.get("razon_social")) for p in raw["postores_consolidados"]}
+    raw.setdefault("items_contratados", [])
+    raw.setdefault("lista_invitados", [])
+    raw.setdefault("contrato", {"ampliaciones_plazo": [], "penalidades_aplicadas": [], "adendas": [], "entregas": []})
+    raw.setdefault("procedimiento_seleccion", {"factores_evaluacion": [], "puntajes_por_postor": [],
+                                               "consultas_observaciones": [], "modificaciones_integracion": []})
+    raw.setdefault("descartes_parser", [])
+    rucs_ocds = _rucs_ocds(state)
+    ganadores_ocds = _ganadores_ocds(state)
     estudio_best = state.get("estudio_mercado")
     contrato_best = state.get("contrato_final")
     gate_items: list[dict] = []
     gate_adj: list[dict] = []
     resumen_docs: list[dict] = []
+    vistos_contratados: set = set()
+
+    def _cita_vista(ev: list | None) -> list:
+        return [e for e in (ev or []) if isinstance(e, dict)]
 
     for r in resultados:
         if not r:
@@ -1795,6 +2734,11 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         ext = r.get("ext") or {}
         for rec in (r.get("recortes") or []):
             state["recortes"].append(rec)
+        if r.get("error"):
+            # Un documento que falló nunca debe perderse en silencio: recorte visible + log.
+            print(f"[lote] ✗ {str(doc.get('titulo'))[:60]} · {r['error']}", flush=True)
+            state["recortes"].append({"donde": "parser_lote", "limite": "error_documento",
+                                      "omitido": {"documento": doc.get("titulo"), "sha256": sha, "error": r["error"]}})
         if sha:
             state["documentos_texto"][sha] = {
                 "n_paginas": tx.get("n_paginas"), "chars": tx.get("chars"), "truncado": bool(tx.get("truncado")) or bool(ext.get("_truncado")),
@@ -1802,13 +2746,14 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
                 "motor": tx.get("motor"), "cache_texto": bool((r.get("cache") or {}).get("texto")),
                 "cache_extraccion": bool((r.get("cache") or {}).get("extraccion")),
                 "tipo_documento_detectado": ext.get("tipo_documento_detectado"),
+                "etapa": ext.get("_etapa"),
             }
         entrada_doc = {
             "id": doc.get("id"), "url": doc.get("url"), "gs": doc.get("gs"), "titulo": doc.get("titulo"), "tipo": doc.get("tipo"),
             "seccion": doc.get("seccion"), "formato": doc.get("formato"), "sha256": sha,
             "n_paginas": tx.get("n_paginas"), "chars": tx.get("chars"), "motor": tx.get("motor"),
             "unidades": r.get("unidades"), "cache": r.get("cache"), "tiempos": r.get("tiempos"),
-            "tipo_documento_detectado": ext.get("tipo_documento_detectado"),
+            "tipo_documento_detectado": ext.get("tipo_documento_detectado"), "etapa": ext.get("_etapa"),
             "contiene_requerimiento": bool(ext.get("contiene_requerimiento")),
             "n_items": len(ext.get("items") or []), "n_firmantes": len(ext.get("firmantes") or []),
             "truncado": bool(tx.get("truncado")) or bool(ext.get("_truncado")),
@@ -1818,18 +2763,28 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         resumen_docs.append(entrada_doc)
         if r.get("error") or not ext:
             continue
-        # Ítems: los de documentos con REQUERIMIENTO van a items_consolidados; el resto no se
-        # pierde: va a items_otros_documentos y queda registrado como recorte (antes: gate mudo).
+        tipo_det = ext.get("tipo_documento_detectado")
+        contratacion = ext.get("_etapa") == "contratacion" if ext.get("_etapa") else _es_doc_contratacion(tipo_det, doc)
+        es_adjudicacion = _es_doc_resultado(tipo_det, doc) or (contratacion and doc.get("seccion") in ("award", "contract")
+                                                                and "propuesta" not in _norm_txt(doc.get("titulo") or "").lower())
+        for dsc in (ext.get("_descartes_parser") or []):
+            raw["descartes_parser"].append({**dsc, "documento": doc.get("titulo"), "sha256": sha})
+        # ── Ítems ──
+        # Fuente de REQUERIMIENTO (bases/TDR/EETT/expediente): → items_consolidados (precio
+        # referencial, marca exigida). Documento de CONTRATACIÓN (OC/contrato/acta/propuesta):
+        # sus ítems → items_contratados (precio contratado/ofertado, marca ofertada) y NUNCA
+        # a items_consolidados aunque el LLM marque contiene_requerimiento (la OC repite las
+        # EETT). El resto de docs sin requerimiento → items_otros_documentos + recorte.
         items = [it for it in (ext.get("items") or []) if isinstance(it, dict)]
-        es_fuente_req = bool(ext.get("contiene_requerimiento")) or any(
-            len(str(it.get("texto_literal") or it.get("requerimiento_tecnico_detallado") or "").strip()) > 40 for it in items)
+        es_fuente_req = (not contratacion) and (bool(ext.get("contiene_requerimiento")) or any(
+            len(str(it.get("texto_literal") or it.get("requerimiento_tecnico_detallado") or "").strip()) > 40 for it in items))
         if es_fuente_req:
             for it in items:
                 k = _item_key(it)
                 if k is None:
                     raw["items_consolidados"].append(it)
                     continue
-                prev = existing_keys.get(k)
+                prev = existing_keys.get(k) or _buscar_item_similar(existing_keys, k)
                 if prev is None:
                     raw["items_consolidados"].append(it)
                     existing_keys[k] = it
@@ -1844,51 +2799,101 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
                     ev_prev = prev.get("evidencia") or []
                     prev["evidencia"] = ev_prev + [e for e in (it.get("evidencia") or []) if e not in ev_prev]
                     for kk, vv in it.items():
+                        if kk.startswith("_") or kk in ("marca_ofertada", "precio_unitario_contratado", "precio_unitario_ofertado", "origen_precio"):
+                            continue
                         if prev.get(kk) in (None, "", [], {}) and vv not in (None, "", [], {}):
                             prev[kk] = vv
         elif items:
-            raw["items_otros_documentos"].extend({**it, "_documento": doc.get("titulo")} for it in items)
-            gate_items.append({"documento": doc.get("titulo"), "sha256": sha, "n_items": len(items)})
+            if contratacion:
+                origen = _origen_precio(tipo_det, doc)
+                for it in items:
+                    pu = it.get("precio_unitario_contratado") or it.get("precio_unitario_ofertado")
+                    marca = it.get("marca_ofertada")
+                    if pu is None and not marca and it.get("cantidad") is None:
+                        continue   # cabecera sin datos (título del proceso repetido como ítem)
+                    desc = it.get("descripcion_corta") or it.get("descripcion") or ""
+                    kk = (_desc_compacta(desc), pu, it.get("cantidad"))
+                    if kk in vistos_contratados:
+                        continue   # el mismo renglón en el acta repetida / cuadro copia del acta
+                    vistos_contratados.add(kk)
+                    raw["items_contratados"].append({
+                        "numero": it.get("numero"), "descripcion": desc, "cantidad": it.get("cantidad"),
+                        "unidad": it.get("unidad"), "precio_unitario_contratado": pu,
+                        "subtotal_contratado": it.get("subtotal_contratado") or it.get("cuantia_referencial_item"),
+                        "marca_ofertada": marca, "origen": origen, "tipo_documento": tipo_det,
+                        "documento": doc.get("titulo"), "documento_sha256": sha,
+                        "pagina": _pagina_principal(it), "evidencia": _cita_vista(it.get("evidencia")),
+                    })
+            raw["items_otros_documentos"].extend({**it, "_documento": doc.get("titulo"),
+                                                  "precio_contratado": (it.get("precio_unitario_contratado") or it.get("precio_unitario_ofertado")) if contratacion else None}
+                                                 for it in items)
+            gate_items.append({"documento": doc.get("titulo"), "sha256": sha, "n_items": len(items),
+                               "etapa": "contratacion" if contratacion else "sin_requerimiento"})
+        # ── Postores: fusión por RUC válido / razón social (nunca se descarta el repetido) ──
         for p in (ext.get("postores") or []):
-            if not isinstance(p, dict):
+            _fusionar_postor(raw["postores_consolidados"], p, es_adjudicacion, sha, rucs_ocds)
+        for inv in (ext.get("invitados") or []):
+            if not isinstance(inv, dict):
                 continue
-            nom = _norm_razon(p.get("razon_social"))
-            if p.get("ruc") and p["ruc"] in seen_rucs:
-                continue
-            if nom and nom in seen_nombres:
-                # mismo postor ya visto (con o sin RUC): completar campos vacíos, no duplicar
-                prev = next((q for q in raw["postores_consolidados"] if _norm_razon(q.get("razon_social")) == nom), None)
-                if prev is not None:
-                    for kk, vv in p.items():
-                        if prev.get(kk) in (None, "", [], {}) and vv not in (None, "", [], {}):
-                            prev[kk] = vv
-                    if p.get("ruc"):
-                        seen_rucs.add(p["ruc"])
-                continue
-            if p.get("ruc"):
-                seen_rucs.add(p["ruc"])
-            if nom:
-                seen_nombres.add(nom)
-            raw["postores_consolidados"].append(p)
+            e = _fusionar_postor(raw["lista_invitados"], {**inv, "estado": "invitado"}, False, sha, rucs_ocds)
+            if e is not None:
+                e.setdefault("fecha_invitacion", inv.get("fecha_invitacion"))
+        # ── Firmantes: misma persona con nombre abreviado / cargo distinto → una sola entrada ──
         for f in (ext.get("firmantes") or []):
-            if not isinstance(f, dict):
+            if not isinstance(f, dict) or not (f.get("nombre_completo") or "").strip():
                 continue
-            key = ((f.get("nombre_completo") or "").strip().upper(), (f.get("cargo") or "").strip().upper())
-            if not key[0] or key in seen_firm:
+            prev = next((q for q in raw["firmantes_consolidados"] if _mismo_firmante(q, f)), None)
+            if prev is None:
+                f.setdefault("documentos", [doc.get("titulo")])
+                raw["firmantes_consolidados"].append(f)
                 continue
-            seen_firm.add(key)
-            raw["firmantes_consolidados"].append(f)
-        if _es_doc_de_adjudicacion(ext.get("tipo_documento_detectado")):
-            raw["comite_evaluacion"].extend(x for x in (ext.get("comite_evaluacion") or []) if isinstance(x, dict))
-            raw["motivos_adjudicacion"].extend(x for x in (ext.get("motivos_adjudicacion") or []) if isinstance(x, dict))
+            if len(f.get("nombre_completo") or "") > len(prev.get("nombre_completo") or ""):
+                prev["nombre_completo"] = f["nombre_completo"]
+            cargo_new = (f.get("cargo") or "").strip()
+            if cargo_new and _norm_razon(cargo_new) != _norm_razon(prev.get("cargo") or ""):
+                if not prev.get("cargo"):
+                    prev["cargo"] = cargo_new
+                else:
+                    cargos = prev.setdefault("cargos", [prev["cargo"]])
+                    if cargo_new not in cargos:
+                        cargos.append(cargo_new)
+            for kk, vv in f.items():
+                if kk in ("nombre_completo", "cargo"):
+                    continue
+                if kk == "evidencia":
+                    ev_prev = prev.get("evidencia") or []
+                    prev["evidencia"] = ev_prev + [e for e in (vv or []) if e not in ev_prev]
+                elif prev.get(kk) in (None, "", [], {}) and vv not in (None, "", [], {}):
+                    prev[kk] = vv
+            docs_f = prev.setdefault("documentos", [])
+            if doc.get("titulo") not in docs_f:
+                docs_f.append(doc.get("titulo"))
+        if _es_doc_de_adjudicacion(tipo_det):
+            for x in (ext.get("comite_evaluacion") or []):
+                if isinstance(x, dict) and not any(_mismo_firmante(q, x) for q in raw["comite_evaluacion"]):
+                    raw["comite_evaluacion"].append(x)
+            for x in (ext.get("motivos_adjudicacion") or []):
+                if isinstance(x, dict):
+                    dup = any(_norm_razon(q.get("ganador_razon_social")) == _norm_razon(x.get("ganador_razon_social"))
+                              and (q.get("criterio_decisivo") or "") == (x.get("criterio_decisivo") or "") for q in raw["motivos_adjudicacion"])
+                    if not dup:
+                        raw["motivos_adjudicacion"].append(x)
             if ext.get("lugar_fecha_acta") and not raw.get("lugar_fecha_acta"):
                 raw["lugar_fecha_acta"] = ext["lugar_fecha_acta"]
         elif (ext.get("comite_evaluacion") or ext.get("motivos_adjudicacion")):
-            gate_adj.append({"documento": doc.get("titulo"), "tipo_detectado": ext.get("tipo_documento_detectado"),
+            gate_adj.append({"documento": doc.get("titulo"), "tipo_detectado": tipo_det,
                              "n_comite": len(ext.get("comite_evaluacion") or []), "n_motivos": len(ext.get("motivos_adjudicacion") or [])})
         raw["fundamento_legal"] = list(dict.fromkeys(raw["fundamento_legal"] + [str(x) for x in (ext.get("fundamento_legal") or [])]))
-        if ext.get("cuantia_total") and not raw.get("cuantia_total"):
-            raw["cuantia_total"] = ext["cuantia_total"]
+        # cuantia_total: solo de documentos de requerimiento (la de un acta/OC es el monto
+        # adjudicado → va aparte, para que compliance no la compare con el referencial)
+        if ext.get("cuantia_total"):
+            if not contratacion and not raw.get("cuantia_total"):
+                raw["cuantia_total"] = ext["cuantia_total"]
+            elif contratacion and not raw.get("monto_adjudicado_doc"):
+                raw["monto_adjudicado_doc"] = ext["cuantia_total"]
+                raw["monto_adjudicado_doc_sha256"] = sha
+        if ext.get("cuantia_reservada") is True and not contratacion:
+            raw["cuantia_reservada"] = True
         for k in ("modalidad", "fuente_financiamiento"):
             if ext.get(k) and not raw.get(k):
                 raw[k] = ext[k]
@@ -1898,8 +2903,59 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
             estudio_best = _mas_completo_lote(ext["estudio_mercado"], estudio_best)
         if isinstance(ext.get("contrato_final"), dict) and any(v not in (None, "", [], {}) for k, v in ext["contrato_final"].items() if k not in ("evidencia", "documento_sha256")):
             contrato_best = _mas_completo_lote(ext["contrato_final"], contrato_best)
+        # ── procedimiento_seleccion (factores/puntajes/consultas/modificaciones) ──
+        ps = ext.get("procedimiento_seleccion")
+        if isinstance(ps, dict):
+            for lk in ("factores_evaluacion", "puntajes_por_postor", "consultas_observaciones", "modificaciones_integracion"):
+                for el in (ps.get(lk) or []):
+                    if isinstance(el, dict) and any(v not in (None, "", [], {}) for k, v in el.items() if k not in ("pagina", "documento_sha256", "folio")):
+                        el = {**el, "documento": doc.get("titulo"), "documento_sha256": el.get("documento_sha256") or sha}
+                        if el not in raw["procedimiento_seleccion"][lk]:
+                            raw["procedimiento_seleccion"][lk].append(el)
+        # ── contrato (ejecución): ampliaciones / penalidades / adendas / entregas ──
+        ec = ext.get("ejecucion_contractual")
+        if isinstance(ec, dict):
+            for lk in ("ampliaciones_plazo", "penalidades_aplicadas", "adendas", "entregas"):
+                for el in (ec.get(lk) or []):
+                    if isinstance(el, dict) and any(v not in (None, "", [], {}) for k, v in el.items() if k not in ("pagina", "documento_sha256", "folio")):
+                        el = {**el, "documento": doc.get("titulo"), "documento_sha256": el.get("documento_sha256") or sha}
+                        if el not in raw["contrato"][lk]:
+                            raw["contrato"][lk].append(el)
+            if ec.get("resolucion_contrato") and not raw["contrato"].get("resolucion_contrato"):
+                raw["contrato"]["resolucion_contrato"] = ec["resolucion_contrato"]
+                raw["contrato"]["resolucion_contrato_sha256"] = sha
+            if ec.get("evidencia"):
+                raw["contrato"].setdefault("evidencia", []).extend(e for e in ec["evidencia"] if e not in raw["contrato"].get("evidencia", []))
         if bloque and isinstance(ext.get(bloque), dict):
             raw[f"bloque_{bloque}"] = _merge_extraccion(raw.get(f"bloque_{bloque}") or {}, ext[bloque])
+
+    # ── Postores: ganador desde el OCDS si ningún documento lo marcó; invitados vs. oferentes ──
+    postores = raw["postores_consolidados"]
+    if ganadores_ocds and not any(p.get("es_ganador") for p in postores):
+        for p in postores:
+            if p.get("ruc") in ganadores_ocds:
+                p["es_ganador"] = True
+                p["es_ganador_fuente"] = "ocds"
+    for p in postores:
+        if p.get("es_ganador") is None and p.get("ruc") in ganadores_ocds:
+            p["es_ganador"] = True
+            p["es_ganador_fuente"] = "ocds"
+    if raw["lista_invitados"]:
+        inv_rucs = {q.get("ruc") for q in raw["lista_invitados"] if q.get("ruc")}
+        inv_noms = [q.get("razon_social") for q in raw["lista_invitados"]]
+        for p in postores:
+            fue_invitado = (p.get("ruc") in inv_rucs) or any(_mismo_nombre(p.get("razon_social"), n) for n in inv_noms)
+            p["invitado"] = fue_invitado
+            if not fue_invitado and p.get("monto_oferta") is not None and not p.get("estado"):
+                p["estado"] = "no_invitado"
+    for p in postores:
+        if not p.get("estado") and p.get("monto_oferta") is not None:
+            p["estado"] = "admitido"
+        p.pop("_fuente_adjudicacion", None)
+    raw["ofertas"] = _ofertas_desde_postores(postores)
+    raw["postores"] = postores                       # alias: contrato de salida para R1/R3
+    # ── Cruce items_consolidados × items_contratados: precio OFERTADO/CONTRATADO real por ítem ──
+    _cruzar_items_contratados(raw["items_consolidados"], raw["items_contratados"])
 
     if gate_items:
         state["recortes"].append({"donde": "consolidacion_items", "limite": "solo_documentos_con_requerimiento",
@@ -1949,7 +3005,13 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         "n_cache_texto": sum(1 for d in resumen_docs if (d.get("cache") or {}).get("texto")),
         "n_cache_extraccion": sum(1 for d in resumen_docs if (d.get("cache") or {}).get("extraccion")),
         "n_items_consolidados": len(raw["items_consolidados"]), "n_items_otros_documentos": len(raw["items_otros_documentos"]),
-        "n_postores": len(raw["postores_consolidados"]), "n_firmantes": len(raw["firmantes_consolidados"]),
+        "n_items_contratados": len(raw["items_contratados"]),
+        "n_items_con_precio_ofertado": sum(1 for it in raw["items_consolidados"] if isinstance(it, dict) and it.get("precio_unitario_ofertado") is not None),
+        "n_postores": len(raw["postores_consolidados"]), "n_ofertas": len(raw["ofertas"]),
+        "n_invitados": len(raw["lista_invitados"]), "n_firmantes": len(raw["firmantes_consolidados"]),
+        "n_descartes_parser": len(raw["descartes_parser"]),
+        "contrato": {k: len(v) for k, v in raw["contrato"].items() if isinstance(v, list)},
+        "procedimiento_seleccion": {k: len(v) for k, v in raw["procedimiento_seleccion"].items() if isinstance(v, list)},
         "n_paginas_total": sum(int(d.get("n_paginas") or 0) for d in resumen_docs),
         "chars_total": sum(int(d.get("chars") or 0) for d in resumen_docs),
         "evidencia": {"total": ev_tot, "verificadas": ev_ok},
@@ -1961,7 +3023,9 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
         "_note": "Detalle completo en state['parser_raw_consolidated'] y state['documentos_texto']",
     }
     print(f"[lote] {n_ok}/{len(docs)} docs · {resumen['n_paginas_total']} págs · {resumen['chars_total']:,} chars · "
-          f"{len(raw['items_consolidados'])} ítems · {len(raw['firmantes_consolidados'])} firmantes · "
+          f"{len(raw['items_consolidados'])} ítems ({resumen['n_items_con_precio_ofertado']} con precio ofertado) · "
+          f"{len(raw['items_contratados'])} contratados · {len(raw['postores_consolidados'])} postores / {len(raw['ofertas'])} ofertas · "
+          f"{len(raw['firmantes_consolidados'])} firmantes · "
           f"evidencia {ev_ok}/{ev_tot} verificada · {len(state['recortes'])} recortes · {total_s}s", flush=True)
     return resumen
 
@@ -1969,6 +3033,80 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
 def _norm_razon(s: str | None) -> str:
     """Razón social comparable: MAYÚSCULAS sin tildes ni puntuación ('S.A.C.' == 'SAC')."""
     return " ".join(re.sub(r"[^A-Z0-9 ]", "", _norm_txt(s or "")).split())
+
+
+_STOP_DESC = {"DE", "DEL", "LA", "EL", "LOS", "LAS", "Y", "E", "O", "U", "PARA", "CON", "SIN", "EN", "POR", "UN", "UNA",
+              "ADQUISICION", "COMPRA", "SUMINISTRO", "ITEM", "UND", "UNIDAD", "UNIDADES", "KG", "KLG", "KILOS", "KILOGRAMOS",
+              "GALON", "GALONES", "LT", "LITRO", "LITROS", "SACO", "SACOS", "BOLSA", "BOLSAS", "TIPO", "MARCA"}
+
+
+def _raiz(tok: str) -> str:
+    """Stemming mínimo en español: quita plural y sufijos frecuentes (-es/-s, -ería, -ico/-ica…)."""
+    t = tok
+    for suf in ("ERIAS", "ERIA", "CIONES", "CION", "ICOS", "ICAS", "ICO", "ICA", "ALES", "AL", "ES", "S"):
+        if len(t) > len(suf) + 3 and t.endswith(suf):
+            t = t[: -len(suf)]
+            break
+    return t
+
+
+def _tokens_raiz(desc: str) -> set[str]:
+    d = re.sub(r"[^A-Z0-9 ]", " ", _norm_txt(desc or "").translate(_LOOKALIKES))
+    return {_raiz(t) for t in d.split() if len(t) >= 3 and t not in _STOP_DESC}
+
+
+def _cruzar_items_contratados(consolidados: list[dict], contratados: list[dict]) -> None:
+    """Puebla en cada ítem consolidado (bases) `precio_unitario_ofertado`, `origen_precio`,
+    `marca_ofertada` y la referencia del documento contratado que lo respalda, cruzando por
+    raíces de palabras de la descripción + cantidad (OC 'ARROZ SUPERIOR - SOMOS DEL NORTE'
+    ↔ bases 'ARROZ SUPERIOR'). Prioridad del origen: contrato > orden_de_compra >
+    oferta_ganadora > adenda. Un ítem contratado se usa una sola vez."""
+    if not consolidados or not contratados:
+        return
+    prio = {"contrato": 0, "orden_de_compra": 1, "oferta_ganadora": 2, "adenda": 3}
+    cand = sorted([c for c in contratados if c.get("precio_unitario_contratado") is not None or c.get("marca_ofertada")],
+                  key=lambda c: prio.get(c.get("origen"), 9))
+    usados: set[int] = set()
+    for it in consolidados:
+        if not isinstance(it, dict):
+            continue
+        ti = _tokens_raiz(it.get("descripcion_corta") or it.get("descripcion") or "")
+        if not ti:
+            continue
+        mejor, mejor_score = None, 0.0
+        for j, c in enumerate(cand):
+            if j in usados:
+                continue
+            tc = _tokens_raiz(c.get("descripcion") or "")
+            if not tc:
+                continue
+            inter = ti & tc
+            if not inter:
+                continue
+            score = len(inter) / max(1, min(len(ti), len(tc)))   # contención (una descripción amplía a la otra)
+            if it.get("cantidad") is not None and c.get("cantidad") is not None:
+                try:
+                    if abs(float(it["cantidad"]) - float(c["cantidad"])) > 1e-6:
+                        score *= 0.5
+                except Exception:
+                    pass
+            if score > mejor_score:
+                mejor, mejor_score = j, score
+        # único ítem de cada lado → cruce directo aunque las descripciones difieran
+        if mejor is None and len(consolidados) == 1 and len(cand) == 1 and not usados:
+            mejor, mejor_score = 0, 0.5
+        if mejor is None or mejor_score < 0.5:
+            continue
+        usados.add(mejor)
+        c = cand[mejor]
+        if c.get("precio_unitario_contratado") is not None:
+            it["precio_unitario_ofertado"] = c["precio_unitario_contratado"]
+            it["origen_precio"] = c.get("origen")
+        if c.get("marca_ofertada"):
+            it["marca_ofertada"] = c["marca_ofertada"]
+        it["precio_ofertado_documento_sha256"] = c.get("documento_sha256")
+        it["precio_ofertado_pagina"] = c.get("pagina")
+        it["cruce_contratado"] = {"descripcion": c.get("descripcion"), "score": round(mejor_score, 2), "documento": c.get("documento")}
 
 
 def _mas_completo_lote(nuevo, actual):
@@ -2912,12 +4050,15 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
         # comité/motivos por _es_doc_de_adjudicacion (abajo). Si NINGÚN doc resulta
         # fuente de requerimiento, items_consolidados queda vacío y lo cubren los ítems
         # del OCDS (SQL) + la bandera extraccion_documento_fallida — sin meter ruido.
-        _es_fuente_req = bool(r.get("contiene_requerimiento")) or any(
-            isinstance(it, dict) and len(str(it.get("requerimiento_tecnico_detallado") or "").strip()) > 40
-            for it in (r.get("items") or []))
+        _es_fuente_req = (not _es_doc_contratacion(r.get("tipo_documento_detectado"))) and (
+            bool(r.get("contiene_requerimiento")) or any(
+                isinstance(it, dict) and len(str(it.get("requerimiento_tecnico_detallado") or "").strip()) > 40
+                for it in (r.get("items") or [])))
         if _es_fuente_req:
             items_all.extend(r.get("items") or [])
-        postores_all.extend(r.get("postores") or [])
+        for _p in (r.get("postores") or []):
+            if isinstance(_p, dict):
+                postores_all.append({**_p, "_es_adjudicacion": _es_doc_resultado(r.get("tipo_documento_detectado"))})
         # red_flags_observadas: campo legacy, ya no se pide al parser. El análisis
         # legal lo hace `document_legal_analyst_agent` aparte. Si algún parser
         # legacy aún lo emite, lo recolectamos pero el flujo ya no depende de eso.
@@ -3036,14 +4177,16 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
             cur_req = prev.get("requerimiento_tecnico_detallado") or ""
             if len(new_req) > len(cur_req):
                 prev["requerimiento_tecnico_detallado"] = new_req
-    # Dedup postores por RUC
-    seen_rucs = {p.get("ruc") for p in raw["postores_consolidados"] if p.get("ruc")}
+    # Postores: fusión por RUC válido / razón social (nunca se descarta el repetido: se completan
+    # monto_oferta / es_ganador / puntaje / estado desde el acta) — mismo helper que el lote.
+    _rucs_conocidos = _rucs_ocds(tool_context.state)
     for p in postores_all:
-        if p.get("ruc") and p["ruc"] not in seen_rucs:
-            raw["postores_consolidados"].append(p)
-            seen_rucs.add(p["ruc"])
-        elif not p.get("ruc"):
-            raw["postores_consolidados"].append(p)
+        _fusionar_postor(raw["postores_consolidados"], {k: v for k, v in p.items() if k != "_es_adjudicacion"},
+                         bool(p.get("_es_adjudicacion")), p.get("documento_sha256"), _rucs_conocidos)
+    for p in raw["postores_consolidados"]:
+        p.pop("_fuente_adjudicacion", None)
+    raw["postores"] = raw["postores_consolidados"]
+    raw["ofertas"] = _ofertas_desde_postores(raw["postores_consolidados"])
     # Dedup firmantes por (nombre, cargo)
     seen_firm = {((f.get("nombre_completo") or "").upper(), (f.get("cargo") or "").upper())
                  for f in raw["firmantes_consolidados"]}
@@ -3111,6 +4254,11 @@ def parse_document_pdf(document_url: str, tool_context: ToolContext) -> dict:
 # título del contrato colándose como ítem). NO usa thresholds/regex/lookalike — el
 # LLM JUZZGA el listado completo con su propio criterio. Es la capa de sanitización
 # (capa 2) de la arquitectura por capas que pidió el usuario; el parseo es la capa 1.
+
+_CAMPOS_SOLO_REQUERIMIENTO = ("marca_o_modelo_exigido", "precio_unitario_referencial", "cuantia_referencial_item",
+                              "certificaciones_exigidas", "requisitos_postor", "texto_literal",
+                              "requerimiento_tecnico_detallado", "texto_literal_paginas")
+
 
 def sanitize_items_with_llm(raw_items, objeto: str = "", tool_context=None) -> list:
     """Recibe los items CRUDOS acumulados de TODOS los documentos parseados de un
@@ -3241,10 +4389,16 @@ def sanitize_items_with_llm(raw_items, objeto: str = "", tool_context=None) -> l
             grp = [items[i] for i in g if 0 <= i < len(items)]
             if not grp: continue
             if any(i in descartar for i in g): continue  # descartar explícito
-            grp.sort(key=lambda x: len(str(x.get("requerimiento_tecnico_detallado") or "")), reverse=True)
+            # base = ítem de REQUERIMIENTO con el texto más largo; los de contratación (OC/acta)
+            # solo aportan marca/precio OFERTADOS, nunca `marca_o_modelo_exigido` ni referencial.
+            grp.sort(key=lambda x: (x.get("_etapa") == "contratacion",
+                                    -len(str(x.get("requerimiento_tecnico_detallado") or ""))))
             base = dict(grp[0])
             for other in grp[1:]:
+                de_contratacion = other.get("_etapa") == "contratacion"
                 for k, v in other.items():
+                    if de_contratacion and k in _CAMPOS_SOLO_REQUERIMIENTO:
+                        continue
                     if base.get(k) in (None, "", [], {}, 0) and v not in (None, "", [], {}, 0):
                         base[k] = v
             out.append(base)

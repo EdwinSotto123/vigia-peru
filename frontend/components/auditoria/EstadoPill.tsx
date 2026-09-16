@@ -1,9 +1,10 @@
-import { CheckCircle2, Clock, Moon, PauseCircle, RotateCw } from "lucide-react";
+import { CheckCircle2, Clock, Eye, Moon, PauseCircle, RotateCw } from "lucide-react";
 import { ESTADO_PROC, type EstadoProc } from "@/lib/auditoria";
 
 /**
  * Píldora de estado de un procesamiento. El estado nunca se comunica solo por
  * color: cada uno lleva texto y un icono distinto (punto pulsante = procesando).
+ * `revision` = procesado pero la autoevaluación bloqueó la publicación (lo revisa una persona).
  */
 export function EstadoPill({ estado, size = "sm" }: { estado: EstadoProc; size?: "sm" | "md" }) {
   const { label, cls } = ESTADO_PROC[estado];
@@ -21,6 +22,7 @@ export function EstadoPill({ estado, size = "sm" }: { estado: EstadoProc; size?:
       {estado === "pendiente_de_procesamiento" && <PauseCircle size={11} aria-hidden />}
       {estado === "esperando_documentos" && <Moon size={11} aria-hidden />}
       {estado === "error" && <RotateCw size={11} className="animate-spin [animation-duration:3s]" aria-hidden />}
+      {estado === "revision" && <Eye size={11} aria-hidden />}
       {label}
     </span>
   );

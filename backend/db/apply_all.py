@@ -51,6 +51,8 @@ ORDER = [
     "17_documentos_texto.sql",
     "18_verificacion.sql",
     "19_procesamiento_activo.sql",
+    "20_fases.sql",
+    "21_montos.sql",
 ]
 
 

@@ -136,10 +136,13 @@ def categorias_de(titulo: str | None, tipo: str | None) -> list[str]:
     específica primero); un 'Documentos de Otorgamiento de Buena Pro' → ['acta']."""
     t = _norm(titulo)
     d = str(tipo or "")
-    out: list[str] = []
-    for key, _aliases, rx, dtypes in _CATEGORIAS:
-        if (t and re.search(rx, t)) or (d and d in dtypes):
-            out.append(key)
+    por_titulo = [key for key, _aliases, rx, _dtypes in _CATEGORIAS if t and re.search(rx, t)]
+    por_tipo = [key for key, _aliases, _rx, dtypes in _CATEGORIAS if d and d in dtypes]
+    # El TÍTULO manda sobre el documentType: SEACE publica "Documentos de Presentación de
+    # Propuestas" como `biddingDocuments`, pero es la propuesta del postor, no las bases
+    # (rankearlo como bases lo ponía delante del acta y consumía el tope). El documentType
+    # solo clasifica cuando el título no dice nada.
+    out: list[str] = list(por_titulo) if por_titulo else list(por_tipo)
     # 'bases integradas' implica 'bases', pero 'bases' no debe ganar como integradas.
     if "bases" in out and "bases_integradas" in out:
         out.remove("bases")

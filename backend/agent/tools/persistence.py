@@ -14,33 +14,39 @@ Reglas de persistencia (WS V · auditoría #1, #2, §6.1-1, §6.2-5, §6.2-9):
 
 from tools._core import *  # noqa: F401,F403
 import hashlib as _hashlib
+import time as _time
 from tools import verify as _verify
+from tools.compliance_rules import (norma_aplicable as _norma_aplicable, _fecha_convocatoria_state,
+                                    _monto_adjudicado_ocds, _montos_ocds, coincide_objeto_detalle)
 
 # Pesos de score por severidad según origen (los de compliance ya eran 35/18/8; los
 # demás agentes 25/12/5). Se mantienen, pero ahora se suman sobre TODAS las banderas.
 _PESOS = {"compliance_agent": {"alta": 35, "media": 18, "baja": 8}}
 _PESOS_DEFAULT = {"alta": 25, "media": 12, "baja": 5}
-_verificacion_col_ok = [False]
 
 
 def _peso(agente: str | None, severidad: str | None) -> int:
     return _PESOS.get(agente or "", _PESOS_DEFAULT).get(severidad or "", 5)
 
 
-def _asegurar_columna_verificacion(cur) -> None:
-    """Migración 18 defensiva (idempotente, una vez por proceso)."""
-    if _verificacion_col_ok[0]:
-        return
+def _norma(state: dict, clave: str) -> str:
+    """Norma citada según el régimen del proceso (Ley 32069 desde 22-abr-2025; antes TUO 30225)."""
     try:
-        cur.execute("ALTER TABLE banderas ADD COLUMN IF NOT EXISTS verificacion JSONB")
-        _verificacion_col_ok[0] = True
+        return _norma_aplicable(_fecha_convocatoria_state(state or {}))[clave]
     except Exception:
-        pass
+        return _norma_aplicable(None).get(clave, "")
+
+
+# T13 (lote 1): NO hay `ALTER TABLE … IF NOT EXISTS` en el camino de persistencia. Aunque la
+# columna exista, el ALTER pide ACCESS EXCLUSIVE sobre `banderas`/`alertas`, espera a que
+# termine cualquier lectura abierta (API, dispatcher, otra corrida) y mientras espera bloquea
+# a todos los lectores: era el hueco de 4 min del checkpoint (1225266). Las columnas
+# `banderas.verificacion` (migración 18) y `alertas.analisis_full/dictamen_markdown/
+# analizado_en` (07) y `alertas.monto_referencial` (21) se crean SOLO por migración.
 
 
 def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
                     agente_origen, verificacion) -> None:
-    _asegurar_columna_verificacion(cur)
     cur.execute(
         """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
                                  fuente_url, agente_origen, verificacion)
@@ -52,7 +58,6 @@ def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_u
 
 
 def _leer_banderas(cur, alerta_id) -> list[dict]:
-    _asegurar_columna_verificacion(cur)
     cur.execute(
         "SELECT regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion "
         "FROM banderas WHERE alerta_id=%s ORDER BY CASE severidad WHEN 'alta' THEN 1 "
@@ -136,6 +141,32 @@ def _advisory_lock(cur, key_str: str) -> None:
         cur.execute("SELECT pg_advisory_xact_lock(%s)", (k,))
     except Exception:
         pass
+
+
+def _montos_alerta(state: dict, cuantia_bd) -> tuple[float | None, float | None, str | None]:
+    """(monto_adjudicado, monto_referencial, fuente) para `alertas` (lote 1 · T8).
+    monto_adjudicado = contracts[].value > awards[].value > oferta ganadora del acta >
+    referencial (marcado `fuente='referencial'`). Antes la columna guardaba el VR
+    (741 750 en vez de 734 010 en 1225030; 1 100 900 en vez de 920 000 en 1225416)."""
+    ocds = (state or {}).get("ocds") or (state or {}).get("ocds_preloaded") or {}
+    referencial = _montos_ocds(ocds).get("referencial")
+    try:
+        if referencial is None and cuantia_bd:
+            referencial = float(cuantia_bd)
+    except (TypeError, ValueError):
+        pass
+    adjudicado, fuente = _monto_adjudicado_ocds(ocds)
+    if adjudicado is None:
+        try:
+            from tools.compliance_rules import _postores_parser
+            g = next((p for p in _postores_parser(state or {}) if p.get("es_ganador") and p.get("monto")), None)
+            if g:
+                adjudicado, fuente = float(g["monto"]), "acta_parser"
+        except Exception:
+            pass
+    if adjudicado is None and referencial:
+        adjudicado, fuente = referencial, "referencial"
+    return adjudicado, referencial, fuente
 
 
 def add_contextual_flag(regla: str, severidad: str, evidencia: str,
@@ -263,21 +294,29 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
             prov_ruc = None
         else:
             ent_ruc, region, fbp, objeto, cuantia, prov_ruc = row
+        monto_adj, monto_ref, _fuente_monto = _montos_alerta(state, cuantia)
+        if not prov_ruc:
+            from tools.compliance_rules import _ganador_ocds
+            prov_ruc, _ = _ganador_ocds(state.get("ocds") or state.get("ocds_preloaded") or {})
         cur.execute(
             """INSERT INTO alertas (codigo, ocid, entidad_ruc, proveedor_ruc, monto_adjudicado,
-                                   fecha_buena_pro, region, score, reglas_disparadas, estado,
-                                   objeto, codigo_convocatoria, fuente_url, analizado_en)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa', %s, %s, %s, NOW())
+                                   monto_referencial, fecha_buena_pro, region, score, reglas_disparadas,
+                                   estado, objeto, codigo_convocatoria, fuente_url, analizado_en)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa', %s, %s, %s, NOW())
                ON CONFLICT (codigo) DO UPDATE SET score=EXCLUDED.score,
                  reglas_disparadas=EXCLUDED.reglas_disparadas,
+                 monto_adjudicado=COALESCE(EXCLUDED.monto_adjudicado, alertas.monto_adjudicado),
+                 monto_referencial=COALESCE(EXCLUDED.monto_referencial, alertas.monto_referencial),
+                 proveedor_ruc=COALESCE(EXCLUDED.proveedor_ruc, alertas.proveedor_ruc),
                  analizado_en=NOW(),
                  updated_at=NOW()
                RETURNING id""",
-            (codigo, ocid, ent_ruc, prov_ruc, cuantia, fbp, region, score,
+            (codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region, score,
              [b["regla"] for b in banderas], (objeto or "")[:500],
              ocid.split("-")[-1], f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
         )
         alerta_id = cur.fetchone()[0]
+        state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
         # Limpiar SOLO las banderas propias (compliance_agent) — cada run del compliance
         # empieza desde cero, pero las de document_legal_analyst / market_price NO se
         # tocan (hallazgo #1: antes `DELETE … WHERE alerta_id` borraba todas y el score
@@ -384,7 +423,7 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
             if not norm:
                 continue
             descr, sev, norma = norm
-            norma_final = (norma or "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia")[:300]
+            norma_final = (norma or _norma(state, "competencia"))[:300]
             flag = {"regla": "red_flag_documental", "severidad": sev, "evidencia": descr[:500],
                     "norma": norma_final, "fuente_url": _fuente_oficial}
             if isinstance(rf, dict):
@@ -414,6 +453,39 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     finally:
         conn.close()
 
+def _cobertura_por_valor(findings: list[dict], mk: dict | None = None) -> float:
+    """Cobertura del mercado por VALOR: Σ(cantidad × precio) de los ítems con mediana /
+    Σ(cantidad × precio) de todos. Precio = ofertado > referencial > mediana. Sin
+    cantidades/precios → cobertura por conteo. Respeta `mk['cobertura_valor']` si viene."""
+    if isinstance(mk, dict) and isinstance(mk.get("cobertura_valor"), (int, float)):
+        return float(mk["cobertura_valor"])
+    if not findings:
+        return 0.0
+
+    def _num(v):
+        try:
+            x = float(v)
+            return x if x > 0 else None
+        except (TypeError, ValueError):
+            return None
+    tot, cub = 0.0, 0.0
+    con_valor = 0
+    for f in findings:
+        cant = _num(f.get("cantidad")) or _num(f.get("quantity"))
+        precio = (_num(f.get("precio_unitario_ofertado")) or _num(f.get("precio_unitario_referencial"))
+                  or _num(f.get("precio_mediana_mercado")))
+        if cant and precio:
+            con_valor += 1
+            v = cant * precio
+            tot += v
+            if _num(f.get("precio_mediana_mercado")):
+                cub += v
+    if tot > 0 and con_valor == len(findings):
+        return cub / tot
+    n_med = len([f for f in findings if _num(f.get("precio_mediana_mercado"))])
+    return n_med / len(findings)
+
+
 def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext) -> dict:
     """Toma los hallazgos del market_price_agent (sobreprecio por ítem,
     especificación restrictiva, sobreprecio total del lote) y los persiste
@@ -438,87 +510,82 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
     if not isinstance(mk, dict):
         return {"persistidas": 0, "mensaje": "Sin market_analysis en state"}
 
-    # ─── ANTI-ALUCINACIÓN: validar coherencia con objeto del contrato ───
-    #
-    # Caso real (OCID 1212147): contrato de "ADQUISICIÓN DE CARNES" pero el
-    # market_price_agent produjo findings de camión volquete + excavadora +
-    # mantenimiento maquinaria (copiado del ejemplo del prompt). Detectamos
-    # esto comparando palabras clave del objeto vs item_descripcion.
-    #
-    # IMPORTANTE: en OCDS de OECE, `tender.title` suele ser el CÓDIGO del
-    # proceso (ej. "DIRECTA-DIRECTA-1-2026-MPT-DEC-1") y `tender.description`
-    # es el OBJETO real (ej. "ADQUISICIÓN DE CAMAS PLEGABLES..."). Tomamos
-    # AMBOS y concatenamos para que el dominio de palabras sea amplio y no
-    # rechacemos ítems legítimos.
+    # ─── ANTI-ALUCINACIÓN (lote 1 · T14): un finding se acepta si su ítem existe en la
+    # fuente determinista del fan-out (`market_input.items` por `item_numero`) o en los
+    # ítems del parser; solo los findings SIN correlato documental pasan por el cotejo de
+    # rubro (`coincide_objeto`, por raíces + hiperónimos, contra objeto + ítems OCDS +
+    # ítems del parser). Antes el filtro léxico crudo contra el nombre del proyecto
+    # descartaba los findings del propio parser (1225090, 1225266, 1225379, 1225392) y
+    # abortaba TODA la persistencia.
     ocds_state = state.get("ocds") or {}
     tender = ocds_state.get("tender") or {}
     objeto_contrato = " ".join(
         str(x) for x in (tender.get("description"), tender.get("title")) if x
     ).upper()
-    _STOPWORDS = {
-        "PARA", "DE", "LA", "EL", "Y", "DEL", "CON", "EN", "POR", "LOS", "LAS",
-        "ADQUISICION", "ADQUISICIÓN", "CONTRATACION", "CONTRATACIÓN", "SERVICIO",
-        "SUMINISTRO", "BIENES", "OBRAS", "PROYECTO", "MUNICIPALIDAD",
-    }
-    def _palabras_relevantes(s: str) -> set:
-        if not s:
-            return set()
-        out = set()
-        for w in s.upper().replace(",", " ").replace(":", " ").replace(".", " ").split():
-            w = w.strip()
-            if len(w) < 4 or w in _STOPWORDS or not any(c.isalpha() for c in w):
-                continue
-            out.add(w)
-        return out
-    palabras_objeto = _palabras_relevantes(objeto_contrato)
+    _mi = state.get("market_input") or {}
+    _items_mi = [it for it in ((_mi.get("items") if isinstance(_mi, dict) else None) or []) if isinstance(it, dict)]
+    _raw = state.get("parser_raw_consolidated") or {}
+    _items_parser = [it for it in (_raw.get("items_consolidados") or []) if isinstance(it, dict)]
+    _nums_conocidos = {str(it.get("item_numero") or it.get("numero") or "").strip()
+                       for it in _items_mi + _items_parser}
+    _nums_conocidos.discard("")
+    _descs_conocidas = [str(it.get("descripcion_corta") or it.get("item_descripcion") or it.get("descripcion") or "")
+                        for it in _items_mi + _items_parser]
+    _descs_ocds = [str(it.get("description") or "") for it in (tender.get("items") or []) if isinstance(it, dict)]
+    _descs_ocds += [str((it.get("descripcion") if isinstance(it, dict) else "") or "")
+                    for it in (state.get("convocatoria_items") or [])]
     findings_raw = mk.get("findings") or []
     findings = []
     findings_descartados: list[str] = []
-    if palabras_objeto and findings_raw:
-        # También miramos items del OCDS para ampliar el dominio
-        items_ocds = state.get("convocatoria_items") or []
-        for it in items_ocds:
-            palabras_objeto |= _palabras_relevantes(
-                (it.get("descripcion") if isinstance(it, dict) else None) or ""
-            )
-        for f in findings_raw:
-            if not isinstance(f, dict):
-                continue
-            desc = (f.get("item_descripcion") or "")
-            palabras_item = _palabras_relevantes(desc)
-            # Si el item no comparte NI UNA palabra significativa con el objeto,
-            # es alucinación (ej. "Camión volquete" vs "Carnes").
-            overlap = palabras_item & palabras_objeto
-            if not overlap and palabras_item:
-                findings_descartados.append(desc[:80])
-                continue
+    for f in findings_raw:
+        if not isinstance(f, dict):
+            continue
+        desc = (f.get("item_descripcion") or "")
+        num = str(f.get("item_numero") or "").strip()
+        if num and num in _nums_conocidos:
             findings.append(f)
-        if findings_descartados:
-            try:
-                import json as _json2
-                print(_json2.dumps({
-                    "_vigia": True,
-                    "kind": "market_findings_descartados",
-                    "ocid": state.get("ocid"),
-                    "objeto_contrato": objeto_contrato[:100],
-                    "n_descartados": len(findings_descartados),
-                    "descripciones": findings_descartados[:5],
-                }, ensure_ascii=False), flush=True)
-            except Exception:
-                pass
-            # Si TODOS fueron descartados → abortar la persistencia
-            if not findings:
-                return {
-                    "persistidas": 0,
-                    "mensaje": (
-                        "Todos los findings del market_price_agent fueron "
-                        "descartados por NO coincidir con el objeto del contrato "
-                        f"'{objeto_contrato[:80]}'. Posible alucinación del agente."
-                    ),
-                    "findings_descartados": findings_descartados,
-                }
-    else:
-        findings = findings_raw
+            continue
+        if desc and any(coincide_objeto_detalle(desc, [d]).get("comunes") for d in _descs_conocidas if d):
+            findings.append(f)
+            continue
+        if not desc or not objeto_contrato:
+            findings.append(f)
+            continue
+        det = coincide_objeto_detalle(objeto_contrato, [desc])
+        if not det.get("coincide"):
+            det2 = coincide_objeto_detalle(desc, _descs_ocds + _descs_conocidas)
+            if det2.get("coincide") and det2.get("comunes"):
+                findings.append(f)
+                continue
+            findings_descartados.append(desc[:80])
+            continue
+        findings.append(f)
+    if findings_descartados:
+        try:
+            print(json.dumps({
+                "_vigia": True,
+                "kind": "market_findings_descartados",
+                "ocid": state.get("ocid"),
+                "objeto_contrato": objeto_contrato[:100],
+                "n_descartados": len(findings_descartados),
+                "descripciones": findings_descartados[:5],
+            }, ensure_ascii=False), flush=True)
+        except Exception:
+            pass
+        state.setdefault("descartes", []).append({
+            "donde": "persist_market_flags_as_banderas", "agente": "market_price_agent",
+            "motivos": ["item_sin_correlato_documental_ni_rubro"],
+            "evidencia": "; ".join(findings_descartados[:5])[:240]})
+        if not findings:
+            return {
+                "persistidas": 0,
+                "mensaje": (
+                    "Todos los findings del market_price_agent fueron descartados: sus ítems no "
+                    "existen en market_input/parser ni corresponden al rubro del objeto "
+                    f"'{objeto_contrato[:80]}'. Posible alucinación del agente."
+                ),
+                "findings_descartados": findings_descartados,
+            }
 
     veredicto_global = (mk.get("veredicto_global") or "").lower()
     sobreprecio_pct = mk.get("sobreprecio_pct")
@@ -530,6 +597,9 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
             sobreprecio_pct = ((total_ofertado - total_mercado) / total_mercado) * 100
         except Exception:
             pass
+    # Guardarraíl (T6/T14): un veredicto global `no_verificable` del mercado no produce
+    # bandera de lote; un sobreprecio > 300 % con cobertura insuficiente tampoco.
+    _lote_no_verificable = veredicto_global in ("no_verificable", "sin_dato")
 
     banderas_a_persistir: list[dict] = []
 
@@ -566,18 +636,22 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
                 "evidencia": (
                     f"Ítem '{item_desc}': {str(f.get('spec_restrictiva',''))[:300]}"
                 )[:500],
-                "norma": "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia",
+                "norma": _norma(state, "competencia"),
             })
 
     # 2) Bandera de sobreprecio del LOTE completo (cuando hay padre OCDS
     #    con N sub-items y la suma de mercado vs ofertado da diferencia)
-    # COBERTURA: si solo unos pocos sub-ítems tienen mediana de mercado, comparar
-    # el total del lote contra esa suma parcial es apples-vs-oranges → falso
-    # "sobreprecio_lote". Solo emitimos la bandera con cobertura ≥70%.
+    # COBERTURA POR VALOR (lote 1 · T14): Σ(cantidad × precio) de los ítems con mediana
+    # sobre Σ de todos los ítems; con 1 solo ítem la bandera de lote duplica la del ítem
+    # (1225030: misma evidencia, doble score) → solo con n_items ≥ 2 y cobertura ≥ 0.7.
+    # Si el mercado ya calculó `cobertura_valor` (R3) se respeta.
     _fi = [f for f in findings if isinstance(f, dict)]
-    _n_con_mediana = len([f for f in _fi if isinstance(f.get("precio_mediana_mercado"), (int, float))])
-    _cobertura_mercado = (_n_con_mediana / len(_fi)) if _fi else 0
-    if isinstance(sobreprecio_pct, (int, float)) and _cobertura_mercado >= 0.7:
+    _cobertura_mercado = _cobertura_por_valor(_fi, mk)
+    _n_items_lote = int(mk.get("n_items") or len(_fi) or 0)
+    _lote_ok = (isinstance(sobreprecio_pct, (int, float)) and _n_items_lote >= 2
+                and _cobertura_mercado >= 0.7 and not _lote_no_verificable
+                and not (sobreprecio_pct > 300 and _cobertura_mercado < 0.9))
+    if _lote_ok:
         # Los totales pueden venir None aunque el pct esté (el LLM no siempre
         # llena total_ofertado/total_mercado) → formatear S/. solo si son números.
         _has_montos = isinstance(total_ofertado, (int, float)) and isinstance(total_mercado, (int, float))
@@ -832,7 +906,16 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "validaciones_pendientes": state.get("validaciones_pendientes"),
         "verificacion_dictamen": state.get("verificacion_dictamen"),
         "perfil":               state.get("perfil") or state.get("pipeline_profile"),
+        # `compliance_summary` se completa más abajo con el conteo REAL de banderas de la
+        # alerta (lote 1 · T5): el texto del agente decía "0 banderas" porque se genera
+        # antes de compliance_extended/mercado/legal.
         "compliance_summary":   state.get("compliance_result"),
+        # T5: el análisis legal (agente más caro tras el dictamen) no se guardaba.
+        "legal_analysis":       _try_parse(state.get("legal_analysis"), "legal_analysis"),
+        "compliance_extended":  _try_parse(state.get("compliance_extended"), "compliance_extended"),
+        "reglas_lote1":         state.get("reglas_lote1"),
+        "montos_alerta":        state.get("montos_alerta"),
+        "items_otros_documentos": (state.get("parser_raw_consolidated") or {}).get("items_otros_documentos"),
         # Causal de Contratación Directa (si aplica) + acto resolutivo encontrado
         "causal_directa_invocada": state.get("causal_directa_invocada"),
         "acto_resolutivo_directa": state.get("acto_resolutivo_directa"),
@@ -851,7 +934,8 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         except Exception:
             pass
     dictamen_md = state.get("final_dictamen") or ""
-    blob = json.dumps(analisis, ensure_ascii=False, default=str)
+    _t0 = _time.monotonic()
+    tiempos: dict[str, float] = {}
 
     # Normalizar el alerta_codigo: el LLM a veces pasa el OCID completo
     # (ej. 'ocds-dgv273-seacev3-1213010') en vez del código corto. Si detectamos
@@ -878,13 +962,9 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
     try:
         cur = conn.cursor()
         _advisory_lock(cur, raw_codigo)
-        # Migración idempotente (corre solo en la primera invocación)
-        cur.execute(
-            "ALTER TABLE alertas "
-            "ADD COLUMN IF NOT EXISTS analisis_full JSONB, "
-            "ADD COLUMN IF NOT EXISTS dictamen_markdown TEXT, "
-            "ADD COLUMN IF NOT EXISTS analizado_en TIMESTAMPTZ"
-        )
+        tiempos["lock_s"] = round(_time.monotonic() - _t0, 3)
+        # T13: sin `ALTER TABLE … IF NOT EXISTS` aquí (ver nota al inicio del módulo): las
+        # columnas analisis_full / dictamen_markdown / analizado_en existen por migración.
         cur.execute("SELECT id, codigo FROM alertas WHERE codigo=%s", (raw_codigo,))
         row = cur.fetchone()
 
@@ -933,22 +1013,41 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 v = tender.get("value")
                 cuantia = (v.get("amount") if isinstance(v, dict) else None)
                 prov_ruc = None
+            monto_adj, monto_ref, _fuente_monto = _montos_alerta(state, cuantia)
+            if not prov_ruc:
+                from tools.compliance_rules import _ganador_ocds
+                prov_ruc, _ = _ganador_ocds(state.get("ocds") or state.get("ocds_preloaded") or {})
             cur.execute(
                 """INSERT INTO alertas
-                     (codigo, ocid, entidad_ruc, proveedor_ruc, monto_adjudicado,
+                     (codigo, ocid, entidad_ruc, proveedor_ruc, monto_adjudicado, monto_referencial,
                       fecha_buena_pro, region, score, reglas_disparadas, estado,
                       objeto, codigo_convocatoria, fuente_url, analizado_en)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '{}', 'activa',
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, '{}', 'activa',
                            %s, %s, %s, NOW())
                    ON CONFLICT (codigo) DO UPDATE SET analizado_en=NOW(),
+                     monto_adjudicado=COALESCE(EXCLUDED.monto_adjudicado, alertas.monto_adjudicado),
+                     monto_referencial=COALESCE(EXCLUDED.monto_referencial, alertas.monto_referencial),
                      updated_at=NOW()
                    RETURNING id""",
-                (raw_codigo, ocid, ent_ruc, prov_ruc, cuantia, fbp, region,
+                (raw_codigo, ocid, ent_ruc, prov_ruc, monto_adj, monto_ref, fbp, region,
                  (objeto or "")[:500], ocid.split("-")[-1],
                  f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}"),
             )
+            state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
+            analisis["montos_alerta"] = state["montos_alerta"]
             _stub_created = True
             print(f"[persist_analysis] stub creado para {raw_codigo} (convocatoria_existia={conv is not None})")
+        elif row:
+            # Alerta ya creada por compliance: corregir monto_adjudicado/monto_referencial con
+            # el OCDS del state (T8) sin tocar score ni banderas.
+            monto_adj, monto_ref, _fuente_monto = _montos_alerta(state, None)
+            if monto_adj or monto_ref:
+                cur.execute("UPDATE alertas SET monto_adjudicado=COALESCE(%s, monto_adjudicado), "
+                            "monto_referencial=COALESCE(%s, monto_referencial) WHERE id=%s",
+                            (monto_adj, monto_ref, row[0]))
+                state["montos_alerta"] = {"monto_adjudicado": monto_adj, "monto_referencial": monto_ref, "fuente": _fuente_monto}
+                analisis["montos_alerta"] = state["montos_alerta"]
+        tiempos["stub_s"] = round(_time.monotonic() - _t0, 3)
 
         # Banderas DIFERIDAS (skipeadas antes porque la alerta no existía):
         # pending_doc_flags (legal) y pending_market_flags (mercado; hallazgo #2: antes
@@ -973,7 +1072,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                     if not norm:
                         continue
                     descr, sev, norma = norm
-                    norma_final = (norma or "Art. 2 TUO Ley 30225 — Principio de Libertad de Concurrencia")[:300]
+                    norma_final = (norma or _norma(state, "competencia"))[:300]
                     flag = {"regla": "red_flag_documental", "severidad": sev, "evidencia": descr[:500],
                             "norma": norma_final, "fuente_url": _fuente_proc}
                     if not _verificar_o_descartar(flag, state, "persist_analysis_outputs(pending_doc)",
@@ -1000,6 +1099,51 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
                 _recalcular_score(cur, alerta_id, state)
                 state.pop("pending_doc_flags", None)
                 state.pop("pending_market_flags", None)
+        tiempos["pending_s"] = round(_time.monotonic() - _t0, 3)
+
+        # Puente banderas de investigación → banderas (lote 1 · T14): `person_network.
+        # banderas_red`, `web_research.banderas_sugeridas`, `news_research.banderas_prensa`
+        # se persisten SOLO con evidencia + URL respaldada por grounding/fuente oficial +
+        # confianza alta (R2 garantiza el schema). Antes no tenían camino a `banderas`
+        # (1225062: parentesco entre postores rivales validado y nunca persistido).
+        n_red_inserted, n_red_descartadas = 0, 0
+        try:
+            candidatas = _banderas_investigacion(state)
+        except Exception as _e:
+            candidatas = []
+            warns.append(f"banderas_investigacion: {str(_e)[:120]}")
+        cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
+        _r = cur.fetchone()
+        if _r:
+            alerta_id = _r[0]
+            cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen IN "
+                        "('person_network_agent','web_research_agent','news_research_agent')", (alerta_id,))
+            for b in candidatas:
+                if not _verificar_o_descartar(b, state, "persist_analysis_outputs(investigacion)", b["agente_origen"]):
+                    n_red_descartadas += 1
+                    continue
+                _insert_bandera(cur, alerta_id, b["regla"], b["severidad"], b["evidencia"], b["norma"],
+                                b["fuente_url"], b["agente_origen"], b.get("verificacion"))
+                n_red_inserted += 1
+            score_final, banderas_final = _recalcular_score(cur, alerta_id, state)
+            # T5: `compliance_summary` con el conteo REAL (el texto del agente se conserva).
+            _por_agente: dict[str, int] = {}
+            for b in banderas_final:
+                _por_agente[b.get("agente_origen") or "?"] = _por_agente.get(b.get("agente_origen") or "?", 0) + 1
+            _texto_llm = state.get("compliance_result")
+            _texto_llm = _texto_llm if isinstance(_texto_llm, str) else (json.dumps(_texto_llm, ensure_ascii=False, default=str) if _texto_llm else "")
+            _cab = (f"RESULTADO DETERMINISTA (todas las fuentes): {len(banderas_final)} bandera(s) persistida(s) · "
+                    f"score {score_final} · reglas: {', '.join(sorted({b.get('regla') or '' for b in banderas_final})) or 'ninguna'} · "
+                    f"por agente: {', '.join(f'{k}={v}' for k, v in sorted(_por_agente.items())) or '—'}. "
+                    f"El resumen del agente de compliance (abajo) se redactó antes de las reglas extendidas, "
+                    f"el análisis legal y el mercado; prevalece el conteo determinista.")
+            analisis["compliance_summary"] = _cab + ("\n\n" + _texto_llm if _texto_llm else "")
+            analisis["compliance_resumen_det"] = {"n_banderas": len(banderas_final), "score": score_final,
+                                                  "por_agente": _por_agente,
+                                                  "reglas": sorted({b.get("regla") or "" for b in banderas_final})}
+        tiempos["investigacion_s"] = round(_time.monotonic() - _t0, 3)
+        analisis["descartes"] = state.get("descartes") or []
+        blob = json.dumps(analisis, ensure_ascii=False, default=str)
 
         cur.execute(
             """UPDATE alertas
@@ -1012,6 +1156,7 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         )
         rows = cur.rowcount
         conn.commit()
+        tiempos["total_s"] = round(_time.monotonic() - _t0, 3)
         if rows == 0:
             print(f"[persist_analysis] ⚠ UPDATE no matched: codigo={raw_codigo} ocid={ocid} stub_created={_stub_created}")
         else:
@@ -1023,15 +1168,103 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
             "stub_alerta_created": _stub_created,
             "doc_flags_diferidas_inserted": n_pending_inserted,
             "flags_diferidas_descartadas": n_pending_descartadas,
+            "banderas_investigacion_inserted": n_red_inserted,
+            "banderas_investigacion_descartadas": n_red_descartadas,
             "warns": warns,
             "rows_updated": rows,
             "bytes_saved": len(blob),
             "dictamen_chars": len(dictamen_md),
+            "tiempos": tiempos,
         }
     except Exception as e:
-        return {"persisted": False, "error": str(e)[:200], "alerta_codigo_input": alerta_codigo}
+        return {"persisted": False, "error": str(e)[:200], "alerta_codigo_input": alerta_codigo,
+                "tiempos": tiempos}
     finally:
         conn.close()
+
+
+_AGENTES_INVESTIGACION = (
+    ("person_network", "banderas_red", "person_network_agent"),
+    ("web_research", "banderas_sugeridas", "web_research_agent"),
+    ("news_research", "banderas_prensa", "news_research_agent"),
+)
+
+
+def _url_respaldada(url: str, state: dict) -> bool:
+    """URL con respaldo: redirect de grounding de Vertex, presente en state['grounding_urls'],
+    o ficha canónica (OECE/SEACE/SUNAT). Las URLs de gob.pe escritas por el modelo NO cuentan
+    (1225256: normas-legales/<id> inventados)."""
+    u = str(url or "").strip().rstrip("/")
+    if not u.startswith("http"):
+        return False
+    try:
+        if _verify._es_redirect_grounding(u):
+            return True
+    except Exception:
+        pass
+    try:
+        g = _verify._grounding_urls(state)
+        if g and u in g:
+            return True
+    except Exception:
+        pass
+    try:
+        host, _ = _verify._host_path(u)
+        if host in getattr(_verify, "_CANONICAL_HOSTS", ()):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _banderas_investigacion(state: dict) -> list[dict]:
+    """Candidatas a bandera desde los agentes de investigación. Exige: evidencia con cita,
+    URL respaldada y confianza alta (o `estado` hallado con URL respaldada)."""
+    out: list[dict] = []
+    for clave, lista, agente in _AGENTES_INVESTIGACION:
+        obj = _safe_parse_json(state.get(clave))
+        if not isinstance(obj, dict):
+            continue
+        for b in (obj.get(lista) or []):
+            if not isinstance(b, dict):
+                continue
+            conf = str(b.get("confianza") or b.get("confianza_match") or "").strip().lower()
+            estado = str(b.get("estado") or "").strip().lower()
+            if conf not in ("alta",) and estado not in ("hallado", "confirmado", "verificado"):
+                continue
+            if estado in ("no_verificable", "no_hallado", "sin_dato", "descartado"):
+                continue
+            evs = b.get("evidencia") or []
+            if isinstance(evs, dict):
+                evs = [evs]
+            if isinstance(evs, str):
+                evs = [{"cita": evs}]
+            citas = [str(e.get("cita") or "") for e in evs if isinstance(e, dict) and str(e.get("cita") or "").strip()]
+            urls = [str(e.get("url") or "") for e in evs if isinstance(e, dict) and e.get("url")]
+            if b.get("fuente_url"):
+                urls.append(str(b["fuente_url"]))
+            url_ok = next((u for u in urls if _url_respaldada(u, state)), None)
+            if not citas or not url_ok:
+                continue
+            sev = str(b.get("severidad") or "media").strip().lower()
+            if sev not in ("alta", "media", "baja"):
+                sev = "media"
+            regla = str(b.get("regla") or b.get("titulo") or b.get("nombre") or f"{clave}_hallazgo")
+            regla = re.sub(r"[^a-z0-9_]+", "_", _norma_slug(regla))[:80].strip("_") or f"{clave}_hallazgo"
+            descr = str(b.get("descripcion") or b.get("detalle") or b.get("resumen") or b.get("titulo") or "")
+            texto = (descr + (f" Evidencia: {citas[0][:200]}" if citas else "")).strip()
+            if not texto:
+                continue
+            out.append({"regla": regla, "severidad": sev, "evidencia": texto[:500],
+                        "norma": str(b.get("norma") or b.get("norma_citada") or _norma(state, "integridad"))[:300],
+                        "fuente_url": url_ok, "agente_origen": agente, "confianza": conf or estado})
+    return out
+
+
+def _norma_slug(s: str) -> str:
+    import unicodedata
+    s = "".join(c for c in unicodedata.normalize("NFD", str(s or "")) if unicodedata.category(c) != "Mn")
+    return s.lower().strip()
 
 # ── FunctionTool wrappers ──
 persist_alert_from_flags_tool = FunctionTool(func=persist_alert_from_flags)

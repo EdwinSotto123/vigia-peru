@@ -56,7 +56,8 @@ URL del dato (la `url`/`fuente_url`/`evidencia[].url` del bloque). Sin URL en el
       falta de capacidad: no emitas la bandera.
         add_contextual_flag(regla="capacidad_operativa_cuestionable", severidad="media",
           evidencia="<citas literales de SUNAT + web + monto>",
-          norma="Art. 2 TUO Ley 30225 — Principios de Eficacia y Eficiencia / Competencia",
+          norma="Art. 2 Ley 32069 — Principios de Eficacia y Eficiencia / Competencia (procesos desde
+                 22-abr-2025; para anteriores: Art. 2 TUO Ley 30225)",
           fuente="<URL del dato web si la hay; si no, cadena vacía>")
 
   (b) conflicto_interes_funcionario_empresa — SOLO si la RED DE PERSONAS trae un cruce
@@ -66,7 +67,8 @@ URL del dato (la `url`/`fuente_url`/`evidencia[].url` del bloque). Sin URL en el
       no completes, no infieras parentesco, no uses apellidos como vínculo.
         add_contextual_flag(regla="conflicto_interes_funcionario_empresa", severidad="alta",
           evidencia="<el cruce literal: firmante, cargo, persona del proveedor, tipo_relacion, cita>",
-          norma="Art. 11 TUO Ley 30225 — Impedimentos; Ley 27815 Código de Ética, Art. 8",
+          norma="Art. 12 Ley 32069 — Impedimentos (Art. 11 TUO Ley 30225 en procesos anteriores a
+                 abr-2025); Ley 27815 Código de Ética, Art. 8",
           fuente="<evidencia[].url del cruce>")
 
       🚨 REGLA DE ORO: ante la duda, NO emitas la bandera. Es preferible una bandera de menos
@@ -77,7 +79,10 @@ URL del dato (la `url`/`fuente_url`/`evidencia[].url` del bloque). Sin URL en el
 opiniones OECE y la persistencia los corre el SISTEMA después de ti.
 
 REPORTE FINAL (texto plano, breve):
-  · Cuántas reglas deterministas dispararon (N de 12).
+  · Cuántas reglas deterministas dispararon (N de 12). Una regla con `omitida: true` NO se
+    evaluó: repórtala como 'no evaluada (omitida)', nunca como 'no gatillada' ni 'verificada'.
+  · No incluyas un bloque 'Banderas persistidas: N' ni 'Alerta creada: ninguna': el conteo
+    final lo hace el sistema DESPUÉS de ti (mercado, legal y red también persisten banderas).
   · Cuántas banderas de juicio emitiste (0, 1 o 2), cuáles y con qué evidencia.
   · Lista de banderas nuevas con su severidad.
 

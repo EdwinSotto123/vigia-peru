@@ -16,12 +16,14 @@ def test_evidencia_valida_y_cita_tope():
     e = S.Evidencia(**EV_DOC)
     assert e.pagina == 7 and e.documento
     S.Evidencia(cita="x" * S.CITA_MAX)  # justo en el tope
-    with pytest.raises(ValidationError):
-        S.Evidencia(cita="x" * (S.CITA_MAX + 1))
+    # Revisión lote 1 (T4): una cita larga se TRUNCA a 240 en vez de tumbar la bandera
+    # (1225256: banderas_sugeridas/banderas_prensa perdidas por cita > 240).
+    assert len(S.Evidencia(cita="x" * (S.CITA_MAX + 1)).cita) == S.CITA_MAX
     with pytest.raises(ValidationError):
         S.Evidencia(cita="")
-    with pytest.raises(ValidationError):
-        S.Evidencia(cita="ok", pagina=0)
+    # página 0 / negativa → null (no se pierde la evidencia); "p. 12" → 12
+    assert S.Evidencia(cita="ok", pagina=0).pagina is None
+    assert S.Evidencia(cita="ok", pagina="p. 12").pagina == 12
 
 
 def test_hallado_sin_evidencia_es_invalido():
@@ -47,10 +49,14 @@ def test_legal_output_descarta_flag_sin_evidencia_y_registra():
              "vector": "inventado", "evidencia": [EV_DOC]},
         ],
     })
-    assert [rf.vector for rf in lo.red_flags_documentales] == ["marca_unica"]
-    assert len(lo.descartes()) == 2
-    assert lo.descartes()[0]["donde"].startswith("schema.red_flags_documentales[1]")
-    assert lo.descartes_schema and "evidencia" in lo.descartes_schema[0]
+    # T4: un `vector` desconocido cae a "otro" (la bandera conserva descripción y evidencia);
+    # la bandera SIN evidencia sigue descartándose.
+    assert [rf.vector for rf in lo.red_flags_documentales] == ["marca_unica", "otro"]
+    motivos = [d["motivo"] for d in lo.descartes()]
+    assert motivos.count("item_invalido") == 1 and "enum_fallback" in motivos
+    inval = next(d for d in lo.descartes() if d["motivo"] == "item_invalido")
+    assert inval["donde"].startswith("schema.red_flags_documentales[1]") and "evidencia" in inval["detalle"]
+    assert lo.descartes_schema and any("evidencia" in d for d in lo.descartes_schema)
     # La salida "hallado" hereda la evidencia de sus banderas.
     assert lo.evidencia and lo.evidencia[0].pagina == 7
 
@@ -136,8 +142,9 @@ def test_web_research_recalcula_historial():
     h = w.historial_resumido
     assert (h.n_contratos_estado_hallados, h.primer_contrato, h.ultimo_contrato) == (2, "2024-11", "2025-03")
     assert h.entidades_unicas == ["Entidad A", "Entidad B"]
-    with pytest.raises(ValidationError):
-        S.EmpresaPerfil(ruc="123")
+    # T4: un RUC malformado se anula (no tumba el bloque `empresa`); 'RUC 20…' se limpia.
+    assert S.EmpresaPerfil(ruc="123").ruc is None
+    assert S.EmpresaPerfil(ruc="RUC 20000000001").ruc == "20000000001"
 
 
 def test_entity_personnel_recalcula_n_y_sin_data():

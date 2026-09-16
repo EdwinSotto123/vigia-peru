@@ -66,7 +66,7 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         cur = conn.cursor()
         cur.execute(
             """SELECT numero_item, descripcion, cantidad, unidad,
-                      precio_unit_ref, cuantia_referencial
+                      precio_unit_ref, cuantia_referencial, cubso
                  FROM convocatoria_items WHERE ocid=%s ORDER BY numero_item""",
             (ocid,),
         )
@@ -79,6 +79,7 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
                 "unidad": r[3] or "UND",
                 "precio_unitario_referencial": float(r[4] or 0) if r[4] else None,
                 "cuantia_referencial_item": float(r[5] or 0) if r[5] else None,
+                "cubso": (str(r[6]).strip() if len(r) > 6 and r[6] else None),
             }
         # Ofertas ganadoras por número de ítem
         cur.execute(
@@ -251,7 +252,9 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
                 "cantidad": parser_it.get("cantidad"),
                 "unidad": parser_it.get("unidad") or "UND",
                 "precio_unitario_referencial": parser_it.get("precio_unitario_referencial"),
-                "precio_unitario_ofertado": None,
+                "precio_unitario_ofertado": _market_to_num(parser_it.get("precio_unitario_ofertado")),
+                "origen_precio": (parser_it.get("origen_precio") or "parser") if _market_to_num(parser_it.get("precio_unitario_ofertado")) else None,
+                "marca_ofertada": parser_it.get("marca_ofertada"),
                 "requerimiento_tecnico_detallado": parser_it.get("requerimiento_tecnico_detallado"),
                 "marca_o_modelo_exigido": parser_it.get("marca_o_modelo_exigido"),
                 "certificaciones_exigidas": parser_it.get("certificaciones_exigidas") or [],
@@ -275,10 +278,19 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
                     merged[k] = v
             if parser_it.get("descripcion_corta") and len(parser_it["descripcion_corta"]) > len(merged.get("descripcion_corta", "")):
                 merged["descripcion_corta"] = parser_it["descripcion_corta"]
-        merged["precio_unitario_ofertado"] = (
-            ofertas_by_num.get(num) / max(merged.get("cantidad") or 1, 1)
-            if ofertas_by_num.get(num) else None
-        )
+            # R4: precio pactado (contrato/OC) ya cruzado por el parser en el ítem consolidado.
+            pu_parser = _market_to_num(parser_it.get("precio_unitario_ofertado"))
+            if pu_parser:
+                merged["precio_unitario_ofertado"] = pu_parser
+                merged["origen_precio"] = parser_it.get("origen_precio") or "parser"
+            if parser_it.get("marca_ofertada"):
+                merged["marca_ofertada"] = parser_it.get("marca_ofertada")
+        if not merged.get("precio_unitario_ofertado"):
+            merged["precio_unitario_ofertado"] = (
+                ofertas_by_num.get(num) / max(merged.get("cantidad") or 1, 1)
+                if ofertas_by_num.get(num) else None
+            )
+            merged["origen_precio"] = "oferta_ganadora_bd" if merged["precio_unitario_ofertado"] else None
         items_finales.append(merged)
         # Solo marcamos como visto si NO había un parser sub-item con ese mismo
         # número — porque ese parser item necesita entrar al loop de sub-items.
@@ -330,7 +342,9 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             "cantidad": pi.get("cantidad"),
             "unidad": pi.get("unidad") or "UND",
             "precio_unitario_referencial": pi.get("precio_unitario_referencial"),
-            "precio_unitario_ofertado": None,
+            "precio_unitario_ofertado": _market_to_num(pi.get("precio_unitario_ofertado")),
+            "origen_precio": (pi.get("origen_precio") or "parser") if _market_to_num(pi.get("precio_unitario_ofertado")) else None,
+            "marca_ofertada": pi.get("marca_ofertada"),
             "requerimiento_tecnico_detallado": pi.get("requerimiento_tecnico_detallado"),
             "marca_o_modelo_exigido": pi.get("marca_o_modelo_exigido"),
             "certificaciones_exigidas": pi.get("certificaciones_exigidas") or [],
@@ -365,6 +379,49 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         if padre:
             subs_by_padre.setdefault(_normalize_id(padre), []).append(it)
 
+    # ── Padre que ES un producto (no un lote) ─────────────────────
+    # 1225450: el OCDS registró UN ítem "DIESEL B5 S-50" (5 000 gal) y el parser colgó GASOHOL
+    # (100 gal) como hijo → el diésel (98 % del valor) se degradaba a "padre lote", se sacaba
+    # del array y el lote (S/ 139 950) se comparaba contra 100 gal de gasohol (+7 162 %).
+    # Regla: el ítem OCDS es un PRODUCTO (se precia y sus "hijos" pasan a ser hermanos) si
+    #   · su descripción no trae palabras de agregación (LOTE, PAQUETE, CANASTA…),
+    #   · coincide (raíz de palabras / coincide_objeto) con el producto del parser que se le
+    #     fusionó con el mismo número, y
+    #   · NINGÚN hijo coincide con él (si los hijos son "llanta A / llanta B" bajo "LLANTAS",
+    #     o "diésel + gasohol" bajo "COMBUSTIBLE DIÉSEL Y GASOHOL", sigue siendo lote).
+    padres_producto: set[str] = set()
+    for it in items_finales:
+        n_norm = _normalize_id(it.get("numero"))
+        if it.get("padre_ocds_item") or n_norm not in subs_by_padre:
+            continue
+        descr_sql = (it.get("descripcion_corta") or "")
+        if any(kw in descr_sql.upper() for kw in AGGREGATOR_KEYWORDS):
+            continue
+        p_it = parser_by_num.get(str(it.get("numero"))) or {}
+        if p_it.get("padre_ocds_item"):
+            continue
+        descr_parser = p_it.get("descripcion_corta") or ""
+        if not descr_parser or not _coincide_objeto(descr_sql, [descr_parser]):
+            continue
+        hijos = subs_by_padre[n_norm]
+        if any(_coincide_objeto(descr_sql, [h.get("descripcion_corta") or ""]) for h in hijos):
+            continue
+        padres_producto.add(n_norm)
+        it["es_producto_ocds"] = True
+        it["_nota_lote"] = ("El OCDS registró un solo ítem; el parser encontró además "
+                            f"{len(hijos)} producto(s) distinto(s) que se precian como hermanos.")
+        for h in hijos:
+            h["hermano_de_ocds_item"] = it.get("numero")
+            h["padre_ocds_item"] = None
+            h["cubso"] = h.get("cubso") or it.get("cubso")
+    for n_norm in padres_producto:
+        subs_by_padre.pop(n_norm, None)
+    # Sub-ítems heredan el CUBSO del padre (para el ancla regional).
+    for it in items_finales:
+        p = it.get("padre_ocds_item")
+        if p and not it.get("cubso"):
+            it["cubso"] = (sql_items_by_num.get(str(p)) or {}).get("cubso")
+
     skipped_padres: set[str] = set()
     distributions_applied: list[dict] = []  # vacío — sin distribución
     padres_info: list[dict] = []
@@ -394,6 +451,19 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
             continue
         items_para_market.append(it)
     items_finales = items_para_market
+
+    # ── Precio OFERTADO por ítem (nunca el referencial etiquetado como ofertado) ──
+    # Prioridad: parser R4 (`precio_unitario_ofertado`/`origen_precio`) > `items_contratados[]`
+    # (R4) > ítems del contrato/OC en `items_otros_documentos` (hoy llegan con el precio pactado en
+    # `precio_unitario_referencial`, 1225416/1225450) > oferta ganadora en BD > awards[].items[]
+    # del OCDS > prorrateo del contrato cuando todos los ítems comparten unidad de medida.
+    em = _safe_parse_json(state.get("estudio_mercado")) or {}
+    cf = _safe_parse_json(state.get("contrato_final")) or {}
+    ocds_state = state.get("ocds") or {}
+    contratados = _items_contratados_del_state(state, doc_llm)
+    award_items = _award_items_ocds(ocds_state)
+    cuantia_referencial_total = sum((v.get("cuantia_referencial_item") or 0) for v in sql_items_by_num.values())
+    _enriquecer_precio_ofertado(items_finales, contratados, ofertas_by_num, award_items, cf, sql_items_by_num)
 
     # ── Sin truncado ─────────────────────────────────────────────────
     # El `document_parser_agent` extrae a campos discretos (marca_o_modelo,
@@ -440,8 +510,6 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
     # Además de las búsquedas web, el market_agent recibe el valor referencial del
     # estudio de mercado (Resumen Ejecutivo) y el precio FINAL del contrato (Orden
     # de Compra). Permite comparar contra lo pagado, no solo contra el referencial.
-    em = _safe_parse_json(state.get("estudio_mercado")) or {}
-    cf = _safe_parse_json(state.get("contrato_final")) or {}
     mensaje_ancla = ""
     if em.get("valor_referencial") or em.get("comparacion_precio_historico"):
         mensaje_ancla += (
@@ -464,17 +532,39 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
     except Exception:
         precio_final_vs_ref = None
 
+    # Cuantía referencial del proceso (fallback explícito, nunca se etiqueta como "ofertado").
+    if not cuantia_referencial_total:
+        try:
+            cuantia_referencial_total = float(((ocds_state.get("tender") or {}).get("value") or {}).get("amount") or 0)
+        except (TypeError, ValueError):
+            cuantia_referencial_total = 0.0
+    if precio_final_vs_ref is None and cf.get("precio_final_total") and cuantia_referencial_total:
+        try:
+            precio_final_vs_ref = round((float(cf["precio_final_total"]) - cuantia_referencial_total)
+                                        / cuantia_referencial_total * 100, 1)
+        except (TypeError, ValueError):
+            precio_final_vs_ref = None
+    total_ofertado, total_ofertado_base = _total_ofertado_proceso(items_finales, contratados, cf, ocds_state,
+                                                                  cuantia_referencial_total)
+
     out = {
         "ocid": ocid,
         "items": items_finales,
         "n_items": len(items_finales),
         "n_items_con_requerimiento_extraido": n_con_req,
         "n_items_con_precio_distribuido": n_con_precio_distribuido,
+        "n_items_con_precio_ofertado": sum(1 for it in items_finales if it.get("precio_unitario_ofertado")),
         "n_padres_excluidos": len(skipped_padres),
+        "n_padres_producto": len(padres_producto),
         "n_auto_linked": n_auto_linked,
         "distributions_applied": distributions_applied,
         "padres_info": padres_info,
         "padre_lote": padres_info[0] if padres_info else None,
+        "cuantia_referencial_total": cuantia_referencial_total or None,
+        "total_ofertado": total_ofertado,
+        "total_ofertado_base": total_ofertado_base,
+        "total_ofertado_es_referencial": total_ofertado_base == "referencial",
+        "items_contratados": contratados[:40],
         "tiene_requerimiento": n_con_req > 0,
         "estudio_mercado": em or None,
         "contrato_final": cf or None,
@@ -482,6 +572,170 @@ def build_market_input(ocid: str, tool_context: ToolContext) -> dict:
         "mensaje_para_market_agent": mensaje_base + mensaje_lote + mensaje_ancla,
     }
     return out
+
+
+# ── Helpers de precio ofertado / contratado (lote 1 · T6) ─────────────
+_DOCS_PRECIO_CONTRATO_RE = re.compile(r"contrat|orden\s+de\s+compra|orden\s+de\s+servicio|buena\s+pro|cuadro\s+comparativo|propuesta|oferta", re.IGNORECASE)
+
+
+def _items_contratados_del_state(state: dict, doc_llm: dict | None = None) -> list[dict]:
+    """`items_contratados[]` del parser (R4: descripcion, cantidad, unidad, precio_unitario_contratado,
+    marca_ofertada). Fallback: ítems de `items_otros_documentos` cuyo `_documento` es contrato/OC/
+    acta (llegan con el precio pactado en `precio_unitario_referencial`)."""
+    raw = state.get("parser_raw_consolidated") or {}
+    out: list[dict] = []
+    fuentes = []
+    for src in (raw, doc_llm or {}):
+        if isinstance(src, dict):
+            fuentes.append(src.get("items_contratados") or [])
+    for lista in fuentes:
+        for it in lista:
+            if not isinstance(it, dict):
+                continue
+            pu = _market_to_num(it.get("precio_unitario_contratado") or it.get("precio_unitario_ofertado"))
+            if not pu:
+                continue
+            out.append({"descripcion": (it.get("descripcion") or it.get("descripcion_corta") or "")[:300],
+                        "cantidad": _market_to_num(it.get("cantidad") or it.get("cantidad_contratada")),
+                        "unidad": it.get("unidad"), "precio_unitario_contratado": pu,
+                        "marca_ofertada": it.get("marca_ofertada"), "origen": "items_contratados",
+                        "documento": it.get("_documento") or it.get("documento")})
+        if out:
+            return out
+    for it in (raw.get("items_otros_documentos") or []):
+        if not isinstance(it, dict):
+            continue
+        doc = str(it.get("_documento") or "")
+        if not _DOCS_PRECIO_CONTRATO_RE.search(doc):
+            continue
+        pu = _market_to_num(it.get("precio_unitario_contratado") or it.get("precio_unitario_ofertado")
+                            or it.get("precio_unitario_referencial"))
+        if not pu:
+            continue
+        out.append({"descripcion": (it.get("descripcion_corta") or it.get("descripcion") or "")[:300],
+                    "cantidad": _market_to_num(it.get("cantidad")), "unidad": it.get("unidad"),
+                    "precio_unitario_contratado": pu, "marca_ofertada": it.get("marca_ofertada") or it.get("marca_o_modelo_exigido"),
+                    "origen": "items_otros_documentos", "documento": doc[:120]})
+    return out
+
+
+def _award_items_ocds(ocds: dict) -> dict[str, float]:
+    """{numero_item (position o id): precio unitario adjudicado} desde awards[].items[].totalValue."""
+    out: dict[str, float] = {}
+    for a in (ocds.get("awards") or []):
+        if not isinstance(a, dict):
+            continue
+        for ai in (a.get("items") or []):
+            if not isinstance(ai, dict):
+                continue
+            try:
+                qty = float(ai.get("quantity") or 0)
+                amt = float(((ai.get("totalValue") or {}).get("amount")) or 0)
+            except (TypeError, ValueError):
+                continue
+            if qty > 0 and amt > 0:
+                for k in (ai.get("position"), ai.get("id")):
+                    if k is not None and str(k) not in out:
+                        out[str(k)] = round(amt / qty, 4)
+    return out
+
+
+def _match_contratado(it: dict, contratados: list[dict]) -> dict | None:
+    """Ítem contratado que corresponde al ítem del mercado: solape de raíces ≥ 0.5 y cantidad
+    coincidente (±1 %) o, si no hay cantidad, mejor solape ≥ 0.6."""
+    descr = it.get("descripcion_corta") or it.get("descripcion") or ""
+    cant = it.get("cantidad")
+    mejor, mejor_s = None, 0.0
+    for c in contratados:
+        s = _solape_raices(descr, c.get("descripcion") or "")
+        if s < 0.5:
+            continue
+        cc = c.get("cantidad")
+        misma_cant = bool(cant and cc and abs(float(cant) - float(cc)) / max(float(cant), 1e-9) <= 0.01)
+        score = s + (0.5 if misma_cant else 0.0)
+        if score > mejor_s:
+            mejor, mejor_s = c, score
+    if mejor is None:
+        return None
+    cc = mejor.get("cantidad")
+    if cant and cc and abs(float(cant) - float(cc)) / max(float(cant), 1e-9) > 0.01 and mejor_s < 1.1:
+        return None
+    return mejor
+
+
+def _enriquecer_precio_ofertado(items: list[dict], contratados: list[dict], ofertas_by_num: dict,
+                                award_items: dict, cf: dict, sql_items_by_num: dict) -> None:
+    for it in items:
+        origen_prev = it.get("origen_precio")
+        if it.get("precio_unitario_ofertado") and origen_prev != "oferta_ganadora_bd":
+            it["origen_precio"] = origen_prev or "parser"
+            continue
+        num = str(it.get("numero") or "")
+        # El precio por producto del contrato/OC manda sobre la oferta de la BD (awards / cantidad
+        # del ítem OCDS): en un lote de 2 productos bajo un ítem OCDS esa división no es el precio real.
+        c = _match_contratado(it, contratados) if contratados else None
+        if c:
+            it["precio_unitario_ofertado"] = c["precio_unitario_contratado"]
+            it["origen_precio"] = "contrato" if c.get("origen") == "items_contratados" else "contrato_items_otros_documentos"
+            if c.get("marca_ofertada") and not it.get("marca_ofertada"):
+                it["marca_ofertada"] = c["marca_ofertada"]
+            continue
+        if it.get("precio_unitario_ofertado"):
+            continue   # oferta ganadora de la BD (ya asignada en el merge) sin contrato que la corrija
+        cant = it.get("cantidad") or 0
+        if ofertas_by_num.get(num) and cant:
+            it["precio_unitario_ofertado"] = round(ofertas_by_num[num] / cant, 4)
+            it["origen_precio"] = "oferta_ganadora_bd"
+            continue
+        if not it.get("padre_ocds_item") and not it.get("hermano_de_ocds_item") and award_items.get(num):
+            it["precio_unitario_ofertado"] = award_items[num]
+            it["origen_precio"] = "ocds_award_item"
+            continue
+        it.setdefault("precio_unitario_ofertado", None)
+        it.setdefault("origen_precio", None)
+    # Prorrateo del contrato: todos los ítems sin precio comparten la MISMA unidad de medida
+    # (gal, kg, m…; nunca UND) y hay precio final → precio único = total / Σ cantidades. Es lo
+    # que hizo el contrato 1225450 (121 839 / 5 100 gal = 23.89 en ambos ítems).
+    sin_precio = [it for it in items if not it.get("precio_unitario_ofertado")]
+    if sin_precio and len(sin_precio) == len(items):
+        total = _market_to_num(cf.get("precio_final_total")) if isinstance(cf, dict) else None
+        dims = {(_unidad_canon(it.get("unidad"), item=True) or (None, None))[0] for it in items}
+        cants = [float(it.get("cantidad") or 0) for it in items]
+        if total and len(dims) == 1 and (dims & set(_UNIDADES_MEDIDA)) and all(c > 0 for c in cants):
+            pu = round(total / sum(cants), 4)
+            for it in items:
+                it["precio_unitario_ofertado"] = pu
+                it["origen_precio"] = "prorrateo_contrato_misma_unidad"
+
+
+def _total_ofertado_proceso(items: list[dict], contratados: list[dict], cf: dict, ocds: dict,
+                            cuantia_referencial_total: float | None) -> tuple[float | None, str | None]:
+    """(total, base): contrato (precio_final_total) > Σ items_contratados > awards[].value (OCDS) >
+    Σ ofertado_i × cantidad_i (todos los ítems con precio) > cuantía referencial (`referencial`)."""
+    total = _market_to_num(cf.get("precio_final_total")) if isinstance(cf, dict) else None
+    if total:
+        return total, "contrato"
+    if contratados and all(c.get("cantidad") for c in contratados):
+        s = sum(c["precio_unitario_contratado"] * float(c["cantidad"]) for c in contratados)
+        if s > 0:
+            return round(s, 2), "contrato_items"
+    for a in (ocds.get("awards") or []):
+        if isinstance(a, dict):
+            amt = _market_to_num(((a.get("value") or {}).get("amount")))
+            if amt:
+                return amt, "adjudicado"
+    for c in (ocds.get("contracts") or []):
+        if isinstance(c, dict):
+            amt = _market_to_num(((c.get("value") or {}).get("amount")))
+            if amt:
+                return amt, "contratado_ocds"
+    if items and all(it.get("precio_unitario_ofertado") and isinstance(it.get("cantidad"), (int, float)) for it in items):
+        s = sum(float(it["precio_unitario_ofertado"]) * float(it["cantidad"]) for it in items)
+        if s > 0:
+            return round(s, 2), "ofertado_items"
+    if cuantia_referencial_total:
+        return float(cuantia_referencial_total), "referencial"
+    return None, None
 
 def record_market_finding(
     item_numero: int, item_descripcion: str,
@@ -740,14 +994,491 @@ def _finding_vacio(it: dict, motivo: str, comentario: str) -> dict:
         "cantidad": it.get("cantidad"), "unidad": it.get("unidad"),
         "precio_unitario_referencial": it.get("precio_unitario_referencial"),
         "precio_unitario_ofertado": it.get("precio_unitario_ofertado"),
+        "origen_precio_ofertado": it.get("origen_precio"),
         "precios_observados": [], "proveedores_potenciales": [],
         "caracteristicas_solicitadas_clave": [],
         "precio_mediana_mercado": None, "rango_min": None, "rango_max": None, "n_precios": 0,
+        "n_precios_normalizados": 0,
         "diff_pct": None, "diff_base": None, "veredicto": "sin_dato",
         "es_estimacion": True, "motivo_estimacion": motivo,
         "estado": "sin_dato", "evidencia": [], "spec_restrictiva": None,
+        "referencias_internas": [], "ancla_regional": {"estado": "sin_dato", "motivo": "no_consultada"},
         "comentario": comentario,
     }
+
+
+# ════════════════════════════════════════════════════════════════════
+# OBJETO ↔ ÍTEMS (raíces de palabras) · UNIDADES · ANCLA REGIONAL
+# ════════════════════════════════════════════════════════════════════
+# Correcciones del lote 1 (docs/design/revision_contratos): el ítem OCDS que coincide con un
+# producto del parser NO se degrada a "padre lote" (1225450: DIESEL absorbido y comparado
+# contra 100 gal de gasohol → +7 162 %); los precios observados se normalizan a la unidad del
+# ítem antes de mediana/outliers (1225058 kg vs bolsa de 5 kg; 1225062 rollo de 400 m²; 1225266
+# pieza de 3 m vs 4 m y riel de otro espesor); `total_ofertado` sale del contrato/OC, nunca de la
+# cuantía referencial etiquetada como "ofertado" (1225416); y antes del retail se consulta la BD
+# propia por CUBSO/unidad/región (1225030: VR de Cusco S/ 85–155/m³ ya estaban en `convocatorias`).
+
+_OBJ_STOP = {
+    "para", "de", "la", "el", "y", "del", "con", "en", "por", "los", "las", "un", "una", "al", "a", "e", "o",
+    "adquisicion", "contratacion", "suministro", "compra", "servicio", "servicios", "proyecto", "obra",
+    "meta", "municipalidad", "distrital", "provincial", "regional", "gobierno", "mejoramiento",
+    "ampliacion", "construccion", "creacion", "instalacion", "sistema", "distrito", "provincia",
+    "departamento", "region", "cui", "item", "lote", "paquete", "segun", "tipo", "cantidad", "unidad",
+    "und", "pulgadas", "pulg", "plan", "programa", "ejecucion", "mantenimiento", "recuperacion",
+    "reposicion", "puesto", "obra", "almacen", "entidad", "sede", "nuevo", "nueva", "anio", "fiscal",
+    "in", "cm", "mm", "kg", "gal", "m2", "m3", "und", "unid", "pza", "bolsa", "saco", "rollo",
+}
+# Comodines: objetos genéricos que no dicen qué se compra (todo ítem "coincide").
+_OBJ_COMODINES = ("bien", "material", "insumo", "producto", "articulo", "mercader", "equipamient", "divers")
+# Hiperónimo → raíces de hipónimos frecuentes en compras públicas.
+_OBJ_SINONIMOS = {
+    "geosintet": ("geomall", "geotext", "geomembr", "geocel", "geodren", "geored"),
+    "perfil": ("parant", "riel", "perfil", "canal", "omega", "angul", "esquiner"),
+    "drywall": ("parant", "riel", "placa", "plancha", "yeso"),
+    "combust": ("diesel", "gasohol", "gasolin", "petrol", "biodiesel", "glp", "gnv"),
+    "aliment": ("arroz", "azucar", "aceit", "leche", "atun", "fideo", "lentej", "frijol", "menestr",
+                "harin", "avena", "conserv", "quinua", "sal", "galleta"),
+    "agregad": ("piedr", "arena", "hormig", "grava", "afirm", "confit", "ripio"),
+    "ferret": ("clavo", "alambr", "tornill", "pintur", "tubo", "cement", "fierro", "acero"),
+    "util": ("papel", "lapic", "cuadern", "boligr", "archiv", "folder", "tinta", "toner"),
+    "comput": ("laptop", "computador", "cpu", "monitor", "impresor", "teclad", "mouse", "servidor", "tablet"),
+    "equip": ("laptop", "computador", "monitor", "impresor", "estacion", "gps", "camara", "dron"),
+    "topograf": ("estacion", "nivel", "gps", "prisma", "tripod", "mira"),
+    "medicament": ("tablet", "ampoll", "jarab", "capsul", "inyect"),
+    "reactiv": ("kit", "antiglobul", "suero", "control", "reactiv", "calibr"),
+    "inmunohemat": ("kit", "antiglobul", "suero", "reactiv", "tarjet", "gel"),
+    "vehicul": ("camion", "camionet", "volquet", "motocicl", "automov", "minibus", "omnibus"),
+    "llanta": ("neumat", "llanta"),
+    "uniform": ("blusa", "pantalon", "camisa", "polo", "casaca", "chaleco", "zapato", "gorra"),
+    "vestuar": ("blusa", "pantalon", "camisa", "polo", "casaca", "chaleco", "zapato", "gorra"),
+    "mobiliar": ("escritor", "silla", "mesa", "estant", "archivador", "carpeta"),
+}
+_OBJ_SUFIJOS = ("erias", "eria", "icas", "icos", "ica", "ico", "ales", "al", "es", "s", "a", "o", "e")
+
+
+def _sin_tildes(s: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(s or "")) if unicodedata.category(c) != "Mn")
+
+
+def _raiz(tok: str) -> str:
+    """Raíz muy simple (es): minúsculas sin tildes y hasta 2 sufijos frecuentes recortados."""
+    t = _sin_tildes(tok).lower()
+    for _ in range(2):
+        for suf in _OBJ_SUFIJOS:
+            if t.endswith(suf) and len(t) - len(suf) >= 4:
+                t = t[: -len(suf)]
+                break
+    return t
+
+
+def _raices(texto: str) -> set[str]:
+    """Raíces de las palabras significativas: alfabéticas ≥ 3 letras (sin stopwords) y números de
+    ≥ 2 dígitos (calibres, medidas: "10", "12", "50")."""
+    out: set[str] = set()
+    for tok in re.split(r"[^0-9a-záéíóúñü]+", _sin_tildes(texto or "").lower()):
+        if not tok:
+            continue
+        if tok.isdigit():
+            if len(tok) >= 2:
+                out.add(tok)
+            continue
+        if len(tok) < 3 or tok in _OBJ_STOP or not tok.isalpha():
+            continue
+        out.add(_raiz(tok))
+    return out
+
+
+def _raices_coinciden(a: str, b: str) -> bool:
+    if a.isdigit() or b.isdigit():
+        return a == b
+    if len(a) >= 5 and len(b) >= 5:
+        return a[:5] == b[:5]
+    return a == b
+
+
+def _solape_raices(item_texto: str, otro_texto: str) -> float:
+    """Fracción de raíces del ítem presentes en `otro_texto` (0..1)."""
+    ri, ro = _raices(item_texto), _raices(otro_texto)
+    if not ri or not ro:
+        return 0.0
+    n = sum(1 for a in ri if any(_raices_coinciden(a, b) for b in ro))
+    return n / len(ri)
+
+
+def _coincide_objeto_fallback(objeto: str, items) -> bool:
+    """Fallback local de `coincide_objeto` (R1 la define en compliance_rules): raíz de palabras +
+    sinónimos/hiperónimos + comodines. `items`: str o dict con descripcion/descripcion_corta."""
+    ro = _raices(objeto)
+    if not ro:
+        return True
+    if any(r.startswith(c) for r in ro for c in _OBJ_COMODINES):
+        return True
+    for it in items or []:
+        texto = it if isinstance(it, str) else " ".join(
+            str(it.get(k) or "") for k in ("descripcion_corta", "descripcion", "item_descripcion")) if isinstance(it, dict) else str(it)
+        ri = _raices(texto)
+        if not ri:
+            continue
+        if any(_raices_coinciden(a, b) for a in ro for b in ri):
+            return True
+        for hiper, hipos in _OBJ_SINONIMOS.items():
+            if any(_pref(a, hiper) for a in ro) and any(_pref(b, h) for b in ri for h in hipos):
+                return True
+            if any(_pref(b, hiper) for b in ri) and any(_pref(a, h) for a in ro for h in hipos):
+                return True
+    return False
+
+
+def _pref(raiz: str, patron: str) -> bool:
+    """`raiz` (ya reducida) comparte prefijo con `patron` (hiperónimo/hipónimo del mapa)."""
+    p = _raiz(patron)
+    if raiz == p:
+        return True
+    n = min(len(raiz), len(p), 5)
+    return n >= 4 and raiz[:n] == p[:n]
+
+
+def _coincide_objeto(objeto: str, items) -> bool:
+    """Usa `tools.compliance_rules.coincide_objeto` si existe (helper único de R1); si no, el
+    fallback por raíces de este módulo."""
+    textos = []
+    for it in items or []:
+        if isinstance(it, dict):
+            textos.append(" ".join(str(it.get(k) or "") for k in ("descripcion_corta", "descripcion", "item_descripcion")).strip())
+        elif it:
+            textos.append(str(it))
+    try:
+        from tools.compliance_rules import coincide_objeto as _co  # import perezoso (R1)
+    except Exception:
+        _co = None
+    if _co is not None:
+        try:
+            return bool(_co(objeto, textos))
+        except Exception:
+            pass
+    return _coincide_objeto_fallback(objeto, textos)
+
+
+# ── Unidades: dimensión y factor a la unidad base (kg · l · m · m2 · m3) ──
+_DIM_UNIDADES: dict[str, tuple[str, float]] = {}
+for _alias, _dim, _f in (
+    ("kg kgs kilo kilos kilogramo kilogramos", "masa", 1.0),
+    ("g gr grs gramo gramos", "masa", 0.001),
+    ("tn ton tm tonelada toneladas", "masa", 1000.0),
+    ("l lt lts litro litros", "volumen", 1.0),
+    ("ml mililitro mililitros cc", "volumen", 0.001),
+    ("gal galon galones", "volumen", 3.785),
+    ("m mt mts metro metros ml", "longitud", 1.0),   # "ml" solo como unidad del ÍTEM (metro lineal)
+    ("cm centimetro centimetros", "longitud", 0.01),
+    ("m2 m² metro_cuadrado metros_cuadrados", "area", 1.0),
+    ("m3 m³ metro_cubico metros_cubicos", "volumen_solido", 1.0),
+):
+    for _a in _alias.split():
+        _DIM_UNIDADES.setdefault(_a, (_dim, _f))
+_DIM_UNIDADES["ml"] = ("volumen", 0.001)   # en precios observados "ml" es mililitro
+_CONTENEDORES = {
+    "und", "unidad", "unidades", "unid", "u", "pieza", "piezas", "pza", "pzas", "bolsa", "bolsas", "saco",
+    "sacos", "rollo", "rollos", "caja", "cajas", "paquete", "paquetes", "lata", "latas", "balde", "baldes",
+    "cilindro", "cilindros", "bidon", "bidones", "botella", "botellas", "frasco", "frascos", "galonera",
+    "galoneras", "juego", "juegos", "kit", "kits", "par", "pares", "plancha", "planchas", "barra", "barras",
+    "tubo", "tubos", "envase", "envases", "display", "pack", "sobre", "sobres", "frasco", "tarro", "tarros",
+    "cono", "conos", "pliego", "pliegos", "resma", "resmas", "cartucho", "cartuchos", "bulto", "bultos",
+}
+_UNIDADES_MEDIDA = ("masa", "volumen", "longitud", "area", "volumen_solido")
+
+
+def _unidad_canon(u, *, item: bool = False) -> tuple[str, float] | None:
+    """('masa', 1.0) para "KG"; ('unidad', 1.0) para envases/piezas; None si no se reconoce.
+    Con `item=True`, "ML"/"metro lineal" es METRO LINEAL (convención SEACE), no mililitro."""
+    s = _sin_tildes(str(u or "")).lower().strip().strip(".").replace("  ", " ")
+    if not s:
+        return None
+    if item and s in ("ml", "metro lineal", "metros lineales", "m.l", "m.l."):
+        return ("longitud", 1.0)
+    s = s.replace("metros cuadrados", "m2").replace("metro cuadrado", "m2").replace("metros cubicos", "m3") \
+         .replace("metro cubico", "m3").replace("metros lineales", "m").replace("metro lineal", "m") \
+         .replace("kilogramos", "kg").replace("kilogramo", "kg").replace("galones", "gal").replace("galon", "gal")
+    if s in _DIM_UNIDADES:
+        return _DIM_UNIDADES[s]
+    primero = re.split(r"[\s/()]+", s)[0]
+    if primero in _DIM_UNIDADES:
+        return _DIM_UNIDADES[primero]
+    if primero in _CONTENEDORES or s in _CONTENEDORES:
+        return ("unidad", 1.0)
+    return None
+
+
+_NUM = r"(\d+(?:[.,]\d+)?)"
+_RE_MASA = re.compile(_NUM + r"\s*(kg|kgs|kilos?|kilogramos?|gr|grs|g|gramos?|tn|ton|toneladas?)(?![a-z])")
+_RE_VOL = re.compile(_NUM + r"\s*(ml|mililitros?|lts?|litros?|l|gal|galon(?:es)?)(?![a-z])")
+_RE_AREA = re.compile(_NUM + r"\s*(m2|m²|metros? cuadrados?)(?![a-z])")
+_RE_VOL3 = re.compile(_NUM + r"\s*(m3|m³|metros? cubicos?)(?![a-z])")
+_RE_LONG = re.compile(_NUM + r"\s*(mts?|metros?|m)(?![a-z0-9²³])")
+_RE_DIM2 = re.compile(_NUM + r"\s*(?:mts?|metros?|m)?\s*[x×]\s*" + _NUM + r"\s*(?:mts?|metros?|m)(?![a-z0-9²³])")
+_RE_ESPESOR = re.compile(r"(\d+[.,]\d+)\s*mm(?![a-z])")
+
+
+def _num_es(s: str) -> float | None:
+    try:
+        s = s.replace(",", ".") if s.count(",") == 1 and len(s.split(",")[-1]) <= 2 else s.replace(",", "")
+        v = float(s)
+        return v if v > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _presentacion(texto: str) -> dict:
+    """Contenido declarado en un texto ("bolsa 5 kg", "rollo 4 m x 100 m", "parante x 3 m",
+    "bidón 20 l"), en unidades base por dimensión. `longitud` solo si hay UNA longitud distinta."""
+    t = _sin_tildes(texto or "").lower()
+    out: dict = {}
+    for rx, dim in ((_RE_MASA, "masa"), (_RE_VOL, "volumen"), (_RE_AREA, "area"), (_RE_VOL3, "volumen_solido")):
+        for m in rx.finditer(t):
+            v = _num_es(m.group(1))
+            u = _DIM_UNIDADES.get(m.group(2))
+            if v and u and dim not in out:
+                out[dim] = v * u[1]
+    dims = []
+    for m in _RE_DIM2.finditer(t):
+        a, b = _num_es(m.group(1)), _num_es(m.group(2))
+        if a and b:
+            dims.append((a, b))
+    if dims and "area" not in out:
+        out["area"] = dims[0][0] * dims[0][1]
+        out["area_de_dimensiones"] = True
+    longs = []
+    for m in _RE_LONG.finditer(t):
+        v = _num_es(m.group(1))
+        if v and v not in longs:
+            longs.append(v)
+    if longs:
+        out["longitudes"] = longs
+        if len(longs) == 1:
+            out["longitud"] = longs[0]
+    return out
+
+
+def _espesor_mm(texto: str) -> float | None:
+    """Espesor/calibre declarado ("0.90 mm", "0,45mm"); solo valores con decimales y ≤ 3 mm."""
+    vals = [_num_es(m.group(1)) for m in _RE_ESPESOR.finditer(_sin_tildes(texto or "").lower())]
+    vals = [v for v in vals if v and v <= 3.0]
+    return min(vals) if vals else None
+
+
+def _contexto_unidad_item(it: dict) -> dict:
+    descr = it.get("descripcion_corta") or it.get("descripcion") or ""
+    canon = _unidad_canon(it.get("unidad"), item=True)
+    return {
+        "unidad": it.get("unidad"),
+        "dim": canon[0] if canon else None,
+        "factor": canon[1] if canon else 1.0,
+        "presentacion": _presentacion(descr),
+        "espesor_mm": _espesor_mm(descr),
+    }
+
+
+def _normalizar_precio_observado(precio: float, unidad_obs: str | None, producto_obs: str | None, ctx: dict) -> tuple[float | None, dict]:
+    """Lleva un precio observado a la unidad del ítem. Devuelve (precio_normalizado | None si se
+    descarta, info). Reglas:
+      · misma_unidad / conversion_unidad: el precio viene "por kg", "por litro", "por galón"…
+      · precio_por_presentacion: el precio es por envase/rollo/pieza con contenido declarado
+        (bolsa 5 kg, rollo 4 m x 100 m, bidón 20 l) → precio / contenido.
+      · prorrateo_<dim>: ítem por pieza con medida propia (parante de 4.00 m) vs pieza observada
+        de otra medida (3 m) → precio × 4/3; <dim>_por_unidad_de_medida si el precio es por metro/kg.
+      · espesor_distinto: calibre declarado en ambos lados y difiere > 20 % → descartado.
+      · asumida_misma_unidad: sin presentación detectable → se asume la unidad del ítem (no cuenta
+        como precio "normalizado" para el guardarraíl)."""
+    info = {"precio_original": round(float(precio), 4), "unidad_observada": (unidad_obs or "")[:60] or None,
+            "regla": "asumida_misma_unidad", "factor": 1.0}
+    dim, f_item = ctx.get("dim"), ctx.get("factor") or 1.0
+    texto = f"{unidad_obs or ''} {producto_obs or ''}"
+    esp_i, esp_o = ctx.get("espesor_mm"), _espesor_mm(texto)
+    if esp_i and esp_o and abs(esp_o - esp_i) / esp_i > 0.20:
+        info.update({"regla": "espesor_distinto", "descartar": True,
+                     "detalle": f"espesor observado {esp_o} mm vs exigido {esp_i} mm"})
+        return None, info
+    canon_obs = _unidad_canon(unidad_obs)
+    pres_obs = _presentacion(texto)
+
+    def _ok(factor: float, regla: str, **extra):
+        info.update({"regla": regla, "factor": round(factor, 6), **extra})
+        return round(float(precio) * factor, 4), info
+
+    if dim in _UNIDADES_MEDIDA:
+        if canon_obs and canon_obs[0] == dim:
+            factor = f_item / canon_obs[1]
+            return _ok(factor, "misma_unidad" if abs(factor - 1.0) < 1e-9 else "conversion_unidad")
+        contenido = pres_obs.get(dim)
+        if contenido:
+            return _ok(f_item / contenido, "precio_por_presentacion", contenido_observado=contenido)
+        return float(precio), info
+    if dim == "unidad":
+        pres_item = ctx.get("presentacion") or {}
+        for d in ("longitud", "masa", "volumen", "area", "volumen_solido"):
+            ci = pres_item.get(d)
+            if not ci:
+                continue
+            if canon_obs and canon_obs[0] == d:
+                return _ok(ci / canon_obs[1], f"{d}_por_unidad_de_medida", contenido_item=ci)
+            co = pres_obs.get(d)
+            if co:
+                if abs(co - ci) / ci < 0.02:
+                    return _ok(1.0, "misma_presentacion", contenido_item=ci, contenido_observado=co)
+                return _ok(ci / co, f"prorrateo_{d}", contenido_item=ci, contenido_observado=co)
+        return float(precio), info
+    return float(precio), info
+
+
+# ── Ancla regional: precios unitarios de la BD propia (CUBSO / unidad / departamento) ──
+MARKET_ANCLA_MESES = int(os.getenv("MARKET_ANCLA_MESES", "24"))
+MARKET_ANCLA_MIN_REGION = int(os.getenv("MARKET_ANCLA_MIN_REGION", "2"))
+MARKET_ANCLA_MIN_PAIS = int(os.getenv("MARKET_ANCLA_MIN_PAIS", "3"))
+MARKET_ANCLA_MARGEN = float(os.getenv("MARKET_ANCLA_MARGEN", "0.15"))
+MARKET_ANCLA_SOLAPE = float(os.getenv("MARKET_ANCLA_SOLAPE", "0.5"))
+MARKET_ANCLA_LIMIT = int(os.getenv("MARKET_ANCLA_LIMIT", "80"))
+# Guardarraíl: Δ implausible sin base suficiente → no_verificable (1225450: +7 162 %).
+MARKET_DELTA_IMPLAUSIBLE = float(os.getenv("MARKET_DELTA_IMPLAUSIBLE", "300"))
+MARKET_COBERTURA_LOTE = float(os.getenv("MARKET_COBERTURA_LOTE", "0.7"))
+
+
+def _consultar_referencias_internas(ocid: str, cubsos: list[str], descripcion: str, *, meses: int = MARKET_ANCLA_MESES,
+                                    limit: int = MARKET_ANCLA_LIMIT) -> list[dict]:
+    """Ítems de otras convocatorias de BIENES en la BD propia con el mismo CUBSO o su clase (8
+    dígitos) en los últimos `meses`, con precio unitario implícito (totalValue/quantity) del VR
+    y, si existe, del award. Ordena: mismo departamento (ubigeo) → mismo CUBSO → similitud."""
+    if not ocid or not (cubsos or descripcion):
+        return []
+    clases = sorted({c[:8] for c in cubsos if len(c) >= 8})
+    conn = _pg()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM pg_extension WHERE extname='pg_trgm'")
+        tiene_trgm = cur.fetchone() is not None
+        cur.execute("SELECT 1 FROM pg_extension WHERE extname='unaccent'")
+        tiene_unaccent = cur.fetchone() is not None
+        norm = "unaccent(lower(%s))" if tiene_unaccent else "lower(%s)"
+        col_descr = "it->>'description'"
+        sim_expr = f"similarity({norm.replace('%s', col_descr)}, {norm})" if tiene_trgm else "0.0"
+        sql = f"""
+            WITH me AS (SELECT left(ubigeo, 2) AS dpto FROM convocatorias WHERE ocid = %s)
+            SELECT c.ocid, c.entidad_ruc, e.nombre, c.objeto, c.fecha_convocatoria, c.region, left(c.ubigeo, 2),
+                   c.modalidad, c.etapa,
+                   it->>'description', it->>'quantity', it->'unit'->>'name', it->'classification'->>'id',
+                   it->'totalValue'->>'amount',
+                   (SELECT ai->'totalValue'->>'amount'
+                      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.ocds_payload->'awards') = 'array'
+                                                     THEN c.ocds_payload->'awards' ELSE '[]'::jsonb END) a,
+                           jsonb_array_elements(CASE WHEN jsonb_typeof(a->'items') = 'array'
+                                                     THEN a->'items' ELSE '[]'::jsonb END) ai
+                     WHERE ai->>'id' = it->>'id' LIMIT 1),
+                   {sim_expr},
+                   (left(c.ubigeo, 2) IS NOT NULL AND left(c.ubigeo, 2) = (SELECT dpto FROM me)),
+                   (it->'classification'->>'id' = ANY(%s))
+              FROM convocatorias c
+              LEFT JOIN entidades e ON e.ruc = c.entidad_ruc,
+                   jsonb_array_elements(CASE WHEN jsonb_typeof(c.ocds_payload->'tender'->'items') = 'array'
+                                             THEN c.ocds_payload->'tender'->'items' ELSE '[]'::jsonb END) it
+             WHERE c.ocid <> %s
+               AND (c.categoria = 'goods' OR c.tipo_contratacion = 'bienes')
+               AND COALESCE(c.etapa, '') NOT IN ('nula', 'cancelada')
+               AND c.fecha_convocatoria >= (CURRENT_DATE - make_interval(months => %s))
+               AND (it->'classification'->>'id' = ANY(%s) OR left(it->'classification'->>'id', 8) = ANY(%s))
+               AND (it->>'quantity') ~ '^[0-9]+([.][0-9]+)?$' AND (it->>'quantity')::numeric > 0
+               AND (it->'totalValue'->>'amount') ~ '^[0-9]+([.][0-9]+)?$'
+               AND (it->'totalValue'->>'amount')::numeric > 0
+             ORDER BY 16 DESC, 17 DESC, 15 DESC
+             LIMIT %s"""
+        params = [ocid] + ([descripcion] if tiene_trgm else []) + [cubsos or [""], ocid, meses, cubsos or [""],
+                                                                     clases or [""], limit]
+        cur.execute(sql, params)
+        out, vistos = [], set()
+        for r in cur.fetchall():
+            (r_ocid, ent_ruc, ent_nombre, objeto, fecha, region, dpto, modalidad, etapa, descr, qty, unidad,
+             cubso, total_ref, total_adj, sim, misma_region, mismo_cubso) = r
+            k = (r_ocid, (descr or "")[:80])
+            if k in vistos:
+                continue
+            vistos.add(k)
+            try:
+                qty_f, ref_f = float(qty), float(total_ref)
+            except (TypeError, ValueError):
+                continue
+            adj_f = None
+            try:
+                adj_f = float(total_adj) if total_adj else None
+            except (TypeError, ValueError):
+                adj_f = None
+            out.append({
+                "ocid": r_ocid, "entidad_ruc": ent_ruc, "entidad": ent_nombre, "objeto": (objeto or "")[:200],
+                "descripcion": (descr or "")[:200], "cantidad": qty_f, "unidad": unidad, "cubso": cubso,
+                "fecha_convocatoria": fecha.isoformat() if fecha else None, "region": region, "departamento_ubigeo": dpto,
+                "modalidad": modalidad, "etapa": etapa,
+                "precio_unitario_referencial": round(ref_f / qty_f, 4),
+                "precio_unitario_adjudicado": round(adj_f / qty_f, 4) if adj_f else None,
+                "sim": round(float(sim or 0), 3), "misma_region": bool(misma_region), "mismo_cubso": bool(mismo_cubso),
+                "url": OECE_PROCESO_URL.format(ocid=r_ocid),
+            })
+        return out
+    finally:
+        conn.close()
+
+
+def _ancla_regional_item(it: dict, refs: list[dict], base_val, ctx: dict) -> tuple[dict, list[dict]]:
+    """Filtra las referencias internas al mismo bien (CUBSO exacto o solape de raíces ≥ umbral) y
+    misma dimensión de unidad (convirtiendo factor), y decide el ámbito: departamento (≥ 2) →
+    país (≥ 3) → insuficiente. Devuelve (ancla, referencias_usables)."""
+    descr = it.get("descripcion_corta") or it.get("descripcion") or ""
+    dim, f_item = ctx.get("dim"), ctx.get("factor") or 1.0
+    usables = []
+    for r in refs:
+        cu = _unidad_canon(r.get("unidad"), item=True)
+        if dim in _UNIDADES_MEDIDA:
+            if not cu or cu[0] != dim:
+                continue
+            conv = f_item / cu[1]
+        else:
+            if cu and cu[0] in _UNIDADES_MEDIDA:
+                continue
+            conv = 1.0
+        solape = _solape_raices(descr, r.get("descripcion") or "")
+        if not (r.get("mismo_cubso") or solape >= MARKET_ANCLA_SOLAPE):
+            continue
+        pu = r.get("precio_unitario_adjudicado") or r.get("precio_unitario_referencial")
+        if not pu:
+            continue
+        usables.append({**r, "solape_raices": round(solape, 2),
+                        "precio_unitario": round(pu * conv, 4),
+                        "precio_base": "adjudicado" if r.get("precio_unitario_adjudicado") else "referencial"})
+    # Outliers de la BD (cantidad = 1 para un lote, unidad mal registrada): fuera de [med/5, med×5].
+    keep, drop = _filtrar_outliers([r["precio_unitario"] for r in usables])
+    n_outliers = len(drop)
+    usables = [r for r in usables if r["precio_unitario"] in keep] if drop else usables
+    region = [r for r in usables if r.get("misma_region")]
+    if len(region) >= MARKET_ANCLA_MIN_REGION:
+        grupo, ambito = region, "departamento"
+    elif len(usables) >= MARKET_ANCLA_MIN_PAIS:
+        grupo, ambito = usables, "nacional"
+    else:
+        return ({"estado": "insuficiente", "ambito": None, "n": len(usables), "n_region": len(region),
+                 "n_outliers": n_outliers, "motivo": "menos_referencias_internas_que_el_minimo"}, usables)
+    vals = [r["precio_unitario"] for r in grupo]
+    p_min, p_max, med = min(vals), max(vals), _mediana(vals)
+    lo, hi = p_min * (1 - MARKET_ANCLA_MARGEN), p_max * (1 + MARKET_ANCLA_MARGEN)
+    diff = _diff_pct(base_val, med)
+    if base_val is None:
+        pos = "sin_base"
+    elif lo <= float(base_val) <= hi:
+        pos = "dentro_rango"
+    elif float(base_val) > hi:
+        pos = "sobre_rango"
+    else:
+        pos = "bajo_rango"
+    return ({"estado": "hallado", "ambito": ambito, "n": len(grupo), "n_region": len(region), "n_outliers": n_outliers,
+             "rango_min": round(p_min, 2), "rango_max": round(p_max, 2), "mediana": round(med, 2),
+             "margen": MARKET_ANCLA_MARGEN, "posicion": pos, "diff_vs_mediana_pct": diff,
+             "veredicto_regional": ("alineado_regional" if pos == "dentro_rango" else _veredicto(diff) if diff is not None else "sin_dato"),
+             "ocids": [r["ocid"] for r in grupo][:12]}, usables)
 
 
 # ── goods_retail: worker Gemini + google_search con atribución por grounding ──
@@ -778,6 +1509,10 @@ Reglas:
 · Solo precios que viste en los resultados de búsqueda; nada de memoria ni estimaciones.
 · Hasta 8 líneas por ítem. Si encontraste menos de 3, reporta las que haya (no completes).
 · Precio unitario en soles. Si la página muestra dólares, escribe "USD <precio>" en vez de "S/".
+· En "por <unidad>" escribe la PRESENTACIÓN real del precio, con contenido o medida: "por kg",
+  "por bolsa de 5 kg", "por saco de 50 kg", "por galón", "por bidón de 20 l", "por m2",
+  "por rollo de 4 m x 100 m", "por pieza de 3 m", "por unidad". Si el título no trae el contenido
+  neto o las dimensiones (largo, espesor), agrégalos al título tal como los muestra la página.
 · Usa el `numero` del ítem tal cual (incluye sub-ítems como 2.1).
 · Si no encontraste precios para un ítem escribe exactamente: Ítem <numero>: sin precios observados.
 · Cierra cada ítem con una línea: Comentario ítem <numero>: <1-2 oraciones factuales sobre la
@@ -886,7 +1621,7 @@ def _parsear_worker(text: str, gm, items_chunk: list) -> dict:
             "n_soportes": len(spans)}
 
 
-def _worker_goods_retail(items_chunk: list, objeto: str, idx: int) -> dict:
+def _worker_goods_retail(items_chunk: list, objeto: str, idx: int, contexto: str = "") -> dict:
     """Worker: precia ~3 ítems con UNA llamada Gemini + google_search (grounding)."""
     from google.genai import types
     items_min = []
@@ -903,7 +1638,8 @@ def _worker_goods_retail(items_chunk: list, objeto: str, idx: int) -> dict:
         "Eres un analista de precios de mercado peruano. Tu herramienta es Google Search "
         "(grounding en vivo).\n\n"
         f"OBJETO DEL CONTRATO: {objeto[:300]}\n"
-        "Cada ítem de abajo pertenece a ese objeto: no busques productos de otro rubro.\n\n"
+        "Cada ítem de abajo pertenece a ese objeto: no busques productos de otro rubro.\n"
+        f"{(contexto or '')[:400]}\n\n"
         f"ÍTEMS A PRECIAR ({len(items_chunk)}):\n{json.dumps(items_min, ensure_ascii=False)}\n"
         f"{_MARKET_WORKER_INSTRUCCIONES}"
     )
@@ -939,13 +1675,13 @@ def _worker_goods_retail(items_chunk: list, objeto: str, idx: int) -> dict:
     return out
 
 
-def _fanout_goods_retail(items: list, objeto: str, state: dict) -> tuple[list, dict, set, list, int]:
+def _fanout_goods_retail(items: list, objeto: str, state: dict, contexto: str = "") -> tuple[list, dict, set, list, int]:
     """Lanza los workers. Devuelve (precios, comentarios, sin_precios, chunks, n_chunks)."""
     lotes = [items[i:i + MARKET_CHUNK_SIZE] for i in range(0, len(items), MARKET_CHUNK_SIZE)]
     precios, comentarios, sin_precios, chunks = [], {}, set(), []
     errores = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=MARKET_MAX_WORKERS) as ex:
-        futs = [ex.submit(_worker_goods_retail, ch, objeto, i) for i, ch in enumerate(lotes)]
+        futs = [ex.submit(_worker_goods_retail, ch, objeto, i, contexto) for i, ch in enumerate(lotes)]
         try:
             for fut in concurrent.futures.as_completed(futs, timeout=MARKET_TIMEOUT_S):
                 try:
@@ -971,6 +1707,50 @@ def _fanout_goods_retail(items: list, objeto: str, state: dict) -> tuple[list, d
     return precios, comentarios, sin_precios, chunks, len(lotes)
 
 
+def _contexto_entrega(ocds: dict, state: dict) -> str:
+    """Región/lugar de entrega para el worker (1225030: comparables de Lima para piedra puesta
+    en obra en Cusco). Se toma del buyer del OCDS y de `condiciones_entrega` del parser."""
+    region, localidad = None, None
+    for p in (ocds.get("parties") or []):
+        if isinstance(p, dict) and ("buyer" in (p.get("roles") or []) or "procuringEntity" in (p.get("roles") or [])):
+            addr = p.get("address") or {}
+            region, localidad = addr.get("region"), addr.get("locality")
+            break
+    raw = state.get("parser_raw_consolidated") or {}
+    lugar = None
+    for src in (raw, _safe_parse_json(state.get("document_analysis")) or {}):
+        ce = src.get("condiciones_entrega") if isinstance(src, dict) else None
+        if isinstance(ce, dict) and ce.get("lugar_entrega"):
+            lugar = str(ce["lugar_entrega"])[:160]
+            break
+    partes = []
+    if region or localidad:
+        partes.append(f"REGIÓN DE LA ENTIDAD: {', '.join(x for x in (localidad, region) if x)}")
+    if lugar:
+        partes.append(f"LUGAR DE ENTREGA: {lugar}")
+    if partes:
+        partes.append("Prioriza precios de esa región (o nacionales) e indica si el precio incluye transporte/puesto en obra.")
+    return " · ".join(partes)
+
+
+def _valor_item(it: dict, f: dict | None = None) -> float | None:
+    """Valor del ítem para la cobertura por VALOR: ofertado × cantidad > referencial × cantidad >
+    cuantía referencial del ítem > mediana de mercado × cantidad (si se preció)."""
+    cant = it.get("cantidad")
+    if not isinstance(cant, (int, float)) or cant <= 0:
+        return _market_to_num(it.get("cuantia_referencial_item"))
+    for k in ("precio_unitario_ofertado", "precio_unitario_referencial"):
+        v = _market_to_num(it.get(k))
+        if v:
+            return v * float(cant)
+    v = _market_to_num(it.get("cuantia_referencial_item"))
+    if v:
+        return v
+    if f and isinstance(f.get("precio_mediana_mercado"), (int, float)):
+        return float(f["precio_mediana_mercado"]) * float(cant)
+    return None
+
+
 def _mercado_goods_retail(state: dict) -> dict:
     mi = state.get("market_input")
     if not (isinstance(mi, dict) and mi.get("items")):
@@ -983,9 +1763,12 @@ def _mercado_goods_retail(state: dict) -> dict:
     ocds = state.get("ocds") or {}
     tender = ocds.get("tender") or {}
     objeto = tender.get("description") or tender.get("title") or ""
+    ocid = _short_ocid(ocds.get("ocid") or state.get("ocid") or mi.get("ocid") or "")
     padre_lote = mi.get("padre_lote") if isinstance(mi.get("padre_lote"), dict) else None
+    cubsos_record = _cubsos_del_record(ocds)
 
-    precios, comentarios, sin_precios, chunks, n_chunks = _fanout_goods_retail(items, objeto, state)
+    contexto = _contexto_entrega(ocds, state)
+    precios, comentarios, sin_precios, chunks, n_chunks = _fanout_goods_retail(items, objeto, state, contexto)
 
     # 2º pase: ítems sin ningún precio con grounding.
     n_retry = 0
@@ -993,7 +1776,7 @@ def _mercado_goods_retail(state: dict) -> dict:
         con_precio = {p["item_numero"] for p in precios}
         faltan = [it for it in items if _norm_num(it.get("numero")) not in con_precio]
         if faltan:
-            p2, c2, s2, ch2, n2 = _fanout_goods_retail(faltan, objeto, state)
+            p2, c2, s2, ch2, n2 = _fanout_goods_retail(faltan, objeto, state, contexto)
             n_retry = len({p["item_numero"] for p in p2})
             precios += p2
             for k, v in c2.items():
@@ -1009,47 +1792,129 @@ def _mercado_goods_retail(state: dict) -> dict:
     for p in precios:
         por_item.setdefault(p["item_numero"], []).append(p)
 
+    # Ancla regional (BD propia) por ítem: una consulta por CUBSO/descripción; falla → sin ancla.
+    cache_refs: dict[tuple, list[dict]] = {}
+
+    def _refs_para(it: dict) -> list[dict]:
+        cubsos = [c for c in ([it.get("cubso")] + cubsos_record) if c]
+        descr = it.get("descripcion_corta") or ""
+        key = (tuple(sorted(set(cubsos))), descr[:80])
+        if key in cache_refs:
+            return cache_refs[key]
+        try:
+            refs = _consultar_referencias_internas(ocid, sorted(set(cubsos)), descr) if ocid else []
+        except Exception as e:
+            _registrar_descarte(state, "market.goods_retail.ancla_regional", "error_bd", f"{type(e).__name__}: {str(e)[:160]}")
+            refs = []
+        cache_refs[key] = refs
+        return refs
+
     for it in items:
         num = _norm_num(it.get("numero"))
+        ctx = _contexto_unidad_item(it)
+        base_val, base = None, None
+        if _market_to_num(it.get("precio_unitario_ofertado")):
+            base_val, base = float(it["precio_unitario_ofertado"]), "ofertado"
+        elif _market_to_num(it.get("precio_unitario_referencial")):
+            base_val, base = float(it["precio_unitario_referencial"]), "referencial"
+        ancla, refs_usables = _ancla_regional_item(it, _refs_para(it), base_val, ctx)
+        if refs_usables:
+            _publicar_grounding(state, [{"uri": r["url"], "titulo": f"SEACE {r['ocid']}",
+                                         "dominio": "contratacionesabiertas.oece.gob.pe", "origen": "bd_convocatorias"}
+                                        for r in refs_usables])
+        refs_pub = [{k: r.get(k) for k in ("ocid", "entidad", "entidad_ruc", "descripcion", "cantidad", "unidad", "cubso",
+                                            "fecha_convocatoria", "region", "etapa", "precio_unitario_referencial",
+                                            "precio_unitario_adjudicado", "precio_unitario", "precio_base", "misma_region",
+                                            "mismo_cubso", "solape_raices", "url")} for r in refs_usables][:12]
+        oferta_vs_ref = _diff_pct(it.get("precio_unitario_ofertado"), it.get("precio_unitario_referencial"))
+        nota_base = ("La oferta coincide con el valor referencial (±3 %): la señal apunta al estudio de mercado "
+                     "de la entidad, no a la oferta." if isinstance(oferta_vs_ref, (int, float)) and abs(oferta_vs_ref) <= 3 else None)
+
         obs = por_item.get(num) or []
         if not obs:
             motivo = "sin_precios_en_mercado" if num in sin_precios else "sin_precio_con_fuente_verificable"
             f = _finding_vacio(it, motivo, comentarios.get(num) or "Sin precios observados con fuente verificable en esta corrida.")
+            f.update({"referencias_internas": refs_pub, "ancla_regional": ancla, "unidad_normalizacion": ctx.get("dim"),
+                      "oferta_vs_referencial_pct": oferta_vs_ref, "nota_base": nota_base})
+            # Sin retail pero con ancla regional decisiva → veredicto por la BD propia.
+            if ancla.get("estado") == "hallado" and base_val is not None:
+                # La tabla del dictamen muestra `precio_mediana_mercado`: sin retail, la mediana visible
+                # es la regional (marcada con `fuente_mediana`) para que veredicto y tabla no se contradigan.
+                f.update({"precio_mediana_regional": ancla.get("mediana"), "veredicto": ancla["veredicto_regional"],
+                          "precio_mediana_mercado": ancla.get("mediana"), "fuente_mediana": "ancla_regional",
+                          "rango_min": ancla.get("rango_min"), "rango_max": ancla.get("rango_max"),
+                          "n_referencias_internas": ancla.get("n"),
+                          "veredicto_retail": "sin_dato", "diff_pct": ancla.get("diff_vs_mediana_pct"),
+                          "diff_base": base, "diff_fuente": "ancla_regional", "estado": "hallado",
+                          "es_estimacion": False, "motivo_estimacion": None,
+                          "precio_mediana_comparacion": ancla.get("mediana"),
+                          "evidencia": [{"url": r["url"], "cita": f"{r['descripcion'][:150]} · S/ {r['precio_unitario']:.2f}/{it.get('unidad') or 'u'} ({r['precio_base']})"[:240]}
+                                        for r in refs_usables][:20],
+                          "comentario": (f"Sin precios retail con fuente; {ancla['n']} referencia(s) interna(s) "
+                                         f"({ancla['ambito']}) en la BD SEACE propia: rango S/ {ancla['rango_min']:,.2f}-{ancla['rango_max']:,.2f} "
+                                         f"por {it.get('unidad') or 'unidad'}; el precio {base} queda {ancla['posicion'].replace('_', ' ')}.")})
             findings.append(f)
             continue
-        precios_obs = []
+
+        precios_obs, descartados = [], []
         for p in obs:
             valor = p["precio"] * MARKET_USD_PEN if p["moneda_origen"] == "USD" else p["precio"]
             f0 = p["fuentes"][0]
-            precios_obs.append({
-                "producto": p["producto"], "precio": round(valor, 2), "unidad": p["unidad"],
+            norm, info = _normalizar_precio_observado(valor, p.get("unidad"), p.get("producto"), ctx)
+            fila = {
+                "producto": p["producto"], "precio": round(norm, 2) if norm is not None else None,
+                "precio_publicado": round(valor, 2), "unidad": p["unidad"],
+                "unidad_item": it.get("unidad"), "normalizacion": info,
                 "url": f0["uri"], "fecha": None, "proveedor": p["proveedor"],
                 "moneda_origen": p["moneda_origen"],
                 "tipo_cambio_aplicado": MARKET_USD_PEN if p["moneda_origen"] == "USD" else None,
                 "titulo_fuente": f0.get("titulo"), "dominio": f0.get("dominio"),
                 "urls_adicionales": [x["uri"] for x in p["fuentes"][1:]],
                 # compat frontend (columna `valor`)
-                "valor": round(valor, 2),
-            })
+                "valor": round(norm, 2) if norm is not None else None,
+            }
+            if norm is None:
+                descartados.append(fila)
+                _registrar_descarte(state, f"market.goods_retail.item_{num}", info.get("regla") or "no_normalizable",
+                                    f"{p['producto'][:80]} · {info.get('detalle') or ''}")
+                continue
+            precios_obs.append(fila)
         valores = [x["precio"] for x in precios_obs]
         keep, drop = _filtrar_outliers(valores)
         if drop:
             _registrar_descarte(state, f"market.goods_retail.item_{num}", "outlier",
-                                f"{len(drop)} precio(s) fuera de [mediana/5, mediana×5]: {drop[:5]}")
+                                f"{len(drop)} precio(s) (ya normalizados a {it.get('unidad')}) fuera de [mediana/5, mediana×5]: {drop[:5]}")
         mediana = _mediana(keep)
         n = len(keep)
-        base_val, base = None, None
-        if it.get("precio_unitario_ofertado"):
-            base_val, base = it["precio_unitario_ofertado"], "ofertado"
-        elif it.get("precio_unitario_referencial"):
-            base_val, base = it["precio_unitario_referencial"], "referencial"
-        diff = _diff_pct(base_val, mediana) if n >= MARKET_MIN_PRECIOS else None
-        veredicto = _veredicto(diff) if diff is not None else "sin_dato"
+        n_norm = sum(1 for x in precios_obs if x["precio"] in keep and (x["normalizacion"] or {}).get("regla") != "asumida_misma_unidad")
+        diff_retail = _diff_pct(base_val, mediana) if n >= MARKET_MIN_PRECIOS else None
+        veredicto_retail = _veredicto(diff_retail) if diff_retail is not None else "sin_dato"
         motivo = None
         if n < MARKET_MIN_PRECIOS:
             motivo = "precios_insuficientes"
         elif base_val is None:
             motivo = "sin_precio_ofertado_ni_referencial"
+
+        # Combinación retail + ancla regional.
+        veredicto, diff, diff_fuente, med_comparacion = veredicto_retail, diff_retail, "retail", mediana
+        if ancla.get("estado") == "hallado" and base_val is not None:
+            vr = ancla["veredicto_regional"]
+            if ancla.get("posicion") == "dentro_rango":
+                veredicto, diff_fuente = "alineado_regional", "ancla_regional"
+                med_comparacion = ancla.get("mediana")
+                motivo = None
+            elif veredicto_retail == "sin_dato":
+                veredicto, diff, diff_fuente = vr, ancla.get("diff_vs_mediana_pct"), "ancla_regional"
+                med_comparacion = ancla.get("mediana")
+                motivo = None
+            else:
+                ancla["concuerda_con_retail"] = (vr == veredicto_retail)
+        # Guardarraíl: Δ implausible sin precios con unidad confirmada → no_verificable.
+        if (isinstance(diff, (int, float)) and diff > MARKET_DELTA_IMPLAUSIBLE
+                and n_norm < MARKET_MIN_PRECIOS and diff_fuente == "retail"):
+            veredicto, motivo = "no_verificable", "delta_implausible_sin_unidad_confirmada"
+            _registrar_descarte(state, f"market.goods_retail.item_{num}", "delta_implausible",
+                                f"Δ {diff:+.0f} % con {n_norm} precio(s) de unidad confirmada (< {MARKET_MIN_PRECIOS})")
         proveedores = []
         vistos = set()
         for x in precios_obs:
@@ -1061,59 +1926,164 @@ def _mercado_goods_retail(state: dict) -> dict:
             "item_numero": it.get("numero"),
             "item_descripcion": (it.get("descripcion_corta") or "")[:300],
             "cantidad": it.get("cantidad"), "unidad": it.get("unidad"),
+            "unidad_normalizacion": ctx.get("dim"),
             "precio_unitario_referencial": it.get("precio_unitario_referencial"),
             "precio_unitario_ofertado": it.get("precio_unitario_ofertado"),
+            "origen_precio_ofertado": it.get("origen_precio"),
+            "oferta_vs_referencial_pct": oferta_vs_ref, "nota_base": nota_base,
             "precios_observados": precios_obs,
+            "precios_descartados": descartados[:10],
             "proveedores_potenciales": proveedores[:6],
             "caracteristicas_solicitadas_clave": [],
             "precio_mediana_mercado": round(mediana, 2) if mediana is not None else None,
+            "fuente_mediana": "retail",
+            "precio_mediana_regional": ancla.get("mediana") if ancla.get("estado") == "hallado" else None,
+            "n_referencias_internas": ancla.get("n") if ancla.get("estado") == "hallado" else 0,
+            "precio_mediana_comparacion": round(med_comparacion, 2) if isinstance(med_comparacion, (int, float)) else None,
             "rango_min": round(min(keep), 2) if keep else None,
             "rango_max": round(max(keep), 2) if keep else None,
-            "n_precios": n,
+            "n_precios": n, "n_precios_normalizados": n_norm,
             "diff_pct": diff, "diff_base": base if diff is not None else None,
+            "diff_fuente": diff_fuente if (diff is not None or veredicto == "alineado_regional") else None,
+            "diff_pct_retail": diff_retail, "veredicto_retail": veredicto_retail,
             "veredicto": veredicto,
-            "es_estimacion": veredicto == "sin_dato",
+            "es_estimacion": veredicto in ("sin_dato", "no_verificable"),
             "motivo_estimacion": motivo,
-            "estado": "hallado",
-            "evidencia": [{"url": x["url"], "cita": f"{x['producto'][:180]} · S/ {x['precio']:.2f}"[:240]} for x in precios_obs][:20],
+            "estado": "hallado" if veredicto != "no_verificable" else "no_verificable",
+            "evidencia": ([{"url": x["url"], "cita": f"{x['producto'][:150]} · S/ {x['precio']:.2f}/{it.get('unidad') or 'u'}"[:240]} for x in precios_obs]
+                          + [{"url": r["url"], "cita": f"SEACE {r['ocid']}: {r['descripcion'][:120]} · S/ {r['precio_unitario']:.2f} ({r['precio_base']})"[:240]}
+                             for r in refs_usables])[:20],
+            "referencias_internas": refs_pub,
+            "ancla_regional": ancla,
             "spec_restrictiva": None,   # lo evalúa document_legal_analyst (vector marca_unica / specs_convergentes)
             "comentario": comentarios.get(num) or "",
         })
 
-    # Totales (código): cobertura = ítems con veredicto respaldado por ≥ MARKET_MIN_PRECIOS precios.
+    # ── Totales (código) ──────────────────────────────────────────
+    # Cobertura por VALOR: Σ valor de los ítems respaldados / Σ valor de todos (1225450: 100 gal de
+    # gasohol sobre 5 100 gal → 1.4 %, no "1/1 = 100 %"). Respaldado = mediana con ≥ MIN precios
+    # (retail) o ancla regional decisiva.
     n_total = len(items)
-    con_mediana = [f for f in findings if isinstance(f.get("precio_mediana_mercado"), (int, float))]
-    respaldados = [f for f in con_mediana if f.get("n_precios", 0) >= MARKET_MIN_PRECIOS]
-    cobertura = (len(respaldados) / n_total) if n_total else 0.0
-    total_mercado = sum(f["precio_mediana_mercado"] * f["cantidad"] for f in respaldados
-                        if isinstance(f.get("cantidad"), (int, float)))
-    if padre_lote and isinstance(padre_lote.get("cuantia_total"), (int, float)):
-        total_ofertado = float(padre_lote["cuantia_total"])
+    by_num = {_norm_num(it.get("numero")): it for it in items}
+    con_mediana = [f for f in findings if isinstance(f.get("precio_mediana_comparacion"), (int, float))
+                   or isinstance(f.get("precio_mediana_mercado"), (int, float))]
+    # Respaldado: mediana con ≥ MIN precios (o ancla regional) y sin guardarraíl disparado. Un ítem
+    # sin precio base propio (lote tipo canasta) igual aporta su mediana × cantidad al total.
+    respaldados = [f for f in findings if f.get("veredicto") != "no_verificable"
+                   and isinstance(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"), (int, float))
+                   and (f.get("n_precios", 0) >= MARKET_MIN_PRECIOS or (f.get("ancla_regional") or {}).get("estado") == "hallado")]
+    valores_all = {_norm_num(f.get("item_numero")): _valor_item(by_num.get(_norm_num(f.get("item_numero")), {}), f) for f in findings}
+    resp_nums = {_norm_num(f.get("item_numero")) for f in respaldados}
+    suma_all = sum(v for v in valores_all.values() if v)
+    suma_resp = sum(v for k, v in valores_all.items() if v and k in resp_nums)
+    cobertura_conteo = (len(respaldados) / n_total) if n_total else 0.0
+    if suma_all > 0 and all(v for v in valores_all.values()):
+        cobertura = suma_resp / suma_all
+    elif suma_all > 0:
+        cobertura = min(suma_resp / suma_all, cobertura_conteo)
     else:
-        ofert = [(f.get("precio_unitario_ofertado"), f.get("cantidad")) for f in findings]
-        total_ofertado = (sum(p * c for p, c in ofert) if ofert and all(isinstance(p, (int, float)) and isinstance(c, (int, float)) for p, c in ofert)
-                          else None)
-    sobreprecio_pct = None
-    veredicto_global = "sin_dato"
-    if cobertura >= 0.7 and total_ofertado and total_mercado:
-        sobreprecio_pct = _diff_pct(total_ofertado, total_mercado)
-        veredicto_global = _veredicto(sobreprecio_pct)
-    elif respaldados:
-        veredicto_global = "cobertura_parcial"
+        cobertura = cobertura_conteo
 
-    obs = [f"Preciados {len(con_mediana)}/{n_total} ítems; {len(respaldados)} con ≥{MARKET_MIN_PRECIOS} precios "
-           f"con fuente de grounding (cobertura {cobertura*100:.0f}%) vía {n_chunks} worker(s)."]
+    def _med(f):
+        return float(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"))
+    total_mercado_resp = sum(_med(f) * f["cantidad"] for f in respaldados if isinstance(f.get("cantidad"), (int, float)))
+
+    total_ofertado = mi.get("total_ofertado")
+    total_ofertado_base = mi.get("total_ofertado_base")
+    if not isinstance(total_ofertado, (int, float)):
+        if padre_lote and isinstance(padre_lote.get("cuantia_total"), (int, float)):
+            total_ofertado, total_ofertado_base = float(padre_lote["cuantia_total"]), "referencial"
+        else:
+            total_ofertado, total_ofertado_base = None, None
+    es_referencial = total_ofertado_base == "referencial"
+
+    # Base ofertada sobre los MISMOS ítems que el total de mercado (1225090: 3 de 4 ítems de
+    # mercado contra el lote completo → +156 % ficticio).
+    ofert_resp = [(by_num.get(_norm_num(f.get("item_numero")), {}).get("precio_unitario_ofertado"), f.get("cantidad")) for f in respaldados]
+    lote_base = None
+    total_ofertado_resp = None
+    if respaldados and all(_market_to_num(p) and isinstance(c, (int, float)) for p, c in ofert_resp):
+        total_ofertado_resp = sum(float(p) * float(c) for p, c in ofert_resp)
+        lote_base = "ofertado_items"
+    elif total_ofertado and not es_referencial and suma_all > 0 and all(v for v in valores_all.values()):
+        total_ofertado_resp = float(total_ofertado) * (suma_resp / suma_all)
+        lote_base = "contrato_prorrateado" if cobertura < 0.999 else total_ofertado_base
+    elif total_ofertado and cobertura >= 0.999:
+        total_ofertado_resp, lote_base = float(total_ofertado), total_ofertado_base
+
+    sobreprecio_pct = None
+    estimado_vs_mercado_pct = None
+    veredicto_global = "sin_dato"
+    lote = {"aplica": n_total >= 2, "n_items": n_total, "n_respaldados": len(respaldados),
+            "cobertura_valor": round(cobertura, 3), "cobertura_conteo": round(cobertura_conteo, 3),
+            "base": lote_base, "total_ofertado_respaldados": round(total_ofertado_resp, 2) if total_ofertado_resp else None,
+            "total_mercado_respaldados": round(total_mercado_resp, 2) if total_mercado_resp else None, "motivo": None}
+    if n_total < 2:
+        lote["motivo"] = "un_solo_item_sin_bandera_de_lote"
+        veredicto_global = findings[0].get("veredicto") if findings else "sin_dato"
+    elif not respaldados:
+        lote["motivo"] = "sin_items_respaldados"
+    elif cobertura < MARKET_COBERTURA_LOTE:
+        lote["motivo"] = f"cobertura_por_valor_insuficiente ({cobertura*100:.0f} % < {MARKET_COBERTURA_LOTE*100:.0f} %)"
+        veredicto_global = "cobertura_parcial"
+    elif not (total_ofertado_resp and total_mercado_resp):
+        lote["motivo"] = "sin_base_ofertada_comparable_por_item"
+        veredicto_global = "cobertura_parcial"
+    else:
+        delta = _diff_pct(total_ofertado_resp, total_mercado_resp)
+        if lote_base == "referencial":
+            # Solo hay cuantía estimada: nunca "sobreprecio ofertado"; señal informativa aparte.
+            estimado_vs_mercado_pct = delta
+            veredicto_global = "estimado_sobre_mercado" if (delta is not None and delta >= MARKET_UMBRAL_ELEVADO) else _veredicto(delta)
+            lote["motivo"] = "solo_cuantia_referencial_disponible"
+        else:
+            sobreprecio_pct = delta
+            veredicto_global = _veredicto(delta)
+            n_norm_resp = sum(f.get("n_precios_normalizados", 0) for f in respaldados) + sum(
+                1 for f in respaldados if (f.get("ancla_regional") or {}).get("estado") == "hallado")
+            if delta is not None and delta > MARKET_DELTA_IMPLAUSIBLE and (cobertura < MARKET_COBERTURA_LOTE or n_norm_resp < MARKET_MIN_PRECIOS):
+                veredicto_global, sobreprecio_pct = "no_verificable", None
+                lote["motivo"] = f"delta_implausible ({delta:+.0f} %) sin cobertura/unidades confirmadas"
+                _registrar_descarte(state, "market.goods_retail.lote", "delta_implausible", lote["motivo"])
+            # Ancla regional: si todos los respaldados están alineados regionalmente, el lote no es señal.
+            elif all(f.get("veredicto") == "alineado_regional" for f in respaldados) and veredicto_global in ("elevado", "muy_elevado"):
+                veredicto_global = "alineado_regional"
+                lote["motivo"] = "items_alineados_con_referencias_regionales"
+                lote["delta_retail_pct"] = delta
+                sobreprecio_pct = None
+
+    obs = [f"Preciados {len(con_mediana)}/{n_total} ítems; {len(respaldados)} respaldado(s) (≥{MARKET_MIN_PRECIOS} precios "
+           f"con fuente de grounding normalizados a la unidad del ítem, o ancla regional) · cobertura por valor "
+           f"{cobertura*100:.0f} % vía {n_chunks} worker(s)."]
     if n_retry:
         obs.append(f"2º pase recuperó {n_retry} ítem(s).")
-    obs.append("Mediana, rango, Δ% y veredicto calculados en código; URLs tomadas exclusivamente de grounding_metadata.")
+    n_ancla = sum(1 for f in findings if (f.get("ancla_regional") or {}).get("estado") == "hallado")
+    if n_ancla:
+        obs.append(f"{n_ancla} ítem(s) con ancla regional en la BD SEACE propia (referencias_internas).")
+    if total_ofertado_base:
+        obs.append(f"Total ofertado tomado de: {total_ofertado_base}" + (" (cuantía referencial, no precio ofertado)." if es_referencial else "."))
+    if n_total < 2:
+        obs.append("Un solo ítem: no se emite bandera de lote (misma evidencia que la bandera por ítem).")
+    elif lote.get("motivo"):
+        obs.append(f"Lote: {lote['motivo']}.")
+    obs.append("Mediana, rango, Δ% y veredicto calculados en código; URLs tomadas exclusivamente de grounding_metadata y de la BD propia.")
     return {
         "estado": "hallado" if con_mediana else "sin_dato",
         "findings": findings,
         "total_ofertado": total_ofertado,
-        "total_estimado_mercado": round(total_mercado, 2) if total_mercado else None,
+        "total_ofertado_base": total_ofertado_base,
+        "total_ofertado_es_referencial": es_referencial,
+        "cuantia_referencial_total": mi.get("cuantia_referencial_total"),
+        # Solo se publica cuando el Δ de lote es válido (≥ 2 ítems, cobertura por valor ≥ 0.7, base
+        # ofertada real): así ningún consumidor recalcula un "sobreprecio" desde totales no comparables
+        # (un solo ítem, cuantía referencial, cobertura parcial). El detalle queda en `lote`.
+        "total_estimado_mercado": (round(total_mercado_resp, 2) if (total_mercado_resp and sobreprecio_pct is not None) else None),
         "sobreprecio_pct": sobreprecio_pct,
+        "estimado_vs_mercado_pct": estimado_vs_mercado_pct,
         "veredicto_global": veredicto_global,
         "cobertura_mercado": round(cobertura, 3),
+        "cobertura_conteo": round(cobertura_conteo, 3),
+        "lote": lote,
         "n_items": n_total, "n_con_mediana": len(con_mediana), "n_respaldados": len(respaldados),
         "n_chunks": n_chunks,
         "confianza_global": ("alta" if cobertura >= 0.8 else "media" if cobertura >= 0.5 else "baja"),
@@ -1667,7 +2637,7 @@ def analizar_mercado(state: dict, estrategia: str) -> dict:
         "estrategia": estrategia,
         "estado": out.get("estado"),
         "n_items": len(findings),
-        "n_con_mediana": sum(1 for f in findings if isinstance(f.get("precio_mediana_mercado"), (int, float))),
+        "n_con_mediana": sum(1 for f in findings if isinstance(f.get("precio_mediana_comparacion") or f.get("precio_mediana_mercado"), (int, float))),
         "veredicto_global": out.get("veredicto_global"),
         "sobreprecio_pct": out.get("sobreprecio_pct"),
         "cobertura": out.get("cobertura_mercado"),

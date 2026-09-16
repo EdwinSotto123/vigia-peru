@@ -1,34 +1,51 @@
 "use client";
 
 /**
- * Vista en vivo de un contrato asignado a un aporte: cabecera, estado, línea de
- * tiempo de fases y, al terminar, el resultado con enlace al dossier completo.
+ * "Mira cómo se ejecuta": un contrato asignado a un aporte, en vivo.
+ *   · cabecera (título, entidad, zona, monto, gracias a {financiador} · {código})
+ *   · progreso global (fases hechas / aplicables), tiempo transcurrido y estimado
+ *   · los tres carriles del DAG con cada agente como chip (DagCarriles)
+ *   · bitácora en vivo (últimos 12 eventos humanizados)
+ *   · al terminar → Resultados (ResultadoAnalisis) en la misma página
  * Poll cada `pollMs` (3 s) mientras el estado sea encolado/procesando.
+ *
+ * `compacto` (aside de /app/contratos/[ocid]): sin cabecera ni navegación; carriles y
+ * bitácora corta.
  *
  * Datos: GET /financiamiento/procesamientos/:ocid
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, ArrowUpRight, CheckCircle2, ChevronLeft, Landmark, ShieldCheck, WifiOff } from "lucide-react";
+import { ChevronLeft, Landmark, ShieldCheck, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
-import { PUBLIC_API_BASE, TOTAL_FASES, duracion, esActivo, faseLabel, haceCuanto, type ProcesamientoDetalle } from "@/lib/auditoria";
+import {
+  PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, fasesEfectivas, haceCuanto, progresoFases,
+  type ProcesamientoDetalle,
+} from "@/lib/auditoria";
+import { Bitacora } from "./Bitacora";
+import { CompartirButton } from "./CompartirButton";
+import { DagCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
-import { FaseTimeline } from "./FaseTimeline";
+import { ResultadoAnalisis } from "./ResultadoAnalisis";
 
 interface Props {
   ocid: string;
   initial?: ProcesamientoDetalle | null;
   pollMs?: number;
+  compacto?: boolean;
 }
 
-export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
+export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false }: Props) {
   const [data, setData] = useState<ProcesamientoDetalle | null>(initial ?? null);
   const [cargando, setCargando] = useState(initial == null);
   const [fallo, setFallo] = useState(false);
   const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial ? Date.now() : null);
-  const [ahora, setAhora] = useState(() => Date.now());
+  // 0 hasta montar: así el HTML del servidor no lleva cronómetros ni "hace N s" (sin desajuste de hidratación).
+  const [ahora, setAhora] = useState(0);
   const activoRef = useRef<boolean>(initial ? esActivo(initial.estado) : true);
+  // Al terminar hacemos UNA lectura más para traer `resultado` (el poll se detiene con el estado final).
+  const resultadoPedido = useRef(false);
 
   useEffect(() => {
     let vivo = true;
@@ -45,6 +62,11 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
         setActualizadoAt(Date.now());
         setFallo(false);
         activoRef.current = esActivo(json.estado);
+        if (!activoRef.current && json.estado === "procesado" && !json.resultado && !resultadoPedido.current) {
+          // el dictamen se publica segundos después del `final`: una relectura corta
+          resultadoPedido.current = true;
+          window.setTimeout(() => { if (vivo) void cargar(); }, 4000);
+        }
       } catch (e) {
         if ((e as Error)?.name === "AbortError" || !vivo) return;
         setFallo(true);
@@ -53,7 +75,6 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
       }
     };
     void cargar();
-    // Sigue consultando mientras el contrato esté activo (o mientras no hayamos logrado cargarlo).
     const id = window.setInterval(() => {
       if (!activoRef.current) return;
       if (document.visibilityState !== "visible") return;
@@ -70,9 +91,12 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
   }, [ocid, pollMs]);
 
   useEffect(() => {
+    setAhora(Date.now());
     const id = window.setInterval(() => setAhora(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  const fases = useMemo(() => (data ? fasesEfectivas(data, data.eventos) : {}), [data]);
 
   if (!data) {
     return cargando ? (
@@ -93,11 +117,121 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
   }
 
   const p = data;
+  const estado = estadoVisible(p);
   const activo = esActivo(p.estado);
-  const transcurrido = p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
+  const terminado = p.estado === "procesado";
+  const montado = ahora > 0;
+  const transcurrido = montado && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   const duro = p.iniciadoAt && p.finalizadoAt ? new Date(p.finalizadoAt).getTime() - new Date(p.iniciadoAt).getTime() : null;
-  const conSenales = p.banderas > 0;
-  const dossierHref = `/app/convocatoria/${encodeURIComponent(p.ocid)}`;
+  const prog = progresoFases(fases, estado);
+  const estimado = p.estimado ?? null;
+  const restante = estimado?.medianaSeg && transcurrido != null ? Math.max(0, estimado.medianaSeg * 1000 - transcurrido) : null;
+  const sinEventos = p.estado === "procesando" && p.eventos.length === 0;
+
+  const enVivoBadge = (
+    <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true" suppressHydrationWarning>
+      {fallo ? (
+        <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
+      ) : activo ? (
+        <>
+          <span className="relative flex h-1.5 w-1.5" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-moss opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-moss" />
+          </span>
+          en vivo{montado && actualizadoAt ? ` · actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
+        </>
+      ) : (
+        <span suppressHydrationWarning>{!montado ? "" : p.finalizadoAt ? `finalizado el ${new Date(p.finalizadoAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}` : "sin actividad"}</span>
+      )}
+    </span>
+  );
+
+  // ── Bloque "cómo se ejecuta" (progreso + carriles + bitácora) ──
+  const ejecucion = (
+    <section className={`rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`} aria-label="Cómo se ejecuta el análisis">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">
+            {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Reintento automático" : terminado ? "Cómo se ejecutó" : "Estado"}
+          </div>
+          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} aria-live="polite" suppressHydrationWarning>
+            {p.estado === "procesando"
+              ? faseHumana(p, montado ? ahora : undefined, fases)
+              : p.estado === "encolado"
+                ? "Espera turno"
+                : p.estado === "error"
+                  ? `Intento ${Math.min(3, Math.max(1, p.intentos))} de 3`
+                  : terminado
+                    ? `${prog.hechas} agentes en ${duro != null && duro > 0 ? duracion(duro) : "—"}`
+                    : "Sin actividad"}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className={`font-mono font-semibold tabular-nums text-ink ${compacto ? "text-lg" : "text-2xl"}`}>
+            {prog.hechas}<span className="text-mute">/{prog.aplicables}</span>
+          </div>
+          <div className="font-mono text-[11px] tabular-nums text-mute" suppressHydrationWarning>
+            {transcurrido != null && transcurrido > 0 ? (
+              <>
+                {duracion(transcurrido)}
+                {restante != null && <span> · quedan {restante < 15_000 ? "unos segundos" : `≈ ${duracion(restante)}`}</span>}
+                {restante == null && <span> · {estimadoLabel(estimado)} en total</span>}
+              </>
+            ) : p.estado === "encolado" ? (
+              <>{estimadoLabel(estimado)} por contrato</>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={prog.aplicables} aria-valuenow={prog.hechas} aria-label="Agentes completados">
+        <div className={`h-full rounded-full transition-all duration-700 ease-out ${terminado ? "bg-moss" : "bg-amber"}`} style={{ width: `${Math.max(p.estado === "procesando" ? 3 : 0, prog.pct)}%` }} />
+      </div>
+
+      {p.estado === "encolado" && (
+        <p className="mt-3 text-[12px] text-mute">
+          Asignado a un aporte confirmado; el sistema lo toma en orden de llegada.
+          {p.intentos > 0 && <> Intentos previos: <span className="font-mono">{p.intentos}</span>; se reintenta automáticamente.</>}
+        </p>
+      )}
+      {p.estado === "error" && (
+        <p className="mt-3 text-[12px] text-crimson">
+          {p.intentos < 3
+            ? "El intento anterior falló; el pipeline vuelve a tomar el contrato desde el inicio."
+            : "Tras 3 intentos automáticos quedó en revisión manual. El equipo lo re-encolará y el aporte no pierde su contrato."}
+        </p>
+      )}
+      {sinEventos && (
+        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no emiten eventos: el orquestador está tomando el contrato (puede tardar un minuto si hay varios en cola).</p>
+      )}
+
+      <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+        <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
+      </div>
+
+      <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+        <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
+          <span>Bitácora</span>
+          <span className="font-mono normal-case tracking-normal">{p.eventos.length} eventos</span>
+        </div>
+        <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={activo} compacto={compacto} />
+      </div>
+    </section>
+  );
+
+  if (compacto) {
+    return (
+      <div className="space-y-3">
+        {terminado && (
+          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} compacto sharePath={`/app/contratos/${encodeURIComponent(p.ocid)}`} />
+        )}
+        {ejecucion}
+        <div className="flex items-center justify-between text-[11px] text-mute">
+          {enVivoBadge}
+          <Link href={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="hover:underline">Ver en auditoría en vivo</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -105,21 +239,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
         <Link href={`/app/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 hover:underline">
           <ChevronLeft size={14} /> Auditoría en vivo
         </Link>
-        <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true">
-          {fallo ? (
-            <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
-          ) : activo ? (
-            <>
-              <span className="relative flex h-1.5 w-1.5" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-moss opacity-60" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-moss" />
-              </span>
-              en vivo{actualizadoAt ? ` · actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
-            </>
-          ) : (
-            <span>{p.finalizadoAt ? `finalizado el ${new Date(p.finalizadoAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}` : "sin actividad"}</span>
-          )}
-        </span>
+        {enVivoBadge}
       </div>
 
       {/* cabecera */}
@@ -137,100 +257,26 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
               {p.montoPen != null && p.montoPen > 0 && <span className="font-mono text-ink">{formatPEN(p.montoPen)}</span>}
             </div>
           </div>
-          <EstadoPill estado={p.estado} size="md" />
+          <EstadoPill estado={estado} size="md" />
         </div>
 
-        <p className="mt-5 flex flex-wrap items-center gap-x-1 border-t border-line pt-4 text-sm text-mute">
-          <ShieldCheck size={14} className="text-moss" aria-hidden />
-          Auditoría financiada por <span className="font-semibold text-ink">{p.financiador}</span>
-          <span>·</span>
-          <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono hover:underline">{p.contribucionCodigo}</Link>
-        </p>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-sm text-mute">
+          <p className="flex flex-wrap items-center gap-x-1">
+            <ShieldCheck size={14} className="text-moss" aria-hidden />
+            gracias a <span className="font-semibold text-ink">{p.financiador}</span>
+            <span>·</span>
+            <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono hover:underline">{p.contribucionCodigo}</Link>
+          </p>
+          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid} — auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="rounded-full" />}
+        </div>
       </header>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-        {/* línea de tiempo */}
-        <div className="rounded-2xl border border-line bg-paper p-5">
-          <FaseTimeline faseIndex={p.faseIndex} estado={p.estado} eventos={p.eventos} />
-        </div>
-
-        {/* estado / resultado */}
-        <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          {p.estado === "encolado" && (
-            <Panel titulo="En cola" tono="mute">
-              <p>Este contrato ya está asignado a un aporte confirmado y espera turno. El sistema lo toma en orden de llegada, en pocos minutos.</p>
-              {p.intentos > 0 && <p className="mt-2 text-[12px]">Intentos previos: <span className="font-mono">{p.intentos}</span>. Se reintenta automáticamente.</p>}
-            </Panel>
-          )}
-
-          {p.estado === "procesando" && (
-            <Panel titulo="Analizando ahora" tono="amber">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide text-mute">Fase actual</div>
-                  <div className="text-lg font-semibold text-ink">{faseLabel(p.faseActual)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-2xl font-semibold text-ink">
-                    {Math.min(TOTAL_FASES, (p.faseIndex ?? 0) + 1)}<span className="text-mute">/{TOTAL_FASES}</span>
-                  </div>
-                  {transcurrido != null && transcurrido > 0 && <div className="font-mono text-[11px] text-mute">{duracion(transcurrido)} en curso</div>}
-                </div>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={TOTAL_FASES} aria-valuenow={p.faseIndex ?? 0} aria-label="Fases completadas">
-                <div className="h-full rounded-full bg-amber transition-all duration-700 ease-out" style={{ width: `${Math.max(4, Math.round(((p.faseIndex ?? 0) / TOTAL_FASES) * 100))}%` }} />
-              </div>
-              <p className="mt-3 text-[12px] text-mute">Un análisis completo tarda entre 3 y 10 minutos según el tamaño del expediente. Esta página se actualiza sola.</p>
-            </Panel>
-          )}
-
-          {p.estado === "error" && (
-            <Panel titulo="Reintento automático" tono="crimson">
-              {p.intentos < 3 ? (
-                <p>Reintentando automáticamente (intento <span className="font-mono">{Math.max(1, p.intentos)}</span> de 3). El pipeline vuelve a tomar el contrato desde el inicio.</p>
-              ) : (
-                <p>Tras 3 intentos automáticos, este contrato quedó en revisión manual. El equipo lo re-encolará y el aporte no pierde su contrato.</p>
-              )}
-            </Panel>
-          )}
-
-          {p.estado === "procesado" && (
-            <Panel titulo="Resultado" tono={conSenales ? "rust" : "moss"}>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-line bg-paper p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-mute">Señales de riesgo</div>
-                  <div className={`mt-0.5 inline-flex items-center gap-1.5 font-mono text-2xl font-semibold ${conSenales ? "text-rust" : "text-moss"}`}>
-                    {conSenales ? <AlertTriangle size={18} aria-hidden /> : <CheckCircle2 size={18} aria-hidden />}
-                    {p.banderas}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-line bg-paper p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-mute">Score de riesgo</div>
-                  <div className="mt-0.5 font-mono text-2xl font-semibold text-ink">{p.score != null ? Math.round(p.score) : "—"}<span className="text-sm text-mute">{p.score != null ? "/100" : ""}</span></div>
-                </div>
-              </div>
-              <p className="mt-3 text-[12px] text-mute">
-                {conSenales
-                  ? "Cada señal cita la norma y la evidencia oficial. Una señal no es una acusación: es un patrón que merece revisión."
-                  : "El pipeline no encontró patrones de riesgo en este contrato. El dictamen completo explica qué se revisó."}
-                {duro != null && duro > 0 && <> Análisis completado en <span className="font-mono">{duracion(duro)}</span>.</>}
-              </p>
-              <Link href={dossierHref} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
-                Ver dossier completo <ArrowRight size={15} aria-hidden />
-              </Link>
-              {!p.alertaCodigo && <p className="mt-2 text-[11px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
-            </Panel>
-          )}
-
-          <div className="flex flex-wrap gap-2 text-sm">
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-mute hover:bg-paperDeep">
-              Comprobante de impacto <ArrowUpRight size={13} aria-hidden />
-            </Link>
-            <Link href={`/app/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-mute hover:bg-paperDeep">
-              Más contratos en vivo <ArrowUpRight size={13} aria-hidden />
-            </Link>
-          </div>
-
+      <div className={`mt-6 grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
+        {terminado && (
+          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} className="animate-slideUp lg:sticky lg:top-24 lg:self-start" />
+        )}
+        <div className="space-y-4">
+          {ejecucion}
           <div className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             <span>El pipeline no sabe quién financió este análisis. Los resultados se publican aunque señalen al financiador. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
@@ -238,16 +284,5 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000 }: Props) {
         </div>
       </div>
     </div>
-  );
-}
-
-function Panel({ titulo, tono, children }: { titulo: string; tono: "mute" | "amber" | "crimson" | "moss" | "rust"; children: React.ReactNode }) {
-  const borde = { mute: "border-line", amber: "border-amber/50 ring-1 ring-amber/20", crimson: "border-crimson/40", moss: "border-moss/40", rust: "border-rust/40" }[tono];
-  const color = { mute: "text-mute", amber: "text-amber", crimson: "text-crimson", moss: "text-moss", rust: "text-rust" }[tono];
-  return (
-    <section className={`rounded-2xl border bg-paper p-5 text-sm text-inkSoft transition-all ${borde}`}>
-      <h2 className={`text-[11px] font-semibold uppercase tracking-wide ${color}`}>{titulo}</h2>
-      <div className="mt-2">{children}</div>
-    </section>
   );
 }

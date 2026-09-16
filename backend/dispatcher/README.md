@@ -22,11 +22,17 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
    lee el NDJSON del orquestador. Si el servicio del tipo no está desplegado, el contrato queda
    `pendiente_de_procesamiento` (nunca se manda servicios/obras/otros al de bienes). Un `409
    tipo_no_aceptado` (perfil ≠ tipo: URLs mal configuradas) también lo deja pendiente.
-3. Por cada evento `phase | warn | error | final` actualiza `fase_actual`, `fase_index`,
-   `latido_at` y anexa el evento a `eventos` (`events.py` reduce el stream; las fases
-   canónicas son las 10 de `FASES`, compartidas con `frontend/lib/auditoria.ts`).
-4. Al recibir `final` **y** existir la alerta en DB marca `procesado` (el trigger
-   `trg_alertas_cerrar_procesamiento` suele hacerlo antes, al persistirse la alerta). Si el
+3. Por cada evento `phase | warn | error | final` actualiza `fase_actual`, `fase_index`
+   (máximo alcanzado: en el DAG las fases llegan desordenadas), `fases` (migración 20:
+   `{fase: {estado: corriendo|hecho|omitido|error, desde, hasta, motivo}}`, el fin de cada
+   fase se infiere del arranque de sus sucesoras o del `dag_join`/`final`), `latido_at` y
+   anexa el evento a `eventos` (`events.py` reduce el stream; las fases canónicas son las 10
+   de `FASES`, compartidas con `frontend/lib/auditoria.ts`, que replica la reducción en
+   `reducirFases()` para filas anteriores a la migración). `backfill_fases.py` rellena
+   `fases` desde `eventos` en filas viejas.
+4. Al recibir `final` **y** existir la alerta en DB marca `procesado` con la hora real de
+   término (desde la migración 20 el trigger `trg_alertas_cerrar_procesamiento` no cierra un
+   procesamiento con worker vivo: la alerta se inserta en el checkpoint, antes del dictamen). Si el
    stream corta sin `final` (NAT/proxy/idle en fases silenciosas largas), espera hasta
    `DISPATCHER_GRACE_MINUTES` a que la alerta aparezca en DB (el orquestador termina igual en su
    contenedor) y recién ahí vuelve a `encolado` (o `error` al tercer intento). Si el orquestador

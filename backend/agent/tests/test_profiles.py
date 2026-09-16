@@ -183,3 +183,13 @@ def test_thinking_level_por_env(monkeypatch):
     monkeypatch.setenv("THINKING_REPORT_WRITER", "ultra")
     assert M.thinking_level_for("report_writer_agent", "high") == "high"
     assert M.is_gemini_3("gemini-3.6-flash") and not M.is_gemini_3("gemini-2.5-flash")
+
+
+def test_reglas_activas_existen_en_compliance_rules():
+    """Cada slug de reglas_activas debe ser una regla real: un desajuste deja reglas muertas en silencio."""
+    from tools.compliance_rules import REGLAS_POR_NOMBRE
+    from agents._shared.profiles import PROFILES
+    reales = set(REGLAS_POR_NOMBRE)
+    for nombre, p in PROFILES.items():
+        faltan = set(p.reglas_activas) - reales
+        assert not faltan, f"perfil {nombre}: reglas inexistentes {sorted(faltan)}"
