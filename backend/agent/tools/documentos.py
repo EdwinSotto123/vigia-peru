@@ -2956,6 +2956,24 @@ def parse_documentos_lote(state: dict, docs: list[dict], *, parser_bloque: str |
     raw["postores"] = postores                       # alias: contrato de salida para R1/R3
     # ── Cruce items_consolidados × items_contratados: precio OFERTADO/CONTRATADO real por ítem ──
     _cruzar_items_contratados(raw["items_consolidados"], raw["items_contratados"])
+    # Sin requerimiento legible (bases escaneadas/plantilla) pero con OC/contrato/acta: los ítems
+    # contratados son la mejor descripción disponible del objeto → entran como origen='contrato'
+    # (el mercado los usa con el precio contratado; compliance no marca "extracción fallida").
+    if not raw["items_consolidados"] and raw["items_contratados"]:
+        for j, it in enumerate(raw["items_contratados"], 1):
+            if not isinstance(it, dict):
+                continue
+            raw["items_consolidados"].append({
+                "numero": str(it.get("numero") or j), "descripcion_corta": it.get("descripcion"),
+                "descripcion": it.get("descripcion"), "cantidad": it.get("cantidad"), "unidad": it.get("unidad"),
+                "precio_unitario_ofertado": it.get("precio_unitario_contratado"),
+                "precio_unitario_contratado": it.get("precio_unitario_contratado"),
+                "marca_ofertada": it.get("marca_ofertada"), "origen": "contrato",
+                "origen_precio": "contrato" if it.get("precio_unitario_contratado") is not None else None,
+                "documento_sha256": it.get("documento_sha256"), "evidencia": it.get("evidencia") or [],
+            })
+        state["recortes"].append({"donde": "consolidacion_items", "limite": "sin_requerimiento_legible",
+                                  "omitido": f"{len(raw['items_contratados'])} ítems tomados del contrato/OC/acta como descripción del objeto"})
 
     if gate_items:
         state["recortes"].append({"donde": "consolidacion_items", "limite": "solo_documentos_con_requerimiento",
