@@ -76,25 +76,32 @@ en la empresa ganadora* (o pasó a trabajar en ella después). No está en el
 catálogo C1–C8 y no depende de scraping frágil. La vista `dji_puerta_giratoria`
 lo deja listo para el `compliance_agent`.
 
-## Frecuencia sugerida (cron)
+## Frecuencia sugerida (cron) — y dónde corre cada uno hoy
 
-| Pipeline | Cuándo | Por qué |
-|---|---|---|
-| `oece_ocds` | diario 06:00 | convocatorias de los últimos 7 días (ventana rodante, upsert idempotente), todo el Perú → `infrastructure/deploy/scrapers-job.sh` |
-| `pnda_sancionados` | semanal | el Tribunal resuelve todas las semanas |
-| `pnda_visitas` | días 1 y 15 (`batch-nocturno.sh`) | la PNDA publica el mes cerrado con 2-3 meses de retraso; `datasets_cargas` evita recargar meses con el mismo sha256 |
-| `pnda_dji` | día 5 (`batch-nocturno.sh`) | Contraloría actualiza los CSV cada 1-2 meses; TRUNCATE+COPY solo si cambió el sha256 |
-| `jne_infogob` | día 5 (`batch-nocturno.sh`) | el JNE republica el reporte tras cada proclamación/vacancia |
-| `pnda_oece` | mensual | datasets pesados; `--discover` avisa si aparece uno nuevo |
-| `mef_presupuesto` | mensual, día 12 | devengado cerrado |
-| `onpe_claridad` | mensual (`ONPE=1 bash batch-nocturno.sh`, día 10 sugerido); semanal en campaña | necesita Chromium **con ventana** (Cloudflare) → host con sesión gráfica, no cron ciego |
+Desde el 2026-09-16, 6 de los 8 pipelines corren de verdad en GCP como Cloud Run Jobs
+agendados con Cloud Scheduler (`backend/cloud_functions/`, `infrastructure/deploy/cloud-scrapers.sh`):
+se comprobó con un `Cloud Build` (IP de GCP) que la PNDA y el API del MEF responden sin WAF,
+así que no hace falta IP peruana para ellos. `oece_ocds` (API OCDS del OECE, WAF) y
+`onpe_claridad` (Cloudflare + navegador con ventana) sí la necesitan — 403 confirmado desde
+IP de nube — y siguen agendados donde ya funcionaban. Detalle completo, matriz e imágenes:
+**`backend/cloud_functions/README.md`**.
 
-Dónde correrlos: **no en GCP** (los `.gob.pe` bloquean IPs de nube). Opciones: el VPS
-de Lima (`backend/relay`) con `cron`, o una laptop con `Task Scheduler` — en ambos casos con
-`infrastructure/deploy/scrapers-job.sh` y la IP del host en `authorized-networks` de Cloud SQL
-(`gcloud sql instances patch vigia-db --authorized-networks=<IP>/32`). Con
-`SCRAPER_GCS_BUCKET` los crudos quedan en GCS y la carga a Cloud SQL puede correr
-después desde un Cloud Run Job.
+| Pipeline | Cuándo | Dónde | Por qué |
+|---|---|---|---|
+| `pnda_sancionados` | semanal (domingo) | ☁ Cloud Scheduler → `scraper-pnda-sancionados` | el Tribunal resuelve todas las semanas |
+| `pnda_visitas` | días 1 y 15 | ☁ Cloud Scheduler → `scraper-pnda-visitas` | la PNDA publica el mes cerrado con 2-3 meses de retraso; `datasets_cargas` evita recargar meses con el mismo sha256 |
+| `pnda_dji` | día 5 | ☁ Cloud Scheduler → `scraper-pnda-dji` | Contraloría actualiza los CSV cada 1-2 meses; TRUNCATE+COPY solo si cambió el sha256 |
+| `jne_infogob` | día 5 | ☁ Cloud Scheduler → `scraper-jne-infogob` | el JNE republica el reporte tras cada proclamación/vacancia |
+| `pnda_oece` | mensual (día 1) | ☁ Cloud Scheduler → `scraper-pnda-oece` | datasets pesados; `--discover` avisa si aparece uno nuevo |
+| `mef_presupuesto` | mensual, día 12 | ☁ Cloud Scheduler → `scraper-mef-presupuesto` | devengado cerrado |
+| `oece_ocds` | diario 06:00 | 🖥 VPS de Lima / laptop, `infrastructure/deploy/scrapers-job.sh` (o `docker run` con la imagen de `backend/cloud_functions/oece_ocds/`) | **403 desde IP de nube** (WAF) — ventana rodante de 7 días, upsert idempotente, todo el Perú |
+| `onpe_claridad` | mensual (`ONPE=1 bash batch-nocturno.sh`, día 10 sugerido); semanal en campaña | 🖥 VPS de Lima / laptop con sesión gráfica (o `docker run` con la imagen de `backend/cloud_functions/onpe_claridad/`, Xvfb) | **403 desde IP de nube** (Cloudflare) + necesita Chromium **con ventana** |
+
+`batch-nocturno.sh` (VPS/laptop) ya NO dispara `pnda_sancionados`/`pnda_visitas`/`pnda_dji`/
+`jne_infogob` por defecto (paso 6): correr esas cuatro ahí sería redundante con su Cloud
+Scheduler (`datasets_cargas` lo haría inofensivo igual, por sha256, pero es trabajo de más).
+Sigue disponible a mano con `DATASETS=<fuentes> bash infrastructure/deploy/batch-nocturno.sh`
+si algún mes hay que forzar una recarga fuera de agenda.
 
 ## Cola real (`oece_ocds`) — de dónde salen los contratos que se financian
 
