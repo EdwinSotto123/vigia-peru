@@ -199,7 +199,7 @@ def test_rank_sin_prioridad_devuelve_orden_estable():
 
 @pytest.mark.parametrize("titulo,tipo,esperado", [
     ("Bases Integradas", "biddingDocuments", "bases_integradas"),
-    ("Documentos de Presentación de Propuestas", "biddingDocuments", "bases"),
+    ("Documentos de Presentación de Propuestas", "biddingDocuments", "propuesta"),   # el título manda sobre biddingDocuments
     ("Documentos de Otorgamiento de Buena Pro", "awardNotice", "acta"),
     ("Archivos del contrato", "contractSigned", "contrato"),
     ("Orden de Compra N° 33", None, "orden"),

@@ -45,17 +45,27 @@ BLOQUE F — Indagación derivada (solo sobre pistas concretas de A-E)
 ═══════════════════════════════════════════════════════════════════════════
 SALIDA (schema NewsOutput; JSON puro)
 ═══════════════════════════════════════════════════════════════════════════
+VOCABULARIO EXACTO (minúsculas, sin tildes; fuera de lista se normaliza o se pierde el ítem):
+  · `estado` (raíz, noticias, banderas): hallado | sin_dato | no_verificable.
+  · `severidad`: alta | media | baja | info (en banderas_prensa solo alta | media | baja).
+  · `categoria`: corrupcion | sancion | denuncia | investigacion | contraloria |
+    proyecto_publico | menciones_sin_riesgo | prensa_general.
+  · `tipo_mencion`: directa | indirecta.
+  · `evidencia`: SIEMPRE lista de objetos `[{url, cita}]`, nunca un string; `cita` ≤ 240.
+  · Nombres de campo exactos en banderas_prensa: `titulo`, `descripcion`, `severidad`, `url`.
+
 `noticias[]`: {estado: "hallado", fecha (del snippet/título, o null), fuente, url (real,
 del resultado de búsqueda), titulo (literal), resumen (2-3 líneas: cómo se relaciona con el
 caso), actor_principal, severidad, categoria, tipo_mencion, evidencia: [{url, cita}]}.
   · severidad: alta = investigación fiscal abierta, sanción firme, sentencia, detención,
     allanamiento; media = denuncia formal, observación de Contraloría no resuelta, nota
     adversa sin sentencia; baja = mención adversa sin contexto o lejana; info = neutra.
-  · categoria ∈ {corrupcion, sancion, denuncia, investigacion, contraloria,
-    proyecto_publico, menciones_sin_riesgo, prensa_general}.
   · tipo_mencion: directa (la nota habla del actor) | indirecta (lo nombra al pasar).
-`banderas_prensa[]`: solo hechos alta/media con riesgo claro, cada uno con url y
-  `evidencia[]` (cita literal ≤ 240 chars). Sin fuente → no es bandera.
+`banderas_prensa[]`: {estado: "hallado", titulo, descripcion, severidad, url, evidencia:
+  [{url, cita ≤ 240 chars}]}: solo hechos alta/media con riesgo claro. Sin fuente → no es
+  bandera. Una resolución de gob.pe hallada en la búsqueda se cita con la URL EXACTA del
+  resultado (nunca reconstruida); si la nota habla de OTRO contrato del mismo proveedor,
+  dilo en `descripcion` ("contrato distinto al analizado").
 `resumen_ejecutivo`: 3-4 líneas factuales. `sin_menciones_relevantes`, conteos y totales
   los recalcula el código: no los rellenes a mano.
 `estado` global: "hallado" con ≥ 1 noticia; "sin_dato" sin menciones; "no_verificable" si
@@ -73,6 +83,8 @@ FILTRO ANTI-RUIDO (descarta ANTES de emitir):
   · Si tras filtrar no queda nada: `noticias: []` y `estado: "sin_dato"`. Es una respuesta
     válida: no la rellenes.
 
-REGLAS: URL y fecha solo del resultado de búsqueda (nunca inventadas; fecha null si no
-consta). No acusas: "según <medio>". SOLO JSON puro, sin markdown ni texto extra.
+REGLAS: URL y fecha solo del resultado de búsqueda (nunca inventadas ni truncadas: un
+enlace de red social con identificador incompleto no vale como fuente; fecha null si no
+consta). El `resumen_ejecutivo` solo repite lo que está en `noticias[]` con URL. No acusas:
+"según <medio>". SOLO JSON puro, sin markdown ni texto extra.
 """

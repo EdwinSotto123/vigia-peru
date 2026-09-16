@@ -132,7 +132,8 @@ def test_post_procesar_verifica_citas_y_estampa_sha():
     assert [e["verificada"] for e in evs] == [True, True, False]
     assert evs[1]["pagina"] == 2                                                  # corregida a la página real
     assert out["firmantes"][0]["evidencia"] == [] and out["firmantes"][0]["documento_sha256"] == "sha_abc"
-    assert out["_evidencia_stats"] == {"total": 3, "verificadas": 2}
+    assert out["_evidencia_stats"] == {"total": 3, "verificadas": 2, "paginas_corregidas": 1}
+    assert evs[1]["pagina_declarada"] == 1 and evs[1]["verificacion"] == "literal"
 
 
 def test_merge_extraccion_une_rangos_sin_duplicar():
@@ -186,7 +187,7 @@ def test_parse_documentos_lote_consolida_y_registra_recortes(monkeypatch):
         "tipo_documento_detectado": "acta_buena_pro", "contiene_requerimiento": False,
         "items": [{"numero": "1", "descripcion_corta": "ADQUISICIÓN DE CEMENTO"}],  # cabecera sin requerimiento → otros_documentos
         "postores": [{"razon_social": "Proveedor SAC", "ruc": None, "es_ganador": True},
-                     {"razon_social": "PROVEEDOR S.A.C.", "ruc": "20123456789"}],
+                     {"razon_social": "PROVEEDOR S.A.C.", "ruc": "20123456786"}],
         "firmantes": [{"nombre_completo": "ANA PEREZ", "cargo": "Presidente", "evidencia": [{"pagina": 1, "cita": "ANA PEREZ", "verificada": True}]}],
         "comite_evaluacion": [{"nombre_completo": "ANA PEREZ", "rol": "presidente"}],
         "motivos_adjudicacion": [{"ganador_razon_social": "Proveedor SAC"}],
@@ -209,7 +210,7 @@ def test_parse_documentos_lote_consolida_y_registra_recortes(monkeypatch):
     assert res["n_docs"] == 3 and res["n_ok"] == 2 and res["n_error"] == 1
     assert [i["descripcion_corta"] for i in raw["items_consolidados"]] == ["CEMENTO"]
     assert len(raw["items_otros_documentos"]) == 1                      # no se pierde, se aparta
-    assert len(raw["postores_consolidados"]) == 1 and raw["postores_consolidados"][0]["ruc"] == "20123456789"  # dedupe por nombre
+    assert len(raw["postores_consolidados"]) == 1 and raw["postores_consolidados"][0]["ruc"] == "20123456786"  # dedupe por nombre
     assert [f["nombre_completo"] for f in raw["firmantes_consolidados"]] == ["ANA PEREZ"] and raw["firmantes"] is raw["firmantes_consolidados"]
     assert raw["comite_evaluacion"] == [{"nombre_completo": "ANA PEREZ", "rol": "presidente"}]   # solo del acta
     assert raw["lugar_fecha_acta"]["lugar"] == "Lima" and raw["cuantia_total"] == 5000.0

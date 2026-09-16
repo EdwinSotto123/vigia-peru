@@ -49,11 +49,15 @@ _TOPES_CONSULTORIA = {"concurso_publico": 400.0, "adjudicacion_simplificada_min"
 
 # Reglas de compliance_rules.py (12 extendidas + 3 duras + nuevas de WS V).
 _REGLAS_BASE = frozenset({
-    "unique_bidder", "sanctioned_provider", "non_competitive_process",
-    "plazo_convocatoria", "tipo_proceso_vs_monto", "directa_fundamento",
-    "edad_ruc_ganador", "ciiu_vs_objeto", "concentracion_entidad",
-    "recurrencia_firmante", "testaferro_multi_ruc", "ruc_ultra_nuevo",
-    "postor_unico_mayoritario", "inconsistencia_doc_vs_ocds", "lobby_visits",
+    "unico_postor_alto", "proveedor_sancionado_osce", "procedimiento_no_competitivo",
+    "plazo_convocatoria_minimo", "tipo_proceso_vs_monto", "directa_sin_fundamento",
+    "ruc_ganador_muy_nuevo", "ciiu_vs_objeto", "concentracion_entidad",
+    "firmante_vinculado_ganador", "testaferro_multi_ruc", "ruc_ultra_nuevo",
+    "postor_unico_mayoritario", "inconsistencia_doc_vs_ocds", "lobby_visits_pre_convocatoria",
+    # Lote 1 (revisión manual de 10 expedientes): señales deterministas del procedimiento
+    "oferta_igual_valor_referencial", "ofertas_agrupadas", "unica_oferta_valida", "ganador_no_invitado",
+    "oferta_mas_barata_no_gana", "fecha_buena_pro_incoherente", "firmante_con_empresa_rnp",
+    "postores_vinculados_rnp", "ampliacion_denegada_penalidad",
 })
 
 
@@ -138,7 +142,7 @@ _OBRAS = Profile(
     parser_bloque="obra",
     market_estrategia="presupuesto_obra",
     legal_vectores="obras",
-    reglas_activas=_REGLAS_BASE | {"adicional_acumulado", "consorcio_recurrente"},
+    reglas_activas=_REGLAS_BASE | {"adicional_acumulado"},
     topes_uit=_TOPES_OBRAS,
     dictamen_secciones=(
         "Resumen ejecutivo", "Hechos clave", "Expediente técnico, presupuesto y adicionales",

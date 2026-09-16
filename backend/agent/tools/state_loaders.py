@@ -1,12 +1,40 @@
 """Tools del dominio: state_loaders."""
 
+import re as _re
+
 from tools._core import *  # noqa: F401,F403
 
-def _compact_ocds(ocds):
-    """Proyección del OCDS para el dictamen: entidad, monto, ganador, postores,
+_RUC_11_RE = _re.compile(r"(?<!\d)(?:10|15|16|17|20)\d{9}(?!\d)")
+
+
+def _ruc_de_party(party, fallback_id=None) -> str | None:
+    """RUC de un `parties[]`/`buyer`/`supplier` del OCDS: `additionalIdentifiers[scheme=PE-RUC]`,
+    `identifier.id`, o el `id` ("PE-RUC-20123456789"). None si no hay 11 dígitos."""
+    cands = []
+    if isinstance(party, dict):
+        for ai in party.get("additionalIdentifiers") or []:
+            if isinstance(ai, dict) and str(ai.get("scheme") or "").upper().endswith("RUC"):
+                cands.append(str(ai.get("id") or ""))
+        ident = party.get("identifier")
+        if isinstance(ident, dict):
+            cands.append(str(ident.get("id") or ""))
+        cands.append(str(party.get("id") or ""))
+    if fallback_id:
+        cands.append(str(fallback_id))
+    for c in cands:
+        m = _RUC_11_RE.search(c)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _compact_ocds(ocds, entidad_ruc=None):
+    """Proyección del OCDS para el dictamen: entidad (con RUC), monto, ganador, postores,
     ítems raíz y documentos (conteo + títulos). No lleva `parties`/`planning`/
     `sources` crudos (inflan el contexto), pero SÍ los datos que el writer necesita
-    para no inventar: `numberOfTenderers`, `tenderers`, `items`, `documents`."""
+    para no inventar: `buyer.ruc`, `numberOfTenderers`, `tenderers`, `items`, `documents`,
+    `awards[].value`, `contracts[].value` (revisión lote 1: el writer inventó el RUC de la
+    entidad porque solo recibía `buyer.id`)."""
     if not isinstance(ocds, dict):
         return ocds
     tender = ocds.get("tender") or {}
@@ -14,9 +42,18 @@ def _compact_ocds(ocds):
     awards = ocds.get("awards") or []
     contracts = ocds.get("contracts") or []
     docs = tender.get("documents") or []
+    parties = [p for p in (ocds.get("parties") or []) if isinstance(p, dict)]
+    buyer_party = next((p for p in parties if "buyer" in (p.get("roles") or []) or p.get("id") == buyer.get("id")), None)
+    buyer_ruc = _ruc_de_party(buyer_party or buyer, buyer.get("id")) or _ruc_de_party(None, entidad_ruc)
+    parties_por_id = {str(p.get("id")): p for p in parties if p.get("id")}
+
+    def _supplier(s):
+        return {"id": s.get("id"), "name": s.get("name"),
+                "ruc": _ruc_de_party(parties_por_id.get(str(s.get("id"))) or s, s.get("id"))}
+
     return {
         "ocid": ocds.get("ocid"),
-        "buyer": {"name": buyer.get("name"), "id": buyer.get("id")},
+        "buyer": {"name": buyer.get("name"), "id": buyer.get("id"), "ruc": buyer_ruc},
         "tender": {
             "title": tender.get("title"),
             "description": (tender.get("description") or "")[:1200] or None,
@@ -41,7 +78,7 @@ def _compact_ocds(ocds):
         },
         "awards": [
             {"id": a.get("id"), "status": a.get("status"),
-             "suppliers": [{"id": s.get("id"), "name": s.get("name")} for s in (a.get("suppliers") or [])],
+             "suppliers": [_supplier(s) for s in (a.get("suppliers") or []) if isinstance(s, dict)],
              "value": a.get("value"), "date": a.get("date")}
             for a in awards[:20] if isinstance(a, dict)
         ],
@@ -170,6 +207,106 @@ def _banderas_para_dictamen(state) -> list[dict] | None:
     return [x for x in b if isinstance(x, dict)] if isinstance(b, list) else None
 
 
+_NARRATIVA_DEGRADADA = ("resumen_ejecutivo", "sintesis", "sintesis_personal", "observaciones",
+                        "justificacion", "detalle", "observacion")
+_AVISO_NO_VERIFICABLE = ("[NO VERIFICABLE] salida degradada por el validador (sin evidencia validada): "
+                         "NO narrar como hecho; solo puede citarse como 'observación no verificada del agente'")
+_RNP_MATCH_MIN = 0.95
+
+
+def _marcar_no_verificable(obj, _depth: int = 0):
+    """Revisión lote 1: cuando una salida de agente quedó `estado='no_verificable'` (todas sus
+    banderas/cruces se descartaron), su prosa (`resumen_ejecutivo`, `sintesis`,
+    `direccionamiento_detectado.justificacion`…) llegaba íntegra al writer y se publicaba como
+    hecho (1225030: familia Baca; 1225392: carpeta fiscal no localizable). Aquí cada campo
+    narrativo se prefija con "[NO VERIFICABLE]" y se añade `_aviso`. Devuelve una COPIA."""
+    if _depth > 4 or not isinstance(obj, dict):
+        return obj
+    out = {}
+    for k, v in obj.items():
+        if k in _NARRATIVA_DEGRADADA and isinstance(v, str) and v.strip() and not v.startswith("[NO VERIFICABLE]"):
+            out[k] = "[NO VERIFICABLE] " + v
+        elif isinstance(v, dict):
+            out[k] = _marcar_no_verificable(v, _depth + 1)
+        else:
+            out[k] = v
+    if _depth == 0:
+        out["_aviso"] = _AVISO_NO_VERIFICABLE
+        if isinstance(out.get("direccionamiento_detectado"), dict) and out["direccionamiento_detectado"].get("hay_indicios") \
+                and not out.get("red_flags_documentales"):
+            out["direccionamiento_detectado"]["_aviso"] = ("hay_indicios sin ninguna red_flag validada: "
+                                                           "no existe vector de direccionamiento verificable")
+    return out
+
+
+def _oece_perfil_para_dictamen(state) -> dict | None:
+    """`oece_perfiles` (query_oece_perfil, determinista) compactado por RUC: sanciones,
+    inhabilitaciones, penalidades, aptitud. `n_sanciones = 0` es un DATO verificado del OECE,
+    no `sin_dato` (1225030 decía 'sin_dato' teniendo 0 sanciones verificadas)."""
+    perfiles = state.get("oece_perfiles")
+    if isinstance(perfiles, str):
+        perfiles = _safe_parse_json(perfiles)
+    if not isinstance(perfiles, dict) or not perfiles:
+        return None
+    out = {}
+    for ruc, p in list(perfiles.items())[:10]:
+        if not isinstance(p, dict):
+            continue
+        out[str(ruc)] = {
+            "ruc": p.get("ruc") or ruc, "razon_social": p.get("razon_social"),
+            "es_apto_contratar": p.get("es_apto_contratar"), "es_habilitado": p.get("es_habilitado"),
+            "n_sanciones": p.get("n_sanciones"), "n_inhabilitaciones_judiciales": p.get("n_inhabilitaciones_judiciales"),
+            "n_inhabilitaciones_administrativas": p.get("n_inhabilitaciones_administrativas"),
+            "n_penalidades": p.get("n_penalidades"), "n_medidas_cautelares": p.get("n_medidas_cautelares"),
+            "sanciones": (p.get("sanciones") or [])[:5],
+            "inhabilitaciones_administrativas": (p.get("inhabilitaciones_administrativas") or [])[:5],
+            "inhabilitaciones_judiciales": (p.get("inhabilitaciones_judiciales") or [])[:5],
+            "fuente_url": p.get("fuente_url"),
+        }
+    if not out:
+        return None
+    out["_nota"] = ("Dato determinista del OECE (perfilprov). Un conteo 0 es un hecho verificado "
+                    "('sin sanciones registradas en OECE'), no 'sin_dato'. Una sanción con vigente=false "
+                    "o multa pagada es antecedente histórico, no sanción vigente.")
+    return out
+
+
+def _rnp_firmantes_para_dictamen(state) -> list[dict] | None:
+    """Firmantes del expediente que figuran en el RNP como socios/representantes de empresas
+    proveedoras del Estado con match ≥ 0.95 (nombre exacto). Es un cruce determinista que el
+    dictamen negaba ('no se hallaron relaciones societarias') mientras el contexto lo traía
+    (1225058, 1225266, 1225450)."""
+    ctx = state.get("person_network_context")
+    if isinstance(ctx, str):
+        ctx = _safe_parse_json(ctx)
+    if not isinstance(ctx, dict):
+        return None
+    res = ctx.get("rnp_firmantes_resultados")
+    if not isinstance(res, list):
+        return None
+    out = []
+    for r in res:
+        if not isinstance(r, dict):
+            continue
+        empresas = []
+        for e in r.get("empresas") or []:
+            if not isinstance(e, dict):
+                continue
+            try:
+                score = float(e.get("match_score") or 0)
+            except (TypeError, ValueError):
+                score = 0.0
+            if score >= _RNP_MATCH_MIN or r.get("match_por") == "nombre_exacto":
+                empresas.append({"ruc_empresa": e.get("ruc_empresa"), "nombre_visto": e.get("nombre_visto"),
+                                 "roles": e.get("roles"), "forma_societaria": e.get("forma_societaria"),
+                                 "fecha_inicio_vigencia": e.get("fecha_inicio_vigencia"), "match_score": score})
+        if empresas:
+            out.append({"firmante": r.get("firmante"), "match_por": r.get("match_por"), "empresas": empresas[:10],
+                        "_nota": "cruce determinista RNP (match ≥ 0.95): el firmante figura en la conformación "
+                                 "jurídica de estas empresas; no es irregular per se, es observación de red"})
+    return out or []
+
+
 def get_dictamen_context(tool_context: ToolContext) -> dict:
     """Devuelve el contexto investigativo de la convocatoria en curso, leído del
     session.state. Es la ÚNICA forma en que el report_writer accede a los datos
@@ -230,19 +367,34 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
                           "_motivo": "output del agente no parseable como JSON"}
         else:
             out[k] = v
-    out["ocds"] = _compact_ocds(out.get("ocds"))
+    out["ocds"] = _compact_ocds(out.get("ocds"), entidad_ruc=state.get("entidad_ruc"))
     out["document_analysis"] = _compact_document_analysis(out.get("document_analysis"))
     # `perfil` completo (listas de prioridad de documentos, reglas, topes) no aporta al texto:
     # las secciones del dictamen ya viajan en el mensaje del writer.
     if isinstance(out.get("perfil"), dict):
         out["perfil"] = {k: out["perfil"].get(k) for k in ("nombre", "market_estrategia", "legal_vectores")}
+    # Salidas degradadas (`estado: no_verificable`): su prosa se marca, no se entrega como hecho.
+    degradadas = []
+    for k in ("legal_analysis", "web_research", "news_research", "person_network", "entity_personnel"):
+        v = out.get(k)
+        if isinstance(v, dict) and str(v.get("estado") or "").lower() == "no_verificable":
+            out[k] = _marcar_no_verificable(v)
+            degradadas.append(k)
+    out["salidas_no_verificables"] = degradadas
+    out["oece_perfil"] = _oece_perfil_para_dictamen(state)
+    out["rnp_firmantes_resultados"] = _rnp_firmantes_para_dictamen(state)
     out["banderas"] = _banderas_para_dictamen(state)
     out["reglas_evaluadas"] = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict)]
     out["n_banderas"] = len(out["banderas"] or [])
     out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. Las secciones con "
                     "`_truncado: true` fueron paginadas; `_omitidos` dice cuántos elementos no se "
                     "muestran. `recortes`/`descartes`/`validaciones_pendientes` deben listarse en "
-                    "la sección 'Recortes y datos no verificables'.")
+                    "la sección 'Recortes y datos no verificables'. Las salidas listadas en "
+                    "`salidas_no_verificables` traen su prosa marcada '[NO VERIFICABLE]': no se narran "
+                    "como hechos. `oece_perfil` es dato oficial determinista (0 sanciones = verificado). "
+                    "`rnp_firmantes_resultados` son cruces RNP deterministas de firmantes (match ≥ 0.95). "
+                    "El RUC de la entidad es `ocds.buyer.ruc`; el del proveedor, `ocds.awards[].suppliers[].ruc`: "
+                    "si vienen null, no existen para el dictamen.")
     if compact:
         out = _paginar(out, max_str=1600, max_list=15)
     else:

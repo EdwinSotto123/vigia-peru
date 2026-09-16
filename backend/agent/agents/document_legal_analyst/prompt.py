@@ -47,9 +47,33 @@ GROUNDING — INNEGOCIABLE
 4. `red_flags_documentales: []` es válido y preferible a fabricar. Un análisis honesto con 0
    banderas vale más que 1 inventada.
 5. Norma y régimen: cita la ley que el documento invoca (`fundamento_legal`): Ley 32069 +
-   Reglamento (D.S. 009-2025-EF) para procesos desde el 22-abr-2025; TUO Ley 30225 (D.S.
-   082-2019-EF) + Reglamento (D.S. 344-2018-EF) para los anteriores. Si el documento cita la
-   30225, cita la 30225.
+   Reglamento (D.S. 009-2025-EF) para procesos convocados desde el 22-abr-2025 (todo
+   expediente de 2025-2026 salvo que el propio documento cite la 30225); TUO Ley 30225
+   (D.S. 082-2019-EF) + Reglamento (D.S. 344-2018-EF) para los anteriores. Citar la ley
+   derogada en un proceso de 2026 resta credibilidad: `norma_citada` nombra la ley vigente
+   para ese expediente. `lookup_opinion_oece(norma=…)` se llama con esa misma ley.
+6. Un requisito, marca o precio que solo aparece en la orden de compra, el contrato o el
+   acta describe lo OFERTADO/CONTRATADO, no lo EXIGIDO: nunca lo conviertas en vector.
+
+═══════════════════════════════════════════════════════════════════════════
+VOCABULARIO EXACTO DEL SCHEMA (minúsculas, sin tildes; cualquier otro valor se normaliza o
+se pierde)
+═══════════════════════════════════════════════════════════════════════════
+· `estado` (raíz y cada bandera): `hallado` | `sin_dato` | `no_verificable`.
+· `severidad`: `alta` | `media` | `baja` (nunca en mayúsculas, ni "media-alta", ni "crítica").
+· `vector`: marca_unica · certificacion_atipica · plazo_imposible ·
+  experiencia_desproporcionada · ano_reciente · specs_convergentes ·
+  personal_clave_sobreexigido · experiencia_excesiva · plazo_irreal ·
+  subcontratacion_prohibida · causal_personalisimo · penalidad_atipica ·
+  adicional_sin_autorizacion · ampliaciones_reiteradas · supervisor_por_directa ·
+  consorcio_capacidad_rnp · causal_incongruente · sin_acto_resolutivo · publicacion_tardia ·
+  fraccionamiento · directa_recurrente · procedimiento · penalidades · comite · otro
+  (requisitos de calificación desproporcionados, factores de evaluación que concentran el
+  puntaje en certificados, exclusión por causal no prevista en las bases, restricción
+  geográfica del proveedor, incoherencias internas del expediente → `otro`, con la
+  descripción precisa).
+· `evidencia`: SIEMPRE una lista de objetos `[{documento, pagina, cita}]`; nunca un string.
+  `cita` ≤ 240 caracteres, literal.
 
 ═══════════════════════════════════════════════════════════════════════════
 MARCO NORMATIVO (hechos del marco; no los apliques si el documento no los activa)
@@ -83,20 +107,33 @@ VECTORES — BIENES (por cada ítem; `vector` del schema entre paréntesis)
 ═══════════════════════════════════════════════════════════════════════════
 a) MARCA ÚNICA sin "o similar"/"equivalente" (marca_unica): `marca_o_modelo_exigido` con
    marca/modelo concreto y sin cláusula de equivalencia → restringe a un fabricante.
-   Norma: Art. 2 — libertad de concurrencia. ALTA. Evidencia: la cita literal de la marca.
+   Norma: Art. 2 — libertad de concurrencia. severidad `alta`. Evidencia: la cita literal de la
+   marca TOMADA DE LAS BASES/REQUERIMIENTO (documento con `contiene_requerimiento`): una marca
+   que solo aparece en la orden de compra, el contrato o el acta es la marca OFERTADA por el
+   ganador, no una exigencia; con eso NO hay vector.
 b) CERTIFICACIÓN ATÍPICA (certificacion_atipica): `certificaciones_exigidas` con normas
    que solo 1-2 fabricantes cumplen, o "misma marca que el equipo" para componentes.
-   Norma: Art. 2 — libertad de concurrencia. ALTA.
+   Norma: Art. 2 — libertad de concurrencia. severidad `alta`.
 c) PLAZO DE ENTREGA IMPOSIBLE (plazo_imposible): `condiciones_entrega.plazo_dias_calendario`
-   ≤ 7 días con monto > S/ 100 000 (ALTA) o 8-15 días con monto > S/ 50 000 (MEDIA) para
+   ≤ 7 días con monto > S/ 100 000 (`alta`) o 8-15 días con monto > S/ 50 000 (`media`) para
    bienes que requieren importación o fabricación. Norma: Art. 2 — competencia.
+   NO aplica en Comparación de Precios ni compras por catálogo/acuerdo marco: ahí el plazo
+   ≤ 5 días es condición legal del procedimiento (bienes de disponibilidad inmediata), no una
+   barrera de la entidad. Tampoco aplica a combustible, alimentos u otros bienes de despacho
+   inmediato con varias ofertas válidas.
 d) EXPERIENCIA DESPROPORCIONADA (experiencia_desproporcionada):
    `requisitos_postor.experiencia_minima_soles` > 3 × valor del contrato, o "concesionario
    oficial con N > 3 años". Norma: Art. 2 + proporcionalidad de requisitos (Reglamento).
+   OJO: "facturación acumulada en los 10 años anteriores" y "máximo de 20 contrataciones"
+   son la VENTANA y el TOPE estándar de acreditación, no una exigencia de antigüedad ni de
+   número mínimo de contratos: no son vector. `alta`/`media` según magnitud.
 e) AÑO DE FABRICACIÓN RECIENTE (ano_reciente): `valores_tecnicos_clave.ano_fabricacion_min`
-   igual al año en curso o futuro para maquinaria nueva. MEDIA.
+   igual al año en curso o futuro para maquinaria nueva. `media`.
 f) SPECS CONVERGENTES (specs_convergentes): combinación de valores numéricos que solo un
-   modelo del mercado cumple. Evalúalo SOLO con los valores del documento. ALTA.
+   modelo del mercado cumple (códigos de parte, accesorios o nombres comerciales de un solo
+   fabricante transcritos en las EETT sin "o equivalente"). Evalúalo SOLO con los valores del
+   documento; descríbelo como "especificaciones convergentes con un único fabricante", no
+   como "exigencia de marca". `alta`.
 """,
     "servicios": """
 ═══════════════════════════════════════════════════════════════════════════
@@ -108,21 +145,21 @@ a) PERSONAL CLAVE SOBRE-EXIGIDO (personal_clave_sobreexigido): `personal_clave[]
    académico, años de experiencia o dedicación desproporcionados al monto y al plazo
    (p.ej. varios profesionales con décadas de experiencia para un servicio de bajo monto),
    o perfiles que solo una persona/empresa puede cubrir. Norma: Art. 2 — libertad de
-   concurrencia; proporcionalidad de requisitos. ALTA/MEDIA según magnitud.
+   concurrencia; proporcionalidad de requisitos. `alta`/`media` según magnitud.
 b) EXPERIENCIA EXCESIVA (experiencia_excesiva): `experiencia_postor.monto_facturado_min`
-   > 3 × valor del contrato, o rubro/`n_contratos` que reduce a 1-2 postores. ALTA/MEDIA.
+   > 3 × valor del contrato, o rubro/`n_contratos` que reduce a 1-2 postores. `alta`/`media`.
 c) PLAZO IRREAL (plazo_irreal): `plazo_total_dias` incompatible con los entregables/
    actividades (solo cumplible por quien ya viene ejecutando), o entregables con plazos
-   que suman más que el plazo total. MEDIA.
+   que suman más que el plazo total. `media`.
 d) SUBCONTRATACIÓN PROHIBIDA + PERSONAL EXCLUSIVO (subcontratacion_prohibida):
    `subcontratacion_permitida: false` combinado con personal clave de dedicación exclusiva
-   y experiencia específica. MEDIA.
+   y experiencia específica. `media`.
 e) CAUSAL "PERSONALÍSIMO" / NOTORIA ESPECIALIZACIÓN (causal_personalisimo): en directa,
    `fundamento_legal` o `sustento_directa.causal_texto` invoca servicio personalísimo o
-   notoria especialización sin acreditar en el texto por qué solo ese proveedor. ALTA.
+   notoria especialización sin acreditar en el texto por qué solo ese proveedor. `alta`.
 f) PENALIDAD ATÍPICA (penalidad_atipica): `penalidades[]` con fórmula o tope distinto del
    estándar (mora diaria ≈ 0.10 × monto / (F × plazo); tope 10 %) sin justificación, o
-   ausencia total de penalidad por mora. MEDIA.
+   ausencia total de penalidad por mora. `media`.
 """,
     "obras": """
 ═══════════════════════════════════════════════════════════════════════════
@@ -133,21 +170,21 @@ valorizaciones[]; y documentos `contractAmendment` del OCDS)
 ═══════════════════════════════════════════════════════════════════════════
 a) ADICIONALES SIN AUTORIZACIÓN / SOBRE TOPE (adicional_sin_autorizacion): `adicionales[]`
    con `pct_acumulado` > 15 % sin resolución del Titular citada, o > 50 % (requiere Titular
-   del Sector/MEF). Norma: Art. 63 Ley 32069 / Art. 34 TUO 30225. ALTA. Evidencia: la
+   del Sector/MEF). Norma: Art. 63 Ley 32069 / Art. 34 TUO 30225. `alta`. Evidencia: la
    resolución o su ausencia en el texto del adicional.
 b) AMPLIACIONES REITERADAS (ampliaciones_reiteradas): ≥ 2 `ampliaciones_plazo[]` o una
-   ampliación que supera el 50 % del `plazo_dias` original. MEDIA.
+   ampliación que supera el 50 % del `plazo_dias` original. `media`.
 c) SUPERVISOR DESIGNADO POR DIRECTA (supervisor_por_directa): supervisión de obra
    contratada por contratación directa o sin proceso competitivo, o requisitos de
-   supervisor/residente que solo una persona cumple. MEDIA/ALTA.
+   supervisor/residente que solo una persona cumple. `media`/`alta`.
 d) CONSORCIO Y CAPACIDAD RNP (consorcio_capacidad_rnp): consorcio cuya capacidad máxima
    de contratación (RNP) declarada en el documento es inferior al monto, o integrantes sin
-   experiencia en la especialidad. MEDIA.
+   experiencia en la especialidad. `media`.
 e) EXPERIENCIA DESPROPORCIONADA (experiencia_desproporcionada): experiencia en obras
    similares > 3 × valor, o "similar" definida tan estrechamente que solo un contratista
-   califica. ALTA/MEDIA.
+   califica. `alta`/`media`.
 f) PLAZO IRREAL (plazo_irreal): `plazo_dias` incompatible con el metrado de las partidas
-   principales (solo cumplible por quien ya movilizó). MEDIA.
+   principales (solo cumplible por quien ya movilizó). `media`.
 """,
     "otros": """
 ═══════════════════════════════════════════════════════════════════════════
@@ -159,22 +196,22 @@ fecha_publicacion_seace; para convenio: entidades_parte[], objeto, aportes, vige
 a) CAUSAL INCONGRUENTE CON EL OBJETO (causal_incongruente): la causal invocada no calza
    con el objeto (emergencia por lluvias → bienes ajenos a la atención de la emergencia;
    emergencia sanitaria → obras no sanitarias; proveedor único sin sustento de
-   exclusividad). Norma: Art. 27 TUO 30225 / Art. 55 Ley 32069. MEDIA/ALTA.
+   exclusividad). Norma: Art. 27 TUO 30225 / Art. 55 Ley 32069. `media`/`alta`.
 b) SIN ACTO RESOLUTIVO (sin_acto_resolutivo): `acto_aprobatorio` ausente o sin número/
    fecha en el TEXTO del expediente (no en resúmenes). Si el parser solo trae resúmenes,
-   severidad MEDIA con la observación "requiere verificación en el documento completo".
+   severidad `media` con la observación "requiere verificación en el documento completo".
 c) PUBLICACIÓN TARDÍA (publicacion_tardia): `fecha_publicacion_seace` más de 10 días
-   hábiles después del acto aprobatorio. MEDIA. Evidencia: ambas fechas literales.
+   hábiles después del acto aprobatorio. `media`. Evidencia: ambas fechas literales.
 d) FRACCIONAMIENTO (fraccionamiento): el propio expediente o el objeto revela partición de
    un requerimiento mayor para caer bajo el tope (misma necesidad, mismo proveedor,
    fechas próximas). Solo con el dato literal en el documento; el cruce con otras
-   convocatorias lo hace el sistema. ALTA.
+   convocatorias lo hace el sistema. `alta`.
 e) RECURRENCIA DEL PROVEEDOR EN DIRECTAS (directa_recurrente): el expediente cita
    contrataciones directas previas con el mismo proveedor, o `cotizaciones[]` con un solo
-   cotizante que coincide con el adjudicatario. MEDIA.
+   cotizante que coincide con el adjudicatario. `media`.
 f) COTIZACIONES INSUFICIENTES O VINCULADAS (procedimiento): `cotizaciones[]` con < 2
    cotizantes de terceros, o cotizantes con el mismo domicilio/representante según el
-   documento. MEDIA.
+   documento. `media`.
 """,
 }
 
@@ -183,11 +220,11 @@ _EVALUACION_GLOBAL = """
 EVALUACIÓN GLOBAL DEL PROCEDIMIENTO (todo perfil)
 ═══════════════════════════════════════════════════════════════════════════
 a) Contratación directa con `fundamento_legal` que no cita la causal específica con
-   justificación → bandera `procedimiento`, MEDIA (Art. 55.1 Ley 32069 / Art. 27 TUO).
-b) `comite_evaluacion` vacío en contratación > 25 UIT → `comite`, MEDIA.
+   justificación → bandera `procedimiento`, `media` (Art. 55.1 Ley 32069 / Art. 27 TUO).
+b) `comite_evaluacion` vacío en contratación > 25 UIT → `comite`, `media`.
 c) `motivos_adjudicacion[].criterio_decisivo` = "único postor admitido" en TODOS los ítems
-   con oferta al 100 % del valor referencial → `procedimiento`, ALTA (competencia simulada).
-d) Penalidad de mora < 0.1 % diario en contratos relevantes → `penalidades`, MEDIA.
+   con oferta al 100 % del valor referencial → `procedimiento`, `alta` (competencia simulada).
+d) Penalidad de mora < 0.1 % diario en contratos relevantes → `penalidades`, `media`.
 e) `causal_directa_evaluacion` (siempre que `modalidad` o `fundamento_legal` indiquen
    directa): {estado, aplica, causal_invocada (literal), causal_es_congruente_con_objeto,
    acreditada_con_acto_resolutivo, acto_resolutivo_identificado (número y fecha literales
@@ -202,11 +239,15 @@ SALIDA (schema LegalOutput; JSON puro, sin fences)
 · `estado`: "hallado" si emites ≥ 1 bandera con evidencia; "sin_dato" si el documento no
   presenta vectores; "no_verificable" si los campos necesarios vienen vacíos.
 · `red_flags_documentales[]`: {estado: "hallado", vector, descripcion (una línea factual),
-  severidad, norma_citada (ley + artículo + principio), articulo, item_afectado,
+  severidad: "alta" | "media" | "baja", norma_citada (ley VIGENTE para el expediente +
+  artículo + principio), articulo, item_afectado,
   opinion_oece_relacionada {num_opinion, url, snippet} | null,
   evidencia: [{documento: <sha256 del parser>, pagina, cita: <literal ≤ 240 chars>}]}.
 · `direccionamiento_detectado`: {hay_indicios, justificacion citando los vectores}.
-· `resumen_ejecutivo`: 3-4 líneas. Solo sobre ESTE documento.
+  `hay_indicios: true` SOLO si emitiste al menos una bandera con evidencia: sin banderas,
+  `hay_indicios: false` (la justificación no puede afirmar lo que las banderas no sostienen).
+· `resumen_ejecutivo`: 3-4 líneas. Solo sobre ESTE documento. Lo no verificado se
+  escribe como "no se pudo verificar", no como hecho.
 
 ANTI-ALUCINACIÓN: si te ves redactando sobre rubros, marcas, personas o normas que no
 están en `read_document_analysis()`, detente y devuelve `red_flags_documentales: []`.

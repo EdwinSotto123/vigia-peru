@@ -168,8 +168,12 @@ def test_regla_no_activa_en_perfil_se_omite(monkeypatch):
 
 def test_topes_uit_por_perfil_en_tipo_proceso_vs_monto(monkeypatch):
     # AS con 1000 UIT (S/ 5 350 000): bienes (tope 400) dispara; obras (tope 1800) no.
+    # Régimen TUO 30225 (convocatoria 2024): los topes en UIT del perfil siguen aplicando.
+    # Para procesos desde 22-abr-2025 rigen los topes en soles de la Ley 32069
+    # (ver tests/test_reglas_lote1.py).
     monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
-        "select tipo_proceso, cuantia_referencial from convocatorias": ("ADJUDICACION SIMPLIFICADA", 5350000.0)}))
+        "select coalesce(tipo_proceso, modalidad), cuantia_referencial, fecha_convocatoria from convocatorias":
+            ("ADJUDICACION SIMPLIFICADA", 5350000.0, "2024-06-01")}))
     st = {}
     r = cr.check_tipo_proceso_vs_monto_rule(OCID, _Ctx(st))
     assert r["triggered"] is True and "400 UIT" in r["evidencia"]
@@ -267,8 +271,9 @@ def test_inconsistencia_cuenta_solo_items_raiz_y_sin_manipulacion():
         "items_consolidados": [{"descripcion_corta": "LAPTOP CORE I7"}, {"descripcion_corta": "LAPTOP I5"},
                                {"descripcion_corta": "LAPTOP I3"}]}}
     r2 = cr.check_inconsistencia_doc_vs_ocds_rule(OCID, _Ctx(st2))
-    assert r2["triggered"] is True and "manipulaci" not in r2["evidencia"].lower()
-    assert "requiere verificación manual" in r2["evidencia"]
+    # Lote 1 · T2: el conteo de ítems OCDS vs expediente es informativo (el OCDS publica el lote
+    # como 1 ítem y las bases lo desglosan), nunca una señal.
+    assert r2["triggered"] is False and r2["nota_items"]["tipo"] == "items_count_distinto"
 
 
 # ─── evaluate_normative_compliance sin corte a 10 ───────────────────────────

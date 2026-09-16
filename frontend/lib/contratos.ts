@@ -8,7 +8,7 @@
  */
 
 import { API_BASE } from "./api-client";
-import type { Procesamiento } from "./auditoria";
+import type { Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 
 export type TipoContrato = "bienes" | "servicios" | "consultoria" | "obras" | "convenio" | "directa" | "otro";
 export type EtapaContrato =
@@ -95,7 +95,8 @@ export interface ContratoDetalle extends ContratoResumen {
   items: ContratoItem[];
   documentos: ContratoDocumento[];
   adjudicaciones: { id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null }[];
-  alerta: { id: string; codigo: string; score: number | null; estado: string; analizadoEn: string | null; banderas: BanderaResumen[] } | null;
+  /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó. */
+  alerta: (ResultadoAnalisis & { id: string }) | null;
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
   /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */
@@ -271,6 +272,7 @@ export interface ProcesamientoActivo {
   zona: string | null;
   titulo: string | null;
   desdeSeg: number;
+  fases?: FasesMap | null;
 }
 
 export interface LoteIngesta {
@@ -295,6 +297,8 @@ export interface ResumenProcesamientoVivo {
   /** Pedidos de descarga (migración 15); null si la tabla no existe. */
   pedidos: { pendientes: number; descargando: number; listos24h: number; fallidos: number } | null;
   agentesActivos: string[];
+  /** Mediana de duración de los procesados en 7 días (para el "≈ N min"). */
+  estimado?: Estimado | null;
 }
 
 export const getResumenVivo = () =>

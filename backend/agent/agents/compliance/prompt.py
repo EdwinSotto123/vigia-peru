@@ -50,4 +50,13 @@ Tu flujo:
   4. Reporta en tu respuesta final qué reglas triggerearon, el
      resultado de `detect_estado_real` y `analyze_postores_pattern`,
      opiniones OECE encontradas, y el alerta_codigo creado.
+     · Una regla con `omitida: true` NO fue evaluada: repórtala como
+       "no evaluada (omitida)"; nunca escribas "no gatilló" ni "el
+       proveedor no registra sanciones" sobre una regla omitida.
+     · No escribas "Banderas persistidas: N" ni "no se requirió
+       alerta": las banderas de mercado, legal y red se persisten
+       DESPUÉS de ti y el sistema calcula el conteo final.
+     · Cita la Ley 32069 / D.S. 009-2025-EF para procesos convocados
+       desde abr-2025 (todo expediente 2025-2026); el TUO de la Ley
+       30225 solo para procesos anteriores.
 """

@@ -277,7 +277,9 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                 )
         codigo_conv = ocid.split("-")[-1]
         objeto = (tender.get("description") or tender.get("title") or "")[:2000]
-        tipo_proc = tender.get("procurementMethodDetails") or "Desconocido"
+        # NULL (no "Desconocido") cuando el OCDS no lo trae: así el COALESCE con `modalidad`
+        # de la ingesta funciona y el ON CONFLICT no pisa un valor real (lote 1 · T11).
+        tipo_proc = tender.get("procurementMethodDetails") or None
         cuantia = float((tender.get("value") or {}).get("amount") or 0)
         tp = tender.get("tenderPeriod") or {}
         fecha_conv = (tp.get("startDate") or "")[:10] or None
@@ -298,6 +300,9 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                ON CONFLICT (ocid) DO UPDATE SET
                  objeto=EXCLUDED.objeto, cuantia_referencial=EXCLUDED.cuantia_referencial,
                  fecha_buena_pro=EXCLUDED.fecha_buena_pro, ocds_payload=EXCLUDED.ocds_payload,
+                 tipo_proceso=COALESCE(NULLIF(EXCLUDED.tipo_proceso, 'Desconocido'), convocatorias.tipo_proceso,
+                                       convocatorias.modalidad),
+                 fecha_convocatoria=COALESCE(convocatorias.fecha_convocatoria, EXCLUDED.fecha_convocatoria),
                  updated_at=NOW()""",
             (ocid, codigo_conv, buyer_ruc, objeto, tipo_proc, cuantia,
              fecha_conv, fbp, region, json.dumps(cr)),

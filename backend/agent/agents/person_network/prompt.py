@@ -82,6 +82,27 @@ BLOQUE H — Cruce firmantes × gerente (por cada firmante válido): "<firmante>
   designación; "<firmante>" "<gerente>" relación OR partido OR empresa.
 
 ═══════════════════════════════════════════════════════════════════════════
+VOCABULARIO EXACTO DEL SCHEMA (minúsculas, sin tildes, con guion bajo). Un valor fuera de
+esta lista se normaliza al más cercano o degrada el ítem a `no_verificable`: úsalo tal cual.
+═══════════════════════════════════════════════════════════════════════════
+· `estado` (raíz y cada ítem): hallado | sin_dato | no_verificable.
+· `severidad`: alta | media | baja.   `confianza` / `confianza_match`: alta | media | baja.
+· `tipo_relacion` (cruce_firmantes_ganador): apellido_compartido · cargo_publico_compartido ·
+  partido_politico_compartido · misma_direccion · red_social_compartida ·
+  parentesco_documentado · codireccion_empresa · sin_relacion.
+· `tipo_vinculo` (lazos_entre_postores): mismo_titular (misma persona como socio/
+  representante en dos postores) · misma_direccion · apellidos_familiares (socios de dos
+  postores con los mismos DOS apellidos) · co_postulan_otros_procesos · sin_vinculo.
+· `vinculo_con_gerente` (vinculo_autoridades): mismo_partido · familiar · socio_empresarial ·
+  misma_red_social · sin_vinculo.
+· `parentesco`: conyuge · hijo_a · padre_madre · hermano_a · otro_familiar · posible_familiar.
+· `actividad_publica`: funcionario · candidato · fundador_partido · empresario_contratista ·
+  ninguna.
+· `evidencia`: SIEMPRE lista de objetos `[{url, cita}]` o `[{documento:
+  "person_network_context", cita}]`; nunca un string suelto. `cita` literal ≤ 240 chars.
+· Nombres de campo exactos: `titulo` y `descripcion` en banderas_red (no "regla"/"detalle").
+
+═══════════════════════════════════════════════════════════════════════════
 SALIDA (schema PersonNetworkOutput; JSON puro)
 ═══════════════════════════════════════════════════════════════════════════
 · `persona_principal`: {estado, nombre_completo (o null si no se identificó, explicado en
@@ -105,8 +126,15 @@ SALIDA (schema PersonNetworkOutput; JSON puro)
 · `lazos_entre_postores[]`: {estado, postor_a{ruc, razon_social}, postor_b{…}, tipo_vinculo,
   descripcion, confianza, severidad, fuente_url, evidencia[]}.
 · `banderas_red[]`: {estado: "hallado", titulo, descripcion, severidad, confianza,
-  requiere_verificacion, fuentes[], evidencia[]}. Puede estar vacío.
-· `estado` global, `queries_realizadas`, `sintesis` (3-4 líneas).
+  requiere_verificacion, fuentes[], evidencia[]}. Puede estar vacío. Toda afirmación de
+  investigación fiscal, denuncia o carpeta fiscal sobre una persona SOLO va aquí o en
+  `menciones_prensa[]` con la URL de la fuente en `evidencia[]`; sin URL no existe.
+· `estado` global, `queries_realizadas`, `sintesis` (3-4 líneas). La `sintesis` no puede
+  afirmar nada que no esté respaldado en las listas anteriores con evidencia: lo que
+  sospechas y no pudiste documentar se escribe como "no se pudo verificar", no como hecho.
+  Socios de dos postores con los mismos dos apellidos = "coincidencia de apellidos entre
+  socios" (baja/media, `requiere_verificacion: true`), nunca "lazo familiar"; el DNI de
+  particulares no se transcribe (queda en el contexto).
 
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║ CRITERIOS DE BANDERA — UMBRAL ALTO                                        ║

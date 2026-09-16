@@ -178,12 +178,36 @@ def _validar_schema(state: dict, key: str, schema_name: str) -> dict | None:
         return {"kind": "warn", "name": key, "msg": f"{key}: salida no es JSON (schema {schema_name} no aplicable)"}
     try:
         validado = schema.model_validate(data)
-        state[key] = validado.model_dump(exclude_none=True)
-        return None
     except Exception as e:
         _registrar_descarte(state, key, "schema_invalido", str(e)[:400])
         return {"kind": "warn", "name": key,
                 "msg": f"{key}: no cumple {schema_name} — {str(e)[:160]}"}
+    state[key] = validado.model_dump(exclude_none=True)
+    # Revisión lote 1 (T4): lo que el schema descartó o degradó NO se queda solo en
+    # `descartes_schema` del objeto: va a state['descartes'] (sección "Recortes y datos no
+    # verificables" del dictamen, analisis_full) y, si una lista perdió ítems (banderas
+    # legales, cruces de red, hallazgos web), se avisa por evento `warn`.
+    relevantes = []
+    try:
+        relevantes = validado.descartes_relevantes() if hasattr(validado, "descartes_relevantes") else (
+            validado.descartes() if hasattr(validado, "descartes") else [])
+    except Exception:
+        relevantes = []
+    for d in relevantes:
+        _registrar_descarte(state, f"{key}.{d.get('donde')}", str(d.get("motivo")), d.get("detalle"))
+    perdidas = []
+    for campo in getattr(type(validado), "model_fields", {}):
+        antes = data.get(campo) if isinstance(data, dict) else None
+        despues = getattr(validado, campo, None)
+        if isinstance(antes, list) and isinstance(despues, list) and len(despues) < len(antes):
+            perdidas.append(f"{campo} {len(antes)}→{len(despues)}")
+    estado_final = getattr(validado, "estado", None)
+    if perdidas or (estado_final == "no_verificable" and isinstance(data, dict)
+                    and str(data.get("estado") or "").lower() not in ("", "no_verificable")):
+        detalle = "; ".join(perdidas) if perdidas else "salida degradada a no_verificable"
+        return {"kind": "warn", "name": key,
+                "msg": f"{key}: {detalle} por schema ({len(relevantes)} descarte(s) anotados en state.descartes)"}
+    return None
 
 
 # Texto de cada validación pendiente para el dictamen (códigos de
@@ -1509,6 +1533,9 @@ async def _pipeline(input_str: str, runner, user_id: str, state: dict, metrics: 
         # ── 12.5 Verificación determinista del dictamen (WS V): banderas citadas que no existen
         #      en `banderas`, URLs sin respaldo en ningún output → `verificacion_dictamen` en state
         #      (persist lo guarda en analisis_full) y warn si quedó degradado.
+        #      Revisión lote 1 (T9): ya no solo avisa. RUC/DNI sin respaldo se sustituyen por
+        #      "[… no verificado]", las URLs inventadas (incluidas gob.pe que no resuelven) se
+        #      quitan y TODO DNI se enmascara antes de persistir (`tools.verify.sanitizar_dictamen`).
         if _verificar_dictamen is not None and state.get("final_dictamen"):
             try:
                 _ver = _verificar_dictamen(state["final_dictamen"], state)
@@ -1520,6 +1547,27 @@ async def _pipeline(input_str: str, runner, user_id: str, state: dict, metrics: 
                 if _v.get("degradado") or _partes:
                     yield {"kind": "warn", "name": "report_writer",
                            "msg": "dictamen: " + (", ".join(_partes) or "sanitizado") + (" — degradado" if _v.get("degradado") else "")}
+                try:
+                    from tools.verify import sanitizar_dictamen as _sanitizar_dictamen
+                except (ImportError, AttributeError):
+                    _sanitizar_dictamen = None
+                if _sanitizar_dictamen is not None:
+                    _md2, _cambios = _sanitizar_dictamen(state["final_dictamen"], _v)
+                    if isinstance(_v, dict):
+                        _v["sanitizacion"] = _cambios
+                    if _cambios.get("modificado"):
+                        state["final_dictamen"] = _md2
+                        for _k, _lbl in (("rucs_sustituidos", "ruc_no_verificado"), ("dnis_sustituidos", "dni_no_verificado"),
+                                         ("urls_eliminadas", "url_no_verificable")):
+                            for _x in _cambios.get(_k) or []:
+                                _registrar_descarte(state, "dictamen", _lbl, _x)
+                        _res = [f"{len(_cambios.get(k) or [])} {lbl}" for k, lbl in (
+                            ("rucs_sustituidos", "RUC sustituido(s)"), ("dnis_sustituidos", "DNI sustituido(s)"),
+                            ("urls_eliminadas", "URL(s) eliminada(s)")) if _cambios.get(k)]
+                        if _cambios.get("dnis_enmascarados"):
+                            _res.append(f"{_cambios['dnis_enmascarados']} DNI enmascarado(s)")
+                        yield {"kind": "info", "name": "report_writer",
+                               "msg": "dictamen sanitizado: " + ", ".join(_res)}
             except Exception as e:
                 yield {"kind": "warn", "name": "report_writer", "msg": f"verificar_dictamen falló: {str(e)[:160]}"}
 

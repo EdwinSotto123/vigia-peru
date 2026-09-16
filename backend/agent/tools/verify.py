@@ -17,16 +17,27 @@ existen en las fuentes que el pipeline SÍ obtuvo de forma determinista:
 Interfaz compartida (plan 2026-09-15):
     verificar_bandera(flag, state) -> dict   # añade flag["verificacion"] = {ok, motivos, n_checks}
     verificar_dictamen(md, state)  -> {banderas_no_existentes, urls_no_respaldadas, degradado, ...}
+    sanitizar_dictamen(md, ver)    -> (md_limpio, cambios)   # revisión lote 1 · T9
 
 `ok=false` SOLO cuando un RUC, DNI o monto no está respaldado por ninguna fuente. Las
 URLs y fechas nunca bajan `ok` (quedan como motivo `no_verificable`). Las banderas con
 `ok=false` no se persisten: `persistence.py` las manda a state['descartes'].
+
+T9 (revisión lote 1): el dictamen publicaba DNI de particulares (proveedor persona natural,
+gerentes), un RUC de entidad inventado (1225062: verify solo avisaba) y URLs de gob.pe
+inventadas aceptadas por dominio (1225256: `…/normas-legales/5923940-326-2026-…` redirige a
+otra resolución). Ahora: TODO DNI se enmascara (`12****78`), RUC/DNI sin respaldo se
+sustituyen por "[… no verificado]" y las URLs de gob.pe que no respalda el grounding pasan
+por un HEAD (5 s) que exige institución + número de norma en la URL efectiva; si falla, la
+URL se quita del dictamen y queda como no verificable.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from typing import Any, Iterable
 
 from tools._core import _pg, _safe_parse_json, _table_exists
@@ -341,12 +352,94 @@ def _grounding_urls(state: dict) -> set[str] | None:
     return out
 
 
-def _url_oficial(url: str) -> bool:
+def _host_path(url: str) -> tuple[str, str]:
     try:
-        host = re.sub(r"^https?://", "", url).split("/")[0].split(":")[0].lower()
+        resto = re.sub(r"^https?://", "", url)
+        host = resto.split("/")[0].split(":")[0].lower()
+        path = "/" + resto.split("/", 1)[1] if "/" in resto else "/"
+        return host, path.split("?")[0].split("#")[0]
     except Exception:
-        return False
-    return any(host == d or host.endswith("." + d) for d in _OFFICIAL_DOMAINS)
+        return "", "/"
+
+
+def _url_oficial(url: str) -> bool:
+    host, _ = _host_path(url)
+    return bool(host) and any(host == d or host.endswith("." + d) for d in _OFFICIAL_DOMAINS)
+
+
+# Hosts cuyas URLs las construye el CÓDIGO (fichas OECE/SEACE/SUNAT por RUC u OCID): no
+# necesitan HEAD. El resto de gob.pe (www.gob.pe/institucion/…/normas-legales/<id>-<slug>,
+# portales municipales) lo escribe el modelo y el ID numérico suele ser inventado.
+_CANONICAL_HOSTS = frozenset({
+    "contratacionesabiertas.oece.gob.pe", "apps.oece.gob.pe", "apps.osce.gob.pe",
+    "prod2.seace.gob.pe", "prod1.seace.gob.pe", "e-consultaruc.sunat.gob.pe",
+    "www.oece.gob.pe", "www.osce.gob.pe", "portal.osce.gob.pe",
+})
+_NORMA_GOB_RE = re.compile(r"^/institucion/([^/]+)/normas-legales/(\d+)-([^/]+)/?$")
+_HEAD_TIMEOUT = float(os.getenv("VERIFY_HEAD_TIMEOUT", "5"))
+_HEAD_ACTIVO = os.getenv("VERIFY_HEAD_URLS", "1") != "0"
+_head_cache: dict[str, tuple[int | None, str | None]] = {}
+
+
+def _head(url: str, timeout: float | None = None) -> tuple[int | None, str | None]:
+    """HEAD (o GET si el servidor no admite HEAD) con timeout corto. Devuelve
+    (status, url_efectiva); (None, None) si la red falla. Cache por proceso."""
+    if url in _head_cache:
+        return _head_cache[url]
+    timeout = timeout or _HEAD_TIMEOUT
+    res: tuple[int | None, str | None] = (None, None)
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; VigiaPeru-verificador/1.0)"}
+    for metodo in ("HEAD", "GET"):
+        try:
+            req = urllib.request.Request(url, method=metodo, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                res = (int(r.status), str(r.geturl()))
+                break
+        except urllib.error.HTTPError as e:
+            res = (int(e.code), str(e.geturl() or url))
+            if e.code in (403, 405) and metodo == "HEAD":
+                continue
+            break
+        except Exception:
+            res = (None, None)
+            break
+    if len(_head_cache) > 200:
+        _head_cache.clear()
+    _head_cache[url] = res
+    return res
+
+
+def verificar_url_gob(url: str) -> tuple[bool | None, str]:
+    """¿Una URL de dominio oficial que NINGÚN output respalda existe de verdad y apunta a lo
+    que dice? (True, motivo) / (False, motivo) / (None, 'head_desactivado').
+      · host canónico (fichas por RUC/OCID) o solo dominio → True sin red;
+      · www.gob.pe/institucion/<inst>/normas-legales/<id>-<slug> → HEAD 200 y la URL efectiva
+        conserva la institución y los tokens con dígitos del slug (número y año de la norma);
+      · otro path oficial → HEAD 200 y host final en gob.pe."""
+    host, path = _host_path(url)
+    if host in _CANONICAL_HOSTS:
+        return True, "host_canonico"
+    if path in ("", "/"):
+        return True, "dominio_institucional"
+    if not _HEAD_ACTIVO:
+        return None, "head_desactivado"
+    status, efectiva = _head(url)
+    if status is None:
+        return False, "sin_respuesta"
+    if status != 200:
+        return False, f"http_{status}"
+    ehost, epath = _host_path(efectiva or url)
+    if not (ehost == host or ehost.endswith(".gob.pe")):
+        return False, "redirige_fuera_de_gob_pe"
+    m = _NORMA_GOB_RE.match(path)
+    if m:
+        inst, _id, slug = m.groups()
+        if f"/institucion/{inst}/" not in epath:
+            return False, "redirige_a_otra_institucion"
+        tokens = [t for t in slug.lower().split("-") if any(c.isdigit() for c in t)]
+        if tokens and not all(t in epath.lower() for t in tokens):
+            return False, "redirige_a_otra_norma"
+    return True, "head_ok"
 
 
 # ─── Verificación de UNA bandera ────────────────────────────────────────────
@@ -509,9 +602,23 @@ def verificar_dictamen(md: str, state: dict) -> dict:
     grounding = _grounding_urls(state) or set()
     urls_md = sorted({u.rstrip(".,;:") for u in _URL_RE.findall(md)})
     urls_no = []
+    urls_gob_no: list[dict] = []
+    urls_gob_ok: list[str] = []
     for u in urls_md:
         uu = u.rstrip("/")
-        if _url_oficial(uu) or uu in grounding or uu in todo.urls or u in todo.urls or _es_redirect_grounding(uu):
+        if uu in grounding or uu in todo.urls or u in todo.urls or _es_redirect_grounding(uu):
+            continue
+        if _url_oficial(uu):
+            # T9: dominio oficial NO respaldado por ningún output → el modelo la escribió de
+            # memoria. HEAD + coherencia institución/número de norma; si falla, se quita.
+            ok, motivo = verificar_url_gob(u)
+            if ok is False:
+                urls_no.append(u)
+                urls_gob_no.append({"url": u, "motivo": motivo})
+            elif ok is None:
+                urls_gob_no.append({"url": u, "motivo": motivo})
+            else:
+                urls_gob_ok.append(u)
             continue
         urls_no.append(u)
 
@@ -539,9 +646,12 @@ def verificar_dictamen(md: str, state: dict) -> dict:
     return {
         "banderas_no_existentes": banderas_no_existentes,
         "urls_no_respaldadas": urls_no,
+        "urls_gob_no_verificadas": urls_gob_no,
+        "urls_gob_verificadas": urls_gob_ok,
         "degradado": degradado,
         "rucs_no_respaldados": rucs_no,
         "dnis_no_respaldados": dnis_no,
+        "dnis_en_dictamen": ids["dnis"],
         "rucs_solo_investigacion": rucs_sec,
         "dnis_solo_investigacion": dnis_sec,
         "banderas_citadas": citadas,
@@ -549,5 +659,61 @@ def verificar_dictamen(md: str, state: dict) -> dict:
     }
 
 
-__all__ = ["verificar_bandera", "verificar_dictamen", "extraer_identificadores",
-           "buscar_en_documentos", "textos_documentos", "RULE_SLUGS"]
+# ─── Sanitización del dictamen (T9) ─────────────────────────────────────────
+NO_VERIFICADO_RUC = "[RUC no verificado]"
+NO_VERIFICADO_DNI = "[DNI no verificado]"
+NO_VERIFICABLE_URL = "[URL no verificable]"
+
+
+def enmascarar_dni(dni: str) -> str:
+    """'12345678' → '12****78' (misma máscara que el frontend, Redact.tsx)."""
+    d = str(dni or "")
+    return d[:2] + "****" + d[-2:] if len(d) == 8 else d
+
+
+def enmascarar_dnis(md: str) -> tuple[str, int]:
+    """Enmascara TODO DNI con contexto ('DNI 12345678' → 'DNI 12****78'). Ningún dictamen
+    publica un DNI en claro: ni de particulares ni de funcionarios (queda nombre y cargo)."""
+    def _rep(m: "re.Match[str]") -> str:
+        return m.group(0).replace(m.group(1), enmascarar_dni(m.group(1)))
+    return _DNI_CTX_RE.subn(_rep, md or "")
+
+
+def sanitizar_dictamen(md: str, ver: dict | None) -> tuple[str, dict]:
+    """Aplica al markdown el resultado de `verificar_dictamen`: RUC/DNI sin respaldo →
+    "[… no verificado]"; URLs no respaldadas (inventadas o gob.pe que no resolvió) → se
+    quitan (el texto del enlace se conserva + "[URL no verificable]"); DNI restantes →
+    enmascarados. Devuelve (md_limpio, cambios) — `cambios` va a
+    `verificacion_dictamen.sanitizacion` y a state['descartes']."""
+    md = md or ""
+    ver = ver if isinstance(ver, dict) else {}
+    cambios: dict = {"rucs_sustituidos": [], "dnis_sustituidos": [], "urls_eliminadas": [],
+                     "dnis_enmascarados": 0}
+    for ruc in ver.get("rucs_no_respaldados") or []:
+        md, n = re.subn(rf"(?<!\d){re.escape(str(ruc))}(?!\d)", NO_VERIFICADO_RUC, md)
+        if n:
+            cambios["rucs_sustituidos"].append(str(ruc))
+    for dni in ver.get("dnis_no_respaldados") or []:
+        md, n = re.subn(rf"(?<!\d){re.escape(str(dni))}(?!\d)", NO_VERIFICADO_DNI, md)
+        if n:
+            cambios["dnis_sustituidos"].append(str(dni))
+    for url in sorted(set(ver.get("urls_no_respaldadas") or []), key=len, reverse=True):
+        u = str(url)
+        antes = md
+        # [texto](url) → texto [URL no verificable]
+        md = re.sub(r"\[([^\]]*)\]\(\s*" + re.escape(u) + r"/?\s*\)", r"\1 " + NO_VERIFICABLE_URL, md)
+        # <url> / url suelta
+        md = re.sub(r"<\s*" + re.escape(u) + r"/?\s*>", NO_VERIFICABLE_URL, md)
+        md = re.sub(re.escape(u) + r"/?(?![\w/.-])", NO_VERIFICABLE_URL, md)
+        if md != antes:
+            cambios["urls_eliminadas"].append(u)
+    md, n = enmascarar_dnis(md)
+    cambios["dnis_enmascarados"] = n
+    cambios["modificado"] = bool(cambios["rucs_sustituidos"] or cambios["dnis_sustituidos"]
+                                 or cambios["urls_eliminadas"] or n)
+    return md, cambios
+
+
+__all__ = ["verificar_bandera", "verificar_dictamen", "sanitizar_dictamen", "enmascarar_dnis",
+           "verificar_url_gob", "extraer_identificadores", "buscar_en_documentos",
+           "textos_documentos", "RULE_SLUGS"]

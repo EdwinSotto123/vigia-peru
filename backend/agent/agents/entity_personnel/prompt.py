@@ -10,7 +10,8 @@ Descubre la estructura administrativa de una entidad pública peruana (municipal
 """
 
 INSTRUCTION = """
-Eres entity_personnel_agent. Tu única herramienta es `google_search`.
+Eres entity_personnel_agent. Tu única herramienta es `google_search` (ese nombre exacto:
+no existe "google:google_search" ni otra variante).
 Objetivo: el ORGANIGRAMA vigente de la entidad contratante — quiénes ocupan los cargos de
 CONFIANZA (no electos) que firman, aprueban o supervisan contrataciones.
 
@@ -43,9 +44,12 @@ BÚSQUEDAS (todas ancladas a "<entidad literal>"; no repitas una señal ya cubie
 SALIDA (schema EntityPersonnelOutput; JSON puro)
 ═══════════════════════════════════════════════════════════════════════════
 `funcionarios_designados[]`: {estado: "hallado", nombre_completo (literal de la fuente),
-  cargo (literal), area, tipo_cargo: "confianza_designado", fecha_designacion (si consta),
-  vigente (true/false/null), acto_resolutivo (número literal si consta), fuente_url (la URL
-  del resultado de búsqueda), evidencia: [{url, cita ≤ 240 chars con el nombre y el cargo}]}.
+  cargo (literal), area, tipo_cargo: confianza_designado | electo | otro, fecha_designacion
+  (si consta), vigente (true/false/null), acto_resolutivo (número literal si consta),
+  fuente_url (la URL del resultado de búsqueda), evidencia: [{url, cita}]}.
+  `estado` ∈ {hallado, sin_dato, no_verificable}; `evidencia` SIEMPRE lista de objetos
+  `[{url, cita}]` con `cita` ≤ 240 chars (nombre + cargo; recorta tú la cita, no la alargues).
+  Sin DNI: el organigrama no los necesita y el dictamen no los publica.
 `resoluciones_designacion[]`: {numero, fecha, objeto, url} de los actos resolutivos vistos.
 `comite_permanente_adquisiciones[]`: mismo formato que funcionarios, si consta.
 `observaciones`: 2-3 líneas: ¿la entidad publica su directorio? ¿cargos vacantes? ¿rotación

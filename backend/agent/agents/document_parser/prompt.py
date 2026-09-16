@@ -29,17 +29,31 @@ La tool ya hace TODO lo que antes decidías vos:
   · Extrae con schema (base + bloque `servicio` / `obra` / `sustento_directa` según el
     perfil) y exige EVIDENCIA por dato: cada ítem, postor, firmante, miembro de comité,
     motivo de adjudicación, estudio de mercado, contrato final y bloque trae
-    `evidencia: [{pagina, cita, verificada}]` y `documento_sha256`. La cita se coteja en
-    código contra el texto de esa página.
+    `evidencia: [{pagina, cita, verificada, folio?}]` y `documento_sha256`. La cita se
+    coteja en código contra el texto de esa página (`pagina` = índice real del archivo; si
+    el modelo citó el folio impreso, se corrige y queda `pagina_declarada`).
   · El requerimiento técnico de cada ítem va LITERAL en `texto_literal` (≤ 4000 chars,
     con `texto_literal_paginas`); no se resume. Los campos discretos (cantidad, unidad,
     precio, marca, normas, valores técnicos, garantía, entrega, requisitos del postor,
     penalidades, subitems) se llenan aparte.
-  · Deja el detalle en state['parser_raw_consolidated'] (items_consolidados,
-    postores_consolidados, firmantes_consolidados, comite_evaluacion, motivos_adjudicacion,
-    fundamento_legal, documentos[], bloque_<perfil>) y state['documentos_texto']
-    ({sha256: {n_paginas, chars, truncado}}). Esa es la fuente AUTORITATIVA para
-    legal/market/compliance/writer — no la reescribas.
+  · Separa por ETAPA del documento: las bases/TDR/EETT alimentan `items_consolidados`
+    (`precio_unitario_referencial`, `marca_o_modelo_exigido` SOLO si el texto la exige);
+    la OC/contrato/acta/propuesta alimentan `items_contratados[]` (`precio_unitario_contratado`,
+    `marca_ofertada`) y se cruzan por descripción para poblar `precio_unitario_ofertado` +
+    `origen_precio` en el ítem consolidado. Una OC nunca es fuente de requerimiento.
+  · Postores fusionados por RUC (con dígito verificador; RUC mal leído se corrige contra el
+    OCDS o se fusiona por razón social): `postores[] {ruc, razon_social, monto_oferta,
+    es_ganador, puntaje, estado, documento_sha256, pagina}`, `ofertas[] {postor, ruc, monto,
+    orden, fuente}`, `lista_invitados[]` (Comparación de Precios). Además
+    `procedimiento_seleccion {factores_evaluacion, puntajes_por_postor, consultas_observaciones,
+    modificaciones_integracion}` y `contrato {ampliaciones_plazo, penalidades_aplicadas,
+    adendas, entregas}` cuando hay documentos de evaluación / ejecución.
+  · Deja el detalle en state['parser_raw_consolidated'] (items_consolidados, items_contratados,
+    postores / postores_consolidados, ofertas, lista_invitados, firmantes_consolidados,
+    comite_evaluacion, motivos_adjudicacion, procedimiento_seleccion, contrato,
+    fundamento_legal, documentos[], bloque_<perfil>, descartes_parser) y
+    state['documentos_texto'] ({sha256: {n_paginas, chars, truncado}}). Esa es la fuente
+    AUTORITATIVA para legal/market/compliance/writer — no la reescribas.
 
 NO llames `list_documents` ni `parse_document_pdf` salvo que `parse_documentos_seleccionados`
 devuelva `n_docs: 0` (entonces podés listar para diagnosticar, pero NO inventes documentos).
@@ -53,6 +67,8 @@ usando SOLO los conteos y campos que la tool devolvió:
   "n_ok": <n_ok>,
   "n_cache_texto": <n_cache_texto>,
   "n_items_consolidados": <n_items_consolidados>,
+  "n_items_contratados": <n_items_contratados>,
+  "n_postores": <n_postores>,
   "n_firmantes": <n_firmantes>,
   "n_paginas_total": <n_paginas_total>,
   "evidencia": {"total": <n>, "verificadas": <n>},

@@ -30,6 +30,49 @@ _CHUNK_WORKERS = max(1, int(os.getenv("DOCAI_CHUNK_WORKERS", "3") or 3))
 
 _client = None
 
+# ── Memo por sha256 de los bytes: el MISMO PDF (acta publicada 3 veces en el ZIP de buena
+# pro, cuadro "de evaluación" que es copia byte a byte del acta) se OCR-ea UNA sola vez por
+# proceso. El resultado se guarda con offset 0 y se re-numera al servirlo. Acotado a
+# DOCAI_MEMO_MAX entradas (LRU simple); un hilo que llega mientras otro OCR-ea el mismo sha
+# espera al primero en vez de pedir OCR de nuevo. ──
+import hashlib as _hashlib
+import threading as _threading
+from collections import OrderedDict as _OrderedDict
+
+_MEMO_MAX = max(0, int(os.getenv("DOCAI_MEMO_MAX", "48") or 48))
+_MEMO: "_OrderedDict[str, dict]" = _OrderedDict()
+_MEMO_LOCK = _threading.Lock()
+_MEMO_INFLIGHT: dict[str, _threading.Event] = {}
+# Contadores observables (tests / diagnóstico): OCRs reales vs servidos desde el memo.
+STATS = {"ocr": 0, "memo_hits": 0}
+
+
+def _memo_get(sha: str) -> dict | None:
+    with _MEMO_LOCK:
+        r = _MEMO.get(sha)
+        if r is not None:
+            _MEMO.move_to_end(sha)
+        return r
+
+
+def _memo_put(sha: str, res: dict) -> None:
+    if _MEMO_MAX <= 0:
+        return
+    with _MEMO_LOCK:
+        _MEMO[sha] = res
+        _MEMO.move_to_end(sha)
+        while len(_MEMO) > _MEMO_MAX:
+            _MEMO.popitem(last=False)
+
+
+def _reoffset(res: dict, page_offset: int, memo: bool = False) -> dict:
+    """Copia de un resultado (guardado con offset 0) numerada desde `page_offset`."""
+    pags = [{**p, "n": page_offset + i + 1} for i, p in enumerate(res["paginas"])]
+    recs = []
+    for r in res.get("recortes") or []:
+        recs.append(dict(r))
+    return {**res, "paginas": pags, "texto": marcar_paginas(pags), "recortes": recs, "memo": memo}
+
 
 def _docai_client():
     global _client
@@ -213,6 +256,38 @@ def extract_docai(pdf_bytes: bytes, mime_type: str = "application/pdf",
     configurado o el PDF no se pudo abrir en absoluto."""
     if not _PROCESSOR_ID or not pdf_bytes:
         return None
+    sha = _hashlib.sha256(pdf_bytes).hexdigest()
+    memo = _memo_get(sha)
+    if memo is None and _MEMO_MAX > 0:
+        # ¿otro hilo está OCR-eando estos mismos bytes? → esperar y servir del memo.
+        with _MEMO_LOCK:
+            ev = _MEMO_INFLIGHT.get(sha)
+            if ev is None:
+                _MEMO_INFLIGHT[sha] = _threading.Event()
+        if ev is not None:
+            ev.wait(timeout=900)
+            memo = _memo_get(sha)
+    if memo is not None:
+        STATS["memo_hits"] += 1
+        print(f"[docai] memo hit sha {sha[:8]} · {len(memo['paginas'])} págs (sin OCR)", flush=True)
+        return _reoffset(memo, page_offset, memo=True)
+    try:
+        res = _extract_docai_uncached(pdf_bytes, mime_type, 0)
+    finally:
+        with _MEMO_LOCK:
+            ev = _MEMO_INFLIGHT.pop(sha, None)
+        if ev is not None:
+            ev.set()
+    if res is None:
+        return None
+    _memo_put(sha, res)
+    STATS["ocr"] += 1
+    return _reoffset(res, page_offset)
+
+
+def _extract_docai_uncached(pdf_bytes: bytes, mime_type: str = "application/pdf",
+                            page_offset: int = 0) -> dict | None:
+    """OCR real (sin memo). Ver `extract_docai`."""
     n_pages = _n_paginas(pdf_bytes)
     recortes: list[dict] = []
     paginas: list[dict] = []

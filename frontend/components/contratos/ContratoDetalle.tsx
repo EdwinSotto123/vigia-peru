@@ -6,16 +6,18 @@
 
 import Link from "next/link";
 import {
-  ArrowLeft, ArrowUpRight, Building2, CheckCircle2, Clock, Heart, MapPin, ShieldAlert,
+  ArrowLeft, Building2, Clock, Heart, MapPin, ShieldAlert,
 } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
+import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { Glass, PersonName } from "@/components/Redact";
+import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { EstadoContratoPill } from "./ContratosLista";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import {
-  RIESGO_CLS, esPersonaNatural, etapaLabel, formatFecha, formatMonto, motivoLabel, riesgoDe, tipoDocLabel, tipoLabel,
+  esPersonaNatural, etapaLabel, formatFecha, formatMonto, motivoLabel, tipoLabel,
   validacionLabel, type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -23,7 +25,6 @@ import { cn } from "@/lib/utils";
 export function ContratoDetalle({ c }: { c: Detalle }) {
   const regionId = c.ubigeo ? UBIGEO_REGION[c.ubigeo.slice(0, 2)] : undefined;
   const mapaHref = regionId ? `/app/mapa?region=${regionId}&tab=cola${c.ubigeo && c.ubigeo.length === 6 ? `&ubigeo=${c.ubigeo}` : ""}` : "/app/mapa";
-  const riesgo = riesgoDe(c.score);
   const natural = esPersonaNatural(c.proveedorRuc);
 
   return (
@@ -58,7 +59,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           <Badge tone="ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</Badge>
           <Badge>{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</Badge>
           {c.modalidad && <Badge>{c.modalidad}</Badge>}
-          <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
+          {c.alerta?.estado === "revision" ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}
         </div>
       </header>
 
@@ -151,8 +152,9 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
 
         {/* Análisis */}
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <AnalisisCard c={c} riesgo={riesgo} />
-          <ClasificacionCard c={c} />
+          <AnalisisCard c={c} />
+          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
+          {!c.procesamiento && <ClasificacionCard c={c} />}
         </aside>
       </div>
     </div>
@@ -161,42 +163,19 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
 
 // ─── Estado del análisis ─────────────────────────────────────────────────────
 
-function AnalisisCard({ c, riesgo }: { c: Detalle; riesgo: ReturnType<typeof riesgoDe> }) {
+function AnalisisCard({ c }: { c: Detalle }) {
   const estado = c.estadoProcesamiento;
-  const dossierId = c.alerta?.codigo?.replace(/^OECE-/, "") ?? c.ocid;
 
   if (estado === "procesado" && c.alerta) {
-    const alta = c.alerta.banderas.filter((b) => b.severidad === "alta").length;
+    // Con procesamiento financiado, ContratoEnVivo (compacto) trae resultado + cómo se ejecutó (carriles + bitácora).
+    if (c.procesamiento) {
+      return <ContratoEnVivo ocid={c.ocid} initial={{ ...c.procesamiento, eventos: [], resultado: c.alerta }} compacto />;
+    }
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4">
-        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <CheckCircle2 size={12} className="text-moss" /> Dictamen publicado
-        </h2>
-        <div className="mt-2 flex items-baseline gap-3">
-          <span className={cn("font-mono text-3xl font-bold tabular-nums", RIESGO_CLS[riesgo])}>{c.alerta.score ?? "—"}</span>
-          <span className="text-xs text-mute">
-            score · {c.alerta.banderas.length} señal{c.alerta.banderas.length === 1 ? "" : "es"} de riesgo{alta ? ` (${alta} alta${alta === 1 ? "" : "s"})` : ""}
-          </span>
-        </div>
-        {c.alerta.banderas.length > 0 && (
-          <ul className="mt-3 space-y-1.5">
-            {c.alerta.banderas.slice(0, 5).map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] leading-snug">
-                <span className={cn("mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full", b.severidad === "alta" ? "bg-rust" : b.severidad === "media" ? "bg-amber" : "bg-mute")} />
-                <span className="min-w-0">
-                  <span className="text-ink">{b.regla.replace(/_/g, " ")}</span>
-                  {b.norma && <span className="ml-1 text-[10px] text-mute">· {b.norma}</span>}
-                </span>
-              </li>
-            ))}
-            {c.alerta.banderas.length > 5 && <li className="text-[11px] text-mute">y {c.alerta.banderas.length - 5} más en el dictamen</li>}
-          </ul>
-        )}
-        <Link href={`/app/convocatoria/${encodeURIComponent(dossierId)}`} className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]">
-          Leer el dictamen completo <ArrowUpRight size={14} />
-        </Link>
-        {c.alerta.analizadoEn && <p className="mt-2 text-center text-[10px] text-mute">Analizado el {formatFecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
-      </section>
+      <div className="space-y-2">
+        <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} compacto sharePath={`/app/contratos/${encodeURIComponent(c.ocid)}`} />
+        {c.alerta.analizadoEn && <p className="text-center text-[10px] text-mute">Analizado el {formatFecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
+      </div>
     );
   }
 
@@ -219,7 +198,7 @@ function AnalisisCard({ c, riesgo }: { c: Detalle; riesgo: ReturnType<typeof rie
   }
 
   if ((estado === "procesando" || estado === "encolado" || estado === "error") && c.procesamiento) {
-    return <ContratoEnVivo ocid={c.ocid} initial={{ ...c.procesamiento, eventos: [] }} />;
+    return <ContratoEnVivo ocid={c.ocid} initial={{ ...c.procesamiento, eventos: [] }} compacto />;
   }
 
   if (estado === "pendiente_de_procesamiento" || c.procesable === false) {
