@@ -1,0 +1,54 @@
+{
+ "fuente": "ONPE Claridad · consulta de aportantes",
+ "endpoint": "https://claridad.onpe.gob.pe/claridad-backend/portal/consult/org/find-detail",
+ "filters": {
+  "ruc": "20603108079",
+  "opEqual": "PARTIDO EJEMPLO",
+  "process": "EG2021"
+ },
+ "proceso": "EG2021",
+ "ruc": "20603108079",
+ "organizacion": "PARTIDO EJEMPLO",
+ "totales_declarados": {
+  "efectivo": 100.0,
+  "especie": 50.0,
+  "total": 150.0
+ },
+ "total_registros": 3,
+ "descargado_at": "2026-09-16T01:00:00",
+ "aportantes": [
+  {
+   "apellidos": "APORTANTE PRUEBA",
+   "nombres": "EJEMPLO",
+   "razonSocial": null,
+   "tipoAporte": "F",
+   "fechaAporte": "09/07/2020",
+   "monto": 70000.0,
+   "anioEleccion": "2020",
+   "proceso": "EG2021",
+   "dni": "00000002"
+  },
+  {
+   "apellidos": null,
+   "nombres": null,
+   "razonSocial": "EMPRESA EJEMPLO S.A.",
+   "tipoAporte": "E",
+   "fechaAporte": "10/08/2020",
+   "monto": 5000.5,
+   "anioEleccion": "2020",
+   "proceso": "EG2021",
+   "dni": "20123456789"
+  },
+  {
+   "apellidos": "",
+   "nombres": "",
+   "razonSocial": "N/A",
+   "tipoAporte": "F",
+   "fechaAporte": null,
+   "monto": 10.0,
+   "anioEleccion": "2020",
+   "proceso": "EG2021",
+   "dni": ""
+  }
+ ]
+}

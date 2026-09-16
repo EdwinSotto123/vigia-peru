@@ -8,17 +8,20 @@ backend/scrapers/
 ├── _core/
 │   ├── http.py          sesión requests con UA de navegador, retries, descarga streaming + sha256
 │   ├── pnda.py          cliente de datosabiertos.gob.pe (DKAN): dataset → recursos + fecha de modificación
-│   ├── storage.py       dataset/_raw/<fuente>/<fecha>/… + manifest.json (salta lo que no cambió); GCS opcional
+│   ├── storage.py       dataset/_raw/<fuente>/<fecha|clave>/… + manifest.json (salta lo que no cambió); GCS opcional
+│   ├── registro.py      datasets_cargas: sha256 por (fuente, clave) → idempotencia + /admin/cobertura
+│   ├── ubigeo.py        nombres (dpto/prov/dist) → ubigeo INEI usando `zonas`
 │   └── pipeline.py      clase base Pipeline (fetch/load), CLI común, pg_dsn(), run_loader()
 ├── pnda_sancionados/    ✅ probado   proveedores sancionados OECE            → osce_sancionados
-├── pnda_visitas/        ✅ probado   registro de visitas en línea (mensual)  → visitas_entidades
-├── pnda_dji/            ⚙ listo     declaraciones juradas de intereses      → dji_funcionarios / dji_empleos
+├── pnda_visitas/        ✅ cargado   registro de visitas (PNDA, mensual, 2025-01→) + export manual del portal PCM → visitas_entidades
+├── pnda_dji/            ✅ cargado   declaraciones juradas de intereses      → dji_funcionarios / dji_empleos
 ├── pnda_oece/           ⚙ listo     datasets OECE (ofertantes, consorcios, SICAN, obras…) → crudos
 ├── oece_ocds/           ✅ probado   API OCDS, releases por fecha de convocatoria → convocatorias + entidades con ubigeo (cola real)
 ├── mef_presupuesto/     ⚙ listo     API MEF → mef-budget.json + mef_* en DB
-├── onpe_claridad/       🧭 esqueleto Playwright sobre Claridad (Cloudflare) → onpe_aportantes
-├── jne_infogob/         🧭 esqueleto Playwright sobre Infogob (SPA)         → jne_candidaturas
-├── run_all.py           corre todos los automáticos (cron / Cloud Run Job)
+├── onpe_claridad/       ✅ cargado   Playwright + API interna de Claridad (Cloudflare + reCAPTCHA v3) → onpe_aportantes, onpe_candidatos
+├── jne_infogob/         ✅ cargado   reporte oficial "Autoridades vigentes/electas" del JNE (PNDA) → jne_autoridades · XLSX Infogob → jne_candidaturas
+├── tests/               pytest con fixtures pequeños (sin red ni DB): `PYTHONPATH=. python -m pytest -q backend/scrapers/tests`
+├── run_all.py           corre todos los automáticos (cron / batch-nocturno.sh)
 └── requirements.txt
 ```
 
@@ -51,14 +54,15 @@ sin navegador.
 | `dataset/listdo_de_ofertantes`, `proveedores_y_consorcios`, `sican_*`, `PRONUNCIAMIENTOS` | PNDA — datasets OECE | ✅ CSV/XLSX directo | `pnda_oece` | listo |
 | `rnp_conformacion_juridica` (1.44 M) | OECE RNP — conformación jurídica (portal RNP / CONOSCE) | 🟡 no está en PNDA; descarga manual | — | snapshot |
 | `osce_sancionados`, `sancionados` | PNDA — "proveedores sancionados 2025" (Tribunal, sanción vigente) + inhabilitación/multa | ✅ CSV `;` CP1252, 0.9 MB, 2 414 filas | `pnda_sancionados` | **probado** |
-| `visitas_entidades` | PNDA — "Reporte de registro de visitas en línea – <mes> – <año>" (PCM) | ✅ XLSX 2.7 MB/mes · último publicado **mayo 2026** · el portal vivo `visitas.servicios.gob.pe` tiene Turnstile | `pnda_visitas` | **probado** |
-| `onpe_aportantes` | **ONPE Claridad** → Financiamiento privado → Aportes → exportar. NO está en PNDA (el slug `aportantes-onpe` redirige al buscador) | ❌ 403 / challenge Cloudflare a `requests` → navegador real + IP PE | `onpe_claridad` | esqueleto Playwright |
-| `jne_candidaturas` (`dataset/ELECCIONES/*.xlsx`, `postulantes_congreso`) | **JNE Infogob** → Base de datos → proceso → Candidatos/Autoridades → XLSX (la nomenclatura `EG2016_Candidatos_Congresal.xlsx` es de Infogob) | 🟡 SPA (212 bytes sin JS) + reCAPTCHA · API `apiplataformaelectoral3.jne.gob.pe` sin doc | `jne_infogob` | esqueleto Playwright |
+| `visitas_entidades` | PNDA — "Reporte de registro de visitas (en línea) – <mes> – <año>": **lo publica el GORE Loreto** (una sola entidad visitada), 2025-01 → 2026-05, tres convenciones de slug (ver docstring) · el registro de **todas** las entidades vive en `visitas.servicios.gob.pe/consultas` (PCM) | ✅ XLSX 2-5 MB/mes · ❌ el portal PCM: `POST /api/consultas-busqueda` exige token de Turnstile (`execute`, interaction-only) que no se emite bajo Playwright (Chromium ni Chrome) → export manual "Excel" con `--xlsx` | `pnda_visitas` | **cargado** 17 meses + export manual abr-may 2026 |
+| `onpe_aportantes`, `onpe_candidatos` | **ONPE Claridad** → Consulta de aportantes. NO está en PNDA. Backend JSON `claridad.onpe.gob.pe/claridad-backend/portal/consult/*` (org/find, org/find-detail, org/find-ifa, candidate/find-lastname) con **DNI/RUC completos** | 🟡 Cloudflare (pasa con Chromium con ventana) + reCAPTCHA v3 (el token se genera en la página con `grecaptcha.execute`, sin login) · `requests`/`curl`/headless → 403 | `onpe_claridad` | **cargado** (ERM2018, ECE2020, EG2021, ERM2022, EMC*, EG2026 + IFA2019-2024 + padrón de candidatos) |
+| `jne_autoridades` | PNDA — "Autoridades Vigentes JNE" / "Autoridades Electas JNE" (`autoridades_vigentes_<AAAAMMDD>.xls`, 13 237 filas): cargo, organización, región/provincia/distrito, ubigeo (codificación RENIEC, se convierte a INEI), vigencia, reemplazos | ✅ XLS directo · sin DNI (se completa desde `onpe_candidatos` por nombre + organización + proceso) | `jne_infogob` | **cargado** |
+| `jne_candidaturas` (`dataset/ELECCIONES/*.xlsx`, `postulantes_congreso`) | **JNE Infogob** → Base de datos → proceso → Candidatos/Autoridades → XLSX | 🟡 Incapsula + formulario con captcha de imagen para descargar → manual (`jne_infogob --root`) | `jne_infogob --root` | snapshot (319 066 filas) |
 | `peps` | SBS/UIF — no hay dataset abierto | ❌ | — | vacío (SERVIR como alternativa) |
 | `mef_region_budget`, `mef_entity_budget` | MEF Datos Abiertos API `api.datosabiertos.mef.gob.pe/DatosAbiertos/v1` | ✅ | `mef_presupuesto` | en uso |
 | `opiniones_oece` (721) + RAG | OECE — corpus de opiniones normativas (`CONOSCE_INTERPRETACIONNORMATIVA_1.xlsx`) | 🟡 manual | `build_rag_opiniones.py` | en uso |
 | SUNAT (edad RUC, estado, domicilio) | decolecta `api.decolecta.com/v1` (scrapea SUNAT) | ✅ API con token | tool `sunat.py` | en uso (en vivo) |
-| **`dji_funcionarios`, `dji_empleos`** (nuevo) | PNDA — Declaraciones Juradas de Intereses (Contraloría): `Reporte1.csv` 268 MB funcionarios, `Reporte3.csv` 442 MB empleos previos con RUC, `Reporte2.csv` 723 MB familiares (sin nombres) | ✅ CSV directo, actualizado 2026-08/09 | `pnda_dji` | listo (esquema en `backend/db/schemas/dji_schema.sql`) |
+| **`dji_funcionarios`, `dji_empleos`** | PNDA — Declaraciones Juradas de Intereses (Contraloría): `Reporte1.csv` 268 MB funcionarios, `Reporte3.csv` 442 MB empleos previos con RUC, `Reporte2.csv` 723 MB familiares (sin nombres) | ✅ CSV directo, actualizado 2026-08/09 | `pnda_dji` | **cargado** (tablas creadas por la migración 23) |
 | INFOBRAS (avance físico de obras) | Contraloría `apps.contraloria.gob.pe/ciudadano` | 🟡 200 pero app JS; `appsinfobras` no responde | — | pendiente (cruce C5/C6) |
 | El Peruano — designaciones | `busquedas.elperuano.pe` | ✅ 200 (buscador + PDF) | — | pendiente (cruce C8; DJI lo cubre parcialmente) |
 | Contraloría — DJ de bienes y rentas | `appdji.contraloria.gob.pe` | ❌ 403 | — | — |
@@ -78,12 +82,12 @@ lo deja listo para el `compliance_agent`.
 |---|---|---|
 | `oece_ocds` | diario 06:00 | convocatorias de los últimos 7 días (ventana rodante, upsert idempotente), todo el Perú → `infrastructure/deploy/scrapers-job.sh` |
 | `pnda_sancionados` | semanal | el Tribunal resuelve todas las semanas |
-| `pnda_visitas` | mensual, día 15 | la PNDA publica el mes cerrado con ~2 semanas de retraso |
-| `pnda_dji` | mensual | Contraloría actualiza los CSV cada 1-2 meses |
+| `pnda_visitas` | días 1 y 15 (`batch-nocturno.sh`) | la PNDA publica el mes cerrado con 2-3 meses de retraso; `datasets_cargas` evita recargar meses con el mismo sha256 |
+| `pnda_dji` | día 5 (`batch-nocturno.sh`) | Contraloría actualiza los CSV cada 1-2 meses; TRUNCATE+COPY solo si cambió el sha256 |
+| `jne_infogob` | día 5 (`batch-nocturno.sh`) | el JNE republica el reporte tras cada proclamación/vacancia |
 | `pnda_oece` | mensual | datasets pesados; `--discover` avisa si aparece uno nuevo |
 | `mef_presupuesto` | mensual, día 12 | devengado cerrado |
-| `onpe_claridad` | mensual / semanal en campaña | a mano o desde el VPS (navegador) |
-| `jne_infogob` | por proceso electoral | 2026: generales (abril) y regionales-municipales (octubre) |
+| `onpe_claridad` | mensual (`ONPE=1 bash batch-nocturno.sh`, día 10 sugerido); semanal en campaña | necesita Chromium **con ventana** (Cloudflare) → host con sesión gráfica, no cron ciego |
 
 Dónde correrlos: **no en GCP** (los `.gob.pe` bloquean IPs de nube). Opciones: el VPS
 de Lima (`backend/relay`) con `cron`, o una laptop con `Task Scheduler` — en ambos casos con
@@ -135,10 +139,33 @@ VPS de Lima o Task Scheduler + Git Bash en una laptop. La IP pública del host t
 `authorized-networks` de Cloud SQL: `gcloud sql instances patch vigia-db --authorized-networks=<IP>/32`
 (la contraseña la lee de `.cloudsql-password` o `PGPASSWORD`).
 
+## Datasets externos (Frente D) — cómo corren y cómo se verifican
+
+Todo lo que toca `.gob.pe` corre desde IP peruana (`infrastructure/deploy/batch-nocturno.sh`, paso 6):
+el crudo sube a `gs://vigia-peru-batch/raw/<fuente>/<clave>/` (`SCRAPER_GCS_BUCKET`), la carga va
+directa a Cloud SQL y cada archivo queda en `datasets_cargas (fuente, clave, sha256, filas, gcs_uri)`.
+La vista `datasets_cobertura` (una fila por fuente) es lo que puede leer `/admin/cobertura → Fuentes externas`.
+
+```bash
+export PGHOST=34.71.244.66 PGSSLMODE=require SCRAPER_GCS_BUCKET=vigia-peru-batch
+python -m backend.scrapers.pnda_visitas.pipeline --desde 2025-01 --hasta 2026-05      # backfill (17 meses, ~3 min)
+python -m backend.scrapers.pnda_visitas.pipeline --xlsx dataset/VISITANTES_ENTIDADES/visita_a_entidades.xlsx   # export manual del portal PCM
+python -m backend.scrapers.jne_infogob.pipeline --dry-run                            # autoridades vigentes: ubigeo INEI resuelto, sin escribir
+python -m backend.scrapers.onpe_claridad.pipeline --proceso EG2021 --max-orgs 2 --dry-run   # abre Chromium, baja 2 JSON, no escribe
+python -m backend.scrapers.onpe_claridad.pipeline --ifa && python -m backend.scrapers.onpe_claridad.pipeline --candidatos
+python -m backend.scrapers.pnda_dji.pipeline                                         # 700 MB, ~10 min
+DATASETS=pnda_visitas,jne_infogob SIN_PEDIDOS=1 SIN_DOCUMENTOS=1 bash infrastructure/deploy/batch-nocturno.sh   # lo que hace el cron
+```
+
+Filas cargadas, últimas fechas, cruces con las reglas y bloqueos con evidencia: `docs/design/DATASETS.md`.
+
 ## Cómo agregar una fuente
 
 1. `mkdir backend/scrapers/<fuente>` + `__init__.py` + `pipeline.py` con una subclase de `Pipeline`.
 2. `fetch()` usa `self.store.fetch(url, filename, modified)` — el manifiesto evita re-bajar.
 3. `load()` delega en un loader de `backend/scripts/` (`run_loader`) o hace `COPY` directo (ver `pnda_dji`).
-4. Registrarla en `run_all.py` (AUTOMATIC o BROWSER) y en la tabla de arriba.
-5. Si crea tablas nuevas: esquema en `backend/db/schemas/`.
+   Antes de escribir: `ya_cargado(cur, fuente, clave, sha256)`; al terminar: `registrar(cur, Carga(...))`
+   (`_core/registro.py`). Reemplazo por clave (periodo/proceso), nunca `INSERT` a ciegas.
+4. Registrarla en `run_all.py` (AUTOMATIC o BROWSER), en la tabla de arriba y en `batch-nocturno.sh` (paso 6).
+5. Si crea tablas nuevas: migración numerada en `backend/db/migrations/` con `fuente, sha256, descargado_at`.
+6. Test con fixture pequeño en `tests/fixtures/` (sin red ni DB) y fila en `docs/design/DATASETS.md`.

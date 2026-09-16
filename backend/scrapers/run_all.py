@@ -5,8 +5,9 @@
   python -m backend.scrapers.run_all --fetch-only --dry-run
   python -m backend.scrapers.run_all --list
 
-Los pipelines con navegador (onpe_claridad, jne_infogob) NO entran por defecto:
-requieren Chrome con ventana e IP peruana; se corren a mano o desde el VPS.
+Los pipelines con navegador (onpe_claridad) NO entran por defecto: requieren Chromium con
+ventana e IP peruana; se corren a mano o desde `batch-nocturno.sh` con `ONPE=1` (host con
+sesión gráfica). `jne_infogob` sí es automático: hoy lee los reportes del JNE desde la PNDA.
 """
 
 from __future__ import annotations
@@ -24,8 +25,8 @@ from .pnda_oece.pipeline import OeceDatasetsPipeline
 from .pnda_sancionados.pipeline import SancionadosPipeline
 from .pnda_visitas.pipeline import VisitasPipeline
 
-AUTOMATIC = [SancionadosPipeline, VisitasPipeline, DjiPipeline, OeceDatasetsPipeline, OcdsIncrementalPipeline, MefPipeline]
-BROWSER = [ClaridadPipeline, InfogobPipeline]
+AUTOMATIC = [SancionadosPipeline, VisitasPipeline, InfogobPipeline, DjiPipeline, OeceDatasetsPipeline, OcdsIncrementalPipeline, MefPipeline]
+BROWSER = [ClaridadPipeline]
 ALL = {p.name: p for p in AUTOMATIC + BROWSER}
 
 
