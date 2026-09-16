@@ -6,7 +6,8 @@
 #   DIAS=30 bash infrastructure/deploy/batch-nocturno.sh          # ventana más larga
 #   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/batch-nocturno.sh   # histórico por tramos
 #   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200 · REFRESCAR_RECORDS=1 (re-bajar records ya vistos)
-#   SIN_DATASETS=1 … (saltar las fuentes externas) · DATASETS=pnda_visitas,jne_infogob … (forzar cuáles hoy) · ONPE=1 … (correr ONPE Claridad: abre Chromium con ventana)
+#   DATASETS=pnda_visitas,jne_infogob … (forzar una fuente externa fuera de agenda; las 4 automáticas
+#   ya corren solas por Cloud Scheduler, ver paso 6) · ONPE=1 … (correr ONPE Claridad: abre Chromium con ventana)
 #
 # Programación:
 #   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
@@ -72,22 +73,18 @@ else
   echo "── nada que subir del SEACE"
 fi
 
-# 6. fuentes externas (Frente D): descarga desde IP peruana → crudo a gs://$BUCKET_BATCH/raw/<fuente>/<clave>/ →
-#    normaliza directo a Cloud SQL (IP del host en authorized-networks; PGHOST/PGSSLMODE como scrapers-job.sh).
-#    Idempotente: cada archivo se registra en datasets_cargas con su sha256 y no se recarga si no cambió.
-#    Frecuencia (día del mes): 1 y 15 → pnda_visitas (la PNDA publica el mes cerrado con 2-3 meses de retraso);
-#    5 → jne_infogob (autoridades vigentes/electas) + pnda_dji (DJI, ~700 MB); domingo → pnda_sancionados.
-#    ONPE Claridad necesita navegador con ventana (Cloudflare): solo con ONPE=1 (día 10 sugerido, host con sesión gráfica).
-if [[ -z "${SIN_DATASETS:-}" ]]; then
+# 6. fuentes externas (Frente D). Desde el 2026-09-16, pnda_sancionados/pnda_visitas/pnda_dji/
+#    jne_infogob YA NO corren aquí por defecto: tienen su propio Cloud Run Job + Cloud Scheduler
+#    en GCP (host abierto, sin WAF — verificado con Cloud Build; ver backend/cloud_functions/README.md).
+#    Repetirlos aquí sería redundante (datasets_cargas lo haría inofensivo igual, por sha256, pero
+#    es trabajo de más) — quedan disponibles a mano con DATASETS=<fuentes> si hace falta forzar
+#    una recarga fuera de agenda. Lo que SÍ sigue aquí es lo que el WAF/Cloudflare bloquea desde
+#    IP de nube: ONPE Claridad (necesita navegador con ventana, ONPE=1, día 10 sugerido).
+if [[ -n "${DATASETS:-}" || -n "${ONPE:-}" ]]; then
   export PGHOST="${PGHOST:-34.71.244.66}" PGSSLMODE="${PGSSLMODE:-require}" SCRAPER_GCS_BUCKET="${SCRAPER_GCS_BUCKET:-$BUCKET_BATCH}"
-  DIA="$(date +%d)"; DOW="$(date +%u)"
-  HOY=()
-  [[ "$DIA" == "01" || "$DIA" == "15" ]] && HOY+=(pnda_visitas)
-  [[ "$DIA" == "05" ]] && HOY+=(jne_infogob pnda_dji)
-  [[ "$DOW" == "7" ]] && HOY+=(pnda_sancionados)
-  [[ -n "${DATASETS:-}" ]] && IFS=, read -r -a HOY <<< "$DATASETS"
-  if [[ ${#HOY[@]} -gt 0 ]]; then
-    echo "── $(date -Is) · datasets externos: ${HOY[*]}"
+  if [[ -n "${DATASETS:-}" ]]; then
+    IFS=, read -r -a HOY <<< "$DATASETS"
+    echo "── $(date -Is) · datasets externos (forzado): ${HOY[*]}"
     "$PY" -m backend.scrapers.run_all --only "$(IFS=,; echo "${HOY[*]}")" || echo "⚠ algún dataset externo falló (ver arriba); el lote SEACE no se ve afectado"
   fi
   if [[ -n "${ONPE:-}" ]]; then
