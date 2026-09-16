@@ -883,7 +883,9 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext,
         #   Licitación / Concurso Público 22 · Subasta Inversa Electrónica 8 · Adjudicación
         #   Simplificada 8 (bienes/servicios) · Comparación de Precios 3 · Directa: sin mínimo.
         minimo = None
-        if "LICITACION" in tipo_norm or "CONCURSO" in tipo_norm:
+        if ("LICITACION" in tipo_norm or "CONCURSO" in tipo_norm) and "ABREVIAD" in tipo_norm:
+            minimo = 8          # LPA / CPA (Ley 32069): plazos abreviados
+        elif "LICITACION" in tipo_norm or "CONCURSO" in tipo_norm:
             minimo = 22
         elif "SUBASTA" in tipo_norm:
             minimo = 8
