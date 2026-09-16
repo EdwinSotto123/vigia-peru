@@ -239,16 +239,20 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
         _vistas.add(k)
         banderas.append(b)
     if not banderas:
+        # Las reglas corrieron y no dispararon: si la alerta ya existe (re-análisis), sus banderas
+        # de compliance de la corrida anterior quedan obsoletas → limpiarlas.
+        lim = _limpiar_banderas_agente(f"OECE-{_short_ocid(ocid)}", "compliance_agent", state)
         return {"alerta_codigo": None, "score": 0, "banderas_persistidas": 0,
-                "mensaje": "Sin banderas — no se creó alerta"}
+                "mensaje": "Sin banderas — no se creó alerta", **lim}
     # Verificación determinista ANTES de tocar la BD: lo no respaldado se descarta.
     banderas = [b for b in banderas
                 if _verificar_o_descartar(b, state, "persist_alert_from_flags", "compliance_agent")]
     n_descartadas = len(_vistas) - len(banderas)
     if not banderas:
+        lim = _limpiar_banderas_agente(f"OECE-{_short_ocid(ocid)}", "compliance_agent", state)
         return {"alerta_codigo": None, "score": 0, "banderas_persistidas": 0,
                 "banderas_descartadas": n_descartadas,
-                "mensaje": "Todas las banderas fueron descartadas por la verificación determinista"}
+                "mensaje": "Todas las banderas fueron descartadas por la verificación determinista", **lim}
     # Score provisional (solo para el INSERT inicial; se recalcula con TODAS al final).
     score = min(sum(_peso("compliance_agent", b.get("severidad")) for b in banderas), 100)
     codigo = f"OECE-{_short_ocid(ocid)}"  # _short_ocid → soporta flat y año-secuencia (no 'OECE-12')
