@@ -1,0 +1,430 @@
+# Fuentes del RAG normativo de Vigía Perú (Frente R, plan 2026-09-16 §3).
+#
+# Origen: las 13 fichas de rag-docs/propuesta.md + bases estándar + normas de control. Las URL
+# "directas" de las fichas estaban en su mayoría rotas (404 en elperuano.pe, IDs de gob.pe que
+# redirigen a otra norma, portal.osce.gob.pe sin respuesta). Se verificó cada fuente el
+# 2026-09-16 desde IP peruana y se reemplazó por la página oficial de gob.pe (campo `pagina`,
+# que es la `url_oficial` que cita el agente) más el PDF publicado en cdn.www.gob.pe (`pdf`).
+# Si `pdf` falta, descargar.py lo resuelve leyendo la página oficial (primer enlace .pdf de
+# cdn.www.gob.pe que cumpla `pdf_match`).
+#
+# Campos por fuente:
+#   slug            nombre del objeto en GCS: gs://vigia-peru-rag/<corpus>/<slug>.pdf
+#   documento       nombre corto para citar ("Art. N de <documento> (<url>)")
+#   numero          número oficial de la norma/criterio
+#   emisor          entidad que lo emite
+#   corpus          normas-vigentes | normas-historicas | criterios-vinculantes | control-cgr (str o lista)
+#   regimen         32069 | 30225 | ambos
+#   tipo            norma | reglamento | criterio_vinculante | opinion | control | bases_estandar
+#   vigencia_desde / vigencia_hasta   ISO (hasta: null = vigente)
+#   pagina          URL oficial (HTML) → `url_oficial`
+#   pdf             URL directa del PDF (opcional)
+#   segmentar       true → segmentar.py parte el texto por "Artículo N" y se importan los artículos
+#                   (un .txt por artículo) en vez del PDF completo
+#   activa          false → documentada pero no se descarga (fuente pendiente / fase 2)
+#   nota            observaciones (por qué se eligió esta versión, qué falta)
+
+corpus:
+  normas-vigentes:   "Ley 32069 y su Reglamento (textos consolidados con modificatorias), Ley de Presupuesto 2026, bases estándar 2025, TUO 27444"
+  normas-historicas: "TUO Ley 30225 (D.S. 082-2019-EF) y Reglamento D.S. 344-2018-EF consolidado, TUO 27444 — ultraactivos para convocatorias hasta el 21-04-2025"
+  criterios-vinculantes: "Acuerdos de Sala Plena TCE/TCP, Opiniones DTN (las 721 filas de opiniones_oece_estructurado + fichas)"
+  control-cgr:       "Manual de Auditoría de Cumplimiento, directivas de control simultáneo/concurrente, Ley 31288, Ley 31358"
+  resoluciones-tce:  "FASE 2 (no se carga): resoluciones del Tribunal por año; miles de PDF, solo si el costo lo permite"
+
+fuentes:
+  # ───────────────────────── normas-vigentes (régimen Ley 32069) ─────────────────────────
+  - slug: ley-32069
+    documento: "Ley N° 32069, Ley General de Contrataciones Públicas"
+    numero: "Ley N° 32069"
+    emisor: "Congreso de la República"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: norma
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/informes-publicaciones/6444155-ley-n-32069-ley-general-de-contrataciones-publicas-y-modificatorias
+    pdf: https://cdn.www.gob.pe/uploads/document/file/9295551/6444155-ley-general-de-contrataciones-publicas-con-modificaciones-posteriores-hasta-el-19-07-2026.pdf
+    segmentar: true
+    nota: "Texto consolidado por el OECE con modificaciones hasta el 19-07-2026 (incluye D.L. 1715 y Leyes 32513/32515). Ficha 01 de la propuesta."
+
+  - slug: ds-009-2025-ef
+    documento: "Reglamento de la Ley N° 32069 (D.S. N° 009-2025-EF)"
+    numero: "D.S. N° 009-2025-EF"
+    emisor: "Ministerio de Economía y Finanzas"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: reglamento
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/informes-publicaciones/6444155-ley-n-32069-ley-general-de-contrataciones-publicas-y-modificatorias
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7594705/6444155-reglamento-de-la-ley-general-de-contrataciones-publicas-con-modificaciones-posteriores-hasta-el-09-01-2026.pdf
+    segmentar: true
+    nota: "Texto consolidado por el OECE con modificaciones hasta el 09-01-2026 (incluye D.S. 001-2026-EF). Ficha 02."
+
+  - slug: ley-32513-presupuesto-2026
+    documento: "Ley N° 32513, Ley de Presupuesto del Sector Público para el Año Fiscal 2026"
+    numero: "Ley N° 32513"
+    emisor: "Congreso de la República"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: norma
+    vigencia_desde: "2026-01-01"
+    vigencia_hasta: "2026-12-31"
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/7475743-32513
+    segmentar: true
+    nota: "Topes por tipo de procedimiento del ejercicio 2026 (compliance_rules cita su art. 14)."
+
+  - slug: tuo-ley-27444-ds-004-2019-jus
+    documento: "TUO de la Ley N° 27444, Ley del Procedimiento Administrativo General (D.S. N° 004-2019-JUS)"
+    numero: "D.S. N° 004-2019-JUS"
+    emisor: "Ministerio de Justicia y Derechos Humanos"
+    corpus: normas-vigentes
+    regimen: ambos
+    tipo: norma
+    vigencia_desde: "2019-01-25"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/minjus/normas-legales/279563-004-2019-jus
+    pdf: https://cdn.www.gob.pe/uploads/document/file/320709/DS_004-2019-JUS.pdf
+    segmentar: true
+    nota: "Ficha 12. Supletoria en ambos regímenes (presunción de veracidad, fiscalización posterior, nulidad). Se carga solo en normas-vigentes: la cuota de embeddings del proyecto (5 RPM para textembedding-gecko, ver RAG_NORMATIVO.md) hace que cada archivo cueste ~12 s de importación; duplicarla en normas-historicas (274 artículos) queda para cuando suba la cuota."
+
+  # Bases estándar vigentes (Directiva N° 0005-2025-EF/54.01 de la DGA-MEF, R.D. 0015-2025-EF/54.01,
+  # rectificada por R.D. 0028-2025-EF/54.01; la R.D. 001-2026-EF/54.01 publica versiones DOCX 2026 → fase 2).
+  - slug: directiva-0005-2025-ef-5401-bases-estandar
+    documento: "Directiva N° 0005-2025-EF/54.01, bases estándar para los procedimientos de selección (Ley 32069)"
+    numero: "Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948028/6683111-directiva0005_2025ef5401.pdf
+  - slug: bases-estandar-lp-bienes-2025
+    documento: "Bases estándar de Licitación Pública para bienes (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 08 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948040/6683111-08-bases-estandar-lp-bienes.pdf
+  - slug: bases-estandar-lp-abreviada-bienes-2025
+    documento: "Bases estándar de Licitación Pública abreviada para bienes (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 11 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948043/6683111-11-bases-estandar-lp-abreviada-bienes.pdf
+  - slug: bases-estandar-lp-obras-2025
+    documento: "Bases estándar de Licitación Pública de obras (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 09 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948041/6683111-09-bases-estandar-lp-obras.pdf
+  - slug: bases-estandar-cp-servicios-2025
+    documento: "Bases estándar de Concurso Público para servicios (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 07 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948038/6683111-07-bases-estandar-cp-servicios.pdf
+  - slug: bases-estandar-cp-abreviado-servicios-2025
+    documento: "Bases estándar de Concurso Público abreviado para servicios (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 06 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948037/6683111-06-bases-estandar-cp-abreviada-servicios.pdf
+  - slug: bases-estandar-subasta-inversa-2025
+    documento: "Bases estándar de Subasta Inversa Electrónica para bienes y servicios (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 13 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948045/6683111-13-bases-estandar-subasta-ie-bienes-y-servicios.pdf
+  - slug: bases-estandar-comparacion-precios-2025
+    documento: "Bases estándar de Comparación de Precios (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 01 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948030/6683111-01-bases-estandar-comparacion-de-precios.pdf
+  - slug: bases-estandar-no-competitivos-2025
+    documento: "Bases estándar de procedimientos no competitivos (Directiva 0005-2025-EF/54.01)"
+    numero: "Anexo 10 — Directiva N° 0005-2025-EF/54.01"
+    emisor: "MEF — Dirección General de Abastecimiento"
+    corpus: normas-vigentes
+    regimen: "32069"
+    tipo: bases_estandar
+    vigencia_desde: "2025-04-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/6683111-0015-2025-ef-54-01
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7948042/6683111-10-bases-estandar-procedimientos-no-competitivos.pdf
+
+  # ───────────────────────── normas-historicas (régimen TUO Ley 30225) ─────────────────────────
+  - slug: tuo-ley-30225-ds-082-2019-ef
+    documento: "TUO de la Ley N° 30225, Ley de Contrataciones del Estado (D.S. N° 082-2019-EF)"
+    numero: "D.S. N° 082-2019-EF"
+    emisor: "Ministerio de Economía y Finanzas"
+    corpus: normas-historicas
+    regimen: "30225"
+    tipo: norma
+    vigencia_desde: "2019-03-14"
+    vigencia_hasta: "2025-04-21"
+    pagina: https://www.gob.pe/institucion/mef/normas-legales/266672-082-2019-ef
+    pdf: https://cdn.www.gob.pe/uploads/document/file/298343/DS082_2019EF.pdf
+    segmentar: true
+    nota: "Ficha 03. Ultraactivo para convocatorias hasta el 21-04-2025. El OECE publica además la Ley 30225 con modificatorias posteriores al TUO (informes-publicaciones/6892275): fase 2, para no duplicar artículos."
+
+  - slug: reglamento-ds-344-2018-ef-consolidado
+    documento: "Reglamento de la Ley N° 30225 (D.S. N° 344-2018-EF y modificatorias)"
+    numero: "D.S. N° 344-2018-EF"
+    emisor: "Ministerio de Economía y Finanzas"
+    corpus: normas-historicas
+    regimen: "30225"
+    tipo: reglamento
+    vigencia_desde: "2019-01-30"
+    vigencia_hasta: "2025-04-21"
+    pagina: https://www.gob.pe/institucion/osce/informes-publicaciones/4168515-reglamento-de-la-ley-de-contrataciones-del-estado-y-sus-sucesivas-modificaciones-posteriores
+    pdf: https://cdn.www.gob.pe/uploads/document/file/7544647/4168515-reglamento-de-la-ley-de-contrataciones-del-estado-con-modificaciones-posteriores-hasta-21-12-2024.pdf
+    segmentar: true
+    nota: "Ficha 04. Versión consolidada por el OSCE con modificaciones hasta el 21-12-2024 (D.S. 377-2019, 168-2020, 250-2020, 162-2021, 234-2022, 308-2022, 167-2023, 051-2024-EF)."
+
+  # ───────────────────────── criterios-vinculantes (ambos regímenes) ─────────────────────────
+  - slug: acuerdo-sala-plena-004-2019-tce
+    documento: "Acuerdo de Sala Plena N° 004-2019/TCE (información inexacta en documento falso: consunción)"
+    numero: "Acuerdo de Sala Plena N° 004-2019/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2019-12-19"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/osce/normas-legales/390629-04-2019-tce
+    pdf: https://cdn.www.gob.pe/uploads/document/file/459505/ACUERDO_DE_SALA_PLENA_04-2019.pdf
+    nota: "Ficha 05."
+  - slug: acuerdo-sala-plena-008-2021-tce
+    documento: "Acuerdo de Sala Plena N° 008-2021/TCE (acreditación de la relación contractual en compras ≤ 8 UIT)"
+    numero: "Acuerdo de Sala Plena N° 008-2021/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2021-11-19"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/2399887-008-2021-tce
+    pdf: https://cdn.www.gob.pe/uploads/document/file/2463686/Acuerdo%20de%20Sala%20Plena%20N%C2%B0%20008-2021-TCE.pdf
+  - slug: acuerdo-sala-plena-002-2022-tce
+    documento: "Acuerdo de Sala Plena N° 002-2022/TCE (resolución de contrato consentida: tipicidad)"
+    numero: "Acuerdo de Sala Plena N° 002-2022/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2022-05-11"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/2965739-002-2022-tce
+    pdf: https://cdn.www.gob.pe/uploads/document/file/3081841/Normas%20Legales%20-%20Acuerdo%20de%20Sala%20Plena%20N%C2%B0%2002-2022-TCE.pdf.pdf
+  - slug: acuerdo-sala-plena-002-2023-tce
+    documento: "Acuerdo de Sala Plena N° 002-2023/TCE (experiencia del postor en obras similares)"
+    numero: "Acuerdo de Sala Plena N° 002-2023/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2023-12-02"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/4916240-002-2023-tce
+    pdf: https://cdn.www.gob.pe/uploads/document/file/5523023/4916240-acuerdo-sala-plena-002-2023-tce.PDF
+    nota: "Ficha 06."
+  - slug: acuerdo-sala-plena-003-2023-tce
+    documento: "Acuerdo de Sala Plena N° 003-2023/TCE (consentimiento de la resolución contractual en Catálogos Electrónicos de Acuerdo Marco)"
+    numero: "Acuerdo de Sala Plena N° 003-2023/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2023-12-01"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/4916250-003-2023-tce
+    pdf_match: "003-2023"
+    nota: "Ficha 13 (criterio de Acuerdos Marco). PDF resuelto desde la página oficial."
+  - slug: acuerdo-sala-plena-004-2023-tce
+    documento: "Acuerdo de Sala Plena N° 004-2023/TCE (admisibilidad del recurso de apelación)"
+    numero: "Acuerdo de Sala Plena N° 004-2023/TCE"
+    emisor: "Tribunal de Contrataciones del Estado"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2023-12-02"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/4916276-004-2023-tce
+    pdf_match: "004-2023"
+  - slug: acuerdo-sala-plena-002-2025-tcp
+    documento: "Acuerdo de Sala Plena N° 002-2025/TCP (irretroactividad en procedimientos sancionadores)"
+    numero: "Acuerdo de Sala Plena N° 002-2025/TCP"
+    emisor: "Tribunal de Contrataciones Públicas"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: criterio_vinculante
+    vigencia_desde: "2025-05-22"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/6795753-002-2025-tcp
+    pdf: https://cdn.www.gob.pe/uploads/document/file/8107113/6795753-acuerdo-de-sala-plena-n-002-2025-tcp.pdf
+  - slug: acuerdo-sala-plena-003-2025-tcp
+    documento: "Acuerdo de Sala Plena N° 003-2025/TCP"
+    numero: "Acuerdo de Sala Plena N° 003-2025/TCP"
+    emisor: "Tribunal de Contrataciones Públicas"
+    corpus: criterios-vinculantes
+    regimen: "32069"
+    tipo: criterio_vinculante
+    vigencia_desde: "2025-07-01"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/normas-legales/6876808-003-2025-tcp
+    pdf: https://cdn.www.gob.pe/uploads/document/file/8233478/6876808-acuerdo-de-sala-plena-n-03-2025-tcp.pdf
+  - slug: opinion-047-2021-dtn
+    documento: "Opinión N° 047-2021/DTN (contratación directa por desabastecimiento: prohibida la regularización)"
+    numero: "Opinión N° 047-2021/DTN"
+    emisor: "OSCE — Dirección Técnico Normativa"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: opinion
+    vigencia_desde: "2021-04-26"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/informes-publicaciones/1889926-opinion-n-047-2021-dtn
+    pdf: "https://cdn.www.gob.pe/uploads/document/file/1857284/Opini%C3%B3n%20047-2021-%20PROMPERU-OCI%20-%20SITUAC.DESABASTECIMIENTO.pdf.pdf"
+    nota: "Ficha 07."
+  - slug: opinion-093-2020-dtn
+    documento: "Opinión N° 093-2020/DTN (contratación directa por situación de emergencia: plazos de regularización)"
+    numero: "Opinión N° 093-2020/DTN"
+    emisor: "OSCE — Dirección Técnico Normativa"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: opinion
+    vigencia_desde: "2020-09-25"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/informes-publicaciones/1212364-opinion-n-093-2020-dtn
+    pdf: "https://cdn.www.gob.pe/uploads/document/file/1319929/Opini%C3%B3n%20093-2020%20-%20MINSA%20-%20Contrataci%C3%B3n%20Directa%20por%20situaci%C3%B3n%20de%20Emergencia.pdf"
+  - slug: opinion-014-2019-dtn
+    documento: "Opinión N° 014-2019/DTN (fraccionamiento: presupuestos para su determinación)"
+    numero: "Opinión N° 014-2019/DTN"
+    emisor: "OSCE — Dirección Técnico Normativa"
+    corpus: criterios-vinculantes
+    regimen: ambos
+    tipo: opinion
+    vigencia_desde: "2019-03-21"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/oece/colecciones/713-opiniones-de-la-direccion-tecnico-normativa-osce
+    activa: false
+    nota: "Ficha 08. PENDIENTE: la URL de la ficha (informes-publicaciones/informe-dtn-014-2019) no existe y el PDF alterno apunta a la Contraloría. El tema fraccionamiento queda cubierto por las 721 filas de opiniones (varias sobre art. 20 / art. 40) hasta localizar el PDF oficial."
+
+  # ───────────────────────── control-cgr ─────────────────────────
+  - slug: manual-auditoria-cumplimiento-mac
+    documento: "Manual de Auditoría de Cumplimiento (CGR, versión integrada R.C. 025-2021-CG y 001-2022-CG)"
+    numero: "R.C. N° 473-2014-CG / 025-2021-CG / 001-2022-CG"
+    emisor: "Contraloría General de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: control
+    vigencia_desde: "2022-01-07"
+    vigencia_hasta: null
+    pagina: https://doc.contraloria.gob.pe/normativa/control_posterior/Version_integrada_del_Manual_de_Auditoria_de_Cumplimiento-MAC.pdf
+    pdf: https://doc.contraloria.gob.pe/normativa/control_posterior/Version_integrada_del_Manual_de_Auditoria_de_Cumplimiento-MAC.pdf
+    nota: "Ficha 09. Matriz Condición/Criterio/Causa/Efecto. La página gob.pe citada en la ficha (normas-legales/1586738-025-2021-cg) da 404: la URL oficial es el PDF del repositorio normativo de la CGR."
+  - slug: directiva-013-2022-cg-norm-control-simultaneo
+    documento: "Directiva N° 013-2022-CG/NORM, Servicio de Control Simultáneo"
+    numero: "Directiva N° 013-2022-CG/NORM"
+    emisor: "Contraloría General de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: control
+    vigencia_desde: "2022-04-30"
+    vigencia_hasta: null
+    pagina: https://cdn.www.gob.pe/uploads/document/file/3839885/3656507-directiva-n-013-2022-cg-norm-directiva-de-servicio-de-control-simultaneo.pdf
+    pdf: https://cdn.www.gob.pe/uploads/document/file/3839885/3656507-directiva-n-013-2022-cg-norm-directiva-de-servicio-de-control-simultaneo.pdf
+    nota: "Ficha 10 (el PDF de la ficha era este; la Directiva 003-2025-CG/GMPL de expansión del control concurrente no se localizó en gob.pe → se cargan las 018-2022 y 016-2023-CG/GMPL que la preceden)."
+  - slug: directiva-018-2022-cg-gmpl-control-concurrente
+    documento: "Directiva N° 018-2022-CG/GMPL (versión integrada), disposiciones complementarias de la Ley N° 31358 — expansión del control concurrente"
+    numero: "Directiva N° 018-2022-CG/GMPL"
+    emisor: "Contraloría General de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: control
+    vigencia_desde: "2022-12-01"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/contraloria/normas-legales/3656649-0162023-cg-gmpl
+    pdf: "https://cdn.www.gob.pe/uploads/document/file/4981101/Versi%C3%B3n%20Integrada%20de%20la%20Directiva%20018-2022-CG_GMPL%20.pdf"
+  - slug: directiva-016-2023-cg-gmpl
+    documento: "Directiva N° 016-2023-CG/GMPL (control concurrente)"
+    numero: "Directiva N° 016-2023-CG/GMPL"
+    emisor: "Contraloría General de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: control
+    vigencia_desde: "2024-01-11"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/contraloria/normas-legales/5014273-016-2023-cg-gmpl
+    pdf: https://cdn.www.gob.pe/uploads/document/file/5660576/5014273-directiva_externa.pdf
+    activa: false
+    nota: "PDF escaneado sin capa de texto (RAG Engine: 'PDF was invalid or file contains no text pages'). Fase 2: OCR con Document AI layout parser (costo por página) antes de importar."
+  - slug: ley-31288
+    documento: "Ley N° 31288, tipificación de conductas infractoras en responsabilidad administrativa funcional (potestad sancionadora de la CGR)"
+    numero: "Ley N° 31288"
+    emisor: "Congreso de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: norma
+    vigencia_desde: "2021-07-20"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/contraloria/normas-legales/2139196-31288
+    pdf: https://cdn.www.gob.pe/uploads/document/file/2161723/Ley%20N%C2%B0%2031288.pdf.pdf
+    nota: "Ficha 11."
+  - slug: ley-31358
+    documento: "Ley N° 31358, medidas para la expansión del control concurrente"
+    numero: "Ley N° 31358"
+    emisor: "Congreso de la República"
+    corpus: control-cgr
+    regimen: ambos
+    tipo: norma
+    vigencia_desde: "2021-11-16"
+    vigencia_hasta: null
+    pagina: https://www.gob.pe/institucion/contraloria/normas-legales/2491089-31358
+    pdf: https://cdn.www.gob.pe/uploads/document/file/2539411/Ley%20N%C2%B0%2031358.pdf.pdf
+
+# Fase 2 (documentado, no cargado):
+#   · Opiniones DTN del OECE 2025-2026 (colección 66839, 167 informes) y las 2 432 del OSCE (colección 713):
+#     complementan las 721 filas ya migradas.
+#   · Directivas vigentes OECE (colección 66212: 18 directivas 2025-2026) y Directiva 001-2019-OSCE/CD
+#     (bases estándar históricas, muchas versiones).
+#   · Bases estándar 2026 (R.D. 001-2026-EF/54.01, 19 archivos DOCX).
+#   · Ley 30225 con modificatorias posteriores al TUO (OECE informes-publicaciones/6892275).
+#   · Resoluciones del TCE/TCP (corpus `resoluciones-tce`): miles de PDF (gob.pe/institucion/oece/normas-legales).

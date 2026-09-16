@@ -62,6 +62,9 @@ _PAGE_MARK_RE = re.compile(r"⟦p\.(\d+)⟧")
 _OFFICIAL_DOMAINS = (
     "oece.gob.pe", "osce.gob.pe", "sunat.gob.pe", "seace.gob.pe", "contraloria.gob.pe",
     "jne.gob.pe", "onpe.gob.pe", "sunarp.gob.pe", "mef.gob.pe", "gob.pe",
+    # Diario oficial (normas citadas por el RAG normativo; las url_oficial del catálogo llegan además
+    # por state['grounding_urls'], esto cubre las que el modelo copie de la cita).
+    "elperuano.pe",
 )
 
 # Catálogo de slugs de reglas que el sistema puede emitir (compliance_rules + persistence +
