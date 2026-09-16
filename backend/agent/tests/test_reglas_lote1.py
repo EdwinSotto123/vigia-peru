@@ -636,7 +636,7 @@ def test_persist_analysis_outputs_legal_summary_puente_y_sin_alter(monkeypatch):
     assert b["compliance_resumen_det"]["por_agente"] == {"compliance_agent": 1, "person_network_agent": 1}
     assert b["reglas_lote1"]["_disparadas"] == ["unica_oferta_valida"]
     red = next(x for x in db.banderas if x["agente_origen"] == "person_network_agent")
-    assert red["regla"] == "parentesco_postores_rivales" and red["fuente_url"].startswith("https://vertexaisearch")
+    assert red["regla"] == "vinculo_red_personas" and "parentesco_postores_rivales" in red["evidencia"] and red["fuente_url"].startswith("https://vertexaisearch")
     assert db.updates_montos and db.updates_montos[0][0] == 99180.0   # T8 en la alerta ya creada
 
 

@@ -80,6 +80,10 @@ RULE_SLUGS: frozenset[str] = frozenset({
     "capacidad_operativa_cuestionable", "conflicto_interes_funcionario_empresa",
     "rubro_ciiu_incongruente", "adicional_acumulado", "personal_clave_vinculado",
     "fraccionamiento", "directa_recurrente",
+    "antecedente_proveedor_web", "cobertura_prensa_adversa", "vinculo_red_personas",
+    "oferta_igual_valor_referencial", "ofertas_agrupadas", "unica_oferta_valida", "ganador_no_invitado",
+    "oferta_mas_barata_no_gana", "fecha_buena_pro_incoherente", "firmante_con_empresa_rnp", "postores_vinculados_rnp",
+    "ampliacion_denegada_penalidad", "sancion_historica_oece", "penalidades_oece_historicas", "cuantia_al_limite_del_tope",
 })
 
 # Claves del state que son fuente FUERTE (obtenidas de forma determinista: OCDS, SUNAT,

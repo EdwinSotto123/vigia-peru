@@ -1249,9 +1249,15 @@ def _banderas_investigacion(state: dict) -> list[dict]:
             sev = str(b.get("severidad") or "media").strip().lower()
             if sev not in ("alta", "media", "baja"):
                 sev = "media"
-            regla = str(b.get("regla") or b.get("titulo") or b.get("nombre") or f"{clave}_hallazgo")
-            regla = re.sub(r"[^a-z0-9_]+", "_", _norma_slug(regla))[:80].strip("_") or f"{clave}_hallazgo"
+            # Slug FIJO por agente (el frontend/verify enumeran reglas); el título libre queda en la evidencia.
+            _SLUG_AGENTE = {"web_research": "antecedente_proveedor_web", "news_research": "cobertura_prensa_adversa",
+                            "person_network": "vinculo_red_personas"}
+            regla_libre = str(b.get("regla") or b.get("titulo") or b.get("nombre") or "").strip()
+            regla = _SLUG_AGENTE.get(clave, f"{clave}_hallazgo")
+            titulo = re.sub(r"\s+", " ", regla_libre)[:120]
             descr = str(b.get("descripcion") or b.get("detalle") or b.get("resumen") or b.get("titulo") or "")
+            if titulo and titulo.lower() not in descr.lower():
+                descr = f"{titulo}: {descr}" if descr else titulo
             texto = (descr + (f" Evidencia: {citas[0][:200]}" if citas else "")).strip()
             if not texto:
                 continue

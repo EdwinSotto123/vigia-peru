@@ -871,42 +871,48 @@ def check_plazo_convocatoria_rule(ocid: str, tool_context: ToolContext,
         if not fconv or not fbp:
             return {"regla": "plazo_convocatoria_minimo", "triggered": False, "motivo": "sin fechas"}
         delta_dias = (fbp - fconv).days
+        # Los plazos legales se cuentan en DÍAS HÁBILES entre la convocatoria y la presentación de
+        # ofertas; aquí solo tenemos la buena pro (posterior), así que la ventana medida es MAYOR
+        # que la legal: si aun así es corta, la señal es sólida. Se cuenta lunes-viernes (sin
+        # feriados: por eso hay un margen de 2 días antes de marcar "alta").
+        habiles = sum(1 for i in range(delta_dias) if (fconv + _dt.timedelta(days=i + 1)).weekday() < 5)
         tipo_norm = _sin_tildes(tipo or "").upper()
 
-        # Mínimos legales referenciales (Reglamento Ley 32069):
-        #   - Subasta Inversa Electrónica: 8 días hábiles ≈ 12 calendarios
-        #   - Adjudicación Simplificada: 8 días calendarios
-        #   - Concurso Público / Licitación Pública: 22 días calendarios
-        #   - Comparación de Precios: 5 días calendarios
-        #   - Contratación Directa: sin plazo mínimo (excepcional)
+        # Mínimos referenciales en días hábiles entre convocatoria y presentación de ofertas
+        # (Reglamento Ley 32069 / valores del régimen anterior cuando coinciden):
+        #   Licitación / Concurso Público 22 · Subasta Inversa Electrónica 8 · Adjudicación
+        #   Simplificada 8 (bienes/servicios) · Comparación de Precios 3 · Directa: sin mínimo.
         minimo = None
         if "LICITACION" in tipo_norm or "CONCURSO" in tipo_norm:
             minimo = 22
         elif "SUBASTA" in tipo_norm:
-            minimo = 12
+            minimo = 8
         elif "ADJUDICACION SIMPLIFICADA" in tipo_norm or "AS-" in tipo_norm:
             minimo = 8
         elif "COMPARACION" in tipo_norm:
-            minimo = 5
+            minimo = 3
         elif "DIRECTA" in tipo_norm:
             minimo = 0
         result = {
             "regla": "plazo_convocatoria_minimo",
             "tipo_proceso": tipo,
             "dias_efectivos": delta_dias,
-            "dias_minimo": minimo,
+            "dias_habiles": habiles,
+            "dias_minimo_habiles": minimo,
             "triggered": False,
         }
-        if minimo is not None and minimo > 0 and delta_dias < minimo:
+        if minimo is not None and minimo > 0 and habiles < minimo:
+            claro = habiles <= minimo - 2          # margen por feriados no contados
             result.update({
                 "triggered": True,
-                "severidad": "alta",
+                "severidad": "alta" if claro else "media",
+                "requiere_verificacion": not claro,
                 "evidencia": (
-                    f"Plazo entre convocatoria ({fconv}) y buena pro ({fbp}) es de "
-                    f"{delta_dias} días — debajo del mínimo legal de {minimo} días "
-                    f"para {tipo}."
+                    f"Entre la convocatoria ({fconv}) y la buena pro ({fbp}) pasaron {habiles} días hábiles "
+                    f"({delta_dias} calendario) — por debajo del mínimo referencial de {minimo} días hábiles "
+                    f"para {tipo}" + ("" if claro else " (margen de feriados: verificar el cronograma de las bases)") + "."
                 ),
-                "norma": "Art. 53 Reglamento Ley 32069 — plazos mínimos según tipo de proceso",
+                "norma": _norma_state(tool_context.state).get("plazos", "Reglamento Ley 32069 — plazos mínimos del procedimiento de selección"),
                 "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
             })
             tool_context.state.setdefault("pending_flags", []).append(result)
@@ -2157,7 +2163,12 @@ def check_inconsistencia_doc_vs_ocds_rule(ocid: str, tool_context: ToolContext,
                       or bool(doc.get("tipo_documento"))
                       or doc.get("requerimiento_disponible") is not None)
     _items_inservibles = bool(items_doc) and (not _descs_reales or doc_es_generico)
-    _sin_items_pese_a_doc = (n_items_doc == 0 and _doc_procesado)
+    # Lote 1: los ítems de OC/contrato viven aparte (`items_contratados`) y los postores en `postores`;
+    # si el parser extrajo cualquiera de ellos, el expediente SÍ se leyó (no es "extracción fallida").
+    _raw_pr = _safe_parse_json(state.get("parser_raw_consolidated")) or {}
+    _hay_otra_extraccion = bool(_raw_pr.get("items_contratados") or _raw_pr.get("postores") or _raw_pr.get("ofertas")
+                                or doc.get("items_contratados") or doc.get("postores"))
+    _sin_items_pese_a_doc = (n_items_doc == 0 and _doc_procesado and not _hay_otra_extraccion)
     if _items_inservibles or _sin_items_pese_a_doc:
         inconsistencias.append({
             "tipo": "extraccion_documento_fallida",
