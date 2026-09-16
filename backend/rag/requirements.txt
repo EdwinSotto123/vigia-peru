@@ -1,0 +1,10 @@
+# Entorno del RAG normativo (backend/rag). Crear con:
+#   python -m venv backend/rag/.venv && backend/rag/.venv/Scripts/python -m pip install -r backend/rag/requirements.txt
+# Probado el 2026-09-16 con Python 3.13 en Windows.
+google-cloud-aiplatform==1.165.1   # vertexai.rag (GA): create_corpus / import_files / retrieval_query. Aviso de deprecación hacia `agentplatform`, que aún no expone RAG.
+google-cloud-storage>=2.18,<4
+pyyaml>=6,<7
+requests>=2.32,<3
+pypdf>=5,<7                        # texto por página para segmentar.py
+fonttools>=4.50                    # pypdf lo usa para decodificar fuentes CFF (El Peruano)
+pg8000>=1.31,<2                    # opiniones.py (Cloud SQL, tabla opiniones_oece_estructurado)

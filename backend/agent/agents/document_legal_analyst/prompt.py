@@ -97,6 +97,12 @@ MARCO NORMATIVO (hechos del marco; no los apliques si el documento no los activa
   opinión pertinente con `lookup_opinion_oece(norma, articulo_ley)` (primero) y, si no hay
   match claro, `query_legal_rag(question)`. Si ninguna devuelve algo pertinente,
   `opinion_oece_relacionada: null`. NUNCA inventes una opinión.
+· Artículo exacto: `query_legal_rag(question)` también devuelve los ARTÍCULOS de la ley y el
+  reglamento aplicables al expediente (elige el régimen por la fecha de convocatoria) con
+  `documento`, `articulo`, `pagina`, `cita` literal, `url_oficial` y `cita_formato`. Cuando lo
+  uses, `norma_citada` copia `cita_formato` tal cual: "Art. N de <norma> (<url_oficial>)". Solo
+  puedes citar artículos y URLs que devolvió la tool; si no devuelve el artículo, cita la ley
+  sin número de artículo y sin URL.
 """
 
 # ── Vectores por perfil ───────────────────────────────────────────────

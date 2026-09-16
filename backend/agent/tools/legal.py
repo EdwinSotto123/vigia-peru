@@ -124,10 +124,10 @@ def _query_legal_rag_pgvector(question: str, tool_context=None) -> dict:
     return {"question": question, "n_matches": len(matches), "matches": matches, "_source": "pgvector"}
 
 
-# ── Vertex AI Search (Agent Builder) — backend nuevo del RAG legal ───────────
-# Reemplaza a pgvector: data store gestionado + grounding, sin pipeline de
-# embeddings. pgvector queda como FALLBACK. Backend por env LEGAL_RAG_BACKEND
-# ('vertex' [default] | 'pgvector').
+# ── Vertex AI Search (Agent Builder) — RAG de las 721 opiniones ─────────────
+# Data store gestionado + grounding, sin pipeline de embeddings. Backend por env
+# LEGAL_RAG_BACKEND ('rag_engine' | 'vertex' [default] | 'pgvector'); ver la sección
+# RAG Engine más abajo para el RAG normativo completo (normas + criterios).
 _DE_PROJECT = os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4")
 _DE_DATASTORE = os.getenv("LEGAL_RAG_DATASTORE", "vigia-oece")
 _DE_ENGINE = os.getenv("LEGAL_RAG_ENGINE", "vigia-oece-search")
@@ -181,33 +181,267 @@ def query_legal_rag_vertex(question: str, top_k: int = 5) -> dict:
             "matches": matches, "_source": "vertex_ai_search"}
 
 
-def query_legal_rag(question: str, tool_context: ToolContext) -> dict:
-    """Consulta el RAG de las 723 opiniones normativas OECE/CONOSCE para hallar
-    las opiniones jurídicas más relevantes a una pregunta o señal de riesgo.
-    Devuelve hasta 5 opiniones con norma, número, artículos, snippet y URL.
+# ── Vertex AI RAG Engine (normas + criterios vinculantes) — backend `rag_engine` ────────
+# Plan 2026-09-16 Frente R. Cuatro corpus en RAG Engine (modo serverless, sin costo fijo):
+#   normas-vigentes (Ley 32069 + D.S. 009-2025-EF + bases estándar + TUO 27444), normas-historicas
+#   (TUO 30225 + D.S. 344-2018-EF), criterios-vinculantes (Acuerdos de Sala Plena + Opiniones DTN,
+#   incluidas las 721 filas de opiniones_oece_estructurado) y control-cgr (MAC, directivas CGR).
+# El corpus de normas se elige por `norma_aplicable(fecha_convocatoria)`; criterios-vinculantes se
+# consulta siempre. Los artículos de las normas están segmentados (un archivo por artículo,
+# backend/rag/segmentar.py) y la metadata (documento, url_oficial, régimen) vive en
+# gs://<RAG_BUCKET>/catalogo.json. Cascada: rag_engine → vertex (opiniones) → pgvector.
+_RAG_LOCATION = os.getenv("RAG_LOCATION", "us-central1")
+_RAG_BUCKET = os.getenv("RAG_BUCKET", "vigia-peru-rag")
+_RAG_CORPUS_ENV = {
+    "normas-vigentes": "RAG_CORPUS_NORMAS_VIGENTES",
+    "normas-historicas": "RAG_CORPUS_NORMAS_HISTORICAS",
+    "criterios-vinculantes": "RAG_CORPUS_CRITERIOS",
+    "control-cgr": "RAG_CORPUS_CONTROL",
+}
+_RAG_TOP_K = max(1, int(os.getenv("RAG_TOP_K", "5") or 5))
+_RAG_CATALOGO_TTL_S = 3600
+_rag_catalogo_cache: dict = {"t": 0.0, "data": None}
+_RAG_ART_TXT_RE = re.compile(r"/art-(tp-)?(\d{4})\.txt$")
+_RAG_ART_CAB_RE = re.compile(r"(?m)^Art[íi]culo\s+([0-9]+|[IVXLC]+)\b")
+_RAG_PAG_RE = re.compile(r"\[página\s+(\d+)\]")
 
-    Usa **Vertex AI Search** (grounding gestionado) con FALLBACK automático a
-    pgvector si Vertex falla o no devuelve resultados.
+
+def _rag_corpus_resources() -> dict:
+    """{nombre_corpus: resource_name} desde las env RAG_CORPUS_* (solo los configurados)."""
+    out = {}
+    for nombre, env in _RAG_CORPUS_ENV.items():
+        v = (os.getenv(env) or "").strip()
+        if v:
+            out[nombre] = v
+    return out
+
+
+def rag_engine_configurado() -> bool:
+    rc = _rag_corpus_resources()
+    return bool(rc.get("criterios-vinculantes") or rc.get("normas-vigentes") or rc.get("normas-historicas"))
+
+
+def _rag_catalogo() -> dict:
+    """gs://<RAG_BUCKET>/catalogo.json (uri → metadata), cacheado 1 h. {} si no se puede leer."""
+    now = time.time()
+    if _rag_catalogo_cache["data"] is not None and now - _rag_catalogo_cache["t"] < _RAG_CATALOGO_TTL_S:
+        return _rag_catalogo_cache["data"]
+    data = {}
+    try:
+        from google.cloud import storage
+        blob = storage.Client().bucket(_RAG_BUCKET).blob("catalogo.json")
+        data = json.loads(blob.download_as_text(encoding="utf-8")) or {}
+    except Exception as e:
+        print(json.dumps({"legal_rag_catalogo_error": str(e)[:160]}), flush=True)
+        if _rag_catalogo_cache["data"] is not None:
+            return _rag_catalogo_cache["data"]
+    _rag_catalogo_cache.update(t=now, data=data)
+    return data
+
+
+def _rag_corpus_por_regimen(regimen: str) -> list:
+    r = str(regimen or "").lower()
+    if "30225" in r or r in ("historico", "historicas"):
+        normas = ["normas-historicas"]
+    elif "32069" in r or r in ("vigente", "vigentes"):
+        normas = ["normas-vigentes"]
+    else:
+        normas = ["normas-vigentes", "normas-historicas"]
+    return normas + ["criterios-vinculantes"]
+
+
+def _rag_regimen_state(tool_context) -> str:
+    """Régimen por fecha de convocatoria del state (norma_aplicable); sin state → vigente."""
+    try:
+        from tools.compliance_rules import norma_aplicable, _fecha_convocatoria_state
+        state = getattr(tool_context, "state", None) or {}
+        return norma_aplicable(_fecha_convocatoria_state(state))["regimen"]
+    except Exception:
+        return "ley_32069"
+
+
+def _rag_retrieve(question: str, corpus_resource: str, top_k: int) -> list:
+    """POST :retrieveContexts (v1) sobre UN corpus → contextos crudos."""
+    import requests as _rq
+    url = (f"https://{_RAG_LOCATION}-aiplatform.googleapis.com/v1/projects/{_DE_PROJECT}"
+           f"/locations/{_RAG_LOCATION}:retrieveContexts")
+    body = {"vertex_rag_store": {"rag_resources": [{"rag_corpus": corpus_resource}]},
+            "query": {"text": question, "rag_retrieval_config": {"top_k": int(top_k)}}}
+    r = _rq.post(url, headers={"Authorization": f"Bearer {_discovery_token()}",
+                               "Content-Type": "application/json"}, json=body, timeout=45)
+    if r.status_code >= 300:
+        raise RuntimeError(f"retrieveContexts HTTP {r.status_code}: {r.text[:200]}")
+    return ((r.json().get("contexts") or {}).get("contexts")) or []
+
+
+def _rag_enriquecer(ctx: dict, nombre_corpus: str, catalogo: dict) -> dict:
+    """Contexto crudo → chunk citable {corpus, documento, articulo, pagina, cita, url_oficial, score}
+    + claves legacy (num_opinion, norma, interpretacion_snippet, link) para _elegir_opinion_pertinente."""
+    uri = ctx.get("sourceUri") or ctx.get("source_uri") or ""
+    texto = ctx.get("text") or ""
+    meta = catalogo.get(uri) or {}
+    articulo = meta.get("articulo")
+    if not articulo:
+        m = _RAG_ART_TXT_RE.search(uri)
+        if m and not m.group(1):
+            articulo = str(int(m.group(2)))
+        else:
+            m2 = _RAG_ART_CAB_RE.search(texto)
+            if m2:
+                articulo = m2.group(1)
+    pagina = meta.get("pagina")
+    if not pagina:
+        mp = _RAG_PAG_RE.search(texto)
+        if mp:
+            pagina = int(mp.group(1))
+    if not pagina and isinstance(ctx.get("chunk"), dict):
+        ps = ctx["chunk"].get("pageSpan") or ctx["chunk"].get("page_span") or {}
+        pagina = ps.get("firstPage") or ps.get("first_page")
+    cita = re.sub(r"\s+", " ", texto).strip()[:500]
+    documento = (meta.get("documento") or ctx.get("sourceDisplayName") or ctx.get("source_display_name")
+                 or uri.rsplit("/", 1)[-1])
+    url = meta.get("url_oficial") or ""
+    # RAG Engine (Vector Search 2.0) devuelve `score` como DISTANCIA coseno (0,20 = artículo exacto,
+    # 0,30 = ruido; medido el 2026-09-16). Se expone similitud = 1 − distancia para que el umbral
+    # RAG_MIN_SCORE (0,7) de compliance_rules._elegir_opinion_pertinente siga teniendo sentido.
+    dist = ctx.get("score")
+    score = round(1.0 - float(dist), 4) if isinstance(dist, (int, float)) else None
+    es_norma = meta.get("tipo") in ("norma", "reglamento")
+    return {
+        "corpus": nombre_corpus, "documento": documento, "numero": meta.get("numero"),
+        "tipo": meta.get("tipo"), "regimen": meta.get("regimen"), "articulo": articulo,
+        "pagina": pagina, "cita": cita, "url_oficial": url,
+        "score": score, "distancia": dist,
+        # Corto (≤ ~160 chars): `norma_citada` del schema admite 300 y el modelo agrega el principio.
+        "cita_formato": (f"Art. {articulo} de {meta.get('numero') or documento}" if articulo and es_norma
+                         else (meta.get("numero") or documento)) + (f" ({url})" if url else ""),
+        # legacy (compliance_rules._elegir_opinion_pertinente y prompts que esperan opiniones)
+        "num_opinion": meta.get("num_opinion"),
+        "norma": meta.get("norma") or meta.get("numero") or documento,
+        "ano": meta.get("ano"),
+        "art_ley": meta.get("articulo_ley") or (articulo if meta.get("tipo") == "norma" else None),
+        "art_reglamento": meta.get("articulo_reglamento") or (articulo if meta.get("tipo") == "reglamento" else None),
+        "interpretacion_snippet": cita[:400], "link": url,
+    }
+
+
+_RAG_QUERY_CACHE: dict = {}
+_RAG_QUERY_CACHE_TTL_S = float(os.getenv("RAG_QUERY_CACHE_TTL_S", "900") or 900)
+
+
+def query_legal_rag_engine(question: str, regimen: str = "", top_k: int = _RAG_TOP_K,
+                           incluir_control: bool = False) -> dict:
+    """Consulta RAG Engine: corpus de normas según régimen + criterios-vinculantes (+ control-cgr
+    si se pide). Devuelve {question, regimen, corpus, n_matches, matches, por_corpus, _source}.
+    Caché por proceso (15 min): la cuota de embeddings del proyecto es baja (5 RPM para
+    textembedding-gecko, ver docs/design/RAG_NORMATIVO.md §4) y cada corpus consultado gasta una."""
+    clave = (question.strip().lower(), str(regimen or ""), int(top_k), bool(incluir_control))
+    hit = _RAG_QUERY_CACHE.get(clave)
+    if hit and time.time() - hit[0] < _RAG_QUERY_CACHE_TTL_S:
+        return json.loads(hit[1])
+    recursos = _rag_corpus_resources()
+    nombres = _rag_corpus_por_regimen(regimen)
+    if incluir_control:
+        nombres.append("control-cgr")
+    catalogo = _rag_catalogo()
+    por_corpus, errores = {}, {}
+    for nombre in nombres:
+        rn = recursos.get(nombre)
+        if not rn:
+            errores[nombre] = "sin RAG_CORPUS_* configurado"
+            continue
+        try:
+            crudos = _rag_retrieve(question, rn, top_k)
+            por_corpus[nombre] = [_rag_enriquecer(c, nombre, catalogo) for c in crudos]
+        except Exception as e:
+            errores[nombre] = str(e)[:200]
+    matches = [m for lst in por_corpus.values() for m in lst]
+    matches.sort(key=lambda m: -(m["score"] or 0.0))
+    out = {"question": question, "regimen": regimen or None, "corpus": nombres,
+           "n_matches": len(matches), "matches": matches[: max(top_k, 5) * 2],
+           "por_corpus": por_corpus, "_source": "rag_engine"}
+    if errores:
+        out["errores_corpus"] = errores
+    if not por_corpus:
+        out["error"] = "rag_engine sin corpus consultables: " + "; ".join(f"{k}: {v}" for k, v in errores.items())
+    elif matches:
+        if len(_RAG_QUERY_CACHE) > 500:
+            _RAG_QUERY_CACHE.clear()
+        _RAG_QUERY_CACHE[clave] = (time.time(), json.dumps(out, ensure_ascii=False))
+    return out
+
+
+def _publicar_urls_grounding(tool_context, matches: list) -> None:
+    """Las url_oficial devueltas por el RAG las produce el CÓDIGO (catálogo), no el modelo: se
+    publican en state['grounding_urls'] para que verify.py las acepte en banderas y dictamen."""
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return
+    try:
+        urls = state.get("grounding_urls") or []
+        if not isinstance(urls, list):
+            urls = list(urls) if isinstance(urls, (set, tuple)) else []
+        vistos = set(urls)
+        for m in matches:
+            u = (m.get("url_oficial") or "").strip()
+            if u and u not in vistos:
+                urls.append(u)
+                vistos.add(u)
+        state["grounding_urls"] = urls
+    except Exception:
+        pass
+
+
+def query_legal_rag(question: str, tool_context: ToolContext, regimen: str = "") -> dict:
+    """Consulta el RAG normativo de contratación pública peruana: artículos de la ley y el
+    reglamento aplicables al expediente (Ley 32069 + D.S. 009-2025-EF para convocatorias desde el
+    22-04-2025; TUO Ley 30225 + D.S. 344-2018-EF para las anteriores), Acuerdos de Sala Plena del
+    Tribunal y Opiniones de la DTN del OSCE/OECE. Devuelve chunks citables con `documento`,
+    `articulo`, `pagina`, `cita` (texto literal), `url_oficial` y `cita_formato`
+    ("Art. N de <norma> (<url>)"). Cita SOLO lo que devuelve esta tool; nunca inventes artículos.
+
+    Backend `rag_engine` (Vertex AI RAG Engine) con FALLBACK en cascada a Vertex AI Search
+    (solo opiniones) y a pgvector si falla o no devuelve resultados.
 
     Args:
-        question: pregunta/señal en lenguaje natural. Ej: 'adenda mayor al 25%
-                  del monto original' o 'único postor al 100% del referencial'.
+        question: pregunta/señal en lenguaje natural. Ej: 'plazo mínimo entre convocatoria y
+                  presentación de ofertas en licitación pública' o 'único postor al 100% del
+                  valor referencial'.
+        regimen: opcional. '32069' | '30225'. Si se omite se toma de la fecha de convocatoria
+                 del expediente en curso (norma_aplicable).
 
     Returns:
         Diccionario con `matches` (top-K con metadata) + `_source` o `error`.
     """
     if LEGAL_RAG_BACKEND == "pgvector":
         return _query_legal_rag_pgvector(question, tool_context)
+    fallos = []
+    if LEGAL_RAG_BACKEND == "rag_engine" and rag_engine_configurado():
+        try:
+            reg = (regimen or "").strip() or _rag_regimen_state(tool_context)
+            res = query_legal_rag_engine(question, regimen=reg)
+            if not res.get("error") and res.get("n_matches"):
+                _publicar_urls_grounding(tool_context, res["matches"])
+                # Respuesta compacta para el LLM: `matches` ya trae todo; `por_corpus` lo duplica.
+                res = {k: v for k, v in res.items() if k != "por_corpus"}
+                res["matches"] = res["matches"][:8]
+                return res
+            fallos.append(res.get("error") or "rag_engine_sin_resultados")
+        except Exception as e:
+            fallos.append(f"rag_engine_exc: {str(e)[:150]}")
     try:
         res = query_legal_rag_vertex(question)
         if not res.get("error") and res.get("n_matches"):
+            if fallos:
+                res["_fallback_desde"] = fallos
             return res
-        _why = res.get("error") or "vertex_sin_resultados"
+        fallos.append(res.get("error") or "vertex_sin_resultados")
     except Exception as e:
-        _why = f"vertex_exc: {str(e)[:150]}"
+        fallos.append(f"vertex_exc: {str(e)[:150]}")
     fb = _query_legal_rag_pgvector(question, tool_context)
     if isinstance(fb, dict):
-        fb["_fallback_desde_vertex"] = _why
+        fb["_fallback_desde"] = fallos
+        fb["_fallback_desde_vertex"] = fallos[-1] if fallos else None
     return fb
 
 
