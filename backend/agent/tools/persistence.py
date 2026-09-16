@@ -376,7 +376,9 @@ def persist_doc_flags_as_banderas(alerta_codigo: str, tool_context: ToolContext)
     # "ISO 19798 impresora" en un contrato de equipos de laboratorio). Si el legal no
     # produjo banderas, no se persiste ninguna documental.
     if not red_flags:
-        return {"persistidas": 0, "mensaje": "Sin red_flags del legal_analyst en state"}
+        # El legal corrió y no halló nada: limpiar las banderas documentales de la corrida anterior.
+        lim = _limpiar_banderas_agente(alerta_codigo, "document_legal_analyst_agent", state) if state.get("legal_analysis") else {}
+        return {"persistidas": 0, "mensaje": "Sin red_flags del legal_analyst en state", **lim}
 
     # Normalizar alerta_codigo: si vino el OCID completo, convertir a OECE-XXXX
     raw_codigo = (alerta_codigo or "").strip()
@@ -679,7 +681,8 @@ def persist_market_flags_as_banderas(alerta_codigo: str, tool_context: ToolConte
             })
 
     if not banderas_a_persistir:
-        return {"persistidas": 0, "mensaje": "Sin hallazgos de sobreprecio o spec restrictiva en market_analysis"}
+        lim = _limpiar_banderas_agente(alerta_codigo, "market_price_agent", state)
+        return {"persistidas": 0, "mensaje": "Sin hallazgos de sobreprecio o spec restrictiva en market_analysis", **lim}
 
     # Normalizar alerta_codigo
     raw_codigo = (alerta_codigo or "").strip()
@@ -1266,6 +1269,37 @@ def _banderas_investigacion(state: dict) -> list[dict]:
                         "fuente_url": url_ok, "agente_origen": agente, "confianza": conf or estado})
     return out
 
+
+
+def _limpiar_banderas_agente(alerta_codigo: str, agente: str, state: dict) -> dict:
+    """Idempotencia cuando un agente corrió y NO produjo banderas: borra las suyas de la corrida
+    anterior y recalcula el score (sin esto quedaban banderas obsoletas — 1225416: sobreprecio de
+    lote +17 % de una corrida vieja con un mercado nuevo en +0.6 %)."""
+    raw_codigo = (alerta_codigo or "").strip()
+    if raw_codigo.startswith("ocds-"):
+        raw_codigo = "OECE-" + _short_ocid(raw_codigo)
+    if raw_codigo and not raw_codigo.startswith("OECE-") and raw_codigo.isdigit():
+        raw_codigo = f"OECE-{raw_codigo}"
+    try:
+        conn = _pg()
+    except Exception as e:  # noqa: BLE001
+        return {"limpiadas": 0, "error": str(e)[:120]}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM alertas WHERE codigo=%s", (raw_codigo,))
+        row = cur.fetchone()
+        if not row:
+            return {"limpiadas": 0}
+        cur.execute("DELETE FROM banderas WHERE alerta_id=%s AND agente_origen=%s", (row[0], agente))
+        n = cur.rowcount
+        if n:
+            _recalcular_score(cur, row[0], state)
+        conn.commit()
+        return {"limpiadas": int(n or 0)}
+    except Exception as e:  # noqa: BLE001
+        return {"limpiadas": 0, "error": str(e)[:120]}
+    finally:
+        conn.close()
 
 def _norma_slug(s: str) -> str:
     import unicodedata
