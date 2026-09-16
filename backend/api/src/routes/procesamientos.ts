@@ -4,7 +4,7 @@
  *
  *   GET /financiamiento/procesamientos?ubigeo=15&codigo=VIG-2026-00002&estado=procesando&limit=100
  *   GET /financiamiento/procesamientos/resumen        conteo por estado + procesados hoy + activos (fase, segundos)
- *                                                     + lote de ingesta en curso + descargados 24 h + agentes activos
+ *                                                     + lote de ingesta en curso + documentos descargados (7 días) + en revisión + agentes activos
  *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}] + fases + resultado
  *                                                     (score, señales, mercado, documentos leídos) + estimado (mediana)
  *
@@ -20,6 +20,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import reglasJson from "../data/reglas.json" with { type: "json" };
+import { motivosDesdeEval, umbralesSelfEval } from "./admin_revision.js";
 
 export const procesamientosRouter = new Hono();
 
@@ -69,7 +71,17 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
   CASE WHEN jsonb_typeof(a.analisis_full->'recortes') = 'array' THEN jsonb_array_length(a.analisis_full->'recortes') ELSE 0 END AS recortes,
   CASE WHEN jsonb_typeof(a.analisis_full->'validaciones_pendientes') = 'array' THEN a.analisis_full->'validaciones_pendientes' ELSE '[]'::jsonb END AS "validacionesPendientes",
   a.analisis_full->'self_evals'->'pct' AS autoevaluacion,
-  (a.dictamen_markdown IS NOT NULL AND length(a.dictamen_markdown) > 200) AS "dictamenListo"
+  (a.dictamen_markdown IS NOT NULL AND length(a.dictamen_markdown) > 200) AS "dictamenListo",
+  -- U5: perfil del pipeline, costo/tokens del análisis y modelo usado (para "versión del pipeline")
+  a.analisis_full->>'perfil' AS perfil,
+  CASE WHEN jsonb_typeof(a.analisis_full->'llm_metrics') = 'object' THEN json_build_object(
+    'costoUsd', (a.analisis_full->'llm_metrics'->>'cost_usd')::float,
+    'llamadas', (a.analisis_full->'llm_metrics'->>'n_llm_calls')::int,
+    'tokens', (a.analisis_full->'llm_metrics'->>'tokens_total')::int) ELSE NULL END AS costo,
+  (SELECT u->>'modelo' FROM jsonb_array_elements(COALESCE(a.analisis_full->'document_analysis'->'documentos', '[]'::jsonb)) d,
+          jsonb_array_elements(COALESCE(d->'usos', '[]'::jsonb)) u WHERE u->>'modelo' IS NOT NULL LIMIT 1) AS modelo,
+  CASE WHEN jsonb_typeof(a.analisis_full->'compliance_resumen_det') = 'object'
+       THEN a.analisis_full->'compliance_resumen_det'->'reglas' ELSE NULL END AS "reglasDisparadas"
   FROM alertas a WHERE a.id = $1`;
 
 const ORDER = `ORDER BY CASE estado WHEN 'procesando' THEN 0 WHEN 'encolado' THEN 1 WHEN 'procesado' THEN 2 WHEN 'error' THEN 3 ELSE 4 END,
@@ -116,7 +128,7 @@ async function hayLotesIngesta(): Promise<boolean> {
 }
 
 procesamientosRouter.get("/resumen", async (c) => {
-  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado] = await Promise.all([
+  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado, docs7d, revision] = await Promise.all([
     pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
     pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
     pool.query(
@@ -148,9 +160,16 @@ procesamientosRouter.get("/resumen", async (c) => {
       }
     })(),
     pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null),
+    // Documentos del SEACE bajados por el lote nocturno en los últimos 7 días (no son contratos nuevos).
+    pool.query(`SELECT count(*)::int AS n, count(DISTINCT ocid)::int AS contratos FROM documentos_gcs WHERE creado_at >= now() - interval '7 days'`)
+      .then((q) => q.rows[0]).catch(() => ({ n: 0, contratos: 0 })),
+    // Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
+    pool.query(`SELECT count(*)::int AS n FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
+                WHERE p.estado = 'procesado' AND a.estado = 'revision'`).then((q) => q.rows[0].n as number).catch(() => 0),
   ]);
-  const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0 };
+  const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0 };
   for (const x of r.rows) porEstado[x.estado] = x.n;
+  porEstado.revision = revision;
   const agentesActivos = Array.from(new Set(
     activos.rows.map((a) => a.faseActual as string | null).filter((f): f is string => !!f && f !== "started" && f !== "final"),
   ));
@@ -161,12 +180,28 @@ procesamientosRouter.get("/resumen", async (c) => {
     activos: activos.rows,
     lote,
     descargados24h: descargados.rows[0].n,
+    documentosDescargados7d: docs7d,
+    enRevision: revision,
     procesamientoActivo,
     documentosListos,
     pedidos,
     agentesActivos,
     estimado,
   });
+});
+
+// ─── GET /financiamiento/procesamientos/reglas?perfil=bienes ─────────────────────────────
+// Reglas deterministas por perfil (JSON estático generado por backend/scripts/exportar_reglas.py).
+procesamientosRouter.get("/reglas", (c) => {
+  const perfil = (c.req.query("perfil") ?? "").toLowerCase();
+  const perfiles = (reglasJson as any).perfiles as Record<string, unknown>;
+  cache(c, 3600);
+  if (perfil) {
+    const p = perfiles[perfil];
+    if (!p) return c.json({ error: "perfil_desconocido", perfiles: Object.keys(perfiles) }, 404);
+    return c.json({ version: (reglasJson as any).version, generadoAt: (reglasJson as any).generado_at, perfil, ...(p as object), otrasSenales: (reglasJson as any).otras_senales });
+  }
+  return c.json({ version: (reglasJson as any).version, generadoAt: (reglasJson as any).generado_at, perfiles, otrasSenales: (reglasJson as any).otras_senales });
 });
 
 procesamientosRouter.get("/:ocid", async (c) => {
@@ -186,11 +221,55 @@ procesamientosRouter.get("/:ocid", async (c) => {
   ]);
   // Motivo de la revisión humana: lo dejó la autoevaluación como warn en la bitácora.
   let revisionMotivo: string | null = null;
+  let revisionMotivos: RevisionMotivo[] = [];
   if (resultado?.estado === "revision") {
     const ev = (Array.isArray(row.eventos) ? row.eventos : []).find(
       (e: { kind?: string; name?: string; msg?: string | null }) => e.kind === "warn" && e.name === "self_eval" && /REVISI/i.test(e.msg ?? ""));
     revisionMotivo = ev?.msg?.replace(/^.*?\(no publicada\):\s*/i, "") ?? null;
+    revisionMotivos = await motivosRevision(alertaId).catch(() => []);
   }
   cache(c, 3);
-  return c.json({ ...row, resultado: resultado ? { ...resultado, revisionMotivo } : null, estimado });
+  return c.json({ ...row, resultado: resultado ? { ...resultado, revisionMotivo, revisionMotivos } : null, estimado });
 });
+
+// ─── Motivos de revisión humana en lenguaje claro (públicos, sin el texto de los jueces) ──
+// Reutiliza el port de tools/self_eval.debe_bloquear de admin_revision.ts y los umbrales de ajustes.self_eval.
+export interface RevisionMotivo { clave: string; titulo: string; detalle: string; valor: number | null; umbral: number | null; reglas?: string[]; reglasEtiquetas?: string[] }
+
+/** Etiqueta humana de una regla (reglas.json: perfiles + otras señales); cae al id legible. */
+function etiquetaRegla(id: string): string {
+  const rj = reglasJson as any;
+  for (const p of Object.values(rj.perfiles ?? {}) as any[]) {
+    const r = (p.reglas ?? []).find((x: any) => x.id === id);
+    if (r) return r.etiqueta;
+  }
+  return rj.otras_senales?.[id]?.etiqueta ?? id.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase());
+}
+
+const TITULOS: Record<string, { titulo: string; detalle: (v: number | null, u: number | null) => string }> = {
+  respaldo: { titulo: "Evidencia insuficiente", detalle: (v, u) => `Solo el ${pct100(v)} de las señales tiene evidencia localizable en el expediente, el registro OCDS o las fuentes oficiales (mínimo ${pct100(u)}).` },
+  tono: { titulo: "Tono del dictamen", detalle: () => "El dictamen usa un tono acusatorio. Vigía publica señales de riesgo, no acusaciones: una persona lo ajusta antes de publicar." },
+  coherencia: { titulo: "Señales y objeto no coinciden", detalle: () => "Lo que describen los ítems o las señales no es coherente con el objeto del contrato." },
+  cita: { titulo: "Señales sin norma o fuente citada", detalle: (v, u) => `Solo el ${pct100(v)} de las señales cita norma y fuente; se exige al menos ${pct100(u)}.` },
+  precio: { titulo: "Comparación de precios dudosa", detalle: (v, u) => `Solo el ${pct100(v)} de las comparaciones con el mercado resultó plausible (mínimo ${pct100(u)}).` },
+  urls: { titulo: "Datos no verificables", detalle: () => "Alguna URL, RUC o fecha citada no se pudo comprobar en fuentes oficiales." },
+};
+const pct100 = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)} %`);
+
+/** Explica por qué la autoevaluación bloqueó la publicación (misma regla que el admin, sin texto sensible). */
+export async function motivosRevision(alertaId: string): Promise<RevisionMotivo[]> {
+  const r = await pool.query(`SELECT analisis_full->'self_evals' AS se FROM alertas a WHERE a.id = $1`, [alertaId]);
+  const se = r.rows[0]?.se ?? null;
+  if (!se || typeof se !== "object") return [];
+  const u = (await umbralesSelfEval()).valor;
+  const out: RevisionMotivo[] = motivosDesdeEval(se, u).map((m) => {
+    const t = TITULOS[m.clave];
+    const reglas = m.clave === "respaldo" && Array.isArray(se.per_bandera)
+      ? se.per_bandera.filter((b: any) => b && b.respaldada === false && b.regla).map((b: any) => String(b.regla))
+      : undefined;
+    return { clave: m.clave, titulo: t?.titulo ?? m.clave, detalle: t ? t.detalle(m.valor ?? null, m.umbral ?? null) : m.texto,
+             valor: m.valor ?? null, umbral: m.umbral ?? null, ...(reglas?.length ? { reglas, reglasEtiquetas: reglas.map(etiquetaRegla) } : {}) };
+  });
+  if (!out.length) out.push({ clave: "general", titulo: "Autoevaluación por debajo del umbral", detalle: "Alguno de los 8 evaluadores (4 jueces independientes + 4 comprobaciones en código) no alcanzó el mínimo para publicar. Una persona revisa el análisis antes de decidir.", valor: null, umbral: null });
+  return out;
+}

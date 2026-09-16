@@ -24,6 +24,8 @@ import {
   getZona,
   ESTADO_FILL,
   ESTADO_LABEL,
+  alcanceCorto,
+  alcanceLargo,
   formatPEN,
   pct,
   type ZonaDetalle,
@@ -34,6 +36,7 @@ import { EntidadesDeZona } from "./EntidadesDeZona";
 import { AlertasDeZona } from "./AlertasDeZona";
 import { belongsToRegion } from "./region-match";
 import { ContratosLista, useMapaContratos } from "@/components/contratos/ContratosLista";
+import { SeguirZonaBoton } from "./SeguirZonaBoton";
 
 export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias" | "presupuesto";
 
@@ -114,12 +117,16 @@ export function ZonaHubPanel({
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-clay">Región</div>
           <h3 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
-          {zona && (
-            <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-mute">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[zona.estado] }} />
-              {ESTADO_LABEL[zona.estado]}
-            </div>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {zona && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[zona.estado] }} />
+                {ESTADO_LABEL[zona.estado]}
+              </span>
+            )}
+            {/* Solo con sesión (sin sesión el panel es idéntico sin este botón) */}
+            <SeguirZonaBoton ubigeo={ubigeo} nombre={nombre} />
+          </div>
         </div>
         {onClose && (
           <button
@@ -160,7 +167,18 @@ export function ZonaHubPanel({
       )}
 
       {/* Tabs */}
-      <div className="scrollbar-none flex shrink-0 items-stretch overflow-x-auto border-b border-line bg-paperSoft">
+      <div
+        className="scrollbar-none flex shrink-0 items-stretch overflow-x-auto border-b border-line bg-paperSoft"
+        role="tablist"
+        aria-label="Secciones de la zona"
+        onKeyDown={(e) => {
+          // ← → mueven el foco/pestaña (WAI-ARIA tabs)
+          const orden: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
+          const i = orden.indexOf(tab);
+          if (e.key === "ArrowRight") { e.preventDefault(); setTab(orden[(i + 1) % orden.length]); }
+          if (e.key === "ArrowLeft") { e.preventDefault(); setTab(orden[(i - 1 + orden.length) % orden.length]); }
+        }}
+      >
         <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={<LineChart size={12} />}>
           Resumen
         </TabBtn>
@@ -197,7 +215,7 @@ export function ZonaHubPanel({
       </div>
 
       {/* Contenido */}
-      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4">
+      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel">
         {tab === "resumen" && (
           <ResumenTab
             nombre={nombre}
@@ -292,11 +310,16 @@ function ResumenTab({
         ) : zona ? (
           <>
             <div className="mt-3 grid grid-cols-4 gap-1.5">
-              <MiniKpi label="En cola" value={zona.totalCola} tone="ink" />
+              <MiniKpi label="En cola" value={zona.totalCola} tone="ink" title={`Contratos en cola: ${alcanceCorto(detalle?.alcance)}`} />
               <MiniKpi label="Financiados" value={zona.financiados} tone="amber" />
               <MiniKpi label="Procesados" value={zona.procesados} tone="moss" />
-              <MiniKpi label="Señales" value={zona.senales} tone="rust" />
+              <MiniKpi label="Señales" value={zona.senales} tone="rust" title="Contratos con dictamen publicado y al menos una señal de riesgo" />
             </div>
+            <AlcanceNota
+              alcance={detalle?.alcance}
+              documentosListos={zona.documentosListos ?? 0}
+              enRevision={zona.enRevision ?? 0}
+            />
             {zona.totalCola > 0 ? (
               <div className="mt-3">
                 <div className="flex justify-between text-[10px] text-mute">
@@ -340,8 +363,8 @@ function ResumenTab({
               <Heart size={15} />
             </span>
             <span className="leading-tight">
-              <span className="block text-sm font-semibold">Financiar auditoría de {nombre}</span>
-              <span className="block text-[10px] text-paper/60">Capacidad de lectura, no resultados</span>
+              <span className="block text-sm font-semibold">Financiar esta zona</span>
+              <span className="block text-[10px] text-paper/60">{nombre} · elige cuántos contratos y paga en 2 pasos</span>
             </span>
           </span>
           <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-0.5" />
@@ -463,7 +486,7 @@ function ColaTab({
         <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">Qué hay en la cola</h4>
         {zona.totalCola > 0 ? (
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm">
-            <Row k="Contratos" v={`${cola.contratos.toLocaleString("es-PE")}`} />
+            <Row k={`Contratos en cola (${alcanceCorto(detalle.alcance)})`} v={`${cola.contratos.toLocaleString("es-PE")}`} />
             <Row k="Monto contratado" v={cola.montoReferencial > 0 ? formatPEN(cola.montoReferencial) : "—"} />
             <Row k="Entidades" v={`${cola.entidades.toLocaleString("es-PE")}`} />
             <Row k="Costo de auditarla" v={costoTotal > 0 ? formatPEN(costoTotal) : "—"} />
@@ -473,6 +496,11 @@ function ColaTab({
             Todavía no ingresamos contratos de {nombre}. La ingesta diaria del OECE los irá sumando.
           </p>
         )}
+        <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-dashed border-line pt-2.5 text-sm">
+          <Row k="Documentos listos (otros tipos, análisis en preparación)" v={`${(cola.documentosListos ?? 0).toLocaleString("es-PE")}`} />
+          <Row k="En revisión humana" v={`${(zona.enRevision ?? 0).toLocaleString("es-PE")}`} />
+        </dl>
+        <AlcanceDetails alcance={detalle.alcance} />
         <p className="mt-3 text-[10px] leading-relaxed text-mute">
           Se procesan en orden de llegada. Quien financia no elige cuáles.
           {zona.totalCola - zona.financiados > 0
@@ -655,13 +683,17 @@ function TabBtn({
 }) {
   return (
     <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn(
-        "relative flex flex-1 items-center justify-center gap-1 px-1 py-2.5 text-[11px] font-medium transition-colors",
+        "relative flex flex-1 items-center justify-center gap-1 px-1 py-2.5 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay",
         active ? "text-ink" : "text-mute hover:text-ink",
       )}
     >
-      <span className={active ? "text-clay" : ""}>{icon}</span>
+      <span className={active ? "text-clay" : ""} aria-hidden>{icon}</span>
       <span>{children}</span>
       {count !== undefined && count > 0 && (
         <span
@@ -678,18 +710,62 @@ function TabBtn({
   );
 }
 
+/** Explica qué entra hoy a la cola y qué espera (otros tipos con documentos listos, revisión humana). */
+function AlcanceNota({
+  alcance,
+  documentosListos,
+  enRevision,
+}: {
+  alcance: ZonaDetalle["alcance"] | undefined;
+  documentosListos: number;
+  enRevision: number;
+}) {
+  return (
+    <div className="mt-2 space-y-1 text-[10px] leading-relaxed text-mute">
+      <p>
+        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>.
+        {documentosListos > 0 && (
+          <>
+            {" "}Además, <strong className="text-ink">{documentosListos.toLocaleString("es-PE")}</strong> contrato{documentosListos === 1 ? "" : "s"} de otros tipos ya
+            {documentosListos === 1 ? " tiene" : " tienen"} documentos listos (análisis en preparación).
+          </>
+        )}
+        {enRevision > 0 && (
+          <>
+            {" "}<strong className="text-clay">{enRevision}</strong> procesado{enRevision === 1 ? "" : "s"} en revisión humana (no cuenta{enRevision === 1 ? "" : "n"} como señal).
+          </>
+        )}
+      </p>
+      <AlcanceDetails alcance={alcance} />
+    </div>
+  );
+}
+
+function AlcanceDetails({ alcance }: { alcance: ZonaDetalle["alcance"] | undefined }) {
+  return (
+    <details className="group text-[10px] text-mute">
+      <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
+        ¿Qué se analiza hoy?
+      </summary>
+      <p className="mt-1 leading-relaxed">{alcanceLargo(alcance)}</p>
+    </details>
+  );
+}
+
 function MiniKpi({
   label,
   value,
   tone,
+  title,
 }: {
   label: string;
   value: number;
   tone: "ink" | "amber" | "moss" | "rust";
+  title?: string;
 }) {
   const accent = { ink: "text-ink", amber: "text-amber", moss: "text-moss", rust: "text-rust" }[tone];
   return (
-    <div className="rounded-lg bg-paperDeep px-2 py-1.5">
+    <div className="rounded-lg bg-paperDeep px-2 py-1.5" title={title}>
       <div className={cn("font-mono text-base font-bold leading-tight tabular-nums", accent)}>
         {value.toLocaleString("es-PE")}
       </div>

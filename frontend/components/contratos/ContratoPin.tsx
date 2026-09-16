@@ -2,25 +2,52 @@
 
 /**
  * Punto agregado de contratos por zona sobre el mapa (PeruChoropleth).
- * Radio ∝ √total · color por % con señales de riesgo · anillo cuando está seleccionado.
+ * Radio ∝ √total · color por ESTADO OPERATIVO dominante (plan 2026-09-16 · U1) · anillo cuando está seleccionado.
  * Las coordenadas ya vienen proyectadas (px, py) y `zoom` mantiene el tamaño visual al hacer zoom.
+ *
+ * Estados (mismo vocabulario que EstadoPill / lib/auditoria): sin analizar · documentos listos ·
+ * en cola · procesado · en revisión. Los colores salen de los tokens del tema (tailwind.config):
+ * mute / inkSoft / amber / moss / clay. Las señales se ven en la capa de alertas, no acá.
  */
 
 import type { ContratoZona } from "@/lib/contratos";
 
-export const COLOR_SIN_SENALES = "#5B6B7A";   // gris azulado: contratos sin analizar
-export const COLOR_SENAL_BAJA = "#C28840";    // ámbar: algunas señales
-export const COLOR_SENAL_ALTA = "#8B2A1E";    // rojo: muchas señales
+export type EstadoOperativoZona = "sin_analizar" | "documentos_listos" | "en_cola" | "procesado" | "en_revision";
+
+export const COLOR_ESTADO: Record<EstadoOperativoZona, string> = {
+  sin_analizar: "#9AA3AE",        // mute claro: nada descargado ni analizable aún
+  documentos_listos: "#3A4048",   // inkSoft: expediente en el almacén, análisis en preparación
+  en_cola: "#BE7B26",             // amber: financiable hoy (bienes con adjudicación)
+  procesado: "#3F7D43",           // moss: dictamen publicado
+  en_revision: "#B26A2E",         // clay: procesado, espera revisión humana
+};
+export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
+  sin_analizar: "Sin analizar",
+  documentos_listos: "Documentos listos · análisis en preparación",
+  en_cola: "En cola · financiable hoy",
+  procesado: "Procesado",
+  en_revision: "En revisión humana",
+};
 export const COLOR_SELECCION = "#1B1611";
 
-/** Color según la proporción de contratos con señales (score ≥ 40) sobre los procesados. */
-export function colorPorSenales(z: Pick<ContratoZona, "procesados" | "conSenales">): string {
-  if (!z.procesados) return COLOR_SIN_SENALES;
-  const p = z.conSenales / z.procesados;
-  if (p >= 0.5) return COLOR_SENAL_ALTA;
-  if (p > 0) return COLOR_SENAL_BAJA;
-  return "#3F7D43";                             // procesados sin señales: verde
+/**
+ * Estado operativo dominante de una zona. Prioridad: lo ya hecho (procesado / en revisión) →
+ * lo financiable (en cola) → lo que espera análisis (documentos listos) → nada.
+ * Una zona "procesada" a la vista es una donde ya se publicó al menos un dictamen; si TODO lo
+ * procesado está en revisión, se pinta como tal para no ocultar el freno humano.
+ */
+export function estadoDominante(z: Pick<ContratoZona, "procesados" | "enRevision" | "enCola" | "documentosListos">): EstadoOperativoZona {
+  const procesados = z.procesados ?? 0, revision = z.enRevision ?? 0;
+  if (procesados > 0) return revision >= procesados ? "en_revision" : "procesado";
+  if ((z.enCola ?? 0) > 0) return "en_cola";
+  if ((z.documentosListos ?? 0) > 0) return "documentos_listos";
+  return "sin_analizar";
 }
+
+export const colorPorEstado = (z: Parameters<typeof estadoDominante>[0]): string => COLOR_ESTADO[estadoDominante(z)];
+
+/** @deprecated usa colorPorEstado — se mantiene por compatibilidad con importadores viejos. */
+export const colorPorSenales = colorPorEstado;
 
 /** Radio en unidades del viewBox (480×700): 2.2 … 11, proporcional a √total. */
 export function radioPorTotal(total: number, maxTotal: number): number {
@@ -70,23 +97,18 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, h
   );
 }
 
-/** Leyenda compacta de la capa Contratos (para el cuadro de leyenda del mapa). */
+/** Leyenda compacta de la capa Contratos (para el cuadro de leyenda del mapa): los 5 estados operativos. */
 export function ContratoPinLeyenda() {
-  const rows: [string, string][] = [
-    [COLOR_SIN_SENALES, "Sin analizar"],
-    ["#3F7D43", "Procesados, sin señal"],
-    [COLOR_SENAL_BAJA, "Con algunas señales"],
-    [COLOR_SENAL_ALTA, "Mayoría con señales"],
-  ];
+  const orden: EstadoOperativoZona[] = ["sin_analizar", "documentos_listos", "en_cola", "procesado", "en_revision"];
   return (
     <div className="space-y-0.5 text-[9px] text-mute">
-      {rows.map(([c, l]) => (
-        <div key={l} className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: c, opacity: 0.85 }} />
-          <span>{l}</span>
+      {orden.map((e) => (
+        <div key={e} className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COLOR_ESTADO[e], opacity: 0.85 }} />
+          <span>{ESTADO_OPERATIVO_LABEL[e]}</span>
         </div>
       ))}
-      <div className="pt-0.5 text-[9px] text-mute">Tamaño = cantidad de contratos</div>
+      <div className="pt-0.5 text-[9px] text-mute">Tamaño = cantidad de contratos · color = estado predominante de la zona</div>
     </div>
   );
 }

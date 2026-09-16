@@ -21,12 +21,17 @@
  *   GET   /admin/clasificacion/resumen                 tipo × etapa × procesable + motivos (migración 13)
  *   GET   /admin/cobertura                             por mes: record completo, docs vigentes en GCS, análisis; lotes (migración 16)
  *   GET   /admin/pedidos · POST /admin/pedidos/:id/reintentar   pedidos de descarga (migración 15)
+ *   + admin_revision.ts  (/revision, /alertas/:id/estado, /config/self_eval)
+ *   + admin_operacion.ts (/operacion, /procesamientos/:ocid/reanalizar, /cobertura/progreso)
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { storage } from "../lib/storage.js";
+import { actor, log } from "../lib/adminlog.js";
+import { adminRevisionRouter } from "./admin_revision.js";
+import { adminOperacionRouter } from "./admin_operacion.js";
 
 export const adminRouter = new Hono();
 
@@ -37,14 +42,11 @@ adminRouter.use("*", async (c, next) => {
   await next();
 });
 
-const actor = (c: any) => (c.req.header("x-admin-actor") ?? "admin").slice(0, 60);
-
-async function log(actorName: string, accion: string, objeto: string, detalle?: unknown) {
-  await pool.query("INSERT INTO admin_log (actor, accion, objeto, detalle) VALUES ($1,$2,$3,$4)",
-    [actorName, accion, objeto, detalle ? JSON.stringify(detalle) : null]);
-}
-
 adminRouter.get("/ping", (c) => c.json({ ok: true }));
+
+// U4: cola de revisión humana + umbrales (admin_revision.ts) y operación (admin_operacion.ts).
+adminRouter.route("/", adminRevisionRouter);
+adminRouter.route("/", adminOperacionRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {
@@ -61,7 +63,9 @@ adminRouter.get("/resumen", async (c) => {
         (SELECT count(*) FROM financiadores WHERE NOT visible)::int                                        AS "financiadoresOcultos",
         (SELECT count(*) FROM asignaciones)::int                                                          AS asignados,
         (SELECT count(*) FROM asignaciones WHERE procesada_at IS NOT NULL)::int                           AS procesados,
-        (SELECT count(*) FROM asignaciones WHERE alerta_id IS NOT NULL)::int                              AS "senales",
+        (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
+           WHERE alerta_publicada(a.estado) AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senales",
+        (SELECT count(*) FROM alertas WHERE estado = 'revision')::int                                     AS "enRevision",
         (SELECT count(*) FROM cola_auditoria)::int                                                        AS "colaGlobal",
         (SELECT count(*) FROM contribuciones WHERE estado IN ('pagada','en_proceso')
            AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id))::int AS "esperandoContratos"`),
@@ -76,7 +80,8 @@ adminRouter.get("/resumen", async (c) => {
     pool.query(`SELECT estado, count(*)::int AS n, COALESCE(sum(monto_pen),0)::float AS monto FROM contribuciones GROUP BY estado`),
     pool.query(`SELECT ubigeo, nombre, estado, pendientes, financiados, procesados, total_cola AS "totalCola"
                 FROM zona_estado WHERE nivel = 'departamento' AND total_cola > 0 ORDER BY total_cola DESC LIMIT 10`),
-    pool.query(`SELECT nombre, tipo, contratos_financiados AS "contratosFinanciados", contratos_procesados AS "contratosProcesados"
+    pool.query(`SELECT nombre, tipo, contratos_financiados AS "contratosFinanciados", contratos_procesados AS "contratosProcesados",
+                       senales_halladas AS "senalesHalladas", en_revision AS "enRevision"
                 FROM ranking_impacto ORDER BY contratos_financiados DESC LIMIT 5`),
   ]);
   return c.json({ kpi: kpi.rows[0], serie: serie.rows, porEstado: porEstado.rows, cola: cola.rows, top: top.rows });
@@ -373,19 +378,27 @@ adminRouter.post("/asignar", async (c) => {
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────
+// Perfil (servicio de agentes) que atiende cada tipo de contratación: mismo mapa que backend/dispatcher/main.py.
+const PERFIL_SQL = `CASE WHEN cv.tipo_contratacion IS NULL THEN NULL
+  WHEN cv.tipo_contratacion IN ('bienes','servicios','obras') THEN cv.tipo_contratacion ELSE 'otros' END`;
+
 adminRouter.get("/procesamientos", async (c) => {
   const url = new URL(c.req.url);
   const estado = url.searchParams.get("estado") ?? "";
+  const perfil = url.searchParams.get("perfil") ?? "";
   const vals: unknown[] = [];
-  let where = "";
-  if (["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento", "esperando_documentos"].includes(estado)) { vals.push(estado); where = `WHERE v.estado = $1`; }
+  const conds: string[] = [];
+  if (["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento", "esperando_documentos"].includes(estado)) { vals.push(estado); conds.push(`v.estado = $${vals.length}`); }
+  if (["bienes", "servicios", "obras", "otros"].includes(perfil)) { vals.push(perfil); conds.push(`${PERFIL_SQL} = $${vals.length}`); }
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const r = await pool.query(
     `SELECT v.ocid, v.estado, v.fase_actual AS "faseActual", v.fase_index AS "faseIndex", v.intentos,
             v.encolado_at AS "encoladoAt", v.iniciado_at AS "iniciadoAt", v.finalizado_at AS "finalizadoAt",
             v.contribucion_codigo AS "contribucionCodigo", v.financiador, v.financiador_visible AS "financiadorVisible",
             v.ubigeo, v.zona, v.titulo, v.entidad, v.monto_pen::float AS "montoPen", v.alerta_codigo AS "alertaCodigo", v.score, v.banderas::int,
+            v.alerta_estado AS "alertaEstado", cv.tipo_contratacion AS tipo, ${PERFIL_SQL} AS perfil,
             p.worker, p.error, p.latido_at AS "latidoAt", jsonb_array_length(p.eventos) AS eventos
-     FROM procesamientos_publico v JOIN procesamientos p ON p.ocid = v.ocid
+     FROM procesamientos_publico v JOIN procesamientos p ON p.ocid = v.ocid JOIN convocatorias cv ON cv.ocid = v.ocid
      ${where}
      ORDER BY CASE v.estado WHEN 'procesando' THEN 0 WHEN 'error' THEN 1 WHEN 'encolado' THEN 2 ELSE 3 END,
               COALESCE(v.finalizado_at, v.iniciado_at, v.encolado_at) DESC, v.ocid
@@ -398,7 +411,7 @@ adminRouter.get("/procesamientos", async (c) => {
 let coberturaCache: { at: number; body: unknown } | null = null;
 adminRouter.get("/cobertura", async (c) => {
   if (coberturaCache && Date.now() - coberturaCache.at < 60_000) return c.json(coberturaCache.body);
-  const [meses, lotes, docs, gcs] = await Promise.all([
+  const [meses, lotes, docs, gcs, fuentes] = await Promise.all([
     pool.query(`SELECT mes, contratos, con_record AS "conRecord", con_docs AS "conDocs", docs_publicados::int AS "docsPublicados",
                        docs_vigentes::int AS "docsVigentes", clasificados, analizados, en_cola AS "enCola"
                 FROM cobertura_resumen()`).catch(() => ({ rows: [] })),
@@ -411,8 +424,12 @@ adminRouter.get("/cobertura", async (c) => {
                 FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
     pool.query(`SELECT formato, count(*)::int AS n, COALESCE(sum(bytes),0)::bigint AS bytes FROM documentos_gcs
                 WHERE borrado_at IS NULL AND expira_at > now() GROUP BY formato ORDER BY n DESC`).catch(() => ({ rows: [] })),
+    // Fuentes externas (migración 23, vista datasets_cobertura): visitas, ONPE, JNE, DJI… una fila por fuente.
+    pool.query(`SELECT fuente, tabla, cargas::int, cargas_con_error::int AS "cargasConError", COALESCE(filas, 0)::bigint AS filas,
+                       ultima_clave AS "ultimaClave", ultima_descarga AS "ultimaDescarga", ultima_carga AS "ultimaCarga", ultimo_error AS "ultimoError"
+                FROM datasets_cobertura ORDER BY fuente`).catch(() => ({ rows: [] })),
   ]);
-  const body = { meses: meses.rows, lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, generadoAt: new Date().toISOString() };
+  const body = { meses: meses.rows, lotes: lotes.rows, documentos: docs, porFormato: gcs.rows, fuentes: fuentes.rows, generadoAt: new Date().toISOString() };
   coberturaCache = { at: Date.now(), body };
   return c.json(body);
 });

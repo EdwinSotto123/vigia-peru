@@ -8,7 +8,8 @@
  */
 
 import { API_BASE } from "./api-client";
-import type { Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
+import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
+export type { CitaDocumento };
 
 export type TipoContrato = "bienes" | "servicios" | "consultoria" | "obras" | "convenio" | "directa" | "otro";
 export type EtapaContrato =
@@ -67,6 +68,36 @@ export interface ContratoDocumento {
   enVigia?: boolean;
 }
 
+
+/** Postor leído del expediente (actas, cuadro comparativo) con su oferta. */
+export interface PostorContrato {
+  ruc: string | null;
+  razonSocial: string | null;
+  estado: string | null;            // admitido · descalificado · ganador · …
+  motivoEstado: string | null;
+  montoOferta: number | null;
+  puntaje: number | null;
+  esGanador: boolean;
+  ordenPrelacion: number | null;
+  item: string | null;
+  citas: CitaDocumento[];
+}
+
+/** Ítem tal como lo leyeron los agentes: precio ofertado/contratado vs. referencia OCDS. */
+export interface ItemAnalizado {
+  numero: string;
+  descripcion: string | null;
+  unidad: string | null;
+  cantidad: number | null;
+  precioUnitarioOfertado: number | null;
+  precioUnitarioContratado: number | null;
+  referenciaTotal: number | null;
+  referenciaUnitaria: number | null;
+  marca: string | null;
+  origenPrecio: string | null;
+  citas: CitaDocumento[];
+}
+
 export interface BanderaResumen {
   regla: string;
   severidad: "alta" | "media" | "baja";
@@ -95,8 +126,12 @@ export interface ContratoDetalle extends ContratoResumen {
   items: ContratoItem[];
   documentos: ContratoDocumento[];
   adjudicaciones: { id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null }[];
-  /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó. */
+  /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó.
+   *  Cada bandera trae `citas` (página del PDF citada) cuando el análisis legal la respalda. */
   alerta: (ResultadoAnalisis & { id: string }) | null;
+  /** U5: postores con ofertas e ítems con precio contratado, leídos del expediente por los agentes. */
+  postoresDetalle?: PostorContrato[];
+  itemsAnalizados?: ItemAnalizado[];
   procesamiento: Procesamiento | null;
   clasificacion: Clasificacion;
   /** Documentos vigentes en el almacén de Vigía (retención 90 días). null si la migración 15 no está. */
@@ -117,6 +152,11 @@ export interface ContratoZona {
   enProceso: number;
   procesados: number;
   conSenales: number;
+  /** Estado operativo (migración 19) sobre lo aún sin analizar: financiable hoy vs. documentos listos (análisis en preparación). */
+  enCola: number;
+  documentosListos: number;
+  /** Procesados cuya alerta quedó en revisión humana (no publicada). */
+  enRevision: number;
   montoPen: number;
 }
 
@@ -291,6 +331,10 @@ export interface ResumenProcesamientoVivo {
   activos: ProcesamientoActivo[];
   lote: LoteIngesta | null;
   descargados24h: number;
+  /** Documentos del SEACE bajados por el lote nocturno en los últimos 7 días (no son contratos nuevos). */
+  documentosDescargados7d?: { n: number; contratos: number } | null;
+  /** Procesados con alerta bloqueada por la autoevaluación (revisión humana). */
+  enRevision?: number;
   /** Migración 19: qué se analiza hoy y cuántos contratos tienen documentos listos. */
   procesamientoActivo: { tipos_activos: string[]; etapas_activas: string[]; nota?: string } | null;
   documentosListos: { n: number; contratos: number } | null;

@@ -13,6 +13,8 @@ import { contribucionesRouter } from "./routes/contribuciones.js";
 import { procesamientosRouter } from "./routes/procesamientos.js";
 import { adminRouter } from "./routes/admin.js";
 import { contratosRouter } from "./routes/contratos.js";
+import { cuentasRouter } from "./routes/cuentas.js";
+import { buscarRouter } from "./routes/buscar.js";
 
 const app = new Hono();
 
@@ -32,7 +34,7 @@ app.use("*", cors({
     if (ORIGIN_REGEX.test(origin)) return origin;
     return null; // rechaza
   },
-  allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization", "x-admin-token", "x-admin-actor"],
   maxAge: 600,
 }));
@@ -54,6 +56,8 @@ app.route("/financiamiento/procesamientos", procesamientosRouter); // antes de /
 app.route("/financiamiento", financiamientoRouter);
 app.route("/contribuciones", contribucionesRouter);
 app.route("/contratos", contratosRouter);
+app.route("/cuentas", cuentasRouter);
+app.route("/buscar", buscarRouter);
 app.route("/admin", adminRouter);
 
 // ─── Error handler ─────────────────────────────────────────────

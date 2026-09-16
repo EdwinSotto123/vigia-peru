@@ -16,12 +16,12 @@ import {
   FileSearch,
   Users,
   Heart,
-  LogOut,
   Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { signOut } from "@/lib/auth";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { BuscarGlobal } from "@/components/BuscarGlobal";
 import { FLAGS } from "@/lib/flags";
 
 type Item = {
@@ -124,7 +124,7 @@ const SECTIONS: Section[] = [
 
 export function DashboardSidebar() {
   const pathname = usePathname() || "";
-  const { user, userId, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
@@ -187,6 +187,11 @@ export function DashboardSidebar() {
             </span>
           </Link>
 
+          {/* Búsqueda global (⌘K) */}
+          <div className="mb-4">
+            <BuscarGlobal />
+          </div>
+
           {/* Nav agrupado */}
           <nav className="flex flex-col gap-5">
             {SECTIONS.map((section, i) => (
@@ -239,35 +244,8 @@ export function DashboardSidebar() {
                 </Link>
               </div>
             )}
-            {user && (
-              <div className="rounded-2xl border border-line bg-paper p-3">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-moss">
-                      Sesión activa
-                    </div>
-                    <div className="mt-0.5 truncate font-mono text-xs font-medium text-ink">
-                      {userId}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => signOut()}
-                    title="Cerrar sesión"
-                    className="shrink-0 rounded-lg border border-line bg-paperSoft p-1.5 text-rust hover:bg-paperDeep"
-                  >
-                    <LogOut size={13} />
-                  </button>
-                </div>
-              </div>
-            )}
-            {!user && !loading && (
-              <Link
-                href="/login"
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-xs font-medium text-ink hover:bg-paperDeep"
-              >
-                Iniciar sesión
-              </Link>
-            )}
+            {/* Un solo menú de usuario: Mi impacto · Configuración · Salir (o Entrar) */}
+            <UserMenu variant="sidebar" />
             <Link
               href="/"
               className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] text-mute hover:bg-paperDeep hover:text-ink"

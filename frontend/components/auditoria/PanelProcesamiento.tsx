@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Panel compacto de procesamiento en vivo: UNA franja de seis cifras y UNA fila
+ * Panel compacto de procesamiento en vivo: UNA franja de siete cifras y UNA fila
  * "ahora mismo" (contratos activos con fase y tiempo, agentes activos, lote de
  * ingesta si lo hay). Poll cada `pollMs` (5 s) solo con la pestaña visible.
  *
@@ -55,13 +55,18 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
   const e = data?.porEstado ?? {};
   const enCola = (e.encolado ?? 0) + (e.error ?? 0);
   const procesando = e.procesando ?? 0;
-  const cifras: { label: string; value: number; tone?: "amber" | "moss" | "rust" | "clay" }[] = [
-    { label: "Descargados 24 h", value: data?.descargados24h ?? 0 },
+  const enRevision = data?.enRevision ?? e.revision ?? 0;
+  const cifras: { label: string; value: number; tone?: "amber" | "moss" | "rust" | "clay"; title?: string }[] = [
+    { label: "Documentos (7 días)", value: data?.documentosDescargados7d?.n ?? 0,
+      title: `Documentos del SEACE bajados por el lote nocturno en los últimos 7 días${data?.documentosDescargados7d ? ` · ${data.documentosDescargados7d.contratos.toLocaleString("es-PE")} contratos` : ""}. No son contratos nuevos.` },
     { label: "En cola", value: enCola },
     { label: "Procesando", value: procesando, tone: procesando > 0 ? "amber" : undefined },
     { label: "Procesados hoy", value: data?.procesadosHoy ?? 0, tone: "moss" },
+    { label: "En revisión humana", value: enRevision, tone: enRevision > 0 ? "clay" : undefined,
+      title: "Procesados cuya autoevaluación bloqueó la publicación: una persona los revisa antes de publicarlos o descartarlos. Cuentan como procesados, no como señales." },
     { label: "Con error", value: e.error ?? 0, tone: (e.error ?? 0) > 0 ? "rust" : undefined },
-    { label: "Pendientes de procesamiento", value: e.pendiente_de_procesamiento ?? 0, tone: (e.pendiente_de_procesamiento ?? 0) > 0 ? "clay" : undefined },
+    { label: "Pendientes", value: e.pendiente_de_procesamiento ?? 0, tone: (e.pendiente_de_procesamiento ?? 0) > 0 ? "clay" : undefined,
+      title: "Pendientes de procesamiento: tipo o etapa sin análisis aplicable todavía." },
   ];
   const activos = data?.activos ?? [];
   const pedidos = data?.pedidos ?? null;
@@ -73,13 +78,13 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
   return (
     <div className="rounded-2xl border border-line bg-paper" aria-live="polite">
       {/* Franja de cifras */}
-      <div className="grid grid-cols-3 divide-x divide-line sm:grid-cols-6">
+      <div className="grid grid-cols-4 divide-x divide-line sm:grid-cols-7">
         {cifras.map((c) => (
-          <div key={c.label} className="px-3 py-2.5">
+          <div key={c.label} className="px-3 py-2.5" title={c.title}>
             <div className={cn("font-mono text-lg font-semibold leading-none tabular-nums", c.tone ? { amber: "text-amber", moss: "text-moss", rust: "text-rust", clay: "text-clay" }[c.tone] : "text-ink")}>
               {c.value.toLocaleString("es-PE")}
             </div>
-            <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-mute" title={c.label}>{c.label}</div>
+            <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-mute" title={c.title ?? c.label}>{c.label}</div>
           </div>
         ))}
       </div>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Logo } from "./Logo";
 import { UserMenu } from "./auth/UserMenu";
+import { BuscarGlobal } from "./BuscarGlobal";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,6 +63,7 @@ export function Header() {
         )}
 
         <div className="flex items-center gap-2">
+          {!isAuth && <BuscarGlobal variant="boton" />}
           <UserMenu />
           {showNav && (
             <Link

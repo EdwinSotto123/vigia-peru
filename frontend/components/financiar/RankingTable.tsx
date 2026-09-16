@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Building2, User, Users } from "lucide-react";
 import type { RankingRow } from "@/lib/financiamiento";
 
@@ -41,8 +42,7 @@ export function RankingTable({ rows, compact = false }: { rows: RankingRow[]; co
 
 export function Avatar({ tipo, logoUrl, nombre }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string }) {
   if (logoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logoUrl} alt={nombre} className="h-8 w-8 rounded-lg border border-line object-contain" />;
+    return <Image src={logoUrl} alt={nombre} width={32} height={32} className="h-8 w-8 rounded-lg border border-line object-contain" loading="lazy" unoptimized={!/^https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\//.test(logoUrl)} />;
   }
   const Icon = tipo === "empresa" ? Building2 : tipo === "organizacion" ? Users : User;
   return (

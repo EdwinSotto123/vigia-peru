@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { motivosRevision } from "./procesamientos.js";
 
 export const alertasRouter = new Hono();
 
@@ -130,6 +131,27 @@ alertasRouter.get("/analizadas", async (c) => {
 // Reemplaza al orquestador (action=load) para la NAVEGACIÓN. Lee analisis_full
 // (inmutable una vez analizado) del mismo Cloud SQL. Misma forma que
 // _load_analyzed → el adaptLoadedToUi del frontend lo consume sin cambios.
+// ─── GET /alertas/:codigo/revision — motivos públicos de la revisión humana ─────────────
+// Variante acotada de GET /admin/revision/:id: solo los motivos en lenguaje claro (sin el texto
+// de los jueces ni datos sensibles). Acepta código de alerta (OECE-…), uuid u OCID.
+alertasRouter.get("/:id/revision", async (c) => {
+  const id = c.req.param("id");
+  const r = await pool.query(
+    `SELECT a.id, a.codigo, a.estado, a.analizado_en AS "analizadoEn" FROM alertas a
+     WHERE a.codigo = $1 OR a.id::text = $1 OR (a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto($1))
+     ORDER BY a.analizado_en DESC NULLS LAST LIMIT 1`, [id]).catch(() => ({ rows: [] as any[] }));
+  const a = r.rows[0];
+  if (!a) return c.json({ error: "not_found" }, 404);
+  const motivos = a.estado === "revision" ? await motivosRevision(a.id).catch(() => []) : [];
+  c.header("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
+  return c.json({
+    codigo: a.codigo, estado: a.estado, analizadoEn: a.analizadoEn, enRevision: a.estado === "revision", motivos,
+    queSignifica: a.estado === "revision"
+      ? "El análisis terminó, pero la autoevaluación (4 jueces independientes + 4 comprobaciones en código) no alcanzó el umbral para publicarlo. Una persona lo revisa y decide publicar o descartar. Mientras tanto no cuenta como señal hallada."
+      : a.estado === "descartada" ? "Una persona revisó el análisis y decidió no publicarlo." : "Publicado.",
+  });
+});
+
 alertasRouter.get("/:id/full", async (c) => {
   const id = c.req.param("id");
   const r = await pool.query(

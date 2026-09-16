@@ -24,11 +24,29 @@ export interface Zona {
   financiados: number;
   contribuciones: number;
   procesados: number;
+  /** Contratos con alerta PUBLICADA y ≥ 1 bandera (las alertas en revisión no cuentan). */
   senales: number;
   totalCola: number;
   estado: ZonaEstado;
+  /** Procesados cuya alerta espera revisión humana (cuentan como procesados, no como señales). */
+  enRevision?: number;
+  /** Contratos de tipos/etapas aún NO activos con documentos vigentes (análisis en preparación). */
+  documentosListos?: number;
   precioPen: number;
   precioUsd: number;
+}
+
+/** Alcance activo del procesamiento (ajustes.procesamiento, migración 19). */
+export interface AlcanceProcesamiento {
+  tipos_activos: string[];
+  etapas_activas: string[];
+  nota?: string;
+}
+export interface Alcance {
+  procesamiento: AlcanceProcesamiento | null;
+  colaFinanciable: number;
+  documentosListos: number;
+  actualizadoAt: string | null;
 }
 
 export interface Aliado {
@@ -43,9 +61,10 @@ export interface Aliado {
 export interface ZonaDetalle {
   zona: Zona;
   breadcrumb: { ubigeo: string; nombre: string; nivel: NivelZona }[];
-  hijas: Pick<Zona, "ubigeo" | "nivel" | "nombre" | "pendientes" | "financiados" | "procesados" | "senales" | "totalCola" | "estado">[];
+  hijas: Pick<Zona, "ubigeo" | "nivel" | "nombre" | "pendientes" | "financiados" | "procesados" | "senales" | "totalCola" | "estado" | "enRevision" | "documentosListos">[];
   aliados: Aliado[];
-  cola: { contratos: number; montoReferencial: number; entidades: number };
+  cola: { contratos: number; montoReferencial: number; entidades: number; documentosListos?: number };
+  alcance?: AlcanceProcesamiento | null;
 }
 
 export interface RankingRow {
@@ -59,6 +78,7 @@ export interface RankingRow {
   zonas: number;
   senalesHalladas: number;
   contratosProcesados: number;
+  enRevision?: number;
   desde: string | null;
 }
 
@@ -69,11 +89,14 @@ export interface EstadoGlobal {
   regionesConAuditoria: number;
   contratosProcesados: number;
   senalesHalladas: number;
+  enRevision?: number;
   colaGlobal: number;
   regionesConCola: number;
+  documentosListos?: number;
   procesadosHoy: number;
   ingresadosHoy: number;
   tarifa: { precioPen: number; precioUsd: number; costoRealPen: number; nota: string | null };
+  alcance?: AlcanceProcesamiento | null;
 }
 
 export interface ContribucionReciente {
@@ -106,7 +129,7 @@ export interface Comprobante {
   tipo: Aliado["tipo"];
   slug: string | null;
   logoUrl: string | null;
-  resumen: { asignados: number; procesados: number; pendientes: number; senales: number; montoAuditado: number };
+  resumen: { asignados: number; procesados: number; pendientes: number; senales: number; contratosConSenal?: number; enRevision?: number; montoAuditado: number };
   detalle: ComprobanteContrato[];
 }
 
@@ -118,6 +141,7 @@ export interface ComprobanteContrato {
   valorReferencial: number | null;
   entidad: string | null;
   alertaCodigo: string | null;
+  alertaEstado?: string | null;
   score: number | null;
   severidad: string | null;
   banderas: number;
@@ -150,6 +174,33 @@ export const getPago = () => getJson<import("@/components/financiar/PaymentMetho
 
 export const getComprobante = (codigo: string) =>
   getJson<Comprobante>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30);
+
+export const getAlcance = () => getJson<Alcance>("/financiamiento/alcance", 60);
+
+// ─── Alcance activo en palabras ──────────────────────────────────────────────
+
+const TIPO_TXT: Record<string, string> = {
+  bienes: "bienes", servicios: "servicios", consultoria: "consultorías", obras: "obras", convenio: "convenios", directa: "contrataciones directas", otro: "otros",
+};
+const ETAPA_TXT: Record<string, string> = {
+  planificacion: "en planificación", convocada: "convocados", adjudicada: "adjudicados", contratada: "contratados", en_ejecucion: "en ejecución", finalizada: "finalizados",
+};
+const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+/** "bienes con adjudicación o contrato" — para etiquetar la cola financiable. */
+export function alcanceCorto(a: AlcanceProcesamiento | null | undefined): string {
+  if (!a) return "bienes con adjudicación";
+  const tipos = lista(a.tipos_activos.map((t) => TIPO_TXT[t] ?? t));
+  const cerrada = ["adjudicada", "contratada", "en_ejecucion", "finalizada"].every((e) => a.etapas_activas.includes(e))
+    && !a.etapas_activas.includes("convocada") && !a.etapas_activas.includes("planificacion");
+  return cerrada ? `${tipos} con adjudicación o contrato` : `${tipos} ${lista(a.etapas_activas.map((e) => ETAPA_TXT[e] ?? e))}`;
+}
+
+/** Explicación completa para el tooltip/<details> del alcance. */
+export function alcanceLargo(a: AlcanceProcesamiento | null | undefined): string {
+  if (!a) return "Hoy la cola financiable incluye solo contratos de bienes ya adjudicados o contratados.";
+  return `Hoy la cola financiable incluye solo ${alcanceCorto(a)}. Los demás contratos se descargan y clasifican igual: cuando sus documentos están en el almacén de Vigía aparecen como "documentos listos" y entrarán a la cola cuando su análisis se active.${a.nota ? ` ${a.nota}` : ""}`;
+}
 
 // ─── Helpers de presentación ─────────────────────────────────────────────────
 

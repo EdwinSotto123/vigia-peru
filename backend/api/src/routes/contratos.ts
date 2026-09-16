@@ -6,7 +6,8 @@
  *                 &riesgo=alto|medio|bajo|sin_analizar&orden=fecha|monto|score
  *       → { data: ContratoResumen[], total, page, size }
  *   GET /contratos/geo?nivel=distrito|provincia|departamento&ubigeo=15&tipo=&etapa=&riesgo=
- *       → { data: { ubigeo, nombre, nivel, lat, lon, total, sinAnalizar, procesados, conSenales }[] }
+ *       → { data: { ubigeo, nombre, nivel, lat, lon, total, sinAnalizar, procesados, conSenales, enCola, documentosListos, enRevision }[] }
+ *         (enCola / documentosListos = estado operativo de la migración 19 sobre lo aún sin analizar; conSenales solo cuenta alertas publicadas)
  *   GET /contratos/:ocid
  *       → ContratoResumen & { items, documentos, alerta, procesamiento, clasificacion }
  *
@@ -27,6 +28,16 @@ import { signReadUrl } from "../lib/storage.js";
 export const contratosRouter = new Hono();
 
 const cache = (c: Context, s: number) => c.header("Cache-Control", `public, s-maxage=${s}, stale-while-revalidate=30`);
+
+/** Lo que leyeron los agentes del expediente (analisis_full): postores con oferta, ítems con precio, citas con página. */
+const EXPEDIENTE_SQL = `SELECT
+  COALESCE(a.analisis_full->'document_analysis'->'postores_consolidados', '[]'::jsonb) AS postores,
+  COALESCE(a.analisis_full->'document_analysis'->'items_consolidados', '[]'::jsonb) AS items,
+  (SELECT COALESCE(jsonb_agg(jsonb_build_object('sha256', d->>'sha256', 'url', d->>'url', 'titulo', d->>'titulo')), '[]'::jsonb)
+     FROM jsonb_array_elements(COALESCE(a.analisis_full->'document_analysis'->'documentos', '[]'::jsonb)) d) AS documentos,
+  COALESCE(a.analisis_full->'legal_analysis'->'red_flags_documentales', '[]'::jsonb) AS "redFlags",
+  COALESCE(a.analisis_full->'legal_analysis'->'evidencia', '[]'::jsonb) AS "legalEvidencia"
+  FROM alertas a WHERE a.id = $1`;
 
 // ─── Columnas opcionales (migración 13) ──────────────────────────────────────
 const COLS_CLASIFICACION = [
@@ -174,7 +185,7 @@ const FROM_BASE = `
   FROM convocatorias c
   LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
   LEFT JOIN LATERAL (
-    SELECT a.id, a.codigo, a.score FROM alertas a
+    SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
     WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid)
     ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
   LEFT JOIN procesamientos p ON p.ocid = c.ocid
@@ -232,7 +243,7 @@ contratosRouter.get("/", async (c) => {
      FROM pag JOIN convocatorias c ON c.ocid = pag.ocid
      LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
      LEFT JOIN LATERAL (
-       SELECT a.id, a.codigo, a.score FROM alertas a
+       SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
        WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid)
        ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
      LEFT JOIN procesamientos p ON p.ocid = c.ocid
@@ -278,13 +289,17 @@ contratosRouter.get("/geo", async (c) => {
               count(*) FILTER (WHERE ${ex.estadoProc} = 'pendiente_de_procesamiento')::int AS pendientes,
               count(*) FILTER (WHERE ${ex.estadoProc} IN ('encolado','procesando'))::int AS "enProceso",
               count(*) FILTER (WHERE ${ex.estadoProc} = 'procesado')::int AS procesados,
-              count(*) FILTER (WHERE a.score >= 40)::int AS "conSenales",
+              count(*) FILTER (WHERE a.score >= 40 AND alerta_publicada(a.estado))::int AS "conSenales",
+              count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'en_cola')::int AS "enCola",
+              count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'documentos_listos')::int AS "documentosListos",
+              count(*) FILTER (WHERE a.estado = 'revision')::int AS "enRevision",
               COALESCE(sum(c.cuantia_referencial), 0)::float AS "montoPen"
        ${FROM_BASE}
        WHERE ${w.join(" AND ")}
        GROUP BY 1)
      SELECT agg.ubigeo, z.nombre, z.nivel, z.lat::float AS lat, z.lon::float AS lon,
-            agg.total, agg."sinAnalizar", agg.pendientes, agg."enProceso", agg.procesados, agg."conSenales", agg."montoPen"
+            agg.total, agg."sinAnalizar", agg.pendientes, agg."enProceso", agg.procesados, agg."conSenales",
+            agg."enCola", agg."documentosListos", agg."enRevision", agg."montoPen"
      FROM agg JOIN zonas z ON z.ubigeo = agg.ubigeo
      WHERE z.lat IS NOT NULL AND z.lon IS NOT NULL
      ORDER BY agg.total DESC`,
@@ -354,7 +369,7 @@ contratosRouter.get("/:ocid", async (c) => {
   const row = r.rows[0];
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
-  const [alerta, proc, docsGcs, pedido] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expediente] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     pool.query(
@@ -368,6 +383,8 @@ contratosRouter.get("/:ocid", async (c) => {
       .then((q) => q.rows as { urlOrigen: string; urlGcs: string; expiraAt: string }[]).catch(() => null),
     pool.query(`SELECT estado, solicitado_at AS "solicitadoAt" FROM pedidos_descarga WHERE ocid_corto(ocid) = ocid_corto($1) AND estado IN ('pendiente','descargando') LIMIT 1`, [row.ocid])
       .then((q) => q.rows[0] ?? null).catch(() => null),
+    // U5: postores con ofertas, ítems con precio contratado y citas con página (document_analysis / legal_analysis).
+    alerta_id ? pool.query(EXPEDIENTE_SQL, [alerta_id]).then((q) => q.rows[0] ?? null).catch(() => null) : Promise.resolve(null),
   ]);
 
   const items = (Array.isArray(items_raw) ? items_raw : []).map((it: any, i: number) => ({
@@ -404,13 +421,82 @@ contratosRouter.get("/:ocid", async (c) => {
     proveedorRuc: aw?.suppliers?.[0]?.id ? String(aw.suppliers[0].id).replace(/^PE-RUC-/, "") : null,
   }));
 
+  // ── U5: expediente leído por los agentes (postores, ítems con precio, citas con página) ──
+  const shaUrl = new Map<string, { url: string; titulo: string | null }>();
+  for (const d of (expediente?.documentos ?? []) as any[]) {
+    if (d?.sha256 && d?.url) shaUrl.set(String(d.sha256), { url: String(d.url), titulo: d.titulo ?? null });
+  }
+  const enVigiaUrls = new Set(documentos.filter((d) => d.enVigia).map((d) => d.url));
+  const cita = (e: any) => {
+    const doc = e?.documento_sha256 ?? e?.documento ?? null;
+    const ref = doc ? shaUrl.get(String(doc)) : null;
+    return { pagina: typeof e?.pagina === "number" ? e.pagina : null, cita: e?.cita ?? null, documentoUrl: ref?.url ?? null,
+             documentoTitulo: ref?.titulo ?? null, enVigia: ref ? enVigiaUrls.has(ref.url) : false, verificada: e?.verificada ?? null };
+  };
+  // Un postor puede aparecer varias veces (acta de admisión, cuadro comparativo, buena pro): se queda la fila más completa.
+  const postoresRaw = ((expediente?.postores ?? []) as any[]).map((p) => ({
+    ruc: p?.ruc ?? null, razonSocial: p?.razon_social ?? null, estado: p?.estado ?? null, motivoEstado: p?.motivo_estado ?? null,
+    montoOferta: typeof p?.monto_oferta === "number" ? p.monto_oferta : null, puntaje: p?.puntaje ?? null,
+    esGanador: p?.es_ganador === true, ordenPrelacion: p?.orden_prelacion ?? null, item: p?.item ?? null,
+    citas: (Array.isArray(p?.evidencia) ? p.evidencia : []).slice(0, 3).map(cita),
+  }));
+  const porClave = new Map<string, (typeof postoresRaw)[number]>();
+  for (const p of postoresRaw) {
+    const k = (p.ruc ?? "") || String(p.razonSocial ?? "").toLowerCase().replace(/\s+/g, " ").slice(0, 40);
+    const prev = porClave.get(k);
+    const score = (x: typeof p) => (x.montoOferta != null ? 2 : 0) + (x.esGanador ? 1 : 0) + (x.citas.length ? 1 : 0) + (x.estado ? 1 : 0);
+    if (!prev || score(p) > score(prev)) porClave.set(k, prev ? { ...prev, ...p, citas: p.citas.length ? p.citas : prev.citas, esGanador: prev.esGanador || p.esGanador } : p);
+  }
+  // Segunda pasada: filas sin RUC cuya razón social empieza igual que una con RUC ("CONSORCIO X integrado por…").
+  const normRazon = (t: unknown) => String(t ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const conRuc = [...porClave.values()].filter((p) => p.ruc);
+  const postores = [...porClave.values()].filter((p) => {
+    if (p.ruc) return true;
+    const r = normRazon(p.razonSocial);
+    const dueno = conRuc.find((q) => { const qr = normRazon(q.razonSocial); return qr.length >= 8 && r.startsWith(qr); });
+    if (!dueno) return true;
+    if (!dueno.citas.length && p.citas.length) dueno.citas = p.citas;
+    dueno.esGanador = dueno.esGanador || p.esGanador;
+    return false;
+  });
+  const itemsAnalizados = ((expediente?.items ?? []) as any[]).map((it, i) => {
+    const num = String(it?.numero ?? i + 1);
+    const ocds = items.find((x) => x.id === num || String(x.posicion) === num);
+    return {
+      numero: num, descripcion: it?.descripcion_corta ?? it?.descripcion ?? null, unidad: it?.unidad ?? null,
+      cantidad: typeof it?.cantidad === "number" ? it.cantidad : null,
+      precioUnitarioOfertado: typeof it?.precio_unitario_ofertado === "number" ? it.precio_unitario_ofertado : null,
+      precioUnitarioContratado: typeof it?.precio_unitario_contratado === "number" ? it.precio_unitario_contratado : null,
+      // referencia = valor referencial del ítem en OCDS (total) / cantidad, cuando se puede
+      referenciaTotal: ocds?.montoPen ?? null,
+      referenciaUnitaria: ocds?.montoPen != null && typeof it?.cantidad === "number" && it.cantidad > 0 ? ocds.montoPen / it.cantidad : null,
+      marca: it?.marca_ofertada ?? null, origenPrecio: it?.origen_precio ?? null,
+      citas: (Array.isArray(it?.evidencia) ? it.evidencia : []).slice(0, 2).map(cita),
+    };
+  });
+  // Señales del análisis legal → páginas citadas (se emparejan por el texto de la evidencia/descripción).
+  const norm = (t: unknown) => String(t ?? "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
+  const redFlags = ((expediente?.redFlags ?? []) as any[]).map((f) => ({ desc: norm(f?.descripcion), citas: (Array.isArray(f?.evidencia) ? f.evidencia : []).map(cita) }));
+  const legalEvid = ((expediente?.legalEvidencia ?? []) as any[]).map(cita);
+  const alertaRow = alerta?.rows[0] ?? null;
+  if (alertaRow && Array.isArray(alertaRow.banderas)) {
+    alertaRow.banderas = alertaRow.banderas.map((b: any) => {
+      const ev = norm(b?.evidencia);
+      const rf = ev ? redFlags.find((f) => f.desc && (ev.startsWith(f.desc.slice(0, 60)) || f.desc.startsWith(ev.slice(0, 60)))) : null;
+      const citas = rf?.citas?.length ? rf.citas : (b?.regla === "objeto_no_corresponde_documento" ? legalEvid.slice(0, 2) : []);
+      return { ...b, citas: citas.filter((x: any) => x.pagina != null || x.documentoUrl) };
+    });
+  }
+
   cache(c, 60);
   return c.json({
     ...resumen,
     items,
     documentos,
     adjudicaciones,
-    alerta: alerta?.rows[0] ?? null,
+    postoresDetalle: postores,
+    itemsAnalizados,
+    alerta: alertaRow,
     procesamiento: proc.rows[0] ?? null,
     documentosEnVigia: docsGcsResumen,
     pedidoDescarga: pedido,

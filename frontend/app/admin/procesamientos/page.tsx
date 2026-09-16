@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, RotateCcw, ExternalLink, Loader2, Play } from "lucide-react";
+import { RefreshCw, RotateCcw, ExternalLink, Loader2, Play, Repeat, Eye } from "lucide-react";
 import { AdminShell, Badge, Kpi } from "@/components/admin/AdminShell";
-import { adminFetch, fmtDate } from "@/lib/admin";
+import { adminFetch, fmtDate, PERFIL_LABEL } from "@/lib/admin";
 import { useDialog } from "@/components/admin/Dialog";
 
 /**
  * Monitor del dispatcher: qué contratos financiados están en cola, procesándose
- * o terminados, con worker, latido y error. Permite re-encolar uno.
- * Fuente: GET /api/admin/procesamientos · POST /api/admin/procesamientos/:ocid/reencolar
+ * o terminados, con worker, latido y error. Permite re-encolar uno, re-analizar un
+ * contrato ya terminado (≈ US$ 0.25, ~3 min; bloqueado si hay uno activo) y abrir su traza.
+ * Filtro por perfil (servicio de agentes): bienes / servicios / obras / otros.
+ * Fuente: GET /api/admin/procesamientos?estado=&perfil= · POST …/:ocid/reencolar · POST …/:ocid/reanalizar
  */
 
 type Estado = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento" | "esperando_documentos";
@@ -32,6 +34,10 @@ interface ProcAdmin {
   zona: string | null;
   titulo: string | null;
   entidad: string | null;
+  perfil: "bienes" | "servicios" | "obras" | "otros" | null;
+  tipo: string | null;
+  alertaEstado: string | null;
+  score: number | null;
 }
 
 const ESTADO_UI: Record<Estado, { label: string; cls: string }> = {
@@ -76,12 +82,27 @@ function normalize(r: any): ProcAdmin {
     zona: pick("zona"),
     titulo: pick("titulo", "objeto"),
     entidad: pick("entidad"),
+    perfil: pick("perfil"),
+    tipo: pick("tipo", "tipo_contratacion"),
+    alertaEstado: pick("alertaEstado", "alerta_estado"),
+    score: pick("score"),
   };
 }
+
+const PERFILES = ["bienes", "servicios", "obras", "otros"] as const;
+type Perfil = (typeof PERFILES)[number];
 
 export default function AdminProcesamientosPage() {
   const [rows, setRows] = useState<ProcAdmin[] | null>(null);
   const [tab, setTab] = useState<Estado | "todos">("todos");
+  const [perfil, setPerfil] = useState<Perfil | "todos">("todos");
+  // ?estado= y ?perfil= (enlaces desde /admin): se leen una vez en el cliente, sin useSearchParams (evita el Suspense del prerender).
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const e = sp.get("estado"), p = sp.get("perfil");
+    if (e && TABS.some((t) => t.k === e)) setTab(e as Estado);
+    if (p && (PERFILES as readonly string[]).includes(p)) setPerfil(p as Perfil);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -123,6 +144,22 @@ export default function AdminProcesamientosPage() {
     });
   }
 
+  function reanalizar(p: ProcAdmin) {
+    const activo = (rows ?? []).find((r) => r.estado === "procesando");
+    open({
+      title: `Re-analizar ${p.ocid}`, confirmLabel: activo ? "Hay uno en curso" : "Re-analizar", tone: "danger",
+      body: activo
+        ? <>No se puede lanzar ahora: <strong>{activo.ocid}</strong> está en análisis y el servicio de agentes devuelve 429 al segundo request concurrente. Espera a que termine.</>
+        : <>Vuelve a correr las 10 fases del pipeline sobre este contrato: <strong>≈ US$ 0.25</strong> y <strong>~3 min</strong> (hasta 10 si el expediente es pesado). La alerta actual se reemplaza al persistir la nueva; si estaba en revisión, seguirá en revisión hasta que la publiques. El dispatcher lo toma en su próxima corrida (cada 5 min).</>,
+      fields: activo ? [] : [{ name: "motivo", label: "Motivo (queda en la bitácora)", placeholder: "p. ej. se corrigió el parser de documentos", required: true }],
+      onConfirm: async (v) => {
+        if (activo) throw new Error("Espera a que termine el análisis en curso.");
+        await adminFetch(`/procesamientos/${encodeURIComponent(p.ocid)}/reanalizar`, { method: "POST", body: JSON.stringify({ motivo: v.motivo }) });
+        toast(`${p.ocid} re-encolado para re-análisis`); load();
+      },
+    });
+  }
+
   function reencolarErrores() {
     open({
       title: "Re-encolar todos los contratos con error", tone: "danger", confirmLabel: "Re-encolar todos",
@@ -150,9 +187,15 @@ export default function AdminProcesamientosPage() {
     return c;
   }, [rows]);
 
+  const porPerfil = useMemo(() => {
+    const c: Record<string, number> = { bienes: 0, servicios: 0, obras: 0, otros: 0 };
+    for (const r of rows ?? []) if (r.perfil) c[r.perfil] = (c[r.perfil] ?? 0) + 1;
+    return c;
+  }, [rows]);
+
   const visible = useMemo(
-    () => (rows ?? []).filter((r) => tab === "todos" || r.estado === tab),
-    [rows, tab],
+    () => (rows ?? []).filter((r) => (tab === "todos" || r.estado === tab) && (perfil === "todos" || r.perfil === perfil)),
+    [rows, tab, perfil],
   );
 
   return (
@@ -205,6 +248,16 @@ export default function AdminProcesamientosPage() {
           <ExternalLink size={12} /> Tablero público
         </Link>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-[11px] uppercase tracking-wide text-mute">Perfil</span>
+        <button onClick={() => setPerfil("todos")} className={`rounded-full px-3 py-1 ${perfil === "todos" ? "bg-ink text-paper" : "border border-line bg-paper text-mute hover:text-ink"}`}>Todos</button>
+        {PERFILES.map((pf) => (
+          <button key={pf} onClick={() => setPerfil(pf)} className={`rounded-full px-3 py-1 ${perfil === pf ? "bg-ink text-paper" : "border border-line bg-paper text-mute hover:text-ink"}`} title={PERFIL_LABEL[pf]}>
+            {PERFIL_LABEL[pf].split(" ")[0]} <span className="font-mono text-[10px] opacity-70">{porPerfil[pf] ?? 0}</span>
+          </button>
+        ))}
+        <span className="text-[11px] text-mute">· un servicio de agentes por perfil (agent-orchestrator-adk · agente-servicios · agente-obras · agente-otros)</span>
+      </div>
 
       <section className="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper">
         <table className="w-full min-w-[960px] text-sm">
@@ -243,11 +296,15 @@ export default function AdminProcesamientosPage() {
                   <div className="font-mono text-xs text-ink">{p.ocid}</div>
                   {p.titulo && <div className="mt-0.5 line-clamp-1 max-w-[320px] text-[11px] text-mute">{p.titulo}</div>}
                   <div className="text-[11px] text-mute">
-                    {[p.zona, p.contribucionCodigo, p.financiador].filter(Boolean).join(" · ")}
+                    {[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo, p.financiador].filter(Boolean).join(" · ")}
                   </div>
                 </td>
                 <td className="px-2 py-2">
                   <Badge cls={ESTADO_UI[p.estado]?.cls ?? "bg-paperDeep text-mute"}>{ESTADO_UI[p.estado]?.label ?? p.estado}</Badge>
+                  {p.estado === "procesado" && p.alertaEstado === "revision" && (
+                    <div className="mt-1"><Badge cls="bg-paperDeep text-clay">En revisión humana</Badge></div>
+                  )}
+                  {p.estado === "procesado" && p.score != null && <div className="mt-0.5 font-mono text-[10px] text-mute">score {p.score}</div>}
                 </td>
                 <td className="px-2 py-2 font-mono text-xs text-ink">
                   {p.faseActual ?? "—"}
@@ -265,9 +322,19 @@ export default function AdminProcesamientosPage() {
                       href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
                       target="_blank"
                       className="inline-flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-[11px] text-ink hover:bg-paperDeep"
+                      title="Carriles por agente + bitácora del procesamiento"
                     >
-                      <ExternalLink size={11} /> En vivo
+                      <Eye size={11} /> Ver traza
                     </Link>
+                    {(p.estado === "procesado" || p.estado === "error" || p.estado === "pendiente_de_procesamiento") && (
+                      <button
+                        onClick={() => reanalizar(p)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-[11px] text-ink hover:bg-paperDeep"
+                        title="Vuelve a correr el pipeline (≈ US$ 0.25, ~3 min)"
+                      >
+                        <Repeat size={11} /> Re-analizar
+                      </button>
+                    )}
                     {p.estado !== "procesado" && (
                       <button
                         onClick={() => reencolar(p)}

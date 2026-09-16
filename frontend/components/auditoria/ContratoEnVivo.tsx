@@ -20,7 +20,7 @@ import Link from "next/link";
 import { ChevronLeft, Landmark, ShieldCheck, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
-  PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, fasesEfectivas, haceCuanto, progresoFases,
+  AGENTES_PROGRESO, PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, getReglasPerfil, haceCuanto, progresoFases,
   type ProcesamientoDetalle,
 } from "@/lib/auditoria";
 import { Bitacora } from "./Bitacora";
@@ -208,6 +208,8 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
       </div>
 
+      {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
+
       <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
         <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
           <span>Bitácora</span>
@@ -285,4 +287,68 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       </div>
     </div>
   );
+}
+
+/**
+ * Ficha técnica del análisis terminado: tiempo por agente (de `fases`), costo y tokens
+ * (llm_metrics), modelo, perfil y versión de las reglas. Plegable para no estorbar.
+ */
+function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; fases: ReturnType<typeof fasesEfectivas>; duro: number | null; compacto: boolean }) {
+  const r = p.resultado ?? null;
+  const filas = AGENTES_PROGRESO
+    .map((k) => {
+      const f = fases[k];
+      if (!f || !f.desde) return null;
+      const a = new Date(f.desde).getTime();
+      const b = f.hasta ? new Date(f.hasta).getTime() : NaN;
+      const ms = Number.isNaN(a) || Number.isNaN(b) ? null : Math.max(0, b - a);
+      return { k, estado: f.estado as string, ms, motivo: f.motivo ?? null };
+    })
+    .filter((x): x is { k: string; estado: string; ms: number | null; motivo: string | null } => !!x);
+  if (!filas.length && !r?.costo && !r?.modelo) return null;
+  const costo = r?.costo ?? null;
+  return (
+    <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"} text-[12px]`}>
+      <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wide text-mute hover:text-ink">
+        Ficha técnica · tiempos por agente{costo?.costoUsd != null ? ` · US$ ${costo.costoUsd.toFixed(2)}` : ""}{duro ? ` · ${duracion(duro)} en total` : ""}
+      </summary>
+      <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <table className="w-full text-left text-[11px]">
+          <caption className="sr-only">Tiempo por agente</caption>
+          <thead className="text-[9px] uppercase tracking-wide text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
+          <tbody className="divide-y divide-line">
+            {filas.map((f) => (
+              <tr key={f.k}>
+                <td className="py-1 pr-2 text-ink">{faseLabel(f.k)}</td>
+                <td className="py-1 pr-2 text-mute">{f.estado === "hecho" ? "completado" : f.estado === "omitido" ? `omitido${f.motivo ? ` · ${f.motivo}` : ""}` : f.estado}</td>
+                <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <dl className="space-y-1 text-[11px] sm:min-w-[180px]">
+          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Perfil del pipeline</dt><dd className="font-mono text-ink">{r?.perfil ?? "bienes"}</dd></div>
+          {r?.modelo && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
+          {costo && (
+            <div>
+              <dt className="text-[9px] uppercase tracking-wide text-mute">Costo del análisis</dt>
+              <dd className="font-mono text-ink">{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "—"}{costo.llamadas != null ? ` · ${costo.llamadas} llamadas` : ""}{costo.tokens != null ? ` · ${Math.round(costo.tokens / 1000)}k tokens` : ""}</dd>
+            </div>
+          )}
+          {r?.analizadoEn && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Analizado</dt><dd className="text-ink" suppressHydrationWarning>{new Date(r.analizadoEn).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}</dd></div>}
+          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
+        </dl>
+      </div>
+    </details>
+  );
+}
+
+function VersionReglas({ perfil }: { perfil: string | null | undefined }) {
+  const [v, setV] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    getReglasPerfil((perfil ?? "bienes").toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version} · ${r.reglas.length} reglas`); });
+    return () => { vivo = false; };
+  }, [perfil]);
+  return <span className="font-mono">{v ?? "—"}</span>;
 }

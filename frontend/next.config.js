@@ -7,6 +7,9 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "tile.openstreetmap.org" },
+      // logos de aliados y QR de pago (buckets públicos de Vigía)
+      { protocol: "https", hostname: "storage.googleapis.com" },
+      { protocol: "https", hostname: "**.run.app" },
     ],
   },
   // Geojson de fronteras (departments 146KB, provinces 846KB) = data estática

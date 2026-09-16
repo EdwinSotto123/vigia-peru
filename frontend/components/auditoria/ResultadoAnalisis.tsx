@@ -14,6 +14,7 @@ import { duracion, reglaLabel, severidadCls, type ResultadoAnalisis as Resultado
 import { validacionLabel } from "@/lib/contratos";
 import { CompartirButton } from "./CompartirButton";
 import { ScoreGauge } from "./ScoreGauge";
+import { ReglasEvaluadas } from "./ReglasEvaluadas";
 
 interface Props {
   resultado: Resultado | null;
@@ -74,10 +75,30 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         </div>
       </div>
 
-      {enRevision && r?.revisionMotivo && (
+      {enRevision && (r?.revisionMotivos?.length ? (
+        <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft" aria-label="Por qué está en revisión humana">
+          <div className="font-semibold text-clay">Por qué no se publicó todavía</div>
+          <ul className="mt-1 space-y-1.5">
+            {r.revisionMotivos.map((m) => (
+              <li key={m.clave}>
+                <span className="font-medium text-ink">{m.titulo}.</span> {m.detalle}
+                {m.reglas?.length ? <span className="text-mute"> Señales afectadas: {(m.reglasEtiquetas ?? m.reglas.map((x) => reglaLabel(x))).join(" · ")}.</span> : null}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[11px] text-mute">Una persona revisa el análisis y decide publicar o descartar. Mientras tanto no cuenta como señal hallada.</p>
+        </div>
+      ) : r?.revisionMotivo ? (
         <p className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft">
           <span className="font-semibold text-clay">Motivo:</span> {r.revisionMotivo}
         </p>
+      ) : null)}
+
+      {/* qué reglas corrieron (y cuáles no dispararon) */}
+      {r && (
+        <div className="mt-3">
+          <ReglasEvaluadas perfil={r.perfil} senales={senales} reglasDisparadas={r.reglasDisparadas} enRevision={enRevision} compacto={compacto} />
+        </div>
       )}
 
       {/* señales */}

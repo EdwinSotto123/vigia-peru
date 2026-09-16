@@ -14,6 +14,7 @@ import { Glass, PersonName } from "@/components/Redact";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { EstadoContratoPill } from "./ContratosLista";
 import { DocumentosContrato } from "./DocumentosContrato";
+import { CitaPagina } from "./CitaPagina";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import {
@@ -26,6 +27,9 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
   const regionId = c.ubigeo ? UBIGEO_REGION[c.ubigeo.slice(0, 2)] : undefined;
   const mapaHref = regionId ? `/app/mapa?region=${regionId}&tab=cola${c.ubigeo && c.ubigeo.length === 6 ? `&ubigeo=${c.ubigeo}` : ""}` : "/app/mapa";
   const natural = esPersonaNatural(c.proveedorRuc);
+  const postores = c.postoresDetalle ?? [];
+  const itemsAnalizados = (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
+  const senalesConCita = (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
 
   return (
     <div className="space-y-6">
@@ -134,6 +138,111 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
             )}
           </section>
 
+          {/* Postores y ofertas (leídos del expediente) */}
+          {postores.length > 0 && (
+            <section aria-labelledby="postores-h">
+              <h2 id="postores-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Postores y ofertas ({postores.length})</h2>
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper">
+                <table className="w-full min-w-[560px] text-left text-xs">
+                  <caption className="sr-only">Postores con su oferta económica, leídos de las actas del expediente</caption>
+                  <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
+                    <tr>
+                      <th className="w-8 px-3 py-2 font-semibold">#</th>
+                      <th className="px-3 py-2 font-semibold">Postor</th>
+                      <th className="w-28 px-3 py-2 font-semibold">Estado</th>
+                      <th className="w-32 px-3 py-2 text-right font-semibold">Oferta</th>
+                      <th className="w-24 px-3 py-2 text-right font-semibold">vs. referencia</th>
+                      <th className="w-24 px-3 py-2 font-semibold">Fuente</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {[...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99)).map((p, i) => {
+                      const nat = esPersonaNatural(p.ruc);
+                      const dif = p.montoOferta != null && c.montoPen ? ((p.montoOferta - c.montoPen) / c.montoPen) * 100 : null;
+                      return (
+                        <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={p.esGanador ? "bg-moss/5" : undefined}>
+                          <td className="px-3 py-2 font-mono text-mute">{p.ordenPrelacion ?? i + 1}</td>
+                          <td className="px-3 py-2 text-ink">
+                            {p.razonSocial ? (nat ? <PersonName name={p.razonSocial} /> : p.razonSocial) : "—"}
+                            {p.ruc && <span className="ml-2 font-mono text-[10px] text-mute">RUC {nat ? <Glass label="RUC de persona natural — clic para revelar">{p.ruc}</Glass> : p.ruc}</span>}
+                            {p.esGanador && <span className="ml-2 rounded-full bg-moss px-1.5 py-0.5 text-[9px] font-semibold uppercase text-paper">ganador</span>}
+                          </td>
+                          <td className="px-3 py-2 text-mute" title={p.motivoEstado ?? undefined}>{p.estado ? p.estado.replace(/_/g, " ") : "—"}</td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{p.montoOferta != null ? formatMonto(p.montoOferta, c.moneda) : "—"}</td>
+                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", dif == null ? "text-mute" : dif > 0 ? "text-rust" : "text-moss")}>{dif == null ? "—" : `${dif > 0 ? "+" : ""}${dif.toFixed(1)} %`}</td>
+                          <td className="px-3 py-2">{p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-[10px] text-mute">Ofertas leídas de las actas y cuadros comparativos del expediente; “vs. referencia” compara con el valor referencial del proceso. Toca la fuente para abrir la página citada del PDF.</p>
+            </section>
+          )}
+
+          {/* Precio contratado vs. referencia */}
+          {itemsAnalizados.length > 0 && (
+            <section aria-labelledby="precios-h">
+              <h2 id="precios-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Precio contratado vs. referencia ({itemsAnalizados.length})</h2>
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper">
+                <table className="w-full min-w-[620px] text-left text-xs">
+                  <caption className="sr-only">Ítems con su precio unitario ofertado o contratado frente al valor referencial</caption>
+                  <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
+                    <tr>
+                      <th className="w-8 px-3 py-2 font-semibold">#</th>
+                      <th className="px-3 py-2 font-semibold">Ítem</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Cant.</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Ref. unit.</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Contratado unit.</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Δ</th>
+                      <th className="w-24 px-3 py-2 font-semibold">Fuente</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {itemsAnalizados.map((it) => {
+                      const unit = it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
+                      const d = unit != null && it.referenciaUnitaria ? ((unit - it.referenciaUnitaria) / it.referenciaUnitaria) * 100 : null;
+                      return (
+                        <tr key={it.numero}>
+                          <td className="px-3 py-2 font-mono text-mute">{it.numero}</td>
+                          <td className="px-3 py-2 text-ink">
+                            <span className="line-clamp-2" title={it.descripcion ?? undefined}>{it.descripcion ?? "—"}</span>
+                            {it.marca && <span className="block text-[10px] text-mute">marca ofertada: {it.marca}</span>}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{it.cantidad != null ? it.cantidad.toLocaleString("es-PE") : "—"}{it.unidad ? <span className="ml-1 text-[10px] text-mute">{it.unidad}</span> : null}</td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-mute">{it.referenciaUnitaria != null ? formatMonto(it.referenciaUnitaria, c.moneda) : "—"}</td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{unit != null ? formatMonto(unit, c.moneda) : "—"}{it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null && <span className="block text-[9px] text-mute">ofertado</span>}</td>
+                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", d == null ? "text-mute" : d > 0 ? "text-rust" : "text-moss")}>{d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)} %`}</td>
+                          <td className="px-3 py-2">{it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-[10px] text-mute">Referencia unitaria = valor referencial del ítem en el registro OCDS ÷ cantidad. El contratado sale del contrato u orden de compra leída por los agentes.</p>
+            </section>
+          )}
+
+          {/* Señales con página citada */}
+          {senalesConCita.length > 0 && (
+            <section aria-labelledby="citas-h">
+              <h2 id="citas-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Dónde dice cada señal en el expediente</h2>
+              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper">
+                {senalesConCita.map((b, i) => (
+                  <li key={`${b.regla}-${i}`} className="px-4 py-2.5 text-sm">
+                    <div className="text-[13px] font-semibold text-ink">{b.regla.replace(/_/g, " ").replace(/^\w/, (x) => x.toUpperCase())}</div>
+                    {b.evidencia && <p className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft">{b.evidencia}</p>}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {/* Documentos */}
           <section>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -151,7 +260,8 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
         </div>
 
         {/* Análisis */}
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        {/* En móvil el resultado del análisis va antes de ítems/postores/documentos; en escritorio, columna derecha pegajosa. */}
+        <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-6 lg:self-start">
           <AnalisisCard c={c} />
           {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
           {!c.procesamiento && <ClasificacionCard c={c} />}

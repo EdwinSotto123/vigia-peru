@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { Avatar } from "@/components/financiar/RankingTable";
+import { EstadoAporte } from "@/components/financiar/EstadoAporte";
+import { CuentaCta } from "@/components/financiar/CuentaCta";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { CompartirButton } from "@/components/auditoria/CompartirButton";
 import { formatPEN, getComprobante, pct, type Comprobante } from "@/lib/financiamiento";
@@ -46,6 +48,7 @@ function semillaDesdeComprobante(c: Comprobante): Procesamiento[] {
     entidad: k.entidad,
     montoPen: k.valorReferencial,
     alertaCodigo: k.alertaCodigo,
+    alertaEstado: k.alertaEstado ?? null,
     score: k.score,
     banderas: k.banderas,
   }));
@@ -69,6 +72,8 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
   // responde (o la contribución no tiene asignaciones), usa el detalle del comprobante.
   const enVivo = await getProcesamientos({ codigo: c.codigo, limit: 300 });
   const semilla = enVivo && enVivo.length ? enVivo : semillaDesdeComprobante(c);
+  // Primer contrato procesado: el resultado más antiguo del aporte, con enlace a su auditoría.
+  const primero = [...c.detalle].filter((k) => k.procesadaAt).sort((a, b) => String(a.procesadaAt).localeCompare(String(b.procesadaAt)))[0] ?? null;
 
   return (
     <div className="container-page py-10">
@@ -101,15 +106,41 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           </p>
           {c.mensajePublico && <p className="mt-3 border-l-2 border-amber pl-3 text-sm italic text-mute">“{c.mensajePublico}”</p>}
 
+          {/* Estado del aporte en 4 pasos */}
+          <div className="mt-6">
+            <EstadoAporte estado={c.estado} procesados={c.resumen.procesados} contratos={c.contratos} />
+          </div>
+
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <K label="Procesados" v={`${c.resumen.procesados} / ${c.contratos}`} />
+            <K label="Procesados" v={`${c.resumen.procesados} / ${c.contratos}`} hint={(c.resumen.enRevision ?? 0) > 0 ? `${c.resumen.enRevision} en revisión humana` : undefined} />
             <K label="En cola" v={String(c.resumen.asignados - c.resumen.procesados)} />
-            <K label="Señales halladas" v={String(c.resumen.senales)} />
+            <K label="Señales halladas" v={String(c.resumen.senales)} hint={c.resumen.contratosConSenal != null ? `en ${c.resumen.contratosConSenal} contrato${c.resumen.contratosConSenal === 1 ? "" : "s"} con dictamen publicado` : undefined} />
             <K label="Monto auditado" v={formatPEN(c.resumen.montoAuditado)} />
           </div>
+          {(c.resumen.enRevision ?? 0) > 0 && (
+            <p className="mt-2 text-[12px] text-mute">
+              <strong className="text-clay">{c.resumen.enRevision}</strong> contrato{c.resumen.enRevision === 1 ? "" : "s"} procesado{c.resumen.enRevision === 1 ? "" : "s"} {c.resumen.enRevision === 1 ? "espera" : "esperan"} revisión humana:
+              la autoevaluación no alcanzó el umbral para publicar y una persona decide. No cuentan como señales halladas.
+            </p>
+          )}
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-paperDeep">
             <div className="h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
           </div>
+
+          {/* primer contrato procesado */}
+          {primero && (
+            <Link href={`/app/auditoria/${encodeURIComponent(primero.ocid)}`} className="group mt-6 flex items-center justify-between gap-3 rounded-2xl border border-moss/30 bg-moss/5 px-4 py-3 text-sm text-ink transition-colors hover:border-moss/60">
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-wide text-moss">Primer contrato procesado con este aporte</span>
+                <span className="mt-0.5 block truncate font-medium">{primero.titulo ?? primero.ocid}</span>
+                <span className="block text-[11px] text-mute">
+                  {primero.entidad ?? "Entidad no identificada"}
+                  {primero.alertaEstado === "revision" ? " · en revisión humana" : primero.banderas > 0 ? ` · ${primero.banderas} señal${primero.banderas === 1 ? "" : "es"} de riesgo` : " · sin señales"}
+                </span>
+              </span>
+              <ArrowRight size={16} className="shrink-0 text-moss transition-transform group-hover:translate-x-0.5" aria-hidden />
+            </Link>
+          )}
 
           {/* contratos en vivo */}
           <div className="mt-8">
@@ -129,7 +160,9 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             <span>Este aporte financió capacidad de procesamiento. Los contratos se asignaron por antigüedad y los resultados fueron producidos por el pipeline de Vigía Perú sin intervención del financiador.</span>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
+          <div className="mt-6"><CuentaCta codigo={c.codigo} /></div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <CompartirButton
               path={`/impacto/${c.codigo}`}
               titulo={`Auditoría financiada por ${c.financiador} · Vigía Perú`}
@@ -143,11 +176,13 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
   );
 }
 
-function K({ label, v }: { label: string; v: string }) {
+function K({ label, v, hint }: { label: string; v: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-line p-3">
       <div className="text-[11px] uppercase tracking-wide text-mute">{label}</div>
       <div className="font-mono text-lg text-ink">{v}</div>
+      {hint && <div className="text-[10px] text-mute">{hint}</div>}
     </div>
   );
 }
+
