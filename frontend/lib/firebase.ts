@@ -14,7 +14,7 @@
  */
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from "firebase/auth";
 
 // Config desde variables de entorno NEXT_PUBLIC_* (ver .env.example).
 const firebaseConfig = {
@@ -28,6 +28,10 @@ const firebaseConfig = {
 
 // Singleton — Next puede llamar al módulo varias veces durante HMR
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const auth: Auth = getAuth(app);
+// Sin popupRedirectResolver: solo usamos email/contraseña, así Firebase no carga el iframe de
+// authDomain ni gapi (~140 KB y ~70 ms de bloqueo en cada página, según Lighthouse móvil).
+export const auth: Auth = typeof window === "undefined"
+  ? getAuth(app)
+  : (() => { try { return initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); } catch { return getAuth(app); } })();
 
 export { app };

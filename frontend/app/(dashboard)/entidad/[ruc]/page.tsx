@@ -19,6 +19,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
 import { Suspense } from "react";
 import { getEntidad } from "@/lib/api-client";
+import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 
 export default async function EntidadProfile({
   params,
@@ -105,6 +106,7 @@ export default async function EntidadProfile({
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-mute">
               <span className="font-mono">RUC {ent.ruc}</span>
+              <SeguirEntidadBoton ruc={ent.ruc} nombre={ent.nombre} />
               <span className="flex items-center gap-1">
                 <MapPin size={11} /> {ent.region}
                 {ent.provincia && ` · ${ent.provincia}`}

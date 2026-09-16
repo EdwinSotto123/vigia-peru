@@ -65,6 +65,7 @@ function ReporteNuevoInner() {
   const [modo, setModo] = useState<Modo>(initialModo);
   const [submitting, setSubmitting] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
+  const [okRegion, setOkRegion] = useState<string | null>(null);   // nombre de región del reporte enviado (enlace al pin)
 
   return (
     <div className="container-page max-w-3xl space-y-8 py-10">
@@ -130,13 +131,13 @@ function ReporteNuevoInner() {
       </div>
 
       {ok ? (
-        <Confirmacion id={ok} modo={modo} />
+        <Confirmacion id={ok} modo={modo} regionNombre={okRegion} />
       ) : modo === "obra" ? (
         <FormObra
           initialRegion={initialRegion}
           submitting={submitting}
           setSubmitting={setSubmitting}
-          onDone={setOk}
+          onDone={(id, region) => { setOkRegion(region ?? null); setOk(id); }}
         />
       ) : (
         <FormEntidad
@@ -209,10 +210,12 @@ function FormObra({
 }: {
   submitting: boolean;
   setSubmitting: (b: boolean) => void;
-  onDone: (id: string) => void;
+  onDone: (id: string, region?: string) => void;
   initialRegion?: string;
 }) {
   const [categoria, setCategoria] = useState<string>("");
+  const [progreso, setProgreso] = useState<Record<string, number>>({});   // nombre → % subido
+  const [geoEstado, setGeoEstado] = useState<"idle" | "buscando" | "ok" | "error">("idle");
   const [region, setRegion] = useState(initialRegion);
   const [descripcion, setDescripcion] = useState("");
   const [archivos, setArchivos] = useState<File[]>([]);
@@ -233,14 +236,12 @@ function FormObra({
   const [anonimo, setAnonimo] = useState(true);
 
   const usarMiUbicacion = () => {
-    if (!navigator.geolocation) {
-      alert("Tu navegador no soporta geolocalización. Escribe la dirección abajo.");
-      return;
-    }
+    if (!navigator.geolocation) { setGeoEstado("error"); return; }
+    setGeoEstado("buscando");
     navigator.geolocation.getCurrentPosition(
-      (pos) => setUbicacion({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => alert("No pudimos obtener tu ubicación. Puedes escribirla manualmente."),
-      { enableHighAccuracy: true, timeout: 8000 },
+      (pos) => { setUbicacion({ lat: pos.coords.latitude, lon: pos.coords.longitude }); setGeoEstado("ok"); },
+      () => setGeoEstado("error"),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
   };
 
@@ -252,18 +253,18 @@ function FormObra({
     setSubiendo(true);
     try {
       for (const f of nuevos) {
-        const fd = new FormData();
-        fd.append("file", f);
-        const r = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await r.json().catch(() => null);
-        if (!r.ok || !data?.ok) {
-          setErrorSubida(`No se pudo subir ${f.name}: ${data?.error || r.status}`);
-          continue;
+        setProgreso((p) => ({ ...p, [f.name]: 0 }));
+        try {
+          const data = await subirArchivo(f, (pct) => setProgreso((p) => ({ ...p, [f.name]: pct })));
+          setSubidos((prev) => [...prev, {
+            url: data.url, tipo: data.tipo, filename: data.filename || f.name,
+            size_bytes: data.size_bytes || f.size, content_type: data.content_type,
+          }]);
+        } catch (e) {
+          setErrorSubida(`No se pudo subir ${f.name}: ${(e as Error).message}`);
+        } finally {
+          setProgreso((p) => { const { [f.name]: _x, ...rest } = p; return rest; });
         }
-        setSubidos((prev) => [...prev, {
-          url: data.url, tipo: data.tipo, filename: data.filename || f.name,
-          size_bytes: data.size_bytes || f.size, content_type: data.content_type,
-        }]);
       }
     } finally {
       setSubiendo(false);
@@ -277,16 +278,17 @@ function FormObra({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const hayFoto = subidos.some((s) => s.tipo === "foto");
-    if (!categoria || !descripcion || !hayFoto || (!ubicacion && !direccionTexto)) {
-      alert("Completa categoría, descripción, al menos una foto y ubicación.");
+    if (!descripcion.trim() || !hayFoto || (!ubicacion && !direccionTexto.trim())) {
+      setErrorSubida("Faltan datos obligatorios: una foto, el lugar y el relato.");
       return;
     }
+    setErrorSubida(null);
     setSubmitting(true);
     try {
       const enlaces = enlacesExternos.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
       const r = await createReporte({
         modo: "obra",
-        categoria, descripcion,
+        categoria: categoria || "irregularidad_general", descripcion,
         fotoUrl: subidos.find((s) => s.tipo === "foto")?.url ?? null,
         media: subidos,
         lat: ubicacion?.lat ?? null, lon: ubicacion?.lon ?? null,
@@ -303,9 +305,9 @@ function FormObra({
         contactoNombre: anonimo ? null : (contactoNombre || null),
         anonimo,
       });
-      onDone(r.id);
+      onDone(r.id, region || undefined);
     } catch (err) {
-      alert("No se pudo enviar: " + (err as Error).message);
+      setErrorSubida("No se pudo enviar: " + (err as Error).message);
     } finally {
       setSubmitting(false);
     }
@@ -314,7 +316,6 @@ function FormObra({
   const hayFoto = subidos.some((s) => s.tipo === "foto");
   const hayLugar = !!(ubicacion || direccionTexto.trim());
   const milestones = [
-    { label: "Tipo", done: !!categoria },
     { label: "Foto", done: hayFoto },
     { label: "Lugar", done: hayLugar },
     { label: "Relato", done: descripcion.trim().length > 10 },
@@ -326,7 +327,7 @@ function FormObra({
     <form onSubmit={submit} className="surface space-y-6 p-6">
       <ProgressTracker milestones={milestones} doneCount={doneCount} ready={ready} />
 
-      <Step n={1} title="¿Qué tipo de obra/situación?">
+      <Step n={1} title="¿Qué tipo de obra/situación? (opcional)">
         <div className="grid gap-2 sm:grid-cols-2">
           {CATEGORIAS_OBRA.map((c) => (
             <button
@@ -347,27 +348,56 @@ function FormObra({
         </div>
       </Step>
 
-      <Step n={2} title="Sube fotos, videos o documentos (al menos una foto)">
-        <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperDeep px-6 py-8 text-center hover:bg-paperEdge/50">
-          <Upload size={20} className="text-mute" />
-          <div className="text-sm">
-            <span className="font-medium text-ink">Tomar foto, video o elegir archivos</span>
-            <br />
-            <span className="text-xs text-mute">
-              JPG/PNG/MP4/PDF, hasta 50MB c/u · puedes agregar varios
-            </span>
+      <Step n={2} title="Foto (obligatoria) — también videos o documentos">
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
+          {/* Cámara directa en móvil (capture) */}
+          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-rust/40 bg-crimson-soft px-4 py-6 text-center hover:border-rust sm:hidden">
+            <Camera size={22} className="text-rust" aria-hidden />
+            <div className="text-sm">
+              <span className="font-semibold text-ink">Tomar foto ahora</span>
+              <br />
+              <span className="text-xs text-mute">abre la cámara del teléfono</span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(e) => handleFilesPick(e.target.files)}
+            />
+          </label>
+          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperDeep px-4 py-6 text-center hover:bg-paperEdge/50 sm:col-span-2">
+            <Upload size={20} className="text-mute" aria-hidden />
+            <div className="text-sm">
+              <span className="font-medium text-ink">Elegir fotos, videos o archivos</span>
+              <br />
+              <span className="text-xs text-mute">
+                JPG/PNG/MP4/PDF, hasta 50MB c/u · puedes agregar varios
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="image/*,video/*,audio/*,application/pdf,.doc,.docx"
+              multiple
+              className="sr-only"
+              onChange={(e) => handleFilesPick(e.target.files)}
+            />
+          </label>
+        </div>
+        {Object.entries(progreso).map(([nombre, pct]) => (
+          <div key={nombre} className="mt-2">
+            <div className="flex items-center justify-between text-[11px] text-mute">
+              <span className="inline-flex items-center gap-1.5 truncate"><Loader2 size={11} className="animate-spin" aria-hidden /> Subiendo {nombre}</span>
+              <span className="font-mono">{pct}%</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Subida de ${nombre}`}>
+              <div className="h-full rounded-full bg-clay transition-all" style={{ width: `${pct}%` }} />
+            </div>
           </div>
-          <input
-            type="file"
-            accept="image/*,video/*,audio/*,application/pdf,.doc,.docx"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFilesPick(e.target.files)}
-          />
-        </label>
-        {subiendo && (
+        ))}
+        {subiendo && Object.keys(progreso).length === 0 && (
           <div className="mt-2 inline-flex items-center gap-2 text-xs text-mute">
-            <Loader2 size={12} className="animate-spin" /> Subiendo a Google Cloud Storage…
+            <Loader2 size={12} className="animate-spin" aria-hidden /> Subiendo…
           </div>
         )}
         {errorSubida && (
@@ -407,15 +437,19 @@ function FormObra({
         </p>
       </Step>
 
-      <Step n={3} title="¿Dónde?">
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={usarMiUbicacion}>
-            <MapPin size={16} /> Usar mi ubicación actual
+      <Step n={3} title="¿Dónde? (obligatorio: ubicación o dirección)">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" onClick={usarMiUbicacion} disabled={geoEstado === "buscando"}>
+            {geoEstado === "buscando" ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <MapPin size={16} aria-hidden />}
+            {geoEstado === "buscando" ? "Buscando tu ubicación…" : ubicacion ? "Actualizar mi ubicación" : "Usar mi ubicación actual"}
           </Button>
           {ubicacion && (
             <Badge variant="navy">
               <Check size={12} /> {ubicacion.lat.toFixed(4)}, {ubicacion.lon.toFixed(4)}
             </Badge>
+          )}
+          {geoEstado === "error" && !ubicacion && (
+            <span className="text-xs text-rust" role="status">No pudimos obtener tu ubicación: escribe la dirección abajo.</span>
           )}
         </div>
         <input
@@ -451,7 +485,7 @@ function FormObra({
         </div>
       </Step>
 
-      <Step n={4} title="Cuéntanos qué viste">
+      <Step n={4} title="Cuéntanos qué viste (obligatorio)">
         <textarea
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
@@ -566,7 +600,7 @@ function FormObra({
         <p className="text-center text-xs text-mute">
           {ready
             ? "Todo listo. Gracias por dar la cara por tu comunidad."
-            : `Faltan ${4 - doneCount} de 4: ${milestones.filter((m) => !m.done).map((m) => m.label.toLowerCase()).join(", ")}.`}
+            : `Faltan ${milestones.length - doneCount} de ${milestones.length}: ${milestones.filter((m) => !m.done).map((m) => m.label.toLowerCase()).join(", ")}.`}
         </p>
       </div>
     </form>
@@ -826,7 +860,7 @@ function ProgressTracker({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-1.5">
+      <div className={cn("mt-3 grid gap-1.5", milestones.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {milestones.map((m) => (
           <div
             key={m.label}
@@ -870,7 +904,11 @@ function Step({
   );
 }
 
-function Confirmacion({ id, modo }: { id: string; modo: Modo }) {
+function Confirmacion({ id, modo, regionNombre }: { id: string; modo: Modo; regionNombre?: string | null }) {
+  const regionId = REGIONES.find((r) => r.nombre === regionNombre)?.id ?? null;
+  const pinHref = modo === "obra"
+    ? `/app/mapa?${regionId ? `region=${regionId}&` : ""}tab=denuncias`
+    : `/app/mapa${regionId ? `?region=${regionId}` : ""}`;
   const pasos =
     modo === "obra"
       ? [
@@ -930,9 +968,14 @@ function Confirmacion({ id, modo }: { id: string; modo: Modo }) {
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-        <Link href="/app/mapa">
+        <Link href={pinHref}>
           <Button variant="secondary" full>
-            Ver mi reporte en el mapa
+            <MapPin size={16} /> Ver mi pin en el mapa
+          </Button>
+        </Link>
+        <Link href={`/app/denuncias/${encodeURIComponent(id)}`}>
+          <Button variant="secondary" full>
+            Ver la ficha del reporte
           </Button>
         </Link>
         <Link href="/reporte/nuevo">
@@ -943,4 +986,28 @@ function Confirmacion({ id, modo }: { id: string; modo: Modo }) {
       </div>
     </div>
   );
+}
+
+
+/** Sube un archivo a /api/upload con progreso real (XHR). */
+function subirArchivo(
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<{ url: string; tipo: MediaSubido["tipo"]; filename?: string; size_bytes?: number; content_type?: string }> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && data?.ok) resolve(data);
+        else reject(new Error(data?.error || String(xhr.status)));
+      } catch { reject(new Error(String(xhr.status))); }
+    };
+    xhr.onerror = () => reject(new Error("sin conexión"));
+    xhr.send(fd);
+  });
 }

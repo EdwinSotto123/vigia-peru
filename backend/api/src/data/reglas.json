@@ -1,0 +1,628 @@
+{
+  "version": "7929ab6",
+  "generado_at": "2026-09-16",
+  "agentes_canonicos": [
+    "compliance",
+    "document_parser",
+    "document_legal_analyst",
+    "market",
+    "web_research",
+    "news_research",
+    "entity_personnel",
+    "person_network",
+    "compliance_extended",
+    "report_writer"
+  ],
+  "perfiles": {
+    "bienes": {
+      "agentes": [
+        "compliance",
+        "document_parser",
+        "document_legal_analyst",
+        "market",
+        "web_research",
+        "news_research",
+        "entity_personnel",
+        "person_network",
+        "compliance_extended",
+        "report_writer"
+      ],
+      "market_estrategia": "goods_retail",
+      "parse_max_docs": 12,
+      "reglas": [
+        {
+          "id": "ampliacion_denegada_penalidad",
+          "etiqueta": "Ampliación denegada y penalidad",
+          "descripcion": "Se denegó la ampliación de plazo y se aplicó penalidad en condiciones que ameritan revisión."
+        },
+        {
+          "id": "ciiu_vs_objeto",
+          "etiqueta": "Giro del proveedor vs. objeto",
+          "descripcion": "La actividad económica declarada en SUNAT no guarda relación con lo contratado."
+        },
+        {
+          "id": "concentracion_entidad",
+          "etiqueta": "Concentración en la entidad",
+          "descripcion": "El proveedor acumula una porción muy alta de las adjudicaciones de la entidad."
+        },
+        {
+          "id": "directa_sin_fundamento",
+          "etiqueta": "Contratación directa sin sustento",
+          "descripcion": "La causal invocada no aparece fundamentada en el expediente."
+        },
+        {
+          "id": "fecha_buena_pro_incoherente",
+          "etiqueta": "Fechas de buena pro incoherentes",
+          "descripcion": "La buena pro se otorgó antes del cierre de ofertas o con fechas contradictorias."
+        },
+        {
+          "id": "firmante_con_empresa_rnp",
+          "etiqueta": "Firmante con empresa en el RNP",
+          "descripcion": "Un firmante del expediente figura como socio o representante de una proveedora del Estado."
+        },
+        {
+          "id": "firmante_vinculado_ganador",
+          "etiqueta": "Firmante vinculado al ganador",
+          "descripcion": "Quien firma por la entidad aparece vinculado a la empresa ganadora en otros procesos."
+        },
+        {
+          "id": "fraccionamiento",
+          "etiqueta": "Fraccionamiento",
+          "descripcion": "Compras partidas en varios procesos pequeños que juntas superan el tope de un procedimiento mayor."
+        },
+        {
+          "id": "ganador_no_invitado",
+          "etiqueta": "Ganador no invitado",
+          "descripcion": "En comparación de precios, ganó un proveedor que no estaba entre los invitados."
+        },
+        {
+          "id": "inconsistencia_doc_vs_ocds",
+          "etiqueta": "Documento vs. registro OCDS",
+          "descripcion": "Lo que dicen los documentos no coincide con el registro oficial (montos, fechas, ganador)."
+        },
+        {
+          "id": "lobby_visits_pre_convocatoria",
+          "etiqueta": "Visitas previas a la convocatoria",
+          "descripcion": "Representantes del postor visitaron la entidad antes de la convocatoria (registro de visitas)."
+        },
+        {
+          "id": "oferta_igual_valor_referencial",
+          "etiqueta": "Oferta igual al valor referencial",
+          "descripcion": "La oferta ganadora coincide exactamente con el valor referencial."
+        },
+        {
+          "id": "oferta_mas_barata_no_gana",
+          "etiqueta": "La oferta más barata no ganó",
+          "descripcion": "Se adjudicó a una oferta más cara sin justificación registrada."
+        },
+        {
+          "id": "ofertas_agrupadas",
+          "etiqueta": "Ofertas agrupadas",
+          "descripcion": "Las ofertas de los postores están sospechosamente cerca entre sí."
+        },
+        {
+          "id": "plazo_convocatoria_minimo",
+          "etiqueta": "Plazo de convocatoria muy corto",
+          "descripcion": "Días entre la convocatoria y la presentación de ofertas por debajo del mínimo legal."
+        },
+        {
+          "id": "postor_unico_mayoritario",
+          "etiqueta": "Postor mayoritario en la entidad",
+          "descripcion": "Un mismo postor gana la mayoría de los procesos de la entidad."
+        },
+        {
+          "id": "postores_vinculados_rnp",
+          "etiqueta": "Postores vinculados entre sí",
+          "descripcion": "Socios o representantes compartidos entre postores rivales según el RNP."
+        },
+        {
+          "id": "procedimiento_no_competitivo",
+          "etiqueta": "Procedimiento no competitivo",
+          "descripcion": "Contratación directa o método sin competencia cuando el monto permitía convocar."
+        },
+        {
+          "id": "proveedor_sancionado_osce",
+          "etiqueta": "Proveedor con sanción OSCE/OECE",
+          "descripcion": "El ganador o sus consorciados tienen sanción vigente en el registro de inhabilitados."
+        },
+        {
+          "id": "ruc_ganador_muy_nuevo",
+          "etiqueta": "RUC del ganador muy reciente",
+          "descripcion": "La empresa ganadora se constituyó pocos meses antes de la convocatoria."
+        },
+        {
+          "id": "ruc_ultra_nuevo",
+          "etiqueta": "Postor con RUC ultra reciente",
+          "descripcion": "Algún postor tiene RUC de menos de 90 días."
+        },
+        {
+          "id": "testaferro_multi_ruc",
+          "etiqueta": "Misma persona en varios RUC",
+          "descripcion": "Una persona figura como representante de varias empresas que compiten entre sí."
+        },
+        {
+          "id": "tipo_proceso_vs_monto",
+          "etiqueta": "Procedimiento vs. monto",
+          "descripcion": "El tipo de procedimiento no corresponde al monto según los topes en UIT."
+        },
+        {
+          "id": "unica_oferta_valida",
+          "etiqueta": "Única oferta válida",
+          "descripcion": "Varios postores, pero todos menos uno fueron descalificados."
+        },
+        {
+          "id": "unico_postor_alto",
+          "etiqueta": "Único postor con oferta alta",
+          "descripcion": "Un solo postor y la oferta cerca del valor referencial (≥ 95 %)."
+        }
+      ]
+    },
+    "servicios": {
+      "agentes": [
+        "compliance",
+        "document_parser",
+        "document_legal_analyst",
+        "market",
+        "web_research",
+        "news_research",
+        "entity_personnel",
+        "person_network",
+        "compliance_extended",
+        "report_writer"
+      ],
+      "market_estrategia": "historico_seace",
+      "parse_max_docs": 12,
+      "reglas": [
+        {
+          "id": "ampliacion_denegada_penalidad",
+          "etiqueta": "Ampliación denegada y penalidad",
+          "descripcion": "Se denegó la ampliación de plazo y se aplicó penalidad en condiciones que ameritan revisión."
+        },
+        {
+          "id": "ciiu_vs_objeto",
+          "etiqueta": "Giro del proveedor vs. objeto",
+          "descripcion": "La actividad económica declarada en SUNAT no guarda relación con lo contratado."
+        },
+        {
+          "id": "concentracion_entidad",
+          "etiqueta": "Concentración en la entidad",
+          "descripcion": "El proveedor acumula una porción muy alta de las adjudicaciones de la entidad."
+        },
+        {
+          "id": "directa_sin_fundamento",
+          "etiqueta": "Contratación directa sin sustento",
+          "descripcion": "La causal invocada no aparece fundamentada en el expediente."
+        },
+        {
+          "id": "fecha_buena_pro_incoherente",
+          "etiqueta": "Fechas de buena pro incoherentes",
+          "descripcion": "La buena pro se otorgó antes del cierre de ofertas o con fechas contradictorias."
+        },
+        {
+          "id": "firmante_con_empresa_rnp",
+          "etiqueta": "Firmante con empresa en el RNP",
+          "descripcion": "Un firmante del expediente figura como socio o representante de una proveedora del Estado."
+        },
+        {
+          "id": "firmante_vinculado_ganador",
+          "etiqueta": "Firmante vinculado al ganador",
+          "descripcion": "Quien firma por la entidad aparece vinculado a la empresa ganadora en otros procesos."
+        },
+        {
+          "id": "fraccionamiento",
+          "etiqueta": "Fraccionamiento",
+          "descripcion": "Compras partidas en varios procesos pequeños que juntas superan el tope de un procedimiento mayor."
+        },
+        {
+          "id": "ganador_no_invitado",
+          "etiqueta": "Ganador no invitado",
+          "descripcion": "En comparación de precios, ganó un proveedor que no estaba entre los invitados."
+        },
+        {
+          "id": "inconsistencia_doc_vs_ocds",
+          "etiqueta": "Documento vs. registro OCDS",
+          "descripcion": "Lo que dicen los documentos no coincide con el registro oficial (montos, fechas, ganador)."
+        },
+        {
+          "id": "lobby_visits_pre_convocatoria",
+          "etiqueta": "Visitas previas a la convocatoria",
+          "descripcion": "Representantes del postor visitaron la entidad antes de la convocatoria (registro de visitas)."
+        },
+        {
+          "id": "oferta_igual_valor_referencial",
+          "etiqueta": "Oferta igual al valor referencial",
+          "descripcion": "La oferta ganadora coincide exactamente con el valor referencial."
+        },
+        {
+          "id": "oferta_mas_barata_no_gana",
+          "etiqueta": "La oferta más barata no ganó",
+          "descripcion": "Se adjudicó a una oferta más cara sin justificación registrada."
+        },
+        {
+          "id": "ofertas_agrupadas",
+          "etiqueta": "Ofertas agrupadas",
+          "descripcion": "Las ofertas de los postores están sospechosamente cerca entre sí."
+        },
+        {
+          "id": "personal_clave_vinculado",
+          "etiqueta": "Personal clave vinculado",
+          "descripcion": "El personal clave exigido coincide con personas ligadas al proveedor o la entidad."
+        },
+        {
+          "id": "plazo_convocatoria_minimo",
+          "etiqueta": "Plazo de convocatoria muy corto",
+          "descripcion": "Días entre la convocatoria y la presentación de ofertas por debajo del mínimo legal."
+        },
+        {
+          "id": "postor_unico_mayoritario",
+          "etiqueta": "Postor mayoritario en la entidad",
+          "descripcion": "Un mismo postor gana la mayoría de los procesos de la entidad."
+        },
+        {
+          "id": "postores_vinculados_rnp",
+          "etiqueta": "Postores vinculados entre sí",
+          "descripcion": "Socios o representantes compartidos entre postores rivales según el RNP."
+        },
+        {
+          "id": "procedimiento_no_competitivo",
+          "etiqueta": "Procedimiento no competitivo",
+          "descripcion": "Contratación directa o método sin competencia cuando el monto permitía convocar."
+        },
+        {
+          "id": "proveedor_sancionado_osce",
+          "etiqueta": "Proveedor con sanción OSCE/OECE",
+          "descripcion": "El ganador o sus consorciados tienen sanción vigente en el registro de inhabilitados."
+        },
+        {
+          "id": "ruc_ganador_muy_nuevo",
+          "etiqueta": "RUC del ganador muy reciente",
+          "descripcion": "La empresa ganadora se constituyó pocos meses antes de la convocatoria."
+        },
+        {
+          "id": "ruc_ultra_nuevo",
+          "etiqueta": "Postor con RUC ultra reciente",
+          "descripcion": "Algún postor tiene RUC de menos de 90 días."
+        },
+        {
+          "id": "testaferro_multi_ruc",
+          "etiqueta": "Misma persona en varios RUC",
+          "descripcion": "Una persona figura como representante de varias empresas que compiten entre sí."
+        },
+        {
+          "id": "tipo_proceso_vs_monto",
+          "etiqueta": "Procedimiento vs. monto",
+          "descripcion": "El tipo de procedimiento no corresponde al monto según los topes en UIT."
+        },
+        {
+          "id": "unica_oferta_valida",
+          "etiqueta": "Única oferta válida",
+          "descripcion": "Varios postores, pero todos menos uno fueron descalificados."
+        },
+        {
+          "id": "unico_postor_alto",
+          "etiqueta": "Único postor con oferta alta",
+          "descripcion": "Un solo postor y la oferta cerca del valor referencial (≥ 95 %)."
+        }
+      ]
+    },
+    "obras": {
+      "agentes": [
+        "compliance",
+        "document_parser",
+        "document_legal_analyst",
+        "market",
+        "web_research",
+        "news_research",
+        "entity_personnel",
+        "person_network",
+        "compliance_extended",
+        "report_writer"
+      ],
+      "market_estrategia": "presupuesto_obra",
+      "parse_max_docs": 12,
+      "reglas": [
+        {
+          "id": "adicional_acumulado",
+          "etiqueta": "Adicionales acumulados",
+          "descripcion": "Los adicionales de obra acumulados superan el porcentaje que exige nueva aprobación."
+        },
+        {
+          "id": "ampliacion_denegada_penalidad",
+          "etiqueta": "Ampliación denegada y penalidad",
+          "descripcion": "Se denegó la ampliación de plazo y se aplicó penalidad en condiciones que ameritan revisión."
+        },
+        {
+          "id": "ciiu_vs_objeto",
+          "etiqueta": "Giro del proveedor vs. objeto",
+          "descripcion": "La actividad económica declarada en SUNAT no guarda relación con lo contratado."
+        },
+        {
+          "id": "concentracion_entidad",
+          "etiqueta": "Concentración en la entidad",
+          "descripcion": "El proveedor acumula una porción muy alta de las adjudicaciones de la entidad."
+        },
+        {
+          "id": "directa_sin_fundamento",
+          "etiqueta": "Contratación directa sin sustento",
+          "descripcion": "La causal invocada no aparece fundamentada en el expediente."
+        },
+        {
+          "id": "fecha_buena_pro_incoherente",
+          "etiqueta": "Fechas de buena pro incoherentes",
+          "descripcion": "La buena pro se otorgó antes del cierre de ofertas o con fechas contradictorias."
+        },
+        {
+          "id": "firmante_con_empresa_rnp",
+          "etiqueta": "Firmante con empresa en el RNP",
+          "descripcion": "Un firmante del expediente figura como socio o representante de una proveedora del Estado."
+        },
+        {
+          "id": "firmante_vinculado_ganador",
+          "etiqueta": "Firmante vinculado al ganador",
+          "descripcion": "Quien firma por la entidad aparece vinculado a la empresa ganadora en otros procesos."
+        },
+        {
+          "id": "ganador_no_invitado",
+          "etiqueta": "Ganador no invitado",
+          "descripcion": "En comparación de precios, ganó un proveedor que no estaba entre los invitados."
+        },
+        {
+          "id": "inconsistencia_doc_vs_ocds",
+          "etiqueta": "Documento vs. registro OCDS",
+          "descripcion": "Lo que dicen los documentos no coincide con el registro oficial (montos, fechas, ganador)."
+        },
+        {
+          "id": "lobby_visits_pre_convocatoria",
+          "etiqueta": "Visitas previas a la convocatoria",
+          "descripcion": "Representantes del postor visitaron la entidad antes de la convocatoria (registro de visitas)."
+        },
+        {
+          "id": "oferta_igual_valor_referencial",
+          "etiqueta": "Oferta igual al valor referencial",
+          "descripcion": "La oferta ganadora coincide exactamente con el valor referencial."
+        },
+        {
+          "id": "oferta_mas_barata_no_gana",
+          "etiqueta": "La oferta más barata no ganó",
+          "descripcion": "Se adjudicó a una oferta más cara sin justificación registrada."
+        },
+        {
+          "id": "ofertas_agrupadas",
+          "etiqueta": "Ofertas agrupadas",
+          "descripcion": "Las ofertas de los postores están sospechosamente cerca entre sí."
+        },
+        {
+          "id": "plazo_convocatoria_minimo",
+          "etiqueta": "Plazo de convocatoria muy corto",
+          "descripcion": "Días entre la convocatoria y la presentación de ofertas por debajo del mínimo legal."
+        },
+        {
+          "id": "postor_unico_mayoritario",
+          "etiqueta": "Postor mayoritario en la entidad",
+          "descripcion": "Un mismo postor gana la mayoría de los procesos de la entidad."
+        },
+        {
+          "id": "postores_vinculados_rnp",
+          "etiqueta": "Postores vinculados entre sí",
+          "descripcion": "Socios o representantes compartidos entre postores rivales según el RNP."
+        },
+        {
+          "id": "procedimiento_no_competitivo",
+          "etiqueta": "Procedimiento no competitivo",
+          "descripcion": "Contratación directa o método sin competencia cuando el monto permitía convocar."
+        },
+        {
+          "id": "proveedor_sancionado_osce",
+          "etiqueta": "Proveedor con sanción OSCE/OECE",
+          "descripcion": "El ganador o sus consorciados tienen sanción vigente en el registro de inhabilitados."
+        },
+        {
+          "id": "ruc_ganador_muy_nuevo",
+          "etiqueta": "RUC del ganador muy reciente",
+          "descripcion": "La empresa ganadora se constituyó pocos meses antes de la convocatoria."
+        },
+        {
+          "id": "ruc_ultra_nuevo",
+          "etiqueta": "Postor con RUC ultra reciente",
+          "descripcion": "Algún postor tiene RUC de menos de 90 días."
+        },
+        {
+          "id": "testaferro_multi_ruc",
+          "etiqueta": "Misma persona en varios RUC",
+          "descripcion": "Una persona figura como representante de varias empresas que compiten entre sí."
+        },
+        {
+          "id": "tipo_proceso_vs_monto",
+          "etiqueta": "Procedimiento vs. monto",
+          "descripcion": "El tipo de procedimiento no corresponde al monto según los topes en UIT."
+        },
+        {
+          "id": "unica_oferta_valida",
+          "etiqueta": "Única oferta válida",
+          "descripcion": "Varios postores, pero todos menos uno fueron descalificados."
+        },
+        {
+          "id": "unico_postor_alto",
+          "etiqueta": "Único postor con oferta alta",
+          "descripcion": "Un solo postor y la oferta cerca del valor referencial (≥ 95 %)."
+        }
+      ]
+    },
+    "otros": {
+      "agentes": [
+        "compliance",
+        "document_parser",
+        "document_legal_analyst",
+        "market",
+        "web_research",
+        "news_research",
+        "person_network",
+        "report_writer"
+      ],
+      "market_estrategia": "cotizaciones",
+      "parse_max_docs": 12,
+      "reglas": [
+        {
+          "id": "ampliacion_denegada_penalidad",
+          "etiqueta": "Ampliación denegada y penalidad",
+          "descripcion": "Se denegó la ampliación de plazo y se aplicó penalidad en condiciones que ameritan revisión."
+        },
+        {
+          "id": "ciiu_vs_objeto",
+          "etiqueta": "Giro del proveedor vs. objeto",
+          "descripcion": "La actividad económica declarada en SUNAT no guarda relación con lo contratado."
+        },
+        {
+          "id": "concentracion_entidad",
+          "etiqueta": "Concentración en la entidad",
+          "descripcion": "El proveedor acumula una porción muy alta de las adjudicaciones de la entidad."
+        },
+        {
+          "id": "directa_recurrente",
+          "etiqueta": "Contratación directa recurrente",
+          "descripcion": "La entidad repite contrataciones directas con el mismo proveedor."
+        },
+        {
+          "id": "directa_sin_fundamento",
+          "etiqueta": "Contratación directa sin sustento",
+          "descripcion": "La causal invocada no aparece fundamentada en el expediente."
+        },
+        {
+          "id": "fecha_buena_pro_incoherente",
+          "etiqueta": "Fechas de buena pro incoherentes",
+          "descripcion": "La buena pro se otorgó antes del cierre de ofertas o con fechas contradictorias."
+        },
+        {
+          "id": "firmante_con_empresa_rnp",
+          "etiqueta": "Firmante con empresa en el RNP",
+          "descripcion": "Un firmante del expediente figura como socio o representante de una proveedora del Estado."
+        },
+        {
+          "id": "firmante_vinculado_ganador",
+          "etiqueta": "Firmante vinculado al ganador",
+          "descripcion": "Quien firma por la entidad aparece vinculado a la empresa ganadora en otros procesos."
+        },
+        {
+          "id": "fraccionamiento",
+          "etiqueta": "Fraccionamiento",
+          "descripcion": "Compras partidas en varios procesos pequeños que juntas superan el tope de un procedimiento mayor."
+        },
+        {
+          "id": "ganador_no_invitado",
+          "etiqueta": "Ganador no invitado",
+          "descripcion": "En comparación de precios, ganó un proveedor que no estaba entre los invitados."
+        },
+        {
+          "id": "inconsistencia_doc_vs_ocds",
+          "etiqueta": "Documento vs. registro OCDS",
+          "descripcion": "Lo que dicen los documentos no coincide con el registro oficial (montos, fechas, ganador)."
+        },
+        {
+          "id": "lobby_visits_pre_convocatoria",
+          "etiqueta": "Visitas previas a la convocatoria",
+          "descripcion": "Representantes del postor visitaron la entidad antes de la convocatoria (registro de visitas)."
+        },
+        {
+          "id": "oferta_igual_valor_referencial",
+          "etiqueta": "Oferta igual al valor referencial",
+          "descripcion": "La oferta ganadora coincide exactamente con el valor referencial."
+        },
+        {
+          "id": "oferta_mas_barata_no_gana",
+          "etiqueta": "La oferta más barata no ganó",
+          "descripcion": "Se adjudicó a una oferta más cara sin justificación registrada."
+        },
+        {
+          "id": "ofertas_agrupadas",
+          "etiqueta": "Ofertas agrupadas",
+          "descripcion": "Las ofertas de los postores están sospechosamente cerca entre sí."
+        },
+        {
+          "id": "plazo_convocatoria_minimo",
+          "etiqueta": "Plazo de convocatoria muy corto",
+          "descripcion": "Días entre la convocatoria y la presentación de ofertas por debajo del mínimo legal."
+        },
+        {
+          "id": "postor_unico_mayoritario",
+          "etiqueta": "Postor mayoritario en la entidad",
+          "descripcion": "Un mismo postor gana la mayoría de los procesos de la entidad."
+        },
+        {
+          "id": "postores_vinculados_rnp",
+          "etiqueta": "Postores vinculados entre sí",
+          "descripcion": "Socios o representantes compartidos entre postores rivales según el RNP."
+        },
+        {
+          "id": "procedimiento_no_competitivo",
+          "etiqueta": "Procedimiento no competitivo",
+          "descripcion": "Contratación directa o método sin competencia cuando el monto permitía convocar."
+        },
+        {
+          "id": "proveedor_sancionado_osce",
+          "etiqueta": "Proveedor con sanción OSCE/OECE",
+          "descripcion": "El ganador o sus consorciados tienen sanción vigente en el registro de inhabilitados."
+        },
+        {
+          "id": "ruc_ganador_muy_nuevo",
+          "etiqueta": "RUC del ganador muy reciente",
+          "descripcion": "La empresa ganadora se constituyó pocos meses antes de la convocatoria."
+        },
+        {
+          "id": "ruc_ultra_nuevo",
+          "etiqueta": "Postor con RUC ultra reciente",
+          "descripcion": "Algún postor tiene RUC de menos de 90 días."
+        },
+        {
+          "id": "testaferro_multi_ruc",
+          "etiqueta": "Misma persona en varios RUC",
+          "descripcion": "Una persona figura como representante de varias empresas que compiten entre sí."
+        },
+        {
+          "id": "tipo_proceso_vs_monto",
+          "etiqueta": "Procedimiento vs. monto",
+          "descripcion": "El tipo de procedimiento no corresponde al monto según los topes en UIT."
+        },
+        {
+          "id": "unica_oferta_valida",
+          "etiqueta": "Única oferta válida",
+          "descripcion": "Varios postores, pero todos menos uno fueron descalificados."
+        },
+        {
+          "id": "unico_postor_alto",
+          "etiqueta": "Único postor con oferta alta",
+          "descripcion": "Un solo postor y la oferta cerca del valor referencial (≥ 95 %)."
+        }
+      ]
+    }
+  },
+  "otras_senales": {
+    "red_flag_documental": {
+      "etiqueta": "Requisito dirigido en las bases",
+      "descripcion": "El análisis legal halló especificaciones o requisitos que convergen en un solo proveedor."
+    },
+    "objeto_no_corresponde_documento": {
+      "etiqueta": "Objeto vs. documentos",
+      "descripcion": "El objeto convocado no corresponde a lo que describen los documentos del expediente."
+    },
+    "sobreprecio_elevado": {
+      "etiqueta": "Sobreprecio frente al mercado",
+      "descripcion": "Los precios unitarios superan con holgura la mediana de mercado hallada."
+    },
+    "cobertura_prensa_adversa": {
+      "etiqueta": "Cobertura de prensa adversa",
+      "descripcion": "Prensa verificable reporta problemas del proveedor o del proceso."
+    },
+    "antecedentes_proveedor": {
+      "etiqueta": "Antecedentes del proveedor",
+      "descripcion": "Investigación web con hallazgos verificables sobre la empresa."
+    },
+    "funcionario_con_historial_politico": {
+      "etiqueta": "Funcionario con historial político",
+      "descripcion": "Funcionario de la entidad con vínculo político registrado con el proveedor."
+    },
+    "red_personas_vinculada": {
+      "etiqueta": "Red de personas vinculada",
+      "descripcion": "Personas del proveedor y de la entidad conectadas por empresas o cargos previos."
+    }
+  }
+}

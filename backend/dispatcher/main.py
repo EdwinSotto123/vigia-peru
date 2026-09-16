@@ -150,6 +150,19 @@ def esperar_alerta(ocid: str, desde: dt.datetime) -> bool:
         time.sleep(30)
 
 
+def refrescar_vistas(zonas: bool = False) -> bool:
+    """Refresca las vistas materializadas de financiamiento (migración 22) para que el muro de
+    aliados, el ranking y el mapa muestren el contrato recién cerrado sin esperar a la ingesta
+    nocturna. `ranking_impacto` tarda ~0.3 s y se refresca tras cada contrato; `zona_estado`
+    (~2 s) solo al final de la corrida. Nunca tumba el procesamiento: un fallo se registra y sigue."""
+    try:
+        _query("SELECT refresh_financiamiento()" if zonas else "SELECT refresh_ranking()", ())
+        return True
+    except Exception:  # noqa: BLE001 — la vista vieja se corrige en el siguiente refresh
+        log.warning("refresh de %s falló", "zona_estado + ranking_impacto" if zonas else "ranking_impacto", exc_info=True)
+        return False
+
+
 def terminar(ocid: str, resultado: str, error: str | None) -> None:
     if resultado == OK:
         # Desde la migración 20 el trigger trg_alertas_cerrar_procesamiento NO cierra un procesamiento con
@@ -161,6 +174,7 @@ def terminar(ocid: str, resultado: str, error: str | None) -> None:
             "estado = 'procesado', fase_actual = 'final', fase_index = 10, error = NULL, worker = NULL WHERE ocid = %s",
             (ocid,),
         )
+        refrescar_vistas(zonas=False)
     elif resultado == ABORT:
         # El orquestador no pudo analizar (fuente caída): vuelve a la cola SIN consumir el intento.
         _query(
@@ -439,6 +453,8 @@ def main() -> int:
             if (time.time() >= deadline or fuente_caida) and not en_curso:
                 log.info("corto la corrida: %s", "fuente OECE inaccesible" if fuente_caida else f"tope de {MAX_MIN} min")
                 break
+    if procesados:
+        refrescar_vistas(zonas=True)
     log.info("fin · procesados=%d fallidos=%d abortados=%d pendientes_de_procesamiento=%d esperando_documentos=%d",
              procesados, fallidos, abortados, pendientes, esperando)
     return 0

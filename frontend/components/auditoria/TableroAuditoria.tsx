@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Inbox, WifiOff } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Eye, Inbox, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
   PUBLIC_API_BASE,
@@ -112,6 +112,8 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
     for (const p of items) m[columnaDe(p.estado)].push(p);
     return m;
   }, [items]);
+  // Procesados con alerta bloqueada por la autoevaluación: se muestran en "Procesado" con su píldora, y se cuentan aparte.
+  const enRevision = useMemo(() => items.filter((p) => estadoVisible(p) === "revision").length, [items]);
 
   // En móvil, arrancamos en la pestaña con actividad (sin pisar la elección del usuario).
   useEffect(() => {
@@ -136,6 +138,12 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
                 <span className="font-mono text-ink transition-all">{porColumna[c.key].length}</span> {c.label.toLowerCase()}
               </span>
             ))}
+            {enRevision > 0 && (
+              <span className="inline-flex items-center gap-1 text-clay" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Cuentan como procesados, no como señales.">
+                <Eye size={14} />
+                <span className="font-mono">{enRevision}</span> en revisión humana
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-mute" aria-live="polite" aria-atomic="true">

@@ -37,9 +37,11 @@ function ms(desde: string | null | undefined, hasta: string | null | undefined, 
 export function DagCarriles({ fases, estado, ahora, compacto = false }: Props) {
   return (
     <div className={compacto ? "space-y-2" : "space-y-3"} aria-label="Agentes del análisis por carril">
-      {CARRILES.map((c) => (
-        <div key={c.key} className={`flex ${compacto ? "flex-col gap-1" : "flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"}`}>
-          <div className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide text-mute ${compacto ? "" : "sm:w-20"}`}>{c.label}</div>
+      {CARRILES.map((c) => {
+        const claves = c.pasos.flat();
+        const hechas = claves.filter((k) => ["hecho", "omitido"].includes(estadoDeFase(fases, k, estado))).length;
+        const corriendo = claves.some((k) => estadoDeFase(fases, k, estado) === "corriendo");
+        const contenido = (
           <ol className="flex min-w-0 flex-wrap items-center gap-y-1.5">
             {c.pasos.map((grupo, gi) => (
               <li key={gi} className="flex items-center">
@@ -88,8 +90,32 @@ export function DagCarriles({ fases, estado, ahora, compacto = false }: Props) {
               </li>
             ))}
           </ol>
-        </div>
-      ))}
+        );
+        if (compacto) {
+          return (
+            <div key={c.key} className="flex flex-col gap-1">
+              <div className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-mute">{c.label}</div>
+              {contenido}
+            </div>
+          );
+        }
+        return (
+          <div key={c.key}>
+            {/* móvil: acordeón por carril (abierto el que corre o el que falta); escritorio: fila */}
+            <details className="sm:hidden" open={corriendo || hechas < claves.length}>
+              <summary className="flex cursor-pointer select-none items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-mute">
+                <span>{c.label}</span>
+                <span className="font-mono normal-case tracking-normal">{hechas}/{claves.length}{corriendo ? " · en curso" : ""}</span>
+              </summary>
+              <div className="mt-1.5">{contenido}</div>
+            </details>
+            <div className="hidden sm:flex sm:items-center sm:gap-3">
+              <div className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-mute sm:w-20">{c.label}</div>
+              {contenido}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -71,6 +71,18 @@ export interface SenalRiesgo {
   agente?: string | null;
   /** banderas.verificacion.ok (migración 18): cotejada contra OCDS/SUNAT/documentos. */
   verificada?: boolean | null;
+  /** U5 (GET /contratos/:ocid): páginas del expediente que respaldan la señal. */
+  citas?: CitaDocumento[];
+}
+
+/** Cita a una página concreta de un documento del expediente (document_analysis / legal_analysis). */
+export interface CitaDocumento {
+  pagina: number | null;
+  cita: string | null;
+  documentoUrl: string | null;      // url_origen SEACE → /contratos/:ocid/documento firma la copia de Vigía
+  documentoTitulo: string | null;
+  enVigia: boolean;
+  verificada: boolean | null;
 }
 
 export interface MercadoItem {
@@ -107,6 +119,29 @@ export interface ResultadoAnalisis {
   autoevaluacion: Record<string, number | string> | null;
   dictamenListo: boolean;
   revisionMotivo?: string | null;
+  /** Motivos de la revisión humana en lenguaje claro (GET …/:ocid → resultado, GET /alertas/:codigo/revision). */
+  revisionMotivos?: RevisionMotivo[] | null;
+  /** U5: perfil del pipeline (bienes · servicios · obras · otros), costo/tokens y modelo. */
+  perfil?: string | null;
+  costo?: { costoUsd: number | null; llamadas: number | null; tokens: number | null } | null;
+  modelo?: string | null;
+  /** Reglas deterministas que dispararon (compliance_resumen_det.reglas). */
+  reglasDisparadas?: string[] | null;
+}
+
+export interface RevisionMotivo { clave: string; titulo: string; detalle: string; valor: number | null; umbral: number | null; reglas?: string[]; reglasEtiquetas?: string[] }
+
+/** Reglas por perfil (GET /financiamiento/procesamientos/reglas?perfil=, JSON estático de backend/scripts/exportar_reglas.py). */
+export interface ReglaPerfil { id: string; etiqueta: string; descripcion: string }
+export interface ReglasPerfil {
+  version: string;
+  generadoAt: string;
+  perfil: string;
+  agentes: string[];
+  market_estrategia: string;
+  parse_max_docs: number;
+  reglas: ReglaPerfil[];
+  otrasSenales: Record<string, { etiqueta: string; descripcion: string }>;
 }
 
 export interface Estimado {
@@ -238,6 +273,9 @@ export const getProcesamientos = (q: ProcesamientosQuery = {}) =>
 
 export const getProcesamiento = (ocid: string) =>
   getJson<ProcesamientoDetalle>(`/financiamiento/procesamientos/${encodeURIComponent(ocid)}`, 3);
+
+export const getReglasPerfil = (perfil: string) =>
+  getJson<ReglasPerfil>(`/financiamiento/procesamientos/reglas?perfil=${encodeURIComponent(perfil)}`, 3600);
 
 export const getResumenProcesamientos = () =>
   getJson<ResumenProcesamientos>(`/financiamiento/procesamientos/resumen`, 10);

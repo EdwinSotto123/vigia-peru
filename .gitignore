@@ -65,3 +65,8 @@ infrastructure/terraform/.terraform/
 infrastructure/terraform/terraform.tfvars
 infrastructure/terraform/imports.tf
 infrastructure/terraform/*.tfstate*
+
+# RAG normativo: descargas y cachés locales (los PDF viven en gs://vigia-peru-rag)
+backend/rag/.cache/
+# Capturas de verificación en navegador (pesadas; las notas sí se versionan)
+docs/design/capturas/**/*.png

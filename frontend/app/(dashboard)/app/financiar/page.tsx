@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, ShieldCheck, Landmark } from "lucide-react";
 import { ZonaPicker } from "@/components/financiar/ZonaPicker";
 import { RankingTable } from "@/components/financiar/RankingTable";
@@ -13,7 +14,10 @@ export const metadata = {
 
 export const revalidate = 120;
 
-export default async function FinanciarPage() {
+export default async function FinanciarPage({ searchParams }: { searchParams?: { ubigeo?: string } }) {
+  // Llegada desde el mapa con la zona ya elegida (/app/financiar?ubigeo=21) → directo al paso de cantidad.
+  const u = searchParams?.ubigeo;
+  if (u && /^\d{2}(\d{2}(\d{2})?)?$/.test(u)) redirect(`/app/financiar/${u}`);
   const [zonas, estado, ranking, recientes] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),

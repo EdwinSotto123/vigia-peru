@@ -40,3 +40,26 @@ def test_terminar_ok_cierra_con_hora_real(monkeypatch):
     main.terminar("x", main.OK, None)
     sql, _ = capturado[0]
     assert "WHEN estado = 'procesando' THEN now()" in sql and "estado = 'procesado'" in sql and "fase_index = 10" in sql
+
+
+def test_terminar_ok_refresca_el_ranking(monkeypatch):
+    capturado: list[tuple[str, tuple]] = []
+    monkeypatch.setattr(main, "_query", lambda sql, params: capturado.append((sql, params)) or [])
+    main.terminar("x", main.OK, None)
+    assert any("refresh_ranking()" in sql for sql, _ in capturado)
+    # zona_estado (2 s) no se refresca por contrato: solo al final de la corrida
+    assert not any("refresh_financiamiento()" in sql for sql, _ in capturado)
+
+
+def test_terminar_fail_no_refresca(monkeypatch):
+    capturado: list[tuple[str, tuple]] = []
+    monkeypatch.setattr(main, "_query", lambda sql, params: capturado.append((sql, params)) or [])
+    main.terminar("x", main.FAIL, "boom")
+    assert not any("refresh" in sql for sql, _ in capturado)
+
+
+def test_refrescar_vistas_no_tumba_si_la_db_falla(monkeypatch):
+    def boom(sql, params):
+        raise RuntimeError("db caída")
+    monkeypatch.setattr(main, "_query", boom)
+    assert main.refrescar_vistas(zonas=True) is False

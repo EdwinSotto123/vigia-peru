@@ -40,21 +40,28 @@ export function BrandBadge({ brand, size = "md" }: { brand: string; size?: "md" 
   );
 }
 
-export function CopyValue({ value, label, mono = true }: { value: string; label?: string; mono?: boolean }) {
+export function CopyValue({ value, label, mono = true, size = "md", dark = false }: { value: string; label?: string; mono?: boolean; size?: "md" | "lg"; dark?: boolean }) {
   const [ok, setOk] = useState(false);
   async function copy() {
     try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1500); } catch { /* sin clipboard */ }
   }
   return (
-    <button type="button" onClick={copy} className="group inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-paper px-2 py-1 text-left hover:bg-paperDeep" title="Copiar">
-      {label && <span className="text-[11px] text-mute">{label}</span>}
-      <span className={`truncate text-sm text-ink ${mono ? "font-mono" : ""}`}>{value}</span>
-      {ok ? <Check size={12} className="shrink-0 text-moss" /> : <Copy size={12} className="shrink-0 text-mute group-hover:text-ink" />}
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={`Copiar ${label ?? value}`}
+      className={`group inline-flex max-w-full items-center gap-1.5 rounded-lg border text-left ${dark ? "border-paper/30 bg-paper/10 hover:bg-paper/20" : "border-line bg-paper hover:bg-paperDeep"} ${size === "lg" ? "px-3 py-2" : "px-2 py-1"}`}
+      title="Copiar"
+    >
+      {label && <span className={`text-[11px] ${dark ? "text-paper/70" : "text-mute"}`}>{label}</span>}
+      <span className={`truncate ${size === "lg" ? "text-lg font-semibold" : "text-sm"} ${dark ? "text-paper" : "text-ink"} ${mono ? "font-mono" : ""}`}>{value}</span>
+      <span className={`shrink-0 ${size === "lg" ? "text-[11px]" : "text-[10px]"} ${dark ? "text-paper/70" : "text-mute group-hover:text-ink"}`}>{ok ? "copiado" : "copiar"}</span>
+      {ok ? <Check size={12} className="shrink-0 text-moss" aria-hidden /> : <Copy size={12} className={`shrink-0 ${dark ? "text-paper/70" : "text-mute group-hover:text-ink"}`} aria-hidden />}
     </button>
   );
 }
 
-export function PaymentMethods({ pago, monto, concepto, metodoPreferido }: { pago: PagoPublico; monto: string; concepto: string; metodoPreferido?: string }) {
+export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande = false }: { pago: PagoPublico; monto: string; concepto: string; metodoPreferido?: string; grande?: boolean }) {
   if (!pago.configurado) {
     return (
       <div className="rounded-xl border border-dashed border-line p-4 text-sm text-mute">
@@ -66,22 +73,24 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido }: { pag
   const order = (k: string) => (k === metodoPreferido ? 0 : 1);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-ink px-4 py-3 text-paper">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-ink px-4 py-3 text-paper">
         <span className="text-sm">Monto exacto</span><span className="font-mono text-lg font-semibold">{monto}</span>
-        <span className="mx-1 text-paper/40">·</span>
-        <span className="text-sm">Concepto</span><span className="font-mono text-lg font-semibold">{concepto}</span>
+        <span className="mx-1 hidden text-paper/40 sm:inline">·</span>
+        <span className="text-sm">Concepto</span>
+        <CopyValue value={concepto} dark />
       </div>
 
       {wallets.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${grande && wallets.length > 1 ? "sm:grid-cols-2" : wallets.length > 1 ? "sm:grid-cols-2" : ""}`}>
           {wallets.sort((a, b) => order(a.k) - order(b.k)).map((w) => (
             <div key={w.k} className={`rounded-xl border p-4 ${w.k === metodoPreferido ? "border-ink" : "border-line"}`}>
               <div className="flex items-center justify-between"><BrandBadge brand={w.k} size="lg" />{w.k === metodoPreferido && <span className="text-[11px] text-mute">tu método</span>}</div>
-              <div className="mt-3 flex items-start gap-3">
-                {w.qrUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={w.qrUrl} alt={`QR ${w.k}`} className="h-24 w-24 rounded-lg border border-line object-contain" />}
-                <div className="min-w-0 space-y-1.5">
-                  <CopyValue value={w.numero} label="número" />
+              <div className={`mt-3 flex ${grande ? "flex-col items-center gap-3 text-center" : "items-start gap-3"}`}>
+                {w.qrUrl && /* eslint-disable-next-line @next/next/no-img-element */ <img src={w.qrUrl} alt={`QR de ${w.k} para pagar`} className={`rounded-lg border border-line bg-white object-contain ${grande ? "h-48 w-48 sm:h-56 sm:w-56" : "h-24 w-24"}`} />}
+                <div className={`min-w-0 space-y-1.5 ${grande ? "flex flex-col items-center" : ""}`}>
+                  <CopyValue value={w.numero} label="número" size={grande ? "lg" : "md"} />
                   {w.titular && <div className="text-[12px] text-mute">Titular: <span className="text-ink">{w.titular}</span></div>}
+                  {grande && <div className="text-[11px] text-mute">Escanea el QR o copia el número · pon el código como concepto</div>}
                 </div>
               </div>
             </div>

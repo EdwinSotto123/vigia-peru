@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight, Building2, User, Users } from "lucide-react";
 import type { RankingRow } from "@/lib/financiamiento";
 
@@ -87,8 +88,8 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
 export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string; size?: "sm" | "lg" }) {
   const dims = size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
   if (logoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logoUrl} alt={nombre} className={`${dims} border border-line bg-paper object-contain`} />;
+    const px = size === "lg" ? 56 : 32;
+    return <Image src={logoUrl} alt={nombre} width={px} height={px} className={`${dims} border border-line bg-paper object-contain`} loading="lazy" unoptimized={!/^https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\//.test(logoUrl)} />;
   }
   const Icon = tipo === "empresa" ? Building2 : tipo === "organizacion" ? Users : User;
   return (

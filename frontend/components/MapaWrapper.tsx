@@ -14,17 +14,19 @@ import {
   ChevronDown,
   MessageSquareWarning,
   Landmark,
+  Bell,
 } from "lucide-react";
+import { useCuenta } from "@/lib/cuentas";
 import { REGIONES, type MetricaId, metricLabel } from "@/lib/peru-data";
 import { formatSoles, ALERTAS_MOCK } from "@/lib/mock-data";
 import { getReportes, getAlertas } from "@/lib/api-client";
-import { getZonas, ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado } from "@/lib/financiamiento";
+import { getZonas, getAlcance, alcanceCorto, ESTADO_FILL, ESTADO_LABEL, type Alcance, type Zona, type ZonaEstado } from "@/lib/financiamiento";
 import { coordsForRegionWithJitter } from "@/lib/region-coords";
 import { RegionDetailPanel } from "./RegionDetailPanel";
-import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
+import { REGION_UBIGEO, UBIGEO_REGION, belongsToRegion } from "./mapa/region-match";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
-import { ContratoPinLeyenda, colorPorSenales, radioPorTotal } from "./contratos/ContratoPin";
+import { ContratoPinLeyenda, colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { Marquee } from "./magicui/Marquee";
 import { cn } from "@/lib/utils";
@@ -65,6 +67,17 @@ export function MapaWrapper({
   // Capa opcional: pinta cada departamento por estado de financiamiento de su auditoría.
   const [showFinanciamiento, setShowFinanciamiento] = useState(true);   // cola real por región; el selector de métricas mock se retiró
   const [zonas, setZonas] = useState<Zona[] | null>(null);
+  // Capa "Mis zonas" (solo con sesión): resalta los departamentos de las zonas que el usuario sigue.
+  const { perfil } = useCuenta();
+  const misRegiones = useMemo(() => {
+    const out = new Set<string>();
+    for (const u of perfil?.zonasSeguidas ?? []) { const r = UBIGEO_REGION[u.slice(0, 2)]; if (r) out.add(r); }
+    return out;
+  }, [perfil]);
+  const [showMisZonas, setShowMisZonas] = useState(false);
+  // Panel inferior deslizable (móvil): arrastre vertical del asa.
+  const touchY = useRef<number | null>(null);
+  const [alcance, setAlcance] = useState<Alcance | null>(null);   // qué se analiza hoy (cola financiable, docs listos)
   const [reportes, setReportes] = useState<any[]>([]);
   const [alertasApi, setAlertasApi] = useState<any[]>([]);
 
@@ -92,6 +105,7 @@ export function MapaWrapper({
     getAlertas({ limit: 200 })
       .then((data) => { if (alive) setAlertasApi(data as any[]); })
       .catch(() => {});
+    getAlcance().then((a) => { if (alive) setAlcance(a); });
     return () => { alive = false; };
   }, []);
 
@@ -104,6 +118,12 @@ export function MapaWrapper({
   }, [showFinanciamiento, zonas]);
 
   const fillFinanciamiento = useMemo<Record<string, string> | null>(() => {
+    // "Mis zonas" manda sobre la capa de financiamiento: resalta las seguidas y atenúa el resto.
+    if (showMisZonas && misRegiones.size > 0) {
+      const out: Record<string, string> = {};
+      for (const r of REGIONES) out[r.id] = misRegiones.has(r.id) ? "#F2C879" : "#EEF1F4";
+      return out;
+    }
     if (!showFinanciamiento) return null;
     const out: Record<string, string> = {};
     for (const z of zonas ?? []) {
@@ -111,7 +131,7 @@ export function MapaWrapper({
       if (regionId) out[regionId] = ESTADO_FILL[z.estado];
     }
     return out;
-  }, [showFinanciamiento, zonas]);
+  }, [showFinanciamiento, zonas, showMisZonas, misRegiones]);
 
   // Estado inicial desde la URL (?ubigeo=<distrito>&ocid=) — se lee una vez en el cliente.
   useEffect(() => {
@@ -192,7 +212,7 @@ export function MapaWrapper({
       ubigeo: z.ubigeo,
       total: z.total,
       r: radioPorTotal(z.total, max),
-      color: colorPorSenales(z),
+      color: colorPorEstado(z),
       selected: distrito?.ubigeo === z.ubigeo || resaltada(z.ubigeo),
       hovered: hoverPunto === z.ubigeo,
     }));
@@ -284,20 +304,6 @@ export function MapaWrapper({
     [selectedRegionId],
   );
 
-  const totals = useMemo(
-    () =>
-      REGIONES.reduce(
-        (acc, r) => {
-          acc.alertas += r.alertas;
-          acc.reportes += r.reportes;
-          acc.convergentes += r.convergentes;
-          acc.monto += r.monto;
-          return acc;
-        },
-        { alertas: 0, reportes: 0, convergentes: 0, monto: 0 },
-      ),
-    [],
-  );
 
   const tickerAlertas = [...(alertasApi.length > 0 ? alertasApi : ALERTAS_MOCK)]
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
@@ -354,6 +360,7 @@ export function MapaWrapper({
           <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
             <button
               onClick={() => setShowAlertas((v) => !v)}
+              aria-pressed={showAlertas}
               title={`${showAlertas ? "Ocultar" : "Mostrar"} alertas en el mapa`}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -368,6 +375,7 @@ export function MapaWrapper({
             </button>
             <button
               onClick={() => setShowDenuncias((v) => !v)}
+              aria-pressed={showDenuncias}
               title={`${showDenuncias ? "Ocultar" : "Mostrar"} denuncias en el mapa`}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -380,6 +388,7 @@ export function MapaWrapper({
             </button>
             <button
               onClick={() => setShowContratos((v) => !v)}
+              aria-pressed={showContratos}
               title={`${showContratos ? "Ocultar" : "Mostrar"} contratos por zona`}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -392,6 +401,7 @@ export function MapaWrapper({
             </button>
             <button
               onClick={() => setShowFinanciamiento((v) => !v)}
+              aria-pressed={showFinanciamiento}
               title={`${showFinanciamiento ? "Ocultar" : "Mostrar"} estado de financiamiento de la auditoría por región`}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -401,20 +411,32 @@ export function MapaWrapper({
               <Landmark size={13} />
               <span className="hidden sm:inline">Financiamiento</span>
             </button>
+            {perfil && misRegiones.size > 0 && (
+              <button
+                onClick={() => setShowMisZonas((v) => !v)}
+                aria-pressed={showMisZonas}
+                title={`${showMisZonas ? "Ocultar" : "Resaltar"} las zonas que sigo`}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  showMisZonas ? "bg-amber text-ink" : "text-mute hover:bg-paper hover:text-ink",
+                )}
+              >
+                <Bell size={13} />
+                <span className="hidden sm:inline">Mis zonas</span>
+                <span className="font-mono text-[10px] opacity-80">{misRegiones.size}</span>
+              </button>
+            )}
           </div>
 
           {/* Breadcrumb o quick totals */}
           <div className="flex items-center gap-3 text-xs">
             {!selectedRegion ? (
-              <div className="hidden gap-4 md:flex">
-                <Stat label="Alertas" value={totals.alertas} accent="text-amber" />
-                <Stat label="Reportes" value={totals.reportes} accent="text-rust" />
-                <Stat
-                  label="Convergentes"
-                  value={totals.convergentes}
-                  accent="text-clay"
-                />
-                <Stat label="Monto" value={formatSoles(totals.monto)} accent="text-ink" />
+              <div className="hidden gap-4 md:flex" title={alcance ? `Cola financiable hoy: ${alcanceCorto(alcance.procesamiento)}` : undefined}>
+                <Stat label="Alertas" value={alertasApi.length} accent="text-amber" />
+                <Stat label="Denuncias" value={reportes.length} accent="text-rust" />
+                <Stat label="Contratos" value={totalContratos} accent="text-ink" />
+                <Stat label="En cola" value={alcance?.colaFinanciable ?? "—"} accent="text-clay" />
+                <Stat label="Docs listos" value={alcance?.documentosListos ?? "—"} accent="text-inkSoft" />
               </div>
             ) : (
               <div className="flex items-center gap-2 font-mono text-xs">
@@ -572,6 +594,14 @@ export function MapaWrapper({
               </div>
             )}
 
+            {/* Leyenda compacta de la capa Contratos con región elegida */}
+            {selectedRegion && showContratos && geo.length > 0 && (
+              <div className="absolute bottom-3 left-3 z-10 hidden animate-fadeIn rounded-2xl border border-line bg-paperSoft/95 px-3 py-2 backdrop-blur-sm sm:bottom-4 sm:left-4 lg:block">
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">Contratos por distrito</div>
+                <ContratoPinLeyenda />
+              </div>
+            )}
+
             {/* Hints */}
             {!selectedRegionId && (
               <div className="absolute inset-x-3 bottom-3 z-10 mx-auto max-w-md rounded-2xl border border-line bg-paperSoft/95 px-4 py-2 text-center text-xs text-mute backdrop-blur-sm sm:inset-x-4 sm:bottom-4 lg:hidden">
@@ -609,10 +639,27 @@ export function MapaWrapper({
                 mobileDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-58px)]",
               )}
             >
-              <div className="rounded-t-3xl border-t border-line bg-paperSoft shadow-paper">
-                {/* Handle */}
+              <div
+                className="rounded-t-3xl border-t border-line bg-paperSoft shadow-paper"
+                role="region"
+                aria-label={`Panel de ${selectedRegion.nombre}`}
+                onTouchStart={(e) => { touchY.current = e.touches[0]?.clientY ?? null; }}
+                onTouchEnd={(e) => {
+                  const y0 = touchY.current; const y1 = e.changedTouches[0]?.clientY;
+                  touchY.current = null;
+                  if (y0 == null || y1 == null) return;
+                  const dy = y1 - y0;
+                  if (dy < -40) setMobileDrawerOpen(true);
+                  else if (dy > 40 && (e.target as HTMLElement).closest("[data-asa]")) setMobileDrawerOpen(false);
+                }}
+              >
+                {/* Asa: toca o desliza para abrir/cerrar */}
                 <button
+                  data-asa
                   onClick={() => setMobileDrawerOpen((v) => !v)}
+                  aria-expanded={mobileDrawerOpen}
+                  aria-controls="panel-zona-movil"
+                  aria-label={mobileDrawerOpen ? "Contraer panel de la zona" : "Expandir panel de la zona"}
                   className="flex w-full items-center justify-between gap-3 border-b border-line bg-paperDeep px-5 py-3"
                 >
                   <div className="flex items-center gap-2 text-left">
@@ -623,7 +670,12 @@ export function MapaWrapper({
                       {selectedRegion.nombre}
                     </div>
                     <div className="text-xs text-mute">
-                      {selectedRegion.alertas} alertas · {formatSoles(selectedRegion.monto)}
+                      {(() => {
+                        // cifras reales (no las de REGIONES mock): cola financiable y alertas publicadas de la región
+                        const z = zonas?.find((x) => UBIGEO_REGION[x.ubigeo] === selectedRegion.id);
+                        const nAl = alertasApi.filter((a) => belongsToRegion(a, selectedRegion.id)).length;
+                        return `${z ? `${z.totalCola.toLocaleString("es-PE")} en cola · ${z.financiados} financiados · ` : ""}${nAl} alertas`;
+                      })()}
                     </div>
                   </div>
                   {mobileDrawerOpen ? (
@@ -632,7 +684,7 @@ export function MapaWrapper({
                     <ChevronUp size={18} className="text-mute" />
                   )}
                 </button>
-                <div className="max-h-[70vh] overflow-y-auto">
+                <div id="panel-zona-movil" className="max-h-[72vh] overflow-y-auto">
                   <RegionDetailPanel
                     region={selectedRegion}
                     provinciaActiva={provinciaActiva}

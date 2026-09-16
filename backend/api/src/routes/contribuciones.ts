@@ -43,7 +43,7 @@ const CrearBody = z.object({
     tipo: z.enum(["empresa", "persona", "organizacion"]),
     nombrePublico: z.string().trim().min(2).max(80).optional(),   // ausente = anónimo
     ruc: z.string().regex(/^\d{11}$/).optional(),
-    email: z.string().email(),
+    email: z.string().email().optional(),          // obligatorio sin sesión; con sesión sale de la cuenta
     logoUrl: z.string().url().optional(),
   }),
   mensajePublico: z.string().trim().max(140).optional(),
@@ -58,6 +58,8 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
   if ((f.tipo === "empresa" || f.tipo === "organizacion") && !f.ruc) {
     return c.json({ error: "ruc_required", detail: "Empresas y organizaciones deben indicar RUC" }, 400);
   }
+  const uid = c.get("user")?.uid ?? null;
+  if (!uid && !f.email) return c.json({ error: "email_required", detail: "Sin sesión necesitamos un correo para el comprobante" }, 400);
 
   const client = await pool.connect();
   try {
@@ -65,26 +67,42 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
     const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
     if (!zona.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "zona_not_found" }, 404); }
 
-    // Financiador: reutiliza por firebase_uid o por (ruc|email).
-    const uid = c.get("user")?.uid ?? null;
+    // Financiador: con sesión, el de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese uid;
+    // sin sesión, por (ruc|email) como invitado. Con sesión no hace falta repetir nombre/logo.
+    let cuenta: { financiador_id: number | null; correo: string | null; nombre_publico: string | null } | null = null;
+    if (uid) {
+      cuenta = (await client.query(
+        `SELECT financiador_id, correo, nombre_publico FROM usuarios WHERE firebase_uid = $1`, [uid])).rows[0] ?? null;
+    }
+    const emailEfectivo = f.email ?? cuenta?.correo ?? (uid ? `${uid}@cuenta.vigia.local` : null);
     let fin = await client.query(
-      `SELECT id, visible FROM financiadores WHERE ($1::text IS NOT NULL AND firebase_uid = $1)
-          OR ($2::text IS NOT NULL AND ruc = $2) OR (email = $3 AND tipo = $4) LIMIT 1`,
-      [uid, f.ruc ?? null, f.email, f.tipo]);
+      `SELECT id, visible FROM financiadores
+        WHERE ($5::bigint IS NOT NULL AND id = $5)
+           OR ($1::text IS NOT NULL AND firebase_uid = $1)
+           OR ($1::text IS NULL AND (($2::text IS NOT NULL AND ruc = $2) OR (email = $3 AND tipo = $4)))
+        ORDER BY (id = $5) DESC, (firebase_uid = $1) DESC LIMIT 1`,
+      [uid, f.ruc ?? null, emailEfectivo, f.tipo, cuenta?.financiador_id ?? null]);
     let financiadorId: number;
     if (fin.rows.length) {
       financiadorId = fin.rows[0].id;
       await client.query(
         `UPDATE financiadores SET nombre_publico = COALESCE($2, nombre_publico), logo_url = COALESCE($3, logo_url),
-                firebase_uid = COALESCE(firebase_uid, $4) WHERE id = $1`,
-        [financiadorId, f.nombrePublico ?? null, f.logoUrl ?? null, uid]);
+                ruc = COALESCE(ruc, $5), firebase_uid = COALESCE(firebase_uid, $4) WHERE id = $1`,
+        [financiadorId, f.nombrePublico ?? null, f.logoUrl ?? null, uid, f.ruc ?? null]);
     } else {
-      const slug = f.nombrePublico ? slugify(f.nombrePublico) + "-" + Math.random().toString(36).slice(2, 6) : null;
+      const nombre = f.nombrePublico ?? cuenta?.nombre_publico ?? null;
+      const slug = nombre ? slugify(nombre) + "-" + Math.random().toString(36).slice(2, 6) : null;
       const ins = await client.query(
         `INSERT INTO financiadores (tipo, nombre_publico, slug, ruc, logo_url, email, firebase_uid)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [f.tipo, f.nombrePublico ?? null, slug, f.ruc ?? null, f.logoUrl ?? null, f.email, uid]);
+        [f.tipo, nombre, slug, f.ruc ?? null, f.logoUrl ?? null, emailEfectivo, uid]);
       financiadorId = ins.rows[0].id;
+    }
+    if (uid) {
+      await client.query(
+        `INSERT INTO usuarios (firebase_uid, financiador_id) VALUES ($1, $2)
+         ON CONFLICT (firebase_uid) DO UPDATE SET financiador_id = COALESCE(usuarios.financiador_id, EXCLUDED.financiador_id), updated_at = now()`,
+        [uid, financiadorId]).catch(() => { /* sin migración 26 */ });
     }
 
     // Conflicto de interés (regla 3): sanción vigente o proveedor con alertas en la zona.

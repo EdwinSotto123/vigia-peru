@@ -4,7 +4,7 @@ import { Activity, ChevronRight, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { Avatar } from "@/components/financiar/RankingTable";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
-import { ESTADO_FILL, ESTADO_LABEL, formatPEN, getPago, getZona, pct } from "@/lib/financiamiento";
+import { ESTADO_FILL, ESTADO_LABEL, alcanceCorto, alcanceLargo, formatPEN, getPago, getZona, pct } from "@/lib/financiamiento";
 import { getProcesamientos } from "@/lib/auditoria";
 
 export const revalidate = 60;
@@ -49,10 +49,10 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           {/* progreso */}
           <div className="mt-6 rounded-2xl border border-line p-5">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Big label="Cola de auditoría" v={zona.totalCola} unit="contratos" />
+              <Big label={`En cola (${alcanceCorto(d.alcance)})`} v={zona.totalCola} unit="contratos" />
               <Big label="Costo de auditarla" v={zona.totalCola * zona.precioPen} prefix="S/ " />
               <Big label="Financiados" v={zona.financiados} unit={`de ${zona.totalCola}`} />
-              <Big label="Procesados" v={zona.procesados} unit={`${zona.senales} señales`} />
+              <Big label="Procesados" v={zona.procesados} unit={`${zona.senales} señales${(zona.enRevision ?? 0) > 0 ? ` · ${zona.enRevision} en revisión humana` : ""}`} />
             </div>
             <div className="mt-4">
               <div className="flex justify-between text-[11px] text-mute"><span>financiado {pFin}%</span><span>procesado {pProc}%</span></div>
@@ -72,11 +72,16 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
             <p className="mt-1 text-sm text-mute">
               Los contratos son públicos y puedes verlos, pero se procesan en orden de llegada: el financiador no elige cuáles.
             </p>
-            <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
-              <div><dt className="text-[11px] uppercase tracking-wide text-mute">Contratos</dt><dd className="font-mono text-ink">{cola.contratos.toLocaleString("es-PE")}</dd></div>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div><dt className="text-[11px] uppercase tracking-wide text-mute">Contratos en cola</dt><dd className="font-mono text-ink">{cola.contratos.toLocaleString("es-PE")}</dd><dd className="text-[10px] text-mute">{alcanceCorto(d.alcance)}</dd></div>
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Monto contratado</dt><dd className="font-mono text-ink">{formatPEN(cola.montoReferencial)}</dd></div>
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Entidades</dt><dd className="font-mono text-ink">{cola.entidades}</dd></div>
+              <div><dt className="text-[11px] uppercase tracking-wide text-mute">Documentos listos</dt><dd className="font-mono text-ink">{(cola.documentosListos ?? 0).toLocaleString("es-PE")}</dd><dd className="text-[10px] text-mute">otros tipos · análisis en preparación</dd></div>
             </dl>
+            <details className="mt-3 text-[12px] text-mute">
+              <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">¿Qué se analiza hoy?</summary>
+              <p className="mt-1 leading-relaxed">{alcanceLargo(d.alcance)}</p>
+            </details>
           </div>
 
           {/* en vivo ahora */}
@@ -147,7 +152,8 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           </div>
         </div>
 
-        <div className="lg:sticky lg:top-24 lg:self-start">
+        {/* En móvil el formulario va PRIMERO (se llega desde "Financiar esta zona"); en escritorio, columna derecha pegajosa. */}
+        <div className="order-first lg:order-last lg:sticky lg:top-24 lg:self-start" id="aportar">
           {zona.totalCola > 0 ? (
             <ContribuirForm ubigeo={zona.ubigeo} zonaNombre={zona.nombre} precioPen={zona.precioPen} restantes={restantes || zona.totalCola} metodos={metodos} />
           ) : (

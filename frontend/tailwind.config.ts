@@ -53,10 +53,10 @@ const config: Config = {
         emerald: { DEFAULT: "#3D5C2D", glow: "#5A7E45" },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        serif: ["'Source Serif Pro'", "Georgia", "serif"],
+        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "'Source Serif Pro'", "Georgia", "serif"],
         mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
-        techno: ["'Chakra Petch'", "Inter", "sans-serif"],
+        techno: ["var(--font-techno)", "'Chakra Petch'", "Inter", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px rgba(27,22,17,0.06), 0 8px 24px rgba(27,22,17,0.08)",

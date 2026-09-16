@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
+
+// Fuentes autoalojadas por next/font: sin CSS bloqueante de fonts.googleapis (Lighthouse móvil).
+// Chakra Petch (font-techno) no se usa en ningún componente: se retiró.
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-sans" });
+const serif = Source_Serif_4({ subsets: ["latin"], weight: ["600", "700"], display: "swap", variable: "--font-serif", preload: false });
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
@@ -14,22 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <head>
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-        />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+Pro:wght@600;700&family=Chakra+Petch:wght@500;600;700&display=swap"
-        />
-      </head>
+    <html lang="es" className={`${inter.variable} ${serif.variable}`}>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>
