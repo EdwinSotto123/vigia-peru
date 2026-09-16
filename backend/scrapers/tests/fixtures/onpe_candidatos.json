@@ -1,0 +1,26 @@
+{
+ "fuente": "ONPE Claridad · candidatos",
+ "endpoint": "https://claridad.onpe.gob.pe/claridad-backend/portal/consult/candidate/find-lastname",
+ "descargado_at": "2026-09-16T01:00:00",
+ "total": 2,
+ "candidatos": [
+  {
+   "dni": "00000001",
+   "apellidos": "PRUEBA PRUEBA",
+   "nombres": "CANDIDATO",
+   "organizacion": "CONTIGO REGION",
+   "departamento": "PIURA",
+   "proceso": "ERM2022",
+   "totalIngresos": null
+  },
+  {
+   "dni": "",
+   "apellidos": "SIN",
+   "nombres": "DNI",
+   "organizacion": "X",
+   "departamento": "LIMA",
+   "proceso": "EMC 2023",
+   "totalIngresos": null
+  }
+ ]
+}

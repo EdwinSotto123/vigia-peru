@@ -6,6 +6,7 @@
 #   DIAS=30 bash infrastructure/deploy/batch-nocturno.sh          # ventana más larga
 #   DESDE=2016-01-01 HASTA=2016-12-31 bash infrastructure/deploy/batch-nocturno.sh   # histórico por tramos
 #   SIN_DOCUMENTOS=1 … · MAX_RECORDS=5000 … · MAX_GB=5 … · SIN_INGESTA=1 … (solo descarga+sube) · SIN_PEDIDOS=1 · MAX_PEDIDOS=200 · REFRESCAR_RECORDS=1 (re-bajar records ya vistos)
+#   SIN_DATASETS=1 … (saltar las fuentes externas) · DATASETS=pnda_visitas,jne_infogob … (forzar cuáles hoy) · ONPE=1 … (correr ONPE Claridad: abre Chromium con ventana)
 #
 # Programación:
 #   VPS Lima (crontab):  30 1 * * *  /opt/vigia/infrastructure/deploy/batch-nocturno.sh >> /var/log/vigia-batch.log 2>&1
@@ -57,15 +58,44 @@ fi
 #    cada archivo local ya verificado en GCS (CONSERVAR_LOCAL=1 para dejarlos en dataset/_batch/).
 ARGS=()
 for l in "${LOTES[@]}"; do ARGS+=(--lote "$l"); done
-[[ ${#LOTES[@]} -gt 0 ]] || { echo "── nada que subir"; exit 0; }
-"$PY" -m backend.batch.subir "${ARGS[@]}" --bucket "$BUCKET_BATCH" --paralelo 8 $( [[ -z "${CONSERVAR_LOCAL:-}" ]] && echo --limpiar ) || echo "⚠ subir terminó con fallos; el job igual ingiere lo que sí subió"
+if [[ ${#LOTES[@]} -gt 0 ]]; then
+  "$PY" -m backend.batch.subir "${ARGS[@]}" --bucket "$BUCKET_BATCH" --paralelo 8 $( [[ -z "${CONSERVAR_LOCAL:-}" ]] && echo --limpiar ) || echo "⚠ subir terminó con fallos; el job igual ingiere lo que sí subió"
 
-# 5. ingesta en GCP (Cloud Run Job; --wait espera y devuelve el exit code del job)
-if [[ -z "${SIN_INGESTA:-}" ]]; then
-  # gcloud no admite repetir --lote dentro de --args: ingestar acepta varios ids tras un solo --lote
-  JOB_ARGS="--lote,$(IFS=,; echo "${LOTES[*]}")"
-  gcloud run jobs execute vigia-ingest --region "$REGION" --args="$JOB_ARGS" --wait \
-    || echo "⚠ vigia-ingest terminó con error; revisar: gcloud run jobs executions list --job vigia-ingest --region $REGION"
+  # 5. ingesta en GCP (Cloud Run Job; --wait espera y devuelve el exit code del job)
+  if [[ -z "${SIN_INGESTA:-}" ]]; then
+    # gcloud no admite repetir --lote dentro de --args: ingestar acepta varios ids tras un solo --lote
+    JOB_ARGS="--lote,$(IFS=,; echo "${LOTES[*]}")"
+    gcloud run jobs execute vigia-ingest --region "$REGION" --args="$JOB_ARGS" --wait \
+      || echo "⚠ vigia-ingest terminó con error; revisar: gcloud run jobs executions list --job vigia-ingest --region $REGION"
+  fi
+else
+  echo "── nada que subir del SEACE"
+fi
+
+# 6. fuentes externas (Frente D): descarga desde IP peruana → crudo a gs://$BUCKET_BATCH/raw/<fuente>/<clave>/ →
+#    normaliza directo a Cloud SQL (IP del host en authorized-networks; PGHOST/PGSSLMODE como scrapers-job.sh).
+#    Idempotente: cada archivo se registra en datasets_cargas con su sha256 y no se recarga si no cambió.
+#    Frecuencia (día del mes): 1 y 15 → pnda_visitas (la PNDA publica el mes cerrado con 2-3 meses de retraso);
+#    5 → jne_infogob (autoridades vigentes/electas) + pnda_dji (DJI, ~700 MB); domingo → pnda_sancionados.
+#    ONPE Claridad necesita navegador con ventana (Cloudflare): solo con ONPE=1 (día 10 sugerido, host con sesión gráfica).
+if [[ -z "${SIN_DATASETS:-}" ]]; then
+  export PGHOST="${PGHOST:-34.71.244.66}" PGSSLMODE="${PGSSLMODE:-require}" SCRAPER_GCS_BUCKET="${SCRAPER_GCS_BUCKET:-$BUCKET_BATCH}"
+  DIA="$(date +%d)"; DOW="$(date +%u)"
+  HOY=()
+  [[ "$DIA" == "01" || "$DIA" == "15" ]] && HOY+=(pnda_visitas)
+  [[ "$DIA" == "05" ]] && HOY+=(jne_infogob pnda_dji)
+  [[ "$DOW" == "7" ]] && HOY+=(pnda_sancionados)
+  [[ -n "${DATASETS:-}" ]] && IFS=, read -r -a HOY <<< "$DATASETS"
+  if [[ ${#HOY[@]} -gt 0 ]]; then
+    echo "── $(date -Is) · datasets externos: ${HOY[*]}"
+    "$PY" -m backend.scrapers.run_all --only "$(IFS=,; echo "${HOY[*]}")" || echo "⚠ algún dataset externo falló (ver arriba); el lote SEACE no se ve afectado"
+  fi
+  if [[ -n "${ONPE:-}" ]]; then
+    echo "── $(date -Is) · onpe_claridad (navegador con ventana)"
+    "$PY" -m backend.scrapers.onpe_claridad.pipeline --ifa || echo "⚠ onpe_claridad falló (¿Cloudflare? probar --channel chrome)"
+    "$PY" -m backend.scrapers.onpe_claridad.pipeline --candidatos || echo "⚠ onpe_claridad --candidatos falló"
+    "$PY" -m backend.scrapers.jne_infogob.pipeline || true   # vuelve a cruzar DNI con onpe_candidatos
+  fi
 fi
 
 echo "── $(date -Is) · listo · lotes: ${LOTES[*]}"

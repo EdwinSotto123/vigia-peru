@@ -20,7 +20,10 @@ Por qué importa:
     que firmó/evaluó una adjudicación y antes trabajó en la empresa ganadora (o viceversa).
     Cruce nuevo, no está en el catálogo C1-C8.
 
-Esquema destino: backend/db/schemas/dji_schema.sql (dji_funcionarios, dji_empleos).
+Esquema destino: backend/db/schemas/dji_schema.sql = migración 23_datasets.sql (dji_funcionarios, dji_empleos).
+Idempotencia: `datasets_cargas` (fuente=pnda_dji, clave=funcionarios|empleos) guarda el sha256 del CSV;
+si la Contraloría no republicó el archivo, la parte se salta (salvo --force). Cada carga es TRUNCATE +
+COPY porque los reportes son fotos completas.
 Las fechas vienen como DD/MM/YY o DD/MM/YYYY → se cargan como TEXT y se castean en SQL
 (`to_date(..., 'DD/MM/YY')`) para no frenar el COPY de 300-700 MB.
 """
@@ -33,6 +36,8 @@ from pathlib import Path
 
 from .._core import pnda
 from .._core.pipeline import Pipeline, log, pg_dsn
+from .._core.registro import Carga, registrar, ya_cargado
+from .._core.storage import sha256_of
 
 DATASETS = {
     "funcionarios": (
@@ -66,6 +71,7 @@ class DjiPipeline(Pipeline):
     def __init__(self, **kw):
         super().__init__(**kw)
         self.parts = ["funcionarios", "empleos"]
+        self.fuente_url: dict[str, str] = {}
 
     @classmethod
     def add_arguments(cls, ap: argparse.ArgumentParser) -> None:
@@ -84,7 +90,8 @@ class DjiPipeline(Pipeline):
             if not url:
                 log.warning("%s: no encontré %s en %s", part, fname, ds.url)
                 continue
-            paths.append(self.store.fetch(url, f"dji_{part}.csv", ds.modified, force=self.force))
+            paths.append(self.store.fetch(url, f"dji_{part}.csv", ds.modified, force=self.force, subdir=part))
+            self.fuente_url[part] = ds.url
         return paths
 
     def load(self, paths: list[Path]) -> None:
@@ -102,19 +109,34 @@ class DjiPipeline(Pipeline):
             self._copy(p, table, cols)
 
     def _copy(self, path: Path, table: str, cols: list[str]) -> None:
+        import datetime as dt
+
         import psycopg2
 
+        part = path.stem.replace("dji_", "")
+        sha, nbytes = sha256_of(path)
         conn = psycopg2.connect(pg_dsn())
         try:
+            with conn.cursor() as cur:
+                if not self.force and ya_cargado(cur, self.name, part, sha):
+                    log.info("   %s: ya cargado con el mismo sha256, se salta", part)
+                    return
             with conn.cursor() as cur, path.open(encoding="utf-8", errors="replace") as f:
                 cur.execute(f"TRUNCATE {table}")  # los reportes son fotos completas, no deltas
                 cur.copy_expert(
                     f"COPY {table} ({', '.join(cols)}) FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')", f
                 )
-                log.info("   %s → %s: %d filas", path.name, table, cur.rowcount)
+                n = cur.rowcount
+                log.info("   %s → %s: %d filas", path.name, table, n)
                 if table == "dji_empleos":
                     # 'RUC:20100211034' → '20100211034'
-                    cur.execute("UPDATE dji_empleos SET ruc_entidad = substring(ruc_entidad_raw from '\\d{11}') WHERE ruc_entidad IS NULL")
+                    cur.execute(r"UPDATE dji_empleos SET ruc_entidad = substring(ruc_entidad_raw from '\d{11}') WHERE ruc_entidad IS NULL")
+                entry = self.store.latest_by_file(path)
+                registrar(cur, Carga(
+                    fuente=self.name, clave=part, tabla=table, archivo=path.name, gcs_uri=self.store.gcs_uri(path),
+                    sha256=sha, bytes=nbytes, filas=n, fuente_url=self.fuente_url.get(part),
+                    descargado_at=dt.datetime.fromisoformat(entry.downloaded_at).astimezone() if entry else None,
+                ))
             conn.commit()
         finally:
             conn.close()

@@ -1,5 +1,6 @@
 requests>=2.32
 openpyxl>=3.1
+xlrd>=2.0            # XLS (BIFF) del JNE en la PNDA
 psycopg2-binary>=2.9
 # opcional, solo onpe_claridad / jne_infogob:
 # playwright>=1.45
