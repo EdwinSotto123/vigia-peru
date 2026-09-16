@@ -244,11 +244,17 @@ def _texto_documento(sha: str) -> str | None:
 
 def textos_documentos(state: dict) -> dict[str, str]:
     """{sha256: texto completo} de los documentos registrados en state['documentos_texto'].
-    Acepta también textos embebidos en el state (`texto`) si D los dejara ahí."""
+    Acepta también textos embebidos en el state (`texto`) si D los dejara ahí.
+    Se memoiza en el state (`_textos_cache`): verificar_bandera y los jueces la llaman decenas de
+    veces por corrida y cada lectura son cientos de KB desde Cloud SQL (medido: +15 min por análisis)."""
     reg = state.get("documentos_texto")
     out: dict[str, str] = {}
     if not isinstance(reg, dict):
         return out
+    clave = tuple(sorted(str(k) for k in reg.keys()))
+    cache = state.get("_textos_cache")
+    if isinstance(cache, dict) and cache.get("clave") == clave and isinstance(cache.get("textos"), dict):
+        return cache["textos"]
     for sha, meta in reg.items():
         if isinstance(meta, dict) and isinstance(meta.get("texto"), str) and meta["texto"]:
             out[sha] = meta["texto"][:_MAX_TEXT_CHARS]
@@ -256,6 +262,10 @@ def textos_documentos(state: dict) -> dict[str, str]:
         t = _texto_documento(str(sha))
         if t:
             out[sha] = t
+    try:
+        state["_textos_cache"] = {"clave": clave, "textos": out}
+    except Exception:
+        pass
     return out
 
 
