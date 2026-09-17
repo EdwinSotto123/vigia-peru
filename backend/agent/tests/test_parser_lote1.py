@@ -78,7 +78,7 @@ def _res(doc: dict, ext: dict, paginas: list[str]) -> dict:
 def _lote(monkeypatch, docs, fake: dict, state: dict | None = None) -> dict:
     def _fake_proc(doc, st, bloque, prioridad, ocds_ctx):
         return fake[doc["sha256"]](doc)
-    monkeypatch.setattr(D, "_procesar_doc", _fake_proc)
+    monkeypatch.setattr(D.lote, "_procesar_doc", _fake_proc)
     state = state if state is not None else {"ocid": "1", "ocds": {"tender": {"description": "ADQUISICIÓN"}}}
     D.parse_documentos_lote(state, docs)
     return state
@@ -324,7 +324,7 @@ def test_misma_unidad_pdf_en_dos_documentos_del_lote_se_ocrea_una_vez(monkeypatc
     def _contando(blob, offset):
         llamadas.append(offset)
         return original(blob, offset)
-    monkeypatch.setattr(D, "_paginas_pymupdf", _contando)
+    monkeypatch.setattr(D.ocr_texto, "_paginas_pymupdf", _contando)
     D._UNIT_CACHE.clear()
     tx1 = D._texto_de_unidades([D._unidad("zip1/acta.pdf", "pdf", data=pdf)])
     tx2 = D._texto_de_unidades([D._unidad("prefacio.txt", "paginas", paginas=[{"texto": "hola"}]),
@@ -344,13 +344,17 @@ def test_mismo_sha_en_dos_docs_del_lote_usa_cache_en_memoria(monkeypatch):
             {"id": "d2", "url": url2, "gs": None, "tipo": "biddingDocuments", "titulo": "Bases Integradas", "seccion": "tender", "formato": "pdf", "sha256": None}]
     ocr = []
     orig = D._texto_de_unidades
-    monkeypatch.setattr(D, "_texto_de_unidades", lambda u: (ocr.append(1), orig(u))[1])
-    monkeypatch.setattr(D, "_extraer_documento", lambda tx, label, bloque, ctx, hint: {"items": [], "resumen": "r", "_usos": [], "_recortes": []})
-    monkeypatch.setattr(D, "_sha_por_url_get", lambda ocid, url: None)
-    monkeypatch.setattr(D, "_sha_por_url_put", lambda *a, **k: None)
-    monkeypatch.setattr(D, "_pg", lambda: (_ for _ in ()).throw(RuntimeError("sin BD")))
+    monkeypatch.setattr(D.orquestacion, "_texto_de_unidades", lambda u: (ocr.append(1), orig(u))[1])
+    monkeypatch.setattr(D.orquestacion, "_extraer_documento", lambda tx, label, bloque, ctx, hint: {"items": [], "resumen": "r", "_usos": [], "_recortes": []})
+    monkeypatch.setattr(D.orquestacion, "_sha_por_url_get", lambda ocid, url: None)
+    monkeypatch.setattr(D.orquestacion, "_sha_por_url_put", lambda *a, **k: None)
+    # _pg se llama desde dos submódulos independientes (ambos importan `_pg` por su cuenta
+    # de tools._core): orquestacion (_sha_por_url_*, ya no-op arriba) y ocr_texto (_texto_cache_*,
+    # _extraccion_cache_put, que SÍ se ejecutan acá) — hay que forzar el fallo en los dos.
+    monkeypatch.setattr(D.orquestacion, "_pg", lambda: (_ for _ in ()).throw(RuntimeError("sin BD")))
+    monkeypatch.setattr(D.ocr_texto, "_pg", lambda: (_ for _ in ()).throw(RuntimeError("sin BD")))
     D._TX_MEM.clear()
-    monkeypatch.setattr(D, "PARSE_LOTE_WORKERS", 1)
+    monkeypatch.setattr(D.lote, "PARSE_LOTE_WORKERS", 1)
     res = D.parse_documentos_lote(state, docs)
     assert res["n_ok"] == 2 and len(ocr) == 1                     # segundo doc: texto desde la caché de memoria
     assert res["n_cache_texto"] == 1

@@ -202,7 +202,7 @@ def test_parse_documentos_lote_consolida_y_registra_recortes(monkeypatch):
                                    recortes=[{"donde": "descarga:Roto", "limite": "descarga_fallida", "omitido": "Roto (403)"}])
         return _fake_resultado(doc, fake[doc["sha256"]])
 
-    monkeypatch.setattr(D, "_procesar_doc", _fake_proc)
+    monkeypatch.setattr(D.lote, "_procesar_doc", _fake_proc)
     state = {"ocid": "1", "ocds": {"tender": {"description": "ADQUISICIÓN DE CEMENTO"}}, "perfil": {"parser_bloque": "servicio"}}
     res = D.parse_documentos_lote(state, docs)
 
@@ -246,7 +246,7 @@ def test_extraer_rango_reintenta_por_mitades_y_registra_recorte(monkeypatch):
         return {"items": [{"descripcion_corta": f"item {n}"} for n in ns[:2 if trunc else len(ns)]]}, trunc, \
             {"modelo": "x", "segundos": 0.1, "finish_reason": "MAX_TOKENS" if trunc else "STOP", "tokens_prompt": 1, "tokens_output": 1, "tokens_thoughts": 0}
 
-    monkeypatch.setattr(D, "_llamar_extractor", _fake_llm)
+    monkeypatch.setattr(D.extractor, "_llamar_extractor", _fake_llm)
     recortes, usos = [], []
     data = D._extraer_rango(paginas, 1, 8, "doc", None, {}, None, recortes, usos)
     # 1-8 trunca → 1-4 y 5-8 truncan → 1-2, 3-4, 5-6, 7-8 salen enteros (depth 2)
@@ -263,7 +263,7 @@ def test_extraer_rango_reintenta_por_mitades_y_registra_recorte(monkeypatch):
 
 
 def test_extraer_documento_parte_por_chars(monkeypatch):
-    monkeypatch.setattr(D, "PARSE_MAX_CHARS_POR_LLAMADA", 50)
+    monkeypatch.setattr(D.extractor, "PARSE_MAX_CHARS_POR_LLAMADA", 50)
     paginas = [{"n": n, "texto": "x" * 30, "chars": 30} for n in range(1, 5)]   # 120 chars → 4 rangos de ≤50
     rangos = []
 
@@ -272,7 +272,7 @@ def test_extraer_documento_parte_por_chars(monkeypatch):
         return {"items": [{"descripcion_corta": f"r{rango}"}], "cuantia_total": 1.0}, False, \
             {"modelo": "x", "segundos": 0.1, "finish_reason": "STOP", "tokens_prompt": 1, "tokens_output": 1, "tokens_thoughts": 0}
 
-    monkeypatch.setattr(D, "_llamar_extractor", _fake_llm)
+    monkeypatch.setattr(D.extractor, "_llamar_extractor", _fake_llm)
     ext = D._extraer_documento({"paginas": paginas, "chars": 120}, "doc", None, {}, None)
     assert rangos == [(1, 1), (2, 2), (3, 3), (4, 4)]
     assert len(ext["items"]) == 4 and ext["_truncado"] is False and len(ext["_usos"]) == 4
@@ -292,7 +292,7 @@ def test_parse_document_pdf_legacy_usa_expansion_sin_topes(monkeypatch):
         return {"tipo_documento_detectado": "bases_administrativas", "contiene_requerimiento": True,
                 "items": [{"descripcion_corta": label, "texto_literal": "spec " * 20}], "_source": label}
 
-    monkeypatch.setattr(D, "_parse_single_pdf_with_gemini", _fake_single)
+    monkeypatch.setattr(D.legacy_tool, "_parse_single_pdf_with_gemini", _fake_single)
 
     class Ctx:
         def __init__(self, st):
