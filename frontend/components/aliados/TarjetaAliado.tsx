@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Building2, User, Users } from "lucide-react";
+import { BorderBeam } from "@/components/magicui/BorderBeam";
 import type { RankingRow } from "@/lib/financiamiento";
 
 const MEDALLA: Record<number, { emoji: string; label: string; ring: string }> = {
@@ -57,7 +58,8 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
   }
 
   return (
-    <article className={`relative flex flex-col rounded-2xl border border-line bg-paper p-5 transition-all hover:-translate-y-0.5 hover:shadow-card ${medalla ? `ring-1 ${medalla.ring}` : ""}`}>
+    <article className={`relative flex flex-col overflow-hidden rounded-2xl border border-line bg-paper p-5 transition-all hover:-translate-y-0.5 hover:shadow-card ${medalla ? `ring-1 ${medalla.ring}` : ""}`}>
+      {posicion === 1 && <BorderBeam size={80} duration={7} />}
       {medalla && (
         <span className="absolute right-4 top-4 text-2xl" title={medalla.label} aria-label={medalla.label}>{medalla.emoji}</span>
       )}

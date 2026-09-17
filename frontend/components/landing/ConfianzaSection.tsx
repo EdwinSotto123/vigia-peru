@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Code2, Lock, ShieldCheck, Sparkles, Server, Database, Activity } from "lucide-react";
+import { BlurFade } from "@/components/magicui/BlurFade";
 
 const COMPROMISOS = [
   { icon: Code2, t: "100 % open source", d: "Todo el código en GitHub. Una herramienta anticorrupción cerrada sería una contradicción." },
@@ -25,15 +26,15 @@ export function ConfianzaSection() {
             Construido para no <span className="text-rust">depender de nadie</span>.
           </h2>
           <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-            {COMPROMISOS.map(({ icon: Icon, t, d }) => (
-              <li key={t} className="rounded-2xl border border-line bg-paper p-4">
+            {COMPROMISOS.map(({ icon: Icon, t, d }, i) => (
+              <BlurFade key={t} as="li" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 transition-shadow hover:shadow-card">
                 <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-clay" /><span className="font-semibold">{t}</span></div>
                 <p className="mt-1 text-[13px] leading-relaxed text-mute">{d}</p>
-              </li>
+              </BlurFade>
             ))}
           </ul>
         </div>
-        <div className="rounded-2xl border border-line bg-paper p-5">
+        <BlurFade as="div" delayMs={150} className="rounded-2xl border border-line bg-paper p-5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-clay">Cuentas claras · mes pasado</span>
             <span className="font-mono text-[11px] text-mute">25 regiones</span>
@@ -51,7 +52,7 @@ export function ConfianzaSection() {
             <div className="font-mono text-2xl font-bold text-amber">S/ 845</div>
           </div>
           <Link href="/preguntas#transparencia" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>
-        </div>
+        </BlurFade>
       </div>
     </section>
   );

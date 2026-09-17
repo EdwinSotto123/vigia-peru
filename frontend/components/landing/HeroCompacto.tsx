@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Landmark, Radio } from "lucide-react";
 import { CampaignMap } from "@/components/financiar/CampaignMap";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
@@ -82,7 +83,7 @@ export async function HeroCompacto() {
 function Kpi({ v, l }: { v: number; l: string }) {
   return (
     <div className="px-4 py-3">
-      <div className="font-mono text-xl font-bold text-ink">{v.toLocaleString("es-PE")}</div>
+      <div className="font-mono text-xl font-bold text-ink"><NumberTicker value={v} /></div>
       <div className="mt-0.5 text-[11px] leading-tight text-mute">{l}</div>
     </div>
   );
