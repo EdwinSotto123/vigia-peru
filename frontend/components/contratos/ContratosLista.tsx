@@ -28,6 +28,7 @@ import {
   type ContratosPagina,
   type ContratosQuery,
   type EstadoContrato,
+  type RiesgoContrato,
 } from "@/lib/contratos";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { cn } from "@/lib/utils";
@@ -166,7 +167,7 @@ export function ContratosLista({
       ) : compacto ? (
         <ListaCompacta rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       ) : (
-        <Tabla rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
+        <Tarjetas rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       )}
       {rows.length > 10 && pag}
     </div>
@@ -206,66 +207,81 @@ function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, c
   );
 }
 
-// ─── Tabla densa (página /app/contratos) ─────────────────────────────────────
+// ─── Tarjetas (página /app/contratos): una por contrato, mismo diseño en móvil y escritorio ──
+// Título completo (2 líneas) y entidad completa (sin cortar a 180px): el problema real de la
+// tabla densa anterior era el truncado agresivo ("CONTR...", "ORGANISMO DE EVALUA...") que
+// volvía ilegibles justo las convocatorias parecidas que más hace falta distinguir. La fila
+// se mantiene liviana cuando no hay nada que reportar (sin documentos, sin score) y solo se
+// carga de color/peso visual cuando SÍ hay una señal real, para que esas destaquen del resto.
 
-function Tabla({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
+function Tarjetas({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
   return (
-    <div className={cn("overflow-x-auto rounded-2xl border border-line bg-paper", cargando && "opacity-60")} aria-busy={cargando}>
-      <table className="w-full min-w-[960px] table-fixed text-left text-xs">
-        <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
-          <tr>
-            <th className="w-[88px] px-3 py-2 font-semibold">Código</th>
-            <th className="px-3 py-2 font-semibold">Contrato</th>
-            <th className="w-[180px] px-3 py-2 font-semibold">Entidad</th>
-            <th className="w-[110px] px-3 py-2 font-semibold">Zona</th>
-            <th className="w-[150px] px-3 py-2 font-semibold">Tipo · etapa</th>
-            <th className="w-[96px] px-3 py-2 text-right font-semibold">Monto</th>
-            <th className="w-[72px] px-3 py-2 font-semibold">Fecha</th>
-            <th className="w-[124px] px-3 py-2 font-semibold">Análisis</th>
-            <th className="w-[56px] px-3 py-2 text-right font-semibold">Score</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {rows.map((c) => (
-            <FilaTabla key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ul className={cn("space-y-2", cargando && "opacity-60")} aria-busy={cargando}>
+      {rows.map((c) => (
+        <Tarjeta key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
+      ))}
+    </ul>
   );
 }
 
-function FilaTabla({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
-  const ref = useRef<HTMLTableRowElement>(null);
+const RIESGO_TARJETA_CLS: Record<RiesgoContrato, string> = {
+  alto: "border-rust/40 bg-crimson-soft text-rust",
+  medio: "border-amber/40 bg-amber-soft text-clay",
+  bajo: "border-moss/40 bg-moss/10 text-moss",
+  sin_analizar: "border-line bg-paperDeep text-mute",
+};
+
+function Tarjeta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
+  const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
   const riesgo = riesgoDe(c.score);
+  const tieneSenal = c.score != null;
   return (
-    <tr
-      ref={ref}
-      className={cn("group transition-colors hover:bg-paperSoft", selected && "bg-amber-soft/40")}
-      onMouseEnter={() => onHover?.(c)}
-      onMouseLeave={() => onHover?.(null)}
-      onClick={() => onSelect?.(c)}
-    >
-      <td className="px-3 py-2 font-mono text-[11px] text-mute">
-        <Link href={`/app/contratos/${encodeURIComponent(c.ocid)}`} className="hover:text-ink hover:underline">{c.codigo}</Link>
-      </td>
-      <td className="px-3 py-2">
-        <Link href={`/app/contratos/${encodeURIComponent(c.ocid)}`} className="block truncate text-ink hover:underline" title={c.titulo ?? undefined}>
-          {c.titulo ?? "(sin objeto)"}
-        </Link>
-      </td>
-      <td className="truncate px-3 py-2 text-mute" title={c.entidad ?? undefined}>{c.entidad ?? "—"}</td>
-      <td className="truncate px-3 py-2 text-mute" title={c.zona ?? undefined}>{c.zona ?? "—"}</td>
-      <td className="px-3 py-2"><Badges tipo={c.tipo} etapa={c.etapa} /></td>
-      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{formatMonto(c.montoPen, c.moneda)}</td>
-      <td className="px-3 py-2 font-mono text-[11px] tabular-nums text-mute">{formatFecha(c.fecha)}</td>
-      <td className="px-3 py-2"><EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} /></td>
-      <td className={cn("px-3 py-2 text-right font-mono tabular-nums", RIESGO_CLS[riesgo])}>
-        {c.score ?? "—"}
-        {c.banderas > 0 && <span className="ml-1 text-[9px] text-mute">·{c.banderas}</span>}
-      </td>
-    </tr>
+    <li ref={ref} onMouseEnter={() => onHover?.(c)} onMouseLeave={() => onHover?.(null)}>
+      <Link
+        href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
+        onClick={() => onSelect?.(c)}
+        className={cn(
+          "block rounded-2xl border bg-paper p-4 transition-colors hover:border-clay/50 hover:bg-paperSoft sm:p-4.5",
+          selected ? "border-amber bg-amber-soft/30" : "border-line",
+        )}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[10.5px] tabular-nums text-mute">
+              <span>{c.codigo}</span>
+              <span aria-hidden>·</span>
+              <span>{formatFecha(c.fecha)}</span>
+              {c.zona && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="font-sans normal-case">{c.zona}</span>
+                </>
+              )}
+            </div>
+            <h3 className="mt-1 line-clamp-2 text-[14.5px] font-semibold leading-snug text-ink sm:text-[15px]" title={c.titulo ?? undefined}>
+              {c.titulo ?? "(sin objeto registrado)"}
+            </h3>
+            <p className="mt-0.5 line-clamp-1 text-[12.5px] text-mute" title={c.entidad ?? undefined}>
+              {c.entidad ?? "Entidad no identificada"}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Badges tipo={c.tipo} etapa={c.etapa} />
+              <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-row items-center justify-between gap-2 sm:flex-col sm:items-end sm:gap-1.5 sm:text-right">
+            <span className="font-mono text-[15px] font-semibold tabular-nums text-ink">{formatMonto(c.montoPen, c.moneda)}</span>
+            {tieneSenal && (
+              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums", RIESGO_TARJETA_CLS[riesgo])}>
+                score {c.score}
+                {c.banderas > 0 && <span className="font-normal opacity-80">· {c.banderas} señal{c.banderas === 1 ? "" : "es"}</span>}
+              </span>
+            )}
+          </div>
+        </div>
+      </Link>
+    </li>
   );
 }
 

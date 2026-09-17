@@ -228,6 +228,8 @@ export const ORDENES: { value: OrdenContratos; label: string }[] = [
 
 export const tipoLabel = (t: string | null | undefined) => TIPOS.find((x) => x.value === t)?.label ?? null;
 export const etapaLabel = (e: string | null | undefined) => ETAPAS.find((x) => x.value === e)?.label ?? null;
+export const riesgoLabel = (r: string | null | undefined) => RIESGOS.find((x) => x.value === r)?.label ?? null;
+export const operativoLabel = (o: string | null | undefined) => OPERATIVOS.find((x) => x.value === o)?.label ?? null;
 
 /** Estados que lib/auditoria no conoce (el resto usa `EstadoPill`). */
 export const ESTADO_CONTRATO_EXTRA: Record<"sin_analizar" | "pendiente_de_procesamiento", { label: string; cls: string }> = {
@@ -295,6 +297,17 @@ async function getJson<T>(path: string, revalidate = 60): Promise<T | null> {
 
 export const getContratos = (q: ContratosQuery = {}) =>
   getJson<ContratosPagina>(`/contratos?${contratosQueryString(q)}`, 60);
+
+/** Conteos por tipo/operativo/riesgo para los filtros rápidos (chips con número): cada faceta
+ *  respeta los demás filtros activos pero no el propio (para poder mostrar las otras opciones). */
+export interface ResumenContratos {
+  total: number;
+  porTipo: Partial<Record<TipoContrato | "sin_clasificar", number>>;
+  porOperativo: Partial<Record<EstadoOperativo, number>>;
+  porRiesgo: Partial<Record<RiesgoContrato, number>>;
+}
+export const getResumenContratos = (q: ContratosQuery = {}) =>
+  getJson<ResumenContratos>(`/contratos/resumen?${contratosQueryString({ ...q, page: undefined, size: undefined, orden: undefined })}`, 60);
 
 export const getContrato = (ocid: string) =>
   getJson<ContratoDetalle>(`/contratos/${encodeURIComponent(ocid)}`, 60);

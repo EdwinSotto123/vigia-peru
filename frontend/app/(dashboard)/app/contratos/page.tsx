@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { ContratosLista } from "@/components/contratos/ContratosLista";
 import { FiltrosContratos } from "@/components/contratos/FiltrosContratos";
 import { getEntidad } from "@/lib/api-client";
-import { getContratos, parseContratosQuery } from "@/lib/contratos";
+import { getContratos, getResumenContratos, parseContratosQuery } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -19,10 +19,11 @@ const SIZE = 50;
  */
 export default async function ContratosPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const query = parseContratosQuery(searchParams);
-  const [pagina, zonas, entidad] = await Promise.all([
+  const [pagina, zonas, entidad, resumen] = await Promise.all([
     getContratos({ ...query, size: SIZE }),
     getZonas("departamento"),
     query.entidad ? getEntidad(query.entidad).catch(() => null) : Promise.resolve(null),
+    getResumenContratos(query),
   ]);
   const regiones = (zonas ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
@@ -34,7 +35,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
         title="Todos los contratos"
         subtitle="Cada convocatoria del SEACE que Vigía ingirió, con su tipo, etapa y estado de análisis. Los que aún no tienen dictamen esperan que alguien financie la capacidad de leerlos."
       />
-      <FiltrosContratos query={query} regiones={regiones} entidadNombre={entidad?.entidad?.nombre ?? null} total={pagina?.total ?? null} />
+      <FiltrosContratos query={query} regiones={regiones} entidadNombre={entidad?.entidad?.nombre ?? null} resumen={resumen} />
       <ContratosLista query={{ ...query, size: SIZE }} initial={pagina} size={SIZE} navegacion="url" />
     </div>
   );
