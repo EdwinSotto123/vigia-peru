@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Landmark, ShieldCheck, WifiOff } from "lucide-react";
+import { ChevronLeft, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
   AGENTES_PROGRESO, PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, getReglasPerfil, haceCuanto, progresoFases,
@@ -27,6 +27,7 @@ import { Bitacora } from "./Bitacora";
 import { CompartirButton } from "./CompartirButton";
 import { DagCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
+import { ReplayAnalisis } from "./ReplayAnalisis";
 import { ResultadoAnalisis } from "./ResultadoAnalisis";
 
 interface Props {
@@ -46,6 +47,10 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const activoRef = useRef<boolean>(initial ? esActivo(initial.estado) : true);
   // Al terminar hacemos UNA lectura más para traer `resultado` (el poll se detiene con el estado final).
   const resultadoPedido = useRef(false);
+  // "Ver cómo se analizó": repite la bitácora real ya guardada, para poder mirar la animación
+  // aunque el análisis haya terminado hace días (la ventana de verlo EN VIVO es rarísima: solo
+  // corre cuando hay algo en cola, unos minutos cada vez).
+  const [verReplay, setVerReplay] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -127,6 +132,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const estimado = p.estimado ?? null;
   const restante = estimado?.medianaSeg && transcurrido != null ? Math.max(0, estimado.medianaSeg * 1000 - transcurrido) : null;
   const sinEventos = p.estado === "procesando" && p.eventos.length === 0;
+  const puedeRepetir = (p.estado === "procesado" || p.estado === "revision") && p.eventos.length > 0;
 
   const enVivoBadge = (
     <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true" suppressHydrationWarning>
@@ -205,17 +211,35 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       )}
 
       <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-        <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
-      </div>
-
-      {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
-
-      <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-        <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
-          <span>Bitácora</span>
-          <span className="font-mono normal-case tracking-normal">{p.eventos.length} eventos</span>
-        </div>
-        <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={activo} compacto={compacto} />
+        {puedeRepetir && (
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-mute">
+              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó — podés repetir cómo ocurrió, agente por agente."}
+            </span>
+            <button
+              type="button"
+              onClick={() => setVerReplay((v) => !v)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper transition-transform hover:scale-[1.02]"
+            >
+              <Play size={11} /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
+            </button>
+          </div>
+        )}
+        {verReplay && puedeRepetir ? (
+          <ReplayAnalisis eventos={p.eventos} estadoFinal={estado} compacto={compacto} />
+        ) : (
+          <>
+            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
+            {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
+            <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+              <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
+                <span>Bitácora</span>
+                <span className="font-mono normal-case tracking-normal">{p.eventos.length} eventos</span>
+              </div>
+              <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={activo} compacto={compacto} />
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
