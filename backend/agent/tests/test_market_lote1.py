@@ -530,6 +530,96 @@ def test_totales_bloqueados_no_permiten_recalcular_lote(monkeypatch):
 
 
 # ═════════════════════════════════════════════════════════════════════
+# Estimación IA (sin grounding) para lotes con demasiados ítems (> MARKET_ESTIMACION_DESDE)
+# ═════════════════════════════════════════════════════════════════════
+def _top20_y_fake_grounded(monkeypatch):
+    """20 ítems de valor 500 (ofertado 50 × cantidad 10), cada uno con 3 precios grounded
+    idénticos al ofertado → todos `alineado`/respaldados, cobertura 100 %, sobreprecio_pct 0."""
+    top = [_mi_un_item(f"ITEM {i}", 10, "UND", ofertado=50.0, numero=str(i)) for i in range(1, 21)]
+    llamadas = {}
+
+    def _fake_grounded(its, objeto, state, contexto=""):
+        llamadas["items"] = sorted((it["numero"] for it in its), key=int)
+        precios = [_precio(str(i), f"Producto {i}", 50.0, "unidad", f"tienda{i}.pe")
+                   for i in range(1, 21) for _ in range(3)]
+        chunks = [p["fuentes"][0] for p in precios]
+        return precios, {}, set(), chunks, 20
+
+    monkeypatch.setattr(mk, "_fanout_goods_retail", _fake_grounded)
+    _fake_refs(monkeypatch, [])
+    return top, llamadas
+
+
+def _st(items):
+    return {"ocid": "1", "ocds": {"ocid": "1", "tender": {"description": "OBJETO"}},
+            "market_input": {"ocid": "1", "items": items, "padre_lote": None, "total_ofertado": None,
+                             "total_ofertado_base": None, "cuantia_referencial_total": None}}
+
+
+def test_estimacion_ia_no_afecta_veredicto_ni_cobertura_del_lote(monkeypatch):
+    """Añadir ítems de cola (estimados por IA, sin búsqueda) a un lote NO puede cambiar
+    sobreprecio_pct/veredicto_global/cobertura_mercado frente al mismo lote sin esos ítems —
+    son puramente informativos (n_precios=0, sin ancla) y quedan fuera de `respaldados`."""
+    top, _ = _top20_y_fake_grounded(monkeypatch)
+    res_sin_cola = mk._mercado_goods_retail(_st(top))
+    assert res_sin_cola["sobreprecio_pct"] == pytest.approx(0.0, abs=0.01)
+    assert res_sin_cola["veredicto_global"] == "alineado"
+
+    top2, llamadas = _top20_y_fake_grounded(monkeypatch)
+    cola = [_mi_un_item(f"ITEM {i}", 10, "UND", ofertado=1.0, numero=str(i)) for i in range(21, 24)]
+
+    def _fake_estimacion(its, objeto, state, contexto=""):
+        # Precio absurdo a propósito: si esto pudiera colarse en sobreprecio_pct/cobertura,
+        # el test lo detectaría de inmediato.
+        return ({it["numero"]: {"precio_estimado": 999999.0, "unidad": "unidad", "confianza": "baja",
+                                "justificacion": "estimación de prueba"} for it in its}, set(), 1)
+
+    monkeypatch.setattr(mk, "_fanout_estimacion_llm", _fake_estimacion)
+    res_con_cola = mk._mercado_goods_retail(_st(top2 + cola))
+
+    assert llamadas["items"] == [str(i) for i in range(1, 21)]      # la cola NUNCA entra al fan-out grounded
+    # El % de sobreprecio y el veredicto (lo que dispara banderas) son IDÉNTICOS con o sin cola:
+    # los 999 999 estimados no pueden moverlos ni un poco.
+    assert res_con_cola["sobreprecio_pct"] == res_sin_cola["sobreprecio_pct"]
+    assert res_con_cola["veredicto_global"] == res_sin_cola["veredicto_global"]
+    assert res_con_cola["n_respaldados"] == res_sin_cola["n_respaldados"]
+    # La cobertura por VALOR sí baja un poco (el denominador crece con la cola sin verificar) —
+    # exactamente lo esperado: nunca puede SUBIR ni llegar a superar la del lote sin cola.
+    assert res_con_cola["cobertura_mercado"] < res_sin_cola["cobertura_mercado"]
+    assert res_con_cola["n_items_estimados_ia"] == 3
+    assert res_con_cola["n_items"] == 23
+
+    for num in ("21", "22", "23"):
+        f = next(f for f in res_con_cola["findings"] if f["item_numero"] == num)
+        assert f["precio_estimado_ia"] == 999999.0
+        assert f["estado"] == "estimado_ia"
+        assert f["confianza_estimacion_ia"] == "baja"
+        assert f["motivo_estimacion"] == "estimado_por_ia_sin_busqueda"
+        # Campos "verificados" intactos en su default sin_dato: nada que una bandera pueda leer.
+        assert f["precio_mediana_mercado"] is None and f.get("precio_mediana_comparacion") is None
+        assert f["veredicto"] == "sin_dato" and f["n_precios"] == 0
+        assert f["diff_pct"] is None and f.get("diff_fuente") is None
+
+
+def test_estimacion_ia_no_dispara_bandera_por_item(monkeypatch):
+    """`persist_market_flags_as_banderas` solo dispara con veredicto_item en {elevado,
+    muy_elevado}: un finding estimado por IA (veredicto='sin_dato') nunca puede generar
+    `sobreprecio_elevado`/`sobreprecio_muy_elevado`, sin importar cuán extremo sea el precio
+    estimado ni la confianza que reporte el modelo."""
+    top, _ = _top20_y_fake_grounded(monkeypatch)
+    cola = [_mi_un_item("ITEM COLA", 10, "UND", ofertado=1.0, numero="21")]
+
+    def _fake_estimacion(its, objeto, state, contexto=""):
+        return ({it["numero"]: {"precio_estimado": 0.0001, "unidad": "unidad", "confianza": "alta",
+                                "justificacion": "precio irrisorio a propósito"} for it in its}, set(), 1)
+
+    monkeypatch.setattr(mk, "_fanout_estimacion_llm", _fake_estimacion)
+    res = mk._mercado_goods_retail(_st(top + cola))
+    f21 = next(f for f in res["findings"] if f["item_numero"] == "21")
+    assert (f21.get("veredicto") or "").lower() not in ("elevado", "muy_elevado")
+
+
+# ═════════════════════════════════════════════════════════════════════
 # Live (RUN_LIVE=1 + PGHOST): state real de 1225450 reconstruido desde dataset/_revision
 # ═════════════════════════════════════════════════════════════════════
 _REV_1225450 = os.path.join(os.path.dirname(os.path.dirname(_AGENT)), "dataset", "_revision", "1225450")
