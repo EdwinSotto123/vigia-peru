@@ -88,15 +88,10 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
           pagina={historico}
           paginaActual={paginaActual}
           pathname="/app/auditoria"
-          queryString={(n) => {
-            const params = new URLSearchParams();
-            if (ubigeo) params.set("ubigeo", ubigeo);
-            if (desde) params.set("desde", desde);
-            if (hasta) params.set("hasta", hasta);
-            if (financiador) params.set("financiador", financiador);
-            if (n > 1) params.set("pagina", String(n));
-            return params.toString();
-          }}
+          ubigeo={ubigeo}
+          desde={desde}
+          hasta={hasta}
+          financiador={financiador}
         />
       </section>
 
