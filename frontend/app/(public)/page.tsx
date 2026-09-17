@@ -6,6 +6,7 @@ import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { Marquee } from "@/components/magicui/Marquee";
 import { BlurFade } from "@/components/magicui/BlurFade";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { getAlertas } from "@/lib/api-client";
 import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
 
@@ -34,8 +35,8 @@ export default async function LandingPage() {
         <div className="relative overflow-hidden py-2">
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-paperDeep to-transparent" />
           <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-paperDeep to-transparent" />
-          <div className="pointer-events-none absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-rust px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-paper">
-            <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-paper" />
+          <div className="pointer-events-none absolute left-4 top-1/2 z-20 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-rust px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-paper">
+            <PulseDot color="paper" size={6} />
             en vivo
           </div>
           <Marquee className="[--duration:80s] [--gap:3rem] pl-32" pauseOnHover>
@@ -76,7 +77,7 @@ export default async function LandingPage() {
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/reporte/nuevo"
-                className="group inline-flex items-center gap-2 rounded-xl bg-rust px-6 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]"
+                className="group inline-flex items-center gap-2 rounded-xl bg-rust px-6 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02] active:scale-[0.97]"
               >
                 <Camera size={16} /> Denunciar una obra
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
@@ -152,7 +153,7 @@ export default async function LandingPage() {
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/app/mapa"
-                className="group inline-flex items-center gap-2 rounded-full bg-paper px-7 py-4 text-base font-medium text-ink transition-transform hover:scale-[1.03] sm:text-lg"
+                className="group inline-flex items-center gap-2 rounded-full bg-paper px-7 py-4 text-base font-medium text-ink transition-transform hover:scale-[1.03] active:scale-[0.98] sm:text-lg"
               >
                 Abrir el mapa
                 <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />

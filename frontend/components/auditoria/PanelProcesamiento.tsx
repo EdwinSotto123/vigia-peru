@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Cpu, Download, Moon, WifiOff } from "lucide-react";
 import { PUBLIC_API_BASE, duracion, faseHumana, fasesEfectivas, progresoFases } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -93,10 +94,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
       <div className="flex flex-wrap items-center gap-1.5 border-t border-line bg-paperSoft px-3 py-2 text-[11px]">
         <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-mute">
           {procesando > 0 ? (
-            <span className="relative flex h-1.5 w-1.5" aria-hidden>
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber opacity-70" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber" />
-            </span>
+            <PulseDot color="amber" size={6} />
           ) : (
             <Cpu size={11} aria-hidden />
           )}
