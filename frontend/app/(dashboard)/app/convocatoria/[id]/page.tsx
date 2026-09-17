@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
-import { ResultadoView } from "@/components/ConvocatoriaSearch";
+import { ResultadoView } from "@/components/convocatoria/ResultadoView";
 import { getDossier, peekDossier } from "@/lib/dossier-cache";
 
 export default function ConvocatoriaSharePage() {

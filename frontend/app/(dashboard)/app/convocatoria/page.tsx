@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ConvocatoriaSearch } from "@/components/ConvocatoriaSearch";
+import { ConvocatoriaSearch } from "@/components/convocatoria/ConvocatoriaSearch";
 
 // useSearchParams() en ConvocatoriaSearch requiere render dinámico
 export const dynamic = "force-dynamic";
