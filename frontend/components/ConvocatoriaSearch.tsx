@@ -2641,7 +2641,10 @@ function ResumenHumano({
 
   const VIS: Record<typeof riesgo, { label: string; color: string; bg: string; border: string }> = {
     alto:    { label: "Riesgo alto",       color: "text-rust",  bg: "bg-rust",  border: "border-rust/40"  },
-    medio:   { label: "Requiere revisión", color: "text-amber", bg: "bg-amber", border: "border-amber/40" },
+    // "Requiere revisión" chocaba con el estado formal `alertas.estado='revision'` (la
+    // autoevaluación bloqueando la publicación, con su propia cola en /admin/revision) — esto
+    // acá es solo "hay una bandera de severidad media", nada bloqueado ni pendiente de nadie.
+    medio:   { label: "Señal media",       color: "text-amber", bg: "bg-amber", border: "border-amber/40" },
     bajo:    { label: "Observaciones menores", color: "text-clay",  bg: "bg-clay",  border: "border-clay/30"  },
     limpio:  { label: "Sin hallazgos",     color: "text-moss",  bg: "bg-moss",  border: "border-moss/30"  },
   };
@@ -4134,6 +4137,10 @@ const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: strin
   barato:        { color: "text-clay",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
   estimacion:    { color: "text-mute",  bg: "bg-paperDeep border-line",     emoji: "⚪", label: "ESTIMACIÓN" },
   sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "S/ OFERTADO" },
+  // El backend ya corrió el juez de plausibilidad y decidió que el lote NO es comparable
+  // (cobertura insuficiente frente al total de ítems reales, o una comparación implausible);
+  // antes caía en el "⚪ ESTIMACIÓN" genérico y se perdía esa distinción.
+  no_verificable: { color: "text-clay", bg: "bg-paperSoft border-clay/30", emoji: "🚫", label: "NO VERIFICABLE" },
 };
 
 function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items: any[]; allItems?: any[]; market: any; fmtMoney: (n: any) => string }) {
@@ -4423,8 +4430,12 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                             diffMercado < -15 ? "🔵 LOTE BARATO" : "🟢 LOTE ALINEADO"}
                         </span>
                       ) : (
-                        <span className="text-[9px] normal-case text-mute">
-                          cobertura parcial ({nConPrecio}/{subItems.length}) — no comparable con la cuantía del lote
+                        <span className="text-[9px] normal-case text-mute" title={market?.motivo_no_verificable || undefined}>
+                          {/* `subItems.length` cuenta los ítems que el parser logró desglosar, no el total real
+                              del requerimiento (puede ser mucho mayor) — evitar que "(5/5)" lea como "completo". */}
+                          {market?.motivo_no_verificable
+                            ? "no verificable — no comparable con la cuantía del lote"
+                            : `desglosados ${nConPrecio}/${subItems.length}, no necesariamente todo el requerimiento — no comparable con la cuantía del lote`}
                         </span>
                       )}
                     </td>
@@ -5007,16 +5018,48 @@ function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney: (n: an
       )}
       {(() => {
         const totalOfertado = market.total_ofertado ?? market?.padre_lote?.cuantia_total;
+        // El backend (analyze_market_sharded + juez de plausibilidad) YA decide si el lote es
+        // comparable: si dejó `sobreprecio_pct` en null es porque no lo es (cobertura insuficiente
+        // frente al total REAL de ítems del requerimiento — que puede ser mucho mayor que los pocos
+        // que el parser logró desglosar —, o una comparación que el juez marcó implausible;
+        // `motivo_no_verificable` dice cuál). Antes el front IGNORABA esa decisión y volvía a sumar
+        // mediana×cantidad desde `findings` con su propio umbral de 70% sobre `cobertura_mercado`
+        // (que mide cobertura de los ítems EXTRAÍDOS, no del total real) — así resucitaba, con otro
+        // número, el mismo "+105% LOTE MUY ELEVADO" que el backend ya había descartado por falso.
+        const backendDecidioNoVerificable = market.veredicto_global === "no_verificable" || market.sobreprecio_pct === null;
+        if (backendDecidioNoVerificable && (market.motivo_no_verificable || market.veredicto_global === "no_verificable")) {
+          return (
+            <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-[11px] text-mute">
+              <span className="font-semibold text-clay">No verificable: </span>
+              {market.motivo_no_verificable
+                ? `${market.motivo_no_verificable}.`
+                : "cobertura de mercado insuficiente frente al total de ítems del requerimiento."}
+              {typeof market.n_con_mediana === "number" && typeof market.n_items === "number"
+                ? ` (${market.n_con_mediana}/${market.n_items} ítems desglosados tienen precio — no necesariamente todo el requerimiento.)` : ""}
+              {" "}Sin veredicto de sobreprecio, para no emitir una señal falsa.
+            </div>
+          );
+        }
+        if (typeof market.sobreprecio_pct === "number" && typeof totalOfertado === "number" && totalOfertado > 0) {
+          // El backend ya calculó esto (mismo criterio, cobertura ya validada) — se muestra tal cual,
+          // sin recalcularlo en el cliente.
+          const diffAbs = typeof market.sobreprecio_abs === "number" ? market.sobreprecio_abs : totalOfertado - (computedTotalMercado ?? 0);
+          return (
+            <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-[11px] text-ink">
+              <span className="text-mute">Diferencia ofertado vs mercado: </span>
+              <span className={cn("font-mono font-bold",
+                market.sobreprecio_pct > 15 ? "text-rust" : market.sobreprecio_pct < -15 ? "text-clay" : "text-moss")}>
+                {diffAbs > 0 ? "+" : ""}{fmtMoney(diffAbs)} ({market.sobreprecio_pct > 0 ? "+" : ""}{market.sobreprecio_pct.toFixed(1)}%)
+              </span>
+            </div>
+          );
+        }
+        // Sin `sobreprecio_pct` del backend (formato de análisis viejo, sin este campo todavía):
+        // se recalcula en el cliente, con el mismo resguardo de cobertura ≥ 70% de antes.
         if (typeof computedTotalMercado !== "number" || typeof totalOfertado !== "number" || totalOfertado <= 0)
           return null;
-        // GATE de comparabilidad: SOLO comparamos ofertado vs mercado si la cobertura es
-        // ALTA (≥70% de ítems con mediana). Con cobertura baja, `computedTotalMercado`
-        // solo cubre los ítems que SÍ se tasaron (ej. 2/8) y compararlo contra el total
-        // del contrato produce un sobreprecio FALSO (ej. +2776% por enfrentar S/73K del
-        // lote completo vs S/3K de 2 ítems). El backend ya deja sobreprecio_pct=null en
-        // ese caso; lo respetamos y NO emitimos un veredicto que sería una falsa acusación.
         const cob = typeof market.cobertura_mercado === "number" ? market.cobertura_mercado : null;
-        const comparable = cob !== null ? cob >= 0.7 : (typeof market.sobreprecio_pct === "number");
+        const comparable = cob !== null && cob >= 0.7;
         if (!comparable) {
           return (
             <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-[11px] text-mute">
