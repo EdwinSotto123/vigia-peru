@@ -91,23 +91,51 @@ const Q = z.object({
   ubigeo: z.string().regex(/^\d{2,6}$/).optional(),
   codigo: z.string().max(20).optional(),
   estado: z.enum(["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento"]).optional(),
+  financiador: z.string().min(1).max(120).optional(),
+  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().min(1).max(300).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 procesamientosRouter.get("/", async (c) => {
   const p = Q.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
-  const { ubigeo, codigo, estado, limit } = p.data;
+  const { ubigeo, codigo, estado, financiador, desde, hasta, limit, offset } = p.data;
   const vals: unknown[] = [];
   const w: string[] = [];
   if (ubigeo) { vals.push(ubigeo); w.push(`ubigeo LIKE $${vals.length} || '%'`); }
   if (codigo) { vals.push(codigo.toUpperCase()); w.push(`contribucion_codigo = $${vals.length}`); }
   if (estado) { vals.push(estado); w.push(`estado = $${vals.length}`); }
-  vals.push(limit);
-  const r = await pool.query(
-    `SELECT ${COLS} FROM procesamientos_publico ${w.length ? "WHERE " + w.join(" AND ") : ""} ${ORDER} LIMIT $${vals.length}`,
-    vals);
+  // `financiador` (procesamientos_publico) ya sale como 'Anónimo' cuando financiador_visible es falso,
+  // así que un ILIKE acá nunca expone a quien pidió no aparecer.
+  if (financiador) { vals.push(`%${financiador}%`); w.push(`financiador ILIKE $${vals.length}`); }
+  // Rango sobre `encolado_at`: es el único timestamp que SIEMPRE existe (desde que entra a la cola),
+  // a diferencia de iniciado_at/finalizado_at (null mientras no arranca o no termina).
+  if (desde) { vals.push(desde); w.push(`encolado_at >= $${vals.length}::date`); }
+  if (hasta) { vals.push(hasta); w.push(`encolado_at < ($${vals.length}::date + interval '1 day')`); }
+  const whereSql = w.length ? "WHERE " + w.join(" AND ") : "";
+  const totalVals = [...vals];
+  vals.push(limit, offset);
+  const [r, total] = await Promise.all([
+    pool.query(`SELECT ${COLS} FROM procesamientos_publico ${whereSql} ${ORDER} LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
+    pool.query(`SELECT count(*)::int AS n FROM procesamientos_publico ${whereSql}`, totalVals),
+  ]);
   cache(c, 5);
+  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
+});
+
+// ─── GET /financiamiento/procesamientos/financiadores ────────────────────────
+// Nombres distintos (visibles) presentes en el tablero, para el filtro por patrocinador.
+// Ámbito: solo quienes tienen contratos en `procesamientos_publico` (no la tabla `financiadores`
+// completa) — así el desplegable no ofrece nombres sin nada que mostrar en este tablero.
+procesamientosRouter.get("/financiadores", async (c) => {
+  const r = await pool.query(
+    `SELECT financiador AS nombre, count(*)::int AS n
+     FROM procesamientos_publico
+     WHERE financiador IS NOT NULL AND financiador <> 'Anónimo'
+     GROUP BY financiador ORDER BY n DESC, financiador LIMIT 200`);
+  cache(c, 60);
   return c.json({ data: r.rows });
 });
 
