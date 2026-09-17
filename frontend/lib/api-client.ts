@@ -95,6 +95,29 @@ export async function getAlertas(params: {
   return r.data;
 }
 
+/** Página completa (con `total`) para /app/alertas — a diferencia de `getAlertas`, que
+ *  otros call sites (mapa, landing) usan como lote fijo y descartan el conteo. */
+export interface ApiAlertasPagina {
+  data: ApiAlerta[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function getAlertasPagina(params: {
+  region?: string;
+  estado?: string;
+  scoreMin?: number;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ApiAlertasPagina> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null) qs.set(k, String(v));
+  }
+  return get<ApiAlertasPagina>(`/alertas?${qs}`);
+}
+
 export async function getAlerta(id: string): Promise<ApiAlerta | null> {
   try {
     return await get<ApiAlerta>(`/alertas/${encodeURIComponent(id)}`);

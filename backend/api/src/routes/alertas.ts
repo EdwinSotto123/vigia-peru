@@ -29,47 +29,52 @@ alertasRouter.get("/", async (c) => {
   conds.push(`a.estado <> 'revision'`);
   const where = `WHERE ${conds.join(" AND ")}`;
 
+  const totalVals = [...vals];
   vals.push(limit, offset);
-  const r = await pool.query(
-    `SELECT
-       a.id, a.codigo, a.codigo_convocatoria AS codigoconvocatoria,
-       a.objeto, a.score, a.estado,
-       a.entidad_ruc      AS "rucEntidad",
-       COALESCE(e.nombre, '—')        AS entidad,
-       a.proveedor_ruc    AS "rucProveedor",
-       COALESCE(emp.razon_social, '—') AS proveedor,
-       a.monto_adjudicado::float AS "montoSoles",
-       to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS "fechaBuenaPro",
-       a.region, a.provincia, a.distrito,
-       a.unico_postor     AS "unicoPostor",
-       a.edad_ruc_dias    AS "edadRucDias",
-       a.fuente_url       AS "fuenteUrl",
-       ST_Y(a.ubicacion_geo::geometry) AS lat,
-       ST_X(a.ubicacion_geo::geometry) AS lon,
-       COALESCE(
-         (SELECT json_agg(
-            json_build_object(
-              'regla', b.regla,
-              'severidad', b.severidad,
-              'evidencia', b.evidencia,
-              'norma', b.norma,
-              'opinionOece', b.opinion_oece,
-              'fuenteUrl', b.fuente_url
-            ) ORDER BY
-              CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END
-          )
-          FROM banderas b WHERE b.alerta_id = a.id),
-         '[]'::json
-       ) AS banderas
-     FROM alertas a
-     LEFT JOIN entidades e   ON e.ruc   = a.entidad_ruc
-     LEFT JOIN empresas  emp ON emp.ruc = a.proveedor_ruc
-     ${where}
-     ORDER BY a.score DESC, a.created_at DESC
-     LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
-    vals,
-  );
-  return c.json({ data: r.rows, limit, offset });
+  const [r, total] = await Promise.all([
+    pool.query(
+      `SELECT
+         a.id, a.codigo, a.codigo_convocatoria AS codigoconvocatoria,
+         a.objeto, a.score, a.estado,
+         a.entidad_ruc      AS "rucEntidad",
+         COALESCE(e.nombre, '—')        AS entidad,
+         a.proveedor_ruc    AS "rucProveedor",
+         COALESCE(emp.razon_social, '—') AS proveedor,
+         a.monto_adjudicado::float AS "montoSoles",
+         to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS "fechaBuenaPro",
+         a.region, a.provincia, a.distrito,
+         a.unico_postor     AS "unicoPostor",
+         a.edad_ruc_dias    AS "edadRucDias",
+         a.fuente_url       AS "fuenteUrl",
+         ST_Y(a.ubicacion_geo::geometry) AS lat,
+         ST_X(a.ubicacion_geo::geometry) AS lon,
+         COALESCE(
+           (SELECT json_agg(
+              json_build_object(
+                'regla', b.regla,
+                'severidad', b.severidad,
+                'evidencia', b.evidencia,
+                'norma', b.norma,
+                'opinionOece', b.opinion_oece,
+                'fuenteUrl', b.fuente_url
+              ) ORDER BY
+                CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END
+            )
+            FROM banderas b WHERE b.alerta_id = a.id),
+           '[]'::json
+         ) AS banderas
+       FROM alertas a
+       LEFT JOIN entidades e   ON e.ruc   = a.entidad_ruc
+       LEFT JOIN empresas  emp ON emp.ruc = a.proveedor_ruc
+       ${where}
+       ORDER BY a.score DESC, a.created_at DESC
+       LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
+      vals,
+    ),
+    // Mismo WHERE que arriba, sin los joins (no filtran por columnas de entidades/empresas).
+    pool.query(`SELECT count(*)::int AS n FROM alertas a ${where}`, totalVals),
+  ]);
+  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /alertas/analizadas — lista de análisis cacheados ────────
