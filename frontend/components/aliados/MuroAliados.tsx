@@ -92,13 +92,6 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
   }
 
   const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
-  const hrefPagina = (n: number) => {
-    const params = new URLSearchParams();
-    if (region) params.set("ubigeo", region);
-    if (n > 1) params.set("pagina", String(n));
-    const qs = params.toString();
-    return qs ? `/app/aliados?${qs}` : "/app/aliados";
-  };
   const paginacion = (
     <Paginacion
       actual={paginaActual}
@@ -106,8 +99,8 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
       total={totalPagina}
       tam={TAM}
       navegacion="url"
-      href={hrefPagina}
-      onChange={() => {}}
+      hrefBase="/app/aliados"
+      query={{ ubigeo: region }}
       cargando={false}
       nombre="patrocinadores"
     />
