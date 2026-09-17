@@ -23,6 +23,7 @@ import {
   type EntidadesResumen,
 } from "@/lib/api-client";
 import { formatSoles } from "@/lib/mock-data";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { cn } from "@/lib/utils";
 
@@ -111,8 +112,8 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
               Entidades del Estado vigiladas
             </h3>
             <p className="mt-1 text-sm text-mute">
-              {totals.totalEntidades.toLocaleString("es-PE")} entidades ·{" "}
-              {totals.conAlertas.toLocaleString("es-PE")} con alertas activas ·{" "}
+              <NumberTicker value={totals.totalEntidades} /> entidades ·{" "}
+              <NumberTicker value={totals.conAlertas} /> con alertas activas ·{" "}
               {formatSoles(totals.monto)} bajo seguimiento
             </p>
           </div>

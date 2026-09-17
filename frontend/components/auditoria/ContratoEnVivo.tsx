@@ -24,6 +24,7 @@ import {
   type ProcesamientoDetalle,
 } from "@/lib/auditoria";
 import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Bitacora } from "./Bitacora";
 import { CompartirButton } from "./CompartirButton";
@@ -142,10 +143,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
       ) : activo ? (
         <>
-          <span className="relative flex h-1.5 w-1.5" aria-hidden>
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-moss opacity-60" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-moss" />
-          </span>
+          <PulseDot color="moss" size={6} />
           en vivo{montado && actualizadoAt ? ` · actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
         </>
       ) : (

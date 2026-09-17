@@ -26,6 +26,7 @@ import {
   type EstadoProc,
   type Procesamiento,
 } from "@/lib/auditoria";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { MiniCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
@@ -152,10 +153,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
             <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
           ) : (
             <span className="inline-flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-moss opacity-60" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-moss" />
-              </span>
+              <PulseDot color="moss" size={6} />
               en vivo · {ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : "conectando…"}
             </span>
           )}
