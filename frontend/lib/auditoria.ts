@@ -256,7 +256,12 @@ export interface ProcesamientosQuery {
   ubigeo?: string;
   codigo?: string;
   estado?: Exclude<EstadoProc, "revision">;
+  financiador?: string;
+  /** YYYY-MM-DD, sobre `encolado_at` (el único timestamp que siempre existe). */
+  desde?: string;
+  hasta?: string;
   limit?: number;
+  offset?: number;
 }
 
 export function procesamientosQueryString(q: ProcesamientosQuery = {}): string {
@@ -270,6 +275,17 @@ export function procesamientosQueryString(q: ProcesamientosQuery = {}): string {
 
 export const getProcesamientos = (q: ProcesamientosQuery = {}) =>
   getJson<{ data: Procesamiento[] }>(`/financiamiento/procesamientos?${procesamientosQueryString(q)}`).then((r) => r?.data ?? null);
+
+export interface ProcesamientosPagina { data: Procesamiento[]; total: number; limit: number; offset: number }
+
+/** Como `getProcesamientos`, pero conserva `total` — para el histórico paginado (no el tablero en vivo). */
+export const getProcesamientosPaginado = (q: ProcesamientosQuery = {}) =>
+  getJson<ProcesamientosPagina>(`/financiamiento/procesamientos?${procesamientosQueryString(q)}`, 5);
+
+export interface FinanciadorProcesamientos { nombre: string; n: number }
+
+export const getFinanciadoresProcesamientos = () =>
+  getJson<{ data: FinanciadorProcesamientos[] }>(`/financiamiento/procesamientos/financiadores`, 60).then((r) => r?.data ?? []);
 
 export const getProcesamiento = (ocid: string) =>
   getJson<ProcesamientoDetalle>(`/financiamiento/procesamientos/${encodeURIComponent(ocid)}`, 3);

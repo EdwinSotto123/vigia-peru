@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Activity, ArrowRight, CheckCircle2, Clock, Cpu, ShieldCheck } from "lucide-react";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
+import { FiltrosHistorico } from "@/components/auditoria/FiltrosHistorico";
+import { HistoricoProcesados } from "@/components/auditoria/HistoricoProcesados";
 import { PanelProcesamiento } from "@/components/auditoria/PanelProcesamiento";
-import { getProcesamientos } from "@/lib/auditoria";
+import { getFinanciadoresProcesamientos, getProcesamientos, getProcesamientosPaginado } from "@/lib/auditoria";
 import { getResumenVivo } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
 
@@ -15,12 +17,22 @@ export const metadata = {
 
 export const revalidate = 10;
 
-export default async function AuditoriaPage({ searchParams }: { searchParams?: { ubigeo?: string } }) {
+const HIST_TAM = 24;
+const FECHA_RX = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function AuditoriaPage({ searchParams }: { searchParams?: { ubigeo?: string; desde?: string; hasta?: string; financiador?: string; pagina?: string } }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
-  const [resumen, zonas, initial] = await Promise.all([
+  const desde = searchParams?.desde && FECHA_RX.test(searchParams.desde) ? searchParams.desde : undefined;
+  const hasta = searchParams?.hasta && FECHA_RX.test(searchParams.hasta) ? searchParams.hasta : undefined;
+  const financiador = searchParams?.financiador?.trim().slice(0, 120) || undefined;
+  const paginaActual = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
+  const histQuery = { ubigeo, desde, hasta, financiador, estado: "procesado" as const };
+  const [resumen, zonas, initial, historico, financiadores] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
     getProcesamientos({ ubigeo, limit: 100 }),
+    getProcesamientosPaginado({ ...histQuery, limit: HIST_TAM, offset: (paginaActual - 1) * HIST_TAM }),
+    getFinanciadoresProcesamientos(),
   ]);
   const opciones = (zonas ?? [])
     .filter((z) => z.totalCola > 0 || z.financiados > 0)
@@ -61,6 +73,31 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
           <FiltroRegion opciones={opciones} valor={ubigeo} />
         </div>
         <TableroAuditoria key={ubigeo ?? "all"} ubigeo={ubigeo} initial={initial} autoRefreshMs={5000} />
+      </section>
+
+      {/* ─── HISTÓRICO (todo lo ya procesado, con filtros y paginación real) ─── */}
+      <section className="container-page border-t border-line py-10">
+        <div className="mb-5">
+          <h2 className="font-serif text-2xl font-bold text-ink">Buscar en el histórico</h2>
+          <p className="mt-0.5 text-sm text-mute">Todo lo ya procesado, filtrable por fecha y patrocinador — la región de arriba también aplica acá.</p>
+        </div>
+        <div className="mb-4">
+          <FiltrosHistorico desde={desde} hasta={hasta} financiador={financiador} financiadores={financiadores} />
+        </div>
+        <HistoricoProcesados
+          pagina={historico}
+          paginaActual={paginaActual}
+          pathname="/app/auditoria"
+          queryString={(n) => {
+            const params = new URLSearchParams();
+            if (ubigeo) params.set("ubigeo", ubigeo);
+            if (desde) params.set("desde", desde);
+            if (hasta) params.set("hasta", hasta);
+            if (financiador) params.set("financiador", financiador);
+            if (n > 1) params.set("pagina", String(n));
+            return params.toString();
+          }}
+        />
       </section>
 
       {/* ─── LEYENDA + CTA ─── */}

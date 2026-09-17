@@ -216,7 +216,8 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
   );
 }
 
-function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
+/** Exportada: la reusa HistoricoProcesados.tsx (mismo diseño de tarjeta en el buscador histórico). */
+export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
   const estado = estadoVisible(p);
   const conSenales = p.banderas > 0;
   const transcurrido = ahora > 0 && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;

@@ -13,8 +13,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronLeft, ChevronRight, Inbox, WifiOff } from "lucide-react";
+import { ArrowUpRight, Inbox, WifiOff } from "lucide-react";
 import { ESTADO_PROC, PUBLIC_API_BASE, type EstadoProc } from "@/lib/auditoria";
+import { Paginacion } from "@/components/ui/Paginacion";
 import {
   ESTADO_CONTRATO_EXTRA,
   RIESGO_CLS,
@@ -154,6 +155,7 @@ export function ContratosLista({
       href={hrefPagina}
       onChange={setPage}
       cargando={cargando}
+      nombre="contratos"
     />
   );
 
@@ -170,39 +172,6 @@ export function ContratosLista({
         <Tarjetas rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       )}
       {rows.length > 10 && pag}
-    </div>
-  );
-}
-
-// ─── Paginación ──────────────────────────────────────────────────────────────
-
-function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando }: {
-  actual: number; paginas: number; total: number; tam: number; navegacion: "url" | "interna";
-  href: (n: number) => string; onChange: (n: number) => void; cargando: boolean;
-}) {
-  const desde = total === 0 ? 0 : (actual - 1) * tam + 1;
-  const hasta = Math.min(total, actual * tam);
-  const btn = "inline-flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper text-ink transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:pointer-events-none aria-disabled:opacity-40";
-  const prev = Math.max(1, actual - 1);
-  const next = Math.min(paginas, actual + 1);
-  return (
-    <div className="flex items-center justify-between gap-2 text-[11px] text-mute">
-      <span className="font-mono tabular-nums" aria-live="polite">
-        {cargando ? "cargando…" : total === 0 ? "0 contratos" : `${desde.toLocaleString("es-PE")}–${hasta.toLocaleString("es-PE")} de ${total.toLocaleString("es-PE")}`}
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        {navegacion === "url" ? (
-          <Link href={href(prev)} aria-disabled={actual <= 1} className={btn} aria-label="Página anterior" scroll={false}><ChevronLeft size={13} /></Link>
-        ) : (
-          <button type="button" disabled={actual <= 1} onClick={() => onChange(prev)} className={btn} aria-label="Página anterior"><ChevronLeft size={13} /></button>
-        )}
-        <span className="font-mono tabular-nums text-ink">{actual}<span className="text-mute"> / {paginas}</span></span>
-        {navegacion === "url" ? (
-          <Link href={href(next)} aria-disabled={actual >= paginas} className={btn} aria-label="Página siguiente" scroll={false}><ChevronRight size={13} /></Link>
-        ) : (
-          <button type="button" disabled={actual >= paginas} onClick={() => onChange(next)} className={btn} aria-label="Página siguiente"><ChevronRight size={13} /></button>
-        )}
-      </span>
     </div>
   );
 }
