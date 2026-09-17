@@ -24,6 +24,7 @@ import {
   type ProcesamientoDetalle,
 } from "@/lib/auditoria";
 import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { Bitacora } from "./Bitacora";
 import { CompartirButton } from "./CompartirButton";
 import { DagCarriles } from "./DagCarriles";
@@ -106,10 +107,10 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
   if (!data) {
     return cargando ? (
-      <div className="animate-pulse space-y-3 rounded-2xl border border-line bg-paper p-6" aria-busy>
-        <div className="h-3 w-24 rounded bg-paperDeep" />
-        <div className="h-6 w-3/4 rounded bg-paperDeep" />
-        <div className="h-3 w-1/2 rounded bg-paperDeep" />
+      <div className="space-y-3 rounded-2xl border border-line bg-paper p-6" aria-busy>
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
       </div>
     ) : (
       <div className="flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
