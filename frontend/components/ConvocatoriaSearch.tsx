@@ -51,6 +51,8 @@ import {
   fetchOcdsFromBrowserDetailed,
   fetchAllDocsFromOcds,
 } from "@/lib/oece-bridge";
+import type { AgentTraceEvent, ApiResult, SortKey, SevFilter, CatFilter, GNode, TraceStep, Bandera, GraphNode, GraphEdge } from "./convocatoria/types";
+import { CAT_LABEL, CAT_TONE, NODE_META, PHASE_HEX, AGENT_IDS, G_COLOR, G_DONE, G_FLOW, TYPE_LABEL, TRACE_ROLE, VERB_HEX, AGENT_VISUAL, TOOL_INFO, VEREDICTO_VISUAL, AGENTE_VISUAL, FUENTE_GROUPS } from "./convocatoria/constants";
 
 // El portal OECE resuelve /proceso/<OCID COMPLETO>. El código de alerta / conv.ocid a
 // veces es el sufijo corto ("1212446" o "2026-10404-12") → /proceso/1212446 da 404.
@@ -178,59 +180,7 @@ function countFindings(events: any[]): number {
   return Math.max(contextual, persisted);
 }
 
-interface AgentTraceEvent {
-  agent?: string;
-  kind?: "tool_call" | "tool_result" | "transfer" | "thought" | "error";
-  name?: string;
-  args?: Record<string, any>;
-  result_preview?: any;
-  to?: string;
-  text?: string;
-  detail?: string;
-}
 
-interface ApiResult {
-  ocid?: string;
-  convocatoria?: any;
-  postores?: any[];
-  items?: any[];
-  documentos?: any[];
-  compliance?: any;
-  document_analysis?: any;     // JSON estructurado
-  market_analysis?: any;       // JSON estructurado
-  web_research?: any;          // JSON estructurado
-  news_research?: any;         // JSON del news_research_agent (prensa peruana)
-  person_network?: any;        // JSON del person_network_agent (gerente + red)
-  normative_compliance?: any;  // JSON de evaluate_normative_compliance (RAG cruzado)
-  estado_real?: any;           // detect_estado_real (Fase 1)
-  analisis_postores?: any;     // analyze_postores_pattern (Fase 2)
-  doc_parser_raw?: string;     // texto crudo fallback
-  market_analysis_raw?: string;
-  web_research_raw?: string;
-  news_research_raw?: string;
-  person_network_raw?: string;
-  dictamen?: {
-    dictamen_markdown?: string;
-    dictamen_estructura?: any;
-    gen_meta?: any;
-  };
-  agent_trace?: AgentTraceEvent[];
-  agent_session?: string;
-  agent_final_response?: string;
-  llm_metrics?: {
-    tokens_total?: number;
-    tokens_prompt?: number;
-    tokens_output?: number;
-    n_llm_calls?: number;
-    cost_usd?: number;
-    phoenix_trace_id?: string | null;
-  };
-  self_evals?: any;
-  timing?: Record<string, number>;
-  _bridge_meta?: Record<string, any>;
-  error?: string;
-  hint?: string;
-}
 
 /**
  * Convierte un error técnico del backend en un mensaje legible para el usuario.
@@ -1204,9 +1154,6 @@ function QuickAccessPanel({
 }
 
 
-type SortKey = "reciente" | "score" | "monto";
-type SevFilter = "todos" | "alta" | "media" | "sin";
-type CatFilter = "todas" | "bienes" | "servicios" | "obras" | "consultoria";
 
 // Heurística por keywords sobre el `objeto` para clasificar la convocatoria
 // (el OECE no expone `mainProcurementCategory` estándar en este dataset).
@@ -1218,21 +1165,6 @@ function inferCategoria(objeto: string | null | undefined): CatFilter {
   if (/\b(adquisici[oó]n|compra|suministr|provisi[oó]n|equip|veh[ií]culo|aliment|medicam|kit|tablet|laptop|insumo|repuest|bienes)/i.test(o)) return "bienes";
   return "todas";
 }
-const CAT_LABEL: Record<CatFilter, string> = {
-  todas: "Todas",
-  bienes: "Bienes",
-  servicios: "Servicios",
-  obras: "Obras",
-  consultoria: "Consultoría",
-};
-// Color de acento por categoría (tipo etiqueta sólida, no emoji)
-const CAT_TONE: Record<CatFilter, string> = {
-  todas:       "bg-ink",
-  bienes:      "bg-clay",
-  servicios:   "bg-amber",
-  obras:       "bg-rust",
-  consultoria: "bg-moss",
-};
 
 function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) => void }) {
   const [items, setItems] = useState<any[] | null>(null);
@@ -1744,26 +1676,6 @@ function LiveEventsPanel({ events }: { events: any[] }) {
   );
 }
 
-// Metadata por nodo del grafo: etiqueta corta, emoji, frase pública en vivo y fase.
-const NODE_META: Record<string, { short: string; emoji: string; phrase: string }> = {
-  fetch:      { short: "OCDS",       emoji: "🏷️", phrase: "Consultando Contrataciones Abiertas del OECE…" },
-  pdfs:       { short: "Expediente", emoji: "⬇️", phrase: "Descargando el expediente publicado en el SEACE…" },
-  db:         { short: "Registro",   emoji: "🗄️", phrase: "Estructurando el proceso en la base de datos…" },
-  compliance: { short: "Compliance", emoji: "⚖️", phrase: "Aplicando las reglas de la Ley de Contrataciones del Estado…" },
-  parser:     { short: "Parser",     emoji: "📑", phrase: "Leyendo las bases administrativas y el acta de buena pro…" },
-  legal:      { short: "Legal",      emoji: "📜", phrase: "Cruzando contra las opiniones normativas del OECE…" },
-  market:     { short: "Mercado",    emoji: "💰", phrase: "Tasando los precios ofertados contra el mercado real…" },
-  sunat:      { short: "SUNAT",      emoji: "🪪", phrase: "Verificando RUC, sanciones e inhabilitaciones del proveedor…" },
-  web:        { short: "Empresa",    emoji: "🏢", phrase: "Investigando a la empresa adjudicataria…" },
-  news:       { short: "Prensa",     emoji: "📰", phrase: "Buscando prensa peruana relacionada…" },
-  rnp:        { short: "Red",        emoji: "🕸️", phrase: "Cruzando la red de socios y la base pública de visitas a funcionarios…" },
-  extended:   { short: "Patrones",   emoji: "🔁", phrase: "Detectando puerta giratoria y aportes de campaña…" },
-  writer:     { short: "Dictamen",   emoji: "✍️", phrase: "Redactando el dictamen final con la evidencia…" },
-};
-const PHASE_HEX: Record<string, string> = {
-  "ingesta": "#b9770c", "auditoría": "#a8442a", "investigación": "#8a6d3b", "dictamen": "#4f7d3a",
-};
-
 // ── Grafo agéntico en CANVAS ──────────────────────────────────────────────
 // Nodos por tipo + aristas curvas + PARTÍCULAS que fluyen. El nodo activo
 // (paso real en vivo) se enciende con halo pulsante; al terminar queda VERDE.
@@ -1805,12 +1717,6 @@ function extractFindings(events: any[]) {
   return f;
 }
 
-// Qué hace cada nodo (para el click).
-interface GNode {
-  id: string; label: string; sub?: string; name: string;
-  type: "orch" | "agent" | "src" | "store"; r: number; desc: string;
-  sources?: string[]; stores?: string[];
-}
 // Grafo force-directed. Sin posiciones fijas: la física las acomoda.
 // `name` = nombre completo (panel de descubrimiento); `label`/`sub` = dentro del nodo.
 const G_NODES: GNode[] = [
@@ -1868,22 +1774,12 @@ const G_NODES: GNode[] = [
   { id: "gcs", label: "Cloud", sub: "Storage", name: "Cloud Storage", type: "store", r: 19, desc: "Cloud Storage: documentos del expediente archivados." },
   { id: "dictamen", label: "Dictamen", name: "Dictamen final", type: "store", r: 25, desc: "Dictamen final con todas las banderas, sus normas y su evidencia oficial — listo para un periodista o fiscal." },
 ];
-const AGENT_IDS = ["compliance", "parser", "legal", "market", "web", "news", "person", "entity", "extended", "writer"];
 const G_EDGES: Array<{ from: string; to: string }> = [];
 G_NODES.forEach((n) => {
   (n.sources || []).forEach((s) => G_EDGES.push({ from: s, to: n.id }));
   (n.stores || []).forEach((s) => G_EDGES.push({ from: n.id, to: s }));
 });
 AGENT_IDS.forEach((a) => G_EDGES.push({ from: "orch", to: a }));
-const G_COLOR: Record<string, { fill: string; stroke: string; text: string }> = {
-  orch:  { fill: "#fffdf7", stroke: "#6d4ec9", text: "#4a3a8c" },
-  agent: { fill: "#fffdf7", stroke: "#3f7a3a", text: "#2f5e2c" },
-  src:   { fill: "#fffdf7", stroke: "#b07a12", text: "#7a530b" },
-  store: { fill: "#fffdf7", stroke: "#b03b6e", text: "#7e2a4d" },
-};
-const G_DONE = { fill: "#e9f3e6", stroke: "#3f7a3a", text: "#2f5e2c" }; // verde "completado"
-const G_FLOW = "#16b85a"; // verde vivo: arista con intercambio de info ACTIVO
-const TYPE_LABEL: Record<string, string> = { orch: "Núcleo", agent: "Agente", src: "Fuente", store: "Persistencia" };
 
 // ── TRACE AGÉNTICO ──────────────────────────────────────────────────────────
 // Deriva del stream REAL los pasos "agente → (verbo) → destino · qué hace".
@@ -1903,18 +1799,6 @@ function traceNodeForAgent(name?: string): string | null {
   if (/report_writer/.test(n)) return "writer";
   return null; // orquestador / root → se trata como "orch"
 }
-const TRACE_ROLE: Record<string, string> = {
-  compliance: "auditar el cumplimiento normativo",
-  parser: "leer el expediente (bases, actas, contrato)",
-  legal: "el análisis legal contra las opiniones del OECE",
-  extended: "los cruces avanzados (puerta giratoria, aportes)",
-  market: "tasar los precios contra el mercado",
-  web: "investigar a la empresa adjudicataria",
-  news: "buscar prensa peruana relacionada",
-  rnp: "mapear la red de personas del proveedor",
-  entity: "identificar a los funcionarios de la entidad",
-  writer: "redactar el dictamen con la evidencia",
-};
 function rucArg(a: any): string {
   const r = String(a?.ruc || a?.ruc_proveedor || a?.ruc_postor || "").replace(/\D/g, "");
   return r.length === 11 ? ` RUC ${r}` : "";
@@ -1945,7 +1829,6 @@ const TRACE_TOOLS: Array<{ rx: RegExp; node: string; verb: string; msg: (a: any)
   { rx: /analyze_postores_pattern/i,                    node: "sql",    verb: "invoca",   msg: () => "analiza el patrón de postores y co-ocurrencias" },
   { rx: /get_dictamen_context/i,                        node: "sql",    verb: "invoca",   msg: () => "reúne todo el contexto para el dictamen" },
 ];
-interface TraceStep { f: string; t: string; v: string; m: string }
 function buildTrace(events: any[]): TraceStep[] {
   const out: TraceStep[] = [];
   for (const ev of events || []) {
@@ -1978,7 +1861,6 @@ function buildTrace(events: any[]): TraceStep[] {
   }
   return out;
 }
-const VERB_HEX: Record<string, string> = { delega: "#5b51c9", invoca: "#2f8f86", consulta: "#3b8bd4", persiste: "#ba7517" };
 
 function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -3454,23 +3336,6 @@ function FactRow({
 
 // ─── sub-components ───────────────────────────────────────────
 
-// Mapeo visual de cada agente
-const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
-  vigia_orchestrator:    { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  pipeline:              { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  orquestador:           { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  compliance_agent:      { color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Compliance" },
-  document_parser_agent: { color: "bg-clay text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
-  document_legal_analyst_agent: { color: "bg-clay text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
-  market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Market Price" },
-  web_research_agent:    { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Web Research" },
-  news_research_agent:   { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Prensa" },
-  entity_personnel_agent:{ color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Funcionarios" },
-  person_network_agent:  { color: "bg-clay text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
-  compliance_extended_agent: { color: "bg-amber text-paper",    icon: <ScanSearch size={11} />,    label: "Compliance+" },
-  report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Report Writer" },
-};
-
 // Surfacing de la capa de observabilidad (track Arize): trazabilidad en Phoenix,
 // evaluadores LLM-as-judge y guardrails anti-alucinación. `compact` = tira para
 // el proceso en curso; full = tarjeta para el resultado (tab Auditoría).
@@ -3718,89 +3583,6 @@ function TracePhaseGroup({ group, forceOpen }: { group: { agent: string; events:
     </div>
   );
 }
-
-// Qué hace cada tool / regla / agente — alimenta el botón de info (ⓘ) del tracking.
-// Cubre TODAS las tools del pipeline (OCDS, documentos, mercado, proveedor, personas,
-// reglas de compliance, RAG legal, persistencia) + los agentes (para los `transfer`).
-const TOOL_INFO: Record<string, string> = {
-  // ── OCDS / registro ──
-  fetch_ocds_record: "Trae el registro OCDS oficial del proceso desde el portal OECE (objeto, ítems, montos, postores, adjudicación).",
-  register_convocatoria_in_db: "Registra la convocatoria y sus ítems del OCDS en la base de datos de Vigía.",
-  // ── Documentos ──
-  list_documents: "Lista los documentos publicados del expediente (Bases, Acta de Buena Pro, Contrato, Resumen Ejecutivo…).",
-  parse_document_pdf: "Descarga el documento, hace OCR con Document AI y extrae los ítems con sus especificaciones técnicas del REQUERIMIENTO (la Bases).",
-  read_document_analysis: "Lee la extracción estructurada del documento (ítems, firmantes, comité, motivos) para que otros agentes la usen.",
-  persist_doc_flags_as_banderas: "Guarda como banderas las observaciones legales del documento (las emite el analista legal).",
-  // ── Mercado ──
-  build_market_input: "Arma la lista de ítems a tasar combinando los del OCDS (cantidad/precio) con las specs extraídas de la Bases.",
-  list_items_for_pricing: "Lista los ítems de la convocatoria que necesitan validación de precio.",
-  read_market_input: "Lee la lista de ítems ya preparada para el análisis de mercado.",
-  analyze_market_sharded: "Tasa cada ítem contra el mercado real (Google Search en paralelo, por chunks) y detecta sobreprecios.",
-  record_market_finding: "Registra el resultado de tasación de un ítem (mediana, rango, referencias, veredicto).",
-  analyze_postores_pattern: "Analiza el patrón de postores: direcciones compartidas, co-ocurrencia y posibles consorcios coordinados.",
-  persist_market_flags_as_banderas: "Guarda como banderas los sobreprecios detectados en el análisis de mercado.",
-  // ── Proveedor / SUNAT / RNP ──
-  get_ganador: "Identifica al proveedor ganador, los postores y la entidad contratante.",
-  query_oece_perfil: "Consulta el perfil OECE del proveedor (historial de contratos con el Estado y señales).",
-  query_sunat_decolecta: "Consulta SUNAT (vía decolecta): RUC, estado, antigüedad, CIIU y representante legal.",
-  query_edad_ciiu_web: "Busca en web la edad del RUC y el CIIU cuando SUNAT no responde (fallback).",
-  read_sunat_profile: "Lee el perfil SUNAT ya cargado en el análisis.",
-  query_rnp_empresa: "Consulta el RNP: socios, representantes legales y órganos de administración de la empresa.",
-  query_rnp_persona: "Consulta el RNP por persona: en qué empresas figura como socio o representante.",
-  detect_estado_real: "Verifica el estado REAL de un RUC/persona (activo, baja, suspendido) frente a lo declarado.",
-  // ── Personas / red ──
-  batch_person_lookup: "Cruza un lote de personas (DNI/nombre) contra las bases de Vigía (PEP, aportes ONPE, cargos públicos, candidaturas).",
-  query_pep: "Verifica si una persona es PEP (Persona Expuesta Políticamente).",
-  query_onpe_aportantes: "Consulta ONPE: aportes de campaña de la persona/empresa a partidos políticos.",
-  query_jne_candidaturas: "Consulta JNE: candidaturas y hojas de vida de la persona.",
-  scrape_jne_hoja_vida: "Extrae la hoja de vida de un candidato desde el portal del JNE.",
-  query_autoridades_entidad: "Consulta las autoridades electas y funcionarios designados de la entidad contratante.",
-  query_visitas_de_persona: "Consulta el registro de visitas oficiales de una persona (gestión de intereses / lobby).",
-  read_person_network_context: "Arma el contexto de la red de personas (socios, firmantes, autoridades) para el análisis.",
-  detect_puerta_giratoria: "Detecta puerta giratoria: si el titular de la empresa ocupó un cargo público en la entidad que lo contrató.",
-  detect_aporte_a_partido_del_alcalde: "Detecta si el proveedor aportó a la campaña del alcalde/partido que gobierna la entidad (cruce C3).",
-  // ── Reglas de compliance (verifican una condición; si se cumple, emiten una señal de
-  //    riesgo — NO una acusación). Redactadas como "Verifica si…", no como afirmación. ──
-  check_unique_bidder_rule: "Verifica si el proceso tuvo UN solo postor donde la norma esperaría competencia (cruce C2).",
-  check_postor_unico_mayoritario_rule: "Verifica si hubo un único postor que ganó al ≥95% del valor referencial (sin competencia efectiva).",
-  check_edad_ruc_ganador_rule: "Verifica si la empresa ganadora tiene un RUC reciente en relación al monto del contrato.",
-  check_ruc_ultra_nuevo_rule: "Verifica si el RUC del ganador tiene <90 días de antigüedad ganando un contrato grande (cruce C1, modelo Funes).",
-  check_sanctioned_provider_rule: "Verifica si el ganador tiene una sanción o inhabilitación vigente para contratar con el Estado (Art. 50 TUO Ley 30225).",
-  check_ciiu_vs_objeto_rule: "Verifica si el giro (CIIU) del proveedor corresponde al objeto de lo que se adquiere.",
-  check_directa_fundamento_rule: "Verifica si la contratación directa tiene una causal/fundamento legal válido acreditado (Art. 27 Ley 30225).",
-  check_plazo_convocatoria_rule: "Verifica si el plazo entre la convocatoria y la presentación de ofertas cumple el mínimo legal.",
-  check_non_competitive_process_rule: "Verifica si el proceso fue adjudicado sin competencia real (directa / único postor).",
-  check_tipo_proceso_vs_monto_rule: "Verifica si el tipo de proceso corresponde al monto (descarta fraccionamiento o elusión de un proceso mayor).",
-  check_concentracion_entidad_rule: "Verifica si el proveedor concentra una proporción anómala de las adjudicaciones de la entidad.",
-  check_recurrencia_firmante_rule: "Verifica si el mismo funcionario firma de forma recurrente las adjudicaciones al mismo proveedor.",
-  check_inconsistencia_doc_vs_ocds_rule: "Verifica si hay incongruencia entre el documento parseado y el OCDS (objeto/ítems no coinciden o la extracción falló).",
-  check_testaferro_multi_ruc_rule: "Verifica si una misma persona figura en múltiples RUCs/empresas postoras (posible testaferro o consorcio encubierto).",
-  check_lobby_visits_rule: "Verifica si hubo visitas de gestión de intereses (lobby) del proveedor a la entidad antes de la adjudicación.",
-  // ── Legal / RAG ──
-  evaluate_normative_compliance: "Cruza cada hallazgo contra el corpus de opiniones jurídicas del OECE (RAG) para citar jurisprudencia administrativa.",
-  query_legal_rag: "Busca en el corpus de opiniones jurídicas del OECE la doctrina relevante para un hallazgo.",
-  lookup_opinion_oece: "Recupera el texto de una opinión jurídica específica del OECE por su número.",
-  // ── Contexto / persistencia ──
-  add_contextual_flag: "Registra una bandera de riesgo contextual detectada por un agente (capacidad, conflicto, señal OECE).",
-  get_alerta_full_context: "Reúne todo el contexto persistido de la alerta para un agente.",
-  get_dictamen_context: "Reúne todo el análisis (ítems, mercado, red, normativa) para que el redactor escriba el dictamen.",
-  persist_alert_from_flags: "Consolida todas las banderas detectadas en la alerta final.",
-  persist_analysis_outputs: "Guarda el análisis completo (todas las secciones + el dictamen) en la base de datos.",
-  // ── Grounding ──
-  google_search: "Búsqueda en vivo en Google (grounding de Gemini) sobre la empresa, funcionarios, prensa o precios de mercado.",
-  // ── Agentes (eventos `transfer`) ──
-  orch: "Orquestador: ejecuta la secuencia fija de agentes del pipeline desde el código (determinista, no se rinde).",
-  compliance_agent: "Evalúa las reglas duras (sanción, único postor, edad RUC) y crea la alerta base.",
-  document_parser_agent: "Procesa los documentos del expediente: OCR (Document AI) + extracción de ítems y specs de la Bases.",
-  document_legal_analyst_agent: "Analiza legalmente el requerimiento y emite banderas documentales citando la norma/opinión OECE.",
-  market_price_agent: "Tasa los ítems contra el mercado real (Google Search) y detecta sobreprecios.",
-  web_research_agent: "Investiga en web a la empresa ganadora: prensa, sanciones, directivos, aportes ONPE e historial de contratos.",
-  news_research_agent: "Busca cobertura de prensa peruana sobre el proveedor, la entidad y el objeto de la contratación.",
-  entity_personnel_agent: "Descubre los funcionarios designados de la entidad contratante (con su acto resolutivo).",
-  person_network_agent: "Mapea la red de personas: socios, representantes, firmantes, autoridades y los vínculos entre ellos.",
-  compliance_extended_agent: "Corre los chequeos normativos extendidos (12 reglas) + las banderas de juicio y prepara el cruce RAG.",
-  report_writer_agent: "Redacta el dictamen final con el análisis consolidado y las citas normativas del OECE.",
-};
 
 function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent }) {
   const [expanded, setExpanded] = useState(false);
@@ -4130,18 +3912,6 @@ function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) => stri
 
 // ─── Nuevos componentes para JSON estructurado ───────────────
 
-const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: string; label: string }> = {
-  alineado:      { color: "text-moss",  bg: "bg-moss/10 border-moss/30",   emoji: "🟢", label: "ALINEADO" },
-  elevado:       { color: "text-amber", bg: "bg-amber-soft border-amber/40", emoji: "🟠", label: "ELEVADO" },
-  muy_elevado:   { color: "text-rust",  bg: "bg-crimson-soft border-rust/40", emoji: "🔴", label: "MUY ELEVADO" },
-  barato:        { color: "text-clay",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
-  estimacion:    { color: "text-mute",  bg: "bg-paperDeep border-line",     emoji: "⚪", label: "ESTIMACIÓN" },
-  sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "S/ OFERTADO" },
-  // El backend ya corrió el juez de plausibilidad y decidió que el lote NO es comparable
-  // (cobertura insuficiente frente al total de ítems reales, o una comparación implausible);
-  // antes caía en el "⚪ ESTIMACIÓN" genérico y se perdía esa distinción.
-  no_verificable: { color: "text-clay", bg: "bg-paperSoft border-clay/30", emoji: "🚫", label: "NO VERIFICABLE" },
-};
 
 function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items: any[]; allItems?: any[]; market: any; fmtMoney: (n: any) => string }) {
   // State para expandir filas (mostrar todas las características de un ítem)
@@ -4327,22 +4097,35 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                       {typeof precioRef === "number" && precioRef > 0 ? fmtMoney(precioRef) : "—"}
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-bold text-ink">
-                      {typeof finding?.precio_mediana_mercado === "number"
-                        ? fmtMoney(finding.precio_mediana_mercado)
-                        : "—"}
+                      {typeof finding?.precio_mediana_mercado === "number" ? (
+                        fmtMoney(finding.precio_mediana_mercado)
+                      ) : typeof finding?.precio_estimado_ia === "number" ? (
+                        <span className="italic text-mute" title={`Estimación del modelo por conocimiento previo (confianza ${finding.confianza_estimacion_ia || "—"}) — no es un precio buscado en la web.`}>
+                          ≈ {fmtMoney(finding.precio_estimado_ia)}
+                        </span>
+                      ) : "—"}
                     </td>
                     <td className={cn("px-3 py-2 text-right font-mono font-bold",
                       typeof finding?.diff_pct === "number"
                         ? finding.diff_pct > 15 ? "text-rust" : finding.diff_pct < -15 ? "text-clay" : "text-moss"
                         : "text-mute")}>
-                      {typeof finding?.diff_pct === "number"
-                        ? `${finding.diff_pct > 0 ? "+" : ""}${finding.diff_pct.toFixed(1)}%`
-                        : "—"}
+                      {typeof finding?.diff_pct === "number" ? (
+                        `${finding.diff_pct > 0 ? "+" : ""}${finding.diff_pct.toFixed(1)}%`
+                      ) : typeof finding?.diff_pct_estimacion_ia === "number" ? (
+                        <span className="italic">≈{finding.diff_pct_estimacion_ia > 0 ? "+" : ""}{finding.diff_pct_estimacion_ia.toFixed(1)}%</span>
+                      ) : "—"}
                     </td>
                     <td className="px-3 py-2">
                       {v ? (
                         <span className={cn("inline-flex items-center gap-1 rounded-full bg-paper px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", v.color)}>
                           {v.emoji} {v.label}
+                        </span>
+                      ) : finding?.estado === "estimado_ia" ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-paperDeep border border-line px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-mute"
+                          title={finding?.comentario || "Estimación del modelo desde su conocimiento previo, sin búsqueda web."}
+                        >
+                          🤔 ESTIMACIÓN IA
                         </span>
                       ) : (
                         <span className="text-mute">—</span>
@@ -4412,6 +4195,11 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                         </div>
                       )}
                       <div className="mt-0.5 text-[9px] font-normal text-mute">{nConPrecio}/{subItems.length} sub-ítems con mercado</div>
+                      {typeof market?.n_items_estimados_ia === "number" && market.n_items_estimados_ia > 0 && (
+                        <div className="mt-0.5 text-[9px] font-normal italic text-mute" title="Fuera del presupuesto de búsqueda real de este lote grande: precio estimado por el modelo, sin verificar.">
+                          + {market.n_items_estimados_ia} 🤔 estimado(s) por IA (no cuentan aquí)
+                        </div>
+                      )}
                     </td>
                     <td className={cn("px-3 py-3 text-right font-mono",
                       diffMercado != null
@@ -4479,9 +4267,11 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                   </>
                 )}
                 <div className="font-mono text-[10px] text-mute">{cantidad ?? "—"} {unidad}</div>
-                {typeof f?.precio_mediana_mercado === "number" && (
+                {typeof f?.precio_mediana_mercado === "number" ? (
                   <div className="font-mono text-[10px] text-mute">unit. {fmtMoney(f.precio_mediana_mercado)}</div>
-                )}
+                ) : typeof f?.precio_estimado_ia === "number" ? (
+                  <div className="font-mono text-[10px] italic text-mute">unit. ≈{fmtMoney(f.precio_estimado_ia)} (estim. IA)</div>
+                ) : null}
               </div>
             </div>
 
@@ -4495,6 +4285,38 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
                 {ocdsItem?.requerimiento && (
                   <p className="mt-2 leading-relaxed text-mute">{String(ocdsItem.requerimiento).slice(0, 400)}</p>
                 )}
+              </div>
+            )}
+
+            {/* Ítem fuera del presupuesto de búsqueda real (lote grande): el modelo dio una
+                ESTIMACIÓN desde su conocimiento previo, no una búsqueda — se muestra aparte,
+                nunca con los colores de veredicto (alineado/elevado/…) para no confundirla
+                con una cifra verificada. */}
+            {f && !v && f.estado === "estimado_ia" && (
+              <div className="mt-3 ml-10 rounded-xl border border-line bg-paperDeep p-3 text-xs">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-paper px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-mute"
+                    title="Fuera del presupuesto de búsqueda real de este lote grande: precio estimado por el modelo desde su conocimiento previo, no verificado con fuentes."
+                  >
+                    🤔 ESTIMACIÓN IA · sin búsqueda web
+                  </span>
+                  {f.confianza_estimacion_ia && (
+                    <span className="font-mono text-[10px] font-bold text-mute">confianza {f.confianza_estimacion_ia}</span>
+                  )}
+                  {typeof f.diff_pct_estimacion_ia === "number" && (
+                    <span className="font-mono text-[11px] font-bold text-mute">
+                      ≈{f.diff_pct_estimacion_ia > 0 ? "+" : ""}{f.diff_pct_estimacion_ia.toFixed(1)}% vs estimación
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <span className="text-mute">Estimado por IA:</span>{" "}
+                  <span className="font-mono font-bold text-ink">
+                    ≈ {fmtMoney(f.precio_estimado_ia)} {f.unidad_estimacion_ia ? `por ${f.unidad_estimacion_ia}` : ""}
+                  </span>
+                </div>
+                {f.comentario && <p className="mt-2 leading-relaxed text-ink">{f.comentario}</p>}
               </div>
             )}
 
@@ -4670,30 +4492,7 @@ function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: { items
 }
 
 // ─── BANDERAS agrupadas + filtros + clickeables ───────────────────────
-type Bandera = {
-  regla?: string;
-  severidad?: "alta" | "media" | "baja";
-  evidencia?: string;
-  norma?: string;
-  fuente_url?: string;
-  agente_origen?: string;
-  vector?: string;
-  item_afectado?: string;
-  opinion_oece_relacionada?: { num_opinion?: string; snippet?: string; url?: string };
-  evidencia_textual?: string;
-};
 
-const AGENTE_VISUAL: Record<string, { label: string; chipClass: string; iconClass: string }> = {
-  compliance_agent:               { label: "Compliance",        chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
-  compliance_extended_agent:      { label: "Compliance ext.",   chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
-  document_legal_analyst_agent:   { label: "Legal analyst",     chipClass: "bg-clay/15 text-clay",      iconClass: "text-clay" },
-  document_parser_agent:          { label: "Doc parser",        chipClass: "bg-amber/15 text-amber",    iconClass: "text-amber" },
-  market_price_agent:             { label: "Market price",      chipClass: "bg-moss/15 text-moss",      iconClass: "text-moss" },
-  person_network_agent:           { label: "Person network",    chipClass: "bg-mute/15 text-mute",      iconClass: "text-mute" },
-  news_research_agent:            { label: "News research",     chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
-  web_research_agent:             { label: "Web research",      chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
-  "?":                            { label: "Sistema",           chipClass: "bg-line text-ink",          iconClass: "text-mute" },
-};
 
 function inferAgente(b: Bandera): string {
   if (b.agente_origen && AGENTE_VISUAL[b.agente_origen]) return b.agente_origen;
@@ -5320,16 +5119,6 @@ function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: any; ban
   );
 }
 
-const FUENTE_GROUPS = [
-  { label: "Empresas",     keys: ["empresas"] },
-  { label: "Sanciones",    keys: ["sanciones"] },
-  { label: "Prensa",       keys: ["prensa"] },
-  { label: "Política",     keys: ["politica"] },
-  { label: "Justicia",     keys: ["justicia"] },
-  { label: "Funcionarios", keys: ["funcionarios"] },
-  { label: "Obras",        keys: ["obras"] },
-  { label: "Contratos",    keys: ["contratos"] },
-];
 
 function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
   const conHallazgos = hallazgos.filter(h => h.estado === "alerta" || h.estado === "ok").length;
@@ -6239,46 +6028,6 @@ function wrapText(text: string, maxChars: number, maxLines: number): string[] {
 }
 
 
-type GraphNode = {
-  id: string;
-  kind: "person" | "pareja" | "company_main" | "company_titular" | "company_domicilio"
-      | "party" | "contract" | "cargo_pasado" | "autoridad" | "firmante_conflicto"
-      | "entidad" | "alcalde" | "funcionario_designado"
-      | "municipio_familiar" | "partido_compartido"
-      | "postor_rival" | "socio_postor_conflicto" | "entidad_secundaria";
-  label: string;
-  sublabel?: string;
-  tooltip?: string;
-  // Datos para el panel de detalle al hacer click
-  meta?: {
-    ruc?: string;
-    dni?: string;
-    direccion?: string;
-    observacion?: string;
-    rol?: string;
-    monto?: number;
-    año?: any;
-    fuente_url?: string;
-    razon_social?: string;
-    cargo?: string;
-    institucion?: string;
-    periodo?: string;
-    partido?: string;
-    resultado?: string;
-    entidad?: string;
-    objeto?: string;
-  };
-};
-type GraphEdge = {
-  from: string;
-  to: string;
-  kind: "titular" | "domicilio" | "candidato" | "aporte" | "cargo" | "contrato"
-      | "pareja" | "autoridad" | "firma_conflicto"
-      | "adjudicacion" | "preside_entidad" | "designado_por" | "conflicto_funcionario"
-      | "trabaja_en" | "mismo_partido_que" | "partido_de"
-      | "compitio" | "socio_de" | "visito" | "doble_vinculacion";
-  label?: string;
-};
 
 function RelationshipGraph({
   person,
