@@ -21,13 +21,14 @@ const ListQuery = z.object({
   confirmados: z.enum(["true", "false"]).optional(),
   bbox: z.string().optional(), // 'minLon,minLat,maxLon,maxLat'
   limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
-// ─── GET /reportes — lista (camelCase para el frontend) ──────────
+// ─── GET /reportes — lista paginada (camelCase para el frontend) ─
 reportesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { region, categoria, estado, confirmados, bbox, limit } = parsed.data;
+  const { region, categoria, estado, confirmados, bbox, limit, offset } = parsed.data;
 
   const conds: string[] = [];
   const vals: any[] = [];
@@ -48,25 +49,29 @@ reportesRouter.get("/", async (c) => {
     }
   }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  vals.push(limit);
+  const totalVals = [...vals];
+  vals.push(limit, offset);
 
-  const r = await pool.query(
-    `SELECT
-       id, categoria, descripcion,
-       foto_url       AS "fotoUrl",
-       region,
-       to_char(fecha, 'YYYY-MM-DD') AS fecha,
-       confirmado,
-       confirmaciones,
-       convergencia_id AS "convergenciaId",
-       ST_Y(ubicacion_geo::geometry) AS lat,
-       ST_X(ubicacion_geo::geometry) AS lon
-     FROM reportes_indexados ${where}
-     ORDER BY fecha DESC, created_at DESC
-     LIMIT $${vals.length}`,
-    vals,
-  );
-  return c.json({ data: r.rows });
+  const [r, total] = await Promise.all([
+    pool.query(
+      `SELECT
+         id, categoria, descripcion,
+         foto_url       AS "fotoUrl",
+         region,
+         to_char(fecha, 'YYYY-MM-DD') AS fecha,
+         confirmado,
+         confirmaciones,
+         convergencia_id AS "convergenciaId",
+         ST_Y(ubicacion_geo::geometry) AS lat,
+         ST_X(ubicacion_geo::geometry) AS lon
+       FROM reportes_indexados ${where}
+       ORDER BY fecha DESC, created_at DESC
+       LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
+      vals,
+    ),
+    pool.query(`SELECT count(*)::int AS n FROM reportes_indexados ${where}`, totalVals),
+  ]);
+  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /reportes/convergencias — para el cruce con alertas ─────
