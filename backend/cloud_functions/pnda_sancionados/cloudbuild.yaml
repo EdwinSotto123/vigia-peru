@@ -1,0 +1,76 @@
+# Receta COMPLETA y autocontenida de pnda_sancionados: vendorizar el código real (backend/scrapers),
+# construir la imagen, subirla, desplegar el Cloud Run Job y su Cloud Scheduler (semanal (domingo) — el Tribunal resuelve cada semana).
+# Se sube desde la RAÍZ del repo (el paso 1 necesita ver backend/scrapers, que es la fuente de
+# verdad del código — esta carpeta solo tiene la copia vendorizada + esta receta):
+#
+#   gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbuild.yaml
+#
+substitutions:
+  _IMAGE: 'us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy/scraper-pnda-sancionados'
+  _JOB: 'scraper-pnda-sancionados'
+  _REGION: 'us-central1'
+  _SQL_CONNECTION: 'vivid-spot-480905-a4:us-central1:vigia-db'
+  _SA: '36169102688-compute@developer.gserviceaccount.com'
+  _BUCKET: 'vigia-peru-batch'
+  _MEM: '512Mi'
+  _CPU: '1'
+  _TIMEOUT: '600s'
+options:
+  substitutionOption: ALLOW_LOOSE
+steps:
+  # 1. copia fresca de backend/scrapers/pnda_sancionados + backend/scrapers/_core (+ los backend/scripts/
+  #    que este pipeline usa) hacia ./vendor — nunca se construye con una copia vieja.
+  - name: python:3.12-slim
+    entrypoint: python
+    args: ['backend/cloud_functions/_vendor.py', 'pnda_sancionados']
+
+  # 2. imagen (Dockerfile de esta misma carpeta)
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGE}:$BUILD_ID', '-t', '${_IMAGE}:latest', 'backend/cloud_functions/pnda_sancionados']
+
+  # 3. subir
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGE}:$BUILD_ID']
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGE}:latest']
+
+  # 4. Cloud Run Job (Cloud SQL por el socket — no necesita IP en authorized-networks)
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - ${_JOB}
+      - --image=${_IMAGE}:$BUILD_ID
+      - --region=${_REGION}
+      - --service-account=${_SA}
+      - --tasks=1
+      - --max-retries=1
+      - --task-timeout=${_TIMEOUT}
+      - --cpu=${_CPU}
+      - --memory=${_MEM}
+      - --set-cloudsql-instances=${_SQL_CONNECTION}
+      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET}
+      - --set-secrets=PGPASSWORD=cloudsql-password:latest
+      - --quiet
+
+  # 5. Cloud Scheduler — dispara el Job por su cuenta (semanal (domingo) — el Tribunal resuelve cada semana).
+  #    Host abierto (verificado con Cloud Build antes de agendar nada: ver
+  #    backend/cloud_functions/README.md). update si ya existe, create si es la primera vez.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        if gcloud scheduler jobs describe ${_JOB} --location ${_REGION} >/dev/null 2>&1; then ACCION=update; else ACCION=create; fi
+        gcloud scheduler jobs "$$ACCION" http ${_JOB} --location ${_REGION} \
+          --schedule "0 8 * * 0" --time-zone "America/Lima" \
+          --uri "https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${_REGION}/jobs/${_JOB}:run" \
+          --http-method POST --oauth-service-account-email ${_SA} --quiet
+
+images:
+  - '${_IMAGE}:$BUILD_ID'
+  - '${_IMAGE}:latest'
+timeout: 900s

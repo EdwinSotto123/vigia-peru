@@ -49,34 +49,56 @@ PROBE 200 https://visitas.servicios.gob.pe                                  ← 
 **no tienen ningún bloqueo de nube** — son datos abiertos de verdad, sin WAF. Solo el OECE
 (WAF propio) y ONPE (Cloudflare) bloquean IPs de datacenter.
 
-## 4. La arquitectura, en árbol
+## 4. La arquitectura, en árbol (actualizado 2026-09-16: cada carpeta es autocontenida)
+
+**Corrección sobre la primera versión de esto:** al principio había una imagen base
+compartida (`_base/`) y toda la lógica de memoria/cpu/cron vivía en UN script externo
+(`infrastructure/deploy/cloud-scrapers.sh`). Señalaste, con razón, que eso no se sentía como
+"8 carpetas = 8 serverless" sino como un script grande con 8 carpetas colgando — cada carpeta
+no se podía entender ni desplegar mirando solo lo que había adentro. Se rehizo así:
 
 ```
 backend/cloud_functions/
-├── _base/Dockerfile           ← imagen compartida: Python 3.12 + las dependencias de
-│                                 backend/scrapers + el código de backend/scrapers y
-│                                 backend/scripts (sin navegador)
-├── pnda_sancionados/Dockerfile   ← 2 líneas: "usa la imagen base" + "corre este pipeline"
-├── pnda_visitas/Dockerfile       ← igual
-├── pnda_dji/Dockerfile           ← igual
-├── pnda_oece/Dockerfile          ← igual
-├── jne_infogob/Dockerfile        ← igual
-├── mef_presupuesto/Dockerfile    ← igual
-├── oece_ocds/Dockerfile          ← igual (pero ver §6: no se agenda)
-└── onpe_claridad/Dockerfile      ← imagen PROPIA (Playwright + Xvfb, más pesada) — ver §6
+├── _vendor.py                  ← el ÚNICO archivo compartido: copia el código real
+│                                  (backend/scrapers/<fuente>) hacia el vendor/ de cada carpeta.
+│                                  No construye nada, no despliega nada, solo copia.
+├── pnda_sancionados/
+│   ├── Dockerfile               ← construye la imagen de ESTE scraper, nada más
+│   ├── cloudbuild.yaml          ← receta completa: vendorizar → build → push → deploy job → scheduler
+│   └── vendor/                  ← copia de backend/scrapers (generada; no se edita a mano)
+├── pnda_visitas/    { Dockerfile, cloudbuild.yaml, vendor/ }
+├── pnda_dji/        { Dockerfile, cloudbuild.yaml, vendor/ }
+├── pnda_oece/       { Dockerfile, cloudbuild.yaml, vendor/ }
+├── jne_infogob/     { Dockerfile, cloudbuild.yaml, vendor/ }
+├── mef_presupuesto/ { Dockerfile, cloudbuild.yaml, vendor/ }
+├── oece_ocds/       { Dockerfile, cloudbuild.yaml, vendor/ }   ← su cloudbuild.yaml NO tiene el paso de scheduler
+└── onpe_claridad/   { Dockerfile, cloudbuild.yaml, vendor/ }   ← Dockerfile propio (Playwright + Xvfb)
 ```
 
-Un Dockerfile "de 2 líneas" se ve así (el de `pnda_sancionados`, literal):
+Ya no hay imagen base compartida ni script con la lógica: **cada `cloudbuild.yaml` es
+autosuficiente** — abrilo y ahí está todo explícito (memoria, cpu, timeout, el cron y por
+qué, la imagen, el Job, el paso de Scheduler). Desplegar una fuente es una sola línea, sin
+pasar por ningún script intermedio:
 
-```dockerfile
-FROM …/scrapers-base:latest
-ENTRYPOINT ["python", "-m", "backend.scrapers.pnda_sancionados.pipeline"]
+```bash
+gcloud builds submit . --config backend/cloud_functions/pnda_sancionados/cloudbuild.yaml
 ```
 
-Es decir: la imagen pesada (dependencias + todo el código) se construye **una sola vez**
-como base compartida, y cada fuente es solo "arriba de esa base, corré este comando". Agregar
-una fuente nueva a este esquema son 3 líneas de Dockerfile + una entrada en el script de
-despliegue, no reinventar nada.
+`infrastructure/deploy/cloud-scrapers.sh` quedó como loop de conveniencia de 3 líneas ("las 8
+de una"), sin memoria/cpu/cron adentro — esos datos viven solo en el `cloudbuild.yaml` de
+cada carpeta, una vez cada uno, no repetidos en un diccionario compartido.
+
+**¿Por qué existe `vendor/` entonces, si el código real está en `backend/scrapers/`?** Porque
+mantener el código de scraping duplicado a mano en 8 carpetas sería peor que el problema
+original. `vendor/` es una copia exacta que `_vendor.py` regenera como **primer paso** de
+cada `cloudbuild.yaml` — nunca se construye con código viejo — pero una vez generada, esa
+carpeta ya no necesita nada de afuera: `docker build backend/cloud_functions/pnda_sancionados`
+funciona solo, sin ver el resto del repo. Es el único punto compartido entre las 8, y no hace
+más que copiar archivos (no construye, no despliega, no decide nada).
+
+Verificado en producción tras el cambio: las 8 recetas nuevas se corrieron de cero
+(vendorizar → build → push → deploy → scheduler cuando aplica) y `pnda_sancionados` se
+volvió a ejecutar para confirmar que el comportamiento no cambió — mismo resultado que antes.
 
 ## 5. Qué quedó agendado en Cloud Scheduler (y a qué hora)
 
@@ -176,16 +198,18 @@ gcloud scheduler jobs run scraper-pnda-sancionados --location us-central1
 # ver los logs de la última corrida
 gcloud run jobs executions list --job scraper-pnda-sancionados --region us-central1
 
-# agregar o redesplegar uno solo (por si cambia el código del pipeline)
-bash infrastructure/deploy/cloud-scrapers.sh --solo pnda_dji
+# redesplegar UNA sola (por si cambia el código de ese pipeline) — sin script intermedio:
+gcloud builds submit . --config backend/cloud_functions/pnda_dji/cloudbuild.yaml
 
-# desplegar todo de nuevo (base + los 8 + los 6 schedulers)
+# desplegar las 8 de nuevo (loop de conveniencia, sin lógica propia):
 bash infrastructure/deploy/cloud-scrapers.sh
 ```
 
 También queda visible desde la web: `/admin/cobertura → Fuentes externas` muestra, por
 fuente, cuántas filas hay, cuándo fue la última carga y si la última tuvo error — sin entrar
-a la consola de GCP.
+a la consola de GCP. Qué descarga exactamente cada uno (CSV/XLSX/XLS/JSON — no todos son un
+archivo) y si además carga a Postgres o solo lo deja en GCS: tabla completa en
+`backend/cloud_functions/README.md` §3.
 
 ## 11. Qué queda pendiente, si en algún momento lo querés retomar
 
