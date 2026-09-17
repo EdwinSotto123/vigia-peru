@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, HeartHandshake, Scale, ShieldCheck, Trophy } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
-import { getEstadoGlobal } from "@/lib/financiamiento";
+import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
+import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
   title: "Aliados de transparencia — Vigía Perú",
@@ -11,8 +12,15 @@ export const metadata = {
 
 export const revalidate = 300;
 
-export default async function AliadosPage() {
-  const estado = await getEstadoGlobal();
+export default async function AliadosPage({ searchParams }: { searchParams?: { ubigeo?: string; pagina?: string } }) {
+  const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
+  const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
+  const [estado, zonas] = await Promise.all([getEstadoGlobal(), getZonas("departamento")]);
+  const opciones = (zonas ?? [])
+    .filter((z) => z.financiados > 0)
+    .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
+    .map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre, hint: `${z.financiados.toLocaleString("es-PE")} financiados` }));
+  const zonaActual = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo)?.nombre : undefined;
   return (
     <div className="bg-paper">
       {/* ─── HERO ─── */}
@@ -41,7 +49,11 @@ export default async function AliadosPage() {
 
       {/* ─── MURO ─── */}
       <section className="container-page py-12">
-        <MuroAliados />
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-mute">{zonaActual ? `Aliados que financiaron auditorías en ${zonaActual}.` : "Filtra el muro por región."}</p>
+          <FiltroRegion opciones={opciones} valor={ubigeo} />
+        </div>
+        <MuroAliados region={ubigeo} pagina={pagina} />
       </section>
 
       {/* ─── REGLAS + CTA ─── */}

@@ -1,40 +1,62 @@
 import Link from "next/link";
 import { ArrowRight, EyeOff, HeartHandshake } from "lucide-react";
-import { getRanking, type RankingRow } from "@/lib/financiamiento";
+import { getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { TarjetaAliado } from "./TarjetaAliado";
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
 
+/** Tamaño de muestra para destacados/encabezado/anónimos: no se pagina, solo da contexto. */
+const RESUMEN_LIMIT = 60;
+/** Tamaño de página real de "Todos los aliados" (tope del backend también es 60). */
+const TAM = 24;
+
 /**
  * Muro de aliados de transparencia (server component).
- *  - normal:  "Aliados del mes" (top 3 destacado) + "Todos los aliados" + anónimos.
+ *  - normal:  "Aliados del mes" (top 3 destacado, sin paginar) + "Todos los aliados"
+ *             (paginación real por `pagina`, filtrable por `region`) + anónimos.
  *  - compact: solo el top 3 del mes (o histórico si el mes está vacío) + enlace a /aliados.
- * El ranking cuenta contratos, no soles.
+ * El ranking cuenta contratos, no soles. `region` es un ubigeo de 2-6 dígitos; en la URL de
+ * /app/aliados viaja como `?ubigeo=` (mismo contrato que FiltroRegion) — este componente lo
+ * recibe ya resuelto y solo lo reexpone como `region` al backend y como `?ubigeo=` en los
+ * enlaces de paginación que arma.
  */
-export async function MuroAliados({ compact = false }: { compact?: boolean }) {
-  const [mesRaw, todoRaw] = await Promise.all([getRanking("mes"), getRanking("todo")]);
-  const mes = mesRaw ?? [];
-  const todo = todoRaw ?? [];
+export async function MuroAliados({ compact = false, region, pagina = 1 }: { compact?: boolean; region?: string; pagina?: number }) {
+  const paginaActual = Math.max(1, pagina);
+  const offset = (paginaActual - 1) * TAM;
+  const [mesRaw, todoResumenRaw, todoPaginaRaw] = await Promise.all([
+    getRankingPaginado({ periodo: "mes", region, limit: RESUMEN_LIMIT }),
+    getRankingPaginado({ periodo: "todo", region, limit: RESUMEN_LIMIT }),
+    compact ? Promise.resolve(null) : getRankingPaginado({ periodo: "todo", region, limit: TAM, offset }),
+  ]);
+  const mes = mesRaw?.data ?? [];
+  const todoResumen = todoResumenRaw?.data ?? [];
+  const filasPagina = (todoPaginaRaw?.data ?? []).filter((r) => !esAnonimo(r));
+  const totalPagina = todoPaginaRaw?.total ?? 0;
 
   const visiblesMes = mes.filter((r) => !esAnonimo(r));
-  const visiblesTodo = todo.filter((r) => !esAnonimo(r));
-  const anonimos = todo.filter(esAnonimo);
+  const visiblesTodo = todoResumen.filter((r) => !esAnonimo(r));
+  const anonimos = todoResumen.filter(esAnonimo);
   const anonimosContratos = anonimos.reduce((n, r) => n + r.contratosFinanciados, 0);
 
   const leidosMes = mes.reduce((n, r) => n + r.contratosProcesados, 0);
   const financiadosMes = mes.reduce((n, r) => n + r.contratosFinanciados, 0);
-  const leidosTotal = todo.reduce((n, r) => n + r.contratosProcesados, 0);
-  const financiadosTotal = todo.reduce((n, r) => n + r.contratosFinanciados, 0);
+  const leidosTotal = todoResumen.reduce((n, r) => n + r.contratosProcesados, 0);
+  const financiadosTotal = todoResumen.reduce((n, r) => n + r.contratosFinanciados, 0);
 
   // Top 3 a destacar: el mes; si el mes está vacío, el histórico (para que el muro nunca quede en blanco).
   const destacados = (visiblesMes.length ? visiblesMes : visiblesTodo).slice(0, 3);
   const periodoDestacado = visiblesMes.length ? "del mes" : "históricos";
 
-  if (!todo.length) {
+  if (!todoResumen.length) {
     return (
       <div className="rounded-2xl border border-dashed border-line p-8 text-center">
         <HeartHandshake size={22} className="mx-auto text-mute" aria-hidden />
-        <p className="mt-2 text-sm text-mute">Todavía no hay aportes confirmados. El primer aliado abre este muro.</p>
+        <p className="mt-2 text-sm text-mute">
+          {region
+            ? "Todavía no hay aliados que hayan financiado auditorías en esta región."
+            : "Todavía no hay aportes confirmados. El primer aliado abre este muro."}
+        </p>
         <Link href="/app/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-paper">
           Financiar una auditoría <ArrowRight size={14} aria-hidden />
         </Link>
@@ -69,6 +91,28 @@ export async function MuroAliados({ compact = false }: { compact?: boolean }) {
     );
   }
 
+  const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
+  const hrefPagina = (n: number) => {
+    const params = new URLSearchParams();
+    if (region) params.set("ubigeo", region);
+    if (n > 1) params.set("pagina", String(n));
+    const qs = params.toString();
+    return qs ? `/app/aliados?${qs}` : "/app/aliados";
+  };
+  const paginacion = (
+    <Paginacion
+      actual={paginaActual}
+      paginas={paginas}
+      total={totalPagina}
+      tam={TAM}
+      navegacion="url"
+      href={hrefPagina}
+      onChange={() => {}}
+      cargando={false}
+      nombre="patrocinadores"
+    />
+  );
+
   return (
     <div className="space-y-12">
       <section>
@@ -82,15 +126,21 @@ export async function MuroAliados({ compact = false }: { compact?: boolean }) {
         </div>
       </section>
 
-      {visiblesTodo.length > 0 && (
+      {totalPagina > 0 && (
         <section>
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-[11px] uppercase tracking-wide text-mute">Todos los aliados</h2>
-            <span className="font-mono text-[11px] text-mute">{visiblesTodo.length}</span>
+            <span className="font-mono text-[11px] text-mute">{totalPagina.toLocaleString("es-PE")}</span>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {visiblesTodo.map((r) => <TarjetaAliado key={r.id} row={r} posicion={r.posicion} />)}
-          </div>
+          <div className="mt-3">{paginacion}</div>
+          {filasPagina.length > 0 ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {filasPagina.map((r) => <TarjetaAliado key={r.id} row={r} posicion={r.posicion} />)}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-mute">Los aliados de esta página aportaron de forma anónima.</p>
+          )}
+          {filasPagina.length > 8 && <div className="mt-4">{paginacion}</div>}
         </section>
       )}
 
