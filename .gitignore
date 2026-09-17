@@ -35,6 +35,7 @@ venv/
 # ─── Datos pesados / locales (no van al repo) ────────────────────
 dataset/
 documentos/
+!backend/agent/tools/documentos/
 *.xlsx
 *.csv
 catalog.json
