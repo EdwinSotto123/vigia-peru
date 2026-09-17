@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
-import { getEstadoGlobal, formatPEN } from "@/lib/financiamiento";
+import { BlurFade } from "@/components/magicui/BlurFade";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { getEstadoGlobal } from "@/lib/financiamiento";
 
 /** Aliados + cifras de financiamiento en una sola sección (antes: "Financia" con mapa + "Aliados"). */
 export async function AliadosSection() {
@@ -19,9 +21,9 @@ export async function AliadosSection() {
             y un comprobante con cada contrato que su aporte hizo posible leer. El ranking cuenta contratos, no soles.
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <Mini v={(estado?.contratosFinanciados ?? 0).toLocaleString("es-PE")} l="contratos financiados" />
-            <Mini v={formatPEN(estado?.montoPen ?? 0)} l="destinados a auditoría" />
-            <Mini v={String(estado?.regionesConAuditoria ?? 0)} l="regiones con auditoría" />
+            <Mini v={estado?.contratosFinanciados ?? 0} l="contratos financiados" />
+            <Mini v={estado?.montoPen ?? 0} l="destinados a auditoría" format="pen" />
+            <Mini v={estado?.regionesConAuditoria ?? 0} l="regiones con auditoría" />
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link href="/app/financiar" className="group inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
@@ -32,18 +34,18 @@ export async function AliadosSection() {
             </Link>
           </div>
         </div>
-        <div className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
+        <BlurFade as="div" delayMs={80} className="rounded-3xl border border-line bg-paper p-5 sm:p-6">
           <MuroAliados compact />
-        </div>
+        </BlurFade>
       </div>
     </section>
   );
 }
 
-function Mini({ v, l }: { v: string; l: string }) {
+function Mini({ v, l, format }: { v: number; l: string; format?: "entero" | "pen" }) {
   return (
     <div className="rounded-xl border border-line bg-paperSoft p-3">
-      <div className="font-mono text-lg font-semibold text-ink">{v}</div>
+      <div className="font-mono text-lg font-semibold text-ink"><NumberTicker value={v} format={format} /></div>
       <div className="text-[10px] uppercase tracking-wide text-mute">{l}</div>
     </div>
   );

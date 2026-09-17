@@ -1,4 +1,5 @@
 import { MapPin, Landmark, Cpu, FileCheck2 } from "lucide-react";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { DetectionCarousel } from "./DetectionCarousel";
 
 const PASOS = [
@@ -21,11 +22,11 @@ export function ComoFuncionaCompacto() {
         </div>
         <ol className="mt-8 grid gap-4 md:grid-cols-4">
           {PASOS.map(({ icon: Icon, t, d }, i) => (
-            <li key={t} className="rounded-2xl border border-line bg-paper p-5">
+            <BlurFade key={t} as="li" delayMs={i * 90} className="rounded-2xl border border-line bg-paper p-5 transition-shadow hover:shadow-card">
               <div className="flex items-center gap-2 text-clay"><span className="font-mono text-xs">{i + 1}</span><Icon size={18} /></div>
               <h3 className="mt-2 font-semibold text-ink">{t}</h3>
               <p className="mt-1 text-sm leading-relaxed text-mute">{d}</p>
-            </li>
+            </BlurFade>
           ))}
         </ol>
         <div className="mt-10">
