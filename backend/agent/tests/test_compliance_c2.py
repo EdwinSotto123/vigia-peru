@@ -91,7 +91,7 @@ def _sin_bd_verify(monkeypatch):
 # ─── C2 ──────────────────────────────────────────────────────────────────────
 
 def test_c2_un_postor_al_98_dispara_alta(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (98.5,)}))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (98.5,)}))
     st = {"ocds": _ocds(n_tenderers=1)}
     r = cr.check_unique_bidder_rule(OCID, _Ctx(st))
     assert r["triggered"] is True and r["severidad"] == "alta"
@@ -101,7 +101,7 @@ def test_c2_un_postor_al_98_dispara_alta(monkeypatch):
 
 
 def test_c2_cinco_postores_no_dispara_aunque_ganador_al_100(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (100.0,)}))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (100.0,)}))
     st = {"ocds": _ocds(n_tenderers=5)}
     r = cr.check_unique_bidder_rule(OCID, _Ctx(st))
     assert r["triggered"] is False and r["n_postores"] == 5 and r["estado"] == "hallado"
@@ -110,7 +110,7 @@ def test_c2_cinco_postores_no_dispara_aunque_ganador_al_100(monkeypatch):
 
 def test_c2_sin_dato_de_postores_no_es_bandera(monkeypatch):
     # OCDS sin numberOfTenderers/tenderers y BD solo con ofertas ganadoras (0 no ganadoras)
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({
         "count(distinct p.empresa_ruc)": (1, 0),
         "round(avg(o.porcentaje_referencial)": (100.0,),
     }))
@@ -121,7 +121,7 @@ def test_c2_sin_dato_de_postores_no_es_bandera(monkeypatch):
 
 
 def test_c2_bd_con_ofertas_no_ganadoras_cuenta_postores(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({
         "count(distinct p.empresa_ruc)": (3, 2),          # 3 postores, 2 ofertas perdedoras registradas
         "round(avg(o.porcentaje_referencial)": (99.0,),
     }))
@@ -131,21 +131,21 @@ def test_c2_bd_con_ofertas_no_ganadoras_cuenta_postores(monkeypatch):
 
 
 def test_c2_un_postor_pero_oferta_baja_no_dispara(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (80.0,)}))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (80.0,)}))
     st = {"ocds": _ocds(tenderers=[{"id": "PE-RUC-20123456789", "name": "X"}])}
     r = cr.check_unique_bidder_rule(OCID, _Ctx(st))
     assert r["n_postores"] == 1 and r["triggered"] is False and "oferta < 95%" in r["motivo"]
 
 
 def test_c2_pct_desde_ocds_si_bd_no_tiene_ofertas(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({}))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({}))
     st = {"ocds": _ocds(n_tenderers=1, ref=100000.0, adj=97000.0)}
     r = cr.check_unique_bidder_rule(OCID, _Ctx(st))
     assert r["pct_ganador_vs_referencial"] == 97.0 and r["triggered"] is True
 
 
 def test_c2_parties_role_tenderer(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (99.0,)}))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"round(avg(o.porcentaje_referencial)": (99.0,)}))
     ocds = _ocds()
     ocds["parties"] = [{"id": "PE-RUC-1", "roles": ["tenderer"]}, {"id": "PE-RUC-2", "roles": ["tenderer"]},
                        {"id": "PE-RUC-3", "roles": ["buyer"]}]
@@ -156,7 +156,7 @@ def test_c2_parties_role_tenderer(monkeypatch):
 # ─── Perfil: reglas_activas y topes_uit ──────────────────────────────────────
 
 def test_regla_no_activa_en_perfil_se_omite(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", lambda: (_ for _ in ()).throw(AssertionError("no debe tocar la BD")))
+    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: (_ for _ in ()).throw(AssertionError("no debe tocar la BD")))
     st = {"ocds": _ocds(n_tenderers=1)}
     r = cr.check_unique_bidder_rule(OCID, _Ctx(st), reglas_activas=frozenset({"otra_regla"}))
     assert r["omitida"] is True and r["triggered"] is False and r["estado"] == "sin_dato"
@@ -171,7 +171,7 @@ def test_topes_uit_por_perfil_en_tipo_proceso_vs_monto(monkeypatch):
     # Régimen TUO 30225 (convocatoria 2024): los topes en UIT del perfil siguen aplicando.
     # Para procesos desde 22-abr-2025 rigen los topes en soles de la Ley 32069
     # (ver tests/test_reglas_lote1.py).
-    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr._rules_montos, "_pg", lambda: _FakeConn({
         "select coalesce(tipo_proceso, modalidad), cuantia_referencial, fecha_convocatoria from convocatorias":
             ("ADJUDICACION SIMPLIFICADA", 5350000.0, "2024-06-01")}))
     st = {}
@@ -199,7 +199,7 @@ def _directa_conn():
 
 
 def test_directa_acto_en_texto_completo_no_dispara(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", _directa_conn)
+    monkeypatch.setattr(cr._rules_directa, "_pg", _directa_conn)
     st = {"document_analysis": {"fundamento_legal": ["Art. 27 lit. a) situación de emergencia por lluvias intensas"]},
           "documentos_texto": {"f" * 64: {"texto": "⟦p.1⟧ Informe. ⟦p.3⟧ Conforme al Decreto Supremo N° 012-2026-PCM "
                                                     "que declara el estado de emergencia del 5 de marzo de 2026."}}}
@@ -211,7 +211,7 @@ def test_directa_acto_en_texto_completo_no_dispara(monkeypatch):
 
 
 def test_directa_sin_acto_con_texto_completo_alta(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", _directa_conn)
+    monkeypatch.setattr(cr._rules_directa, "_pg", _directa_conn)
     st = {"document_analysis": {"fundamento_legal": ["situación de emergencia por desastre"]},
           "documentos_texto": {"f" * 64: {"texto": "⟦p.1⟧ Informe técnico sin ninguna resolución citada."}}}
     r = cr.check_directa_fundamento_rule(OCID, _Ctx(st))
@@ -220,7 +220,7 @@ def test_directa_sin_acto_con_texto_completo_alta(monkeypatch):
 
 
 def test_directa_sin_acto_solo_resumenes_media_requiere_verificacion(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", _directa_conn)
+    monkeypatch.setattr(cr._rules_directa, "_pg", _directa_conn)
     st = {"document_analysis": {"fundamento_legal": ["situación de emergencia por desastre"]}}
     r = cr.check_directa_fundamento_rule(OCID, _Ctx(st))
     assert r["regla"] == "directa_emergencia_sin_acto_resolutivo" and r["severidad"] == "media"
@@ -228,7 +228,7 @@ def test_directa_sin_acto_solo_resumenes_media_requiere_verificacion(monkeypatch
 
 
 def test_directa_acto_en_estudio_mercado_causal(monkeypatch):
-    monkeypatch.setattr(cr, "_pg", _directa_conn)
+    monkeypatch.setattr(cr._rules_directa, "_pg", _directa_conn)
     st = {"document_analysis": {"fundamento_legal": ["desabastecimiento inminente"]},
           "estudio_mercado": {"causal_articulo": "Art. 27.1.b", "causal_texto": "Sustentado en la R.M. N° 0123-2026-MINSA"}}
     r = cr.check_directa_fundamento_rule(OCID, _Ctx(st))
@@ -280,7 +280,7 @@ def test_inconsistencia_cuenta_solo_items_raiz_y_sin_manipulacion():
 
 def test_normative_compliance_prioriza_severidad_y_registra_recorte(monkeypatch):
     monkeypatch.setenv("RAG_MAX_HALLAZGOS", "5")
-    monkeypatch.setattr(cr, "query_legal_rag", lambda q, tc: {"matches": [{"num_opinion": "001"}]})
+    monkeypatch.setattr(cr._analysis, "query_legal_rag", lambda q, tc: {"matches": [{"num_opinion": "001"}]})
     flags = [{"regla": f"r{i}", "evidencia": f"e{i}", "severidad": "baja"} for i in range(8)]
     flags += [{"regla": "grave", "evidencia": "g", "severidad": "alta"}]
     st = {"pending_flags": flags}

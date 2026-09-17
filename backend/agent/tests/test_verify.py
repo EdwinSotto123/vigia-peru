@@ -328,7 +328,7 @@ def test_persist_alert_from_flags_no_borra_otros_agentes_y_suma_score(monkeypatc
         {"alerta_id": "A1", "regla": "vieja_compliance", "severidad": "alta", "evidencia": "obsoleta",
          "norma": "x", "fuente_url": "u", "agente_origen": "compliance_agent", "verificacion": None},
     ]
-    monkeypatch.setattr(persistence, "_pg", lambda: db)
+    monkeypatch.setattr(persistence.alert_flags, "_pg", lambda: db)
     st = _state(pending_flags=[
         {"regla": "unico_postor_alto", "severidad": "alta", "evidencia": "Un solo postor al 98% del referencial.",
          "norma": "Art. 27", "fuente_url": "https://contratacionesabiertas.oece.gob.pe/proceso/1216608"},
@@ -361,7 +361,7 @@ def test_persist_alert_from_flags_no_borra_otros_agentes_y_suma_score(monkeypatc
 def test_persist_analysis_outputs_consume_pending_market_y_doc_flags(monkeypatch):
     db = _FakeDB()
     db.alertas["OECE-1216608"] = {"id": "A1", "score": 0, "codigo": "OECE-1216608"}
-    monkeypatch.setattr(persistence, "_pg", lambda: db)
+    monkeypatch.setattr(persistence.analysis_outputs, "_pg", lambda: db)
     st = _state(
         pending_market_flags=[{"regla": "sobreprecio_lote_elevado", "severidad": "media",
                                "evidencia": "Lote completo: +20% sobre el estimado.", "norma": "Art. 12"}],
