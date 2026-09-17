@@ -240,7 +240,7 @@ def test_sancion_vigente_por_fecha_fin_y_penalidades():
 
 def test_co_ocurrencia_excluye_el_ocid_propio(monkeypatch):
     rucs = ["20600616235", "20600000001"]
-    monkeypatch.setattr(cr._analysis, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
         "select proveedor_ruc, count(*)": [],
         "select column_name from information_schema.columns": [("ocid",), ("empresa_ruc",)],
         "select empresa_ruc, array_agg(distinct ocid)": [(rucs[0], [OCID, f"ocds-dgv273-seacev3-{OCID}"]),
@@ -250,13 +250,13 @@ def test_co_ocurrencia_excluye_el_ocid_propio(monkeypatch):
     r = cr.analyze_postores_pattern(OCID, _Ctx(st))
     assert r["patrones_red"]["pares_co_ocurrentes"] == {}
     assert all(p["score_sospecha"] == 0 and p["ocids_co_ocurrencia"] == [] for p in r["postores"])
-    assert any("ocid <> all" in q for q in cr._analysis._pg().log or [""]) or True  # el SQL lleva la exclusión
+    assert any("ocid <> all" in q for q in cr._pg().log or [""]) or True  # el SQL lleva la exclusión
 
 
 def test_ruc_ultra_nuevo_evalua_perdedores_1225266(monkeypatch):
     import datetime as dt
     rival = "20609999999"
-    monkeypatch.setattr(cr._rules_provider, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
         "select e.ruc, e.razon_social": [(RUC_G, "FIERRO DOMINIC S.A.C.", 99180.0, True, dt.date(2026, 6, 25), 99690.0),
                                           (rival, "ER & CO COMPANY S.A.C.", None, False, dt.date(2026, 6, 25), 99690.0)]}))
     st = {"ocds": _ocds(), "sunat_profiles": {RUC_G: {"fecha_inicio_actividades": "2017-09-01"},
@@ -271,7 +271,7 @@ def test_ruc_ultra_nuevo_evalua_perdedores_1225266(monkeypatch):
 
 def test_tipo_proceso_vs_monto_ley_32069(monkeypatch):
     # BD con tipo_proceso NULL (99.6 % de las filas): COALESCE(modalidad) + procurementMethodDetails.
-    monkeypatch.setattr(cr._rules_montos, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
         "select coalesce(tipo_proceso, modalidad), cuantia_referencial, fecha_convocatoria": (None, 99633.33, "2026-06-12")}))
     st = {"ocds": _ocds(ref=99633.33, metodo="Comparación de Precios")}
     r = cr.check_tipo_proceso_vs_monto_rule(OCID, _Ctx(st))
@@ -279,22 +279,22 @@ def test_tipo_proceso_vs_monto_ley_32069(monkeypatch):
     assert r["sub_regla"]["regla"] == "cuantia_al_limite_del_tope" and r["sub_regla"]["severidad"] == "baja"
     assert r["topes_soles"]["comparacion_precios_max"] == 100000.0
     st2 = {"ocds": _ocds(ref=150000.0, metodo="Comparación de Precios")}
-    monkeypatch.setattr(cr._rules_montos, "_pg", lambda: _FakeConn({"select coalesce": (None, 150000.0, "2026-06-12")}))
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"select coalesce": (None, 150000.0, "2026-06-12")}))
     r2 = cr.check_tipo_proceso_vs_monto_rule(OCID, _Ctx(st2))
     assert r2["triggered"] is True and "100,000" in r2["evidencia"] and "32513" in r2["norma"]
     st3 = {"ocds": _ocds(ref=600000.0, metodo="Licitación Pública Abreviada")}
-    monkeypatch.setattr(cr._rules_montos, "_pg", lambda: _FakeConn({"select coalesce": ("Licitación Pública Abreviada", 600000.0, "2026-06-12")}))
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"select coalesce": ("Licitación Pública Abreviada", 600000.0, "2026-06-12")}))
     r3 = cr.check_tipo_proceso_vs_monto_rule(OCID, _Ctx(st3))
     assert r3["triggered"] is True and "485,000" in r3["evidencia"]
     st4 = {"ocds": _ocds(ref=95000.0, metodo="Comparación de Precios")}   # 1225392: 95 % del tope
-    monkeypatch.setattr(cr._rules_montos, "_pg", lambda: _FakeConn({"select coalesce": (None, 95000.0, "2026-06-12")}))
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"select coalesce": (None, 95000.0, "2026-06-12")}))
     r4 = cr.check_tipo_proceso_vs_monto_rule(OCID, _Ctx(st4))
     assert r4["triggered"] is False and r4.get("sub_regla")
 
 
 def test_ciiu_vs_objeto_categoriza_equipos_y_alquiler_1225392(monkeypatch):
     ruc = "10426100725"
-    monkeypatch.setattr(cr._rules_provider, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
         "select c.objeto, e.ruc, e.razon_social": ("MEJORAMIENTO DE LA CARRETERA PAUCARTAMBO - ABRA ACJANACU", ruc, "CARPIO COBOS ABEL"),
         "select descripcion from convocatoria_items": [("ESTACION TOTAL",), ("PRISMA PENTAGONAL",)]}))
     st = {"ocds": _ocds(desc="ADQUISICION DE EQUIPOS TOPOGRAFICOS", ganador=ruc),
@@ -302,7 +302,7 @@ def test_ciiu_vs_objeto_categoriza_equipos_y_alquiler_1225392(monkeypatch):
     r = cr.check_ciiu_vs_objeto_rule(OCID, _Ctx(st))
     assert r["objeto_categoria"] == "equipos" and r["ciiu_categoria"] == "alquiler" and r["triggered"] is True
     # 1225058: arroz vs venta de alimentos → coherente
-    monkeypatch.setattr(cr._rules_provider, "_pg", lambda: _FakeConn({
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({
         "select c.objeto, e.ruc, e.razon_social": ("ADQUISICION DE ARROZ SUPERIOR", "20523905679", "COMERCIAL DELBUENO"),
         "select descripcion from convocatoria_items": [("ARROZ PILADO EXTRA",)]}))
     st2 = {"ocds": _ocds(desc="ADQUISICION DE ARROZ SUPERIOR", ganador="20523905679"),
@@ -312,7 +312,7 @@ def test_ciiu_vs_objeto_categoriza_equipos_y_alquiler_1225392(monkeypatch):
 
 
 def test_procedimiento_no_competitivo_lee_modalidad_y_ocds(monkeypatch):
-    monkeypatch.setattr(cr._rules_bidder, "_pg", lambda: _FakeConn({"select coalesce(tipo_proceso, modalidad)": ("Contratación Directa",)}))
+    monkeypatch.setattr(cr, "_pg", lambda: _FakeConn({"select coalesce(tipo_proceso, modalidad)": ("Contratación Directa",)}))
     r = cr.check_non_competitive_process_rule(OCID, _Ctx({"ocds": {"tender": {}}}))
     assert r["triggered"] is True and r["tipo_proceso"] == "Contratación Directa"
 
