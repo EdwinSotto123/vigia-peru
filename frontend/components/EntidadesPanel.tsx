@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Search,
   Building2,
@@ -11,26 +12,21 @@ import {
   ChevronRight,
   Flag,
   FileText,
+  Loader2,
 } from "lucide-react";
+import { TIPO_SHORT, type TipoEntidad } from "@/lib/mock-entities";
 import {
-  TIPO_LABELS,
-  TIPO_SHORT,
-  type Entidad,
-  type TipoEntidad,
-} from "@/lib/mock-entities";
+  entidadesQueryString,
+  type ApiEntidad,
+  type EntidadesPagina,
+  type EntidadesQuery,
+  type EntidadesResumen,
+} from "@/lib/api-client";
 import { formatSoles } from "@/lib/mock-data";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { cn } from "@/lib/utils";
 
 type SortKey = "alertas" | "monto" | "score";
-
-/** Shape mínimo que necesita el panel. Funciona con el mock o con ApiEntidad. */
-interface PanelEntidad extends Omit<Entidad, "id" | "serie" | "reportes" | "contratos" | "contratosVigilados"> {
-  id?: string;
-  serie?: number[] | null;
-  reportes?: number | null;
-  contratos?: number | null;
-  contratosVigilados?: number | null;
-}
 
 const TIPO_FILTERS: { id: TipoEntidad | "todos"; label: string }[] = [
   { id: "todos", label: "Todos" },
@@ -41,42 +37,66 @@ const TIPO_FILTERS: { id: TipoEntidad | "todos"; label: string }[] = [
   { id: "empresa_publica", label: "Empresa Pública" },
 ];
 
-export function EntidadesPanel({
-  entidades,
-}: {
-  entidades: PanelEntidad[];
-}) {
-  const [query, setQuery] = useState("");
-  const [tipo, setTipo] = useState<TipoEntidad | "todos">("todos");
-  const [sort, setSort] = useState<SortKey>("alertas");
+interface Props {
+  /** Filtros activos, leídos de la URL por el server component (page.tsx). */
+  query: EntidadesQuery;
+  /** Página ya traída server-side (real u origen mock si el API falló). */
+  initial: EntidadesPagina | null;
+  /** KPIs globales (no respetan `query`): universo completo de entidades vigiladas. */
+  resumen: EntidadesResumen | null;
+}
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = entidades.filter((e) => {
-      if (tipo !== "todos" && e.tipo !== tipo) return false;
-      if (!q) return true;
-      return (
-        e.nombre.toLowerCase().includes(q) ||
-        e.ruc.includes(q) ||
-        e.region.toLowerCase().includes(q) ||
-        (e.provincia ?? "").toLowerCase().includes(q)
-      );
-    });
-    return list.sort((a, b) => {
+/**
+ * Antes: recibía un batch fijo de hasta 100 entidades y hacía búsqueda + tipo + orden
+ * enteramente en el cliente, mostrando solo las primeras 20 sin forma de ver el resto.
+ * Ahora: búsqueda y tipo viajan en la URL (`?q=&tipo=&page=`) y el server component
+ * vuelve a pedir la página exacta al API — el orden (`sort`) es la única cosa que sigue
+ * siendo puramente cosmético: solo reordena las filas de la página actual, no cambia
+ * cuáles filas existen.
+ */
+export function EntidadesPanel({ query, initial, resumen }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pendiente, start] = useTransition();
+  const [q, setQ] = useState(query.q ?? "");
+  const [sort, setSort] = useState<SortKey>("alertas");
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setQ(query.q ?? "");
+  }, [query.q]);
+
+  const navegar = (patch: Partial<EntidadesQuery>) => {
+    const qs = entidadesQueryString({ ...query, ...patch, page: 1 });
+    start(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
+  };
+
+  const onQ = (v: string) => {
+    setQ(v);
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => navegar({ q: v.trim() || undefined }), 350);
+  };
+
+  const rows = initial?.data ?? [];
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
       if (sort === "alertas") return b.alertas - a.alertas;
       if (sort === "monto") return b.monto - a.monto;
       return b.scorePromedio - a.scorePromedio;
     });
-  }, [query, tipo, sort, entidades]);
+  }, [rows, sort]);
 
-  const totals = useMemo(
-    () => ({
-      entidades: entidades.length,
-      conAlertas: entidades.filter((e) => e.alertas > 0).length,
-      monto: entidades.reduce((s, e) => s + e.monto, 0),
-    }),
-    [entidades],
-  );
+  const total = initial?.total ?? 0;
+  const tam = initial?.size ?? 20;
+  const actual = initial?.page ?? query.page ?? 1;
+  const paginas = Math.max(1, Math.ceil(total / tam));
+  const hrefPagina = (n: number) => {
+    const qs = entidadesQueryString({ ...query, page: n });
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
+
+  const totals = resumen ?? { totalEntidades: 0, conAlertas: 0, monto: 0 };
+  const tipoActivo = query.tipo ?? "todos";
 
   return (
     <section className="surface overflow-hidden p-0">
@@ -91,7 +111,8 @@ export function EntidadesPanel({
               Entidades del Estado vigiladas
             </h3>
             <p className="mt-1 text-sm text-mute">
-              {totals.entidades} entidades · {totals.conAlertas} con alertas activas ·{" "}
+              {totals.totalEntidades.toLocaleString("es-PE")} entidades ·{" "}
+              {totals.conAlertas.toLocaleString("es-PE")} con alertas activas ·{" "}
               {formatSoles(totals.monto)} bajo seguimiento
             </p>
           </div>
@@ -109,11 +130,18 @@ export function EntidadesPanel({
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={q}
+            onChange={(e) => onQ(e.target.value)}
             placeholder="Buscar por nombre, RUC, región o provincia…"
             className="w-full rounded-full border border-line bg-paper px-9 py-2 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
           />
+          {pendiente && (
+            <Loader2
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-mute"
+              aria-label="Cargando"
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -122,10 +150,11 @@ export function EntidadesPanel({
             {TIPO_FILTERS.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTipo(t.id)}
+                type="button"
+                onClick={() => navegar({ tipo: t.id === "todos" ? undefined : (t.id as TipoEntidad) })}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  tipo === t.id
+                  tipoActivo === t.id
                     ? "border-ink bg-ink text-paper"
                     : "border-line bg-paper text-mute hover:text-ink",
                 )}
@@ -135,7 +164,7 @@ export function EntidadesPanel({
             ))}
           </div>
 
-          {/* Sort */}
+          {/* Sort: cosmético, solo reordena las filas de la página actual */}
           <div className="flex items-center gap-1 rounded-full border border-line bg-paper p-0.5 text-[11px]">
             <span className="px-2 text-mute">Ordenar:</span>
             {(
@@ -149,6 +178,7 @@ export function EntidadesPanel({
               return (
                 <button
                   key={s.id}
+                  type="button"
                   onClick={() => setSort(s.id)}
                   className={cn(
                     "flex items-center gap-1 rounded-full px-2.5 py-1 font-medium transition-colors",
@@ -168,21 +198,29 @@ export function EntidadesPanel({
 
       {/* List */}
       <div className="divide-y divide-line">
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div className="px-5 py-12 text-center text-sm text-mute">
             Sin resultados para esa búsqueda.
           </div>
         )}
-        {filtered.slice(0, 20).map((e, i) => (
+        {sorted.map((e, i) => (
           <EntidadRow key={e.ruc} ent={e} rank={i + 1} sortKey={sort} />
         ))}
       </div>
 
-      {filtered.length > 20 && (
-        <div className="border-t border-line bg-paperSoft px-5 py-3 text-center text-xs text-mute">
-          Mostrando 20 de {filtered.length}. Refiná la búsqueda para ver más.
-        </div>
-      )}
+      <div className="border-t border-line bg-paperSoft px-5 py-3">
+        <Paginacion
+          actual={actual}
+          paginas={paginas}
+          total={total}
+          tam={tam}
+          navegacion="url"
+          href={hrefPagina}
+          onChange={() => {}}
+          cargando={false}
+          nombre="entidades"
+        />
+      </div>
     </section>
   );
 }
@@ -192,7 +230,7 @@ function EntidadRow({
   rank,
   sortKey,
 }: {
-  ent: PanelEntidad;
+  ent: ApiEntidad;
   rank: number;
   sortKey: SortKey;
 }) {

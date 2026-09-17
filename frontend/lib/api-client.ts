@@ -129,6 +129,81 @@ export async function getEntidad(ruc: string) {
   }
 }
 
+// ─── Entidades: página filtrada+paginada (server-side) + resumen global ─────
+// `getEntidades` (arriba) sigue devolviendo el arreglo plano tal cual — lo consume
+// components/mapa/EntidadesDeZona.tsx — así que no se le toca la forma. /app/entidades
+// usa `getEntidadesPagina`, que sí trae `total` real (antes truncaba un batch de 100).
+
+const TIPOS_ENTIDAD: ApiEntidad["tipo"][] = [
+  "municipal_distrital",
+  "municipal_provincial",
+  "gobierno_regional",
+  "ministerio",
+  "empresa_publica",
+  "organismo_autonomo",
+];
+
+export interface EntidadesQuery {
+  q?: string;
+  tipo?: ApiEntidad["tipo"];
+  page?: number;
+}
+
+export const ENTIDADES_PAGE_SIZE = 20;
+
+export function entidadesQueryString(q: EntidadesQuery = {}): string {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) {
+    if (v == null || v === "" || (k === "page" && Number(v) <= 1)) continue;
+    params.set(k, String(v));
+  }
+  return params.toString();
+}
+
+/** Lee `searchParams` de Next (strings sueltos) y deja solo lo válido — mismo patrón que parseContratosQuery. */
+export function parseEntidadesQuery(sp: Record<string, string | string[] | undefined> = {}): EntidadesQuery {
+  const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
+  const page = Math.max(1, Number(s("page") ?? 1) || 1);
+  const tipo = s("tipo");
+  return {
+    page,
+    q: s("q")?.slice(0, 120) || undefined,
+    tipo: tipo && (TIPOS_ENTIDAD as string[]).includes(tipo) ? (tipo as ApiEntidad["tipo"]) : undefined,
+  };
+}
+
+export interface EntidadesPagina {
+  data: ApiEntidad[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+/** Página real del ranking de entidades con filtros server-side: GET /entidades?...&limit=&offset=. */
+export async function getEntidadesPagina(query: EntidadesQuery = {}): Promise<EntidadesPagina> {
+  const page = Math.max(1, query.page ?? 1);
+  const size = ENTIDADES_PAGE_SIZE;
+  const qs = new URLSearchParams();
+  if (query.q) qs.set("q", query.q);
+  if (query.tipo) qs.set("tipo", query.tipo);
+  qs.set("limit", String(size));
+  qs.set("offset", String((page - 1) * size));
+  const r = await get<{ data: ApiEntidad[]; total: number; limit: number; offset: number }>(`/entidades?${qs}`);
+  return { data: r.data, total: r.total, page, size };
+}
+
+export interface EntidadesResumen {
+  totalEntidades: number;
+  conAlertas: number;
+  monto: number;
+}
+
+/** KPIs globales de todo el universo de entidades (no respeta filtros de búsqueda): GET /entidades/summary. */
+export async function getEntidadesResumen(): Promise<EntidadesResumen> {
+  const r = await get<{ total_entidades: number; con_alertas: number; monto: number }>(`/entidades/summary`);
+  return { totalEntidades: r.total_entidades, conAlertas: r.con_alertas, monto: r.monto };
+}
+
 export interface MediaItem {
   url: string;
   tipo: "foto" | "video" | "documento" | "audio";
