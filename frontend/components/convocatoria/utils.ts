@@ -1,7 +1,38 @@
 // Funciones puras compartidas por los componentes de convocatoria/ (extraído de
 // ConvocatoriaSearch.tsx): inferencias sobre el stream de eventos y la traza del agente.
 import type { CatFilter, TraceStep, Bandera } from "./types";
-import { TRACE_ROLE, AGENTE_VISUAL } from "./constants";
+import { TRACE_ROLE, AGENTE_VISUAL, STEPS, STEP_KEY_BY_TOOL, STEP_KEY_BY_AGENT } from "./constants";
+
+export function inferStepFromEvents(events: any[]): number {
+  if (!events?.length) return -1;
+  // Recorrer de atrás hacia adelante; el primero que matche define el step.
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    let candidate: string | null = null;
+
+    if (ev.kind === "phase") {
+      if (ev.name === "writer_forced" || ev.name === "persist") candidate = "writer";
+      else if (ev.name === "safety_net") candidate = "writer";
+    } else if (ev.kind === "tool_call" || ev.kind === "tool_result") {
+      const name = ev.name || "";
+      const m = STEP_KEY_BY_TOOL.find(s => s.rx.test(name));
+      if (m) candidate = m.key;
+      else {
+        const am = STEP_KEY_BY_AGENT.find(s => s.rx.test(ev.agent || ""));
+        if (am) candidate = am.key;
+      }
+    } else if (ev.kind === "transfer") {
+      const am = STEP_KEY_BY_AGENT.find(s => s.rx.test(ev.to || ""));
+      if (am) candidate = am.key;
+    }
+
+    if (candidate) {
+      const idx = STEPS.findIndex(s => s.key === candidate);
+      if (idx >= 0) return idx;
+    }
+  }
+  return -1;
+}
 
 export function oeceProcesoUrl(ocidOrCodigo: string | null | undefined): string {
   const s = String(ocidOrCodigo || "").trim();

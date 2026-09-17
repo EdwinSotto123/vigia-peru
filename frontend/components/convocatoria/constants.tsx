@@ -2,7 +2,10 @@
 
 // Constantes visuales compartidas por los componentes de convocatoria/ (extraído de
 // ConvocatoriaSearch.tsx): mapas de color/emoji/label por estado, ids de agentes, etc.
-import { Sparkles, ScanSearch, FileText, Receipt, Globe2 } from "lucide-react";
+import {
+  Sparkles, ScanSearch, FileText, Receipt, Globe2, Search, Download, AlertTriangle,
+  Scale, Building2, Globe, Newspaper, Network, ListChecks, Pen,
+} from "lucide-react";
 import type { CatFilter } from "./types";
 
 export const CAT_LABEL: Record<CatFilter, string> = {
@@ -207,4 +210,51 @@ export const FUENTE_GROUPS = [
   { label: "Funcionarios", keys: ["funcionarios"] },
   { label: "Obras",        keys: ["obras"] },
   { label: "Contratos",    keys: ["contratos"] },
+];
+
+// STEPS del pipeline real — 13 nodos del BPMN.
+// `eta_s` es el tiempo estimado en segundos para AVANZAR al siguiente paso
+// (basado en timing observado en runs reales, ≈ 9-10 min total). Total
+// estimado: 638s ≈ 10.6 min. Si el run termina antes, el frontend salta al
+// último paso. Si tarda más, el último paso queda "active" hasta llegar.
+export const STEPS = [
+  { key: "fetch",       label: "Trayendo OCDS del OECE",                      icon: <Search size={14} />,         eta_s: 3,    lane: "ingesta" },
+  { key: "pdfs",        label: "Descargando PDFs / DOCXs publicados",         icon: <Download size={14} />,       eta_s: 12,   lane: "ingesta" },
+  { key: "db",          label: "Guardando en base de datos",                  icon: <ScanSearch size={14} />,     eta_s: 5,    lane: "ingesta" },
+  { key: "compliance",  label: "Compliance · 3 reglas duras + RAG",           icon: <AlertTriangle size={14} />,  eta_s: 35,   lane: "auditoría" },
+  { key: "parser",      label: "Document Parser · OCR Vision",                icon: <FileText size={14} />,       eta_s: 110,  lane: "auditoría" },
+  { key: "legal",       label: "Legal Analyst · banderas + opinión OECE",     icon: <Scale size={14} />,          eta_s: 40,   lane: "auditoría" },
+  { key: "market",      label: "Market Price · google_search por sub-ítem",   icon: <Receipt size={14} />,        eta_s: 130,  lane: "investigación" },
+  { key: "sunat",       label: "SUNAT · validación de RUC",                   icon: <Building2 size={14} />,      eta_s: 8,    lane: "investigación" },
+  { key: "web",         label: "Web Research · 13 fuentes oficiales",         icon: <Globe size={14} />,          eta_s: 60,   lane: "investigación" },
+  { key: "news",        label: "News Research · prensa peruana",              icon: <Newspaper size={14} />,      eta_s: 60,   lane: "investigación" },
+  { key: "rnp",         label: "RNP · red empresarial + cruce firmantes",     icon: <Network size={14} />,        eta_s: 80,   lane: "investigación" },
+  { key: "extended",    label: "Compliance extendido · 7 reglas + RAG",       icon: <ListChecks size={14} />,     eta_s: 35,   lane: "auditoría" },
+  { key: "writer",      label: "Report Writer · dictamen · Gemini 2.5 Pro",   icon: <Pen size={14} />,            eta_s: 60,   lane: "dictamen" },
+];
+
+// Mapea tool/transfer/phase a la key de STEP. Usa el último evento "fuerte"
+// del stream para inferir en qué paso del BPMN estamos realmente.
+export const STEP_KEY_BY_TOOL: Array<{ rx: RegExp; key: string }> = [
+  { rx: /fetch_ocds|get_ocds_record|fetch_documents|archive_docs/i,           key: "fetch" },
+  { rx: /parse_document_pdf|extract_doc|ocr/i,                                 key: "parser" },
+  { rx: /ingest_to_db|insert_(convocatoria|postores|documentos)/i,             key: "db" },
+  { rx: /evaluate_normative_compliance|run_hard_rules|persist_alert/i,         key: "compliance" },
+  { rx: /query_legal_rag|lookup_opinion_oece|legal_analyst/i,                  key: "legal" },
+  { rx: /query_sunat|sunat_decolecta/i,                                        key: "sunat" },
+  { rx: /query_rnp|rnp_conformacion|cruce_firmantes/i,                         key: "rnp" },
+  { rx: /market_price|build_market_input|web_search_market/i,                  key: "market" },
+  { rx: /web_research|google_search_oficial/i,                                 key: "web" },
+  { rx: /news_research|prensa/i,                                               key: "news" },
+  { rx: /report_writer|get_dictamen_context|persist_analysis/i,                key: "writer" },
+];
+export const STEP_KEY_BY_AGENT: Array<{ rx: RegExp; key: string }> = [
+  { rx: /document_parser/i,         key: "parser" },
+  { rx: /document_legal_analyst/i,  key: "legal" },
+  { rx: /compliance/i,              key: "compliance" },
+  { rx: /market_price/i,            key: "market" },
+  { rx: /web_research/i,            key: "web" },
+  { rx: /news_research/i,           key: "news" },
+  { rx: /person_network/i,          key: "rnp" },
+  { rx: /report_writer/i,           key: "writer" },
 ];
