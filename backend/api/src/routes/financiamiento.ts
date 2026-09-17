@@ -4,7 +4,7 @@
  *
  *   GET /financiamiento/zonas?nivel=departamento[&padre=15]   estado por zona (mapa)
  *   GET /financiamiento/zonas/:ubigeo                          detalle + aliados + hijas
- *   GET /financiamiento/ranking?periodo=mes|anio|todo           ranking de impacto (contratos, no soles)
+ *   GET /financiamiento/ranking?periodo=mes|anio|todo&region=&limit=&offset=  ranking de impacto (contratos, no soles)
  *   GET /financiamiento/estado                                  métricas globales + tarifa vigente
  *   GET /financiamiento/impacto/:codigo                         comprobante público de una contribución
  *   GET /financiamiento/aliados/:slug                           perfil público de un financiador
@@ -94,32 +94,53 @@ financiamientoRouter.get("/zonas/:ubigeo", async (c) => {
   });
 });
 
+const RankingQuery = z.object({
+  periodo: z.enum(["mes", "anio", "todo"]).default("todo"),
+  region: z.string().regex(/^\d{2,6}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(60).default(60),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 // ─── GET /financiamiento/ranking ─────────────────────────────────────────────
 financiamientoRouter.get("/ranking", async (c) => {
-  const periodo = new URL(c.req.url).searchParams.get("periodo") ?? "todo";
-  const region = new URL(c.req.url).searchParams.get("region");
+  const parsed = RankingQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { periodo, region, limit, offset } = parsed.data;
   const since = periodo === "mes" ? "date_trunc('month', now())" : periodo === "anio" ? "date_trunc('year', now())" : "'1970-01-01'::timestamptz";
   const vals: any[] = [];
   let zonaCond = "";
-  if (region && /^\d{2,6}$/.test(region)) { vals.push(region); zonaCond = ` AND co.ubigeo LIKE $${vals.length} || '%'`; }
-  const r = await pool.query(
-    `SELECT f.id, f.tipo, COALESCE(f.nombre_publico,'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl",
-            SUM(co.contratos)::int AS "contratosFinanciados",
-            COUNT(DISTINCT co.ubigeo)::int AS zonas,
-            (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-              WHERE s.contribucion_id = ANY(array_agg(co.id)) AND alerta_publicada(a.estado)
-                AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senalesHalladas",
-            (SELECT count(s.procesada_at) FROM asignaciones s WHERE s.contribucion_id = ANY(array_agg(co.id)))::int AS "contratosProcesados",
-            (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-              WHERE s.contribucion_id = ANY(array_agg(co.id)) AND a.estado = 'revision')::int AS "enRevision",
-            MIN(co.pagada_at) AS desde
-     FROM financiadores f
+  if (region) { vals.push(region); zonaCond = ` AND co.ubigeo LIKE $${vals.length} || '%'`; }
+  // Compartido entre la fila principal (agregada por financiador) y el conteo total: mismo
+  // FROM/WHERE, así el total siempre coincide con lo que la paginación realmente recorre.
+  const fromWhere = `FROM financiadores f
      JOIN contribuciones co ON co.financiador_id = f.id AND co.estado IN ('pagada','en_proceso','procesada')
           AND co.pagada_at >= ${since}${zonaCond}
-     WHERE f.visible
-     GROUP BY f.id ORDER BY "contratosFinanciados" DESC, desde ASC LIMIT 100`, vals);
+     WHERE f.visible`;
+  const totalVals = [...vals];
+  vals.push(limit, offset);
+  const [r, total] = await Promise.all([
+    pool.query(
+      `SELECT f.id, f.tipo, COALESCE(f.nombre_publico,'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl",
+              SUM(co.contratos)::int AS "contratosFinanciados",
+              COUNT(DISTINCT co.ubigeo)::int AS zonas,
+              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
+                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND alerta_publicada(a.estado)
+                  AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senalesHalladas",
+              (SELECT count(s.procesada_at) FROM asignaciones s WHERE s.contribucion_id = ANY(array_agg(co.id)))::int AS "contratosProcesados",
+              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
+                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND a.estado = 'revision')::int AS "enRevision",
+              MIN(co.pagada_at) AS desde
+       ${fromWhere}
+       GROUP BY f.id ORDER BY "contratosFinanciados" DESC, desde ASC LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
+    // DISTINCT f.id matching el mismo FROM/WHERE == número de grupos que produciría el GROUP BY de arriba.
+    pool.query(`SELECT COUNT(DISTINCT f.id)::int AS n ${fromWhere}`, totalVals),
+  ]);
   cache(c, 60);
-  return c.json({ periodo, data: r.rows.map((row, i) => ({ posicion: i + 1, ...row })) });
+  return c.json({
+    periodo,
+    data: r.rows.map((row, i) => ({ posicion: offset + i + 1, ...row })),
+    total: total.rows[0].n,
+  });
 });
 
 // ─── GET /financiamiento/estado ──────────────────────────────────────────────

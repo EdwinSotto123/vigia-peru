@@ -165,6 +165,34 @@ export const getZona = (ubigeo: string) => getJson<ZonaDetalle>(`/financiamiento
 export const getRanking = (periodo: "mes" | "anio" | "todo" = "todo") =>
   getJson<{ data: RankingRow[] }>(`/financiamiento/ranking?periodo=${periodo}`, 300).then((r) => r?.data ?? null);
 
+export interface RankingQuery {
+  periodo?: "mes" | "anio" | "todo";
+  /** Ubigeo de 2 a 6 dígitos (mismo filtro que getZonas/FiltroRegion). */
+  region?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface RankingPagina {
+  periodo: "mes" | "anio" | "todo";
+  data: RankingRow[];
+  /** Financiadores distintos que cumplen el filtro (no filas crudas): base real para paginar. */
+  total: number;
+}
+
+function rankingQueryString(q: RankingQuery): string {
+  const params = new URLSearchParams();
+  params.set("periodo", q.periodo ?? "todo");
+  if (q.region) params.set("region", q.region);
+  if (q.limit != null) params.set("limit", String(q.limit));
+  if (q.offset) params.set("offset", String(q.offset));
+  return params.toString();
+}
+
+/** Como getRanking, pero con región y paginación reales (muro de /app/aliados). */
+export const getRankingPaginado = (q: RankingQuery = {}) =>
+  getJson<RankingPagina>(`/financiamiento/ranking?${rankingQueryString(q)}`, 300);
+
 export const getEstadoGlobal = () => getJson<EstadoGlobal>("/financiamiento/estado", 120);
 
 export const getRecientes = () =>
