@@ -26,6 +26,7 @@ import {
   type EstadoProc,
   type Procesamiento,
 } from "@/lib/auditoria";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { MiniCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
 
@@ -284,10 +285,10 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
 
 function SkeletonCard() {
   return (
-    <li className="animate-pulse rounded-xl border border-line bg-paper p-3" aria-hidden>
-      <div className="h-3.5 w-4/5 rounded bg-paperDeep" />
-      <div className="mt-2 h-3 w-3/5 rounded bg-paperDeep" />
-      <div className="mt-3 h-1.5 w-full rounded bg-paperDeep" />
+    <li className="rounded-xl border border-line bg-paper p-3" aria-hidden>
+      <Skeleton className="h-3.5 w-4/5" />
+      <Skeleton className="mt-2 h-3 w-3/5" />
+      <Skeleton className="mt-3 h-1.5 w-full" />
     </li>
   );
 }
