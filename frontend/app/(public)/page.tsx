@@ -5,6 +5,7 @@ import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto"
 import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { Marquee } from "@/components/magicui/Marquee";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { getAlertas } from "@/lib/api-client";
 import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
 
@@ -84,31 +85,37 @@ export default async function LandingPage() {
           </div>
 
           <div className="mt-12 grid gap-4 lg:grid-cols-3">
-            <AudienceCard
-              icon={<Persona tool={<Camera size={12} />} />}
-              label="Ciudadano"
-              title="Reportas lo que ves. El mapa hace el resto."
-              body="Obra paralizada, fantasma, sobreprecio o calidad deficiente. Pin rojo + alerta automática sobre el mismo contrato = caso convergente público."
-              action="Ver las denuncias publicadas →"
-              href="/app/denuncias"
-              accent
-            />
-            <AudienceCard
-              icon={<Persona tool={<Newspaper size={12} />} />}
-              label="Periodista"
-              title="Tres meses de investigación, en tres minutos."
-              body="Cada contrato procesado deja un dictamen con red de personas, señales que citan artículo de ley y opiniones OECE, y links a las fuentes oficiales. Tú verificas y publicas."
-              action="Ver la auditoría en vivo →"
-              href="/app/auditoria"
-            />
-            <AudienceCard
-              icon={<Persona tool={<Gavel size={12} />} />}
-              label="Fiscalía · Contraloría"
-              title="La auditoría que llega antes del daño."
-              body="Cola priorizada por riesgo con evidencia pre-armada — contratos, socios, sanciones, aportes políticos. Tú inicias la investigación formal sin gastar semanas cruzando portales."
-              action="Acceso institucional →"
-              href="/preguntas"
-            />
+            <BlurFade delayMs={0}>
+              <AudienceCard
+                icon={<Persona tool={<Camera size={12} />} />}
+                label="Ciudadano"
+                title="Reportas lo que ves. El mapa hace el resto."
+                body="Obra paralizada, fantasma, sobreprecio o calidad deficiente. Pin rojo + alerta automática sobre el mismo contrato = caso convergente público."
+                action="Ver las denuncias publicadas →"
+                href="/app/denuncias"
+                accent
+              />
+            </BlurFade>
+            <BlurFade delayMs={90}>
+              <AudienceCard
+                icon={<Persona tool={<Newspaper size={12} />} />}
+                label="Periodista"
+                title="Tres meses de investigación, en tres minutos."
+                body="Cada contrato procesado deja un dictamen con red de personas, señales que citan artículo de ley y opiniones OECE, y links a las fuentes oficiales. Tú verificas y publicas."
+                action="Ver la auditoría en vivo →"
+                href="/app/auditoria"
+              />
+            </BlurFade>
+            <BlurFade delayMs={180}>
+              <AudienceCard
+                icon={<Persona tool={<Gavel size={12} />} />}
+                label="Fiscalía · Contraloría"
+                title="La auditoría que llega antes del daño."
+                body="Cola priorizada por riesgo con evidencia pre-armada — contratos, socios, sanciones, aportes políticos. Tú inicias la investigación formal sin gastar semanas cruzando portales."
+                action="Acceso institucional →"
+                href="/preguntas"
+              />
+            </BlurFade>
           </div>
         </div>
       </section>
@@ -117,7 +124,7 @@ export default async function LandingPage() {
 
       {/* ─── CTA FINAL ─── */}
       <section className="container-page py-24">
-        <div className="relative isolate overflow-hidden rounded-3xl bg-ink p-10 text-paper sm:p-16">
+        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-ink p-10 text-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-30">
             <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-rust/50 via-rust/10 to-transparent" />
             <div
@@ -158,7 +165,7 @@ export default async function LandingPage() {
               </Link>
             </div>
           </div>
-        </div>
+        </BlurFade>
       </section>
     </>
   );
@@ -171,7 +178,7 @@ function Persona({ tool }: { tool: React.ReactNode }) {
         <circle cx="20" cy="13.5" r="6.5" fill="currentColor" />
         <path d="M6 38 C6 27.5 12.8 23.5 20 23.5 C27.2 23.5 34 27.5 34 38 Z" fill="currentColor" />
       </svg>
-      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-amber text-ink shadow ring-2 ring-paperSoft">
+      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 animate-floatYSm items-center justify-center rounded-full bg-amber text-ink shadow ring-2 ring-paperSoft">
         {tool}
       </span>
     </span>
