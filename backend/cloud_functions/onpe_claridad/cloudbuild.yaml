@@ -1,0 +1,63 @@
+# Receta COMPLETA y autocontenida de onpe_claridad: vendorizar el código real (backend/scrapers),
+# construir la imagen, subirla, desplegar el Cloud Run Job.
+# Se sube desde la RAÍZ del repo (el paso 1 necesita ver backend/scrapers, que es la fuente de
+# verdad del código — esta carpeta solo tiene la copia vendorizada + esta receta):
+#
+#   gcloud builds submit . --config backend/cloud_functions/onpe_claridad/cloudbuild.yaml
+#
+# 403 confirmado desde IP de nube (Cloudflare) + necesita Chromium con ventana — NO se agenda; correr con docker en el VPS/laptop
+#
+substitutions:
+  _IMAGE: 'us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy/scraper-onpe-claridad'
+  _JOB: 'scraper-onpe-claridad'
+  _REGION: 'us-central1'
+  _SQL_CONNECTION: 'vivid-spot-480905-a4:us-central1:vigia-db'
+  _SA: '36169102688-compute@developer.gserviceaccount.com'
+  _BUCKET: 'vigia-peru-batch'
+  _MEM: '1Gi'
+  _CPU: '1'
+  _TIMEOUT: '1800s'
+options:
+  substitutionOption: ALLOW_LOOSE
+steps:
+  # 1. copia fresca de backend/scrapers/onpe_claridad + backend/scrapers/_core (+ los backend/scripts/
+  #    que este pipeline usa) hacia ./vendor — nunca se construye con una copia vieja.
+  - name: python:3.12-slim
+    entrypoint: python
+    args: ['backend/cloud_functions/_vendor.py', 'onpe_claridad']
+
+  # 2. imagen (Dockerfile de esta misma carpeta)
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGE}:$BUILD_ID', '-t', '${_IMAGE}:latest', 'backend/cloud_functions/onpe_claridad']
+
+  # 3. subir
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGE}:$BUILD_ID']
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGE}:latest']
+
+  # 4. Cloud Run Job (Cloud SQL por el socket — no necesita IP en authorized-networks)
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - ${_JOB}
+      - --image=${_IMAGE}:$BUILD_ID
+      - --region=${_REGION}
+      - --service-account=${_SA}
+      - --tasks=1
+      - --max-retries=1
+      - --task-timeout=${_TIMEOUT}
+      - --cpu=${_CPU}
+      - --memory=${_MEM}
+      - --set-cloudsql-instances=${_SQL_CONNECTION}
+      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET}
+      - --set-secrets=PGPASSWORD=cloudsql-password:latest
+      - --quiet
+
+images:
+  - '${_IMAGE}:$BUILD_ID'
+  - '${_IMAGE}:latest'
+timeout: 1200s

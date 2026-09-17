@@ -1,0 +1,7 @@
+requests>=2.32
+openpyxl>=3.1
+xlrd>=2.0            # XLS (BIFF) del JNE en la PNDA
+psycopg2-binary>=2.9
+google-cloud-storage>=2.10   # sube el crudo a SCRAPER_GCS_BUCKET (backend/cloud_functions/*)
+# opcional, solo onpe_claridad / jne_infogob:
+# playwright>=1.45
