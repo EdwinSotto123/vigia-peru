@@ -71,9 +71,16 @@ class _FakeConn:
 
 
 def _fake_pg(monkeypatch, items_rows, ofertas_rows=()):
+    """`_pg` se llama desde varios submódulos (cada uno con su propio `from tools._core
+    import *`) — parcheamos la instancia de CADA submódulo, no la del paquete, porque
+    Python resuelve la llamada contra el namespace donde vive el código que la hace."""
     rows = {"from convocatoria_items where ocid=%s order by numero_item": items_rows,
             "join ofertas o on o.item_id": list(ofertas_rows)}
-    monkeypatch.setattr(mk, "_pg", lambda: _FakeConn(rows))
+    fake = lambda: _FakeConn(rows)
+    monkeypatch.setattr(mk, "_pg", fake)
+    monkeypatch.setattr(mk.input_building, "_pg", fake)
+    monkeypatch.setattr(mk.ancla_regional, "_pg", fake)
+    monkeypatch.setattr(mk.historico_seace, "_pg", fake)
 
 
 def _precio(num, producto, precio, unidad="unidad", dominio="tienda.pe", moneda="PEN"):
@@ -92,12 +99,12 @@ def _fake_fanout(monkeypatch, precios: list[dict], sin_precios=()):
             chunks = [f["fuentes"][0] for f in precios]
             return list(precios), {}, set(sin_precios), chunks, 1
         return [], {}, set(), [], 1
-    monkeypatch.setattr(mk, "_fanout_goods_retail", _f)
+    monkeypatch.setattr(mk.goods_retail, "_fanout_goods_retail", _f)
     return llamadas
 
 
 def _fake_refs(monkeypatch, refs: list[dict]):
-    monkeypatch.setattr(mk, "_consultar_referencias_internas", lambda ocid, cubsos, descr, **kw: list(refs))
+    monkeypatch.setattr(mk.goods_retail, "_consultar_referencias_internas", lambda ocid, cubsos, descr, **kw: list(refs))
 
 
 def _ref(ocid, descr, pu_ref, pu_adj=None, unidad="M3", misma_region=True, mismo_cubso=False):
@@ -545,7 +552,7 @@ def _top20_y_fake_grounded(monkeypatch):
         chunks = [p["fuentes"][0] for p in precios]
         return precios, {}, set(), chunks, 20
 
-    monkeypatch.setattr(mk, "_fanout_goods_retail", _fake_grounded)
+    monkeypatch.setattr(mk.goods_retail, "_fanout_goods_retail", _fake_grounded)
     _fake_refs(monkeypatch, [])
     return top, llamadas
 
@@ -574,7 +581,7 @@ def test_estimacion_ia_no_afecta_veredicto_ni_cobertura_del_lote(monkeypatch):
         return ({it["numero"]: {"precio_estimado": 999999.0, "unidad": "unidad", "confianza": "baja",
                                 "justificacion": "estimación de prueba"} for it in its}, set(), 1)
 
-    monkeypatch.setattr(mk, "_fanout_estimacion_llm", _fake_estimacion)
+    monkeypatch.setattr(mk.goods_retail, "_fanout_estimacion_llm", _fake_estimacion)
     res_con_cola = mk._mercado_goods_retail(_st(top2 + cola))
 
     assert llamadas["items"] == [str(i) for i in range(1, 21)]      # la cola NUNCA entra al fan-out grounded
@@ -613,7 +620,7 @@ def test_estimacion_ia_no_dispara_bandera_por_item(monkeypatch):
         return ({it["numero"]: {"precio_estimado": 0.0001, "unidad": "unidad", "confianza": "alta",
                                 "justificacion": "precio irrisorio a propósito"} for it in its}, set(), 1)
 
-    monkeypatch.setattr(mk, "_fanout_estimacion_llm", _fake_estimacion)
+    monkeypatch.setattr(mk.goods_retail, "_fanout_estimacion_llm", _fake_estimacion)
     res = mk._mercado_goods_retail(_st(top + cola))
     f21 = next(f for f in res["findings"] if f["item_numero"] == "21")
     assert (f21.get("veredicto") or "").lower() not in ("elevado", "muy_elevado")
