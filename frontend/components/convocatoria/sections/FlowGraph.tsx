@@ -74,7 +74,16 @@ AGENT_IDS.forEach((a) => G_EDGES.push({ from: "orch", to: a }));
 // paso narrado. Es lo que se anima en el grafo y se escribe en la narración.
 
 
-export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
+/**
+ * `override`: para integraciones que no tienen el stream crudo del ADK (p. ej. la cola
+ * financiada de /app/auditoria, que solo persiste fases coarse con timestamps reales) pero
+ * SÍ saben con certeza qué nodo está activo y cuáles terminaron — evita adivinar por orden
+ * de llegada, que con el DAG paralelo puede marcar "hecha" una fase que sigue corriendo.
+ */
+export function FlowGraph({ liveEvents = [], override }: {
+  liveEvents?: any[];
+  override?: { activeId: string; doneIds: string[]; narracion?: string | null } | null;
+}) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hoverRef = useRef<string | null>(null);
@@ -86,16 +95,19 @@ export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
   const trace = buildTrace(liveEvents);
   const curStep = trace.length ? trace[trace.length - 1] : null;
   // Estado del grafo derivado del TRACE REAL: qué agente trabaja ahora, cuáles terminaron.
-  let activeId = "orch";
-  if (curStep) {
+  // (o, en `override`, del estado real de cada fase — ver docstring arriba).
+  let activeId = override?.activeId ?? "orch";
+  if (!override && curStep) {
     if (AGENT_IDS.includes(curStep.f)) activeId = curStep.f;
     else if (curStep.f === "orch" && AGENT_IDS.includes(curStep.t)) activeId = curStep.t;
   }
-  const doneSet = new Set<string>();
-  trace.forEach((s) => {
-    if (AGENT_IDS.includes(s.f)) doneSet.add(s.f);
-    if (s.f === "orch" && AGENT_IDS.includes(s.t)) doneSet.add(s.t);
-  });
+  const doneSet = new Set<string>(override?.doneIds ?? []);
+  if (!override) {
+    trace.forEach((s) => {
+      if (AGENT_IDS.includes(s.f)) doneSet.add(s.f);
+      if (s.f === "orch" && AGENT_IDS.includes(s.t)) doneSet.add(s.t);
+    });
+  }
   doneSet.delete(activeId);
 
   // refs leídos por el rAF loop
@@ -366,7 +378,8 @@ export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
           )}
         </div>
 
-        {/* Hallazgos en vivo */}
+        {/* Hallazgos en vivo (necesita el trace fino del ADK: no disponible en `override`) */}
+        {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
           <div className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-clay">Hallazgos en vivo</div>
           {(findings.empresa || findings.entidad || findings.socios.length > 0 || findings.senales.length > 0) ? (
@@ -397,8 +410,10 @@ export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
             </div>
           ) : <p className="text-[12px] text-dim">Aún sin hallazgos…</p>}
         </div>
+        )}
 
-        {/* Traza de invocaciones (compacta: verbo + acción, sin prefijo redundante) */}
+        {/* Traza de invocaciones (compacta: verbo + acción) — ídem, requiere el trace fino */}
+        {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3 shadow-lg backdrop-blur">
           <div className="mb-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mute">Traza · últimos pasos</div>
           {recent.length ? (
@@ -412,6 +427,7 @@ export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
             </div>
           ) : <p className="text-[11px] text-dim">Esperando el primer paso…</p>}
         </div>
+        )}
 
         {/* Leyenda */}
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
@@ -428,10 +444,14 @@ export function FlowGraph({ liveEvents = [] }: { liveEvents?: any[] }) {
       {/* BARRA DE NARRACIÓN (paso actual) */}
       <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex max-w-[calc(100%-320px)] items-center gap-3 rounded-full border border-line bg-paperSoft/95 px-5 py-2.5 shadow-lg backdrop-blur">
         <span className="relative flex h-2.5 w-2.5 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: curStep ? VERB_HEX[curStep.v] : G_COLOR.orch.stroke }} />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? VERB_HEX[curStep.v] : G_COLOR.orch.stroke }} />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
         </span>
-        {curStep ? (
+        {override?.narracion ? (
+          <span className="truncate font-serif text-[14px] font-semibold text-ink">
+            <span style={{ color: stroke(activeId) }}>{nm(activeId)}</span> · {override.narracion}
+          </span>
+        ) : curStep ? (
           <span className="truncate font-serif text-[14px] font-semibold text-ink">
             <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: VERB_HEX[curStep.v] }}>{curStep.v}</span>
             {" "}<span style={{ color: stroke(curStep.f) }}>{nm(curStep.f)}</span> {curStep.m}

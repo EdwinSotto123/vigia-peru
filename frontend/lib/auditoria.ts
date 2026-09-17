@@ -432,6 +432,42 @@ export function progresoCarriles(fases: FasesMap, estado: EstadoProc): { key: st
   });
 }
 
+/** Fase (backend/dispatcher) → id de nodo del grafo agéntico (components/convocatoria/sections/FlowGraph). */
+const NODO_POR_FASE: Record<string, string> = {
+  compliance: "compliance",
+  document_parser: "parser",
+  document_legal_analyst: "legal",
+  market: "market",
+  web_research: "web",
+  news_research: "news",
+  entity_personnel: "entity",
+  person_network: "person",
+  compliance_extended: "extended",
+  report_writer: "writer",
+};
+
+/**
+ * Traduce el `FasesMap` real (con `desde`/`hasta` por fase) al {activeId, doneIds} que
+ * espera `FlowGraph` — el mismo grafo animado del buscador a demanda, alimentado acá por
+ * la cola financiada en vez del stream ADK crudo. Usa el ESTADO real de cada fase, no el
+ * orden de arranque: el DAG corre ramas en paralelo, así que una fase que arrancó antes
+ * puede seguir "corriendo" cuando otra ya empezó — basarse solo en el orden la marcaría
+ * "hecha" por error. Si varias corren a la vez, la más reciente en arrancar es la activa
+ * (el grafo solo ilumina un nodo a la vez, igual que en el buscador a demanda).
+ */
+export function nodoActivoYHechos(fases: FasesMap): { activeId: string; doneIds: string[] } {
+  const doneIds: string[] = [];
+  let activeId: string | null = null;
+  let activeDesde = "";
+  for (const [fase, nodo] of Object.entries(NODO_POR_FASE)) {
+    const f = fases[fase];
+    if (!f) continue;
+    if (f.estado === "hecho" || f.estado === "omitido" || f.estado === "error") doneIds.push(nodo);
+    else if (f.estado === "corriendo" && f.desde && f.desde > activeDesde) { activeId = nodo; activeDesde = f.desde; }
+  }
+  return { activeId: activeId ?? "orch", doneIds };
+}
+
 // ─── Helpers de presentación ─────────────────────────────────────────────────
 
 /** Etiqueta humana de una fase; para nombres fuera del pipeline devuelve el nombre tal cual. */

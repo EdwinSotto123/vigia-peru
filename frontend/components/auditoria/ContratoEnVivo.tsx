@@ -20,9 +20,10 @@ import Link from "next/link";
 import { ChevronLeft, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
-  AGENTES_PROGRESO, PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, getReglasPerfil, haceCuanto, progresoFases,
+  AGENTES_PROGRESO, PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, getReglasPerfil, haceCuanto, nodoActivoYHechos, progresoFases,
   type ProcesamientoDetalle,
 } from "@/lib/auditoria";
+import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
 import { Bitacora } from "./Bitacora";
 import { CompartirButton } from "./CompartirButton";
 import { DagCarriles } from "./DagCarriles";
@@ -229,6 +230,11 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
           <ReplayAnalisis eventos={p.eventos} estadoFinal={estado} compacto={compacto} />
         ) : (
           <>
+            {!compacto && p.estado === "procesando" && (
+              <div className="mb-4">
+                <FlowGraph override={{ ...nodoActivoYHechos(fases), narracion: faseHumana(p, montado ? ahora : undefined, fases) }} />
+              </div>
+            )}
             <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
             {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
             <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
