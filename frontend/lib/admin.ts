@@ -145,3 +145,20 @@ export interface ProgresoDocumentos {
 }
 
 export const PERFIL_LABEL: Record<string, string> = { bienes: "Bienes", servicios: "Servicios", obras: "Obras", otros: "Otros (consultoría, convenio, directa)" };
+
+// ─── U6 · Procesar un lote a nombre de Vigía Perú (sin pasarela) ─────────────
+
+export interface PreviewLote { ubigeo: string; zona: string; nivel: string; enCola: number; precioPen: number }
+export interface LoteProcesado {
+  codigo: string; ubigeo: string; asignados: number; solicitados: number; ocids: string[];
+  pedidosAbiertos: number; listosParaProcesar: number; dispatcherDisparado: boolean;
+}
+
+/** Vista previa (cuántos hay en cola en esa zona) antes de confirmar — no escribe nada. */
+export const previewLote = (ubigeo: string) => adminFetch<PreviewLote>(`/procesar-lote/preview?ubigeo=${encodeURIComponent(ubigeo)}`);
+
+/** Crea la contribución YA `pagada` a nombre de Vigía Perú, asigna por antigüedad (FIFO, igual
+ *  que un aporte ciudadano) y abre pedidos de descarga; si algún contrato ya tiene documentos,
+ *  además dispara el dispatcher ahora en vez de esperar su ciclo. */
+export const procesarLote = (ubigeo: string, contratos: number) =>
+  adminFetch<LoteProcesado>("/procesar-lote", { method: "POST", body: JSON.stringify({ ubigeo, contratos }) });

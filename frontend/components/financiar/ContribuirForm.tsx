@@ -9,15 +9,23 @@
  *   · comprobante por foto OPCIONAL (cámara directa en móvil); se puede enviar más tarde desde /impacto/[codigo]
  *   · borrador en localStorage (cantidad, identidad y el aporte creado) para no perder nada al recargar
  * La confirmación la hace un admin (POST /admin/contribuciones/:codigo/validar).
+ *
+ * U6 — sesión admin activa (cookie httpOnly de /admin/login, detectada con `useEsAdmin`, nunca
+ * redirige a un visitante normal): la MISMA página y el MISMO paso de cantidad, pero en vez de
+ * "¿quién financia? / ¿cómo pagas?" hay un solo botón — "Procesar N contratos a nombre de Vigía
+ * Perú" — que llama a POST /admin/procesar-lote (sin pasarela, resultado inmediato) en vez de
+ * POST /contribuciones (pendiente_pago).
  */
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, User, Users, EyeOff, Upload, CheckCircle2, Loader2, Camera, ArrowRight, UserPlus, ShieldCheck } from "lucide-react";
+import { Building2, User, Users, EyeOff, Upload, CheckCircle2, Loader2, Camera, ArrowRight, UserPlus, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { borrarBorrador, guardarBorrador, idToken, leerBorrador, useCuenta } from "@/lib/cuentas";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useEsAdmin } from "@/lib/useEsAdmin";
+import { procesarLote, type LoteProcesado } from "@/lib/admin";
 import { BrandBadge, PaymentMethods, type PagoPublico } from "./PaymentMethods";
 
 type Tipo = "empresa" | "organizacion" | "persona" | "anonimo";
@@ -58,6 +66,25 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
   const [progreso, setProgreso] = useState<number | null>(null);
   const [masDatos, setMasDatos] = useState(false);
   const restaurado = useRef(false);
+
+  // U6: admin — mismo formulario, sin pasarela, a nombre de Vigía Perú.
+  const esAdmin = useEsAdmin();
+  const [loadingAdmin, setLoadingAdmin] = useState(false);
+  const [errorAdmin, setErrorAdmin] = useState<string | null>(null);
+  const [procesado, setProcesado] = useState<LoteProcesado | null>(null);
+
+  async function procesarAhora() {
+    setErrorAdmin(null);
+    setLoadingAdmin(true);
+    try {
+      const r = await procesarLote(ubigeo, contratos);
+      setProcesado(r);
+    } catch (err) {
+      setErrorAdmin((err as Error).message);
+    } finally {
+      setLoadingAdmin(false);
+    }
+  }
 
   // Borrador local: cantidad/identidad y, si ya se creó, el aporte con sus datos de pago.
   useEffect(() => {
@@ -158,6 +185,59 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
     </p>
   );
 
+  // U6: sesión admin — ve lo mismo que cualquiera, pero el botón final procesa en vez de cobrar.
+  if (esAdmin) {
+    if (procesado) {
+      return (
+        <div className="rounded-2xl border border-amber/40 bg-paper p-5 sm:p-6" aria-live="polite">
+          <div className="flex items-center gap-2 text-moss"><CheckCircle2 size={18} aria-hidden /><span className="text-sm font-semibold">Procesado a nombre de Vigía Perú</span></div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3">
+            <h3 className="font-mono text-2xl font-bold text-ink">{procesado.codigo}</h3>
+            <span className="text-sm text-mute">{procesado.asignados} de {procesado.solicitados} contratos asignados en {zonaNombre}</span>
+          </div>
+          <ul className="mt-4 space-y-1.5 text-[13px] text-ink">
+            <li>· {procesado.listosParaProcesar} ya tenían documentos {procesado.dispatcherDisparado ? "— el dispatcher se disparó ahora mismo" : "(el dispatcher los toma en su próximo ciclo, ≤ 5 min)"}.</li>
+            <li>· {procesado.pedidosAbiertos} quedaron con pedido de descarga: el lote nocturno los baja y luego se procesan solos.</li>
+          </ul>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link href={`/impacto/${procesado.codigo}`} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
+              Ver comprobante <ArrowRight size={14} aria-hidden />
+            </Link>
+            <Link href={`/app/auditoria?ubigeo=${ubigeo}`} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-paperDeep">
+              Ver en auditoría en vivo
+            </Link>
+          </div>
+          <button type="button" onClick={() => setProcesado(null)} className="mt-4 text-[11px] text-mute underline hover:text-ink">
+            Procesar otro lote en {zonaNombre}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-2xl border border-amber/40 bg-paper p-5 sm:p-6">
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-clay">
+          <ShieldAlert size={11} aria-hidden /> Modo administrador — a nombre de Vigía Perú, sin pasarela
+        </div>
+        <h3 className="font-serif text-xl font-bold text-ink">Procesar auditoría en {zonaNombre}</h3>
+        <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato (referencial) · quedan {restantes.toLocaleString("es-PE")} sin financiar</p>
+        <CantidadPicker contratos={contratos} setContratos={setContratos} presets={presets} restantes={restantes} precioPen={precioPen} monto={monto} />
+        {errorAdmin && <p className="mt-4 text-sm text-rust" role="alert">{errorAdmin}</p>}
+        <button
+          type="button"
+          onClick={procesarAhora}
+          disabled={loadingAdmin || contratos < 5}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-clay px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60"
+        >
+          {loadingAdmin ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Zap size={14} aria-hidden />}
+          Procesar {contratos} contratos a nombre de Vigía Perú
+        </button>
+        <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-mute">
+          Se asignan por antigüedad — nadie elige contratos, ni el admin. Con documentos ya listos, se procesan ahora; sin ellos, esta noche.
+        </p>
+      </div>
+    );
+  }
+
   if (creada) {
     return (
       <div className="rounded-2xl border border-line bg-paper p-5 sm:p-6" aria-live="polite">
@@ -242,26 +322,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
       <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato · quedan {restantes.toLocaleString("es-PE")} sin financiar</p>
 
       {/* Cantidad */}
-      <div className="mt-5" role="group" aria-labelledby="lbl-cantidad">
-        <div id="lbl-cantidad" className="text-[11px] uppercase tracking-wide text-mute">¿Cuántos contratos?</div>
-        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Cantidad de contratos">
-          {presets.map((n) => (
-            <button type="button" key={n} role="radio" aria-checked={contratos === n} onClick={() => setContratos(n)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === n ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
-              {n} · {formatPEN(n * precioPen)}
-            </button>
-          ))}
-          {restantes > 100 && (
-            <button type="button" role="radio" aria-checked={contratos === restantes} onClick={() => setContratos(restantes)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === restantes ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
-              Todos ({restantes.toLocaleString("es-PE")}) · {formatPEN(restantes * precioPen)}
-            </button>
-          )}
-        </div>
-        <div className="mt-2 flex items-center gap-2 text-sm">
-          <label htmlFor="otra-cantidad" className="text-mute">Otro:</label>
-          <input id="otra-cantidad" type="number" min={5} inputMode="numeric" value={contratos} onChange={(e) => setContratos(Math.max(5, Number(e.target.value) || 5))} className="w-24 rounded-lg border border-line px-2 py-1 font-mono" />
-          <span className="font-mono text-ink">= {formatPEN(monto)}</span>
-        </div>
-      </div>
+      <CantidadPicker contratos={contratos} setContratos={setContratos} presets={presets} restantes={restantes} precioPen={precioPen} monto={monto} />
 
       {/* Identidad */}
       <div className="mt-5" role="group" aria-labelledby="lbl-quien">
@@ -360,6 +421,34 @@ function subirConProgreso(file: File, onProgress: (pct: number) => void): Promis
     xhr.onerror = () => reject(new Error("Sin conexión al subir el comprobante"));
     xhr.send(fd);
   });
+}
+
+/** Paso "¿cuántos contratos?": mismo selector para el formulario ciudadano y para el admin. */
+function CantidadPicker({ contratos, setContratos, presets, restantes, precioPen, monto }: {
+  contratos: number; setContratos: (n: number) => void; presets: number[]; restantes: number; precioPen: number; monto: number;
+}) {
+  return (
+    <div className="mt-5" role="group" aria-labelledby="lbl-cantidad">
+      <div id="lbl-cantidad" className="text-[11px] uppercase tracking-wide text-mute">¿Cuántos contratos?</div>
+      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Cantidad de contratos">
+        {presets.map((n) => (
+          <button type="button" key={n} role="radio" aria-checked={contratos === n} onClick={() => setContratos(n)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === n ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
+            {n} · {formatPEN(n * precioPen)}
+          </button>
+        ))}
+        {restantes > 100 && (
+          <button type="button" role="radio" aria-checked={contratos === restantes} onClick={() => setContratos(restantes)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === restantes ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
+            Todos ({restantes.toLocaleString("es-PE")}) · {formatPEN(restantes * precioPen)}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-sm">
+        <label htmlFor="otra-cantidad" className="text-mute">Otro:</label>
+        <input id="otra-cantidad" type="number" min={5} inputMode="numeric" value={contratos} onChange={(e) => setContratos(Math.max(5, Number(e.target.value) || 5))} className="w-24 rounded-lg border border-line px-2 py-1 font-mono" />
+        <span className="font-mono text-ink">= {formatPEN(monto)}</span>
+      </div>
+    </div>
+  );
 }
 
 function Stepper({ step }: { step: 1 | 2 | 3 | 4 }) {
