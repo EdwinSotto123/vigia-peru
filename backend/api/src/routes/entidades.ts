@@ -9,13 +9,14 @@ const ListQuery = z.object({
   region: z.string().optional(),
   tipo: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
-// ─── GET /entidades — lista con contadores agregados ────────────
+// ─── GET /entidades — lista con contadores agregados (paginada) ─
 entidadesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { q, region, tipo, limit } = parsed.data;
+  const { q, region, tipo, limit, offset } = parsed.data;
 
   const conds: string[] = [];
   const vals: any[] = [];
@@ -27,36 +28,40 @@ entidadesRouter.get("/", async (c) => {
   if (tipo)   { vals.push(tipo);   conds.push(`e.tipo = $${vals.length}`); }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
 
-  vals.push(limit);
-  const r = await pool.query(
-    `SELECT
-       e.ruc, e.nombre, e.tipo, e.region, e.provincia, e.distrito,
-       e.pliego_nombre_mef AS "pliegoNombreMef",
-       COALESCE(a.alertas, 0)      AS alertas,
-       COALESCE(a.monto, 0)::float AS monto,
-       COALESCE(a.score_avg, 0)::int AS "scorePromedio",
-       (e.metadata->>'reportes_mock')::int             AS reportes,
-       COALESCE(cv.contratos, (e.metadata->>'contratos')::int, 0)::int AS contratos,
-       COALESCE(a.alertas, (e.metadata->>'contratos_vigilados')::int, 0)::int AS "contratosVigilados",
-       e.metadata->'serie_mock'                        AS serie
-     FROM entidades e
-     LEFT JOIN (
-       SELECT entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias GROUP BY entidad_ruc
-     ) cv ON cv.entidad_ruc = e.ruc
-     LEFT JOIN (
-       SELECT entidad_ruc,
-              COUNT(*)::int AS alertas,
-              SUM(monto_adjudicado) AS monto,
-              AVG(score)::int AS score_avg
-       FROM alertas WHERE estado = 'activa'
-       GROUP BY entidad_ruc
-     ) a ON a.entidad_ruc = e.ruc
-     ${where}
-     ORDER BY a.alertas DESC NULLS LAST, e.nombre
-     LIMIT $${vals.length}`,
-    vals,
-  );
-  return c.json({ data: r.rows });
+  const totalVals = [...vals];
+  vals.push(limit, offset);
+  const [r, total] = await Promise.all([
+    pool.query(
+      `SELECT
+         e.ruc, e.nombre, e.tipo, e.region, e.provincia, e.distrito,
+         e.pliego_nombre_mef AS "pliegoNombreMef",
+         COALESCE(a.alertas, 0)      AS alertas,
+         COALESCE(a.monto, 0)::float AS monto,
+         COALESCE(a.score_avg, 0)::int AS "scorePromedio",
+         (e.metadata->>'reportes_mock')::int             AS reportes,
+         COALESCE(cv.contratos, (e.metadata->>'contratos')::int, 0)::int AS contratos,
+         COALESCE(a.alertas, (e.metadata->>'contratos_vigilados')::int, 0)::int AS "contratosVigilados",
+         e.metadata->'serie_mock'                        AS serie
+       FROM entidades e
+       LEFT JOIN (
+         SELECT entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias GROUP BY entidad_ruc
+       ) cv ON cv.entidad_ruc = e.ruc
+       LEFT JOIN (
+         SELECT entidad_ruc,
+                COUNT(*)::int AS alertas,
+                SUM(monto_adjudicado) AS monto,
+                AVG(score)::int AS score_avg
+         FROM alertas WHERE estado = 'activa'
+         GROUP BY entidad_ruc
+       ) a ON a.entidad_ruc = e.ruc
+       ${where}
+       ORDER BY a.alertas DESC NULLS LAST, e.nombre
+       LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
+      vals,
+    ),
+    pool.query(`SELECT count(*)::int AS n FROM entidades e ${where}`, totalVals),
+  ]);
+  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /entidades/summary ── KPIs globales ────────────────────
