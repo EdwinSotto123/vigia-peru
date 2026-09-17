@@ -23,6 +23,7 @@
  *   GET   /admin/pedidos · POST /admin/pedidos/:id/reintentar   pedidos de descarga (migración 15)
  *   + admin_revision.ts  (/revision, /alertas/:id/estado, /config/self_eval)
  *   + admin_operacion.ts (/operacion, /procesamientos/:ocid/reanalizar, /cobertura/progreso)
+ *   + admin_procesar.ts  (GET /procesar-lote/preview, POST /procesar-lote — a nombre de Vigía Perú, sin pasarela)
  */
 
 import { Hono } from "hono";
@@ -30,8 +31,10 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { storage } from "../lib/storage.js";
 import { actor, log } from "../lib/adminlog.js";
+import { dispatchNow } from "../lib/dispatcher.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
+import { adminProcesarRouter } from "./admin_procesar.js";
 
 export const adminRouter = new Hono();
 
@@ -47,6 +50,8 @@ adminRouter.get("/ping", (c) => c.json({ ok: true }));
 // U4: cola de revisión humana + umbrales (admin_revision.ts) y operación (admin_operacion.ts).
 adminRouter.route("/", adminRevisionRouter);
 adminRouter.route("/", adminOperacionRouter);
+// U6: procesar un lote a nombre de Vigía Perú desde el panel, sin pasarela (admin_procesar.ts).
+adminRouter.route("/", adminProcesarRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {
@@ -334,26 +339,11 @@ adminRouter.get("/salud", async (c) => {
 });
 
 // ─── Dispatcher: ejecutar el Cloud Run Job ahora ─────────────────────────────
-// Usa el token de la service account del servicio (metadata server), sin librerías.
 adminRouter.post("/dispatcher/run", async (c) => {
-  const project = process.env.GCS_PROJECT_ID ?? process.env.GOOGLE_CLOUD_PROJECT;
-  const region = process.env.DISPATCHER_REGION ?? "us-central1";
-  const job = process.env.DISPATCHER_JOB ?? "vigia-dispatcher";
-  if (!project) return c.json({ error: "no_project" }, 500);
-  try {
-    const tok = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", { headers: { "Metadata-Flavor": "Google" } });
-    if (!tok.ok) return c.json({ error: "no_metadata_token", detail: "solo funciona desplegado en Cloud Run" }, 500);
-    const { access_token } = (await tok.json()) as { access_token: string };
-    const r = await fetch(`https://run.googleapis.com/v2/projects/${project}/locations/${region}/jobs/${job}:run`, {
-      method: "POST", headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" }, body: "{}",
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return c.json({ error: "run_failed", detail: j?.error?.message ?? r.status }, 502);
-    await log(actor(c), "dispatcher_run", `job:${job}`, { operation: j?.name });
-    return c.json({ ok: true, operation: j?.name ?? null });
-  } catch (e) {
-    return c.json({ error: "internal", detail: (e as Error).message }, 500);
-  }
+  const r = await dispatchNow();
+  if (!r.ok) return c.json({ error: r.error === "no_project" ? "no_project" : "run_failed", detail: r.error }, r.error === "no_project" ? 500 : 502);
+  await log(actor(c), "dispatcher_run", "job:vigia-dispatcher", { operation: r.operation });
+  return c.json({ ok: true, operation: r.operation });
 });
 
 // ─── Re-encolar todos los que quedaron en error ──────────────────────────────
