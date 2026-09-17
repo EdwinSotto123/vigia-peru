@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Filter,
   MapPin,
   Calendar,
   CheckCircle2,
@@ -15,29 +14,37 @@ import {
   Camera,
 } from "lucide-react";
 import type { ReporteCiudadano, Convergencia } from "@/types";
-import {
-  CATEGORIA_META,
-  TODAS_CATEGORIAS,
-  type CategoriaDenuncia,
-} from "@/lib/denuncias-meta";
+import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
+import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { DenunciasMap } from "./DenunciasMap";
 import { cn } from "@/lib/utils";
 
-type EstadoFilter = "todos" | "verificados" | "en_validacion" | "convergentes";
 type ViewMode = "grid" | "mapa";
 
 interface Props {
+  /** Página actual: ya filtrada (región/categoría/estado) y paginada server-side. */
   reportes: ReporteCiudadano[];
+  /** Mismos filtros que `reportes` pero sin paginar (hasta 200) — pines del mapa. */
+  reportesMapa: ReporteCiudadano[];
   convergencias: Convergencia[];
+  /** Filtros activos (para armar los links de paginación sin perderlos). */
+  query: DenunciasQuery;
+  /** Total real de denuncias que matchean los filtros (COUNT del backend, no el tamaño de esta página). */
+  total: number;
+  paginas: number;
+  size: number;
 }
 
-export function DenunciasGrid({ reportes, convergencias }: Props) {
-  const [categoria, setCategoria] = useState<CategoriaDenuncia | "todas">(
-    "todas",
-  );
-  const [estado, setEstado] = useState<EstadoFilter>("todos");
-  const [region, setRegion] = useState<string>("todas");
-  const [query, setQuery] = useState("");
+/**
+ * Grilla + mapa de denuncias. Región/categoría/estado ya llegan resueltos
+ * desde el servidor (ver FiltrosDenuncias, en la página) — acá solo queda un
+ * filtro de texto libre puramente local, porque el API no tiene búsqueda
+ * full-text: afina lo que ya llegó (la página actual en vista lista, o el
+ * batch grande en vista mapa), cada vista con su propio conteo.
+ */
+export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, total, paginas, size }: Props) {
+  const [texto, setTexto] = useState("");
   const [view, setView] = useState<ViewMode>("grid");
 
   const reportesEnConvergencia = useMemo(() => {
@@ -46,169 +53,113 @@ export function DenunciasGrid({ reportes, convergencias }: Props) {
     return s;
   }, [convergencias]);
 
-  const regiones = useMemo(
-    () => Array.from(new Set(reportes.map((r) => r.region))).sort(),
-    [reportes],
-  );
+  const q = texto.trim().toLowerCase();
+  const coincideTexto = (r: ReporteCiudadano) =>
+    !q ||
+    r.descripcion.toLowerCase().includes(q) ||
+    r.region.toLowerCase().includes(q) ||
+    r.id.toLowerCase().includes(q);
 
-  const filtered = useMemo(() => {
-    return reportes.filter((r) => {
-      if (categoria !== "todas" && r.categoria !== categoria) return false;
-      if (region !== "todas" && r.region !== region) return false;
-      if (estado === "verificados" && !r.confirmado) return false;
-      if (estado === "en_validacion" && r.confirmado) return false;
-      if (estado === "convergentes" && !reportesEnConvergencia.has(r.id))
-        return false;
-      if (query.trim()) {
-        const q = query.trim().toLowerCase();
-        if (
-          !r.descripcion.toLowerCase().includes(q) &&
-          !r.region.toLowerCase().includes(q) &&
-          !r.id.toLowerCase().includes(q)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [reportes, categoria, region, estado, query, reportesEnConvergencia]);
+  const filtradosGrid = useMemo(() => (q ? reportes.filter(coincideTexto) : reportes), [reportes, q]);
+  const filtradosMapa = useMemo(() => (q ? reportesMapa.filter(coincideTexto) : reportesMapa), [reportesMapa, q]);
+
+  const hrefPagina = (n: number) => {
+    const qs = denunciasQueryString({ ...query, page: n });
+    return qs ? `/app/denuncias?${qs}` : "/app/denuncias";
+  };
+
+  const paginacion = (
+    <Paginacion
+      actual={query.page}
+      paginas={paginas}
+      total={total}
+      tam={size}
+      navegacion="url"
+      href={hrefPagina}
+      onChange={() => {}}
+      cargando={false}
+      nombre="denuncias"
+    />
+  );
 
   return (
     <div className="space-y-5">
-      {/* FILTROS — barra superior */}
-      <div className="surface space-y-3 p-4">
-        {/* Search + view toggle */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-mute"
-            />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por descripción, región o ID…"
-              className="w-full rounded-full border border-line bg-paperSoft py-2 pl-9 pr-3 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
-            />
-          </div>
-
-          <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
-            <ViewToggle
-              active={view === "grid"}
-              icon={<LayoutGrid size={13} />}
-              label="Lista"
-              onClick={() => setView("grid")}
-            />
-            <ViewToggle
-              active={view === "mapa"}
-              icon={<MapIcon size={13} />}
-              label="Mapa"
-              onClick={() => setView("mapa")}
-            />
-          </div>
-        </div>
-
-        {/* Chips categorías */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-mute">
-            <Filter size={11} /> Categoría
-          </span>
-          <CategoryChip
-            active={categoria === "todas"}
-            label="Todas"
-            onClick={() => setCategoria("todas")}
-            color="#76695A"
+      {/* Búsqueda de texto + toggle de vista */}
+      <div className="surface flex flex-wrap items-center gap-2 p-4">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
+          <input
+            type="text"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Buscar por descripción, región o ID…"
+            className="w-full rounded-full border border-line bg-paperSoft py-2 pl-9 pr-3 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
           />
-          {TODAS_CATEGORIAS.map((c) => {
-            const meta = CATEGORIA_META[c];
-            const Icon = meta.icon;
-            return (
-              <CategoryChip
-                key={c}
-                active={categoria === c}
-                label={meta.label}
-                icon={<Icon size={11} />}
-                color={meta.color}
-                onClick={() =>
-                  setCategoria((prev) => (prev === c ? "todas" : c))
-                }
-              />
-            );
-          })}
         </div>
 
-        {/* Estado + Región */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-mute">
-              Estado
-            </span>
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value as EstadoFilter)}
-              className="rounded-full border border-line bg-paperSoft px-2.5 py-1 text-xs text-ink focus:border-clay focus:outline-none"
-            >
-              <option value="todos">Todos</option>
-              <option value="verificados">✓ Verificados</option>
-              <option value="en_validacion">En validación</option>
-              <option value="convergentes">⚫ Convergentes</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-mute">
-              Región
-            </span>
-            <select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className="rounded-full border border-line bg-paperSoft px-2.5 py-1 text-xs text-ink focus:border-clay focus:outline-none"
-            >
-              <option value="todas">Todas</option>
-              {regiones.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <span className="ml-auto text-[11px] text-mute">
-            {filtered.length} de {reportes.length} reporte
-            {reportes.length === 1 ? "" : "s"}
-          </span>
+        <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
+          <ViewToggle active={view === "grid"} icon={<LayoutGrid size={13} />} label="Lista" onClick={() => setView("grid")} />
+          <ViewToggle active={view === "mapa"} icon={<MapIcon size={13} />} label="Mapa" onClick={() => setView("mapa")} />
         </div>
       </div>
 
       {/* RESULTADO */}
-      {filtered.length === 0 ? (
+      {view === "grid" ? (
+        <>
+          {paginacion}
+          {filtradosGrid.length === 0 ? (
+            <div className="surface flex flex-col items-center gap-2 p-10 text-center">
+              <Search size={20} className="text-mute" />
+              <p className="text-sm text-mute">
+                {total === 0
+                  ? "No hay denuncias que coincidan con esos filtros."
+                  : reportes.length === 0
+                    ? "Esta página no tiene denuncias — probá una página anterior."
+                    : "Ninguna denuncia de esta página coincide con tu búsqueda de texto."}
+              </p>
+              {total === 0 ? (
+                <Link href="/app/denuncias" className="text-xs font-medium text-clay hover:underline">
+                  Limpiar filtros
+                </Link>
+              ) : reportes.length === 0 ? (
+                <Link href={hrefPagina(1)} className="text-xs font-medium text-clay hover:underline">
+                  Ir a la página 1
+                </Link>
+              ) : (
+                <button onClick={() => setTexto("")} className="text-xs font-medium text-clay hover:underline">
+                  Limpiar búsqueda
+                </button>
+              )}
+            </div>
+          ) : (
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtradosGrid.map((r) => (
+                <DenunciaCard key={r.id} reporte={r} esConvergente={reportesEnConvergencia.has(r.id)} />
+              ))}
+            </ul>
+          )}
+          {filtradosGrid.length > 10 && paginacion}
+        </>
+      ) : filtradosMapa.length === 0 ? (
         <div className="surface flex flex-col items-center gap-2 p-10 text-center">
           <Search size={20} className="text-mute" />
           <p className="text-sm text-mute">
-            No hay denuncias que coincidan con esos filtros.
+            {reportesMapa.length === 0
+              ? "No hay denuncias que coincidan con esos filtros."
+              : "Ninguna denuncia coincide con tu búsqueda de texto."}
           </p>
-          <button
-            onClick={() => {
-              setCategoria("todas");
-              setEstado("todos");
-              setRegion("todas");
-              setQuery("");
-            }}
-            className="text-xs font-medium text-clay hover:underline"
-          >
-            Limpiar filtros
-          </button>
+          {reportesMapa.length === 0 ? (
+            <Link href="/app/denuncias" className="text-xs font-medium text-clay hover:underline">
+              Limpiar filtros
+            </Link>
+          ) : (
+            <button onClick={() => setTexto("")} className="text-xs font-medium text-clay hover:underline">
+              Limpiar búsqueda
+            </button>
+          )}
         </div>
-      ) : view === "grid" ? (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((r) => (
-            <DenunciaCard
-              key={r.id}
-              reporte={r}
-              esConvergente={reportesEnConvergencia.has(r.id)}
-            />
-          ))}
-        </ul>
       ) : (
-        <DenunciasMap reportes={filtered} />
+        <DenunciasMap reportes={filtradosMapa} />
       )}
     </div>
   );
@@ -236,42 +187,6 @@ function ViewToggle({
       )}
     >
       {icon}
-      {label}
-    </button>
-  );
-}
-
-function CategoryChip({
-  active,
-  label,
-  icon,
-  color,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  icon?: React.ReactNode;
-  color: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-        active
-          ? "border-ink bg-ink text-paper"
-          : "border-line bg-paperSoft text-ink hover:bg-paperDeep",
-      )}
-    >
-      {icon && (
-        <span
-          style={{ color: active ? "currentColor" : color }}
-          className="flex items-center"
-        >
-          {icon}
-        </span>
-      )}
       {label}
     </button>
   );

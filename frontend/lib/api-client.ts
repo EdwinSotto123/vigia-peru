@@ -248,8 +248,10 @@ export async function createReporte(payload: {
 export async function getReportes(params: {
   region?: string;
   categoria?: string;
+  confirmados?: "true" | "false";
   bbox?: string;
   limit?: number;
+  offset?: number;
 } = {}): Promise<ApiReporte[]> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -257,6 +259,35 @@ export async function getReportes(params: {
   }
   const r = await get<{ data: ApiReporte[] }>(`/reportes?${qs}`);
   return r.data;
+}
+
+export interface ReportesPagina {
+  data: ApiReporte[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Igual que `getReportes` pero devuelve el sobre completo con `total` real
+ * (COUNT del backend) para paginar de verdad — lo usa /app/denuncias para
+ * "página N de M". `getReportes` se deja intacto devolviendo solo el array:
+ * MapaWrapper.tsx y el propio mapa de /app/denuncias ya dependen de esa forma
+ * para pedir un batch grande sin paginar.
+ */
+export async function getReportesPagina(params: {
+  region?: string;
+  categoria?: string;
+  confirmados?: "true" | "false";
+  bbox?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ReportesPagina> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null) qs.set(k, String(v));
+  }
+  return get<ReportesPagina>(`/reportes?${qs}`);
 }
 
 export async function getConvergencias(): Promise<ApiConvergencia[]> {

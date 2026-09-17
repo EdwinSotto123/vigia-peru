@@ -1,0 +1,99 @@
+"use client";
+
+/**
+ * Filtros de /app/denuncias: región, categoría y estado (verificado / en
+ * validación) — viven en la URL (`?region=&categoria=&estado=`), mismo patrón
+ * que FiltroRegion.tsx / FiltrosHistorico.tsx (auditoría): cada cambio hace
+ * `router.push`, cae al valor de la URL sin JS, vuelve a la página 1.
+ *
+ * "Convergentes" no está acá: es una etiqueta cruzada con /reportes/convergencias
+ * (no una columna filtrable en el backend), así que se mantiene solo como
+ * badge visual en cada tarjeta (ver DenunciasGrid) en vez de un filtro a medias
+ * que solo mira la página actual.
+ *
+ * El estado de moderación (pendiente/aprobado/rechazado) del backend NO se usa
+ * como filtro público a propósito: la página existe para mostrar TODAS las
+ * denuncias ciudadanas ("son públicas y verificables"), no solo las aprobadas.
+ */
+
+import { useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2, MapPin, Tag, ShieldCheck, X } from "lucide-react";
+import { REGIONES } from "@/lib/peru-data";
+import { CATEGORIA_META, TODAS_CATEGORIAS } from "@/lib/denuncias-meta";
+import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query";
+
+const REGIONES_ORDENADAS = [...REGIONES].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
+interface Props {
+  query: DenunciasQuery;
+}
+
+export function FiltrosDenuncias({ query }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pendiente, start] = useTransition();
+
+  const navegar = (patch: Partial<DenunciasQuery>) => {
+    const qs = denunciasQueryString({ ...query, ...patch, page: 1 });
+    start(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
+  };
+
+  const hayFiltros = !!(query.region || query.categoria || query.estado);
+  const sel = "bg-transparent pr-1 text-sm outline-none";
+
+  return (
+    <div className="surface flex flex-wrap items-center gap-2 p-3">
+      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+        <MapPin size={14} className="text-mute" aria-hidden />
+        <span className="sr-only">Filtrar por región</span>
+        <select value={query.region ?? ""} onChange={(e) => navegar({ region: e.target.value || undefined })} className={sel}>
+          <option value="">Todas las regiones</option>
+          {REGIONES_ORDENADAS.map((r) => (
+            <option key={r.id} value={r.nombre}>{r.nombre}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+        <Tag size={14} className="text-mute" aria-hidden />
+        <span className="sr-only">Filtrar por categoría</span>
+        <select
+          value={query.categoria ?? ""}
+          onChange={(e) => navegar({ categoria: (e.target.value || undefined) as DenunciasQuery["categoria"] })}
+          className={sel}
+        >
+          <option value="">Toda categoría</option>
+          {TODAS_CATEGORIAS.map((c) => (
+            <option key={c} value={c}>{CATEGORIA_META[c].label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+        <ShieldCheck size={14} className="text-mute" aria-hidden />
+        <span className="sr-only">Filtrar por estado</span>
+        <select
+          value={query.estado ?? ""}
+          onChange={(e) => navegar({ estado: (e.target.value || undefined) as DenunciasQuery["estado"] })}
+          className={sel}
+        >
+          <option value="">Todo estado</option>
+          <option value="verificados">✓ Verificados</option>
+          <option value="en_validacion">En validación</option>
+        </select>
+      </label>
+
+      {hayFiltros && (
+        <button
+          type="button"
+          onClick={() => start(() => router.push(pathname, { scroll: false }))}
+          className="inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-2.5 py-2 text-[12px] text-mute hover:text-ink"
+        >
+          <X size={12} aria-hidden /> Limpiar
+        </button>
+      )}
+      {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Cargando" />}
+    </div>
+  );
+}

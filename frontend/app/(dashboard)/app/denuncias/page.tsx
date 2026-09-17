@@ -10,29 +10,69 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DenunciasGrid } from "@/components/denuncias/DenunciasGrid";
-import { getReportes, getConvergencias } from "@/lib/api-client";
+import { FiltrosDenuncias } from "@/components/denuncias/FiltrosDenuncias";
+import { getReportes, getReportesPagina, getConvergencias } from "@/lib/api-client";
 import { REPORTES_MOCK, CONVERGENCIAS_MOCK } from "@/lib/mock-data";
+import { parseDenunciasQuery, confirmadosDe } from "@/lib/denuncias-query";
 import type { ReporteCiudadano, Convergencia } from "@/types";
 
-export default async function DenunciasPage() {
-  let reportes: ReporteCiudadano[] = [];
+// Tamaño de página de la grilla (tarjetas, no pines). El mapa se sigue
+// alimentando de un batch más grande (MAPA_LIMIT) que respeta los mismos
+// filtros pero no la paginación — un fetch de 24 rompería el mapa mostrando
+// solo una fracción de los pines.
+const SIZE = 24;
+const MAPA_LIMIT = 200;
+
+export default async function DenunciasPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const query = parseDenunciasQuery(searchParams);
+  const confirmados = confirmadosDe(query.estado);
+
+  let reportes: ReporteCiudadano[] = []; // página actual de la grilla (filtrada + paginada, server-side)
+  let reportesMapa: ReporteCiudadano[] = []; // mismos filtros, sin paginar — para los pines del mapa
   let convergencias: Convergencia[] = [];
+  let total = 0;
+  let snapshot: ReporteCiudadano[] = []; // muestra global sin filtrar, solo para las KPI de arriba
   let source: "api" | "mock" = "api";
   try {
-    const [r, c] = await Promise.all([getReportes({ limit: 200 }), getConvergencias()]);
-    reportes = r as any;
+    const [pagina, mapa, c, kpiSnapshot] = await Promise.all([
+      getReportesPagina({
+        region: query.region,
+        categoria: query.categoria,
+        confirmados,
+        limit: SIZE,
+        offset: (query.page - 1) * SIZE,
+      }),
+      getReportes({ region: query.region, categoria: query.categoria, confirmados, limit: MAPA_LIMIT }),
+      getConvergencias(),
+      getReportes({ limit: 200 }),
+    ]);
+    reportes = pagina.data as any;
+    total = pagina.total;
+    reportesMapa = mapa as any;
     convergencias = c as any;
+    snapshot = kpiSnapshot as any;
   } catch (e) {
     console.error("[denuncias page] API falló, uso mock:", (e as Error).message);
     reportes = REPORTES_MOCK;
+    reportesMapa = REPORTES_MOCK;
     convergencias = CONVERGENCIAS_MOCK;
+    snapshot = REPORTES_MOCK;
+    total = REPORTES_MOCK.length;
     source = "mock";
   }
 
-  const total = reportes.length;
-  const verificados = reportes.filter((r) => r.confirmado).length;
+  // KPI: siempre sobre la muestra global sin filtrar (igual que antes de tener
+  // filtros server-side) — la franja de arriba es un resumen del sitio, no
+  // reacciona a lo que elijas en los filtros de abajo.
+  const totalKpi = snapshot.length;
+  const verificados = snapshot.filter((r) => r.confirmado).length;
   const enConvergencia = new Set(convergencias.flatMap((c) => c.reporteIds)).size;
-  const conFoto = reportes.filter((r) => r.fotoUrl).length;
+  const conFoto = snapshot.filter((r) => r.fotoUrl).length;
+  const paginas = Math.max(1, Math.ceil(total / SIZE));
 
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
@@ -67,10 +107,10 @@ export default async function DenunciasPage() {
 
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi icon={<MessageSquareWarning size={14} />} label="Denuncias totales" value={total} sub="acumulado del mes" tone="ink" />
+        <Kpi icon={<MessageSquareWarning size={14} />} label="Denuncias totales" value={totalKpi} sub="acumulado del mes" tone="ink" />
         <Kpi icon={<CheckCircle2 size={14} />} label="Verificadas" value={verificados} sub="≥ 2 reportes independientes" tone="moss" />
         <Kpi icon={<GitMerge size={14} />} label="Convergentes" value={enConvergencia} sub="coinciden con alerta automática" tone="rust" />
-        <Kpi icon={<Camera size={14} />} label="Con evidencia foto" value={conFoto} sub={total ? `${Math.round((conFoto / total) * 100)}% del total` : ""} tone="ink" />
+        <Kpi icon={<Camera size={14} />} label="Con evidencia foto" value={conFoto} sub={totalKpi ? `${Math.round((conFoto / totalKpi) * 100)}% del total` : ""} tone="ink" />
       </div>
 
       {/* Reglas / disclaimer */}
@@ -89,7 +129,17 @@ export default async function DenunciasPage() {
         </div>
       </div>
 
-      <DenunciasGrid reportes={reportes} convergencias={convergencias} />
+      <FiltrosDenuncias query={query} />
+
+      <DenunciasGrid
+        reportes={reportes}
+        reportesMapa={reportesMapa}
+        convergencias={convergencias}
+        query={query}
+        total={total}
+        paginas={paginas}
+        size={SIZE}
+      />
 
       {/* Banner final — CTA */}
       <div className="surface relative isolate overflow-hidden border-l-4 border-l-rust p-5">
