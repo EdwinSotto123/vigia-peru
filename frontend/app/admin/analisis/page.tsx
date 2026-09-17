@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Activity, ExternalLink } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { ConvocatoriaSearch } from "@/components/ConvocatoriaSearch";
+import { ConvocatoriaSearch } from "@/components/convocatoria/ConvocatoriaSearch";
 
 // useSearchParams() en ConvocatoriaSearch requiere render dinámico.
 export const dynamic = "force-dynamic";
