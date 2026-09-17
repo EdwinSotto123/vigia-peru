@@ -152,11 +152,14 @@ const ListQuery = z.object({
   orden: z.enum(["fecha", "monto", "score"]).default("fecha"),
 });
 
-/** Condiciones WHERE compartidas por /contratos y /contratos/geo. Los alias c/cz/a/p/e deben existir en el FROM. */
-function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[]): string[] {
+/** Condiciones WHERE compartidas por /contratos, /contratos/geo y /contratos/resumen. Los alias
+ *  c/cz/a/p/e deben existir en el FROM. `excluir` salta una condición (facetas: el conteo de
+ *  "tipo" no debe filtrarse por el propio tipo elegido, para poder mostrar las otras opciones). */
+function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[], excluir?: Set<string>): string[] {
   const w: string[] = [];
+  const salta = (k: string) => excluir?.has(k) ?? false;
   const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-  if (q.q) {
+  if (q.q && !salta("q")) {
     if (/^[\w-]+$/.test(q.q) && /\d/.test(q.q)) {
       // Código/OCID: igualdad por forma corta o larga.
       const p = add(q.q);
@@ -168,15 +171,15 @@ function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[]): s
                OR immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent(${like}))`);
     }
   }
-  if (q.tipo) w.push(`${ex.tipo} = ${add(q.tipo)}`);
-  if (q.etapa) w.push(`${ex.etapa} = ${add(q.etapa)}`);
-  if (q.ubigeo) w.push(`cz.ubigeo LIKE ${add(q.ubigeo)} || '%'`);
-  if (q.entidad) w.push(`c.entidad_ruc = ${add(q.entidad)}`);
-  if (q.monto_min != null) w.push(`c.cuantia_referencial >= ${add(q.monto_min)}`);
-  if (q.monto_max != null) w.push(`c.cuantia_referencial <= ${add(q.monto_max)}`);
-  if (q.riesgo) w.push(`${ex.riesgo} = ${add(q.riesgo)}`);
-  if (q.estado) w.push(`${ex.estadoProc} = ${add(q.estado)}`);
-  if (q.operativo) w.push(`${ex.operativo} = ${add(q.operativo)}`);
+  if (q.tipo && !salta("tipo")) w.push(`${ex.tipo} = ${add(q.tipo)}`);
+  if (q.etapa && !salta("etapa")) w.push(`${ex.etapa} = ${add(q.etapa)}`);
+  if (q.ubigeo && !salta("ubigeo")) w.push(`cz.ubigeo LIKE ${add(q.ubigeo)} || '%'`);
+  if (q.entidad && !salta("entidad")) w.push(`c.entidad_ruc = ${add(q.entidad)}`);
+  if (q.monto_min != null && !salta("monto")) w.push(`c.cuantia_referencial >= ${add(q.monto_min)}`);
+  if (q.monto_max != null && !salta("monto")) w.push(`c.cuantia_referencial <= ${add(q.monto_max)}`);
+  if (q.riesgo && !salta("riesgo")) w.push(`${ex.riesgo} = ${add(q.riesgo)}`);
+  if (q.estado && !salta("estado")) w.push(`${ex.estadoProc} = ${add(q.estado)}`);
+  if (q.operativo && !salta("operativo")) w.push(`${ex.operativo} = ${add(q.operativo)}`);
   return w;
 }
 
@@ -209,6 +212,40 @@ function selectResumen(ex: Exprs): string {
 const JOIN_RESUMEN = `
   LEFT JOIN zonas z ON z.ubigeo = cz.ubigeo::text
   LEFT JOIN LATERAL (SELECT count(*) AS n FROM banderas b WHERE b.alerta_id = a.id) b ON TRUE`;
+
+// ─── GET /contratos/resumen ──────────────────────────────────────────────────
+// Conteos por tipo/operativo/riesgo para los filtros rápidos (chips con número). Cada faceta
+// se cuenta ignorando su propio filtro pero respetando los demás (q, ubigeo, monto, entidad,
+// y las otras dos facetas) — así "Bienes (1.234)" sigue siendo correcto aunque ya haya un
+// riesgo elegido. Reusa `exprs`/`buildWhere`/`FROM_BASE` de la lista para no duplicar reglas.
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, tipo: true, etapa: true, riesgo: true, operativo: true });
+
+contratosRouter.get("/resumen", async (c) => {
+  const parsed = ResumenQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const q = { ...parsed.data, page: 1, size: 1, orden: "fecha" as const };
+  const cols = await colsDisponibles();
+  const ex = exprs(cols, await alcanceActivo());
+
+  const contarPor = async (campo: string, dimension: string) => {
+    const vals: unknown[] = [];
+    const w = buildWhere(q, ex, vals, new Set([dimension]));
+    const where = w.length ? `WHERE ${w.join(" AND ")}` : "";
+    const r = await pool.query<{ clave: string | null; n: number }>(
+      `SELECT ${campo} AS clave, count(*)::int AS n ${FROM_BASE} ${where} GROUP BY 1`, vals);
+    return Object.fromEntries(r.rows.map((row) => [row.clave ?? "sin_clasificar", row.n]));
+  };
+  const totalVals: unknown[] = [];
+  const totalWhere = buildWhere(q, ex, totalVals);
+  const [porTipo, porOperativo, porRiesgo, totalRow] = await Promise.all([
+    contarPor(ex.tipo, "tipo"),
+    contarPor(ex.operativo, "operativo"),
+    contarPor(ex.riesgo, "riesgo"),
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n ${FROM_BASE} ${totalWhere.length ? `WHERE ${totalWhere.join(" AND ")}` : ""}`, totalVals),
+  ]);
+  cache(c, 60);
+  return c.json({ total: totalRow.rows[0]?.n ?? 0, porTipo, porOperativo, porRiesgo });
+});
 
 // ─── GET /contratos ──────────────────────────────────────────────────────────
 contratosRouter.get("/", async (c) => {
