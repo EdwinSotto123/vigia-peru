@@ -1,18 +1,37 @@
 import { AlertTriangle, Cloud } from "lucide-react";
-import { TopAlertasList } from "@/components/TopAlertasList";
+import { AlertasLista } from "@/components/alertas/AlertasLista";
+import { FiltrosAlertas } from "@/components/alertas/FiltrosAlertas";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getAlertas } from "@/lib/api-client";
-import type { Alerta } from "@/types";
+import { getAlertasPagina, type ApiAlerta } from "@/lib/api-client";
+import { parseAlertasQuery } from "@/lib/alertas-query";
 
-export default async function AlertasPage() {
-  let alertas: Alerta[] = [];
+export const metadata = {
+  title: "Alertas — Vigía Perú",
+  description: "Señales de riesgo publicadas por el motor de Vigía, filtrables por región, estado y score.",
+};
+
+const TAM = 24;
+
+/**
+ * /app/alertas — lista completa y paginada (antes: un lote fijo de 12 sin filtros ni
+ * paginación real). Mismo patrón que /app/contratos: el server component resuelve
+ * `searchParams` a una query tipada, pide la página al API y se la pasa a AlertasLista
+ * junto con los links de paginación (`navegacion="url"`).
+ */
+export default async function AlertasPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+  const { pagina, ...query } = parseAlertasQuery(searchParams);
+
+  let data: ApiAlerta[] = [];
+  let total = 0;
   let source: "api" | "mock" = "api";
   try {
-    // TopAlertasList muestra el top 6 por score; la API ya ordena por score DESC.
-    alertas = (await getAlertas({ limit: 12 })) as any;
+    const r = await getAlertasPagina({ ...query, limit: TAM, offset: (pagina - 1) * TAM });
+    data = r.data;
+    total = r.total;
   } catch (e) {
     console.error("[alertas page] API falló:", (e as Error).message);
-    alertas = [];
+    data = [];
+    total = 0;
     source = "mock";
   }
 
@@ -37,7 +56,8 @@ export default async function AlertasPage() {
           </span>
         }
       />
-      <TopAlertasList alertas={alertas} limit={50} hideHeader />
+      <FiltrosAlertas query={query} />
+      <AlertasLista data={data} total={total} pagina={pagina} tam={TAM} query={query} fallo={source === "mock"} />
     </div>
   );
 }
