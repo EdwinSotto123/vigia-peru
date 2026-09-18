@@ -65,25 +65,24 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
 
       {/* ─── TABLERO ─── */}
       <section className="container-page py-10">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-serif text-2xl font-bold text-ink">{zonaActual ? `En vivo en ${zonaActual}` : "En vivo en todo el Perú"}</h2>
             <p className="mt-0.5 text-sm text-mute">Los contratos entran por orden de llegada. Nadie elige cuáles.</p>
           </div>
-          <FiltroRegion opciones={opciones} valor={ubigeo} />
+          {/* Un solo lugar para todos los filtros (región, fecha, patrocinador) — antes estaban
+              repartidos entre acá arriba y el histórico de abajo, cada uno con su propia caja. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <FiltroRegion opciones={opciones} valor={ubigeo} />
+            <FiltrosHistorico desde={desde} hasta={hasta} financiador={financiador} financiadores={financiadores} />
+          </div>
         </div>
         <TableroAuditoria key={ubigeo ?? "all"} ubigeo={ubigeo} initial={initial} autoRefreshMs={5000} verMasHref="#historico" />
       </section>
 
-      {/* ─── HISTÓRICO (todo lo ya procesado, con filtros y paginación real) ─── */}
+      {/* ─── HISTÓRICO (todo lo ya procesado; los filtros están arriba, junto con región) ─── */}
       <section id="historico" className="container-page border-t border-line py-10 scroll-mt-6">
-        <div className="mb-5">
-          <h2 className="font-serif text-2xl font-bold text-ink">Buscar en el histórico</h2>
-          <p className="mt-0.5 text-sm text-mute">Todo lo ya procesado, filtrable por fecha y patrocinador — la región de arriba también aplica acá.</p>
-        </div>
-        <div className="mb-4">
-          <FiltrosHistorico desde={desde} hasta={hasta} financiador={financiador} financiadores={financiadores} />
-        </div>
+        <h2 className="sr-only">Histórico de contratos procesados</h2>
         <HistoricoProcesados
           pagina={historico}
           paginaActual={paginaActual}
