@@ -13,13 +13,14 @@
  * Cualquier filtro activo aparece además como chip removible individualmente en la fila de abajo.
  */
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   ETAPAS, OPERATIVOS, ORDENES, RIESGOS, TIPOS, contratosQueryString, etapaLabel, operativoLabel, riesgoLabel, tipoLabel,
   type ContratosQuery, type ResumenContratos,
 } from "@/lib/contratos";
+import { ultimosMeses } from "@/components/mapa/FiltroMes";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -39,7 +40,8 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   const [q, setQ] = useState(query.q ?? "");
   const timer = useRef<number | null>(null);
 
-  const avanzadosActivos = !!(query.ubigeo || query.tipo || query.etapa || (query.riesgo && query.riesgo !== "alto") || query.monto_min != null || query.monto_max != null || (query.orden && query.orden !== "fecha"));
+  const meses = useMemo(() => ultimosMeses(12), []);
+  const avanzadosActivos = !!(query.ubigeo || query.tipo || query.etapa || (query.riesgo && query.riesgo !== "alto") || query.monto_min != null || query.monto_max != null || query.desde || (query.orden && query.orden !== "fecha"));
   const [avanzados, setAvanzados] = useState(avanzadosActivos);
   useEffect(() => { if (avanzadosActivos) setAvanzados(true); }, [avanzadosActivos]);
 
@@ -68,6 +70,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   if (query.etapa) chips.push({ key: "etapa", label: etapaLabel(query.etapa) ?? query.etapa });
   if (query.riesgo) chips.push({ key: "riesgo", label: riesgoLabel(query.riesgo) ?? query.riesgo });
   if (query.operativo) chips.push({ key: "operativo", label: operativoLabel(query.operativo) ?? query.operativo });
+  if (query.desde) chips.push({ key: "desde", label: meses.find((m) => m.desde === query.desde)?.etiqueta ?? query.desde });
   if (query.monto_min != null) chips.push({ key: "monto_min", label: `Desde S/ ${N(Number(query.monto_min))}` });
   if (query.monto_max != null) chips.push({ key: "monto_max", label: `Hasta S/ ${N(Number(query.monto_max))}` });
   if (query.orden && query.orden !== "fecha") chips.push({ key: "orden", label: ORDENES.find((o) => o.value === query.orden)?.label ?? query.orden });
@@ -151,6 +154,19 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
               {OPERATIVOS.map((t) => <option key={t.value} value={t.value}>{t.label} {resumen ? `(${N(resumen.porOperativo[t.value])})` : ""}</option>)}
             </select>
           </Campo>
+          <Campo label="Mes">
+            <select
+              value={query.desde ?? ""}
+              onChange={(e) => {
+                const r = meses.find((m) => m.desde === e.target.value);
+                navegar({ desde: r?.desde, hasta: r?.hasta });
+              }}
+              className={sel}
+            >
+              <option value="">Todo el histórico</option>
+              {meses.map((m) => <option key={m.desde} value={m.desde}>{m.etiqueta}</option>)}
+            </select>
+          </Campo>
           <Campo label="Monto mín.">
             <Monto value={query.monto_min} onCommit={(v) => navegar({ monto_min: v })} />
           </Campo>
@@ -172,7 +188,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
           {chips.map((ch) => (
             <span key={ch.key} className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-ink">
               {ch.label}
-              <button type="button" onClick={() => navegar({ [ch.key]: undefined } as Partial<ContratosQuery>)} aria-label={`Quitar filtro ${ch.label}`} className="text-mute hover:text-rust">
+              <button type="button" onClick={() => navegar(ch.key === "desde" ? { desde: undefined, hasta: undefined } : { [ch.key]: undefined } as Partial<ContratosQuery>)} aria-label={`Quitar filtro ${ch.label}`} className="text-mute hover:text-rust">
                 <X size={11} />
               </button>
             </span>

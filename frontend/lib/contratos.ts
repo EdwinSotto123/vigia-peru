@@ -184,6 +184,9 @@ export interface ContratosQuery {
   entidad?: string;
   monto_min?: number | string;
   monto_max?: number | string;
+  /** YYYY-MM-DD, sobre fecha_convocatoria. */
+  desde?: string;
+  hasta?: string;
   riesgo?: RiesgoContrato | "";
   estado?: EstadoContrato | "";
   operativo?: EstadoOperativo | "";
@@ -270,6 +273,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
   const num = (k: string) => { const v = s(k); return v && /^\d+(\.\d+)?$/.test(v) ? Number(v) : undefined; };
   const ubigeo = s("ubigeo");
   const entidad = s("entidad");
+  const fecha = (k: string) => { const v = s(k); return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
   return {
     page,
     q: s("q")?.slice(0, 120) || undefined,
@@ -279,6 +283,8 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     entidad: entidad && /^\d{11}$/.test(entidad) ? entidad : undefined,
     monto_min: num("monto_min"),
     monto_max: num("monto_max"),
+    desde: fecha("desde"),
+    hasta: fecha("hasta"),
     riesgo: RIESGOS.some((t) => t.value === s("riesgo")) ? (s("riesgo") as RiesgoContrato) : undefined,
     operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
@@ -312,7 +318,7 @@ export const getResumenContratos = (q: ContratosQuery = {}) =>
 export const getContrato = (ocid: string) =>
   getJson<ContratoDetalle>(`/contratos/${encodeURIComponent(ocid)}`, 60);
 
-export const getContratosGeo = (q: Pick<ContratosQuery, "tipo" | "etapa" | "riesgo" | "ubigeo" | "entidad" | "q"> & { nivel?: "distrito" | "provincia" | "departamento" } = {}) =>
+export const getContratosGeo = (q: Pick<ContratosQuery, "tipo" | "etapa" | "riesgo" | "ubigeo" | "entidad" | "q" | "desde" | "hasta"> & { nivel?: "distrito" | "provincia" | "departamento" } = {}) =>
   getJson<{ nivel: string; data: ContratoZona[] }>(`/contratos/geo?${contratosQueryString(q as ContratosQuery)}`, 300).then((r) => r?.data ?? null);
 
 // ─── Resumen de procesamiento enriquecido (PanelProcesamiento) ───────────────
