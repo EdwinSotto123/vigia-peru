@@ -146,6 +146,10 @@ const ListQuery = z.object({
   entidad: z.string().regex(/^\d{11}$/).optional(),
   monto_min: z.coerce.number().min(0).optional(),
   monto_max: z.coerce.number().min(0).optional(),
+  // YYYY-MM-DD, sobre fecha_convocatoria — el filtro de mes del mapa/lista manda el primer y
+  // último día del mes elegido (o "desde" solo, para "últimos N meses").
+  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   riesgo: z.enum(RIESGOS).optional(),
   estado: z.enum(["sin_analizar", "pendiente_de_procesamiento", "encolado", "procesando", "procesado", "error"]).optional(),
   operativo: z.enum(["en_cola", "documentos_listos", "sin_documentos"]).optional(),
@@ -177,6 +181,8 @@ function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[], ex
   if (q.entidad && !salta("entidad")) w.push(`c.entidad_ruc = ${add(q.entidad)}`);
   if (q.monto_min != null && !salta("monto")) w.push(`c.cuantia_referencial >= ${add(q.monto_min)}`);
   if (q.monto_max != null && !salta("monto")) w.push(`c.cuantia_referencial <= ${add(q.monto_max)}`);
+  if (q.desde && !salta("fecha")) w.push(`c.fecha_convocatoria >= ${add(q.desde)}::date`);
+  if (q.hasta && !salta("fecha")) w.push(`c.fecha_convocatoria < (${add(q.hasta)}::date + interval '1 day')`);
   if (q.riesgo && !salta("riesgo")) w.push(`${ex.riesgo} = ${add(q.riesgo)}`);
   if (q.estado && !salta("estado")) w.push(`${ex.estadoProc} = ${add(q.estado)}`);
   if (q.operativo && !salta("operativo")) w.push(`${ex.operativo} = ${add(q.operativo)}`);
@@ -218,7 +224,7 @@ const JOIN_RESUMEN = `
 // se cuenta ignorando su propio filtro pero respetando los demás (q, ubigeo, monto, entidad,
 // y las otras dos facetas) — así "Bienes (1.234)" sigue siendo correcto aunque ya haya un
 // riesgo elegido. Reusa `exprs`/`buildWhere`/`FROM_BASE` de la lista para no duplicar reglas.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, tipo: true, etapa: true, riesgo: true, operativo: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true });
 
 contratosRouter.get("/resumen", async (c) => {
   const parsed = ResumenQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
@@ -303,7 +309,7 @@ async function contar(where: string, vals: unknown[]): Promise<number> {
 }
 
 // ─── GET /contratos/geo ──────────────────────────────────────────────────────
-const GeoQuery = ListQuery.pick({ tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true }).extend({
+const GeoQuery = ListQuery.pick({ tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true, desde: true, hasta: true }).extend({
   nivel: z.enum(["distrito", "provincia", "departamento"]).default("distrito"),
 });
 

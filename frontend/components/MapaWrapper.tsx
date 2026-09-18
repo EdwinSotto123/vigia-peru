@@ -24,6 +24,7 @@ import { getZonas, getAlcance, alcanceCorto, ESTADO_FILL, ESTADO_LABEL, type Alc
 import { coordsForRegionWithJitter } from "@/lib/region-coords";
 import { RegionDetailPanel } from "./RegionDetailPanel";
 import { REGION_UBIGEO, UBIGEO_REGION, belongsToRegion } from "./mapa/region-match";
+import { FiltroMes, type RangoMes } from "./mapa/FiltroMes";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
 import { ContratoPinLeyenda, colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
@@ -84,6 +85,9 @@ export function MapaWrapper({
   // Capa "Contratos": puntos agregados por zona (/contratos/geo). País → provincias;
   // con región elegida → sus distritos. Nunca 18 k puntos crudos.
   const [showContratos, setShowContratos] = useState(true);
+  // `null` = todo el histórico. Antes no había ninguna forma de acotar los contratos del mapa
+  // por fecha: todo se veía siempre mezclado, sin decir de qué mes es cada cosa.
+  const [mesFiltro, setMesFiltro] = useState<RangoMes | null>(null);
   const [geo, setGeo] = useState<ContratoZona[]>([]);
   const geoCache = useRef<Map<string, ContratoZona[]>>(new Map());
   const [distrito, setDistrito] = useState<{ ubigeo: string; nombre: string } | null>(null);
@@ -172,20 +176,21 @@ export function MapaWrapper({
   }, [selectedRegionId, panelTab, distrito, ocidSel]);
 
   // Puntos de contratos según nivel: sin región → provincias del país; con región → sus distritos.
-  const geoKey = selectedRegionId ? `distrito:${REGION_UBIGEO[selectedRegionId] ?? ""}` : "provincia:";
+  // El mes elegido entra en la key: cambiar de mes es, para el caché, una consulta distinta.
+  const geoKey = `${selectedRegionId ? `distrito:${REGION_UBIGEO[selectedRegionId] ?? ""}` : "provincia:"}|${mesFiltro?.desde ?? ""}`;
   useEffect(() => {
     if (!showContratos) return;
     const cached = geoCache.current.get(geoKey);
     if (cached) { setGeo(cached); return; }
     let alive = true;
-    const [nivel, ub] = geoKey.split(":") as ["distrito" | "provincia", string];
-    getContratosGeo({ nivel, ubigeo: ub || undefined }).then((d) => {
+    const [nivel, ub] = geoKey.split("|")[0].split(":") as ["distrito" | "provincia", string];
+    getContratosGeo({ nivel, ubigeo: ub || undefined, desde: mesFiltro?.desde, hasta: mesFiltro?.hasta }).then((d) => {
       if (!alive) return;
       geoCache.current.set(geoKey, d ?? []);
       setGeo(d ?? []);
     });
     return () => { alive = false; };
-  }, [showContratos, geoKey]);
+  }, [showContratos, geoKey, mesFiltro]);
 
   // Nombre del distrito cuando llegó por URL (solo el ubigeo).
   useEffect(() => {
@@ -428,6 +433,9 @@ export function MapaWrapper({
             )}
           </div>
 
+          {/* Filtro de mes: acota los CONTRATOS que se cuentan/pintan (no alertas/denuncias, que siempre son recientes). Antes no había ninguna forma de acotar por fecha. */}
+          <FiltroMes valor={mesFiltro} onChange={setMesFiltro} />
+
           {/* Breadcrumb o quick totals */}
           <div className="flex items-center gap-3 text-xs">
             {!selectedRegion ? (
@@ -509,6 +517,11 @@ export function MapaWrapper({
               <div className="text-right font-serif text-sm font-bold text-ink">
                 {showFinanciamiento ? "Estado de financiamiento" : metricLabel(metric)}
               </div>
+              {showContratos && (
+                <div className="text-right text-[10px] text-mute">
+                  contratos {mesFiltro ? `de ${mesFiltro.etiqueta}` : "· todo el histórico"}
+                </div>
+              )}
             </div>
 
             {/* Legend (vista país) */}
