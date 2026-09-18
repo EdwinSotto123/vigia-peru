@@ -1,10 +1,13 @@
 "use client";
 
 /**
- * Tablero público "en vivo": tres columnas (En cola → Procesando → Procesado)
- * con los contratos asignados a aportes confirmados. Hace polling al API cada
- * `autoRefreshMs` sólo con la pestaña visible. Si el API no responde, conserva
- * lo último que mostró y lo dice en voz baja; nunca rompe la página.
+ * Tablero público "en vivo": columnas En cola → Procesando → Procesado con los contratos
+ * asignados a aportes confirmados. Hace polling al API cada `autoRefreshMs` sólo con la
+ * pestaña visible. Si el API no responde, conserva lo último que mostró y lo dice en voz
+ * baja; nunca rompe la página.
+ *
+ * Con `verMasHref` (ver Props), "Procesado" se oculta acá y queda solo un link — para no
+ * repetir la misma tarjeta dos veces cuando la página también tiene un histórico completo.
  *
  * Datos: GET /financiamiento/procesamientos?ubigeo=&codigo=&limit=
  */
@@ -42,12 +45,6 @@ const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: str
 // error y pendiente_de_procesamiento se muestran en la columna "En cola" con su propia píldora.
 const columnaDe = (estado: EstadoProc): Columna => (estado === "procesando" || estado === "procesado" ? estado : "encolado");
 
-// La columna "Procesado" es un vistazo a lo reciente, no el archivo — sin tope, con pocos
-// contratos totales termina mostrando exactamente lo mismo que el histórico de abajo, dos
-// veces seguidas. Solo se recorta cuando `verMasHref` está presente (i.e. cuando esta página
-// SÍ tiene un histórico al que enlazar; en /financiar/[ubigeo] y /impacto/[codigo] no lo hay).
-const PROCESADO_PREVIEW = 6;
-
 interface Props {
   ubigeo?: string;
   codigo?: string;
@@ -58,7 +55,12 @@ interface Props {
   initial?: Procesamiento[] | null;
   /** Para contenedores angostos (columna lateral): siempre pestañas + una columna, sin pasar a tres. */
   compacto?: boolean;
-  /** Si se pasa, la columna "Procesado" se recorta a un adelanto con link a este ancla/URL (el histórico completo). */
+  /**
+   * Si se pasa, esta página YA tiene su propio histórico completo más abajo (p.ej. /app/auditoria):
+   * la columna "Procesado" no se repite acá — solo queda un link a ese histórico. Sin esto (p.ej.
+   * /financiar/[ubigeo] compacto, /impacto/[codigo]), "Procesado" es la ÚNICA vista de resultados
+   * que tiene esa página, así que se muestra completa como siempre.
+   */
   verMasHref?: string;
 }
 
@@ -125,13 +127,17 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
   // Procesados con alerta bloqueada por la autoevaluación: se muestran en "Procesado" con su píldora, y se cuentan aparte.
   const enRevision = useMemo(() => items.filter((p) => estadoVisible(p) === "revision").length, [items]);
 
+  // Con verMasHref, "Procesado" ya vive (completo, filtrable) en el histórico de abajo: acá solo
+  // quedan las dos columnas realmente "en vivo" (transitorias) + un link al histórico.
+  const columnasVisibles = useMemo(() => (verMasHref ? COLUMNAS.filter((c) => c.key !== "procesado") : COLUMNAS), [verMasHref]);
+
   // En móvil, arrancamos en la pestaña con actividad (sin pisar la elección del usuario).
   useEffect(() => {
     if (tabElegida.current || !cargado) return;
     if (porColumna.procesando.length) setTab("procesando");
     else if (porColumna.encolado.length) setTab("encolado");
-    else if (porColumna.procesado.length) setTab("procesado");
-  }, [porColumna, cargado]);
+    else if (!verMasHref && porColumna.procesado.length) setTab("procesado");
+  }, [porColumna, cargado, verMasHref]);
 
   const vacio = cargado && items.length === 0;
 
@@ -155,6 +161,11 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
               </span>
             )}
           </div>
+          {verMasHref && porColumna.procesado.length > 0 && (
+            <a href={verMasHref} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-mute underline-offset-2 hover:text-ink hover:underline">
+              Ver los {porColumna.procesado.length} procesados en el histórico ↓
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
           {fallo ? (
@@ -170,8 +181,12 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
 
       {/* tabs móviles */}
       {!vacio && (
-        <div className={`mt-4 grid grid-cols-3 gap-1 rounded-xl border border-line bg-paperDeep p-1 ${compacto ? "" : "md:hidden"}`} role="tablist" aria-label="Columnas">
-          {COLUMNAS.map((c) => {
+        <div
+          className={`mt-4 grid gap-1 rounded-xl border border-line bg-paperDeep p-1 ${columnasVisibles.length === 3 ? "grid-cols-3" : "grid-cols-2"} ${compacto ? "" : "md:hidden"}`}
+          role="tablist"
+          aria-label="Columnas"
+        >
+          {columnasVisibles.map((c) => {
             const activa = tab === c.key;
             return (
               <button
@@ -193,45 +208,30 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
       {vacio ? (
         <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} />
       ) : (
-        <div className={`mt-4 grid gap-4 ${compacto ? "" : "md:grid-cols-3"}`}>
-          {COLUMNAS.map((c) => {
-            const tope = c.key === "procesado" && verMasHref ? PROCESADO_PREVIEW : Infinity;
-            const lista = porColumna[c.key].slice(0, tope);
-            const restantes = porColumna[c.key].length - lista.length;
-            return (
-              <div
-                key={c.key}
-                role="tabpanel"
-                className={`${tab === c.key ? "block" : "hidden"} ${compacto ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
-              >
-                <div className={`hidden items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-mute ${compacto ? "" : "md:flex"}`}>
-                  <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
-                  <span className="font-mono">{porColumna[c.key].length}</span>
-                </div>
-                <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
-                  {porColumna[c.key].length === 0 && !cargado && <SkeletonCard />}
-                  {porColumna[c.key].length === 0 && cargado && (
-                    <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
-                  )}
-                  {lista.map((p) => (
-                    <li key={p.ocid} className="animate-slideUp">
-                      <Tarjeta p={p} ahora={ahora} />
-                    </li>
-                  ))}
-                  {restantes > 0 && verMasHref && (
-                    <li>
-                      <a
-                        href={verMasHref}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line p-3 text-center text-[12px] font-medium text-mute transition-colors hover:border-ink/30 hover:text-ink"
-                      >
-                        Ver los {restantes} restantes en el histórico ↓
-                      </a>
-                    </li>
-                  )}
-                </ul>
+        <div className={`mt-4 grid gap-4 ${compacto ? "" : columnasVisibles.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {columnasVisibles.map((c) => (
+            <div
+              key={c.key}
+              role="tabpanel"
+              className={`${tab === c.key ? "block" : "hidden"} ${compacto ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
+            >
+              <div className={`hidden items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-mute ${compacto ? "" : "md:flex"}`}>
+                <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
+                <span className="font-mono">{porColumna[c.key].length}</span>
               </div>
-            );
-          })}
+              <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
+                {porColumna[c.key].length === 0 && !cargado && <SkeletonCard />}
+                {porColumna[c.key].length === 0 && cargado && (
+                  <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
+                )}
+                {porColumna[c.key].map((p) => (
+                  <li key={p.ocid} className="animate-slideUp">
+                    <Tarjeta p={p} ahora={ahora} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </section>
