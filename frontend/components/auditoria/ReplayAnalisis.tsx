@@ -14,7 +14,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
-import { reducirFases, type EstadoProc, type EventoFase } from "@/lib/auditoria";
+import { faseHumana, nodoActivoYHechos, reducirFases, type EstadoProc, type EventoFase } from "@/lib/auditoria";
+import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
 import { Bitacora } from "./Bitacora";
 import { DagCarriles } from "./DagCarriles";
 
@@ -104,6 +105,14 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
         </div>
       </div>
 
+      {!compacto && (
+        <FlowGraph
+          override={{
+            ...nodoActivoYHechos(fases),
+            narracion: faseHumana({ estado: estadoVirtual, faseActual: null, faseIndex: null, fases, iniciadoAt: null }, ahoraVirtual, fases),
+          }}
+        />
+      )}
       <DagCarriles fases={fases} estado={estadoVirtual} ahora={ahoraVirtual} compacto={compacto} />
 
       <div>
