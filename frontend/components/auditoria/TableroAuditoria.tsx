@@ -42,6 +42,12 @@ const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: str
 // error y pendiente_de_procesamiento se muestran en la columna "En cola" con su propia píldora.
 const columnaDe = (estado: EstadoProc): Columna => (estado === "procesando" || estado === "procesado" ? estado : "encolado");
 
+// La columna "Procesado" es un vistazo a lo reciente, no el archivo — sin tope, con pocos
+// contratos totales termina mostrando exactamente lo mismo que el histórico de abajo, dos
+// veces seguidas. Solo se recorta cuando `verMasHref` está presente (i.e. cuando esta página
+// SÍ tiene un histórico al que enlazar; en /financiar/[ubigeo] y /impacto/[codigo] no lo hay).
+const PROCESADO_PREVIEW = 6;
+
 interface Props {
   ubigeo?: string;
   codigo?: string;
@@ -52,9 +58,11 @@ interface Props {
   initial?: Procesamiento[] | null;
   /** Para contenedores angostos (columna lateral): siempre pestañas + una columna, sin pasar a tres. */
   compacto?: boolean;
+  /** Si se pasa, la columna "Procesado" se recorta a un adelanto con link a este ancla/URL (el histórico completo). */
+  verMasHref?: string;
 }
 
-export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000, limit = 100, initial, compacto = false }: Props) {
+export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000, limit = 100, initial, compacto = false, verMasHref }: Props) {
   const [items, setItems] = useState<Procesamiento[]>(initial ?? []);
   const [cargado, setCargado] = useState<boolean>(initial != null);
   const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial != null ? Date.now() : null);
@@ -186,29 +194,44 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
         <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} />
       ) : (
         <div className={`mt-4 grid gap-4 ${compacto ? "" : "md:grid-cols-3"}`}>
-          {COLUMNAS.map((c) => (
-            <div
-              key={c.key}
-              role="tabpanel"
-              className={`${tab === c.key ? "block" : "hidden"} ${compacto ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
-            >
-              <div className={`hidden items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-mute ${compacto ? "" : "md:flex"}`}>
-                <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
-                <span className="font-mono">{porColumna[c.key].length}</span>
+          {COLUMNAS.map((c) => {
+            const tope = c.key === "procesado" && verMasHref ? PROCESADO_PREVIEW : Infinity;
+            const lista = porColumna[c.key].slice(0, tope);
+            const restantes = porColumna[c.key].length - lista.length;
+            return (
+              <div
+                key={c.key}
+                role="tabpanel"
+                className={`${tab === c.key ? "block" : "hidden"} ${compacto ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
+              >
+                <div className={`hidden items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-mute ${compacto ? "" : "md:flex"}`}>
+                  <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
+                  <span className="font-mono">{porColumna[c.key].length}</span>
+                </div>
+                <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
+                  {porColumna[c.key].length === 0 && !cargado && <SkeletonCard />}
+                  {porColumna[c.key].length === 0 && cargado && (
+                    <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
+                  )}
+                  {lista.map((p) => (
+                    <li key={p.ocid} className="animate-slideUp">
+                      <Tarjeta p={p} ahora={ahora} />
+                    </li>
+                  ))}
+                  {restantes > 0 && verMasHref && (
+                    <li>
+                      <a
+                        href={verMasHref}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line p-3 text-center text-[12px] font-medium text-mute transition-colors hover:border-ink/30 hover:text-ink"
+                      >
+                        Ver los {restantes} restantes en el histórico ↓
+                      </a>
+                    </li>
+                  )}
+                </ul>
               </div>
-              <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
-                {porColumna[c.key].length === 0 && !cargado && <SkeletonCard />}
-                {porColumna[c.key].length === 0 && cargado && (
-                  <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
-                )}
-                {porColumna[c.key].map((p) => (
-                  <li key={p.ocid} className="animate-slideUp">
-                    <Tarjeta p={p} ahora={ahora} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

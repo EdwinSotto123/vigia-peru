@@ -72,11 +72,11 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
           </div>
           <FiltroRegion opciones={opciones} valor={ubigeo} />
         </div>
-        <TableroAuditoria key={ubigeo ?? "all"} ubigeo={ubigeo} initial={initial} autoRefreshMs={5000} />
+        <TableroAuditoria key={ubigeo ?? "all"} ubigeo={ubigeo} initial={initial} autoRefreshMs={5000} verMasHref="#historico" />
       </section>
 
       {/* ─── HISTÓRICO (todo lo ya procesado, con filtros y paginación real) ─── */}
-      <section className="container-page border-t border-line py-10">
+      <section id="historico" className="container-page border-t border-line py-10 scroll-mt-6">
         <div className="mb-5">
           <h2 className="font-serif text-2xl font-bold text-ink">Buscar en el histórico</h2>
           <p className="mt-0.5 text-sm text-mute">Todo lo ya procesado, filtrable por fecha y patrocinador — la región de arriba también aplica acá.</p>
