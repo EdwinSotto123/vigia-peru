@@ -71,10 +71,17 @@ SQL_CONVOCATORIAS = """
       region              = COALESCE(convocatorias.region, EXCLUDED.region),
       categoria           = COALESCE(convocatorias.categoria, EXCLUDED.categoria),
       estado_tender       = COALESCE(EXCLUDED.estado_tender, convocatorias.estado_tender),
-      -- el record completo (con parties/awards/contracts) reemplaza al payload recortado de la API,
-      -- pero nunca al que registró el orquestador (que ya es completo).
+      -- El record completo (con parties/awards/contracts) reemplaza SIEMPRE al payload existente,
+      -- sea recortado o completo — un record recién bajado de OECE es por definición más nuevo que
+      -- cualquier snapshot guardado antes, y una convocatoria puede avanzar de etapa (convocada →
+      -- adjudicada → contratada...) entre una ingesta y la siguiente. Antes, el guard exigía
+      -- ADEMÁS que el payload existente NO tuviera ya la clave `parties` — pero `parties` está
+      -- presente desde el primer release (el comprador ya es "party" antes de cualquier adjudicación),
+      -- así que en la práctica esto congelaba el payload para siempre en la primera vez que se veía
+      -- un record completo, sin importar cuántas veces se reingiriera después (--incluir-existentes /
+      -- REFRESCAR_RECORDS=1 quedaba así, en los hechos, sin efecto sobre `ocds_payload`). Solo se
+      -- evita pisar con un release RECORTADO (`ocds_api`/`ocds_record` sin parties): eso sigue igual.
       ocds_payload        = CASE WHEN EXCLUDED.fuente = 'ocds_record'
-                                  AND (convocatorias.ocds_payload IS NULL OR NOT convocatorias.ocds_payload ? 'parties')
                                  THEN EXCLUDED.ocds_payload ELSE convocatorias.ocds_payload END,
       updated_at          = now()"""
 
