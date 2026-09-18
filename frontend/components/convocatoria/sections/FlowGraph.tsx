@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GNode } from "../types";
 import { AGENT_IDS, G_COLOR, G_DONE, G_FLOW, TYPE_LABEL, VERB_HEX } from "../constants";
@@ -90,6 +91,17 @@ export function FlowGraph({ liveEvents = [], override }: {
   const selRef = useRef<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "orch" | "agent" | "src" | "store">("all");
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // Esc para cerrar + bloquear el scroll del fondo mientras está en pantalla completa.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
+  }, [fullscreen]);
 
   const findings = extractFindings(liveEvents);
   const trace = buildTrace(liveEvents);
@@ -329,11 +341,15 @@ export function FlowGraph({ liveEvents = [], override }: {
 
     resize(); initSim(); emitForActive();
     raf = requestAnimationFrame(loop);
+    // ResizeObserver, no solo el resize de window: el contenedor también cambia de tamaño
+    // al entrar/salir de pantalla completa (mismo nodo, solo cambia su CSS), y eso nunca
+    // dispara un evento `resize` de window.
     const onResize = () => { resize(); initSim(); };
-    window.addEventListener("resize", onResize);
+    const ro = new ResizeObserver(onResize);
+    ro.observe(wrap);
     canvas.addEventListener("mousemove", onMove);
     canvas.addEventListener("click", onClick);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); canvas.removeEventListener("mousemove", onMove); canvas.removeEventListener("click", onClick); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); canvas.removeEventListener("mousemove", onMove); canvas.removeEventListener("click", onClick); };
   }, []);
 
   const fmtRegla = (r: string) => r.replace(/_/g, " ");
@@ -346,8 +362,19 @@ export function FlowGraph({ liveEvents = [], override }: {
     { k: "all", label: "Todo" }, { k: "orch", label: "Núcleo" }, { k: "agent", label: "Agentes" }, { k: "src", label: "Fuentes" }, { k: "store", label: "Datos" },
   ];
 
+  // El div del backdrop SIEMPRE está presente (con `contents` cuando no hace nada) para que
+  // el div con `ref={wrapRef}` nunca cambie de posición en el árbol — si el backdrop apareciera
+  // y desapareciera condicionalmente, React desmontaría y remontaría el canvas al entrar/salir
+  // de pantalla completa, perdiendo el efecto imperativo (`useEffect` de deps `[]`) que lo arma.
   return (
-    <div ref={wrapRef} className="relative h-[560px] w-full overflow-hidden rounded-2xl border border-line sm:h-[640px]"
+    <div
+      className={fullscreen ? "fixed inset-0 z-[100] flex items-center justify-center bg-ink/70 p-4 backdrop-blur-sm sm:p-8" : "contents"}
+      onClick={fullscreen ? (e) => { if (e.target === e.currentTarget) setFullscreen(false); } : undefined}
+    >
+    <div ref={wrapRef} className={cn(
+        "relative overflow-hidden rounded-2xl border border-line",
+        fullscreen ? "h-full w-full max-w-[1600px]" : "h-[560px] w-full sm:h-[640px]",
+      )}
       style={{ background: "radial-gradient(900px 500px at 78% -10%, #fbf7ee, transparent), radial-gradient(800px 500px at 10% 110%, #efe6d4, transparent), #f3ede1" }}>
       <canvas ref={canvasRef} className="absolute inset-0 block" />
 
@@ -360,6 +387,16 @@ export function FlowGraph({ liveEvents = [], override }: {
           </button>
         ))}
       </div>
+
+      {/* pantalla completa */}
+      <button
+        onClick={() => setFullscreen((v) => !v)}
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg border border-line bg-paperSoft/70 px-2.5 py-1 font-mono text-[10px] text-mute backdrop-blur transition-colors hover:text-ink"
+        title={fullscreen ? "Salir de pantalla completa (Esc)" : "Ver en grande"}
+      >
+        {fullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        {fullscreen ? "Cerrar" : "Ver en grande"}
+      </button>
 
       {/* PANEL LATERAL DE DESCUBRIMIENTO */}
       <div className="pointer-events-none absolute right-3 top-3 z-10 flex max-h-[calc(100%-90px)] w-[min(286px,45%)] flex-col gap-2.5 overflow-y-auto">
@@ -465,6 +502,7 @@ export function FlowGraph({ liveEvents = [], override }: {
           <span className="font-serif text-[14px] font-semibold text-ink">Orquestador · armando el plan y despachando a los agentes…</span>
         )}
       </div>
+    </div>
     </div>
   );
 }
