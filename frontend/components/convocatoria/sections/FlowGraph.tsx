@@ -125,7 +125,7 @@ export function FlowGraph({ liveEvents = [], override }: {
     if (!ctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const FONT = "'Syne', system-ui, sans-serif";
-    let raf = 0, CW = 0, CH = 0, prevActive: string | null = null, frame = 0;
+    let raf = 0, CW = 0, CH = 0, sideW = 0, prevActive: string | null = null, frame = 0;
     type SN = GNode & { x: number; y: number; vx: number; vy: number };
     let sn: SN[] = [];
     let particles: Array<{ from: string; to: string; t: number; speed: number; color: string }> = [];
@@ -136,12 +136,17 @@ export function FlowGraph({ liveEvents = [], override }: {
 
     function resize() {
       CW = wrap!.clientWidth; CH = wrap!.clientHeight;
+      // El panel lateral (Descubrimiento/Leyenda, ~w-[286px]) solo le "come" ancho al grafo
+      // si sobra espacio de verdad — en un contenedor angosto (p.ej. la columna de 1fr del
+      // layout de dos columnas en ContratoEnVivo) reservarle 318px fijos empujaba TODOS los
+      // nodos contra el borde izquierdo. Reservar como máximo lo que deje ≥320px al grafo.
+      sideW = Math.min(318, Math.max(0, CW - 320));
       canvas!.width = CW * dpr; canvas!.height = CH * dpr;
       canvas!.style.width = CW + "px"; canvas!.style.height = CH + "px";
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     function initSim() {
-      const cx = CW / 2 - 150, cy = CH / 2;
+      const cx = CW / 2 - sideW / 2, cy = CH / 2;
       const byType: Record<string, GNode[]> = {};
       G_NODES.forEach((n) => { (byType[n.type] = byType[n.type] || []).push(n); });
       const R = Math.min(CW, CH);
@@ -157,7 +162,7 @@ export function FlowGraph({ liveEvents = [], override }: {
       });
     }
     function physics() {
-      const cx = CW / 2 - 150, cy = CH / 2;
+      const cx = CW / 2 - sideW / 2, cy = CH / 2;
       const vis = sn.filter(visible);
       for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
         const a = vis[i], b = vis[j]; const dx = b.x - a.x, dy = b.y - a.y; const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
@@ -176,7 +181,7 @@ export function FlowGraph({ liveEvents = [], override }: {
       vis.forEach((n) => { n.vx += (cx - n.x) * 0.0028; n.vy += (cy - n.y) * 0.0028; });
       sn.forEach((n) => {
         n.vx *= 0.78; n.vy *= 0.78; n.x += n.vx; n.y += n.vy;
-        const maxX = CW - 318, pad = n.r + 18;
+        const maxX = CW - sideW, pad = n.r + 18;
         if (n.x < pad) { n.x = pad; n.vx *= -0.3; } if (n.x > maxX - pad) { n.x = maxX - pad; n.vx *= -0.3; }
         if (n.y < pad + 8) { n.y = pad + 8; n.vy *= -0.3; } if (n.y > CH - pad - 44) { n.y = CH - pad - 44; n.vy *= -0.3; }
       });
@@ -357,7 +362,7 @@ export function FlowGraph({ liveEvents = [], override }: {
       </div>
 
       {/* PANEL LATERAL DE DESCUBRIMIENTO */}
-      <div className="pointer-events-none absolute right-3 top-3 z-10 flex max-h-[calc(100%-90px)] w-[286px] flex-col gap-2.5 overflow-y-auto">
+      <div className="pointer-events-none absolute right-3 top-3 z-10 flex max-h-[calc(100%-90px)] w-[min(286px,45%)] flex-col gap-2.5 overflow-y-auto">
         {/* Descubrimiento */}
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
           <div className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-mute">Descubrimiento</div>
