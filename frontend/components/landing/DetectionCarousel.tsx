@@ -154,7 +154,7 @@ function CasoCard({ caso }: { caso: Caso }) {
               <MapPin size={12} /> {caso.location}
             </span>
             <span className="text-line">·</span>
-            <span className="font-mono text-clay">{caso.monto}</span>
+            <span className="font-mono text-ink">{caso.monto}</span>
           </div>
 
           <ul className="mt-5 space-y-2.5">

@@ -78,7 +78,7 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
         <EstadisticaAliado etiqueta={row.contratosFinanciados === 1 ? "Contrato financiado" : "Contratos financiados"} valor={row.contratosFinanciados} />
         <EstadisticaAliado etiqueta={row.zonas === 1 ? "Zona" : "Zonas"} valor={row.zonas} />
         <EstadisticaAliado etiqueta={row.senalesHalladas === 1 ? "Señal hallada" : "Señales halladas"} valor={row.senalesHalladas} tono={row.senalesHalladas > 0 ? "rust" : undefined} />
-        <EstadisticaAliado etiqueta="Procesados" valor={row.contratosProcesados} tono="moss" />
+        <EstadisticaAliado etiqueta="Procesados" valor={row.contratosProcesados} tono="verde" />
       </dl>
       <div className="mt-auto flex items-center justify-between pt-4 text-[11px] text-mute">
         <span>{row.desde ? `desde ${new Date(row.desde).toLocaleDateString("es-PE", { month: "short", year: "numeric" })}` : ""}</span>
@@ -94,11 +94,11 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
 
 /** Una cifra del aliado como dato, no como palabra dentro de una frase — reusa el mismo
  * patrón label-chico/número-grande que ya usan HeroKpis y AliadosStats en el hero. */
-function EstadisticaAliado({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono?: "rust" | "moss" }) {
+function EstadisticaAliado({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono?: "rust" | "verde" }) {
   return (
     <div>
       <dt className="text-[10px] uppercase tracking-wide text-mute">{etiqueta}</dt>
-      <dd className={`font-mono text-base font-bold ${tono === "rust" ? "text-rust" : tono === "moss" ? "text-moss" : "text-ink"}`}>
+      <dd className={`font-mono text-base font-bold ${tono === "rust" ? "text-rust" : tono === "verde" ? "text-heroGreen" : "text-ink"}`}>
         {valor.toLocaleString("es-PE")}
       </dd>
     </div>

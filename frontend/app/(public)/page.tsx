@@ -76,7 +76,7 @@ export default async function LandingPage() {
                 <span className="text-mute">·</span>
                 <span className="max-w-[400px] truncate text-ink">{a.objeto}</span>
                 <span className="text-mute">·</span>
-                <span className="font-mono text-clay">{formatSoles(a.montoSoles ?? 0)}</span>
+                <span className="font-mono text-ink">{formatSoles(a.montoSoles ?? 0)}</span>
               </Link>
             ))}
           </Marquee>
