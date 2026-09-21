@@ -14,7 +14,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CampaignMap, VB_H, VB_W } from "@/components/financiar/CampaignMap";
-import { UBIGEO_REGION } from "@/components/mapa/region-match";
+import { UBIGEO_REGION, belongsToRegion } from "@/components/mapa/region-match";
 import type { Zona } from "@/lib/financiamiento";
 import type { Alerta } from "@/types";
 import { LlamaHero } from "./LlamaHero";
@@ -32,11 +32,27 @@ const CARD_W = 235; // debe matchear el w-[235px] del card más abajo
 const CARD_H_MAX = 180; // alto máximo aproximado (4 stats + botón "Ver contratos")
 const EDGE_MARGIN = 10;
 
-export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zona[]; featured: Alerta | null }) {
+export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona[]; alertas: Alerta[] }) {
   // `ubigeo`/`zona` viven en el Context (compartidos con HeroKpis, ver HeroMapSync) —
   // clickear el mapa o la lista top-5 ahora mueve también las cifras del hero.
   const { ubigeo: clickedCode, zona: clicked, setUbigeo: setClickedCode } = useHeroMapSync();
   const [clickedCentroid, setClickedCentroid] = useState<[number, number] | null>(null);
+
+  // El contrato "destacado" ya no queda fijo en el de mayor score de todo el Perú para
+  // siempre: si hay una región elegida, se prioriza el de mayor score DE ESA región (si
+  // existe) — la tarjeta pasa a reaccionar al mapa en vez de ser un dato congelado al
+  // costado. Sin región elegida, o si esa región no tiene ninguna alerta presentable,
+  // cae al de mayor score de todo el país (comportamiento original).
+  const { featured, featuredEsRegional } = useMemo(() => {
+    const porScore = (a: Alerta, b: Alerta) => (b.score ?? 0) - (a.score ?? 0);
+    if (clicked) {
+      const regionId = UBIGEO_REGION[clicked.ubigeo];
+      const deLaRegion = regionId ? alertas.filter((a) => belongsToRegion(a, regionId)).sort(porScore) : [];
+      if (deLaRegion[0]) return { featured: deLaRegion[0], featuredEsRegional: true };
+    }
+    const nacional = [...alertas].sort(porScore)[0] ?? null;
+    return { featured: nacional, featuredEsRegional: false };
+  }, [clicked, alertas]);
   // Ancho real (px) del contenedor del mapa, medido con ResizeObserver — es lo que permite
   // anclar la tarjeta con matemática de píxeles reales en vez de un umbral de % fijo.
   const containerRef = useRef<HTMLDivElement>(null);
@@ -168,12 +184,19 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
         </div>
       )}
 
-      {/* Tarjeta flotante: un contrato ya procesado, real */}
+      {/* Tarjeta flotante: un contrato ya procesado, real — reacciona a la región elegida
+          en vez de mostrar siempre el mismo caso (key=featured.id repite la animación de
+          entrada cuando cambia, para que se note que es nuevo, no el mismo texto quieto). */}
       {featured && (
-        <div className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-brand bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
-          <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
-            <AlertTriangle size={10} /> score {featured.score}
-          </span>
+        <div key={featured.id} className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-brand bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
+              <AlertTriangle size={10} /> score {featured.score}
+            </span>
+            <span className="text-[9px] uppercase tracking-wide text-mute">
+              {featuredEsRegional ? `en ${clicked?.nombre}` : "a nivel nacional"}
+            </span>
+          </div>
           <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug text-ink">{featured.entidad}</p>
           <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-mute">{featured.objeto}</p>
           <div className="mt-2 flex items-center justify-between border-t border-line pt-2">

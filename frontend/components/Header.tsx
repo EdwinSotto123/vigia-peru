@@ -55,13 +55,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/80 backdrop-blur-xl">
-      <div className="container-page flex h-16 items-center justify-between gap-6">
+      <div className={cn("container-page flex h-16 items-center justify-between gap-6", isLanding && "max-w-[1600px]")}>
         <Link href="/" aria-label="Vigía Perú · Inicio" className="flex shrink-0 items-center">
           <Logo height={30} priority />
         </Link>
 
         {showNav && (
-          <nav className="hidden items-center gap-0.5 md:flex">
+          <nav className="hidden items-center gap-0.5 lg:flex">
             {NAV.map((n) => (
               <NavLink
                 key={n.href}
@@ -96,7 +96,7 @@ export function Header() {
               aria-expanded={mobileOpen}
               aria-controls="mobile-nav-panel"
               aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-ink transition-colors hover:bg-paperDeep md:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-ink transition-colors hover:bg-paperDeep lg:hidden"
             >
               {mobileOpen ? <X size={17} /> : <Menu size={17} />}
             </button>
@@ -178,7 +178,7 @@ function MobileNavPanel({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-50 lg:hidden">
       <button aria-label="Cerrar menú" tabIndex={-1} className="animate-fadeIn absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={panelRef}

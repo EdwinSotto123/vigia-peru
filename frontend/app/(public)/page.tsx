@@ -88,7 +88,7 @@ export default async function LandingPage() {
       <AliadosSection />
 
       <section id="denunciar" className="scroll-mt-20 py-20">
-        <div className="container-page">
+        <div className="container-page max-w-[1600px]">
           <div className="mx-auto max-w-2xl text-center">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-rust/25 bg-rust/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-rust">
               <Camera size={11} /> Denuncia ciudadana
@@ -161,7 +161,7 @@ export default async function LandingPage() {
           ahí se sumaban 176px de blanco entre la card y el footer (salto muerto, ~21% de
           la altura de pantalla en mobile). bg-brand: el vino real del isotipo, no un
           violeta genérico — el cierre de la página queda anclado a la marca. */}
-      <section className="container-page pt-24">
+      <section className="container-page max-w-[1600px] pt-24">
         <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-deep p-10 text-paper shadow-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-40">
             <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/35 to-transparent" />

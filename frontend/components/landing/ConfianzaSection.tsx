@@ -19,7 +19,7 @@ const COSTOS = [
 export function ConfianzaSection() {
   return (
     <section id="organizacion" className="scroll-mt-20 border-y border-line bg-paperDeep py-20">
-      <div className="container-page grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="container-page grid max-w-[1600px] gap-10 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Organización sin fines de lucro</span>
           <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">

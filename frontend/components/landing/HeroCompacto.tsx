@@ -21,9 +21,10 @@ export async function HeroCompacto() {
   const zonasList = zonas ?? [];
   const top = [...zonasList].filter((z) => z.totalCola > 0).sort((a, b) => b.totalCola - a.totalCola).slice(0, 5);
   const precio = estado?.tarifa.precioPen ?? 3;
-  // Contrato "destacado" de la tarjeta flotante: real, el de mayor score con
-  // entidad/objeto presentables — no el primero de la lista, para no mostrar un caso pobre.
-  const featured = [...alertas].filter((a) => a.entidad && a.objeto).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
+  // Las alertas presentables (con entidad/objeto) se mandan completas — HeroMapPanel elige
+  // cuál "destacar" según la región que esté seleccionada en el mapa, no una fija de por
+  // vida. Filtrado acá (server) para no mandar al cliente alertas sin entidad/objeto.
+  const alertasPresentables = alertas.filter((a) => a.entidad && a.objeto);
   // El backend puede reportar `regionesConCola` desincronizado del propio listado de
   // `zonas` (dos fuentes distintas) — se recalcula acá del dato ya obtenido para que el
   // hero nunca se contradiga con el top-5 que muestra al lado, en el mismo panel.
@@ -32,9 +33,15 @@ export async function HeroCompacto() {
   return (
     <section id="inicio" className="relative overflow-hidden border-b border-line bg-paper">
       <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[460px] w-[460px] rounded-full bg-heroViolet/10 blur-3xl" />
-      <div className="container-page relative py-12 sm:py-16">
+      <div className="container-page relative max-w-[1600px] py-6 sm:py-8">
         <HeroMapSyncProvider zonas={zonasList}>
-          <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.95fr] lg:gap-14">
+          {/* El mapa es un SVG 480×640 (más alto que ancho, 4:3 invertido) — a ancho casi
+              igual al de la columna de texto (1fr_0.95fr) terminaba más alto que la
+              pantalla entera (medido: 848px de mapa + lista de zonas, contra 900px de
+              viewport). 1.35fr/0.8fr lo angosta ~20% (y por lo tanto lo achica en alto en
+              la misma proporción, mismo aspect ratio) para que el hero completo — mapa
+              incluido — entre en una sola pantalla en laptops típicas. */}
+          <div className="grid items-center gap-8 lg:grid-cols-[1.35fr_0.8fr] lg:gap-10">
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E7A38]">
                 <PeruFlag size={20} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
@@ -67,7 +74,7 @@ export async function HeroCompacto() {
               <HeroKpis initial={estado} regionesConCola={regionesConCola} />
             </div>
 
-            <HeroMapPanel zonas={zonasList} top={top} featured={featured} />
+            <HeroMapPanel zonas={zonasList} top={top} alertas={alertasPresentables} />
           </div>
         </HeroMapSyncProvider>
       </div>

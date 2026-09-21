@@ -15,7 +15,7 @@ const FEATURES = [
 export function FeatureHighlights() {
   return (
     <section className="bg-heroViolet-deep py-10">
-      <div className="container-page">
+      <div className="container-page max-w-[1600px]">
         <h2 className="mb-6 font-serif text-lg font-semibold text-paper/90">
           La vigilancia también construye país.
         </h2>

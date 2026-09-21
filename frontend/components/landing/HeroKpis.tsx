@@ -77,7 +77,7 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
 
   if (zona) {
     return (
-      <div className="mt-8 max-w-xl">
+      <div className="mt-6 max-w-xl">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
             <MapPinned size={12} /> Mostrando: {zona.nombre}
@@ -102,7 +102,7 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
   }
 
   return (
-    <div className="mt-8 max-w-xl">
+    <div className="mt-6 max-w-xl">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <Kpi icon={<FileClock size={14} />} tint="heroViolet" v={estado?.colaGlobal ?? 0} l="contratos en cola" />
         <Kpi icon={<Coins size={14} />} tint="heroGreen" v={estado?.contratosFinanciados ?? 0} l="financiados por aliados" />

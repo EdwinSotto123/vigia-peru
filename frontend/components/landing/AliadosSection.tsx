@@ -10,7 +10,7 @@ export async function AliadosSection() {
   const estado = await getEstadoGlobal();
   return (
     <section id="aliados" className="scroll-mt-20 py-20">
-      <div className="container-page grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+      <div className="container-page grid max-w-[1600px] gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroGreen">Aliados de transparencia</span>
           <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
