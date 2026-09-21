@@ -20,8 +20,7 @@
 import { AlertTriangle, Coins, FileClock, MapPinned } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NumberTicker } from "@/components/magicui/NumberTicker";
-import { PulseDot } from "@/components/ui/PulseDot";
-import { PUBLIC_API_BASE, haceCuanto } from "@/lib/auditoria";
+import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import type { EstadoGlobal } from "@/lib/financiamiento";
 import { useHeroMapSync } from "./HeroMapSync";
 
@@ -30,17 +29,16 @@ type Stats = Pick<EstadoGlobal, "colaGlobal" | "contratosFinanciados" | "senales
 export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; regionesConCola: number }) {
   const { zona, setUbigeo } = useHeroMapSync();
   const [estado, setEstado] = useState<Stats | null>(initial);
-  const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial != null ? Date.now() : null);
-  const [ahora, setAhora] = useState(0); // 0 hasta montar: el HTML del servidor no lleva cronómetros
 
-  // Se re-consulta cada 30s (solo con la pestaña visible) para que "se actualiza solo"
-  // sea literal, no solo el fix de snapshot-viejo del primer fetch.
+  // Re-consulta cada 30s (solo con la pestaña visible) para que las 4 cifras nunca
+  // queden pegadas en un snapshot viejo — el dato en sí es la señal de "esto está vivo",
+  // no hace falta un badge aparte anunciándolo (no le servía al usuario para nada).
   useEffect(() => {
     let vivo = true;
     const cargar = () => {
       fetch(`${PUBLIC_API_BASE}/financiamiento/estado`, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j: Stats | null) => { if (vivo && j) { setEstado(j); setActualizadoAt(Date.now()); } })
+        .then((j: Stats | null) => { if (vivo && j) setEstado(j); })
         .catch(() => {});
     };
     cargar();
@@ -48,12 +46,6 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
     const onVis = () => { if (document.visibilityState === "visible") cargar(); };
     document.addEventListener("visibilitychange", onVis);
     return () => { vivo = false; window.clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
-  }, []);
-
-  useEffect(() => {
-    setAhora(Date.now());
-    const id = window.setInterval(() => setAhora(Date.now()), 1000);
-    return () => window.clearInterval(id);
   }, []);
 
   // señalesHalladas a veces puede llegar en 0 mientras la cola recién arranca — liderar
@@ -64,20 +56,6 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
   const senales = estado?.senalesHalladas ?? 0;
   const procesados = estado?.contratosProcesados ?? 0;
   const usarProcesados = senales === 0 && procesados > 0;
-
-  // Antes era un <p> de texto suelto debajo de 4 tarjetas de KPI — misma inconsistencia
-  // que ya se corrigió en TarjetaAliado: la única línea sin tratamiento de tarjeta al
-  // lado de todo lo que sí lo tiene. Ahora es una píldora propia, mismo lenguaje que el
-  // badge "Plataforma cívica" de arriba del hero (borde + fondo tintado, no texto plano).
-  const actualizado = (
-    <div
-      className="mt-3 inline-flex items-center gap-2 rounded-full border border-moss/30 bg-moss/10 py-1.5 pl-2.5 pr-3.5 text-[11px] font-semibold uppercase tracking-wide text-moss"
-      title={ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : undefined}
-    >
-      <PulseDot color="moss" size={6} />
-      Tablero público que se actualiza solo
-    </div>
-  );
 
   if (zona) {
     return (
@@ -100,7 +78,6 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
           <Kpi icon={<AlertTriangle size={14} />} tint="rust" v={zona.senales} l="señales de riesgo halladas" />
           <Kpi icon={<MapPinned size={14} />} tint="heroViolet" v={zona.procesados} l="contratos procesados" />
         </div>
-        {actualizado}
       </div>
     );
   }
@@ -117,7 +94,6 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
         )}
         <Kpi icon={<MapPinned size={14} />} tint="heroViolet" v={regionesConCola} l="regiones con contratos" />
       </div>
-      {actualizado}
     </div>
   );
 }
