@@ -10,6 +10,7 @@
  */
 
 import { AlertTriangle, ArrowUpRight, MapPin, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CampaignMap, VB_H, VB_W } from "@/components/financiar/CampaignMap";
@@ -221,19 +222,25 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
 
 /**
  * Foto real de la región (public/assets/regiones/{ubigeo}.jpg), si existe. Se van
- * agregando de a poco — mientras un ubigeo no tenga archivo, el <img> tira 404 y
- * onError la oculta del todo (la tarjeta vuelve a verse como antes, sin hueco roto).
+ * agregando de a poco — mientras un ubigeo no tenga archivo, onError la oculta del todo
+ * (la tarjeta vuelve a verse como antes, sin hueco roto). next/image porque los archivos
+ * que se van subiendo vienen del tamaño que sea (una llegó a pesar 3.8MB) — acá se sirven
+ * ya redimensionadas a lo que la tarjeta realmente necesita, no el original entero.
  */
 function RegionPhoto({ ubigeo, nombre }: { ubigeo: string; nombre: string }) {
   const [fallo, setFallo] = useState(false);
   if (fallo) return null;
   return (
-    <img
-      src={`/assets/regiones/${ubigeo}.jpg`}
-      alt={nombre}
-      className="h-24 w-full object-cover"
-      onError={() => setFallo(true)}
-    />
+    <div className="relative h-24 w-full">
+      <Image
+        src={`/assets/regiones/${ubigeo}.jpg`}
+        alt={nombre}
+        fill
+        sizes="235px"
+        className="object-cover"
+        onError={() => setFallo(true)}
+      />
+    </div>
   );
 }
 
