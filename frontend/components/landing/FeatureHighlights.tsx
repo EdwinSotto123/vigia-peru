@@ -1,4 +1,5 @@
 import { Cpu, Database, Leaf, Users } from "lucide-react";
+import { BlurFade } from "@/components/magicui/BlurFade";
 
 const FEATURES = [
   { icon: Database, t: "Datos abiertos", d: "SEACE, OECE, SUNAT, ONPE/JNE y más — sin editar." },
@@ -23,9 +24,13 @@ export function FeatureHighlights() {
             fondo propio — la única franja de toda la landing sin ningún tratamiento de
             tarjeta. Ahora cada dato es su propia caja, igual que en el resto de la página. */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map(({ icon: Icon, t, d }) => (
-            <div
+          {/* BlurFade escalonado: única sección de la landing donde una grilla entraba
+              toda de golpe mientras sus vecinas (ComoFuncionaCompacto, AliadosSection,
+              ConfianzaSection, ExpansionSection) ya hacen cascada. */}
+          {FEATURES.map(({ icon: Icon, t, d }, i) => (
+            <BlurFade
               key={t}
+              delayMs={i * 90}
               className="rounded-2xl border border-paper/15 bg-paper/[0.06] p-4 transition-colors duration-200 hover:bg-paper/10"
             >
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-heroGreen text-paper">
@@ -33,7 +38,7 @@ export function FeatureHighlights() {
               </span>
               <div className="mt-3 text-sm font-semibold text-paper">{t}</div>
               <p className="mt-1 text-[12px] leading-relaxed text-paper/60">{d}</p>
-            </div>
+            </BlurFade>
           ))}
         </div>
       </div>

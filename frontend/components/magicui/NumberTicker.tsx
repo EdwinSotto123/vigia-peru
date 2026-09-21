@@ -6,6 +6,16 @@ import { cn } from "@/lib/utils";
 const FORMATOS: Record<string, (n: number) => string> = {
   entero: (n) => Math.round(n).toLocaleString("es-PE"),
   pen: (n) => `S/ ${Math.round(n).toLocaleString("es-PE")}`,
+  // Mismos cortes que formatSoles() en lib/mock-data.ts — para que un monto grande
+  // (montos de contratos públicos suelen ser de 6-9 cifras) cuente hacia arriba
+  // abreviado ("S/ 45.20 M") en vez de imprimir el número completo sin abreviar,
+  // que en una stat-tile angosta se ve desproporcionado frente al resto del sitio.
+  pen_compacto: (n) => {
+    if (n >= 1_000_000_000) return `S/ ${(n / 1_000_000_000).toFixed(2)} B`;
+    if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toFixed(2)} M`;
+    if (n >= 1_000) return `S/ ${(n / 1_000).toFixed(0)} K`;
+    return `S/ ${Math.round(n).toLocaleString("es-PE")}`;
+  },
 };
 
 /**

@@ -279,7 +279,10 @@ export function PeruChoropleth({
   };
 
   return (
-    <div className="relative h-full w-full">
+    // animate-fadeIn (200ms): antes el salto de <Loading/> (spinner) a este SVG completo
+    // era instantáneo -- "nada" a "mapa completo" de golpe. Un fade corto alcanza, no
+    // hace falta animar cada path.
+    <div className="relative h-full w-full animate-fadeIn">
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"

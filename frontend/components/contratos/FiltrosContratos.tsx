@@ -78,7 +78,12 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   const limpiarTodo = () => { setQ(""); start(() => router.replace(pathname, { scroll: false })); };
 
   return (
-    <div className="space-y-2.5">
+    // Pegajosa: /app/contratos no tiene Header público sobre este layout (solo el
+    // DashboardSidebar, que no ocupa alto), así que top-0 es la posición correcta — no hay que
+    // volver a scrollear arriba para cambiar un filtro mientras se revisan los ~50 contratos de
+    // la página actual. Bleed a los bordes con -mx/px (cancela el px-6/lg:px-10 del page.tsx)
+    // para que lea como una franja real, no como una tarjeta flotando a mitad de columna.
+    <div className="sticky top-0 z-10 -mx-6 space-y-2.5 border-b border-line bg-paper/95 px-6 pb-3 pt-2 backdrop-blur lg:-mx-10 lg:px-10">
       {/* 1. búsqueda */}
       <label className="relative flex items-center">
         <Search size={14} className="pointer-events-none absolute left-3 text-mute" aria-hidden />
@@ -122,8 +127,12 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
         </button>
       </div>
 
-      {/* 3. filtros avanzados (plegados salvo que ya haya alguno elegido) */}
-      {avanzados && (
+      {/* 3. filtros avanzados — siempre montado (no solo cuando avanzados=true) para poder animar
+          su alto con CSS puro: grid-template-rows 0fr→1fr + overflow-hidden en el div interno.
+          Antes aparecía/desaparecía de golpe (mount/unmount); ahora abre y cierra con una
+          transición real, sin librería de animación. */}
+      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-out", avanzados ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+        <div className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-paperSoft/60 p-2.5">
           <Campo label="Región">
             <select value={query.ubigeo ?? ""} onChange={(e) => navegar({ ubigeo: e.target.value || undefined })} className={sel}>
@@ -181,7 +190,8 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
             </select>
           </Campo>
         </div>
-      )}
+        </div>
+      </div>
 
       {/* 4. filtros activos, removibles uno por uno */}
       {chips.length > 0 && (

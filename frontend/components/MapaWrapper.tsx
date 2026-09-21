@@ -30,6 +30,7 @@ import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosL
 import { ContratoPinLeyenda, colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { Marquee } from "./magicui/Marquee";
+import { PulseDot } from "./ui/PulseDot";
 import { cn } from "@/lib/utils";
 import type { MapPoint } from "./PeruChoropleth";
 
@@ -333,7 +334,10 @@ export function MapaWrapper({
       <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft py-1 shadow-card">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-paperSoft to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-paperSoft to-transparent" />
-        <div className="pointer-events-none absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-rust px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-paper">
+        {/* Mismo badge "en vivo" que la landing (page.tsx) -- le faltaba el PulseDot que
+            ese sí tiene, pese a ser el mismo tipo de dato (alertas) refrescándose solo. */}
+        <div className="pointer-events-none absolute left-3 top-1/2 z-20 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-rust px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-paper">
+          <PulseDot color="paper" size={6} />
           en vivo
         </div>
         <Marquee className="[--duration:60s] [--gap:2.5rem] pl-24" pauseOnHover>

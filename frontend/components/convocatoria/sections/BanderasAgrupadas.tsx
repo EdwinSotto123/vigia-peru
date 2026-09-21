@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, ShieldAlert } from "lucide-react";
+import { ChevronRight, ExternalLink, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
 import type { Bandera } from "../types";
 import { AGENTE_VISUAL } from "../constants";
 import { inferAgente } from "../utils";
+import { BlurFade } from "@/components/magicui/BlurFade";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 
 export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Bandera[]; reglas_evaluadas: number }) {
   const [filtroSev, setFiltroSev] = useState<"todas" | "alta" | "media" | "baja">("todas");
@@ -36,8 +38,10 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <ShieldAlert size={11} /> Banderas detectadas · {reglas_evaluadas} reglas evaluadas
             </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-              {banderas.length} bandera{banderas.length === 1 ? "" : "s"} en total
+            {/* Cifra protagonista del bloque: cuenta al entrar en pantalla. */}
+            <h2 className="mt-1 flex items-baseline gap-1 font-serif text-xl font-bold text-ink">
+              <NumberTicker value={banderas.length} format="entero" />
+              <span>bandera{banderas.length === 1 ? "" : "s"} en total</span>
             </h2>
           </div>
           {/* CONTADORES POR SEVERIDAD */}
@@ -115,8 +119,11 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
           const agt = inferAgente(b);
           const av = AGENTE_VISUAL[agt] || AGENTE_VISUAL["?"];
           const isOpen = expandedIdx === i;
+          // Cascada de entrada solo en los primeros ~14 (delayMs tope ~780ms) — pasado eso
+          // el delay se congela en vez de seguir creciendo, para que colas largas de
+          // banderas no tarden cada vez más en terminar de aparecer.
           return (
-            <li key={i}>
+            <BlurFade as="li" key={i} delayMs={Math.min(i, 13) * 60}>
               <button
                 type="button"
                 onClick={() => setExpandedIdx(isOpen ? null : i)}
@@ -152,15 +159,17 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                     </div>
                     <p className="mt-1.5 text-sm leading-relaxed text-ink line-clamp-2">{redactDnis(b.evidencia)}</p>
                   </div>
-                  <span className="mt-0.5 shrink-0 text-[10px] font-mono text-heroViolet">
-                    {isOpen ? "▼" : "▶"}
-                  </span>
+                  <ChevronRight
+                    size={14}
+                    className={cn("mt-0.5 shrink-0 text-heroViolet transition-transform duration-200", isOpen && "rotate-90")}
+                  />
                 </div>
               </button>
 
-              {/* EXPANDED — detalle completo */}
+              {/* EXPANDED — detalle completo. animate-fadeIn: se revela contenido nuevo
+                  al expandir, no un salto brusco de layout. */}
               {isOpen && (
-                <div className="border-t border-line bg-paperSoft px-5 py-4">
+                <div className="animate-fadeIn border-t border-line bg-paperSoft px-5 py-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-widest text-mute">Evidencia completa</div>
@@ -210,7 +219,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                   )}
                 </div>
               )}
-            </li>
+            </BlurFade>
           );
         })}
       </ul>

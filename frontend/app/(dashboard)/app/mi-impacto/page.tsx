@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Heart, MapPin, Camera, ArrowRight, Loader2, Eye, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { BlurFade } from "@/components/magicui/BlurFade";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -82,7 +84,7 @@ function Contenido() {
 
       {resumenTiles.length > 0 && (
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {resumenTiles.map((t) => <Cifra key={t.k} k={t.k} v={t.v} hint={t.hint} />)}
+          {resumenTiles.map((t, i) => <Cifra key={t.k} i={i} k={t.k} v={t.v} hint={t.hint} />)}
         </dl>
       )}
 
@@ -99,11 +101,19 @@ function Contenido() {
           </EstadoVacio>
         ) : (
           <ul className="mt-2 space-y-3">
-            {aportes.map((a) => {
+            {aportes.map((a, i) => {
               const paso = indicePaso(a.estado, a.procesados, a.contratos);
               const p = pct(a.procesados, a.contratos);
               return (
-                <li key={a.codigo} className="rounded-2xl border border-line bg-paper p-4 shadow-card">
+                // Cada aporte entra en cascada (tope ~840ms para que una cuenta con
+                // muchos aportes no se sienta lenta): son unidades independientes, no
+                // pasos de un flujo — el mismo criterio que ya usa ConfianzaSection.
+                <BlurFade
+                  key={a.codigo}
+                  as="li"
+                  delayMs={Math.min(i, 12) * 70}
+                  className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow duration-200 hover:shadow-paper"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -144,7 +154,7 @@ function Contenido() {
                     )}
                     {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={11} aria-hidden /></a>}
                   </div>
-                </li>
+                </BlurFade>
               );
             })}
           </ul>
@@ -169,7 +179,7 @@ function Contenido() {
               const Icon = meta?.icon ?? Camera;
               return (
                 <li key={d.id}>
-                  <Link href={`/app/denuncias/${d.id}`} className="flex items-start gap-3 rounded-xl border border-line bg-paper p-3 transition-all hover:shadow-card">
+                  <Link href={`/app/denuncias/${d.id}`} className="flex items-start gap-3 rounded-xl border border-line bg-paper p-3 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
                     <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${meta?.tone ?? "border-line bg-paperDeep text-mute"}`} aria-hidden>
                       <Icon size={14} />
                     </span>
@@ -207,7 +217,7 @@ function Contenido() {
               {zonasSeguidas.map((z) => {
                 const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
                 return (
-                  <li key={z.ubigeo} className="flex items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 transition-all hover:shadow-card">
+                  <li key={z.ubigeo} className="flex items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
                     <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: ESTADO_FILL[z.estado as ZonaEstado] ?? "#ccc" }} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <Link href={regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`} className="block truncate text-sm font-medium text-ink hover:underline">{z.nombre}</Link>
@@ -230,7 +240,7 @@ function Contenido() {
           ) : (
             <ul className="mt-2 space-y-2">
               {entidadesSeguidas.map((e) => (
-                <li key={e.ruc} className="flex items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 transition-all hover:shadow-card">
+                <li key={e.ruc} className="flex items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
                   <Building2 size={14} className="shrink-0 text-mute" aria-hidden />
                   <Link href={`/entidad/${e.ruc}`} className="min-w-0 flex-1 truncate text-sm font-medium text-ink hover:underline">{e.nombre}</Link>
                   <button type="button" onClick={() => dejarDeSeguir("entidad", e.ruc).then(cargar)} className="shrink-0 text-[11px] text-mute hover:text-rust hover:underline">Dejar de seguir</button>
@@ -263,7 +273,7 @@ function Reclamar({ codigo, onOk }: { codigo: string; onOk: () => void }) {
   };
   if (estado === "ok") return null;
   return (
-    <form onSubmit={enviar} className="rounded-2xl border border-clay/40 bg-paperSoft p-5 shadow-card">
+    <form onSubmit={enviar} className="animate-slideUp rounded-2xl border border-clay/40 bg-paperSoft p-5 shadow-card">
       <div className="inline-flex items-center gap-2 text-sm font-semibold text-ink"><Link2 size={14} className="text-clay" aria-hidden /> Asociar el aporte <span className="font-mono">{codigo}</span> a tu cuenta</div>
       <p className="mt-1 text-[12px] text-mute">Escribe el correo que usaste al aportar (es la prueba de que es tuyo; el código es público).</p>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -304,13 +314,17 @@ function EstadoVacio({ icon: Icon, children }: { icon: LucideIcon; children: Rea
   );
 }
 
-function Cifra({ k, v, hint }: { k: string; v: number; hint?: string }) {
+// BlurFade como raíz (no un <div> envolviendo a otro) para no romper el modelo de
+// contenido de <dl>: cada tarjeta sigue siendo el único div entre <dl> y su dt/dd.
+// El número cuenta desde 0 en vez de aparecer estático: es la cifra protagonista de
+// cada tarjeta de resumen, el primer dato "vivo" que ve el usuario en la página.
+function Cifra({ k, v, hint, i }: { k: string; v: number; hint?: string; i: number }) {
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
+    <BlurFade as="div" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
       <dt className="text-[11px] uppercase tracking-wide text-mute">{k}</dt>
-      <dd className="font-mono text-2xl font-semibold text-ink">{v.toLocaleString("es-PE")}</dd>
+      <dd className="font-mono text-2xl font-semibold text-ink"><NumberTicker value={v} format="entero" /></dd>
       {hint && <dd className="text-[10px] text-mute">{hint}</dd>}
-    </div>
+    </BlurFade>
   );
 }
 

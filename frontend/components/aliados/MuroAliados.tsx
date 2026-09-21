@@ -2,7 +2,13 @@ import Link from "next/link";
 import { ArrowRight, EyeOff, HeartHandshake } from "lucide-react";
 import { getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { TarjetaAliado } from "./TarjetaAliado";
+
+/** Tope de items con stagger propio: pasado esto, todos entran juntos al delay tope en
+ * vez de seguir sumando 60-80ms por tarjeta (con TAM=24 por página, una cascada sin tope
+ * tardaría más de 1.5s en terminar de revelarse — se siente lenta, no "viva"). */
+const STAGGER_MAX = 14;
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
 
@@ -87,8 +93,16 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
       <div>
         <p className="font-serif text-2xl font-bold text-ink">{encabezado}</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          {destacados.map((r, i) => <TarjetaAliado key={r.id} row={r} posicion={i + 1} destacado />)}
-          {Array.from({ length: slotsVacios }).map((_, i) => <AliadoPlaceholder key={`placeholder-${i}`} />)}
+          {destacados.map((r, i) => (
+            <BlurFade key={r.id} delayMs={i * 80} className="flex">
+              <TarjetaAliado row={r} posicion={i + 1} destacado />
+            </BlurFade>
+          ))}
+          {Array.from({ length: slotsVacios }).map((_, i) => (
+            <BlurFade key={`placeholder-${i}`} delayMs={(destacados.length + i) * 80} className="flex">
+              <AliadoPlaceholder />
+            </BlurFade>
+          ))}
         </div>
         {anonimos.length > 0 && (
           <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-mute">
@@ -128,7 +142,11 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
           <span className="text-[11px] text-mute">se cuenta en contratos, no en soles</span>
         </div>
         <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          {destacados.map((r, i) => <TarjetaAliado key={r.id} row={r} posicion={i + 1} destacado />)}
+          {destacados.map((r, i) => (
+            <BlurFade key={r.id} delayMs={i * 80} className="flex">
+              <TarjetaAliado row={r} posicion={i + 1} destacado />
+            </BlurFade>
+          ))}
         </div>
       </section>
 
@@ -141,7 +159,11 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
           <div className="mt-3">{paginacion}</div>
           {filasPagina.length > 0 ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {filasPagina.map((r) => <TarjetaAliado key={r.id} row={r} posicion={r.posicion} />)}
+              {filasPagina.map((r, i) => (
+                <BlurFade key={r.id} delayMs={Math.min(i, STAGGER_MAX) * 60} className="flex">
+                  <TarjetaAliado row={r} posicion={r.posicion} />
+                </BlurFade>
+              ))}
             </div>
           ) : (
             <p className="mt-3 text-sm text-mute">Los aliados de esta página aportaron de forma anónima.</p>

@@ -45,7 +45,7 @@ export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid
         disabled={busy}
         title={`${largo}${cita.cita ? ` — “${cita.cita.slice(0, 200)}”` : ""}`}
         aria-label={`Abrir ${largo}`}
-        className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-1.5 py-0.5 text-[11px] text-ink hover:bg-paperDeep disabled:opacity-60"
+        className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-1.5 py-0.5 text-[11px] text-ink transition-colors hover:bg-paperDeep disabled:opacity-60"
       >
         {busy ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <FileText size={11} aria-hidden />}
         {label}

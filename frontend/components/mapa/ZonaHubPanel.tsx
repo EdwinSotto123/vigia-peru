@@ -216,26 +216,34 @@ export function ZonaHubPanel({
 
       {/* Contenido */}
       <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel">
-        {tab === "resumen" && (
-          <ResumenTab
-            nombre={nombre}
-            detalle={detalle}
-            nAlertas={alertasRegion.length}
-            nReportes={reportesRegion.length}
-            regionId={regionId}
-            financiarHref={financiarHref}
-            denunciarHref={denunciarHref}
-            enVivoHref={enVivoHref}
-            goTo={setTab}
-          />
-        )}
-        {tab === "cola" && <ColaTab nombre={nombre} ubigeo={ubigeo} detalle={detalle} />}
-        {tab === "entidades" && <EntidadesDeZona regionId={regionId} nombre={nombre} />}
-        {tab === "alertas" && <AlertasDeZona regionId={regionId} nombre={nombre} alertas={alertas} />}
-        {tab === "denuncias" && (
-          <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />
-        )}
-        {tab === "presupuesto" && <PresupuestoRegional mefDept={REGION_TO_MEF_DEPT[regionId] ?? null} regionId={regionId} />}
+        {/* key por región+pestaña: antes cambiar de región con la misma pestaña activa
+            (p. ej. "resumen") solo volvía a renderizar ResumenTab in-place, sin ninguna
+            transición -- el contenido nuevo pisaba al anterior de golpe. Un cambio de
+            `key` fuerza un remount de este wrapper, así `animate-fadeIn` (200ms, ya
+            definida en tailwind.config.ts) se repite cada vez que cambia la región o la
+            pestaña, no solo la primera vez. */}
+        <div key={`${ubigeo || regionId}-${tab}`} className="animate-fadeIn">
+          {tab === "resumen" && (
+            <ResumenTab
+              nombre={nombre}
+              detalle={detalle}
+              nAlertas={alertasRegion.length}
+              nReportes={reportesRegion.length}
+              regionId={regionId}
+              financiarHref={financiarHref}
+              denunciarHref={denunciarHref}
+              enVivoHref={enVivoHref}
+              goTo={setTab}
+            />
+          )}
+          {tab === "cola" && <ColaTab nombre={nombre} ubigeo={ubigeo} detalle={detalle} />}
+          {tab === "entidades" && <EntidadesDeZona regionId={regionId} nombre={nombre} />}
+          {tab === "alertas" && <AlertasDeZona regionId={regionId} nombre={nombre} alertas={alertas} />}
+          {tab === "denuncias" && (
+            <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />
+          )}
+          {tab === "presupuesto" && <PresupuestoRegional mefDept={REGION_TO_MEF_DEPT[regionId] ?? null} regionId={regionId} />}
+        </div>
       </div>
 
       {/* Footer: las dos acciones siempre a mano (el resumen ya las muestra en grande) */}

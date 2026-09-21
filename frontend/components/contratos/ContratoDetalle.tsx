@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import {
-  ArrowLeft, Building2, Clock, Heart, MapPin, ShieldAlert,
+  ArrowLeft, Building2, ChevronDown, Clock, Heart, MapPin, ShieldAlert,
 } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
@@ -100,9 +100,14 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
             )}
           </dl>
 
-          {/* Ítems */}
-          <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Ítems ({c.items.length})</h2>
+          {/* Ítems — colapsable: procesos con muchos ítems (hasta 73 en casos reales) ya no
+              fuerzan todo ese scroll de entrada; con pocos (el caso típico) queda abierto igual
+              que antes, sin ningún cambio visible. */}
+          <details className="group" open={c.items.length <= 10}>
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+              Ítems ({c.items.length})
+              <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
+            </summary>
             {c.items.length ? (
               <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[560px] text-left text-xs">
@@ -136,12 +141,16 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
             ) : (
               <p className="mt-2 rounded-2xl border border-dashed border-line bg-paper px-4 py-6 text-center text-sm text-mute">El registro OCDS no trae ítems para este proceso.</p>
             )}
-          </section>
+          </details>
 
-          {/* Postores y ofertas (leídos del expediente) */}
+          {/* Postores y ofertas (leídos del expediente) — colapsable cuando hay muchos postores;
+              con pocos (el caso típico) queda abierto igual que antes. */}
           {postores.length > 0 && (
-            <section aria-labelledby="postores-h">
-              <h2 id="postores-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Postores y ofertas ({postores.length})</h2>
+            <details className="group" open={postores.length <= 8}>
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+                Postores y ofertas ({postores.length})
+                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
+              </summary>
               <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[560px] text-left text-xs">
                   <caption className="sr-only">Postores con su oferta económica, leídos de las actas del expediente</caption>
@@ -178,13 +187,17 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                 </table>
               </div>
               <p className="mt-1 text-[10px] text-mute">Ofertas leídas de las actas y cuadros comparativos del expediente; “vs. referencia” compara con el valor referencial del proceso. Toca la fuente para abrir la página citada del PDF.</p>
-            </section>
+            </details>
           )}
 
-          {/* Precio contratado vs. referencia */}
+          {/* Precio contratado vs. referencia — colapsable cuando hay muchos ítems analizados
+              (mismo caso de contratos con decenas de ítems); con pocos queda abierto igual que antes. */}
           {itemsAnalizados.length > 0 && (
-            <section aria-labelledby="precios-h">
-              <h2 id="precios-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Precio contratado vs. referencia ({itemsAnalizados.length})</h2>
+            <details className="group" open={itemsAnalizados.length <= 10}>
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+                Precio contratado vs. referencia ({itemsAnalizados.length})
+                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
+              </summary>
               <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[620px] text-left text-xs">
                   <caption className="sr-only">Ítems con su precio unitario ofertado o contratado frente al valor referencial</caption>
@@ -222,13 +235,17 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                 </table>
               </div>
               <p className="mt-1 text-[10px] text-mute">Referencia unitaria = valor referencial del ítem en el registro OCDS ÷ cantidad. El contratado sale del contrato u orden de compra leída por los agentes.</p>
-            </section>
+            </details>
           )}
 
-          {/* Señales con página citada */}
+          {/* Señales con página citada — colapsable: es evidencia de profundización, no la
+              primera lectura; con pocas señales (el caso típico) queda abierto igual que antes. */}
           {senalesConCita.length > 0 && (
-            <section aria-labelledby="citas-h">
-              <h2 id="citas-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Dónde dice cada señal en el expediente</h2>
+            <details className="group" open={senalesConCita.length <= 6}>
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+                Dónde dice cada señal en el expediente ({senalesConCita.length})
+                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
+              </summary>
               <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper shadow-card">
                 {senalesConCita.map((b, i) => (
                   <li key={`${b.regla}-${i}`} className="px-4 py-2.5 text-sm">
@@ -240,13 +257,19 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                   </li>
                 ))}
               </ul>
-            </section>
+            </details>
           )}
 
-          {/* Documentos */}
-          <section>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Documentos oficiales ({c.documentos.length})</h2>
+          {/* Documentos — colapsable: los expedientes reales suelen traer muchos archivos (bases,
+              addendas, actas, contrato…); con pocos (el caso típico) queda abierto igual que antes.
+              El <summary> tiene que ser hijo directo de <details>, así que el título y el estado del
+              almacén (antes en un <div> aparte junto al <h2>) se juntan en un único <summary>. */}
+          <details className="group" open={c.documentos.length <= 10}>
+            <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink">
+                Documentos oficiales ({c.documentos.length})
+                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
+              </span>
               {c.documentosEnVigia && c.documentos.length > 0 && (
                 <span className="text-[10px] text-mute" title="Los documentos se conservan 90 días en el almacén de Vigía; después se vuelven a descargar solo si alguien financia el análisis.">
                   {c.documentosEnVigia.n > 0 && c.documentosEnVigia.expiraAt
@@ -254,9 +277,9 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                     : "no descargados: se bajan al financiar"}
                 </span>
               )}
-            </div>
+            </summary>
             <DocumentosContrato ocid={c.ocid} documentos={c.documentos} />
-          </section>
+          </details>
         </div>
 
         {/* Análisis */}

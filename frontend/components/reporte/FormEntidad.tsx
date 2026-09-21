@@ -150,7 +150,7 @@ export function FormEntidad({
                       setEnt(r);
                       setQuery("");
                     }}
-                    className="block w-full border-b border-line px-3 py-2 text-left last:border-b-0 hover:bg-paperDeep"
+                    className="block w-full border-b border-line px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-paperDeep"
                   >
                     <div className="flex items-center gap-2 text-[10px] text-mute">
                       <span className="font-mono">RUC {r.ruc}</span>

@@ -1,6 +1,7 @@
 import { Building2, Cloud } from "lucide-react";
 import { EntidadesPanel } from "@/components/EntidadesPanel";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { PulseDot } from "@/components/ui/PulseDot";
 import {
   ENTIDADES_PAGE_SIZE,
   getEntidadesPagina,
@@ -94,13 +95,17 @@ export default async function EntidadesPage({
         actions={
           <span
             className={
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest " +
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest " +
               (source === "api"
                 ? "border-moss/40 bg-moss/10 text-moss"
                 : "border-amber/40 bg-amber-soft text-amber")
             }
           >
-            <Cloud size={11} />
+            {/* Mismo indicador "en vivo" que TableroAuditoria/ContratoEnVivo/PanelProcesamiento/
+                /app/alertas (PulseDot) — el badge decía "live" pero mostraba un ícono de nube
+                estático en vez del mismo lenguaje visual pulsante que el resto del sitio usa
+                para datos que se refrescan solos. */}
+            {source === "api" ? <PulseDot color="moss" size={6} /> : <Cloud size={11} />}
             {source === "api" ? "live · Cloud SQL" : "mock"}
           </span>
         }

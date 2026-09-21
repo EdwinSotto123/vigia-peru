@@ -9,6 +9,7 @@ import {
   Cloud,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { DenunciasGrid } from "@/components/denuncias/DenunciasGrid";
 import { FiltrosDenuncias } from "@/components/denuncias/FiltrosDenuncias";
 import { getReportes, getReportesPagina, getConvergencias } from "@/lib/api-client";
@@ -174,7 +175,10 @@ function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: 
         <span className="text-[10px] font-semibold uppercase tracking-widest text-mute">{label}</span>
         {icon}
       </div>
-      <div className="mt-1 font-mono text-2xl font-bold tabular-nums">{value}</div>
+      {/* Cuenta desde 0 al entrar en pantalla — antes era texto estático. Estas 4
+          cifras son lo primero que se lee en la página, donde más se notaba que
+          todo estaba quieto. */}
+      <NumberTicker value={value} className="mt-1 block font-mono text-2xl font-bold" />
       {sub && <div className="mt-0.5 text-[10px] text-mute">{sub}</div>}
     </div>
   );

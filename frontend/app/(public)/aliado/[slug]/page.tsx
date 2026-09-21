@@ -1,12 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Eye } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Eye } from "lucide-react";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
 import { KpiTile } from "@/components/aliados/KpiTile";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { API_BASE } from "@/lib/api-client";
 
 export const revalidate = 30;
+
+/** Filas de "Contribuciones" que se muestran directo, sin interacción — un aliado
+ * prolífico (muchos contratos financiados, cada uno con su propio código) puede acumular
+ * decenas de filas; sin tope la ficha se vuelve una sola lista larga para scrollear. El
+ * resto queda detrás de un <details> nativo (sin JS, sin nuevo fetch: son los mismos
+ * datos ya traídos por getAliado, solo recortados para la primera pintura). */
+const CONTRIB_VISIBLES = 8;
 
 interface Aliado { id: number; tipo: "empresa" | "persona" | "organizacion"; nombre: string; slug: string; logoUrl: string | null; desde: string }
 interface Contrib { codigo: string; contratos: number; estado: string; pagadaAt: string; ubigeo: string; zona: string; nivel: string; procesados: number; senales: number; enRevision?: number }
@@ -34,6 +42,29 @@ function PildoraEstado({ estado }: { estado: string }) {
       {estado === "en_proceso" && <PulseDot color="moss" size={5} />}
       {cfg.label}
     </span>
+  );
+}
+
+/** Contenido de una fila de "Contribuciones" — factorizado porque ahora se renderiza
+ * desde dos sitios (las visibles con BlurFade y el resto dentro del <details>) y antes
+ * era JSX inline que se hubiera tenido que duplicar entero. */
+function FilaContribucion({ c }: { c: Contrib }) {
+  return (
+    <>
+      <div>
+        <Link href={`/impacto/${c.codigo}`} className="font-mono text-ink hover:underline">{c.codigo}</Link>
+        <span className="text-mute"> · </span>
+        <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-mute">
+          <span>{new Date(c.pagadaAt).toLocaleDateString("es-PE")}</span>
+          <PildoraEstado estado={c.estado} />
+        </div>
+      </div>
+      <div className="text-right font-mono text-sm text-ink">
+        {c.procesados}/{c.contratos}
+        <div className="text-[10px] uppercase text-mute">{c.senales} señales{(c.enRevision ?? 0) > 0 ? ` · ${c.enRevision} en revisión` : ""}</div>
+      </div>
+    </>
   );
 }
 
@@ -68,6 +99,8 @@ export default async function AliadoPage({ params }: { params: { slug: string } 
   const senales = contribuciones.reduce((n, c) => n + c.senales, 0);
   const enRevision = contribuciones.reduce((n, c) => n + (c.enRevision ?? 0), 0);
   const zonas = new Set(contribuciones.map((c) => c.ubigeo)).size;
+  const contribVisibles = contribuciones.slice(0, CONTRIB_VISIBLES);
+  const contribResto = contribuciones.slice(CONTRIB_VISIBLES);
 
   return (
     <div className="container-page py-10">
@@ -113,24 +146,37 @@ export default async function AliadoPage({ params }: { params: { slug: string } 
 
         <h2 className="mt-8 font-semibold text-ink">Contribuciones</h2>
         <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
-          {contribuciones.map((c) => (
-            <li key={c.codigo} className="flex items-center justify-between gap-3 bg-paper px-4 py-3 text-sm transition-colors hover:bg-paperDeep">
-              <div>
-                <Link href={`/impacto/${c.codigo}`} className="font-mono text-ink hover:underline">{c.codigo}</Link>
-                <span className="text-mute"> · </span>
-                <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-mute">
-                  <span>{new Date(c.pagadaAt).toLocaleDateString("es-PE")}</span>
-                  <PildoraEstado estado={c.estado} />
-                </div>
-              </div>
-              <div className="text-right font-mono text-sm text-ink">
-                {c.procesados}/{c.contratos}
-                <div className="text-[10px] uppercase text-mute">{c.senales} señales{(c.enRevision ?? 0) > 0 ? ` · ${c.enRevision} en revisión` : ""}</div>
-              </div>
-            </li>
+          {contribVisibles.map((c, i) => (
+            <BlurFade
+              key={c.codigo}
+              as="li"
+              delayMs={i * 60}
+              className="flex items-center justify-between gap-3 bg-paper px-4 py-3 text-sm transition-colors hover:bg-paperDeep"
+            >
+              <FilaContribucion c={c} />
+            </BlurFade>
           ))}
         </ul>
+        {/* Cola larga (aliados con muchos contratos financiados): detrás de un <details>
+            nativo en vez de seguir apilando filas — funciona sin JS y no obliga a nadie a
+            scrollear una lista de decenas de códigos para llegar al CTA de abajo. Sin
+            BlurFade acá: son filas que arrancan ocultas (display:none del propio <details>
+            cerrado), no tiene sentido animar una entrada que nadie ve todavía. */}
+        {contribResto.length > 0 && (
+          <details className="group mt-2 overflow-hidden rounded-2xl border border-line">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-paper px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-paperDeep">
+              <span>Ver los {contribResto.length} contratos restantes</span>
+              <ChevronDown size={14} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" aria-hidden />
+            </summary>
+            <ul className="divide-y divide-line border-t border-line">
+              {contribResto.map((c) => (
+                <li key={c.codigo} className="flex items-center justify-between gap-3 bg-paper px-4 py-3 text-sm transition-colors hover:bg-paperDeep">
+                  <FilaContribucion c={c} />
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-paper p-5 shadow-card">
           <div>

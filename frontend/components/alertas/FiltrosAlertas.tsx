@@ -68,7 +68,16 @@ export function FiltrosAlertas({ query }: { query: AlertasQuery }) {
   const campo = "h-9 rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none transition-colors focus:border-heroViolet";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // Pegajosa: con hasta 24 alertas por página, cambiar de región/estado obligaba a volver
+    // a scrollear hasta arriba — mismo problema de "mucho scroll" que la paginación ya
+    // resuelve para navegar entre páginas, pero para el filtro no había ningún atajo.
+    // `top-0`, no `top-16`: a diferencia del sitio público (components/Header.tsx, sticky
+    // top-0 h-16), el layout de /app/* no tiene barra superior — DashboardSidebar es una
+    // columna IZQUIERDA (`md:sticky md:top-0`), no una franja horizontal — así que acá no
+    // hay ningún header debajo del cual "esconderse". Mismo recipe (sticky + blur + bg-paper
+    // + border-b) que ya usa el header de AdminShell.tsx en un layout con sidebar igual de
+    // angosto.
+    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-line/70 bg-paper/95 py-2.5 backdrop-blur">
       <label className="relative flex items-center">
         <Search size={13} className="pointer-events-none absolute left-3 text-mute" aria-hidden />
         <span className="sr-only">Filtrar por región o provincia</span>

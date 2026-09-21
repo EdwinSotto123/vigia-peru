@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
+import { BlurFade } from "@/components/magicui/BlurFade";
 
 export function ResumenHumano({
   conv,
@@ -162,8 +163,14 @@ export function ResumenHumano({
         <div className="border-t border-line bg-paperSoft px-4 py-2.5">
           <div className="mb-1 text-[10px] font-medium text-mute">Hallazgos prioritarios</div>
           <ul className="space-y-1">
+            {/* Cascada corta: son 2 hallazgos independientes, no un solo bloque de texto. */}
             {top.map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] leading-snug text-ink">
+              <BlurFade
+                as="li"
+                key={i}
+                delayMs={i * 70}
+                className="flex items-start gap-2 text-[12px] leading-snug text-ink"
+              >
                 <span className={cn(
                   "mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
                   (b.severidad || "").toLowerCase() === "alta"  && "bg-rust",
@@ -171,7 +178,7 @@ export function ResumenHumano({
                   (b.severidad || "").toLowerCase() === "baja"  && "bg-mute",
                 )} />
                 <span className="line-clamp-2">{redactDnis(b.evidencia || b.regla)}</span>
-              </li>
+              </BlurFade>
             ))}
           </ul>
         </div>

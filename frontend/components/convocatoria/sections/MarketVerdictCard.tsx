@@ -3,6 +3,7 @@
 import { Coins, Receipt, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VEREDICTO_VISUAL } from "../constants";
+import { BlurFade } from "@/components/magicui/BlurFade";
 
 function Kpi({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: "ink" | "rust" | "amber" | "moss" }) {
   const cls = {
@@ -185,11 +186,12 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       })()}
       {(market.observaciones_clave || []).length > 0 && (
         <ul className="mt-3 space-y-1 text-sm text-ink">
+          {/* Cascada: cada observación es un hallazgo independiente del agente de mercado. */}
           {market.observaciones_clave.map((o: string, i: number) => (
-            <li key={i} className="flex items-start gap-2">
+            <BlurFade as="li" key={i} delayMs={i * 70} className="flex items-start gap-2">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-heroViolet" />
               <span>{o}</span>
-            </li>
+            </BlurFade>
           ))}
         </ul>
       )}

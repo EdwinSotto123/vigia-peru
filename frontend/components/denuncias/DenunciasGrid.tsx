@@ -17,6 +17,7 @@ import type { ReporteCiudadano, Convergencia } from "@/types";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { DenunciasMap } from "./DenunciasMap";
 import { cn } from "@/lib/utils";
 
@@ -84,8 +85,12 @@ export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, to
 
   return (
     <div className="space-y-5">
-      {/* Búsqueda de texto + toggle de vista */}
-      <div className="surface flex flex-wrap items-center gap-2 p-4">
+      {/* Búsqueda de texto + toggle de vista — pegajosa: con hasta 24 tarjetas en la
+          grilla (varias pantallas de alto), poder buscar o saltar a Mapa sin volver a
+          scrollear hasta arriba es la reducción de scroll más real de esta pantalla.
+          top-0 (no top-16): esta ruta vive bajo (dashboard)/layout.tsx, que no monta
+          <Header/> — el sidebar es la única franja fija y es una columna aparte. */}
+      <div className="surface sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-paper/95 p-4 backdrop-blur">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
           <input
@@ -133,8 +138,8 @@ export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, to
             </div>
           ) : (
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtradosGrid.map((r) => (
-                <DenunciaCard key={r.id} reporte={r} esConvergente={reportesEnConvergencia.has(r.id)} />
+              {filtradosGrid.map((r, i) => (
+                <DenunciaCard key={r.id} reporte={r} esConvergente={reportesEnConvergencia.has(r.id)} index={i} />
               ))}
             </ul>
           )}
@@ -195,9 +200,14 @@ function ViewToggle({
 function DenunciaCard({
   reporte,
   esConvergente,
+  index,
 }: {
   reporte: ReporteCiudadano;
   esConvergente: boolean;
+  /** Posición en la grilla — escalona la entrada en cascada, tope en 12 para que una
+      página de 24 tarjetas no tarde ~1.7s en terminar de aparecer (24 × 70ms sería
+      demasiado lento, no "vivo"). */
+  index: number;
 }) {
   const meta = CATEGORIA_META[reporte.categoria as CategoriaDenuncia];
   const Icon = meta?.icon ?? Camera;
@@ -209,7 +219,7 @@ function DenunciaCard({
   })();
 
   return (
-    <li>
+    <BlurFade as="li" delayMs={Math.min(index, 12) * 70}>
       <Link
         href={`/app/denuncias/${reporte.id}`}
         className="surface group flex h-full flex-col overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-paper"
@@ -291,6 +301,6 @@ function DenunciaCard({
           </div>
         </div>
       </Link>
-    </li>
+    </BlurFade>
   );
 }

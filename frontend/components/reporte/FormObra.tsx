@@ -12,6 +12,7 @@ import {
   Loader2,
   HeartHandshake,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
@@ -261,7 +262,7 @@ export function FormObra({
                 <button
                   type="button"
                   onClick={() => removeSubido(i)}
-                  className="text-mute hover:text-rust"
+                  className="text-mute transition-colors hover:text-rust"
                   aria-label="Quitar"
                 >
                   ✕
@@ -335,58 +336,71 @@ export function FormObra({
       </Step>
 
       <Step n={5} title="Datos adicionales (opcional, suman al dossier)">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Monto estimado en S/.</label>
-            <input
-              type="number" min="0"
-              value={montoEstimado}
-              onChange={(e) => setMontoEstimado(e.target.value)}
-              placeholder="Ej: 250000"
-              className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+        {/* Colapsado por defecto: 4 campos que la mayoría de denuncias rápidas no
+            llena (foto + lugar + relato ya alcanzan para enviar, ver ProgressTracker
+            arriba) — antes sumaban scroll obligatorio incluso para quien no los iba
+            a tocar. <details> nativo: funcional sin JS de por medio, solo el chevron
+            gira con una transición corta al abrir. */}
+        <details className="group rounded-xl border border-dashed border-line bg-paperDeep/40 open:border-line open:bg-transparent">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-3 text-sm font-medium text-heroViolet marker:hidden [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={15} className="transition-transform duration-200 group-open:rotate-180" aria-hidden />
+            Agregar monto, fechas, personas o enlaces
+          </summary>
+          <div className="space-y-3 px-4 pb-4 pt-1">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Monto estimado en S/.</label>
+                <input
+                  type="number" min="0"
+                  value={montoEstimado}
+                  onChange={(e) => setMontoEstimado(e.target.value)}
+                  placeholder="Ej: 250000"
+                  className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Desde</label>
+                  <input
+                    type="date"
+                    value={periodoDesde}
+                    onChange={(e) => setPeriodoDesde(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Hasta</label>
+                  <input
+                    type="date"
+                    value={periodoHasta}
+                    onChange={(e) => setPeriodoHasta(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Desde</label>
-              <input
-                type="date"
-                value={periodoDesde}
-                onChange={(e) => setPeriodoDesde(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm"
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Personas involucradas (nombres, cargos)</label>
+              <textarea
+                rows={2}
+                value={personasInvolucradas}
+                onChange={(e) => setPersonasInvolucradas(e.target.value)}
+                placeholder="Ej: Juan Pérez (Gerente Municipal), María López (Sub-Gerente Logística)"
+                className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Hasta</label>
-              <input
-                type="date"
-                value={periodoHasta}
-                onChange={(e) => setPeriodoHasta(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm"
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Enlaces externos (uno por línea)</label>
+              <textarea
+                rows={2}
+                value={enlacesExternos}
+                onChange={(e) => setEnlacesExternos(e.target.value)}
+                placeholder="https://facebook.com/post/123&#10;https://noticia.pe/articulo"
+                className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm font-mono text-xs"
               />
             </div>
           </div>
-        </div>
-        <div className="mt-3">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Personas involucradas (nombres, cargos)</label>
-          <textarea
-            rows={2}
-            value={personasInvolucradas}
-            onChange={(e) => setPersonasInvolucradas(e.target.value)}
-            placeholder="Ej: Juan Pérez (Gerente Municipal), María López (Sub-Gerente Logística)"
-            className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm"
-          />
-        </div>
-        <div className="mt-3">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-mute">Enlaces externos (uno por línea)</label>
-          <textarea
-            rows={2}
-            value={enlacesExternos}
-            onChange={(e) => setEnlacesExternos(e.target.value)}
-            placeholder="https://facebook.com/post/123&#10;https://noticia.pe/articulo"
-            className="mt-1 w-full rounded-xl border border-line bg-paperSoft px-4 py-2 text-sm font-mono text-xs"
-          />
-        </div>
+        </details>
       </Step>
 
       <Step n={6} title="Contacto (opcional, anónimo por defecto)">

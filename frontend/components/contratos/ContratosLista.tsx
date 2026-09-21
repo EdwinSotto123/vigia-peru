@@ -16,6 +16,7 @@ import Link from "next/link";
 import { ArrowUpRight, Inbox, WifiOff } from "lucide-react";
 import { ESTADO_PROC, PUBLIC_API_BASE, type EstadoProc } from "@/lib/auditoria";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import {
   ESTADO_CONTRATO_EXTRA,
   RIESGO_CLS,
@@ -206,6 +207,13 @@ export function ContratosLista({
 // se mantiene liviana cuando no hay nada que reportar (sin documentos, sin score) y solo se
 // carga de color/peso visual cuando SÍ hay una señal real, para que esas destaquen del resto.
 
+// Cascada de entrada: solo las primeras STAGGER_MAX tarjetas de la página (BlurFade con delay
+// creciente) — el resto de las hasta 50/página aparece sin retraso. Escalonar las 50 a 70ms cada
+// una tardaría ~3.5s en terminar de entrar (se siente lento, no "vivo"); 14×60ms cubre lo que se
+// ve sin scrollear en la mayoría de pantallas y termina en <1s.
+const STAGGER_MAX = 14;
+const STAGGER_STEP_MS = 60;
+
 function Tarjetas({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
   // Primera carga en modo "interna" (panel del mapa): sin esto, la lista es un <ul> vacío
   // mientras llega el fetch — un hueco en blanco, no un estado de carga real.
@@ -218,8 +226,15 @@ function Tarjetas({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProp
   }
   return (
     <ul className={cn("space-y-2", cargando && "opacity-60")} aria-busy={cargando}>
-      {rows.map((c) => (
-        <Tarjeta key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
+      {rows.map((c, i) => (
+        <Tarjeta
+          key={c.ocid}
+          c={c}
+          selected={selectedOcid === c.ocid}
+          onSelect={onSelect}
+          onHover={onHover}
+          delayMs={i < STAGGER_MAX ? i * STAGGER_STEP_MS : undefined}
+        />
       ))}
     </ul>
   );
@@ -243,13 +258,15 @@ const RIESGO_TARJETA_CLS: Record<RiesgoContrato, string> = {
   sin_analizar: "border-line bg-paperDeep text-mute",
 };
 
-function Tarjeta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
+function Tarjeta({ c, selected, onSelect, onHover, delayMs }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"]; delayMs?: number }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
   const riesgo = riesgoDe(c.score);
   const tieneSenal = c.score != null;
-  return (
-    <li ref={ref} onMouseEnter={() => onHover?.(c)} onMouseLeave={() => onHover?.(null)}>
+  // El contenido se arma aparte del <li> para poder envolverlo en BlurFade solo en las primeras
+  // tarjetas de la página (ver STAGGER_MAX en Tarjetas) sin duplicar todo su JSX ni anidar dos
+  // <li> (BlurFade con as="li" quedaría anidado dentro de este <li>, HTML inválido).
+  const enlace = (
       <Link
         href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
         onClick={() => onSelect?.(c)}
@@ -295,6 +312,10 @@ function Tarjeta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selec
           </div>
         </div>
       </Link>
+  );
+  return (
+    <li ref={ref} onMouseEnter={() => onHover?.(c)} onMouseLeave={() => onHover?.(null)}>
+      {delayMs != null ? <BlurFade delayMs={delayMs}>{enlace}</BlurFade> : enlace}
     </li>
   );
 }
@@ -343,7 +364,9 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
     <li
       ref={ref}
       className={cn(
-        "group rounded-xl border bg-paper px-2.5 py-2 transition-all hover:shadow-card",
+        // Antes solo cambiaba de fondo al pasar el mouse (hover:shadow-card sin lift) — mismo
+        // patrón de FeatureHighlights.tsx/Metric de /app/financiar: transición real, no solo color.
+        "group rounded-xl border bg-paper px-2.5 py-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card",
         selected ? "border-heroViolet bg-heroViolet/5" : "border-line hover:border-heroViolet/30 hover:bg-paperDeep",
       )}
       onMouseEnter={() => onHover?.(c)}

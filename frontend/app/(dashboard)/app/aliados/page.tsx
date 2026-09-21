@@ -3,6 +3,7 @@ import { ArrowRight, HeartHandshake, Scale, ShieldCheck, Trophy } from "lucide-r
 import { MuroAliados } from "@/components/aliados/MuroAliados";
 import { KpiTile } from "@/components/aliados/KpiTile";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
+import { BlurFade } from "@/components/magicui/BlurFade";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -49,26 +50,42 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
       </section>
 
       {/* ─── MURO ─── */}
-      <section className="container-page py-12">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      {/* Barra de filtro pegajosa: "Todos los aliados" pagina hasta 24 tarjetas, así que
+          cambiar de región no debería obligar a volver a scrollear hasta arriba. top-0 (no
+          top-16, el offset típico bajo el Header): esta ruta cuelga de (dashboard)/layout.tsx,
+          que NO renderiza el Header público, solo DashboardSidebar (una barra LATERAL, no
+          superior) — no hay nada que esquivar arriba de esta barra. */}
+      <div className="sticky top-0 z-10 border-b border-line bg-paper/95 py-3 backdrop-blur">
+        <div className="container-page flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-mute">{zonaActual ? `Aliados que financiaron auditorías en ${zonaActual}.` : "Filtra el muro por región."}</p>
           <FiltroRegion opciones={opciones} valor={ubigeo} />
         </div>
+      </div>
+      <section className="container-page py-8">
         <MuroAliados region={ubigeo} pagina={pagina} />
       </section>
 
       {/* ─── REGLAS + CTA ─── */}
       <section className="border-t border-line bg-paperDeep py-12">
         <div className="container-page grid gap-6 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start">
-          <Regla icon={<Trophy size={16} />} titulo="Se cuenta en contratos">
-            Trescientos vecinos que financian 300 contratos valen lo mismo que una empresa que financia 300. El ranking nunca mide soles.
-          </Regla>
-          <Regla icon={<Scale size={16} />} titulo="Nadie elige qué se audita">
-            Los contratos se asignan por antigüedad, en código. El pipeline no sabe quién financió. Los resultados se publican siempre.
-          </Regla>
-          <Regla icon={<ShieldCheck size={16} />} titulo="Conflicto de interés automático">
-            Una empresa con sanción vigente o señalada en alertas de la zona puede aportar, pero no aparece en este muro.
-          </Regla>
+          {/* Cascada corta: son 3 reglas independientes, no pasos de una secuencia —
+              entran una tras otra en vez de golpear las tres a la vez. El CTA de al lado
+              queda fuera de la cascada (una acción no debe demorar su aparición). */}
+          <BlurFade delayMs={0}>
+            <Regla icon={<Trophy size={16} />} titulo="Se cuenta en contratos">
+              Trescientos vecinos que financian 300 contratos valen lo mismo que una empresa que financia 300. El ranking nunca mide soles.
+            </Regla>
+          </BlurFade>
+          <BlurFade delayMs={90}>
+            <Regla icon={<Scale size={16} />} titulo="Nadie elige qué se audita">
+              Los contratos se asignan por antigüedad, en código. El pipeline no sabe quién financió. Los resultados se publican siempre.
+            </Regla>
+          </BlurFade>
+          <BlurFade delayMs={180}>
+            <Regla icon={<ShieldCheck size={16} />} titulo="Conflicto de interés automático">
+              Una empresa con sanción vigente o señalada en alertas de la zona puede aportar, pero no aparece en este muro.
+            </Regla>
+          </BlurFade>
           <div className="rounded-2xl border border-line bg-paper p-5 shadow-card lg:max-w-xs">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroViolet/10 text-heroViolet">
               <HeartHandshake size={16} />

@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck, Landmark } from "lucide-react";
 import { ZonaPicker } from "@/components/financiar/ZonaPicker";
 import { RankingTable } from "@/components/financiar/RankingTable";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { getEstadoGlobal, getRanking, getRecientes, getZonas, formatPEN } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -59,7 +60,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
           {/* Métricas globales */}
           <div className="grid grid-cols-2 gap-3">
             <Metric label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
-            <Metric label="Destinado a auditoría" value={estado?.montoPen ?? 0} prefix="S/ " />
+            <Metric label="Destinado a auditoría" value={estado?.montoPen ?? 0} format="pen" />
             <Metric label="Contratos procesados" value={estado?.contratosProcesados ?? 0} />
             <Metric label="Señales de riesgo halladas" value={estado?.senalesHalladas ?? 0} />
             <Metric label="Regiones con auditoría activa" value={estado?.regionesConAuditoria ?? 0} />
@@ -131,11 +132,23 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
   );
 }
 
-function Metric({ label, value, prefix = "", hint }: { label: string; value: number; prefix?: string; hint?: string }) {
+function Metric({
+  label,
+  value,
+  format = "entero",
+  hint,
+}: {
+  label: string;
+  value: number;
+  format?: "entero" | "pen";
+  hint?: string;
+}) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
+      {/* NumberTicker (0 -> value al entrar en pantalla): era texto estático, la cifra
+          protagonista de cada tile ahora se siente viva en vez de solo impresa. */}
       <div className="font-mono text-2xl font-semibold text-ink">
-        {prefix}{value.toLocaleString("es-PE")}
+        <NumberTicker value={value} format={format} />
       </div>
       <div className="mt-1 text-[11px] uppercase tracking-wide text-mute">{label}</div>
       {hint && <div className="text-[11px] text-mute">{hint}</div>}

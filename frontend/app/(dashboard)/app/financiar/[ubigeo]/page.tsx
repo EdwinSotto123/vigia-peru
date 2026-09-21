@@ -4,6 +4,7 @@ import { Activity, ChevronRight, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { Avatar } from "@/components/financiar/RankingTable";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { ESTADO_FILL, ESTADO_LABEL, alcanceCorto, alcanceLargo, formatPEN, getPago, getZona, pct } from "@/lib/financiamiento";
 import { getProcesamientos } from "@/lib/auditoria";
 
@@ -50,7 +51,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           <div className="mt-6 rounded-2xl border border-line bg-paper p-5 shadow-card">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Big label={`En cola (${alcanceCorto(d.alcance)})`} v={zona.totalCola} unit="contratos" />
-              <Big label="Costo de auditarla" v={zona.totalCola * zona.precioPen} prefix="S/ " />
+              <Big label="Costo de auditarla" v={zona.totalCola * zona.precioPen} format="pen" />
               <Big label="Financiados" v={zona.financiados} unit={`de ${zona.totalCola}`} />
               <Big label="Procesados" v={zona.procesados} unit={`${zona.senales} señales${(zona.enRevision ?? 0) > 0 ? ` · ${zona.enRevision} en revisión humana` : ""}`} />
             </div>
@@ -167,11 +168,14 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
   );
 }
 
-function Big({ label, v, unit, prefix = "" }: { label: string; v: number; unit?: string; prefix?: string }) {
+function Big({ label, v, unit, format = "entero" }: { label: string; v: number; unit?: string; format?: "entero" | "pen" }) {
   return (
     <div>
       <div className="text-[11px] uppercase tracking-wide text-mute">{label}</div>
-      <div className="font-mono text-2xl font-semibold text-ink">{prefix}{v.toLocaleString("es-PE")}</div>
+      {/* NumberTicker: mismas 4 cifras protagonistas de la ficha de zona, antes estáticas. */}
+      <div className="font-mono text-2xl font-semibold text-ink">
+        <NumberTicker value={v} format={format} />
+      </div>
       {unit && <div className="text-[11px] text-mute">{unit}</div>}
     </div>
   );

@@ -69,6 +69,7 @@ import { NodeDetailPanel } from "./sections/NodeDetailPanel";
 import { PersonNetworkSection } from "./sections/PersonNetworkSection";
 import { ShareableHeader } from "./sections/ShareableHeader";
 import { ResumenHumano } from "./sections/ResumenHumano";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 
 export function ResultadoView({ result, onReset }: { result: ApiResult; onReset: () => void }) {
   const conv = result.convocatoria || {};
@@ -605,7 +606,13 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             (compl.score ?? 0) >= 70 ? "bg-clay" :
             (compl.score ?? 0) >= 40 ? "bg-amber" : "bg-mute",
           )}>
-            <span className="font-serif text-2xl font-bold leading-none">{compl.score ?? 0}</span>
+            {/* Cifra protagonista de la tarjeta (score de riesgo del dossier): cuenta
+                desde 0 al entrar en pantalla en vez de aparecer estática de golpe. */}
+            <NumberTicker
+              value={compl.score ?? 0}
+              format="entero"
+              className="font-serif text-2xl font-bold leading-none"
+            />
             <span className="mt-0.5 text-[9px] uppercase tracking-widest opacity-80">/ 100</span>
           </div>
           <div className="min-w-0">
@@ -641,7 +648,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
                 "font-mono text-base font-bold tabular-nums leading-none",
                 (conv.n_postores ?? 0) === 1 ? "text-rust" : "text-ink",
               )}>
-                {conv.n_postores ?? 0}
+                <NumberTicker value={conv.n_postores ?? 0} format="entero" />
               </dd>
               <dt className="mt-0.5 text-[9px] text-mute">
                 Postores
@@ -650,13 +657,13 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             </div>
             <div className="rounded-md bg-paperDeep p-1.5">
               <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">
-                {conv.n_items ?? 0}
+                <NumberTicker value={conv.n_items ?? 0} format="entero" />
               </dd>
               <dt className="mt-0.5 text-[9px] text-mute">Ítems</dt>
             </div>
             <div className="rounded-md bg-paperDeep p-1.5">
               <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">
-                {conv.n_docs ?? 0}
+                <NumberTicker value={conv.n_docs ?? 0} format="entero" />
               </dd>
               <dt className="mt-0.5 text-[9px] text-mute">Docs</dt>
             </div>
@@ -668,7 +675,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
           <button
             type="button"
             onClick={() => setActiveTab("trace")}
-            className="surface w-full p-3 text-left transition-colors hover:bg-paperDeep"
+            className="surface w-full p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-paperDeep hover:shadow-paper"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
@@ -678,21 +685,29 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             </div>
             <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
               <div className="rounded-md bg-paperDeep p-1.5">
-                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nEvents}</dd>
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink"><NumberTicker value={nEvents} format="entero" /></dd>
                 <dt className="mt-0.5 text-[9px] text-mute">pasos</dt>
               </div>
               <div className="rounded-md bg-paperDeep p-1.5">
-                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nAgentes}</dd>
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink"><NumberTicker value={nAgentes} format="entero" /></dd>
                 <dt className="mt-0.5 text-[9px] text-mute">agentes</dt>
               </div>
               <div className="rounded-md bg-paperDeep p-1.5">
-                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink">{nToolCalls}</dd>
+                <dd className="font-mono text-base font-bold tabular-nums leading-none text-ink"><NumberTicker value={nToolCalls} format="entero" /></dd>
                 <dt className="mt-0.5 text-[9px] text-mute">tools</dt>
               </div>
             </dl>
             {(_lm.tokens_total || _lm.cost_usd != null) && (
               <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5 text-[10px] text-mute">
-                <span className="font-mono">{_lm.tokens_total ? `${(_lm.tokens_total / 1000).toFixed(0)}K tokens` : "Gemini + grounding"}</span>
+                <span className="font-mono">
+                  {/* Mismo cálculo/unidad de antes (K tokens) — solo se anima el conteo.
+                      cost_usd NO se anima: NumberTicker solo tiene formato "pen" (soles,
+                      redondeado a entero) y este costo es en USD con 3 decimales
+                      (típicamente <$1) — animarlo mostraría "S/ 0", un dato incorrecto. */}
+                  {_lm.tokens_total ? (
+                    <><NumberTicker value={Math.round(_lm.tokens_total / 1000)} format="entero" />K tokens</>
+                  ) : "Gemini + grounding"}
+                </span>
                 {_lm.cost_usd != null && <span className="font-mono text-heroViolet">${Number(_lm.cost_usd).toFixed(3)}</span>}
               </div>
             )}

@@ -6,6 +6,7 @@ import {
   Coins,
   Activity,
   AlertTriangle,
+  ChevronRight,
   Flag,
   ExternalLink,
   FileText,
@@ -19,6 +20,7 @@ import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
 import { Suspense } from "react";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 
 export default async function EntidadProfile({
   params,
@@ -124,34 +126,41 @@ export default async function EntidadProfile({
 
       <DisclaimerBanner />
 
-      {/* KPIs */}
+      {/* KPIs — cifras protagonistas de cada tile: antes texto estático, ahora cuentan desde
+          0 al entrar en pantalla (NumberTicker) para que la ficha se sienta viva y no solo
+          impresa. No son clicables (no navegan a nada), así que no llevan hover de tarjeta. */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KPI
           icon={<AlertTriangle size={16} />}
           label="Alertas automáticas"
-          value={ent.alertas}
+          value={<NumberTicker value={ent.alertas} format="entero" />}
           hint="banderas detectadas"
           tone={ent.alertas > 0 ? "amber" : "ink"}
         />
         <KPI
           icon={<Users size={16} />}
           label="Reportes ciudadanos"
-          value={ent.reportes}
+          value={<NumberTicker value={ent.reportes} format="entero" />}
           hint="sobre esta entidad"
           tone={ent.reportes > 0 ? "crimson" : "ink"}
         />
         <KPI
           icon={<FileText size={16} />}
           label="Contratos vigilados"
-          value={`${ent.contratosVigilados.toLocaleString("es-PE")} / ${ent.contratos.toLocaleString("es-PE")}`}
+          value={
+            <>
+              <NumberTicker value={ent.contratosVigilados} format="entero" /> /{" "}
+              <NumberTicker value={ent.contratos} format="entero" />
+            </>
+          }
           hint="con seguimiento activo"
           tone="ink"
         />
         <KPI
           icon={<Coins size={16} />}
           label="Monto vigilado"
-          value={formatSoles(ent.monto)}
-          hint={`score promedio ${ent.scorePromedio}/100`}
+          value={<NumberTicker value={ent.monto} format="pen_compacto" />}
+          hint={`score promedio ${Math.round(ent.scorePromedio)}/100`}
           tone="heroViolet"
         />
       </section>
@@ -168,7 +177,9 @@ export default async function EntidadProfile({
           </div>
           <div className="mt-4 flex flex-wrap items-end gap-6">
             <div>
-              <div className="font-mono text-5xl font-bold text-ink">{enCola.toLocaleString("es-PE")}</div>
+              <div className="font-mono text-5xl font-bold text-ink">
+                <NumberTicker value={enCola} format="entero" />
+              </div>
               <div className="text-xs text-mute">en cola de auditoría · de {ent.contratos.toLocaleString("es-PE")} registradas</div>
             </div>
             {enCola > 0 && ubigeo ? (
@@ -186,7 +197,7 @@ export default async function EntidadProfile({
           <p className="text-xs text-mute">Promedio ponderado de banderas por severidad.</p>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="font-mono text-6xl font-bold text-ink">
-              {ent.scorePromedio}
+              <NumberTicker value={ent.scorePromedio} format="entero" />
             </span>
             <span className="text-mute">/100</span>
           </div>
@@ -203,21 +214,41 @@ export default async function EntidadProfile({
         </div>
       </section>
 
-      {/* Ejecución presupuestal MEF (real) */}
-      <Suspense
-        fallback={
-          <div className="surface flex h-40 items-center justify-center text-sm text-mute">
-            Consultando MEF — Datos Abiertos…
+      {/* Ejecución presupuestal MEF (real) — la sección más densa de la ficha (tabla + detalle
+          de gasto), y no lo primero que alguien que solo vino a ver alertas necesita. Colapsada
+          detrás de <details> (cerrada por defecto) para no forzar ese scroll; el <summary> sigue
+          diciendo qué hay adentro y de quién, así que nunca desaparece sin explicación. Chevron
+          con el mismo lenguaje visual que CollapsibleSection (convocatoria): rota 90° al abrir,
+          vía group-open — sin JS porque esta página es un server component async. */}
+      <details className="group">
+        <summary className="surface flex cursor-pointer items-center gap-2.5 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
+          <Coins size={15} className="shrink-0 text-heroViolet" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</div>
+            <div className="text-[11px] text-mute">Gasto real vs. presupuesto asignado · {ent.nombre}</div>
           </div>
-        }
-      >
-        <EjecucionPresupuestal
-          query={mefSearchKeywordFor(ent)}
-          ruc={ent.ruc}
-          title="Ejecución presupuestal"
-          subtitle={`${ent.nombre} · datos reales de MEF`}
-        />
-      </Suspense>
+          <ChevronRight
+            size={15}
+            className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90"
+          />
+        </summary>
+        <div className="mt-3">
+          <Suspense
+            fallback={
+              <div className="surface flex h-40 items-center justify-center text-sm text-mute">
+                Consultando MEF — Datos Abiertos…
+              </div>
+            }
+          >
+            <EjecucionPresupuestal
+              query={mefSearchKeywordFor(ent)}
+              ruc={ent.ruc}
+              title="Ejecución presupuestal"
+              subtitle={`${ent.nombre} · datos reales de MEF`}
+            />
+          </Suspense>
+        </div>
+      </details>
 
       {/* Alertas asociadas — convocatorias ya analizadas */}
       <section className="surface overflow-hidden p-0">
@@ -308,7 +339,8 @@ function KPI({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number | string;
+  /** Número/string plano (se formatea acá abajo) o ya un nodo armado, p.ej. <NumberTicker/>. */
+  value: React.ReactNode;
   hint: string;
   tone: "amber" | "crimson" | "ink" | "heroViolet";
 }) {
