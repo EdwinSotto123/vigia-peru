@@ -14,23 +14,25 @@ const FEATURES = [
  */
 export function FeatureHighlights() {
   return (
-    <section className="bg-heroViolet-deep py-8">
-      <div className="container-page grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
-        {FEATURES.map(({ icon: Icon, t, d }) => (
-          <div key={t} className="flex items-start gap-3">
-            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-heroGreen/20 text-heroGreen">
-              <Icon size={16} />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-paper">{t}</div>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-paper/60">{d}</p>
+    <section className="bg-heroViolet-deep py-10">
+      <div className="container-page">
+        <h2 className="mb-6 font-serif text-lg font-semibold text-paper/90">
+          La vigilancia también construye país.
+        </h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
+          {FEATURES.map(({ icon: Icon, t, d }) => (
+            <div key={t} className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-heroGreen text-paper">
+                <Icon size={16} />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-paper">{t}</div>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-paper/60">{d}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-      <p className="mt-6 text-center font-serif text-sm italic text-paper/50">
-        La vigilancia también construye país.
-      </p>
     </section>
   );
 }

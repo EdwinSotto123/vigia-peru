@@ -3,9 +3,10 @@
 /**
  * Lo que faltaba del hero: al hacer clic en una región del mapa, una tarjeta flotante
  * con sus datos reales (no un mockup fijo) — y una segunda tarjeta con un contrato real
- * ya procesado. Client component porque necesita estado (qué región está seleccionada);
- * CampaignMap.tsx gana un `onRegionClick` opcional y aditivo para esto, sin tocar su
- * comportamiento en /app/financiar (que no lo pasa).
+ * ya procesado. Client component porque necesita estado (qué región está seleccionada,
+ * compartido con HeroKpis vía HeroMapSync); CampaignMap.tsx gana `onRegionClick`,
+ * `colorBy` y `selectedCode`, todos opcionales y aditivos, sin tocar su comportamiento
+ * en /app/financiar (que no los pasa).
  */
 
 import { AlertTriangle, ArrowUpRight, MapPin, X } from "lucide-react";
@@ -16,21 +17,38 @@ import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { Zona } from "@/lib/financiamiento";
 import type { Alerta } from "@/types";
 import { LlamaHero } from "./LlamaHero";
+import { useHeroMapSync } from "./HeroMapSync";
 
 function formatPEN(n: number) {
   return `S/ ${Math.round(n).toLocaleString("es-PE")}`;
 }
 
-// La tarjeta nunca se sale del contenedor del mapa, sin importar qué tan cerca
-// de una esquina caiga el centroide clickeado.
-function clampPct(p: number) {
-  return Math.min(Math.max(p, 8), 92);
-}
+// La tarjeta se ancla en píxeles reales del contenedor (ver cardStyle más abajo), no en
+// % del viewBox: el mismo % representa un ancho real distinto según el mapa sea angosto
+// (mobile) o ancho (desktop), y un "flip" por umbral fijo no puede corregir eso en todos
+// los tamaños — por eso el clamp usa containerWidth medido, no un porcentaje.
+const CARD_W = 235; // debe matchear el w-[235px] del card más abajo
+const CARD_H_MAX = 180; // alto máximo aproximado (4 stats + botón "Ver contratos")
+const EDGE_MARGIN = 10;
 
 export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zona[]; featured: Alerta | null }) {
-  const [clickedCode, setClickedCode] = useState<string | null>(null);
+  // `ubigeo`/`zona` viven en el Context (compartidos con HeroKpis, ver HeroMapSync) —
+  // clickear el mapa o la lista top-5 ahora mueve también las cifras del hero.
+  const { ubigeo: clickedCode, zona: clicked, setUbigeo: setClickedCode } = useHeroMapSync();
   const [clickedCentroid, setClickedCentroid] = useState<[number, number] | null>(null);
-  const clicked = useMemo(() => zonas.find((z) => z.ubigeo === clickedCode) ?? null, [zonas, clickedCode]);
+  // Ancho real (px) del contenedor del mapa, medido con ResizeObserver — es lo que permite
+  // anclar la tarjeta con matemática de píxeles reales en vez de un umbral de % fijo.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // "monto monitoreado": lo único real y honesto que se puede afirmar sin un agregado de
   // montoSoles por zona en el API — el costo de leer toda su cola, al precio vigente.
   const costoAuditar = clicked ? clicked.totalCola * clicked.precioPen : 0;
@@ -58,29 +76,52 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
     if (clicked) cardRef.current?.focus();
   }, [clicked]);
 
-  // Ancla la tarjeta cerca del punto real del clic (no una esquina fija): porcentaje
-  // relativo al contenedor + flip de borde para que nunca se salga del mapa — crítico
-  // para regiones del sur/este (p.ej. Puno), que antes siempre abrían arriba-izquierda.
+  // Ancla la tarjeta cerca del punto real del clic (no una esquina fija) y la clampea
+  // dentro del contenedor en PÍXELES reales (containerWidth de arriba), no en % del
+  // viewBox. A 390px de viewport un card de 235px ya es ~60% del ancho disponible: un
+  // centroide al 55-60% del viewBox todavía desbordaba por la derecha con el umbral de
+  // flip fijo anterior (62%), porque ese % nunca conocía el ancho real del contenedor ni
+  // el ancho real del card. El clamp en píxeles no tiene ese punto ciego — el borde de la
+  // tarjeta nunca sale del contenedor, sea angosto (mobile) o ancho (desktop) — crítico
+  // para regiones del sur/este (p.ej. Puno, Loreto).
   const cardStyle: CSSProperties | null = useMemo(() => {
-    if (!clickedCentroid) return null;
-    const leftPct = clampPct((clickedCentroid[0] / VB_W) * 100);
-    const topPct = clampPct((clickedCentroid[1] / VB_H) * 100);
-    const style: CSSProperties = {};
-    if (topPct > 62) style.bottom = `${100 - topPct}%`;
-    else style.top = `${topPct}%`;
-    if (leftPct > 62) style.right = `${100 - leftPct}%`;
-    else style.left = `${leftPct}%`;
-    return style;
-  }, [clickedCentroid]);
+    if (!clickedCentroid || !containerWidth) return null;
+    const scale = containerWidth / VB_W; // el SVG conserva su aspect ratio (width 100%, height auto)
+    const containerHeight = VB_H * scale;
+    const pointX = clickedCentroid[0] * scale;
+    const pointY = clickedCentroid[1] * scale;
+    const maxLeft = Math.max(EDGE_MARGIN, containerWidth - CARD_W - EDGE_MARGIN);
+    const maxTop = Math.max(EDGE_MARGIN, containerHeight - CARD_H_MAX - EDGE_MARGIN);
+    return {
+      left: `${Math.min(Math.max(pointX, EDGE_MARGIN), maxLeft)}px`,
+      top: `${Math.min(Math.max(pointY, EDGE_MARGIN), maxTop)}px`,
+    };
+  }, [clickedCentroid, containerWidth]);
+
+  const topMax = top[0]?.totalCola ?? 0;
 
   return (
-    <div className="relative">
-      {zonas.length > 0 ? (
-        <CampaignMap zonas={zonas} compact landingVariant onRegionClick={handleMapClick} />
-      ) : (
-        <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>
-      )}
-      <p className="mt-1 text-center font-mono text-[10px] text-mute/70">SEACE · OECE · OCDS — datos oficiales, en vivo</p>
+    <div ref={containerRef} className="relative">
+      {/* Wrapper propio para mapa+caption: la llama ancla a SU borde inferior, no al de
+          todo el bloque (que también incluye "Más contratos en cola" más abajo) — antes
+          el ancla -bottom-4/-right-4 quedaba pegada al fondo de ese bloque entero y los
+          tiles de región (que pintan después en el DOM) tapaban la mitad de la llama. */}
+      <div className="relative">
+        {zonas.length > 0 ? (
+          <CampaignMap
+            zonas={zonas}
+            compact
+            landingVariant
+            colorBy="cola"
+            selectedCode={clickedCode}
+            onRegionClick={handleMapClick}
+          />
+        ) : (
+          <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>
+        )}
+        <p className="mt-1 text-center font-mono text-[10px] text-mute/70">SEACE · OECE · OCDS — datos oficiales, en vivo</p>
+        <LlamaHero width={168} className="pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
+      </div>
 
       {/* Tarjeta flotante: región elegida (datos reales, no fijos) */}
       {clicked && (
@@ -125,7 +166,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
 
       {/* Tarjeta flotante: un contrato ya procesado, real */}
       {featured && (
-        <div className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
+        <div className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-brand bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
           <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
             <AlertTriangle size={10} /> score {featured.score}
           </span>
@@ -143,24 +184,33 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
         </div>
       )}
 
-      <LlamaHero width={168} className="pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
-
       {top.length > 0 && (
-        <ul className="mt-3 grid grid-cols-5 gap-2 text-center">
-          {top.map((z) => (
-            <li key={z.ubigeo}>
-              <button
-                onClick={() => handleQuickPick(z.ubigeo)}
-                className={`block w-full rounded-xl border px-2 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
-                  clickedCode === z.ubigeo ? "border-heroViolet bg-heroViolet/5" : "border-line bg-paper hover:bg-paperDeep"
-                }`}
-              >
-                <div className="truncate text-[11px] font-semibold text-ink">{z.nombre}</div>
-                <div className="font-mono text-[11px] text-mute">{z.totalCola.toLocaleString("es-PE")}</div>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3">
+          <p className="mb-1.5 text-center font-mono text-[9px] uppercase tracking-widest text-mute/70">
+            Más contratos en cola
+          </p>
+          <ul className="grid grid-cols-3 gap-2 text-center sm:grid-cols-5">
+            {top.map((z) => {
+              const widthPct = topMax > 0 ? Math.max(6, (z.totalCola / topMax) * 100) : 0;
+              return (
+                <li key={z.ubigeo}>
+                  <button
+                    onClick={() => handleQuickPick(z.ubigeo)}
+                    aria-pressed={clickedCode === z.ubigeo}
+                    title={z.nombre}
+                    className={`relative block w-full overflow-hidden rounded-xl border px-2 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
+                      clickedCode === z.ubigeo ? "border-heroViolet bg-heroViolet/5" : "border-line bg-paper hover:bg-paperDeep"
+                    }`}
+                  >
+                    <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 bg-heroViolet/40" style={{ width: `${widthPct}%` }} />
+                    <span className="relative block truncate text-[11px] font-semibold text-ink">{z.nombre}</span>
+                    <span className="relative block font-mono text-[11px] text-mute">{z.totalCola.toLocaleString("es-PE")}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );

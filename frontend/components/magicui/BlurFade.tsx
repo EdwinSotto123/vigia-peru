@@ -16,6 +16,12 @@ export function BlurFade({
   durationMs = 500,
   y = 10,
   as: Tag = "div",
+  // El elemento arranca en opacity:0 incluso en el HTML servido ("use client" igual
+  // renderiza en el servidor) — un rootMargin negativo en el borde inferior dispara el
+  // reveal un poco ANTES de que el elemento cruce el viewport, para que contenido
+  // explicativo (pasos de "cómo funciona", tarjetas de audiencia) no pueda quedar
+  // atrapado en blanco si el observer tarda (JS lento, dispositivos de gama baja).
+  rootMargin = "0px 0px -10% 0px",
 }: {
   children: ReactNode;
   className?: string;
@@ -24,6 +30,8 @@ export function BlurFade({
   /** Desplazamiento vertical inicial en px. */
   y?: number;
   as?: "div" | "li" | "span";
+  /** rootMargin del IntersectionObserver — cuánto antes de entrar en pantalla dispara el reveal. */
+  rootMargin?: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -38,11 +46,11 @@ export function BlurFade({
         obs.disconnect();
         window.setTimeout(() => setVisible(true), delayMs);
       },
-      { threshold: 0.15 },
+      { threshold: 0.1, rootMargin },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [delayMs]);
+  }, [delayMs, rootMargin]);
 
   return (
     <Tag

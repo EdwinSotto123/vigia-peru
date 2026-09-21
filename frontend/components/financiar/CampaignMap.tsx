@@ -11,15 +11,22 @@
  *
  * `zonas` viene de /financiamiento/zonas (departamentos) y, al hacer drill-down,
  * de /financiamiento/zonas?nivel=provincia&padre=XX.
+ *
+ * Todo lo gateado por `landingVariant` (paleta heroViolet/heroGreen, feedback de
+ * hover/foco, tooltip que sigue al centroide, colorBy, selectedCode externo, skeleton
+ * de carga) es aditivo y solo se activa cuando el llamador lo pide explícitamente —
+ * /app/financiar (landingVariant=false, sin pasar los props nuevos) se comporta
+ * exactamente igual que antes, línea por línea.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
+import { PulseDot } from "@/components/ui/PulseDot";
 import { ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado, pct } from "@/lib/financiamiento";
 
 export const VB_W = 480;
@@ -29,16 +36,50 @@ const API = process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "https://vigia-peru-api-361
 type DeptFC = FeatureCollection<Geometry, { name: string; id: string; code?: string }>;
 type ProvFC = FeatureCollection<Geometry, { name: string; departamento: string; regionId: string; id: string; code?: string }>;
 
+/** Paleta de la landing para el mapa (heroViolet/heroGreen) — gateada por `landingVariant`.
+ * NO reemplaza a ESTADO_FILL (lib/financiamiento.ts), que sigue coloreando /app/financiar
+ * y cualquier otro consumidor de ese token compartido. */
+const ESTADO_FILL_LANDING: Record<ZonaEstado, string> = {
+  sin_datos: "#F4F2FA",
+  pendiente: "#E4DFF5",
+  parcial: "#CFE8D2",
+  financiada: "#CDEFD7",
+  procesada: "#2FA84C",
+};
+
+// La tarjeta/tooltip nunca se sale del contenedor del mapa, sin importar qué tan cerca
+// de una esquina caiga el centroide (mismo helper que HeroMapPanel).
+function clampPct(p: number) {
+  return Math.min(Math.max(p, 8), 92);
+}
+
 interface Props {
   zonas: Zona[];                 // departamentos (nivel 1) con estado
   compact?: boolean;             // versión landing: sin panel, solo mapa + leyenda
   initialUbigeo?: string | null; // abrir ya en un departamento
   linkToHub?: boolean;           // compact: clic en un departamento → /app/mapa?region=… (el único mapa interactivo)
   onRegionClick?: (code: string, centroid: [number, number]) => void; // compact: si se pasa, el clic llama esto en vez de navegar — incluye el centroide del departamento (espacio VB_W×VB_H) para posicionar UI cerca del punto real del clic
-  landingVariant?: boolean;      // sistema de sombra/radio de la landing (shadow-card/paper) para el chrome del mapa; false en /app/financiar, que mantiene su tratamiento nativo
+  landingVariant?: boolean;      // sistema visual de la landing (paleta, sombra/radio, feedback de hover/foco) para el chrome del mapa; false en /app/financiar, que mantiene su tratamiento nativo
+  /** Colorea por estado de financiamiento (default, como siempre) o por intensidad de
+   * cola de contratos (choropleth de actividad — la landing lo usa para no esconder
+   * a Lima detrás de un gris "pendiente" idéntico al de una región sin datos). */
+  colorBy?: "estado" | "cola";
+  /** Control externo de qué región se ve "seleccionada" (halo + dim del resto). Solo se
+   * usa cuando `onRegionClick` está presente, porque en ese modo `activar()` nunca toca
+   * el estado interno `selected` (que sigue siendo el drill-down de /app/financiar). */
+  selectedCode?: string | null;
 }
 
-export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false, onRegionClick, landingVariant = false }: Props) {
+export function CampaignMap({
+  zonas,
+  compact = false,
+  initialUbigeo = null,
+  linkToHub = false,
+  onRegionClick,
+  landingVariant = false,
+  colorBy = "estado",
+  selectedCode = null,
+}: Props) {
   const router = useRouter();
   const [depts, setDepts] = useState<DeptFC | null>(null);
   const [provs, setProvs] = useState<ProvFC | null>(null);
@@ -105,112 +146,172 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
     return `translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${s.toFixed(3)})`;
   }, [selected, deptPaths]);
 
+  const hoveredPath = hover ? deptPaths.find((p) => p.code === hover) ?? null : null;
   const hovered = hover ? byUbigeo.get(hover) : null;
   const selectedZona = selected ? byUbigeo.get(selected) : null;
+  // En modo compact+onRegionClick, `activar()` nunca setea `selected` (ver abajo) — el
+  // resaltado visual sigue entonces al prop externo `selectedCode`, no al estado interno.
+  const highlightCode = onRegionClick ? selectedCode : selected;
 
-  // Mientras ninguna zona tenga financiamiento, el mapa pinta por INTENSIDAD de cola
-  // (cuántos contratos esperan) en vez de un gris uniforme; en cuanto hay aportes,
-  // vuelve a los colores por estado.
+  // Mientras ninguna zona tenga financiamiento (o cuando colorBy="cola"), el mapa pinta
+  // por INTENSIDAD de cola (cuántos contratos esperan) en vez de un color por estado.
   const maxCola = useMemo(() => Math.max(1, ...zonas.map((z) => z.totalCola)), [zonas]);
   const sinFinanciamiento = useMemo(() => zonas.every((z) => z.financiados === 0), [zonas]);
+  const activeFill: Record<ZonaEstado, string> = landingVariant ? ESTADO_FILL_LANDING : ESTADO_FILL;
+  const gradientFill = (totalCola: number) => {
+    const t = Math.sqrt(totalCola / maxCola);               // raíz: Lima no aplasta al resto
+    const l = 92 - t * 52;                                   // 92% (casi blanco) → 40% (oscuro)
+    return landingVariant ? `hsl(252 42% ${l.toFixed(0)}%)` : `hsl(28 55% ${l.toFixed(0)}%)`;
+  };
   const fillFor = (code: string) => {
     const z = byUbigeo.get(code);
-    if (!z || z.totalCola === 0) return ESTADO_FILL.sin_datos;
-    if (sinFinanciamiento && z.estado === "pendiente") {
-      const t = Math.sqrt(z.totalCola / maxCola);           // raíz: Lima no aplasta al resto
-      const l = 92 - t * 52;                                 // 92% (casi blanco) → 40% (clay oscuro)
-      return `hsl(28 55% ${l.toFixed(0)}%)`;
-    }
-    return ESTADO_FILL[z.estado as ZonaEstado];
+    if (!z || z.totalCola === 0) return activeFill.sin_datos;
+    if (colorBy === "cola") return gradientFill(z.totalCola);
+    if (sinFinanciamiento && z.estado === "pendiente") return gradientFill(z.totalCola);
+    return activeFill[z.estado as ZonaEstado];
   };
+
+  // Tooltip de hover: en la landing sigue al centroide real de la región (con flip de
+  // borde, misma técnica que la tarjeta de clic de HeroMapPanel) en vez de quedar fijo
+  // en la esquina — ese fijo rompía la interacción exactamente en el sur del país.
+  const tooltipStyle: CSSProperties | undefined = useMemo(() => {
+    if (!landingVariant || !hoveredPath) return undefined;
+    const leftPct = clampPct((hoveredPath.centroid[0] / VB_W) * 100);
+    const topPct = clampPct((hoveredPath.centroid[1] / VB_H) * 100);
+    const style: CSSProperties = {};
+    if (topPct > 62) style.bottom = `${100 - topPct}%`; else style.top = `${topPct}%`;
+    if (leftPct > 62) style.right = `${100 - leftPct}%`; else style.left = `${leftPct}%`;
+    return style;
+  }, [landingVariant, hoveredPath]);
 
   return (
     <div className={compact ? "relative" : "grid gap-6 lg:grid-cols-[1fr_360px]"}>
       <div className="relative">
-        <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-auto w-full select-none" role="img" aria-label="Mapa del Perú por estado de financiamiento de auditoría">
-          <defs>
-            <pattern id="hatch-pendiente" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="6" stroke="#C3C9D1" strokeWidth="1.5" />
-            </pattern>
-          </defs>
-          <g style={{ transform, transformOrigin: "0 0", transition: "transform 600ms cubic-bezier(.2,.8,.2,1)" }}>
-            {deptPaths.map((p) => {
-              const z = byUbigeo.get(p.code);
-              const isSel = selected === p.code;
-              const dim = selected && !isSel;
-              const interactivo = !(compact && !linkToHub && !onRegionClick);
-              const activar = () => {
-                if (compact) {
-                  if (onRegionClick) { onRegionClick(p.code, p.centroid); return; }
-                  if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
-                  return;
-                }
-                setSelected(isSel ? null : p.code);
-              };
-              return (
-                <g key={p.code}>
+        {!depts ? (
+          // Estado de carga: reemplaza el vacío silencioso mientras llega la geometría
+          // (fetch client-side de /peru-departments.json) por un shimmer + mensaje.
+          <div
+            className={cn(
+              "relative aspect-[3/4] w-full overflow-hidden",
+              landingVariant ? "rounded-2xl" : "rounded-xl",
+            )}
+          >
+            <div
+              className="absolute inset-0 animate-shimmerSweep"
+              style={{
+                backgroundImage: "linear-gradient(90deg, #EEF1F4 0%, #F7F8FA 50%, #EEF1F4 100%)",
+                backgroundSize: "200% 100%",
+              }}
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <PulseDot color="moss" size={8} />
+              <span className="text-xs font-medium text-mute">Cargando mapa…</span>
+            </div>
+          </div>
+        ) : (
+          <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-auto w-full select-none" role="img" aria-label="Mapa del Perú por estado de financiamiento de auditoría">
+            <defs>
+              <pattern id="hatch-pendiente" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="#C3C9D1" strokeWidth="1.5" />
+              </pattern>
+            </defs>
+            <g style={{ transform, transformOrigin: "0 0", transition: "transform 600ms cubic-bezier(.2,.8,.2,1)" }}>
+              {deptPaths.map((p) => {
+                const z = byUbigeo.get(p.code);
+                const isSel = highlightCode === p.code;
+                const dim = !!highlightCode && !isSel;
+                const isHoverGlow = landingVariant && hover === p.code;
+                const interactivo = !(compact && !linkToHub && !onRegionClick);
+                const activar = () => {
+                  if (compact) {
+                    if (onRegionClick) { onRegionClick(p.code, p.centroid); return; }
+                    if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
+                    return;
+                  }
+                  setSelected(isSel ? null : p.code);
+                };
+                // El hatch (patrón rayado) solo tiene sentido en modo "estado": en modo
+                // "cola" todas las zonas —incluida "pendiente"— usan el gradiente continuo.
+                const showHatch = colorBy === "estado" && z?.estado === "pendiente" && !sinFinanciamiento;
+                return (
+                  <g key={p.code}>
+                    <path
+                      d={p.d}
+                      fill={showHatch ? "url(#hatch-pendiente)" : fillFor(p.code)}
+                      stroke={landingVariant ? (isSel ? "#332463" : isHoverGlow ? "#4F3D96" : "#FFFFFF") : "#FFFFFF"}
+                      strokeWidth={landingVariant ? (isSel ? 1.6 : isHoverGlow ? 1.4 : 0.9) : (isSel ? 0.6 : 0.9)}
+                      opacity={dim ? 0.25 : 1}
+                      style={landingVariant && isSel ? { filter: "drop-shadow(0 2px 5px rgba(51,36,99,0.35))" } : undefined}
+                      className={cn(
+                        interactivo && "cursor-pointer",
+                        landingVariant ? "transition-all duration-150" : "transition-opacity",
+                        landingVariant && interactivo &&
+                          "focus-visible:outline-none focus-visible:[stroke-width:2.4px] focus-visible:[filter:drop-shadow(0_0_2px_#4F3D96)_drop-shadow(0_0_4px_#4F3D96)_drop-shadow(0_0_8px_#4F3D96)]",
+                      )}
+                      tabIndex={interactivo ? 0 : undefined}
+                      role={interactivo ? "button" : undefined}
+                      aria-label={interactivo ? p.name : undefined}
+                      onMouseEnter={() => setHover(p.code)}
+                      onMouseLeave={() => setHover(null)}
+                      onFocus={() => setHover(p.code)}
+                      onBlur={() => setHover(null)}
+                      onClick={activar}
+                      onKeyDown={(e) => {
+                        if (interactivo && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); activar(); }
+                      }}
+                    />
+                    {showHatch && !dim && (
+                      <path d={p.d} fill="#D9DEE4" opacity={0.55} pointerEvents="none" />
+                    )}
+                  </g>
+                );
+              })}
+              {/* Provincias del departamento seleccionado */}
+              {selected && provPaths.map((p) => {
+                const z = byUbigeo.get(p.code);
+                return (
                   <path
+                    key={p.code}
                     d={p.d}
-                    fill={z?.estado === "pendiente" && !sinFinanciamiento ? "url(#hatch-pendiente)" : fillFor(p.code)}
-                    stroke="#FFFFFF"
-                    strokeWidth={isSel ? 0.6 : 0.9}
-                    opacity={dim ? 0.25 : 1}
-                    className={interactivo ? "cursor-pointer transition-opacity" : ""}
-                    tabIndex={interactivo ? 0 : undefined}
-                    role={interactivo ? "button" : undefined}
-                    aria-label={interactivo ? p.name : undefined}
+                    fill={fillFor(p.code)}
+                    stroke="#14171A"
+                    strokeWidth={0.25}
+                    className="cursor-pointer"
+                    opacity={z?.estado === "sin_datos" ? 0.6 : 1}
                     onMouseEnter={() => setHover(p.code)}
                     onMouseLeave={() => setHover(null)}
-                    onFocus={() => setHover(p.code)}
-                    onBlur={() => setHover(null)}
-                    onClick={activar}
-                    onKeyDown={(e) => {
-                      if (interactivo && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); activar(); }
-                    }}
                   />
-                  {z?.estado === "pendiente" && !sinFinanciamiento && !dim && (
-                    <path d={p.d} fill="#D9DEE4" opacity={0.55} pointerEvents="none" />
-                  )}
-                </g>
-              );
-            })}
-            {/* Provincias del departamento seleccionado */}
-            {selected && provPaths.map((p) => {
-              const z = byUbigeo.get(p.code);
-              return (
-                <path
-                  key={p.code}
-                  d={p.d}
-                  fill={fillFor(p.code)}
-                  stroke="#14171A"
-                  strokeWidth={0.25}
-                  className="cursor-pointer"
-                  opacity={z?.estado === "sin_datos" ? 0.6 : 1}
-                  onMouseEnter={() => setHover(p.code)}
-                  onMouseLeave={() => setHover(null)}
-                />
-              );
-            })}
-            {/* Anillos de progreso en zonas parciales/financiadas (solo sin drill-down) */}
-            {!selected && deptPaths.map((p) => {
-              const z = byUbigeo.get(p.code);
-              if (!z || z.totalCola === 0 || z.estado === "pendiente") return null;
-              const r = 7, c = 2 * Math.PI * r;
-              const f = pct(z.financiados, z.totalCola) / 100;
-              return (
-                <g key={`ring-${p.code}`} transform={`translate(${p.centroid[0].toFixed(1)},${p.centroid[1].toFixed(1)})`} pointerEvents="none">
-                  <circle r={r + 2.5} fill="#FFFFFF" opacity={0.9} />
-                  <circle r={r} fill="none" stroke="#E4E7EB" strokeWidth={2.2} />
-                  <circle r={r} fill="none" stroke="#B26A2E" strokeWidth={2.2} strokeDasharray={`${(c * f).toFixed(2)} ${c.toFixed(2)}`} transform="rotate(-90)" strokeLinecap="round" />
-                </g>
-              );
-            })}
-          </g>
-        </svg>
+                );
+              })}
+              {/* Anillos de progreso en zonas parciales/financiadas (solo sin drill-down) —
+                  el financiamiento queda como señal secundaria sobre el color de intensidad. */}
+              {!selected && deptPaths.map((p) => {
+                const z = byUbigeo.get(p.code);
+                if (!z || z.totalCola === 0 || z.estado === "pendiente") return null;
+                const r = 7, c = 2 * Math.PI * r;
+                const f = pct(z.financiados, z.totalCola) / 100;
+                return (
+                  <g key={`ring-${p.code}`} transform={`translate(${p.centroid[0].toFixed(1)},${p.centroid[1].toFixed(1)})`} pointerEvents="none">
+                    <circle r={r + 2.5} fill="#FFFFFF" opacity={0.9} />
+                    <circle r={r} fill="none" stroke={landingVariant ? "#E4DFF5" : "#E4E7EB"} strokeWidth={2.2} />
+                    <circle r={r} fill="none" stroke={landingVariant ? "#2FA84C" : "#B26A2E"} strokeWidth={2.2} strokeDasharray={`${(c * f).toFixed(2)} ${c.toFixed(2)}`} transform="rotate(-90)" strokeLinecap="round" />
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        )}
 
         {/* Tooltip */}
         {hovered && (
-          <div className={cn("pointer-events-none absolute left-3 top-3 max-w-[260px] border border-line bg-paper/95 p-3 text-xs backdrop-blur", landingVariant ? "rounded-2xl shadow-paper" : "rounded-xl shadow-lg")}>
+          <div
+            key={landingVariant ? hover : undefined}
+            className={cn(
+              "pointer-events-none absolute max-w-[260px] border border-line bg-paper/95 p-3 text-xs backdrop-blur",
+              landingVariant ? "animate-tooltipIn rounded-2xl shadow-paper" : "left-3 top-3 rounded-xl shadow-lg",
+            )}
+            style={tooltipStyle}
+          >
             <div className="font-semibold text-ink">{hovered.nombre} <span className="font-normal text-mute">· {hovered.nivel}</span></div>
             <div className="mt-0.5 text-mute">{ESTADO_LABEL[hovered.estado]}</div>
             {hovered.totalCola > 0 ? (
@@ -227,18 +328,32 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
 
         {/* Leyenda */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute">
-          {sinFinanciamiento && (
+          {(sinFinanciamiento || colorBy === "cola") && (
             <span className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
-              <span className="inline-block h-2.5 w-10 rounded-full" style={{ background: "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))" }} />
+              <span
+                className="inline-block h-2.5 w-10 rounded-full"
+                style={{
+                  background: landingVariant
+                    ? "linear-gradient(90deg, hsl(252 42% 92%), hsl(252 42% 40%))"
+                    : "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))",
+                }}
+              />
               menos → más contratos en cola
             </span>
           )}
-          {(sinFinanciamiento ? (["parcial", "financiada", "procesada"] as ZonaEstado[]) : (["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[])).map((e) => (
-            <span key={e} className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: ESTADO_FILL[e] }} />
-              {ESTADO_LABEL[e]}
-            </span>
-          ))}
+          {colorBy === "estado" &&
+            (sinFinanciamiento ? (["parcial", "financiada", "procesada"] as ZonaEstado[]) : (["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[])).map((e) => (
+              <span key={e} className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
+                {e === "pendiente" && !sinFinanciamiento ? (
+                  <svg width="10" height="10" className="shrink-0 overflow-hidden rounded-full" aria-hidden>
+                    <rect width="10" height="10" fill="url(#hatch-pendiente)" />
+                  </svg>
+                ) : (
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: ESTADO_FILL[e] }} />
+                )}
+                {ESTADO_LABEL[e]}
+              </span>
+            ))}
         </div>
         {selected && !compact && (
           <button onClick={() => setSelected(null)} className="absolute right-3 top-3 rounded-full border border-line bg-paper px-3 py-1 text-xs font-medium text-ink shadow hover:bg-paperDeep">

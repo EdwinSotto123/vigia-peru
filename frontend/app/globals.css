@@ -41,6 +41,18 @@
   background: rgba(104, 113, 128, 0.5);
 }
 
+/* Respeta la preferencia del SO: neutraliza cualquier animación/transición en loop
+   (PulseDot, Marquee, floats) para quien pidió menos movimiento. Aditivo — no toca
+   ningún componente, cierra el gap en un solo lugar para todo el sitio. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Patrón sutil de puntos para fondos secundarios */
 .paper-grain {
   background-image:

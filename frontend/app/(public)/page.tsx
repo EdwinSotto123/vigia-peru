@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Newspaper, Camera, Gavel, MapPin } from "lucide-react";
 import { HeroCompacto } from "@/components/landing/HeroCompacto";
@@ -12,6 +13,15 @@ import { PulseDot } from "@/components/ui/PulseDot";
 import { getAlertas } from "@/lib/api-client";
 import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
 
+// El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta — así "/"
+// deja de anunciarse con "corrupción" + gancho de urgencia (clickbait) sin tocar el
+// layout compartido por todo el sitio.
+export const metadata: Metadata = {
+  title: "Vigía Perú — Contrataciones públicas del Perú, leídas por IA, en un mapa",
+  description:
+    "Plataforma cívica que cruza SEACE, OECE y 14 portales del Estado para señalar riesgo en contratos públicos, con norma y evidencia oficial. Explora el mapa, financia una auditoría o denuncia una obra.",
+};
+
 /**
  * Landing compacta (un solo mapa): hero+mapa → cómo funciona (+ qué detecta) →
  * aliados (+ cifras de financiamiento) → denuncia ciudadana → confianza → CTA.
@@ -24,8 +34,13 @@ export default async function LandingPage() {
   } catch {
     alertas = [];
   }
+  // Muestra de una ventana reciente (por fecha de buena pro), no un top estricto por
+  // score: un ranking estricto satura en "score 100" apenas 8+ contratos empatan en el
+  // techo — un feed "en vivo" donde todo está al máximo de alarma lee como demo, no
+  // como evidencia real. Ordenar por recencia además encaja mejor con "en vivo".
   const topAlerts = [...(alertas.length > 0 ? alertas : ALERTAS_MOCK)]
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .filter((a) => a.score != null)
+    .sort((a, b) => (b.fechaBuenaPro ?? "").localeCompare(a.fechaBuenaPro ?? ""))
     .slice(0, 8);
 
   return (
@@ -45,16 +60,24 @@ export default async function LandingPage() {
           </div>
           <Marquee className="[--duration:80s] [--gap:3rem] pl-32" pauseOnHover>
             {topAlerts.map((a: any) => (
-              <div key={a.id ?? a.codigo} className="flex items-center gap-2 whitespace-nowrap text-xs">
+              <Link
+                key={a.id ?? a.codigo}
+                href={`/app/convocatoria/${encodeURIComponent(a.codigoconvocatoria)}`}
+                className="flex items-center gap-2 whitespace-nowrap text-xs transition-opacity hover:opacity-70"
+              >
                 <span className="rounded bg-rust/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-rust">
                   score {a.score}
                 </span>
-                <span className="text-mute">{a.region}</span>
+                {/* text-ink/70 (no text-mute): esta franja usa bg-paperDeep, un poco más
+                    oscuro que el resto de la página — con ese fondo, text-mute cae a
+                    ~4.23:1 (bajo el mínimo AA de 4.5:1). text-ink/70 da ~6.17:1 sobre
+                    paperDeep. Los demás usos de text-mute en la página sí cumplen y no se tocan. */}
+                <span className="text-ink/70">{a.region}</span>
                 <span className="text-mute">·</span>
                 <span className="max-w-[400px] truncate text-ink">{a.objeto}</span>
                 <span className="text-mute">·</span>
                 <span className="font-mono text-clay">{formatSoles(a.montoSoles ?? 0)}</span>
-              </div>
+              </Link>
             ))}
           </Marquee>
         </div>
@@ -134,10 +157,14 @@ export default async function LandingPage() {
       <ExpansionSection />
 
       {/* ─── CTA FINAL ─── */}
-      <section className="container-page py-24">
-        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-heroViolet-deep p-10 text-paper shadow-paper sm:p-16">
+      {/* Solo pt-24: el mt-20 de Footer.tsx ya separa del footer — con py-24 acá + mt-20
+          ahí se sumaban 176px de blanco entre la card y el footer (salto muerto, ~21% de
+          la altura de pantalla en mobile). bg-brand: el vino real del isotipo, no un
+          violeta genérico — el cierre de la página queda anclado a la marca. */}
+      <section className="container-page pt-24">
+        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-deep p-10 text-paper shadow-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-40">
-            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/40 via-heroViolet/20 to-transparent" />
+            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/35 to-transparent" />
             <div
               className="absolute inset-0 opacity-[0.08]"
               style={{
@@ -189,7 +216,7 @@ function Persona({ tool }: { tool: React.ReactNode }) {
         <circle cx="20" cy="13.5" r="6.5" fill="currentColor" />
         <path d="M6 38 C6 27.5 12.8 23.5 20 23.5 C27.2 23.5 34 27.5 34 38 Z" fill="currentColor" />
       </svg>
-      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 animate-floatYSm items-center justify-center rounded-full bg-heroGreen text-paper shadow ring-2 ring-paperSoft">
+      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-heroGreen text-paper shadow ring-2 ring-paperSoft">
         {tool}
       </span>
     </span>

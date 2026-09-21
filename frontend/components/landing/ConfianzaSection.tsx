@@ -46,7 +46,7 @@ export function ConfianzaSection() {
           </div>
           <ul className="mt-3 divide-y divide-line">
             {COSTOS.map(({ icon: Icon, l, d, m }) => (
-              <li key={l} className="flex items-center justify-between py-2 text-sm">
+              <li key={l} className="flex flex-col items-start gap-0.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="flex items-center gap-2 text-ink"><Icon size={13} className="text-mute" />{l}<span className="text-[11px] text-mute">· {d}</span></span>
                 <span className="font-mono text-ink">{m}</span>
               </li>

@@ -118,7 +118,7 @@ export function DetectionCarousel() {
   return (
     <Carousel
       total={CASOS.length}
-      ariaLabel="Patrones de corrupción detectados"
+      ariaLabel="Patrones de riesgo detectados en contratos — ejemplos ilustrativos"
       activeDotClass="bg-rust"
       renderSlide={(i) => <CasoCard caso={CASOS[i]} />}
     />
@@ -132,11 +132,9 @@ function CasoCard({ caso }: { caso: Caso }) {
       : caso.tagColor === "clay"
         ? "bg-clay"
         : "bg-amber";
-  const scoreBg =
-    caso.score >= 85 ? "bg-rust" : caso.score >= 70 ? "bg-clay" : "bg-amber";
 
   return (
-    <article className="surface relative overflow-hidden">
+    <article className="relative overflow-hidden rounded-3xl border border-line bg-paper shadow-card">
       <div className="grid gap-0 md:grid-cols-[1fr,auto]">
         {/* Body */}
         <div className="p-7 sm:p-9">
@@ -175,32 +173,55 @@ function CasoCard({ caso }: { caso: Caso }) {
             <span className="rounded-full bg-paperDeep px-2.5 py-1 font-mono text-[10px] text-mute">
               {caso.article}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-clay">
+            <span className="inline-flex items-center gap-1 text-[11px] text-brand">
               <Scale size={11} /> {caso.norma}
             </span>
           </div>
         </div>
 
-        {/* Score side panel */}
-        <div className="flex flex-col items-center justify-center gap-2 border-t border-line bg-paperDeep p-6 md:border-l md:border-t-0 md:px-8">
-          <div
-            className={
-              "flex h-24 w-24 flex-col items-center justify-center rounded-2xl text-paper sm:h-28 sm:w-28 " +
-              scoreBg
-            }
-          >
-            <span className="font-serif text-4xl font-bold leading-none sm:text-5xl">
-              {caso.score}
-            </span>
-            <span className="mt-0.5 text-[9px] uppercase tracking-[0.2em] opacity-80">
-              / 100
-            </span>
-          </div>
+        {/* Score side panel: arco tipo gauge, no un cuadrado flotando en un panel vacío;
+            anclado arriba (sin justify-center) para que no dependa de la altura del body. */}
+        <div className="flex flex-col items-center gap-2.5 border-t border-line bg-paperDeep p-6 pt-7 md:w-[200px] md:border-l md:border-t-0 md:px-6 md:pt-9">
+          <ScoreGauge score={caso.score} />
           <span className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-mute">
             Score de riesgo
           </span>
+          <p className="text-center text-[11px] leading-snug text-mute/80">
+            {caso.score >= 85 ? "Riesgo alto" : caso.score >= 70 ? "Riesgo medio-alto" : "Riesgo medio"}
+          </p>
         </div>
       </div>
     </article>
+  );
+}
+
+/** Arco de progreso 0-100 (mismo strokeDasharray que los "anillos" del mapa) en vez de
+ * un cuadrado de color plano — el score deja de ser un número decorativo y se lee como
+ * un dato medido. Color interpolado moss→amber→rust, igual escala que antes usaba el fondo. */
+function ScoreGauge({ score }: { score: number }) {
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  const f = Math.max(0, Math.min(100, score)) / 100;
+  const color = score >= 85 ? "#CF3A2C" : score >= 70 ? "#B26A2E" : "#BE7B26";
+  return (
+    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center sm:h-28 sm:w-28">
+      <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#E4E7EB" strokeWidth={9} />
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={9}
+          strokeLinecap="round"
+          strokeDasharray={`${(c * f).toFixed(1)} ${c.toFixed(1)}`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-serif text-3xl font-bold leading-none text-ink sm:text-4xl">{score}</span>
+        <span className="mt-0.5 text-[9px] uppercase tracking-[0.2em] text-mute">/ 100</span>
+      </div>
+    </div>
   );
 }

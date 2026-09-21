@@ -84,9 +84,11 @@ export function Carousel({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Slot */}
+      {/* Slot: grid (no absolute+medir con JS) — todas las capas ocupan la misma celda
+          [grid-area:1/1], así el contenedor toma el alto del contenido más alto sin
+          saltar de layout cuando dos slides tienen distinto largo de texto. */}
       <div
-        className="relative overflow-hidden"
+        className="relative grid overflow-hidden"
         style={minHeight ? { minHeight } : undefined}
       >
         {Array.from({ length: total }).map((_, i) => (
@@ -94,10 +96,8 @@ export function Carousel({
             key={i}
             aria-hidden={i !== index}
             className={
-              "transition-opacity duration-500 " +
-              (i === index
-                ? "relative z-10 opacity-100"
-                : "pointer-events-none absolute inset-0 z-0 opacity-0")
+              "[grid-area:1/1] transition-opacity duration-500 " +
+              (i === index ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0")
             }
           >
             {renderSlide(i)}

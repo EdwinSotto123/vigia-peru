@@ -34,6 +34,7 @@ const config: Config = {
         amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
         brand: "#6E1F2F",        // vino profundo del isotipo (VIGÍA PERÚ) — marca, no alerta
+        "brand-deep": "#4A1520", // variante oscura de `brand` — profundidad tonal en superficies grandes (CTA final)
 
         // ── Hero landing (referencia del usuario, sept 2026): morado + verde, SOLO para
         // el hero/landing — no reemplaza la paleta cálida que usa el resto del sitio
@@ -115,6 +116,10 @@ const config: Config = {
           "0%, 50%, 100%": { transform: "translateY(0)" },
           "25%, 75%": { transform: "translateY(-2px)" },
         },
+        tooltipIn: {
+          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -130,6 +135,7 @@ const config: Config = {
         llamaStepFront: "llamaStep 0.9s ease-in-out infinite",
         llamaStepBack: "llamaStep 0.9s ease-in-out infinite reverse",
         llamaBob: "llamaBob 0.9s ease-in-out infinite",
+        tooltipIn: "tooltipIn 120ms ease-out both",
       },
     },
   },

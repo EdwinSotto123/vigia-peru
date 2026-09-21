@@ -50,7 +50,7 @@ export function Footer() {
               />
             </Link>
             <a
-              href="https://github.com/"
+              href="https://github.com/EdwinSotto123/vigia-peru"
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-between gap-3 rounded-xl border border-paper/15 px-5 py-2.5 text-paper transition-colors hover:bg-paper/5"

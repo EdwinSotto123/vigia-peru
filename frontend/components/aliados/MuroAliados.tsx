@@ -78,11 +78,17 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
         : <>Gracias a ellos, <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos públicos {leidosTotal ? "fueron leídos" : "entraron a auditoría"}.</>;
 
   if (compact) {
+    // Siempre 3 columnas, incluso con 1-2 destacados reales: los slots que faltan se
+    // rellenan con una invitación a ser el próximo aliado en vez de dejar el panel con
+    // un tercio (o dos tercios) de espacio vacío — hoy el caso normal, con Vigía Perú
+    // como único registro (capital semilla).
+    const slotsVacios = Math.max(0, 3 - destacados.length);
     return (
       <div>
         <p className="font-serif text-2xl font-bold text-ink">{encabezado}</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           {destacados.map((r, i) => <TarjetaAliado key={r.id} row={r} posicion={i + 1} destacado />)}
+          {Array.from({ length: slotsVacios }).map((_, i) => <AliadoPlaceholder key={`placeholder-${i}`} />)}
         </div>
         {anonimos.length > 0 && (
           <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-mute">
@@ -155,5 +161,20 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
         <span className="text-[12px] text-mute">Valen exactamente lo mismo en el conteo. Sólo no aparecen con nombre.</span>
       </section>
     </div>
+  );
+}
+
+/** Slot vacío del muro compacto (landing): en vez de dejar la grilla con espacio en
+ * blanco mientras haya menos de 3 destacados, ofrece el lugar como llamada a la acción. */
+function AliadoPlaceholder() {
+  return (
+    <Link
+      href="/app/financiar"
+      className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-5 text-center transition-colors hover:border-heroGreen/40 hover:bg-heroGreen/5"
+    >
+      <HeartHandshake size={22} className="text-mute" aria-hidden />
+      <span className="text-sm font-semibold text-ink">Sé el próximo aliado</span>
+      <span className="text-[11px] text-mute">Financiá una auditoría y aparecé acá</span>
+    </Link>
   );
 }
