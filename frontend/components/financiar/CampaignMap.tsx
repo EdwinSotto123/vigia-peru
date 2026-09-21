@@ -18,11 +18,12 @@ import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { ESTADO_FILL, ESTADO_LABEL, type Zona, type ZonaEstado, pct } from "@/lib/financiamiento";
 
-const VB_W = 480;
-const VB_H = 640;
+export const VB_W = 480;
+export const VB_H = 640;
 const API = process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "https://vigia-peru-api-36169102688.us-central1.run.app";
 
 type DeptFC = FeatureCollection<Geometry, { name: string; id: string; code?: string }>;
@@ -33,10 +34,11 @@ interface Props {
   compact?: boolean;             // versión landing: sin panel, solo mapa + leyenda
   initialUbigeo?: string | null; // abrir ya en un departamento
   linkToHub?: boolean;           // compact: clic en un departamento → /app/mapa?region=… (el único mapa interactivo)
-  onRegionClick?: (code: string) => void; // compact: si se pasa, el clic llama esto en vez de navegar (p.ej. hero: abre una tarjeta flotante con la zona real)
+  onRegionClick?: (code: string, centroid: [number, number]) => void; // compact: si se pasa, el clic llama esto en vez de navegar — incluye el centroide del departamento (espacio VB_W×VB_H) para posicionar UI cerca del punto real del clic
+  landingVariant?: boolean;      // sistema de sombra/radio de la landing (shadow-card/paper) para el chrome del mapa; false en /app/financiar, que mantiene su tratamiento nativo
 }
 
-export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false, onRegionClick }: Props) {
+export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false, onRegionClick, landingVariant = false }: Props) {
   const router = useRouter();
   const [depts, setDepts] = useState<DeptFC | null>(null);
   const [provs, setProvs] = useState<ProvFC | null>(null);
@@ -149,7 +151,7 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
                     onMouseLeave={() => setHover(null)}
                     onClick={() => {
                       if (compact) {
-                        if (onRegionClick) { onRegionClick(p.code); return; }
+                        if (onRegionClick) { onRegionClick(p.code, p.centroid); return; }
                         if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
                         return;
                       }
@@ -198,14 +200,14 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
 
         {/* Tooltip */}
         {hovered && (
-          <div className="pointer-events-none absolute left-3 top-3 max-w-[260px] rounded-xl border border-line bg-paper/95 p-3 text-xs shadow-lg backdrop-blur">
+          <div className={cn("pointer-events-none absolute left-3 top-3 max-w-[260px] border border-line bg-paper/95 p-3 text-xs backdrop-blur", landingVariant ? "rounded-2xl shadow-paper" : "rounded-xl shadow-lg")}>
             <div className="font-semibold text-ink">{hovered.nombre} <span className="font-normal text-mute">· {hovered.nivel}</span></div>
             <div className="mt-0.5 text-mute">{ESTADO_LABEL[hovered.estado]}</div>
             {hovered.totalCola > 0 ? (
               <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[11px]">
                 <Stat label="cola" v={hovered.totalCola} />
-                <Stat label="financ." v={hovered.financiados} />
-                <Stat label="proces." v={hovered.procesados} />
+                <Stat label="financ" v={hovered.financiados} />
+                <Stat label="proces" v={hovered.procesados} />
               </div>
             ) : (
               <div className="mt-1 text-[11px] text-mute">Todavía no ingresamos contratos de esta zona.</div>
@@ -216,13 +218,13 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
         {/* Leyenda */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute">
           {sinFinanciamiento && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1 shadow-sm">
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
               <span className="inline-block h-2.5 w-10 rounded-full" style={{ background: "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))" }} />
               menos → más contratos en cola
             </span>
           )}
           {(sinFinanciamiento ? (["parcial", "financiada", "procesada"] as ZonaEstado[]) : (["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[])).map((e) => (
-            <span key={e} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1 shadow-sm">
+            <span key={e} className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: ESTADO_FILL[e] }} />
               {ESTADO_LABEL[e]}
             </span>

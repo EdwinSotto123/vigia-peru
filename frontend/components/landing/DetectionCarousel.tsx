@@ -19,9 +19,9 @@ const CASOS: Caso[] = [
   {
     tag: "Empresa fachada",
     tagColor: "rust",
-    title: "RUC con 18 días gana S/. 1.49M",
+    title: "RUC con 18 días gana S/ 1.49M",
     location: "Caraz · Áncash",
-    monto: "S/. 1,490,000",
+    monto: "S/ 1,490,000",
     score: 93,
     flags: [
       "RUC creado 4 abr · buena pro 22 abr (18 días)",
@@ -35,9 +35,9 @@ const CASOS: Caso[] = [
   {
     tag: "Aportante = ganador",
     tagColor: "rust",
-    title: "Socio aportó S/. 35K al partido del alcalde",
+    title: "Socio aportó S/ 35K al partido del alcalde",
     location: "Yungay · Áncash",
-    monto: "S/. 4,250,000",
+    monto: "S/ 4,250,000",
     score: 91,
     flags: [
       "Aporte ONPE 2022 → contrato 2026 con misma comuna",
@@ -53,10 +53,10 @@ const CASOS: Caso[] = [
     tagColor: "amber",
     title: "Contrato modificado +31% post-firma",
     location: "Calca · Cusco",
-    monto: "S/. 5,100,000 → 6,700,000",
+    monto: "S/ 5,100,000 → 6,700,000",
     score: 64,
     flags: [
-      "Original S/. 5.1M · adenda S/. 1.6M (+31%)",
+      "Original S/ 5.1M · adenda S/ 1.6M (+31%)",
       "Excede el tope legal del 25% sin sustento",
       "Sin justificación técnica publicada",
       "Tres adendas consecutivas en seis meses",
@@ -69,7 +69,7 @@ const CASOS: Caso[] = [
     tagColor: "rust",
     title: "Emergencia sin acto resolutivo",
     location: "Tumbes · Tumbes",
-    monto: "S/. 406,400",
+    monto: "S/ 406,400",
     score: 88,
     flags: [
       "Causal Art. 27.1.a (emergencia) sin D.S./D.U. citado",
@@ -85,7 +85,7 @@ const CASOS: Caso[] = [
     tagColor: "amber",
     title: "Bases pedían logo institucional bordado",
     location: "Huánuco · Huánuco",
-    monto: "S/. 285,000",
+    monto: "S/ 285,000",
     score: 72,
     flags: [
       "Dimensiones no estándar (excluyen 9 de 11 marcas)",
@@ -101,7 +101,7 @@ const CASOS: Caso[] = [
     tagColor: "rust",
     title: "Postor visitó al alcalde 8 veces antes de la buena pro",
     location: "Sullana · Piura",
-    monto: "S/. 2,150,000",
+    monto: "S/ 2,150,000",
     score: 86,
     flags: [
       "Registro Único de Visitas: 8 ingresos en 60 días previos",

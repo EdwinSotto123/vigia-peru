@@ -10,8 +10,8 @@
 
 import { AlertTriangle, ArrowUpRight, MapPin, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { CampaignMap } from "@/components/financiar/CampaignMap";
+import { useMemo, useState, type CSSProperties } from "react";
+import { CampaignMap, VB_H, VB_W } from "@/components/financiar/CampaignMap";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { Zona } from "@/lib/financiamiento";
 import type { Alerta } from "@/types";
@@ -21,17 +21,54 @@ function formatPEN(n: number) {
   return `S/ ${Math.round(n).toLocaleString("es-PE")}`;
 }
 
+// La tarjeta nunca se sale del contenedor del mapa, sin importar qué tan cerca
+// de una esquina caiga el centroide clickeado.
+function clampPct(p: number) {
+  return Math.min(Math.max(p, 8), 92);
+}
+
 export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zona[]; featured: Alerta | null }) {
   const [clickedCode, setClickedCode] = useState<string | null>(null);
+  const [clickedCentroid, setClickedCentroid] = useState<[number, number] | null>(null);
   const clicked = useMemo(() => zonas.find((z) => z.ubigeo === clickedCode) ?? null, [zonas, clickedCode]);
   // "monto monitoreado": lo único real y honesto que se puede afirmar sin un agregado de
   // montoSoles por zona en el API — el costo de leer toda su cola, al precio vigente.
   const costoAuditar = clicked ? clicked.totalCola * clicked.precioPen : 0;
 
+  function handleMapClick(code: string, centroid: [number, number]) {
+    setClickedCode(code);
+    setClickedCentroid(centroid);
+  }
+
+  function handleQuickPick(code: string) {
+    setClickedCode(code);
+    setClickedCentroid(null); // no viene de un clic en el mapa: la tarjeta usa la posición por defecto
+  }
+
+  function closeCard() {
+    setClickedCode(null);
+    setClickedCentroid(null);
+  }
+
+  // Ancla la tarjeta cerca del punto real del clic (no una esquina fija): porcentaje
+  // relativo al contenedor + flip de borde para que nunca se salga del mapa — crítico
+  // para regiones del sur/este (p.ej. Puno), que antes siempre abrían arriba-izquierda.
+  const cardStyle: CSSProperties | null = useMemo(() => {
+    if (!clickedCentroid) return null;
+    const leftPct = clampPct((clickedCentroid[0] / VB_W) * 100);
+    const topPct = clampPct((clickedCentroid[1] / VB_H) * 100);
+    const style: CSSProperties = {};
+    if (topPct > 62) style.bottom = `${100 - topPct}%`;
+    else style.top = `${topPct}%`;
+    if (leftPct > 62) style.right = `${100 - leftPct}%`;
+    else style.left = `${leftPct}%`;
+    return style;
+  }, [clickedCentroid]);
+
   return (
     <div className="relative">
       {zonas.length > 0 ? (
-        <CampaignMap zonas={zonas} compact onRegionClick={setClickedCode} />
+        <CampaignMap zonas={zonas} compact landingVariant onRegionClick={handleMapClick} />
       ) : (
         <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>
       )}
@@ -39,9 +76,12 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
 
       {/* Tarjeta flotante: región elegida (datos reales, no fijos) */}
       {clicked && (
-        <div className="animate-slideUp absolute left-1 top-1 z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur">
+        <div
+          className={`animate-slideUp absolute z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur ${cardStyle ? "" : "left-1 top-1"}`}
+          style={cardStyle ?? undefined}
+        >
           <button
-            onClick={() => setClickedCode(null)}
+            onClick={closeCard}
             aria-label="Cerrar"
             className="absolute right-2 top-2 rounded-full p-1 text-mute transition-colors hover:bg-paperDeep hover:text-ink"
           >
@@ -98,7 +138,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
           {top.map((z) => (
             <li key={z.ubigeo}>
               <button
-                onClick={() => setClickedCode(z.ubigeo)}
+                onClick={() => handleQuickPick(z.ubigeo)}
                 className={`block w-full rounded-xl border px-2 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
                   clickedCode === z.ubigeo ? "border-heroViolet bg-heroViolet/5" : "border-line bg-paper hover:bg-paperDeep"
                 }`}

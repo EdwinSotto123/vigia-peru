@@ -487,10 +487,10 @@ export const RESUMEN_REGIONES = [
 ];
 
 export function formatSoles(n: number): string {
-  if (n >= 1_000_000_000) return `S/. ${(n / 1_000_000_000).toFixed(2)} B`;
-  if (n >= 1_000_000) return `S/. ${(n / 1_000_000).toFixed(2)} M`;
-  if (n >= 1_000) return `S/. ${(n / 1_000).toFixed(0)} K`;
-  return `S/. ${n}`;
+  if (n >= 1_000_000_000) return `S/ ${(n / 1_000_000_000).toFixed(2)} B`;
+  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `S/ ${(n / 1_000).toFixed(0)} K`;
+  return `S/ ${n}`;
 }
 
 export function severidadColor(s: "alta" | "media" | "baja"): string {
