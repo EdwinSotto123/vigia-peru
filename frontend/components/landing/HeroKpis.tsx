@@ -8,6 +8,7 @@
  * refetch al montar corrige cualquier snapshot vencido para una visita real.
  */
 
+import { AlertTriangle, Coins, FileClock, MapPinned } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
@@ -28,19 +29,26 @@ export function HeroKpis({ initial }: { initial: Stats | null }) {
   }, []);
 
   return (
-    <div className="mt-8 grid max-w-xl grid-cols-2 divide-x divide-line rounded-2xl border border-line bg-paperSoft sm:grid-cols-4">
-      <Kpi v={estado?.colaGlobal ?? 0} l="contratos en cola" />
-      <Kpi v={estado?.contratosFinanciados ?? 0} l="financiados por aliados" />
-      <Kpi v={estado?.senalesHalladas ?? 0} l="señales de riesgo halladas" />
-      <Kpi v={estado?.regionesConCola ?? 0} l="regiones con contratos" />
+    <div className="mt-8 grid max-w-xl grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <Kpi icon={<FileClock size={14} />} tint="heroViolet" v={estado?.colaGlobal ?? 0} l="contratos en cola" />
+      <Kpi icon={<Coins size={14} />} tint="heroGreen" v={estado?.contratosFinanciados ?? 0} l="financiados por aliados" />
+      <Kpi icon={<AlertTriangle size={14} />} tint="rust" v={estado?.senalesHalladas ?? 0} l="señales de riesgo halladas" />
+      <Kpi icon={<MapPinned size={14} />} tint="heroViolet" v={estado?.regionesConCola ?? 0} l="regiones con contratos" />
     </div>
   );
 }
 
-function Kpi({ v, l }: { v: number; l: string }) {
+const TINTS = {
+  heroViolet: "bg-heroViolet/10 text-heroViolet",
+  heroGreen: "bg-heroGreen/10 text-heroGreen",
+  rust: "bg-rust/10 text-rust",
+} as const;
+
+function Kpi({ icon, tint, v, l }: { icon: React.ReactNode; tint: keyof typeof TINTS; v: number; l: string }) {
   return (
-    <div className="px-4 py-3">
-      <div className="font-mono text-xl font-bold text-ink"><NumberTicker value={v} /></div>
+    <div className="rounded-2xl border border-line bg-paper p-3">
+      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${TINTS[tint]}`}>{icon}</span>
+      <div className="mt-2 font-mono text-xl font-bold text-ink"><NumberTicker value={v} /></div>
       <div className="mt-0.5 text-[11px] leading-tight text-mute">{l}</div>
     </div>
   );

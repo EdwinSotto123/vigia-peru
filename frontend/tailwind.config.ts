@@ -35,6 +35,12 @@ const config: Config = {
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
         brand: "#6E1F2F",        // vino profundo del isotipo (VIGÍA PERÚ) — marca, no alerta
 
+        // ── Hero landing (referencia del usuario, sept 2026): morado + verde, SOLO para
+        // el hero/landing — no reemplaza la paleta cálida que usa el resto del sitio
+        // (mapa, auditoría, contratos), evita romper esas pantallas ya construidas. ──
+        heroViolet: { DEFAULT: "#4F3D96", deep: "#332463", soft: "#EFEBFA" },
+        heroGreen: { DEFAULT: "#2FA84C", soft: "#E3F6E7" },
+
         // ── Legacy (que otros componentes aún referencien) ──
         bone: "#FFFFFF",
         ash: "#687180",
