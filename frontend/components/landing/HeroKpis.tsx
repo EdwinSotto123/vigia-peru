@@ -46,7 +46,7 @@ const TINTS = {
 
 function Kpi({ icon, tint, v, l }: { icon: React.ReactNode; tint: keyof typeof TINTS; v: number; l: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-paper p-3">
+    <div className="rounded-2xl border border-line bg-paper p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card">
       <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${TINTS[tint]}`}>{icon}</span>
       <div className="mt-2 font-mono text-xl font-bold text-ink"><NumberTicker value={v} /></div>
       <div className="mt-0.5 text-[11px] leading-tight text-mute">{l}</div>

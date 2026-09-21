@@ -67,7 +67,7 @@ export default async function LandingPage() {
       <section id="denunciar" className="scroll-mt-20 py-20">
         <div className="container-page">
           <div className="mx-auto max-w-2xl text-center">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-clay">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-rust/25 bg-rust/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-rust">
               <Camera size={11} /> Denuncia ciudadana
             </div>
             <h2 className="font-serif text-3xl font-bold leading-tight text-ink sm:text-5xl">
@@ -81,7 +81,7 @@ export default async function LandingPage() {
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/reporte/nuevo"
-                className="group inline-flex items-center gap-2 rounded-xl bg-rust px-6 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02] active:scale-[0.97]"
+                className="group inline-flex items-center gap-2 rounded-full bg-rust px-6 py-3.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0"
               >
                 <Camera size={16} /> Denunciar una obra
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
@@ -89,7 +89,7 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-12 grid gap-4 lg:grid-cols-3">
+          <div className="mt-14 grid gap-5 lg:grid-cols-3">
             <BlurFade delayMs={0}>
               <AudienceCard
                 icon={<Persona tool={<Camera size={12} />} />}
@@ -131,9 +131,9 @@ export default async function LandingPage() {
 
       {/* ─── CTA FINAL ─── */}
       <section className="container-page py-24">
-        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-ink p-10 text-paper sm:p-16">
-          <div className="absolute inset-0 -z-10 opacity-30">
-            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-rust/50 via-rust/10 to-transparent" />
+        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-[2rem] bg-heroViolet-deep p-10 text-paper shadow-paper sm:p-16">
+          <div className="absolute inset-0 -z-10 opacity-40">
+            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/40 via-heroViolet/20 to-transparent" />
             <div
               className="absolute inset-0 opacity-[0.08]"
               style={{
@@ -143,13 +143,13 @@ export default async function LandingPage() {
             />
           </div>
           <div className="relative z-10 mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-amber">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroGreen">
               <MapPin size={11} /> El mapa, en vivo
             </div>
             <h2 className="font-serif text-4xl font-bold leading-tight sm:text-6xl">
               Mientras lees esto,
               <br />
-              <em className="text-amber">se firman contratos</em>.
+              <em className="text-heroGreen not-italic">se firman contratos</em>.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-paper/80 sm:text-lg">
               Abre el mapa. Elige tu región. Mira cuántos contratos esperan ser leídos, financia su
@@ -159,14 +159,14 @@ export default async function LandingPage() {
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/app/mapa"
-                className="group inline-flex items-center gap-2 rounded-full bg-paper px-7 py-4 text-base font-medium text-ink transition-transform hover:scale-[1.03] active:scale-[0.98] sm:text-lg"
+                className="group inline-flex items-center gap-2 rounded-full bg-heroGreen px-7 py-4 text-base font-semibold text-paper shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 sm:text-lg"
               >
                 Abrir el mapa
                 <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
                 href="/preguntas"
-                className="inline-flex items-center gap-2 rounded-full border border-paper/30 px-7 py-4 text-base font-medium text-paper hover:bg-paper/10 sm:text-lg"
+                className="inline-flex items-center gap-2 rounded-full border border-paper/30 px-7 py-4 text-base font-medium text-paper transition-colors hover:bg-paper/10 sm:text-lg"
               >
                 Preguntas frecuentes
               </Link>
@@ -185,7 +185,7 @@ function Persona({ tool }: { tool: React.ReactNode }) {
         <circle cx="20" cy="13.5" r="6.5" fill="currentColor" />
         <path d="M6 38 C6 27.5 12.8 23.5 20 23.5 C27.2 23.5 34 27.5 34 38 Z" fill="currentColor" />
       </svg>
-      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 animate-floatYSm items-center justify-center rounded-full bg-amber text-ink shadow ring-2 ring-paperSoft">
+      <span className="absolute -bottom-2 -right-2 flex h-6 w-6 animate-floatYSm items-center justify-center rounded-full bg-heroGreen text-paper shadow ring-2 ring-paperSoft">
         {tool}
       </span>
     </span>
@@ -213,20 +213,20 @@ function AudienceCard({
     <Link
       href={href}
       className={
-        "group surface flex flex-col gap-3 p-6 transition-all hover:shadow-paper " +
-        (accent ? "border-2 border-rust/40 bg-crimson-soft/40" : "")
+        "group flex flex-col gap-3 rounded-3xl border p-6 shadow-card transition-all duration-200 hover:-translate-y-1 hover:shadow-paper " +
+        (accent ? "border-rust/30 bg-crimson-soft/40" : "border-line bg-paper")
       }
     >
       <div className="flex items-center gap-3">
         <span
           className={
             "relative flex h-14 w-14 items-center justify-center rounded-2xl " +
-            (accent ? "bg-rust text-paper" : "bg-ink text-paper")
+            (accent ? "bg-rust text-paper" : "bg-heroViolet text-paper")
           }
         >
           {icon}
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-clay">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-heroViolet">
           {label}
         </span>
       </div>
@@ -234,7 +234,7 @@ function AudienceCard({
         {title}
       </h3>
       <p className="text-sm leading-relaxed text-mute">{body}</p>
-      <span className="mt-auto pt-1 text-sm font-medium text-ink group-hover:underline">
+      <span className="mt-auto pt-1 text-sm font-semibold text-heroGreen group-hover:underline">
         {action}
       </span>
     </Link>

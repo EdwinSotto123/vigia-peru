@@ -18,25 +18,25 @@ const COSTOS = [
 /** "Quiénes somos" + "Plataforma" + "Cuentas claras" en una sola sección. */
 export function ConfianzaSection() {
   return (
-    <section id="organizacion" className="scroll-mt-20 border-y border-line bg-paperDeep py-16">
+    <section id="organizacion" className="scroll-mt-20 border-y border-line bg-paperDeep py-20">
       <div className="container-page grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
-          <span className="text-[11px] font-medium uppercase tracking-wide text-mute">Organización sin fines de lucro</span>
-          <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
-            Construido para no <span className="text-rust">depender de nadie</span>.
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Organización sin fines de lucro</span>
+          <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
+            Construido para no <span className="text-heroViolet">depender de nadie</span>.
           </h2>
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+          <ul className="mt-7 grid gap-3 sm:grid-cols-2">
             {COMPROMISOS.map(({ icon: Icon, t, d }, i) => (
-              <BlurFade key={t} as="li" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 transition-shadow hover:shadow-card">
-                <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-clay" /><span className="font-semibold">{t}</span></div>
+              <BlurFade key={t} as="li" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
+                <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-heroGreen" /><span className="font-semibold">{t}</span></div>
                 <p className="mt-1 text-[13px] leading-relaxed text-mute">{d}</p>
               </BlurFade>
             ))}
           </ul>
         </div>
-        <BlurFade as="div" delayMs={150} className="rounded-2xl border border-line bg-paper p-5">
+        <BlurFade as="div" delayMs={150} className="rounded-3xl border border-line bg-paper p-5 shadow-card">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-clay">Cuentas claras · mes pasado</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-heroViolet">Cuentas claras · mes pasado</span>
             <span className="font-mono text-[11px] text-mute">25 regiones</span>
           </div>
           <ul className="mt-3 divide-y divide-line">
@@ -47,9 +47,9 @@ export function ConfianzaSection() {
               </li>
             ))}
           </ul>
-          <div className="mt-3 flex items-baseline justify-between rounded-xl bg-ink px-4 py-3 text-paper">
-            <div><div className="text-[10px] font-bold uppercase tracking-wide text-amber">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
-            <div className="font-mono text-2xl font-bold text-amber">S/ 845</div>
+          <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-heroViolet-deep px-4 py-3.5 text-paper">
+            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreen">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
+            <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
           </div>
           <Link href="/preguntas#transparencia" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>
         </BlurFade>

@@ -39,7 +39,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
 
       {/* Tarjeta flotante: región elegida (datos reales, no fijos) */}
       {clicked && (
-        <div className="animate-slideUp absolute left-1 top-1 z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-lg backdrop-blur">
+        <div className="animate-slideUp absolute left-1 top-1 z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur">
           <button
             onClick={() => setClickedCode(null)}
             aria-label="Cerrar"
@@ -73,7 +73,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
 
       {/* Tarjeta flotante: un contrato ya procesado, real */}
       {featured && (
-        <div className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line bg-paper/95 p-3 shadow-lg backdrop-blur md:block">
+        <div className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
           <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
             <AlertTriangle size={10} /> score {featured.score}
           </span>
@@ -91,7 +91,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
         </div>
       )}
 
-      <LlamaHero width={168} className="animate-floatYSm pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
+      <LlamaHero width={168} className="pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
 
       {top.length > 0 && (
         <ul className="mt-3 grid grid-cols-5 gap-2 text-center">

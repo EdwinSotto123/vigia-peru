@@ -17,14 +17,14 @@ const PAISES = [
  */
 export function ExpansionSection() {
   return (
-    <section className="border-y border-line bg-paperSoft py-16">
+    <section className="border-y border-line bg-paperSoft py-20">
       <div className="container-page">
         <BlurFade as="div" className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-clay">
+          <span className="inline-flex items-center gap-2 rounded-full border border-heroViolet/25 bg-heroViolet/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
             <Globe2 size={11} /> Próximos países
           </span>
-          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
-            Perú es el primero, <span className="text-clay">no el único</span>.
+          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
+            Perú es el primero, <span className="text-heroViolet">no el único</span>.
           </h2>
           <p className="mt-3 text-mute">
             El Estándar de Datos de Contrataciones Abiertas (OCDS) que hace posible Vigía Perú ya lo publican
@@ -38,7 +38,7 @@ export function ExpansionSection() {
             <BlurFade
               key={nombre}
               delayMs={i * 80}
-              className="group flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line bg-paper p-4"
+              className="group flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line bg-paper p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-solid hover:shadow-paper"
             >
               <Flag size={40} className="rounded shadow-sm ring-1 ring-black/10 grayscale transition-all duration-300 group-hover:grayscale-0" />
               <span className="text-sm font-semibold text-ink">{nombre}</span>

@@ -214,16 +214,16 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
         )}
 
         {/* Leyenda */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-mute">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute">
           {sinFinanciamiento && (
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-3 w-16 rounded-sm border border-line" style={{ background: "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))" }} />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1 shadow-sm">
+              <span className="inline-block h-2.5 w-10 rounded-full" style={{ background: "linear-gradient(90deg, hsl(28 55% 92%), hsl(28 55% 40%))" }} />
               menos → más contratos en cola
             </span>
           )}
           {(sinFinanciamiento ? (["parcial", "financiada", "procesada"] as ZonaEstado[]) : (["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[])).map((e) => (
-            <span key={e} className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm border border-line" style={{ background: ESTADO_FILL[e] }} />
+            <span key={e} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1 shadow-sm">
+              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: ESTADO_FILL[e] }} />
               {ESTADO_LABEL[e]}
             </span>
           ))}
