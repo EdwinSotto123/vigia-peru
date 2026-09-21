@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Newspaper, Camera, Gavel, MapPin } from "lucide-react";
 import { HeroCompacto } from "@/components/landing/HeroCompacto";
-import { LlamaParade } from "@/components/landing/LlamaParade";
+import { MascotBand } from "@/components/landing/MascotBand";
 import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto";
 import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
@@ -32,7 +32,7 @@ export default async function LandingPage() {
     <>
       <HeroCompacto />
 
-      <LlamaParade />
+      <MascotBand />
 
       {/* ─── EN VIVO · alertas reales ─── */}
       <section className="border-y border-line bg-paperDeep">
