@@ -317,3 +317,30 @@ export async function getConvergencias(): Promise<ApiConvergencia[]> {
   const r = await get<{ data: ApiConvergencia[] }>(`/reportes/convergencias`);
   return r.data;
 }
+
+/**
+ * `GET /reportes/:id` en el backend hace `SELECT *` (columnas snake_case tal cual la tabla:
+ * foto_url, convergencia_id) a diferencia de `GET /reportes` que sí alias-ea a camelCase — por
+ * eso acá se normaliza a mano en vez de castear directo a ApiReporte.
+ */
+export async function getReporte(id: string): Promise<ApiReporte | null> {
+  try {
+    const row = await get<Record<string, any>>(`/reportes/${encodeURIComponent(id)}`);
+    return {
+      id: row.id,
+      categoria: row.categoria,
+      descripcion: row.descripcion,
+      fotoUrl: row.fotoUrl ?? row.foto_url ?? undefined,
+      lat: Number(row.lat),
+      lon: Number(row.lon),
+      region: row.region,
+      fecha: row.fecha,
+      confirmado: !!row.confirmado,
+      confirmaciones: row.confirmaciones ?? 1,
+      convergenciaId: row.convergenciaId ?? row.convergencia_id ?? null,
+    };
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}

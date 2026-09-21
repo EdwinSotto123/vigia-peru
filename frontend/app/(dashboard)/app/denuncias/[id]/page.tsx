@@ -19,32 +19,49 @@ import {
   ALERTAS_MOCK,
   formatSoles,
 } from "@/lib/mock-data";
+import { getReporte, getReportes, getConvergencias, getAlerta } from "@/lib/api-client";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { DenunciasMap } from "@/components/denuncias/DenunciasMap";
 
-export default function DenunciaDetallePage({
+export default async function DenunciaDetallePage({
   params,
 }: {
   params: { id: string };
 }) {
-  const r = REPORTES_MOCK.find((x) => x.id === params.id);
+  // Antes esta página SOLO leía REPORTES_MOCK: funcionaba por coincidencia porque los datos
+  // sembrados reusan los mismos ids que el fixture, pero una denuncia ciudadana real (el
+  // formulario de /reporte/nuevo ya escribe al backend real) nunca iba a aparecer acá — 404
+  // garantizado. Mismo patrón try/API-primero-mock-de-respaldo que ya usa la lista en
+  // app/(dashboard)/app/denuncias/page.tsx.
+  let r: any = null;
+  try {
+    r = await getReporte(params.id);
+  } catch (e) {
+    console.error("[denuncia detalle] API falló, uso mock:", (e as Error).message);
+  }
+  if (!r) r = REPORTES_MOCK.find((x) => x.id === params.id) ?? null;
   if (!r) notFound();
 
   const meta = CATEGORIA_META[r.categoria as CategoriaDenuncia];
   const Icon = meta?.icon ?? Camera;
 
-  // Convergencias asociadas
-  const convergencia = CONVERGENCIAS_MOCK.find((c) =>
-    c.reporteIds.includes(r.id),
-  );
-  const alertaLinked = convergencia
-    ? ALERTAS_MOCK.find((a) => a.id === convergencia.alertaId)
-    : null;
-
-  // Reportes cercanos (misma región + diferentes)
-  const cercanos = REPORTES_MOCK.filter(
-    (x) => x.id !== r.id && x.region === r.region,
-  ).slice(0, 4);
+  let convergencia: any;
+  let alertaLinked: any = null;
+  let cercanos: any[] = [];
+  try {
+    const [convergencias, cercanosApi] = await Promise.all([
+      getConvergencias(),
+      getReportes({ region: r.region, limit: 5 }),
+    ]);
+    convergencia = convergencias.find((c) => c.reporteIds.includes(r.id));
+    cercanos = cercanosApi.filter((x) => x.id !== r.id).slice(0, 4);
+    if (convergencia) alertaLinked = await getAlerta(convergencia.alertaId);
+  } catch (e) {
+    console.error("[denuncia detalle] convergencia/cercanos falló, uso mock:", (e as Error).message);
+    convergencia = CONVERGENCIAS_MOCK.find((c) => c.reporteIds.includes(r.id));
+    alertaLinked = convergencia ? ALERTAS_MOCK.find((a) => a.id === convergencia.alertaId) ?? null : null;
+    cercanos = REPORTES_MOCK.filter((x) => x.id !== r.id && x.region === r.region).slice(0, 4);
+  }
 
   const diasDesde = (() => {
     const d = new Date(r.fecha);
@@ -121,7 +138,7 @@ export default function DenunciaDetallePage({
           <section className="surface p-5">
             <div className="flex flex-wrap items-baseline gap-3">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                   Sobre esta categoría
                 </div>
                 <h2 className="font-serif text-lg font-bold text-ink">
@@ -136,7 +153,7 @@ export default function DenunciaDetallePage({
 
           {/* Si hay convergencia → bloque destacado */}
           {convergencia && alertaLinked && (
-            <section className="rounded-2xl border-2 border-coal bg-coal p-6 text-paper">
+            <section className="rounded-2xl border-2 border-ink bg-ink p-6 text-paper">
               <div className="flex items-center gap-2 text-amber">
                 <Sparkles size={16} />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
@@ -167,7 +184,7 @@ export default function DenunciaDetallePage({
                   </div>
                   <Link
                     href={`/alerta/${alertaLinked.id}`}
-                    className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber px-3 py-1.5 text-[11px] font-semibold text-coal hover:scale-[1.02]"
+                    className="mt-3 inline-flex items-center gap-1 rounded-full bg-amber px-3 py-1.5 text-[11px] font-semibold text-ink hover:scale-[1.02]"
                   >
                     Ver dossier completo →
                   </Link>
@@ -196,7 +213,7 @@ export default function DenunciaDetallePage({
           <section>
             <div className="mb-2 flex items-baseline justify-between">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                   Ubicación
                 </div>
                 <h3 className="font-serif text-lg font-bold text-ink">
@@ -215,7 +232,7 @@ export default function DenunciaDetallePage({
         <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
           {/* ESTADO */}
           <div className="surface p-5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               Estado de la denuncia
             </div>
             <div className="mt-2 flex items-center gap-3">
@@ -300,7 +317,7 @@ export default function DenunciaDetallePage({
             </button>
             <Link
               href={`/reporte/nuevo?cerca=${r.lat},${r.lon}`}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-rust px-4 py-2.5 text-sm font-medium text-paper hover:bg-rust/90"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-heroViolet px-4 py-2.5 text-sm font-medium text-paper shadow-card transition-colors hover:bg-heroViolet-deep"
             >
               <CheckCircle2 size={14} /> Yo también vi esto
             </Link>
