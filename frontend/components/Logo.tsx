@@ -1,9 +1,8 @@
 import Image from "next/image";
 
-// Aspect ratio real del PNG fuente (public/assets/logo/vigia_peru.png es 2816×1536,
-// exactamente 11∶6). Antes se aproximaba con ×1.9, dejando el `width` prop 2-3px
-// desalineado del ancho real — ya corregido acá, pero por sí solo no alcanza (ver
-// nota junto a `style` más abajo: la causa real de fondo era otra).
+// Ancho de referencia: la caja del logo se sigue dimensionando 11∶6 (el ratio real del
+// isotipo recortado) — object-contain (ver className) centra el PNG fuente adentro sin
+// distorsión aunque ese archivo tenga más aire propio que el recorte 11∶6 exacto.
 const LOGO_ASPECT_RATIO = 2816 / 1536;
 
 type LogoProps = {
@@ -23,7 +22,13 @@ export function Logo({
 }: LogoProps) {
   return (
     <Image
-      src="/assets/logo/vigia_peru.png"
+      // vigia_peru.png (el original) pesa 4.9MB (2816×1536) — el optimizador de Next lo
+      // tiene que decodificar y reducir en cada variante de tamaño nueva; medido en vivo,
+      // 2.5s para el thumbnail de 64px del header en cache fría (justo lo que pasa después
+      // de cada deploy — la cache del optimizador no sobrevive a una revisión nueva). El
+      // isotipo ya tenía una versión pre-recortada de 512px (142KB) para los logos de
+      // aliados — la reusamos acá también: mismo dibujo, ~35× menos que decodificar.
+      src="/assets/logo/vigia_peru_512.png"
       alt="Vigía Perú"
       width={Math.round(height * LOGO_ASPECT_RATIO)}
       height={height}
