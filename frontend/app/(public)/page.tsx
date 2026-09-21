@@ -63,6 +63,7 @@ export default async function LandingPage() {
               <Link
                 key={a.id ?? a.codigo}
                 href={`/app/convocatoria/${encodeURIComponent(a.codigoconvocatoria)}`}
+                prefetch={false}
                 className="flex items-center gap-2 whitespace-nowrap text-xs transition-opacity hover:opacity-70"
               >
                 <span className="rounded bg-rust/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-rust">

@@ -109,7 +109,13 @@ export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: Ran
   const dims = size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
   if (logoUrl) {
     const px = size === "lg" ? 56 : 32;
-    return <Image src={logoUrl} alt={nombre} width={px} height={px} className={`${dims} border border-line bg-paper object-contain`} loading="lazy" unoptimized={!/^https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\//.test(logoUrl)} />;
+    // El logo de Vigía Perú (el propio aliado-fundador) llega del API como URL absoluta
+    // a este mismo dominio — sin normalizar, el optimizador de Next lo trata como una
+    // cache key distinta de cualquier otro <Image> que ya pidió ese mismo archivo por
+    // ruta relativa (p.ej. el logo del header), duplicando trabajo de redimensionado
+    // para el mismo PNG.
+    const src = logoUrl.replace(/^https?:\/\/[^/]+\.run\.app/, "");
+    return <Image src={src} alt={nombre} width={px} height={px} className={`${dims} border border-line bg-paper object-contain`} loading="lazy" unoptimized={!/^(https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\/|\/)/.test(src)} />;
   }
   const Icon = tipo === "empresa" ? Building2 : tipo === "organizacion" ? Users : User;
   return (
