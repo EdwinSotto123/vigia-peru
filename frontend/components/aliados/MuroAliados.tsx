@@ -64,11 +64,18 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
     );
   }
 
-  const encabezado = leidosMes > 0
-    ? <>Gracias a ellos, <span className="font-mono">{leidosMes.toLocaleString("es-PE")}</span> contratos públicos fueron leídos este mes.</>
-    : financiadosMes > 0
-      ? <>Gracias a ellos, <span className="font-mono">{financiadosMes.toLocaleString("es-PE")}</span> contratos públicos entraron a auditoría este mes.</>
-      : <>Gracias a ellos, <span className="font-mono">{(leidosTotal || financiadosTotal).toLocaleString("es-PE")}</span> contratos públicos {leidosTotal ? "fueron leídos" : "entraron a auditoría"}.</>;
+  // Mientras el único financiador sea Vigía Perú mismo (capital semilla), "gracias a
+  // ellos" en plural sería engañoso — se dice tal cual es hasta que llegue el primer
+  // aliado externo real (en cuanto totalResumen tenga 2+, vuelve solo al texto normal).
+  const soloFundador = visiblesTodo.length === 1 && visiblesTodo[0].slug === "vigia-peru";
+  const totalLeidoOAuditoria = leidosTotal || financiadosTotal;
+  const encabezado = soloFundador
+    ? <>Vigía Perú financió su propia auditoría inicial con capital semilla: <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos {leidosTotal ? "leídos" : "en auditoría"}. El primer aliado externo abre el resto.</>
+    : leidosMes > 0
+      ? <>Gracias a ellos, <span className="font-mono">{leidosMes.toLocaleString("es-PE")}</span> contratos públicos fueron leídos este mes.</>
+      : financiadosMes > 0
+        ? <>Gracias a ellos, <span className="font-mono">{financiadosMes.toLocaleString("es-PE")}</span> contratos públicos entraron a auditoría este mes.</>
+        : <>Gracias a ellos, <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos públicos {leidosTotal ? "fueron leídos" : "entraron a auditoría"}.</>;
 
   if (compact) {
     return (

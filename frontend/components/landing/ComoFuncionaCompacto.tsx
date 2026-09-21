@@ -1,4 +1,5 @@
-import { MapPin, Landmark, Cpu, FileCheck2 } from "lucide-react";
+import { MapPin, Landmark, Cpu, FileCheck2, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { BlurFade } from "@/components/magicui/BlurFade";
 import { DetectionCarousel } from "./DetectionCarousel";
 
@@ -46,9 +47,17 @@ export function ComoFuncionaCompacto() {
         <div className="mt-14">
           <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-serif text-2xl font-bold text-ink">Qué señales busca en cada contrato</h3>
-            <span className="text-xs text-mute">Señalamos patrones; no acusamos.</span>
+            <span className="text-xs text-mute">Patrón ilustrativo — señalamos patrones, no acusamos.</span>
           </div>
           <DetectionCarousel />
+          <div className="mt-5 text-center">
+            <Link
+              href="/app/auditoria"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-heroViolet underline-offset-2 hover:underline"
+            >
+              Ver casos reales ya auditados <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
       </div>
     </section>

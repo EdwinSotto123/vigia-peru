@@ -25,7 +25,7 @@ export async function AliadosSection() {
             <Link href="/app/financiar" className="group inline-flex items-center gap-2 rounded-full bg-heroViolet px-5 py-3 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
               Financiar una auditoría <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <Link href="/app/financiar#independencia" className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink transition-colors hover:bg-paperDeep">
+            <Link href="/app/financiar#independencia" className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink shadow-card transition-all hover:-translate-y-0.5 hover:bg-paperDeep hover:shadow-paper">
               <ShieldCheck size={16} /> Reglas de independencia
             </Link>
           </div>

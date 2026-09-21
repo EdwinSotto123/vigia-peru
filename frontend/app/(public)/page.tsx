@@ -78,6 +78,10 @@ export default async function LandingPage() {
               contratos del Estado y lo pone en el mapa. Anónimo por defecto; dos reportes independientes del
               mismo punto en 30 días lo confirman.
             </p>
+            <p className="mt-2 text-[13px] text-mute">
+              No mostramos tu DNI ni tu nombre. Si dejas un correo es solo para contactarte —{" "}
+              <Link href="/preguntas" className="underline-offset-2 hover:underline">nunca se publica</Link>.
+            </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/reporte/nuevo"
@@ -131,7 +135,7 @@ export default async function LandingPage() {
 
       {/* ─── CTA FINAL ─── */}
       <section className="container-page py-24">
-        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-[2rem] bg-heroViolet-deep p-10 text-paper shadow-paper sm:p-16">
+        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-heroViolet-deep p-10 text-paper shadow-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-40">
             <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/40 via-heroViolet/20 to-transparent" />
             <div
@@ -159,14 +163,14 @@ export default async function LandingPage() {
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/app/mapa"
-                className="group inline-flex items-center gap-2 rounded-full bg-heroGreen px-7 py-4 text-base font-semibold text-paper shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 sm:text-lg"
+                className="group inline-flex items-center gap-2 rounded-full bg-heroGreen px-7 py-4 text-base font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0 sm:text-lg"
               >
                 Abrir el mapa
                 <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
                 href="/preguntas"
-                className="inline-flex items-center gap-2 rounded-full border border-paper/30 px-7 py-4 text-base font-medium text-paper transition-colors hover:bg-paper/10 sm:text-lg"
+                className="inline-flex items-center gap-2 rounded-full border border-paper/30 px-7 py-4 text-base font-medium text-paper shadow-card transition-all hover:-translate-y-0.5 hover:bg-paper/10 hover:shadow-paper sm:text-lg"
               >
                 Preguntas frecuentes
               </Link>

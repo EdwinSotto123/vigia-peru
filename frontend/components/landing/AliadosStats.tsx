@@ -40,7 +40,7 @@ export function AliadosStats({ initial }: { initial: Stats | null }) {
 
 function Mini({ v, l, format }: { v: number; l: string; format?: "entero" | "pen" }) {
   return (
-    <div className="rounded-xl border border-line bg-paperSoft p-3">
+    <div className="rounded-2xl border border-line bg-paperSoft p-3 shadow-card">
       <div className="font-mono text-lg font-semibold text-ink"><NumberTicker value={v} format={format} /></div>
       <div className="text-[10px] uppercase tracking-wide text-mute">{l}</div>
     </div>

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Code2, Lock, ShieldCheck, Sparkles, Server, Database, Activity } from "lucide-react";
+import { Code2, Lock, ShieldCheck, Sparkles, Server, Database, Activity, ArrowUpRight } from "lucide-react";
 import { BlurFade } from "@/components/magicui/BlurFade";
 
 const COMPROMISOS = [
-  { icon: Code2, t: "100 % open source", d: "Todo el código en GitHub. Una herramienta anticorrupción cerrada sería una contradicción." },
+  { icon: Code2, t: "100 % open source", d: "Todo el código en GitHub. Una herramienta anticorrupción cerrada sería una contradicción.", href: "https://github.com/EdwinSotto123/vigia-peru" },
   { icon: Lock, t: "Sin conflictos de interés", d: "Ni Estado, ni partidos, ni empresas que contratan con él. Quien financia no elige ni edita resultados." },
   { icon: ShieldCheck, t: "No acusamos", d: "Señales de riesgo con norma, opinión OECE y fuente oficial. Denunciar formalmente es tarea de Fiscalía, Contraloría y prensa." },
   { icon: Activity, t: "Auditable por dentro", d: "Cada análisis deja su traza completa (llamadas, costo, latencia) en Arize/Phoenix y un servidor MCP público expone los datos." },
@@ -26,10 +26,15 @@ export function ConfianzaSection() {
             Construido para no <span className="text-heroViolet">depender de nadie</span>.
           </h2>
           <ul className="mt-7 grid gap-3 sm:grid-cols-2">
-            {COMPROMISOS.map(({ icon: Icon, t, d }, i) => (
+            {COMPROMISOS.map(({ icon: Icon, t, d, href }, i) => (
               <BlurFade key={t} as="li" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
                 <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-heroGreen" /><span className="font-semibold">{t}</span></div>
                 <p className="mt-1 text-[13px] leading-relaxed text-mute">{d}</p>
+                {href && (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-heroGreen hover:underline">
+                    Ver el código <ArrowUpRight size={11} />
+                  </a>
+                )}
               </BlurFade>
             ))}
           </ul>

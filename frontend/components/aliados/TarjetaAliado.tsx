@@ -16,6 +16,10 @@ const TIPO_LABEL: Record<RankingRow["tipo"], string> = {
   persona: "Persona",
 };
 
+/** Vigía Perú aparece en su propio ranking cuando se autofinancia (capital semilla) —
+ * se etiqueta distinto para no leerse como un aliado externo más. */
+const esFundador = (row: RankingRow) => row.slug === "vigia-peru";
+
 interface Props {
   row: RankingRow;
   posicion: number;
@@ -64,7 +68,9 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
         <span className="absolute right-4 top-4 text-2xl" title={medalla.label} aria-label={medalla.label}>{medalla.emoji}</span>
       )}
       <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" />
-      <div className="mt-3 text-[11px] uppercase tracking-wide text-mute">{TIPO_LABEL[row.tipo]} · aliado de transparencia</div>
+      <div className="mt-3 text-[11px] uppercase tracking-wide text-mute">
+        {esFundador(row) ? "Fundador · capital semilla" : `${TIPO_LABEL[row.tipo]} · aliado de transparencia`}
+      </div>
       <h3 className="mt-0.5 truncate font-serif text-xl font-bold text-ink">{nombre}</h3>
       <p className="mt-2 text-sm leading-relaxed text-inkSoft">
         Financió la auditoría de <span className="font-mono font-semibold text-ink">{row.contratosFinanciados.toLocaleString("es-PE")}</span>{" "}
