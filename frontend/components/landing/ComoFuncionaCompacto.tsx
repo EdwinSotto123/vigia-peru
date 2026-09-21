@@ -47,7 +47,10 @@ export function ComoFuncionaCompacto() {
         <div className="mt-14">
           <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-serif text-2xl font-bold text-ink">Qué señales busca en cada contrato</h3>
-            <span className="text-xs text-mute">Patrón ilustrativo — señalamos patrones, no acusamos.</span>
+            {/* text-ink/70, no text-mute: esta sección usa bg-paperDeep — con ese fondo,
+                text-mute cae a ~4.23:1 (bajo el mínimo AA de 4.5:1 para texto chico). Mismo
+                fix ya aplicado en el ticker EN VIVO, que tiene el mismo fondo. */}
+            <span className="text-xs text-ink/70">Patrón ilustrativo — señalamos patrones, no acusamos.</span>
           </div>
           <DetectionCarousel />
           <div className="mt-5 text-center">
