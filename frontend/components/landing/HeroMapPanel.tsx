@@ -91,7 +91,7 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
         </div>
       )}
 
-      <LlamaHero width={168} className="pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
+      <LlamaHero width={168} className="animate-floatYSm pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
 
       {top.length > 0 && (
         <ul className="mt-3 grid grid-cols-5 gap-2 text-center">
