@@ -5,6 +5,7 @@ import { LlamaParade } from "@/components/landing/LlamaParade";
 import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto";
 import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
+import { ExpansionSection } from "@/components/landing/ExpansionSection";
 import { Marquee } from "@/components/magicui/Marquee";
 import { BlurFade } from "@/components/magicui/BlurFade";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -125,6 +126,8 @@ export default async function LandingPage() {
       </section>
 
       <ConfianzaSection />
+
+      <ExpansionSection />
 
       {/* ─── CTA FINAL ─── */}
       <section className="container-page py-24">

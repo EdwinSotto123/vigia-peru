@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Logo } from "./Logo";
+import { PeruFlag } from "./landing/CountryFlags";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -121,7 +122,10 @@ export function Footer() {
 
         {/* Bottom strip */}
         <div className="mt-10 flex flex-col gap-2 border-t border-paper/10 pt-5 text-[11px] text-paper/45 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {year} Vigía Perú · Licencia MIT · Hecho en Lima</p>
+          <p className="inline-flex items-center gap-1.5">
+            <PeruFlag size={16} className="rounded-[2px] ring-1 ring-paper/20" />
+            © {year} Vigía Perú · Licencia MIT · Hecho en Lima
+          </p>
           <p className="font-mono text-paper/35">
             Gemini 2.5 · Google ADK · Cloud Run · Cloud SQL
           </p>

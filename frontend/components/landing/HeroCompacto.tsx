@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Landmark, Radio } from "lucide-react";
 import { CampaignMap } from "@/components/financiar/CampaignMap";
+import { PeruFlag } from "./CountryFlags";
 import { HeroKpis } from "./HeroKpis";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
@@ -21,8 +22,8 @@ export async function HeroCompacto() {
       <div className="container-page relative py-12 sm:py-16">
         <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.95fr] lg:gap-14">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 py-1.5 pl-1.5 pr-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
+              <PeruFlag size={20} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
               Plataforma cívica · sin fines de lucro · Perú
             </div>
             <h1 className="font-serif text-4xl font-bold leading-[1.02] tracking-tight text-ink sm:text-5xl lg:text-6xl">
