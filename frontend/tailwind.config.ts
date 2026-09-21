@@ -33,6 +33,7 @@ const config: Config = {
         moss: "#3F7D43",         // verificado / positivo
         amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
+        brand: "#6E1F2F",        // vino profundo del isotipo (VIGÍA PERÚ) — marca, no alerta
 
         // ── Legacy (que otros componentes aún referencien) ──
         bone: "#FFFFFF",
@@ -100,6 +101,14 @@ const config: Config = {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        llamaStep: {
+          "0%, 100%": { transform: "rotate(-9deg)" },
+          "50%": { transform: "rotate(9deg)" },
+        },
+        llamaBob: {
+          "0%, 50%, 100%": { transform: "translateY(0)" },
+          "25%, 75%": { transform: "translateY(-2px)" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -112,6 +121,9 @@ const config: Config = {
         "border-beam": "border-beam calc(var(--duration)*1s) infinite linear",
         pulseSoft: "pulseSoft 2.4s ease-in-out infinite",
         shimmerSweep: "shimmerSweep 3s linear infinite",
+        llamaStepFront: "llamaStep 0.9s ease-in-out infinite",
+        llamaStepBack: "llamaStep 0.9s ease-in-out infinite reverse",
+        llamaBob: "llamaBob 0.9s ease-in-out infinite",
       },
     },
   },

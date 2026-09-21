@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Landmark, Radio } from "lucide-react";
 import { CampaignMap } from "@/components/financiar/CampaignMap";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { HeroKpis } from "./HeroKpis";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
@@ -21,8 +21,8 @@ export async function HeroCompacto() {
       <div className="container-page relative py-12 sm:py-16">
         <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.95fr] lg:gap-14">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber/30 bg-amber/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
               Plataforma cívica · sin fines de lucro · Perú
             </div>
             <h1 className="font-serif text-4xl font-bold leading-[1.02] tracking-tight text-ink sm:text-5xl lg:text-6xl">
@@ -43,12 +43,7 @@ export async function HeroCompacto() {
                 <Landmark size={16} /> Financiar una auditoría
               </Link>
             </div>
-            <div className="mt-8 grid max-w-xl grid-cols-2 divide-x divide-line rounded-2xl border border-line bg-paperSoft sm:grid-cols-4">
-              <Kpi v={estado?.colaGlobal ?? 0} l="contratos en cola" />
-              <Kpi v={estado?.contratosFinanciados ?? 0} l="financiados por aliados" />
-              <Kpi v={estado?.senalesHalladas ?? 0} l="señales de riesgo halladas" />
-              <Kpi v={estado?.regionesConCola ?? 0} l="regiones con contratos" />
-            </div>
+            <HeroKpis initial={estado} />
           </div>
 
           <div>
@@ -77,14 +72,5 @@ export async function HeroCompacto() {
         </div>
       </div>
     </section>
-  );
-}
-
-function Kpi({ v, l }: { v: number; l: string }) {
-  return (
-    <div className="px-4 py-3">
-      <div className="font-mono text-xl font-bold text-ink"><NumberTicker value={v} /></div>
-      <div className="mt-0.5 text-[11px] leading-tight text-mute">{l}</div>
-    </div>
   );
 }
