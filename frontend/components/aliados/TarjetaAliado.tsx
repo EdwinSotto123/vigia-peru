@@ -72,15 +72,14 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
         {esFundador(row) ? "Fundador · capital semilla" : `${TIPO_LABEL[row.tipo]} · aliado de transparencia`}
       </div>
       <h3 className="mt-0.5 truncate font-serif text-xl font-bold text-ink">{nombre}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-inkSoft">
-        Financió la auditoría de <span className="font-mono font-semibold text-ink">{row.contratosFinanciados.toLocaleString("es-PE")}</span>{" "}
-        {row.contratosFinanciados === 1 ? "contrato" : "contratos"} en <span className="font-mono font-semibold text-ink">{row.zonas}</span> {row.zonas === 1 ? "zona" : "zonas"}.
-      </p>
-      <p className="mt-1 text-sm text-mute">
-        <span className="font-mono font-semibold text-ink">{row.senalesHalladas.toLocaleString("es-PE")}</span>{" "}
-        {row.senalesHalladas === 1 ? "señal de riesgo hallada" : "señales de riesgo halladas"} gracias a su aporte
-        {row.contratosProcesados > 0 && <> · {row.contratosProcesados.toLocaleString("es-PE")} procesados</>}.
-      </p>
+      {/* Datos como tarjeta de cifras (mismo lenguaje que HeroKpis/AliadosStats), no una
+          oración corrida con los números metidos adentro. */}
+      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-line pt-3">
+        <EstadisticaAliado etiqueta={row.contratosFinanciados === 1 ? "Contrato financiado" : "Contratos financiados"} valor={row.contratosFinanciados} />
+        <EstadisticaAliado etiqueta={row.zonas === 1 ? "Zona" : "Zonas"} valor={row.zonas} />
+        <EstadisticaAliado etiqueta={row.senalesHalladas === 1 ? "Señal hallada" : "Señales halladas"} valor={row.senalesHalladas} tono={row.senalesHalladas > 0 ? "rust" : undefined} />
+        <EstadisticaAliado etiqueta="Procesados" valor={row.contratosProcesados} tono="moss" />
+      </dl>
       <div className="mt-auto flex items-center justify-between pt-4 text-[11px] text-mute">
         <span>{row.desde ? `desde ${new Date(row.desde).toLocaleDateString("es-PE", { month: "short", year: "numeric" })}` : ""}</span>
         {row.slug && (
@@ -90,6 +89,19 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
         )}
       </div>
     </article>
+  );
+}
+
+/** Una cifra del aliado como dato, no como palabra dentro de una frase — reusa el mismo
+ * patrón label-chico/número-grande que ya usan HeroKpis y AliadosStats en el hero. */
+function EstadisticaAliado({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono?: "rust" | "moss" }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wide text-mute">{etiqueta}</dt>
+      <dd className={`font-mono text-base font-bold ${tono === "rust" ? "text-rust" : tono === "moss" ? "text-moss" : "text-ink"}`}>
+        {valor.toLocaleString("es-PE")}
+      </dd>
+    </div>
   );
 }
 
