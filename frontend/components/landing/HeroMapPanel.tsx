@@ -130,37 +130,40 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
           tabIndex={-1}
           role="dialog"
           aria-label={clicked.nombre}
-          className={`animate-slideUp absolute z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur focus:outline-none ${cardStyle ? "" : "left-1 top-1"}`}
+          className={`animate-slideUp absolute z-10 w-[235px] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-paper backdrop-blur focus:outline-none ${cardStyle ? "" : "left-1 top-1"}`}
           style={cardStyle ?? undefined}
         >
+          <RegionPhoto ubigeo={clicked.ubigeo} nombre={clicked.nombre} />
           <button
             onClick={closeCard}
             aria-label="Cerrar"
-            className="absolute right-2 top-2 rounded-full p-1 text-mute transition-colors hover:bg-paperDeep hover:text-ink"
+            className="absolute right-2 top-2 z-10 rounded-full bg-paper/80 p-1 text-mute shadow-sm backdrop-blur transition-colors hover:bg-paperDeep hover:text-ink"
           >
             <X size={12} />
           </button>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-heroViolet">
-            <MapPin size={12} /> {clicked.nombre}
-          </span>
-          {clicked.totalCola > 0 ? (
-            <>
-              <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
-                <Stat k="Contratos" v={clicked.totalCola.toLocaleString("es-PE")} />
-                <Stat k="Pendientes" v={clicked.pendientes.toLocaleString("es-PE")} />
-                <Stat k="Señales" v={clicked.senales.toLocaleString("es-PE")} />
-                <Stat k="Costo auditarla" v={formatPEN(costoAuditar)} />
-              </dl>
-              <Link
-                href={`/app/mapa?region=${UBIGEO_REGION[clicked.ubigeo] ?? ""}`}
-                className="mt-2.5 flex items-center justify-center gap-1 rounded-lg bg-heroGreen/10 py-1.5 text-[11px] font-semibold text-heroGreen transition-colors hover:bg-heroGreen/20"
-              >
-                Ver contratos <ArrowUpRight size={12} />
-              </Link>
-            </>
-          ) : (
-            <p className="mt-1.5 text-[12px] text-mute">Todavía no ingresamos contratos de esta zona.</p>
-          )}
+          <div className="p-3">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-heroViolet">
+              <MapPin size={12} /> {clicked.nombre}
+            </span>
+            {clicked.totalCola > 0 ? (
+              <>
+                <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+                  <Stat k="Contratos" v={clicked.totalCola.toLocaleString("es-PE")} />
+                  <Stat k="Pendientes" v={clicked.pendientes.toLocaleString("es-PE")} />
+                  <Stat k="Señales" v={clicked.senales.toLocaleString("es-PE")} />
+                  <Stat k="Costo auditarla" v={formatPEN(costoAuditar)} />
+                </dl>
+                <Link
+                  href={`/app/mapa?region=${UBIGEO_REGION[clicked.ubigeo] ?? ""}`}
+                  className="mt-2.5 flex items-center justify-center gap-1 rounded-lg bg-heroGreen/10 py-1.5 text-[11px] font-semibold text-heroGreen transition-colors hover:bg-heroGreen/20"
+                >
+                  Ver contratos <ArrowUpRight size={12} />
+                </Link>
+              </>
+            ) : (
+              <p className="mt-1.5 text-[12px] text-mute">Todavía no ingresamos contratos de esta zona.</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -213,6 +216,24 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Foto real de la región (public/assets/regiones/{ubigeo}.jpg), si existe. Se van
+ * agregando de a poco — mientras un ubigeo no tenga archivo, el <img> tira 404 y
+ * onError la oculta del todo (la tarjeta vuelve a verse como antes, sin hueco roto).
+ */
+function RegionPhoto({ ubigeo, nombre }: { ubigeo: string; nombre: string }) {
+  const [fallo, setFallo] = useState(false);
+  if (fallo) return null;
+  return (
+    <img
+      src={`/assets/regiones/${ubigeo}.jpg`}
+      alt={nombre}
+      className="h-24 w-full object-cover"
+      onError={() => setFallo(true)}
+    />
   );
 }
 
