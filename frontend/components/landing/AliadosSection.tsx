@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
+import { AliadosStats } from "@/components/landing/AliadosStats";
 import { BlurFade } from "@/components/magicui/BlurFade";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 
 /** Aliados + cifras de financiamiento en una sola sección (antes: "Financia" con mapa + "Aliados"). */
@@ -20,11 +20,7 @@ export async function AliadosSection() {
             Empresas, colectivos y personas que financian capacidad de auditoría. Reciben reconocimiento público
             y un comprobante con cada contrato que su aporte hizo posible leer. El ranking cuenta contratos, no soles.
           </p>
-          <div className="mt-5 grid grid-cols-3 gap-2">
-            <Mini v={estado?.contratosFinanciados ?? 0} l="contratos financiados" />
-            <Mini v={estado?.montoPen ?? 0} l="destinados a auditoría" format="pen" />
-            <Mini v={estado?.regionesConAuditoria ?? 0} l="regiones con auditoría" />
-          </div>
+          <AliadosStats initial={estado} />
           <div className="mt-5 flex flex-wrap gap-3">
             <Link href="/app/financiar" className="group inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
               Financiar una auditoría <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
@@ -39,14 +35,5 @@ export async function AliadosSection() {
         </BlurFade>
       </div>
     </section>
-  );
-}
-
-function Mini({ v, l, format }: { v: number; l: string; format?: "entero" | "pen" }) {
-  return (
-    <div className="rounded-xl border border-line bg-paperSoft p-3">
-      <div className="font-mono text-lg font-semibold text-ink"><NumberTicker value={v} format={format} /></div>
-      <div className="text-[10px] uppercase tracking-wide text-mute">{l}</div>
-    </div>
   );
 }
