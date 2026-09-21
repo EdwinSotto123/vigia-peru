@@ -17,7 +17,7 @@ const PAISES = [
  */
 export function ExpansionSection() {
   return (
-    <section className="border-y border-line bg-paperSoft py-20">
+    <section className="border-y border-line bg-paperSoft py-16">
       <div className="container-page max-w-[1600px]">
         <BlurFade as="div" className="mx-auto max-w-2xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-heroViolet/25 bg-heroViolet/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">

@@ -9,7 +9,7 @@ import { getEstadoGlobal } from "@/lib/financiamiento";
 export async function AliadosSection() {
   const estado = await getEstadoGlobal();
   return (
-    <section id="aliados" className="scroll-mt-20 py-20">
+    <section id="aliados" className="scroll-mt-20 py-16">
       <div className="container-page grid max-w-[1600px] gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroGreen">Aliados de transparencia</span>
