@@ -240,7 +240,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
 
   if (creada) {
     return (
-      <div className="rounded-2xl border border-line bg-paper p-5 sm:p-6" aria-live="polite">
+      <div className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6" aria-live="polite">
         <Stepper step={subido ? 4 : 3} />
         <div className="mt-5 flex items-center gap-2 text-moss"><CheckCircle2 size={18} aria-hidden /><span className="text-sm font-semibold">Aporte registrado</span></div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3">
@@ -300,7 +300,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
         )}
         {!conCuenta && !authLoading && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] text-mute">
-            <UserPlus size={14} className="mt-0.5 shrink-0 text-clay" aria-hidden />
+            <UserPlus size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
             <span>
               <strong className="text-ink">Crea una cuenta para seguir tu aporte</strong>: verás su progreso, las señales halladas y tus zonas en un solo lugar. Guarda tu código <span className="font-mono">{creada.codigo}</span> — con él siempre puedes ver el comprobante.{" "}
               <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="underline">Crear cuenta</Link>
@@ -316,7 +316,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
   }
 
   return (
-    <form onSubmit={crear} className="rounded-2xl border border-line bg-paper p-5 sm:p-6" aria-label="Financiar auditoría">
+    <form onSubmit={crear} className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6" aria-label="Financiar auditoría">
       <Stepper step={2} />
       <h3 className="mt-5 font-serif text-xl font-bold text-ink">Financiar auditoría en {zonaNombre}</h3>
       <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato · quedan {restantes.toLocaleString("es-PE")} sin financiar</p>
@@ -387,7 +387,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
 
       {error && <p className="mt-4 text-sm text-rust" role="alert">{error}</p>}
 
-      <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60">
+      <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-heroViolet px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60">
         {loading && <Loader2 size={14} className="animate-spin" aria-hidden />}
         Continuar al pago · {contratos} contratos · {formatPEN(monto)}
       </button>

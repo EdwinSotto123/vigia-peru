@@ -47,7 +47,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           </div>
 
           {/* progreso */}
-          <div className="mt-6 rounded-2xl border border-line p-5">
+          <div className="mt-6 rounded-2xl border border-line bg-paper p-5 shadow-card">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Big label={`En cola (${alcanceCorto(d.alcance)})`} v={zona.totalCola} unit="contratos" />
               <Big label="Costo de auditarla" v={zona.totalCola * zona.precioPen} prefix="S/ " />
@@ -64,7 +64,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           </div>
 
           {/* qué hay en la cola */}
-          <div className="mt-6 rounded-2xl border border-line p-5">
+          <div className="mt-6 rounded-2xl border border-line bg-paper p-5 shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold text-ink">Qué hay en la cola</h2>
               <Link href={`/app/contratos?ubigeo=${zona.ubigeo}`} className="text-xs text-mute hover:underline">Ver los contratos →</Link>
@@ -85,10 +85,10 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           </div>
 
           {/* en vivo ahora */}
-          <div className="mt-6 rounded-2xl border border-line p-5">
+          <div className="mt-6 rounded-2xl border border-line bg-paper p-5 shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="inline-flex items-center gap-2 font-semibold text-ink">
-                <Activity size={16} className={zona.financiados > 0 ? "text-amber" : "text-mute"} aria-hidden />
+                <Activity size={16} className={zona.financiados > 0 ? "text-moss" : "text-mute"} aria-hidden />
                 En vivo ahora en {zona.nombre}
               </h2>
               {zona.financiados > 0 && (

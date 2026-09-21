@@ -33,12 +33,12 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
       <section className="border-b border-line bg-paperDeep">
         <div className="container-page grid gap-10 py-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-mute">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
               <Landmark size={12} /> Financiamiento de auditoría independiente
             </span>
             <h1 className="mt-5 font-serif text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
               El Estado publica todos sus contratos.<br />
-              <em className="text-clay">Nadie tiene capacidad de leerlos.</em>
+              <em className="text-heroGreen not-italic">Nadie tiene capacidad de leerlos.</em>
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
               Vigía lee contratos públicos con un pipeline de 11 agentes y publica las señales de riesgo.
@@ -47,7 +47,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
               contratos pendientes. Los resultados son públicos, siempre.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#zonas" className="inline-flex items-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+              <a href="#zonas" className="inline-flex items-center gap-2 rounded-xl bg-heroViolet px-5 py-3 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
                 Elegir mi zona <ArrowRight size={16} />
               </a>
               <a href="#independencia" className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-5 py-3 text-sm font-semibold text-ink hover:bg-paperDeep">
@@ -106,13 +106,13 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
       <section id="independencia" className="scroll-mt-20 border-t border-line bg-ink py-16 text-paper">
         <div className="container-page grid gap-10 lg:grid-cols-[1fr_1.2fr]">
           <div>
-            <ShieldCheck size={28} className="text-amber" />
+            <ShieldCheck size={28} className="text-heroGreen" />
             <h2 className="mt-4 font-serif text-3xl font-bold">Financias capacidad, no resultados</h2>
             <p className="mt-3 text-paper/70">
               Esto no es comprar una región ni patrocinar un informe. Es pagar el cómputo para que contratos
               que ya son públicos sean, por fin, leídos. Las reglas están en el código, no en una promesa.
             </p>
-            <Link href="/preguntas#cuentas" className="mt-4 inline-block text-sm text-amber underline-offset-2 hover:underline">
+            <Link href="/preguntas#cuentas" className="mt-4 inline-block text-sm text-heroGreen underline-offset-2 hover:underline">
               Ver el balance público y el código →
             </Link>
           </div>
@@ -133,7 +133,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
 
 function Metric({ label, value, prefix = "", hint }: { label: string; value: number; prefix?: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4">
+    <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
       <div className="font-mono text-2xl font-semibold text-ink">
         {prefix}{value.toLocaleString("es-PE")}
       </div>
@@ -145,7 +145,7 @@ function Metric({ label, value, prefix = "", hint }: { label: string; value: num
 
 function Rule({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <li className="rounded-xl border border-paper/15 bg-paper/5 p-4">
+    <li className="rounded-2xl border border-paper/15 bg-paper/[0.06] p-4">
       <div className="text-sm font-semibold text-paper">{title}</div>
       <p className="mt-1 text-[13px] leading-relaxed text-paper/65">{children}</p>
     </li>
