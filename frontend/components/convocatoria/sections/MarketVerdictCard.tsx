@@ -59,7 +59,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
     return hits > 0 && hi > lo ? { lo, hi } : null;
   })();
   return (
-    <section className={cn("rounded-2xl border p-5", v.bg)}>
+    <section className={cn("rounded-2xl border p-5 shadow-card", v.bg)}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <div className={cn("inline-flex items-center gap-1.5 rounded-full bg-paper px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest", v.color)}>
@@ -110,9 +110,9 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       {mercadoRango && (
         <div className="mt-2 rounded-lg bg-paper/70 px-3 py-2 text-center text-[11px] text-mute">
           Rango de mercado del lote (Σ cantidad × precio):{" "}
-          <span className="font-mono font-bold text-clay">mín {fmtMoney(mercadoRango.lo)}</span>
+          <span className="font-mono font-bold text-heroViolet">mín {fmtMoney(mercadoRango.lo)}</span>
           <span className="text-mute"> · </span>
-          <span className="font-mono font-bold text-clay">máx {fmtMoney(mercadoRango.hi)}</span>
+          <span className="font-mono font-bold text-heroViolet">máx {fmtMoney(mercadoRango.hi)}</span>
         </div>
       )}
       {(() => {
@@ -187,7 +187,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         <ul className="mt-3 space-y-1 text-sm text-ink">
           {market.observaciones_clave.map((o: string, i: number) => (
             <li key={i} className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-clay" />
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-heroViolet" />
               <span>{o}</span>
             </li>
           ))}
@@ -195,7 +195,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       )}
       {market.recomendacion && (
         <div className="mt-3 rounded-lg bg-paper/60 p-3 text-xs italic text-ink">
-          <Sparkles size={11} className="mr-1 inline text-clay" />
+          <Sparkles size={11} className="mr-1 inline text-heroViolet" />
           {market.recomendacion}
         </div>
       )}

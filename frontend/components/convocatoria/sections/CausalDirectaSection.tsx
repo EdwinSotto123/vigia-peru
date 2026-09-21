@@ -16,7 +16,7 @@ export function CausalDirectaSection({
   return (
     <section className="surface overflow-hidden p-0">
       <div className={cn("border-b border-line px-5 py-3", "bg-paperDeep")}>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Scale size={11} className="mr-1 inline" />
           Causal de Contratación Directa · Art. 27 TUO Ley 30225
         </div>
@@ -27,7 +27,7 @@ export function CausalDirectaSection({
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Causal invocada
           </h3>
           <div className="mt-2 space-y-1.5 text-[12px]">

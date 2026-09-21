@@ -14,7 +14,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
   const categoryFor = (key: string): { rol: string; color: string } => {
     if (key === ganadorRazon || key === ganadorDni) return { rol: "Titular del proveedor", color: "bg-rust/15 text-rust" };
     if (firmantes.some((f) => (f.nombre_completo === key) || (f.dni === key))) return { rol: "Firmante del acta", color: "bg-amber/15 text-amber" };
-    if (comite.some((m) => (m.nombre_completo === key) || (m.nombre === key) || (m.dni === key))) return { rol: "Comité de selección", color: "bg-clay/15 text-clay" };
+    if (comite.some((m) => (m.nombre_completo === key) || (m.nombre === key) || (m.dni === key))) return { rol: "Comité de selección", color: "bg-heroViolet/15 text-heroViolet" };
     return { rol: "Socio o vínculo del proveedor", color: "bg-moss/15 text-moss" };
   };
 
@@ -44,7 +44,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
 
   return (
     <div className="border-t border-line bg-paperSoft px-5 py-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
         ⚡ Vinculaciones por persona · {personasConHallazgo.length} con hallazgos · {Object.keys(datos).length} investigadas
       </h3>
       <p className="mt-0.5 text-[10px] text-mute italic">
@@ -82,7 +82,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
                 )}
                 {pep.found && (
                   <div className="text-[11px]">
-                    <span className="font-bold text-clay">PEP:</span>{" "}
+                    <span className="font-bold text-heroViolet">PEP:</span>{" "}
                     Persona expuesta políticamente activa
                   </div>
                 )}

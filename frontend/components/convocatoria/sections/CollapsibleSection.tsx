@@ -25,7 +25,7 @@ export function CollapsibleSection({
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 hover:bg-paperDeep">
-        {icon && <span className="shrink-0 text-clay">{icon}</span>}
+        {icon && <span className="shrink-0 text-heroViolet">{icon}</span>}
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-ink">{title}</div>
           {subtitle && <div className="text-[11px] text-mute">{subtitle}</div>}

@@ -8,7 +8,7 @@ export function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: an
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Building2 size={11} className="mr-1 inline" />
           Historial de contratos con el Estado
         </div>
@@ -36,10 +36,10 @@ export function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: an
               </div>
               <div className="text-right">
                 {c.monto && (
-                  <div className="font-mono text-sm font-bold text-clay">{fmtMoney(c.monto)}</div>
+                  <div className="font-mono text-sm font-bold text-heroViolet">{fmtMoney(c.monto)}</div>
                 )}
                 {c.url && (
-                  <a href={c.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                  <a href={c.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                     <ExternalLink size={9} /> link
                   </a>
                 )}

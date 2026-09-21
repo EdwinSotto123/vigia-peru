@@ -35,7 +35,7 @@ export function CronologiaSection({ convocatoria }: { convocatoria: any }) {
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Calendar size={11} className="mr-1 inline" />
           Cronología del expediente
         </div>
@@ -54,11 +54,11 @@ export function CronologiaSection({ convocatoria }: { convocatoria: any }) {
             <li key={s.key} className="relative z-10 flex w-40 flex-col items-start">
               <div className={cn(
                 "grid h-10 w-10 place-items-center rounded-full ring-4 ring-paper text-paper",
-                i === steps.length - 1 ? "bg-clay" : "bg-amber",
+                i === steps.length - 1 ? "bg-heroViolet" : "bg-mute",
               )}>
                 {s.icon}
               </div>
-              <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-clay">
+              <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                 {s.label}
               </div>
               <div className="mt-0.5 font-mono text-xs text-ink">{s.fecha}</div>

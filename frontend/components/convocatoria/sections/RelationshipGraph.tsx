@@ -234,7 +234,7 @@ export function RelationshipGraph({
       count: (nodesByKind.person || 0) + (nodesByKind.pareja || 0) + (nodesByKind.autoridad || 0)
            + (nodesByKind.alcalde || 0) + (nodesByKind.funcionario_designado || 0),
       hint: "proveedor + autoridades + designados",
-      color: "bg-clay/10 text-clay border-clay/30",
+      color: "bg-heroViolet/10 text-heroViolet border-heroViolet/30",
     },
     {
       key: "empresas",
@@ -275,7 +275,7 @@ export function RelationshipGraph({
       {/* HALLAZGOS DE RED — bullets clave */}
       {banderasRed.length > 0 && (
         <div className="mb-4 rounded-lg border border-line bg-paper px-3 py-2.5">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             ⚡ Hallazgos clave de la red empresarial
           </div>
           <ul className="space-y-1">
@@ -305,7 +305,7 @@ export function RelationshipGraph({
       )}
 
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Network size={11} className="mr-1 inline" />
           Grafo de relaciones · arrastrá los nodos para reorganizar
         </h3>

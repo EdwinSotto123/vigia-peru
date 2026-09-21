@@ -2,9 +2,9 @@ import { AlertTriangle } from "lucide-react";
 import type { Alerta } from "@/types";
 
 const TONES = {
-  alta: { color: "#7A2E18", label: "Alta" },
-  media: { color: "#B5752C", label: "Media" },
-  baja: { color: "#76695A", label: "Baja" },
+  alta: { color: "#CF3A2C", label: "Alta" },
+  media: { color: "#BE7B26", label: "Media" },
+  baja: { color: "#B26A2E", label: "Baja" },
 } as const;
 
 type Sev = keyof typeof TONES;
@@ -36,7 +36,7 @@ export function AlertasSeverityCard({ alertas }: { alertas: Alerta[] }) {
 
   return (
     <div className="surface p-4">
-      <div className="mb-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+      <div className="mb-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
         <AlertTriangle size={11} /> Severidad de alertas
       </div>
 

@@ -10,7 +10,7 @@ function linkify(text: string): React.ReactNode {
   return parts.map((p, i) =>
     /^https?:\/\//.test(p) ? (
       <a key={i} href={p} target="_blank" rel="noreferrer"
-        className="text-clay underline decoration-clay/40 hover:text-rust break-all"
+        className="text-heroViolet underline decoration-heroViolet/40 hover:text-heroViolet-deep break-all"
         onClick={(e) => e.stopPropagation()}>{p}</a>
     ) : (
       <span key={i}>{p}</span>
@@ -47,7 +47,7 @@ export function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent })
           <span key={k} className="text-[10px]">
             {i > 0 && <span className="text-mute">, </span>}
             <span className="text-mute">{k}=</span>
-            <span className="font-mono text-clay">{(() => { const s = JSON.stringify(v); return s.length > 140 ? s.slice(0, 140) + "…" : s; })()}</span>
+            <span className="font-mono text-heroViolet">{(() => { const s = JSON.stringify(v); return s.length > 140 ? s.slice(0, 140) + "…" : s; })()}</span>
           </span>
         ))}
         <span className="text-[10px] text-mute"> )</span>
@@ -74,7 +74,7 @@ export function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent })
     preview = (
       <>
         <span className="text-[11px] text-mute">→</span>
-        <span className="font-mono text-sm font-bold text-clay">{ev.to}</span>
+        <span className="font-mono text-sm font-bold text-heroViolet">{ev.to}</span>
       </>
     );
   } else if (ev.kind === "thought") {
@@ -116,21 +116,21 @@ export function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent })
             type="button"
             title={info}
             aria-label="Qué hace esta herramienta"
-            className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line font-mono text-[9px] font-bold text-mute hover:border-clay hover:text-clay"
+            className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line font-mono text-[9px] font-bold text-mute hover:border-heroViolet hover:text-heroViolet"
             onClick={(e) => { e.stopPropagation(); setInfoOpen(v => !v); }}
           >
             i
           </button>
         )}
         {canExpand && (
-          <span className="mt-0.5 shrink-0 text-[10px] font-mono text-clay">
+          <span className="mt-0.5 shrink-0 text-[10px] font-mono text-heroViolet">
             {expanded ? "▼ ocultar" : "▶ ver"}
           </span>
         )}
       </div>
       {infoOpen && info && (
-        <div className="mt-1.5 ml-9 rounded-md border border-clay/30 bg-clay/5 px-3 py-2 text-[11px] leading-relaxed text-ink">
-          <span className="font-mono font-bold text-clay">ⓘ {ev.name}</span> — {info}
+        <div className="mt-1.5 ml-9 rounded-md border border-heroViolet/30 bg-heroViolet/5 px-3 py-2 text-[11px] leading-relaxed text-ink">
+          <span className="font-mono font-bold text-heroViolet">ⓘ {ev.name}</span> — {info}
         </div>
       )}
       {expanded && fullPayload && (
@@ -144,7 +144,7 @@ export function AgentTraceRow({ idx, ev }: { idx: number; ev: AgentTraceEvent })
             </span>
             <button
               type="button"
-              className="text-[9px] font-mono text-clay hover:underline"
+              className="text-[9px] font-mono text-heroViolet hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
                 navigator.clipboard?.writeText(fullPayload || "");

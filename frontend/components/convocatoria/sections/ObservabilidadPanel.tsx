@@ -47,7 +47,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
       {/* header oscuro estilo dashboard */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-ink px-5 py-3 text-paper">
         <div className="flex items-center gap-2">
-          <Eye size={14} className="text-amber" />
+          <Eye size={14} className="text-heroGreen" />
           <span className="font-serif text-sm font-bold">Arize · Observabilidad de la IA</span>
           {live ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-moss/20 px-2 py-0.5 text-[9px] font-bold text-moss">
@@ -64,7 +64,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
               target="_blank"
               rel="noreferrer"
               title={`Trace ID: ${m.phoenix_trace_id} — abre el proyecto vigia-peru en Phoenix y busca este ID para ver la orquestación ADK completa`}
-              className="inline-flex items-center gap-1 rounded-full bg-amber/20 px-2 py-0.5 text-[9px] font-bold text-amber hover:bg-amber/30"
+              className="inline-flex items-center gap-1 rounded-full bg-heroGreen/20 px-2 py-0.5 text-[9px] font-bold text-heroGreen transition-colors hover:bg-heroGreen/30"
             >
               Ver traza ADK en Phoenix ↗
             </a>
@@ -109,7 +109,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
                 <div className="mt-0.5 text-[10px] leading-snug text-mute">{ev?.pregunta || e.d}</div>
                 {ev?.metodo && (
                   <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="rounded bg-ink/5 px-1 py-0.5 text-[8px] font-medium text-clay">{ev.metodo}</span>
+                    <span className="rounded bg-ink/5 px-1 py-0.5 text-[8px] font-medium text-heroViolet">{ev.metodo}</span>
                     {ev.objetivo && <span className="rounded bg-ink/5 px-1 py-0.5 text-[8px] text-mute">sobre: {ev.objetivo}</span>}
                   </div>
                 )}

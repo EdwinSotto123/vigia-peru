@@ -18,7 +18,25 @@ export interface AlertasQuery {
   scoreMin?: number;
 }
 
-export const ESTADOS_ALERTA_VALIDOS = new Set<string>(["activa", "confirmada", "descartada", "en_revision"]);
+/**
+ * Vocabulario visual del estado de una alerta — mismo patrón {label, cls} que ESTADO_PROC
+ * (lib/auditoria.ts) y ESTADO_CONTRATO_EXTRA (lib/contratos.ts), para no inventar un
+ * tratamiento nuevo de un solo uso. Fuente única para el <select> de FiltrosAlertas y la
+ * píldora de cada fila en AlertasLista (antes el estado no se veía en ningún lado de la
+ * lista, pese a ser filtrable):
+ *  - activa: recién detectada, nadie la revisó todavía → ámbar, como "procesando".
+ *  - en_revision: la revisa una persona ahora → clay, igual que EstadoPill "revision".
+ *  - confirmada: la señal se verificó como real → crimson, el estado más grave.
+ *  - descartada: se revisó y era falso positivo → neutro, como un estado "cerrado".
+ */
+export const ESTADOS_ALERTA: Record<EstadoAlerta, { label: string; cls: string }> = {
+  activa: { label: "Activa", cls: "bg-amber-soft text-amber border-amber/20" },
+  confirmada: { label: "Confirmada", cls: "bg-crimson-soft text-crimson border-crimson/20" },
+  descartada: { label: "Descartada", cls: "bg-paperDeep text-mute border-paperEdge" },
+  en_revision: { label: "En revisión", cls: "bg-paperDeep text-clay border-paperEdge" },
+};
+
+export const ESTADOS_ALERTA_VALIDOS = new Set<string>(Object.keys(ESTADOS_ALERTA));
 
 /** Arma la query string de /app/alertas; `pagina` se omite cuando es 1 (igual que contratosQueryString). */
 export function alertasQueryString(q: AlertasQuery & { pagina?: number } = {}): string {

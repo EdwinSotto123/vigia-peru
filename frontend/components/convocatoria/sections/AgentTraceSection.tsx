@@ -26,7 +26,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
       <div className="border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <Sparkles size={11} className="mr-1 inline" />
               Auditoría técnica · {trace.length} pasos · {nTools} tools
               {nErr > 0 && <span className="ml-1 text-rust">· {nErr} error{nErr > 1 ? "es" : ""}</span>}
@@ -38,7 +38,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
             </p>
           </div>
           <button type="button" onClick={() => setAllOpen((o) => !o)}
-            className="shrink-0 rounded-md border border-line bg-paper px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mute hover:border-clay/40 hover:text-clay">
+            className="shrink-0 rounded-md border border-line bg-paper px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mute hover:border-heroViolet/40 hover:text-heroViolet">
             {allOpen ? "Colapsar todo" : "Expandir todo"}
           </button>
         </div>

@@ -169,7 +169,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar código / objeto / RUC…"
-              className="w-full rounded-lg border border-line bg-paper py-1.5 pl-7 pr-7 text-xs placeholder:text-mute focus:border-clay focus:outline-none focus:ring-1 focus:ring-clay/30"
+              className="w-full rounded-lg border border-line bg-paper py-1.5 pl-7 pr-7 text-xs placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-1 focus:ring-heroViolet/30"
             />
             {q && (
               <button
@@ -255,7 +255,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             <select
               value={region}
               onChange={(e) => setRegion(e.target.value)}
-              className="ml-1 shrink-0 rounded-full border border-line bg-paper px-2 py-0.5 text-[10px] font-semibold text-ink focus:border-clay focus:outline-none"
+              className="ml-1 shrink-0 rounded-full border border-line bg-paper px-2 py-0.5 text-[10px] font-semibold text-ink focus:border-heroViolet focus:outline-none"
               title="Filtrar por región"
             >
               <option value="todas">Todas las regiones</option>
@@ -273,7 +273,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             {(q || sev !== "todos" || region !== "todas" || cat !== "todas") && (
               <button
                 onClick={() => { setQ(""); setSev("todos"); setRegion("todas"); setCat("todas"); }}
-                className="ml-2 underline hover:text-clay"
+                className="ml-2 underline hover:text-heroViolet"
               >limpiar filtros</button>
             )}
           </div>
@@ -287,7 +287,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
       ) : (
         <ul className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
           {pageItems.map((it: any, i: number) => (
-            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="surface group relative overflow-hidden p-0 transition-all hover:shadow-md hover:border-clay/40">
+            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="surface group relative overflow-hidden p-0 transition-all hover:shadow-md hover:border-heroViolet/40">
               <button
                 type="button"
                 onClick={() => onSelect(it.codigo_convocatoria || it.ocid)}
@@ -345,7 +345,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                   </div>
                 </div>
 
-                <ChevronRight size={14} className="mr-2 mt-3 shrink-0 self-start text-mute transition-transform group-hover:translate-x-1 group-hover:text-clay" />
+                <ChevronRight size={14} className="mr-2 mt-3 shrink-0 self-start text-mute transition-transform group-hover:translate-x-1 group-hover:text-heroViolet" />
               </button>
             </li>
           ))}

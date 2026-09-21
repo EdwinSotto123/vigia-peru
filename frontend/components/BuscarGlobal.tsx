@@ -151,7 +151,7 @@ export function BuscarGlobal({ variant = "campo", className }: { variant?: "camp
                         onClick={() => ir(it)}
                         className={cn("flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left", i === sel ? "bg-paperDeep" : "hover:bg-paperSoft")}
                       >
-                        <span className="mt-0.5 shrink-0 text-clay">{it.icon}</span>
+                        <span className="mt-0.5 shrink-0 text-heroViolet">{it.icon}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm text-ink">{it.titulo}</span>
                           <span className="block truncate text-[11px] text-mute">{it.detalle}</span>

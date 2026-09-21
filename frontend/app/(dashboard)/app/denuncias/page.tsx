@@ -78,7 +78,7 @@ export default async function DenunciasPage({
     <div className="px-6 py-8 lg:px-10 space-y-6">
       <PageHeader
         eyebrow="Acceso libre · sin login"
-        icon={<MessageSquareWarning size={11} className="text-clay" />}
+        icon={<MessageSquareWarning size={11} className="text-heroViolet" />}
         title="Denuncias ciudadanas"
         subtitle="Vecinos, comerciantes y trabajadores reportan obras paralizadas, fantasmas o irregularidades. Tú puedes verlas todas — son públicas y verificables."
         actions={
@@ -96,7 +96,7 @@ export default async function DenunciasPage({
             </span>
             <Link
               href="/reporte/nuevo"
-              className="inline-flex items-center gap-1.5 rounded-full bg-rust px-4 py-2 text-sm font-medium text-paper hover:bg-rust/90"
+              className="inline-flex items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-medium text-paper shadow-card transition-colors hover:bg-heroViolet-deep"
             >
               <MessageSquareWarning size={14} />
               Denunciar algo
@@ -115,7 +115,7 @@ export default async function DenunciasPage({
 
       {/* Reglas / disclaimer */}
       <div className="surface flex flex-wrap items-start gap-3 p-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-paperDeep text-clay">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-heroGreen-soft text-heroGreen">
           <Shield size={14} />
         </div>
         <div className="min-w-0 flex-1 text-xs leading-relaxed text-mute">
@@ -142,17 +142,17 @@ export default async function DenunciasPage({
       />
 
       {/* Banner final — CTA */}
-      <div className="surface relative isolate overflow-hidden border-l-4 border-l-rust p-5">
-        <div aria-hidden className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-rust/8 blur-3xl" />
+      <div className="surface relative isolate overflow-hidden border-l-4 border-l-heroViolet p-5">
+        <div aria-hidden className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-heroViolet/10 blur-3xl" />
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rust text-paper">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-heroViolet text-paper">
             <MessageSquareWarning size={20} />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="font-serif text-lg font-bold text-ink">¿Ves algo que no cuadra?</h3>
             <p className="text-sm text-mute">Saca la foto, marca el punto en el mapa, cuenta qué viste. En 30 segundos tu reporte se cruza contra las contrataciones del Estado.</p>
           </div>
-          <Link href="/reporte/nuevo" className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-coal">
+          <Link href="/reporte/nuevo" className="inline-flex items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-medium text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
             Reportar ahora
             <ArrowRight size={14} />
           </Link>
@@ -169,7 +169,7 @@ function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: 
     moss: "border-moss/30 bg-paperSoft text-moss",
   }[tone];
   return (
-    <div className={`rounded-2xl border p-3 ${cls}`}>
+    <div className={`rounded-2xl border p-3 shadow-card ${cls}`}>
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-mute">{label}</span>
         {icon}

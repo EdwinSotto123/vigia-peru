@@ -112,11 +112,11 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
             </thead>
             <tbody>
               {itemsExpandidos.filter(x => x.esLote).map(({ ocdsItem, key }) => (
-                <tr key={key} className="border-b-2 border-clay/30 bg-clay/5 align-top">
+                <tr key={key} className="border-b-2 border-heroViolet/30 bg-heroViolet/5 align-top">
                   <td colSpan={8} className="px-3 py-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-clay/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-clay">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-heroViolet/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-heroViolet">
                           🧺 LOTE OCDS · {ocdsItem?.cantidad ?? 1} {ocdsItem?.unidad || "Unidad"}
                         </span>
                         <div className="mt-0.5 text-[12px] font-semibold text-ink">
@@ -144,7 +144,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                 const caracs = finding?.caracteristicas_solicitadas_clave || [];
                 return (
                   <tr key={key} className="border-b border-line/50 align-top hover:bg-paper">
-                    <td className="px-3 py-2 font-mono font-bold text-clay">{key}</td>
+                    <td className="px-3 py-2 font-mono font-bold text-heroViolet">{key}</td>
                     <td className="px-3 py-2 text-ink">
                       <div className="font-semibold leading-tight">{String(desc).slice(0, 80)}{String(desc).length > 80 ? "…" : ""}</div>
                     </td>
@@ -157,7 +157,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                             <ul className="space-y-0.5">
                               {shown.map((c: string, j: number) => (
                                 <li key={j} className="flex items-start gap-1">
-                                  <CheckCircle2 size={9} className="mt-0.5 shrink-0 text-clay" />
+                                  <CheckCircle2 size={9} className="mt-0.5 shrink-0 text-heroGreen" />
                                   <span>{c}</span>
                                 </li>
                               ))}
@@ -166,7 +166,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                                   <button
                                     type="button"
                                     onClick={() => toggleRow(key)}
-                                    className="mt-1 inline-flex items-center gap-1 rounded-full bg-clay/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-clay hover:bg-clay/20"
+                                    className="mt-1 inline-flex items-center gap-1 rounded-full bg-heroViolet/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-heroViolet hover:bg-heroViolet/20"
                                   >
                                     {isOpen
                                       ? `▲ ocultar (${caracs.length - 3} ocultas)`
@@ -270,7 +270,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                   ? (typeof market.sobreprecio_pct === "number" ? market.sobreprecio_pct : null)
                   : (comparable ? ((totalReferencial - totalMercado) / totalMercado) * 100 : null);
                 return (
-                  <tr className="border-t-2 border-clay/40 bg-clay/5 font-bold">
+                  <tr className="border-t-2 border-heroViolet/40 bg-heroViolet/5 font-bold">
                     <td colSpan={4} className="px-3 py-3 text-right text-[10px] uppercase tracking-widest text-mute">
                       Total de mercado del lote<br/>(Σ cantidad × precio · mediana, mín y máx)
                     </td>
@@ -282,7 +282,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                       {totalMercado > 0 ? fmtMoney(totalMercado) : "—"}
                       <div className="text-[9px] font-normal text-mute">mediana del lote</div>
                       {totalMercado > 0 && totalMax > totalMin && (
-                        <div className="mt-0.5 text-[9px] font-normal text-clay">
+                        <div className="mt-0.5 text-[9px] font-normal text-heroViolet">
                           mín {fmtMoney(totalMin)} · máx {fmtMoney(totalMax)}
                         </div>
                       )}
@@ -340,7 +340,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
         return (
           <li key={key || i} className="px-5 py-4">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-paperDeep font-mono text-[10px] font-bold text-clay">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-paperDeep font-mono text-[10px] font-bold text-heroViolet">
                 {key || i + 1}
               </span>
               <div className="min-w-0 flex-1">
@@ -456,13 +456,13 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                 {/* Características clave solicitadas (de v2.0 prompt) */}
                 {Array.isArray(f.caracteristicas_solicitadas_clave) && f.caracteristicas_solicitadas_clave.length > 0 && (
                   <div className="mt-3 rounded-md border border-line bg-paperSoft px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                       Características solicitadas en el REQUERIMIENTO
                     </div>
                     <ul className="mt-1 grid gap-0.5 sm:grid-cols-2">
                       {f.caracteristicas_solicitadas_clave.map((c: string, j: number) => (
                         <li key={j} className="flex items-start gap-1.5 text-[11px] text-ink">
-                          <CheckCircle2 size={10} className="mt-0.5 shrink-0 text-clay" />
+                          <CheckCircle2 size={10} className="mt-0.5 shrink-0 text-heroGreen" />
                           {c}
                         </li>
                       ))}
@@ -495,7 +495,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                                   {p.proveedor || "—"}
                                   {p.url && (
                                     <a href={p.url} target="_blank" rel="noreferrer"
-                                       className="ml-2 inline-flex items-center gap-0.5 text-clay hover:underline">
+                                       className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline">
                                       ver <ExternalLink size={8} />
                                     </a>
                                   )}
@@ -550,7 +550,7 @@ export function ItemsConMarketPrice({ items, allItems = [], market, fmtMoney }: 
                           {p.linea && <span className="text-mute"> · línea {p.linea}</span>}
                           {p.url && (
                             <a href={p.url} target="_blank" rel="noreferrer"
-                               className="ml-2 inline-flex items-center gap-0.5 text-clay hover:underline">
+                               className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline">
                               <ExternalLink size={9} />
                             </a>
                           )}

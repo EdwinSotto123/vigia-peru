@@ -30,7 +30,7 @@ export function RedFlagsDocumentalesSection({ flags }: { flags: any[] }) {
             <p className="mt-1.5 text-sm leading-relaxed text-ink">{redactDnis(f.descripcion)}</p>
             {f.norma_citada && (
               <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-paperDeep px-2 py-0.5 text-[11px] text-mute">
-                <Scale size={11} className="text-clay" />
+                <Scale size={11} className="text-heroViolet" />
                 <strong className="text-ink">Norma:</strong> {f.norma_citada}
               </p>
             )}

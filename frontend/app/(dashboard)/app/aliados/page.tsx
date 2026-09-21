@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, HeartHandshake, Scale, ShieldCheck, Trophy } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
+import { KpiTile } from "@/components/aliados/KpiTile";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
@@ -27,7 +28,7 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
       <section className="border-b border-line bg-paperDeep">
         <div className="container-page grid gap-8 py-14 lg:grid-cols-[1.2fr_1fr] lg:items-end">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-mute">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
               <HeartHandshake size={12} /> Reconocimiento público
             </span>
             <h1 className="mt-4 font-serif text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
@@ -40,9 +41,9 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Kpi label="Aliados" value={estado?.financiadores ?? 0} />
-            <Kpi label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
-            <Kpi label="Señales halladas" value={estado?.senalesHalladas ?? 0} />
+            <KpiTile label="Aliados" value={estado?.financiadores ?? 0} />
+            <KpiTile label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
+            <KpiTile label="Señales halladas" value={estado?.senalesHalladas ?? 0} valueTone={(estado?.senalesHalladas ?? 0) > 0 ? "rust" : undefined} />
           </div>
         </div>
       </section>
@@ -68,10 +69,16 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
           <Regla icon={<ShieldCheck size={16} />} titulo="Conflicto de interés automático">
             Una empresa con sanción vigente o señalada en alertas de la zona puede aportar, pero no aparece en este muro.
           </Regla>
-          <div className="rounded-2xl border border-line bg-paper p-5 lg:max-w-xs">
-            <div className="text-sm font-semibold text-ink">Súmate al muro</div>
-            <p className="mt-1 text-[13px] text-mute">Desde 5 contratos. Con tu nombre, como colectivo o de forma anónima.</p>
-            <Link href="/app/financiar" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
+          <div className="rounded-2xl border border-line bg-paper p-5 shadow-card lg:max-w-xs">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroViolet/10 text-heroViolet">
+              <HeartHandshake size={16} />
+            </span>
+            <div className="mt-3 text-sm font-semibold text-ink">Súmate al muro</div>
+            <p className="mt-1 text-[13px] leading-relaxed text-mute">Desde 5 contratos. Con tu nombre, como colectivo o de forma anónima.</p>
+            <Link
+              href="/app/financiar"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper"
+            >
               Financiar una auditoría <ArrowRight size={14} aria-hidden />
             </Link>
           </div>
@@ -81,19 +88,11 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-line bg-paper p-4">
-      <div className="font-mono text-2xl font-semibold text-ink">{value.toLocaleString("es-PE")}</div>
-      <div className="mt-1 text-[11px] uppercase tracking-wide text-mute">{label}</div>
-    </div>
-  );
-}
-
 function Regla({ icon, titulo, children }: { icon: React.ReactNode; titulo: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="inline-flex items-center gap-2 text-ink">{icon}<h3 className="font-semibold">{titulo}</h3></div>
+    <div className="rounded-2xl border border-line bg-paper p-5 shadow-card">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroGreen/10 text-heroGreen">{icon}</span>
+      <h3 className="mt-3 font-semibold text-ink">{titulo}</h3>
       <p className="mt-1 text-sm leading-relaxed text-mute">{children}</p>
     </div>
   );

@@ -423,7 +423,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         {/* Hallazgos en vivo (necesita el trace fino del ADK: no disponible en `override`) */}
         {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
-          <div className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-clay">Hallazgos en vivo</div>
+          <div className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-heroViolet">Hallazgos en vivo</div>
           {(findings.empresa || findings.entidad || findings.socios.length > 0 || findings.senales.length > 0) ? (
             <div className="flex flex-col gap-2 text-[12px]">
               {findings.entidad && <div><span className="font-mono text-[9px] uppercase tracking-wide text-mute">entidad</span> <span className="font-semibold text-ink">{findings.entidad}</span></div>}

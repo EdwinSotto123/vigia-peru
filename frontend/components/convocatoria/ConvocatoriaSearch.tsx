@@ -377,13 +377,13 @@ export function ConvocatoriaSearch() {
           />
           <div
             aria-hidden
-            className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-amber/10 blur-3xl"
+            className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-heroViolet/10 blur-3xl"
           />
 
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rust/30 bg-crimson-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-rust">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-heroViolet/30 bg-heroViolet-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-rust opacity-75" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-rust" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-heroViolet opacity-75" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-heroViolet" />
             </span>
             Núcleo · análisis a demanda
           </span>
@@ -406,12 +406,12 @@ export function ConvocatoriaSearch() {
               onBlur={() => setTimeout(() => setShowSugg(false), 180)}
               placeholder="Código de convocatoria, OCID o RUC"
               autoFocus
-              className="w-full rounded-2xl border border-line bg-paper py-4 pl-12 pr-44 text-base font-mono placeholder:text-mute focus:border-clay focus:outline-none focus:ring-2 focus:ring-clay/20"
+              className="w-full rounded-2xl border border-line bg-paper py-4 pl-12 pr-44 text-base font-mono placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-2 focus:ring-heroViolet/20"
             />
             <button
               type="submit"
               disabled={!id.trim()}
-              className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-coal disabled:opacity-50"
+              className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-50"
             >
               Despachar agentes <ArrowRight size={15} />
             </button>
@@ -427,7 +427,7 @@ export function ConvocatoriaSearch() {
               if (matches.length === 0) return null;
               return (
                 <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-xl">
-                  <div className="flex items-center justify-between border-b border-line bg-paperSoft px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-clay">
+                  <div className="flex items-center justify-between border-b border-line bg-paperSoft px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                     <span>{matches.length} ya analizada{matches.length === 1 ? "" : "s"} · click para ver sin re-procesar</span>
                     <span className="rounded-full bg-moss/15 px-2 py-0 font-mono normal-case text-moss">Cloud SQL</span>
                   </div>
@@ -453,7 +453,7 @@ export function ConvocatoriaSearch() {
                                 {it.codigo_convocatoria}
                               </span>
                               {it.region && (
-                                <span className="rounded-full bg-paperSoft px-1.5 py-0 text-[9px] font-medium text-clay">{it.region}</span>
+                                <span className="rounded-full bg-paperSoft px-1.5 py-0 text-[9px] font-medium text-heroViolet">{it.region}</span>
                               )}
                               {(it.n_alta || 0) > 0 && (
                                 <span className="rounded-full bg-rust px-1.5 py-0 text-[9px] font-bold text-paper">{it.n_alta} alta</span>
@@ -499,7 +499,7 @@ export function ConvocatoriaSearch() {
           {blockedOcid && (
             <div className="mt-3 rounded-xl border-2 border-amber bg-amber/10 p-4 text-sm">
               <div className="mb-2 flex items-start gap-2">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-clay" />
+                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber" />
                 <div>
                   <div className="font-semibold text-ink">
                     El proxy OECE está bloqueado para tu ruta — pegá el OCDS manualmente
@@ -510,7 +510,7 @@ export function ConvocatoriaSearch() {
                       href={`https://contratacionesabiertas.oece.gob.pe/api/v1/record/${blockedOcid}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-rust underline"
+                      className="text-heroViolet underline transition-colors hover:text-heroViolet-deep"
                     >
                       contratacionesabiertas.oece.gob.pe/api/v1/record/{blockedOcid}
                     </a>
@@ -564,7 +564,7 @@ export function ConvocatoriaSearch() {
                     }
                   }}
                   disabled={!manualOcdsText.trim()}
-                  className="rounded-full bg-ink px-4 py-1.5 text-xs font-semibold text-paper hover:bg-coal disabled:opacity-40"
+                  className="rounded-full bg-ink px-4 py-1.5 text-xs font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-40"
                 >
                   Procesar con OCDS pegado →
                 </button>

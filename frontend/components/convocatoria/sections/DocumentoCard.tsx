@@ -17,7 +17,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
     <article className={cn("surface overflow-hidden p-0", hasError && "border-rust/30")}>
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-4 py-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             {doc.tipo || meta.documentType || "documento"}
           </div>
           <div className="truncate text-sm font-semibold text-ink">
@@ -31,7 +31,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
           </div>
         </div>
         {meta.url_oece && (
-          <a href={meta.url_oece} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-paperSoft px-2 py-1 text-[10px] font-medium text-clay hover:bg-paper">
+          <a href={meta.url_oece} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-paperSoft px-2 py-1 text-[10px] font-medium text-heroViolet hover:bg-paper">
             <ExternalLink size={10} /> PDF
           </a>
         )}
@@ -47,7 +47,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
 
         {ext.cuantia_total != null && ext.cuantia_total > 0 && (
           <div className="flex items-center gap-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-xs">
-            <Coins size={13} className="text-clay" />
+            <Coins size={13} className="text-heroViolet" />
             <span className="text-mute">Cuantía total:</span>
             <span className="font-mono font-bold text-ink">{fmtMoney(ext.cuantia_total)}</span>
             {ext.fuente_financiamiento && (
@@ -73,7 +73,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
                     <span className="font-mono text-mute">{it.cantidad ?? "—"} {it.unidad ?? ""}</span>
                   </div>
                   {it.precio_unitario_referencial != null && (
-                    <div className="mt-0.5 font-mono text-[10px] text-clay">
+                    <div className="mt-0.5 font-mono text-[10px] text-heroViolet">
                       unit. {fmtMoney(it.precio_unitario_referencial)}
                     </div>
                   )}

@@ -111,7 +111,9 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
           onClick={() => setAvanzados((v) => !v)}
           className={cn(
             "ml-auto inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
-            avanzados ? "border-clay bg-paperSoft text-ink" : "border-line bg-paper text-mute hover:text-ink",
+            // Violeta = "este control está activo/abierto" (mismo idioma que el nav
+            // destacado del sidebar), no una advertencia: clay/amber quedan para estado real.
+            avanzados ? "border-heroViolet bg-heroViolet-soft text-heroViolet" : "border-line bg-paper text-mute hover:border-heroViolet/30 hover:text-ink",
           )}
           aria-expanded={avanzados}
         >
@@ -215,7 +217,7 @@ function ChipRapido({ active, tono = "ink", onClick, children }: { active: boole
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
-        active ? TONOS[tono] : "border-line bg-paper text-mute hover:border-clay/50 hover:text-ink",
+        active ? TONOS[tono] : "border-line bg-paper text-mute hover:border-heroViolet/40 hover:text-ink",
       )}
       aria-pressed={active}
     >

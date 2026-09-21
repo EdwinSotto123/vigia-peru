@@ -10,6 +10,7 @@ import {
   Check,
   Loader2,
   Flag,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
@@ -17,6 +18,7 @@ import { ENTIDADES, TIPO_SHORT, type Entidad } from "@/lib/mock-entities";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
 import { Step } from "./Step";
+import { ProgressTracker } from "./ProgressTracker";
 
 const CATEGORIAS_ENTIDAD = [
   { id: "malversacion", label: "Malversación de fondos", emoji: "💰" },
@@ -46,6 +48,10 @@ export function FormEntidad({
   const [descripcion, setDescripcion] = useState("");
   const [evidencia, setEvidencia] = useState<File | null>(null);
   const [contactoOpcional, setContactoOpcional] = useState("");
+  // Antes estas dos validaciones interrumpían con un alert() nativo del navegador —
+  // el mismo patrón "sin feedback visual" que el resto del sistema de diseño evita:
+  // ahora es un aviso en línea, junto al botón de enviar, igual que en FormObra.
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
 
   const results = query.trim().length < 2
     ? []
@@ -55,12 +61,21 @@ export function FormEntidad({
           e.ruc.includes(query),
       ).slice(0, 6);
 
+  const milestones = [
+    { label: "Entidad", done: !!ent },
+    { label: "Categoría", done: !!categoria },
+    { label: "Relato", done: descripcion.trim().length > 10 },
+  ];
+  const doneCount = milestones.filter((m) => m.done).length;
+  const ready = doneCount === milestones.length;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ent || !categoria || !descripcion) {
-      alert("Selecciona una entidad, una categoría y describe lo que viste.");
+    if (!ent || !categoria || !descripcion.trim()) {
+      setErrorEnvio("Selecciona una entidad, una categoría y describe lo que viste.");
       return;
     }
+    setErrorEnvio(null);
     setSubmitting(true);
     try {
       let fotoUrl: string | null = null;
@@ -79,7 +94,7 @@ export function FormEntidad({
       });
       onDone(r.id);
     } catch (err) {
-      alert("No se pudo enviar: " + (err as Error).message);
+      setErrorEnvio("No se pudo enviar: " + (err as Error).message);
     } finally {
       setSubmitting(false);
     }
@@ -87,11 +102,13 @@ export function FormEntidad({
 
   return (
     <form onSubmit={submit} className="surface space-y-6 p-6">
+      <ProgressTracker milestones={milestones} />
+
       <Step n={1} title="¿Cuál es la entidad?">
         {ent ? (
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-clay bg-amber-soft p-4">
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-line bg-paperSoft p-4">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[10px] text-clay">
+              <div className="flex items-center gap-2 text-[10px] text-mute">
                 <Building2 size={11} /> {TIPO_SHORT[ent.tipo]} · RUC {ent.ruc}
               </div>
               <div className="mt-0.5 font-serif text-base font-bold text-ink">
@@ -105,7 +122,7 @@ export function FormEntidad({
             <button
               type="button"
               onClick={() => setEnt(null)}
-              className="text-xs text-clay hover:underline"
+              className="text-xs text-mute hover:text-ink hover:underline"
             >
               cambiar
             </button>
@@ -164,10 +181,10 @@ export function FormEntidad({
               type="button"
               onClick={() => setCategoria(c.id)}
               className={cn(
-                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition",
+                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
                 categoria === c.id
-                  ? "border-rust bg-crimson-soft text-rust"
-                  : "border-line bg-paperSoft hover:border-mute",
+                  ? "border-ink bg-ink text-paper"
+                  : "border-line bg-paperSoft text-ink hover:border-mute hover:bg-paperDeep",
               )}
             >
               <span className="text-xl">{c.emoji}</span>
@@ -227,17 +244,32 @@ export function FormEntidad({
 
       <DisclaimerBanner />
 
-      <Button type="submit" disabled={submitting} full variant="primary">
-        {submitting ? (
-          <>
-            <Loader2 size={16} className="animate-spin" /> Enviando…
-          </>
-        ) : (
-          <>
-            <Flag size={16} /> Reportar entidad
-          </>
+      <div className="space-y-2">
+        {errorEnvio && (
+          <p
+            className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2.5 text-sm text-rust"
+            role="alert"
+          >
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden /> {errorEnvio}
+          </p>
         )}
-      </Button>
+        <Button type="submit" disabled={submitting} full variant="primary">
+          {submitting ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Enviando…
+            </>
+          ) : (
+            <>
+              <Flag size={16} /> Reportar entidad
+            </>
+          )}
+        </Button>
+        <p className="text-center text-xs text-mute">
+          {ready
+            ? "Todo listo para enviar."
+            : `Faltan ${milestones.length - doneCount} de ${milestones.length}: ${milestones.filter((m) => !m.done).map((m) => m.label.toLowerCase()).join(", ")}.`}
+        </p>
+      </div>
     </form>
   );
 }

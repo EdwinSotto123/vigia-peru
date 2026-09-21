@@ -32,13 +32,13 @@ export function NodeDetailPanel({
     entidad_secundaria: "Entidad secundaria (doble vinculación)",
   };
   const kindColor: Record<GraphNode["kind"], string> = {
-    person: "bg-clay text-paper",
+    person: "bg-[#7a3b2e] text-paper",
     pareja: "bg-[#7c3aed] text-paper",
     company_main: "bg-rust text-paper",
     company_titular: "bg-amber text-paper",
     company_domicilio: "bg-rust text-paper",
     party: "bg-rust text-paper",
-    contract: "bg-clay text-paper",
+    contract: "bg-[#a16207] text-paper",
     cargo_pasado: "bg-ink text-paper",
     autoridad: "bg-amber text-paper",
     firmante_conflicto: "bg-rust text-paper",
@@ -69,7 +69,7 @@ export function NodeDetailPanel({
   }
 
   return (
-    <div className="mt-3 overflow-hidden rounded-lg border-2 border-clay bg-paper shadow-md">
+    <div className="mt-3 overflow-hidden rounded-lg border-2 border-heroViolet bg-paper shadow-md">
       <div className="flex items-center justify-between gap-2 border-b border-line bg-paperDeep px-4 py-2">
         <div className="flex items-center gap-2">
           <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest", kindColor[node.kind])}>
@@ -129,7 +129,7 @@ export function NodeDetailPanel({
           {m.monto != null && m.monto > 0 && (
             <div className="rounded-md bg-paperSoft px-2 py-1.5">
               <dt className="text-[9px] uppercase tracking-widest text-mute">Monto</dt>
-              <dd className="font-mono font-bold text-clay">S/. {m.monto.toLocaleString("es-PE")}</dd>
+              <dd className="font-mono font-bold text-heroViolet">S/. {m.monto.toLocaleString("es-PE")}</dd>
             </div>
           )}
           {m.direccion && (
@@ -158,7 +158,7 @@ export function NodeDetailPanel({
             <button
               type="button"
               onClick={() => onVigiaSearch(m.ruc!)}
-              className="inline-flex items-center gap-1 rounded-lg bg-rust px-3 py-1.5 text-[11px] font-bold text-paper shadow-sm hover:bg-rust/90"
+              className="inline-flex items-center gap-1 rounded-lg bg-heroViolet px-3 py-1.5 text-[11px] font-bold text-paper shadow-sm hover:bg-heroViolet/90"
               title="Buscar este RUC en otros análisis de Vigía"
             >
               <Search size={11} /> Buscar en Vigía

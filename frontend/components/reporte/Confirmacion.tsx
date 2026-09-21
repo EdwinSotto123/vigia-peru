@@ -46,7 +46,7 @@ export function Confirmacion({ id, modo, regionNombre }: { id: string; modo: Mod
           </p>
           <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-paper/10 px-4 py-2 text-sm">
             <span className="text-paper/60">Código</span>
-            <span className="font-mono font-bold text-amber">{id}</span>
+            <span className="font-mono font-bold text-moss">{id}</span>
           </div>
         </div>
       </div>
@@ -54,7 +54,7 @@ export function Confirmacion({ id, modo, regionNombre }: { id: string; modo: Mod
       {/* Qué pasa después — como un viaje */}
       <div className="surface p-6">
         <h3 className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-ink">
-          <Zap size={14} className="text-clay" /> El viaje de tu reporte
+          <Zap size={14} className="text-heroViolet" /> El viaje de tu reporte
         </h3>
         <ol className="space-y-3">
           {pasos.map((p, i) => (

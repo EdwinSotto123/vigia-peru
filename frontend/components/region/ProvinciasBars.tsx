@@ -15,7 +15,7 @@ export function ProvinciasBars({
   if (withData.length === 0) {
     return (
       <div className="surface p-4">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <MapPin size={11} /> Provincias
         </div>
         <p className="rounded-xl border border-dashed border-line bg-paperDeep p-4 text-center text-xs text-mute">
@@ -30,7 +30,7 @@ export function ProvinciasBars({
   return (
     <div className="surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <MapPin size={11} /> Provincias con alertas
         </div>
         <span className="text-[10px] text-mute">
@@ -43,10 +43,10 @@ export function ProvinciasBars({
           const pct = (p.monto / maxMonto) * 100;
           const scoreColor =
             p.scorePromedio >= 85
-              ? "#7A2E18"
+              ? "#CF3A2C"
               : p.scorePromedio >= 70
-                ? "#B5752C"
-                : "#76695A";
+                ? "#BE7B26"
+                : "#B26A2E";
           return (
             <li key={p.id}>
               <div className="mb-1 flex items-baseline justify-between gap-2 text-[11px]">

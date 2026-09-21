@@ -115,7 +115,7 @@ export function ZonaHubPanel({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-5 py-4">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-clay">Región</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-heroViolet">Región</div>
           <h3 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {zona && (
@@ -152,7 +152,7 @@ export function ZonaHubPanel({
             <div className="flex items-center gap-2">
               <Link
                 href={`/reporte/nuevo?region=${encodeURIComponent(regionId)}&provincia=${encodeURIComponent(provinciaActiva.nombre)}`}
-                className="rounded-full bg-clay px-2.5 py-1 text-[10px] font-medium text-paper hover:bg-clay/90"
+                className="rounded-full bg-rust px-2.5 py-1 text-[10px] font-medium text-paper hover:bg-rust/90"
               >
                 Denunciar aquí
               </Link>
@@ -294,7 +294,7 @@ function ResumenTab({
       <section className="rounded-2xl border border-line bg-paper p-3.5">
         <div className="flex items-center justify-between">
           <h4 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-            <Landmark size={11} className="text-clay" /> Auditoría de {nombre}
+            <Landmark size={11} className="text-heroViolet" /> Auditoría de {nombre}
           </h4>
           {zona && zona.precioPen > 0 && (
             <span className="font-mono text-[10px] text-mute">{formatPEN(zona.precioPen)} / contrato</span>
@@ -413,7 +413,7 @@ function ResumenTab({
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => goTo("alertas")}
-          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-clay/60 hover:bg-paperDeep"
+          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
         >
           <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-amber">
             <AlertTriangle size={11} /> Señales
@@ -423,7 +423,7 @@ function ResumenTab({
         </button>
         <button
           onClick={() => goTo("denuncias")}
-          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-clay/60 hover:bg-paperDeep"
+          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
         >
           <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-rust">
             <MessageSquareWarning size={11} /> Denuncias
@@ -436,12 +436,12 @@ function ResumenTab({
       <button
         type="button"
         onClick={() => goTo("presupuesto")}
-        className="group flex w-full items-center justify-between rounded-xl border border-dashed border-line bg-paperDeep px-3 py-2.5 text-xs transition-colors hover:border-clay hover:bg-paper"
+        className="group flex w-full items-center justify-between rounded-xl border border-dashed border-line bg-paperDeep px-3 py-2.5 text-xs transition-colors hover:border-heroViolet hover:bg-paper"
       >
         <span className="text-mute">
           Presupuesto MEF de <strong className="text-ink">{nombre}</strong>: PIA, PIM y ejecución
         </span>
-        <span className="inline-flex items-center gap-0.5 font-semibold text-clay">
+        <span className="inline-flex items-center gap-0.5 font-semibold text-heroViolet">
           Ver
           <ArrowRight size={11} className="transition-transform group-hover:translate-x-0.5" />
         </span>
@@ -552,7 +552,7 @@ function ColaTab({
                 <li key={h.ubigeo}>
                   <Link
                     href={`/app/financiar/${h.ubigeo}`}
-                    className="group block rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-clay/60 hover:bg-paperDeep"
+                    className="group block rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
                   >
                     <div className="flex items-baseline justify-between gap-2 text-[11px]">
                       <span className="flex items-center gap-1.5 font-medium text-ink">
@@ -623,7 +623,7 @@ function DenunciasTab({
               <li key={r.id}>
                 <Link
                   href={`/app/denuncias/${r.id}`}
-                  className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-clay/60 hover:bg-paperDeep"
+                  className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
                 >
                   <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", meta?.tone ?? "bg-paperDeep text-mute border-line")}>
                     <Icon size={13} />
@@ -693,19 +693,19 @@ function TabBtn({
         active ? "text-ink" : "text-mute hover:text-ink",
       )}
     >
-      <span className={active ? "text-clay" : ""} aria-hidden>{icon}</span>
+      <span className={active ? "text-heroViolet" : ""} aria-hidden>{icon}</span>
       <span>{children}</span>
       {count !== undefined && count > 0 && (
         <span
           className={cn(
             "rounded-full px-1.5 py-0 text-[9px] font-bold",
-            active ? "bg-clay text-paper" : "bg-paperDeep text-mute",
+            active ? "bg-heroViolet text-paper" : "bg-paperDeep text-mute",
           )}
         >
           {count > 999 ? "999+" : count}
         </span>
       )}
-      {active && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-clay" />}
+      {active && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-heroViolet" />}
     </button>
   );
 }

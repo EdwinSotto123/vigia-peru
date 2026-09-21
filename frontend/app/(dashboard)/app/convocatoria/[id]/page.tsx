@@ -61,7 +61,7 @@ export default function ConvocatoriaSharePage() {
             </p>
             <button
               onClick={() => router.push(`/app/convocatoria?run=${encodeURIComponent(id)}`)}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-rust px-4 py-2 text-sm font-bold text-paper hover:bg-rust/90"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-heroViolet px-4 py-2 text-sm font-bold text-paper hover:bg-heroViolet/90"
             >
               Procesar {id} ahora
             </button>
@@ -81,7 +81,7 @@ export default function ConvocatoriaSharePage() {
     return (
       <div className="px-6 py-20 lg:px-10">
         <div className="mx-auto flex max-w-md flex-col items-center text-center">
-          <Loader2 size={32} className="animate-spin text-clay" />
+          <Loader2 size={32} className="animate-spin text-heroViolet" />
           <p className="mt-3 font-mono text-sm text-mute">
             Cargando análisis de <span className="text-ink">{id}</span> desde Cloud SQL…
           </p>

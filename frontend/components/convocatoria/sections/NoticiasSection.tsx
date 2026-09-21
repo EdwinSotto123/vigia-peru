@@ -41,7 +41,7 @@ export function NoticiasSection({ news }: { news: any }) {
       <div className="border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <Eye size={11} className="mr-1 inline" />
               news_research_agent · cobertura periodística
             </div>
@@ -97,7 +97,7 @@ export function NoticiasSection({ news }: { news: any }) {
                 <p className="mt-1 text-inkSoft">{redactDnis(b.descripcion)}</p>
                 {b.url && (
                   <a href={b.url} target="_blank" rel="noreferrer"
-                     className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                     className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                     Abrir nota <ExternalLink size={9} />
                   </a>
                 )}
@@ -125,7 +125,7 @@ export function NoticiasSection({ news }: { news: any }) {
             const dotColor =
               n.severidad === "alta"  ? "bg-rust" :
               n.severidad === "media" ? "bg-amber" :
-              n.severidad === "baja"  ? "bg-paperDeep" : "bg-clay";
+              n.severidad === "baja"  ? "bg-paperDeep" : "bg-heroViolet";
             return (
               <li key={i} className="relative pl-10 pr-5 pb-5">
                 {/* dot del timeline */}
@@ -135,7 +135,7 @@ export function NoticiasSection({ news }: { news: any }) {
                 )}>
                   <Calendar size={10} className="text-paper" />
                 </span>
-                <div className="rounded-lg border border-line bg-paperSoft p-3 hover:border-clay transition-colors">
+                <div className="rounded-lg border border-line bg-paperSoft p-3 hover:border-heroViolet transition-colors">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="font-mono text-[10px] text-mute">
                       {n.fecha || "fecha N/D"}
@@ -150,7 +150,7 @@ export function NoticiasSection({ news }: { news: any }) {
                       </span>
                     )}
                     {n.fuente && (
-                      <span className="ml-auto font-bold text-clay text-[11px]">{n.fuente}</span>
+                      <span className="ml-auto font-bold text-heroViolet text-[11px]">{n.fuente}</span>
                     )}
                   </div>
                   {n.titulo && (
@@ -167,7 +167,7 @@ export function NoticiasSection({ news }: { news: any }) {
                     )}
                     {n.url && (
                       <a href={n.url} target="_blank" rel="noreferrer"
-                         className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-clay px-3 py-1 text-[10px] font-bold text-paper hover:bg-clay/80">
+                         className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-heroViolet px-3 py-1 text-[10px] font-bold text-paper hover:bg-heroViolet/80">
                         Abrir nota <ExternalLink size={10} />
                       </a>
                     )}

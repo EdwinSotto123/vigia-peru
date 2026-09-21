@@ -48,7 +48,7 @@ export function RegionRankingCard({ region }: { region: RegionData }) {
   return (
     <div className="surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Trophy size={11} /> Posición nacional
         </div>
         <span className="text-[10px] text-mute">de {total} regiones</span>

@@ -17,7 +17,7 @@ export function PageHeader({
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-5">
       <div>
         {eyebrow && (
-          <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-clay">
+          <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
             {icon}
             {eyebrow}
           </div>

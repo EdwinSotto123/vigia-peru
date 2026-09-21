@@ -58,7 +58,7 @@ export function PresupuestoRegional({
   if (loading) {
     return (
       <div className="flex h-40 flex-col items-center justify-center gap-2 text-sm text-mute">
-        <Loader2 size={20} className="animate-spin text-clay" />
+        <Loader2 size={20} className="animate-spin text-heroViolet" />
         <span>Cargando datos MEF…</span>
         <span className="text-[10px] text-mute">
           Si no está cacheado, MEF puede tardar 1-2 min en responder
@@ -131,7 +131,7 @@ export function PresupuestoRegional({
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-line bg-paperDeep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-clay">
+        <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-line bg-paperDeep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
           <Database size={11} /> MEF · Datos Abiertos
         </div>
         <h3 className="font-serif text-base font-bold text-ink">
@@ -285,10 +285,10 @@ export function PresupuestoRegional({
           {regionId && (
             <Link
               href={`/region/${regionId}`}
-              className="group flex items-center justify-between rounded-xl border-2 border-clay bg-amber-soft px-4 py-3 transition-colors hover:bg-clay hover:text-paper"
+              className="group flex items-center justify-between rounded-xl border-2 border-heroViolet bg-heroViolet-soft px-4 py-3 transition-colors hover:bg-heroViolet hover:text-paper"
             >
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-clay group-hover:text-paper">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-heroViolet group-hover:text-paper">
                   Análisis a fondo
                 </div>
                 <div className="text-sm font-bold text-ink group-hover:text-paper">
@@ -298,7 +298,7 @@ export function PresupuestoRegional({
                   sectores, pliegos, programas, entidades, casos…
                 </div>
               </div>
-              <ArrowRight size={20} className="text-clay group-hover:text-paper" />
+              <ArrowRight size={20} className="text-heroViolet group-hover:text-paper" />
             </Link>
           )}
         </>
@@ -337,7 +337,7 @@ export function PresupuestoRegional({
         href="https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026"
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1 text-[10px] text-clay hover:underline"
+        className="inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline"
       >
         <ExternalLink size={10} />
         Fuente: MEF — comparativo_gastos_2022_2026
@@ -671,7 +671,7 @@ function BreakdownBlock({
                 <span className="line-clamp-1 font-medium text-ink">
                   {it.nombre}
                   {matchedEnt && (
-                    <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-amber-soft px-1.5 py-0 text-[8.5px] font-bold uppercase tracking-wider text-clay">
+                    <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-heroGreen-soft px-1.5 py-0 text-[8.5px] font-bold uppercase tracking-wider text-heroGreen">
                       vigilada →
                     </span>
                   )}

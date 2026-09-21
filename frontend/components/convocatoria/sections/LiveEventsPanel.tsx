@@ -18,7 +18,7 @@ function ExpandableThought({ text }: { text: string }) {
     >
       {text}
       {truncated && (
-        <span className="ml-1 not-italic font-semibold text-clay">
+        <span className="ml-1 not-italic font-semibold text-heroViolet">
           {open ? " · cerrar" : ""}
         </span>
       )}
@@ -43,7 +43,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
   for (const e of events) byKind[e.kind || "?"] = (byKind[e.kind || "?"] || 0) + 1;
 
   const kindIcon = (k: string) => {
-    if (k === "tool_call")    return <Sparkles size={11} className="text-clay" />;
+    if (k === "tool_call")    return <Sparkles size={11} className="text-heroViolet" />;
     if (k === "tool_result")  return <CheckCircle2 size={11} className="text-moss" />;
     if (k === "transfer")     return <ArrowRight size={11} className="text-amber" />;
     if (k === "thought")      return <Brain size={11} className="text-mute" />;
@@ -69,7 +69,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
           <div key={i} className="flex items-start gap-2 border-b border-line/40 py-1.5 last:border-0">
             <span className="mt-0.5 shrink-0">{kindIcon(ev.kind)}</span>
             {ev.agent && (
-              <span className="shrink-0 rounded bg-paperDeep px-1 py-0 text-[9px] font-bold text-clay">
+              <span className="shrink-0 rounded bg-paperDeep px-1 py-0 text-[9px] font-bold text-heroViolet">
                 {fmtAgent(ev.agent)}
               </span>
             )}

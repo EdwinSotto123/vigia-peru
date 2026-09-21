@@ -22,7 +22,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <ShieldAlert size={11} className="mr-1 inline" />
           Aportes políticos y candidaturas · ONPE + JNE
         </div>
@@ -40,7 +40,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* APORTES */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Aportes ONPE Claridad ({aportes.length})
           </h3>
           {aportes.length === 0 ? (
@@ -55,14 +55,14 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                     <span className="font-mono text-[11px] font-bold text-ink">{a.año}</span>
                     <strong className="text-sm text-ink">{a.partido}</strong>
                     {a.monto != null && (
-                      <span className="ml-auto font-mono text-xs font-bold text-clay">
+                      <span className="ml-auto font-mono text-xs font-bold text-heroViolet">
                         S/. {Number(a.monto).toLocaleString()}
                       </span>
                     )}
                   </div>
                   {a.fuente_url && (
                     <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                       Fuente <ExternalLink size={9} />
                     </a>
                   )}
@@ -74,7 +74,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
 
         {/* CANDIDATURAS */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Candidaturas JNE ({candidaturas.length})
           </h3>
           {candidaturas.length === 0 ? (
@@ -97,7 +97,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                   <div className="text-[11px] text-inkSoft">{c.partido}</div>
                   {c.fuente_url && (
                     <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                       Fuente <ExternalLink size={9} />
                     </a>
                   )}
@@ -123,7 +123,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                 </span>
                 {h.url && (
                   <a href={h.url} target="_blank" rel="noreferrer"
-                     className="ml-2 inline-flex items-center gap-0.5 text-clay hover:underline">
+                     className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline">
                     <ExternalLink size={9} />
                   </a>
                 )}

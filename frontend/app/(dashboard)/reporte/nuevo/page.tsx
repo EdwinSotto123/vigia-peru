@@ -50,15 +50,17 @@ function ReporteNuevoInner() {
 
       <header className="overflow-hidden rounded-3xl border border-line bg-ink text-paper">
         <div className="relative px-6 py-8 sm:px-10 sm:py-10">
-          {/* glow sutil */}
-          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-rust/20 blur-3xl" />
+          {/* glow sutil — mismo verde de marca que la pantalla de confirmación de este
+              mismo flujo (Confirmacion.tsx), para que "antes" y "después" de enviar se
+              sientan como un solo viaje en vez de dos paletas sueltas. */}
+          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-heroGreen/20 blur-3xl" />
           <div className="relative space-y-4">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-paper/80">
-              <Camera size={12} className="text-amber" /> Vigilancia ciudadana
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-heroGreen">
+              <Camera size={12} /> Vigilancia ciudadana
             </span>
             <h1 className="font-serif text-4xl font-bold leading-[1.05] sm:text-5xl">
               Lo que viste<br />
-              <span className="text-amber">el Estado no lo puede ignorar.</span>
+              <span className="text-heroGreen">el Estado no lo puede ignorar.</span>
             </h1>
             <p className="max-w-xl text-lg leading-relaxed text-paper/75">
               Sube una foto y cuéntanos qué pasa. En minutos, nuestros agentes la
@@ -76,7 +78,7 @@ function ReporteNuevoInner() {
                   key={p.text}
                   className="inline-flex items-center gap-1.5 rounded-full bg-paper/10 px-3 py-1.5 text-xs font-medium text-paper/90"
                 >
-                  <span className="text-amber">{p.icon}</span> {p.text}
+                  <span className="text-heroGreen">{p.icon}</span> {p.text}
                 </span>
               ))}
             </div>
@@ -149,7 +151,7 @@ function TabBig({
       <div
         className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-          active ? "bg-paper/15 text-paper" : "bg-paperDeep text-clay",
+          active ? "bg-paper/15 text-paper" : "bg-paperDeep text-mute",
         )}
       >
         {icon}

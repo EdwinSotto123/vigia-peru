@@ -33,7 +33,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
       <div className="border-b border-line bg-paperDeep px-5 py-3.5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <ShieldAlert size={11} /> Banderas detectadas · {reglas_evaluadas} reglas evaluadas
             </div>
             <h2 className="mt-1 font-serif text-xl font-bold text-ink">
@@ -65,7 +65,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors",
               filtroSev === "todas" && filtroAgente === "todos"
-                ? "border-clay bg-clay text-paper"
+                ? "border-heroViolet bg-heroViolet text-paper"
                 : "border-line bg-paperSoft text-mute hover:text-ink",
             )}
           >Todas ({banderas.length})</button>
@@ -152,7 +152,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                     </div>
                     <p className="mt-1.5 text-sm leading-relaxed text-ink line-clamp-2">{redactDnis(b.evidencia)}</p>
                   </div>
-                  <span className="mt-0.5 shrink-0 text-[10px] font-mono text-clay">
+                  <span className="mt-0.5 shrink-0 text-[10px] font-mono text-heroViolet">
                     {isOpen ? "▼" : "▶"}
                   </span>
                 </div>
@@ -169,7 +169,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                     {b.evidencia_textual && (
                       <div>
                         <div className="text-[9px] font-bold uppercase tracking-widest text-mute">Texto del documento</div>
-                        <blockquote className="mt-1 border-l-2 border-clay/40 pl-2 text-xs italic text-inkSoft">
+                        <blockquote className="mt-1 border-l-2 border-heroViolet/40 pl-2 text-xs italic text-inkSoft">
                           &quot;{redactDnis(b.evidencia_textual)}&quot;
                         </blockquote>
                       </div>
@@ -177,17 +177,17 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <div className="rounded-lg bg-paper p-2.5">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-clay">Norma citada</div>
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-heroViolet">Norma citada</div>
                       <div className="mt-0.5 text-xs text-ink">{b.norma || "—"}</div>
                     </div>
                     {b.opinion_oece_relacionada?.num_opinion && (
                       <div className="rounded-lg bg-paper p-2.5">
-                        <div className="text-[9px] font-bold uppercase tracking-widest text-clay">Opinión OECE</div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest text-heroViolet">Opinión OECE</div>
                         <div className="mt-0.5 text-xs text-ink">
                           <strong className="font-mono">{b.opinion_oece_relacionada.num_opinion}</strong>
                           {b.opinion_oece_relacionada.url && (
                             <a href={b.opinion_oece_relacionada.url} target="_blank" rel="noreferrer"
-                               className="ml-2 inline-flex items-center gap-1 text-clay hover:underline">
+                               className="ml-2 inline-flex items-center gap-1 text-heroViolet hover:underline">
                               abrir <ExternalLink size={9} />
                             </a>
                           )}
@@ -203,7 +203,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                   {b.fuente_url && (
                     <div className="mt-2 flex justify-end">
                       <a href={b.fuente_url} target="_blank" rel="noreferrer"
-                         className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-clay hover:underline">
+                         className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-heroViolet hover:underline">
                         Ver fuente <ExternalLink size={10} />
                       </a>
                     </div>

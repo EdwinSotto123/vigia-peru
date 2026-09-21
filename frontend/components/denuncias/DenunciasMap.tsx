@@ -130,16 +130,18 @@ export function DenunciasMap({
           })()}
       </svg>
 
-      {/* Leyenda */}
+      {/* Leyenda — el matiz de cada pin es su categoría (ver badges de las tarjetas);
+          acá solo se explica lo que el mapa codifica con relleno sólido vs. punteado. */}
       <div className="flex flex-wrap items-center gap-3 border-t border-line bg-paperSoft px-4 py-2 text-[10px] text-mute">
         <span className="font-semibold text-ink">Leyenda:</span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-rust" /> verificado
+          <span className="h-2 w-2 rounded-full bg-ink" /> verificado
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full border border-rust bg-rust/40" />
+          <span className="h-2 w-2 rounded-full border border-ink/50 bg-ink/25" />
           en validación
         </span>
+        <span className="hidden sm:inline">· el color del pin es la categoría</span>
         <span className="ml-auto">
           {reportes.length} reporte{reportes.length === 1 ? "" : "s"} en mapa
         </span>

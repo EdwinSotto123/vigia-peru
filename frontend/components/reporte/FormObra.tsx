@@ -10,17 +10,16 @@ import {
   Check,
   Upload,
   Loader2,
-  Sparkles,
-  Eye,
   HeartHandshake,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
 import { REGIONES } from "@/lib/peru-data";
 import { Step } from "./Step";
+import { ProgressTracker } from "./ProgressTracker";
 
 const CATEGORIAS_OBRA = [
   { id: "obra_paralizada", label: "Obra paralizada", emoji: "🚧" },
@@ -57,6 +56,11 @@ export function FormObra({
   const [subidos, setSubidos] = useState<MediaSubido[]>([]);
   const [subiendo, setSubiendo] = useState(false);
   const [errorSubida, setErrorSubida] = useState<string | null>(null);
+  // Distinto de errorSubida (que es por-archivo, mostrado junto al picker en el paso 2):
+  // esto es "no se puede enviar el formulario todavía", y se muestra junto al botón de
+  // enviar — antes reusaba errorSubida y el aviso aparecía arriba en el paso de la foto
+  // aunque lo que faltara fuera la ubicación o el relato, lejos de donde mirás al enviar.
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const [ubicacion, setUbicacion] = useState<{ lat: number; lon: number } | null>(null);
   const [direccionTexto, setDireccionTexto] = useState("");
   const [provincia, setProvincia] = useState("");
@@ -114,10 +118,10 @@ export function FormObra({
     e.preventDefault();
     const hayFoto = subidos.some((s) => s.tipo === "foto");
     if (!descripcion.trim() || !hayFoto || (!ubicacion && !direccionTexto.trim())) {
-      setErrorSubida("Faltan datos obligatorios: una foto, el lugar y el relato.");
+      setErrorEnvio("Faltan datos obligatorios: revisa foto, lugar y relato arriba.");
       return;
     }
-    setErrorSubida(null);
+    setErrorEnvio(null);
     setSubmitting(true);
     try {
       const enlaces = enlacesExternos.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
@@ -142,7 +146,7 @@ export function FormObra({
       });
       onDone(r.id, region || undefined);
     } catch (err) {
-      setErrorSubida("No se pudo enviar: " + (err as Error).message);
+      setErrorEnvio("No se pudo enviar: " + (err as Error).message);
     } finally {
       setSubmitting(false);
     }
@@ -160,7 +164,7 @@ export function FormObra({
 
   return (
     <form onSubmit={submit} className="surface space-y-6 p-6">
-      <ProgressTracker milestones={milestones} doneCount={doneCount} ready={ready} />
+      <ProgressTracker milestones={milestones} />
 
       <Step n={1} title="¿Qué tipo de obra/situación? (opcional)">
         <div className="grid gap-2 sm:grid-cols-2">
@@ -170,10 +174,10 @@ export function FormObra({
               type="button"
               onClick={() => setCategoria(c.id)}
               className={cn(
-                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition",
+                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
                 categoria === c.id
-                  ? "border-rust bg-crimson-soft text-rust"
-                  : "border-line bg-paperSoft hover:border-mute",
+                  ? "border-ink bg-ink text-paper"
+                  : "border-line bg-paperSoft text-ink hover:border-mute hover:bg-paperDeep",
               )}
             >
               <span className="text-xl">{c.emoji}</span>
@@ -186,8 +190,8 @@ export function FormObra({
       <Step n={2} title="Foto (obligatoria) — también videos o documentos">
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
           {/* Cámara directa en móvil (capture) */}
-          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-rust/40 bg-crimson-soft px-4 py-6 text-center hover:border-rust sm:hidden">
-            <Camera size={22} className="text-rust" aria-hidden />
+          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-heroViolet/40 bg-heroViolet-soft px-4 py-6 text-center transition-colors hover:border-heroViolet sm:hidden">
+            <Camera size={22} className="text-heroViolet" aria-hidden />
             <div className="text-sm">
               <span className="font-semibold text-ink">Tomar foto ahora</span>
               <br />
@@ -226,7 +230,7 @@ export function FormObra({
               <span className="font-mono">{pct}%</span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Subida de ${nombre}`}>
-              <div className="h-full rounded-full bg-clay transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-heroViolet transition-all" style={{ width: `${pct}%` }} />
             </div>
           </div>
         ))}
@@ -245,7 +249,7 @@ export function FormObra({
                 key={s.url}
                 className="flex items-center gap-2 rounded-lg border border-line bg-paperSoft px-3 py-2 text-xs"
               >
-                <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-clay">
+                <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-mute">
                   {s.tipo}
                 </span>
                 <a href={s.url} target="_blank" rel="noreferrer" className="flex-1 truncate text-ink hover:underline">
@@ -279,9 +283,9 @@ export function FormObra({
             {geoEstado === "buscando" ? "Buscando tu ubicación…" : ubicacion ? "Actualizar mi ubicación" : "Usar mi ubicación actual"}
           </Button>
           {ubicacion && (
-            <Badge variant="navy">
+            <span className="pill border-heroGreen/30 bg-heroGreen-soft text-heroGreen">
               <Check size={12} /> {ubicacion.lat.toFixed(4)}, {ubicacion.lon.toFixed(4)}
-            </Badge>
+            </span>
           )}
           {geoEstado === "error" && !ubicacion && (
             <span className="text-xs text-rust" role="status">No pudimos obtener tu ubicación: escribe la dirección abajo.</span>
@@ -391,7 +395,7 @@ export function FormObra({
             type="checkbox"
             checked={anonimo}
             onChange={(e) => setAnonimo(e.target.checked)}
-            className="h-4 w-4 rounded border-line accent-clay"
+            className="h-4 w-4 rounded border-line accent-heroViolet"
           />
           <span className="text-ink">Mantener mi denuncia anónima</span>
           <Lock size={13} className="text-mute" />
@@ -421,6 +425,14 @@ export function FormObra({
       <DisclaimerBanner />
 
       <div className="space-y-2">
+        {errorEnvio && (
+          <p
+            className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2.5 text-sm text-rust"
+            role="alert"
+          >
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden /> {errorEnvio}
+          </p>
+        )}
         <Button type="submit" disabled={submitting} full variant="primary">
           {submitting ? (
             <>
@@ -439,62 +451,6 @@ export function FormObra({
         </p>
       </div>
     </form>
-  );
-}
-
-function ProgressTracker({
-  milestones,
-  doneCount,
-  ready,
-}: {
-  milestones: { label: string; done: boolean }[];
-  doneCount: number;
-  ready: boolean;
-}) {
-  const pct = (doneCount / milestones.length) * 100;
-  return (
-    <div className="rounded-2xl border border-line bg-paperSoft p-4">
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
-          {ready ? (
-            <Sparkles size={13} className="text-moss" />
-          ) : (
-            <Eye size={13} className="text-clay" />
-          )}
-          {ready
-            ? "Reporte completo — listo para enviar"
-            : `Tu reporte: ${doneCount} de ${milestones.length}`}
-        </span>
-        <span className="font-mono text-[11px] text-mute">{Math.round(pct)}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-paperDeep">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            ready ? "bg-moss" : "bg-clay",
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className={cn("mt-3 grid gap-1.5", milestones.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
-        {milestones.map((m) => (
-          <div
-            key={m.label}
-            className={cn(
-              "flex items-center justify-center gap-1 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors",
-              m.done ? "bg-moss/10 text-moss" : "bg-paperDeep/60 text-mute",
-            )}
-          >
-            {m.done ? (
-              <Check size={11} />
-            ) : (
-              <span className="h-1.5 w-1.5 rounded-full bg-mute/40" />
-            )}
-            {m.label}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

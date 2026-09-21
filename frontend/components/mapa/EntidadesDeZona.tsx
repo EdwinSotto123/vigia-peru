@@ -104,9 +104,9 @@ export function EntidadesDeZona({ regionId, nombre }: { regionId: string; nombre
             <li key={e.ruc}>
               <Link
                 href={`/entidad/${e.ruc}`}
-                className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper px-3 py-2.5 transition-colors hover:border-clay/60 hover:bg-paperDeep"
+                className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper px-3 py-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
               >
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-clay group-hover:bg-paper">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-heroViolet group-hover:bg-paper">
                   <Building2 size={13} />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -119,7 +119,7 @@ export function EntidadesDeZona({ regionId, nombre }: { regionId: string; nombre
                         · {e.alertas} señal{e.alertas === 1 ? "" : "es"}
                       </span>
                     )}
-                    {e.monto > 0 && <span className="font-mono text-clay">· {formatSoles(e.monto)}</span>}
+                    {e.monto > 0 && <span className="font-mono text-heroViolet">· {formatSoles(e.monto)}</span>}
                   </span>
                 </span>
                 <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />
@@ -129,7 +129,7 @@ export function EntidadesDeZona({ regionId, nombre }: { regionId: string; nombre
         </ul>
       )}
 
-      <Link href="/app/entidades" className="block text-center text-[11px] text-mute hover:text-clay hover:underline">
+      <Link href="/app/entidades" className="block text-center text-[11px] text-mute hover:text-heroViolet hover:underline">
         Ver el ranking nacional de entidades →
       </Link>
     </div>

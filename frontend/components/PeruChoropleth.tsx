@@ -565,7 +565,7 @@ function Loading() {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-clay/30 border-t-clay" />
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-heroViolet/30 border-t-heroViolet" />
         <p className="mt-3 text-sm text-mute">Cargando geometría del Perú…</p>
       </div>
     </div>
@@ -592,7 +592,7 @@ function MissingGeoJSON() {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="flex max-w-lg flex-col items-center gap-4 rounded-2xl border border-paperEdge bg-paperSoft p-7 text-center shadow-card">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-paperDeep text-clay">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-paperDeep text-heroViolet">
           <Terminal size={22} />
         </div>
         <h3 className="font-serif text-xl font-bold text-ink">

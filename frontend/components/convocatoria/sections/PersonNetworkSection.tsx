@@ -23,7 +23,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Network size={11} className="mr-1 inline" />
           person_network_agent · gerente + red empresarial
         </div>
@@ -41,11 +41,11 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
         {/* PERSONA PRINCIPAL */}
         <article className="space-y-3 rounded-md border border-line bg-paperSoft p-4">
           <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-clay text-paper">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-heroViolet text-paper">
               <Users size={18} />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                 Persona principal
               </div>
               <h3 className="font-serif text-base font-bold text-ink">
@@ -75,13 +75,13 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
               )}
               {p.linkedin && (
                 <a href={p.linkedin} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-clay hover:underline">
+                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-heroViolet hover:underline">
                   LinkedIn <ExternalLink size={9} />
                 </a>
               )}
               {p.datosperu_url && (
                 <a href={p.datosperu_url} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-clay hover:underline">
+                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-heroViolet hover:underline">
                   DatosPerú <ExternalLink size={9} />
                 </a>
               )}
@@ -121,7 +121,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     </div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -144,7 +144,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     <div className="text-mute">{c.partido} · {c.resultado || "—"}</div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -166,7 +166,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     <strong>{a.año}</strong> · {a.partido} · <span className="font-mono">S/. {a.monto}</span>
                     {a.fuente_url && (
                       <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                         className="ml-2 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                         className="ml-2 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                         <ExternalLink size={9} />
                       </a>
                     )}
@@ -186,7 +186,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                 {menciones.map((m: any, i: number) => (
                   <li key={i} className="text-xs text-ink">
                     <a href={m.url} target="_blank" rel="noreferrer"
-                       className="text-clay hover:underline">
+                       className="text-heroViolet hover:underline">
                       {m.medio} {m.fecha && `· ${m.fecha}`}
                     </a>
                     {m.titulo && <span className="ml-1 text-mute">— {m.titulo}</span>}
@@ -200,11 +200,11 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
         {/* RED EMPRESARIAL */}
         <article className="space-y-3 rounded-md border border-line bg-paperSoft p-4">
           <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-amber text-paper">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-heroGreen text-paper">
               <Network size={18} />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                 Red empresarial
               </div>
               <h3 className="font-serif text-base font-bold text-ink">

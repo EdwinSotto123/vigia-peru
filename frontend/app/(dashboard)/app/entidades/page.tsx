@@ -88,7 +88,7 @@ export default async function EntidadesPage({
     <div className="px-6 py-8 lg:px-10 space-y-6">
       <PageHeader
         eyebrow="Ranking de entidades"
-        icon={<Building2 size={11} className="text-clay" />}
+        icon={<Building2 size={11} className="text-heroViolet" />}
         title="Gobiernos regionales y municipios"
         subtitle="Ordenados por riesgo. Click cualquier entidad para ver perfil completo con ejecución MEF y proveedores."
         actions={

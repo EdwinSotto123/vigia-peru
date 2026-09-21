@@ -118,15 +118,15 @@ export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, to
                     : "Ninguna denuncia de esta página coincide con tu búsqueda de texto."}
               </p>
               {total === 0 ? (
-                <Link href="/app/denuncias" className="text-xs font-medium text-clay hover:underline">
+                <Link href="/app/denuncias" className="text-xs font-medium text-heroViolet hover:underline">
                   Limpiar filtros
                 </Link>
               ) : reportes.length === 0 ? (
-                <Link href={hrefPagina(1)} className="text-xs font-medium text-clay hover:underline">
+                <Link href={hrefPagina(1)} className="text-xs font-medium text-heroViolet hover:underline">
                   Ir a la página 1
                 </Link>
               ) : (
-                <button onClick={() => setTexto("")} className="text-xs font-medium text-clay hover:underline">
+                <button onClick={() => setTexto("")} className="text-xs font-medium text-heroViolet hover:underline">
                   Limpiar búsqueda
                 </button>
               )}
@@ -149,11 +149,11 @@ export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, to
               : "Ninguna denuncia coincide con tu búsqueda de texto."}
           </p>
           {reportesMapa.length === 0 ? (
-            <Link href="/app/denuncias" className="text-xs font-medium text-clay hover:underline">
+            <Link href="/app/denuncias" className="text-xs font-medium text-heroViolet hover:underline">
               Limpiar filtros
             </Link>
           ) : (
-            <button onClick={() => setTexto("")} className="text-xs font-medium text-clay hover:underline">
+            <button onClick={() => setTexto("")} className="text-xs font-medium text-heroViolet hover:underline">
               Limpiar búsqueda
             </button>
           )}
@@ -269,7 +269,7 @@ function DenunciaCard({
 
           <div className="mt-auto flex flex-wrap items-center gap-2 text-[10px] text-mute">
             <span className="inline-flex items-center gap-1">
-              <MapPin size={10} className="text-clay" />
+              <MapPin size={10} />
               {reporte.region}
             </span>
             <span>·</span>

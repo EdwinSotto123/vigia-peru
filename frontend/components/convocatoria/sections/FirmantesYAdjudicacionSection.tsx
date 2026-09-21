@@ -20,15 +20,15 @@ export function FirmantesYAdjudicacionSection({
   const rolBadge = (r: string) => {
     const s = (r || "").toLowerCase();
     if (s.includes("aprob")) return "bg-amber-soft text-amber";
-    if (s.includes("presid") || s.includes("comite")) return "bg-paperDeep text-clay";
+    if (s.includes("presid") || s.includes("comite")) return "bg-heroViolet-soft text-heroViolet";
     if (s.includes("represent")) return "bg-crimson-soft text-rust";
-    if (s.includes("evalu")) return "bg-paperSoft text-clay";
+    if (s.includes("evalu")) return "bg-paperDeep text-inkSoft";
     return "bg-paperDeep text-mute";
   };
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Users size={11} className="mr-1 inline" />
           Quién firmó · Por qué ganó · Comité evaluador
         </div>
@@ -48,7 +48,7 @@ export function FirmantesYAdjudicacionSection({
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* FIRMANTES */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Firmantes del documento ({firmantes.length})
           </h3>
           {firmantes.length === 0 ? (
@@ -92,7 +92,7 @@ export function FirmantesYAdjudicacionSection({
 
         {/* COMITÉ DE EVALUACIÓN */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Comité de selección ({comite.length})
           </h3>
           {comite.length === 0 ? (
@@ -106,14 +106,17 @@ export function FirmantesYAdjudicacionSection({
                   <div className="flex items-baseline gap-2">
                     <strong className="text-sm text-ink"><PersonName name={m.nombre_completo} /></strong>
                     {m.rol && (
-                      <span className="rounded-full bg-amber-soft px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber">
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                        rolBadge(m.rol),
+                      )}>
                         {String(m.rol).replace(/_/g, " ")}
                       </span>
                     )}
                   </div>
                   {m.cargo && <div className="mt-0.5 text-[11px] text-inkSoft">{m.cargo}</div>}
                   {m.certificacion_sican && (
-                    <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-[10px] text-clay">
+                    <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-[10px] text-heroViolet">
                       <Award size={9} /> SICAN {m.certificacion_sican}
                     </div>
                   )}
@@ -127,7 +130,7 @@ export function FirmantesYAdjudicacionSection({
       {/* MOTIVOS DE ADJUDICACIÓN */}
       {motivos.length > 0 && (
         <div className="border-t border-line px-5 py-5">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay mb-3">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet mb-3">
             <Award size={11} className="mr-1 inline" />
             Por qué ganó cada postor ({motivos.length})
           </h3>
@@ -140,12 +143,12 @@ export function FirmantesYAdjudicacionSection({
                     <span className="font-mono text-[10px] text-mute">RUC {m.ganador_ruc}</span>
                   )}
                   {m.item_adjudicado && (
-                    <span className="rounded-md bg-paperDeep px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-clay">
+                    <span className="rounded-md bg-paperDeep px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-heroViolet">
                       ítem {m.item_adjudicado}
                     </span>
                   )}
                   {m.posicion_ranking && (
-                    <span className="ml-auto rounded-full bg-amber-soft px-2 py-0.5 text-[10px] font-bold text-amber">
+                    <span className="ml-auto rounded-full bg-heroViolet-soft px-2 py-0.5 text-[10px] font-bold text-heroViolet">
                       #{m.posicion_ranking}
                     </span>
                   )}
@@ -195,7 +198,7 @@ export function FirmantesYAdjudicacionSection({
                 <div className="flex items-baseline gap-2 text-xs">
                   <strong className="text-ink">{c.firmante}</strong>
                   <span className="text-mute">({c.cargo_firmante})</span>
-                  <span className="text-clay">↔</span>
+                  <span className="text-rust">↔</span>
                   <strong className="text-ink">{c.persona_proveedor}</strong>
                 </div>
                 {c.tipo_relacion && c.tipo_relacion !== "sin_relacion" && (
@@ -215,7 +218,7 @@ export function FirmantesYAdjudicacionSection({
                 )}
                 {c.fuente_url && (
                   <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                     className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                     className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                     Fuente <ExternalLink size={9} />
                   </a>
                 )}

@@ -19,7 +19,7 @@ export const CAT_LABEL: Record<CatFilter, string> = {
 // Color de acento por categoría (tipo etiqueta sólida, no emoji)
 export const CAT_TONE: Record<CatFilter, string> = {
   todas:       "bg-ink",
-  bienes:      "bg-clay",
+  bienes:      "bg-heroViolet",
   servicios:   "bg-amber",
   obras:       "bg-rust",
   consultoria: "bg-moss",
@@ -82,13 +82,13 @@ export const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode
   pipeline:              { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
   orquestador:           { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
   compliance_agent:      { color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Compliance" },
-  document_parser_agent: { color: "bg-clay text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
-  document_legal_analyst_agent: { color: "bg-clay text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
+  document_parser_agent: { color: "bg-heroViolet text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
+  document_legal_analyst_agent: { color: "bg-heroViolet text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
   market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Market Price" },
   web_research_agent:    { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Web Research" },
   news_research_agent:   { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Prensa" },
   entity_personnel_agent:{ color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Funcionarios" },
-  person_network_agent:  { color: "bg-clay text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
+  person_network_agent:  { color: "bg-heroViolet text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
   compliance_extended_agent: { color: "bg-amber text-paper",    icon: <ScanSearch size={11} />,    label: "Compliance+" },
   report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Report Writer" },
 };
@@ -192,7 +192,7 @@ export const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji
 export const AGENTE_VISUAL: Record<string, { label: string; chipClass: string; iconClass: string }> = {
   compliance_agent:               { label: "Compliance",        chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
   compliance_extended_agent:      { label: "Compliance ext.",   chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
-  document_legal_analyst_agent:   { label: "Legal analyst",     chipClass: "bg-clay/15 text-clay",      iconClass: "text-clay" },
+  document_legal_analyst_agent:   { label: "Legal analyst",     chipClass: "bg-heroViolet/15 text-heroViolet",      iconClass: "text-heroViolet" },
   document_parser_agent:          { label: "Doc parser",        chipClass: "bg-amber/15 text-amber",    iconClass: "text-amber" },
   market_price_agent:             { label: "Market price",      chipClass: "bg-moss/15 text-moss",      iconClass: "text-moss" },
   person_network_agent:           { label: "Person network",    chipClass: "bg-mute/15 text-mute",      iconClass: "text-mute" },

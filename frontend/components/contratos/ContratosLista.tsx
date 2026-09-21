@@ -32,6 +32,7 @@ import {
   type RiesgoContrato,
 } from "@/lib/contratos";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 
 // ─── Contexto lista ↔ mapa ───────────────────────────────────────────────────
@@ -107,7 +108,13 @@ export function ContratosLista({
   const [page, setPage] = useState<number>(query.page ?? 1);
   const [cargando, setCargando] = useState<boolean>(navegacion === "interna" && initial == null);
   const [fallo, setFallo] = useState<boolean>(navegacion === "url" && initial == null);
+  /** "Reintentar" en modo interno: incrementarlo vuelve a disparar el efecto de fetch. */
+  const [retry, setRetry] = useState(0);
   const qsFiltros = useMemo(() => contratosQueryString({ ...query, page: undefined, size: undefined }), [query]);
+  const hayFiltros = !!(
+    query.q || query.tipo || query.etapa || query.ubigeo || query.entidad ||
+    query.riesgo || query.operativo || query.desde || query.monto_min != null || query.monto_max != null
+  );
 
   // Modo url: cada navegación trae `initial` nuevo desde el servidor.
   useEffect(() => {
@@ -132,7 +139,7 @@ export function ContratosLista({
       .catch((e) => { if ((e as Error).name !== "AbortError") setFallo(true); })
       .finally(() => { if (!ctrl.signal.aborted) setCargando(false); });
     return () => ctrl.abort();
-  }, [navegacion, qsFiltros, page, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [navegacion, qsFiltros, page, size, retry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = pagina?.total ?? 0;
   const tam = pagina?.size ?? size;
@@ -144,6 +151,8 @@ export function ContratosLista({
     const qs = contratosQueryString({ ...query, page: n, size: undefined });
     return qs ? `${pathname}?${qs}` : pathname;
   };
+  /** El mismo URL actual (con filtros y página) — para "Reintentar" sin perder lo que el usuario ya eligió. */
+  const hrefActual = hrefPagina(query.page ?? 1);
 
   const pag = (
     <Paginacion
@@ -163,9 +172,23 @@ export function ContratosLista({
     <div className="space-y-2">
       {pag}
       {fallo && !rows.length ? (
-        <Aviso icon={<WifiOff size={16} />} text="No se pudo cargar la lista de contratos. Reintenta en unos segundos." />
+        <Aviso
+          icon={<WifiOff size={16} />}
+          text="No se pudo cargar la lista de contratos."
+          action={
+            navegacion === "interna" ? (
+              <button type="button" onClick={() => setRetry((n) => n + 1)} className={ACCION_CLS}>Reintentar</button>
+            ) : (
+              <a href={hrefActual} className={ACCION_CLS}>Reintentar</a>
+            )
+          }
+        />
       ) : !rows.length && !cargando ? (
-        <Aviso icon={<Inbox size={16} />} text="Ningún contrato coincide con estos filtros." />
+        <Aviso
+          icon={<Inbox size={16} />}
+          text="Ningún contrato coincide con estos filtros."
+          action={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
+        />
       ) : compacto ? (
         <ListaCompacta rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       ) : (
@@ -184,12 +207,32 @@ export function ContratosLista({
 // carga de color/peso visual cuando SÍ hay una señal real, para que esas destaquen del resto.
 
 function Tarjetas({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
+  // Primera carga en modo "interna" (panel del mapa): sin esto, la lista es un <ul> vacío
+  // mientras llega el fetch — un hueco en blanco, no un estado de carga real.
+  if (!rows.length && cargando) {
+    return (
+      <ul className="space-y-2" aria-hidden>
+        {Array.from({ length: 4 }, (_, i) => <SkeletonTarjeta key={i} />)}
+      </ul>
+    );
+  }
   return (
     <ul className={cn("space-y-2", cargando && "opacity-60")} aria-busy={cargando}>
       {rows.map((c) => (
         <Tarjeta key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
       ))}
     </ul>
+  );
+}
+
+function SkeletonTarjeta() {
+  return (
+    <li className="rounded-2xl border border-line bg-paper p-4 sm:p-[18px]" aria-hidden>
+      <Skeleton className="h-2.5 w-32" />
+      <Skeleton className="mt-2 h-4 w-4/5" />
+      <Skeleton className="mt-1.5 h-3 w-2/5" />
+      <Skeleton className="mt-2.5 h-4 w-24 rounded-full" />
+    </li>
   );
 }
 
@@ -211,8 +254,10 @@ function Tarjeta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selec
         href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
         onClick={() => onSelect?.(c)}
         className={cn(
-          "block rounded-2xl border bg-paper p-4 transition-colors hover:border-clay/50 hover:bg-paperSoft sm:p-4.5",
-          selected ? "border-amber bg-amber-soft/30" : "border-line",
+          "block rounded-2xl border bg-paper p-4 transition-all hover:-translate-y-0.5 hover:shadow-card sm:p-[18px]",
+          // Violeta = "esto está sincronizado con el mapa", no una advertencia — mismo
+          // idioma que HeroMapPanel (clickedCode === z.ubigeo) y el nav activo del sidebar.
+          selected ? "border-heroViolet bg-heroViolet/5" : "border-line",
         )}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -265,12 +310,28 @@ interface FilasProps {
 }
 
 function ListaCompacta({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
+  if (!rows.length && cargando) {
+    return (
+      <ul className="space-y-1" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => <SkeletonFila key={i} />)}
+      </ul>
+    );
+  }
   return (
     <ul className={cn("space-y-1", cargando && "opacity-60")} aria-busy={cargando}>
       {rows.map((c) => (
         <FilaCompacta key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
       ))}
     </ul>
+  );
+}
+
+function SkeletonFila() {
+  return (
+    <li className="rounded-xl border border-line bg-paper px-2.5 py-2" aria-hidden>
+      <Skeleton className="h-2.5 w-2/3" />
+      <Skeleton className="mt-1.5 h-2 w-1/2" />
+    </li>
   );
 }
 
@@ -282,8 +343,8 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
     <li
       ref={ref}
       className={cn(
-        "group rounded-xl border bg-paper px-2.5 py-2 transition-colors",
-        selected ? "border-amber bg-amber-soft/40" : "border-line hover:border-clay/50 hover:bg-paperDeep",
+        "group rounded-xl border bg-paper px-2.5 py-2 transition-all hover:shadow-card",
+        selected ? "border-heroViolet bg-heroViolet/5" : "border-line hover:border-heroViolet/30 hover:bg-paperDeep",
       )}
       onMouseEnter={() => onHover?.(c)}
       onMouseLeave={() => onHover?.(null)}
@@ -335,11 +396,16 @@ function Badges({ tipo, etapa }: { tipo: string | null; etapa: string | null }) 
   );
 }
 
-function Aviso({ icon, text }: { icon: React.ReactNode; text: string }) {
+/** Estilo compartido de la acción de un estado vacío ("Reintentar" · "Quitar todos los filtros"). */
+const ACCION_CLS = "inline-flex items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium text-ink transition-colors hover:border-heroViolet/40 hover:bg-paperSoft";
+
+/** Estado vacío con mensaje real y, cuando hay algo que hacer, su siguiente acción — nunca un hueco en blanco. */
+function Aviso({ icon, text, action }: { icon: React.ReactNode; text: string; action?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-dashed border-line bg-paper px-4 py-6 text-sm text-mute">
+    <div className="flex flex-col items-center gap-2.5 rounded-2xl border border-dashed border-line bg-paper px-4 py-8 text-center text-sm text-mute">
       <span className="text-mute">{icon}</span>
-      {text}
+      <span>{text}</span>
+      {action}
     </div>
   );
 }

@@ -78,6 +78,11 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
     timer.current = window.setTimeout(() => navegar({ q: v.trim() || undefined }), 350);
   };
 
+  const limpiarFiltros = () => {
+    setQ("");
+    navegar({ q: undefined, tipo: undefined });
+  };
+
   const rows = initial?.data ?? [];
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -105,17 +110,32 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
       <div className="border-b border-line bg-paperDeep px-5 py-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-widest text-clay">
+            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-widest text-heroViolet">
               <Building2 size={11} /> Ranking
             </div>
             <h3 className="font-serif text-2xl font-bold text-ink">
               Entidades del Estado vigiladas
             </h3>
-            <p className="mt-1 text-sm text-mute">
-              <NumberTicker value={totals.totalEntidades} /> entidades ·{" "}
-              <NumberTicker value={totals.conAlertas} /> con alertas activas ·{" "}
-              {formatSoles(totals.monto)} bajo seguimiento
-            </p>
+            {/* Antes: una sola oración con los 3 números metidos en el texto. Ahora, datos
+                como tarjeta (mismo patrón dt/dd que EstadisticaAliado en TarjetaAliado.tsx). */}
+            <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1.5">
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-mute">Entidades vigiladas</dt>
+                <dd className="font-mono text-lg font-bold text-ink">
+                  <NumberTicker value={totals.totalEntidades} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-mute">Con alertas activas</dt>
+                <dd className={cn("font-mono text-lg font-bold", totals.conAlertas > 0 ? "text-amber" : "text-ink")}>
+                  <NumberTicker value={totals.conAlertas} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-mute">Bajo seguimiento</dt>
+                <dd className="font-mono text-lg font-bold text-ink">{formatSoles(totals.monto)}</dd>
+              </div>
+            </dl>
           </div>
           <Link
             href="/reporte/nuevo?modo=entidad"
@@ -134,7 +154,7 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
             value={q}
             onChange={(e) => onQ(e.target.value)}
             placeholder="Buscar por nombre, RUC, región o provincia…"
-            className="w-full rounded-full border border-line bg-paper px-9 py-2 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
+            className="w-full rounded-full border border-line bg-paper px-9 py-2 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
           />
           {pendiente && (
             <Loader2
@@ -200,8 +220,23 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
       {/* List */}
       <div className="divide-y divide-line">
         {sorted.length === 0 && (
-          <div className="px-5 py-12 text-center text-sm text-mute">
-            Sin resultados para esa búsqueda.
+          <div className="flex flex-col items-center gap-3 px-5 py-14 text-center">
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-paperDeep text-mute">
+              <Search size={18} />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-ink">Sin resultados para esa búsqueda</p>
+              <p className="mt-0.5 text-xs text-mute">Probá con otro nombre, RUC, región o provincia.</p>
+            </div>
+            {(query.q || tipoActivo !== "todos") && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-paperDeep"
+              >
+                Quitar filtros
+              </button>
+            )}
           </div>
         )}
         {sorted.map((e, i) => (
@@ -235,14 +270,14 @@ function EntidadRow({
   rank: number;
   sortKey: SortKey;
 }) {
-  const tipoColor: Record<TipoEntidad, string> = {
-    municipal_distrital: "bg-amber-soft text-amber",
-    municipal_provincial: "bg-amber-soft text-amber",
-    gobierno_regional: "bg-crimson-soft text-rust",
-    ministerio: "bg-paperDeep text-ink",
-    empresa_publica: "bg-amber-soft text-clay",
-    organismo_autonomo: "bg-paperDeep text-mute",
-  };
+  // Antes: un color de advertencia/error distinto por tipo (ámbar para municipalidades, óxido
+  // para gobiernos regionales, terracota para empresas públicas) — el tipo de entidad no es un
+  // nivel de riesgo, así que un Gobierno Regional leía "más peligroso" que un Ministerio solo
+  // por su naturaleza jurídica. Un solo chip neutro para los 6 tipos, igual que el badge de
+  // tipo en la ficha. Además, buena parte de las entidades reales llegan sin `tipo` clasificado
+  // desde la API — antes eso rendía un chip vacío (ni texto ni color); ahora cae al mismo
+  // rótulo que ya usa la ficha para ese caso ("Organismo Autónomo").
+  const tipoLabel = TIPO_SHORT[ent.tipo] ?? TIPO_SHORT.organismo_autonomo;
   return (
     <Link
       href={`/entidad/${ent.ruc}`}
@@ -255,13 +290,8 @@ function EntidadRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-[10px] text-mute">RUC {ent.ruc}</span>
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider",
-              tipoColor[ent.tipo],
-            )}
-          >
-            {TIPO_SHORT[ent.tipo]}
+          <span className="rounded-full bg-paperDeep px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-inkSoft">
+            {tipoLabel}
           </span>
           <span className="text-[10px] text-mute">{ent.region}</span>
         </div>
@@ -271,7 +301,7 @@ function EntidadRow({
         <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-mute">
           <span>
             <FileText size={10} className="mr-1 inline" />
-            {(ent.contratos ?? 0).toLocaleString("es-PE")} contratos · {ent.contratosVigilados ?? 0} con alertas
+            {(ent.contratos ?? 0).toLocaleString("es-PE")} contratos · {(ent.contratosVigilados ?? 0).toLocaleString("es-PE")} con alertas
           </span>
         </div>
       </div>
@@ -298,7 +328,7 @@ function EntidadRow({
           big
         />
       </div>
-      <ChevronRight size={16} className="text-mute group-hover:text-clay" />
+      <ChevronRight size={16} className="text-mute transition-colors group-hover:text-heroViolet" />
     </Link>
   );
 }
@@ -320,7 +350,7 @@ function KPIBlock({
         className={cn(
           "font-mono font-bold tabular-nums",
           big ? "text-lg" : "text-sm",
-          highlight ? "text-clay" : "text-ink",
+          highlight ? "text-heroViolet" : "text-ink",
         )}
       >
         {value}

@@ -33,7 +33,7 @@ export function TracePhaseGroup({ group, forceOpen }: { group: { agent: string; 
           {visual.icon} {visual.label}
         </span>
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-mute">{resumen}</span>
-        {hasThought && !hasError && <Sparkles size={12} className="shrink-0 text-clay" />}
+        {hasThought && !hasError && <Sparkles size={12} className="shrink-0 text-heroViolet" />}
         {hasError && <span className="shrink-0 rounded bg-rust px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-paper">⚠ error</span>}
         <span className="shrink-0 rounded-full bg-paperDeep px-1.5 py-0.5 font-mono text-[9px] text-mute">{events.length}</span>
       </button>

@@ -89,7 +89,7 @@ export function QuickAccessPanel({
               type="button"
               onClick={handleShuffleSeace}
               disabled={randomLoading}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-rust px-2 py-2 text-[11px] font-bold text-paper transition-colors hover:bg-rust/90 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-heroViolet px-2 py-2 text-[11px] font-bold text-paper transition-colors hover:bg-heroViolet/90 disabled:opacity-50"
               title="Pickea una convocatoria del SEACE que aún no se analizó y dispara los agentes"
             >
               <Shuffle size={12} className={randomLoading ? "animate-spin" : ""} />

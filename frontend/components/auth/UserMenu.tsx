@@ -80,7 +80,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
           onClick={() => setOpen(false)}
           className={cn("flex items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-ink hover:bg-paper", pathname.startsWith(it.href) && "bg-paper")}
         >
-          <it.icon size={14} className="text-clay" aria-hidden />
+          <it.icon size={14} className="text-heroViolet" aria-hidden />
           <span className="leading-tight">
             <span className="block">{it.label}</span>
             <span className="block text-[10px] text-mute">{it.hint}</span>
@@ -108,7 +108,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
           open && "bg-paperDeep",
         )}
       >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-clay text-paper"><UserIcon size={12} aria-hidden /></span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-heroViolet text-paper"><UserIcon size={12} aria-hidden /></span>
         <span className={cn("truncate font-mono text-xs", variant === "sidebar" ? "flex-1" : "hidden max-w-[120px] sm:inline")}>{userId}</span>
         <ChevronDown size={13} className={cn("shrink-0 text-mute transition-transform", open && "rotate-180")} aria-hidden />
       </button>

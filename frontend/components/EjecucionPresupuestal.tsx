@@ -102,7 +102,7 @@ export async function EjecucionPresupuestal({
             href="https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx"
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-clay hover:underline"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-heroViolet hover:underline"
           >
             Abrir Consulta Amigable MEF →
           </a>
@@ -291,7 +291,7 @@ function EjecucionView({
           href="https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-clay hover:underline"
+          className="inline-flex items-center gap-1 text-heroViolet hover:underline"
         >
           <ExternalLink size={11} />
           MEF — Datos Abiertos · comparativo_gastos_2022_2026
@@ -306,11 +306,11 @@ function EjecucionView({
 function Header({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="flex items-start gap-3 border-b border-line bg-paperDeep px-5 py-4">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-clay text-paper">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-heroViolet text-paper">
         <Database size={16} />
       </div>
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
           MEF · Datos Abiertos
         </div>
         <h3 className="font-serif text-lg font-bold text-ink">{title}</h3>

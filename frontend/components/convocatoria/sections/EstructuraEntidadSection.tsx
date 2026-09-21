@@ -20,7 +20,7 @@ export function EstructuraEntidadSection({
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <Network size={11} className="mr-1 inline" />
           Estructura de la entidad contratante
         </div>
@@ -37,7 +37,7 @@ export function EstructuraEntidadSection({
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* AUTORIDADES ELECTAS — Capa 2 */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             🗳️ Autoridades electas (período 2023-2026)
           </h3>
           {!alcaldeP && !alcaldeD && !gobernador && regidores.length === 0 ? (
@@ -59,7 +59,7 @@ export function EstructuraEntidadSection({
                   </div>
                   {alcaldeP.fuente_url && (
                     <a href={alcaldeP.fuente_url} target="_blank" rel="noreferrer"
-                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-clay hover:underline">
+                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
                       <ExternalLink size={9} /> Fuente JNE
                     </a>
                   )}
@@ -81,7 +81,7 @@ export function EstructuraEntidadSection({
               {gobernador && (
                 <li className="rounded-md bg-paper px-3 py-2">
                   <div className="flex items-baseline gap-2">
-                    <span className="rounded-full bg-clay/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-clay">
+                    <span className="rounded-full bg-heroViolet/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-heroViolet">
                       Gobernador Regional
                     </span>
                     <strong className="text-ink">{gobernador.nombre}</strong>
@@ -112,7 +112,7 @@ export function EstructuraEntidadSection({
 
         {/* FUNCIONARIOS DESIGNADOS — Capa 3 */}
         <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             👔 Funcionarios designados de confianza
           </h3>
           {funcionarios.length === 0 ? (
@@ -130,7 +130,7 @@ export function EstructuraEntidadSection({
                       {f.cargo || "Funcionario"}
                     </span>
                     {f.vigente && (
-                      <span className="rounded-full bg-clay/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-clay">
+                      <span className="rounded-full bg-heroGreen/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-heroGreen">
                         vigente
                       </span>
                     )}
@@ -148,7 +148,7 @@ export function EstructuraEntidadSection({
                     )}
                     {f.fuente_url && (
                       <a href={f.fuente_url} target="_blank" rel="noreferrer"
-                         className="inline-flex items-center gap-0.5 text-clay hover:underline">
+                         className="inline-flex items-center gap-0.5 text-heroViolet hover:underline">
                         <ExternalLink size={9} /> Fuente
                       </a>
                     )}
@@ -171,7 +171,7 @@ export function EstructuraEntidadSection({
                     {r.objeto && <span className="ml-1 italic text-inkSoft">— {r.objeto}</span>}
                     {r.url && (
                       <a href={r.url} target="_blank" rel="noreferrer"
-                         className="ml-1 text-clay hover:underline">
+                         className="ml-1 text-heroViolet hover:underline">
                         <ExternalLink size={9} className="inline" />
                       </a>
                     )}

@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { entidadById, TIPO_LABELS, type Entidad } from "@/lib/mock-entities";
 import { formatSoles, severidadColor } from "@/lib/mock-data";
-import { MESES_SERIE } from "@/lib/peru-data";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
 import { Suspense } from "react";
@@ -98,7 +97,7 @@ export default async function EntidadProfile({
       <header className="surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-line bg-paperDeep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-clay">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-line bg-paperDeep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
               <Building2 size={11} /> {TIPO_LABELS[ent.tipo]}
             </div>
             <h1 className="font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
@@ -132,19 +131,19 @@ export default async function EntidadProfile({
           label="Alertas automáticas"
           value={ent.alertas}
           hint="banderas detectadas"
-          tone="amber"
+          tone={ent.alertas > 0 ? "amber" : "ink"}
         />
         <KPI
           icon={<Users size={16} />}
           label="Reportes ciudadanos"
           value={ent.reportes}
           hint="sobre esta entidad"
-          tone="crimson"
+          tone={ent.reportes > 0 ? "crimson" : "ink"}
         />
         <KPI
           icon={<FileText size={16} />}
           label="Contratos vigilados"
-          value={`${ent.contratosVigilados} / ${ent.contratos}`}
+          value={`${ent.contratosVigilados.toLocaleString("es-PE")} / ${ent.contratos.toLocaleString("es-PE")}`}
           hint="con seguimiento activo"
           tone="ink"
         />
@@ -153,7 +152,7 @@ export default async function EntidadProfile({
           label="Monto vigilado"
           value={formatSoles(ent.monto)}
           hint={`score promedio ${ent.scorePromedio}/100`}
-          tone="clay"
+          tone="heroViolet"
         />
       </section>
 
@@ -165,7 +164,7 @@ export default async function EntidadProfile({
               <h3 className="font-serif text-lg font-bold text-ink">Contratos de esta entidad sin leer</h3>
               <p className="text-xs text-mute">Convocatorias de los últimos 90 días (OECE) que Vigía todavía no analizó.</p>
             </div>
-            <Activity size={18} className="text-clay" />
+            <Activity size={18} className="text-heroViolet" />
           </div>
           <div className="mt-4 flex flex-wrap items-end gap-6">
             <div>
@@ -234,9 +233,14 @@ export default async function EntidadProfile({
           </div>
         </div>
         {alertasRel.length === 0 ? (
-          <div className="px-6 py-12 text-center text-sm text-mute">
-            Sin alertas automáticas registradas a la fecha. Esto puede cambiar tras
-            cada ingesta diaria o tras un reporte ciudadano.
+          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-paperDeep text-mute">
+              <FileText size={18} />
+            </span>
+            <p className="max-w-sm text-sm text-mute">
+              Sin alertas automáticas registradas a la fecha. Esto puede cambiar tras
+              cada ingesta diaria o tras un reporte ciudadano.
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-line">
@@ -244,7 +248,7 @@ export default async function EntidadProfile({
               <li key={a.id}>
                 <Link
                   href={`/alerta/${a.id}`}
-                  className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-paperDeep"
+                  className="group flex items-center gap-4 px-6 py-4 transition-colors hover:bg-paperDeep"
                 >
                   <div className="flex h-12 w-12 flex-col items-center justify-center rounded-xl bg-ink text-paper">
                     <span className="text-xl font-bold leading-none">{a.score}</span>
@@ -284,7 +288,7 @@ export default async function EntidadProfile({
                         : "proveedor no identificado"}
                     </div>
                   </div>
-                  <ExternalLink size={16} className="text-mute" />
+                  <ExternalLink size={16} className="text-mute transition-colors group-hover:text-heroViolet" />
                 </Link>
               </li>
             ))}
@@ -306,13 +310,13 @@ function KPI({
   label: string;
   value: number | string;
   hint: string;
-  tone: "amber" | "crimson" | "ink" | "clay";
+  tone: "amber" | "crimson" | "ink" | "heroViolet";
 }) {
   const styles = {
     amber: "bg-amber-soft text-amber",
     crimson: "bg-crimson-soft text-rust",
     ink: "bg-paperDeep text-ink",
-    clay: "bg-paperDeep text-clay",
+    heroViolet: "bg-heroViolet-soft text-heroViolet",
   }[tone];
   return (
     <div className="surface p-5">
@@ -349,19 +353,18 @@ function mefSearchKeywordFor(e: ReturnType<typeof entidadById>): string {
 }
 
 function ScoreBar({ value }: { value: number }) {
-  const color =
-    value >= 80
-      ? "#7A2E18"
-      : value >= 60
-        ? "#A05A1F"
-        : value >= 30
-          ? "#C28840"
-          : "#3D5C2D";
+  // Antes usaba hex sueltos de la escala secuencial del choropleth (calor geográfico) más un
+  // verde legacy que ya no existe en la paleta — una mezcla sin relación con la semántica de
+  // estado real del resto del sitio. Mismos tokens que el resto de la ficha: rust/amber/clay
+  // para los tres niveles de riesgo, moss para "sin riesgo agregado" (mismo verde de
+  // "verificado/positivo" que usa el resto de la app).
+  const tono =
+    value >= 80 ? "bg-rust" : value >= 60 ? "bg-amber" : value >= 30 ? "bg-clay" : "bg-moss";
   return (
     <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-paperDeep">
       <div
-        className="h-full transition-[width] duration-700 ease-out"
-        style={{ width: `${value}%`, background: color }}
+        className={`h-full transition-[width] duration-700 ease-out ${tono}`}
+        style={{ width: `${value}%` }}
       />
     </div>
   );

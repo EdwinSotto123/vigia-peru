@@ -7,7 +7,7 @@ import { Dni, PersonName, redactDnis } from "../../Redact";
 export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: any; banderasSugeridas: any[] }) {
   return (
     <section className="surface p-5">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
         <Building2 size={11} className="mr-1 inline" />
         Empresa adjudicataria · perfil completo (web_research_agent)
       </div>
@@ -49,7 +49,7 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
       </dl>
       {(empresa.socios || []).length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
             Socios y representantes · {empresa.socios.length}
           </div>
           <ul className="mt-1.5 space-y-1">
@@ -58,7 +58,7 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
                 <strong className="text-ink"><PersonName name={s.nombre} /></strong>
                 {s.dni && <span className="ml-1.5 font-mono text-mute">DNI <Dni value={s.dni} /></span>}
                 {s.participacion && <span className="ml-1.5 text-mute">· {s.participacion}</span>}
-                {s.cargo && <span className="ml-1.5 text-clay">· {s.cargo}</span>}
+                {s.cargo && <span className="ml-1.5 text-heroViolet">· {s.cargo}</span>}
               </li>
             ))}
           </ul>

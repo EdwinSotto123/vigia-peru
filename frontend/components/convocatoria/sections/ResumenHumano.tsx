@@ -152,7 +152,7 @@ export function ResumenHumano({
             {ganador?.nombre || <span className="italic text-mute">Sin adjudicación</span>}
           </div>
           {ganador?.ruc && (
-            <div className="mt-0.5 font-mono text-[10px] text-clay">RUC {ganador.ruc}</div>
+            <div className="mt-0.5 font-mono text-[10px] text-heroViolet">RUC {ganador.ruc}</div>
           )}
         </div>
       </div>

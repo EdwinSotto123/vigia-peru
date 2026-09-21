@@ -10,7 +10,7 @@ export function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
           <ScanSearch size={11} className="mr-1 inline" />
           Fuentes consultadas · {hallazgos.length} cruzadas · {conHallazgos} con hallazgos · {sinMenciones} sin coincidencia
         </div>
@@ -36,7 +36,7 @@ export function FuentesConsultadasSection({ hallazgos }: { hallazgos: any[] }) {
                         <div className="text-[10px] leading-snug text-mute">{h.mensaje}</div>
                       </div>
                       {h.url && (
-                        <a href={h.url} target="_blank" rel="noreferrer" className="shrink-0 text-clay hover:underline">
+                        <a href={h.url} target="_blank" rel="noreferrer" className="shrink-0 text-heroViolet hover:underline">
                           <ExternalLink size={10} />
                         </a>
                       )}

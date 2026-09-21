@@ -75,7 +75,7 @@ export function ShareableHeader({
             onClick={handleShare}
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-paper transition-colors",
-              copied ? "bg-moss" : "bg-clay hover:bg-clay/90",
+              copied ? "bg-moss" : "bg-heroViolet hover:bg-heroViolet/90",
             )}
             title={copied ? "Link copiado" : "Copiar link compartible"}
           >

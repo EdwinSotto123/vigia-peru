@@ -13,7 +13,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
       <div className="border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <Scale size={11} className="mr-1 inline" />
               evaluate_normative_compliance · RAG sobre 723 opiniones OECE
             </div>
@@ -22,7 +22,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
             </h2>
           </div>
           <div className="shrink-0 text-right">
-            <div className="font-mono text-2xl font-bold text-clay">{evals.length}</div>
+            <div className="font-mono text-2xl font-bold text-heroViolet">{evals.length}</div>
             <div className="text-[10px] uppercase tracking-wider text-mute">hallazgos evaluados</div>
           </div>
         </div>
@@ -56,7 +56,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                 return (
                   <tr key={i} className="border-b border-line/50 align-top hover:bg-paper">
                     <td className="px-3 py-2 text-mute">
-                      <span className="rounded bg-paperDeep px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-clay">
+                      <span className="rounded bg-paperDeep px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-heroViolet">
                         {(h.fuente || "").replace(/_/g, " ")}
                       </span>
                     </td>
@@ -92,7 +92,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                           )}
                           {op.link && (
                             <a href={op.link} target="_blank" rel="noreferrer"
-                               className="mt-1 inline-flex items-center gap-1 rounded-md bg-clay px-2 py-0.5 text-[10px] font-bold text-paper hover:bg-clay/80">
+                               className="mt-1 inline-flex items-center gap-1 rounded-md bg-heroViolet px-2 py-0.5 text-[10px] font-bold text-paper hover:bg-heroViolet/80">
                               Abrir opinión <ExternalLink size={9} />
                             </a>
                           )}
@@ -103,7 +103,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                     </td>
                     <td className="px-3 py-2 text-right">
                       {op?.score != null ? (
-                        <span className="font-mono text-[11px] font-bold text-clay">
+                        <span className="font-mono text-[11px] font-bold text-heroViolet">
                           {(op.score * 100).toFixed(0)}%
                         </span>
                       ) : (

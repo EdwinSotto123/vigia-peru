@@ -34,7 +34,7 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="surface relative isolate overflow-hidden p-6 sm:p-8">
         <div aria-hidden className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-amber/15 blur-3xl" />
-        <div aria-hidden className="absolute -left-32 -bottom-32 -z-10 h-80 w-80 rounded-full bg-clay/10 blur-3xl" />
+        <div aria-hidden className="absolute -left-32 -bottom-32 -z-10 h-80 w-80 rounded-full bg-heroViolet/10 blur-3xl" />
 
         {/* HEADER */}
         <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -49,7 +49,7 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
             <p className="mt-0.5 font-mono text-xs text-mute">convocatoria {codigo} · {STEPS.length} pasos</p>
           </div>
           <div className="text-right">
-            <div className="font-mono text-3xl font-bold tabular-nums text-clay">{progressPct}%</div>
+            <div className="font-mono text-3xl font-bold tabular-nums text-heroViolet">{progressPct}%</div>
             <div className="text-[10px] uppercase tracking-widest text-mute">progreso estimado</div>
           </div>
         </div>
@@ -57,7 +57,7 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
         {/* PROGRESS BAR GLOBAL */}
         <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-paperDeep">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-amber via-clay to-moss transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-amber via-heroViolet to-moss transition-all duration-500"
             style={{ width: `${progressPct}%` }}
           />
         </div>

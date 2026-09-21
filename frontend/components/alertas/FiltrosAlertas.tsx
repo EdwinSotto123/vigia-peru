@@ -20,14 +20,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { alertasQueryString, type AlertasQuery, type EstadoAlerta } from "@/lib/alertas-query";
-
-const ESTADOS: { value: EstadoAlerta; label: string }[] = [
-  { value: "activa", label: "Activa" },
-  { value: "confirmada", label: "Confirmada" },
-  { value: "descartada", label: "Descartada" },
-  { value: "en_revision", label: "En revisión" },
-];
+import { alertasQueryString, ESTADOS_ALERTA, type AlertasQuery, type EstadoAlerta } from "@/lib/alertas-query";
 
 const SCORE_PRESETS: { value: number | undefined; label: string }[] = [
   { value: undefined, label: "Cualquiera" },
@@ -69,7 +62,10 @@ export function FiltrosAlertas({ query }: { query: AlertasQuery }) {
   };
 
   const hayFiltros = !!(query.region || query.estado || query.scoreMin != null);
-  const campo = "h-9 rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none focus:border-clay";
+  // heroViolet es el color de foco/acción del sitio (ver tailwind.config.ts); "clay" es
+  // semántica de advertencia real (EstadoPill, Bitacora) y no debe usarse en un input de
+  // texto sin motivo de estado — antes ambos campos usaban focus:border-clay decorativo.
+  const campo = "h-9 rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none transition-colors focus:border-heroViolet";
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -91,8 +87,8 @@ export function FiltrosAlertas({ query }: { query: AlertasQuery }) {
         aria-label="Filtrar por estado"
       >
         <option value="">Todo estado</option>
-        {ESTADOS.map((e) => (
-          <option key={e.value} value={e.value}>{e.label}</option>
+        {(Object.keys(ESTADOS_ALERTA) as EstadoAlerta[]).map((v) => (
+          <option key={v} value={v}>{ESTADOS_ALERTA[v].label}</option>
         ))}
       </select>
 
@@ -117,7 +113,7 @@ export function FiltrosAlertas({ query }: { query: AlertasQuery }) {
         <button
           type="button"
           onClick={limpiarTodo}
-          className="inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-2.5 py-2 text-[12px] text-mute hover:text-ink"
+          className="inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-2.5 py-2 text-[12px] text-mute transition-colors hover:bg-paperDeep hover:text-ink"
         >
           <X size={12} aria-hidden /> Limpiar
         </button>

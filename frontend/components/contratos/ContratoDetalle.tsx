@@ -70,7 +70,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           {/* Datos */}
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-line bg-paper p-4 text-sm sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-line bg-paper p-4 text-sm shadow-card sm:grid-cols-4">
             <Dato k="Valor referencial" v={formatMonto(c.montoPen, c.moneda)} mono />
             <Dato k="Convocatoria" v={formatFecha(c.fecha)} mono />
             <Dato k="Buena pro" v={formatFecha(c.fechaBuenaPro)} mono />
@@ -104,7 +104,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           <section>
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Ítems ({c.items.length})</h2>
             {c.items.length ? (
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper">
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[560px] text-left text-xs">
                   <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
                     <tr>
@@ -117,7 +117,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                   </thead>
                   <tbody className="divide-y divide-line">
                     {c.items.map((it) => (
-                      <tr key={it.id}>
+                      <tr key={it.id} className="transition-colors hover:bg-paperSoft">
                         <td className="px-3 py-2 font-mono text-mute">{it.posicion}</td>
                         <td className="px-3 py-2 text-ink">
                           {it.descripcion ?? "—"}
@@ -134,7 +134,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                 </table>
               </div>
             ) : (
-              <p className="mt-2 text-sm text-mute">El registro OCDS no trae ítems para este proceso.</p>
+              <p className="mt-2 rounded-2xl border border-dashed border-line bg-paper px-4 py-6 text-center text-sm text-mute">El registro OCDS no trae ítems para este proceso.</p>
             )}
           </section>
 
@@ -142,7 +142,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           {postores.length > 0 && (
             <section aria-labelledby="postores-h">
               <h2 id="postores-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Postores y ofertas ({postores.length})</h2>
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper">
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[560px] text-left text-xs">
                   <caption className="sr-only">Postores con su oferta económica, leídos de las actas del expediente</caption>
                   <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
@@ -160,7 +160,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                       const nat = esPersonaNatural(p.ruc);
                       const dif = p.montoOferta != null && c.montoPen ? ((p.montoOferta - c.montoPen) / c.montoPen) * 100 : null;
                       return (
-                        <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={p.esGanador ? "bg-moss/5" : undefined}>
+                        <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={cn("transition-colors hover:bg-paperSoft", p.esGanador && "bg-moss/5")}>
                           <td className="px-3 py-2 font-mono text-mute">{p.ordenPrelacion ?? i + 1}</td>
                           <td className="px-3 py-2 text-ink">
                             {p.razonSocial ? (nat ? <PersonName name={p.razonSocial} /> : p.razonSocial) : "—"}
@@ -185,7 +185,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           {itemsAnalizados.length > 0 && (
             <section aria-labelledby="precios-h">
               <h2 id="precios-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Precio contratado vs. referencia ({itemsAnalizados.length})</h2>
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper">
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
                 <table className="w-full min-w-[620px] text-left text-xs">
                   <caption className="sr-only">Ítems con su precio unitario ofertado o contratado frente al valor referencial</caption>
                   <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
@@ -204,7 +204,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                       const unit = it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
                       const d = unit != null && it.referenciaUnitaria ? ((unit - it.referenciaUnitaria) / it.referenciaUnitaria) * 100 : null;
                       return (
-                        <tr key={it.numero}>
+                        <tr key={it.numero} className="transition-colors hover:bg-paperSoft">
                           <td className="px-3 py-2 font-mono text-mute">{it.numero}</td>
                           <td className="px-3 py-2 text-ink">
                             <span className="line-clamp-2" title={it.descripcion ?? undefined}>{it.descripcion ?? "—"}</span>
@@ -229,7 +229,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
           {senalesConCita.length > 0 && (
             <section aria-labelledby="citas-h">
               <h2 id="citas-h" className="text-[10px] font-bold uppercase tracking-widest text-mute">Dónde dice cada señal en el expediente</h2>
-              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper">
+              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper shadow-card">
                 {senalesConCita.map((b, i) => (
                   <li key={`${b.regla}-${i}`} className="px-4 py-2.5 text-sm">
                     <div className="text-[13px] font-semibold text-ink">{b.regla.replace(/_/g, " ").replace(/^\w/, (x) => x.toUpperCase())}</div>
@@ -291,7 +291,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
 
   if (estado === "esperando_documentos") {
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4">
+      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
         <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
           <Clock size={12} className="text-clay" /> Esperando documentos
         </h2>
@@ -313,7 +313,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
 
   if (estado === "pendiente_de_procesamiento" || c.procesable === false) {
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4">
+      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
         <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
           <Clock size={12} className="text-clay" /> Pendiente de procesamiento
         </h2>
@@ -330,7 +330,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
   if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
     const listo = c.estadoOperativo === "documentos_listos";
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4">
+      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
         <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
           <Clock size={12} className={listo ? "text-moss" : "text-mute"} /> {listo ? "Documentos listos para procesarse" : "Análisis en preparación"}
         </h2>
@@ -346,17 +346,21 @@ function AnalisisCard({ c }: { c: Detalle }) {
 
   // sin_analizar (o procesado sin alerta legible)
   return (
-    <section className="rounded-2xl border border-line bg-paper p-4">
+    <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
       <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-        <ShieldAlert size={12} className="text-amber" /> Sin analizar
+        {/* mute, no amber: "sin analizar" es el estado neutral/mayoritario (así se pinta en
+            la píldora de la lista y en la leyenda del mapa), no una advertencia real. */}
+        <ShieldAlert size={12} className="text-mute" /> Sin analizar
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-ink">
         Este contrato espera en la cola{c.zona ? ` de ${c.zona}` : ""}. Los agentes lo leerán cuando alguien financie capacidad de auditoría para su zona; el orden es por llegada, nadie elige cuál.
       </p>
       <Pendientes v={c.clasificacion.validacionesPendientes} />
+      {/* Mismo tratamiento que el CTA "Financiar una auditoría" de Header/Footer:
+          heroViolet es el CTA principal de la marca — bg-ink era el color equivocado. */}
       {c.ubigeo && (
-        <Link href={`/app/financiar/${c.ubigeo}`} className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]">
-          <Heart size={14} className="text-amber" /> Financiar la auditoría de {c.zona ?? "esta zona"}
+        <Link href={`/app/financiar/${c.ubigeo}`} className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
+          <Heart size={14} className="fill-paper text-paper" /> Financiar la auditoría de {c.zona ?? "esta zona"}
         </Link>
       )}
     </section>

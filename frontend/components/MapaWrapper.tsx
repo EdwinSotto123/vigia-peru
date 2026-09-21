@@ -351,7 +351,7 @@ export function MapaWrapper({
               <span className="text-ink">·</span>
               <span className="max-w-[420px] truncate text-ink">{a.objeto}</span>
               <span className="text-ink">·</span>
-              <span className="font-mono text-clay">{formatSoles(a.montoSoles)}</span>
+              <span className="font-mono text-heroViolet">{formatSoles(a.montoSoles)}</span>
             </div>
           ))}
         </Marquee>
@@ -443,14 +443,14 @@ export function MapaWrapper({
                 <Stat label="Alertas" value={alertasApi.length} accent="text-amber" />
                 <Stat label="Denuncias" value={reportes.length} accent="text-rust" />
                 <Stat label="Contratos" value={totalContratos} accent="text-ink" />
-                <Stat label="En cola" value={alcance?.colaFinanciable ?? "—"} accent="text-clay" />
+                <Stat label="En cola" value={alcance?.colaFinanciable ?? "—"} accent="text-heroViolet" />
                 <Stat label="Docs listos" value={alcance?.documentosListos ?? "—"} accent="text-inkSoft" />
               </div>
             ) : (
               <div className="flex items-center gap-2 font-mono text-xs">
                 <button
                   onClick={() => handleSelectRegion(null)}
-                  className="text-mute hover:text-clay"
+                  className="text-mute hover:text-heroViolet"
                 >
                   Perú
                 </button>
@@ -465,7 +465,7 @@ export function MapaWrapper({
                 {distrito && (
                   <>
                     <ChevronRight size={12} className="text-mute" />
-                    <button onClick={mapaContratos.limpiarDistrito} className="text-ink hover:text-clay" title="Quitar filtro de distrito">
+                    <button onClick={mapaContratos.limpiarDistrito} className="text-ink hover:text-heroViolet" title="Quitar filtro de distrito">
                       {distrito.nombre || distrito.ubigeo}
                     </button>
                   </>
@@ -679,7 +679,7 @@ export function MapaWrapper({
                     <div className="h-1 w-10 rounded-full bg-line" />
                   </div>
                   <div className="flex-1 text-left">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-clay">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-heroViolet">
                       {selectedRegion.nombre}
                     </div>
                     <div className="text-xs text-mute">
@@ -741,7 +741,7 @@ function MapSkeleton() {
   return (
     <div className="flex h-[680px] items-center justify-center bg-paperDeep">
       <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-clay/30 border-t-clay" />
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-heroViolet/30 border-t-heroViolet" />
         <p className="mt-3 text-sm text-mute">Cargando mapa…</p>
       </div>
     </div>

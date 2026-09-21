@@ -37,13 +37,15 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
     }
   }
 
-  if (!documentos.length) return <p className="mt-2 text-sm text-mute">Sin documentos publicados en el registro.</p>;
+  if (!documentos.length) {
+    return <p className="mt-2 rounded-2xl border border-dashed border-line bg-paper px-4 py-6 text-center text-sm text-mute">Sin documentos publicados en el registro.</p>;
+  }
 
   return (
     <>
-      <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper">
+      <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper shadow-card">
         {documentos.map((d, i) => (
-          <li key={`${d.url}-${i}`} className={cn("flex items-center gap-2 px-3 py-2 text-sm", abierto?.doc.url === d.url && "bg-paperSoft")}>
+          <li key={`${d.url}-${i}`} className={cn("flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-paperSoft", abierto?.doc.url === d.url && "bg-paperSoft")}>
             <FileText size={14} className="shrink-0 text-mute" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink">{d.titulo ?? tipoDocLabel(d.tipo)}</span>
@@ -72,7 +74,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
       </ul>
       {error && <p className="mt-2 text-[12px] text-rust">{error}</p>}
       {abierto && (
-        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper shadow-card">
           <div className="flex items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-[11px] text-mute">
             <span className="min-w-0 flex-1 truncate text-ink">{abierto.doc.titulo ?? tipoDocLabel(abierto.doc.tipo)}</span>
             {abierto.f.bytes ? <span className="font-mono">{(abierto.f.bytes / 1e6).toFixed(1)} MB</span> : null}

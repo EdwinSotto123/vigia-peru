@@ -71,7 +71,7 @@ export function AlertasDeZona({
           Sin señales de riesgo publicadas en {nombre} todavía. Los contratos de la zona se analizan a
           medida que su auditoría se financia.
         </p>
-        <Link href="/app/financiar" className="mt-3 inline-block text-[11px] font-medium text-clay hover:underline">
+        <Link href="/app/financiar" className="mt-3 inline-block text-[11px] font-medium text-heroViolet hover:underline">
           Financiar la auditoría de {nombre} →
         </Link>
       </div>
@@ -88,7 +88,7 @@ export function AlertasDeZona({
             <li key={a.id ?? a.codigo}>
               <Link
                 href={alertaHref(a)}
-                className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-clay/60 hover:bg-paperDeep"
+                className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
               >
                 <span
                   className={cn(
@@ -103,7 +103,7 @@ export function AlertasDeZona({
                   <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto}</span>
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-mute">
                     {a.entidad && <span className="line-clamp-1 max-w-[180px]">{a.entidad}</span>}
-                    {a.montoSoles > 0 && <span className="font-mono text-clay">{formatSoles(a.montoSoles)}</span>}
+                    {a.montoSoles > 0 && <span className="font-mono text-heroViolet">{formatSoles(a.montoSoles)}</span>}
                     {nBanderas > 0 && (
                       <span className="text-rust">
                         {nBanderas} señal{nBanderas === 1 ? "" : "es"}
@@ -120,7 +120,7 @@ export function AlertasDeZona({
       <p className="text-[10px] leading-relaxed text-mute">
         Señales de riesgo, no acusaciones. Cada una cita la norma y enlaza a la fuente oficial.
       </p>
-      <Link href="/app/alertas" className="block text-center text-[11px] text-mute hover:text-clay hover:underline">
+      <Link href="/app/alertas" className="block text-center text-[11px] text-mute hover:text-heroViolet hover:underline">
         Ver todas las alertas del país →
       </Link>
     </div>

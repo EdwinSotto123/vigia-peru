@@ -88,7 +88,7 @@ function LoginInner() {
                 placeholder="tu_user_id"
                 autoComplete="username"
                 spellCheck={false}
-                className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
+                className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
               />
             </div>
           </div>
@@ -100,7 +100,7 @@ function LoginInner() {
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
-                className="inline-flex items-center gap-1 text-clay hover:underline"
+                className="inline-flex items-center gap-1 text-heroViolet hover:underline"
               >
                 {showPw ? <EyeOff size={11} /> : <Eye size={11} />}
                 {showPw ? "ocultar" : "mostrar"}
@@ -117,7 +117,7 @@ function LoginInner() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••"
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
+                className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
               />
             </div>
           </div>
@@ -149,7 +149,7 @@ function LoginInner() {
 
           <p className="text-center text-xs text-mute">
             ¿Sin cuenta?{" "}
-            <Link href="/signup" className="font-medium text-clay hover:underline">
+            <Link href="/signup" className="font-medium text-heroViolet hover:underline">
               Crear una →
             </Link>
           </p>

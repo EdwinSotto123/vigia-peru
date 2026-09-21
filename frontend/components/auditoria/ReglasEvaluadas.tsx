@@ -51,7 +51,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
         className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
       >
         <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
-          <ListChecks size={13} className="text-clay" aria-hidden />
+          <ListChecks size={13} className="text-heroViolet" aria-hidden />
           {total} reglas evaluadas · {enRevision ? `${nSenales} en revisión` : `${nSenales} señal${nSenales === 1 ? "" : "es"}`}
           {otras.length > 0 && !enRevision && <span className="font-normal text-mute">· {otras.length} de agentes</span>}
         </span>

@@ -49,7 +49,7 @@ export function RegionDetailPanel({
 function EmptyPanel() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 bg-paperSoft p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-paperEdge bg-paperDeep text-clay">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-paperEdge bg-paperDeep text-heroViolet">
         <MapPin size={26} />
       </div>
       <h3 className="font-serif text-xl font-bold text-ink">Toca una región</h3>

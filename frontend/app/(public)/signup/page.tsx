@@ -72,7 +72,7 @@ function SignupInner() {
     <div className="container-page flex min-h-[calc(100vh-200px)] items-center justify-center py-12">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-clay text-paper">
+          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-heroViolet text-paper">
             <Shield size={22} strokeWidth={2.2} />
           </div>
           <h1 className="font-serif text-3xl font-bold text-ink">
@@ -105,7 +105,7 @@ function SignupInner() {
                   "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
                   userIdError
                     ? "border-rust focus:border-rust"
-                    : "border-line focus:border-clay",
+                    : "border-line focus:border-heroViolet",
                 )}
               />
               {userId && !userIdError && (
@@ -133,7 +133,7 @@ function SignupInner() {
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
-                className="inline-flex items-center gap-1 text-clay hover:underline"
+                className="inline-flex items-center gap-1 text-heroViolet hover:underline"
               >
                 {showPw ? <EyeOff size={11} /> : <Eye size={11} />}
                 {showPw ? "ocultar" : "mostrar"}
@@ -154,7 +154,7 @@ function SignupInner() {
                   "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
                   pwError
                     ? "border-rust focus:border-rust"
-                    : "border-line focus:border-clay",
+                    : "border-line focus:border-heroViolet",
                 )}
               />
             </div>
@@ -183,7 +183,7 @@ function SignupInner() {
                   "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
                   password2 && !pwMatch
                     ? "border-rust focus:border-rust"
-                    : "border-line focus:border-clay",
+                    : "border-line focus:border-heroViolet",
                 )}
               />
               {password2 && pwMatch && (
@@ -225,7 +225,7 @@ function SignupInner() {
 
           <p className="text-center text-xs text-mute">
             ¿Ya tienes cuenta?{" "}
-            <Link href="/login" className="font-medium text-clay hover:underline">
+            <Link href="/login" className="font-medium text-heroViolet hover:underline">
               Entrar →
             </Link>
           </p>

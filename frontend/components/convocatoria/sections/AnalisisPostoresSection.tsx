@@ -61,7 +61,7 @@ export function AnalisisPostoresSection({ data }: { data: any }) {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-[10px] font-bold text-clay">RUC {p.ruc}</span>
+                  <span className="font-mono text-[10px] font-bold text-heroViolet">RUC {p.ruc}</span>
                   <span className="line-clamp-1 text-sm font-semibold text-ink">{p.razon_social || "—"}</span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-1">
@@ -115,7 +115,7 @@ export function AnalisisPostoresSection({ data }: { data: any }) {
                       {list.slice(0, 8).map((oc, j) => (
                         <a key={j} href={oeceProcesoUrl(oc)}
                            target="_blank" rel="noreferrer"
-                           className="rounded bg-paperDeep px-1.5 py-0 text-[9px] text-clay hover:bg-paperSoft">
+                           className="rounded bg-paperDeep px-1.5 py-0 text-[9px] text-heroViolet hover:bg-paperSoft">
                           {oc.replace(/^ocds-[a-z0-9]+-seacev3-/i, "")}
                         </a>
                       ))}

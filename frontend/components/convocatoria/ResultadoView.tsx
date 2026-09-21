@@ -139,10 +139,10 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
   const TABS = [
     { key: "resumen",    label: "Resumen",         icon: <ShieldAlert size={13}/>, badge: nBanderas || null, badgeColor: "bg-rust" },
     { key: "dictamen",   label: "Dictamen",        icon: <Pen size={13}/>,         badge: nDictamen ? "✓" : null, badgeColor: "bg-moss" },
-    { key: "items",      label: "Items + Mercado", icon: <Package size={13}/>,     badge: nItems || null,    badgeColor: "bg-clay" },
-    { key: "proveedor",  label: "Proveedor + Red", icon: <Building2 size={13}/>,   badge: nRed || null,      badgeColor: "bg-amber" },
-    { key: "documentos", label: "Documentos",      icon: <FileText size={13}/>,    badge: nDocs || null,     badgeColor: "bg-clay" },
-    { key: "prensa",     label: "Prensa",          icon: <Newspaper size={13}/>,   badge: nNoticias || null, badgeColor: "bg-moss" },
+    { key: "items",      label: "Items + Mercado", icon: <Package size={13}/>,     badge: nItems || null,    badgeColor: "bg-heroViolet" },
+    { key: "proveedor",  label: "Proveedor + Red", icon: <Building2 size={13}/>,   badge: nRed || null,      badgeColor: "bg-heroViolet" },
+    { key: "documentos", label: "Documentos",      icon: <FileText size={13}/>,    badge: nDocs || null,     badgeColor: "bg-heroViolet" },
+    { key: "prensa",     label: "Prensa",          icon: <Newspaper size={13}/>,   badge: nNoticias || null, badgeColor: "bg-heroViolet" },
     { key: "trace",      label: "Auditoría",       icon: <Sparkles size={13}/>,    badge: nEvents || null,   badgeColor: "bg-mute" },
   ] as Array<{ key: string; label: string; icon: any; badge: number | string | null; badgeColor: string }>;
 
@@ -191,14 +191,14 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         {/* PORTADA: resumen ejecutivo del dictamen + CTA — solo en el tab Resumen */}
         {activeTab === "resumen" && _resumenEjecutivo && (
           <div className="surface p-4">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <Pen size={11} /> Resumen ejecutivo
             </div>
             <p className="mt-1.5 text-sm leading-relaxed text-inkSoft line-clamp-4">{_resumenEjecutivo}…</p>
             <button
               type="button"
               onClick={() => setActiveTab("dictamen")}
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-clay px-3 py-1.5 text-xs font-bold text-paper transition-colors hover:bg-rust"
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-heroViolet px-3 py-1.5 text-xs font-bold text-paper transition-colors hover:bg-heroViolet-deep"
             >
               Leer dictamen completo <ChevronRight size={13} />
             </button>
@@ -247,7 +247,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
                   className={cn(
                     "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all",
                     isActive
-                      ? "bg-clay text-paper shadow-card scale-[1.02]"
+                      ? "bg-heroViolet text-paper shadow-card scale-[1.02]"
                       : "bg-paperSoft text-mute hover:bg-paperDeep hover:text-ink",
                   )}
                 >
@@ -276,7 +276,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
       {activeTab === "items" && ((result.items || []).length > 0 || (result.market_analysis?.findings || []).length > 0) && (
         <section className="surface overflow-hidden p-0">
           <div className="border-b border-line bg-paperDeep px-5 py-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
               <Package size={11} className="mr-1 inline" />
               Items convocados · {Math.max(
                 (result.items || []).length,
@@ -470,7 +470,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         <section className="surface overflow-hidden p-0">
           <div className="flex items-center justify-between border-b border-line bg-paperDeep px-5 py-3">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-clay">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
                 <FileText size={11} className="mr-1 inline" />
                 report_writer_agent · {result.dictamen?.gen_meta?.model ?? "Gemini"}
               </div>
@@ -491,9 +491,9 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
               // Headings
               "prose prose-sm lg:prose-base",
               "prose-headings:font-serif prose-headings:text-ink prose-headings:font-bold prose-headings:tracking-tight",
-              "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-4 prose-h1:pb-2 prose-h1:border-b-2 prose-h1:border-clay",
+              "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-4 prose-h1:pb-2 prose-h1:border-b-2 prose-h1:border-heroViolet",
               "prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-line",
-              "prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-clay prose-h3:uppercase prose-h3:tracking-wider prose-h3:font-bold",
+              "prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-heroViolet prose-h3:uppercase prose-h3:tracking-wider prose-h3:font-bold",
               "prose-h4:text-sm prose-h4:mt-4 prose-h4:mb-1.5 prose-h4:font-bold prose-h4:text-ink",
               // Body
               "prose-p:text-ink prose-p:leading-relaxed prose-p:my-2",
@@ -502,13 +502,13 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
               // Lists
               "prose-ul:my-2 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-1",
               "prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-1",
-              "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-clay",
+              "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-heroViolet",
               // Links — break long URLs
-              "prose-a:text-clay prose-a:font-medium prose-a:underline prose-a:decoration-clay/40 hover:prose-a:decoration-clay",
+              "prose-a:text-heroViolet prose-a:font-medium prose-a:underline prose-a:decoration-heroViolet/40 hover:prose-a:decoration-heroViolet",
               "prose-a:break-all", // permite quebrar URLs largas
               // Code & blockquote
-              "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-clay prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
-              "prose-blockquote:border-l-4 prose-blockquote:border-clay prose-blockquote:bg-paperSoft prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:my-3 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
+              "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-heroViolet prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
+              "prose-blockquote:border-l-4 prose-blockquote:border-heroViolet prose-blockquote:bg-paperSoft prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:my-3 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
               // Tables
               "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
               "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-bold prose-th:uppercase prose-th:tracking-wider prose-th:text-[10px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
@@ -535,14 +535,14 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
                       rel="noreferrer"
                       {...props}
                       className={cn(
-                        "text-clay font-medium hover:text-rust transition-colors",
-                        isLongUrl ? "inline-flex items-center gap-1 max-w-full" : "underline decoration-clay/40 hover:decoration-clay",
+                        "text-heroViolet font-medium hover:text-heroViolet-deep transition-colors",
+                        isLongUrl ? "inline-flex items-center gap-1 max-w-full" : "underline decoration-heroViolet/40 hover:decoration-heroViolet",
                       )}
                       title={typeof href === "string" ? href : undefined}
                     >
                       {isLongUrl ? (
                         <>
-                          <span className="truncate max-w-[36ch] underline decoration-clay/40">
+                          <span className="truncate max-w-[36ch] underline decoration-heroViolet/40">
                             {String(children)}
                           </span>
                           <ExternalLink size={10} className="shrink-0" />
@@ -672,7 +672,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
-                <Sparkles size={12} className="text-clay" /> Auditoría técnica
+                <Sparkles size={12} className="text-heroViolet" /> Auditoría técnica
               </div>
               <ChevronRight size={14} className="shrink-0 text-mute" />
             </div>
@@ -693,10 +693,10 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             {(_lm.tokens_total || _lm.cost_usd != null) && (
               <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5 text-[10px] text-mute">
                 <span className="font-mono">{_lm.tokens_total ? `${(_lm.tokens_total / 1000).toFixed(0)}K tokens` : "Gemini + grounding"}</span>
-                {_lm.cost_usd != null && <span className="font-mono text-clay">${Number(_lm.cost_usd).toFixed(3)}</span>}
+                {_lm.cost_usd != null && <span className="font-mono text-heroViolet">${Number(_lm.cost_usd).toFixed(3)}</span>}
               </div>
             )}
-            <div className="mt-1.5 text-[10px] font-medium text-clay">Ver los {nEvents} pasos del pipeline →</div>
+            <div className="mt-1.5 text-[10px] font-medium text-heroViolet">Ver los {nEvents} pasos del pipeline →</div>
           </button>
         )}
       </aside>
@@ -745,7 +745,7 @@ function FallbackText({ title, text, icon }: { title: string; text: string; icon
         </div>
         <p className="mt-1 text-xs text-mute">El JSON estructurado no pudo parsearse — mostramos el texto crudo del agente.</p>
       </div>
-      <article className="prose prose-sm max-w-none px-6 py-4 prose-headings:font-serif prose-headings:text-ink prose-p:text-ink prose-strong:text-ink prose-a:text-clay prose-li:text-ink prose-table:text-xs prose-th:bg-paperDeep prose-th:text-ink prose-td:text-ink">
+      <article className="prose prose-sm max-w-none px-6 py-4 prose-headings:font-serif prose-headings:text-ink prose-p:text-ink prose-strong:text-ink prose-a:text-heroViolet prose-li:text-ink prose-table:text-xs prose-th:bg-paperDeep prose-th:text-ink prose-td:text-ink">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
           p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
           li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,

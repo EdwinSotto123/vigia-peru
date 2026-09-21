@@ -31,7 +31,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
     <div className="space-y-5 px-6 py-8 lg:px-10">
       <PageHeader
         eyebrow="Contratos"
-        icon={<FileSearch size={11} className="text-clay" />}
+        icon={<FileSearch size={11} className="text-heroViolet" />}
         title="Todos los contratos"
         subtitle="Cada convocatoria del SEACE que Vigía ingirió, con su tipo, etapa y estado de análisis. Los que aún no tienen dictamen esperan que alguien financie la capacidad de leerlos."
       />

@@ -31,7 +31,7 @@ export function SeguirZonaBoton({ ubigeo, nombre, className }: { ubigeo: string;
       title={activo ? `Dejar de seguir ${nombre}` : `Seguir ${nombre}: se resalta en "Mis zonas" y aparece en Mi impacto`}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-60",
-        activo ? "border-amber bg-amber-soft text-ink" : "border-line bg-paperSoft text-mute hover:bg-paper hover:text-ink",
+        activo ? "border-heroGreen bg-heroGreen-soft text-ink" : "border-line bg-paperSoft text-mute hover:bg-paper hover:text-ink",
         className,
       )}
     >
