@@ -65,14 +65,18 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
   const procesados = estado?.contratosProcesados ?? 0;
   const usarProcesados = senales === 0 && procesados > 0;
 
+  // Antes era un <p> de texto suelto debajo de 4 tarjetas de KPI — misma inconsistencia
+  // que ya se corrigió en TarjetaAliado: la única línea sin tratamiento de tarjeta al
+  // lado de todo lo que sí lo tiene. Ahora es una píldora propia, mismo lenguaje que el
+  // badge "Plataforma cívica" de arriba del hero (borde + fondo tintado, no texto plano).
   const actualizado = (
-    <p
-      className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-mute"
+    <div
+      className="mt-3 inline-flex items-center gap-2 rounded-full border border-moss/30 bg-moss/10 py-1.5 pl-2.5 pr-3.5 text-[11px] font-semibold uppercase tracking-wide text-moss"
       title={ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : undefined}
     >
       <PulseDot color="moss" size={6} />
       Tablero público · se actualiza solo
-    </p>
+    </div>
   );
 
   if (zona) {
