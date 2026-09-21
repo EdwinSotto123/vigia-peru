@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Landmark, Radio } from "lucide-react";
-import { CampaignMap } from "@/components/financiar/CampaignMap";
+import { ArrowRight, Landmark } from "lucide-react";
+import { getAlertas } from "@/lib/api-client";
 import { PeruFlag } from "./CountryFlags";
 import { HeroKpis } from "./HeroKpis";
-import { LlamaHero } from "./LlamaHero";
-import { UBIGEO_REGION } from "@/components/mapa/region-match";
+import { HeroMapPanel } from "./HeroMapPanel";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
 /**
@@ -13,9 +12,16 @@ import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
  * la sección "MapaHub" + el mapa de "Financia".
  */
 export async function HeroCompacto() {
-  const [estado, zonas] = await Promise.all([getEstadoGlobal(), getZonas("departamento")]);
+  const [estado, zonas, alertas] = await Promise.all([
+    getEstadoGlobal(),
+    getZonas("departamento"),
+    getAlertas({ limit: 30 }).catch(() => []),
+  ]);
   const top = [...(zonas ?? [])].filter((z) => z.totalCola > 0).sort((a, b) => b.totalCola - a.totalCola).slice(0, 5);
   const precio = estado?.tarifa.precioPen ?? 3;
+  // Contrato "destacado" de la tarjeta flotante: real, el de mayor score con
+  // entidad/objeto presentables — no el primero de la lista, para no mostrar un caso pobre.
+  const featured = [...alertas].filter((a) => a.entidad && a.objeto).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
 
   return (
     <section id="inicio" className="relative overflow-hidden border-b border-line bg-paper">
@@ -48,30 +54,7 @@ export async function HeroCompacto() {
             <HeroKpis initial={estado} />
           </div>
 
-          <div className="relative">
-            <div className="overflow-hidden rounded-3xl border border-line bg-paperSoft shadow-card">
-              <div className="flex items-center justify-between border-b border-line bg-paper px-4 py-2.5">
-                <span className="inline-flex items-center gap-2 text-xs font-semibold text-ink"><Radio size={12} className="text-rust" /> Mapa de auditoría · toca una región</span>
-                <span className="font-mono text-[10px] text-mute">SEACE · OECE · OCDS</span>
-              </div>
-              <div className="p-4 sm:p-5">
-                {zonas ? <CampaignMap zonas={zonas} compact linkToHub /> : <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>}
-              </div>
-            </div>
-            <LlamaHero width={168} className="pointer-events-none absolute -bottom-6 -right-4 hidden drop-shadow-xl sm:block" />
-            {top.length > 0 && (
-              <ul className="mt-3 grid grid-cols-5 gap-2 text-center">
-                {top.map((z) => (
-                  <li key={z.ubigeo}>
-                    <Link href={`/app/mapa?region=${UBIGEO_REGION[z.ubigeo] ?? ""}`} className="block rounded-xl border border-line bg-paper px-2 py-2 hover:bg-paperDeep">
-                      <div className="truncate text-[11px] font-semibold text-ink">{z.nombre}</div>
-                      <div className="font-mono text-[11px] text-mute">{z.totalCola.toLocaleString("es-PE")}</div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <HeroMapPanel zonas={zonas ?? []} top={top} featured={featured} />
         </div>
       </div>
     </section>

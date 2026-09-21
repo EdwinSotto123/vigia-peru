@@ -33,9 +33,10 @@ interface Props {
   compact?: boolean;             // versión landing: sin panel, solo mapa + leyenda
   initialUbigeo?: string | null; // abrir ya en un departamento
   linkToHub?: boolean;           // compact: clic en un departamento → /app/mapa?region=… (el único mapa interactivo)
+  onRegionClick?: (code: string) => void; // compact: si se pasa, el clic llama esto en vez de navegar (p.ej. hero: abre una tarjeta flotante con la zona real)
 }
 
-export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false }: Props) {
+export function CampaignMap({ zonas, compact = false, initialUbigeo = null, linkToHub = false, onRegionClick }: Props) {
   const router = useRouter();
   const [depts, setDepts] = useState<DeptFC | null>(null);
   const [provs, setProvs] = useState<ProvFC | null>(null);
@@ -143,11 +144,15 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
                     stroke="#FFFFFF"
                     strokeWidth={isSel ? 0.6 : 0.9}
                     opacity={dim ? 0.25 : 1}
-                    className={compact && !linkToHub ? "" : "cursor-pointer transition-opacity"}
+                    className={compact && !linkToHub && !onRegionClick ? "" : "cursor-pointer transition-opacity"}
                     onMouseEnter={() => setHover(p.code)}
                     onMouseLeave={() => setHover(null)}
                     onClick={() => {
-                      if (compact) { if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`); return; }
+                      if (compact) {
+                        if (onRegionClick) { onRegionClick(p.code); return; }
+                        if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
+                        return;
+                      }
                       setSelected(isSel ? null : p.code);
                     }}
                   />
