@@ -116,7 +116,7 @@ export function Footer() {
             <a href="mailto:prensa@vigiaperu.org">
               Acceso periodistas
             </a>
-            <Link href="/preguntas#transparencia">Cuentas claras</Link>
+            <Link href="/preguntas#cuentas">Cuentas claras</Link>
           </FooterCol>
         </div>
 

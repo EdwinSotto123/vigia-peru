@@ -56,7 +56,7 @@ export function ConfianzaSection() {
             <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreen">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
             <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
           </div>
-          <Link href="/preguntas#transparencia" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>
+          <Link href="/preguntas#cuentas" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>
         </BlurFade>
       </div>
     </section>

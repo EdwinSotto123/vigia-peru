@@ -138,6 +138,15 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
               const z = byUbigeo.get(p.code);
               const isSel = selected === p.code;
               const dim = selected && !isSel;
+              const interactivo = !(compact && !linkToHub && !onRegionClick);
+              const activar = () => {
+                if (compact) {
+                  if (onRegionClick) { onRegionClick(p.code, p.centroid); return; }
+                  if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
+                  return;
+                }
+                setSelected(isSel ? null : p.code);
+              };
               return (
                 <g key={p.code}>
                   <path
@@ -146,16 +155,17 @@ export function CampaignMap({ zonas, compact = false, initialUbigeo = null, link
                     stroke="#FFFFFF"
                     strokeWidth={isSel ? 0.6 : 0.9}
                     opacity={dim ? 0.25 : 1}
-                    className={compact && !linkToHub && !onRegionClick ? "" : "cursor-pointer transition-opacity"}
+                    className={interactivo ? "cursor-pointer transition-opacity" : ""}
+                    tabIndex={interactivo ? 0 : undefined}
+                    role={interactivo ? "button" : undefined}
+                    aria-label={interactivo ? p.name : undefined}
                     onMouseEnter={() => setHover(p.code)}
                     onMouseLeave={() => setHover(null)}
-                    onClick={() => {
-                      if (compact) {
-                        if (onRegionClick) { onRegionClick(p.code, p.centroid); return; }
-                        if (linkToHub) router.push(`/app/mapa?region=${UBIGEO_REGION[p.code] ?? ""}`);
-                        return;
-                      }
-                      setSelected(isSel ? null : p.code);
+                    onFocus={() => setHover(p.code)}
+                    onBlur={() => setHover(null)}
+                    onClick={activar}
+                    onKeyDown={(e) => {
+                      if (interactivo && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); activar(); }
                     }}
                   />
                   {z?.estado === "pendiente" && !sinFinanciamiento && !dim && (

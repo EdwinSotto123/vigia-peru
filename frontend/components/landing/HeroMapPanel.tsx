@@ -10,7 +10,7 @@
 
 import { AlertTriangle, ArrowUpRight, MapPin, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CampaignMap, VB_H, VB_W } from "@/components/financiar/CampaignMap";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { Zona } from "@/lib/financiamiento";
@@ -50,6 +50,14 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
     setClickedCentroid(null);
   }
 
+  // Clic/Enter en el mapa es la única vía a esta tarjeta (el mapa no es alcanzable con
+  // mouse only de otra forma) — sin mover el foco acá, un usuario de teclado la abre pero
+  // el foco se queda perdido en el <path> de atrás.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (clicked) cardRef.current?.focus();
+  }, [clicked]);
+
   // Ancla la tarjeta cerca del punto real del clic (no una esquina fija): porcentaje
   // relativo al contenedor + flip de borde para que nunca se salga del mapa — crítico
   // para regiones del sur/este (p.ej. Puno), que antes siempre abrían arriba-izquierda.
@@ -77,7 +85,11 @@ export function HeroMapPanel({ zonas, top, featured }: { zonas: Zona[]; top: Zon
       {/* Tarjeta flotante: región elegida (datos reales, no fijos) */}
       {clicked && (
         <div
-          className={`animate-slideUp absolute z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur ${cardStyle ? "" : "left-1 top-1"}`}
+          ref={cardRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-label={clicked.nombre}
+          className={`animate-slideUp absolute z-10 w-[235px] rounded-2xl border border-line bg-paper/95 p-3 shadow-paper backdrop-blur focus:outline-none ${cardStyle ? "" : "left-1 top-1"}`}
           style={cardStyle ?? undefined}
         >
           <button
