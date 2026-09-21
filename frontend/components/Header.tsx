@@ -43,9 +43,8 @@ export function Header() {
   );
   const isAuth = pathname === "/login" || pathname === "/signup";
   const showNav = !isDashboard && !isAuth;
-  // La landing usa su propia paleta (morado/verde, ver tailwind.config heroViolet/heroGreen)
-  // — el resto del sitio sigue con la cálida (amber). El nav es compartido, así que solo
-  // en "/" toma esos dos colores; en cualquier otra ruta se ve exactamente igual que siempre.
+  // heroViolet/heroGreen ya no son "solo del landing" — son el acento del sitio entero.
+  // isLanding se queda solo para el ancho del contenedor (max-w-[1600px]).
   const isLanding = pathname === "/";
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -67,7 +66,6 @@ export function Header() {
                 key={n.href}
                 href={n.href}
                 active={pathname === n.href || (n.href !== "/" && pathname.startsWith(`${n.href}/`))}
-                accent={isLanding}
               >
                 {n.label}
               </NavLink>
@@ -81,12 +79,9 @@ export function Header() {
           {showNav && (
             <Link
               href="/app/financiar"
-              className={cn(
-                "hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0 sm:inline-flex",
-                isLanding ? "bg-heroViolet text-paper" : "bg-amber text-coal",
-              )}
+              className="hidden items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0 sm:inline-flex"
             >
-              <Heart size={14} className={isLanding ? "fill-paper text-paper" : "fill-rust text-rust"} /> Financiar una auditoría
+              <Heart size={14} className="fill-paper text-paper" /> Financiar una auditoría
             </Link>
           )}
           {showNav && (
@@ -104,7 +99,7 @@ export function Header() {
         </div>
       </div>
 
-      {showNav && <MobileNavPanel open={mobileOpen} onClose={() => setMobileOpen(false)} isLanding={isLanding} pathname={pathname} />}
+      {showNav && <MobileNavPanel open={mobileOpen} onClose={() => setMobileOpen(false)} pathname={pathname} />}
     </header>
   );
 }
@@ -112,12 +107,10 @@ export function Header() {
 function NavLink({
   href,
   active,
-  accent,
   children,
 }: {
   href: string;
   active?: boolean;
-  accent?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -126,8 +119,7 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-paperSoft hover:text-ink",
-        "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:rounded-full after:transition-transform",
-        accent ? "after:bg-heroGreen" : "after:bg-clay",
+        "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:rounded-full after:bg-heroGreen after:transition-transform",
         active ? "text-ink after:scale-x-100" : "text-mute after:scale-x-0 hover:after:scale-x-100",
       )}
     >
@@ -138,8 +130,8 @@ function NavLink({
 
 /** Drawer mobile a pantalla completa: mismos items de NAV + el CTA de financiar. Este bug
  * (0 navegación alcanzable bajo md:) afectaba a TODAS las rutas públicas, no solo "/" —
- * por eso la estructura es site-wide; solo el acento de color sigue el patrón existente
- * `isLanding` (igual que el nav de escritorio de arriba), nunca el morado/verde fuera de "/".
+ * por eso la estructura es site-wide, y el acento de color (heroViolet/heroGreen) también:
+ * ya no varía por ruta.
  *
  * Se monta vía createPortal(..., document.body): el <header> de arriba lleva
  * backdrop-blur-xl, y cualquier ancestro con filter/backdrop-filter se vuelve
@@ -152,12 +144,10 @@ function NavLink({
 function MobileNavPanel({
   open,
   onClose,
-  isLanding,
   pathname,
 }: {
   open: boolean;
   onClose: () => void;
-  isLanding: boolean;
   pathname: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -200,7 +190,7 @@ function MobileNavPanel({
                 className={cn(
                   "rounded-xl px-4 py-3 text-base font-medium transition-colors",
                   active
-                    ? cn("bg-paperDeep", isLanding ? "text-heroViolet" : "text-clay")
+                    ? "bg-paperDeep text-heroViolet"
                     : "text-mute hover:bg-paperSoft hover:text-ink",
                 )}
               >
@@ -211,12 +201,9 @@ function MobileNavPanel({
         </nav>
         <Link
           href="/app/financiar"
-          className={cn(
-            "mt-3 flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-card",
-            isLanding ? "bg-heroViolet text-paper" : "bg-amber text-coal",
-          )}
+          className="mt-3 flex items-center justify-center gap-2 rounded-full bg-heroViolet px-4 py-3 text-sm font-semibold text-paper shadow-card"
         >
-          <Heart size={15} className={isLanding ? "fill-paper text-paper" : "fill-rust text-rust"} /> Financiar una auditoría
+          <Heart size={15} className="fill-paper text-paper" /> Financiar una auditoría
         </Link>
       </div>
     </div>,

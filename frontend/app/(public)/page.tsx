@@ -165,10 +165,12 @@ export default async function LandingPage() {
           padding de acá eran 160px de blanco antes de esta card, sin ningún corte visual
           entre medio (mismo problema que ya se corrigió entre Aliados y Denuncia). El
           mt-20 de Footer.tsx ya separa del footer por su cuenta, no hace falta acá.
-          bg-brand: el vino real del isotipo, no un violeta genérico — el cierre de la
-          página queda anclado a la marca. */}
+          heroViolet, no el vino del isotipo: el logo se queda fijo, pero el cierre de la
+          página tiene que hilar con el mismo acento violeta que ya usan el header, el
+          footer y el resto del sitio — dos marcas distintas en la misma pantalla era
+          justo la inconsistencia que se pidió eliminar. */}
       <section className="container-page max-w-[1600px] pt-14">
-        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-deep p-10 text-paper shadow-paper sm:p-16">
+        <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-heroViolet to-heroViolet-deep p-10 text-paper shadow-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-40">
             <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/35 to-transparent" />
             <div

@@ -33,12 +33,13 @@ const config: Config = {
         moss: "#3F7D43",         // verificado / positivo
         amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
-        brand: "#6E1F2F",        // vino profundo del isotipo (VIGÍA PERÚ) — marca, no alerta
-        "brand-deep": "#4A1520", // variante oscura de `brand` — profundidad tonal en superficies grandes (CTA final)
-
-        // ── Hero landing (referencia del usuario, sept 2026): morado + verde, SOLO para
-        // el hero/landing — no reemplaza la paleta cálida que usa el resto del sitio
-        // (mapa, auditoría, contratos), evita romper esas pantallas ya construidas. ──
+        // ── Identidad de marca (referencia del usuario, sept 2026): morado + verde —
+        // color de acento del sitio ENTERO (chrome: header, footer, sidebar, CTAs), no
+        // solo del hero. El isotipo (vigia_peru_512.png) sigue siendo vino/textil andino
+        // — un logo raster no se recolorea — pero eso es normal: el mark queda fijo,
+        // el sistema de acento de UI evoluciona. `amber`/`clay`/`moss`/`rust` arriba NO
+        // se tocan: son semántica de estado (advertencia/positivo/error), no de marca —
+        // ver EstadoPill.tsx y Bitacora.tsx, que dependen de esa escala tipo semáforo.
         heroViolet: { DEFAULT: "#4F3D96", deep: "#332463", soft: "#EFEBFA" },
         heroGreen: { DEFAULT: "#2FA84C", soft: "#E3F6E7" },
 

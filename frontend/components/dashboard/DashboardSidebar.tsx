@@ -179,7 +179,7 @@ export function DashboardSidebar() {
             </span>
             <span className="flex flex-col leading-tight">
               <span className="font-serif text-base font-bold text-ink">
-                Vigía <span className="text-rust">Perú</span>
+                Vigía <span className="text-heroViolet">Perú</span>
               </span>
               <span className="text-[9px] uppercase tracking-widest text-mute">
                 Mapa de auditoría
@@ -286,8 +286,8 @@ function SidebarLink({
         "group relative flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition-colors",
         featured
           ? active
-            ? "border-rust bg-rust text-paper shadow-card"
-            : "border-rust/40 bg-crimson-soft text-ink hover:bg-rust/15"
+            ? "border-heroViolet bg-heroViolet text-paper shadow-card"
+            : "border-heroViolet/40 bg-heroViolet-soft text-ink hover:bg-heroViolet/15"
           : active
           ? "border-line bg-paper text-ink shadow-inset"
           : "border-transparent text-ink/80 hover:bg-paper hover:text-ink",
@@ -300,10 +300,10 @@ function SidebarLink({
             featured
               ? active
                 ? "bg-paper/20 text-paper"
-                : "bg-rust text-paper"
+                : "bg-heroViolet text-paper"
               : active
               ? "bg-ink text-paper"
-              : "bg-paperDeep text-clay group-hover:bg-paper",
+              : "bg-paperDeep text-heroViolet group-hover:bg-paper",
           )}
         >
           {icon}
@@ -316,7 +316,7 @@ function SidebarLink({
             <span
               className={cn(
                 "text-[10px]",
-                featured ? (active ? "text-paper/80" : "text-rust/80") : "text-mute",
+                featured ? (active ? "text-paper/80" : "text-heroViolet/80") : "text-mute",
               )}
             >
               {hint}
@@ -331,13 +331,13 @@ function SidebarLink({
           <span
             className={cn(
               "absolute inset-0 animate-ping rounded-full opacity-75",
-              active ? "bg-paper" : "bg-rust",
+              active ? "bg-paper" : "bg-heroViolet",
             )}
           />
           <span
             className={cn(
               "relative h-2 w-2 rounded-full",
-              active ? "bg-paper" : "bg-rust",
+              active ? "bg-paper" : "bg-heroViolet",
             )}
           />
         </span>

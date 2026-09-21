@@ -173,7 +173,7 @@ function CasoCard({ caso }: { caso: Caso }) {
             <span className="rounded-full bg-paperDeep px-2.5 py-1 font-mono text-[10px] text-mute">
               {caso.article}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-brand">
+            <span className="inline-flex items-center gap-1 text-[11px] text-heroViolet">
               <Scale size={11} /> {caso.norma}
             </span>
           </div>

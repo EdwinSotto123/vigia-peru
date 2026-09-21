@@ -36,10 +36,10 @@ export function Footer() {
           <div className="flex flex-col gap-2.5">
             <Link
               href="/app/financiar"
-              className="group flex items-center justify-between gap-3 rounded-xl bg-amber px-5 py-3.5 text-ink transition-transform hover:scale-[1.02]"
+              className="group flex items-center justify-between gap-3 rounded-xl bg-heroViolet px-5 py-3.5 text-paper transition-transform hover:scale-[1.02]"
             >
               <div className="flex items-center gap-2.5">
-                <Heart size={16} className="fill-rust text-rust" />
+                <Heart size={16} className="fill-paper text-paper" />
                 <span className="font-serif text-base font-bold leading-tight">
                   Financiar una auditoría
                 </span>
@@ -67,7 +67,7 @@ export function Footer() {
         {/* Disclaimer + columnas */}
         <div className="mt-12 grid gap-10 border-t border-paper/10 pt-10 lg:grid-cols-[1.4fr,1fr,1fr,1fr]">
           <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber/80">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen/80">
               Postura editorial
             </h4>
             <p className="mt-3 text-[13px] leading-relaxed text-paper/65">
@@ -107,7 +107,7 @@ export function Footer() {
 
           <FooterCol title="Proyecto">
             <Link href="/app/financiar">
-              <Heart size={12} className="inline mr-1.5 fill-amber text-amber" />
+              <Heart size={12} className="inline mr-1.5 fill-heroViolet text-heroViolet" />
               Financiar
             </Link>
             <a href="mailto:hola@vigiaperu.org">
@@ -138,7 +138,7 @@ export function Footer() {
 function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber/80">
+      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen/80">
         {title}
       </h4>
       <div className="mt-3 flex flex-col gap-2 text-[13px] text-paper/65 [&>*]:transition-colors [&>*:hover]:text-paper">

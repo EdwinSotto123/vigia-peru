@@ -188,7 +188,7 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
           en vez de mostrar siempre el mismo caso (key=featured.id repite la animación de
           entrada cuando cambia, para que se note que es nuevo, no el mismo texto quieto). */}
       {featured && (
-        <div key={featured.id} className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-brand bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
+        <div key={featured.id} className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-heroViolet bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
               <AlertTriangle size={10} /> score {featured.score}
