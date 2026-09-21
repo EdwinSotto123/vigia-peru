@@ -43,9 +43,17 @@ export async function HeroCompacto() {
               incluido — entre en una sola pantalla en laptops típicas. */}
           <div className="grid items-start gap-8 lg:grid-cols-[1.35fr_0.8fr] lg:gap-10">
             <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E7A38]">
-                <PeruFlag size={20} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
-                Plataforma cívica · sin fines de lucro · Perú
+              {/* Antes era una sola píldora con 3 datos unidos por "·" — ahora son dos
+                  chips separados: cada dato tiene su propio borde, no una coma disfrazada
+                  de punto. */}
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E7A38]">
+                  <PeruFlag size={16} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
+                  Perú
+                </span>
+                <span className="inline-flex items-center rounded-full border border-line bg-paperSoft px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-mute">
+                  Plataforma cívica sin fines de lucro
+                </span>
               </div>
               <h1 className="font-serif text-4xl font-bold leading-[1.02] tracking-tight text-ink sm:text-5xl lg:text-6xl">
                 El Estado publica todos sus contratos.

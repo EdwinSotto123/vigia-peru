@@ -75,7 +75,7 @@ export function HeroKpis({ initial, regionesConCola }: { initial: Stats | null; 
       title={ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : undefined}
     >
       <PulseDot color="moss" size={6} />
-      Tablero público · se actualiza solo
+      Tablero público que se actualiza solo
     </div>
   );
 
