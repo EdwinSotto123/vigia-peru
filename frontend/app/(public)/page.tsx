@@ -160,11 +160,13 @@ export default async function LandingPage() {
       <ExpansionSection />
 
       {/* ─── CTA FINAL ─── */}
-      {/* Solo pt-24: el mt-20 de Footer.tsx ya separa del footer — con py-24 acá + mt-20
-          ahí se sumaban 176px de blanco entre la card y el footer (salto muerto, ~21% de
-          la altura de pantalla en mobile). bg-brand: el vino real del isotipo, no un
-          violeta genérico — el cierre de la página queda anclado a la marca. */}
-      <section className="container-page max-w-[1600px] pt-24">
+      {/* pt-14, no pt-24: ExpansionSection ya cierra con su propio py-16 — sumado al
+          padding de acá eran 160px de blanco antes de esta card, sin ningún corte visual
+          entre medio (mismo problema que ya se corrigió entre Aliados y Denuncia). El
+          mt-20 de Footer.tsx ya separa del footer por su cuenta, no hace falta acá.
+          bg-brand: el vino real del isotipo, no un violeta genérico — el cierre de la
+          página queda anclado a la marca. */}
+      <section className="container-page max-w-[1600px] pt-14">
         <BlurFade as="div" y={20} className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-deep p-10 text-paper shadow-paper sm:p-16">
           <div className="absolute inset-0 -z-10 opacity-40">
             <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-l from-heroGreen/35 to-transparent" />

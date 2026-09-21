@@ -19,16 +19,20 @@ export function FeatureHighlights() {
         <h2 className="mb-6 font-serif text-lg font-semibold text-paper/90">
           La vigilancia también construye país.
         </h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
+        {/* Antes: ícono + texto flotando directo sobre el fondo violeta, sin borde ni
+            fondo propio — la única franja de toda la landing sin ningún tratamiento de
+            tarjeta. Ahora cada dato es su propia caja, igual que en el resto de la página. */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map(({ icon: Icon, t, d }) => (
-            <div key={t} className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-heroGreen text-paper">
+            <div
+              key={t}
+              className="rounded-2xl border border-paper/15 bg-paper/[0.06] p-4 transition-colors duration-200 hover:bg-paper/10"
+            >
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-heroGreen text-paper">
                 <Icon size={16} />
               </span>
-              <div>
-                <div className="text-sm font-semibold text-paper">{t}</div>
-                <p className="mt-0.5 text-[12px] leading-relaxed text-paper/60">{d}</p>
-              </div>
+              <div className="mt-3 text-sm font-semibold text-paper">{t}</div>
+              <p className="mt-1 text-[12px] leading-relaxed text-paper/60">{d}</p>
             </div>
           ))}
         </div>
