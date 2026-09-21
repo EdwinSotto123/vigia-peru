@@ -41,7 +41,7 @@ export async function HeroCompacto() {
               viewport). 1.35fr/0.8fr lo angosta ~20% (y por lo tanto lo achica en alto en
               la misma proporción, mismo aspect ratio) para que el hero completo — mapa
               incluido — entre en una sola pantalla en laptops típicas. */}
-          <div className="grid items-center gap-8 lg:grid-cols-[1.35fr_0.8fr] lg:gap-10">
+          <div className="grid items-start gap-8 lg:grid-cols-[1.35fr_0.8fr] lg:gap-10">
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E7A38]">
                 <PeruFlag size={20} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
