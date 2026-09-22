@@ -62,7 +62,7 @@ export default function ErrorBoundary({ error, reset }: { error: Error & { diges
         <button
           type="button"
           onClick={() => reset()}
-          className="inline-flex items-center gap-1.5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]"
+          className="inline-flex items-center gap-1.5 rounded-full bg-heroViolet px-5 py-2.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper"
         >
           <RefreshCw size={14} aria-hidden /> Reintentar
         </button>

@@ -76,7 +76,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
             <h2 className="font-serif text-3xl font-bold text-ink">Elige la zona que quieres auditar</h2>
             <p className="mt-1 max-w-2xl text-sm text-mute">
               Busca tu departamento, provincia o distrito. Verás cuántos contratos esperan lectura y cuánto cuesta cubrirlos.
-              Si prefieres verlo en el mapa, <Link href="/app/mapa" className="underline">ábrelo aquí</Link>.
+              Si prefieres verlo en el mapa, <Link href="/app/mapa" className="underline transition-colors hover:text-ink">ábrelo aquí</Link>.
             </p>
           </div>
           <div className="text-xs text-mute">Fuente: SEACE/OECE vía OCDS · actualizado a diario</div>

@@ -59,7 +59,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   };
 
   const regionNombre = (u: string) => regiones.find((r) => r.ubigeo === u)?.nombre ?? `Zona ${u}`;
-  const sel = "h-8 rounded-lg border border-line bg-paper px-2 text-xs text-ink outline-none focus:border-clay";
+  const sel = "h-8 rounded-lg border border-line bg-paper px-2 text-xs text-ink outline-none focus:border-heroViolet";
 
   // ── Chips removibles: uno por filtro activo (todas las dimensiones, no solo entidad) ──
   const chips: { key: keyof ContratosQuery; label: string }[] = [];
@@ -92,7 +92,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
           value={q}
           onChange={(e) => onQ(e.target.value)}
           placeholder="Buscar por objeto, código OCID o nombre de entidad…"
-          className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-9 text-sm text-ink outline-none placeholder:text-mute focus:border-clay"
+          className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-9 text-sm text-ink outline-none placeholder:text-mute focus:border-heroViolet"
         />
         {pendiente && <Loader2 size={14} className="absolute right-3 animate-spin text-mute" aria-label="Cargando" />}
       </label>
@@ -102,10 +102,10 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
         <ChipRapido active={!query.operativo && !query.riesgo} onClick={() => navegar({ operativo: undefined, riesgo: undefined })}>
           Todos <Cuenta n={resumen?.total} />
         </ChipRapido>
-        <ChipRapido active={query.operativo === "en_cola"} tono="moss" onClick={() => navegar({ operativo: query.operativo === "en_cola" ? undefined : "en_cola", riesgo: undefined })}>
+        <ChipRapido active={query.operativo === "en_cola"} tono="amber" onClick={() => navegar({ operativo: query.operativo === "en_cola" ? undefined : "en_cola", riesgo: undefined })}>
           En cola (análisis activo) <Cuenta n={resumen?.porOperativo.en_cola} />
         </ChipRapido>
-        <ChipRapido active={query.operativo === "documentos_listos"} tono="clay" onClick={() => navegar({ operativo: query.operativo === "documentos_listos" ? undefined : "documentos_listos", riesgo: undefined })}>
+        <ChipRapido active={query.operativo === "documentos_listos"} tono="inkSoft" onClick={() => navegar({ operativo: query.operativo === "documentos_listos" ? undefined : "documentos_listos", riesgo: undefined })}>
           Documentos listos <Cuenta n={resumen?.porOperativo.documentos_listos} />
         </ChipRapido>
         <ChipRapido active={query.riesgo === "alto"} tono="rust" onClick={() => navegar({ riesgo: query.riesgo === "alto" ? undefined : "alto", operativo: undefined })}>
@@ -214,11 +214,18 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   );
 }
 
-function ChipRapido({ active, tono = "ink", onClick, children }: { active: boolean; tono?: "ink" | "moss" | "clay" | "rust"; onClick: () => void; children: React.ReactNode }) {
+function ChipRapido({ active, tono = "ink", onClick, children }: { active: boolean; tono?: "ink" | "inkSoft" | "moss" | "amber" | "rust"; onClick: () => void; children: React.ReactNode }) {
+  // Mismos 5 tonos que el estado operativo real de un contrato (ver COLOR_ESTADO en
+  // ContratoPin.tsx, la fuente canónica: sin_analizar/documentos_listos/en_cola/procesado/
+  // en_revision) — antes "documentos_listos" era clay acá pero moss en ContratosLista.tsx e
+  // inkSoft en ContratoPin.tsx, y "en_cola" era moss acá pero amber en ContratoPin.tsx: la
+  // misma zona (p.ej. "en cola") se pintaba de 2-3 colores distintos según qué componente la
+  // mostrara. Ahora los tres coinciden.
   const TONOS: Record<string, string> = {
     ink: "border-ink bg-ink text-paper",
+    inkSoft: "border-inkSoft bg-inkSoft text-paper",
     moss: "border-moss bg-moss text-paper",
-    clay: "border-clay bg-clay text-paper",
+    amber: "border-amber bg-amber text-paper",
     rust: "border-rust bg-rust text-paper",
   };
   return (
@@ -265,7 +272,7 @@ function Monto({ value, onCommit }: { value: number | string | undefined; onComm
       onChange={(e) => setV(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
-      className="h-8 w-[100px] rounded-lg border border-line bg-paper px-2 font-mono text-xs text-ink outline-none placeholder:font-sans placeholder:text-mute focus:border-clay"
+      className="h-8 w-[100px] rounded-lg border border-line bg-paper px-2 font-mono text-xs text-ink outline-none placeholder:font-sans placeholder:text-mute focus:border-heroViolet"
     />
   );
 }

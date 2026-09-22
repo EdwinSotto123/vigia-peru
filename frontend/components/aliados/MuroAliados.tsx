@@ -63,7 +63,7 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
             ? "Todavía no hay aliados que hayan financiado auditorías en esta región."
             : "Todavía no hay aportes confirmados. El primer aliado abre este muro."}
         </p>
-        <Link href="/app/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-paper">
+        <Link href="/app/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-heroViolet px-4 py-2 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
           Financiar una auditoría <ArrowRight size={14} aria-hidden />
         </Link>
       </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowRight, CheckCircle2, Clock, Cpu, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, Cpu, ShieldCheck } from "lucide-react";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { FiltroFechas, FiltroPatrocinador } from "@/components/auditoria/FiltrosHistorico";
@@ -46,10 +46,10 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
       <section className="border-b border-line bg-paperDeep">
         <div className="container-page space-y-6 py-10">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-mute">
-              <Activity size={12} /> Tablero público · se actualiza solo
-            </span>
-            <h1 className="mt-4 font-serif text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
+            {/* Mismo badge "Tablero público · se actualiza solo" que ya se sacó de la landing
+                (commit 8d85633): no le aportaba nada al usuario. Se quedó vivo acá porque ese
+                rediseño no tocó esta página — ahora sí, mismo criterio. */}
+            <h1 className="font-serif text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
               Auditoría en vivo
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">

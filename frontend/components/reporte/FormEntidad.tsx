@@ -138,7 +138,7 @@ export function FormEntidad({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre o RUC (ej: Independencia, 20131369981)"
-              className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
+              className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
             />
             {results.length > 0 && (
               <div className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-paperSoft shadow-card">

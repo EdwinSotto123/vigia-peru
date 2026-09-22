@@ -13,7 +13,7 @@ export const Button = forwardRef<
     primary: "bg-heroViolet text-white shadow-card hover:bg-heroViolet-deep",
     secondary: "bg-white text-ink border border-line hover:bg-line",
     ghost: "text-ink hover:bg-line",
-    ink: "bg-ink text-bone hover:bg-ink/90",
+    ink: "bg-ink text-paper hover:bg-ink/90",
   };
   return (
     <button

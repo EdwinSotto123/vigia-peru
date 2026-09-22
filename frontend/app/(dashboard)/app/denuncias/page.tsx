@@ -110,7 +110,7 @@ export default async function DenunciasPage({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi icon={<MessageSquareWarning size={14} />} label="Denuncias totales" value={totalKpi} sub="acumulado del mes" tone="ink" />
         <Kpi icon={<CheckCircle2 size={14} />} label="Verificadas" value={verificados} sub="≥ 2 reportes independientes" tone="moss" />
-        <Kpi icon={<GitMerge size={14} />} label="Convergentes" value={enConvergencia} sub="coinciden con alerta automática" tone="rust" />
+        <Kpi icon={<GitMerge size={14} />} label="Convergentes" value={enConvergencia} sub="coinciden con alerta automática" tone="amber" />
         <Kpi icon={<Camera size={14} />} label="Con evidencia foto" value={conFoto} sub={totalKpi ? `${Math.round((conFoto / totalKpi) * 100)}% del total` : ""} tone="ink" />
       </div>
 
@@ -124,7 +124,7 @@ export default async function DenunciasPage({
           <ul className="mt-1 space-y-0.5">
             <li>· Para que aparezca como <strong className="text-moss">verificado</strong> se requieren ≥ 2 reportes independientes del mismo punto en ≤ 30 días.</li>
             <li>· Los reportes sin foto figuran en este listado pero <strong className="text-ink">no se publican como pin en el mapa público</strong>.</li>
-            <li>· Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-rust">convergente</strong>.</li>
+            <li>· Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-amber">convergente</strong>.</li>
             <li>· Los datos personales del denunciante son anónimos por defecto.</li>
           </ul>
         </div>
@@ -163,11 +163,12 @@ export default async function DenunciasPage({
   );
 }
 
-function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: number; sub?: string; tone: "ink" | "rust" | "moss" }) {
+function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: number; sub?: string; tone: "ink" | "rust" | "moss" | "amber" }) {
   const cls = {
     ink: "border-line bg-paperSoft text-ink",
     rust: "border-rust/30 bg-crimson-soft text-rust",
     moss: "border-moss/30 bg-paperSoft text-moss",
+    amber: "border-amber/30 bg-amber-soft text-amber",
   }[tone];
   return (
     <div className={`rounded-2xl border p-3 shadow-card ${cls}`}>

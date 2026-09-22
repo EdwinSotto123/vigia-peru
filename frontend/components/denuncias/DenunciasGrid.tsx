@@ -98,7 +98,7 @@ export function DenunciasGrid({ reportes, reportesMapa, convergencias, query, to
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Buscar por descripción, región o ID…"
-            className="w-full rounded-full border border-line bg-paperSoft py-2 pl-9 pr-3 text-sm placeholder:text-mute focus:border-clay focus:outline-none"
+            className="w-full rounded-full border border-line bg-paperSoft py-2 pl-9 pr-3 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
           />
         </div>
 

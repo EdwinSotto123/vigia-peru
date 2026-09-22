@@ -60,7 +60,7 @@ export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContra
   if (estado === "sin_analizar" && operativo && operativo !== "en_cola") {
     const listo = operativo === "documentos_listos";
     return (
-      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", listo ? "border border-moss/40 text-moss" : "bg-paperDeep text-mute")} role="status"
+      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", listo ? "border border-inkSoft/40 text-inkSoft" : "bg-paperDeep text-mute")} role="status"
             title={listo ? "Documentos descargados; el análisis de este tipo de contratación aún no está activo" : "Este tipo de contratación aún no está activo y sus documentos no se han descargado"}>
         {listo ? "Docs listos" : "Sin documentos"}
       </span>

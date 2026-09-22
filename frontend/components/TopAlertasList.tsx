@@ -17,11 +17,11 @@ export function TopAlertasList({ alertas, limit = 6, hideHeader = false }: { ale
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <div>
             <h3 className="font-serif text-xl font-bold">Top alertas del mes</h3>
-            <p className="text-sm text-ash">
+            <p className="text-sm text-mute">
               Ordenadas por score de riesgo. Click para ver el dossier.
             </p>
           </div>
-          <Link href="/app/alertas" className="text-sm font-medium text-navy hover:underline">
+          <Link href="/app/alertas" className="text-sm font-medium text-heroViolet hover:underline">
             Ver todas
           </Link>
         </div>
@@ -38,15 +38,15 @@ export function TopAlertasList({ alertas, limit = 6, hideHeader = false }: { ale
               <PrefetchLink
                 href={`/app/convocatoria/${a.codigoconvocatoria}`}
                 ocid={String(a.codigoconvocatoria)}
-                className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-bone"
+                className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-paperDeep"
               >
-                <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-ink text-bone">
+                <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-ink text-paper">
                   <span className="text-xl font-bold leading-none">{a.score}</span>
                   <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-ash">
+                  <div className="flex items-center gap-2 text-xs text-mute">
                     <span>{a.region}</span>
                     <span>·</span>
                     <span>{a.codigoconvocatoria}</span>
@@ -70,9 +70,9 @@ export function TopAlertasList({ alertas, limit = 6, hideHeader = false }: { ale
                   <div className="font-mono text-sm font-semibold">
                     {formatSoles(a.montoSoles)}
                   </div>
-                  <div className="text-xs text-ash">{a.fechaBuenaPro}</div>
+                  <div className="text-xs text-mute">{a.fechaBuenaPro}</div>
                 </div>
-                <ChevronRight size={18} className="text-ash" />
+                <ChevronRight size={18} className="text-mute" />
               </PrefetchLink>
             </li>
           ))}

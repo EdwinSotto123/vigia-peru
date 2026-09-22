@@ -17,7 +17,7 @@ export function RankingTable({ rows, compact = false }: { rows: RankingRow[]; co
   return (
     <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
       {list.map((r) => (
-        <li key={r.id} className="flex items-center gap-3 bg-paper px-4 py-3">
+        <li key={r.id} className="flex items-center gap-3 bg-paper px-4 py-3 transition-colors hover:bg-paperDeep">
           <span className="w-8 text-center font-mono text-sm text-mute">{MEDAL[r.posicion - 1] ?? r.posicion}</span>
           <Avatar tipo={r.tipo} logoUrl={r.logoUrl} nombre={r.nombre} />
           <div className="min-w-0 flex-1">

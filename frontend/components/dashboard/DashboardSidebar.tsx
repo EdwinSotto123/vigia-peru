@@ -238,7 +238,7 @@ export function DashboardSidebar() {
                 </p>
                 <Link
                   href="/signup"
-                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper hover:bg-coal"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper transition-colors hover:bg-ink/90"
                 >
                   Crear cuenta gratis
                 </Link>

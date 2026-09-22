@@ -303,7 +303,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
             <UserPlus size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
             <span>
               <strong className="text-ink">Crea una cuenta para seguir tu aporte</strong>: verás su progreso, las señales halladas y tus zonas en un solo lugar. Guarda tu código <span className="font-mono">{creada.codigo}</span> — con él siempre puedes ver el comprobante.{" "}
-              <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="underline">Crear cuenta</Link>
+              <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="underline transition-colors hover:text-ink">Crear cuenta</Link>
             </span>
           </div>
         )}

@@ -168,7 +168,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
               titulo={`Auditoría financiada por ${c.financiador} · Vigía Perú`}
               texto={`${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`}
             />
-            <Link href="/app/financiar" className="ml-auto rounded-lg bg-ink px-3 py-1.5 font-semibold text-paper">Financiar otra zona</Link>
+            <Link href="/app/financiar" className="ml-auto rounded-lg bg-heroViolet px-3 py-1.5 font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">Financiar otra zona</Link>
           </div>
         </div>
       </div>
@@ -178,7 +178,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
 
 function K({ label, v, hint }: { label: string; v: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-line p-3">
+    <div className="rounded-xl border border-line bg-paper p-3 shadow-card">
       <div className="text-[11px] uppercase tracking-wide text-mute">{label}</div>
       <div className="font-mono text-lg text-ink">{v}</div>
       {hint && <div className="text-[10px] text-mute">{hint}</div>}

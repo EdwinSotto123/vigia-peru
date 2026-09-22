@@ -496,5 +496,5 @@ export function formatSoles(n: number): string {
 export function severidadColor(s: "alta" | "media" | "baja"): string {
   if (s === "alta") return "text-crimson bg-crimson-soft border-crimson/20";
   if (s === "media") return "text-amber bg-amber-soft border-amber/20";
-  return "text-ash bg-line border-ash/20";
+  return "text-mute bg-line border-mute/20";
 }
