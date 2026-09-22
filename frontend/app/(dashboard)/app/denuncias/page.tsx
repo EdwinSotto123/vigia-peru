@@ -141,7 +141,7 @@ export default async function DenunciasPage({
       />
 
       {/* Banner final — CTA */}
-      <div className="surface relative isolate overflow-hidden border-l-4 border-l-heroViolet p-5">
+      <div className="surface relative isolate overflow-hidden p-5">
         <div aria-hidden className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-heroViolet/10 blur-3xl" />
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-heroViolet text-paper">

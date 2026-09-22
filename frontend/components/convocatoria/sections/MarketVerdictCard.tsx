@@ -42,7 +42,11 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
 
   return (
     <section className="rounded-2xl border border-line bg-paper p-5 shadow-card">
-      <div className={cn("border-l-4 pl-4", r.veredicto.ui.borde)}>
+      {/* El veredicto se distinguía con una banda de color de 4px al costado:
+          el tell más reconocible de interfaz generada, y prohibido por el craft
+          floor. La jerarquía la carga el propio veredicto, que ya tiene su
+          pastilla con color, ícono y palabra. */}
+      <div className={cn("border-l pl-4", r.veredicto.ui.borde)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[10px] font-bold uppercase tracking-widest text-mute">
             Veredicto del contrato · precio ofertado contra el mercado

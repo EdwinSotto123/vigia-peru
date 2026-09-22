@@ -48,19 +48,31 @@ export function SenalesRecientes({
         <strong className="font-semibold text-ink">{alertas.length.toLocaleString("es-PE")}</strong> señales publicadas ·
         las de mayor score
       </span>
-      <ul className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
+      {/* En móvil cada señal ocupa su propia línea completa y el objeto se
+          queda con el ancho sobrante (flex-1 + min-w-0), porque la suma de las
+          piezas fijas —nivel, código, región, monto— ya se comía los 390 px y
+          empujaba la página 51 px hacia la derecha. El código y el monto son
+          contexto secundario: desaparecen en pantalla angosta en vez de
+          desbordar. */}
+      <ul className="flex w-full min-w-0 flex-col gap-y-1.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
         {top.map((a) => (
           <li key={a.id ?? a.codigo} className="min-w-0">
             <Link
               href={`/app/convocatoria/${a.codigoconvocatoria || a.codigo?.replace("OECE-", "") || a.id}`}
-              className="group inline-flex min-w-0 items-center gap-2 text-[12px] text-ink hover:text-heroViolet"
+              className="group flex min-w-0 items-center gap-2 text-[12px] text-ink hover:text-heroViolet"
             >
-              <Severidad score={a.score} formato="linea" />
-              <span className="font-mono text-[11px] text-mute">{a.codigoconvocatoria ?? a.codigo}</span>
-              <span className="text-mute">{a.region}</span>
-              <span className="max-w-[26ch] truncate sm:max-w-[40ch]">{a.objeto}</span>
+              <span className="shrink-0">
+                <Severidad score={a.score} formato="linea" />
+              </span>
+              <span className="hidden shrink-0 font-mono text-[11px] text-mute sm:inline">
+                {a.codigoconvocatoria ?? a.codigo}
+              </span>
+              <span className="shrink-0 text-mute">{a.region}</span>
+              <span className="min-w-0 flex-1 truncate sm:max-w-[40ch] sm:flex-none">{a.objeto}</span>
               {typeof a.montoSoles === "number" && a.montoSoles > 0 && (
-                <span className="font-mono text-[11px] text-mute tabular-nums">{formatoSoles(a.montoSoles)}</span>
+                <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-mute sm:inline">
+                  {formatoSoles(a.montoSoles)}
+                </span>
               )}
               <ArrowUpRight size={12} className="shrink-0 text-mute transition-colors group-hover:text-heroViolet" aria-hidden />
             </Link>

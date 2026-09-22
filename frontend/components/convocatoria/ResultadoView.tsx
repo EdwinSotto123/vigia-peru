@@ -552,7 +552,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
               // domar.
               "prose-a:text-heroViolet prose-a:font-medium prose-a:underline prose-a:decoration-heroViolet/40 hover:prose-a:decoration-heroViolet",
               "prose-a:break-words",
-              // Code & blockquote. El blockquote tenía border-l-4 de color, que
+              // Code & blockquote. El blockquote tenía una banda lateral gruesa de color, que
               // el craft floor rechaza: la cita se distingue por su fondo y su
               // sangría, y la regla queda en 1px.
               "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-heroViolet prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",

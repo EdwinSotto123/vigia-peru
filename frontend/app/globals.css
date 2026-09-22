@@ -112,14 +112,9 @@
   }
 }
 
-/* Patrón sutil de puntos para fondos secundarios */
-.paper-grain {
-  background-image:
-    radial-gradient(rgba(20,23,26,0.04) 1px, transparent 1px),
-    radial-gradient(rgba(20,23,26,0.03) 1px, transparent 1px);
-  background-size: 18px 18px, 22px 22px;
-  background-position: 0 0, 9px 11px;
-}
+/* `.paper-grain` (un patrón de puntos decorativo) se eliminó: cero usos en
+   app/ y components/, y el detector de Impeccable lo marca como textura de
+   fondo decorativa. Una utilidad que nadie usa es una invitación a usarla. */
 
 /* ─── Overlays ───────────────────────────────────────────────────
    <dialog> nativo: escapa cualquier overflow:hidden, trae foco

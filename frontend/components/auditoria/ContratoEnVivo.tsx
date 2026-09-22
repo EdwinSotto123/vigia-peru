@@ -168,7 +168,12 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
                 : p.estado === "error"
                   ? `Intento ${Math.min(3, Math.max(1, p.intentos))} de 3`
                   : terminado
-                    ? `${prog.hechas} agentes en ${duro != null && duro > 0 ? duracion(duro) : "—"}`
+                    // "pasos", no "agentes": prog.hechas cuenta los pasos del
+                    // DAG, y dos de ellos (SUNAT/OECE y la autoevaluación) no
+                    // son agentes de IA. Decir "12 agentes" acá reabría la
+                    // contradicción de recuentos que el catálogo vino a cerrar:
+                    // son 10 agentes repartidos en 12 pasos.
+                    ? `${prog.hechas} pasos en ${duro != null && duro > 0 ? duracion(duro) : "—"}`
                     : "Sin actividad"}
           </div>
         </div>

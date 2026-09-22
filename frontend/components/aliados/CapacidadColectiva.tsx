@@ -39,8 +39,12 @@ const num = (n: number) => n.toLocaleString("es-PE");
 function pctTxt(v: number, total: number): string {
   if (!total) return "—";
   const p = (v / total) * 100;
-  const s = p >= 10 ? p.toFixed(0) : p >= 1 ? p.toFixed(1) : p.toFixed(2);
-  return `${s.replace(".", ",")} %`;
+  const dec = p >= 10 ? 0 : p >= 1 ? 1 : 2;
+  // Sin .replace(".", ","): es-PE usa COMA para miles y PUNTO para decimales.
+  // Forzar la coma hacía que en la misma línea conviviera "18,394" (coma =
+  // miles) con "0,18 %" (coma = decimal), o sea el mismo carácter con dos
+  // significados en un producto que habla de plata. El locale decide, no nosotros.
+  return `${p.toLocaleString("es-PE", { minimumFractionDigits: dec, maximumFractionDigits: dec })} %`;
 }
 
 export function CapacidadColectiva({
