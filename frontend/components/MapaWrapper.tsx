@@ -545,7 +545,16 @@ export function MapaWrapper({
 
         <SenalesRecientes alertas={alertas ?? []} fallo={falloSenales} />
 
-        <div className="surface relative overflow-hidden rounded-3xl">
+        {/* Sin `.surface`: ese atajo traía borde + paperSoft + sombra. El borde se
+            va (lo reemplaza el salto de tono contra el suelo teñido) y el fondo
+            pasa a blanco. */}
+        <div className="relative overflow-hidden rounded-3xl bg-paper shadow-card">
+          {/* Una sola franja de control hundida: filtros, leyenda y migaja son
+              la misma cosa —"qué estoy viendo y cómo lo filtro"— y el usuario no
+              necesita distinguirlas entre sí. Antes eran dos contenedores con
+              fondo propio separados por reglas. El tono hundido y el `shadow-inset`
+              las despegan del lienzo blanco sin una sola línea. */}
+          <div className="bg-paperSoft shadow-inset">
           <BarraMapa
             medida={medida}
             onMedida={setMedida}
@@ -571,7 +580,12 @@ export function MapaWrapper({
           {/* Rastro de navegación: dónde estoy y cómo vuelvo */}
           <nav
             aria-label="Dónde estás en el mapa"
-            className="flex items-center gap-1.5 border-b border-line bg-paperDeep px-4 py-2 font-mono text-[11px] sm:px-5"
+            // La migaja tenía fondo propio (paperDeep) y borde inferior, emparedada
+            // entre dos superficies idénticas: tres líneas de 1px del mismo color
+            // en los primeros 137px del bloque. La migaja es contexto de lo que la
+            // barra controla —se llevan bien—, así que las separa el espacio, no
+            // una regla. Queda una sola franja de control hundida.
+            className="flex items-center gap-1.5 px-4 pb-3 font-mono text-[11px] sm:px-5"
           >
             <button
               type="button"
@@ -608,10 +622,18 @@ export function MapaWrapper({
               </>
             )}
           </nav>
+          </div>
 
           <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
             <div className="relative" ref={mapRef}>
-              <div className="aspect-[480/700] max-h-[680px] w-full overflow-hidden">
+              {/* `aspect-[480/700]` estaba muerta: a 632 px de ancho pedía 921 px
+                  de alto y `max-h` lo cortaba a 680, así que la altura la fijaba
+                  `max-h` y la clase de aspecto sólo servía para que el SVG
+                  quedara en letterbox. El lienzo lo pinta ESTE contenedor, no un
+                  rect dentro del SVG: así el área sobrante del encuadre y el
+                  área dibujada son el mismo color y la costura vertical que se
+                  veía a los costados no puede existir. */}
+              <div className="h-[680px] w-full overflow-hidden bg-paper">
                 <PeruChoropleth
                   regiones={regiones}
                   provincias={provincias}
@@ -639,7 +661,12 @@ export function MapaWrapper({
             </div>
 
             {/* Panel de zona (escritorio) */}
-            <aside className="hidden border-l border-line lg:block">
+            {/* Era un border-l de 890px de alto sobre un lienzo de 680: los últimos
+                210px separaban el panel de la nada. Y el tono a ambos lados era
+                idéntico, así que la línea cargaba el 100% de la separación. El
+                panel no es vecino del lienzo, es una capa que se apoya encima:
+                eso lo dice una sombra direccional, no una regla. */}
+            <aside className="relative z-mapa hidden shadow-drawer lg:block">
               <RegionDetailPanel
                 region={region}
                 onClose={() => elegirRegion(null)}

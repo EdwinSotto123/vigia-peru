@@ -20,8 +20,14 @@ export default function MapaPage({
   const region = searchParams?.region?.toLowerCase() ?? null;
   const tab = TABS.includes(searchParams?.tab as ZonaTab) ? (searchParams?.tab as ZonaTab) : undefined;
 
+  // Suelo teñido. Antes la página era blanca y el bloque del mapa gris: el
+  // contenido quedaba MÁS OSCURO que su fondo mientras proyectaba una sombra de
+  // elevación — el tono decía hundido y la sombra decía arriba. Con esa
+  // contradicción, el borde de 1px era lo único que definía el bloque, y por eso
+  // se notaba tanto. Ahora el suelo es el tono hundido y el bloque es blanco: la
+  // jerarquía la carga la superficie, no una línea.
   return (
-    <div className="space-y-6 px-6 py-8 lg:px-10">
+    <div className="min-h-screen space-y-6 bg-paperDeep px-6 py-8 lg:px-10">
       <MapaWrapper initialRegionId={region} initialTab={tab} />
     </div>
   );

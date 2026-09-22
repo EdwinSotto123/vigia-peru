@@ -54,15 +54,27 @@ export function BarraMapa({
   sinConexion: string[];
 }) {
   return (
-    <div className="space-y-3 border-b border-line bg-paperSoft px-4 py-3 sm:px-5">
+    <div className="space-y-3 px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Qué se pinta */}
+        {/* A 390 px este grupo medía 348 px y terminaba en x=389, pero el bloque
+            corta en x=366 con overflow:hidden — o sea que "Con señal", una de las
+            cinco medidas del mapa, quedaba recortada y sin forma de tocarla.
+            Y los botones tenían DOS alturas en la misma píldora (24 y 40 px)
+            porque "En cola" y "Con señal" envolvían a dos líneas.
+
+            Se arregla con lo mínimo: `whitespace-nowrap` para que ninguna
+            etiqueta se parta, y scroll horizontal propio del grupo para que la
+            quinta medida siempre se pueda alcanzar deslizando. El rótulo
+            "Pintar por" desaparece en pantalla angosta: el grupo ya se nombra
+            para lectores de pantalla con su aria-label, y ahí el espacio vale
+            más que la redundancia. */}
         <div
-          className="flex items-center gap-0.5 rounded-full border border-line bg-paperDeep p-0.5"
+          className="scrollbar-warm -mx-1 flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-line bg-paperDeep p-0.5"
           role="group"
           aria-label="Qué se pinta en el mapa"
         >
-          <span className="px-2 text-[11px] text-inkSoft">Pintar por</span>
+          <span className="hidden shrink-0 whitespace-nowrap px-2 text-[11px] text-inkSoft sm:inline">Pintar por</span>
           {MEDIDAS.map((m) => (
             <button
               key={m.id}
@@ -71,7 +83,7 @@ export function BarraMapa({
               aria-pressed={medida === m.id}
               title={m.ayuda}
               className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
                 medida === m.id ? "bg-ink text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
               )}
             >

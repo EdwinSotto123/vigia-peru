@@ -164,3 +164,58 @@ export function construirEscala(valores: number[]): Escala {
     color: (valor) => (valor == null ? SIN_DATO : colores[escalonDe(valor, cortes)] ?? SIN_DATO),
   };
 }
+
+/* ── Tinta sobre el relleno ────────────────────────────────────────────────
+   Las 25 etiquetas se pintaban todas con una sola tinta (#14171A) sobre una
+   rampa que recorre todo el rango de luminancia. El contraste medido escalón
+   por escalón daba 9,57 / 5,90 / 3,41 / 1,91 / 1,20: quince de veinticinco
+   nombres por debajo del piso de 4,5:1, y el más oscuro en 1,20, o sea
+   invisible. Lo único que los sostenía era un halo blanco tan grueso que lo
+   que el ojo leía era un bulto blanco con una palabra adentro — literalmente
+   el aspecto sucio del mapa.
+
+   La solución no es más halo: es que la tinta invierta según el fondo. */
+
+/** Luminancia relativa WCAG de un hex. */
+export function luminancia(hex: string): number {
+  const h = hex.replace("#", "");
+  const v = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+}
+
+/**
+ * Umbral de inversión. Cae limpio entre el segundo escalón de la rampa
+ * (L≈0,29) y el tercero (L≈0,15), que es donde la tinta oscura deja de
+ * alcanzar el piso de contraste.
+ */
+const UMBRAL_TINTA = 0.22;
+
+/** Qué color de texto y de halo corresponden sobre un relleno dado. */
+export function tintaSobre(fill: string): { texto: string; halo: string } {
+  const claro = !fill.startsWith("#") || luminancia(fill) >= UMBRAL_TINTA;
+  return claro
+    ? { texto: "#14171A", halo: "#FFFFFF" }
+    : { texto: "#FFFFFF", halo: "rgba(20,23,26,0.55)" };
+}
+
+/**
+ * Peso visual del nombre, derivado de la luminancia del relleno: cuanto más
+ * oscuro el departamento, más alto está en la medida activa y más grande se
+ * imprime su nombre. En un mapa el tamaño del nombre ES un dato, y hoy los 25
+ * se imprimían idénticos: Lima (S/ 5.723 millones) igual que Madre de Dios
+ * (S/ 25 millones).
+ *
+ * Se deriva del color en vez de pasar el escalón como prop para no cambiar el
+ * contrato de ZonaPintada, y funciona igual cuando la escala colapsa a 3 o 4
+ * escalones porque hay poco dato.
+ */
+export function nivelDeEtiqueta(fill: string): "alto" | "medio" | "bajo" {
+  if (!fill.startsWith("#")) return "bajo";
+  const L = luminancia(fill);
+  if (L < 0.10) return "alto";
+  if (L < 0.35) return "medio";
+  return "bajo";
+}
