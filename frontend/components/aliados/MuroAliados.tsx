@@ -77,7 +77,7 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
   const soloFundador = visiblesTodo.length === 1 && visiblesTodo[0].slug === "vigia-peru";
   const totalLeidoOAuditoria = leidosTotal || financiadosTotal;
   const encabezado = soloFundador
-    ? <>Vigía Perú financió su propia auditoría inicial con capital semilla: <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos {leidosTotal ? "leídos" : "en auditoría"}. El primer aliado externo abre el resto.</>
+    ? <>Vigía Perú puso el capital semilla: <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos {leidosTotal ? "ya leídos" : "ya en auditoría"} de su propio bolsillo, antes de que nadie más aportara. El primer aliado externo toma el segundo lugar del podio — hoy vacante.</>
     : leidosMes > 0
       ? <>Gracias a ellos, <span className="font-mono">{leidosMes.toLocaleString("es-PE")}</span> contratos públicos fueron leídos este mes.</>
       : financiadosMes > 0
@@ -179,12 +179,18 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-paperDeep px-5 py-4">
         <div className="inline-flex items-center gap-2 text-sm text-inkSoft">
           <EyeOff size={16} className="text-mute" aria-hidden />
-          <span>
-            Personas que aportaron de forma anónima: <span className="font-mono font-semibold text-ink">{anonimos.length}</span>
-            {anonimosContratos > 0 && <span className="text-mute"> · {anonimosContratos.toLocaleString("es-PE")} contratos financiados</span>}
-          </span>
+          {anonimos.length > 0 ? (
+            <span>
+              <span className="font-mono font-semibold text-ink">{anonimos.length}</span> {anonimos.length === 1 ? "persona aportó" : "personas aportaron"} de forma anónima
+              {anonimosContratos > 0 && <span className="text-mute"> · {anonimosContratos.toLocaleString("es-PE")} contratos financiados</span>}
+            </span>
+          ) : (
+            <span>Nadie ha aportado de forma anónima todavía</span>
+          )}
         </div>
-        <span className="text-[12px] text-mute">Valen exactamente lo mismo en el conteo. Sólo no aparecen con nombre.</span>
+        <span className="text-[12px] text-mute">
+          {anonimos.length > 0 ? "Valen exactamente lo mismo en el conteo — solo no aparecen con nombre." : "Si aportás así, valés exactamente lo mismo en el conteo. Solo no aparecés con nombre."}
+        </span>
       </section>
     </div>
   );

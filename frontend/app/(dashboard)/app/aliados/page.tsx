@@ -37,9 +37,10 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
               Aliados de transparencia
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
-              Nadie compra un resultado ni una región. Quienes aparecen aquí financiaron la <strong className="text-ink">capacidad de leer</strong>{" "}
-              contratos públicos que ya eran de todos, y aceptaron que lo que se encuentre se publique aunque los señale a ellos.
-              El reconocimiento es proporcional a los contratos que hicieron posible auditar.
+              Nadie compra un resultado ni una región. Cada nombre en este muro financió{" "}
+              <strong className="text-ink">capacidad de lectura</strong> sobre contratos que ya eran
+              públicos — y aceptó que, si el análisis los señala a ellos, se publica igual. El
+              reconocimiento es proporcional a lo que hicieron posible auditar, nada más.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
