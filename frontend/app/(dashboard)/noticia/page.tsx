@@ -128,7 +128,7 @@ function NoticiaInner() {
     <div className="container-page py-10 max-w-5xl space-y-8">
       <Link
         href="/"
-        className="inline-flex items-center gap-2 text-sm text-ash hover:text-ink"
+        className="inline-flex items-center gap-2 text-sm text-mute hover:text-ink"
       >
         <ArrowLeft size={16} /> Volver al mapa
       </Link>
@@ -140,7 +140,7 @@ function NoticiaInner() {
         <h1 className="font-serif text-4xl font-bold leading-tight">
           Genera un borrador de noticia con IA
         </h1>
-        <p className="text-lg text-ash">
+        <p className="text-lg text-mute">
           Le pasamos a un modelo el dictamen completo del caso. Tú verificas,
           editas y publicas. La IA <strong>no decide</strong>, tú sí.
         </p>
@@ -152,7 +152,7 @@ function NoticiaInner() {
         {/* CONFIG */}
         <div className="surface space-y-5 p-6">
           <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-ash">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-mute">
               Caso
             </label>
             <select
@@ -180,13 +180,13 @@ function NoticiaInner() {
                 ))}
               </optgroup>
             </select>
-            <p className="mt-2 text-xs text-ash">
+            <p className="mt-2 text-xs text-mute">
               {alerta.entidad} — {formatSoles(alerta.montoSoles)}
             </p>
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ash">
+            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-mute">
               Tono
             </label>
             <div className="space-y-1.5">
@@ -198,19 +198,19 @@ function NoticiaInner() {
                   className={
                     "w-full rounded-lg border px-3 py-2 text-left text-sm transition " +
                     (tono === t.id
-                      ? "border-ink bg-bone"
-                      : "border-line bg-white hover:bg-bone")
+                      ? "border-ink bg-paperSoft"
+                      : "border-line bg-paper hover:bg-paperSoft")
                   }
                 >
                   <div className="font-medium">{t.label}</div>
-                  <div className="text-xs text-ash">{t.hint}</div>
+                  <div className="text-xs text-mute">{t.hint}</div>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ash">
+            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-mute">
               Largo
             </label>
             <div className="space-y-1.5">
@@ -222,8 +222,8 @@ function NoticiaInner() {
                   className={
                     "w-full rounded-lg border px-3 py-2 text-left text-sm transition " +
                     (largo === l.id
-                      ? "border-ink bg-bone"
-                      : "border-line bg-white hover:bg-bone")
+                      ? "border-ink bg-paperSoft"
+                      : "border-line bg-paper hover:bg-paperSoft")
                   }
                 >
                   {l.label}
@@ -249,7 +249,7 @@ function NoticiaInner() {
         <div className="surface flex min-h-[500px] flex-col p-0">
           <div className="flex items-center justify-between border-b border-line px-6 py-4">
             <div className="flex items-center gap-2">
-              <Newspaper size={16} className="text-ash" />
+              <Newspaper size={16} className="text-mute" />
               <span className="text-sm font-semibold">Borrador</span>
             </div>
             {resultado && (
@@ -274,7 +274,7 @@ function NoticiaInner() {
 
           <div className="flex-1 p-6">
             {!resultado && !generando && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-ash">
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-mute">
                 <Sparkles size={36} className="text-amber" />
                 <p>
                   Selecciona un caso, un tono y un largo. <br />
@@ -285,7 +285,7 @@ function NoticiaInner() {
             {generando && (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <Loader2 size={36} className="animate-spin text-crimson" />
-                <p className="text-sm text-ash">
+                <p className="text-sm text-mute">
                   Cruzando con dataset SEACE/OECE… <br />
                   Buscando opiniones normativas OECE… <br />
                   Redactando…

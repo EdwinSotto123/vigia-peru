@@ -43,34 +43,50 @@ const config: Config = {
         heroViolet: { DEFAULT: "#4F3D96", deep: "#332463", soft: "#EFEBFA" },
         heroGreen: { DEFAULT: "#2FA84C", soft: "#E3F6E7" },
 
-        // ── Legacy (que otros componentes aún referencien) ──
-        bone: "#FFFFFF",
-        ash: "#687180",
-        coal: "#14171A",
-        // dark variants para componentes que aún las usen
-        void: "#14171A",
-        abyss: "#1B1F24",
-        slate850: "#21262C",
-        slate800: "#2C323A",
-        slate700: "#475059",
-        chalk: "#FFFFFF",
-        chalkMuted: "#9AA3AF",
-        cyan: { DEFAULT: "#A0512D", glow: "#C28840" },
-        fuchsia: { DEFAULT: "#8B2A1E", glow: "#A05A1F" },
-        navy: { DEFAULT: "#1B1611", soft: "#E8DFC7" },
-        violet: { DEFAULT: "#5C4F40", glow: "#76695A" },
-        emerald: { DEFAULT: "#3D5C2D", glow: "#5A7E45" },
+        // El bloque "legacy" (bone/ash/coal/void/abyss/slate*/chalk/cyan/
+        // fuchsia/navy/violet/emerald) se eliminó: 0 usos reales en app/ y
+        // components/, y varios mentían sobre su propio nombre — `cyan` era
+        // un marrón #A0512D y `fuchsia` un oxblood #8B2A1E. Un alias que no
+        // dice la verdad sobre su color es una trampa para el próximo que
+        // lo use de buena fe.
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)", "'Source Serif Pro'", "Georgia", "serif"],
         mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
-        techno: ["var(--font-techno)", "'Chakra Petch'", "Inter", "sans-serif"],
       },
+      // Escala de elevación real: cada nivel tiene offset Y creciente y blur
+      // proporcional, así la altura se lee como altura y no como un halo.
+      // card/paper/inset se conservan con sus valores exactos — los usan 200+
+      // componentes y cambiarlos sería un rediseño encubierto de todo el sitio.
       boxShadow: {
         card: "0 1px 2px rgba(27,22,17,0.06), 0 8px 24px rgba(27,22,17,0.08)",
         paper: "0 2px 0 rgba(27,22,17,0.04), 0 14px 40px -8px rgba(27,22,17,0.18)",
         inset: "inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(27,22,17,0.05)",
+        // Nivel 3 — popover/tooltip: despega del contenido, sigue cerca de él.
+        pop: "0 4px 8px -2px rgba(20,23,26,0.10), 0 12px 28px -6px rgba(20,23,26,0.16)",
+        // Nivel 4 — drawer/panel lateral: sombra direccional hacia el contenido.
+        drawer: "-8px 0 24px -8px rgba(20,23,26,0.18), -1px 0 0 rgba(20,23,26,0.06)",
+        // Nivel 5 — diálogo centrado: lo más alto que existe en el producto.
+        dialog: "0 16px 32px -8px rgba(20,23,26,0.20), 0 40px 80px -24px rgba(20,23,26,0.28)",
+      },
+      transitionTimingFunction: {
+        // Salida exponencial: arranca rápido y se asienta. Es la curva de todo
+        // lo que aparece (paneles, popovers, reveals).
+        salida: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      transitionDuration: {
+        // Rango de producto según Impeccable: 150–250 ms. Nada de coreografía.
+        rapido: "150ms",
+        normal: "200ms",
+        panel: "240ms",
+      },
+      zIndex: {
+        // Orden explícito del chrome, para no volver a escribir z-[9999].
+        mapa: "5",
+        barra: "20",
+        panel: "40",
+        overlay: "50",
       },
       keyframes: {
         fadeIn: { from: { opacity: "0" }, to: { opacity: "1" } },

@@ -13,6 +13,64 @@
   h1, h2, h3 {
     @apply tracking-tight;
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     Superficies que no dibujamos pero igual se ven
+     Selección, caret, foco, scrollbar y numerales vienen con los
+     defaults del navegador, que no pertenecen a ningún sistema de
+     diseño. Tematizarlas es lo más barato que distingue una página
+     construida de una ensamblada.
+     ───────────────────────────────────────────────────────────── */
+
+  ::selection {
+    background-color: rgba(79, 61, 150, 0.18); /* heroViolet */
+    color: #14171A;                            /* ink */
+  }
+  /* Sobre el escenario morado (podio, hero oscuro) la selección se
+     invierte: verde de marca sobre texto claro. */
+  .sobre-oscuro ::selection {
+    background-color: rgba(47, 168, 76, 0.32); /* heroGreen */
+    color: #FFFFFF;
+  }
+
+  input, textarea, [contenteditable] {
+    caret-color: #4F3D96;
+  }
+
+  /* Un solo anillo de foco para todo el producto. Solo :focus-visible,
+     así el clic con mouse no lo dispara pero el teclado siempre sí.
+     Es la base de accesibilidad de drawers, popovers y del mapa. */
+  :focus-visible {
+    outline: 2px solid #4F3D96;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Elementos que ya tienen su propio tratamiento de foco lo declaran
+     con .foco-propio y quedan fuera del anillo genérico. */
+  .foco-propio:focus-visible {
+    outline: none;
+  }
+
+  /* Scrollbar tematizada, no reinventada: se conserva el ancho y el
+     comportamiento nativo, solo se le da el color del sistema. */
+  * {
+    scrollbar-color: rgba(104, 113, 128, 0.35) transparent;
+    scrollbar-width: thin;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: from-font;
+  }
+
+  /* Cifras que se comparan en columna no deben bailar: los datos del
+     producto (montos, conteos, fechas, códigos) van tabulares. */
+  .font-mono,
+  table,
+  [data-cifra] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
 }
 
 @layer components {
@@ -30,7 +88,8 @@
   }
 }
 
-/* Scrollbar discreto y cálido */
+/* Scrollbar discreto y cálido — opt-in para paneles densos que quieren
+   un thumb más presente que el global de arriba. */
 .scrollbar-warm::-webkit-scrollbar { width: 8px; height: 8px; }
 .scrollbar-warm::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-warm::-webkit-scrollbar-thumb {
@@ -60,4 +119,23 @@
     radial-gradient(rgba(20,23,26,0.03) 1px, transparent 1px);
   background-size: 18px 18px, 22px 22px;
   background-position: 0 0, 9px 11px;
+}
+
+/* ─── Overlays ───────────────────────────────────────────────────
+   <dialog> nativo: escapa cualquier overflow:hidden, trae foco
+   atrapado y Escape gratis. Solo hay que vestirlo, porque el
+   ::backdrop por defecto es un gris que no es de nadie. */
+dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+dialog::backdrop {
+  background: rgba(20, 23, 26, 0.42);
+  backdrop-filter: blur(2px);
+}
+dialog:not([open]) {
+  display: none;
 }

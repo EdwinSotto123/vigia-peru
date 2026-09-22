@@ -33,7 +33,7 @@ function LoginForm() {
     <form onSubmit={submit} className="w-full max-w-sm rounded-3xl border border-line bg-paper p-8 shadow-sm">
       <div className="flex items-center gap-2">
         <Logo height={30} />
-        <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-coal">admin</span>
+        <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">admin</span>
       </div>
       <h1 className="mt-5 font-serif text-2xl font-bold text-ink">Acceso al panel</h1>
       <p className="mt-1 text-sm text-mute">Validación de aportes, financiadores, medios de pago y monitoreo.</p>

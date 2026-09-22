@@ -33,7 +33,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-ink text-paper lg:flex">
         <div className="flex items-center gap-2 border-b border-paper/10 px-5 py-4">
           <Logo height={28} variant="dark" />
-          <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-coal">admin</span>
+          <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">admin</span>
         </div>
         <nav className="flex-1 space-y-0.5 p-3">
           {NAV.map(({ href, label, icon: Icon, exact }) => {
