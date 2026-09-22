@@ -109,11 +109,20 @@ export default async function AliadoPage({ params }: { params: { slug: string } 
           <ArrowLeft size={14} aria-hidden /> Aliados de transparencia
         </Link>
 
-        <div className="mt-4 flex items-center gap-4">
-          <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="lg" />
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-mute">Aliado de transparencia · {aliado.tipo}</div>
-            <h1 className="font-serif text-4xl font-bold text-ink">{aliado.nombre}</h1>
+        {/* Ficha propia del aliado: la única página que existe para celebrar a esta empresa/
+            persona en particular (el resto del sitio lo muestra de paso, en una fila o un
+            puesto del podio) — merecía más que un avatar de 56px en texto plano. Mismo acento
+            decorativo sutil que ya usa el puesto 1 del podio (Podio.tsx), no uno nuevo. */}
+        <div className="relative mt-4 overflow-hidden rounded-3xl border border-line bg-paper p-6 shadow-card sm:p-8">
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-heroViolet/[0.06] blur-3xl" />
+          <div className="flex items-center gap-5">
+            <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="xl" />
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
+                {aliado.slug === "vigia-peru" ? "Fundador · capital semilla" : `Aliado de transparencia · ${aliado.tipo}`}
+              </div>
+              <h1 className="mt-0.5 font-serif text-3xl font-bold text-ink sm:text-4xl">{aliado.nombre}</h1>
+            </div>
           </div>
         </div>
 
