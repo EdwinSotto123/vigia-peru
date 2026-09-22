@@ -5,6 +5,7 @@ import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliad
 import { Paginacion } from "@/components/ui/Paginacion";
 import { cn } from "@/lib/utils";
 import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
+import { Podio } from "./Podio";
 import { OrdenMuro, type OpcionOrden } from "./OrdenMuro";
 import { ResumenAliado } from "./ResumenAliado";
 import { getPerfilAliado } from "./perfil";
@@ -205,15 +206,26 @@ export async function MuroAliados({
     return { clave, etiqueta: ORDEN_LABEL[clave], href: qs ? `/app/aliados?${qs}` : "/app/aliados" };
   });
 
+  // El podio sólo existe ordenando por contratos financiados: con el muro
+  // ordenado por señales o por regiones, un pedestal más alto significaría otra
+  // cosa que la que el podio promete, y un podio que miente es peor que ninguno.
+  const conPodio = enFichas && orden === "financiados" && ordenadas.length >= 3;
+  const enPodio = conPodio ? ordenadas.slice(0, 3) : [];
+  const fueraDelPodio = conPodio ? ordenadas.slice(3) : ordenadas;
+
   const cuerpo = enFichas ? (
-    <div
-      className={cn(
-        "grid gap-4",
-        ordenadas.length > 1 && "sm:grid-cols-2",
-        ordenadas.length > 4 && "xl:grid-cols-3",
+    <div className="space-y-4">
+      {conPodio && (
+        <Podio filas={enPodio} financiadosAmbito={financiadosMuro} esMaqueta={(r) => esSlugMaqueta(r.slug)} />
       )}
-    >
-      {ordenadas.map((r) => {
+      <div
+        className={cn(
+          "grid gap-4",
+          fueraDelPodio.length > 1 && "sm:grid-cols-2",
+          fueraDelPodio.length > 4 && "xl:grid-cols-3",
+        )}
+      >
+      {fueraDelPodio.map((r) => {
         const perfil = r.slug ? porSlug.get(r.slug) : null;
         return (
           <TarjetaAliado
@@ -237,6 +249,7 @@ export async function MuroAliados({
           />
         );
       })}
+      </div>
     </div>
   ) : (
     <div className="overflow-x-auto rounded-2xl border border-line bg-paper">

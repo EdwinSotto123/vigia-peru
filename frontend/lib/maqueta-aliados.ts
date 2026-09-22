@@ -36,8 +36,23 @@ import type { ContribucionAliado } from "@/components/aliados/CadenaAliado";
 export const PARAM_MAQUETA = "maqueta";
 
 /** `?maqueta=1` y nada más: cualquier otro valor deja la vista real. */
+/**
+ * ¿Se mezclan los aliados inventados?
+ *
+ * En DESARROLLO sí, por defecto: la maqueta existe para poder mirar el diseño
+ * con varios nombres, y esconderla detrás de un parámetro que hay que ir a
+ * buscar al pie de la página la volvía inútil para eso. Se apaga con
+ * `?maqueta=0` cuando hace falta ver la página real.
+ *
+ * En PRODUCCIÓN sigue apagada salvo que alguien escriba `?maqueta=1` a mano, y
+ * entonces la página lo grita por todos lados. Un visitante nunca se topa con
+ * datos inventados en un sitio que acusa a otros de falta de transparencia.
+ */
 export function maquetaActiva(valor: string | string[] | undefined): boolean {
-  return (Array.isArray(valor) ? valor[0] : valor) === "1";
+  const v = Array.isArray(valor) ? valor[0] : valor;
+  if (v === "1") return true;
+  if (v === "0") return false;
+  return process.env.NODE_ENV !== "production";
 }
 
 /** Sufijo listo para pegar a un href y conservar el interruptor al navegar. */

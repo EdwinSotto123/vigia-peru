@@ -150,15 +150,29 @@ export function CapacidadColectiva({
         son un hilo porque ese es el tamaño del trabajo hecho hasta hoy.
       </p>
 
+      {/* En qué terminaron las lecturas. Antes eran tres renglones de prosa
+          ("De los 190 leídos, 84 tienen al menos una señal, 26 esperan
+          revisión…"): las tres partes de un mismo total, escritas en fila en
+          vez de dibujadas. Una barra apilada dice lo mismo de un vistazo y
+          además deja ver la proporción, que es lo que la frase escondía. */}
       {leidos > 0 && (
-        <p className="mt-5 max-w-[70ch] border-t border-line pt-4 text-sm leading-relaxed text-inkSoft">
-          De los <span className="font-mono">{num(leidos)}</span> leídos,{" "}
-          <span className="font-mono">{num(conSenal)}</span> tienen al menos una señal publicada con su
-          norma citada, <span className="font-mono">{num(enRevision)}</span> esperan revisión humana porque
-          la autoevaluación no alcanzó el umbral para publicar, y{" "}
-          <span className="font-mono">{num(sinSenal)}</span> salieron sin señal. Los resultados se publican
-          igual, señalen a quien señalen.
-        </p>
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="text-[13px] text-mute">
+            En qué terminaron los <span className="font-mono font-semibold text-ink">{num(leidos)}</span> leídos
+          </p>
+          <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-paperDeep" role="img"
+            aria-label={`${num(conSenal)} con señal, ${num(enRevision)} en revisión humana, ${num(sinSenal)} sin señal`}>
+            {conSenal > 0 && <div className="h-full bg-rust" style={{ width: `${(conSenal / leidos) * 100}%` }} />}
+            {enRevision > 0 && <div className="h-full bg-clay" style={{ width: `${(enRevision / leidos) * 100}%` }} />}
+            {sinSenal > 0 && <div className="h-full bg-moss" style={{ width: `${(sinSenal / leidos) * 100}%` }} />}
+          </div>
+          <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px]">
+            <Parte color="bg-rust" n={conSenal} total={leidos} texto="con señal publicada y norma citada" />
+            <Parte color="bg-clay" n={enRevision} total={leidos} texto="esperan revisión humana" />
+            <Parte color="bg-moss" n={sinSenal} total={leidos} texto="salieron sin señal" />
+          </ul>
+          <p className="mt-2 text-[12px] text-mute">Se publican igual, señalen a quien señalen.</p>
+        </div>
       )}
 
       {porFinanciar > 0 && (
@@ -178,5 +192,17 @@ export function CapacidadColectiva({
         </div>
       )}
     </section>
+  );
+}
+
+/** Una parte de la barra apilada: punto, cifra con su denominador, y qué es. */
+function Parte({ color, n, total, texto }: { color: string; n: number; total: number; texto: string }) {
+  if (n <= 0) return null;
+  return (
+    <li className="inline-flex items-baseline gap-1.5 text-mute">
+      <span className={`mt-0.5 h-2 w-2 shrink-0 self-center rounded-full ${color}`} aria-hidden />
+      <span className="font-mono font-semibold tabular-nums text-ink">{n.toLocaleString("es-PE")}</span>
+      <span className="text-mute">de {total.toLocaleString("es-PE")} {texto}</span>
+    </li>
   );
 }

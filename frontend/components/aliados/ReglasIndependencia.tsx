@@ -1,32 +1,35 @@
 import { ListOrdered, Scale, ShieldCheck } from "lucide-react";
+import { Popover } from "@/components/ui/Flotante";
 
 /**
- * Las tres reglas que hacen que este muro no sea publicidad.
+ * Las tres reglas que hacen que este muro no sea publicidad, cada una en UNA
+ * frase y con el detalle detrás de un popover.
  *
- * Antes eran tres tarjetas idénticas (ícono en cuadrito + título + párrafo)
- * en una grilla de tres columnas: la plantilla que la dirección prohíbe como
- * estructura de página, y que además las igualaba en peso con el CTA que iba
- * al lado. Ahora son tres renglones de una sola superficie, que es lo que
- * son: la letra chica que en este producto no puede ser chica.
+ * Antes cada una traía un párrafo de tres renglones: nueve renglones de letra
+ * chica al pie de una página cuyo protagonista debería ser quien financia. El
+ * argumento no se puede borrar —es la promesa del producto— pero sí se puede
+ * decir en una línea y dejar la letra chica a un clic de distancia.
  */
-
 const REGLAS = [
   {
     Icono: Scale,
     titulo: "Nadie elige qué se audita",
-    texto:
+    resumen: "Ni quien paga, ni nosotros.",
+    detalle:
       "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. El pipeline de agentes no recibe ni conoce el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
   },
   {
     Icono: ListOrdered,
     titulo: "Se cuenta en contratos, nunca en soles",
-    texto:
+    resumen: "300 vecinos pesan igual que una empresa.",
+    detalle:
       "Trescientos vecinos que financian 300 contratos pesan exactamente lo mismo que una empresa que financia 300. Por eso en esta página no aparece ningún monto al lado de ningún nombre.",
   },
   {
     Icono: ShieldCheck,
     titulo: "Conflicto de interés, automático",
-    texto:
+    resumen: "Con sanción vigente se puede aportar, pero no aparecer.",
+    detalle:
       "Una empresa con sanción vigente, o señalada en alertas de la zona que quiere financiar, puede aportar: su aporte entra a la cola igual. Lo que no hace es aparecer en este muro. El reconocimiento público se pierde; la lectura del contrato, no.",
   },
 ];
@@ -37,14 +40,24 @@ export function ReglasIndependencia() {
       <h2 id="reglas-titulo" className="font-serif text-lg font-bold text-ink">
         Por qué financiar esto no compra nada
       </h2>
-      <dl className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper">
-        {REGLAS.map(({ Icono, titulo, texto }) => (
-          <div key={titulo} className="flex gap-3 border-t border-line px-5 py-4 first:border-t-0 sm:gap-4">
-            <Icono size={16} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
-            <div className="min-w-0">
-              <dt className="text-sm font-semibold text-ink">{titulo}</dt>
-              <dd className="mt-1 max-w-[72ch] text-[13px] leading-relaxed text-mute">{texto}</dd>
-            </div>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+        {REGLAS.map(({ Icono, titulo, resumen, detalle }) => (
+          <div key={titulo} className="rounded-2xl border border-line bg-paper px-4 py-3.5">
+            <dt className="flex items-start gap-2.5">
+              <Icono size={16} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+              <span className="text-[13px] font-semibold leading-snug text-ink">{titulo}</span>
+            </dt>
+            <dd className="mt-1.5 text-[13px] leading-snug text-mute">
+              {resumen}{" "}
+              <Popover
+                titulo={titulo}
+                anchoClase="w-80"
+                className="align-baseline text-[12px] font-medium text-heroViolet underline underline-offset-2 hover:text-heroViolet-deep"
+                trigger={<>cómo</>}
+              >
+                {detalle}
+              </Popover>
+            </dd>
           </div>
         ))}
       </dl>
