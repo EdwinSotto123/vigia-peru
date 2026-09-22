@@ -101,8 +101,10 @@ export function CapacidadColectiva({
   ];
 
   return (
-    <section aria-labelledby="capacidad-titulo" className="rounded-2xl border border-line bg-paper p-5 sm:p-7">
-      <h2 id="capacidad-titulo" className="max-w-[46ch] font-serif text-xl font-bold leading-snug text-ink sm:text-2xl">
+    <section aria-labelledby="capacidad-titulo" className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
+      {/* El titular baja de serif 24px a 15px: esta sección es el CONTEXTO del
+          muro, no su competencia. El protagonista de la página es quien financia. */}
+      <h2 id="capacidad-titulo" className="max-w-[70ch] text-[15px] font-semibold leading-snug text-ink">
         {leidos === 0 ? (
           <>
             Todavía no se leyó ninguno de los{" "}
@@ -120,35 +122,29 @@ export function CapacidadColectiva({
           </>
         )}
       </h2>
-      <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-mute">
-        Ese hueco es lo que esta página mide. El ranking de quién aportó viene después, y es un
-        libro mayor: aquí nadie compra un resultado ni una región.
-      </p>
-
-      <ol className="mt-6">
+      {/* La cascada, en UNA fila.
+          Antes eran cuatro renglones apilados, cada uno con su barra y su nota
+          de dos líneas: 785 px, el 31 % de la página, y encima ARRIBA del muro.
+          Esta página existe para enaltecer a quien financia, y el contexto le
+          estaba ganando la pantalla al protagonista. Las notas de cada escalón
+          pasan al `title`: siguen disponibles, dejan de ocupar. */}
+      <ol className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
         {escalones.map((e) => (
-          <li key={e.etiqueta} className="border-t border-line py-3 first:border-t-0 first:pt-0">
-            <div className="flex items-baseline justify-between gap-4">
-              <span className="text-sm font-medium text-ink">{e.etiqueta}</span>
-              <span className="shrink-0 font-mono text-sm text-ink">
-                {num(e.valor)}
-                <span className="ml-2 text-[11px] font-normal text-mute">{pctTxt(e.valor, publicados)}</span>
-              </span>
+          <li key={e.etiqueta} title={e.nota}>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-mono text-lg font-bold tabular-nums text-ink">{num(e.valor)}</span>
+              <span className="font-mono text-[11px] text-mute">{pctTxt(e.valor, publicados)}</span>
             </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
               <div
                 className={`h-1.5 min-w-[2px] rounded-full ${TONO[e.tono]}`}
                 style={{ width: `${publicados > 0 ? (e.valor / publicados) * 100 : 0}%` }}
               />
             </div>
-            {e.nota && <p className="mt-1.5 max-w-[70ch] text-[11px] leading-relaxed text-mute">{e.nota}</p>}
+            <p className="mt-1 text-[12px] leading-snug text-mute">{e.etiqueta}</p>
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-[11px] leading-relaxed text-mute">
-        Las cuatro barras están a la misma escala real sobre {num(publicados)}. Las dos últimas
-        son un hilo porque ese es el tamaño del trabajo hecho hasta hoy.
-      </p>
 
       {/* En qué terminaron las lecturas. Antes eran tres renglones de prosa
           ("De los 190 leídos, 84 tienen al menos una señal, 26 esperan
@@ -156,8 +152,8 @@ export function CapacidadColectiva({
           vez de dibujadas. Una barra apilada dice lo mismo de un vistazo y
           además deja ver la proporción, que es lo que la frase escondía. */}
       {leidos > 0 && (
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="text-[13px] text-mute">
+        <div className="mt-4 border-t border-line pt-3">
+          <p className="text-[12px] text-mute">
             En qué terminaron los <span className="font-mono font-semibold text-ink">{num(leidos)}</span> leídos
           </p>
           <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-paperDeep" role="img"
@@ -171,13 +167,13 @@ export function CapacidadColectiva({
             <Parte color="bg-clay" n={enRevision} total={leidos} texto="esperan revisión humana" />
             <Parte color="bg-moss" n={sinSenal} total={leidos} texto="salieron sin señal" />
           </ul>
-          <p className="mt-2 text-[12px] text-mute">Se publican igual, señalen a quien señalen.</p>
+          <p className="mt-1.5 text-[12px] text-mute">Se publican igual, señalen a quien señalen.</p>
         </div>
       )}
 
       {porFinanciar > 0 && (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line pt-4">
-          <p className="max-w-[54ch] text-sm leading-relaxed text-inkSoft">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line pt-3">
+          <p className="max-w-[54ch] text-[13px] leading-relaxed text-inkSoft">
             Quedan <span className="font-mono font-semibold text-ink">{num(porFinanciar)}</span> contratos
             en la cola sin financiar. Leerlos todos cuesta{" "}
             <span className="font-mono font-semibold text-ink">{formatPEN(porFinanciar * precioPen)}</span> a{" "}

@@ -117,6 +117,20 @@ export default async function AliadosPage({
         </div>
       </div>
 
+      {/* EL MURO VA PRIMERO. Estaba debajo de la cascada del déficit, que
+          ocupaba 785 px —el 31 % de la página— antes de que apareciera un
+          solo nombre. Esta página existe para enaltecer a quien financia: el
+          contexto no puede ganarle la pantalla al protagonista. */}
+      <MuroAliados
+        region={ubigeo}
+        pagina={pagina}
+        nombreRegion={zona?.nombre}
+        financiadosAmbito={financiados}
+        maqueta={maqueta}
+        orden={orden}
+      />
+
+
       {/* P0 de la dirección: si el API cae, se dice — no se dibujan ceros que parezcan dato. */}
       {estado ? (
         <CapacidadColectiva
@@ -137,15 +151,6 @@ export default async function AliadosPage({
           en cero que parezcan un dato.
         </p>
       )}
-
-      <MuroAliados
-        region={ubigeo}
-        pagina={pagina}
-        nombreRegion={zona?.nombre}
-        financiadosAmbito={financiados}
-        maqueta={maqueta}
-        orden={orden}
-      />
 
       <ReglasIndependencia />
 
