@@ -26,7 +26,7 @@ export function LiveTracePanel({ events }: { events: any[] }) {
           <span className="font-mono text-[10px] text-mute">{steps.length} pasos</span>
         </div>
         <div className="flex gap-1.5 font-mono text-[9px]">
-          {nTools > 0 && <span className="rounded bg-amber-soft px-1.5 py-0.5 font-bold text-amber">{nTools} tool calls</span>}
+          {nTools > 0 && <span className="rounded bg-amber-soft px-1.5 py-0.5 font-bold text-amberTexto">{nTools} tool calls</span>}
           {nRes > 0 && <span className="rounded bg-moss/10 px-1.5 py-0.5 font-bold text-moss">{nRes} resultados</span>}
         </div>
       </div>

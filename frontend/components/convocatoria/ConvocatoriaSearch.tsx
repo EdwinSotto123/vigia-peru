@@ -499,7 +499,7 @@ export function ConvocatoriaSearch() {
           {blockedOcid && (
             <div className="mt-3 rounded-xl border-2 border-amber bg-amber/10 p-4 text-sm">
               <div className="mb-2 flex items-start gap-2">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber" />
+                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amberTexto" />
                 <div>
                   <div className="font-semibold text-ink">
                     El proxy OECE está bloqueado para tu ruta — pegá el OCDS manualmente

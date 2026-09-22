@@ -188,7 +188,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
             </div>
             {conflicto && (
               <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-soft px-3 py-2 text-[12px] text-ink animate-fadeIn">
-                <ShieldAlert size={13} className="mt-0.5 shrink-0 text-amber" aria-hidden />
+                <ShieldAlert size={13} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
                 <span>Tu perfil no puede ser visible: hay un conflicto de interés declarado ({perfil.motivoNoVisible === "sancion_vigente_osce" ? "sanción vigente OSCE" : "proveedor con alertas activas"}). Tus aportes procesan contratos igual.</span>
               </p>
             )}
@@ -249,7 +249,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                 <div className="text-[11px] text-mute">Así se verá en el muro de aliados</div>
               </div>
               {visible ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-heroGreen/30 bg-heroGreen/10 px-2.5 py-1 text-[11px] font-semibold text-heroGreen">
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-heroGreen/30 bg-heroGreen/10 px-2.5 py-1 text-[11px] font-semibold text-heroGreenTexto">
                   <Eye size={11} aria-hidden /> Visible
                 </span>
               ) : (

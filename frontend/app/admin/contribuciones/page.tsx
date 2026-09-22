@@ -132,7 +132,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
         <D k="Email" v={c.email} /><D k="Referencia" v={c.pasarelaRef ?? "—"} />
         <D k="Creada" v={fmtDate(c.createdAt)} /><D k="Pagada" v={c.pagadaAt ? `${fmtDate(c.pagadaAt)} · ${c.validadaPor ?? ""}` : "—"} />
       </dl>
-      {!c.visible && <div className="mt-3 rounded-lg bg-crimson-soft p-2 text-[12px] text-crimson">Sin reconocimiento público: {c.motivoNoVisible?.replace(/_/g, " ")}. El aporte procesa contratos igual.</div>}
+      {!c.visible && <div className="mt-3 rounded-lg bg-crimson-soft p-2 text-[12px] text-crimsonTexto">Sin reconocimiento público: {c.motivoNoVisible?.replace(/_/g, " ")}. El aporte procesa contratos igual.</div>}
       {c.mensajePublico && <p className="mt-3 border-l-2 border-amber pl-2 text-[13px] italic text-mute">“{c.mensajePublico}”</p>}
 
       <div className="mt-4">

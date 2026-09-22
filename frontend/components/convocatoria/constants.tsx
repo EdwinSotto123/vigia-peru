@@ -85,8 +85,8 @@ export const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode
   document_parser_agent: { color: "bg-heroViolet text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
   document_legal_analyst_agent: { color: "bg-heroViolet text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
   market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Market Price" },
-  web_research_agent:    { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Web Research" },
-  news_research_agent:   { color: "bg-amber-soft text-amber",   icon: <Globe2 size={11} />,        label: "Prensa" },
+  web_research_agent:    { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Web Research" },
+  news_research_agent:   { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Prensa" },
   entity_personnel_agent:{ color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Funcionarios" },
   person_network_agent:  { color: "bg-heroViolet text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
   compliance_extended_agent: { color: "bg-amber text-paper",    icon: <ScanSearch size={11} />,    label: "Compliance+" },
@@ -178,22 +178,22 @@ export const TOOL_INFO: Record<string, string> = {
 
 export const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: string; label: string }> = {
   alineado:      { color: "text-moss",  bg: "bg-moss/10 border-moss/30",   emoji: "🟢", label: "ALINEADO" },
-  elevado:       { color: "text-amber", bg: "bg-amber-soft border-amber/40", emoji: "🟠", label: "ELEVADO" },
+  elevado:       { color: "text-amberTexto", bg: "bg-amber-soft border-amber/40", emoji: "🟠", label: "ELEVADO" },
   muy_elevado:   { color: "text-rust",  bg: "bg-crimson-soft border-rust/40", emoji: "🔴", label: "MUY ELEVADO" },
-  barato:        { color: "text-clay",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
+  barato:        { color: "text-clayTexto",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
   estimacion:    { color: "text-mute",  bg: "bg-paperDeep border-line",     emoji: "⚪", label: "ESTIMACIÓN" },
   sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "S/ OFERTADO" },
   // El backend ya corrió el juez de plausibilidad y decidió que el lote NO es comparable
   // (cobertura insuficiente frente al total de ítems reales, o una comparación implausible);
   // antes caía en el "⚪ ESTIMACIÓN" genérico y se perdía esa distinción.
-  no_verificable: { color: "text-clay", bg: "bg-paperSoft border-clay/30", emoji: "🚫", label: "NO VERIFICABLE" },
+  no_verificable: { color: "text-clayTexto", bg: "bg-paperSoft border-clay/30", emoji: "🚫", label: "NO VERIFICABLE" },
 };
 
 export const AGENTE_VISUAL: Record<string, { label: string; chipClass: string; iconClass: string }> = {
   compliance_agent:               { label: "Compliance",        chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
   compliance_extended_agent:      { label: "Compliance ext.",   chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
   document_legal_analyst_agent:   { label: "Legal analyst",     chipClass: "bg-heroViolet/15 text-heroViolet",      iconClass: "text-heroViolet" },
-  document_parser_agent:          { label: "Doc parser",        chipClass: "bg-amber/15 text-amber",    iconClass: "text-amber" },
+  document_parser_agent:          { label: "Doc parser",        chipClass: "bg-amber/15 text-amberTexto",    iconClass: "text-amberTexto" },
   market_price_agent:             { label: "Market price",      chipClass: "bg-moss/15 text-moss",      iconClass: "text-moss" },
   person_network_agent:           { label: "Person network",    chipClass: "bg-mute/15 text-mute",      iconClass: "text-mute" },
   news_research_agent:            { label: "News research",     chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },

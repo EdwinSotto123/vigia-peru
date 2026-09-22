@@ -44,7 +44,7 @@ export async function EjecucionPresupuestal({
         />
         <div className="space-y-3 px-5 py-6">
           <div className="flex items-start gap-3 rounded-xl border border-amber/40 bg-amber-soft px-4 py-3">
-            <Clock size={18} className="mt-0.5 shrink-0 text-amber" />
+            <Clock size={18} className="mt-0.5 shrink-0 text-amberTexto" />
             <div className="text-sm text-ink">
               <strong>MEF Datos Abiertos está respondiendo lento (&gt; 28s).</strong>{" "}
               Las queries con <code className="rounded bg-paperDeep px-1 font-mono text-xs">LIKE</code> sobre la tabla de 8M filas{" "}
@@ -89,7 +89,7 @@ export async function EjecucionPresupuestal({
           subtitle="MEF no disponible ahora"
         />
         <div className="px-5 py-6 text-center text-sm">
-          <WifiOff size={20} className="mx-auto mb-2 text-amber" />
+          <WifiOff size={20} className="mx-auto mb-2 text-amberTexto" />
           <p className="font-medium text-ink">
             La API de Datos Abiertos del MEF no respondió.
           </p>

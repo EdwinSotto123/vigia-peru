@@ -28,7 +28,7 @@ export function AnalisisPostoresSection({ data }: { data: any }) {
           "rounded-md px-3 py-2",
           (patrones.n_con_co_ocurrencia || 0) > 0 ? "bg-amber-soft" : "bg-paperDeep",
         )}>
-          <div className={cn("font-mono text-lg font-bold", (patrones.n_con_co_ocurrencia || 0) > 0 ? "text-amber" : "text-ink")}>
+          <div className={cn("font-mono text-lg font-bold", (patrones.n_con_co_ocurrencia || 0) > 0 ? "text-amberTexto" : "text-ink")}>
             {patrones.n_con_co_ocurrencia || 0}
           </div>
           <div className="text-[10px] text-mute">con co-ocurrencia (base Vigía)</div>
@@ -96,7 +96,7 @@ export function AnalisisPostoresSection({ data }: { data: any }) {
       {/* Pares co-ocurrentes (señal de cartel) */}
       {Object.keys(patrones.pares_co_ocurrentes || {}).length > 0 && (
         <div className="mt-3 rounded-md border border-amber/30 bg-amber-soft/40 p-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amberTexto">
             <AlertTriangle size={10} className="mr-1 inline" />
             Co-ocurrencias en la base de Vigía
           </div>
@@ -109,7 +109,7 @@ export function AnalisisPostoresSection({ data }: { data: any }) {
               const list: string[] = Array.isArray(ocids) ? ocids : [];
               return (
                 <li key={i} className="font-mono text-[10px] text-ink">
-                  <span className="text-amber">●</span> {par} · <strong>{list.length}</strong> proceso{list.length === 1 ? "" : "s"} compartido{list.length === 1 ? "" : "s"}
+                  <span className="text-amberTexto">●</span> {par} · <strong>{list.length}</strong> proceso{list.length === 1 ? "" : "s"} compartido{list.length === 1 ? "" : "s"}
                   {list.length > 0 && (
                     <div className="ml-3 mt-0.5 flex flex-wrap gap-1">
                       {list.slice(0, 8).map((oc, j) => (

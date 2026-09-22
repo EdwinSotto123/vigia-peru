@@ -144,7 +144,7 @@ function Contenido() {
                     <Link href={`/impacto/${a.codigo}`} className="inline-flex items-center gap-1 font-semibold text-ink hover:underline">Comprobante público <ArrowRight size={12} aria-hidden /></Link>
                     {a.primerOcid && <Link href={`/app/auditoria/${encodeURIComponent(a.primerOcid)}`} className="text-mute hover:text-ink hover:underline">Primer contrato procesado</Link>}
                     {a.estado === "pendiente_pago" && !a.tieneComprobante && (
-                      <Link href={`/app/financiar/${a.ubigeo}`} className="text-clay hover:underline">Enviar comprobante de pago</Link>
+                      <Link href={`/app/financiar/${a.ubigeo}`} className="text-clayTexto hover:underline">Enviar comprobante de pago</Link>
                     )}
                     {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={11} aria-hidden /></a>}
                   </div>
@@ -246,7 +246,7 @@ function Contenido() {
       </div>
 
       <p className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
-        <Bell size={14} className="mt-0.5 shrink-0 text-clay" aria-hidden />
+        <Bell size={14} className="mt-0.5 shrink-0 text-clayTexto" aria-hidden />
         <span>Los avisos por correo (cuando se procese un contrato que financiaste o haya señales en tu zona) se configuran en <Link href="/app/configuracion" className="underline hover:text-ink">Configuración</Link>. Por ahora solo guardamos tu preferencia; el envío se activará más adelante.</span>
       </p>
     </div>
@@ -268,7 +268,7 @@ function Reclamar({ codigo, onOk }: { codigo: string; onOk: () => void }) {
   if (estado === "ok") return null;
   return (
     <form onSubmit={enviar} className="animate-slideUp rounded-2xl border border-clay/40 bg-paperSoft p-5 shadow-card">
-      <div className="inline-flex items-center gap-2 text-sm font-semibold text-ink"><Link2 size={14} className="text-clay" aria-hidden /> Asociar el aporte <span className="font-mono">{codigo}</span> a tu cuenta</div>
+      <div className="inline-flex items-center gap-2 text-sm font-semibold text-ink"><Link2 size={14} className="text-clayTexto" aria-hidden /> Asociar el aporte <span className="font-mono">{codigo}</span> a tu cuenta</div>
       <p className="mt-1 text-[12px] text-mute">Escribe el correo que usaste al aportar (es la prueba de que es tuyo; el código es público).</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.pe" className="min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm focus:border-heroViolet focus:outline-none" aria-label="Correo usado en el aporte" />
@@ -287,11 +287,11 @@ function ModeracionPill({ estado, confirmado, convergencia }: { estado: string; 
   // "Convergente" no es un error del denunciante (rust queda solo para riesgo/peligro real) —
   // DenunciasGrid ya pinta ese mismo estado en ink + ícono ámbar; acá se iguala ese vocabulario
   // en vez de inventar un segundo tratamiento de color para el mismo caso.
-  const cls = convergencia ? "bg-ink text-paper" : verificadaOPublicada ? "bg-moss/10 text-moss" : estado === "rechazado" ? "bg-paperDeep text-mute" : "bg-amber-soft text-amber";
+  const cls = convergencia ? "bg-ink text-paper" : verificadaOPublicada ? "bg-moss/10 text-moss" : estado === "rechazado" ? "bg-paperDeep text-mute" : "bg-amber-soft text-amberTexto";
   const Icon = convergencia ? GitMerge : verificadaOPublicada ? CheckCircle2 : estado === "rechazado" ? XCircle : Clock;
   return (
     <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
-      <Icon size={10} className={convergencia ? "text-amber" : ""} aria-hidden /> {label}
+      <Icon size={10} className={convergencia ? "text-amberTexto" : ""} aria-hidden /> {label}
     </span>
   );
 }

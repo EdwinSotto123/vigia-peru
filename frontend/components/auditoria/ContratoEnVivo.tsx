@@ -115,7 +115,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       </div>
     ) : (
       <div className="flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-        <WifiOff size={18} className="mt-0.5 shrink-0 text-amber" aria-hidden />
+        <WifiOff size={18} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
         <div>
           <div className="font-medium text-ink">No pudimos cargar el estado de este contrato.</div>
           <div className="mt-0.5">Reintentamos automáticamente. Código: <span className="font-mono">{ocid}</span></div>
@@ -140,7 +140,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const enVivoBadge = (
     <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true" suppressHydrationWarning>
       {fallo ? (
-        <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
+        <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
       ) : activo ? (
         <>
           <PulseDot color="moss" size={6} />
@@ -200,7 +200,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         </p>
       )}
       {p.estado === "error" && (
-        <p className="mt-3 text-[12px] text-crimson">
+        <p className="mt-3 text-[12px] text-crimsonTexto">
           {p.intentos < 3
             ? "El intento anterior falló; el pipeline vuelve a tomar el contrato desde el inicio."
             : "Tras 3 intentos automáticos quedó en revisión manual. El equipo lo re-encolará y el aporte no pierde su contrato."}
@@ -234,7 +234,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
                 <FlowGraph override={{ ...nodoActivoYHechos(fases), narracion: faseHumana(p, montado ? ahora : undefined, fases) }} />
               </div>
             )}
-            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} />
+            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={p.resultado?.banderas ?? null} />
             {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
             <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
               <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">

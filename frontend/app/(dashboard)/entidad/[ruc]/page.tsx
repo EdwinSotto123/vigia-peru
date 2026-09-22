@@ -358,7 +358,7 @@ function KPI({
   tone: "amber" | "crimson" | "ink" | "heroViolet";
 }) {
   const styles = {
-    amber: "bg-amber-soft text-amber",
+    amber: "bg-amber-soft text-amberTexto",
     crimson: "bg-crimson-soft text-rust",
     ink: "bg-paperDeep text-ink",
     heroViolet: "bg-heroViolet-soft text-heroViolet",

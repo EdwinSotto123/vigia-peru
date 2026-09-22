@@ -68,7 +68,7 @@ export function EstructuraEntidadSection({
               {alcaldeD && (
                 <li className="rounded-md bg-paper px-3 py-2">
                   <div className="flex items-baseline gap-2">
-                    <span className="rounded-full bg-amber/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber">
+                    <span className="rounded-full bg-amber/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amberTexto">
                       Alcalde Distrital
                     </span>
                     <strong className="text-ink">{alcaldeD.nombre}</strong>
@@ -130,7 +130,7 @@ export function EstructuraEntidadSection({
                       {f.cargo || "Funcionario"}
                     </span>
                     {f.vigente && (
-                      <span className="rounded-full bg-heroGreen/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-heroGreen">
+                      <span className="rounded-full bg-heroGreen/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-heroGreenTexto">
                         vigente
                       </span>
                     )}

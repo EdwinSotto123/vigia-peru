@@ -2,49 +2,53 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  ArrowLeft,
-  ChevronRight,
-  Coins,
-  FileSearch,
-  GitMerge,
-  ChevronUp,
-  ChevronDown,
-  MessageSquareWarning,
-  Landmark,
-  Bell,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { useCuenta } from "@/lib/cuentas";
-import { REGIONES, type MetricaId, metricLabel } from "@/lib/peru-data";
-import { formatSoles, ALERTAS_MOCK } from "@/lib/mock-data";
+import { REGIONES } from "@/lib/peru-data";
 import { getReportes, getAlertas } from "@/lib/api-client";
-import { getZonas, getAlcance, alcanceCorto, ESTADO_FILL, ESTADO_LABEL, type Alcance, type Zona, type ZonaEstado } from "@/lib/financiamiento";
-import { coordsForRegionWithJitter } from "@/lib/region-coords";
-import { RegionDetailPanel } from "./RegionDetailPanel";
-import { REGION_UBIGEO, UBIGEO_REGION, belongsToRegion } from "./mapa/region-match";
-import { FiltroMes, type RangoMes } from "./mapa/FiltroMes";
-import type { ZonaTab } from "./mapa/ZonaHubPanel";
-import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
-import { ContratoPinLeyenda, colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
+import { getZonas, getAlcance, alcanceCorto, type Alcance, type Zona } from "@/lib/financiamiento";
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
-import { Marquee } from "./magicui/Marquee";
-import { PulseDot } from "./ui/PulseDot";
+import { nivelDeScore, severidadDeScore, type NivelSeveridad } from "@/lib/severidad";
+import { coordsForRegionWithJitter } from "@/lib/region-coords";
+import { PageHeader } from "@/components/dashboard/PageHeader";
+import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
+import { colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
+import { RegionDetailPanel } from "./RegionDetailPanel";
+import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
+import { type RangoMes } from "./mapa/FiltroMes";
+import { BarraMapa } from "./mapa/BarraMapa";
+import { FichaRegion } from "./mapa/FichaRegion";
+import { SenalesRecientes } from "./mapa/SenalesRecientes";
+import { construirEscala, formatoSoles, medidaPorId, type MedidaId } from "./mapa/escala";
+import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import { cn } from "@/lib/utils";
-import type { MapPoint } from "./PeruChoropleth";
+import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
 
-const PeruChoropleth = dynamic(
-  () => import("./PeruChoropleth").then((m) => m.PeruChoropleth),
-  { ssr: false, loading: () => <MapSkeleton /> },
-);
+const PeruChoropleth = dynamic(() => import("./PeruChoropleth").then((m) => m.PeruChoropleth), {
+  ssr: false,
+  loading: () => <MapaEsqueleto />,
+});
 
-const METRICS: { id: MetricaId; label: string; icon: React.ReactNode }[] = [
-  { id: "alertas", label: "Alertas", icon: <AlertTriangle size={14} /> },
-  { id: "convergentes", label: "Convergentes", icon: <GitMerge size={14} /> },
-  { id: "monto", label: "Monto S/.", icon: <Coins size={14} /> },
-  { id: "score", label: "Score", icon: <Activity size={14} /> },
-];
+const enteros = (n: number) => n.toLocaleString("es-PE");
+
+/** Render de la severidad en el SVG. La clasificación sigue siendo de `lib/severidad`. */
+const FILL_SEVERIDAD: Record<NivelSeveridad, string> = {
+  alta: "fill-rust",
+  media: "fill-amber",
+  baja: "fill-moss",
+  sin_analizar: "fill-mute",
+};
+const RADIO_SEVERIDAD: Record<NivelSeveridad, number> = { alta: 4.2, media: 3.5, baja: 3, sin_analizar: 2.8 };
+
+/** Zona de contratos vacía: sirve para decir "0" sin inventar una fila. */
+const CERO: Pick<ContratoZona, "total" | "enCola" | "procesados" | "conSenales" | "montoPen" | "documentosListos"> = {
+  total: 0,
+  enCola: 0,
+  procesados: 0,
+  conSenales: 0,
+  montoPen: 0,
+  documentosListos: 0,
+};
 
 export function MapaWrapper({
   initialRegionId = null,
@@ -55,699 +59,674 @@ export function MapaWrapper({
   /** Pestaña inicial del panel de zona. */
   initialTab?: ZonaTab;
 } = {}) {
-  const [metric, setMetric] = useState<MetricaId>("alertas");
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(
-    initialRegionId && REGIONES.some((r) => r.id === initialRegionId) ? initialRegionId : null,
+  // ─── Estado de navegación ────────────────────────────────────────────────
+  const [medida, setMedida] = useState<MedidaId>("monto");
+  const [regionUb, setRegionUb] = useState<string | null>(
+    (initialRegionId && REGION_UBIGEO[initialRegionId]) || null,
   );
-  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
-  const [provinciaActiva, setProvinciaActiva] = useState<any | null>(null);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  /** Provincia (4 díg.) o distrito (6 díg.) elegido dentro del departamento abierto. */
+  const [zonaSel, setZonaSel] = useState<{ ubigeo: string; nombre: string } | null>(null);
+  const [activa, setActiva] = useState<{ ubigeo: string; nombre: string; nivel: "departamento" | "provincia" } | null>(null);
+  const [ancla, setAncla] = useState<DOMRect | null>(null);
+  const [mes, setMes] = useState<RangoMes | null>(null);
+  const [panelTab, setPanelTab] = useState<ZonaTab | undefined>(initialTab);
+  const [drawerAbierto, setDrawerAbierto] = useState(false);
+  const [ocidSel, setOcidSel] = useState<string | null>(null);
+  const [hoverUbigeo, setHoverUbigeo] = useState<string | null>(null);
+  const [hoverPunto, setHoverPunto] = useState<string | null>(null);
 
-  // Toggle de capas de pines
-  const [showAlertas, setShowAlertas] = useState(true);
-  const [showDenuncias, setShowDenuncias] = useState(true);
-  // Capa opcional: pinta cada departamento por estado de financiamiento de su auditoría.
-  const [showFinanciamiento, setShowFinanciamiento] = useState(true);   // cola real por región; el selector de métricas mock se retiró
+  // ─── Capas ───────────────────────────────────────────────────────────────
+  const [verSenales, setVerSenales] = useState(true);
+  const [verDenuncias, setVerDenuncias] = useState(true);
+  const [verMisZonas, setVerMisZonas] = useState(false);
+
+  // ─── Datos (null = todavía no llegó · [] = llegó vacío) ──────────────────
+  const [geoPais, setGeoPais] = useState<ContratoZona[] | null>(null);
+  const [geoProv, setGeoProv] = useState<ContratoZona[] | null>(null);
+  const [geoDist, setGeoDist] = useState<ContratoZona[] | null>(null);
   const [zonas, setZonas] = useState<Zona[] | null>(null);
-  // Capa "Mis zonas" (solo con sesión): resalta los departamentos de las zonas que el usuario sigue.
+  const [alcance, setAlcance] = useState<Alcance | null>(null);
+  const [alertas, setAlertas] = useState<any[] | null>(null);
+  const [reportes, setReportes] = useState<any[] | null>(null);
+
+  // Si una fuente no responde, se DICE. Nunca se rellena con otra cosa.
+  const [falloGeo, setFalloGeo] = useState(false);
+  const [falloSenales, setFalloSenales] = useState(false);
+  const [falloDenuncias, setFalloDenuncias] = useState(false);
+  const [intento, setIntento] = useState(0);
+  const reintentoRef = useRef<number | null>(null);
+
+  const reintentar = useCallback(() => {
+    if (reintentoRef.current != null) return;
+    reintentoRef.current = window.setTimeout(() => {
+      reintentoRef.current = null;
+      setIntento((i) => i + 1);
+    }, 12000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (reintentoRef.current != null) window.clearTimeout(reintentoRef.current);
+    },
+    [],
+  );
+
   const { perfil } = useCuenta();
   const misRegiones = useMemo(() => {
     const out = new Set<string>();
-    for (const u of perfil?.zonasSeguidas ?? []) { const r = UBIGEO_REGION[u.slice(0, 2)]; if (r) out.add(r); }
+    for (const u of perfil?.zonasSeguidas ?? []) out.add(u.slice(0, 2));
     return out;
   }, [perfil]);
-  const [showMisZonas, setShowMisZonas] = useState(false);
-  // Panel inferior deslizable (móvil): arrastre vertical del asa.
-  const touchY = useRef<number | null>(null);
-  const [alcance, setAlcance] = useState<Alcance | null>(null);   // qué se analiza hoy (cola financiable, docs listos)
-  const [reportes, setReportes] = useState<any[]>([]);
-  const [alertasApi, setAlertasApi] = useState<any[]>([]);
 
-  // Capa "Contratos": puntos agregados por zona (/contratos/geo). País → provincias;
-  // con región elegida → sus distritos. Nunca 18 k puntos crudos.
-  const [showContratos, setShowContratos] = useState(true);
-  // `null` = todo el histórico. Antes no había ninguna forma de acotar los contratos del mapa
-  // por fecha: todo se veía siempre mezclado, sin decir de qué mes es cada cosa.
-  const [mesFiltro, setMesFiltro] = useState<RangoMes | null>(null);
-  const [geo, setGeo] = useState<ContratoZona[]>([]);
   const geoCache = useRef<Map<string, ContratoZona[]>>(new Map());
-  const [distrito, setDistrito] = useState<{ ubigeo: string; nombre: string } | null>(null);
-  const [ocidSel, setOcidSel] = useState<string | null>(null);
-  const [ubigeoSel, setUbigeoSel] = useState<string | null>(null);      // zona del contrato seleccionado en la lista
-  const [hoverUbigeo, setHoverUbigeo] = useState<string | null>(null);  // fila con el mouse encima
-  const [hoverPunto, setHoverPunto] = useState<string | null>(null);    // punto con el mouse encima
-  const [panelTab, setPanelTab] = useState<ZonaTab | undefined>(initialTab);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const urlLeida = useRef(false);
-  const urlInicial = useRef<{ ubigeo: string | null; ocid: string | null } | null>(null);  // pendiente de absorber en el estado
+  const pedirGeo = useCallback(
+    async (nivel: "departamento" | "provincia" | "distrito", ubigeo?: string, desde?: string, hasta?: string) => {
+      const key = `${nivel}|${ubigeo ?? ""}|${desde ?? ""}`;
+      const cached = geoCache.current.get(key);
+      if (cached) return cached;
+      const d = await getContratosGeo({ nivel, ubigeo, desde, hasta });
+      if (d) geoCache.current.set(key, d);
+      return d;
+    },
+    [],
+  );
 
-  // Fetch alertas REALES + denuncias en paralelo
+  // Señales, denuncias y alcance
   useEffect(() => {
-    let alive = true;
-    getReportes({ limit: 200 })
-      .then((data) => { if (alive) setReportes(data as any[]); })
-      .catch(() => {});
+    let vivo = true;
     getAlertas({ limit: 200 })
-      .then((data) => { if (alive) setAlertasApi(data as any[]); })
-      .catch(() => {});
-    getAlcance().then((a) => { if (alive) setAlcance(a); });
-    return () => { alive = false; };
-  }, []);
+      .then((d) => {
+        if (!vivo) return;
+        setAlertas(d as any[]);
+        setFalloSenales(false);
+      })
+      .catch(() => {
+        if (!vivo) return;
+        setAlertas([]);
+        setFalloSenales(true);
+        reintentar();
+      });
+    getReportes({ limit: 200 })
+      .then((d) => {
+        if (!vivo) return;
+        setReportes(d as any[]);
+        setFalloDenuncias(false);
+      })
+      .catch(() => {
+        if (!vivo) return;
+        setReportes([]);
+        setFalloDenuncias(true);
+        reintentar();
+      });
+    getAlcance().then((a) => vivo && setAlcance(a));
+    getZonas("departamento").then((z) => vivo && setZonas(z ?? []));
+    return () => {
+      vivo = false;
+    };
+  }, [intento, reintentar]);
 
-  // Estado de financiamiento por departamento: se pide una sola vez, al activar la capa.
+  // Coropleto del país (siempre) — es la fuente del color de los departamentos.
   useEffect(() => {
-    if (!showFinanciamiento || zonas !== null) return;
-    let alive = true;
-    getZonas("departamento").then((z) => { if (alive) setZonas(z ?? []); });
-    return () => { alive = false; };
-  }, [showFinanciamiento, zonas]);
+    let vivo = true;
+    pedirGeo("departamento", undefined, mes?.desde, mes?.hasta).then((d) => {
+      if (!vivo) return;
+      if (d) {
+        setGeoPais(d);
+        setFalloGeo(false);
+      } else {
+        setGeoPais([]);
+        setFalloGeo(true);
+        reintentar();
+      }
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [mes, intento, pedirGeo, reintentar]);
 
-  const fillFinanciamiento = useMemo<Record<string, string> | null>(() => {
-    // "Mis zonas" manda sobre la capa de financiamiento: resalta las seguidas y atenúa el resto.
-    if (showMisZonas && misRegiones.size > 0) {
-      const out: Record<string, string> = {};
-      for (const r of REGIONES) out[r.id] = misRegiones.has(r.id) ? "#F2C879" : "#EEF1F4";
-      return out;
+  // Con un departamento abierto: sus provincias (relleno) y sus distritos (puntos).
+  useEffect(() => {
+    if (!regionUb) {
+      setGeoProv(null);
+      setGeoDist(null);
+      return;
     }
-    if (!showFinanciamiento) return null;
-    const out: Record<string, string> = {};
-    for (const z of zonas ?? []) {
-      const regionId = UBIGEO_REGION[z.ubigeo];
-      if (regionId) out[regionId] = ESTADO_FILL[z.estado];
-    }
-    return out;
-  }, [showFinanciamiento, zonas, showMisZonas, misRegiones]);
+    let vivo = true;
+    setGeoProv(null);
+    setGeoDist(null);
+    const recibir = (set: (v: ContratoZona[]) => void) => (d: ContratoZona[] | null) => {
+      if (!vivo) return;
+      set(d ?? []);
+      if (!d) {
+        setFalloGeo(true);
+        reintentar();
+      }
+    };
+    pedirGeo("provincia", regionUb, mes?.desde, mes?.hasta).then(recibir(setGeoProv));
+    pedirGeo("distrito", regionUb, mes?.desde, mes?.hasta).then(recibir(setGeoDist));
+    return () => {
+      vivo = false;
+    };
+  }, [regionUb, mes, intento, pedirGeo, reintentar]);
 
-  // Estado inicial desde la URL (?ubigeo=<distrito>&ocid=) — se lee una vez en el cliente.
+  // ─── Estado ↔ URL (sin navegar) ──────────────────────────────────────────
+  const urlLeida = useRef(false);
   useEffect(() => {
     if (urlLeida.current) return;
     urlLeida.current = true;
     const sp = new URLSearchParams(window.location.search);
     const u = sp.get("ubigeo");
     const o = sp.get("ocid");
-    const ubigeoOk = u && /^\d{6}$/.test(u) ? u : null;
-    const ocidOk = o && /^[\w.-]{1,64}$/.test(o) ? o : null;
-    urlInicial.current = { ubigeo: ubigeoOk, ocid: ocidOk };
-    if (ubigeoOk) {
-      setDistrito({ ubigeo: ubigeoOk, nombre: "" });
-      const rid = UBIGEO_REGION[ubigeoOk.slice(0, 2)];
-      if (rid && !selectedRegionId) setSelectedRegionId(rid);
+    if (u && /^\d{4}(\d{2})?$/.test(u)) {
+      setZonaSel({ ubigeo: u, nombre: "" });
+      setRegionUb((r) => r ?? u.slice(0, 2));
       setPanelTab("cola");
     }
-    if (ocidOk) setOcidSel(ocidOk);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (o && /^[\w.-]{1,64}$/.test(o)) setOcidSel(o);
   }, []);
 
-  // La URL refleja región, pestaña, distrito y contrato (sin navegar: replaceState).
   useEffect(() => {
     if (!urlLeida.current) return;
-    // No pisar la URL hasta que el estado haya absorbido lo que traía (evita un parpadeo sin ?ubigeo/?ocid).
-    const ini = urlInicial.current;
-    if (ini && ((distrito?.ubigeo ?? null) !== ini.ubigeo || ocidSel !== ini.ocid)) return;
-    urlInicial.current = null;
     const sp = new URLSearchParams(window.location.search);
     const set = (k: string, v: string | null | undefined) => (v ? sp.set(k, v) : sp.delete(k));
-    set("region", selectedRegionId);
-    set("tab", selectedRegionId ? panelTab : null);
-    set("ubigeo", selectedRegionId ? distrito?.ubigeo : null);
-    set("ocid", selectedRegionId ? ocidSel : null);
+    set("region", regionUb ? UBIGEO_REGION[regionUb] : null);
+    set("tab", regionUb ? panelTab : null);
+    set("ubigeo", regionUb ? zonaSel?.ubigeo : null);
+    set("ocid", regionUb ? ocidSel : null);
     const qs = sp.toString();
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
-    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", url);
-  }, [selectedRegionId, panelTab, distrito, ocidSel]);
-
-  // Puntos de contratos según nivel: sin región → provincias del país; con región → sus distritos.
-  // El mes elegido entra en la key: cambiar de mes es, para el caché, una consulta distinta.
-  const geoKey = `${selectedRegionId ? `distrito:${REGION_UBIGEO[selectedRegionId] ?? ""}` : "provincia:"}|${mesFiltro?.desde ?? ""}`;
-  useEffect(() => {
-    if (!showContratos) return;
-    const cached = geoCache.current.get(geoKey);
-    if (cached) { setGeo(cached); return; }
-    let alive = true;
-    const [nivel, ub] = geoKey.split("|")[0].split(":") as ["distrito" | "provincia", string];
-    getContratosGeo({ nivel, ubigeo: ub || undefined, desde: mesFiltro?.desde, hasta: mesFiltro?.hasta }).then((d) => {
-      if (!alive) return;
-      geoCache.current.set(geoKey, d ?? []);
-      setGeo(d ?? []);
-    });
-    return () => { alive = false; };
-  }, [showContratos, geoKey, mesFiltro]);
-
-  // Nombre del distrito cuando llegó por URL (solo el ubigeo).
-  useEffect(() => {
-    if (distrito && !distrito.nombre) {
-      const z = geo.find((g) => g.ubigeo === distrito.ubigeo);
-      if (z) setDistrito({ ubigeo: z.ubigeo, nombre: z.nombre });
+    if (url !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, "", url);
     }
-  }, [geo, distrito]);
+  }, [regionUb, panelTab, zonaSel, ocidSel]);
 
-  const totalContratos = useMemo(() => geo.reduce((n, z) => n + z.total, 0), [geo]);
+  // Nombre de la zona cuando llegó sólo el ubigeo por URL.
+  useEffect(() => {
+    if (!zonaSel || zonaSel.nombre) return;
+    const fuente = zonaSel.ubigeo.length === 4 ? geoProv : geoDist;
+    const z = fuente?.find((g) => g.ubigeo === zonaSel.ubigeo);
+    if (z) setZonaSel({ ubigeo: z.ubigeo, nombre: z.nombre });
+  }, [geoProv, geoDist, zonaSel]);
 
-  const puntosContratos = useMemo<MapPoint[]>(() => {
-    if (!showContratos || !geo.length) return [];
-    const max = Math.max(...geo.map((z) => z.total), 1);
-    const resaltada = (u: string) => {
-      const objetivo = hoverUbigeo ?? ubigeoSel;
-      return !!objetivo && (objetivo === u || (u.length === 4 && objetivo.startsWith(u)));
+  // ─── Escalas y relleno ───────────────────────────────────────────────────
+  const m = medidaPorId(medida);
+  const cargandoPais = geoPais === null;
+  const cargandoProv = regionUb != null && geoProv === null;
+
+  const escalaPais = useMemo(() => construirEscala((geoPais ?? []).map(m.valor)), [geoPais, m]);
+  const escalaProv = useMemo(() => construirEscala((geoProv ?? []).map(m.valor)), [geoProv, m]);
+  const escalaActiva = regionUb ? escalaProv : escalaPais;
+
+  const zonaPorUbigeo = useMemo(() => {
+    const map = new Map<string, ContratoZona>();
+    for (const z of geoPais ?? []) map.set(z.ubigeo, z);
+    for (const z of geoProv ?? []) map.set(z.ubigeo, z);
+    for (const z of geoDist ?? []) map.set(z.ubigeo, z);
+    return map;
+  }, [geoPais, geoProv, geoDist]);
+
+  const financiamientoPorUbigeo = useMemo(() => {
+    const map = new Map<string, Zona>();
+    for (const z of zonas ?? []) map.set(z.ubigeo, z);
+    return map;
+  }, [zonas]);
+
+  const resumenDe = useCallback(
+    (z: ContratoZona | undefined, sinDato: boolean) => {
+      if (sinDato) return "sin dato de la API";
+      const c = z ?? (CERO as ContratoZona);
+      return `${enteros(c.total)} contratos ingresados, ${formatoSoles(c.montoPen)} contratados, ${enteros(
+        c.enCola,
+      )} en cola, ${enteros(c.procesados)} leídos, ${enteros(c.conSenales)} con señal`;
+    },
+    [],
+  );
+
+  const regiones = useMemo(() => {
+    const out: Record<string, ZonaPintada> = {};
+    const sinDato = cargandoPais || falloGeo;
+    for (const ub of Object.values(REGION_UBIGEO)) {
+      const z = geoPais?.find((x) => x.ubigeo === ub);
+      out[ub] = {
+        color: escalaPais.color(z ? m.valor(z) : 0),
+        sinDato,
+        resumen: resumenDe(z, sinDato),
+        destacada: verMisZonas && misRegiones.has(ub),
+      };
+    }
+    return out;
+  }, [geoPais, escalaPais, m, cargandoPais, falloGeo, verMisZonas, misRegiones, resumenDe]);
+
+  const provincias = useMemo(() => {
+    if (!regionUb) return undefined;
+    const out: Record<string, ZonaPintada> = {};
+    const sinDato = cargandoProv || falloGeo;
+    for (const z of geoProv ?? []) {
+      out[z.ubigeo] = { color: escalaProv.color(m.valor(z)), sinDato, resumen: resumenDe(z, sinDato) };
+    }
+    return out;
+  }, [regionUb, geoProv, escalaProv, m, cargandoProv, falloGeo, resumenDe]);
+
+  // Una provincia que /contratos/geo no devolvió no tiene contratos ingresados:
+  // eso es un cero, y un cero es un dato. Sólo se raya como "sin dato" mientras
+  // la consulta está en vuelo o falló.
+  const provinciaPorDefecto = useMemo<ZonaPintada | undefined>(() => {
+    if (!regionUb) return undefined;
+    const sinDato = cargandoProv || falloGeo;
+    return {
+      color: escalaProv.color(0),
+      sinDato,
+      resumen: sinDato ? "sin dato de la API" : "sin contratos ingresados",
     };
-    return geo.map((z) => ({
+  }, [regionUb, escalaProv, cargandoProv, falloGeo]);
+
+  // ─── Puntos ──────────────────────────────────────────────────────────────
+  const puntosDistrito = useMemo<MapPoint[]>(() => {
+    if (!regionUb || !geoDist?.length) return [];
+    const max = Math.max(...geoDist.map((z) => z.total), 1);
+    return geoDist.map((z) => ({
       id: `c-${z.ubigeo}`,
       kind: "contratos" as const,
-      lat: z.lat, lon: z.lon,
+      lat: z.lat,
+      lon: z.lon,
       label: z.nombre,
       ubigeo: z.ubigeo,
       total: z.total,
       r: radioPorTotal(z.total, max),
       color: colorPorEstado(z),
-      selected: distrito?.ubigeo === z.ubigeo || resaltada(z.ubigeo),
+      selected: zonaSel?.ubigeo === z.ubigeo || hoverUbigeo === z.ubigeo,
       hovered: hoverPunto === z.ubigeo,
     }));
-  }, [showContratos, geo, distrito, hoverUbigeo, ubigeoSel, hoverPunto]);
+  }, [regionUb, geoDist, zonaSel, hoverUbigeo, hoverPunto]);
 
-  const seleccionarContrato = useCallback((c: ContratoResumen | null) => {
-    setOcidSel(c?.ocid ?? null);
-    setUbigeoSel(c?.ubigeo ?? null);
-    if (c && typeof window !== "undefined" && window.innerWidth < 1024) {
-      mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }, []);
-
-  const onPointClick = useCallback((pt: MapPoint) => {
-    if (pt.kind !== "contratos" || !pt.ubigeo) return;
-    if (pt.ubigeo.length === 4) {
-      // Provincia (vista país): entrar a su departamento; ahí se ven los distritos.
-      const rid = UBIGEO_REGION[pt.ubigeo.slice(0, 2)];
-      if (rid) { setSelectedRegionId(rid); setProvinciaActiva(null); setMobileDrawerOpen(true); }
-      setDistrito(null); setOcidSel(null); setUbigeoSel(null);
-      setPanelTab("cola");
-      return;
-    }
-    setDistrito((d) => (d?.ubigeo === pt.ubigeo ? null : { ubigeo: pt.ubigeo!, nombre: pt.label ?? "" }));
-    setOcidSel(null); setUbigeoSel(null);
-    setPanelTab("cola");
-    setMobileDrawerOpen(true);
-  }, []);
-
-  const mapaContratos = useMemo<MapaContratos>(() => ({
-    activa: showContratos,
-    distritoUbigeo: distrito?.ubigeo ?? null,
-    distritoNombre: distrito?.nombre || null,
-    ocidSeleccionado: ocidSel,
-    seleccionar: seleccionarContrato,
-    hover: (c) => setHoverUbigeo(c?.ubigeo ?? null),
-    limpiarDistrito: () => { setDistrito(null); setOcidSel(null); setUbigeoSel(null); },
-  }), [showContratos, distrito, ocidSel, seleccionarContrato]);
-
-  // Construir lista de pines unificada.
-  // Alertas: priorizamos API real con coords derivadas de la región contratante;
-  // fallback al mock si la API no responde. Para alertas sin lat/lon, derivamos
-  // del centroide de la región con jitter determinista (evita apilamientos).
-  const points = useMemo<MapPoint[]>(() => {
+  const puntos = useMemo<MapPoint[]>(() => {
     const out: MapPoint[] = [];
-    if (showAlertas) {
-      const alertasFuente = alertasApi.length > 0 ? alertasApi : ALERTAS_MOCK;
-      for (const a of alertasFuente) {
+    if (verSenales) {
+      for (const a of alertas ?? []) {
         let lat: number | null = typeof a.lat === "number" ? a.lat : null;
         let lon: number | null = typeof a.lon === "number" ? a.lon : null;
-        // Si no hay lat/lon explícito → derivar del centroide de la región
         if (lat == null || lon == null) {
-          const derived = coordsForRegionWithJitter(a.region, a.id || a.codigo || "");
-          if (derived) { lat = derived.lat; lon = derived.lon; }
+          const d = coordsForRegionWithJitter(a.region, a.id || a.codigo || "");
+          if (d) {
+            lat = d.lat;
+            lon = d.lon;
+          }
         }
         if (lat == null || lon == null) continue;
+        const nivel = nivelDeScore(a.score);
         out.push({
-          id: `a-${a.id || a.codigo}`, kind: "alerta",
-          lat, lon,
-          score: a.score, label: a.objeto?.slice(0, 80),
+          id: `a-${a.id || a.codigo}`,
+          kind: "alerta",
+          lat,
+          lon,
+          score: a.score,
+          label: a.objeto?.slice(0, 80),
+          // La palabra de severidad viaja con el punto: el color solo nunca basta.
+          titulo: `${severidadDeScore(a.score).etiqueta} · score ${a.score ?? "—"} · ${a.region ?? ""} · ${a.objeto ?? ""}`.trim(),
+          colorClase: FILL_SEVERIDAD[nivel],
+          r: RADIO_SEVERIDAD[nivel],
           href: `/app/convocatoria/${a.codigoconvocatoria || a.codigo?.replace("OECE-", "") || a.id}`,
         });
       }
     }
-    if (showDenuncias) {
-      for (const r of reportes) {
+    if (verDenuncias) {
+      for (const r of reportes ?? []) {
         let lat: number | null = typeof r.lat === "number" ? r.lat : null;
         let lon: number | null = typeof r.lon === "number" ? r.lon : null;
         if (lat == null || lon == null) {
-          const derived = coordsForRegionWithJitter(r.region, r.id);
-          if (derived) { lat = derived.lat; lon = derived.lon; }
+          const d = coordsForRegionWithJitter(r.region, r.id);
+          if (d) {
+            lat = d.lat;
+            lon = d.lon;
+          }
         }
         if (lat == null || lon == null) continue;
         out.push({
-          id: `r-${r.id}`, kind: "reporte",
-          lat, lon,
-          categoria: r.categoria, label: r.descripcion?.slice(0, 80),
+          id: `r-${r.id}`,
+          kind: "reporte",
+          lat,
+          lon,
+          categoria: r.categoria,
+          label: r.descripcion?.slice(0, 80),
+          titulo: `Denuncia ciudadana ${r.confirmado ? "confirmada" : "en validación"} · ${r.categoria ?? ""} · ${r.descripcion ?? ""}`.trim(),
+          colorClase: r.confirmado ? "fill-rust" : "fill-clay",
+          r: 3.4,
           confirmado: !!r.confirmado,
           href: `/app/denuncias/${r.id}`,
         });
       }
     }
-    // Los puntos de contratos van primero (debajo): las alertas/denuncias quedan clicables encima.
-    return [...puntosContratos, ...out];
-  }, [showAlertas, showDenuncias, reportes, alertasApi, puntosContratos]);
+    // Los distritos van debajo: las señales y denuncias quedan clicables encima.
+    return [...puntosDistrito, ...out];
+  }, [verSenales, verDenuncias, alertas, reportes, puntosDistrito]);
 
-  const selectedRegion = useMemo(
-    () => REGIONES.find((r) => r.id === selectedRegionId) ?? null,
-    [selectedRegionId],
+  // ─── Acciones ────────────────────────────────────────────────────────────
+  const cerrarFicha = useCallback(() => {
+    setActiva(null);
+    setAncla(null);
+  }, []);
+
+  const elegirRegion = useCallback(
+    (ub: string | null) => {
+      cerrarFicha();
+      setRegionUb(ub);
+      setZonaSel(null);
+      setOcidSel(null);
+      setHoverUbigeo(null);
+      setDrawerAbierto(ub !== null);
+      setPanelTab(ub === null ? initialTab : "resumen");
+    },
+    [initialTab, cerrarFicha],
   );
 
-
-  const tickerAlertas = [...(alertasApi.length > 0 ? alertasApi : ALERTAS_MOCK)]
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 8);
-
-  // Abre el drawer móvil cuando se selecciona una región
-  const handleSelectRegion = (id: string | null) => {
-    setSelectedRegionId(id);
-    setProvinciaActiva(null);
-    setMobileDrawerOpen(id !== null);
-    setDistrito(null);
+  const elegirZona = useCallback((ubigeo: string, nombre: string) => {
+    cerrarFicha();
+    setZonaSel((z) => (z?.ubigeo === ubigeo ? null : { ubigeo, nombre }));
     setOcidSel(null);
-    setUbigeoSel(null);
-    if (id === null) setPanelTab(initialTab);
-  };
+    setPanelTab("cola");
+    setDrawerAbierto(true);
+  }, [cerrarFicha]);
+
+  const mapRef = useRef<HTMLDivElement>(null);
+  const seleccionarContrato = useCallback((c: ContratoResumen | null) => {
+    setOcidSel(c?.ocid ?? null);
+    if (c && typeof window !== "undefined" && window.innerWidth < 1024) {
+      mapRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, []);
+
+  const onPuntoClick = useCallback(
+    (pt: MapPoint) => {
+      if (pt.kind !== "contratos" || !pt.ubigeo) return;
+      elegirZona(pt.ubigeo, pt.label ?? "");
+    },
+    [elegirZona],
+  );
+
+  const mapaContratos = useMemo<MapaContratos>(
+    () => ({
+      activa: regionUb !== null,
+      distritoUbigeo: zonaSel?.ubigeo ?? null,
+      distritoNombre: zonaSel?.nombre || null,
+      ocidSeleccionado: ocidSel,
+      seleccionar: seleccionarContrato,
+      hover: (c) => setHoverUbigeo(c?.ubigeo ?? null),
+      limpiarDistrito: () => {
+        setZonaSel(null);
+        setOcidSel(null);
+      },
+    }),
+    [regionUb, zonaSel, ocidSel, seleccionarContrato],
+  );
+
+  // ─── Encabezado que refleja el estado ────────────────────────────────────
+  const region = regionUb ? REGIONES.find((r) => r.id === UBIGEO_REGION[regionUb]) ?? null : null;
+  const zPais = regionUb ? zonaPorUbigeo.get(regionUb) : undefined;
+  const fPais = regionUb ? financiamientoPorUbigeo.get(regionUb) : undefined;
+  const totalPais = useMemo(
+    () => (geoPais ?? []).reduce((acc, z) => ({ total: acc.total + z.total, leidos: acc.leidos + z.procesados }), { total: 0, leidos: 0 }),
+    [geoPais],
+  );
+
+  const sinConexion = [
+    falloGeo ? "los contratos" : null,
+    falloSenales ? "las señales" : null,
+    falloDenuncias ? "las denuncias" : null,
+  ].filter(Boolean) as string[];
+
+  const ambito = regionUb
+    ? geoProv
+      ? `las ${geoProv.length} provincias de ${region?.nombre ?? "la región"}`
+      : `las provincias de ${region?.nombre ?? "la región"}`
+    : geoPais && geoPais.length > 0
+      ? `los ${geoPais.length} departamentos`
+      : "los departamentos del país";
+
+  // ─── Ficha flotante anclada a la zona ────────────────────────────────────
+  const zonaActiva = activa ? zonaPorUbigeo.get(activa.ubigeo) : undefined;
+  const finActiva = activa && activa.nivel === "departamento" ? financiamientoPorUbigeo.get(activa.ubigeo) : undefined;
+  const fichaFilas = useMemo(() => {
+    if (!activa) return [];
+    const z = zonaActiva ?? (CERO as ContratoZona);
+    const filas = [
+      { etiqueta: "En cola", valor: enteros(z.enCola), de: `${enteros(z.total)} ingresados`, tono: "text-ink" },
+      {
+        etiqueta: "Financiados",
+        valor: enteros(finActiva?.financiados ?? 0),
+        de: finActiva ? `${enteros(finActiva.totalCola)} en cola` : `${enteros(z.enCola)} en cola`,
+        tono: "text-ink",
+      },
+      { etiqueta: "Con señal", valor: enteros(z.conSenales), de: `${enteros(z.procesados)} leídos`, tono: "text-rust" },
+    ];
+    return activa.nivel === "provincia" ? filas.filter((f) => f.etiqueta !== "Financiados") : filas;
+  }, [activa, zonaActiva, finActiva]);
 
   return (
     <MapaContratosContext.Provider value={mapaContratos}>
-    <div className="space-y-4">
-
-      {/* Marquee de alertas */}
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft py-1 shadow-card">
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-paperSoft to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-paperSoft to-transparent" />
-        {/* Mismo badge "en vivo" que la landing (page.tsx) -- le faltaba el PulseDot que
-            ese sí tiene, pese a ser el mismo tipo de dato (alertas) refrescándose solo. */}
-        <div className="pointer-events-none absolute left-3 top-1/2 z-20 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-rust px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-paper">
-          <PulseDot color="paper" size={6} />
-          en vivo
-        </div>
-        <Marquee className="[--duration:60s] [--gap:2.5rem] pl-24" pauseOnHover>
-          {tickerAlertas.map((a: any) => (
-            <div
-              key={a.id ?? a.codigo}
-              className="flex items-center gap-2 whitespace-nowrap text-xs"
-            >
-              <span className="rounded bg-amber-soft px-1.5 py-0.5 font-mono text-[10px] text-amber">
-                score {a.score}
+      <div className="space-y-5">
+        <PageHeader
+          title={region ? region.nombre : "Elige tu región"}
+          subtitle={
+            region
+              ? cargandoPais || !zPais
+                ? `Cargando los contratos de ${region.nombre}. Toca una provincia para acotar la lista, o un punto para ver un distrito.`
+                : `${enteros(zPais.enCola)} de ${enteros(zPais.total)} contratos de ${region.nombre} están en cola de lectura (${alcanceCorto(alcance?.procesamiento)}). Toca una provincia para acotar la lista, o un punto para ver un distrito.`
+              : "Cada departamento tiene contratos públicos esperando ser leídos. Toca uno para ver su cola de auditoría, las señales halladas, quién contrata y qué denuncian los vecinos — y financiar o denunciar desde ahí."
+          }
+          contexto={
+            cargandoPais ? (
+              <span className="inline-block h-4 w-44 animate-pulse rounded bg-paperDeep" aria-hidden />
+            ) : region ? (
+              <span className="block text-right font-mono tabular-nums">
+                <span className="block">
+                  {enteros(fPais?.financiados ?? 0)} financiados de {enteros(zPais?.enCola ?? 0)} en cola
+                </span>
+                <span className="block">
+                  {enteros(zPais?.conSenales ?? 0)} con señal de {enteros(zPais?.procesados ?? 0)} leídos
+                </span>
               </span>
-              <span className="font-mono text-mute">{a.codigoconvocatoria}</span>
-              <span className="text-ink">·</span>
-              <span className="text-mute">{a.region}</span>
-              <span className="text-ink">·</span>
-              <span className="max-w-[420px] truncate text-ink">{a.objeto}</span>
-              <span className="text-ink">·</span>
-              <span className="font-mono text-heroViolet">{formatSoles(a.montoSoles)}</span>
-            </div>
-          ))}
-        </Marquee>
-      </div>
-
-      {/* Main dashboard */}
-      <div className="surface relative overflow-hidden rounded-3xl">
-        {/* TOP STRIP */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-paperDeep px-4 py-3 sm:px-5">
-          {/* Layer toggles — pines de alertas/denuncias */}
-          <div className="flex items-center gap-1 rounded-full border border-line bg-paperSoft p-1">
-            <button
-              onClick={() => setShowAlertas((v) => !v)}
-              aria-pressed={showAlertas}
-              title={`${showAlertas ? "Ocultar" : "Mostrar"} alertas en el mapa`}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                showAlertas ? "bg-amber text-paper" : "text-mute hover:bg-paper hover:text-ink",
-              )}
-            >
-              <AlertTriangle size={13} />
-              <span className="hidden sm:inline">Alertas</span>
-              <span className="font-mono text-[10px] opacity-80">
-                {(alertasApi.length > 0 ? alertasApi : ALERTAS_MOCK).length}
-              </span>
-            </button>
-            <button
-              onClick={() => setShowDenuncias((v) => !v)}
-              aria-pressed={showDenuncias}
-              title={`${showDenuncias ? "Ocultar" : "Mostrar"} denuncias en el mapa`}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                showDenuncias ? "bg-rust text-paper" : "text-mute hover:bg-paper hover:text-ink",
-              )}
-            >
-              <MessageSquareWarning size={13} />
-              <span className="hidden sm:inline">Denuncias</span>
-              <span className="font-mono text-[10px] opacity-80">{reportes.length}</span>
-            </button>
-            <button
-              onClick={() => setShowContratos((v) => !v)}
-              aria-pressed={showContratos}
-              title={`${showContratos ? "Ocultar" : "Mostrar"} contratos por zona`}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                showContratos ? "bg-ink text-paper" : "text-mute hover:bg-paper hover:text-ink",
-              )}
-            >
-              <FileSearch size={13} />
-              <span className="hidden sm:inline">Contratos</span>
-              {totalContratos > 0 && <span className="font-mono text-[10px] opacity-80">{totalContratos.toLocaleString("es-PE")}</span>}
-            </button>
-            <button
-              onClick={() => setShowFinanciamiento((v) => !v)}
-              aria-pressed={showFinanciamiento}
-              title={`${showFinanciamiento ? "Ocultar" : "Mostrar"} estado de financiamiento de la auditoría por región`}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                showFinanciamiento ? "bg-moss text-paper" : "text-mute hover:bg-paper hover:text-ink",
-              )}
-            >
-              <Landmark size={13} />
-              <span className="hidden sm:inline">Financiamiento</span>
-            </button>
-            {perfil && misRegiones.size > 0 && (
-              <button
-                onClick={() => setShowMisZonas((v) => !v)}
-                aria-pressed={showMisZonas}
-                title={`${showMisZonas ? "Ocultar" : "Resaltar"} las zonas que sigo`}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                  showMisZonas ? "bg-amber text-ink" : "text-mute hover:bg-paper hover:text-ink",
-                )}
-              >
-                <Bell size={13} />
-                <span className="hidden sm:inline">Mis zonas</span>
-                <span className="font-mono text-[10px] opacity-80">{misRegiones.size}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Filtro de mes: acota los CONTRATOS que se cuentan/pintan (no alertas/denuncias, que siempre son recientes). Antes no había ninguna forma de acotar por fecha. */}
-          <FiltroMes valor={mesFiltro} onChange={setMesFiltro} />
-
-          {/* Breadcrumb o quick totals */}
-          <div className="flex items-center gap-3 text-xs">
-            {!selectedRegion ? (
-              <div className="hidden gap-4 md:flex" title={alcance ? `Cola financiable hoy: ${alcanceCorto(alcance.procesamiento)}` : undefined}>
-                <Stat label="Alertas" value={alertasApi.length} accent="text-amber" />
-                <Stat label="Denuncias" value={reportes.length} accent="text-rust" />
-                <Stat label="Contratos" value={totalContratos} accent="text-ink" />
-                <Stat label="En cola" value={alcance?.colaFinanciable ?? "—"} accent="text-heroViolet" />
-                <Stat label="Docs listos" value={alcance?.documentosListos ?? "—"} accent="text-inkSoft" />
-              </div>
             ) : (
-              <div className="flex items-center gap-2 font-mono text-xs">
-                <button
-                  onClick={() => handleSelectRegion(null)}
-                  className="text-mute hover:text-heroViolet"
-                >
-                  Perú
-                </button>
-                <ChevronRight size={12} className="text-mute" />
-                <span className="font-semibold text-ink">{selectedRegion.nombre}</span>
-                {provinciaActiva && (
-                  <>
-                    <ChevronRight size={12} className="text-mute" />
-                    <span className="text-rust">{provinciaActiva.nombre}</span>
-                  </>
-                )}
-                {distrito && (
-                  <>
-                    <ChevronRight size={12} className="text-mute" />
-                    <button onClick={mapaContratos.limpiarDistrito} className="text-ink hover:text-heroViolet" title="Quitar filtro de distrito">
-                      {distrito.nombre || distrito.ubigeo}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MAP + PANEL */}
-        <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
-          {/* Map area */}
-          <div className="relative" ref={mapRef}>
-            <div className="aspect-[480/700] max-h-[680px] w-full overflow-hidden">
-              <PeruChoropleth
-                metric={metric}
-                selectedRegionId={selectedRegionId}
-                hoveredRegionId={hoveredRegionId}
-                onHoverRegion={setHoveredRegionId}
-                onSelectRegion={handleSelectRegion}
-                onSelectProvincia={(regionId, p) => {
-                  setProvinciaActiva({ regionId, ...p });
-                  setMobileDrawerOpen(true);
-                }}
-                points={points}
-                fillOverride={fillFinanciamiento}
-                onPointClick={onPointClick}
-                onPointHover={(pt) => setHoverPunto(pt?.kind === "contratos" ? pt.ubigeo ?? null : null)}
-              />
-            </div>
-
-            {/* Back button */}
-            {selectedRegion && (
+              <span className="font-mono tabular-nums">
+                {enteros(totalPais.leidos)} leídos de {enteros(totalPais.total)} contratos ingresados
+              </span>
+            )
+          }
+          actions={
+            region ? (
               <button
-                onClick={() => handleSelectRegion(null)}
-                className="absolute left-3 top-3 z-20 flex animate-fadeIn items-center gap-1.5 rounded-full border border-line bg-paperSoft/95 px-3 py-1.5 text-xs font-medium text-ink backdrop-blur-sm hover:bg-paper sm:left-4 sm:top-4 sm:px-3 sm:py-2"
+                type="button"
+                onClick={() => elegirRegion(null)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1.5 text-xs font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
               >
-                <ArrowLeft size={14} />
-                <span className="hidden sm:inline">Volver al Perú</span>
-                <span className="sm:hidden">Volver</span>
+                <ArrowLeft size={14} aria-hidden /> Volver al Perú
               </button>
-            )}
+            ) : undefined
+          }
+        />
 
-            {/* Metric label */}
-            <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-2xl border border-line bg-paperSoft/95 px-3 py-1.5 backdrop-blur-sm sm:right-4 sm:top-4 sm:py-2">
-              <div className="text-right text-[9px] font-semibold uppercase tracking-widest text-mute">
-                Visualizando
-              </div>
-              <div className="text-right font-serif text-sm font-bold text-ink">
-                {showFinanciamiento ? "Estado de financiamiento" : metricLabel(metric)}
-              </div>
-              {showContratos && (
-                <div className="text-right text-[10px] text-mute">
-                  contratos {mesFiltro ? `de ${mesFiltro.etiqueta}` : "· todo el histórico"}
-                </div>
-              )}
-            </div>
+        <SenalesRecientes alertas={alertas ?? []} fallo={falloSenales} />
 
-            {/* Legend (vista país) */}
-            {!selectedRegion && (
-              <div className="absolute bottom-3 right-3 z-10 animate-fadeIn space-y-2 rounded-2xl border border-line bg-paperSoft/95 px-3 py-2 backdrop-blur-sm sm:bottom-4 sm:right-4">
-                {showFinanciamiento ? (
-                  <div>
-                    <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-mute">
-                      Auditoría por región
-                    </div>
-                    <div className="space-y-0.5 text-[9px] text-mute">
-                      {(["pendiente", "parcial", "financiada", "procesada", "sin_datos"] as ZonaEstado[]).map((e) => (
-                        <div key={e} className="flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-sm border border-paperEdge" style={{ background: ESTADO_FILL[e] }} />
-                          <span>{ESTADO_LABEL[e]}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-mute">
-                      Intensidad
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {["#E8DFC7", "#D9B97A", "#C28840", "#A05A1F", "#7A2E18", "#4A150C"].map(
-                        (c) => (
-                          <span
-                            key={c}
-                            className="h-3 w-5 rounded-sm border border-paperEdge"
-                            style={{ background: c }}
-                          />
-                        ),
-                      )}
-                    </div>
-                    <div className="mt-1 flex justify-between text-[9px] text-mute">
-                      <span>0</span>
-                      <span>más alertas</span>
-                    </div>
-                  </div>
-                )}
-                {showContratos && geo.length > 0 && (
-                  <div className="border-t border-line pt-2">
-                    <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">
-                      Contratos por zona
-                    </div>
-                    <ContratoPinLeyenda />
-                  </div>
-                )}
-                {(showAlertas || showDenuncias) && points.some((p) => p.kind !== "contratos") && (
-                  <div className="border-t border-line pt-2">
-                    <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">
-                      Pines
-                    </div>
-                    <div className="space-y-0.5 text-[9px] text-mute">
-                      {showAlertas && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#7A2E18" }} />
-                          <span>Alerta score ≥ 85</span>
-                        </div>
-                      )}
-                      {showAlertas && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#C28840" }} />
-                          <span>Alerta 70-84</span>
-                        </div>
-                      )}
-                      {showDenuncias && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#8B2A1E" }} />
-                          <span>Denuncia confirmada</span>
-                        </div>
-                      )}
-                      {showDenuncias && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#A05A1F" }} />
-                          <span>Denuncia pendiente</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+        <div className="surface relative overflow-hidden rounded-3xl">
+          <BarraMapa
+            medida={medida}
+            onMedida={setMedida}
+            escala={escalaActiva}
+            medidaActual={m}
+            ambito={ambito}
+            conPines={regionUb !== null}
+            cargando={regionUb ? cargandoProv : cargandoPais}
+            mes={mes}
+            onMes={setMes}
+            alertas={verSenales}
+            onAlertas={() => setVerSenales((v) => !v)}
+            nAlertas={(alertas ?? []).length}
+            denuncias={verDenuncias}
+            onDenuncias={() => setVerDenuncias((v) => !v)}
+            nDenuncias={(reportes ?? []).length}
+            misZonas={verMisZonas}
+            onMisZonas={() => setVerMisZonas((v) => !v)}
+            nMisZonas={misRegiones.size}
+            sinConexion={sinConexion}
+          />
 
-            {/* Leyenda compacta de la capa Contratos con región elegida */}
-            {selectedRegion && showContratos && geo.length > 0 && (
-              <div className="absolute bottom-3 left-3 z-10 hidden animate-fadeIn rounded-2xl border border-line bg-paperSoft/95 px-3 py-2 backdrop-blur-sm sm:bottom-4 sm:left-4 lg:block">
-                <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-mute">Contratos por distrito</div>
-                <ContratoPinLeyenda />
-              </div>
-            )}
-
-            {/* Hints */}
-            {!selectedRegionId && (
-              <div className="absolute inset-x-3 bottom-3 z-10 mx-auto max-w-md rounded-2xl border border-line bg-paperSoft/95 px-4 py-2 text-center text-xs text-mute backdrop-blur-sm sm:inset-x-4 sm:bottom-4 lg:hidden">
-                Toca un departamento para hacer zoom
-              </div>
-            )}
-            {selectedRegion &&
-              selectedRegion.provincias.filter((p) => p.alertas > 0).length > 0 &&
-              !provinciaActiva &&
-              !mobileDrawerOpen && (
-                <div className="absolute inset-x-3 bottom-3 z-10 mx-auto max-w-md animate-fadeIn rounded-2xl border border-rust/30 bg-crimson-soft px-4 py-2 text-center text-xs text-rust sm:inset-x-4 sm:bottom-4 lg:hidden">
-                  Toca una provincia roja para abrir su detalle
-                </div>
-              )}
-          </div>
-
-          {/* DESKTOP SIDEBAR (lg+) */}
-          <aside className="hidden border-l border-line lg:block">
-            <RegionDetailPanel
-              region={selectedRegion}
-              provinciaActiva={provinciaActiva}
-              onClose={() => handleSelectRegion(null)}
-              onClearProvincia={() => setProvinciaActiva(null)}
-              alertasApi={alertasApi}
-              reportes={reportes}
-              initialTab={panelTab}
-            />
-          </aside>
-
-          {/* MOBILE DRAWER (< lg) */}
-          {selectedRegion && (
-            <div
-              className={cn(
-                "fixed inset-x-0 bottom-0 z-40 transition-transform duration-300 lg:hidden",
-                mobileDrawerOpen ? "translate-y-0" : "translate-y-[calc(100%-58px)]",
-              )}
+          {/* Rastro de navegación: dónde estoy y cómo vuelvo */}
+          <nav
+            aria-label="Dónde estás en el mapa"
+            className="flex items-center gap-1.5 border-b border-line bg-paperDeep px-4 py-2 font-mono text-[11px] sm:px-5"
+          >
+            <button
+              type="button"
+              onClick={() => elegirRegion(null)}
+              disabled={!regionUb}
+              className="text-inkSoft transition-colors duration-rapido hover:text-heroViolet disabled:cursor-default disabled:text-ink disabled:hover:text-ink"
             >
-              <div
-                className="rounded-t-3xl border-t border-line bg-paperSoft shadow-paper"
-                role="region"
-                aria-label={`Panel de ${selectedRegion.nombre}`}
-                onTouchStart={(e) => { touchY.current = e.touches[0]?.clientY ?? null; }}
-                onTouchEnd={(e) => {
-                  const y0 = touchY.current; const y1 = e.changedTouches[0]?.clientY;
-                  touchY.current = null;
-                  if (y0 == null || y1 == null) return;
-                  const dy = y1 - y0;
-                  if (dy < -40) setMobileDrawerOpen(true);
-                  else if (dy > 40 && (e.target as HTMLElement).closest("[data-asa]")) setMobileDrawerOpen(false);
-                }}
-              >
-                {/* Asa: toca o desliza para abrir/cerrar */}
+              Perú
+            </button>
+            {region && (
+              <>
+                <ChevronRight size={12} className="text-mute" aria-hidden />
                 <button
-                  data-asa
-                  onClick={() => setMobileDrawerOpen((v) => !v)}
-                  aria-expanded={mobileDrawerOpen}
-                  aria-controls="panel-zona-movil"
-                  aria-label={mobileDrawerOpen ? "Contraer panel de la zona" : "Expandir panel de la zona"}
-                  className="flex w-full items-center justify-between gap-3 border-b border-line bg-paperDeep px-5 py-3"
+                  type="button"
+                  onClick={() => setZonaSel(null)}
+                  disabled={!zonaSel}
+                  className="font-semibold text-ink transition-colors duration-rapido hover:text-heroViolet disabled:cursor-default disabled:hover:text-ink"
                 >
-                  <div className="flex items-center gap-2 text-left">
-                    <div className="h-1 w-10 rounded-full bg-line" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-heroViolet">
-                      {selectedRegion.nombre}
-                    </div>
-                    <div className="text-xs text-mute">
-                      {(() => {
-                        // cifras reales (no las de REGIONES mock): cola financiable y alertas publicadas de la región
-                        const z = zonas?.find((x) => UBIGEO_REGION[x.ubigeo] === selectedRegion.id);
-                        const nAl = alertasApi.filter((a) => belongsToRegion(a, selectedRegion.id)).length;
-                        return `${z ? `${z.totalCola.toLocaleString("es-PE")} en cola · ${z.financiados} financiados · ` : ""}${nAl} alertas`;
-                      })()}
-                    </div>
-                  </div>
-                  {mobileDrawerOpen ? (
-                    <ChevronDown size={18} className="text-mute" />
-                  ) : (
-                    <ChevronUp size={18} className="text-mute" />
-                  )}
+                  {region.nombre}
                 </button>
-                <div id="panel-zona-movil" className="max-h-[72vh] overflow-y-auto">
-                  <RegionDetailPanel
-                    region={selectedRegion}
-                    provinciaActiva={provinciaActiva}
-                    onClose={() => handleSelectRegion(null)}
-                    onClearProvincia={() => setProvinciaActiva(null)}
-                    alertasApi={alertasApi}
-                    reportes={reportes}
-                    initialTab={panelTab}
-                  />
+              </>
+            )}
+            {zonaSel && (
+              <>
+                <ChevronRight size={12} className="text-mute" aria-hidden />
+                <span className="text-ink">{zonaSel.nombre || zonaSel.ubigeo}</span>
+                <button
+                  type="button"
+                  onClick={() => setZonaSel(null)}
+                  className="ml-1 rounded px-1 text-inkSoft transition-colors duration-rapido hover:text-rust"
+                >
+                  quitar
+                </button>
+              </>
+            )}
+          </nav>
+
+          <div className="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
+            <div className="relative" ref={mapRef}>
+              <div className="aspect-[480/700] max-h-[680px] w-full overflow-hidden">
+                <PeruChoropleth
+                  regiones={regiones}
+                  provincias={provincias}
+                  provinciaPorDefecto={provinciaPorDefecto}
+                  seleccion={regionUb}
+                  zonaSel={zonaSel?.ubigeo ?? null}
+                  activaUbigeo={activa?.ubigeo ?? null}
+                  onZonaActiva={(z, rect) => {
+                    setActiva(z);
+                    setAncla(rect);
+                  }}
+                  onSelectRegion={elegirRegion}
+                  onSelectProvincia={elegirZona}
+                  points={puntos}
+                  onPointClick={onPuntoClick}
+                  onPointHover={(pt) => setHoverPunto(pt?.kind === "contratos" ? pt.ubigeo ?? null : null)}
+                />
+              </div>
+
+              {!regionUb && (
+                <p className="pointer-events-none absolute inset-x-4 bottom-3 text-center text-[11px] text-mute lg:hidden">
+                  Toca un departamento para abrirlo
+                </p>
+              )}
+            </div>
+
+            {/* Panel de zona (escritorio) */}
+            <aside className="hidden border-l border-line lg:block">
+              <RegionDetailPanel
+                region={region}
+                onClose={() => elegirRegion(null)}
+                alertasApi={alertas ?? []}
+                reportes={reportes ?? []}
+                totalIngresados={zPais?.total ?? null}
+                initialTab={panelTab}
+              />
+            </aside>
+
+            {/* Panel de zona (móvil) */}
+            {region && (
+              <div
+                className={cn(
+                  "fixed inset-x-0 bottom-0 z-panel transition-transform duration-panel ease-salida lg:hidden",
+                  drawerAbierto ? "translate-y-0" : "translate-y-[calc(100%-62px)]",
+                )}
+              >
+                <div className="rounded-t-3xl border-t border-line bg-paperSoft shadow-drawer" role="region" aria-label={`Panel de ${region.nombre}`}>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerAbierto((v) => !v)}
+                    aria-expanded={drawerAbierto}
+                    aria-controls="panel-zona-movil"
+                    className="flex w-full items-center justify-between gap-3 border-b border-line bg-paperDeep px-5 py-3 text-left"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-serif text-base font-bold leading-tight text-ink">{region.nombre}</span>
+                      <span className="block text-[11px] text-inkSoft">
+                        {enteros(zPais?.enCola ?? 0)} de {enteros(zPais?.total ?? 0)} en cola ·{" "}
+                        {enteros(fPais?.financiados ?? 0)} de {enteros(zPais?.enCola ?? 0)} financiados ·{" "}
+                        {enteros(zPais?.conSenales ?? 0)} de {enteros(zPais?.procesados ?? 0)} con señal
+                      </span>
+                    </span>
+                    {drawerAbierto ? (
+                      <ChevronDown size={18} className="shrink-0 text-mute" aria-hidden />
+                    ) : (
+                      <ChevronUp size={18} className="shrink-0 text-mute" aria-hidden />
+                    )}
+                  </button>
+                  <div id="panel-zona-movil" className="max-h-[72vh] overflow-y-auto">
+                    <RegionDetailPanel
+                      region={region}
+                      onClose={() => elegirRegion(null)}
+                      alertasApi={alertas ?? []}
+                      reportes={reportes ?? []}
+                      totalIngresados={zPais?.total ?? null}
+                      initialTab={panelTab}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* Ficha contextual: top layer, así el overflow-hidden del lienzo no la recorta */}
+        <FichaRegion
+          abierto={!!activa && !!ancla}
+          ancla={ancla}
+          titulo={activa?.nombre ?? ""}
+          contexto={
+            activa
+              ? activa.nivel === "provincia"
+                ? `Provincia · ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
+                : `Departamento · ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
+              : undefined
+          }
+          filas={fichaFilas}
+          pie={
+            activa
+              ? activa.nivel === "departamento"
+                ? "Enter abre la región"
+                : "Enter acota la lista a esta provincia"
+              : undefined
+          }
+        />
       </div>
-    </div>
     </MapaContratosContext.Provider>
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number | string;
-  accent: string;
-}) {
+function MapaEsqueleto() {
   return (
-    <div className="text-right">
-      <div className="text-[9px] uppercase tracking-widest text-mute">{label}</div>
-      <div className={"font-mono text-sm font-semibold " + accent}>
-        {typeof value === "number" ? value.toLocaleString("es-PE") : value}
-      </div>
-    </div>
-  );
-}
-
-function MapSkeleton() {
-  return (
-    <div className="flex h-[680px] items-center justify-center bg-paperDeep">
-      <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-heroViolet/30 border-t-heroViolet" />
-        <p className="mt-3 text-sm text-mute">Cargando mapa…</p>
-      </div>
+    <div className="flex h-[680px] w-full items-center justify-center bg-paperDeep">
+      <div className="h-[86%] w-[52%] animate-pulse rounded-[45%_55%_48%_52%] bg-paperEdge" />
+      <span className="sr-only">Cargando el mapa del Perú</span>
     </div>
   );
 }

@@ -128,7 +128,7 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-wide text-mute">Con alertas activas</dt>
-                <dd className={cn("font-mono text-lg font-bold", totals.conAlertas > 0 ? "text-amber" : "text-ink")}>
+                <dd className={cn("font-mono text-lg font-bold", totals.conAlertas > 0 ? "text-amberTexto" : "text-ink")}>
                   <NumberTicker value={totals.conAlertas} />
                 </dd>
               </div>

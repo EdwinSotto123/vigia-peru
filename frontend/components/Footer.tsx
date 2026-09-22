@@ -67,7 +67,7 @@ export function Footer() {
         {/* Disclaimer + columnas */}
         <div className="mt-12 grid gap-10 border-t border-paper/10 pt-10 lg:grid-cols-[1.4fr,1fr,1fr,1fr]">
           <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen/80">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreenTexto/80">
               Postura editorial
             </h4>
             <p className="mt-3 text-[13px] leading-relaxed text-paper/65">
@@ -138,7 +138,7 @@ export function Footer() {
 function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen/80">
+      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreenTexto/80">
         {title}
       </h4>
       <div className="mt-3 flex flex-col gap-2 text-[13px] text-paper/65 [&>*]:transition-colors [&>*:hover]:text-paper">

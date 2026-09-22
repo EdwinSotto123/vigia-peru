@@ -28,6 +28,28 @@ const config: Config = {
         warm5: "#4A150C",        // crítico (deep)
 
         // ── Acentos ──
+        // ── Variantes de TEXTO ──────────────────────────────────────────
+        // Un color puede servir como marca (punto, barra, relleno, donde el
+        // piso es 3:1) y no servir como texto (4.5:1). Medido sobre los tres
+        // fondos del producto — paper, paperSoft, paperDeep:
+        //   amber #BE7B26 → 3.47 / 3.21 / 2.98   FALLA en los tres
+        //   clay  #B26A2E → 4.20 / 3.89 / 3.61   FALLA en los tres
+        //   moss  #3F7D43 → 4.97 / 4.60 / 4.27   FALLA sobre paperDeep
+        // Eso importaba de verdad: lib/severidad.ts usaba `text-amber` para
+        // "Señal media", así que la etiqueta de severidad del propio sistema
+        // no alcanzaba el piso que el sistema exige. Estas variantes pasan en
+        // los tres fondos (5.08 la peor). Los tonos de arriba se conservan
+        // intactos para puntos, barras y rellenos, donde sí son correctos.
+        // Mismos tres fondos, salvo donde se indica.
+        amberTexto: "#8A5A15",   // 5.91 / 5.46 / 5.08
+        mossTexto: "#2F6B36",    // 6.41 / 5.93 / 5.51
+        clayTexto: "#8A4F1E",    // 6.53 / 6.04 / 5.61
+        // heroGreen #2FA84C da 3.08 sobre papel: sirve como TEXTO GRANDE (piso
+        // 3:1, titulares de 24 px o más) y como marca, pero no para una línea
+        // de 12 px. crimson #CF3A2C cae a 3.99 sobre su propio crimson-soft,
+        // que es justo el par del Badge de error.
+        heroGreenTexto: "#16702C", // 6.20 / 5.73 / 5.33 · 5.49 sobre heroGreen-soft
+        crimsonTexto: "#8F2318",   // 8.67 / 8.02 / 7.45 · 7.08 sobre crimson-soft
         clay: "#B26A2E",         // CTA secundario (terracota cálido)
         // rust era #CF3A2C. Contra amber #BE7B26 daba ΔE 13.6, por debajo del
         // piso de 15: "señal alta" y "señal media" costaba distinguirlas incluso

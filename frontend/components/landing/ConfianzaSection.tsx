@@ -31,7 +31,7 @@ export function ConfianzaSection() {
                 <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-heroGreen" /><span className="font-semibold">{t}</span></div>
                 <p className="mt-1 text-[13px] leading-relaxed text-mute">{d}</p>
                 {href && (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-heroGreen hover:underline">
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-heroGreenTexto hover:underline">
                     Ver el código <ArrowUpRight size={11} />
                   </a>
                 )}
@@ -53,7 +53,7 @@ export function ConfianzaSection() {
             ))}
           </ul>
           <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-heroViolet-deep px-4 py-3.5 text-paper">
-            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreen">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
+            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreenTexto">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
             <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
           </div>
           <Link href="/preguntas#cuentas" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>

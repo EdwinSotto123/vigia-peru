@@ -41,7 +41,20 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   const timer = useRef<number | null>(null);
 
   const meses = useMemo(() => ultimosMeses(12), []);
-  const avanzadosActivos = !!(query.ubigeo || query.tipo || query.etapa || (query.riesgo && query.riesgo !== "alto") || query.monto_min != null || query.monto_max != null || query.desde || (query.orden && query.orden !== "fecha"));
+  // Cuántos filtros están puestos DENTRO del panel plegable (los chips rápidos no
+  // cuentan: ésos ya se ven). Se muestra en el botón para que un panel cerrado no
+  // esconda el motivo de que la lista esté recortada.
+  const nAvanzados = [
+    query.ubigeo,
+    query.tipo,
+    query.etapa,
+    query.riesgo && query.riesgo !== "alto" ? query.riesgo : undefined,
+    query.monto_min != null ? "min" : undefined,
+    query.monto_max != null ? "max" : undefined,
+    query.desde,
+    query.orden && query.orden !== "fecha" ? query.orden : undefined,
+  ].filter(Boolean).length;
+  const avanzadosActivos = nAvanzados > 0;
   const [avanzados, setAvanzados] = useState(avanzadosActivos);
   useEffect(() => { if (avanzadosActivos) setAvanzados(true); }, [avanzadosActivos]);
 
@@ -57,9 +70,15 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => navegar({ q: v.trim() || undefined }), 350);
   };
+  /** Borrar la búsqueda cancela el debounce pendiente: si no, vuelve a escribir el texto viejo en la URL. */
+  const limpiarQ = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    setQ("");
+    navegar({ q: undefined });
+  };
 
   const regionNombre = (u: string) => regiones.find((r) => r.ubigeo === u)?.nombre ?? `Zona ${u}`;
-  const sel = "h-8 rounded-lg border border-line bg-paper px-2 text-xs text-ink outline-none focus:border-heroViolet";
+  const sel = "h-8 rounded-lg border border-line bg-paper px-2 text-xs text-ink outline-none transition-colors duration-rapido hover:border-paperEdge focus:border-heroViolet disabled:cursor-not-allowed disabled:opacity-50";
 
   // ── Chips removibles: uno por filtro activo (todas las dimensiones, no solo entidad) ──
   const chips: { key: keyof ContratosQuery; label: string }[] = [];
@@ -75,7 +94,11 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
   if (query.monto_max != null) chips.push({ key: "monto_max", label: `Hasta S/ ${N(Number(query.monto_max))}` });
   if (query.orden && query.orden !== "fecha") chips.push({ key: "orden", label: ORDENES.find((o) => o.value === query.orden)?.label ?? query.orden });
 
-  const limpiarTodo = () => { setQ(""); start(() => router.replace(pathname, { scroll: false })); };
+  const limpiarTodo = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    setQ("");
+    start(() => router.replace(pathname, { scroll: false }));
+  };
 
   return (
     // Pegajosa: /app/contratos no tiene Header público sobre este layout (solo el
@@ -85,17 +108,30 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
     // para que lea como una franja real, no como una tarjeta flotando a mitad de columna.
     <div className="sticky top-0 z-10 -mx-6 space-y-2.5 border-b border-line bg-paper/95 px-6 pb-3 pt-2 backdrop-blur lg:-mx-10 lg:px-10">
       {/* 1. búsqueda */}
-      <label className="relative flex items-center">
+      <div className="relative flex items-center">
         <Search size={14} className="pointer-events-none absolute left-3 text-mute" aria-hidden />
-        <span className="sr-only">Buscar por objeto, código o entidad</span>
+        <label className="sr-only" htmlFor="buscar-contratos">Buscar por objeto, código o entidad</label>
         <input
+          id="buscar-contratos"
           value={q}
           onChange={(e) => onQ(e.target.value)}
           placeholder="Buscar por objeto, código OCID o nombre de entidad…"
-          className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-9 text-sm text-ink outline-none placeholder:text-mute focus:border-heroViolet"
+          className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-16 text-sm text-ink outline-none placeholder:text-mute hover:border-paperEdge focus:border-heroViolet"
         />
-        {pendiente && <Loader2 size={14} className="absolute right-3 animate-spin text-mute" aria-label="Cargando" />}
-      </label>
+        <span className="absolute right-3 inline-flex items-center gap-1.5">
+          {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Cargando" />}
+          {q && (
+            <button
+              type="button"
+              onClick={limpiarQ}
+              aria-label="Borrar la búsqueda"
+              className="rounded-full p-1 text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </span>
+      </div>
 
       {/* 2. chips rápidos con conteo real */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -115,15 +151,20 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
           type="button"
           onClick={() => setAvanzados((v) => !v)}
           className={cn(
-            "ml-auto inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
+            "ml-auto inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors duration-rapido",
             // Violeta = "este control está activo/abierto" (mismo idioma que el nav
             // destacado del sidebar), no una advertencia: clay/amber quedan para estado real.
             avanzados ? "border-heroViolet bg-heroViolet-soft text-heroViolet" : "border-line bg-paper text-mute hover:border-heroViolet/30 hover:text-ink",
           )}
           aria-expanded={avanzados}
         >
-          <SlidersHorizontal size={11} /> Más filtros
-          <ChevronDown size={12} className={cn("transition-transform", avanzados && "rotate-180")} />
+          <SlidersHorizontal size={11} aria-hidden /> Más filtros
+          {/* Cuántos hay puestos ahí dentro: plegado, el panel avanzado escondía
+              filtros activos y la lista parecía filtrada sin motivo visible. */}
+          {nAvanzados > 0 && (
+            <span className="rounded-full bg-heroViolet px-1.5 font-mono text-[10px] font-semibold text-paper">{nAvanzados}</span>
+          )}
+          <ChevronDown size={12} aria-hidden className={cn("transition-transform duration-rapido", avanzados && "rotate-180")} />
         </button>
       </div>
 
@@ -193,19 +234,33 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
         </div>
       </div>
 
-      {/* 4. filtros activos, removibles uno por uno */}
+      {/* 4. filtros activos, removibles uno por uno. No es decoración: es el único
+          lugar donde se ve POR QUÉ la lista está recortada, y cada uno se quita por
+          separado — antes el único camino era "limpiar todo" y volver a empezar. */}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-mute">
-          <span className="text-mute/70">Filtrando por:</span>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+          <span className="text-mute">Filtrando por</span>
           {chips.map((ch) => (
-            <span key={ch.key} className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-ink">
-              {ch.label}
-              <button type="button" onClick={() => navegar(ch.key === "desde" ? { desde: undefined, hasta: undefined } : { [ch.key]: undefined } as Partial<ContratosQuery>)} aria-label={`Quitar filtro ${ch.label}`} className="text-mute hover:text-rust">
-                <X size={11} />
+            <span
+              key={ch.key}
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-heroViolet/35 bg-heroViolet-soft py-0.5 pl-2.5 pr-1 font-medium text-ink"
+            >
+              <span className="truncate">{ch.label}</span>
+              <button
+                type="button"
+                onClick={() => navegar(ch.key === "desde" ? { desde: undefined, hasta: undefined } : { [ch.key]: undefined } as Partial<ContratosQuery>)}
+                aria-label={`Quitar filtro ${ch.label}`}
+                className="shrink-0 rounded-full p-0.5 text-heroViolet transition-colors duration-rapido hover:bg-heroViolet hover:text-paper"
+              >
+                <X size={11} aria-hidden />
               </button>
             </span>
           ))}
-          <button type="button" onClick={limpiarTodo} className="underline-offset-2 hover:text-ink hover:underline">
+          <button
+            type="button"
+            onClick={limpiarTodo}
+            className="rounded-full px-2 py-0.5 text-mute underline-offset-2 transition-colors duration-rapido hover:bg-paperDeep hover:text-ink hover:underline"
+          >
             Limpiar todo
           </button>
         </div>
@@ -225,7 +280,9 @@ function ChipRapido({ active, tono = "ink", onClick, children }: { active: boole
     ink: "border-ink bg-ink text-paper",
     inkSoft: "border-inkSoft bg-inkSoft text-paper",
     moss: "border-moss bg-moss text-paper",
-    amber: "border-amber bg-amber text-paper",
+    // amber con texto claro daba 3.5:1 — bajo el piso de 4.5 para texto normal.
+    // Con `ink` encima sube a 5.2:1 y el chip sigue leyéndose como ámbar.
+    amber: "border-amber bg-amber text-ink",
     rust: "border-rust bg-rust text-paper",
   };
   return (
@@ -233,8 +290,8 @@ function ChipRapido({ active, tono = "ink", onClick, children }: { active: boole
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
-        active ? TONOS[tono] : "border-line bg-paper text-mute hover:border-heroViolet/40 hover:text-ink",
+        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors duration-rapido",
+        active ? TONOS[tono] : "border-line bg-paper text-mute hover:border-heroViolet/40 hover:bg-paperSoft hover:text-ink",
       )}
       aria-pressed={active}
     >
@@ -244,14 +301,16 @@ function ChipRapido({ active, tono = "ink", onClick, children }: { active: boole
 }
 
 function Cuenta({ n }: { n: number | undefined }) {
+  // Sin `opacity`: sobre el chip inactivo (texto mute) bajaba el contraste por
+  // debajo del piso, y el conteo es justamente lo que se viene a leer.
   if (n == null) return null;
-  return <span className="font-mono tabular-nums opacity-80">{N(n)}</span>;
+  return <span className="font-mono tabular-nums">{N(n)}</span>;
 }
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="inline-flex flex-col gap-0.5">
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-mute/80">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-mute">{label}</span>
       {children}
     </label>
   );
@@ -272,7 +331,7 @@ function Monto({ value, onCommit }: { value: number | string | undefined; onComm
       onChange={(e) => setV(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
-      className="h-8 w-[100px] rounded-lg border border-line bg-paper px-2 font-mono text-xs text-ink outline-none placeholder:font-sans placeholder:text-mute focus:border-heroViolet"
+      className="h-8 w-[100px] rounded-lg border border-line bg-paper px-2 font-mono text-xs text-ink outline-none transition-colors duration-rapido placeholder:font-sans placeholder:text-mute hover:border-paperEdge focus:border-heroViolet"
     />
   );
 }

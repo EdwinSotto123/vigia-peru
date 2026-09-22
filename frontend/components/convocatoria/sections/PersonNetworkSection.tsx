@@ -58,7 +58,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           </div>
 
           {!hasGerente && (
-            <p className="rounded-md bg-amber-soft px-3 py-2 text-[11px] text-amber">
+            <p className="rounded-md bg-amber-soft px-3 py-2 text-[11px] text-amberTexto">
               {p.sintesis_personal || "El agente no pudo identificar al gerente / representante legal en las búsquedas realizadas."}
             </p>
           )}
@@ -228,7 +228,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     <div className="flex items-baseline gap-2">
                       <span className="font-mono text-[10px] text-mute">RUC {e.ruc}</span>
                       {e.rol_del_gerente && (
-                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber">
+                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amberTexto">
                           {e.rol_del_gerente}
                         </span>
                       )}

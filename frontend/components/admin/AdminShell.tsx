@@ -78,7 +78,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
 }
 
 export function Kpi({ label, value, hint, tone = "ink" }: { label: string; value: string | number; hint?: string; tone?: "ink" | "amber" | "moss" | "rust" }) {
-  const toneCls = { ink: "text-ink", amber: "text-amber", moss: "text-moss", rust: "text-rust" }[tone];
+  const toneCls = { ink: "text-ink", amber: "text-amberTexto", moss: "text-moss", rust: "text-rust" }[tone];
   return (
     <div className="rounded-2xl border border-line bg-paper p-4">
       <div className={cn("font-mono text-2xl font-semibold", toneCls)}>{typeof value === "number" ? value.toLocaleString("es-PE") : value}</div>

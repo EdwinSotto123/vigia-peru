@@ -258,7 +258,7 @@ function DenunciaCard({
             </span>
             {esConvergente && (
               <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold text-paper">
-                <GitMerge size={10} className="text-amber" />
+                <GitMerge size={10} className="text-amberTexto" />
                 convergente
               </span>
             )}

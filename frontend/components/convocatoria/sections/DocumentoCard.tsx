@@ -92,7 +92,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
               {(ganadores.length > 0 ? ganadores : postores).slice(0, 4).map((p: any, i: number) => (
                 <li key={i} className="rounded-lg bg-amber-soft/50 px-2.5 py-1 text-[11px]">
                   <div className="flex items-center gap-2">
-                    <Award size={10} className="text-amber" />
+                    <Award size={10} className="text-amberTexto" />
                     <span className="font-medium text-ink truncate flex-1">{p.razon_social || p.nombre || p.empresa || "—"}</span>
                     {(p.monto_oferta != null || p.monto != null) && (
                       <span className="font-mono text-mute">{fmtMoney(p.monto_oferta ?? p.monto)}</span>

@@ -24,9 +24,9 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
   STEPS.forEach((s, i) => stepsByLane[s.lane].push({ step: s, globalIdx: i }));
 
   const LANE_VISUAL: Record<string, { color: string; label: string; bar: string }> = {
-    ingesta:        { color: "text-amber",  label: "Ingesta",        bar: "bg-amber/30" },
+    ingesta:        { color: "text-amberTexto",  label: "Ingesta",        bar: "bg-amber/30" },
     auditoría:      { color: "text-rust",   label: "Auditoría",      bar: "bg-rust/30" },
-    investigación: { color: "text-clay",   label: "Investigación",  bar: "bg-clay/30" },
+    investigación: { color: "text-clayTexto",   label: "Investigación",  bar: "bg-clay/30" },
     dictamen:       { color: "text-moss",   label: "Dictamen",       bar: "bg-moss/30" },
   };
 
@@ -39,7 +39,7 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
         {/* HEADER */}
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amber">
+            <div className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amberTexto">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
               procesando · {elapsed}s / ≈{Math.round(totalEta/60)}min
             </div>

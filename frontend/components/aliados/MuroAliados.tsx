@@ -1,211 +1,289 @@
 import Link from "next/link";
-import { ArrowRight, EyeOff, HeartHandshake } from "lucide-react";
-import { getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
+import { ArrowRight, EyeOff } from "lucide-react";
+import { getEstadoGlobal, getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { TarjetaAliado } from "./TarjetaAliado";
-import { Podio } from "./Podio";
+import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
 
-/** Tope de items con stagger propio: pasado esto, todos entran juntos al delay tope en
- * vez de seguir sumando 60-80ms por tarjeta (con TAM=24 por página, una cascada sin tope
- * tardaría más de 1.5s en terminar de revelarse — se siente lenta, no "viva"). */
-const STAGGER_MAX = 14;
+/** Tamaño de página del libro mayor (tope del backend también es 60). */
+const TAM = 24;
+/** Muestra para el encabezado y el recuento de anónimos: no se pagina, solo da contexto. */
+const RESUMEN_LIMIT = 60;
+/**
+ * Hasta acá el muro se dibuja con fichas; pasado esto, con tabla. Con uno o dos
+ * nombres una fila de tabla parece un error de carga; con veinte, veinte fichas
+ * son un scroll inútil. El mismo dato, dos densidades.
+ */
+const UMBRAL_FICHA = 3;
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
-
-/** Tamaño de muestra para destacados/encabezado/anónimos: no se pagina, solo da contexto. */
-const RESUMEN_LIMIT = 60;
-/** Tamaño de página real de "Todos los aliados" (tope del backend también es 60). */
-const TAM = 24;
+const num = (n: number) => n.toLocaleString("es-PE");
 
 /**
- * Muro de aliados de transparencia (server component).
- *  - normal:  "Aliados del mes" (top 3 destacado, sin paginar) + "Todos los aliados"
- *             (paginación real por `pagina`, filtrable por `region`) + anónimos.
- *  - compact: solo el top 3 del mes (o histórico si el mes está vacío) + enlace a /aliados.
- * El ranking cuenta contratos, no soles. `region` es un ubigeo de 2-6 dígitos; en la URL de
- * /app/aliados viaja como `?ubigeo=` (mismo contrato que FiltroRegion) — este componente lo
- * recibe ya resuelto y solo lo reexpone como `region` al backend y como `?ubigeo=` en los
- * enlaces de paginación que arma.
+ * El muro de aliados, ahora libro mayor y no podio.
+ *
+ * Lo que había antes: un podio de tres puestos (dos de ellos losas "vacante"),
+ * medallas emoji y una animación infinita sobre el puesto 1. Con un único
+ * financiador —que además es la propia plataforma— eso no probaba legitimidad:
+ * probaba soledad, y le daba superficie heroica justamente a quien paga, que es
+ * lo contrario de lo que este producto promete.
+ *
+ * Lo que hay ahora: quién aportó, cuánto de eso ya se leyó y cuánto salió con
+ * señal. Sin puestos, sin medallas, sin montos. El reconocimiento se mide en
+ * contratos leídos — 300 vecinos que financian 300 pesan igual que una empresa
+ * que financia 300 — y por eso este componente nunca muestra soles.
+ *
+ * `compact` es el bloque de la landing (sección Aliados), que comparte el mismo
+ * dato y las mismas reglas.
  */
-export async function MuroAliados({ compact = false, region, pagina = 1 }: { compact?: boolean; region?: string; pagina?: number }) {
+export async function MuroAliados({
+  compact = false,
+  region,
+  pagina = 1,
+  nombreRegion,
+  financiadosAmbito,
+}: {
+  compact?: boolean;
+  /** Ubigeo de 2–6 dígitos; en la URL de /app/aliados viaja como `?ubigeo=`. */
+  region?: string;
+  pagina?: number;
+  /** Nombre de la región filtrada, para que el vacío diga de dónde habla. */
+  nombreRegion?: string;
+  /**
+   * Contratos financiados en este ámbito, exacto (de `/financiamiento/estado` o de la
+   * zona). Sin esto habría que sumar las filas del ranking, que están paginadas: con
+   * más de 60 aliados esa suma mentiría por lo bajo.
+   */
+  financiadosAmbito?: number;
+}) {
   const paginaActual = Math.max(1, pagina);
   const offset = (paginaActual - 1) * TAM;
-  const [mesRaw, todoResumenRaw, todoPaginaRaw] = await Promise.all([
-    getRankingPaginado({ periodo: "mes", region, limit: RESUMEN_LIMIT }),
+  const [resumenRaw, paginaRaw, estado] = await Promise.all([
     getRankingPaginado({ periodo: "todo", region, limit: RESUMEN_LIMIT }),
     compact ? Promise.resolve(null) : getRankingPaginado({ periodo: "todo", region, limit: TAM, offset }),
+    getEstadoGlobal(),
   ]);
-  const mes = mesRaw?.data ?? [];
-  const todoResumen = todoResumenRaw?.data ?? [];
-  const filasPagina = (todoPaginaRaw?.data ?? []).filter((r) => !esAnonimo(r));
-  const totalPagina = todoPaginaRaw?.total ?? 0;
 
-  const visiblesMes = mes.filter((r) => !esAnonimo(r));
-  const visiblesTodo = todoResumen.filter((r) => !esAnonimo(r));
-  const anonimos = todoResumen.filter(esAnonimo);
-  const anonimosContratos = anonimos.reduce((n, r) => n + r.contratosFinanciados, 0);
-
-  const leidosMes = mes.reduce((n, r) => n + r.contratosProcesados, 0);
-  const financiadosMes = mes.reduce((n, r) => n + r.contratosFinanciados, 0);
-  const leidosTotal = todoResumen.reduce((n, r) => n + r.contratosProcesados, 0);
-  const financiadosTotal = todoResumen.reduce((n, r) => n + r.contratosFinanciados, 0);
-
-  // Top 3 a destacar: el mes; si el mes está vacío, el histórico (para que el muro nunca quede en blanco).
-  const destacados = (visiblesMes.length ? visiblesMes : visiblesTodo).slice(0, 3);
-  const periodoDestacado = visiblesMes.length ? "del mes" : "históricos";
-
-  if (!todoResumen.length) {
+  // El API cayó: se dice, no se dibuja un muro vacío que parezca "todavía no hay nadie".
+  if (!resumenRaw) {
     return (
-      <div className="rounded-2xl border border-dashed border-line p-8 text-center">
-        <HeartHandshake size={22} className="mx-auto text-mute" aria-hidden />
-        <p className="mt-2 text-sm text-mute">
-          {region
-            ? "Todavía no hay aliados que hayan financiado auditorías en esta región."
-            : "Todavía no hay aportes confirmados. El primer aliado abre este muro."}
+      <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm text-mute">
+        No se pudo leer el registro de aportes ahora mismo. Es una falla de esta página, no un muro
+        vacío: los aportes siguen registrados. Volvé a intentar en un momento.
+      </p>
+    );
+  }
+
+  const resumen = resumenRaw.data ?? [];
+  const totalVisible = resumenRaw.total ?? 0;
+  const anonimos = resumen.filter(esAnonimo);
+  const anonimosContratos = anonimos.reduce((n, r) => n + r.contratosFinanciados, 0);
+  const conNombre = resumen.filter((r) => !esAnonimo(r));
+  const financiadosMuro = financiadosAmbito ?? resumen.reduce((n, r) => n + r.contratosFinanciados, 0);
+  const regionesConCola = estado?.regionesConCola ?? 0;
+
+  const filasPagina = (paginaRaw?.data ?? []).filter((r) => !esAnonimo(r));
+  const totalPagina = paginaRaw?.total ?? totalVisible;
+  const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
+  const pocos = totalVisible <= UMBRAL_FICHA;
+
+  if (totalVisible === 0) {
+    return <MuroVacio nombreRegion={nombreRegion} plano={compact} />;
+  }
+
+  const fichas = (conNombre.length ? conNombre : resumen).slice(0, compact ? UMBRAL_FICHA : RESUMEN_LIMIT);
+
+  const cuerpo = pocos ? (
+    <div className={compact ? "divide-y divide-line" : "space-y-3"}>
+      {fichas.map((r) => (
+        <TarjetaAliado
+          key={r.id}
+          row={r}
+          financiadosMuro={financiadosMuro}
+          regionesConCola={regionesConCola}
+          plano={compact}
+        />
+      ))}
+    </div>
+  ) : (
+    <div className={compact ? "overflow-x-auto" : "overflow-x-auto rounded-2xl border border-line bg-paper"}>
+      <table className="w-full min-w-[34rem] text-left">
+        <caption className="sr-only">
+          Aliados ordenados por contratos financiados. El orden no es un ranking de mérito: nadie elige
+          qué se audita.
+        </caption>
+        <thead>
+          <tr className="text-[11px] uppercase tracking-wide text-mute">
+            <th scope="col" className="px-4 py-2.5 font-medium">Aliado</th>
+            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Financiados</th>
+            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Leídos</th>
+            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Con señal</th>
+            <th scope="col" className="hidden py-2.5 pl-3 text-right font-medium sm:table-cell">Regiones</th>
+            <th scope="col" className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Ficha</span></th>
+          </tr>
+        </thead>
+        <tbody className="[&>tr>*:first-child]:pl-4 [&>tr>*:last-child]:pr-4">
+          {(compact ? fichas : filasPagina).map((r) => (
+            <FilaAliado key={r.id} row={r} regionesConCola={regionesConCola} />
+          ))}
+          {!compact && filasPagina.length === 0 && (
+            <tr className="border-t border-line">
+              <td colSpan={6} className="px-4 py-5 text-sm text-mute">
+                Todos los aportes de esta página se hicieron sin nombre. Cuentan igual en el total de
+                arriba; solo no figuran en la lista.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div>
+        <h3 className="font-serif text-lg font-bold text-ink">
+          {totalVisible === 1
+            ? "Un solo aliado sostiene la lectura hoy"
+            : `${num(totalVisible)} aliados sostienen la lectura hoy`}
+        </h3>
+        <p className="mt-1 text-[13px] leading-relaxed text-mute">
+          {num(financiadosMuro)} contratos financiados · {num(resumen.reduce((n, r) => n + r.contratosProcesados, 0))} ya
+          leídos. Se cuenta en contratos, nunca en soles.
         </p>
-        <Link href="/app/financiar" className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-heroViolet px-4 py-2 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
-          Financiar una auditoría <ArrowRight size={14} aria-hidden />
+        <div className="mt-4">{cuerpo}</div>
+        <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} breve />
+        <Link
+          href="/app/aliados"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline"
+        >
+          Ver el libro mayor completo <ArrowRight size={14} aria-hidden />
         </Link>
       </div>
     );
   }
 
-  // Mientras el único financiador sea Vigía Perú mismo (capital semilla), "gracias a
-  // ellos" en plural sería engañoso — se dice tal cual es hasta que llegue el primer
-  // aliado externo real (en cuanto totalResumen tenga 2+, vuelve solo al texto normal).
-  const soloFundador = visiblesTodo.length === 1 && visiblesTodo[0].slug === "vigia-peru";
-  const totalLeidoOAuditoria = leidosTotal || financiadosTotal;
-  const encabezado = soloFundador
-    ? <>Vigía Perú puso el capital semilla: <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos {leidosTotal ? "ya leídos" : "ya en auditoría"} de su propio bolsillo, antes de que nadie más aportara. El primer aliado externo toma el segundo lugar del podio — hoy vacante.</>
-    : leidosMes > 0
-      ? <>Gracias a ellos, <span className="font-mono">{leidosMes.toLocaleString("es-PE")}</span> contratos públicos fueron leídos este mes.</>
-      : financiadosMes > 0
-        ? <>Gracias a ellos, <span className="font-mono">{financiadosMes.toLocaleString("es-PE")}</span> contratos públicos entraron a auditoría este mes.</>
-        : <>Gracias a ellos, <span className="font-mono">{totalLeidoOAuditoria.toLocaleString("es-PE")}</span> contratos públicos {leidosTotal ? "fueron leídos" : "entraron a auditoría"}.</>;
-
-  if (compact) {
-    // Siempre 3 columnas, incluso con 1-2 destacados reales: los slots que faltan se
-    // rellenan con una invitación a ser el próximo aliado en vez de dejar el panel con
-    // un tercio (o dos tercios) de espacio vacío — hoy el caso normal, con Vigía Perú
-    // como único registro (capital semilla).
-    const slotsVacios = Math.max(0, 3 - destacados.length);
-    return (
-      <div>
-        <p className="font-serif text-2xl font-bold text-ink">{encabezado}</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          {destacados.map((r, i) => (
-            <div className="flex">
-              <TarjetaAliado row={r} posicion={i + 1} destacado />
-            </div>
-          ))}
-          {Array.from({ length: slotsVacios }).map((_, i) => (
-            <div className="flex">
-              <AliadoPlaceholder />
-            </div>
-          ))}
-        </div>
-        {anonimos.length > 0 && (
-          <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-mute">
-            <EyeOff size={12} aria-hidden /> {anonimos.length} {anonimos.length === 1 ? "persona aportó" : "personas aportaron"} de forma anónima · {anonimosContratos.toLocaleString("es-PE")} contratos
-          </p>
-        )}
-        <div className="mt-4">
-          <Link href="/app/aliados" className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline">
-            Ver todos los aliados <ArrowRight size={14} aria-hidden />
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
-  const paginacion = (
-    <Paginacion
-      actual={paginaActual}
-      paginas={paginas}
-      total={totalPagina}
-      tam={TAM}
-      navegacion="url"
-      hrefBase="/app/aliados"
-      query={{ ubigeo: region }}
-      cargando={false}
-      nombre="patrocinadores"
-    />
-  );
-
   return (
-    <div className="space-y-12">
-      <section>
-        {/* Antes esta línea era un titular font-serif 2xl/3xl -- competía en peso visual con
-            el propio H1 de la página y con el podio de abajo. Es contexto de apoyo, no el
-            protagonista: la empresa lo es. */}
-        <p className="max-w-2xl text-sm leading-relaxed text-mute sm:text-base">{encabezado}</p>
-        {/* "Escenario" oscuro para el podio: todo el resto de la página es fondo blanco/gris
-            clarísimo (bg-paper/bg-paperDeep) -- el reconocimiento en sí merecía más que otra
-            tarjeta blanca sobre fondo blanco. Mismo degradé que ya usa el CTA final de la
-            landing (from-heroViolet to-heroViolet-deep), no un color nuevo. */}
-        <div className="relative mt-6 overflow-hidden rounded-3xl bg-gradient-to-br from-heroViolet via-[#3a2d70] to-heroViolet-deep px-4 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8">
-          <div aria-hidden className="pointer-events-none absolute -left-16 -top-16 h-64 w-64 rounded-full bg-heroGreen/10 blur-3xl" />
-          <Podio destacados={destacados} periodoDestacado={periodoDestacado} />
-        </div>
-      </section>
+    <section aria-labelledby="muro-titulo" className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
+        <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
+          Quién financió la lectura
+        </h2>
+        <p className="font-mono text-[12px] text-mute">
+          {num(totalVisible)} {totalVisible === 1 ? "aliado" : "aliados"} · {num(financiadosMuro)} contratos
+          financiados{nombreRegion ? ` en ${nombreRegion}` : ""}
+        </p>
+      </div>
 
-      {/* totalPagina > destacados.length, no totalPagina > 0: con 1-3 aliados en total, ya
-          están los 3 arriba en "Aliados del mes" — repetir la misma única tarjeta acá abajo
-          (con paginación completa para una sola página) era ruido, no información nueva. */}
-      {totalPagina > destacados.length && (
-        <section>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-[11px] uppercase tracking-wide text-mute">Todos los aliados</h2>
-            <span className="font-mono text-[11px] text-mute">{totalPagina.toLocaleString("es-PE")}</span>
-          </div>
-          {paginas > 1 && <div className="mt-3">{paginacion}</div>}
-          {filasPagina.length > 0 ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {filasPagina.map((r, i) => (
-                <div className="flex">
-                  <TarjetaAliado row={r} posicion={r.posicion} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-mute">Los aliados de esta página aportaron de forma anónima.</p>
-          )}
-          {paginas > 1 && filasPagina.length > 8 && <div className="mt-4">{paginacion}</div>}
-        </section>
+      {!pocos && paginas > 1 && (
+        <Paginacion
+          actual={paginaActual}
+          paginas={paginas}
+          total={totalPagina}
+          tam={TAM}
+          navegacion="url"
+          hrefBase="/app/aliados"
+          query={{ ubigeo: region }}
+          cargando={false}
+          nombre="aliados"
+        />
       )}
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-paperDeep px-5 py-4">
-        <div className="inline-flex items-center gap-2 text-sm text-inkSoft">
-          <EyeOff size={16} className="text-mute" aria-hidden />
-          {anonimos.length > 0 ? (
-            <span>
-              <span className="font-mono font-semibold text-ink">{anonimos.length}</span> {anonimos.length === 1 ? "persona aportó" : "personas aportaron"} de forma anónima
-              {anonimosContratos > 0 && <span className="text-mute"> · {anonimosContratos.toLocaleString("es-PE")} contratos financiados</span>}
-            </span>
-          ) : (
-            <span>Nadie ha aportado de forma anónima todavía</span>
-          )}
-        </div>
-        <span className="text-[12px] text-mute">
-          {anonimos.length > 0 ? "Valen exactamente lo mismo en el conteo — solo no aparecen con nombre." : "Si aportás así, valés exactamente lo mismo en el conteo. Solo no aparecés con nombre."}
-        </span>
-      </section>
+      {cuerpo}
+
+      {!pocos && paginas > 1 && (
+        <Paginacion
+          actual={paginaActual}
+          paginas={paginas}
+          total={totalPagina}
+          tam={TAM}
+          navegacion="url"
+          hrefBase="/app/aliados"
+          query={{ ubigeo: region }}
+          cargando={false}
+          nombre="aliados"
+        />
+      )}
+
+      {pocos && <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} />}
+      <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} />
+    </section>
+  );
+}
+
+/**
+ * Con uno o dos nombres, este muro es sobre todo una invitación — y se diseña
+ * como tal, explicando el mecanismo, en vez de rellenar una grilla con losas
+ * "vacante" que solo subrayan que no hay nadie.
+ */
+function Invitacion({ totalVisible, nombreRegion }: { totalVisible: number; nombreRegion?: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-line px-5 py-5">
+      <h3 className="text-sm font-semibold text-ink">
+        {totalVisible === 1
+          ? `Hay un solo nombre en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`
+          : `Hay ${num(totalVisible)} nombres en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`}
+      </h3>
+      <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-mute">
+        <li>
+          <span className="font-mono text-inkSoft">1.</span> Elegís una región y cuántos contratos querés que
+          se lean. S/ 3 cada uno, que es lo que cuesta procesarlo.
+        </li>
+        <li>
+          <span className="font-mono text-inkSoft">2.</span> Los contratos concretos los saca la cola por
+          antigüedad. No los elegís vos, ni los elige Vigía Perú.
+        </li>
+        <li>
+          <span className="font-mono text-inkSoft">3.</span> Cuando cada uno termina de leerse, su dictamen se
+          publica con la norma citada, y tu comprobante lista uno por uno los contratos que tu aporte hizo
+          leer — hayan salido con señal o limpios.
+        </li>
+      </ol>
+      <Link
+        href="/app/financiar"
+        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
+      >
+        Financiar una auditoría <ArrowRight size={14} aria-hidden />
+      </Link>
     </div>
   );
 }
 
-/** Slot vacío del muro compacto (landing): en vez de dejar la grilla con espacio en
- * blanco mientras haya menos de 3 destacados, ofrece el lugar como llamada a la acción. */
-function AliadoPlaceholder() {
+/** Nadie ha aportado todavía en este ámbito: se dice qué falta, no se finge una grilla. */
+function MuroVacio({ nombreRegion, plano = false }: { nombreRegion?: string; plano?: boolean }) {
   return (
-    <Link
-      href="/app/financiar"
-      className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-5 text-center transition-colors hover:border-heroGreen/40 hover:bg-heroGreen/5"
-    >
-      <HeartHandshake size={22} className="text-mute" aria-hidden />
-      <span className="text-sm font-semibold text-ink">Sé el próximo aliado</span>
-      <span className="text-[11px] text-mute">Financiá una auditoría y aparecé acá</span>
-    </Link>
+    <section aria-labelledby="muro-titulo" className={plano ? "" : "rounded-2xl border border-dashed border-line px-5 py-6"}>
+      <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
+        {nombreRegion
+          ? `Todavía nadie financió la lectura de un contrato de ${nombreRegion}`
+          : "Todavía nadie financió la lectura de un contrato"}
+      </h2>
+      <p className="mt-2 max-w-[72ch] text-[13px] leading-relaxed text-mute">
+        Los contratos {nombreRegion ? `de ${nombreRegion} ` : ""}ya están descargados y clasificados: lo que
+        falta es capacidad para leerlos. Cuesta S/ 3 por contrato, se asignan por antigüedad y el primer
+        nombre que aporte abre este muro.
+      </p>
+      <Link
+        href="/app/financiar"
+        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
+      >
+        Financiar una auditoría <ArrowRight size={14} aria-hidden />
+      </Link>
+    </section>
+  );
+}
+
+/** Los aportes sin nombre pesan igual en el conteo; solo no aparecen en la lista. */
+function Anonimos({ cantidad, contratos, breve = false }: { cantidad: number; contratos: number; breve?: boolean }) {
+  if (cantidad === 0) return null;
+  return (
+    <p className={`inline-flex items-start gap-1.5 text-[12px] leading-relaxed text-mute ${breve ? "mt-3" : ""}`}>
+      <EyeOff size={13} className="mt-0.5 shrink-0" aria-hidden />
+      <span>
+        <span className="font-mono text-inkSoft">{num(cantidad)}</span>{" "}
+        {cantidad === 1 ? "persona aportó" : "personas aportaron"} sin nombre ·{" "}
+        <span className="font-mono text-inkSoft">{num(contratos)}</span> contratos financiados. Cuentan
+        exactamente igual; solo no figuran en la lista.
+      </span>
+    </p>
   );
 }

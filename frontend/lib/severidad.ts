@@ -46,8 +46,11 @@ export const SEVERIDAD: Record<NivelSeveridad, SeveridadUI> = {
   media: {
     nivel: "media",
     etiqueta: "Señal media",
+    // `text-amber` daba 3.47:1 sobre papel — por debajo del piso de 4.5 que
+    // esta misma dirección exige. El punto y el fondo siguen usando `amber`,
+    // que como marca es correcto; sólo el texto cambia de tono.
     icono: "atencion",
-    texto: "text-amber",
+    texto: "text-amberTexto",
     punto: "bg-amber",
     fondo: "bg-amber-soft",
     borde: "border-amber/40",
@@ -56,7 +59,7 @@ export const SEVERIDAD: Record<NivelSeveridad, SeveridadUI> = {
     nivel: "baja",
     etiqueta: "Sin señal relevante",
     icono: "ok",
-    texto: "text-moss",
+    texto: "text-mossTexto",
     punto: "bg-moss",
     fondo: "bg-moss/10",
     borde: "border-moss/40",
@@ -87,7 +90,25 @@ export function severidadDeScore(score: number | null | undefined): SeveridadUI 
   return SEVERIDAD[nivelDeScore(score)];
 }
 
-/** Para las banderas, que ya vienen clasificadas por el backend. */
+/**
+ * Severidad de UNA BANDERA, que no es lo mismo que la de un score.
+ *
+ * `SEVERIDAD.baja` describe un CONTRATO con score < 40: "Sin señal relevante",
+ * check, verde. Aplicado a una bandera de severidad baja mentiría dos veces —
+ * la señal sí existe, y ese verde es exactamente el del sello "Cotejada", así
+ * que en una columna de 25 filas una señal baja se vería idéntica a una
+ * verificación correcta.
+ *
+ * Una bandera baja es una señal real de poco peso: se nombra como tal y toma
+ * el tono neutro que el sistema ya reserva para lo que no carga semáforo.
+ * Ningún color nuevo, ningún umbral a mano.
+ */
 export function severidadDeBandera(s: "alta" | "media" | "baja"): SeveridadUI {
-  return SEVERIDAD[s];
+  if (s !== "baja") return SEVERIDAD[s];
+  return {
+    ...SEVERIDAD.sin_analizar,
+    nivel: "baja",
+    etiqueta: "Señal baja",
+    icono: "atencion",
+  };
 }

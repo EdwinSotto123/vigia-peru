@@ -72,7 +72,7 @@ const SECTIONS: Section[] = [
       },
       {
         href: "/app/hallazgos",
-        label: "Hallazgos",
+        label: "Señales",
         icon: <Flag size={16} />,
         hint: "Señales con norma y evidencia",
         match: (p) =>
@@ -263,7 +263,7 @@ export function DashboardSidebar() {
           <div className="mt-auto space-y-2 pt-6">
             {FLAGS.editorial && !loading && !user && (
               <div className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-clay">
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-clayTexto">
                   <Lock size={11} /> Acceso limitado
                 </div>
                 <p className="mt-1 text-[11px] leading-relaxed text-ink">

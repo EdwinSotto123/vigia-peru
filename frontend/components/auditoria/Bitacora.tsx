@@ -33,7 +33,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
   return (
     <ol className={compacto ? "space-y-1" : "space-y-1.5"} aria-live="polite" aria-relevant="additions" aria-label="Bitácora del análisis">
       {ultimos.map((ev, i) => {
-        const tono = ev.kind === "error" ? "text-rust" : ev.kind === "warn" ? "text-amber" : ev.kind === "final" ? "text-moss" : "text-inkSoft";
+        const tono = ev.kind === "error" ? "text-rust" : ev.kind === "warn" ? "text-amberTexto" : ev.kind === "final" ? "text-moss" : "text-inkSoft";
         const ms = ahora - new Date(ev.ts).getTime();
         return (
           <li key={`${ev.ts}-${ev.name}-${i}`} className={`flex items-start gap-2 ${compacto ? "text-[11px]" : "text-[12.5px]"} ${i === 0 && activo ? "animate-slideUp" : ""}`}>

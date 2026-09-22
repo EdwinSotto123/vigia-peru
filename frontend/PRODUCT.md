@@ -19,7 +19,7 @@ Un quinto actor pasivo: el **funcionario o proveedor auditado**, que tiene derec
 
 ## Product Purpose
 
-Vigía Perú descarga todos los contratos públicos del Perú desde la API OCDS del OECE/SEACE (~18 000 contratos, 25 regiones), hace que un pipeline determinista de 11 agentes de IA los lea de verdad — expediente, reglas de contratación, precios de mercado, prensa, red de personas, sanciones, cruzando 14 portales del Estado — y publica **señales de riesgo**, nunca acusaciones, cada una con su norma citada, la opinión OECE aplicable y la evidencia oficial que la sostiene.
+Vigía Perú descarga todos los contratos públicos del Perú desde la API OCDS del OECE/SEACE (~18 000 contratos, 25 regiones), hace que un pipeline determinista de 10 agentes de IA los lea de verdad — expediente, reglas de contratación, precios de mercado, prensa, red de personas, sanciones, cruzando 14 portales del Estado — y publica **señales de riesgo**, nunca acusaciones, cada una con su norma citada, la opinión OECE aplicable y la evidencia oficial que la sostiene.
 
 El cuello de botella no es el dato: los contratos ya son públicos. El cuello es que nadie los lee. El producto convierte capacidad de lectura en algo que un ciudadano puede financiar por S/3 y verificar después.
 

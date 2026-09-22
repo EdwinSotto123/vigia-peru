@@ -280,29 +280,44 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
 
         {/* ─── TAB: RESUMEN ─── */}
         {activeTab === "resumen" && (compl.banderas || []).length > 0 && (
-          <BanderasAgrupadas banderas={compl.banderas} reglas_evaluadas={compl.reglas_evaluadas ?? 3} />
+          // `perfil` y `reglasDisparadas` destraban la matriz de reglas
+          // evaluadas ("se evaluaron 25, dispararon 5", incluidas las que NO
+          // dispararon). Sin ellas el componente cae —correctamente— a decir
+          // que no tiene catálogo, en vez de inventar uno.
+          <BanderasAgrupadas
+            banderas={compl.banderas}
+            reglas_evaluadas={compl.reglas_evaluadas ?? 3}
+            perfil={compl.perfil ?? null}
+            reglasDisparadas={compl.reglas_disparadas ?? compl.reglasDisparadas ?? null}
+          />
         )}
 
       {/* ─── TAB: ITEMS + MERCADO ─── */}
       {activeTab === "items" && ((result.items || []).length > 0 || (result.market_analysis?.findings || []).length > 0) && (
         <section className="surface overflow-hidden p-0">
           <div className="border-b border-line bg-paperDeep px-5 py-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-              <Package size={11} className="mr-1 inline" />
-              Items convocados · {Math.max(
-                (result.items || []).length,
-                (result.market_analysis?.findings || []).length,
-                (result.document_analysis?.items_consolidados || []).length,
-              )}
+            {/* El conteo estaba como kicker mayúscula ENCIMA del h2 — el
+                patrón que la dirección prohíbe. Es un dato de contexto: va
+                debajo del título, en la línea de estado de la sección. */}
+            <h2 className="font-serif text-xl font-bold text-ink">
+              Qué se está comprando
+            </h2>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] text-mute">
+              <span className="inline-flex items-center gap-1.5">
+                <Package size={11} aria-hidden />
+                {Math.max(
+                  (result.items || []).length,
+                  (result.market_analysis?.findings || []).length,
+                  (result.document_analysis?.items_consolidados || []).length,
+                )}{" "}
+                ítems convocados
+              </span>
               {(result.market_analysis?.findings || []).length > (result.items || []).length && (
-                <span className="ml-2 rounded-full bg-amber-soft px-2 py-0 text-[9px] font-bold uppercase tracking-wider text-amber">
+                <span className="rounded-full bg-amber-soft px-2 py-0.5 text-[11px] font-medium text-amberTexto">
                   desglosado por agentes
                 </span>
               )}
             </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-              Qué se está comprando
-            </h2>
             {(result.document_analysis?.items_consolidados || []).length > (result.items || []).length && (
               <p className="mt-1 text-xs text-mute">
                 El OCDS reporta {(result.items || []).length} ítem(s) globales pero los agentes
@@ -635,7 +650,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
 
         {/* DISCLAIMER FOOTER */}
         <p className="border-t border-line pt-3 text-[10px] leading-relaxed text-mute">
-          <ShieldAlert size={10} className="mr-1 inline text-amber" />
+          <ShieldAlert size={10} className="mr-1 inline text-amberTexto" />
           Vigía detecta señales cruzando datos públicos (OECE, SUNAT, OSCE, ONPE, prensa). No constituye acusación. La denuncia formal corresponde a Contraloría, Fiscalía o periodismo.
         </p>
       </main>
@@ -799,7 +814,7 @@ function FallbackText({ title, text, icon }: { title: string; text: string; icon
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-amber-soft px-5 py-3">
-        <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amber">
+        <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amberTexto">
           {icon} {title}
         </div>
         <p className="mt-1 text-xs text-mute">El JSON estructurado no pudo parsearse — mostramos el texto crudo del agente.</p>

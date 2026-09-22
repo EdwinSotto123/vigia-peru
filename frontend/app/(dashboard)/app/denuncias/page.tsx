@@ -87,7 +87,7 @@ export default async function DenunciasPage({
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest " +
                 (source === "api"
                   ? "border-moss/40 bg-moss/10 text-moss"
-                  : "border-amber/40 bg-amber-soft text-amber")
+                  : "border-amber/40 bg-amber-soft text-amberTexto")
               }
             >
               <Cloud size={11} />
@@ -122,7 +122,7 @@ export default async function DenunciasPage({
           <ul className="mt-1 space-y-0.5">
             <li>· Para que aparezca como <strong className="text-moss">verificado</strong> se requieren ≥ 2 reportes independientes del mismo punto en ≤ 30 días.</li>
             <li>· Los reportes sin foto figuran en este listado pero <strong className="text-ink">no se publican como pin en el mapa público</strong>.</li>
-            <li>· Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-amber">convergente</strong>.</li>
+            <li>· Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-amberTexto">convergente</strong>.</li>
             <li>· Los datos personales del denunciante son anónimos por defecto.</li>
           </ul>
         </div>
@@ -166,7 +166,7 @@ function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: 
     ink: "border-line bg-paperSoft text-ink",
     rust: "border-rust/30 bg-crimson-soft text-rust",
     moss: "border-moss/30 bg-paperSoft text-moss",
-    amber: "border-amber/30 bg-amber-soft text-amber",
+    amber: "border-amber/30 bg-amber-soft text-amberTexto",
   }[tone];
   return (
     <div className={`rounded-2xl border p-3 shadow-card ${cls}`}>

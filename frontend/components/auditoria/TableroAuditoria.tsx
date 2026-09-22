@@ -150,12 +150,12 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
             {COLUMNAS.map((c) => (
               <span key={c.key} className="inline-flex items-center gap-1">
-                <span className={c.key === "procesando" && porColumna.procesando.length ? "text-amber" : ""}>{c.icon}</span>
+                <span className={c.key === "procesando" && porColumna.procesando.length ? "text-amberTexto" : ""}>{c.icon}</span>
                 <span className="font-mono text-ink transition-all">{porColumna[c.key].length}</span> {c.label.toLowerCase()}
               </span>
             ))}
             {enRevision > 0 && (
-              <span className="inline-flex items-center gap-1 text-clay" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Cuentan como procesados, no como señales.">
+              <span className="inline-flex items-center gap-1 text-clayTexto" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Cuentan como procesados, no como señales.">
                 <Eye size={14} />
                 <span className="font-mono">{enRevision}</span> en revisión humana
               </span>
@@ -169,7 +169,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
         </div>
         <div className="flex items-center gap-2 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
           {fallo ? (
-            <span className="inline-flex items-center gap-1 text-amber"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
+            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
           ) : (
             <span className="inline-flex items-center gap-1.5">
               <PulseDot color="moss" size={6} />
@@ -265,7 +265,7 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
       {p.estado === "procesando" && fases && prog && (
         <div className="mt-2.5">
           <div className="flex items-center justify-between gap-2 text-[11px]">
-            <span className="min-w-0 truncate text-amber" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
+            <span className="min-w-0 truncate text-amberTexto" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
             <span className="shrink-0 font-mono tabular-nums text-mute">
               {prog.hechas}/{prog.aplicables}
               {transcurrido != null && transcurrido > 0 && ` · ${duracion(transcurrido)}`}
@@ -278,11 +278,11 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
       )}
 
       {p.estado === "error" && (
-        <p className="mt-2 text-[11px] text-crimson">Reintento automático · intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
+        <p className="mt-2 text-[11px] text-crimsonTexto">Reintento automático · intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
       )}
 
       {estado === "revision" && (
-        <p className="mt-2 text-[11px] text-clay">La autoevaluación pidió revisión humana antes de publicar.</p>
+        <p className="mt-2 text-[11px] text-clayTexto">La autoevaluación pidió revisión humana antes de publicar.</p>
       )}
 
       {estado === "procesado" && (
@@ -318,7 +318,7 @@ function EstadoVacio({ fallo, codigo, ubigeo }: { fallo: boolean; codigo?: strin
   if (fallo) {
     return (
       <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-        <WifiOff size={18} className="mt-0.5 shrink-0 text-amber" aria-hidden />
+        <WifiOff size={18} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
         <div>
           <div className="font-medium text-ink">El servicio de auditoría en vivo no respondió.</div>
           <div className="mt-0.5">Reintentamos automáticamente cada pocos segundos. Los resultados ya publicados siguen disponibles en el mapa.</div>

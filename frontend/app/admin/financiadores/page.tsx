@@ -56,7 +56,7 @@ export default function FinanciadoresPage() {
 
   return (
     <AdminShell title="Financiadores" subtitle="Quién aporta, cuánto, y quién queda sin reconocimiento público por conflicto de interés">
-      {msg && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimson">{msg}</div>}
+      {msg && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimsonTexto">{msg}</div>}
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <table className="w-full text-sm">
           <thead className="bg-paperDeep text-left text-[11px] uppercase tracking-wide text-mute">
@@ -81,7 +81,7 @@ export default function FinanciadoresPage() {
                 <td className="text-right font-mono">{f.aportes}</td>
                 <td className="text-right font-mono">{f.contratosFinanciados}</td>
                 <td className="text-right font-mono">{fmtPEN(f.montoPen)}</td>
-                <td>{f.visible ? <Badge cls="bg-moss/10 text-moss">visible</Badge> : <Badge cls="bg-crimson-soft text-crimson">oculto · {f.motivoNoVisible?.replace(/_/g, " ")}</Badge>}</td>
+                <td>{f.visible ? <Badge cls="bg-moss/10 text-moss">visible</Badge> : <Badge cls="bg-crimson-soft text-crimsonTexto">oculto · {f.motivoNoVisible?.replace(/_/g, " ")}</Badge>}</td>
                 <td className="text-[11px] text-mute">{fmtDate(f.createdAt)}</td>
                 <td className="pr-3 text-right">
                   <div className="flex justify-end gap-1">

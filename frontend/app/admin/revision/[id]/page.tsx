@@ -12,7 +12,7 @@ import { adminFetch, fmtDate, PERFIL_LABEL, type BanderaRevision, type RevisionD
 
 type Detalle = Omit<RevisionDetalle, "banderas"> & { banderas: BanderaRevision[] };
 
-const SEV: Record<string, string> = { alta: "bg-crimson-soft text-crimson", media: "bg-amber-soft text-amber", baja: "bg-paperDeep text-mute" };
+const SEV: Record<string, string> = { alta: "bg-crimson-soft text-crimsonTexto", media: "bg-amber-soft text-amberTexto", baja: "bg-paperDeep text-mute" };
 
 /**
  * Detalle de una alerta en revisión: banderas con su verificación determinista y el juicio de
@@ -64,14 +64,14 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
         )}
       </>
     }>
-      {err && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimson">{err}</div>}
+      {err && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimsonTexto">{err}</div>}
       {!d && !err && <div className="h-40 animate-pulse rounded-2xl bg-paperDeep" />}
       {d && (
         <>
           {/* Cabecera: estado + motivo */}
           <div className={`rounded-2xl border p-5 ${d.estado === "revision" ? "border-clay/40 bg-amber-soft/40" : d.estado === "activa" ? "border-moss/40 bg-moss/5" : "border-line bg-paper"}`}>
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge cls={d.estado === "revision" ? "bg-paperDeep text-clay" : d.estado === "activa" ? "bg-moss/10 text-moss" : "bg-crimson-soft text-crimson"}>
+              <Badge cls={d.estado === "revision" ? "bg-paperDeep text-clayTexto" : d.estado === "activa" ? "bg-moss/10 text-moss" : "bg-crimson-soft text-crimsonTexto"}>
                 {d.estado === "revision" ? "En revisión humana" : d.estado === "activa" ? "Publicada" : d.estado}
               </Badge>
               <span className="font-mono text-ink">score {d.score ?? "—"}</span>
@@ -83,7 +83,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
             <p className="mt-1 text-sm text-ink">{d.motivo}{d.motivoPipeline && <span className="text-[11px] text-mute"> · registrado por el pipeline al bloquear</span>}</p>
             {d.motivos.length > 0 && (
               <ul className="mt-2 space-y-1 text-[12px] text-mute">
-                {d.motivos.map((m) => <li key={m.clave}><Badge cls="bg-amber-soft text-amber">{m.clave}</Badge> {m.texto}{d.motivoPipeline ? " (recalculado con los umbrales actuales y las banderas persistidas)" : ""}</li>)}
+                {d.motivos.map((m) => <li key={m.clave}><Badge cls="bg-amber-soft text-amberTexto">{m.clave}</Badge> {m.texto}{d.motivoPipeline ? " (recalculado con los umbrales actuales y las banderas persistidas)" : ""}</li>)}
               </ul>
             )}
             {d.moderacion && (
@@ -123,7 +123,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
                         <ul className="mt-2 list-disc pl-4 text-[11px] text-mute">{b.verificacion!.motivos!.map((m, i) => <li key={i}>{m}</li>)}</ul>
                       )}
                       {j && (
-                        <p className={`mt-2 rounded-lg px-2.5 py-1.5 text-[12px] ${j.respaldada ? "bg-moss/10 text-moss" : "bg-crimson-soft text-crimson"}`}>
+                        <p className={`mt-2 rounded-lg px-2.5 py-1.5 text-[12px] ${j.respaldada ? "bg-moss/10 text-moss" : "bg-crimson-soft text-crimsonTexto"}`}>
                           <strong>{j.respaldada ? "Respaldada" : "No respaldada"}</strong> según el evaluador: {redactDnis(j.reason ?? "")}
                         </p>
                       )}
@@ -186,7 +186,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
           <section className="mt-6 rounded-2xl border border-line bg-paper p-5">
             <h2 className="text-sm font-semibold text-ink">Dictamen</h2>
             {d.dictamen ? (
-              <div className="prose prose-sm mt-3 max-w-none text-ink prose-headings:font-serif prose-headings:text-ink prose-a:text-clay">
+              <div className="prose prose-sm mt-3 max-w-none text-ink prose-headings:font-serif prose-headings:text-ink prose-a:text-clayTexto">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
                   li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,

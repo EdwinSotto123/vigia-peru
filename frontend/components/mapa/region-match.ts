@@ -44,7 +44,8 @@ export const UBIGEO_REGION: Record<string, string> = Object.fromEntries(
   Object.entries(REGION_UBIGEO).map(([id, code]) => [code, id]),
 );
 
-// Provincias que la API usa como `region` y que no están en el mock de REGIONES.
+// Provincias que la API usa como `region` y que no están en el catálogo de REGIONES
+// (lib/peru-data sólo lista las provincias con centroide INEI cargado a mano).
 const EXTRA_PROVINCIAS: Record<string, string[]> = {
   ayacucho: ["huamanga", "huancasancos", "lamar"],
   apurimac: ["abancay", "andahuaylas", "antabamba"],

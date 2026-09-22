@@ -1,145 +1,133 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, FileCheck2, HeartHandshake, Scale, ShieldCheck, Trophy, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { PageHeader } from "@/components/dashboard/PageHeader";
+import { CapacidadColectiva } from "@/components/aliados/CapacidadColectiva";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
-import { FiltroRegion } from "@/components/auditoria/FiltroRegion";import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { ReglasIndependencia } from "@/components/aliados/ReglasIndependencia";
+import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
+import { getResumenContratos } from "@/lib/contratos";
 
 export const metadata = {
   title: "Aliados de transparencia — Vigía Perú",
   description:
-    "Empresas, organizaciones y personas que financian la capacidad de leer contratos públicos. Reconocimiento público, proporcional y verificable.",
+    "Cuánto se ha leído de todo lo que hay por leer, y quién pagó por ello. El reconocimiento se cuenta en contratos, nunca en soles, y nadie elige qué se audita.",
 };
 
 export const revalidate = 300;
 
+/**
+ * /app/aliados — reordenada de raíz.
+ *
+ * Antes abría con un podio de tres puestos sobre un escenario morado, dos de
+ * ellos "vacante", con medallas emoji y una animación en el puesto 1. Con un
+ * único financiador —que es la propia plataforma— esa superficie probaba
+ * soledad, y le daba escenario a quien paga en una herramienta cuya promesa
+ * central es que *el que paga no elige*.
+ *
+ * El orden nuevo: primero la capacidad colectiva y el déficit (33 leídos de
+ * 18.394: la historia real del producto, y hasta hoy invisible porque ninguna
+ * cifra se comparaba con otra), después el libro mayor de quién aportó, y al
+ * final las reglas que hacen que ese dinero no compre nada.
+ *
+ * También se fue el hero con degradado y orbe borroso: consumía la primera
+ * pantalla entera antes del primer dato.
+ */
 export default async function AliadosPage({ searchParams }: { searchParams?: { ubigeo?: string; pagina?: string } }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
-  const [estado, zonas] = await Promise.all([getEstadoGlobal(), getZonas("departamento")]);
-  const opciones = (zonas ?? [])
-    .filter((z) => z.financiados > 0)
-    .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
-    .map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre, hint: `${z.financiados.toLocaleString("es-PE")} financiados` }));
-  const zonaActual = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo)?.nombre : undefined;
-  return (
-    <div className="bg-paper">
-      {/* ─── HERO ─── */}
-      <section className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.06] via-paperDeep to-heroGreen/[0.05]">
-        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-heroViolet/10 blur-3xl" />
-        <div className="container-page relative grid gap-8 py-14 lg:grid-cols-[1.2fr_1fr] lg:items-end">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
-              <HeartHandshake size={12} /> Reconocimiento público
-            </span>
-            <h1 className="mt-4 font-serif text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
-              Aliados de transparencia
-            </h1>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
-              Nadie compra un resultado ni una región. Cada nombre en este muro financió{" "}
-              <strong className="text-ink">capacidad de lectura</strong> sobre contratos que ya eran
-              públicos — y aceptó que, si el análisis los señala a ellos, se publica igual. El
-              reconocimiento es proporcional a lo que hicieron posible auditar, nada más.
-            </p>
-          </div>
-          {/* Antes: 3 KpiTile sueltos con gap-3 entre ellos -- tres cajas blancas casi
-              idénticas flotando con más espacio en blanco entre medio que contenido propio,
-              sin ningún ícono que distinga una cifra de otra. Un solo panel con divisores
-              internos en vez de huecos, e ícono por estadística. */}
-          <div className="overflow-hidden rounded-2xl border border-line bg-paper shadow-card">
-            <div className="grid grid-cols-3 divide-x divide-line">
-              <EstadisticaHero
-                icon={<Users size={16} />}
-                label={estado?.financiadores === 1 ? "Aliado" : "Aliados"}
-                value={estado?.financiadores ?? 0}
-              />
-              <EstadisticaHero icon={<FileCheck2 size={16} />} label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
-              <EstadisticaHero
-                icon={<AlertTriangle size={16} />}
-                label="Señales halladas"
-                value={estado?.senalesHalladas ?? 0}
-                tono={(estado?.senalesHalladas ?? 0) > 0 ? "rust" : undefined}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* ─── MURO ─── */}
-      {/* Barra de filtro pegajosa: "Todos los aliados" pagina hasta 24 tarjetas, así que
-          cambiar de región no debería obligar a volver a scrollear hasta arriba. top-0 (no
-          top-16, el offset típico bajo el Header): esta ruta cuelga de (dashboard)/layout.tsx,
-          que NO renderiza el Header público, solo DashboardSidebar (una barra LATERAL, no
-          superior) — no hay nada que esquivar arriba de esta barra. */}
-      <div className="sticky top-0 z-10 border-b border-line bg-paper/95 py-3 backdrop-blur">
-        <div className="container-page flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-mute">{zonaActual ? `Aliados que financiaron auditorías en ${zonaActual}.` : "Filtra el muro por región."}</p>
+  const [estado, zonas, resumenPais, resumenZona] = await Promise.all([
+    getEstadoGlobal(),
+    getZonas("departamento"),
+    getResumenContratos(),
+    ubigeo ? getResumenContratos({ ubigeo }) : Promise.resolve(null),
+  ]);
+
+  // El filtro ya no lista solo las regiones con aliados: una región con cola y sin
+  // nadie que la financie es justo la que hay que poder mirar, y ahora su vacío
+  // enseña qué falta en vez de quedar en blanco.
+  const opciones = (zonas ?? [])
+    .filter((z) => z.totalCola > 0)
+    .sort((a, b) => b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre, "es"))
+    .map((z) => ({
+      ubigeo: z.ubigeo,
+      nombre: z.nombre,
+      hint: `${z.pendientes.toLocaleString("es-PE")} sin financiar`,
+    }));
+  const zona = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
+  const ambito = zona?.nombre ?? "todo el Perú";
+
+  const publicados = (ubigeo ? resumenZona?.total : resumenPais?.total) ?? 0;
+  const leidos = zona ? zona.procesados : estado?.contratosProcesados ?? 0;
+  const financiados = zona ? zona.financiados : estado?.contratosFinanciados ?? 0;
+
+  return (
+    <div className="container-page space-y-10 py-8">
+      <PageHeader
+        title="Aliados de transparencia"
+        subtitle="Quién financia que estos contratos se lean de verdad. Nadie compra un resultado ni una región: los contratos se asignan por antigüedad, en código, y lo que salga se publica igual."
+        contexto={
+          estado ? (
+            <span className="font-mono">
+              {financiados.toLocaleString("es-PE")} financiados · {leidos.toLocaleString("es-PE")} leídos
+              {publicados > 0 && <> de {publicados.toLocaleString("es-PE")}</>}
+            </span>
+          ) : undefined
+        }
+      />
+
+      {/* Filtro pegajoso: el libro mayor pagina hasta 24 filas, cambiar de región no debería
+          obligar a volver arriba. top-0 porque esta ruta cuelga de (dashboard)/layout.tsx, que
+          no renderiza Header público — solo la barra LATERAL. */}
+      <div className="sticky top-0 z-barra -mx-4 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-mute">
+            {zona
+              ? `Mirando ${zona.nombre}: ${zona.pendientes.toLocaleString("es-PE")} contratos esperan que alguien pague su lectura.`
+              : "Mirando todo el Perú. Filtrá por región para ver su déficit y quién lo cubre."}
+          </p>
           <FiltroRegion opciones={opciones} valor={ubigeo} />
         </div>
       </div>
-      <section className="container-page py-8">
-        <MuroAliados region={ubigeo} pagina={pagina} />
+
+      {/* P0 de la dirección: si el API cae, se dice — no se dibujan ceros que parezcan dato. */}
+      {estado ? (
+        <CapacidadColectiva
+          ambito={ambito}
+          publicados={publicados}
+          cola={zona ? zona.totalCola : (estado.colaGlobal ?? 0) + estado.contratosFinanciados}
+          documentosListos={(zona ? zona.documentosListos : estado.documentosListos) ?? 0}
+          financiados={financiados}
+          leidos={leidos}
+          conSenal={zona ? zona.senales : estado.senalesHalladas}
+          enRevision={(zona ? zona.enRevision : estado.enRevision) ?? 0}
+          precioPen={zona?.precioPen ?? estado.tarifa?.precioPen ?? 3}
+          alcance={estado.alcance ?? null}
+        />
+      ) : (
+        <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm leading-relaxed text-mute">
+          No se pudo leer el estado de la cola ahora mismo. Preferimos decirlo antes que mostrar cifras
+          en cero que parezcan un dato.
+        </p>
+      )}
+
+      <MuroAliados region={ubigeo} pagina={pagina} nombreRegion={zona?.nombre} financiadosAmbito={financiados} />
+
+      <ReglasIndependencia />
+
+      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-line bg-paperSoft px-5 py-4">
+        <p className="max-w-[60ch] text-sm leading-relaxed text-inkSoft">
+          Desde 5 contratos. Con tu nombre, como colectivo o sin nombre —{" "}
+          <span className="text-mute">en el conteo pesa exactamente igual.</span>
+        </p>
+        <Link
+          href="/app/financiar"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
+        >
+          Financiar una auditoría <ArrowRight size={14} aria-hidden />
+        </Link>
       </section>
-
-      {/* ─── REGLAS + CTA ─── */}
-      <section className="border-t border-line bg-paperDeep py-12">
-        <div className="container-page grid gap-6 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start">
-          {/* Cascada corta: son 3 reglas independientes, no pasos de una secuencia —
-              entran una tras otra en vez de golpear las tres a la vez. El CTA de al lado
-              queda fuera de la cascada (una acción no debe demorar su aparición). */}
-          <div>
-            <Regla icon={<Trophy size={16} />} titulo="Se cuenta en contratos">
-              Trescientos vecinos que financian 300 contratos valen lo mismo que una empresa que financia 300. El ranking nunca mide soles.
-            </Regla>
-          </div>
-          <div>
-            <Regla icon={<Scale size={16} />} titulo="Nadie elige qué se audita">
-              Los contratos se asignan por antigüedad, en código. El pipeline no sabe quién financió. Los resultados se publican siempre.
-            </Regla>
-          </div>
-          <div>
-            <Regla icon={<ShieldCheck size={16} />} titulo="Conflicto de interés automático">
-              Una empresa con sanción vigente o señalada en alertas de la zona puede aportar, pero no aparece en este muro.
-            </Regla>
-          </div>
-          <div className="rounded-2xl border border-line bg-paper p-5 shadow-card lg:max-w-xs">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroViolet/10 text-heroViolet">
-              <HeartHandshake size={16} />
-            </span>
-            <div className="mt-3 text-sm font-semibold text-ink">Súmate al muro</div>
-            <p className="mt-1 text-[13px] leading-relaxed text-mute">Desde 5 contratos. Con tu nombre, como colectivo o de forma anónima.</p>
-            <Link
-              href="/app/financiar"
-              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper"
-            >
-              Financiar una auditoría <ArrowRight size={14} aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function EstadisticaHero({ icon, label, value, tono }: { icon: React.ReactNode; label: string; value: number; tono?: "rust" }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5 px-3 py-4 text-center sm:py-5">
-      <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${tono === "rust" ? "bg-rust/10 text-rust" : "bg-heroViolet/10 text-heroViolet"}`}>
-        {icon}
-      </span>
-      <div className={`font-mono text-2xl font-bold sm:text-3xl ${tono === "rust" ? "text-rust" : "text-ink"}`}>
-        <NumberTicker value={value} />
-      </div>
-      <div className="text-[10px] uppercase tracking-wide text-mute sm:text-[11px]">{label}</div>
-    </div>
-  );
-}
-
-function Regla({ icon, titulo, children }: { icon: React.ReactNode; titulo: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-line bg-paper p-5 shadow-card">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroGreen/10 text-heroGreen">{icon}</span>
-      <h3 className="mt-3 font-semibold text-ink">{titulo}</h3>
-      <p className="mt-1 text-sm leading-relaxed text-mute">{children}</p>
     </div>
   );
 }

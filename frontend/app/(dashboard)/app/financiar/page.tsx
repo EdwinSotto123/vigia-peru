@@ -125,7 +125,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
               Esto no es comprar una región ni patrocinar un informe. Es pagar el cómputo para que contratos
               que ya son públicos sean, por fin, leídos. Las reglas están en el código, no en una promesa.
             </p>
-            <Link href="/preguntas#cuentas" className="mt-4 inline-block text-sm text-heroGreen underline-offset-2 hover:underline">
+            <Link href="/preguntas#cuentas" className="mt-4 inline-block text-sm text-heroGreenTexto underline-offset-2 hover:underline">
               Ver el balance público y el código →
             </Link>
           </div>

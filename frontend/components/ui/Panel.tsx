@@ -51,6 +51,16 @@ export function Panel({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [saliendo, setSaliendo] = useState(false);
+  // Montaje perezoso del contenido. Una lista de 50 contratos con <Revelar> en
+  // cada fila renderizaba 50 paneles completos —miles de nodos— aunque el
+  // usuario no abriera ninguno. `display:none` no cuesta layout ni pintado,
+  // pero sí costaba construirlo, y la escena de uso dominante del producto es
+  // un celular de gama baja con datos móviles.
+  //
+  // Una vez abierto queda montado: reabrir el mismo panel no debe perder el
+  // scroll ni el estado de lo que haya adentro.
+  const [yaAbierto, setYaAbierto] = useState(false);
+  if (abierto && !yaAbierto) setYaAbierto(true);
 
   const cerrarConAnimacion = useCallback(() => {
     const d = ref.current;
@@ -151,9 +161,11 @@ export function Panel({
         </button>
       </header>
 
-      <div className="scrollbar-warm min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+      <div className="scrollbar-warm min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+        {yaAbierto ? children : null}
+      </div>
 
-      {pie && <footer className="shrink-0 border-t border-line bg-paperSoft px-5 py-3">{pie}</footer>}
+      {pie && yaAbierto && <footer className="shrink-0 border-t border-line bg-paperSoft px-5 py-3">{pie}</footer>}
     </dialog>
   );
 }

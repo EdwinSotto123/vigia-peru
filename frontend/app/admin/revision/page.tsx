@@ -85,7 +85,7 @@ export default function RevisionPage() {
         </button>
       </>
     }>
-      {err && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimson">{err}</div>}
+      {err && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimsonTexto">{err}</div>}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Kpi label={tab === "revision" ? "En revisión" : "Resueltas"} value={rows ? n : "—"} tone={n > 0 && tab === "revision" ? "amber" : "ink"} />
@@ -136,7 +136,7 @@ export default function RevisionPage() {
                 <td className="px-2 py-2 text-right font-mono">{r.score ?? "—"}</td>
                 <td className="px-2 py-2 text-right font-mono">{r.banderas}</td>
                 <td className="px-2 py-2 max-w-[320px] text-[12px] text-ink">
-                  <div className="flex flex-wrap gap-1">{r.motivos.map((m) => <Badge key={m.clave} cls="bg-amber-soft text-amber">{m.clave}</Badge>)}</div>
+                  <div className="flex flex-wrap gap-1">{r.motivos.map((m) => <Badge key={m.clave} cls="bg-amber-soft text-amberTexto">{m.clave}</Badge>)}</div>
                   <div className={r.motivos.length ? "mt-1 text-mute" : "text-mute"} title={r.motivoPipeline ? "Motivo registrado por el pipeline al bloquear" : "Recalculado con los umbrales actuales"}>{r.motivo}</div>
                   {r.moderacion && (
                     <div className="mt-1 text-[11px] text-mute">

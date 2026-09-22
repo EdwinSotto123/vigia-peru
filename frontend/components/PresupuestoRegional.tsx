@@ -146,7 +146,7 @@ export function PresupuestoRegional({
       {isCurrentOpen && (
         <div className="flex items-center gap-2 rounded-xl border border-amber/30 bg-amber-soft px-3 py-1.5 text-[11px]">
           <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-amber" />
-          <span className="font-semibold text-amber">EJERCICIO {current.year} EN CURSO</span>
+          <span className="font-semibold text-amberTexto">EJERCICIO {current.year} EN CURSO</span>
           <span className="text-mute">·</span>
           <span className="text-mute">Datos al {todayLabel}</span>
           <span className="ml-auto text-mute">
@@ -361,7 +361,7 @@ function HeroStat({
     ink: "bg-paperSoft border-line text-ink",
     rust: "bg-crimson-soft border-rust/30 text-rust",
     moss: "border-moss/30 text-moss bg-paperSoft",
-    amber: "bg-amber-soft border-amber/30 text-amber",
+    amber: "bg-amber-soft border-amber/30 text-amberTexto",
   }[tone];
   return (
     <div className={cn("rounded-xl border p-2.5", styles)}>
@@ -419,7 +419,7 @@ function YearBreakdownBars({
                 <span className="flex items-center gap-1.5">
                   <span className="font-mono font-bold text-ink">{y.year}</span>
                   {isCurrent && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[8.5px] font-bold uppercase tracking-wider text-amber">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[8.5px] font-bold uppercase tracking-wider text-amberTexto">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
                       en curso
                     </span>

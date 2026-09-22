@@ -23,11 +23,17 @@ interface Props {
 const cache = new Map<string, ReglasPerfil>();
 
 export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision = false, compacto = false }: Props) {
-  const key = (perfil ?? "bienes").toLowerCase();
-  const [data, setData] = useState<ReglasPerfil | null>(cache.get(key) ?? null);
+  // Antes: `(perfil ?? "bienes")`. Cuando el análisis no declaraba perfil, esto
+  // cargaba el catálogo de BIENES y lo mostraba igual — o sea, para un contrato
+  // de obras se listaban las reglas de bienes como si fueran las que se le
+  // aplicaron. Un dato inventado presentado como evaluación. Sin perfil no hay
+  // catálogo que mostrar, y eso se declara en vez de rellenarse.
+  const key = perfil ? perfil.toLowerCase() : null;
+  const [data, setData] = useState<ReglasPerfil | null>(key ? cache.get(key) ?? null : null);
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
+    if (!key) { setData(null); return; }
     if (cache.has(key)) { setData(cache.get(key)!); return; }
     let vivo = true;
     getReglasPerfil(key).then((r) => { if (r && vivo) { cache.set(key, r); setData(r); } });

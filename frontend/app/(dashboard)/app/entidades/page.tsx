@@ -96,7 +96,7 @@ export default async function EntidadesPage({
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest " +
               (source === "api"
                 ? "border-moss/40 bg-moss/10 text-moss"
-                : "border-amber/40 bg-amber-soft text-amber")
+                : "border-amber/40 bg-amber-soft text-amberTexto")
             }
           >
             {/* Mismo indicador "en vivo" que TableroAuditoria/ContratoEnVivo/PanelProcesamiento/

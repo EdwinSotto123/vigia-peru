@@ -9,7 +9,7 @@ dashboard. La landing queda fuera: su propuesta ya fue aprobada e iterada.
 
 ## THESIS
 
-**El producto no muestra su trabajo.** Once agentes leen un expediente, cruzan
+**El producto no muestra su trabajo.** Diez agentes leen un expediente, cruzan
 catorce portales del Estado y citan la página exacta de un acta — y todo eso
 llega al usuario como prosa gris en la séptima pestaña, debajo del costo en
 dólares. Mientras tanto, lo que sí ocupa la pantalla son cajas con números sin

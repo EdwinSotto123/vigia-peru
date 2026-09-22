@@ -1,61 +1,155 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles } from "lucide-react";
+/**
+ * La traza técnica del análisis, leída como "qué hizo cada agente".
+ *
+ * Antes era una lista cronológica con un índice de chips de colores donde el color salía de
+ * AGENT_VISUAL — o sea, de la escala de severidad: el agente de mercado se pintaba verde
+ * (moss = verificado) y el de compliance rojo (rust = señal alta), sin que ninguno de los dos
+ * colores significara nada sobre el resultado. Acá el color vuelve a estar reservado al estado
+ * y a la severidad; los agentes se distinguen por su nombre, que es lo que el usuario recuerda.
+ *
+ * El índice de agentes es además el filtro: tocar uno recorta la traza a sus tramos. Es la misma
+ * interacción que en "Quién encontró qué", una capa más abajo.
+ */
+
+import { useMemo, useState } from "react";
+import { AlertCircle, FilterX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { nombreDeAgente } from "@/components/agentes/catalogo";
 import type { AgentTraceEvent } from "../types";
-import { AGENT_VISUAL } from "../constants";
 import { TracePhaseGroup } from "./TracePhaseGroup";
 
 export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
-  const agentes = Array.from(new Set(trace.map((e) => e.agent).filter(Boolean))) as string[];
-  // Agrupar eventos CONSECUTIVOS por agente activo → fases colapsables (159 filas → ~16 grupos)
-  const groups: { agent: string; events: { ev: AgentTraceEvent; idx: number }[] }[] = [];
-  trace.forEach((ev, idx) => {
-    const ag = ev.agent || "?";
-    const last = groups[groups.length - 1];
-    if (last && last.agent === ag) last.events.push({ ev, idx });
-    else groups.push({ agent: ag, events: [{ ev, idx }] });
-  });
+  const [agente, setAgente] = useState<string | null>(null);
+  const [todoAbierto, setTodoAbierto] = useState(false);
+
+  // Los tramos son consecutivos a propósito: el DAG intercala agentes, y ese intercalado ES
+  // la información. Agrupar todo lo de un agente junto borraría el orden real.
+  const grupos = useMemo(() => {
+    const out: { agent: string; events: { ev: AgentTraceEvent; idx: number }[] }[] = [];
+    trace.forEach((ev, idx) => {
+      const ag = ev.agent || "?";
+      const ultimo = out[out.length - 1];
+      if (ultimo && ultimo.agent === ag) ultimo.events.push({ ev, idx });
+      else out.push({ agent: ag, events: [{ ev, idx }] });
+    });
+    return out;
+  }, [trace]);
+
+  const indice = useMemo(() => {
+    const por = new Map<string, { pasos: number; tools: Set<string>; errores: number; tramos: number }>();
+    for (const g of grupos) {
+      const e = por.get(g.agent) ?? { pasos: 0, tools: new Set<string>(), errores: 0, tramos: 0 };
+      e.tramos++;
+      for (const { ev } of g.events) {
+        e.pasos++;
+        if (ev.kind === "tool_call" && ev.name) e.tools.add(ev.name);
+        if (ev.kind === "error") e.errores++;
+      }
+      por.set(g.agent, e);
+    }
+    return [...por.entries()]
+      .map(([agent, v]) => ({ agent, ...v, nTools: v.tools.size }))
+      .sort((a, b) => b.pasos - a.pasos);
+  }, [grupos]);
+
   const nTools = trace.filter((e) => e.kind === "tool_call").length;
   const nErr = trace.filter((e) => e.kind === "error").length;
-  const [allOpen, setAllOpen] = useState(false);
+  const visibles = agente ? grupos.filter((g) => g.agent === agente) : grupos;
+  const pasosVisibles = visibles.reduce((n, g) => n + g.events.length, 0);
 
   return (
     <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="flex items-start justify-between gap-3">
+      <header className="border-b border-line bg-paperDeep px-4 py-4 sm:px-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-              <Sparkles size={11} className="mr-1 inline" />
-              Auditoría técnica · {trace.length} pasos · {nTools} tools
-              {nErr > 0 && <span className="ml-1 text-rust">· {nErr} error{nErr > 1 ? "es" : ""}</span>}
-            </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-ink">Pasos del análisis</h2>
-            <p className="mt-1 text-xs leading-relaxed text-mute">
-              El pipeline corre una secuencia fija de agentes; cada sub-agente ejecuta su
-              propio loop de tools (Gemini + grounding). Cada fase es desplegable.
+            <h2 className="font-serif text-xl font-bold leading-tight text-ink">Qué hizo cada agente</h2>
+            <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
+              La traza técnica completa, en el orden real en que ocurrió:{" "}
+              <strong className="font-semibold text-ink">{trace.length} pasos</strong> de{" "}
+              {indice.length} {indice.length === 1 ? "agente" : "agentes"}, {nTools} de ellos llamadas a
+              herramientas
+              {nErr > 0 && (
+                <>
+                  {" "}y <span className="font-semibold text-rust">{nErr}</span>{" "}
+                  {nErr === 1 ? "error" : "errores"}
+                </>
+              )}
+              . Es lo que permite auditar el análisis sin rehacerlo.
             </p>
           </div>
-          <button type="button" onClick={() => setAllOpen((o) => !o)}
-            className="shrink-0 rounded-md border border-line bg-paper px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mute hover:border-heroViolet/40 hover:text-heroViolet">
-            {allOpen ? "Colapsar todo" : "Expandir todo"}
+          <button
+            type="button"
+            onClick={() => setTodoAbierto((o) => !o)}
+            className="shrink-0 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium text-mute transition-colors duration-rapido hover:border-heroViolet/40 hover:text-heroViolet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+          >
+            {todoAbierto ? "Colapsar todo" : "Expandir todo"}
           </button>
         </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {agentes.map((a) => {
-            const v = AGENT_VISUAL[a] || { color: "bg-mute text-paper", icon: null, label: a };
-            return (
-              <span key={a} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", v.color)}>
-                {v.icon} {v.label}
-              </span>
-            );
-          })}
-        </div>
+      </header>
+
+      {/* Índice de agentes = filtro. Cada cifra con su denominador. */}
+      <ul className="divide-y divide-line/60 border-b border-line bg-paper">
+        {indice.map((a) => {
+          const on = agente === a.agent;
+          return (
+            <li key={a.agent}>
+              <button
+                type="button"
+                onClick={() => setAgente(on ? null : a.agent)}
+                aria-pressed={on}
+                className={cn(
+                  "flex w-full items-baseline gap-2 px-4 py-1.5 text-left transition-colors duration-rapido sm:px-5",
+                  "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
+                  on && "bg-heroViolet-soft hover:bg-heroViolet-soft",
+                )}
+              >
+                <span className={cn("w-[7.5rem] shrink-0 truncate text-[12.5px] text-ink sm:w-44", on && "font-semibold")}>
+                  {nombreDeAgente(a.agent)}
+                </span>
+                <span className="min-w-0 flex-1 text-[12px] text-mute">
+                  {a.pasos} de {trace.length} pasos
+                  {a.nTools > 0 && <> · {a.nTools} {a.nTools === 1 ? "herramienta" : "herramientas"} distintas</>}
+                  {a.tramos > 1 && <> · retomó {a.tramos} veces</>}
+                </span>
+                {a.errores > 0 && (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-rust">
+                    <AlertCircle size={11} aria-hidden /> {a.errores}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperSoft px-4 py-2 sm:px-5">
+        <span className="text-[12px] text-mute">
+          {agente ? (
+            <>
+              Tramos de <strong className="font-semibold text-ink">{nombreDeAgente(agente)}</strong> ·{" "}
+              {pasosVisibles} de {trace.length} pasos
+            </>
+          ) : (
+            <>Todos los tramos · {trace.length} pasos en {grupos.length} tramos</>
+          )}
+        </span>
+        {agente && (
+          <button
+            type="button"
+            onClick={() => setAgente(null)}
+            className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+          >
+            <FilterX size={11} aria-hidden /> Ver la traza completa
+          </button>
+        )}
       </div>
 
       <div className="divide-y divide-line">
-        {groups.map((g, gi) => <TracePhaseGroup key={`${gi}-${allOpen}`} group={g} forceOpen={allOpen} />)}
+        {visibles.map((g) => (
+          <TracePhaseGroup key={`${g.events[0].idx}-${todoAbierto}`} group={g} forceOpen={todoAbierto} />
+        ))}
       </div>
     </section>
   );

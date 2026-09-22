@@ -45,7 +45,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
   const kindIcon = (k: string) => {
     if (k === "tool_call")    return <Sparkles size={11} className="text-heroViolet" />;
     if (k === "tool_result")  return <CheckCircle2 size={11} className="text-moss" />;
-    if (k === "transfer")     return <ArrowRight size={11} className="text-amber" />;
+    if (k === "transfer")     return <ArrowRight size={11} className="text-amberTexto" />;
     if (k === "thought")      return <Brain size={11} className="text-mute" />;
     if (k === "phase")        return <Sparkles size={11} className="text-rust" />;
     if (k === "session")      return <Sparkles size={11} className="text-ink" />;
@@ -92,7 +92,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
               )}
               {ev.kind === "transfer" && (
                 <div className="truncate">
-                  <span className="font-bold text-amber">transfer →</span>
+                  <span className="font-bold text-amberTexto">transfer →</span>
                   <span className="ml-1 text-ink">{fmtAgent(ev.to)}</span>
                 </div>
               )}

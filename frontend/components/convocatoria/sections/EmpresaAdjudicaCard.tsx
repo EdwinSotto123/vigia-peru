@@ -66,7 +66,7 @@ export function EmpresaAdjudicaCard({ empresa, banderasSugeridas }: { empresa: a
       )}
       {(banderasSugeridas || []).length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amberTexto">
             <AlertTriangle size={10} className="mr-1 inline" />
             Banderas sugeridas a investigar
           </div>

@@ -1,0 +1,282 @@
+"use client";
+
+/**
+ * "Quién encontró qué" — la auditoría de los agentes de IA, que es el mecanismo único de este
+ * producto y hasta ahora no se veía en ninguna parte.
+ *
+ * Reúne tres cosas que ya existían en el dato y que nada unía:
+ *   1. las ventanas reales de ejecución por agente (`procesamiento.fases`, con desde/hasta),
+ *   2. el agente que produjo cada señal (`SenalRiesgo.agente`),
+ *   3. el catálogo de reglas del perfil, con las que NO dispararon.
+ *
+ * Y las cruza con la única interacción que el dato permite y que vale la pena: cada agente es
+ * un filtro sobre la evidencia. Se hace sin navegar y sin abrir nada — el contexto de atrás
+ * (qué más se encontró, qué se descartó) es parte de la prueba.
+ */
+
+import { useMemo, useState } from "react";
+import { FilterX } from "lucide-react";
+import type { EstadoProc, FasesMap } from "@/lib/auditoria";
+import { severidadDeBandera } from "@/lib/severidad";
+import { Severidad } from "@/components/ui/Severidad";
+import { cn } from "@/lib/utils";
+import { PASOS, pasoDeClave, pasosDelPerfil, TOTAL_PASOS, type PasoPipeline } from "./catalogo";
+import { CarrilesAgentes } from "./CarrilesAgentes";
+import { EjeAgentes, rangoDelAnalisis, ventanaDe } from "./EjeAgentes";
+import { ListaSenales } from "./ListaSenales";
+import { MatrizReglas } from "./MatrizReglas";
+import { AvisoSinCotejo } from "./SelloVerificada";
+import { agruparPorAgente, contar, ORDEN_SEVERIDAD, SIN_AGENTE, type SenalAgente, type Severidad as Sev } from "./senales";
+import { useReglasPerfil } from "./useReglasPerfil";
+
+interface Props {
+  senales: SenalAgente[];
+  /** Ventanas reales por fase. Sin esto NO se dibuja un eje de tiempo inventado. */
+  fases?: FasesMap | null;
+  estadoProc?: EstadoProc;
+  /** Reloj del cliente; 0 en el render del servidor. */
+  ahora?: number;
+  perfil?: string | null;
+  reglasDisparadas?: string[] | null;
+  reglasEvaluadas?: number | null;
+  titulo?: string;
+  nota?: React.ReactNode;
+}
+
+const SEVERIDADES: Sev[] = ["alta", "media", "baja"];
+
+export function AuditoriaDeAgentes({
+  senales,
+  fases,
+  estadoProc = "procesado",
+  ahora = 0,
+  perfil,
+  reglasDisparadas,
+  reglasEvaluadas,
+  titulo = "Quién encontró qué",
+  nota,
+}: Props) {
+  const [agente, setAgente] = useState<string | null>(null);
+  const [sev, setSev] = useState<Sev | null>(null);
+  const { reglas, cargando } = useReglasPerfil(perfil);
+
+  const mapaFases: FasesMap = fases ?? {};
+  const hayEje = rangoDelAnalisis(mapaFases, ahora) != null;
+  const porAgente = useMemo(() => agruparPorAgente(senales), [senales]);
+  // Los pasos del perfil, más cualquier agente que haya emitido una señal aunque el perfil no lo
+  // declare: si encontró algo, corrió — esconderlo dejaría evidencia sin dueño visible.
+  const pasos = useMemo(() => {
+    const base = pasosDelPerfil(reglas?.agentes);
+    const claves = new Set(base.map((p) => p.clave));
+    const conSenal = Object.keys(porAgente).filter((k) => k !== SIN_AGENTE && !claves.has(k));
+    if (!conSenal.length) return base;
+    for (const k of conSenal) claves.add(k);
+    return PASOS.filter((p) => claves.has(p.clave));
+  }, [reglas, porAgente]);
+  const conteo = useMemo(() => contar(senales), [senales]);
+
+  const filtradas = useMemo(
+    () =>
+      senales
+        .filter((s) => (agente ? (s.agente ?? SIN_AGENTE) === agente : true))
+        .filter((s) => (sev ? s.severidad === sev : true))
+        .sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad]),
+    [senales, agente, sev],
+  );
+
+  const agentesConSenales = Object.keys(porAgente).filter((k) => k !== SIN_AGENTE).length;
+  const sinAgente = porAgente[SIN_AGENTE]?.length ?? 0;
+  const omitidos = hayEje ? pasos.filter((p) => ventanaDe(mapaFases, p.clave, estadoProc, ahora).estado === "omitido").length : 0;
+  const nAgentes = pasos.filter((p) => p.tipo === "agente").length;
+  const carriles = new Set(pasos.map((p) => p.carril)).size;
+  const pasoSel = agente ? pasoDeClave(agente) : null;
+  const filtroActivo = agente != null || sev != null;
+
+  return (
+    <section className="surface overflow-hidden p-0">
+      <header className="border-b border-line bg-paperDeep px-4 py-4 sm:px-5">
+        <h2 className="font-serif text-xl font-bold leading-tight text-ink">{titulo}</h2>
+        <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
+          {hayEje ? (
+            <>
+              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> en{" "}
+              {carriles} carriles que avanzan en paralelo
+              {omitidos > 0 && <> ({omitidos} de los {pasos.length} pasos no aplicaban y se saltaron)</>}.
+            </>
+          ) : (
+            <>
+              A este contrato le aplican <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> de los{" "}
+              {TOTAL_PASOS} pasos del pipeline, repartidos en {carriles} carriles paralelos.
+            </>
+          )}{" "}
+          {conteo.total === 0 ? (
+            <>Ninguno emitió señales: lo que se evaluó y se descartó está abajo.</>
+          ) : (
+            <>
+              Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
+              {conteo.total === 1 ? "señal" : "señales"} entre {agentesConSenales}{" "}
+              {agentesConSenales === 1 ? "agente" : "agentes"}
+              {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Tocá
+              uno para ver solo lo suyo.
+            </>
+          )}
+        </p>
+      </header>
+
+      <div className="border-b border-line bg-paper px-3 py-3 sm:px-5">
+        {hayEje ? (
+          <EjeAgentes
+            fases={mapaFases}
+            estado={estadoProc}
+            ahora={ahora}
+            pasos={pasos}
+            senalesPorAgente={porAgente}
+            totalSenales={conteo.total}
+            seleccion={agente}
+            onSeleccion={setAgente}
+          />
+        ) : (
+          <>
+            <CarrilesAgentes
+              pasos={pasos}
+              senalesPorAgente={porAgente}
+              totalSenales={conteo.total}
+              seleccion={agente}
+              onSeleccion={setAgente}
+            />
+            <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
+              Este análisis no guardó las marcas de tiempo por agente, así que no se dibuja su
+              duración: lo que se sabe con certeza es qué hace cada uno y qué encontró.
+            </p>
+          </>
+        )}
+
+        {/* Las señales sin agente declarado también tienen que ser alcanzables desde acá. */}
+        {sinAgente > 0 && (
+          <button
+            type="button"
+            onClick={() => setAgente(agente === SIN_AGENTE ? null : SIN_AGENTE)}
+            aria-pressed={agente === SIN_AGENTE}
+            className={cn(
+              "mt-2 flex w-full items-baseline gap-2 rounded-lg border-t border-line px-1 pt-2 text-left text-[12px] transition-colors duration-rapido",
+              "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
+              agente === SIN_AGENTE && "bg-heroViolet-soft",
+            )}
+          >
+            <span className="text-ink">Sin agente declarado</span>
+            <span className="text-mute">
+              {sinAgente} de {conteo.total} señales llegaron sin decir qué agente las produjo
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* Barra de la evidencia: qué se está mirando y con qué recorte. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line bg-paperSoft px-4 py-2 sm:px-5">
+        <h3 className="text-[13px] font-semibold text-ink">
+          {agente ? (
+            <>
+              Señales de {pasoSel?.nombre ?? "sin agente declarado"}{" "}
+              <span className="font-normal text-mute">
+                · {filtradas.length} de {conteo.total}
+              </span>
+            </>
+          ) : (
+            <>
+              Señales{" "}
+              <span className="font-normal text-mute">
+                · {filtradas.length} de {conteo.total}
+              </span>
+            </>
+          )}
+        </h3>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {SEVERIDADES.map((s) => {
+            const n = conteo[s];
+            if (!n) return null;
+            const ui = severidadDeBandera(s);
+            const on = sev === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSev(on ? null : s)}
+                aria-pressed={on}
+                className={cn(
+                  "pill border text-[11px] transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
+                  on ? cn(ui.fondo, ui.texto, ui.borde, "font-semibold") : "border-line bg-paper text-mute hover:text-ink",
+                )}
+              >
+                <Severidad bandera={s} formato="punto" />
+                {ui.etiqueta} · {n}
+              </button>
+            );
+          })}
+          {filtroActivo && (
+            <button
+              type="button"
+              onClick={() => { setAgente(null); setSev(null); }}
+              className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+            >
+              <FilterX size={11} aria-hidden /> Ver las {conteo.total}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {filtradas.length > 0 ? (
+        <ListaSenales senales={filtradas} reglas={reglas} mostrarSello={conteo.conCotejo > 0} />
+      ) : (
+        <VacioSenales total={conteo.total} filtroActivo={filtroActivo} agente={pasoSel} />
+      )}
+
+      {conteo.total > 0 && conteo.conCotejo === 0 && <AvisoSinCotejo n={conteo.total} />}
+      {conteo.conCotejo > 0 && (
+        <p className="border-t border-line bg-paperSoft px-4 py-2 text-[12px] text-mute sm:px-5">
+          {conteo.verificadas} de las {conteo.total} señales quedaron cotejadas contra su fuente
+          oficial por el propio pipeline; el resto sigue siendo una pista que hay que comprobar.
+        </p>
+      )}
+
+      <div className="border-t border-line bg-paperSoft">
+        <MatrizReglas
+          reglas={reglas}
+          cargando={cargando}
+          reglasDisparadas={reglasDisparadas}
+          senales={senales}
+          reglasEvaluadas={reglasEvaluadas}
+        />
+      </div>
+
+      {nota && <p className="border-t border-line px-4 py-2 text-[11px] text-mute sm:px-5">{nota}</p>}
+    </section>
+  );
+}
+
+/** El vacío también enseña: distingue "no hay nada" de "tu filtro no deja ver nada". */
+function VacioSenales({ total, filtroActivo, agente }: { total: number; filtroActivo: boolean; agente: PasoPipeline | null }) {
+  if (total === 0) {
+    return (
+      <div className="px-4 py-6 text-[13px] leading-relaxed text-mute sm:px-5">
+        <p className="text-ink">Ningún agente emitió señales sobre este contrato.</p>
+        <p className="mt-1 max-w-[65ch]">
+          No es que falte información: los agentes corrieron, las reglas del perfil se evaluaron y
+          ninguna disparó. El detalle de lo que se comprobó y se descartó está abajo.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="px-4 py-6 text-[13px] leading-relaxed text-mute sm:px-5">
+      <p className="text-ink">
+        {agente
+          ? `${agente.nombre} corrió sobre este contrato y no emitió ninguna señal con ese recorte.`
+          : "Ninguna señal coincide con el recorte elegido."}
+      </p>
+      {agente && <p className="mt-1 max-w-[65ch]">{agente.que}</p>}
+      {filtroActivo && <p className="mt-1">Las otras {total} siguen ahí: quitá el filtro para verlas.</p>}
+    </div>
+  );
+}
+
+export type { SenalAgente };

@@ -30,8 +30,8 @@ import { redactDnis } from "../../Redact";export function ResumenHumano({
     // "Requiere revisión" chocaba con el estado formal `alertas.estado='revision'` (la
     // autoevaluación bloqueando la publicación, con su propia cola en /admin/revision) — esto
     // acá es solo "hay una bandera de severidad media", nada bloqueado ni pendiente de nadie.
-    medio:   { label: "Señal media",       color: "text-amber", bg: "bg-amber", border: "border-amber/40" },
-    bajo:    { label: "Observaciones menores", color: "text-clay",  bg: "bg-clay",  border: "border-clay/30"  },
+    medio:   { label: "Señal media",       color: "text-amberTexto", bg: "bg-amber", border: "border-amber/40" },
+    bajo:    { label: "Observaciones menores", color: "text-clayTexto",  bg: "bg-clay",  border: "border-clay/30"  },
     limpio:  { label: "Sin hallazgos",     color: "text-moss",  bg: "bg-moss",  border: "border-moss/30"  },
   };
   const vis = VIS[riesgo];

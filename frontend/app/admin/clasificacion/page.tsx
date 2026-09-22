@@ -91,8 +91,8 @@ export default function ClasificacionPage() {
             <K l="Contratos" v={r.totales.total} />
             <K l="Clasificados" v={r.totales.clasificadas} />
             <K l="Procesables" v={r.totales.procesables} tone="text-moss" />
-            <K l="No procesables" v={r.totales.noProcesables} tone="text-amber" />
-            <K l="En cola, pendientes" v={r.totales.pendientesDeProcesamiento} tone="text-amber" />
+            <K l="No procesables" v={r.totales.noProcesables} tone="text-amberTexto" />
+            <K l="En cola, pendientes" v={r.totales.pendientesDeProcesamiento} tone="text-amberTexto" />
           </div>
 
           <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper">
@@ -111,7 +111,7 @@ export default function ClasificacionPage() {
                       return (
                         <td key={e} className="px-2 py-1.5 text-right font-mono text-xs" style={{ background: bg }}>
                           <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="hover:underline">{v.n.toLocaleString("es-PE")}</Link>
-                          {v.np > 0 && <span className="ml-1 text-[10px] text-amber" title="no procesables">({v.np})</span>}
+                          {v.np > 0 && <span className="ml-1 text-[10px] text-amberTexto" title="no procesables">({v.np})</span>}
                         </td>
                       );
                     })}

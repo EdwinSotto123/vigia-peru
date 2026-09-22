@@ -215,7 +215,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
     }
     return (
       <div className="rounded-2xl border border-amber/40 bg-paper p-5 sm:p-6">
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-clay">
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-clayTexto">
           <ShieldAlert size={11} aria-hidden /> Modo administrador — a nombre de Vigía Perú, sin pasarela
         </div>
         <h3 className="font-serif text-xl font-bold text-ink">Procesar auditoría en {zonaNombre}</h3>

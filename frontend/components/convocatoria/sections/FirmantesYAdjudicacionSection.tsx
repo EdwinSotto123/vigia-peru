@@ -19,7 +19,7 @@ export function FirmantesYAdjudicacionSection({
 }) {
   const rolBadge = (r: string) => {
     const s = (r || "").toLowerCase();
-    if (s.includes("aprob")) return "bg-amber-soft text-amber";
+    if (s.includes("aprob")) return "bg-amber-soft text-amberTexto";
     if (s.includes("presid") || s.includes("comite")) return "bg-heroViolet-soft text-heroViolet";
     if (s.includes("represent")) return "bg-crimson-soft text-rust";
     if (s.includes("evalu")) return "bg-paperDeep text-inkSoft";

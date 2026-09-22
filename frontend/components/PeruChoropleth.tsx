@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { geoMercator, geoPath, geoCentroid } from "d3-geo";
+import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { AlertCircle, Terminal } from "lucide-react";
-import {
-  REGIONES,
-  type ProvinciaData,
-  type MetricaId,
-  regionMetric,
-} from "@/lib/peru-data";
-import { normalizeRegionId } from "@/lib/utils";
 import { ContratoPin } from "./contratos/ContratoPin";
 
 const VB_W = 480;
@@ -35,30 +28,23 @@ type ProvFeature = Feature<Geometry, ProvinceProps>;
 type DeptGeo = FeatureCollection<Geometry, DepartmentProps>;
 type ProvGeo = FeatureCollection<Geometry, ProvinceProps>;
 
-// Escala secuencial cálida — coherente con paleta kraft.
-function fillForValue(value: number, max: number): string {
-  if (max === 0 || value === 0) return "#EDF0F3"; // sin data (gris frío)
-  const t = value / max;
-  if (t < 0.2) return "#D9B97A";  // sand
-  if (t < 0.45) return "#C28840"; // bronze
-  if (t < 0.7) return "#A05A1F";  // tobacco
-  if (t < 0.9) return "#7A2E18";  // oxblood
-  return "#4A150C";                // deep
-}
-
 export interface MapPoint {
   id: string;
   lat: number;
   lon: number;
   kind: "alerta" | "reporte" | "contratos";
   label?: string;
+  /** Texto completo del `<title>` nativo: ya trae la palabra de severidad, no sólo el color. */
+  titulo?: string;
+  /** Clase Tailwind `fill-*` derivada de `lib/severidad`. El contenedor es el único que clasifica. */
+  colorClase?: string;
   // Para alertas: 0-100. Para reportes: categoria.
   score?: number;
   categoria?: string;
   confirmado?: boolean;
   href?: string;
   // Para "contratos" (punto agregado por zona): radio en unidades del viewBox,
-  // color por señales, total de contratos y ubigeo de la zona.
+  // color por estado operativo, total de contratos y ubigeo de la zona.
   r?: number;
   color?: string;
   total?: number;
@@ -67,44 +53,58 @@ export interface MapPoint {
   hovered?: boolean;
 }
 
+/** Cómo se pinta una zona y qué se dice de ella. Todo viene ya resuelto del contenedor. */
+export interface ZonaPintada {
+  color: string;
+  /** No hay dato de la API para esta zona (≠ tener cero). Se raya y se nombra en la leyenda. */
+  sinDato: boolean;
+  /** Cifras en palabras para el `aria-label`: "4.704 contratos, 892 en cola, 19 leídos". */
+  resumen: string;
+  /** Zona seguida por el usuario ("Mis zonas"): contorno, nunca relleno — el relleno es el dato. */
+  destacada?: boolean;
+}
+
 export interface PeruChoroplethProps {
-  metric: MetricaId;
-  selectedRegionId: string | null;
-  hoveredRegionId: string | null;
-  onHoverRegion: (id: string | null) => void;
-  onSelectRegion: (id: string | null) => void;
-  onSelectProvincia: (regionId: string, provincia: ProvinciaData) => void;
-  // Pines opcionales que se overlay sobre el choropleth
+  /** Relleno de departamentos, por ubigeo de 2 dígitos. */
+  regiones: Record<string, ZonaPintada>;
+  /** Relleno de provincias del departamento abierto, por ubigeo de 4 dígitos. */
+  provincias?: Record<string, ZonaPintada>;
+  /** Cómo se pinta una provincia que la API no devolvió. Una provincia ausente de
+   *  `/contratos/geo` no tiene contratos ingresados — que es un cero real, no una
+   *  incógnita. El contenedor decide, porque es quien sabe si la consulta falló. */
+  provinciaPorDefecto?: ZonaPintada;
+  /** Departamento abierto (ubigeo de 2 dígitos) o `null` para la vista país. */
+  seleccion: string | null;
+  /** Provincia o distrito elegido dentro del departamento (4 o 6 dígitos). */
+  zonaSel?: string | null;
+  /** Zona con el puntero o el foco encima, y su rectángulo para anclar la ficha. */
+  onZonaActiva: (z: { ubigeo: string; nombre: string; nivel: "departamento" | "provincia" } | null, ancla: DOMRect | null) => void;
+  activaUbigeo?: string | null;
+  onSelectRegion: (ubigeo: string | null) => void;
+  onSelectProvincia: (ubigeo: string, nombre: string) => void;
   points?: MapPoint[];
-  /** Clic en un punto sin `href` (p. ej. un punto agregado de contratos). */
   onPointClick?: (pt: MapPoint) => void;
   onPointHover?: (pt: MapPoint | null) => void;
-  /**
-   * Capa alternativa de color por regionId (p. ej. estado de financiamiento
-   * con ESTADO_FILL). Si está presente reemplaza la escala por métrica; las
-   * regiones sin entrada se pintan como "sin datos".
-   */
-  fillOverride?: Record<string, string> | null;
 }
 
 export function PeruChoropleth({
-  metric,
-  selectedRegionId,
-  hoveredRegionId,
-  onHoverRegion,
+  regiones,
+  provincias,
+  provinciaPorDefecto,
+  seleccion,
+  zonaSel = null,
+  onZonaActiva,
+  activaUbigeo = null,
   onSelectRegion,
   onSelectProvincia,
   points = [],
-  fillOverride = null,
   onPointClick,
   onPointHover,
 }: PeruChoroplethProps) {
   const [deptData, setDeptData] = useState<DeptGeo | null>(null);
   const [provData, setProvData] = useState<ProvGeo | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">(
-    "loading",
-  );
-  const [hoveredProvId, setHoveredProvId] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
+  const [foco, setFoco] = useState<string | null>(null);
   // Estado animado del transform — actualizado por RAF
   const [animTransform, setAnimTransform] = useState({ tx: 0, ty: 0, s: 1 });
 
@@ -147,43 +147,43 @@ export function PeruChoropleth({
     );
   }, [deptData]);
 
+  // Orden alfabético: el recorrido con Tab por los 25 departamentos tiene que
+  // ser predecible, no el orden arbitrario del geojson.
   const deptPaths = useMemo(() => {
     if (!deptData || !projection) return [];
     const pg = geoPath(projection);
-    return (deptData.features as DeptFeature[]).map((feat) => {
-      const propsId =
-        feat.properties.id || normalizeRegionId(feat.properties.name || "");
-      const region = REGIONES.find((r) => r.id === propsId);
-      const value = region ? regionMetric(region, metric) : 0;
-      const bounds = pg.bounds(feat as any);
-      return {
-        id: propsId,
+    return (deptData.features as DeptFeature[])
+      .map((feat) => ({
+        ubigeo: feat.properties.code ?? "",
+        id: feat.properties.id,
         name: feat.properties.name,
-        value,
         d: pg(feat as any) || "",
-        centroid: pg.centroid(feat as any),
-        bounds,
-        region,
-      };
-    });
-  }, [deptData, projection, metric]);
+        centroid: pg.centroid(feat as any) as [number, number],
+        bounds: pg.bounds(feat as any),
+      }))
+      .filter((p) => !!p.ubigeo)
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [deptData, projection]);
 
-  const max = useMemo(
-    () => Math.max(...deptPaths.map((p) => p.value), 1),
-    [deptPaths],
-  );
+  const provincePaths = useMemo(() => {
+    if (!provData || !projection || !seleccion) return [];
+    const pg = geoPath(projection);
+    return (provData.features as ProvFeature[])
+      .filter((f) => (f.properties.code ?? "").startsWith(seleccion))
+      .map((f) => ({
+        ubigeo: f.properties.code ?? "",
+        name: f.properties.name,
+        d: pg(f as any) || "",
+        centroid: pg.centroid(f as any) as [number, number],
+      }))
+      .filter((p) => !!p.ubigeo)
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [provData, projection, seleccion]);
 
-  const selectedRegion =
-    selectedRegionId != null
-      ? REGIONES.find((r) => r.id === selectedRegionId)
-      : null;
-
-  // Computa target transform basado en la región seleccionada
+  // Computa target transform basado en el departamento abierto
   const targetTransform = useMemo(() => {
-    if (!selectedRegionId || !deptPaths.length) {
-      return { tx: 0, ty: 0, s: 1 };
-    }
-    const sel = deptPaths.find((p) => p.id === selectedRegionId);
+    if (!seleccion || !deptPaths.length) return { tx: 0, ty: 0, s: 1 };
+    const sel = deptPaths.find((p) => p.ubigeo === seleccion);
     if (!sel || !sel.bounds) return { tx: 0, ty: 0, s: 1 };
     const [[x0, y0], [x1, y1]] = sel.bounds;
     const w = x1 - x0 || 1;
@@ -192,22 +192,27 @@ export function PeruChoropleth({
     const cy = (y0 + y1) / 2;
     const padding = 0.78;
     const s = Math.min((VB_W * padding) / w, (VB_H * padding) / h);
-    const tx = VB_W / 2 - cx * s;
-    const ty = VB_H / 2 - cy * s;
-    return { tx, ty, s };
-  }, [selectedRegionId, deptPaths]);
+    return { tx: VB_W / 2 - cx * s, ty: VB_H / 2 - cy * s, s };
+  }, [seleccion, deptPaths]);
 
-  // Animación con requestAnimationFrame — cubic ease out
+  // Animación con requestAnimationFrame — cubic ease out, 240 ms (duration-panel).
+  // Antes eran 700 ms: fuera de la banda de 150-250 ms del sistema, y en un mapa
+  // que es el primer paso del producto se sentía como una espera, no como un
+  // cambio de estado.
   useEffect(() => {
-    const duration = 700;
+    const reducido =
+      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const to = targetTransform;
+    if (reducido) {
+      setAnimTransform(to);
+      return;
+    }
+    const duration = 240;
     const start = performance.now();
     const from = animTransform;
-    const to = targetTransform;
     let raf = 0;
-
     const step = (now: number) => {
-      const elapsed = now - start;
-      const t = Math.min(elapsed / duration, 1);
+      const t = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - t, 3);
       setAnimTransform({
         tx: from.tx + (to.tx - from.tx) * eased,
@@ -221,271 +226,235 @@ export function PeruChoropleth({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetTransform.tx, targetTransform.ty, targetTransform.s]);
 
-  const provincePaths = useMemo(() => {
-    if (!provData || !projection || !selectedRegionId) return [];
-    const pg = geoPath(projection);
-    return (provData.features as ProvFeature[])
-      .filter((f) => f.properties.regionId === selectedRegionId)
-      .map((f) => {
-        const provName = f.properties.name;
-        const provNorm = normalizeRegionId(provName);
-        const mockProv = selectedRegion?.provincias.find(
-          (p) => normalizeRegionId(p.nombre) === provNorm,
-        );
-        // Centroide geográfico para sintetizar provincias sin mock
-        const [lng, lat] = geoCentroid(f as any);
-        const synth: ProvinciaData = mockProv ?? {
-          id: f.properties.id,
-          nombre: provName,
-          lat,
-          lon: lng,
-          alertas: 0,
-          convergentes: 0,
-          monto: 0,
-          scorePromedio: 0,
-        };
-        return {
-          id: f.properties.id,
-          name: provName,
-          d: pg(f as any) || "",
-          centroid: pg.centroid(f as any) as [number, number],
-          mockProv,
-          provData: synth,
-        };
-      });
-  }, [provData, projection, selectedRegionId, selectedRegion]);
-
-  if (status === "loading") return <Loading />;
+  if (status === "loading") return <MapaEsqueleto />;
   if (status === "missing") return <MissingGeoJSON />;
   if (status === "error") return <FetchError />;
 
   const { tx, ty, s: zoomScale } = animTransform;
   const transformStr = `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${zoomScale.toFixed(4)})`;
 
-  // Tamaños base que se dividen por zoom para mantener tamaño visual
-  const fs = {
-    dept: 9 / zoomScale,
-    deptSelected: 11.5 / zoomScale,
-    deptValue: 8.5 / zoomScale,
-    prov: 8 / zoomScale,
-  };
+  // Tamaños base divididos por el zoom para mantener el tamaño visual.
+  const fs = { dept: 9 / zoomScale, deptSelected: 11.5 / zoomScale, prov: 8 / zoomScale };
   const sw = {
     dept: 0.6 / zoomScale,
     deptSelected: 1.6 / zoomScale,
-    province: 0.4 / zoomScale,
-    provinceData: 0.9 / zoomScale,
+    province: 0.5 / zoomScale,
+    provinceSel: 1.6 / zoomScale,
+    foco: 2.6 / zoomScale,
+    destacada: 2 / zoomScale,
     labelHalo: 2.8 / zoomScale,
     labelHaloSm: 2.2 / zoomScale,
   };
 
+  const focoPath =
+    (foco && provincePaths.find((p) => p.ubigeo === foco)?.d) ||
+    (foco && deptPaths.find((p) => p.ubigeo === foco)?.d) ||
+    null;
+
+  const activar = (ubigeo: string) => onSelectRegion(seleccion === ubigeo ? null : ubigeo);
+
   return (
-    // animate-fadeIn (200ms): antes el salto de <Loading/> (spinner) a este SVG completo
-    // era instantáneo -- "nada" a "mapa completo" de golpe. Un fade corto alcanza, no
-    // hace falta animar cada path.
-    <div className="relative h-full w-full animate-fadeIn">
+    <div className="relative h-full w-full">
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
         className="h-full w-full"
-        role="img"
-        aria-label="Mapa del Perú por departamentos"
+        // `role="img"` sacaba del árbol de accesibilidad a los 25 departamentos
+        // —medido en producción: 25 paths, 0 alcanzables por teclado—. Con
+        // `group` los hijos siguen expuestos y cada uno es un control real.
+        role="group"
+        aria-label={
+          seleccion
+            ? `Mapa de ${deptPaths.find((p) => p.ubigeo === seleccion)?.name ?? "la región"}, por provincias`
+            : "Mapa del Perú por departamentos"
+        }
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && seleccion) {
+            e.preventDefault();
+            onSelectRegion(null);
+          }
+        }}
       >
         <defs>
-          {/* Patrón océano: papel kraft con trazos cruzados sutiles */}
-          <pattern
-            id="ocean"
-            width="26"
-            height="26"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(28)"
-          >
+          {/* Patrón océano: trazos cruzados sutiles */}
+          <pattern id="ocean" width="26" height="26" patternUnits="userSpaceOnUse" patternTransform="rotate(28)">
             <line x1="0" y1="0" x2="0" y2="26" stroke="#E4E7EB" strokeWidth="0.6" />
           </pattern>
 
-          {/* Sombra suave estilo papel */}
+          {/* "Sin dato" va rayado, no en un tono más claro de la misma rampa:
+              un tono más claro se lee como "poco", y acá el mensaje es "no sabemos". */}
+          <pattern id="sin-dato" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="5" height="5" fill="#E8DFC7" />
+            <line x1="0" y1="0" x2="0" y2="5" stroke="#B9AE93" strokeWidth="1.1" />
+          </pattern>
+
           <filter id="paper-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow
-              dx="1.5"
-              dy="3"
-              stdDeviation="2.5"
-              floodColor="#1B1611"
-              floodOpacity="0.22"
-            />
+            <feDropShadow dx="1.5" dy="3" stdDeviation="2.5" floodColor="#1B1611" floodOpacity="0.22" />
           </filter>
         </defs>
 
-        {/* Fondo limpio */}
         <rect width={VB_W} height={VB_H} fill="#FFFFFF" />
         <rect width={VB_W} height={VB_H} fill="url(#ocean)" opacity={0.4} />
 
-        {/* Grupo transformado (zoom via atributo SVG, no CSS) */}
         <g transform={transformStr}>
-          {/* Departamentos */}
+          {/* Departamentos — cada uno es un control: foco, Enter/Espacio y etiqueta con cifras. */}
           <g filter="url(#paper-shadow)">
             {deptPaths.map((p) => {
-              const isHover = hoveredRegionId === p.id;
-              const isSelected = selectedRegionId === p.id;
-              const isDimmed = selectedRegionId !== null && !isSelected;
+              const z = regiones[p.ubigeo];
+              const isSelected = seleccion === p.ubigeo;
+              const isDimmed = seleccion !== null && !isSelected;
+              const activa = activaUbigeo === p.ubigeo;
               return (
                 <path
-                  key={p.id}
+                  key={p.ubigeo}
                   d={p.d}
-                  fill={
-                    fillOverride
-                      ? fillOverride[p.id] ?? "#EEF1F4"
-                      : fillForValue(p.value, max)
-                  }
-                  stroke={isSelected ? "#1B1611" : "#76695A"}
-                  strokeWidth={
-                    isSelected ? sw.deptSelected : sw.dept
-                  }
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  aria-label={`${p.name}. ${z?.resumen ?? "sin dato"}${z?.destacada ? ". Zona que sigues" : ""}`}
+                  className="foco-propio"
+                  fill={z ? (z.sinDato ? "url(#sin-dato)" : z.color) : "url(#sin-dato)"}
+                  stroke={isSelected ? "#1B1611" : z?.destacada ? "#4F3D96" : "#76695A"}
+                  strokeWidth={isSelected ? sw.deptSelected : z?.destacada ? sw.destacada : sw.dept}
                   strokeLinejoin="round"
-                  onMouseEnter={() => onHoverRegion(p.id)}
-                  onMouseLeave={() => onHoverRegion(null)}
-                  onClick={() => onSelectRegion(isSelected ? null : p.id)}
+                  onMouseEnter={(e) =>
+                    onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "departamento" }, e.currentTarget.getBoundingClientRect())
+                  }
+                  onMouseLeave={() => onZonaActiva(null, null)}
+                  onFocus={(e) => {
+                    setFoco(p.ubigeo);
+                    onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "departamento" }, e.currentTarget.getBoundingClientRect());
+                  }}
+                  onBlur={() => {
+                    setFoco((f) => (f === p.ubigeo ? null : f));
+                    onZonaActiva(null, null);
+                  }}
+                  onClick={() => activar(p.ubigeo)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      activar(p.ubigeo);
+                    }
+                  }}
                   style={{
                     cursor: "pointer",
-                    transition: "opacity 400ms ease, filter 220ms ease",
+                    transition: "opacity 200ms ease, filter 200ms ease",
                     opacity: isDimmed ? 0.25 : 1,
-                    filter:
-                      isHover && !isSelected
-                        ? "brightness(1.08)"
-                        : undefined,
+                    filter: activa && !isSelected ? "brightness(1.08)" : undefined,
                   }}
                 />
               );
             })}
           </g>
 
-          {/* Provincias del departamento seleccionado */}
-          {selectedRegionId && provincePaths.length > 0 && (
+          {/* Provincias del departamento abierto: mismo dato, escala recalculada dentro de la región. */}
+          {seleccion && provincePaths.length > 0 && (
             <g>
               {provincePaths.map((p) => {
-                const hasData = !!p.mockProv && p.mockProv.alertas > 0;
-                const isHover = hoveredProvId === p.id;
+                const z = provincias?.[p.ubigeo] ?? provinciaPorDefecto;
+                const elegida = !!zonaSel && (zonaSel === p.ubigeo || zonaSel.startsWith(p.ubigeo));
+                const activa = activaUbigeo === p.ubigeo;
                 return (
                   <path
-                    key={p.id}
+                    key={p.ubigeo}
                     d={p.d}
-                    fill={
-                      hasData
-                        ? "rgba(139, 42, 30, 0.45)"
-                        : isHover
-                          ? "rgba(160, 81, 45, 0.18)"
-                          : "rgba(118, 105, 90, 0.08)"
-                    }
-                    stroke={hasData ? "#8B2A1E" : "rgba(118, 105, 90, 0.55)"}
-                    strokeWidth={hasData ? sw.provinceData : sw.province}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={elegida}
+                    aria-label={`Provincia de ${p.name}. ${z?.resumen ?? "sin dato"}`}
+                    className="foco-propio"
+                    fill={z ? (z.sinDato ? "url(#sin-dato)" : z.color) : "url(#sin-dato)"}
+                    fillOpacity={0.92}
+                    stroke={elegida ? "#1B1611" : "#F4EEDD"}
+                    strokeWidth={elegida ? sw.provinceSel : sw.province}
                     strokeLinejoin="round"
-                    strokeDasharray={hasData ? "" : `${1.5 / zoomScale} ${1.2 / zoomScale}`}
-                    style={{
-                      cursor: "pointer",
-                      transition: "fill 220ms, filter 220ms",
-                      filter: isHover && hasData ? "brightness(0.92)" : undefined,
+                    onMouseEnter={(e) =>
+                      onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "provincia" }, e.currentTarget.getBoundingClientRect())
+                    }
+                    onMouseLeave={() => onZonaActiva(null, null)}
+                    onFocus={(e) => {
+                      setFoco(p.ubigeo);
+                      onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "provincia" }, e.currentTarget.getBoundingClientRect());
                     }}
-                    onMouseEnter={() => setHoveredProvId(p.id)}
-                    onMouseLeave={() => setHoveredProvId(null)}
-                    onClick={() => {
-                      onSelectProvincia(selectedRegionId, p.provData);
+                    onBlur={() => {
+                      setFoco((f) => (f === p.ubigeo ? null : f));
+                      onZonaActiva(null, null);
                     }}
+                    onClick={() => onSelectProvincia(p.ubigeo, p.name)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectProvincia(p.ubigeo, p.name);
+                      }
+                    }}
+                    style={{ cursor: "pointer", transition: "fill 200ms, filter 200ms", filter: activa ? "brightness(1.08)" : undefined }}
                   />
                 );
               })}
             </g>
           )}
 
-          {/* Etiquetas dept */}
+          {/* Etiquetas de departamento */}
           <g pointerEvents="none">
             {deptPaths.map((p) => {
-              const isHover = hoveredRegionId === p.id;
-              const isSelected = selectedRegionId === p.id;
-              const isDimmed = selectedRegionId !== null && !isSelected;
-              const showLabel =
-                (isHover || isSelected || p.value > 0) && !isDimmed;
-              if (!showLabel) return null;
+              const isSelected = seleccion === p.ubigeo;
+              const isDimmed = seleccion !== null && !isSelected;
+              if (isDimmed) return null;
               const [cx, cy] = p.centroid;
               const f = isSelected ? fs.deptSelected : fs.dept;
               return (
-                <g key={`lb-${p.id}`} transform={`translate(${cx},${cy})`}>
+                <g key={`lb-${p.ubigeo}`} transform={`translate(${cx},${cy})`}>
                   <text
                     textAnchor="middle"
                     dy="0.35em"
                     fontSize={f}
                     fontWeight={isSelected ? 700 : 600}
-                    fill="#1B1611"
-                    stroke="#F4EEDD"
+                    fill="#14171A"
+                    stroke="#FFFFFF"
                     strokeWidth={sw.labelHalo}
                     strokeOpacity="0.95"
                     style={{ paintOrder: "stroke" }}
                   >
                     {p.name}
                   </text>
-                  <text
-                    textAnchor="middle"
-                    dy="0.35em"
-                    fontSize={f}
-                    fontWeight={isSelected ? 700 : 600}
-                    fill="#1B1611"
-                  >
+                  <text textAnchor="middle" dy="0.35em" fontSize={f} fontWeight={isSelected ? 700 : 600} fill="#14171A">
                     {p.name}
                   </text>
-                  {p.value > 0 && (isSelected || isHover) && (
-                    <text
-                      textAnchor="middle"
-                      dy="1.65em"
-                      fontSize={fs.deptValue}
-                      fontFamily="JetBrains Mono, monospace"
-                      fill="#8B2A1E"
-                    >
-                      {formatMetric(p.value, metric)}
-                    </text>
-                  )}
                 </g>
               );
             })}
           </g>
 
-          {/* Etiquetas provincia con alertas */}
-          {selectedRegionId && (
+          {/* Etiquetas de provincia (solo con departamento abierto) */}
+          {seleccion && (
             <g pointerEvents="none">
-              {provincePaths
-                .filter((p) => p.mockProv && p.mockProv.alertas > 0)
-                .map((p) => {
-                  const [cx, cy] = p.centroid;
-                  return (
-                    <g
-                      key={`lb-prov-${p.id}`}
-                      transform={`translate(${cx},${cy})`}
+              {provincePaths.map((p) => {
+                const [cx, cy] = p.centroid;
+                return (
+                  <g key={`lb-prov-${p.ubigeo}`} transform={`translate(${cx},${cy})`}>
+                    <text
+                      textAnchor="middle"
+                      dy="0.35em"
+                      fontSize={fs.prov}
+                      fontWeight="600"
+                      fill="#14171A"
+                      stroke="#FFFFFF"
+                      strokeWidth={sw.labelHaloSm}
+                      strokeOpacity="0.95"
+                      style={{ paintOrder: "stroke" }}
                     >
-                      <text
-                        textAnchor="middle"
-                        dy="0.35em"
-                        fontSize={fs.prov}
-                        fontWeight="700"
-                        fill="#8B2A1E"
-                        stroke="#F4EEDD"
-                        strokeWidth={sw.labelHaloSm}
-                        strokeOpacity="0.95"
-                        style={{ paintOrder: "stroke" }}
-                      >
-                        {p.name}
-                      </text>
-                      <text
-                        textAnchor="middle"
-                        dy="0.35em"
-                        fontSize={fs.prov}
-                        fontWeight="700"
-                        fill="#8B2A1E"
-                      >
-                        {p.name}
-                      </text>
-                    </g>
-                  );
-                })}
+                      {p.name}
+                    </text>
+                    <text textAnchor="middle" dy="0.35em" fontSize={fs.prov} fontWeight="600" fill="#14171A">
+                      {p.name}
+                    </text>
+                  </g>
+                );
+              })}
             </g>
           )}
 
-          {/* Pines de alertas/denuncias overlay sobre el choropleth */}
+          {/* Pines de contratos (distritos), alertas y denuncias */}
           {projection && points.length > 0 && (
             <g pointerEvents="auto">
               {points.map((pt) => {
@@ -510,43 +479,44 @@ export function PeruChoropleth({
                     />
                   );
                 }
-                const isAlerta = pt.kind === "alerta";
-                const score = pt.score ?? 0;
-                // Tamaño y color para alertas según score
-                const r = isAlerta
-                  ? (score >= 85 ? 4.2 : score >= 70 ? 3.5 : 3) / zoomScale
-                  : 3.5 / zoomScale;
-                const fill = isAlerta
-                  ? (score >= 85 ? "#7A2E18" : score >= 70 ? "#C28840" : "#D9B97A")
-                  : pt.confirmado ? "#8B2A1E" : "#A05A1F";
-                const stroke = isAlerta ? "#F4EEDD" : "#F4EEDD";
+                // El radio lo decide el contenedor (`r`), que es quien conoce la
+                // clasificación de `lib/severidad`: acá no se compara ningún score.
+                const r = (pt.r ?? 3.4) / zoomScale;
                 const sw2 = 0.8 / zoomScale;
                 return (
-                  <g key={`pt-${pt.id}`}>
-                    {/* Halo pulsante para denuncias confirmadas y alertas alta */}
-                    {(pt.confirmado || (isAlerta && score >= 85)) && (
-                      <circle cx={px} cy={py} r={r * 2}
-                        fill={isAlerta ? "rgba(122, 46, 24, 0.18)" : "rgba(139, 42, 30, 0.20)"}
-                      >
-                        <animate attributeName="r"
-                          values={`${r * 1.6};${r * 2.8};${r * 1.6}`}
-                          dur="2s" repeatCount="indefinite" />
-                      </circle>
-                    )}
-                    <circle
-                      cx={px} cy={py} r={r}
-                      fill={fill} stroke={stroke} strokeWidth={sw2}
-                      style={{ cursor: pt.href ? "pointer" : "default" }}
-                      onClick={() => { if (pt.href) window.location.assign(pt.href); else onPointClick?.(pt); }}
-                    >
-                      <title>{`${isAlerta ? "Alerta" : "Denuncia"}${pt.label ? " · " + pt.label : ""}${
-                        isAlerta && score ? " · score " + score : ""
-                      }${pt.categoria ? " · " + pt.categoria : ""}`}</title>
-                    </circle>
-                  </g>
+                  <circle
+                    key={`pt-${pt.id}`}
+                    cx={px}
+                    cy={py}
+                    r={r}
+                    className={pt.colorClase}
+                    fill={pt.color ?? "#687180"}
+                    stroke="#FFFFFF"
+                    strokeWidth={sw2}
+                    style={{ cursor: pt.href ? "pointer" : "default" }}
+                    onClick={() => {
+                      if (pt.href) window.location.assign(pt.href);
+                      else onPointClick?.(pt);
+                    }}
+                  >
+                    <title>{pt.titulo ?? pt.label ?? ""}</title>
+                  </circle>
                 );
               })}
             </g>
+          )}
+
+          {/* Anillo de foco, dibujado en el SVG y encima de todo: el `outline` del
+              navegador sobre un `<path>` traza la caja, no la forma del departamento. */}
+          {focoPath && (
+            <path
+              d={focoPath}
+              fill="none"
+              stroke="#4F3D96"
+              strokeWidth={sw.foco}
+              strokeLinejoin="round"
+              pointerEvents="none"
+            />
           )}
         </g>
       </svg>
@@ -554,23 +524,11 @@ export function PeruChoropleth({
   );
 }
 
-function formatMetric(value: number, metric: MetricaId): string {
-  if (metric === "monto") {
-    if (value >= 1_000_000) return `S/. ${(value / 1_000_000).toFixed(1)}M`;
-    if (value >= 1000) return `S/. ${(value / 1000).toFixed(0)}K`;
-    return `S/. ${value}`;
-  }
-  if (metric === "score") return `${value}/100`;
-  return `${value} ${metric === "alertas" ? "alertas" : "casos"}`;
-}
-
-function Loading() {
+function MapaEsqueleto() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-heroViolet/30 border-t-heroViolet" />
-        <p className="mt-3 text-sm text-mute">Cargando geometría del Perú…</p>
-      </div>
+    <div className="flex h-full w-full items-center justify-center bg-paperDeep">
+      <div className="h-[86%] w-[52%] animate-pulse rounded-[45%_55%_48%_52%] bg-paperEdge" />
+      <span className="sr-only">Cargando la geometría del Perú</span>
     </div>
   );
 }
@@ -578,14 +536,10 @@ function Loading() {
 function FetchError() {
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-rust/40 bg-rust/10 p-6 text-center">
+      <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-rust/40 bg-crimson-soft p-6 text-center">
         <AlertCircle size={32} className="text-rust" />
-        <h3 className="font-serif text-lg font-bold text-ink">
-          Error cargando el mapa
-        </h3>
-        <p className="text-sm text-mute">
-          La geometría no pudo descargarse.
-        </p>
+        <h3 className="font-serif text-lg font-bold text-ink">No se pudo cargar el mapa</h3>
+        <p className="text-sm text-mute">La geometría del Perú no llegó. Recarga la página para volver a intentarlo.</p>
       </div>
     </div>
   );
@@ -598,12 +552,8 @@ function MissingGeoJSON() {
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-paperDeep text-heroViolet">
           <Terminal size={22} />
         </div>
-        <h3 className="font-serif text-xl font-bold text-ink">
-          Falta la geometría del Perú
-        </h3>
-        <p className="text-sm leading-relaxed text-mute">
-          Generala una vez con:
-        </p>
+        <h3 className="font-serif text-xl font-bold text-ink">Falta la geometría del Perú</h3>
+        <p className="text-sm leading-relaxed text-mute">Generala una vez con:</p>
         <pre className="w-full rounded-xl border border-line bg-paperDeep px-4 py-3 text-left font-mono text-xs leading-relaxed text-ink">
           python backend/scripts/fetch_peru_geo.py
         </pre>

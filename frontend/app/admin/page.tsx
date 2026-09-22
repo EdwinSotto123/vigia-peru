@@ -49,7 +49,7 @@ export default function AdminHome() {
         <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Actualizar
       </button>
     }>
-      {error && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimson">{error}</div>}
+      {error && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimsonTexto">{error}</div>}
 
       {/* Lo que espera una decisión humana */}
       <div className="grid gap-3 md:grid-cols-3">
@@ -95,7 +95,7 @@ export default function AdminHome() {
             ))}
             <li className="flex items-center justify-between border-t border-line pt-1.5">
               <span className="text-mute">en revisión humana</span>
-              <span className="font-mono text-clay">{(cola.revision ?? op?.revision.n ?? 0).toLocaleString("es-PE")}</span>
+              <span className="font-mono text-clayTexto">{(cola.revision ?? op?.revision.n ?? 0).toLocaleString("es-PE")}</span>
             </li>
           </ul>
           <p className="mt-3 text-[11px] text-mute">{pendientesCola > 0 ? `${pendientesCola} esperan turno; el dispatcher corre cada 5 min.` : "Nada esperando turno."} Cola financiable global: <span className="font-mono text-ink">{k?.colaGlobal?.toLocaleString("es-PE") ?? "—"}</span> contratos.</p>
@@ -134,7 +134,7 @@ export default function AdminHome() {
               <li key={u.ocid} className="flex items-center justify-between gap-3 py-2">
                 <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className="min-w-0 truncate hover:underline" title={u.titulo ?? u.ocid}>{u.titulo ?? u.ocid}</Link>
                 <span className="shrink-0 font-mono text-xs text-mute">
-                  {u.alertaEstado === "revision" && <span className="text-clay">revisión · </span>}
+                  {u.alertaEstado === "revision" && <span className="text-clayTexto">revisión · </span>}
                   {u.score != null ? `score ${u.score} · ` : ""}{u.segundos != null ? `${Math.round(u.segundos / 60)} min` : ""}
                 </span>
               </li>
@@ -162,11 +162,11 @@ export default function AdminHome() {
 }
 
 const ESTADOS: [string, string, string][] = [
-  ["procesando", "Procesando", "bg-amber-soft text-amber"],
+  ["procesando", "Procesando", "bg-amber-soft text-amberTexto"],
   ["encolado", "En cola", "bg-paperDeep text-mute"],
-  ["esperando_documentos", "Esperando documentos", "bg-amber-soft/60 text-clay"],
-  ["error", "Error", "bg-crimson-soft text-crimson"],
-  ["pendiente_de_procesamiento", "Pendiente de procesamiento", "bg-paperDeep text-amber"],
+  ["esperando_documentos", "Esperando documentos", "bg-amber-soft/60 text-clayTexto"],
+  ["error", "Error", "bg-crimson-soft text-crimsonTexto"],
+  ["pendiente_de_procesamiento", "Pendiente de procesamiento", "bg-paperDeep text-amberTexto"],
   ["procesado", "Procesado", "bg-moss/10 text-moss"],
 ];
 
@@ -177,7 +177,7 @@ const horas = (h: number | null | undefined) => h == null ? "—" : h < 1 ? `${M
 function Accion({ href, icon, n, label, hint, tone }: { href: string; icon: React.ReactNode; n: number | null; label: string; hint?: string; tone: "clay" | "amber" | "rust" | "ink" }) {
   const activo = (n ?? 0) > 0;
   const border = activo ? { clay: "border-clay/50 bg-amber-soft/40", amber: "border-amber/50 bg-amber-soft", rust: "border-rust/40 bg-crimson-soft", ink: "border-line bg-paper" }[tone] : "border-line bg-paper";
-  const num = activo ? { clay: "text-clay", amber: "text-amber", rust: "text-rust", ink: "text-ink" }[tone] : "text-ink";
+  const num = activo ? { clay: "text-clayTexto", amber: "text-amberTexto", rust: "text-rust", ink: "text-ink" }[tone] : "text-ink";
   return (
     <Link href={href} className={`flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-colors hover:border-ink ${border}`}>
       <span className="min-w-0">

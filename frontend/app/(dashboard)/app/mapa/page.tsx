@@ -1,14 +1,16 @@
-import { MapPin } from "lucide-react";
 import { MapaWrapper } from "@/components/MapaWrapper";
-import { PageHeader } from "@/components/dashboard/PageHeader";
 import type { ZonaTab } from "@/components/mapa/ZonaHubPanel";
 
 const TABS: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
 
 /**
- * Hub público: el mapa es la interfaz. Elegir una región abre su cola de
- * auditoría, entidades, alertas y denuncias, con las acciones financiar/denunciar.
- * Acepta `?region=<regionId>` y `?tab=<resumen|cola|entidades|alertas|denuncias>`.
+ * Hub público: el mapa es la interfaz. Elegir un departamento abre su cola de
+ * auditoría, entidades, señales y denuncias, con las acciones financiar/denunciar.
+ * Acepta `?region=<regionId>`, `?tab=<…>`, `?ubigeo=<provincia|distrito>` y `?ocid=`.
+ *
+ * El `PageHeader` vive dentro de `MapaWrapper` y no acá: el encabezado tiene que
+ * reflejar el estado. Un h1 fijo que sigue diciendo "Elige tu región" después de
+ * que el usuario eligió una es un encabezado que miente sobre dónde está.
  */
 export default function MapaPage({
   searchParams,
@@ -19,11 +21,7 @@ export default function MapaPage({
   const tab = TABS.includes(searchParams?.tab as ZonaTab) ? (searchParams?.tab as ZonaTab) : undefined;
 
   return (
-    <div className="px-6 py-8 lg:px-10 space-y-6">
-      <PageHeader
-        title="Elige tu región"
-        subtitle="Cada departamento tiene contratos públicos esperando ser leídos. Toca uno para ver su cola de auditoría, las señales halladas, quién contrata y qué denuncian los vecinos — y financiar o denunciar desde ahí."
-      />
+    <div className="space-y-6 px-6 py-8 lg:px-10">
       <MapaWrapper initialRegionId={region} initialTab={tab} />
     </div>
   );

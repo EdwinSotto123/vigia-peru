@@ -7,6 +7,14 @@
  *               los cambios de página son enlaces (funcionan sin JS).
  *  - "interna": estado propio + fetch al API (para embeber dentro del mapa).
  *
+ * Dos presentaciones, la misma fuente de datos:
+ *  - TABLA densa (default, /app/contratos): columnas alineadas, una fila por
+ *    contrato, ~40 px de alto. Antes eran tarjetas de ~135 px: en un viewport de
+ *    900 px entraban TRES contratos, y recorrer los 50 de una página costaba
+ *    ~6 750 px de scroll para leer tres veces el mismo título.
+ *  - COMPACTA (`compacto`), para la columna angosta del panel del mapa, donde la
+ *    fila está atada a la selección del punto en el mapa.
+ *
  * Conexión con el mapa: `MapaContratosContext` (lo provee MapaWrapper) trae el
  * distrito elegido, el contrato seleccionado y los handlers de hover/selección.
  */
@@ -14,26 +22,48 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Inbox, WifiOff } from "lucide-react";
-import { ESTADO_PROC, PUBLIC_API_BASE, type EstadoProc } from "@/lib/auditoria";
+import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { Severidad } from "@/components/ui/Severidad";
+import type { NivelSeveridad } from "@/lib/severidad";
 import {
-  ESTADO_CONTRATO_EXTRA,
-  RIESGO_CLS,
   contratosQueryString,
   etapaLabel,
   formatFecha,
   formatMonto,
-  riesgoDe,
   tipoLabel,
   type ContratoResumen,
   type ContratosPagina,
   type ContratosQuery,
-  type EstadoContrato,
-  type RiesgoContrato,
 } from "@/lib/contratos";
-import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  ALTO_FILA,
+  ANCHO_IR,
+  CELDA_MD,
+  CELDA_XL,
+  FilaContrato,
+  PAD_FILA,
+  REJILLA,
+} from "./FilaContrato";
+import {
+  EstadoContratoPill as PildoraEstadoContrato,
+  EstadoLecturaCelda,
+  LeyendaLectura,
+  estadoLecturaDe,
+} from "./estadoLectura";
 import { cn } from "@/lib/utils";
+
+/**
+ * Compatibilidad: el dossier (`ContratoDetalle`, un server component) importa
+ * `EstadoContratoPill` desde este módulo desde siempre. La implementación se mudó
+ * a `estadoLectura.tsx` junto con el resto del eje de estado; acá queda un
+ * componente real —no un `export … from`— para que el límite servidor→cliente sea
+ * el de este archivo, que ya lo era.
+ */
+export function EstadoContratoPill(props: React.ComponentProps<typeof PildoraEstadoContrato>) {
+  return <PildoraEstadoContrato {...props} />;
+}
 
 // ─── Contexto lista ↔ mapa ───────────────────────────────────────────────────
 
@@ -51,28 +81,6 @@ export interface MapaContratos {
 
 export const MapaContratosContext = createContext<MapaContratos | null>(null);
 export const useMapaContratos = () => useContext(MapaContratosContext);
-
-// ─── Píldora de estado (reusa EstadoPill para todo estado que lib/auditoria conozca) ──
-
-export function EstadoContratoPill({ estado, operativo }: { estado: EstadoContrato; operativo?: string | null }) {
-  // Migración 19: sin analizar pero fuera del alcance activo → decir qué hay (documentos listos o no).
-  if (estado === "sin_analizar" && operativo && operativo !== "en_cola") {
-    const listo = operativo === "documentos_listos";
-    return (
-      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", listo ? "border border-inkSoft/40 text-inkSoft" : "bg-paperDeep text-mute")} role="status"
-            title={listo ? "Documentos descargados; el análisis de este tipo de contratación aún no está activo" : "Este tipo de contratación aún no está activo y sus documentos no se han descargado"}>
-        {listo ? "Docs listos" : "Sin documentos"}
-      </span>
-    );
-  }
-  if (estado in ESTADO_PROC) return <EstadoPill estado={estado as EstadoProc} />;
-  const e = ESTADO_CONTRATO_EXTRA[estado as keyof typeof ESTADO_CONTRATO_EXTRA] ?? ESTADO_CONTRATO_EXTRA.sin_analizar;
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", e.cls)} role="status">
-      {e.label}
-    </span>
-  );
-}
 
 // ─── Lista ───────────────────────────────────────────────────────────────────
 
@@ -173,8 +181,9 @@ export function ContratosLista({
       {pag}
       {fallo && !rows.length ? (
         <Aviso
-          icon={<WifiOff size={16} />}
-          text="No se pudo cargar la lista de contratos."
+          icon={<WifiOff size={18} />}
+          text="El API de Vigía no respondió: la lista de contratos no se pudo cargar."
+          ayuda="No se muestra una copia vieja ni datos de relleno. Si la lista no carga, no hay lista."
           action={
             navegacion === "interna" ? (
               <button type="button" onClick={() => setRetry((n) => n + 1)} className={ACCION_CLS}>Reintentar</button>
@@ -185,131 +194,26 @@ export function ContratosLista({
         />
       ) : !rows.length && !cargando ? (
         <Aviso
-          icon={<Inbox size={16} />}
-          text="Ningún contrato coincide con estos filtros."
+          icon={<Inbox size={18} />}
+          text={hayFiltros ? "Ningún contrato cumple todos los filtros a la vez." : "Esta consulta no devolvió ningún contrato."}
+          ayuda={
+            hayFiltros
+              ? "Los filtros se combinan con «y», no con «o». Quita arriba el más restrictivo —cada uno se quita por separado— y la lista se vuelve a llenar."
+              : "La cola de Vigía se rearma cada noche con lo que publica la API OCDS del OECE. Si acá no hay nada, es que esa zona no tiene convocatorias en el rango pedido."
+          }
           action={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
         />
       ) : compacto ? (
         <ListaCompacta rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       ) : (
-        <Tarjetas rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
+        <TablaContratos rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       )}
       {rows.length > 10 && pag}
     </div>
   );
 }
 
-// ─── Tarjetas (página /app/contratos): una por contrato, mismo diseño en móvil y escritorio ──
-// Título completo (2 líneas) y entidad completa (sin cortar a 180px): el problema real de la
-// tabla densa anterior era el truncado agresivo ("CONTR...", "ORGANISMO DE EVALUA...") que
-// volvía ilegibles justo las convocatorias parecidas que más hace falta distinguir. La fila
-// se mantiene liviana cuando no hay nada que reportar (sin documentos, sin score) y solo se
-// carga de color/peso visual cuando SÍ hay una señal real, para que esas destaquen del resto.
-
-
-function Tarjetas({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
-  // Primera carga en modo "interna" (panel del mapa): sin esto, la lista es un <ul> vacío
-  // mientras llega el fetch — un hueco en blanco, no un estado de carga real.
-  if (!rows.length && cargando) {
-    return (
-      <ul className="space-y-2" aria-hidden>
-        {Array.from({ length: 4 }, (_, i) => <SkeletonTarjeta key={i} />)}
-      </ul>
-    );
-  }
-  return (
-    <ul className={cn("space-y-2", cargando && "opacity-60")} aria-busy={cargando}>
-      {rows.map((c) => (
-        <Tarjeta
-          key={c.ocid}
-          c={c}
-          selected={selectedOcid === c.ocid}
-          onSelect={onSelect}
-          onHover={onHover}
-        />
-      ))}
-    </ul>
-  );
-}
-
-function SkeletonTarjeta() {
-  return (
-    <li className="rounded-2xl border border-line bg-paper p-4 sm:p-[18px]" aria-hidden>
-      <Skeleton className="h-2.5 w-32" />
-      <Skeleton className="mt-2 h-4 w-4/5" />
-      <Skeleton className="mt-1.5 h-3 w-2/5" />
-      <Skeleton className="mt-2.5 h-4 w-24 rounded-full" />
-    </li>
-  );
-}
-
-const RIESGO_TARJETA_CLS: Record<RiesgoContrato, string> = {
-  alto: "border-rust/40 bg-crimson-soft text-rust",
-  medio: "border-amber/40 bg-amber-soft text-clay",
-  bajo: "border-moss/40 bg-moss/10 text-moss",
-  sin_analizar: "border-line bg-paperDeep text-mute",
-};
-
-function Tarjeta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
-  const ref = useRef<HTMLLIElement>(null);
-  useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  const riesgo = riesgoDe(c.score);
-  const tieneSenal = c.score != null;
-  const enlace = (
-      <Link
-        href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
-        onClick={() => onSelect?.(c)}
-        className={cn(
-          "block rounded-2xl border bg-paper p-4 transition-all hover:-translate-y-0.5 hover:shadow-card sm:p-[18px]",
-          // Violeta = "esto está sincronizado con el mapa", no una advertencia — mismo
-          // idioma que HeroMapPanel (clickedCode === z.ubigeo) y el nav activo del sidebar.
-          selected ? "border-heroViolet bg-heroViolet/5" : "border-line",
-        )}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[10.5px] tabular-nums text-mute">
-              <span>{c.codigo}</span>
-              <span aria-hidden>·</span>
-              <span>{formatFecha(c.fecha)}</span>
-              {c.zona && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span className="font-sans normal-case">{c.zona}</span>
-                </>
-              )}
-            </div>
-            <h3 className="mt-1 line-clamp-2 text-[14.5px] font-semibold leading-snug text-ink sm:text-[15px]" title={c.titulo ?? undefined}>
-              {c.titulo ?? "(sin objeto registrado)"}
-            </h3>
-            <p className="mt-0.5 line-clamp-1 text-[12.5px] text-mute" title={c.entidad ?? undefined}>
-              {c.entidad ?? "Entidad no identificada"}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <Badges tipo={c.tipo} etapa={c.etapa} />
-              <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-row items-center justify-between gap-2 sm:flex-col sm:items-end sm:gap-1.5 sm:text-right">
-            <span className="font-mono text-[15px] font-semibold tabular-nums text-ink">{formatMonto(c.montoPen, c.moneda)}</span>
-            {tieneSenal && (
-              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums", RIESGO_TARJETA_CLS[riesgo])}>
-                score {c.score}
-                {c.banderas > 0 && <span className="font-normal opacity-80">· {c.banderas} señal{c.banderas === 1 ? "" : "es"}</span>}
-              </span>
-            )}
-          </div>
-        </div>
-      </Link>
-  );
-  return (
-    <li ref={ref} onMouseEnter={() => onHover?.(c)} onMouseLeave={() => onHover?.(null)}>
-      {enlace}
-    </li>
-  );
-}
-
-// ─── Lista compacta (panel del mapa) ─────────────────────────────────────────
+// ─── Tabla densa (página /app/contratos) ─────────────────────────────────────
 
 interface FilasProps {
   rows: ContratoResumen[];
@@ -319,16 +223,116 @@ interface FilasProps {
   cargando: boolean;
 }
 
+function TablaContratos({ rows, selectedOcid, onHover, cargando }: FilasProps) {
+  const vacia = !rows.length && cargando;
+  return (
+    <div>
+      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <Cabecera />
+        <ul role="list" className={cn(cargando && !vacia && "opacity-60")} aria-busy={cargando}>
+          {vacia
+            ? Array.from({ length: 12 }, (_, i) => <SkeletonFilaTabla key={i} />)
+            : rows.map((c) => (
+                <FilaContrato key={c.ocid} c={c} selected={selectedOcid === c.ocid} onHover={onHover} />
+              ))}
+        </ul>
+      </div>
+      <PieDeTabla />
+    </div>
+  );
+}
+
+/** Cabecera de columnas. Usa la MISMA rejilla que la fila: si se tocan por separado, se desalinean. */
+function Cabecera() {
+  return (
+    <div className="flex items-stretch border-b border-line bg-paperSoft text-[11px] leading-tight text-mute" aria-hidden>
+      <div className={cn(REJILLA, PAD_FILA, "min-w-0 flex-1")}>
+        <span className="truncate">Señal</span>
+        <span className="truncate">
+          {/* En móvil la columna mide ~110 px: el rótulo largo se cortaría a la mitad. */}
+          <span className="md:hidden">Contrato</span>
+          <span className="hidden md:inline">Objeto de la contratación</span>
+        </span>
+        <span className={cn(CELDA_MD, "truncate")}>Entidad y zona</span>
+        <span className={cn(CELDA_XL, "truncate")}>Tipo · etapa</span>
+        <span className={cn(CELDA_MD, "truncate")}>Estado de lectura</span>
+        <span className="truncate text-right">Valor ref.</span>
+        <span className={cn(CELDA_MD, "truncate text-right")}>Convocada</span>
+      </div>
+      <div className={cn(ANCHO_IR, "shrink-0 border-l border-line")} />
+    </div>
+  );
+}
+
+/** Mismo alto y misma rejilla que la fila real: la tabla no debe saltar al terminar de cargar. */
+function SkeletonFilaTabla() {
+  return (
+    <li className="border-b border-line last:border-b-0" aria-hidden>
+      <div className="flex items-stretch">
+        <div className={cn(REJILLA, ALTO_FILA, PAD_FILA, "min-w-0 flex-1")}>
+          <Skeleton className="h-3 w-3 rounded-full" />
+          <Skeleton className="h-3 w-[72%]" />
+          <Skeleton className={cn(CELDA_MD, "h-3 w-[64%]")} />
+          <Skeleton className={cn(CELDA_XL, "h-3 w-[70%]")} />
+          <Skeleton className={cn(CELDA_MD, "h-3 w-[60%]")} />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className={cn(CELDA_MD, "h-3 w-full")} />
+        </div>
+        <div className={cn(ANCHO_IR, "shrink-0 border-l border-line")} />
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Pie: las dos escalas de la tabla, dichas con palabras. La columna "Señal" es un
+ * ícono (formato punto) porque 16 px es lo que cuesta una columna de escaneo; acá
+ * abajo se explica una vez qué significa cada uno, y el estado de lectura repite
+ * su catálogo canónico de cinco. Son ejes distintos y se leen como distintos.
+ */
+function PieDeTabla() {
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 text-[11px] leading-tight text-mute lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-5">
+      <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>Señal:</span>
+        {(Object.keys(PUNTAJE_MUESTRA) as NivelSeveridad[]).map((n) => (
+          <Severidad key={n} score={PUNTAJE_MUESTRA[n]} formato="linea" className="text-[11px]" />
+        ))}
+      </span>
+      <LeyendaLectura className="hidden lg:inline-flex" />
+    </div>
+  );
+}
+
+/**
+ * Un score de muestra por nivel, para rotular la leyenda con el MISMO componente
+ * que usan las filas (nada de reimplementar los colores acá). Tipado como Record
+ * completo a propósito: si algún día `lib/severidad` agrega un nivel, este archivo
+ * deja de compilar en vez de omitirlo en silencio.
+ */
+const PUNTAJE_MUESTRA: Record<NivelSeveridad, number | null> = {
+  alta: 85,
+  media: 55,
+  baja: 10,
+  sin_analizar: null,
+};
+
+// ─── Lista compacta (panel del mapa) ─────────────────────────────────────────
+
 function ListaCompacta({ rows, selectedOcid, onSelect, onHover, cargando }: FilasProps) {
   if (!rows.length && cargando) {
     return (
-      <ul className="space-y-1" aria-hidden>
-        {Array.from({ length: 5 }, (_, i) => <SkeletonFila key={i} />)}
+      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper" aria-hidden>
+        {Array.from({ length: 6 }, (_, i) => <SkeletonFilaCompacta key={i} />)}
       </ul>
     );
   }
   return (
-    <ul className={cn("space-y-1", cargando && "opacity-60")} aria-busy={cargando}>
+    <ul
+      role="list"
+      className={cn("divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper", cargando && "opacity-60")}
+      aria-busy={cargando}
+    >
       {rows.map((c) => (
         <FilaCompacta key={c.ocid} c={c} selected={selectedOcid === c.ocid} onSelect={onSelect} onHover={onHover} />
       ))}
@@ -336,59 +340,66 @@ function ListaCompacta({ rows, selectedOcid, onSelect, onHover, cargando }: Fila
   );
 }
 
-function SkeletonFila() {
+/** Tres líneas y el mismo alto mínimo que la fila real: el panel del mapa no debe saltar al cargar. */
+function SkeletonFilaCompacta() {
   return (
-    <li className="rounded-xl border border-line bg-paper px-2.5 py-2" aria-hidden>
-      <Skeleton className="h-2.5 w-2/3" />
-      <Skeleton className="mt-1.5 h-2 w-1/2" />
+    <li className={cn(ALTO_COMPACTA, "px-2.5 py-2")} aria-hidden>
+      <Skeleton className="h-3 w-2/3" />
+      <Skeleton className="mt-1 h-2.5 w-11/12" />
+      <Skeleton className="mt-1 h-2.5 w-1/2" />
     </li>
   );
 }
 
+const ALTO_COMPACTA = "min-h-[60px]";
+
 function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  const riesgo = riesgoDe(c.score);
+  const lectura = estadoLecturaDe(c);
+  const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(" · ") || "Sin clasificar";
   return (
     <li
       ref={ref}
       className={cn(
-        // Antes solo cambiaba de fondo al pasar el mouse (hover:shadow-card sin lift) — mismo
-        // patrón de FeatureHighlights.tsx/Metric de /app/financiar: transición real, no solo color.
-        "group rounded-xl border bg-paper px-2.5 py-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card",
-        selected ? "border-heroViolet bg-heroViolet/5" : "border-line hover:border-heroViolet/30 hover:bg-paperDeep",
+        "group transition-colors duration-rapido",
+        ALTO_COMPACTA,
+        selected ? "bg-heroViolet/5 shadow-[inset_3px_0_0_0_#4F3D96]" : "hover:bg-paperSoft",
       )}
       onMouseEnter={() => onHover?.(c)}
       onMouseLeave={() => onHover?.(null)}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-stretch">
         <button
           type="button"
           onClick={() => onSelect?.(selected ? null : c)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
           aria-pressed={selected}
+          className="min-w-0 flex-1 px-2.5 py-2 text-left"
         >
-          <span className="font-mono text-[10px] text-mute">{c.codigo}</span>
-          <Badges tipo={c.tipo} etapa={c.etapa} />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Severidad score={c.score} formato="punto" />
+            <span className="truncate text-[12px] font-medium leading-tight text-ink" title={c.titulo ?? undefined}>
+              {c.titulo ?? "(sin objeto)"}
+            </span>
+            {c.score != null && <span className="shrink-0 font-mono text-[10.5px] text-mute">{c.score}/100</span>}
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[10.5px] leading-tight text-mute">
+            <span className="truncate">{c.entidad ?? "—"}{c.zona ? ` · ${c.zona}` : ""}</span>
+            <span className="shrink-0 font-mono">{formatMonto(c.montoPen, c.moneda)} · {formatFecha(c.fecha)}</span>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] leading-tight">
+            <EstadoLecturaCelda info={lectura} className="shrink-0 text-[10.5px]" />
+            <span className="truncate text-mute">{tipoEtapa}</span>
+            <span className="ml-auto shrink-0 font-mono text-mute">{c.codigo}</span>
+          </div>
         </button>
-        <span className="flex shrink-0 items-center gap-1.5">
-          <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
-          {c.score != null && <span className={cn("font-mono text-[11px] tabular-nums", RIESGO_CLS[riesgo])}>{c.score}</span>}
-          <Link
-            href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
-            className="text-mute opacity-60 transition-opacity hover:text-ink group-hover:opacity-100"
-            aria-label={`Ver contrato ${c.codigo}`}
-          >
-            <ArrowUpRight size={13} />
-          </Link>
-        </span>
-      </div>
-      <button type="button" onClick={() => onSelect?.(selected ? null : c)} className="mt-0.5 block w-full truncate text-left text-[12px] leading-snug text-ink" title={c.titulo ?? undefined}>
-        {c.titulo ?? "(sin objeto)"}
-      </button>
-      <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] text-mute">
-        <span className="truncate">{c.entidad ?? "—"}{c.zona ? ` · ${c.zona}` : ""}</span>
-        <span className="shrink-0 font-mono tabular-nums">{formatMonto(c.montoPen, c.moneda)} · {formatFecha(c.fecha)}</span>
+        <Link
+          href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
+          className="flex w-8 shrink-0 items-center justify-center border-l border-line text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-ink"
+          aria-label={`Abrir el dossier completo de ${c.codigo}`}
+        >
+          <ArrowUpRight size={13} aria-hidden />
+        </Link>
       </div>
     </li>
   );
@@ -396,28 +407,20 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
 
 // ─── Piezas ──────────────────────────────────────────────────────────────────
 
-function Badges({ tipo, etapa }: { tipo: string | null; etapa: string | null }) {
-  const t = tipoLabel(tipo);
-  const e = etapaLabel(etapa);
-  if (!t && !e) return <span className="text-[10px] text-mute">sin clasificar</span>;
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      {t && <span className="rounded-md bg-paperDeep px-1.5 py-0.5 text-[10px] font-medium text-ink">{t}</span>}
-      {e && <span className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-mute">{e}</span>}
-    </span>
-  );
-}
-
 /** Estilo compartido de la acción de un estado vacío ("Reintentar" · "Quitar todos los filtros"). */
-const ACCION_CLS = "inline-flex items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium text-ink transition-colors hover:border-heroViolet/40 hover:bg-paperSoft";
+const ACCION_CLS = "inline-flex items-center gap-1 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-medium text-ink transition-colors duration-rapido hover:border-heroViolet/40 hover:bg-paperSoft";
 
-/** Estado vacío con mensaje real y, cuando hay algo que hacer, su siguiente acción — nunca un hueco en blanco. */
-function Aviso({ icon, text, action }: { icon: React.ReactNode; text: string; action?: React.ReactNode }) {
+/**
+ * Estado vacío / de error: dice qué pasó, enseña por qué y ofrece la siguiente
+ * acción. Nunca un hueco en blanco y nunca un dato de relleno para taparlo.
+ */
+function Aviso({ icon, text, ayuda, action }: { icon: React.ReactNode; text: string; ayuda?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2.5 rounded-2xl border border-dashed border-line bg-paper px-4 py-8 text-center text-sm text-mute">
-      <span className="text-mute">{icon}</span>
-      <span>{text}</span>
-      {action}
+    <div className="rounded-2xl border border-dashed border-line bg-paper px-5 py-8 text-center">
+      <span className="inline-flex text-mute">{icon}</span>
+      <p className="mt-2 text-sm font-medium text-ink">{text}</p>
+      {ayuda && <p className="mx-auto mt-1 max-w-[52ch] text-[12.5px] leading-relaxed text-mute">{ayuda}</p>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }

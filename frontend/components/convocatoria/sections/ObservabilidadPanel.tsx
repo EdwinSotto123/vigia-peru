@@ -1,137 +1,176 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Cloud, Eye, Search } from "lucide-react";
+/**
+ * Observabilidad del análisis: los ocho evaluadores que revisan el dictamen antes de publicarlo,
+ * los guardrails, y lo que costó la corrida.
+ *
+ * El costo y los tokens estaban como cuatro tiles sueltos —cuatro números grandes sin ninguna
+ * escala al lado, que es justo la plantilla que esta dirección rechaza—. Ahora son una línea al
+ * pie: la cifra que importa (lo que costó leer este contrato) con su desglose y con la única
+ * comparación honesta que existe en el producto (lo que aporta un ciudadano por una lectura).
+ */
+
+import { AlertTriangle, CheckCircle2, ExternalLink, Eye } from "lucide-react";
+import { Popover } from "@/components/ui/Flotante";
+import { PulseDot } from "@/components/ui/PulseDot";
+import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { cn } from "@/lib/utils";
+
+const EVALS: { n: string; label: string; d: string }[] = [
+  { n: "respaldo_de_bandera", label: "Respaldo de bandera", d: "¿la bandera está respaldada por datos verificables (RUC, monto, fecha, artículo)?" },
+  { n: "cita_evidencia", label: "Cita de evidencia", d: "¿cada bandera cita norma + fuente oficial (SEACE/OECE)?" },
+  { n: "plausibilidad_precio", label: "Plausibilidad de precio", d: "¿el sobreprecio se sostiene con la mediana de mercado?" },
+  { n: "coherencia_objeto_items", label: "Coherencia objeto ↔ ítems", d: "¿los ítems analizados pertenecen al objeto de la convocatoria?" },
+  { n: "tono_no_acusatorio", label: "Tono no acusatorio", d: "¿el dictamen usa 'señal de riesgo' y nunca acusa de delito?" },
+  { n: "completitud_analisis", label: "Completitud del análisis", d: "¿corrieron todas las etapas (docs, mercado, red, dictamen, banderas)?" },
+  { n: "cobertura_prensa", label: "Cobertura de prensa", d: "¿el agente de prensa devolvió cobertura estructurada (noticias o 'sin menciones'), no vacío?" },
+  { n: "firmantes_plausibles", label: "Firmantes plausibles", d: "¿los firmantes son reales, no placeholders de plantilla ('POSTOR N' sin DNI)?" },
+];
+
+const num = (n: any): string => (typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("es-PE") : "—");
 
 export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?: any[]; metrics?: any }) {
   let liveM: any = null;
-  for (let i = liveEvents.length - 1; i >= 0; i--) { if (liveEvents[i]?.kind === "metrics") { liveM = liveEvents[i]; break; } }
+  for (let i = liveEvents.length - 1; i >= 0; i--) {
+    if (liveEvents[i]?.kind === "metrics") { liveM = liveEvents[i]; break; }
+  }
   const live = !!liveM;
-  const m = liveM || metrics || null;          // resultado: usa métricas persistidas (llm_metrics)
+  const m = liveM || metrics || null; // resultado: usa métricas persistidas (llm_metrics)
   const hasM = !!m;
-  // Scores del self-eval inline (eventos kind="eval"), por evaluador.
+
   const evalsByName: Record<string, any> = {};
-  for (const e of liveEvents) { if (e?.kind === "eval" && e.evaluador) evalsByName[e.evaluador] = e; }
-  const hasEvals = Object.keys(evalsByName).length > 0;
-  const fmt = (n: any) => (typeof n === "number" ? n.toLocaleString() : (n ?? "—"));
-  const EVALS: { n: string; label: string; d: string }[] = [
-    { n: "respaldo_de_bandera", label: "Respaldo de bandera", d: "¿la bandera está respaldada por datos verificables (RUC, monto, fecha, artículo)?" },
-    { n: "cita_evidencia", label: "Cita de evidencia", d: "¿cada bandera cita norma + fuente oficial (SEACE/OECE)?" },
-    { n: "plausibilidad_precio", label: "Plausibilidad de precio", d: "¿el sobreprecio se sostiene con la mediana de mercado?" },
-    { n: "coherencia_objeto_items", label: "Coherencia objeto ↔ ítems", d: "¿los ítems analizados pertenecen al objeto de la convocatoria?" },
-    { n: "tono_no_acusatorio", label: "Tono no acusatorio", d: "¿el dictamen usa 'señal de riesgo' y nunca acusa de delito?" },
-    { n: "completitud_analisis", label: "Completitud del análisis", d: "¿corrieron todas las etapas (docs, mercado, red, dictamen, banderas)?" },
-    { n: "cobertura_prensa", label: "Cobertura de prensa", d: "¿el agente de prensa devolvió cobertura estructurada (noticias o 'sin menciones'), no vacío?" },
-    { n: "firmantes_plausibles", label: "Firmantes plausibles", d: "¿los firmantes son reales, no placeholders de plantilla ('POSTOR N' sin DNI)?" },
-  ];
-  const STATS = [
-    { v: fmt(m?.n_llm_calls), l: "llamadas IA" },
-    { v: fmt(m?.tokens_total), l: "tokens" },
-    { v: hasM ? `≈ $${Number(m.cost_usd ?? 0).toFixed(4)}` : "—", l: "costo estim." },
-    { v: hasM ? `${m.tokens_prompt?.toLocaleString?.() ?? "—"} / ${m.tokens_output?.toLocaleString?.() ?? "—"}` : "in / out", l: "prompt / out" },
-  ];
+  for (const e of liveEvents) if (e?.kind === "eval" && e.evaluador) evalsByName[e.evaluador] = e;
+  const hechos = EVALS.filter((e) => evalsByName[e.n]).length;
+
   const chipFor = (ev: any): React.ReactNode => {
-    if (!ev) return <span className="rounded bg-line px-1.5 py-0.5 text-[8px] font-bold text-mute">pendiente</span>;
+    if (!ev) return <span className="pill border-line bg-paperSoft text-[10px] text-mute">sin correr</span>;
     if (ev.label != null && ev.pct == null) {
       const ok = ev.label === "ok" || ev.label === "coherente";
-      return <span className={cn("rounded px-1.5 py-0.5 text-[8px] font-bold", ok ? "bg-moss/15 text-moss" : "bg-crimson-soft text-rust")}>{ev.label}</span>;
+      return (
+        <span className={cn("pill text-[10px] font-semibold", ok ? "border-moss/40 bg-moss/10 text-moss" : "border-rust/40 bg-crimson-soft text-rust")}>
+          {ev.label}
+        </span>
+      );
     }
     if (ev.pct != null) {
-      const cls = ev.pct >= 80 ? "bg-moss/15 text-moss" : ev.pct >= 50 ? "bg-amber-soft text-amber" : "bg-crimson-soft text-rust";
-      return <span className={cn("rounded px-1.5 py-0.5 text-[8px] font-bold", cls)}>{ev.pct}%{ev.n ? ` · ${ev.ok}/${ev.n}` : ""}</span>;
+      const cls = ev.pct >= 80 ? "border-moss/40 bg-moss/10 text-moss" : ev.pct >= 50 ? "border-amber/40 bg-amber-soft text-amberTexto" : "border-rust/40 bg-crimson-soft text-rust";
+      return (
+        <span className={cn("pill text-[10px] font-semibold tabular-nums", cls)}>
+          {ev.pct}%{ev.n ? ` · ${ev.ok} de ${ev.n}` : ""}
+        </span>
+      );
     }
     return null;
   };
+
   return (
     <section className="surface overflow-hidden p-0">
-      {/* header oscuro estilo dashboard */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-ink px-5 py-3 text-paper">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-ink px-4 py-3 text-paper sm:px-5">
         <div className="flex items-center gap-2">
-          <Eye size={14} className="text-heroGreen" />
-          <span className="font-serif text-sm font-bold">Arize · Observabilidad de la IA</span>
+          <Eye size={14} className="text-heroGreen" aria-hidden />
+          <h2 className="font-serif text-[15px] font-bold">Cómo se vigila al que vigila</h2>
           {live ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-moss/20 px-2 py-0.5 text-[9px] font-bold text-moss">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-moss" /> EN VIVO
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-moss/20 px-2 py-0.5 text-[10px] font-semibold text-moss">
+              <PulseDot color="moss" size={6} /> en vivo
             </span>
           ) : hasM ? (
-            <span className="rounded-full bg-paper/15 px-2 py-0.5 text-[9px] font-bold text-paper/80">ANÁLISIS CERRADO</span>
+            <span className="rounded-full bg-paper/15 px-2 py-0.5 text-[10px] font-medium text-paper/80">análisis cerrado</span>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-[11px] text-paper/70">
           {m?.phoenix_trace_id ? (
             <a
               href="https://app.phoenix.arize.com/s/edwin-soto-c"
               target="_blank"
               rel="noreferrer"
-              title={`Trace ID: ${m.phoenix_trace_id} — abre el proyecto vigia-peru en Phoenix y busca este ID para ver la orquestación ADK completa`}
-              className="inline-flex items-center gap-1 rounded-full bg-heroGreen/20 px-2 py-0.5 text-[9px] font-bold text-heroGreen transition-colors hover:bg-heroGreen/30"
+              title={`Trace ID: ${m.phoenix_trace_id} — abre el proyecto vigia-peru en Phoenix y busca este ID`}
+              className="inline-flex items-center gap-1 rounded-full bg-heroGreen/20 px-2 py-0.5 font-semibold text-heroGreen transition-colors duration-rapido hover:bg-heroGreen/30"
             >
-              Ver traza ADK en Phoenix ↗
+              Ver la traza completa <ExternalLink size={10} aria-hidden />
             </a>
           ) : null}
-          <span className="font-mono text-[10px] text-paper/70">Phoenix Cloud · <b className="text-paper">vigia-peru</b></span>
+          <span className="font-mono">Arize Phoenix Cloud · <b className="text-paper">vigia-peru</b></span>
         </div>
-      </div>
+      </header>
 
-      {/* tarjetas de métricas */}
-      <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-        {STATS.map((s) => (
-          <div key={s.l} className="bg-paper px-3 py-3 text-center">
-            <div className="font-mono text-base font-bold tabular-nums text-ink">{s.v}</div>
-            <div className="text-[9px] uppercase tracking-widest text-mute">{s.l}</div>
-          </div>
-        ))}
-      </div>
-      <div className="border-b border-line bg-paperSoft px-5 py-1.5 text-center text-[10px] text-mute">
-        cada llamada (tokens · costo · latencia · prompt/respuesta) queda como span en <b className="text-ink">Phoenix Cloud</b> — árbol completo por OCID
-      </div>
-
-      {/* evaluadores — 6 evaluadores ricos a todo el ancho */}
-      <div className="border-b border-line bg-paper p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
-            <CheckCircle2 size={13} className="text-moss" /> Evaluadores · LLM-as-judge + código (8)
-            {hasEvals && <span className="rounded-full bg-moss/15 px-1.5 py-0.5 text-[8px] font-bold text-moss">auto-evaluado</span>}
-          </div>
-          <span className="text-[9px] text-mute">
-            {hasEvals ? "evaluado al cierre del análisis" : "se ejecuta al cierre del análisis"} · 4 vía LLM-as-judge · 4 deterministas
-          </span>
+      {/* Evaluadores: filas, no tarjetas dentro de una tarjeta. */}
+      <div className="bg-paper">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-2 sm:px-5">
+          <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+            <CheckCircle2 size={13} className="text-moss" aria-hidden />
+            {hechos > 0 ? `${hechos} de ${EVALS.length} evaluadores ya revisaron este análisis` : `${EVALS.length} evaluadores revisan el análisis al cerrar`}
+          </h3>
+          <span className="text-[11px] text-mute">4 con LLM como juez · 4 deterministas en código</span>
         </div>
-        <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        <ul className="divide-y divide-line/60">
           {EVALS.map((e) => {
             const ev = evalsByName[e.n];
             return (
-              <li key={e.n} className="rounded border border-line/70 bg-paperSoft/40 px-2.5 py-1.5">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-ink">{e.label}</span>
-                  {chipFor(ev)}
+              <li key={e.n} className="flex items-start gap-3 px-4 py-2 sm:px-5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-medium text-ink">{e.label}</p>
+                  <p className="mt-0.5 text-[11.5px] leading-snug text-mute">{ev?.pregunta || e.d}</p>
+                  {ev?.reason && (
+                    <p className="mt-1 border-l-2 border-line pl-2 text-[11px] italic leading-snug text-mute">{ev.reason}</p>
+                  )}
+                  {Array.isArray(ev?.faltantes) && ev.faltantes.length > 0 && (
+                    <p className="mt-1 text-[11px] font-medium text-rust">faltó: {ev.faltantes.join(" · ")}</p>
+                  )}
                 </div>
-                <div className="mt-0.5 text-[10px] leading-snug text-mute">{ev?.pregunta || e.d}</div>
-                {ev?.metodo && (
-                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="rounded bg-ink/5 px-1 py-0.5 text-[8px] font-medium text-heroViolet">{ev.metodo}</span>
-                    {ev.objetivo && <span className="rounded bg-ink/5 px-1 py-0.5 text-[8px] text-mute">sobre: {ev.objetivo}</span>}
-                  </div>
-                )}
-                {ev?.reason && <div className="mt-1 border-l-2 border-line pl-2 text-[9px] italic leading-snug text-mute/90">“{ev.reason}”</div>}
-                {Array.isArray(ev?.faltantes) && ev.faltantes.length > 0 && (
-                  <div className="mt-1 text-[9px] font-medium text-rust">faltó: {ev.faltantes.join(" · ")}</div>
-                )}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {chipFor(ev)}
+                  {ev?.metodo && <span className="text-[10px] text-mute">{ev.metodo}</span>}
+                </div>
               </li>
             );
           })}
         </ul>
       </div>
 
-      {/* trazas + guardrails */}
-      <div className="bg-paper p-4">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold text-ink"><AlertTriangle size={13} className="text-rust" /> Trazas + guardrails</div>
-        <ul className="mt-1.5 grid gap-1 text-[10px] leading-snug text-mute sm:grid-cols-2">
-          <li>· OpenInference instrumenta el <b className="text-ink">Runner ADK</b> (ciclo + cada <code className="text-ink">transfer_to_agent</code> entre los 11 agentes) <b className="text-ink">y</b> cada call a Gemini → árbol completo en Phoenix.</li>
-          <li>· Anti-alucinación: «señal de riesgo», nunca acusación; evidencia oficial obligatoria.</li>
-          <li>· Sin corroboración oficial no se emite bandera de delito (guardrail determinista).</li>
-          <li>· RAG con grounding: Vertex AI Search sobre 721 opiniones OECE.</li>
+      <div className="border-t border-line bg-paper px-4 py-3 sm:px-5">
+        <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+          <AlertTriangle size={13} className="text-rust" aria-hidden /> Guardrails que no dependen del modelo
+        </h3>
+        <ul className="mt-1 grid gap-1 text-[11.5px] leading-snug text-mute sm:grid-cols-2">
+          <li>Sin corroboración en una fuente oficial no se emite una señal de delito. Es código, no una instrucción al modelo.</li>
+          <li>El vocabulario es «señal de riesgo»; el dictamen nunca acusa de un delito.</li>
+          <li>Cada llamada de los {TOTAL_AGENTES} agentes queda como span en Phoenix: prompt, respuesta, tokens y latencia.</li>
+          <li>Lo normativo se responde con RAG sobre las opiniones del OECE, no de memoria del modelo.</li>
         </ul>
+      </div>
+
+      {/* Lo que costó la corrida: una línea con la cifra y su escala, no cuatro cajas. */}
+      <div className="border-t border-line bg-paperSoft px-4 py-2.5 text-[12px] leading-relaxed text-mute sm:px-5">
+        {hasM ? (
+          /* div y no p: el <Popover> del final monta su diálogo como hermano del disparador,
+             y un <div> dentro de un <p> rompe la hidratación de React. */
+          <div>
+            Leer este contrato costó{" "}
+            <strong className="font-semibold tabular-nums text-ink">
+              ≈ US$ {Number(m.cost_usd ?? 0).toFixed(4)}
+            </strong>{" "}
+            de cómputo: {num(m.n_llm_calls)} llamadas al modelo y {num(m.tokens_total)} tokens
+            {typeof m.tokens_prompt === "number" || typeof m.tokens_output === "number" ? (
+              <> ({num(m.tokens_prompt)} de entrada, {num(m.tokens_output)} de salida)</>
+            ) : null}
+            . Un ciudadano financia una lectura con S/ 3.{" "}
+            <Popover
+              titulo="Qué incluye esta cifra"
+              anchoClase="w-72"
+              className="align-baseline text-heroViolet underline decoration-heroViolet/40 transition-colors duration-rapido hover:text-heroViolet-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+              trigger={<span className="text-[12px]">qué incluye</span>}
+            >
+              Es el costo de los tokens del modelo en esta corrida, sumando las llamadas de todos
+              los agentes. No incluye la infraestructura ni las descargas del expediente. El aporte
+              de S/ 3 paga la lectura completa de un contrato, no solo el cómputo.
+            </Popover>
+          </div>
+        ) : (
+          <p>
+            Todavía no hay métricas de esta corrida: el costo y los tokens se cierran cuando termina
+            el análisis. Cada llamada ya queda registrada como span en Phoenix mientras tanto.
+          </p>
+        )}
       </div>
     </section>
   );

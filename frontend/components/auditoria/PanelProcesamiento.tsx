@@ -156,7 +156,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
           </span>
         )}
         {esperando > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-clay" title="Contratos financiados cuyos documentos se descargan en el lote nocturno">
+          <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 text-clayTexto" title="Contratos financiados cuyos documentos se descargan en el lote nocturno">
             <Moon size={11} /> {esperando} esperan documentos{pedidos?.fallidos ? <span className="text-rust"> · {pedidos.fallidos} sin documentos</span> : null}
           </span>
         )}
@@ -178,7 +178,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
             >
               <span className="font-mono">{a.ocid}</span>
               <span className="font-mono tabular-nums text-mute">{prog.hechas}/{prog.aplicables}</span>
-              <span className="truncate text-amber">{faseHumana(p, seg * 1000, fases)}</span>
+              <span className="truncate text-amberTexto">{faseHumana(p, seg * 1000, fases)}</span>
               <span className="font-mono tabular-nums text-mute">{duracion(seg * 1000)}</span>
             </Link>
           );

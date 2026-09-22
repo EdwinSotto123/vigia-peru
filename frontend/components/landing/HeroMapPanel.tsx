@@ -172,7 +172,7 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
                 </dl>
                 <Link
                   href={`/app/mapa?region=${UBIGEO_REGION[clicked.ubigeo] ?? ""}`}
-                  className="mt-2.5 flex items-center justify-center gap-1 rounded-lg bg-heroGreen/10 py-1.5 text-[11px] font-semibold text-heroGreen transition-colors hover:bg-heroGreen/20"
+                  className="mt-2.5 flex items-center justify-center gap-1 rounded-lg bg-heroGreen/10 py-1.5 text-[11px] font-semibold text-heroGreenTexto transition-colors hover:bg-heroGreen/20"
                 >
                   Ver contratos <ArrowUpRight size={12} />
                 </Link>
@@ -203,7 +203,7 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
             <span className="font-mono text-[11px] text-ink">{formatPEN(featured.montoSoles)}</span>
             <Link
               href={`/app/convocatoria/${encodeURIComponent(featured.codigoconvocatoria)}`}
-              className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-heroGreen hover:underline"
+              className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-heroGreenTexto hover:underline"
             >
               Ver detalles <ArrowUpRight size={11} />
             </Link>

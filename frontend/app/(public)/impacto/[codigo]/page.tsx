@@ -55,7 +55,7 @@ function semillaDesdeComprobante(c: Comprobante): Procesamiento[] {
 }
 
 const ESTADO: Record<string, { label: string; tone: string }> = {
-  pendiente_pago: { label: "Pago pendiente de validación", tone: "text-amber" },
+  pendiente_pago: { label: "Pago pendiente de validación", tone: "text-amberTexto" },
   pagada: { label: "Pago confirmado · esperando contratos en cola", tone: "text-moss" },
   en_proceso: { label: "Pago confirmado · auditoría en proceso", tone: "text-moss" },
   procesada: { label: "Auditoría completada", tone: "text-moss" },
@@ -119,7 +119,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           </div>
           {(c.resumen.enRevision ?? 0) > 0 && (
             <p className="mt-2 text-[12px] text-mute">
-              <strong className="text-clay">{c.resumen.enRevision}</strong> contrato{c.resumen.enRevision === 1 ? "" : "s"} procesado{c.resumen.enRevision === 1 ? "" : "s"} {c.resumen.enRevision === 1 ? "espera" : "esperan"} revisión humana:
+              <strong className="text-clayTexto">{c.resumen.enRevision}</strong> contrato{c.resumen.enRevision === 1 ? "" : "s"} procesado{c.resumen.enRevision === 1 ? "" : "s"} {c.resumen.enRevision === 1 ? "espera" : "esperan"} revisión humana:
               la autoevaluación no alcanzó el umbral para publicar y una persona decide. No cuentan como señales halladas.
             </p>
           )}

@@ -102,7 +102,7 @@ export default async function DenunciaDetallePage({
                   </span>
                   {convergencia && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-paper">
-                      <GitMerge size={11} className="text-amber" />
+                      <GitMerge size={11} className="text-amberTexto" />
                       caso convergente
                     </span>
                   )}
@@ -160,7 +160,7 @@ export default async function DenunciaDetallePage({
           {convergencia && alertaLinked && (
             <div>
             <section className="rounded-2xl border-2 border-ink bg-ink p-6 text-paper">
-              <div className="flex items-center gap-2 text-amber">
+              <div className="flex items-center gap-2 text-amberTexto">
                 <Sparkles size={16} />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
                   Caso convergente
@@ -175,7 +175,7 @@ export default async function DenunciaDetallePage({
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl bg-white/5 p-4">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-amber">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-amberTexto">
                     Alerta automática vinculada
                   </div>
                   <div className="mt-1 font-mono text-[10px] text-paper/70">
@@ -196,7 +196,7 @@ export default async function DenunciaDetallePage({
                   </Link>
                 </div>
                 <div className="rounded-xl bg-white/5 p-4 text-xs text-paper/85">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-amber">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-amberTexto">
                     Cómo se cruzaron
                   </div>
                   <ul className="mt-2 space-y-1">
@@ -265,7 +265,7 @@ export default async function DenunciaDetallePage({
                     <Clock size={22} />
                   </span>
                   <div>
-                    <div className="font-serif text-lg font-bold text-amber">
+                    <div className="font-serif text-lg font-bold text-amberTexto">
                       En validación
                     </div>
                     <div className="text-[11px] text-mute">

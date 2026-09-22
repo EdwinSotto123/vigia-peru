@@ -13,7 +13,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
   // Categorizar cada key como titular / socio / firmante / comité
   const categoryFor = (key: string): { rol: string; color: string } => {
     if (key === ganadorRazon || key === ganadorDni) return { rol: "Titular del proveedor", color: "bg-rust/15 text-rust" };
-    if (firmantes.some((f) => (f.nombre_completo === key) || (f.dni === key))) return { rol: "Firmante del acta", color: "bg-amber/15 text-amber" };
+    if (firmantes.some((f) => (f.nombre_completo === key) || (f.dni === key))) return { rol: "Firmante del acta", color: "bg-amber/15 text-amberTexto" };
     if (comite.some((m) => (m.nombre_completo === key) || (m.nombre === key) || (m.dni === key))) return { rol: "Comité de selección", color: "bg-heroViolet/15 text-heroViolet" };
     return { rol: "Socio o vínculo del proveedor", color: "bg-moss/15 text-moss" };
   };
@@ -75,7 +75,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
                 )}
                 {jne.n_candidaturas > 0 && (
                   <div className="text-[11px]">
-                    <span className="font-bold text-amber">JNE:</span>{" "}
+                    <span className="font-bold text-amberTexto">JNE:</span>{" "}
                     {jne.n_candidaturas} candidatura{jne.n_candidaturas !== 1 ? "s" : ""}
                     {jne.candidaturas?.[0]?.cargo && <span className="text-inkSoft"> ({jne.candidaturas[0].cargo}, {jne.candidaturas[0].año})</span>}
                   </div>

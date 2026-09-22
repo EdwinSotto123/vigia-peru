@@ -80,10 +80,18 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, h
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
     >
+      {/* Anillo estático. El `<animate>` que latía sin fin sobre el punto
+          seleccionado se retiró: era movimiento perpetuo sobre un dato y sobre
+          la selección, justo donde el usuario necesita leer una cifra quieta.
+          La selección ya se distingue por grosor y opacidad del anillo. */}
       {(selected || hovered) && (
-        <circle r={rr + 2.4 / zoom} fill="none" stroke={COLOR_SELECCION} strokeWidth={1.4 / zoom} strokeOpacity={selected ? 0.9 : 0.5}>
-          {selected && <animate attributeName="r" values={`${rr + 1.8 / zoom};${rr + 3.2 / zoom};${rr + 1.8 / zoom}`} dur="1.8s" repeatCount="indefinite" />}
-        </circle>
+        <circle
+          r={rr + 2.4 / zoom}
+          fill="none"
+          stroke={COLOR_SELECCION}
+          strokeWidth={(selected ? 1.8 : 1.1) / zoom}
+          strokeOpacity={selected ? 0.9 : 0.5}
+        />
       )}
       <circle r={rr} fill={color} fillOpacity={0.78} stroke="#F4EEDD" strokeWidth={sw}>
         <title>{`${nombre} · ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"}`}</title>
@@ -101,14 +109,16 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, h
 export function ContratoPinLeyenda() {
   const orden: EstadoOperativoZona[] = ["sin_analizar", "documentos_listos", "en_cola", "procesado", "en_revision"];
   return (
-    <div className="space-y-0.5 text-[9px] text-mute">
+    <ul className="space-y-1 text-[12px] text-mute">
       {orden.map((e) => (
-        <div key={e} className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COLOR_ESTADO[e], opacity: 0.85 }} />
+        <li key={e} className="flex items-start gap-1.5">
+          <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[e] }} />
           <span>{ESTADO_OPERATIVO_LABEL[e]}</span>
-        </div>
+        </li>
       ))}
-      <div className="pt-0.5 text-[9px] text-mute">Tamaño = cantidad de contratos · color = estado predominante de la zona</div>
-    </div>
+      <li className="border-t border-line pt-1.5 text-[11px]">
+        Tamaño del punto = cantidad de contratos de la zona · color = estado predominante.
+      </li>
+    </ul>
   );
 }

@@ -52,7 +52,7 @@ export default function ConvocatoriaSharePage() {
             <ArrowLeft size={16} /> Volver al buscador
           </button>
           <div className="surface p-8 text-center">
-            <AlertTriangle size={32} className="mx-auto text-amber" />
+            <AlertTriangle size={32} className="mx-auto text-amberTexto" />
             <h1 className="mt-3 font-serif text-xl font-bold text-ink">
               Esta convocatoria no se ha analizado todavía
             </h1>

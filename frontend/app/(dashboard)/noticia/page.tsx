@@ -275,7 +275,7 @@ function NoticiaInner() {
           <div className="flex-1 p-6">
             {!resultado && !generando && (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-mute">
-                <Sparkles size={36} className="text-amber" />
+                <Sparkles size={36} className="text-amberTexto" />
                 <p>
                   Selecciona un caso, un tono y un largo. <br />
                   La IA va a redactar un borrador con cita de fuentes.
@@ -284,7 +284,7 @@ function NoticiaInner() {
             )}
             {generando && (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <Loader2 size={36} className="animate-spin text-crimson" />
+                <Loader2 size={36} className="animate-spin text-crimsonTexto" />
                 <p className="text-sm text-mute">
                   Cruzando con dataset SEACE/OECE… <br />
                   Buscando opiniones normativas OECE… <br />
@@ -294,13 +294,13 @@ function NoticiaInner() {
             )}
             {resultado && (
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full bg-paperDeep px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-clay">
+                <div className="inline-flex items-center gap-2 rounded-full bg-paperDeep px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-clayTexto">
                   <Sparkles size={11} />
                   {origen === "agente"
                     ? "Generado del dictamen REAL · Gemini 2.5 Pro · BD Cloud SQL"
                     : "Demo · mock (todavía no analizamos esta convocatoria con el agente)"}
                 </div>
-                <article className="prose prose-sm max-w-none font-serif text-ink prose-headings:font-serif prose-headings:text-ink prose-strong:text-ink prose-a:text-clay">
+                <article className="prose prose-sm max-w-none font-serif text-ink prose-headings:font-serif prose-headings:text-ink prose-strong:text-ink prose-a:text-clayTexto">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{resultado}</ReactMarkdown>
                 </article>
               </div>

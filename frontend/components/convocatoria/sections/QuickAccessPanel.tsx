@@ -71,8 +71,8 @@ export function QuickAccessPanel({
             <div className="text-[9px] uppercase tracking-wider text-rust">alta</div>
           </div>
           <div className="rounded-md bg-amber/10 px-1 py-1.5">
-            <div className="font-mono text-lg font-bold tabular-nums text-amber">{conMedia}</div>
-            <div className="text-[9px] uppercase tracking-wider text-amber">media</div>
+            <div className="font-mono text-lg font-bold tabular-nums text-amberTexto">{conMedia}</div>
+            <div className="text-[9px] uppercase tracking-wider text-amberTexto">media</div>
           </div>
           <div className="rounded-md bg-moss/10 px-1 py-1.5">
             <div className="font-mono text-lg font-bold tabular-nums text-moss">{sinBanderas}</div>

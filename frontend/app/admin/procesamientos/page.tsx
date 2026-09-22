@@ -42,11 +42,11 @@ interface ProcAdmin {
 
 const ESTADO_UI: Record<Estado, { label: string; cls: string }> = {
   encolado: { label: "En cola", cls: "bg-paperDeep text-mute" },
-  procesando: { label: "Procesando", cls: "bg-amber-soft text-amber" },
+  procesando: { label: "Procesando", cls: "bg-amber-soft text-amberTexto" },
   procesado: { label: "Procesado", cls: "bg-moss/10 text-moss" },
-  error: { label: "Error", cls: "bg-crimson-soft text-crimson" },
-  pendiente_de_procesamiento: { label: "Pendiente", cls: "bg-paperDeep text-amber" },
-  esperando_documentos: { label: "Esperando docs", cls: "bg-amber-soft/60 text-clay" },
+  error: { label: "Error", cls: "bg-crimson-soft text-crimsonTexto" },
+  pendiente_de_procesamiento: { label: "Pendiente", cls: "bg-paperDeep text-amberTexto" },
+  esperando_documentos: { label: "Esperando docs", cls: "bg-amber-soft/60 text-clayTexto" },
 };
 
 const TABS: { k: Estado | "todos"; l: string }[] = [
@@ -302,7 +302,7 @@ export default function AdminProcesamientosPage() {
                 <td className="px-2 py-2">
                   <Badge cls={ESTADO_UI[p.estado]?.cls ?? "bg-paperDeep text-mute"}>{ESTADO_UI[p.estado]?.label ?? p.estado}</Badge>
                   {p.estado === "procesado" && p.alertaEstado === "revision" && (
-                    <div className="mt-1"><Badge cls="bg-paperDeep text-clay">En revisión humana</Badge></div>
+                    <div className="mt-1"><Badge cls="bg-paperDeep text-clayTexto">En revisión humana</Badge></div>
                   )}
                   {p.estado === "procesado" && p.score != null && <div className="mt-0.5 font-mono text-[10px] text-mute">score {p.score}</div>}
                 </td>
@@ -313,7 +313,7 @@ export default function AdminProcesamientosPage() {
                 <td className="px-2 py-2 text-right font-mono text-xs">{p.intentos}</td>
                 <td className="px-2 py-2 font-mono text-[11px] text-mute">{p.worker ?? "—"}</td>
                 <td className="px-2 py-2 text-[11px] text-mute">{fmtDate(p.latidoAt ?? p.finalizadoAt ?? p.encoladoAt)}</td>
-                <td className="px-2 py-2 max-w-[220px] text-[11px] text-crimson">
+                <td className="px-2 py-2 max-w-[220px] text-[11px] text-crimsonTexto">
                   <span className="line-clamp-2">{p.error ?? ""}</span>
                 </td>
                 <td className="px-4 py-2 text-right">
@@ -364,10 +364,10 @@ interface Pedido {
 }
 
 const PEDIDO_UI: Record<Pedido["estado"], { label: string; cls: string }> = {
-  pendiente: { label: "Esta noche", cls: "bg-amber-soft text-amber" },
-  descargando: { label: "Descargando", cls: "bg-amber-soft/60 text-clay" },
+  pendiente: { label: "Esta noche", cls: "bg-amber-soft text-amberTexto" },
+  descargando: { label: "Descargando", cls: "bg-amber-soft/60 text-clayTexto" },
   listo: { label: "Listo", cls: "bg-moss/10 text-moss" },
-  fallido: { label: "Fallido", cls: "bg-crimson-soft text-crimson" },
+  fallido: { label: "Fallido", cls: "bg-crimson-soft text-crimsonTexto" },
 };
 
 /** Pedidos de descarga (migración 15): contratos financiados sin documentos en GCS; los atiende el batch nocturno. */

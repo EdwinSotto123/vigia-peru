@@ -54,13 +54,13 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Resultado</div>
           <h2 className={`mt-0.5 inline-flex items-center gap-2 font-serif font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
-            {enRevision ? <Eye size={18} className="text-clay" aria-hidden /> : conSenales ? <AlertTriangle size={18} className="text-rust" aria-hidden /> : <CheckCircle2 size={18} className="text-moss" aria-hidden />}
+            {enRevision ? <Eye size={18} className="text-clayTexto" aria-hidden /> : conSenales ? <AlertTriangle size={18} className="text-rust" aria-hidden /> : <CheckCircle2 size={18} className="text-moss" aria-hidden />}
             {titulo}
           </h2>
           {!enRevision && conSenales && (
             <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-mute">
               {porSev.alta > 0 && <span className="text-rust">{porSev.alta} alta{porSev.alta === 1 ? "" : "s"}</span>}
-              {porSev.media > 0 && <span className="text-amber">{porSev.media} media{porSev.media === 1 ? "" : "s"}</span>}
+              {porSev.media > 0 && <span className="text-amberTexto">{porSev.media} media{porSev.media === 1 ? "" : "s"}</span>}
               {porSev.baja > 0 && <span>{porSev.baja} baja{porSev.baja === 1 ? "" : "s"}</span>}
             </p>
           )}
@@ -77,7 +77,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
 
       {enRevision && (r?.revisionMotivos?.length ? (
         <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft" aria-label="Por qué está en revisión humana">
-          <div className="font-semibold text-clay">Por qué no se publicó todavía</div>
+          <div className="font-semibold text-clayTexto">Por qué no se publicó todavía</div>
           <ul className="mt-1 space-y-1.5">
             {r.revisionMotivos.map((m) => (
               <li key={m.clave}>
@@ -90,7 +90,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         </div>
       ) : r?.revisionMotivo ? (
         <p className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft">
-          <span className="font-semibold text-clay">Motivo:</span> {r.revisionMotivo}
+          <span className="font-semibold text-clayTexto">Motivo:</span> {r.revisionMotivo}
         </p>
       ) : null)}
 
@@ -147,7 +147,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                     <div className="line-clamp-1 text-[11px] text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
                     <div className="font-mono text-[12px] tabular-nums">
                       mediana {soles(it.mediana!)} · ofertado {soles(it.ofertado!)}
-                      {it.diffPct != null && <span className={`ml-1 font-semibold ${it.diffPct >= 30 ? "text-rust" : it.diffPct >= 10 ? "text-amber" : "text-moss"}`}>Δ {pct(it.diffPct)}</span>}
+                      {it.diffPct != null && <span className={`ml-1 font-semibold ${it.diffPct >= 30 ? "text-rust" : it.diffPct >= 10 ? "text-amberTexto" : "text-moss"}`}>Δ {pct(it.diffPct)}</span>}
                     </div>
                   </div>
                 ))}
@@ -170,7 +170,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                     <FileText size={12} className="text-mute" aria-hidden />
                     <span className="font-mono tabular-nums">{r.documentos.n}</span> documento{r.documentos.n === 1 ? "" : "s"} leído{r.documentos.n === 1 ? "" : "s"}
                     {r.documentos.paginas > 0 && <> · <span className="font-mono tabular-nums">{r.documentos.paginas}</span> páginas</>}
-                    {r.documentos.conError > 0 && <span className="text-amber"> · {r.documentos.conError} con error</span>}
+                    {r.documentos.conError > 0 && <span className="text-amberTexto"> · {r.documentos.conError} con error</span>}
                   </div>
                 )}
                 {(r?.recortes ?? 0) > 0 && (
@@ -179,7 +179,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   </div>
                 )}
                 {(r?.validacionesPendientes?.length ?? 0) > 0 && (
-                  <ul className="text-[11px] text-clay">
+                  <ul className="text-[11px] text-clayTexto">
                     {r!.validacionesPendientes.map((v) => <li key={v}>· pendiente: {validacionLabel(v)}</li>)}
                   </ul>
                 )}

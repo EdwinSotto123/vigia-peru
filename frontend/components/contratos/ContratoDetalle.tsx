@@ -316,7 +316,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
     return (
       <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
         <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <Clock size={12} className="text-clay" /> Esperando documentos
+          <Clock size={12} className="text-clayTexto" /> Esperando documentos
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink">
           Este contrato ya fue financiado. Sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}: el lote nocturno los baja desde el SEACE y el análisis arranca al día siguiente.
@@ -338,7 +338,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
     return (
       <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
         <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <Clock size={12} className="text-clay" /> Pendiente de procesamiento
+          <Clock size={12} className="text-clayTexto" /> Pendiente de procesamiento
         </h2>
         <p className="mt-2 text-sm text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />

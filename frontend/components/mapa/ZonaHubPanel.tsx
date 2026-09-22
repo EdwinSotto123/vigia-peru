@@ -6,15 +6,12 @@ import { PresupuestoRegional } from "@/components/PresupuestoRegional";
 import { REGION_TO_MEF_DEPT } from "@/lib/peru-data";
 import {
   X,
-  MapPin,
   LineChart,
   Layers,
   Building2,
   AlertTriangle,
   MessageSquareWarning,
-  Heart,
   Camera,
-  Activity,
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
@@ -22,7 +19,6 @@ import {
 } from "lucide-react";
 import {
   getZona,
-  ESTADO_FILL,
   ESTADO_LABEL,
   alcanceCorto,
   alcanceLargo,
@@ -40,6 +36,10 @@ import { SeguirZonaBoton } from "./SeguirZonaBoton";
 
 export type ZonaTab = "resumen" | "cola" | "entidades" | "alertas" | "denuncias" | "presupuesto";
 
+const ORDEN_TABS: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
+
+const enteros = (n: number) => n.toLocaleString("es-PE");
+
 export interface ZonaHubPanelProps {
   /** Slug de `lib/peru-data` (p. ej. "ancash"). */
   regionId: string;
@@ -47,19 +47,27 @@ export interface ZonaHubPanelProps {
   ubigeo: string;
   nombre: string;
   onClose?: () => void;
-  /** Alertas ya cargadas por el mapa (se filtran por región acá). */
+  /** Señales ya cargadas por el mapa (se filtran por región acá). */
   alertas?: any[];
-  /** Reportes ciudadanos ya cargados por el mapa. */
+  /** Denuncias ciudadanas ya cargadas por el mapa. */
   reportes?: any[];
-  provinciaActiva?: { nombre: string; alertas?: number } | null;
-  onClearProvincia?: () => void;
+  /** Contratos ingresados de la zona (`/contratos/geo`): es el denominador de la cola. */
+  totalIngresados?: number | null;
   initialTab?: ZonaTab;
 }
 
 /**
- * Panel lateral del mapa cuando hay una región elegida. Es el "hub" de la zona:
- * qué espera auditoría, qué se encontró, quién contrata, qué denuncian los vecinos,
- * y las dos acciones que una persona puede tomar: financiar o denunciar.
+ * Panel lateral del mapa cuando hay un departamento abierto: qué espera
+ * auditoría, qué se encontró, quién contrata, qué denuncian los vecinos, y las
+ * dos acciones que una persona puede tomar.
+ *
+ * Sin cajas anidadas. Antes este panel (que ya es una superficie) metía dentro
+ * una `section` con borde y fondo propios, y dentro de esa cuatro tiles con
+ * borde y fondo: tres niveles de contenedor para cuatro números. Los grupos se
+ * separan con una regla y un rótulo, que es lo que hace un documento.
+ *
+ * Y ninguna cifra va sola: toda cifra lleva su denominador en la misma línea.
+ * "45 financiados" no dice nada; "45 de 1.204 en cola" sí.
  */
 export function ZonaHubPanel({
   regionId,
@@ -68,42 +76,34 @@ export function ZonaHubPanel({
   onClose,
   alertas = [],
   reportes = [],
-  provinciaActiva,
-  onClearProvincia,
+  totalIngresados = null,
   initialTab = "resumen",
 }: ZonaHubPanelProps) {
   const [tab, setTab] = useState<ZonaTab>(initialTab);
   const [detalle, setDetalle] = useState<ZonaDetalle | null | undefined>(undefined);
   const mapa = useMapaContratos();
 
-  // Clic en un punto de contratos del mapa → pestaña Cola con ese distrito.
+  // Clic en una provincia o en un punto del mapa → pestaña Cola con esa zona.
   useEffect(() => {
     if (mapa?.distritoUbigeo) setTab("cola");
   }, [mapa?.distritoUbigeo]);
 
-  // Al cambiar de región volvemos al resumen y recargamos financiamiento.
   useEffect(() => {
     setTab(initialTab);
     setDetalle(undefined);
-    let alive = true;
+    let vivo = true;
     if (!ubigeo) {
       setDetalle(null);
       return;
     }
-    getZona(ubigeo).then((d) => alive && setDetalle(d));
+    getZona(ubigeo).then((d) => vivo && setDetalle(d));
     return () => {
-      alive = false;
+      vivo = false;
     };
   }, [ubigeo, regionId, initialTab]);
 
-  const alertasRegion = useMemo(
-    () => alertas.filter((a) => belongsToRegion(a, regionId)),
-    [alertas, regionId],
-  );
-  const reportesRegion = useMemo(
-    () => reportes.filter((r) => belongsToRegion(r, regionId)),
-    [reportes, regionId],
-  );
+  const alertasRegion = useMemo(() => alertas.filter((a) => belongsToRegion(a, regionId)), [alertas, regionId]);
+  const reportesRegion = useMemo(() => reportes.filter((r) => belongsToRegion(r, regionId)), [reportes, regionId]);
 
   const zona = detalle?.zona ?? null;
   const financiarHref = ubigeo ? `/app/financiar/${ubigeo}` : "/app/financiar";
@@ -112,94 +112,60 @@ export function ZonaHubPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-paperSoft">
-      {/* Header */}
+      {/* Encabezado: sin kicker sobre el título. El estado va debajo, que es donde informa. */}
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-5 py-4">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-heroViolet">Región</div>
-          <h3 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            {zona && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
-                <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[zona.estado] }} />
-                {ESTADO_LABEL[zona.estado]}
-              </span>
-            )}
-            {/* Solo con sesión (sin sesión el panel es idéntico sin este botón) */}
+          <h3 className="font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
+          <p className="mt-0.5 text-[12px] leading-snug text-inkSoft">
+            {zona ? ESTADO_LABEL[zona.estado] : "Cargando el estado de la zona…"}
+            {zona && zona.precioPen > 0 && ` · ${formatPEN(zona.precioPen)} por contrato leído`}
+          </p>
+          <div className="mt-2">
             <SeguirZonaBoton ubigeo={ubigeo} nombre={nombre} />
           </div>
         </div>
         {onClose && (
           <button
+            type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-paperSoft text-mute hover:bg-paper hover:text-ink"
-            aria-label="Cerrar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-paperSoft text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
+            aria-label={`Cerrar el panel de ${nombre}`}
           >
-            <X size={16} />
+            <X size={16} aria-hidden />
           </button>
         )}
       </div>
 
-      {/* Provincia activa (clic en el mapa) */}
-      {provinciaActiva && (
-        <div className="animate-slideIn border-b border-line bg-paper px-5 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-mute">
-                <MapPin size={11} /> Provincia
-              </div>
-              <div className="font-serif text-base font-bold text-ink">{provinciaActiva.nombre}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/reporte/nuevo?region=${encodeURIComponent(regionId)}&provincia=${encodeURIComponent(provinciaActiva.nombre)}`}
-                className="rounded-full bg-rust px-2.5 py-1 text-[10px] font-medium text-paper hover:bg-rust/90"
-              >
-                Denunciar aquí
-              </Link>
-              {onClearProvincia && (
-                <button onClick={onClearProvincia} className="text-[10px] text-mute hover:underline">
-                  limpiar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
+      {/* Pestañas. `scrollbar-none` no existe en este proyecto: la barra de scroll
+          del sistema operativo se veía cruzando el panel. Se oculta con utilidades
+          arbitrarias reales, que sí compilan. */}
       <div
-        className="scrollbar-none flex shrink-0 items-stretch overflow-x-auto border-b border-line bg-paperSoft"
+        className="flex shrink-0 items-stretch overflow-x-auto border-b border-line bg-paperSoft [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
-        aria-label="Secciones de la zona"
+        aria-label={`Secciones de ${nombre}`}
         onKeyDown={(e) => {
-          // ← → mueven el foco/pestaña (WAI-ARIA tabs)
-          const orden: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
-          const i = orden.indexOf(tab);
-          if (e.key === "ArrowRight") { e.preventDefault(); setTab(orden[(i + 1) % orden.length]); }
-          if (e.key === "ArrowLeft") { e.preventDefault(); setTab(orden[(i - 1 + orden.length) % orden.length]); }
+          const i = ORDEN_TABS.indexOf(tab);
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            setTab(ORDEN_TABS[(i + 1) % ORDEN_TABS.length]);
+          }
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            setTab(ORDEN_TABS[(i - 1 + ORDEN_TABS.length) % ORDEN_TABS.length]);
+          }
         }}
       >
         <TabBtn active={tab === "resumen"} onClick={() => setTab("resumen")} icon={<LineChart size={12} />}>
           Resumen
         </TabBtn>
-        <TabBtn
-          active={tab === "cola"}
-          onClick={() => setTab("cola")}
-          icon={<Layers size={12} />}
-          count={zona?.totalCola}
-        >
+        <TabBtn active={tab === "cola"} onClick={() => setTab("cola")} icon={<Layers size={12} />} count={zona?.totalCola}>
           Cola
         </TabBtn>
         <TabBtn active={tab === "entidades"} onClick={() => setTab("entidades")} icon={<Building2 size={12} />}>
           Entidades
         </TabBtn>
-        <TabBtn
-          active={tab === "alertas"}
-          onClick={() => setTab("alertas")}
-          icon={<AlertTriangle size={12} />}
-          count={alertasRegion.length}
-        >
-          Alertas
+        <TabBtn active={tab === "alertas"} onClick={() => setTab("alertas")} icon={<AlertTriangle size={12} />} count={alertasRegion.length}>
+          Señales
         </TabBtn>
         <TabBtn
           active={tab === "denuncias"}
@@ -214,22 +180,15 @@ export function ZonaHubPanel({
         </TabBtn>
       </div>
 
-      {/* Contenido */}
-      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel">
-        {/* key por región+pestaña: antes cambiar de región con la misma pestaña activa
-            (p. ej. "resumen") solo volvía a renderizar ResumenTab in-place, sin ninguna
-            transición -- el contenido nuevo pisaba al anterior de golpe. Un cambio de
-            `key` fuerza un remount de este wrapper, así `animate-fadeIn` (200ms, ya
-            definida en tailwind.config.ts) se repite cada vez que cambia la región o la
-            pestaña, no solo la primera vez. */}
-        <div key={`${ubigeo || regionId}-${tab}`} className="animate-fadeIn">
+      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel" aria-label={`${nombre} · ${tab}`}>
+        <div key={`${ubigeo || regionId}-${tab}`}>
           {tab === "resumen" && (
             <ResumenTab
               nombre={nombre}
               detalle={detalle}
-              nAlertas={alertasRegion.length}
-              nReportes={reportesRegion.length}
-              regionId={regionId}
+              totalIngresados={totalIngresados}
+              nSenales={alertasRegion.length}
+              nDenuncias={reportesRegion.length}
               financiarHref={financiarHref}
               denunciarHref={denunciarHref}
               enVivoHref={enVivoHref}
@@ -239,27 +198,24 @@ export function ZonaHubPanel({
           {tab === "cola" && <ColaTab nombre={nombre} ubigeo={ubigeo} detalle={detalle} />}
           {tab === "entidades" && <EntidadesDeZona regionId={regionId} nombre={nombre} />}
           {tab === "alertas" && <AlertasDeZona regionId={regionId} nombre={nombre} alertas={alertas} />}
-          {tab === "denuncias" && (
-            <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />
-          )}
+          {tab === "denuncias" && <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />}
           {tab === "presupuesto" && <PresupuestoRegional mefDept={REGION_TO_MEF_DEPT[regionId] ?? null} regionId={regionId} />}
         </div>
       </div>
 
-      {/* Footer: las dos acciones siempre a mano (el resumen ya las muestra en grande) */}
       {tab !== "resumen" && (
-        <div className="shrink-0 grid grid-cols-2 gap-2 border-t border-line bg-paperDeep px-5 py-3">
+        <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-line bg-paperDeep px-5 py-3">
           <Link
             href={financiarHref}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-2.5 text-[12px] font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]"
+            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-2.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-inkSoft"
           >
-            <Heart size={13} className="text-amber" /> Financiar
+            Financiar la lectura
           </Link>
           <Link
             href={denunciarHref}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rust/40 bg-crimson-soft px-3 py-2.5 text-[12px] font-semibold text-rust transition-colors hover:bg-rust hover:text-paper"
+            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rust/40 bg-crimson-soft px-3 py-2.5 text-[12px] font-semibold text-rust transition-colors duration-rapido hover:bg-rust hover:text-paper"
           >
-            <Camera size={13} /> Denunciar
+            <Camera size={13} aria-hidden /> Denunciar
           </Link>
         </div>
       )}
@@ -267,14 +223,14 @@ export function ZonaHubPanel({
   );
 }
 
-// ─── Tabs ────────────────────────────────────────────────────────────────
+// ─── Pestañas ────────────────────────────────────────────────────────────
 
 function ResumenTab({
   nombre,
   detalle,
-  nAlertas,
-  nReportes,
-  regionId,
+  totalIngresados,
+  nSenales,
+  nDenuncias,
   financiarHref,
   denunciarHref,
   enVivoHref,
@@ -282,199 +238,161 @@ function ResumenTab({
 }: {
   nombre: string;
   detalle: ZonaDetalle | null | undefined;
-  nAlertas: number;
-  nReportes: number;
-  regionId: string;
+  totalIngresados: number | null;
+  nSenales: number;
+  nDenuncias: number;
   financiarHref: string;
   denunciarHref: string;
   enVivoHref: string;
   goTo: (t: ZonaTab) => void;
 }) {
   const zona = detalle?.zona ?? null;
-  const loading = detalle === undefined;
+  const cargando = detalle === undefined;
   const financiadoPct = zona ? pct(zona.financiados, zona.totalCola) : 0;
   const procesadoPct = zona ? pct(zona.procesados, zona.totalCola) : 0;
   const restantes = zona ? Math.max(0, zona.totalCola - zona.financiados) : 0;
 
-  return (
-    <div className="space-y-4">
-      {/* Capacidad de auditoría */}
-      <section className="rounded-2xl border border-line bg-paper p-3.5">
-        <div className="flex items-center justify-between">
-          <h4 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-            <Landmark size={11} className="text-heroViolet" /> Auditoría de {nombre}
-          </h4>
-          {zona && zona.precioPen > 0 && (
-            <span className="font-mono text-[10px] text-mute">{formatPEN(zona.precioPen)} / contrato</span>
-          )}
-        </div>
+  if (cargando) {
+    return (
+      <div className="space-y-2" aria-busy>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-8 animate-pulse rounded bg-paperDeep" />
+        ))}
+        <span className="sr-only">Cargando el estado de la auditoría</span>
+      </div>
+    );
+  }
 
-        {loading ? (
-          <div className="mt-3 grid grid-cols-4 gap-1.5">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-paperDeep" />
-            ))}
-          </div>
-        ) : zona ? (
+  if (!zona) {
+    return (
+      <Vacio
+        titulo="No se pudo cargar el estado de la zona"
+        texto="El servicio de financiamiento no respondió. Las cifras de esta zona aparecen apenas vuelva; no se muestran cifras de reemplazo."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <section>
+        <Rotulo>Auditoría de {nombre}</Rotulo>
+        {zona.totalCola > 0 ? (
           <>
-            <div className="mt-3 grid grid-cols-4 gap-1.5">
-              <MiniKpi label="En cola" value={zona.totalCola} tone="ink" title={`Contratos en cola: ${alcanceCorto(detalle?.alcance)}`} />
-              <MiniKpi label="Financiados" value={zona.financiados} tone="amber" />
-              <MiniKpi label="Procesados" value={zona.procesados} tone="moss" />
-              <MiniKpi label="Señales" value={zona.senales} tone="rust" title="Contratos con dictamen publicado y al menos una señal de riesgo" />
-            </div>
-            <AlcanceNota
-              alcance={detalle?.alcance}
-              documentosListos={zona.documentosListos ?? 0}
-              enRevision={zona.enRevision ?? 0}
-            />
-            {zona.totalCola > 0 ? (
-              <div className="mt-3">
-                <div className="flex justify-between text-[10px] text-mute">
-                  <span>financiado {financiadoPct}%</span>
-                  <span>procesado {procesadoPct}%</span>
-                </div>
-                <div className="relative mt-1 h-2 overflow-hidden rounded-full bg-paperDeep">
-                  <div className="absolute inset-y-0 left-0 rounded-full bg-amber" style={{ width: `${financiadoPct}%` }} />
-                  <div className="absolute inset-y-0 left-0 rounded-full bg-moss" style={{ width: `${procesadoPct}%` }} />
-                </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-mute">
-                  {restantes > 0 ? (
-                    <>
-                      <strong className="text-ink">{restantes.toLocaleString("es-PE")}</strong> contrato
-                      {restantes === 1 ? "" : "s"} de {nombre} esperan que alguien financie su lectura.
-                    </>
-                  ) : (
-                    <>Toda la cola de {nombre} está financiada. Los contratos se procesan en orden de llegada.</>
-                  )}
-                </p>
+            <dl className="divide-y divide-line border-y border-line">
+              <Cifra
+                etiqueta="En cola de lectura"
+                valor={enteros(zona.totalCola)}
+                de={totalIngresados ? `${enteros(totalIngresados)} contratos ingresados` : "los contratos ingresados"}
+              />
+              <Cifra etiqueta="Financiados" valor={enteros(zona.financiados)} de={`${enteros(zona.totalCola)} en cola`} />
+              <Cifra etiqueta="Leídos por los agentes" valor={enteros(zona.procesados)} de={`${enteros(zona.totalCola)} en cola`} tono="text-moss" />
+              <Cifra
+                etiqueta="Con señal publicada"
+                valor={enteros(zona.senales)}
+                de={zona.procesados > 0 ? `${enteros(zona.procesados)} leídos` : "0 leídos — todavía no hay nada que señalar"}
+                tono="text-rust"
+              />
+            </dl>
+
+            <div className="mt-3">
+              <div
+                className="relative h-2 overflow-hidden rounded-full bg-paperDeep"
+                role="img"
+                aria-label={`${financiadoPct}% de la cola financiada, ${procesadoPct}% leída`}
+              >
+                <div className="absolute inset-y-0 left-0 rounded-full bg-amber transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-moss transition-[width] duration-normal ease-salida" style={{ width: `${procesadoPct}%` }} />
               </div>
-            ) : (
-              <p className="mt-3 text-[11px] leading-relaxed text-mute">
-                Todavía no ingresamos contratos de {nombre}. La ingesta diaria del OECE los irá sumando.
+              <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                {restantes > 0 ? (
+                  <>
+                    <strong className="font-semibold text-ink">{enteros(restantes)}</strong> de los{" "}
+                    {enteros(zona.totalCola)} contratos en cola de {nombre} esperan que alguien financie su lectura.
+                  </>
+                ) : (
+                  <>Toda la cola de {nombre} está financiada. Se procesan en orden de llegada.</>
+                )}
               </p>
-            )}
+            </div>
           </>
         ) : (
-          <p className="mt-3 text-[11px] text-mute">No se pudo cargar el estado de financiamiento de la zona.</p>
+          <Vacio
+            titulo={`Todavía no hay contratos de ${nombre} en la cola`}
+            texto={`La ingesta diaria del OECE descarga los expedientes nuevos y los clasifica. Un contrato entra a la cola cuando su tipo y etapa tienen análisis activo: hoy, ${alcanceCorto(detalle?.alcance)}.`}
+          />
         )}
+        <NotaAlcance alcance={detalle?.alcance} documentosListos={zona.documentosListos ?? 0} enRevision={zona.enRevision ?? 0} />
       </section>
 
-      {/* CTAs */}
-      <div className="space-y-2">
-        <Link
-          href={financiarHref}
-          className="group flex items-center justify-between rounded-2xl bg-ink px-4 py-3 text-paper shadow-card transition-transform hover:scale-[1.01]"
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-paper/10 text-amber">
-              <Heart size={15} />
-            </span>
-            <span className="leading-tight">
-              <span className="block text-sm font-semibold">Financiar esta zona</span>
-              <span className="block text-[10px] text-paper/60">{nombre} · elige cuántos contratos y paga en 2 pasos</span>
-            </span>
-          </span>
-          <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-0.5" />
-        </Link>
-        <Link
-          href={denunciarHref}
-          className="group flex items-center justify-between rounded-2xl border border-rust/40 bg-crimson-soft px-4 py-3 text-ink transition-colors hover:border-rust"
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-rust text-paper">
-              <Camera size={15} />
-            </span>
-            <span className="leading-tight">
-              <span className="block text-sm font-semibold">Denunciar una obra en {nombre}</span>
-              <span className="block text-[10px] text-mute">Foto + ubicación · anónimo por defecto</span>
-            </span>
-          </span>
-          <ArrowRight size={16} className="shrink-0 text-rust transition-transform group-hover:translate-x-0.5" />
-        </Link>
-        {zona && zona.financiados > 0 ? (
+      <section className="border-t border-line pt-4">
+        <Rotulo>Qué puedes hacer</Rotulo>
+        <div className="space-y-2">
           <Link
-            href={enVivoHref}
-            className="group flex items-center justify-between rounded-2xl border border-line bg-paper px-4 py-3 text-ink transition-colors hover:border-moss/60"
+            href={financiarHref}
+            className="group flex items-center justify-between gap-3 rounded-full bg-ink px-4 py-2.5 text-paper transition-colors duration-rapido hover:bg-inkSoft"
           >
-            <span className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-moss/10 text-moss">
-                <Activity size={15} />
-              </span>
-              <span className="leading-tight">
-                <span className="block text-sm font-semibold">Ver en vivo</span>
-                <span className="block text-[10px] text-mute">Cola → procesando → procesado</span>
-              </span>
+            <span className="text-sm font-semibold">
+              Financiar la lectura {restantes > 0 ? `de hasta ${enteros(restantes)} contratos` : `en ${nombre}`}
             </span>
-            <ArrowUpRight size={16} className="shrink-0 text-mute group-hover:text-moss" />
+            <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </Link>
-        ) : (
-          zona && (
-            <p className="px-1 text-[10px] leading-relaxed text-mute">
-              Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis.
+          <Link
+            href={denunciarHref}
+            className="group flex items-center justify-between gap-3 rounded-full border border-rust/40 bg-crimson-soft px-4 py-2.5 text-rust transition-colors duration-rapido hover:border-rust"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-semibold">
+              <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
+            </span>
+            <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
+          </Link>
+          {zona.financiados > 0 ? (
+            <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-[12px] font-medium text-heroViolet hover:underline">
+              Ver los {enteros(zona.financiados)} financiados pasar de la cola al dictamen
+              <ArrowUpRight size={12} aria-hidden />
+            </Link>
+          ) : (
+            <p className="px-1 text-[11px] leading-relaxed text-mute">
+              Nadie financió esta zona todavía. Cuando alguien lo haga, acá se ve cada contrato pasar de la cola al
+              análisis, agente por agente.
             </p>
-          )
-        )}
-      </div>
+          )}
+          <p className="px-1 text-[11px] leading-relaxed text-mute">
+            El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
+          </p>
+        </div>
+      </section>
 
-      {/* Lo que ya se sabe */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => goTo("alertas")}
-          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
-        >
-          <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-amber">
-            <AlertTriangle size={11} /> Señales
-          </div>
-          <div className="mt-1 font-mono text-xl font-bold text-ink">{nAlertas}</div>
-          <div className="text-[10px] text-mute">alertas publicadas</div>
-        </button>
-        <button
-          onClick={() => goTo("denuncias")}
-          className="group rounded-xl border border-line bg-paper p-3 text-left transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
-        >
-          <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-rust">
-            <MessageSquareWarning size={11} /> Denuncias
-          </div>
-          <div className="mt-1 font-mono text-xl font-bold text-ink">{nReportes}</div>
-          <div className="text-[10px] text-mute">reportes ciudadanos</div>
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => goTo("presupuesto")}
-        className="group flex w-full items-center justify-between rounded-xl border border-dashed border-line bg-paperDeep px-3 py-2.5 text-xs transition-colors hover:border-heroViolet hover:bg-paper"
-      >
-        <span className="text-mute">
-          Presupuesto MEF de <strong className="text-ink">{nombre}</strong>: PIA, PIM y ejecución
-        </span>
-        <span className="inline-flex items-center gap-0.5 font-semibold text-heroViolet">
-          Ver
-          <ArrowRight size={11} className="transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </button>
+      <section className="border-t border-line pt-4">
+        <Rotulo>Lo que ya se sabe de {nombre}</Rotulo>
+        <ul className="divide-y divide-line border-y border-line">
+          <Salto
+            etiqueta="Señales publicadas"
+            valor={enteros(nSenales)}
+            de={zona.procesados > 0 ? `${enteros(zona.procesados)} contratos leídos` : "ningún contrato leído aún"}
+            onClick={() => goTo("alertas")}
+          />
+          <Salto
+            etiqueta="Denuncias ciudadanas"
+            valor={enteros(nDenuncias)}
+            de={`reportes con foto en ${nombre}`}
+            onClick={() => goTo("denuncias")}
+          />
+          <Salto etiqueta="Presupuesto MEF" valor="PIA · PIM" de="y su ejecución al día" onClick={() => goTo("presupuesto")} />
+        </ul>
+      </section>
     </div>
   );
 }
 
-function ColaTab({
-  nombre,
-  ubigeo,
-  detalle,
-}: {
-  nombre: string;
-  ubigeo: string;
-  detalle: ZonaDetalle | null | undefined;
-}) {
+function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; detalle: ZonaDetalle | null | undefined }) {
   const mapa = useMapaContratos();
-  const distrito = mapa?.distritoUbigeo ?? null;
-  const zonaLista = distrito ? (mapa?.distritoNombre ?? `distrito ${distrito}`) : nombre;
-  const query = useMemo(() => ({ ubigeo: distrito ?? ubigeo }), [distrito, ubigeo]);
+  const zonaUb = mapa?.distritoUbigeo ?? null;
+  const zonaNombre = zonaUb ? mapa?.distritoNombre || `zona ${zonaUb}` : nombre;
+  const query = useMemo(() => ({ ubigeo: zonaUb ?? ubigeo }), [zonaUb, ubigeo]);
 
   if (detalle === undefined) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" aria-busy>
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-14 animate-pulse rounded-xl bg-paperDeep" />
         ))}
@@ -482,56 +400,56 @@ function ColaTab({
     );
   }
   if (!detalle) {
-    return <EmptyTab text="No se pudo cargar la cola de auditoría de esta zona." />;
+    return <Vacio titulo="No se pudo cargar la cola" texto="El servicio de financiamiento no respondió. No se muestran cifras de reemplazo." />;
   }
+
   const { zona, cola, hijas, aliados } = detalle;
   const provinciasConCola = hijas.filter((h) => h.totalCola > 0).sort((a, b) => b.totalCola - a.totalCola);
   const costoTotal = zona.totalCola * zona.precioPen;
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-line bg-paper p-3.5">
-        <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">Qué hay en la cola</h4>
+    <div className="space-y-5">
+      <section>
+        <Rotulo>Qué hay en la cola</Rotulo>
         {zona.totalCola > 0 ? (
-          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm">
-            <Row k={`Contratos en cola (${alcanceCorto(detalle.alcance)})`} v={`${cola.contratos.toLocaleString("es-PE")}`} />
-            <Row k="Monto contratado" v={cola.montoReferencial > 0 ? formatPEN(cola.montoReferencial) : "—"} />
-            <Row k="Entidades" v={`${cola.entidades.toLocaleString("es-PE")}`} />
-            <Row k="Costo de auditarla" v={costoTotal > 0 ? formatPEN(costoTotal) : "—"} />
+          <dl className="divide-y divide-line border-y border-line">
+            <Cifra etiqueta={`Contratos en cola (${alcanceCorto(detalle.alcance)})`} valor={enteros(cola.contratos)} de={`${enteros(cola.entidades)} entidades`} />
+            <Cifra etiqueta="Monto contratado" valor={cola.montoReferencial > 0 ? formatPEN(cola.montoReferencial) : "—"} de={`${enteros(cola.contratos)} contratos`} />
+            <Cifra etiqueta="Costo de leerla entera" valor={costoTotal > 0 ? formatPEN(costoTotal) : "—"} de={`${formatPEN(zona.precioPen)} por contrato`} />
+            <Cifra
+              etiqueta="Documentos listos"
+              valor={enteros(cola.documentosListos ?? 0)}
+              de="contratos de otros tipos, con expediente descargado y análisis en preparación"
+            />
+            <Cifra etiqueta="En revisión humana" valor={enteros(zona.enRevision ?? 0)} de="leídos cuya publicación quedó frenada" />
           </dl>
         ) : (
-          <p className="mt-2 text-[11px] leading-relaxed text-mute">
-            Todavía no ingresamos contratos de {nombre}. La ingesta diaria del OECE los irá sumando.
-          </p>
+          <Vacio
+            titulo={`Todavía no ingresamos contratos de ${nombre}`}
+            texto="La ingesta diaria del OECE los irá sumando: primero se descargan y clasifican, y entran a la cola cuando su tipo y etapa tienen análisis activo."
+          />
         )}
-        <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-dashed border-line pt-2.5 text-sm">
-          <Row k="Documentos listos (otros tipos, análisis en preparación)" v={`${(cola.documentosListos ?? 0).toLocaleString("es-PE")}`} />
-          <Row k="En revisión humana" v={`${(zona.enRevision ?? 0).toLocaleString("es-PE")}`} />
-        </dl>
-        <AlcanceDetails alcance={detalle.alcance} />
-        <p className="mt-3 text-[10px] leading-relaxed text-mute">
-          Se procesan en orden de llegada. Quien financia no elige cuáles.
+        <DetalleAlcance alcance={detalle.alcance} />
+        <p className="mt-3 text-[11px] leading-relaxed text-mute">
+          Se procesan en orden de llegada; quien financia no elige cuáles.
           {zona.totalCola - zona.financiados > 0
-            ? ` Quedan ${(zona.totalCola - zona.financiados).toLocaleString("es-PE")} sin financiar.`
+            ? ` Quedan ${enteros(zona.totalCola - zona.financiados)} sin financiar.`
             : " Toda la cola está financiada."}
         </p>
       </section>
 
-      {/* Contrato por contrato, conectado con los puntos del mapa */}
       {ubigeo && (
-        <section>
+        <section className="border-t border-line pt-4">
           <div className="mb-1.5 flex items-baseline justify-between gap-2">
-            <h4 className="min-w-0 truncate text-[10px] font-bold uppercase tracking-widest text-mute">
-              Contratos de {zonaLista}
-            </h4>
-            {distrito && mapa && (
-              <button type="button" onClick={mapa.limpiarDistrito} className="shrink-0 text-[10px] text-mute hover:text-ink hover:underline">
+            <Rotulo sinMargen>Contratos de {zonaNombre}</Rotulo>
+            {zonaUb && mapa && (
+              <button type="button" onClick={mapa.limpiarDistrito} className="shrink-0 text-[11px] text-mute hover:text-ink hover:underline">
                 ver todo {nombre}
               </button>
             )}
           </div>
-          {!distrito && mapa?.activa && (
-            <p className="mb-1.5 text-[10px] text-mute">Toca un punto del mapa para ver solo ese distrito.</p>
+          {!zonaUb && mapa?.activa && (
+            <p className="mb-2 text-[11px] text-mute">Toca una provincia del mapa, o un punto, para acotar esta lista.</p>
           )}
           <ContratosLista
             key={query.ubigeo}
@@ -542,60 +460,47 @@ function ColaTab({
             selectedOcid={mapa?.ocidSeleccionado ?? null}
             onSelect={mapa?.seleccionar}
             onHover={mapa?.hover}
-            onCargada={(p) => { if (distrito && p.total === 1 && p.data[0]) mapa?.seleccionar(p.data[0]); }}
+            onCargada={(p) => {
+              if (zonaUb && p.total === 1 && p.data[0]) mapa?.seleccionar(p.data[0]);
+            }}
           />
         </section>
       )}
 
       {provinciasConCola.length > 0 && (
-        <section>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">Provincias con contratos en cola</h4>
-            <span className="text-[10px] text-mute">{provinciasConCola.length}</span>
-          </div>
-          <ul className="space-y-1.5">
-            {provinciasConCola.slice(0, 6).map((h) => {
-              const p = pct(h.financiados, h.totalCola);
-              return (
-                <li key={h.ubigeo}>
-                  <Link
-                    href={`/app/financiar/${h.ubigeo}`}
-                    className="group block rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
-                  >
-                    <div className="flex items-baseline justify-between gap-2 text-[11px]">
-                      <span className="flex items-center gap-1.5 font-medium text-ink">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[h.estado] }} />
-                        {h.nombre}
-                      </span>
-                      <span className="font-mono text-[10px] text-mute">
-                        {h.financiados}/{h.totalCola}
-                      </span>
-                    </div>
-                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-paperDeep">
-                      <div className="h-full rounded-full bg-amber" style={{ width: `${p}%` }} />
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+        <section className="border-t border-line pt-4">
+          <Rotulo>
+            Provincias con cola · {provinciasConCola.length} de {hijas.length}
+          </Rotulo>
+          <ul className="divide-y divide-line border-y border-line">
+            {provinciasConCola.slice(0, 8).map((h) => (
+              <li key={h.ubigeo}>
+                <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-baseline justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
+                  <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-heroViolet">{h.nombre}</span>
+                  <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">
+                    <span className="font-semibold text-amberTexto">{enteros(h.financiados)}</span> financiados de {enteros(h.totalCola)} en cola
+                  </span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
       )}
 
       {aliados.length > 0 && (
-        <section>
-          <h4 className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">Auditoría financiada por</h4>
-          <ul className="space-y-1">
+        <section className="border-t border-line pt-4">
+          <Rotulo>Quién pagó estas lecturas</Rotulo>
+          <ul className="divide-y divide-line border-y border-line">
             {aliados.slice(0, 6).map((a, i) => (
-              <li key={`${a.nombre}-${i}`} className="flex items-center justify-between rounded-lg bg-paper px-2.5 py-1.5 text-[11px]">
+              <li key={`${a.nombre}-${i}`} className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
                 {a.slug ? (
-                  <Link href={`/aliado/${a.slug}`} className="font-medium text-ink hover:underline">
+                  <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-heroViolet hover:underline">
                     {a.nombre}
                   </Link>
                 ) : (
-                  <span className="font-medium text-ink">{a.nombre}</span>
+                  <span className="min-w-0 truncate text-ink">{a.nombre}</span>
                 )}
-                <span className="font-mono text-[10px] text-mute">{a.contratos} contratos</span>
+                <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">{enteros(a.contratos)} contratos leídos</span>
               </li>
             ))}
           </ul>
@@ -605,69 +510,56 @@ function ColaTab({
   );
 }
 
-function DenunciasTab({
-  nombre,
-  reportes,
-  denunciarHref,
-}: {
-  nombre: string;
-  reportes: any[];
-  denunciarHref: string;
-}) {
+function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; reportes: any[]; denunciarHref: string }) {
   const rows = [...reportes].sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-paper p-6 text-center">
-          <Camera size={18} className="mx-auto text-mute" />
-          <p className="mt-2 text-sm text-mute">Nadie reportó todavía una obra en {nombre}. Sé la primera persona.</p>
-        </div>
+        <Vacio
+          titulo={`Nadie reportó todavía una obra en ${nombre}`}
+          texto="Una denuncia necesita foto y ubicación. Cuando dos personas distintas reportan el mismo punto en 30 días, queda confirmada y aparece en el mapa."
+        />
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="divide-y divide-line border-y border-line">
           {rows.slice(0, 20).map((r) => {
             const meta = CATEGORIA_META[r.categoria as CategoriaDenuncia];
             const Icon = meta?.icon ?? MessageSquareWarning;
             return (
               <li key={r.id}>
-                <Link
-                  href={`/app/denuncias/${r.id}`}
-                  className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
-                >
-                  <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", meta?.tone ?? "bg-paperDeep text-mute border-line")}>
-                    <Icon size={13} />
+                <Link href={`/app/denuncias/${r.id}`} className="group flex items-start gap-2.5 py-2.5 transition-colors duration-rapido hover:bg-paper">
+                  <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", meta?.tone ?? "border-line bg-paperDeep text-mute")}>
+                    <Icon size={13} aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-[10px] text-mute">
+                    <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-mute">
                       <span>{meta?.label ?? "Reporte"}</span>
-                      {r.confirmado && (
+                      {r.confirmado ? (
                         <span className="inline-flex items-center gap-0.5 text-moss">
-                          <CheckCircle2 size={10} /> confirmado
+                          <CheckCircle2 size={10} aria-hidden /> confirmado por 2 vecinos
                         </span>
+                      ) : (
+                        <span className="text-inkSoft">en validación</span>
                       )}
                       {r.fecha && <span>· {String(r.fecha).slice(0, 10)}</span>}
                     </span>
-                    <span className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-ink">{r.descripcion}</span>
+                    <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{r.descripcion}</span>
                   </span>
-                  <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />
+                  <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity duration-rapido group-hover:opacity-100" aria-hidden />
                 </Link>
               </li>
             );
           })}
         </ul>
       )}
-      <p className="text-[10px] leading-relaxed text-mute">
-        Un reporte aparece como confirmado cuando dos personas distintas reportan el mismo punto en 30 días. Sin foto
-        no se publica en el mapa.
-      </p>
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2">
         <Link
           href={denunciarHref}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-rust px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]"
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-rust px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-rust/90"
         >
-          <Camera size={14} /> Denunciar una obra en {nombre}
+          <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
         </Link>
-        <Link href="/app/denuncias" className="text-center text-[11px] text-mute hover:text-clay hover:underline">
-          Ver todas las denuncias del país →
+        <Link href="/app/denuncias" className="text-center text-[12px] text-mute hover:text-ink hover:underline">
+          Ver las denuncias de todo el país
         </Link>
       </div>
     </div>
@@ -675,6 +567,99 @@ function DenunciasTab({
 }
 
 // ─── Piezas ──────────────────────────────────────────────────────────────
+
+function Rotulo({ children, sinMargen }: { children: React.ReactNode; sinMargen?: boolean }) {
+  return (
+    <h4 className={cn("text-[11px] font-semibold uppercase tracking-wider text-mute", sinMargen ? "" : "mb-2")}>{children}</h4>
+  );
+}
+
+/** Una cifra con su denominador en la misma línea. Nunca un número suelto. */
+/* `tono` sólo acepta clases que pasen 4,5:1 sobre `paperSoft`: text-ink,
+   text-rust (6,79) o text-moss (4,60). `text-amberTexto` da 3,21 y `text-clayTexto` 3,89:
+   como texto no pasan, y acá el número ES el texto. */
+function Cifra({ etiqueta, valor, de, tono }: { etiqueta: string; valor: string; de: string; tono?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2">
+      <dt className="min-w-0 text-[12px] text-mute">{etiqueta}</dt>
+      <dd className="shrink-0 text-right">
+        <span className={cn("font-mono text-[15px] font-semibold tabular-nums", tono ?? "text-ink")}>{valor}</span>
+        <span className="ml-1.5 text-[11px] text-mute">de {de}</span>
+      </dd>
+    </div>
+  );
+}
+
+function Salto({ etiqueta, valor, de, onClick }: { etiqueta: string; valor: string; de: string; onClick: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="group flex w-full items-baseline justify-between gap-3 py-2 text-left transition-colors duration-rapido hover:bg-paper"
+      >
+        <span className="min-w-0 text-[12px] text-mute group-hover:text-ink">{etiqueta}</span>
+        <span className="flex shrink-0 items-baseline gap-1.5">
+          <span className="font-mono text-[15px] font-semibold text-ink tabular-nums">{valor}</span>
+          <span className="text-[11px] text-mute">de {de}</span>
+          <ArrowRight size={12} className="self-center text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-heroViolet" aria-hidden />
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function NotaAlcance({
+  alcance,
+  documentosListos,
+  enRevision,
+}: {
+  alcance: ZonaDetalle["alcance"] | undefined;
+  documentosListos: number;
+  enRevision: number;
+}) {
+  return (
+    <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-mute">
+      <p>
+        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>.
+        {documentosListos > 0 && (
+          <>
+            {" "}Además, <strong className="text-ink">{enteros(documentosListos)}</strong> contrato
+            {documentosListos === 1 ? "" : "s"} de otros tipos ya {documentosListos === 1 ? "tiene" : "tienen"} su
+            expediente descargado y el análisis en preparación.
+          </>
+        )}
+        {enRevision > 0 && (
+          <>
+            {" "}<strong className="text-inkSoft">{enteros(enRevision)}</strong> leído{enRevision === 1 ? "" : "s"} espera
+            {enRevision === 1 ? "" : "n"} revisión humana y no cuenta{enRevision === 1 ? "" : "n"} como señal.
+          </>
+        )}
+      </p>
+      <DetalleAlcance alcance={alcance} />
+    </div>
+  );
+}
+
+function DetalleAlcance({ alcance }: { alcance: ZonaDetalle["alcance"] | undefined }) {
+  return (
+    <details className="mt-1 text-[11px] text-mute">
+      <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
+        ¿Qué se analiza hoy?
+      </summary>
+      <p className="mt-1 leading-relaxed">{alcanceLargo(alcance)}</p>
+    </details>
+  );
+}
+
+function Vacio({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className="border-y border-dashed border-line py-4">
+      <p className="text-[13px] font-semibold text-ink">{titulo}</p>
+      <p className="mt-1 max-w-[46ch] text-[12px] leading-relaxed text-mute">{texto}</p>
+    </div>
+  );
+}
 
 function TabBtn({
   active,
@@ -697,104 +682,20 @@ function TabBtn({
       tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn(
-        "relative flex flex-1 items-center justify-center gap-1 px-1 py-2.5 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay",
+        "relative flex flex-1 shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2 py-2.5 text-[11px] font-medium transition-colors duration-rapido",
         active ? "text-ink" : "text-mute hover:text-ink",
       )}
     >
-      <span className={active ? "text-heroViolet" : ""} aria-hidden>{icon}</span>
+      <span className={active ? "text-heroViolet" : ""} aria-hidden>
+        {icon}
+      </span>
       <span>{children}</span>
       {count !== undefined && count > 0 && (
-        <span
-          className={cn(
-            "rounded-full px-1.5 py-0 text-[9px] font-bold",
-            active ? "bg-heroViolet text-paper" : "bg-paperDeep text-mute",
-          )}
-        >
+        <span className={cn("rounded-full px-1.5 py-0 text-[9px] font-bold tabular-nums", active ? "bg-heroViolet text-paper" : "bg-paperDeep text-mute")}>
           {count > 999 ? "999+" : count}
         </span>
       )}
       {active && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-heroViolet" />}
     </button>
-  );
-}
-
-/** Explica qué entra hoy a la cola y qué espera (otros tipos con documentos listos, revisión humana). */
-function AlcanceNota({
-  alcance,
-  documentosListos,
-  enRevision,
-}: {
-  alcance: ZonaDetalle["alcance"] | undefined;
-  documentosListos: number;
-  enRevision: number;
-}) {
-  return (
-    <div className="mt-2 space-y-1 text-[10px] leading-relaxed text-mute">
-      <p>
-        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>.
-        {documentosListos > 0 && (
-          <>
-            {" "}Además, <strong className="text-ink">{documentosListos.toLocaleString("es-PE")}</strong> contrato{documentosListos === 1 ? "" : "s"} de otros tipos ya
-            {documentosListos === 1 ? " tiene" : " tienen"} documentos listos (análisis en preparación).
-          </>
-        )}
-        {enRevision > 0 && (
-          <>
-            {" "}<strong className="text-clay">{enRevision}</strong> procesado{enRevision === 1 ? "" : "s"} en revisión humana (no cuenta{enRevision === 1 ? "" : "n"} como señal).
-          </>
-        )}
-      </p>
-      <AlcanceDetails alcance={alcance} />
-    </div>
-  );
-}
-
-function AlcanceDetails({ alcance }: { alcance: ZonaDetalle["alcance"] | undefined }) {
-  return (
-    <details className="group text-[10px] text-mute">
-      <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
-        ¿Qué se analiza hoy?
-      </summary>
-      <p className="mt-1 leading-relaxed">{alcanceLargo(alcance)}</p>
-    </details>
-  );
-}
-
-function MiniKpi({
-  label,
-  value,
-  tone,
-  title,
-}: {
-  label: string;
-  value: number;
-  tone: "ink" | "amber" | "moss" | "rust";
-  title?: string;
-}) {
-  const accent = { ink: "text-ink", amber: "text-amber", moss: "text-moss", rust: "text-rust" }[tone];
-  return (
-    <div className="rounded-lg bg-paperDeep px-2 py-1.5" title={title}>
-      <div className={cn("font-mono text-base font-bold leading-tight tabular-nums", accent)}>
-        {value.toLocaleString("es-PE")}
-      </div>
-      <div className="text-[9px] uppercase tracking-wider text-mute">{label}</div>
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div>
-      <dt className="text-[10px] uppercase tracking-wide text-mute">{k}</dt>
-      <dd className="font-mono text-[13px] text-ink">{v}</dd>
-    </div>
-  );
-}
-
-function EmptyTab({ text }: { text: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-line bg-paper p-8 text-center">
-      <p className="text-sm text-mute">{text}</p>
-    </div>
   );
 }

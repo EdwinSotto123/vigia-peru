@@ -33,7 +33,7 @@ export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMo
                     <span className="rounded-full bg-heroViolet px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-paper">GANADOR</span>
                   )}
                   {p.es_consorcio && (
-                    <span className="rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amber">CONSORCIO</span>
+                    <span className="rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">CONSORCIO</span>
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-mute">

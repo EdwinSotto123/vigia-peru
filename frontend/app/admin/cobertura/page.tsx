@@ -98,7 +98,7 @@ export default function CoberturaPage() {
                       <td className="px-3 py-1.5 font-mono text-[11px] text-ink">{l.id}</td>
                       <td className="text-[12px] text-mute">{l.tipo}</td>
                       <td className="font-mono text-xs">{l.ok.toLocaleString("es-PE")}/{l.total.toLocaleString("es-PE")}{l.fallidos ? <span className="text-rust"> · {l.fallidos} fallidos</span> : null}</td>
-                      <td><span className={`rounded-full px-2 py-0.5 text-[11px] ${l.estado === "ok" ? "bg-moss/10 text-moss" : l.estado === "error" ? "bg-crimson-soft text-crimson" : "bg-amber-soft text-amber"}`}>{l.estado}</span></td>
+                      <td><span className={`rounded-full px-2 py-0.5 text-[11px] ${l.estado === "ok" ? "bg-moss/10 text-moss" : l.estado === "error" ? "bg-crimson-soft text-crimsonTexto" : "bg-amber-soft text-amberTexto"}`}>{l.estado}</span></td>
                       <td className="px-3 text-right text-[11px] text-mute">{fmtDate(l.finalizadoAt ?? l.iniciadoAt)}</td>
                     </tr>
                   ))}

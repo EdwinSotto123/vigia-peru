@@ -182,7 +182,7 @@ export default async function LandingPage() {
             />
           </div>
           <div className="relative z-10 mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroGreen">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-heroGreen/30 bg-heroGreen/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroGreenTexto">
               <MapPin size={11} /> El mapa, en vivo
             </div>
             <h2 className="font-serif text-4xl font-bold leading-tight sm:text-6xl">
@@ -273,7 +273,7 @@ function AudienceCard({
         {title}
       </h3>
       <p className="text-sm leading-relaxed text-mute">{body}</p>
-      <span className="mt-auto pt-1 text-sm font-semibold text-heroGreen group-hover:underline">
+      <span className="mt-auto pt-1 text-sm font-semibold text-heroGreenTexto group-hover:underline">
         {action}
       </span>
     </Link>

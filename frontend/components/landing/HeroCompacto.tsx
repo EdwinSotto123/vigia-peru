@@ -48,7 +48,7 @@ export async function HeroCompacto() {
                   chips separados: cada dato tiene su propio borde, no una coma disfrazada
                   de punto. */}
               <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-heroGreen">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-heroGreen/30 bg-heroGreen/10 py-1.5 pl-1.5 pr-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-heroGreenTexto">
                   <PeruFlag size={16} className="rounded-[3px] shadow-sm ring-1 ring-black/10" />
                   Perú
                 </span>

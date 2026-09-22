@@ -55,7 +55,7 @@ function ReporteNuevoInner() {
               sientan como un solo viaje en vez de dos paletas sueltas. */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-heroGreen/20 blur-3xl" />
           <div className="relative space-y-4">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-heroGreen">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-heroGreenTexto">
               <Camera size={12} /> Vigilancia ciudadana
             </span>
             <h1 className="font-serif text-4xl font-bold leading-[1.05] sm:text-5xl">

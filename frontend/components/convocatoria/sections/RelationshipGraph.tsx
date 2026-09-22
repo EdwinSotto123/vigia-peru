@@ -241,7 +241,7 @@ export function RelationshipGraph({
       label: "Empresas vinculadas",
       count: (nodesByKind.company_main || 0) + (nodesByKind.company_titular || 0) + (nodesByKind.company_domicilio || 0),
       hint: "con mismo titular o domicilio",
-      color: "bg-amber/10 text-amber border-amber/30",
+      color: "bg-amber/10 text-amberTexto border-amber/30",
     },
     {
       key: "vinculos",
@@ -295,7 +295,7 @@ export function RelationshipGraph({
                     <span className="ml-1.5 text-inkSoft">— {redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</span>
                   )}
                   {b.requiere_verificacion && (
-                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amber">⏳ requiere verificación</span>
+                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">⏳ requiere verificación</span>
                   )}
                 </div>
               </li>
