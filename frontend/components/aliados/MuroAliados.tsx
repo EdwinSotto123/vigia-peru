@@ -4,6 +4,7 @@ import { getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { BlurFade } from "@/components/magicui/BlurFade";
 import { TarjetaAliado } from "./TarjetaAliado";
+import { Podio } from "./Podio";
 
 /** Tope de items con stagger propio: pasado esto, todos entran juntos al delay tope en
  * vez de seguir sumando 60-80ms por tarjeta (con TAM=24 por página, una cascada sin tope
@@ -137,30 +138,12 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
     <div className="space-y-12">
       <section>
         {/* Antes esta línea era un titular font-serif 2xl/3xl -- competía en peso visual con
-            el propio H1 de la página y con la tarjeta de abajo. Es contexto de apoyo, no el
-            protagonista: la empresa/tarjeta lo es. */}
+            el propio H1 de la página y con el podio de abajo. Es contexto de apoyo, no el
+            protagonista: la empresa lo es. */}
         <p className="max-w-2xl text-sm leading-relaxed text-mute sm:text-base">{encabezado}</p>
-        <div className="mt-6 flex items-end justify-between gap-3">
-          <h2 className="text-[11px] uppercase tracking-wide text-mute">Aliados {periodoDestacado}</h2>
-          <span className="text-[11px] text-mute">se cuenta en contratos, no en soles</span>
+        <div className="mt-6">
+          <Podio destacados={destacados} periodoDestacado={periodoDestacado} />
         </div>
-        {destacados.length === 1 ? (
-          // Un solo aliado real (hoy, el caso normal): tarjeta spotlight a todo el ancho en
-          // vez de una grilla de 3 columnas con la tarjeta angosta y dos huecos vacíos al lado.
-          <div className="mt-3">
-            <BlurFade>
-              <TarjetaAliado row={destacados[0]} posicion={1} destacado spotlight />
-            </BlurFade>
-          </div>
-        ) : (
-          <div className={`mt-3 grid gap-4 ${destacados.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-            {destacados.map((r, i) => (
-              <BlurFade key={r.id} delayMs={i * 80} className="flex">
-                <TarjetaAliado row={r} posicion={i + 1} destacado />
-              </BlurFade>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* totalPagina > destacados.length, no totalPagina > 0: con 1-3 aliados en total, ya
