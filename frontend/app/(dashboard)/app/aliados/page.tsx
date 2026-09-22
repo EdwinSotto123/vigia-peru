@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, HeartHandshake, Scale, ShieldCheck, Trophy } from "lucide-react";
+import { AlertTriangle, ArrowRight, FileCheck2, HeartHandshake, Scale, ShieldCheck, Trophy, Users } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
-import { KpiTile } from "@/components/aliados/KpiTile";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { BlurFade } from "@/components/magicui/BlurFade";
+import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -43,10 +43,25 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
               reconocimiento es proporcional a lo que hicieron posible auditar, nada más.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <KpiTile label={estado?.financiadores === 1 ? "Aliado" : "Aliados"} value={estado?.financiadores ?? 0} />
-            <KpiTile label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
-            <KpiTile label="Señales halladas" value={estado?.senalesHalladas ?? 0} valueTone={(estado?.senalesHalladas ?? 0) > 0 ? "rust" : undefined} />
+          {/* Antes: 3 KpiTile sueltos con gap-3 entre ellos -- tres cajas blancas casi
+              idénticas flotando con más espacio en blanco entre medio que contenido propio,
+              sin ningún ícono que distinga una cifra de otra. Un solo panel con divisores
+              internos en vez de huecos, e ícono por estadística. */}
+          <div className="overflow-hidden rounded-2xl border border-line bg-paper shadow-card">
+            <div className="grid grid-cols-3 divide-x divide-line">
+              <EstadisticaHero
+                icon={<Users size={16} />}
+                label={estado?.financiadores === 1 ? "Aliado" : "Aliados"}
+                value={estado?.financiadores ?? 0}
+              />
+              <EstadisticaHero icon={<FileCheck2 size={16} />} label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
+              <EstadisticaHero
+                icon={<AlertTriangle size={16} />}
+                label="Señales halladas"
+                value={estado?.senalesHalladas ?? 0}
+                tono={(estado?.senalesHalladas ?? 0) > 0 ? "rust" : undefined}
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -103,6 +118,20 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function EstadisticaHero({ icon, label, value, tono }: { icon: React.ReactNode; label: string; value: number; tono?: "rust" }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 px-3 py-4 text-center sm:py-5">
+      <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${tono === "rust" ? "bg-rust/10 text-rust" : "bg-heroViolet/10 text-heroViolet"}`}>
+        {icon}
+      </span>
+      <div className={`font-mono text-2xl font-bold sm:text-3xl ${tono === "rust" ? "text-rust" : "text-ink"}`}>
+        <NumberTicker value={value} />
+      </div>
+      <div className="text-[10px] uppercase tracking-wide text-mute sm:text-[11px]">{label}</div>
     </div>
   );
 }
