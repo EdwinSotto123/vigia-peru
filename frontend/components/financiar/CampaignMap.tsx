@@ -326,8 +326,11 @@ export function CampaignMap({
           </div>
         )}
 
-        {/* Leyenda */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute">
+        {/* Leyenda. En la landing el mapa ya tiene su leyenda en la columna de
+            la derecha, con el texto que explica qué significa el tono: repetirla
+            debajo del lienzo era decir lo mismo dos veces en la misma pantalla.
+            En /app/financiar, donde no hay columna al costado, se mantiene. */}
+        <div className={cn("mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute", landingVariant && colorBy === "cola" && "hidden")}>
           {(sinFinanciamiento || colorBy === "cola") && (
             <span className={cn("inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1", landingVariant ? "shadow-card" : "shadow-sm")}>
               <span

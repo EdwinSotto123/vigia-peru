@@ -1,15 +1,22 @@
 /**
- * Recorte directo de referencias/fondollama.jpg (provisto por el usuario como
- * referencia visual — 1024x481) — la llama + fondo de Machu Picchu que pidió usar tal
- * cual, no un dibujo nuevo: background-position/-size sobre el archivo real, sin
- * regenerar arte (no hay herramienta de generación de imágenes disponible).
+ * La llama de Vigía, recortada del arte que entregó el usuario
+ * (`public/assets/fondo/fondo_llama.jpg`, 2998×1408).
+ *
+ * El archivo es una lámina ancha con la llama contra el borde derecho y el
+ * resto en blanco, así que acá se recorta por `background-position` en vez de
+ * servir la lámina entera: el hero necesita la llama, no el metro y medio de
+ * blanco que la acompaña.
+ *
+ * El degradado de máscara al pie es para que apoye sobre el fondo en vez de
+ * terminar en un corte recto.
  */
-const NATURAL_W = 1024;
-const NATURAL_H = 481;
-const CROP_X = 600;
-const CROP_Y = 0;
-const CROP_W = 424;
-const CROP_H = 481;
+const NATURAL_W = 2998;
+const NATURAL_H = 1408;
+/** Caja de la llama dentro de la lámina (medida sobre el arte original). */
+const CROP_X = 2480;
+const CROP_Y = 300;
+const CROP_W = 518;
+const CROP_H = 1108;
 
 export function LlamaHero({ width = 260, className = "" }: { width?: number; className?: string }) {
   const scale = width / CROP_W;
@@ -21,11 +28,18 @@ export function LlamaHero({ width = 260, className = "" }: { width?: number; cla
       style={{
         width,
         height,
-        backgroundImage: "url(/assets/referencias/fondollama.jpg)",
+        backgroundImage: "url(/assets/fondo/fondo_llama.jpg)",
         backgroundSize: `${NATURAL_W * scale}px ${NATURAL_H * scale}px`,
         backgroundPosition: `${-CROP_X * scale}px ${-CROP_Y * scale}px`,
-        maskImage: "linear-gradient(to bottom, black 82%, transparent 100%)",
-        WebkitMaskImage: "linear-gradient(to bottom, black 82%, transparent 100%)",
+        backgroundRepeat: "no-repeat",
+        // El arte es un JPEG: el blanco de alrededor está horneado y no hay
+        // canal alfa, así que recortado a secas la llama aparecía dentro de una
+        // caja blanca. `multiply` deja pasar el fondo donde el arte es blanco y
+        // conserva el trazo donde es oscuro — el recorte correcto sería un PNG
+        // con transparencia, pero esto lo resuelve sin volver a generar el arte.
+        mixBlendMode: "multiply",
+        maskImage: "linear-gradient(to bottom, black 86%, transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to bottom, black 86%, transparent 100%)",
       }}
     />
   );

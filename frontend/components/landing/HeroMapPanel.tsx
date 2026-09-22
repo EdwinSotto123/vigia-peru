@@ -28,8 +28,10 @@ function formatPEN(n: number) {
 // % del viewBox: el mismo % representa un ancho real distinto según el mapa sea angosto
 // (mobile) o ancho (desktop), y un "flip" por umbral fijo no puede corregir eso en todos
 // los tamaños — por eso el clamp usa containerWidth medido, no un porcentaje.
-const CARD_W = 235; // debe matchear el w-[235px] del card más abajo
-const CARD_H_MAX = 180; // alto máximo aproximado (4 stats + botón "Ver contratos")
+// El chip anclado al mapa (antes acá vivía una tarjeta de 235×180; la ficha se
+// mudó a la columna derecha y lo que queda sobre el lienzo es una píldora).
+const CARD_W = 210;
+const CARD_H_MAX = 34;
 const EDGE_MARGIN = 10;
 
 export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona[]; alertas: Alerta[] }) {
@@ -117,102 +119,108 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
 
   const topMax = top[0]?.totalCola ?? 0;
 
+  const regionId = clicked ? UBIGEO_REGION[clicked.ubigeo] ?? "" : "";
+
   return (
-    <div ref={containerRef} className="relative">
-      {/* Wrapper propio para mapa+caption: la llama ancla a SU borde inferior, no al de
-          todo el bloque (que también incluye "Más contratos en cola" más abajo) — antes
-          el ancla -bottom-4/-right-4 quedaba pegada al fondo de ese bloque entero y los
-          tiles de región (que pintan después en el DOM) tapaban la mitad de la llama. */}
-      <div className="relative">
-        {zonas.length > 0 ? (
-          <CampaignMap
-            zonas={zonas}
-            compact
-            landingVariant
-            colorBy="cola"
-            selectedCode={clickedCode}
-            onRegionClick={handleMapClick}
-          />
-        ) : (
-          <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>
-        )}
-        <p className="mt-1 text-center font-mono text-[10px] text-mute/70">SEACE · OECE · OCDS — datos oficiales, en vivo</p>
-        <LlamaHero width={168} className="pointer-events-none absolute -bottom-4 -right-4 hidden drop-shadow-xl sm:block" />
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_296px] xl:gap-6">
+      {/* ─── COLUMNA DEL MEDIO: el mapa ─────────────────────────────────── */}
+      {/* El ref de medición va ACÁ, en la columna del mapa: el chip se ancla al
+          centroide de la región en píxeles reales del LIENZO, así que medir la
+          grilla entera (mapa + ficha) lo mandaba fuera del mapa. */}
+      <div ref={containerRef} className="min-w-0">
+        <div className="relative">
+          {zonas.length > 0 ? (
+            <CampaignMap
+              zonas={zonas}
+              compact
+              landingVariant
+              colorBy="cola"
+              selectedCode={clickedCode}
+              onRegionClick={handleMapClick}
+            />
+          ) : (
+            <div className="p-10 text-center text-sm text-mute">Mapa no disponible por ahora.</div>
+          )}
+
+          {/* Chip anclado a la región elegida. Antes acá vivía la ficha entera,
+              flotando ENCIMA del mapa y tapando justo la geografía que el
+              usuario acababa de tocar. La ficha se fue a la columna de la
+              derecha; lo que queda sobre el lienzo es sólo el nombre y la
+              cifra que confirman qué se eligió. */}
+          {clicked && (
+            <div
+              ref={cardRef}
+              tabIndex={-1}
+              role="status"
+              aria-label={clicked.nombre}
+              className={`animate-slideUp absolute z-10 flex items-center gap-2 rounded-full border border-line bg-paper/95 py-1.5 pl-2.5 pr-1.5 shadow-paper backdrop-blur focus:outline-none ${cardStyle ? "" : "left-2 top-2"}`}
+              style={cardStyle ?? undefined}
+            >
+              <MapPin size={13} className="shrink-0 text-heroViolet" aria-hidden />
+              <span className="text-[12px] font-semibold text-ink">{clicked.nombre}</span>
+              <span className="font-mono text-[11px] tabular-nums text-mute">
+                {clicked.totalCola.toLocaleString("es-PE")} en cola
+              </span>
+              <button
+                onClick={closeCard}
+                aria-label="Quitar la región elegida"
+                className="rounded-full p-1 text-mute transition-colors hover:bg-paperDeep hover:text-ink"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="mt-1.5 text-center font-mono text-[10px] text-mute/70">SEACE · OECE · OCDS — datos oficiales, en vivo</p>
       </div>
 
-      {/* Tarjeta flotante: región elegida (datos reales, no fijos) */}
-      {clicked && (
+      {/* ─── COLUMNA DERECHA: qué hay en esa zona, y la llama ────────────── */}
+      <aside className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-line bg-paper/70 p-4 pb-0 backdrop-blur-sm">
+        {/* Machu Picchu de fondo: es una lámina muy clara, así que se apoya
+            abajo y se desvanece hacia arriba para no competir con el texto. */}
         <div
-          ref={cardRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-label={clicked.nombre}
-          className={`animate-slideUp absolute z-10 w-[235px] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-paper backdrop-blur focus:outline-none ${cardStyle ? "" : "left-1 top-1"}`}
-          style={cardStyle ?? undefined}
-        >
-          <RegionPhoto ubigeo={clicked.ubigeo} nombre={clicked.nombre} />
-          <button
-            onClick={closeCard}
-            aria-label="Cerrar"
-            className="absolute right-2 top-2 z-10 rounded-full bg-paper/80 p-1 text-mute shadow-sm backdrop-blur transition-colors hover:bg-paperDeep hover:text-ink"
-          >
-            <X size={12} />
-          </button>
-          <div className="p-3">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-heroViolet">
-              <MapPin size={12} /> {clicked.nombre}
-            </span>
-            {clicked.totalCola > 0 ? (
-              <>
-                <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
-                  <Stat k="Contratos" v={clicked.totalCola.toLocaleString("es-PE")} />
-                  <Stat k="Pendientes" v={clicked.pendientes.toLocaleString("es-PE")} />
-                  <Stat k="Señales" v={clicked.senales.toLocaleString("es-PE")} />
-                  <Stat k="Costo auditarla" v={formatPEN(costoAuditar)} />
-                </dl>
-                <Link
-                  href={`/app/mapa?region=${UBIGEO_REGION[clicked.ubigeo] ?? ""}`}
-                  className="mt-2.5 flex items-center justify-center gap-1 rounded-lg bg-heroGreen/10 py-1.5 text-[11px] font-semibold text-heroGreenTexto transition-colors hover:bg-heroGreen/20"
-                >
-                  Ver contratos <ArrowUpRight size={12} />
-                </Link>
-              </>
-            ) : (
-              <p className="mt-1.5 text-[12px] text-mute">Todavía no ingresamos contratos de esta zona.</p>
-            )}
-          </div>
-        </div>
-      )}
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-2/3 bg-cover bg-bottom opacity-45"
+          style={{
+            backgroundImage: "url(/assets/fondo/fondo_machupichu.jpg)",
+            maskImage: "linear-gradient(to top, black 55%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to top, black 55%, transparent 100%)",
+          }}
+        />
 
-      {/* Tarjeta flotante: un contrato ya procesado, real — reacciona a la región elegida
-          en vez de mostrar siempre el mismo caso (key=featured.id repite la animación de
-          entrada cuando cambia, para que se note que es nuevo, no el mismo texto quieto). */}
-      {featured && (
-        <div key={featured.id} className="animate-slideUp absolute right-1 top-1 z-10 hidden w-[220px] rounded-2xl border border-line border-l-[3px] border-l-heroViolet bg-paper/95 p-3 shadow-paper backdrop-blur md:block">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-rust/10 px-2 py-0.5 text-[10px] font-bold text-rust">
-              <AlertTriangle size={10} /> score {featured.score}
-            </span>
-            <span className="text-[9px] uppercase tracking-wide text-mute">
-              {featuredEsRegional ? `en ${clicked?.nombre}` : "a nivel nacional"}
-            </span>
-          </div>
-          <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug text-ink">{featured.entidad}</p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-mute">{featured.objeto}</p>
-          <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
-            <span className="font-mono text-[11px] text-ink">{formatPEN(featured.montoSoles)}</span>
-            <Link
-              href={`/app/convocatoria/${encodeURIComponent(featured.codigoconvocatoria)}`}
-              className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-heroGreenTexto hover:underline"
-            >
-              Ver detalles <ArrowUpRight size={11} />
-            </Link>
-          </div>
-        </div>
-      )}
+        {clicked ? (
+          <FichaZona zona={clicked} costo={costoAuditar} regionId={regionId} />
+        ) : featured ? (
+          <FichaContrato alerta={featured} />
+        ) : null}
 
+        {/* Leyenda. Dice lo que el mapa REALMENTE codifica —intensidad de cola,
+            en una rampa violeta— y no los estados de la referencia, que este
+            mapa no pinta. Una leyenda que no corresponde al dibujo es peor que
+            ninguna. */}
+        <div className="rounded-2xl border border-line bg-paper/85 px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-inkSoft">Contratos esperando lectura</p>
+          <div
+            aria-hidden
+            className="mt-1.5 h-2 w-full rounded-full"
+            style={{ background: "linear-gradient(to right, hsl(252 42% 92%), hsl(252 42% 68%), hsl(252 42% 38%))" }}
+          />
+          <div className="mt-1 flex justify-between font-mono text-[10px] tabular-nums text-mute">
+            <span>menos</span>
+            <span>más</span>
+          </div>
+          <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
+            Cada zona se pinta por cuántos contratos suyos esperan que alguien financie su lectura.
+          </p>
+        </div>
+
+        <LlamaHero width={150} className="pointer-events-none -mb-1 self-end drop-shadow-xl" />
+      </aside>
+
+      {/* Atajo a las zonas con más cola. Va debajo de las dos columnas, no
+          dentro de una: es un control del mapa entero. */}
       {top.length > 0 && (
-        <div className="mt-3">
+        <div className="xl:col-span-2">
           <p className="mb-1.5 text-center font-mono text-[9px] uppercase tracking-widest text-mute/70">
             Más contratos en cola
           </p>
@@ -239,6 +247,77 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Qué hay en la zona que el usuario acaba de tocar. Es la respuesta a "¿y en mi
+ * región qué pasa?", que es la única pregunta con la que un vecino entra a este
+ * sitio. Cada cifra va con su unidad en la misma línea, nunca suelta.
+ */
+function FichaZona({ zona, costo, regionId }: { zona: Zona; costo: number; regionId: string }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-line bg-paper/90 shadow-card">
+      <RegionPhoto ubigeo={zona.ubigeo} nombre={zona.nombre} />
+      <div className="p-3">
+        <h3 className="font-serif text-lg font-bold leading-tight text-ink">{zona.nombre}</h3>
+        {zona.totalCola > 0 ? (
+          <>
+            <dl className="mt-2 space-y-1.5 text-[12px]">
+              <Fila k="Contratos en cola" v={zona.totalCola.toLocaleString("es-PE")} />
+              <Fila k="Sin financiar" v={zona.pendientes.toLocaleString("es-PE")} />
+              <Fila k="Señales halladas" v={zona.senales.toLocaleString("es-PE")} destacado={zona.senales > 0} />
+              <Fila k="Leerla entera cuesta" v={formatPEN(costo)} />
+            </dl>
+            <Link
+              href={`/app/mapa?region=${regionId}`}
+              className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-heroViolet py-2 text-[12px] font-semibold text-paper transition-colors hover:bg-heroViolet-deep"
+            >
+              Ver sus contratos <ArrowUpRight size={13} />
+            </Link>
+          </>
+        ) : (
+          <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
+            Todavía no ingresamos contratos de esta zona. Aparecen acá cuando el lote nocturno los trae del SEACE.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sin zona elegida la columna no se queda vacía: muestra un contrato REAL ya
+ * leído, con su señal y su monto. Es la prueba de que esto no es una maqueta —
+ * y es lo que la referencia tenía como tarjeta de entidad, pero con un caso que
+ * existe de verdad.
+ */
+function FichaContrato({ alerta }: { alerta: Alerta }) {
+  return (
+    <div className="rounded-2xl border border-line bg-paper/90 p-3 shadow-card">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-mute">Lo último que encontramos</p>
+      <p className="mt-1.5 line-clamp-2 font-semibold leading-snug text-ink">{alerta.entidad}</p>
+      <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-mute">{alerta.objeto}</p>
+      <dl className="mt-2.5 space-y-1.5 border-t border-line pt-2.5 text-[12px]">
+        <Fila k="Monto adjudicado" v={formatPEN(alerta.montoSoles)} />
+        <Fila k="Riesgo" v={`${alerta.score}/100`} destacado />
+      </dl>
+      <Link
+        href={`/app/convocatoria/${encodeURIComponent(alerta.codigoconvocatoria)}`}
+        className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-line bg-paperSoft py-2 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
+      >
+        Ver el dictamen <ArrowUpRight size={13} />
+      </Link>
+    </div>
+  );
+}
+
+function Fila({ k, v, destacado }: { k: string; v: string; destacado?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-mute">{k}</dt>
+      <dd className={`font-mono font-semibold tabular-nums ${destacado ? "text-rust" : "text-ink"}`}>{v}</dd>
     </div>
   );
 }

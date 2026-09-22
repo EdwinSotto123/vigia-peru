@@ -36,13 +36,16 @@ export async function HeroCompacto() {
       <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-32 h-[360px] w-[360px] rounded-full bg-heroGreen/15 blur-3xl" />
       <div className="container-page relative max-w-[1600px] py-6 sm:py-8">
         <HeroMapSyncProvider zonas={zonasList}>
-          {/* El mapa es un SVG 480×640 (más alto que ancho, 4:3 invertido) — a ancho casi
-              igual al de la columna de texto (1fr_0.95fr) terminaba más alto que la
-              pantalla entera (medido: 848px de mapa + lista de zonas, contra 900px de
-              viewport). 1.35fr/0.8fr lo angosta ~20% (y por lo tanto lo achica en alto en
-              la misma proporción, mismo aspect ratio) para que el hero completo — mapa
-              incluido — entre en una sola pantalla en laptops típicas. */}
-          <div className="grid items-start gap-8 lg:grid-cols-[1.35fr_0.8fr] lg:gap-10">
+          {/* Tres columnas: el discurso a la izquierda, el mapa al medio, y a la
+              derecha qué hay en la zona que tocaste. Antes eran dos, con las
+              fichas flotando ENCIMA del mapa y tapando justo la geografía que el
+              usuario acababa de elegir.
+
+              El corte real es en `xl`: la tercera columna la abre HeroMapPanel
+              con su propia grilla interna, así que por debajo de ese ancho el
+              bloque se comporta como dos columnas (texto | mapa+ficha apilados)
+              y en móvil como una sola. */}
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-10">
             <div>
               {/* Antes era una sola píldora con 3 datos unidos por "·" — ahora son dos
                   chips separados: cada dato tiene su propio borde, no una coma disfrazada
