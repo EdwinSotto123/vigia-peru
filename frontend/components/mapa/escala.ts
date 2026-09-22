@@ -94,14 +94,37 @@ export const MEDIDAS: Medida[] = [
 export const medidaPorId = (id: MedidaId): Medida => MEDIDAS.find((m) => m.id === id) ?? MEDIDAS[0];
 
 /**
- * Rampa secuencial cálida (tokens `warm1`…`warm5` de tailwind.config).
- * `warm0` queda fuera de la rampa: es el color de **sin dato**, y además va
- * rayado, porque un tono más claro dentro de la misma rampa se lee como
- * "poco", no como "no sabemos". Ese era el defecto de la escala anterior:
- * `pendiente #D9DEE4` y `sin_datos #EEF1F4` eran el mismo gris (ΔE 5,8).
+ * Rampa del coropleto, en el violeta de la marca.
+ *
+ * La anterior era cálida (#D9B97A → #4A150C) y tenía tres problemas medidos:
+ *
+ * 1. No pertenecía a ningún lado. El hub del producto estaba pintado con una
+ *    paleta que no existe en el resto del sitio; ni heroViolet ni heroGreen
+ *    aparecían en todo el mapa.
+ * 2. Chocaba de TONO con la severidad. Los puntos de señal son rojos (rust
+ *    #A81E12) y caían sobre marrones rojizos: mismo tono, apenas distinta
+ *    luminancia (1,28:1 sobre el cuarto escalón). Un punto de alarma rojo
+ *    sobre un fondo rojizo es exactamente lo que un mapa no debe hacer.
+ * 3. Su escalón más claro daba 1,88:1 contra el lienzo blanco.
+ *
+ * Esta rampa termina en heroViolet-deep #332463 y pasa por #4A3A96, a un paso
+ * de heroViolet #4F3D96: los departamentos más altos quedan en el violeta de
+ * Vigía. Y como el violeta y el rojo son tonos distintos, el punto de señal se
+ * separa por matiz y no sólo por brillo, que es la separación que sobrevive a
+ * una pantalla barata y al sol de la calle.
+ *
+ * Medido: claro 2,50:1 contra blanco (antes 1,88), oscuro 13,35:1, y la
+ * separación mínima entre escalones adyacentes sube de 1,45 a 1,49.
  */
-export const RAMPA = ["#D9B97A", "#C28840", "#A05A1F", "#7A2E18", "#4A150C"] as const;
-export const SIN_DATO = "#E8DFC7";
+export const RAMPA = ["#A49AEB", "#8474D9", "#6553BE", "#4A3A96", "#332463"] as const;
+
+/**
+ * "Sin dato" es neutro, no un sexto escalón. Antes era un crema (#E8DFC7) que
+ * pertenecía a la familia de la rampa cálida y se leía como "poquito", cuando
+ * significa "no sabemos". En gris no compite con la escala.
+ */
+export const SIN_DATO = "#EEF0F3";
+export const SIN_DATO_TRAMA = "#C2C8D0";
 export const ESCALONES = RAMPA.length;
 
 /**
@@ -218,4 +241,31 @@ export function nivelDeEtiqueta(fill: string): "alto" | "medio" | "bajo" {
   if (L < 0.10) return "alto";
   if (L < 0.35) return "medio";
   return "bajo";
+}
+
+/* ── Filtro "ver solo" ─────────────────────────────────────────────────────
+   Acota el mapa a lo que importa para una tarea concreta, atenuando lo que
+   no cumple en vez de esconderlo: el país tiene que seguir entero para que
+   "dónde sí pasa esto" se lea contra "dónde no". */
+
+export type FiltroZona = "todas" | "senal" | "financiadas" | "sinleer";
+
+export const FILTROS: { id: FiltroZona; label: string; ayuda: string }[] = [
+  { id: "todas", label: "Todas", ayuda: "Los 25 departamentos, sin acotar." },
+  { id: "senal", label: "Con señal", ayuda: "Sólo donde ya se publicó al menos una señal de riesgo." },
+  { id: "financiadas", label: "Financiadas", ayuda: "Sólo donde alguien pagó para que se leyeran contratos." },
+  { id: "sinleer", label: "Sin leer", ayuda: "Sólo donde hay contratos en cola y todavía nadie los financió." },
+];
+
+/** ¿Esta zona pasa el filtro? Recibe las cifras ya resueltas por el contenedor. */
+export function pasaFiltro(
+  f: FiltroZona,
+  z: { conSenales?: number; procesados?: number; enCola?: number } | undefined,
+): boolean {
+  if (f === "todas") return true;
+  if (!z) return false;
+  if (f === "senal") return (z.conSenales ?? 0) > 0;
+  if (f === "financiadas") return (z.procesados ?? 0) > 0;
+  if (f === "sinleer") return (z.enCola ?? 0) > 0 && (z.procesados ?? 0) === 0;
+  return true;
 }

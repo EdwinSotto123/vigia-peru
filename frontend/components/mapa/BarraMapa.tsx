@@ -4,7 +4,7 @@ import { AlertTriangle, Bell, MessageSquareWarning, WifiOff } from "lucide-react
 import { cn } from "@/lib/utils";
 import { FiltroMes, type RangoMes } from "./FiltroMes";
 import { LeyendaEscala } from "./LeyendaEscala";
-import { MEDIDAS, type Escala, type Medida, type MedidaId } from "./escala";
+import { FILTROS, MEDIDAS, type Escala, type FiltroZona, type Medida, type MedidaId } from "./escala";
 
 /**
  * Barra de control del mapa: qué se pinta, de qué mes, qué capas se ven y qué
@@ -14,6 +14,8 @@ import { MEDIDAS, type Escala, type Medida, type MedidaId } from "./escala";
 export function BarraMapa({
   medida,
   onMedida,
+  filtro,
+  onFiltro,
   escala,
   medidaActual,
   ambito,
@@ -34,6 +36,8 @@ export function BarraMapa({
 }: {
   medida: MedidaId;
   onMedida: (m: MedidaId) => void;
+  filtro: FiltroZona;
+  onFiltro: (f: FiltroZona) => void;
   escala: Escala;
   medidaActual: Medida;
   ambito: string;
@@ -88,6 +92,32 @@ export function BarraMapa({
               )}
             >
               {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* "Ver solo": acota el mapa a la pregunta que el usuario tiene en la
+            cabeza. Atenúa lo que no cumple en vez de esconderlo, porque el
+            valor está en ver dónde SÍ pasa contra dónde no. */}
+        <div
+          className="scrollbar-warm flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-line bg-paperDeep p-0.5"
+          role="group"
+          aria-label="Acotar el mapa"
+        >
+          <span className="hidden shrink-0 whitespace-nowrap px-2 text-[11px] text-inkSoft sm:inline">Ver solo</span>
+          {FILTROS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onFiltro(f.id)}
+              aria-pressed={filtro === f.id}
+              title={f.ayuda}
+              className={cn(
+                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                filtro === f.id ? "bg-heroViolet text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
+              )}
+            >
+              {f.label}
             </button>
           ))}
         </div>

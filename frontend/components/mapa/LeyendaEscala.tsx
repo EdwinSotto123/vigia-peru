@@ -3,10 +3,10 @@
 import { HelpCircle } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import { ContratoPinLeyenda } from "@/components/contratos/ContratoPin";
-import { SIN_DATO, type Escala, type Medida } from "./escala";
+import { SIN_DATO, SIN_DATO_TRAMA, type Escala, type Medida } from "./escala";
 
 /** Mismo rayado que el patrón `sin-dato` del SVG, para que la leyenda y el mapa coincidan. */
-const RAYADO = `repeating-linear-gradient(45deg, ${SIN_DATO} 0 3px, #B9AE93 3px 4px)`;
+const RAYADO = `repeating-linear-gradient(45deg, ${SIN_DATO} 0 3px, ${SIN_DATO_TRAMA} 3px 4px)`;
 
 /**
  * Leyenda del coropleto. Vive **en la barra de filtros**, no flotando sobre el
@@ -58,7 +58,13 @@ export function LeyendaEscala({
           // Chips y no una rampa con números debajo: los rótulos de una rampa se
           // pisan entre sí en cuanto un corte tiene siete dígitos, y este mapa
           // pasa de "59" a "S/ 5,7 mil M" según la medida elegida.
-          <ul className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          // Tres columnas, no una tira que envuelve. Con cortes de siete dígitos
+          // ("≥ S/ 1,1 mil M") la tira se rompía a una entrada por línea y la
+          // leyenda pasaba a ocupar seis renglones. En rejilla, los seis valores
+          // entran en dos filas y —lo que más importa— quedan alineados en
+          // columna, que es lo que permite comparar un corte con el siguiente de
+          // un vistazo en vez de leerlos uno por uno.
+          <ul className="grid w-fit grid-cols-3 gap-x-5 gap-y-1">
             {escala.tramos.map((t, i) => (
               <li
                 key={t.color + i}

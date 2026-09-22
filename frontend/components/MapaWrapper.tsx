@@ -19,7 +19,7 @@ import { type RangoMes } from "./mapa/FiltroMes";
 import { BarraMapa } from "./mapa/BarraMapa";
 import { FichaRegion } from "./mapa/FichaRegion";
 import { SenalesRecientes } from "./mapa/SenalesRecientes";
-import { construirEscala, formatoSoles, medidaPorId, type MedidaId } from "./mapa/escala";
+import { construirEscala, formatoSoles, medidaPorId, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import { cn } from "@/lib/utils";
 import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
@@ -61,6 +61,7 @@ export function MapaWrapper({
 } = {}) {
   // ─── Estado de navegación ────────────────────────────────────────────────
   const [medida, setMedida] = useState<MedidaId>("monto");
+  const [filtro, setFiltro] = useState<FiltroZona>("todas");
   const [regionUb, setRegionUb] = useState<string | null>(
     (initialRegionId && REGION_UBIGEO[initialRegionId]) || null,
   );
@@ -291,10 +292,11 @@ export function MapaWrapper({
         sinDato,
         resumen: resumenDe(z, sinDato),
         destacada: verMisZonas && misRegiones.has(ub),
+        apagada: !pasaFiltro(filtro, z),
       };
     }
     return out;
-  }, [geoPais, escalaPais, m, cargandoPais, falloGeo, verMisZonas, misRegiones, resumenDe]);
+  }, [geoPais, escalaPais, m, cargandoPais, falloGeo, verMisZonas, misRegiones, resumenDe, filtro]);
 
   const provincias = useMemo(() => {
     if (!regionUb) return undefined;
@@ -558,6 +560,8 @@ export function MapaWrapper({
           <BarraMapa
             medida={medida}
             onMedida={setMedida}
+            filtro={filtro}
+            onFiltro={setFiltro}
             escala={escalaActiva}
             medidaActual={m}
             ambito={ambito}

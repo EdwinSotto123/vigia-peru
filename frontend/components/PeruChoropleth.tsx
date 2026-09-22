@@ -5,7 +5,7 @@ import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { AlertCircle, Terminal } from "lucide-react";
 import { ContratoPin } from "./contratos/ContratoPin";
-import { nivelDeEtiqueta, tintaSobre } from "./mapa/escala";
+import { nivelDeEtiqueta, tintaSobre, SIN_DATO, SIN_DATO_TRAMA } from "./mapa/escala";
 
 const VB_W = 480;
 const VB_H = 700;
@@ -63,6 +63,12 @@ export interface ZonaPintada {
   resumen: string;
   /** Zona seguida por el usuario ("Mis zonas"): contorno, nunca relleno — el relleno es el dato. */
   destacada?: boolean;
+  /**
+   * La zona no cumple el filtro activo. Se apaga a gris, no se esconde: el país
+   * tiene que seguir entero para que "dónde SÍ pasa esto" se lea contra "dónde
+   * no". Un mapa al que le faltan pedazos deja de ser un mapa.
+   */
+  apagada?: boolean;
 }
 
 export interface PeruChoroplethProps {
@@ -381,8 +387,8 @@ export function PeruChoropleth({
           {/* "Sin dato" va rayado, no en un tono más claro de la misma rampa:
               un tono más claro se lee como "poco", y acá el mensaje es "no sabemos". */}
           <pattern id="sin-dato" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="5" height="5" fill="#E8DFC7" />
-            <line x1="0" y1="0" x2="0" y2="5" stroke="#B9AE93" strokeWidth="1.1" />
+            <rect width="5" height="5" fill={SIN_DATO} />
+            <line x1="0" y1="0" x2="0" y2="5" stroke={SIN_DATO_TRAMA} strokeWidth="1.1" />
           </pattern>
 
           <filter id="paper-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -410,7 +416,8 @@ export function PeruChoropleth({
             {deptPaths.map((p) => {
               const z = regiones[p.ubigeo];
               const isSelected = seleccion === p.ubigeo;
-              const isDimmed = seleccion !== null && !isSelected;
+              // Apagado por filtro o por tener otra region abierta: mismo gris.
+              const isDimmed = (seleccion !== null && !isSelected) || !!z?.apagada;
               const activa = activaUbigeo === p.ubigeo;
               return (
                 <path
@@ -540,7 +547,13 @@ export function PeruChoropleth({
                 // El radio lo decide el contenedor (`r`), que es quien conoce la
                 // clasificación de `lib/severidad`: acá no se compara ningún score.
                 const r = (pt.r ?? 3.4) / zoomScale;
-                const sw2 = 0.8 / zoomScale;
+                // Anillo blanco de 1,6 px REALES, no 0,8 unidades de viewBox
+                // (que en móvil renderizaban medio píxel). Es lo que separa el
+                // punto de señal del relleno del departamento: entre el color
+                // del punto y el escalón de abajo la diferencia de brillo puede
+                // bajar a 1,03:1, así que la separación no puede depender del
+                // contraste entre los dos colores — la tiene que dar el anillo.
+                const sw2 = 1.6 / (fitScale * zoomScale);
                 return (
                   <circle
                     key={`pt-${pt.id}`}
