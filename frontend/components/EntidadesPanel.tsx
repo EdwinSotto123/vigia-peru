@@ -14,7 +14,8 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { TIPO_SHORT, type TipoEntidad } from "@/lib/mock-entities";
+import { type TipoEntidad } from "@/lib/mock-entities";
+import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import {
   entidadesQueryString,
   type ApiEntidad,
@@ -111,9 +112,8 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
       <div className="border-b border-line bg-paperDeep px-5 py-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-widest text-heroViolet">
-              <Building2 size={11} /> Ranking
-            </div>
+            {/* Había una píldora "RANKING" encima del h3, que ya dice de qué es
+                el ranking. Redundancia que además robaba jerarquía al título. */}
             <h3 className="font-serif text-2xl font-bold text-ink">
               Entidades del Estado vigiladas
             </h3>
@@ -278,7 +278,11 @@ function EntidadRow({
   // tipo en la ficha. Además, buena parte de las entidades reales llegan sin `tipo` clasificado
   // desde la API — antes eso rendía un chip vacío (ni texto ni color); ahora cae al mismo
   // rótulo que ya usa la ficha para ese caso ("Organismo Autónomo").
-  const tipoLabel = TIPO_SHORT[ent.tipo] ?? TIPO_SHORT.organismo_autonomo;
+  // Antes: `?? TIPO_SHORT.organismo_autonomo`, que etiquetaba como
+  // "Org. Autónomo" a cualquier entidad sin tipo declarado — municipalidades
+  // distritales incluidas. Ahora se infiere del nombre oficial, y si no se
+  // puede, se dice "Sin clasificar".
+  const tipoLabel = etiquetaTipoEntidad(ent.tipo, ent.nombre, "corto");
   return (
     <Link
       href={`/entidad/${ent.ruc}`}

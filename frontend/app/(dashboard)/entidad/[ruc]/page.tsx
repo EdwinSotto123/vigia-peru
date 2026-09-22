@@ -13,7 +13,8 @@ import {
   Users,
   MapPin,
 } from "lucide-react";
-import { entidadById, TIPO_LABELS, type Entidad } from "@/lib/mock-entities";
+import { entidadById, type Entidad } from "@/lib/mock-entities";
+import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { formatSoles, severidadColor } from "@/lib/mock-data";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
@@ -34,6 +35,10 @@ export default async function EntidadProfile({
   let enCola = 0;
   let ubigeo: string | null = null;
   let zonaNombre: string | null = null;
+  // El tipo tal como lo devuelve la API, sin rellenar. Casi siempre viene null,
+  // y hay que conservarlo crudo para distinguir "no lo sabemos" de una
+  // categoría real — que es justo lo que el fallback de abajo borraba.
+  let apiTipo: string | null = null;
 
   try {
     const apiResp = await getEntidad(params.ruc);
@@ -42,11 +47,15 @@ export default async function EntidadProfile({
       enCola = Number(e.contratosEnCola || 0);
       ubigeo = e.ubigeo || null;
       zonaNombre = e.zonaNombre || null;
+      apiTipo = e.tipo ?? null;
       ent = {
         id: e.ruc,
         ruc: e.ruc,
         nombre: e.nombre,
-        tipo: e.tipo || "organismo_autonomo",
+        // El tipo del objeto local se infiere del nombre oficial; lo que se
+        // MUESTRA sale de etiquetaTipoEntidad(apiTipo, nombre), que sabe decir
+        // "Tipo no declarado" cuando no hay forma de saberlo.
+        tipo: tipoEntidad(e.tipo, e.nombre) ?? "organismo_autonomo",
         region: e.region || "—",
         provincia: e.provincia || "",
         distrito: e.distrito || "",
@@ -99,13 +108,17 @@ export default async function EntidadProfile({
       <header className="surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-line bg-paperDeep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
-              <Building2 size={11} /> {TIPO_LABELS[ent.tipo]}
-            </div>
+            {/* El tipo estaba como píldora mayúscula ENCIMA del h1. Sí lleva
+                información, pero es un dato de ficha, no un antetítulo: va
+                abajo, con el RUC y la ubicación, donde el lector busca los
+                datos de identificación. */}
             <h1 className="font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
               {ent.nombre}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-mute">
+              <span className="flex items-center gap-1">
+                <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(apiTipo, ent.nombre)}
+              </span>
               <span className="font-mono">RUC {ent.ruc}</span>
               <SeguirEntidadBoton ruc={ent.ruc} nombre={ent.nombre} />
               <span className="flex items-center gap-1">
