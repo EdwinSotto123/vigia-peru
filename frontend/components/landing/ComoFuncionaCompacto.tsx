@@ -19,7 +19,7 @@ const ACCENT_BADGE: Record<(typeof ACCENTS)[number], string> = {
 /** Una sola sección para "cómo funciona" + "qué detecta" (antes eran tres). */
 export function ComoFuncionaCompacto() {
   return (
-    <section id="como" className="scroll-mt-20 border-b border-line bg-paperDeep py-16">
+    <section id="como" className="relative scroll-mt-20 overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.05] via-paperDeep to-heroGreen/[0.04] py-16">
       <div className="container-page max-w-[1600px]">
         <div className="max-w-2xl">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Cómo funciona</span>

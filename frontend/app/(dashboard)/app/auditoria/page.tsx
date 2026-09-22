@@ -43,8 +43,9 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
   return (
     <div className="bg-paper">
       {/* ─── HERO ─── */}
-      <section className="border-b border-line bg-paperDeep">
-        <div className="container-page space-y-6 py-10">
+      <section className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.06] via-paperDeep to-heroGreen/[0.05]">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-heroViolet/10 blur-3xl" />
+        <div className="container-page relative space-y-6 py-10">
           <div>
             {/* Mismo badge "Tablero público · se actualiza solo" que ya se sacó de la landing
                 (commit 8d85633): no le aportaba nada al usuario. Se quedó vivo acá porque ese

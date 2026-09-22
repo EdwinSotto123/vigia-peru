@@ -18,7 +18,7 @@ const COSTOS = [
 /** "Quiénes somos" + "Plataforma" + "Cuentas claras" en una sola sección. */
 export function ConfianzaSection() {
   return (
-    <section id="organizacion" className="scroll-mt-20 border-y border-line bg-paperDeep py-16">
+    <section id="organizacion" className="relative overflow-hidden scroll-mt-20 border-y border-line bg-gradient-to-br from-heroViolet/[0.05] via-paperDeep to-heroGreen/[0.04] py-16">
       <div className="container-page grid max-w-[1600px] gap-10 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Organización sin fines de lucro</span>

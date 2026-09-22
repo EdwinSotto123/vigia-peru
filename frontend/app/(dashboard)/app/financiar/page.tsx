@@ -31,8 +31,9 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
   return (
     <div className="bg-paper">
       {/* ─── HERO ─── */}
-      <section className="border-b border-line bg-paperDeep">
-        <div className="container-page grid gap-10 py-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+      <section className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.06] via-paperDeep to-heroGreen/[0.05]">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-heroViolet/10 blur-3xl" />
+        <div className="container-page relative grid gap-10 py-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
               <Landmark size={12} /> Financiamiento de auditoría independiente

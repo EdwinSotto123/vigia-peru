@@ -91,7 +91,7 @@ export default async function LandingPage() {
       {/* border-t: sin esto, esta sección y AliadosSection (las dos sin bg propio) se
           fusionaban en un bloque blanco de ~190px sin nada — dos paddings de sección
           apilados sin ningún ancla visual entre medio. */}
-      <section id="denunciar" className="scroll-mt-20 border-t border-line py-16">
+      <section id="denunciar" className="relative overflow-hidden scroll-mt-20 border-t border-line bg-gradient-to-b from-heroViolet/[0.04] to-transparent py-16">
         <div className="container-page max-w-[1600px]">
           <div className="mx-auto max-w-2xl text-center">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-rust/25 bg-rust/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-rust">
