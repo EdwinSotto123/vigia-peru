@@ -392,7 +392,7 @@ export function ConvocatoriaSearch() {
           </h1>
           <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
             Pega el código (o OCID/RUC) de cualquier convocatoria del SEACE y los
-            11 agentes la procesan a demanda — o abre uno de los análisis ya hechos.
+            10 agentes la procesan a demanda — o abre uno de los análisis ya hechos.
           </p>
 
         <form onSubmit={submit} className="mt-4">

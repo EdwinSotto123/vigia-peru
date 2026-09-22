@@ -176,6 +176,29 @@ export const FASES: { key: string; label: string; agente: string }[] = [
 
 export const TOTAL_FASES = FASES.length;
 
+/**
+ * Cuántos agentes de IA leen un contrato. DERIVADO, nunca escrito a mano.
+ *
+ * El producto llegó a afirmar cinco números distintos en páginas que el mismo
+ * usuario visita seguidas: "11 agentes" en /app/financiar y en el buscador,
+ * "10 fases" en /app/auditoria, "Pipeline de 7 agentes" en AgentsPipeline (con
+ * la lista hardcodeada), 13 nodos en constants.tsx y 12 claves en
+ * AGENTES_PROGRESO. Con eso, lo que hace creíble al producto —que un equipo de
+ * agentes leyó de verdad este expediente— no se podía ni contar.
+ *
+ * El número correcto es 10, y se verifica contra el backend: hay exactamente
+ * diez carpetas de agente en backend/agent/agents/ (compliance,
+ * compliance_extended, document_legal_analyst, document_parser,
+ * entity_personnel, market_price, news_research, person_network, report_writer,
+ * web_research), una por cada entrada de FASES. `_shared` no es un agente y
+ * `orchestrator` es el orquestador LLM retirado: el pipeline corre determinista
+ * en código.
+ *
+ * Si algún día se agrega un agente, se agrega a FASES y el número se mueve solo.
+ * Nadie debe volver a escribirlo en una cadena de texto.
+ */
+export const TOTAL_AGENTES = FASES.length;
+
 /** Etiquetas de todo lo que aparece en la bitácora (agentes + pasos del driver). */
 const LABELS: Record<string, string> = Object.fromEntries(FASES.map((f) => [f.key, f.label]));
 Object.assign(LABELS, {

@@ -6,7 +6,7 @@ import { DetectionCarousel } from "./DetectionCarousel";
 const PASOS = [
   { icon: MapPin, t: "Eliges una zona", d: "Departamento, provincia o distrito. Ves cuántos contratos esperan ser leídos y cuánto cuesta." },
   { icon: Landmark, t: "Financias su auditoría", d: "S/ 3 por contrato, desde 5. Empresa, colectivo o persona, también anónimo. Nadie elige cuáles: van por antigüedad." },
-  { icon: Cpu, t: "Once agentes los leen", d: "Expediente, reglas de contratación, precios de mercado, prensa, red de personas y sanciones — todo cruzado con 14 portales del Estado." },
+  { icon: Cpu, t: "Diez agentes los leen", d: "Expediente, reglas de contratación, precios de mercado, prensa, red de personas y sanciones — todo cruzado con 14 portales del Estado." },
   { icon: FileCheck2, t: "Resultados públicos", d: "Cada señal cita norma, opinión OECE y evidencia oficial. Tú recibes un comprobante de impacto con cada contrato procesado." },
 ];
 

@@ -3,7 +3,7 @@ import { BlurFade } from "@/components/magicui/BlurFade";
 
 const FEATURES = [
   { icon: Database, t: "Datos abiertos", d: "SEACE, OECE, SUNAT, ONPE/JNE y más — sin editar." },
-  { icon: Cpu, t: "Agentes de IA", d: "Once agentes leen, clasifican y priorizan cada contrato." },
+  { icon: Cpu, t: "Agentes de IA", d: "Diez agentes leen, clasifican y priorizan cada contrato." },
   { icon: Users, t: "Participación ciudadana", d: "Cualquiera puede financiar una auditoría o denunciar." },
   { icon: Leaf, t: "Un Perú más transparente", d: "Cada señal de riesgo cita su norma y su fuente oficial." },
 ];

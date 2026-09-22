@@ -148,10 +148,20 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
   ] as Array<{ key: string; label: string; icon: any; badge: number | string | null; badgeColor: string }>;
 
   // Resumen ejecutivo extraído del dictamen → portada con CTA "leer dictamen completo".
+  // Antes esto era un .slice(0, 400) pelado, que cortaba a mitad de palabra: el
+  // resumen del artefacto principal del producto terminaba en "la entidad adjud".
+  // Ahora se corta en el último final de oración que entre, y si no hay ninguno,
+  // en el último espacio — nunca dentro de una palabra.
   const _resumenEjecutivo = (() => {
     const m = _dictamenText.match(/#{2,3}\s*Resumen ejecutivo\s*\n+([\s\S]*?)(?:\n#{2,3}\s|$)/i);
     const raw = (m ? m[1] : _dictamenText) || "";
-    return raw.replace(/[#*`>\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 400);
+    const limpio = raw.replace(/[#*`>\[\]]/g, "").replace(/\s+/g, " ").trim();
+    if (limpio.length <= 400) return limpio;
+    const corte = limpio.slice(0, 400);
+    const finOracion = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("? "), corte.lastIndexOf("! "));
+    if (finOracion > 200) return corte.slice(0, finOracion + 1);
+    const finPalabra = corte.lastIndexOf(" ");
+    return (finPalabra > 0 ? corte.slice(0, finPalabra) : corte) + "…";
   })();
 
   const fmtMoney = (n: number | string | undefined) => {
@@ -471,13 +481,18 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         <section className="surface overflow-hidden p-0">
           <div className="flex items-center justify-between border-b border-line bg-paperDeep px-5 py-3">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-                <FileText size={11} className="mr-1 inline" />
-                report_writer_agent · {result.dictamen?.gen_meta?.model ?? "Gemini"}
-              </div>
-              <h2 className="mt-1 font-serif text-xl font-bold text-ink">
+              {/* El kicker "report_writer_agent · Gemini" estaba ENCIMA del h2.
+                  Además de ser el patrón prohibido, ponía el nombre interno del
+                  agente por delante del nombre del documento. La autoría del
+                  modelo es una nota al pie de credibilidad, no un antetítulo:
+                  va debajo, en tono secundario. */}
+              <h2 className="font-serif text-xl font-bold text-ink">
                 Dictamen periodístico
               </h2>
+              <div className="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-mute">
+                <FileText size={11} aria-hidden />
+                Redactado por report_writer_agent · {result.dictamen?.gen_meta?.model ?? "Gemini"}
+              </div>
             </div>
             <button
               onClick={() => navigator.clipboard.writeText(dict)}
@@ -488,28 +503,45 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
           </div>
           <article
             className={cn(
-              "max-w-none px-6 py-6",
+              // MEDIDA DE LECTURA. Antes era `max-w-none`, así que el dictamen
+              // —el artefacto que un periodista cita y una fiscalía lee, 4.400+
+              // caracteres de prosa— se servía en líneas tan anchas como la
+              // pantalla. A 1440 px eso son ~150 caracteres por línea: al saltar
+              // de renglón el ojo pierde el punto de retorno y hay que releer.
+              // 68ch es el rango en el que la prosa larga se lee sin esfuerzo.
+              // Esta sección es deliberadamente una isla de modo Lectura dentro
+              // de una app de modo Operación, y se trata como tal.
+              "mx-auto max-w-[68ch] px-6 py-8",
               // Headings
               "prose prose-sm lg:prose-base",
               "prose-headings:font-serif prose-headings:text-ink prose-headings:font-bold prose-headings:tracking-tight",
-              "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-4 prose-h1:pb-2 prose-h1:border-b-2 prose-h1:border-heroViolet",
-              "prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-line",
-              "prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-heroViolet prose-h3:uppercase prose-h3:tracking-wider prose-h3:font-bold",
-              "prose-h4:text-sm prose-h4:mt-4 prose-h4:mb-1.5 prose-h4:font-bold prose-h4:text-ink",
-              // Body
-              "prose-p:text-ink prose-p:leading-relaxed prose-p:my-2",
+              // Más aire ARRIBA de cada título que abajo: el espacio agrupa el
+              // título con su propio texto en vez de dejarlo flotando al medio.
+              "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-3 prose-h1:pb-2 prose-h1:border-b prose-h1:border-heroViolet",
+              "prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-line",
+              // El h3 era uppercase con tracking: un micro-rótulo, no un título.
+              // En un documento legal eso entorpece el escaneo y repite la
+              // estética de antetítulo que el resto del rediseño está sacando.
+              "prose-h3:text-base prose-h3:mt-7 prose-h3:mb-2 prose-h3:text-heroViolet prose-h3:font-bold",
+              "prose-h4:text-sm prose-h4:mt-5 prose-h4:mb-1.5 prose-h4:font-bold prose-h4:text-ink",
+              // Body — prosa larga necesita respirar entre párrafos
+              "prose-p:text-ink prose-p:leading-[1.7] prose-p:my-3.5",
               "prose-strong:text-ink prose-strong:font-bold",
               "prose-em:text-inkSoft prose-em:italic",
               // Lists
-              "prose-ul:my-2 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-1",
-              "prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-1",
+              "prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-1.5",
+              "prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-1.5",
               "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-heroViolet",
-              // Links — break long URLs
+              // Links: break-words, no break-all. break-all parte cualquier
+              // palabra por la mitad, no sólo las URLs largas que se quería
+              // domar.
               "prose-a:text-heroViolet prose-a:font-medium prose-a:underline prose-a:decoration-heroViolet/40 hover:prose-a:decoration-heroViolet",
-              "prose-a:break-all", // permite quebrar URLs largas
-              // Code & blockquote
+              "prose-a:break-words",
+              // Code & blockquote. El blockquote tenía border-l-4 de color, que
+              // el craft floor rechaza: la cita se distingue por su fondo y su
+              // sangría, y la regla queda en 1px.
               "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-heroViolet prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
-              "prose-blockquote:border-l-4 prose-blockquote:border-heroViolet prose-blockquote:bg-paperSoft prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:my-3 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
+              "prose-blockquote:border-l prose-blockquote:border-heroViolet/50 prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
               // Tables
               "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
               "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-bold prose-th:uppercase prose-th:tracking-wider prose-th:text-[10px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
@@ -527,6 +559,18 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
                 strong: ({ node, children, ...props }) => <strong {...props}>{redactChildren(children)}</strong>,
                 em: ({ node, children, ...props }) => <em {...props}>{redactChildren(children)}</em>,
                 td: ({ node, children, ...props }) => <td {...props}>{redactChildren(children)}</td>,
+                // La medida de 68ch es para la prosa, no para los datos. Una
+                // tabla de ítems o de postores necesita ancho y comparabilidad
+                // por columna: se le deja romper el margen de lectura y, si aun
+                // así no entra, scrollea dentro de su propia caja — nunca
+                // empujando la página entera hacia los costados.
+                table: ({ node, children, ...props }) => (
+                  <div className="scrollbar-warm -mx-2 my-4 overflow-x-auto sm:-mx-6 lg:-mx-10">
+                    <div className="min-w-full px-2 sm:px-6 lg:px-10">
+                      <table {...props}>{children}</table>
+                    </div>
+                  </div>
+                ),
                 a: ({ node, href, children, ...props }) => {
                   const isLongUrl = typeof href === "string" && href.length > 80;
                   return (

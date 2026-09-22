@@ -61,7 +61,7 @@ export async function HeroCompacto() {
                 <span className="block text-heroGreen">Nadie tiene capacidad de leerlos.</span>
               </h1>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-mute sm:text-lg">
-                Once agentes de IA leen cada contrato público, cruzan 14 portales del Estado y marcan cada señal de
+                Diez agentes de IA leen cada contrato público, cruzan 14 portales del Estado y marcan cada señal de
                 riesgo con su norma y su evidencia oficial. Leer un contrato cuesta{" "}
                 <strong className="text-ink">S/ {precio}</strong>. Elige una zona y financia su auditoría; los
                 resultados son públicos, siempre.

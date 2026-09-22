@@ -45,7 +45,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
               <em className="text-heroGreen not-italic">Nadie tiene capacidad de leerlos.</em>
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
-              Vigía lee contratos públicos con un pipeline de 11 agentes y publica las señales de riesgo.
+              Vigía lee contratos públicos con un pipeline de 10 agentes y publica las señales de riesgo.
               Cada contrato cuesta <strong className="text-ink">{formatPEN(precio)}</strong> de cómputo e IA.
               Elige una zona y <strong className="text-ink">financia la capacidad de auditar</strong> sus
               contratos pendientes. Los resultados son públicos, siempre.
