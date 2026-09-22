@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowRight, EyeOff, HeartHandshake } from "lucide-react";
 import { getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { TarjetaAliado } from "./TarjetaAliado";
 import { Podio } from "./Podio";
 
@@ -95,14 +94,14 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
         <p className="font-serif text-2xl font-bold text-ink">{encabezado}</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           {destacados.map((r, i) => (
-            <BlurFade key={r.id} delayMs={i * 80} className="flex">
+            <div className="flex">
               <TarjetaAliado row={r} posicion={i + 1} destacado />
-            </BlurFade>
+            </div>
           ))}
           {Array.from({ length: slotsVacios }).map((_, i) => (
-            <BlurFade key={`placeholder-${i}`} delayMs={(destacados.length + i) * 80} className="flex">
+            <div className="flex">
               <AliadoPlaceholder />
-            </BlurFade>
+            </div>
           ))}
         </div>
         {anonimos.length > 0 && (
@@ -164,9 +163,9 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
           {filasPagina.length > 0 ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {filasPagina.map((r, i) => (
-                <BlurFade key={r.id} delayMs={Math.min(i, STAGGER_MAX) * 60} className="flex">
+                <div className="flex">
                   <TarjetaAliado row={r} posicion={r.posicion} />
-                </BlurFade>
+                </div>
               ))}
             </div>
           ) : (

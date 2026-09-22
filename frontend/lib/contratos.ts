@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from "./api-client";
+import { nivelDeScore } from "./severidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 export type { CitaDocumento };
 
@@ -240,11 +241,12 @@ export const ESTADO_CONTRATO_EXTRA: Record<"sin_analizar" | "pendiente_de_proces
   pendiente_de_procesamiento: { label: "Pendiente de procesamiento", cls: "bg-amber-soft/60 text-clay" },
 };
 
+// Los cortes viven en lib/severidad.ts, que es la fuente única. Acá sólo se
+// traduce al vocabulario local ("alto"/"medio") para no romper los call sites
+// existentes. Nadie más debe volver a escribir un 70 ni un 40 a mano.
 export function riesgoDe(score: number | null | undefined): RiesgoContrato {
-  if (score == null) return "sin_analizar";
-  if (score >= 70) return "alto";
-  if (score >= 40) return "medio";
-  return "bajo";
+  const n = nivelDeScore(score);
+  return n === "alta" ? "alto" : n === "media" ? "medio" : n === "baja" ? "bajo" : "sin_analizar";
 }
 
 export const RIESGO_CLS: Record<RiesgoContrato, string> = {

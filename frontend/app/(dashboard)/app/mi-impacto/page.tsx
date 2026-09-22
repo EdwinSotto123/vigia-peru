@@ -12,7 +12,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Heart, MapPin, Camera, ArrowRight, Loader2, Eye, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -108,12 +107,7 @@ function Contenido() {
                 // Cada aporte entra en cascada (tope ~840ms para que una cuenta con
                 // muchos aportes no se sienta lenta): son unidades independientes, no
                 // pasos de un flujo — el mismo criterio que ya usa ConfianzaSection.
-                <BlurFade
-                  key={a.codigo}
-                  as="li"
-                  delayMs={Math.min(i, 12) * 70}
-                  className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow duration-200 hover:shadow-paper"
-                >
+                <li className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow duration-200 hover:shadow-paper">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -154,7 +148,7 @@ function Contenido() {
                     )}
                     {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={11} aria-hidden /></a>}
                   </div>
-                </BlurFade>
+                </li>
               );
             })}
           </ul>
@@ -314,17 +308,17 @@ function EstadoVacio({ icon: Icon, children }: { icon: LucideIcon; children: Rea
   );
 }
 
-// BlurFade como raíz (no un <div> envolviendo a otro) para no romper el modelo de
+// Raíz propia (no un <div> envolviendo a otro) para no romper el modelo de
 // contenido de <dl>: cada tarjeta sigue siendo el único div entre <dl> y su dt/dd.
 // El número cuenta desde 0 en vez de aparecer estático: es la cifra protagonista de
 // cada tarjeta de resumen, el primer dato "vivo" que ve el usuario en la página.
 function Cifra({ k, v, hint, i }: { k: string; v: number; hint?: string; i: number }) {
   return (
-    <BlurFade as="div" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
+    <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
       <dt className="text-[11px] uppercase tracking-wide text-mute">{k}</dt>
       <dd className="font-mono text-2xl font-semibold text-ink"><NumberTicker value={v} format="entero" /></dd>
       {hint && <dd className="text-[10px] text-mute">{hint}</dd>}
-    </BlurFade>
+    </div>
   );
 }
 

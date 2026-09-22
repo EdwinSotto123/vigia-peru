@@ -21,7 +21,7 @@
  * (son el motivo real de la página) y "privacidad y datos" (identificador de cuenta, qué
  * guardamos, exportar, borrar cuenta) cerrada por defecto por ser lo menos usado. "Perfil público"
  * se reabre sola si falla el guardado, para que el error de validación del nombre nunca quede
- * oculto detrás de una tarjeta cerrada. Entrada en cascada corta con BlurFade (mismo patrón que
+ * oculto detrás de una tarjeta cerrada. (Las superficies de producto no llevan
  * components/landing/ComoFuncionaCompacto.tsx) y micro-feedback con animate-fadeIn/slideUp en
  * estados que ya eran condicionales (conflicto de visibilidad, error, confirmar borrado, botón
  * guardar) -- nada de eso existía antes, así que la página se sentía estática incluso al cambiar
@@ -40,8 +40,6 @@ import { signOut } from "@/lib/auth";
 import { deleteUser } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
-import { BlurFade } from "@/components/magicui/BlurFade";
-
 const NOTIFS: { k: string; label: string; hint: string }[] = [
   { k: "contrato_financiado_procesado", label: "Cuando se procese un contrato que financié", hint: "Un aviso por contrato con el resultado del análisis." },
   { k: "senales_en_mi_zona", label: "Cuando haya señales de riesgo en una zona que sigo", hint: "Resumen cuando se publiquen nuevas alertas en tus zonas." },
@@ -165,7 +163,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
       <div className="space-y-6">
         {/* Perfil público: abierta por defecto -- es el motivo real de esta página -- y se
             reabre sola desde `guardar()` si falla el guardado. */}
-        <BlurFade delayMs={0}>
+        <div>
           <Colapsable
             titulo="Perfil público de aliado"
             subtitulo="Nombre, logo y visibilidad en el muro de aliados"
@@ -265,11 +263,11 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               <p className="mt-3 text-[12px] text-mute">Tu página de aliado: <Link href={`/aliado/${perfil.slug}`} className="font-mono underline transition-colors hover:text-heroViolet">/aliado/{perfil.slug}</Link></p>
             )}
           </Colapsable>
-        </BlurFade>
+        </div>
 
         {/* Correo y avisos: también abierta por defecto -- es liviana (un input, dos
             checkboxes) y de uso frecuente, no hay motivo real para esconderla. */}
-        <BlurFade delayMs={90}>
+        <div>
           <Colapsable
             titulo="Correo y avisos"
             subtitulo="Correo opcional y qué avisos quieres recibir"
@@ -295,7 +293,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               })}
             </ul>
           </Colapsable>
-        </BlurFade>
+        </div>
 
         {error && <p className="text-sm text-rust animate-fadeIn" role="alert">{error}</p>}
         <button
@@ -318,7 +316,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           formulario cae en una sola columna, esto sola ya ahorraba tres tarjetas apiladas de
           scroll a quien nunca las toca. */}
       <aside className="lg:sticky lg:top-6 lg:self-start">
-        <BlurFade delayMs={180}>
+        <div>
           <Colapsable titulo="Privacidad y datos" subtitulo="Tu identificador, qué guardamos, exportar o borrar tu cuenta">
             <div className="space-y-4">
               <div>
@@ -372,7 +370,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               </div>
             </div>
           </Colapsable>
-        </BlurFade>
+        </div>
       </aside>
     </form>
   );

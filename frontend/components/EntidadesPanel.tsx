@@ -25,16 +25,10 @@ import {
 import { formatSoles } from "@/lib/mock-data";
 import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { cn } from "@/lib/utils";
 
 type SortKey = "alertas" | "monto" | "score";
 
-/** Filas con cascada BlurFade — cap bajo a propósito: en una página de 20 filas, escalonar
- *  las 20 a 70ms cada una tardaría 1.4s en terminar de entrar, se siente lento en vez de vivo.
- *  Las primeras ENTRAN en cascada (son lo primero que ve el ojo); el resto aparece de una. */
-const RANKING_STAGGER_MAX = 12;
-const RANKING_STAGGER_STEP_MS = 70;
 
 const TIPO_FILTERS: { id: TipoEntidad | "todos"; label: string }[] = [
   { id: "todos", label: "Todos" },
@@ -246,17 +240,9 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
             )}
           </div>
         )}
-        {sorted.map((e, i) =>
-          i < RANKING_STAGGER_MAX ? (
-            // Filas independientes entre sí (cada una es una entidad distinta) — entran en
-            // cascada para que el ranking se sienta poblándose en vez de aparecer de golpe.
-            <BlurFade key={e.ruc} delayMs={i * RANKING_STAGGER_STEP_MS}>
-              <EntidadRow ent={e} rank={i + 1} sortKey={sort} />
-            </BlurFade>
-          ) : (
-            <EntidadRow key={e.ruc} ent={e} rank={i + 1} sortKey={sort} />
-          ),
-        )}
+        {sorted.map((e, i) => (
+          <EntidadRow key={e.ruc} ent={e} rank={i + 1} sortKey={sort} />
+        ))}
       </div>
 
       <div className="border-t border-line bg-paperSoft px-5 py-3">

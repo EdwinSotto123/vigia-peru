@@ -29,7 +29,12 @@ const config: Config = {
 
         // ── Acentos ──
         clay: "#B26A2E",         // CTA secundario (terracota cálido)
-        rust: "#CF3A2C",         // alerta (rojo moderno)
+        // rust era #CF3A2C. Contra amber #BE7B26 daba ΔE 13.6, por debajo del
+        // piso de 15: "señal alta" y "señal media" costaba distinguirlas incluso
+        // con visión de color completa. Con #A81E12 el peor par sube a ΔE 18.3 y
+        // la escala de severidad completa pasa la validación. Es el encoding del
+        // que depende la credibilidad del producto — no era un ajuste de gusto.
+        rust: "#A81E12",         // severidad alta
         moss: "#3F7D43",         // verificado / positivo
         amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },

@@ -6,9 +6,7 @@ import { cn } from "@/lib/utils";
 import { redactDnis } from "../../Redact";
 import type { Bandera } from "../types";
 import { AGENTE_VISUAL } from "../constants";
-import { inferAgente } from "../utils";
-import { BlurFade } from "@/components/magicui/BlurFade";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { inferAgente } from "../utils";import { NumberTicker } from "@/components/magicui/NumberTicker";
 
 export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Bandera[]; reglas_evaluadas: number }) {
   const [filtroSev, setFiltroSev] = useState<"todas" | "alta" | "media" | "baja">("todas");
@@ -123,7 +121,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
           // el delay se congela en vez de seguir creciendo, para que colas largas de
           // banderas no tarden cada vez más en terminar de aparecer.
           return (
-            <BlurFade as="li" key={i} delayMs={Math.min(i, 13) * 60}>
+            <li>
               <button
                 type="button"
                 onClick={() => setExpandedIdx(isOpen ? null : i)}
@@ -219,7 +217,7 @@ export function BanderasAgrupadas({ banderas, reglas_evaluadas }: { banderas: Ba
                   )}
                 </div>
               )}
-            </BlurFade>
+            </li>
           );
         })}
       </ul>

@@ -17,7 +17,6 @@ import type { ReporteCiudadano, Convergencia } from "@/types";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { DenunciasMap } from "./DenunciasMap";
 import { cn } from "@/lib/utils";
 
@@ -219,7 +218,7 @@ function DenunciaCard({
   })();
 
   return (
-    <BlurFade as="li" delayMs={Math.min(index, 12) * 70}>
+    <li>
       <Link
         href={`/app/denuncias/${reporte.id}`}
         className="surface group flex h-full flex-col overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-paper"
@@ -301,6 +300,6 @@ function DenunciaCard({
           </div>
         </div>
       </Link>
-    </BlurFade>
+    </li>
   );
 }

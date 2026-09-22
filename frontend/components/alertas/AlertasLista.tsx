@@ -22,14 +22,13 @@
  * alerta: así el color del círculo nunca contradice el número que trae (dos alertas con
  * "100" en el círculo nunca se ven en colores distintos). El estado (activa/confirmada/
  * descartada/en_revision) ahora se ve como píldora: existía como filtro pero ninguna fila
- * lo mostraba. Cada tarjeta entra con BlurFade (cascada, techo en 840ms) en vez de
+ * lo mostraba. Las tarjetas se pintan de una (sin cascada de entrada) en vez de
  * aparecer toda la lista de golpe — ver el comentario junto al .map() más abajo.
  */
 
 import Link from "next/link";
 import { ChevronRight, Inbox, WifiOff } from "lucide-react";
 import { formatSoles, severidadColor } from "@/lib/mock-data";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { PrefetchLink } from "@/components/PrefetchLink";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { alertasQueryString, ESTADOS_ALERTA, type AlertasQuery } from "@/lib/alertas-query";
@@ -118,12 +117,11 @@ export function AlertasLista({ data, total, pagina, tam, query, fallo, pathname 
             const severidad = severidadDeScore(a.score);
             const estado = a.estado ? ESTADOS_ALERTA[a.estado] : null;
             return (
-              // 24 tarjetas independientes por página son justo el caso que BlurFade existe
               // para resolver (mismo patrón que los pasos de ComoFuncionaCompacto.tsx):
               // entran en cascada al hacer scroll en vez de aparecer todas de golpe. Stagger
               // acotado: 70ms por fila con techo en 840ms (~fila 12) — sin techo, 70ms × 23
               // tardaría ~1.6s en la última fila y se sentiría lento, no "vivo".
-              <BlurFade key={a.id} as="li" delayMs={Math.min(i * 70, 840)}>
+              <li>
                 <PrefetchLink
                   href={`/app/convocatoria/${a.codigoconvocatoria}`}
                   ocid={String(a.codigoconvocatoria)}
@@ -171,7 +169,7 @@ export function AlertasLista({ data, total, pagina, tam, query, fallo, pathname 
                     className="hidden shrink-0 self-center text-mute transition-transform duration-200 group-hover:translate-x-0.5 sm:block"
                   />
                 </PrefetchLink>
-              </BlurFade>
+              </li>
             );
           })}
         </ul>

@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, FileCheck2, HeartHandshake, Scale, ShieldCheck, Trophy, Users } from "lucide-react";
 import { MuroAliados } from "@/components/aliados/MuroAliados";
-import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
-import { BlurFade } from "@/components/magicui/BlurFade";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { FiltroRegion } from "@/components/auditoria/FiltroRegion";import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
@@ -88,21 +86,21 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
           {/* Cascada corta: son 3 reglas independientes, no pasos de una secuencia —
               entran una tras otra en vez de golpear las tres a la vez. El CTA de al lado
               queda fuera de la cascada (una acción no debe demorar su aparición). */}
-          <BlurFade delayMs={0}>
+          <div>
             <Regla icon={<Trophy size={16} />} titulo="Se cuenta en contratos">
               Trescientos vecinos que financian 300 contratos valen lo mismo que una empresa que financia 300. El ranking nunca mide soles.
             </Regla>
-          </BlurFade>
-          <BlurFade delayMs={90}>
+          </div>
+          <div>
             <Regla icon={<Scale size={16} />} titulo="Nadie elige qué se audita">
               Los contratos se asignan por antigüedad, en código. El pipeline no sabe quién financió. Los resultados se publican siempre.
             </Regla>
-          </BlurFade>
-          <BlurFade delayMs={180}>
+          </div>
+          <div>
             <Regla icon={<ShieldCheck size={16} />} titulo="Conflicto de interés automático">
               Una empresa con sanción vigente o señalada en alertas de la zona puede aportar, pero no aparece en este muro.
             </Regla>
-          </BlurFade>
+          </div>
           <div className="rounded-2xl border border-line bg-paper p-5 shadow-card lg:max-w-xs">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-heroViolet/10 text-heroViolet">
               <HeartHandshake size={16} />

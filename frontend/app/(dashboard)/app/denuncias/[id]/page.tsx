@@ -22,8 +22,6 @@ import {
 import { getReporte, getReportes, getConvergencias, getAlerta } from "@/lib/api-client";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { DenunciasMap } from "@/components/denuncias/DenunciasMap";
-import { BlurFade } from "@/components/magicui/BlurFade";
-
 export default async function DenunciaDetallePage({
   params,
 }: {
@@ -84,7 +82,7 @@ export default async function DenunciaDetallePage({
           {/* HERO — foto + categoria. Esta ficha entera era estática (cero motion) pese
               a estar en el alcance de esta pasada: cada bloque de lectura se revela al
               entrar en pantalla en vez de aparecer todo de golpe. */}
-          <BlurFade>
+          <div>
           <article className="surface overflow-hidden p-0">
             {r.fotoUrl ? (
               <div className="relative h-72 sm:h-96">
@@ -137,10 +135,10 @@ export default async function DenunciaDetallePage({
               </div>
             )}
           </article>
-          </BlurFade>
+          </div>
 
           {/* Meta + categoria explicación */}
-          <BlurFade>
+          <div>
           <section className="surface p-5">
             <div className="flex flex-wrap items-baseline gap-3">
               <div>
@@ -156,11 +154,11 @@ export default async function DenunciaDetallePage({
               {meta?.descripcion}
             </p>
           </section>
-          </BlurFade>
+          </div>
 
           {/* Si hay convergencia → bloque destacado */}
           {convergencia && alertaLinked && (
-            <BlurFade>
+            <div>
             <section className="rounded-2xl border-2 border-ink bg-ink p-6 text-paper">
               <div className="flex items-center gap-2 text-amber">
                 <Sparkles size={16} />
@@ -215,11 +213,11 @@ export default async function DenunciaDetallePage({
                 </div>
               </div>
             </section>
-            </BlurFade>
+            </div>
           )}
 
           {/* Mini-mapa de la denuncia */}
-          <BlurFade>
+          <div>
           <section>
             <div className="mb-2 flex items-baseline justify-between">
               <div>
@@ -236,7 +234,7 @@ export default async function DenunciaDetallePage({
             </div>
             <DenunciasMap reportes={[r]} highlightId={r.id} />
           </section>
-          </BlurFade>
+          </div>
         </main>
 
         {/* SIDEBAR */}
@@ -350,7 +348,7 @@ export default async function DenunciaDetallePage({
                   const cmeta = CATEGORIA_META[c.categoria as CategoriaDenuncia];
                   const CIcon = cmeta?.icon ?? Camera;
                   return (
-                    <BlurFade key={c.id} as="li" delayMs={i * 70}>
+                    <li>
                       <Link
                         href={`/app/denuncias/${c.id}`}
                         className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-paperDeep"
@@ -370,7 +368,7 @@ export default async function DenunciaDetallePage({
                         </div>
                         <ExternalLink size={12} className="shrink-0 text-mute" />
                       </Link>
-                    </BlurFade>
+                    </li>
                   );
                 })}
               </ul>
