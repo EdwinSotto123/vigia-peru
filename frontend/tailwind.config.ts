@@ -164,6 +164,16 @@ const config: Config = {
           "0%": { opacity: "0", transform: "scale(0.96)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        /* El pulso que recorre el riel de un carril del pipeline. Anima `left`,
+           no `translateX`: el porcentaje de translate es relativo al ancho del
+           propio pulso (20 % del riel), así que llegar al final habría pedido un
+           1100 % frágil que se rompe al cambiar el ancho del pulso. */
+        rielPulso: {
+          "0%": { left: "-22%", opacity: "0" },
+          "12%": { opacity: "1" },
+          "88%": { opacity: "1" },
+          "100%": { left: "100%", opacity: "0" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -180,6 +190,7 @@ const config: Config = {
         llamaStepBack: "llamaStep 0.9s ease-in-out infinite reverse",
         llamaBob: "llamaBob 0.9s ease-in-out infinite",
         tooltipIn: "tooltipIn 120ms ease-out both",
+        rielPulso: "rielPulso 3.8s ease-in-out infinite",
       },
     },
   },

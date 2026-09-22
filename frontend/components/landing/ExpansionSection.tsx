@@ -1,5 +1,4 @@
 import { ArrowRight, Globe2 } from "lucide-react";
-import { BlurFade } from "@/components/magicui/BlurFade";
 import { ChileFlag, ColombiaFlag, MexicoFlag, ParaguayFlag } from "./CountryFlags";
 
 const PAISES = [
@@ -14,45 +13,48 @@ const PAISES = [
  * Contrataciones Abiertas), que ya publican gobiernos en toda la región — así que la
  * expansión no es una promesa vacía, es una consecuencia técnica de cómo está construido.
  * Banderas en gris hasta que un país esté realmente en vivo (hover les da color).
+ *
+ * Antes esto ocupaba 555 px —titular gigante, párrafo de tres renglones, cuatro
+ * tarjetas con "Próximamente" y un enlace centrado— para decir algo que todavía
+ * no pasó. Cuatro países que aún no existen en el producto no pueden pesar lo
+ * mismo que los diez agentes que sí corren hoy. Ahora es una franja: una frase,
+ * las cuatro banderas en línea y el mismo enlace, sin perder nada de lo que
+ * decía.
  */
 export function ExpansionSection() {
   return (
-    <section className="relative overflow-hidden border-y border-line bg-gradient-to-br from-heroGreen/[0.05] via-paperSoft to-heroViolet/[0.04] py-16">
-      <div className="container-page max-w-[1600px]">
-        <BlurFade as="div" className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-heroViolet/25 bg-heroViolet/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
-            <Globe2 size={11} /> Próximos países
-          </span>
-          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
+    <section className="border-y border-line bg-gradient-to-r from-heroGreen/[0.05] via-paperSoft to-heroViolet/[0.05] py-7">
+      <div className="container-page flex max-w-[1600px] flex-wrap items-center justify-between gap-x-10 gap-y-5">
+        <div className="min-w-0 max-w-[58ch]">
+          <h2 className="flex flex-wrap items-baseline gap-x-2.5 font-serif text-xl font-bold leading-tight text-ink sm:text-2xl">
+            <Globe2 size={16} className="shrink-0 translate-y-0.5 text-heroViolet" aria-hidden />
             Perú es el primero, <span className="text-heroViolet">no el único</span>.
           </h2>
-          <p className="mt-3 text-mute">
-            El Estándar de Datos de Contrataciones Abiertas (OCDS) que hace posible Vigía Perú ya lo publican
-            gobiernos en toda la región. El mismo pipeline de agentes puede leer sus contratos también —
-            la corrupción no respeta fronteras, la vigilancia tampoco debería.
+          <p className="mt-1.5 text-[13px] leading-relaxed text-mute">
+            El estándar OCDS que hace posible Vigía Perú ya lo publican gobiernos en toda la región: el mismo
+            pipeline puede leer sus contratos. La corrupción no respeta fronteras, la vigilancia tampoco
+            debería.
           </p>
-        </BlurFade>
-
-        <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
-          {PAISES.map(({ Flag, nombre }, i) => (
-            <BlurFade
-              key={nombre}
-              delayMs={i * 80}
-              className="group flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line bg-paper p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-solid hover:shadow-paper"
-            >
-              <Flag size={40} className="rounded shadow-sm ring-1 ring-black/10 grayscale transition-all duration-300 group-hover:grayscale-0" />
-              <span className="text-sm font-semibold text-ink">{nombre}</span>
-              <span className="text-[10px] uppercase tracking-wide text-mute">Próximamente</span>
-            </BlurFade>
-          ))}
         </div>
 
-        <div className="mt-8 text-center">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <ul className="flex items-center gap-4">
+            {PAISES.map(({ Flag, nombre }) => (
+              <li key={nombre} className="group flex flex-col items-center gap-1" title={`${nombre}, próximamente`}>
+                <Flag
+                  size={26}
+                  className="rounded shadow-sm ring-1 ring-black/10 grayscale transition-all duration-300 group-hover:grayscale-0"
+                />
+                <span className="text-[10px] font-medium text-mute">{nombre}</span>
+              </li>
+            ))}
+          </ul>
           <a
             href="mailto:hola@vigiaperu.org?subject=Vig%C3%ADa%20en%20mi%20pa%C3%ADs"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-ink underline-offset-2 hover:underline"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep"
           >
-            ¿Tu país publica contrataciones abiertas? Escríbenos <ArrowRight size={14} />
+            ¿Tu país publica contrataciones abiertas?
+            <ArrowRight size={14} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </a>
         </div>
       </div>

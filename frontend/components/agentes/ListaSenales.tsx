@@ -102,10 +102,12 @@ function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; et
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Quién la produjo</h3>
         <p className="mt-1">
           <strong className="font-semibold">{nombreDeAgente(senal.agenteBruto ?? senal.agente)}</strong>
-          {agente ? <> · carril {agente.carrilLabel}</> : null}
+          {agente ? <span className="text-mute"> en el carril {agente.carrilLabel}</span> : null}
         </p>
         {agente && <p className="mt-0.5 text-mute">{agente.que}</p>}
-        {agente?.fuente && <p className="mt-0.5 text-mute">Coteja contra: {agente.fuente}</p>}
+        {agente && agente.fuentes.length > 0 && (
+          <p className="mt-0.5 text-mute">Coteja contra: {agente.fuentes.join(", ")}.</p>
+        )}
         {!agente && senal.agenteBruto && <p className="mt-0.5 font-mono text-[11px] text-mute">{senal.agenteBruto}</p>}
       </section>
 

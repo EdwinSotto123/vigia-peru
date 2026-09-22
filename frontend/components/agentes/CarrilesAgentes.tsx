@@ -69,9 +69,9 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                     </span>
                     <span className="min-w-0 flex-1 text-[12px] leading-snug text-mute">
                       {p.que}
-                      {seleccionado && p.fuente && (
+                      {seleccionado && p.fuentes.length > 0 && (
                         <span className="mt-0.5 block text-inkSoft">
-                          Coteja contra: {p.fuente}
+                          Coteja contra: {p.fuentes.join(", ")}.
                           {p.id && <span className="ml-1.5 font-mono text-[10px] text-mute">{p.id}</span>}
                         </span>
                       )}

@@ -53,7 +53,11 @@ export function ConfianzaSection() {
             ))}
           </ul>
           <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-heroViolet-deep px-4 py-3.5 text-paper">
-            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreenTexto">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem, y 17 aliados de S/ 50 lo cubren</div></div>
+            {/* heroGreenTexto es el verde CORREGIDO PARA FONDO CLARO; acá el fondo es
+                heroViolet-deep y daba 2.15:1. Sobre oscuro hay que ir al otro
+                extremo de la escala: heroGreen-soft llega a ~11:1 y sigue leyéndose
+                verde. */}
+            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreen-soft">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem, y 17 aliados de S/ 50 lo cubren</div></div>
             <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
           </div>
           <Link href="/preguntas#cuentas" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>

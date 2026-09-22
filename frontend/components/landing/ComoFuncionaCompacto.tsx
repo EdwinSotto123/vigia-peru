@@ -11,23 +11,29 @@ const PASOS = [
 ];
 
 const ACCENTS = ["heroViolet", "heroGreen", "heroViolet", "heroGreen"] as const;
+// `heroGreen` a secas es el verde de marca, pensado para barras y puntos, no
+// para llevar texto encima: en blanco daba 3.08:1, bajo el mínimo AA de 4.5:1.
+// `heroGreenTexto` es el mismo verde ya corregido para eso y llega a ~6.4:1,
+// así que la alternancia violeta/verde se mantiene sin un número ilegible.
 const ACCENT_BADGE: Record<(typeof ACCENTS)[number], string> = {
   heroViolet: "bg-heroViolet text-paper",
-  heroGreen: "bg-heroGreen text-paper",
+  heroGreen: "bg-heroGreenTexto text-paper",
 };
 
 /** Una sola sección para "cómo funciona" + "qué detecta" (antes eran tres). */
 export function ComoFuncionaCompacto() {
   return (
-    <section id="como" className="relative scroll-mt-20 overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.05] via-paperDeep to-heroGreen/[0.04] py-16">
+    <section id="como" className="relative scroll-mt-20 overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.05] via-paperDeep to-heroGreen/[0.04] py-14 sm:py-16">
       <div className="container-page max-w-[1600px]">
-        <div className="max-w-2xl">
+        {/* `max-w-3xl`, no `2xl`: con el ancho anterior el titular caía en tres
+            renglones de 48 px y el encabezado solo medía 176 px. */}
+        <div className="max-w-3xl">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Cómo funciona</span>
           <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
             De un contrato sin leer a un <em className="text-heroGreen not-italic">caso con evidencia</em>, en cuatro pasos.
           </h2>
         </div>
-        <ol className="mt-10 grid gap-5 md:grid-cols-4">
+        <ol className="mt-8 grid gap-5 md:grid-cols-4">
           {PASOS.map(({ icon: Icon, t, d }, i) => (
             <BlurFade
               key={t}
@@ -44,7 +50,7 @@ export function ComoFuncionaCompacto() {
             </BlurFade>
           ))}
         </ol>
-        <div className="mt-14">
+        <div className="mt-12">
           <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-serif text-2xl font-bold text-ink">Qué señales busca en cada contrato</h3>
             {/* text-ink/70, no text-mute: esta sección usa bg-paperDeep — con ese fondo,

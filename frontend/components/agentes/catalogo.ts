@@ -32,8 +32,15 @@ export interface PasoPipeline {
   tipo: TipoPaso;
   /** Qué analiza, en una línea. */
   que: string;
-  /** Contra qué lo coteja. `null` cuando el repo no lo declara: no se inventa una fuente. */
-  fuente: string | null;
+  /**
+   * Contra qué lo coteja, una fuente por entrada. Vacío cuando el repo no lo
+   * declara: no se inventa una fuente.
+   *
+   * Es una lista, no un string unido por puntos medios. Pegar cuatro nombres de
+   * portal con " · " obliga a leer el renglón entero para sacar uno solo, y deja
+   * a la UI sin forma de dibujarlos como lo que son: fuentes distintas.
+   */
+  fuentes: string[];
 }
 
 const QUE: Record<string, string> = {
@@ -63,19 +70,19 @@ const QUE: Record<string, string> = {
     "Ocho evaluadores revisan el análisis antes de publicarlo; si alguno falla, la alerta queda en revisión humana.",
 };
 
-const FUENTE: Record<string, string> = {
-  compliance: "Registro OCDS · SUNAT · sanciones OECE",
-  document_parser: "Documentos publicados en el SEACE (Document AI)",
-  document_legal_analyst: "Opiniones jurídicas del OECE (RAG)",
-  market: "Búsqueda de precios en vivo",
-  proveedor: "OECE · SUNAT",
-  web_research: "Portales oficiales y web abierta",
-  news_research: "Prensa peruana",
-  entity_personnel: "Autoridades y actos resolutivos de la entidad",
-  person_network: "RNP · ONPE · JNE · PEPs · registro de visitas",
-  compliance_extended: "Reglas del perfil en código + opiniones OECE",
-  report_writer: "Todo lo que encontraron los agentes anteriores",
-  self_eval: "El propio análisis (4 jueces LLM + 4 deterministas)",
+const FUENTE: Record<string, string[]> = {
+  compliance: ["Registro OCDS", "SUNAT", "Sanciones OECE"],
+  document_parser: ["Documentos publicados en el SEACE (Document AI)"],
+  document_legal_analyst: ["Opiniones jurídicas del OECE (RAG)"],
+  market: ["Búsqueda de precios en vivo"],
+  proveedor: ["OECE", "SUNAT"],
+  web_research: ["Portales oficiales", "Web abierta"],
+  news_research: ["Prensa peruana"],
+  entity_personnel: ["Autoridades y actos resolutivos de la entidad"],
+  person_network: ["RNP", "ONPE", "JNE", "PEPs", "Registro de visitas"],
+  compliance_extended: ["Reglas del perfil en código", "Opiniones OECE"],
+  report_writer: ["Todo lo que encontraron los agentes anteriores"],
+  self_eval: ["El propio análisis: 4 jueces LLM y 4 deterministas"],
 };
 
 /** Id del agente en la traza, cuando el paso es un agente del pipeline. */
@@ -94,7 +101,7 @@ export const PASOS: PasoPipeline[] = CARRILES.flatMap((c) =>
       titulo: faseLabel(clave),
       tipo: (ID_POR_CLAVE[clave] ? "agente" : "paso") as TipoPaso,
       que: QUE[clave] ?? faseLabel(clave),
-      fuente: FUENTE[clave] ?? null,
+      fuentes: FUENTE[clave] ?? [],
     })),
   ),
 );

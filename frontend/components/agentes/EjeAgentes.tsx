@@ -277,16 +277,16 @@ function FilaAgente({
       {seleccionado && (
         <div className="mb-1 ml-1 mt-0.5 border-l-2 border-heroViolet/40 pl-3 text-[12px] leading-relaxed text-inkSoft">
           <p>{paso.que}</p>
-          {paso.fuente && (
+          {paso.fuentes.length > 0 && (
             <p className="mt-0.5 text-mute">
-              Coteja contra: {paso.fuente}
+              Coteja contra: {paso.fuentes.join(", ")}.
               {paso.id && <span className="ml-1.5 font-mono text-[10px]">{paso.id}</span>}
             </p>
           )}
           {v.estado === "omitido" && (
-            <p className="mt-0.5 text-mute">No corrió en este contrato · {v.motivo ?? "no aplica al perfil"}.</p>
+            <p className="mt-0.5 text-mute">No corrió en este contrato: {v.motivo ?? "no aplica al perfil"}.</p>
           )}
-          {v.estado === "error" && v.motivo && <p className="mt-0.5 text-rust">Falló · {v.motivo}</p>}
+          {v.estado === "error" && v.motivo && <p className="mt-0.5 text-rust">Falló: {v.motivo}</p>}
           {v.estado === "corriendo" && v.msg && <p className="mt-0.5 text-amberTexto">Ahora: {v.msg}</p>}
           {conSenales && (
             <p className="mt-0.5 text-mute">

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Newspaper, Camera, Gavel, MapPin } from "lucide-react";
 import { HeroCompacto } from "@/components/landing/HeroCompacto";
-import { FeatureHighlights } from "@/components/landing/FeatureHighlights";
 import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto";
+import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
+import { FuentesSection } from "@/components/landing/FuentesSection";
 import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
@@ -23,8 +24,17 @@ export const metadata: Metadata = {
 };
 
 /**
- * Landing compacta (un solo mapa): hero+mapa → cómo funciona (+ qué detecta) →
- * aliados (+ cifras de financiamiento) → denuncia ciudadana → confianza → CTA.
+ * Landing compacta (un solo mapa): hero+mapa → en vivo → cómo funciona (+ qué
+ * detecta) → los diez agentes → de dónde sale cada dato → aliados → denuncia
+ * ciudadana → confianza → expansión → CTA.
+ *
+ * Lo que se fue: `FeatureHighlights`, cuatro cajas de ícono+título+párrafo
+ * ("Datos abiertos", "Agentes de IA", "Participación ciudadana", "Un Perú más
+ * transparente"). Dos de las cuatro son exactamente lo que ahora dicen
+ * `PipelineAgentes` y `FuentesSection` con el grafo real y las fuentes con
+ * enlace; repetirlas arriba en versión genérica era decir dos veces lo mismo, la
+ * segunda peor. Las otras dos ya las sostienen la sección de denuncia ciudadana
+ * y el cierre.
  */
 export default async function LandingPage() {
   // Marquee "en vivo": alertas reales; el mock solo si el API no responde.
@@ -46,8 +56,6 @@ export default async function LandingPage() {
   return (
     <>
       <HeroCompacto />
-
-      <FeatureHighlights />
 
       {/* ─── EN VIVO: alertas reales ─── */}
       <section className="border-y border-line bg-paperDeep">
@@ -83,6 +91,13 @@ export default async function LandingPage() {
       </section>
 
       <ComoFuncionaCompacto />
+
+      {/* El paso 3 de "cómo funciona" dice "diez agentes los leen". Estas dos
+          secciones son la prueba de esa frase, y van pegadas a ella: primero
+          quiénes son los diez, después de dónde sacan lo que dicen. */}
+      <PipelineAgentes />
+
+      <FuentesSection />
 
       <AliadosSection />
 

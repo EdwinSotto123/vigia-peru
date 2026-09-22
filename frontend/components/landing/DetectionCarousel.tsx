@@ -126,12 +126,16 @@ export function DetectionCarousel() {
 }
 
 function CasoCard({ caso }: { caso: Caso }) {
+  // `amber` es el tono más claro de la escala de severidad: en blanco sobre
+  // amber la píldora daba 3.47:1, bajo el mínimo AA de 4.5:1 para texto chico.
+  // Con tinta encima llega a ~7:1 sin cambiar el color que codifica la severidad.
+  // rust y clay son lo bastante oscuros y se quedan en blanco.
   const tagBg =
     caso.tagColor === "rust"
-      ? "bg-rust"
+      ? "bg-rust text-paper"
       : caso.tagColor === "clay"
-        ? "bg-clay"
-        : "bg-amber";
+        ? "bg-clay text-paper"
+        : "bg-amber text-ink";
 
   return (
     <article className="relative overflow-hidden rounded-3xl border border-line bg-paper shadow-card">
@@ -140,7 +144,7 @@ function CasoCard({ caso }: { caso: Caso }) {
         <div className="p-7 sm:p-9">
           <span
             className={
-              "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-paper " +
+              "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] " +
               tagBg
             }
           >
@@ -169,7 +173,7 @@ function CasoCard({ caso }: { caso: Caso }) {
           </ul>
 
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line pt-4">
-            <span className="rounded-full bg-paperDeep px-2.5 py-1 font-mono text-[10px] text-mute">
+            <span className="rounded-full bg-paperDeep px-2.5 py-1 font-mono text-[10px] text-ink/70">
               {caso.article}
             </span>
             <span className="inline-flex items-center gap-1 text-[11px] text-heroViolet">
@@ -182,10 +186,14 @@ function CasoCard({ caso }: { caso: Caso }) {
             anclado arriba (sin justify-center) para que no dependa de la altura del body. */}
         <div className="flex flex-col items-center gap-2.5 border-t border-line bg-paperDeep p-6 pt-7 md:w-[200px] md:border-l md:border-t-0 md:px-6 md:pt-9">
           <ScoreGauge score={caso.score} />
-          <span className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-mute">
+          {/* text-ink/70, no text-mute: este panel usa bg-paperDeep, donde
+              text-mute cae a 4.23:1 — bajo el mínimo AA de 4.5:1 para texto
+              chico. Mismo arreglo que ya llevaban el ticker EN VIVO y el
+              encabezado de esta misma sección. */}
+          <span className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-ink/70">
             Score de riesgo
           </span>
-          <p className="text-center text-[11px] leading-snug text-mute/80">
+          <p className="text-center text-[11px] leading-snug text-ink/70">
             {caso.score >= 85 ? "Riesgo alto" : caso.score >= 70 ? "Riesgo medio-alto" : "Riesgo medio"}
           </p>
         </div>
@@ -221,7 +229,7 @@ function ScoreGauge({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-serif text-3xl font-bold leading-none text-ink sm:text-4xl">{score}</span>
-        <span className="mt-0.5 text-[9px] uppercase tracking-[0.2em] text-mute">/ 100</span>
+        <span className="mt-0.5 text-[9px] uppercase tracking-[0.2em] text-ink/70">/ 100</span>
       </div>
     </div>
   );
