@@ -5,7 +5,7 @@ import {
   Heart,
   ArrowUpRight,
 } from "lucide-react";
-import { Logo } from "./Logo";
+import { Marca } from "./Marca";
 import { PeruFlag } from "./landing/CountryFlags";
 
 export function Footer() {
@@ -17,16 +17,18 @@ export function Footer() {
         {/* Top: brand + CTA donación lado a lado */}
         <div className="grid items-center gap-8 lg:grid-cols-[1.6fr,1fr]">
           {/* Brand block */}
+          {/* El PNG vivía acá dentro de una caja blanca, porque sobre tinta se
+              perdía. Esa caja se leía como una calcomanía pegada encima del pie,
+              no como la firma del sitio. El nombre escrito no necesita fondo. */}
           <div>
-            <Link href="/" aria-label="Vigía Perú, ir al inicio" className="inline-flex items-center">
-              <span className="rounded-2xl bg-paper px-4 py-3">
-                <Logo height={40} />
-              </span>
+            <Link
+              href="/"
+              aria-label="Vigía Perú, ir al inicio"
+              className="inline-flex rounded-lg transition-opacity duration-rapido hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+            >
+              <Marca tono="oscuro" tamano="lg" nota="Infraestructura cívica anticorrupción" />
             </Link>
-            <div className="mt-3 text-[10px] font-medium uppercase tracking-[0.2em] text-paper/45">
-              Infraestructura cívica anticorrupción
-            </div>
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-paper/70">
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-paper/70">
               Sin fines de lucro y 100% open source. Para que la verdad no dependa
               de quién paga el servidor.
             </p>
@@ -132,7 +134,9 @@ export function Footer() {
             <li>Licencia MIT</li>
             <li>Hecho en Lima</li>
           </ul>
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-paper/35">
+          {/* paper/35 daba 3.23:1 sobre tinta. Que sea la línea menos importante
+              del pie no la exime del mínimo AA: sigue siendo texto. */}
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-paper/55">
             {["Gemini 2.5", "Google ADK", "Cloud Run", "Cloud SQL"].map((t) => (
               <li key={t}>{t}</li>
             ))}

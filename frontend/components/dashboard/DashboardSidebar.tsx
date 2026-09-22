@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { BuscarGlobal } from "@/components/BuscarGlobal";
+import { Marca } from "@/components/Marca";
 import { FLAGS } from "@/lib/flags";
 
 type Item = {
@@ -211,14 +212,10 @@ export function DashboardSidebar() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-paper">
               <Shield size={16} strokeWidth={2.5} />
             </span>
-            <span className="flex flex-col leading-tight">
-              <span className="font-serif text-base font-bold text-ink">
-                Vigía <span className="text-heroViolet">Perú</span>
-              </span>
-              <span className="text-[9px] uppercase tracking-widest text-mute">
-                Mapa de auditoría
-              </span>
-            </span>
+            {/* Antes el nombre estaba escrito a mano acá, con su propio tamaño y
+                su propio acento. Ahora es el mismo componente que usan el header,
+                el pie y el panel de admin: un solo lugar donde puede cambiar. */}
+            <Marca tamano="sm" nota="Mapa de auditoría" />
           </Link>
 
           {/* Búsqueda global (⌘K) */}

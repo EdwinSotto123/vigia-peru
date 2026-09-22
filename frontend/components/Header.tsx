@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Heart, Menu, X } from "lucide-react";
-import { Logo } from "./Logo";
+import { Marca } from "./Marca";
 import { UserMenu } from "./auth/UserMenu";
 import { BuscarGlobal } from "./BuscarGlobal";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,10 @@ const NAV = [
   { href: "/preguntas", label: "FAQ" },
 ];
 
+/** Foco visible compartido: la navegación entera se podía recorrer con Tab sin ver dónde estabas. */
+const ANILLO =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper";
+
 export function Header() {
   const pathname = usePathname() || "/";
   const isDashboard = DASHBOARD_PATHS.some(
@@ -55,8 +59,15 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/80 backdrop-blur-xl">
       <div className={cn("container-page flex h-16 items-center justify-between gap-6", isLanding && "max-w-[1600px]")}>
-        <Link href="/" aria-label="Vigía Perú, ir al inicio" className="flex shrink-0 items-center">
-          <Logo height={30} priority />
+        <Link
+          href="/"
+          aria-label="Vigía Perú, ir al inicio"
+          className={cn(
+            "flex shrink-0 items-center rounded-lg transition-opacity duration-rapido hover:opacity-80",
+            ANILLO,
+          )}
+        >
+          <Marca />
         </Link>
 
         {showNav && (
@@ -118,9 +129,14 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-paperSoft hover:text-ink",
-        "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:rounded-full after:bg-heroGreen after:transition-transform",
-        active ? "text-ink after:scale-x-100" : "text-mute after:scale-x-0 hover:after:scale-x-100",
+        "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-rapido hover:bg-paperSoft hover:text-ink",
+        // El subrayado crece desde el centro, no desde el borde izquierdo: con
+        // `scale-x` sin origen declarado Tailwind usa el centro, pero el origen
+        // por defecto del navegador para el resto de la transición no estaba
+        // fijado y el trazo entraba de costado.
+        "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:bg-heroGreen after:transition-transform after:duration-normal",
+        active ? "text-ink after:scale-x-100" : "text-inkSoft after:scale-x-0 hover:after:scale-x-100",
+        ANILLO,
       )}
     >
       {children}

@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
-import { Logo } from "@/components/Logo";
+import { Marca } from "@/components/Marca";
 
 function LoginForm() {
   const router = useRouter();
@@ -32,7 +32,7 @@ function LoginForm() {
   return (
     <form onSubmit={submit} className="w-full max-w-sm rounded-3xl border border-line bg-paper p-8 shadow-sm">
       <div className="flex items-center gap-2">
-        <Logo height={30} />
+        <Marca />
         <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">admin</span>
       </div>
       <h1 className="mt-5 font-serif text-2xl font-bold text-ink">Acceso al panel</h1>
