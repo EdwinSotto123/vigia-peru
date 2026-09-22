@@ -58,16 +58,20 @@ export function Panel({
     // prefers-reduced-motion deja la transición en 0.01ms (globals.css),
     // así que este timeout se vuelve imperceptible por sí solo.
     setSaliendo(true);
-    window.setTimeout(() => {
-      setSaliendo(false);
-      onCerrar();
-    }, 200);
+    window.setTimeout(onCerrar, 200);
   }, [onCerrar]);
 
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (abierto && !d.open) d.showModal();
+    if (abierto && !d.open) {
+      // `saliendo` se limpia al ABRIR, no al terminar de cerrar. Si se limpiara
+      // junto con onCerrar(), el panel volvería a su posición de reposo en el
+      // mismo commit en que se oculta: un destello de un frame con el panel
+      // otra vez entero antes de desaparecer.
+      setSaliendo(false);
+      d.showModal();
+    }
     if (!abierto && d.open) d.close();
   }, [abierto]);
 

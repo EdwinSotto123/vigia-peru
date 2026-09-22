@@ -45,7 +45,23 @@ function usarFlotante(abierto: boolean) {
   }, []);
 
   useLayoutEffect(() => {
-    if (!abierto) return setPos(null);
+    const el = flotanteRef.current;
+    if (!abierto) {
+      if (el && typeof el.hidePopover === "function" && el.matches(":popover-open")) el.hidePopover();
+      return setPos(null);
+    }
+    // ORDEN CRÍTICO: primero mostrar, después medir. Un elemento con atributo
+    // `popover` está en `display: none` hasta que se abre, y
+    // getBoundingClientRect() sobre un display:none devuelve todo en cero — así
+    // que medir antes de mostrar coloca el tooltip en la esquina superior
+    // izquierda la primera vez que se abre.
+    if (el && typeof el.showPopover === "function" && !el.matches(":popover-open")) {
+      try {
+        el.showPopover();
+      } catch {
+        // Nodo todavía no conectado: degrada a `fixed` normal, que es correcto.
+      }
+    }
     colocar();
   }, [abierto, colocar]);
 
@@ -62,21 +78,6 @@ function usarFlotante(abierto: boolean) {
   }, [abierto, colocar]);
 
   return { anclaRef, flotanteRef, pos };
-}
-
-/** Sube el nodo al top layer si el navegador soporta el atributo `popover`. */
-function usarTopLayer(ref: React.RefObject<HTMLDivElement>, abierto: boolean) {
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof el.showPopover !== "function") return;
-    try {
-      if (abierto && !el.matches(":popover-open")) el.showPopover();
-      if (!abierto && el.matches(":popover-open")) el.hidePopover();
-    } catch {
-      // Un showPopover() sobre un nodo todavía no conectado tira; en ese caso
-      // el elemento sigue siendo un `fixed` normal, que es el degradado correcto.
-    }
-  }, [abierto, ref]);
 }
 
 /**
@@ -97,7 +98,6 @@ export function Tooltip({
   const [abierto, setAbierto] = useState(false);
   const id = useId();
   const { anclaRef, flotanteRef, pos } = usarFlotante(abierto);
-  usarTopLayer(flotanteRef, abierto);
 
   return (
     <>
@@ -152,7 +152,6 @@ export function Popover({
   const [abierto, setAbierto] = useState(false);
   const id = useId();
   const { anclaRef, flotanteRef, pos } = usarFlotante(abierto);
-  usarTopLayer(flotanteRef, abierto);
 
   useEffect(() => {
     if (!abierto) return;
