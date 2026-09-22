@@ -150,13 +150,16 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
         </div>
       </section>
 
-      {totalPagina > 0 && (
+      {/* totalPagina > destacados.length, no totalPagina > 0: con 1-3 aliados en total, ya
+          están los 3 arriba en "Aliados del mes" — repetir la misma única tarjeta acá abajo
+          (con paginación completa para una sola página) era ruido, no información nueva. */}
+      {totalPagina > destacados.length && (
         <section>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-[11px] uppercase tracking-wide text-mute">Todos los aliados</h2>
             <span className="font-mono text-[11px] text-mute">{totalPagina.toLocaleString("es-PE")}</span>
           </div>
-          <div className="mt-3">{paginacion}</div>
+          {paginas > 1 && <div className="mt-3">{paginacion}</div>}
           {filasPagina.length > 0 ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {filasPagina.map((r, i) => (
@@ -168,7 +171,7 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
           ) : (
             <p className="mt-3 text-sm text-mute">Los aliados de esta página aportaron de forma anónima.</p>
           )}
-          {filasPagina.length > 8 && <div className="mt-4">{paginacion}</div>}
+          {paginas > 1 && filasPagina.length > 8 && <div className="mt-4">{paginacion}</div>}
         </section>
       )}
 

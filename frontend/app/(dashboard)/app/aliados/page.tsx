@@ -42,7 +42,7 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <KpiTile label="Aliados" value={estado?.financiadores ?? 0} />
+            <KpiTile label={estado?.financiadores === 1 ? "Aliado" : "Aliados"} value={estado?.financiadores ?? 0} />
             <KpiTile label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
             <KpiTile label="Señales halladas" value={estado?.senalesHalladas ?? 0} valueTone={(estado?.senalesHalladas ?? 0) > 0 ? "rust" : undefined} />
           </div>
