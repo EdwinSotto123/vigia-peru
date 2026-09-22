@@ -24,6 +24,10 @@ interface Props {
   row: RankingRow;
   posicion: number;
   destacado?: boolean;
+  /** Único aliado destacado (ej. solo el fundador todavía): layout horizontal, logo y
+   * cifras más grandes -- la empresa protagoniza la tarjeta en vez de quedar angosta con
+   * huecos vacíos al lado en una grilla pensada para 3. */
+  spotlight?: boolean;
 }
 
 /**
@@ -31,7 +35,7 @@ interface Props {
  * (top 3 del mes) el avatar es grande y lleva medalla; en modo compacto es
  * una fila para grillas densas.
  */
-export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
+export function TarjetaAliado({ row, posicion, destacado = false, spotlight = false }: Props) {
   const medalla = MEDALLA[posicion];
   const nombre = row.slug ? (
     <Link href={`/aliado/${row.slug}`} className="hover:underline">{row.nombre}</Link>
@@ -58,6 +62,38 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
           </Link>
         )}
       </div>
+    );
+  }
+
+  if (spotlight) {
+    const etiquetaTipo = esFundador(row) ? "Fundador · capital semilla" : `${TIPO_LABEL[row.tipo]} · aliado de transparencia`;
+    const desdeTxt = row.desde ? `desde ${new Date(row.desde).toLocaleDateString("es-PE", { month: "short", year: "numeric" })}` : "";
+    return (
+      <article className="relative flex w-full flex-col gap-6 overflow-hidden rounded-3xl border border-line bg-paper p-6 transition-all hover:-translate-y-0.5 hover:shadow-card sm:flex-row sm:items-center sm:gap-8 sm:p-8">
+        <div aria-hidden className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-heroViolet/[0.06] blur-3xl" />
+        {medalla && (
+          <span className="absolute right-5 top-5 text-3xl" title={medalla.label} aria-label={medalla.label}>{medalla.emoji}</span>
+        )}
+        <div className="flex items-center gap-5 sm:flex-col sm:items-start sm:gap-4">
+          <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="xl" />
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-mute">{etiquetaTipo}</div>
+            <h3 className="mt-0.5 font-serif text-2xl font-bold text-ink sm:text-3xl">{nombre}</h3>
+            {desdeTxt && <div className="mt-1 text-[11px] text-mute">{desdeTxt}</div>}
+          </div>
+        </div>
+        <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-5 sm:grid-cols-4 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0">
+          <EstadisticaAliado etiqueta={row.contratosFinanciados === 1 ? "Contrato financiado" : "Contratos financiados"} valor={row.contratosFinanciados} grande />
+          <EstadisticaAliado etiqueta={row.zonas === 1 ? "Zona" : "Zonas"} valor={row.zonas} grande />
+          <EstadisticaAliado etiqueta={row.senalesHalladas === 1 ? "Señal hallada" : "Señales halladas"} valor={row.senalesHalladas} tono={row.senalesHalladas > 0 ? "rust" : undefined} grande />
+          <EstadisticaAliado etiqueta="Procesados" valor={row.contratosProcesados} tono="verde" grande />
+        </dl>
+        {row.slug && (
+          <Link href={`/aliado/${row.slug}`} className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paperDeep sm:self-center">
+            Ver perfil <ArrowUpRight size={14} aria-hidden />
+          </Link>
+        )}
+      </article>
     );
   }
 
@@ -94,21 +130,21 @@ export function TarjetaAliado({ row, posicion, destacado = false }: Props) {
 
 /** Una cifra del aliado como dato, no como palabra dentro de una frase — reusa el mismo
  * patrón label-chico/número-grande que ya usan HeroKpis y AliadosStats en el hero. */
-function EstadisticaAliado({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono?: "rust" | "verde" }) {
+function EstadisticaAliado({ etiqueta, valor, tono, grande }: { etiqueta: string; valor: number; tono?: "rust" | "verde"; grande?: boolean }) {
   return (
     <div>
       <dt className="text-[10px] uppercase tracking-wide text-mute">{etiqueta}</dt>
-      <dd className={`font-mono text-base font-bold ${tono === "rust" ? "text-rust" : tono === "verde" ? "text-heroGreen" : "text-ink"}`}>
+      <dd className={`font-mono font-bold ${grande ? "text-2xl sm:text-3xl" : "text-base"} ${tono === "rust" ? "text-rust" : tono === "verde" ? "text-heroGreen" : "text-ink"}`}>
         {valor.toLocaleString("es-PE")}
       </dd>
     </div>
   );
 }
 
-export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string; size?: "sm" | "lg" }) {
-  const dims = size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
+export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string; size?: "sm" | "lg" | "xl" }) {
+  const dims = size === "xl" ? "h-24 w-24 rounded-3xl" : size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
   if (logoUrl) {
-    const px = size === "lg" ? 56 : 32;
+    const px = size === "xl" ? 96 : size === "lg" ? 56 : 32;
     // El logo de Vigía Perú (el propio aliado-fundador) llega del API como URL absoluta
     // a este mismo dominio — sin normalizar, el optimizador de Next lo trata como una
     // cache key distinta de cualquier otro <Image> que ya pidió ese mismo archivo por
@@ -120,7 +156,7 @@ export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: Ran
   const Icon = tipo === "empresa" ? Building2 : tipo === "organizacion" ? Users : User;
   return (
     <span className={`inline-flex ${dims} items-center justify-center bg-paperDeep text-mute`} aria-hidden>
-      <Icon size={size === "lg" ? 24 : 15} />
+      <Icon size={size === "xl" ? 36 : size === "lg" ? 24 : 15} />
     </span>
   );
 }

@@ -136,18 +136,31 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
   return (
     <div className="space-y-12">
       <section>
-        <p className="font-serif text-2xl font-bold text-ink sm:text-3xl">{encabezado}</p>
+        {/* Antes esta línea era un titular font-serif 2xl/3xl -- competía en peso visual con
+            el propio H1 de la página y con la tarjeta de abajo. Es contexto de apoyo, no el
+            protagonista: la empresa/tarjeta lo es. */}
+        <p className="max-w-2xl text-sm leading-relaxed text-mute sm:text-base">{encabezado}</p>
         <div className="mt-6 flex items-end justify-between gap-3">
           <h2 className="text-[11px] uppercase tracking-wide text-mute">Aliados {periodoDestacado}</h2>
           <span className="text-[11px] text-mute">se cuenta en contratos, no en soles</span>
         </div>
-        <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          {destacados.map((r, i) => (
-            <BlurFade key={r.id} delayMs={i * 80} className="flex">
-              <TarjetaAliado row={r} posicion={i + 1} destacado />
+        {destacados.length === 1 ? (
+          // Un solo aliado real (hoy, el caso normal): tarjeta spotlight a todo el ancho en
+          // vez de una grilla de 3 columnas con la tarjeta angosta y dos huecos vacíos al lado.
+          <div className="mt-3">
+            <BlurFade>
+              <TarjetaAliado row={destacados[0]} posicion={1} destacado spotlight />
             </BlurFade>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className={`mt-3 grid gap-4 ${destacados.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+            {destacados.map((r, i) => (
+              <BlurFade key={r.id} delayMs={i * 80} className="flex">
+                <TarjetaAliado row={r} posicion={i + 1} destacado />
+              </BlurFade>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* totalPagina > destacados.length, no totalPagina > 0: con 1-3 aliados en total, ya
