@@ -26,8 +26,9 @@ export default async function AliadosPage({ searchParams }: { searchParams?: { u
   return (
     <div className="bg-paper">
       {/* ─── HERO ─── */}
-      <section className="border-b border-line bg-paperDeep">
-        <div className="container-page grid gap-8 py-14 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+      <section className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.06] via-paperDeep to-heroGreen/[0.05]">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-heroViolet/10 blur-3xl" />
+        <div className="container-page relative grid gap-8 py-14 lg:grid-cols-[1.2fr_1fr] lg:items-end">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
               <HeartHandshake size={12} /> Reconocimiento público

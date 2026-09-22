@@ -31,8 +31,9 @@ export async function HeroCompacto() {
   const regionesConCola = zonasList.filter((z) => z.totalCola > 0).length;
 
   return (
-    <section id="inicio" className="relative overflow-hidden border-b border-line bg-paper">
-      <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[460px] w-[460px] rounded-full bg-heroViolet/10 blur-3xl" />
+    <section id="inicio" className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.07] via-paper to-heroGreen/[0.05]">
+      <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[460px] w-[460px] rounded-full bg-heroViolet/20 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-32 h-[360px] w-[360px] rounded-full bg-heroGreen/15 blur-3xl" />
       <div className="container-page relative max-w-[1600px] py-6 sm:py-8">
         <HeroMapSyncProvider zonas={zonasList}>
           {/* El mapa es un SVG 480×640 (más alto que ancho, 4:3 invertido) — a ancho casi

@@ -36,6 +36,11 @@ const TIER = {
   },
 } as const;
 
+/**
+ * Vive siempre sobre el fondo oscuro que arma MuroAliados.tsx alrededor de esta sección
+ * (el "escenario" del podio) -- por eso el texto propio usa tonos claros/paper, no
+ * mute/ink como el resto del sitio (que asume fondo blanco).
+ */
 export function Podio({ destacados, periodoDestacado }: { destacados: RankingRow[]; periodoDestacado: string }) {
   // Orden visual del podio (izq/centro/der), no el orden de ranking (que es 1,2,3):
   const visual: [RankingRow | undefined, 2 | 1 | 3][] = [
@@ -46,8 +51,8 @@ export function Podio({ destacados, periodoDestacado }: { destacados: RankingRow
   return (
     <section>
       <div className="flex items-end justify-between gap-3">
-        <h2 className="text-[11px] uppercase tracking-wide text-mute">Podio {periodoDestacado}</h2>
-        <span className="text-[11px] text-mute">se cuenta en contratos, no en soles</span>
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-heroGreen">Podio {periodoDestacado}</h2>
+        <span className="text-[11px] text-paper/50">se cuenta en contratos, no en soles</span>
       </div>
       <div className="mt-5 grid grid-cols-3 items-end gap-3 sm:gap-5">
         {visual.map(([row, posicion]) => (
@@ -81,11 +86,11 @@ function PodioSlot({ row, posicion }: { row: RankingRow | undefined; posicion: 1
       ) : (
         <Link
           href="/app/financiar"
-          className="flex w-full flex-1 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-line p-3 text-center transition-colors hover:border-heroGreen/40 hover:bg-heroGreen/5 sm:p-4"
+          className="flex w-full flex-1 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-paper/25 p-3 text-center transition-colors hover:border-heroGreen/60 hover:bg-heroGreen/10 sm:p-4"
         >
-          <HeartHandshake size={16} className="text-mute" aria-hidden />
-          <span className="text-[11px] font-semibold text-ink">Vacante</span>
-          <span className="text-[10px] text-mute">Sé el próximo</span>
+          <HeartHandshake size={16} className="text-paper/50" aria-hidden />
+          <span className="text-[11px] font-semibold text-paper">Vacante</span>
+          <span className="text-[10px] text-paper/50">Sé el próximo</span>
         </Link>
       )}
       <div className={`mt-3 flex w-full items-start justify-center rounded-t-xl pt-1.5 font-serif text-2xl font-bold text-paper sm:text-3xl ${tier.pedestal}`}>

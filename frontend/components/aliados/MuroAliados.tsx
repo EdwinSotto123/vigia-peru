@@ -141,7 +141,12 @@ export async function MuroAliados({ compact = false, region, pagina = 1 }: { com
             el propio H1 de la página y con el podio de abajo. Es contexto de apoyo, no el
             protagonista: la empresa lo es. */}
         <p className="max-w-2xl text-sm leading-relaxed text-mute sm:text-base">{encabezado}</p>
-        <div className="mt-6">
+        {/* "Escenario" oscuro para el podio: todo el resto de la página es fondo blanco/gris
+            clarísimo (bg-paper/bg-paperDeep) -- el reconocimiento en sí merecía más que otra
+            tarjeta blanca sobre fondo blanco. Mismo degradé que ya usa el CTA final de la
+            landing (from-heroViolet to-heroViolet-deep), no un color nuevo. */}
+        <div className="relative mt-6 overflow-hidden rounded-3xl bg-gradient-to-br from-heroViolet via-[#3a2d70] to-heroViolet-deep px-4 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8">
+          <div aria-hidden className="pointer-events-none absolute -left-16 -top-16 h-64 w-64 rounded-full bg-heroGreen/10 blur-3xl" />
           <Podio destacados={destacados} periodoDestacado={periodoDestacado} />
         </div>
       </section>
