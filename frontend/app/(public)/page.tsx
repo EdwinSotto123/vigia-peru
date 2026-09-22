@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Newspaper, Camera, Gavel, MapPin } from "lucide-react";
 import { HeroCompacto } from "@/components/landing/HeroCompacto";
+import { LaBrecha } from "@/components/landing/LaBrecha";
 import { ComoFuncionaCompacto } from "@/components/landing/ComoFuncionaCompacto";
 import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
 import { FuentesSection } from "@/components/landing/FuentesSection";
 import { AliadosSection } from "@/components/landing/AliadosSection";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
-import { Marquee } from "@/components/magicui/Marquee";
 import { BlurFade } from "@/components/magicui/BlurFade";
-import { PulseDot } from "@/components/ui/PulseDot";
 import { getAlertas } from "@/lib/api-client";
-import { ALERTAS_MOCK, formatSoles } from "@/lib/mock-data";
+import { getEstadoGlobal } from "@/lib/financiamiento";
+import { getResumenContratos } from "@/lib/contratos";
+import { ALERTAS_MOCK } from "@/lib/mock-data";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta — así "/"
 // deja de anunciarse con "corrupción" + gancho de urgencia (clickbait) sin tocar el
@@ -37,13 +38,13 @@ export const metadata: Metadata = {
  * y el cierre.
  */
 export default async function LandingPage() {
-  // Marquee "en vivo": alertas reales; el mock solo si el API no responde.
-  let alertas: any[] = [];
-  try {
-    alertas = await getAlertas({ limit: 50 });
-  } catch {
-    alertas = [];
-  }
+  // Las tres lecturas en paralelo: son independientes y una en serie le sumaba
+  // el round-trip de las otras dos al primer byte de la portada.
+  const [alertas, estado, resumen] = await Promise.all([
+    getAlertas({ limit: 50 }).catch(() => [] as any[]),
+    getEstadoGlobal().catch(() => null),
+    getResumenContratos().catch(() => null),
+  ]);
   // Muestra de una ventana reciente (por fecha de buena pro), no un top estricto por
   // score: un ranking estricto satura en "score 100" apenas 8+ contratos empatan en el
   // techo — un feed "en vivo" donde todo está al máximo de alarma lee como demo, no
@@ -53,42 +54,33 @@ export default async function LandingPage() {
     .sort((a, b) => (b.fechaBuenaPro ?? "").localeCompare(a.fechaBuenaPro ?? ""))
     .slice(0, 8);
 
+  // Sin el resumen, la sección NO se dibuja. Una portada que estima cuántos
+  // contratos quedaron sin leer es justo el tipo de dato que este producto le
+  // reprocha al Estado — y el mock de alertas puede rellenar un ticker, nunca la
+  // cifra que sostiene el argumento entero.
+  //
+  // Las tres cifras salen del MISMO resumen, o sea del mismo universo. "Leído" es
+  // "tiene score", que es la misma definición que usa /app/contratos para decir
+  // "98 leídos de 18 394": si acá se usara el `contratosProcesados` de
+  // `getEstadoGlobal` —que cuenta sólo lo financiado por aliados— la portada
+  // diría 33 y la página de contratos 98, con el mismo rótulo.
+  const publicados = resumen?.total ?? 0;
+  const brecha =
+    resumen && publicados > 0
+      ? {
+          publicados,
+          leidos:
+            (resumen.porRiesgo.alto ?? 0) + (resumen.porRiesgo.medio ?? 0) + (resumen.porRiesgo.bajo ?? 0),
+          senalAlta: resumen.porRiesgo.alto ?? 0,
+          precioPen: estado?.tarifa.precioPen ?? null,
+        }
+      : null;
+
   return (
     <>
       <HeroCompacto />
 
-      {/* ─── EN VIVO: alertas reales ─── */}
-      <section className="border-y border-line bg-paperDeep">
-        <div className="relative overflow-hidden py-2">
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-paperDeep to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-paperDeep to-transparent" />
-          <div className="pointer-events-none absolute left-4 top-1/2 z-20 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-rust px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-paper">
-            <PulseDot color="paper" size={6} />
-            en vivo
-          </div>
-          <Marquee className="[--duration:80s] [--gap:3rem] pl-32" pauseOnHover>
-            {topAlerts.map((a: any) => (
-              <Link
-                key={a.id ?? a.codigo}
-                href={`/app/convocatoria/${encodeURIComponent(a.codigoconvocatoria)}`}
-                prefetch={false}
-                className="flex items-center gap-3.5 whitespace-nowrap text-xs transition-opacity hover:opacity-70"
-              >
-                <span className="rounded bg-rust/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-rust">
-                  score {a.score}
-                </span>
-                {/* text-ink/70 (no text-mute): esta franja usa bg-paperDeep, un poco más
-                    oscuro que el resto de la página — con ese fondo, text-mute cae a
-                    ~4.23:1 (bajo el mínimo AA de 4.5:1). text-ink/70 da ~6.17:1 sobre
-                    paperDeep. Los demás usos de text-mute en la página sí cumplen y no se tocan. */}
-                <span className="text-ink/70">{a.region}</span>
-                <span className="max-w-[400px] truncate text-ink">{a.objeto}</span>
-                <span className="font-mono text-ink">{formatSoles(a.montoSoles ?? 0)}</span>
-              </Link>
-            ))}
-          </Marquee>
-        </div>
-      </section>
+      {brecha && <LaBrecha {...brecha} alertas={topAlerts} />}
 
       <ComoFuncionaCompacto />
 

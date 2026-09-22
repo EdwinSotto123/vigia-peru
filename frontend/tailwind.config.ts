@@ -174,6 +174,31 @@ const config: Config = {
           "88%": { opacity: "1" },
           "100%": { left: "100%", opacity: "0" },
         },
+        /* La ola que recorre el DAG: cada paso se enciende cuando le toca su
+           turno y vuelve a apagarse. El desfase lo pone cada chip con su propio
+           `animation-delay`, calculado desde su posición real en el grafo, así
+           que lo que se ve es el orden en que corre de verdad. */
+        /* El piso es 0.85, no 0.45: el paso "apagado" tiene que seguir siendo
+           legible — es texto, no un adorno que se atenúa, y la opacidad de un
+           ancestro multiplica el contraste de TODO lo que hay dentro. Con 0.45
+           la línea de fuentes caía a 3.4:1. La diferencia entre apagado y
+           encendido la carga el resplandor, no el desvanecido.
+           Ojo con el 100%: `prefers-reduced-motion` deja la animación en una
+           sola iteración instantánea y sin `forwards`, así que el estado que
+           queda es el del CSS base (opacidad 1, todos encendidos). Por eso el
+           estado legible vive en la clase y no en el keyframe. */
+        pasoCorriendo: {
+          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(47,168,76,0)" },
+          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(47,168,76,0.65), 0 0 26px -4px rgba(47,168,76,0.75)" },
+          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(47,168,76,0.65), 0 0 26px -4px rgba(47,168,76,0.75)" },
+          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(47,168,76,0)" },
+        },
+        /* El destello que marca dónde está la astilla de lo leído en la barra a
+           escala real: 98 de 18 394 son 7 px y sin esto no se encuentran. */
+        astillaViva: {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(47,168,76,0.55)" },
+          "50%": { boxShadow: "0 0 18px 3px rgba(47,168,76,0.85)" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -191,6 +216,8 @@ const config: Config = {
         llamaBob: "llamaBob 0.9s ease-in-out infinite",
         tooltipIn: "tooltipIn 120ms ease-out both",
         rielPulso: "rielPulso 3.8s ease-in-out infinite",
+        pasoCorriendo: "pasoCorriendo 7s ease-in-out infinite",
+        astillaViva: "astillaViva 2.6s ease-in-out infinite",
       },
     },
   },

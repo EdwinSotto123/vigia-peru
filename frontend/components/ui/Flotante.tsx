@@ -141,12 +141,20 @@ export function Popover({
   titulo,
   children,
   className,
+  estilo,
   anchoClase = "w-72",
 }: {
   trigger: React.ReactNode;
   titulo?: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Estilo en línea del disparador. Existe para lo que una clase de Tailwind no
+   * puede expresar: un valor calculado por instancia, como el `animationDelay`
+   * que le da a cada agente del pipeline su turno en el grafo. Datos planos,
+   * nada de funciones: este componente cruza el límite servidor/cliente.
+   */
+  estilo?: React.CSSProperties;
   anchoClase?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -185,6 +193,7 @@ export function Popover({
         aria-haspopup="dialog"
         aria-expanded={abierto}
         aria-controls={abierto ? id : undefined}
+        style={estilo}
         className={cn("inline-flex items-center", className)}
       >
         {trigger}
