@@ -1,25 +1,71 @@
 import Link from "next/link";
 import { ArrowRight, EyeOff } from "lucide-react";
 import { getEstadoGlobal, getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
+import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { cn } from "@/lib/utils";
 import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
+import { OrdenMuro, type OpcionOrden } from "./OrdenMuro";
+import { ResumenAliado } from "./ResumenAliado";
+import { getPerfilAliado } from "./perfil";
 
 /** Tamaño de página del libro mayor (tope del backend también es 60). */
 const TAM = 24;
 /** Muestra para el encabezado y el recuento de anónimos: no se pagina, solo da contexto. */
 const RESUMEN_LIMIT = 60;
 /**
- * Hasta acá el muro se dibuja con fichas; pasado esto, con tabla. Con uno o dos
- * nombres una fila de tabla parece un error de carga; con veinte, veinte fichas
- * son un scroll inútil. El mismo dato, dos densidades.
+ * Hasta acá el muro se dibuja con fichas; pasado esto, con tabla.
+ *
+ * Antes el corte estaba en 3, y con cuatro nombres el muro caía a una tabla de
+ * cuatro filas: quien financia —que es la razón de que exista cada auditoría—
+ * quedaba reducido a un renglón. Una docena de fichas en grilla todavía se lee
+ * como un muro; a partir de ahí, la tabla es la que respeta el volumen.
  */
-const UMBRAL_FICHA = 3;
+const UMBRAL_FICHA = 12;
+/** Con uno o dos nombres el muro es sobre todo una invitación, y se diseña como tal. */
+const UMBRAL_INVITACION = 3;
+/**
+ * Cuántos resúmenes laterales se traen. Es un fetch por aliado: con la grilla
+ * topada en 12 fichas, son 12 llamadas paralelas de 30 s de caché. Pasado eso
+ * manda la tabla, que no abre paneles.
+ */
+const MAX_RESUMEN = 12;
+
+export type ClaveOrden = "financiados" | "senales" | "regiones";
+
+const ORDEN_LABEL: Record<ClaveOrden, string> = {
+  financiados: "Contratos financiados",
+  senales: "Señales halladas",
+  regiones: "Regiones alcanzadas",
+};
+
+const ORDEN_VALOR: Record<ClaveOrden, (r: RankingRow) => number> = {
+  financiados: (r) => r.contratosFinanciados,
+  senales: (r) => r.senalesHalladas,
+  regiones: (r) => r.zonas,
+};
+
+/** Lee `?orden=` y descarta cualquier otra cosa. */
+export function parseOrden(v: string | string[] | undefined): ClaveOrden {
+  const s = Array.isArray(v) ? v[0] : v;
+  return s === "senales" || s === "regiones" ? s : "financiados";
+}
+
+function ordenar(rows: RankingRow[], orden: ClaveOrden): RankingRow[] {
+  const valor = ORDEN_VALOR[orden];
+  return [...rows].sort(
+    (a, b) =>
+      valor(b) - valor(a) ||
+      b.contratosFinanciados - a.contratosFinanciados ||
+      a.nombre.localeCompare(b.nombre, "es"),
+  );
+}
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
 const num = (n: number) => n.toLocaleString("es-PE");
 
 /**
- * El muro de aliados, ahora libro mayor y no podio.
+ * El muro de aliados: libro mayor, nunca podio.
  *
  * Lo que había antes: un podio de tres puestos (dos de ellos losas "vacante"),
  * medallas emoji y una animación infinita sobre el puesto 1. Con un único
@@ -27,10 +73,11 @@ const num = (n: number) => n.toLocaleString("es-PE");
  * probaba soledad, y le daba superficie heroica justamente a quien paga, que es
  * lo contrario de lo que este producto promete.
  *
- * Lo que hay ahora: quién aportó, cuánto de eso ya se leyó y cuánto salió con
- * señal. Sin puestos, sin medallas, sin montos. El reconocimiento se mide en
- * contratos leídos — 300 vecinos que financian 300 pesan igual que una empresa
- * que financia 300 — y por eso este componente nunca muestra soles.
+ * Lo que hay ahora: una ficha por aliado con su identidad, su logo clickeable
+ * hacia su página, y un resumen que se abre al costado sin perder el muro.
+ * Sin puestos, sin medallas, sin montos. El reconocimiento se mide en contratos
+ * leídos —300 vecinos que financian 300 pesan igual que una empresa que
+ * financia 300— y por eso este componente nunca muestra soles.
  *
  * `compact` es el bloque de la landing (sección Aliados), que comparte el mismo
  * dato y las mismas reglas.
@@ -41,6 +88,8 @@ export async function MuroAliados({
   pagina = 1,
   nombreRegion,
   financiadosAmbito,
+  maqueta = false,
+  orden = "financiados",
 }: {
   compact?: boolean;
   /** Ubigeo de 2–6 dígitos; en la URL de /app/aliados viaja como `?ubigeo=`. */
@@ -50,10 +99,14 @@ export async function MuroAliados({
   nombreRegion?: string;
   /**
    * Contratos financiados en este ámbito, exacto (de `/financiamiento/estado` o de la
-   * zona). Sin esto habría que sumar las filas del ranking, que están paginadas: con
-   * más de 60 aliados esa suma mentiría por lo bajo.
+   * zona, más los de maqueta si el interruptor está puesto). Sin esto habría que sumar
+   * las filas del ranking, que están paginadas: con más de 60 aliados esa suma mentiría
+   * por lo bajo.
    */
   financiadosAmbito?: number;
+  /** Interruptor `?maqueta=1`: mezcla los aliados inventados de lib/maqueta-aliados.ts. */
+  maqueta?: boolean;
+  orden?: ClaveOrden;
 }) {
   const paginaActual = Math.max(1, pagina);
   const offset = (paginaActual - 1) * TAM;
@@ -73,43 +126,124 @@ export async function MuroAliados({
     );
   }
 
-  const resumen = resumenRaw.data ?? [];
-  const totalVisible = resumenRaw.total ?? 0;
+  const inventados = maqueta ? rankingMaqueta(region) : [];
+  const resumen = [...(resumenRaw.data ?? []), ...inventados];
+  const totalVisible = (resumenRaw.total ?? 0) + inventados.length;
   const anonimos = resumen.filter(esAnonimo);
   const anonimosContratos = anonimos.reduce((n, r) => n + r.contratosFinanciados, 0);
   const conNombre = resumen.filter((r) => !esAnonimo(r));
   const financiadosMuro = financiadosAmbito ?? resumen.reduce((n, r) => n + r.contratosFinanciados, 0);
   const regionesConCola = estado?.regionesConCola ?? 0;
-
-  const filasPagina = (paginaRaw?.data ?? []).filter((r) => !esAnonimo(r));
-  const totalPagina = paginaRaw?.total ?? totalVisible;
-  const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
-  const pocos = totalVisible <= UMBRAL_FICHA;
+  const leidosMuro = resumen.reduce((n, r) => n + r.contratosProcesados, 0);
 
   if (totalVisible === 0) {
     return <MuroVacio nombreRegion={nombreRegion} plano={compact} />;
   }
 
-  const fichas = (conNombre.length ? conNombre : resumen).slice(0, compact ? UMBRAL_FICHA : RESUMEN_LIMIT);
+  const enFichas = totalVisible <= UMBRAL_FICHA;
+  const cabeEnUnaPagina = totalVisible <= RESUMEN_LIMIT;
+  const href = (r: RankingRow) =>
+    r.slug ? `/aliado/${r.slug}${esSlugMaqueta(r.slug) ? queryMaqueta(true) : ""}` : undefined;
 
-  const cuerpo = pocos ? (
-    <div className={compact ? "divide-y divide-line" : "space-y-3"}>
-      {fichas.map((r) => (
-        <TarjetaAliado
-          key={r.id}
-          row={r}
-          financiadosMuro={financiadosMuro}
-          regionesConCola={regionesConCola}
-          plano={compact}
-        />
-      ))}
+  // ── Camino de la landing: tres fichas planas, sin paneles ni paginación ──
+  if (compact) {
+    const fichas = (conNombre.length ? conNombre : resumen).slice(0, UMBRAL_INVITACION);
+    return (
+      <div>
+        <h3 className="font-serif text-lg font-bold text-ink">
+          {totalVisible === 1
+            ? "Un solo aliado sostiene la lectura hoy"
+            : `${num(totalVisible)} aliados sostienen la lectura hoy`}
+        </h3>
+        <p className="mt-1 text-[13px] leading-relaxed text-mute">
+          {num(financiadosMuro)} contratos financiados · {num(leidosMuro)} ya leídos. Se cuenta en
+          contratos, nunca en soles.
+        </p>
+        <div className="mt-4 divide-y divide-line">
+          {fichas.map((r) => (
+            <TarjetaAliado
+              key={r.id}
+              row={r}
+              financiadosMuro={financiadosMuro}
+              regionesConCola={regionesConCola}
+              href={href(r)}
+              plano
+            />
+          ))}
+        </div>
+        <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} breve />
+        <Link
+          href="/app/aliados"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline"
+        >
+          Ver el libro mayor completo <ArrowRight size={14} aria-hidden />
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Muro de /app/aliados ────────────────────────────────────────────────
+  const ordenadas = ordenar(conNombre, orden);
+  const filasPagina = (paginaRaw?.data ?? []).filter((r) => !esAnonimo(r));
+  const totalPagina = paginaRaw?.total ?? totalVisible;
+  const paginas = Math.max(1, Math.ceil(totalPagina / TAM));
+
+  // Los resúmenes laterales sólo se traen para lo que de verdad se va a pintar
+  // como ficha: en tabla no hay panel que abrir.
+  const conPerfil = enFichas ? ordenadas.filter((r) => r.slug).slice(0, MAX_RESUMEN) : [];
+  // 300 s, no los 30 de la ficha: el TTL de una ruta en Next 14 es el mínimo de
+  // sus fetches, y este muro no necesita refrescarse cada medio minuto.
+  const perfiles = await Promise.all(conPerfil.map((r) => getPerfilAliado(r.slug as string, maqueta, 300)));
+  const porSlug = new Map(conPerfil.map((r, i) => [r.slug as string, perfiles[i]]));
+
+  const opcionesOrden: OpcionOrden[] = (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => {
+    const params = new URLSearchParams();
+    if (region) params.set("ubigeo", region);
+    if (maqueta) params.set("maqueta", "1");
+    if (clave !== "financiados") params.set("orden", clave);
+    const qs = params.toString();
+    return { clave, etiqueta: ORDEN_LABEL[clave], href: qs ? `/app/aliados?${qs}` : "/app/aliados" };
+  });
+
+  const cuerpo = enFichas ? (
+    <div
+      className={cn(
+        "grid gap-4",
+        ordenadas.length > 1 && "sm:grid-cols-2",
+        ordenadas.length > 4 && "xl:grid-cols-3",
+      )}
+    >
+      {ordenadas.map((r) => {
+        const perfil = r.slug ? porSlug.get(r.slug) : null;
+        return (
+          <TarjetaAliado
+            key={r.id}
+            row={r}
+            financiadosMuro={financiadosMuro}
+            regionesConCola={regionesConCola}
+            href={href(r)}
+            esMaqueta={esSlugMaqueta(r.slug)}
+            resumen={
+              perfil ? (
+                <ResumenAliado
+                  nombre={r.nombre}
+                  contribuciones={perfil.contribuciones}
+                  regionesConCola={regionesConCola}
+                  financiadosMuro={financiadosMuro}
+                  esMaqueta={perfil.esMaqueta}
+                />
+              ) : undefined
+            }
+          />
+        );
+      })}
     </div>
   ) : (
-    <div className={compact ? "overflow-x-auto" : "overflow-x-auto rounded-2xl border border-line bg-paper"}>
+    <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
       <table className="w-full min-w-[34rem] text-left">
         <caption className="sr-only">
-          Aliados ordenados por contratos financiados. El orden no es un ranking de mérito: nadie elige
-          qué se audita.
+          Aliados ordenados por {ORDEN_LABEL[orden].toLowerCase()}. El orden no es un ranking de mérito:
+          nadie elige qué se audita.
         </caption>
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-mute">
@@ -122,10 +256,16 @@ export async function MuroAliados({
           </tr>
         </thead>
         <tbody className="[&>tr>*:first-child]:pl-4 [&>tr>*:last-child]:pr-4">
-          {(compact ? fichas : filasPagina).map((r) => (
-            <FilaAliado key={r.id} row={r} regionesConCola={regionesConCola} />
+          {(cabeEnUnaPagina ? ordenadas : [...inventados, ...filasPagina]).map((r) => (
+            <FilaAliado
+              key={r.id}
+              row={r}
+              regionesConCola={regionesConCola}
+              href={href(r)}
+              esMaqueta={esSlugMaqueta(r.slug)}
+            />
           ))}
-          {!compact && filasPagina.length === 0 && (
+          {!cabeEnUnaPagina && filasPagina.length === 0 && (
             <tr className="border-t border-line">
               <td colSpan={6} className="px-4 py-5 text-sm text-mute">
                 Todos los aportes de esta página se hicieron sin nombre. Cuentan igual en el total de
@@ -137,30 +277,6 @@ export async function MuroAliados({
       </table>
     </div>
   );
-
-  if (compact) {
-    return (
-      <div>
-        <h3 className="font-serif text-lg font-bold text-ink">
-          {totalVisible === 1
-            ? "Un solo aliado sostiene la lectura hoy"
-            : `${num(totalVisible)} aliados sostienen la lectura hoy`}
-        </h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-mute">
-          {num(financiadosMuro)} contratos financiados · {num(resumen.reduce((n, r) => n + r.contratosProcesados, 0))} ya
-          leídos. Se cuenta en contratos, nunca en soles.
-        </p>
-        <div className="mt-4">{cuerpo}</div>
-        <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} breve />
-        <Link
-          href="/app/aliados"
-          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline"
-        >
-          Ver el libro mayor completo <ArrowRight size={14} aria-hidden />
-        </Link>
-      </div>
-    );
-  }
 
   return (
     <section aria-labelledby="muro-titulo" className="space-y-4">
@@ -174,7 +290,23 @@ export async function MuroAliados({
         </p>
       </div>
 
-      {!pocos && paginas > 1 && (
+      {totalVisible > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          {cabeEnUnaPagina ? (
+            <OrdenMuro opciones={opcionesOrden} valor={orden} />
+          ) : (
+            <p className="text-[12px] text-mute">
+              Con más de {num(RESUMEN_LIMIT)} aliados el orden lo resuelve el servidor, por contratos
+              financiados.
+            </p>
+          )}
+          <p className="max-w-[52ch] text-[12px] leading-relaxed text-mute">
+            El orden no es un ranking de mérito: nadie elige qué se audita ni compra un resultado.
+          </p>
+        </div>
+      )}
+
+      {!cabeEnUnaPagina && paginas > 1 && (
         <Paginacion
           actual={paginaActual}
           paginas={paginas}
@@ -182,7 +314,7 @@ export async function MuroAliados({
           tam={TAM}
           navegacion="url"
           hrefBase="/app/aliados"
-          query={{ ubigeo: region }}
+          query={{ ubigeo: region, maqueta: maqueta ? "1" : undefined, orden: orden !== "financiados" ? orden : undefined }}
           cargando={false}
           nombre="aliados"
         />
@@ -190,7 +322,7 @@ export async function MuroAliados({
 
       {cuerpo}
 
-      {!pocos && paginas > 1 && (
+      {!cabeEnUnaPagina && paginas > 1 && (
         <Paginacion
           actual={paginaActual}
           paginas={paginas}
@@ -198,13 +330,15 @@ export async function MuroAliados({
           tam={TAM}
           navegacion="url"
           hrefBase="/app/aliados"
-          query={{ ubigeo: region }}
+          query={{ ubigeo: region, maqueta: maqueta ? "1" : undefined, orden: orden !== "financiados" ? orden : undefined }}
           cargando={false}
           nombre="aliados"
         />
       )}
 
-      {pocos && <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} />}
+      {totalVisible <= UMBRAL_INVITACION && (
+        <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} />
+      )}
       <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} />
     </section>
   );

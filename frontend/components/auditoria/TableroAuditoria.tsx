@@ -1,13 +1,23 @@
 "use client";
 
 /**
- * Tablero público "en vivo": columnas En cola → Procesando → Procesado con los contratos
+ * Tablero público "en vivo": columnas En espera → Procesando → Procesado con los contratos
  * asignados a aportes confirmados. Hace polling al API cada `autoRefreshMs` sólo con la
  * pestaña visible. Si el API no responde, conserva lo último que mostró y lo dice en voz
  * baja; nunca rompe la página.
  *
- * Con `verMasHref` (ver Props), "Procesado" se oculta acá y queda solo un link — para no
- * repetir la misma tarjeta dos veces cuando la página también tiene un histórico completo.
+ * Dos props gobiernan cuánto muestra:
+ *  · `verMasHref`: la página ya tiene su propio histórico completo más abajo, así que la
+ *    columna "Procesado" no se repite acá.
+ *  · `conteosExternos`: otra superficie de la misma página ya publica los conteos (en
+ *    /app/auditoria, la barra de estado del pipeline). Entonces este tablero NO los repite:
+ *    dos fuentes para el mismo número fue el defecto histórico de esta pantalla — los mismos
+ *    doce contratos salían como "esperan documentos" arriba y "en cola" acá abajo.
+ *
+ * La primera columna se llama "En espera" y no "En cola" a propósito: agrupa cuatro estados
+ * (en cola, esperando documentos, con error, sin análisis aplicable) y "en cola" es uno solo
+ * de ellos. Cada tarjeta lleva su estado exacto en la píldora, y el encabezado de la columna
+ * dice de qué está hecha.
  *
  * Datos: GET /financiamiento/procesamientos?ubigeo=&codigo=&limit=
  */
@@ -17,6 +27,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Eye, Inbox, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
+  ESTADO_PROC,
   PUBLIC_API_BASE,
   duracion,
   estadoVisible,
@@ -37,12 +48,12 @@ import { EstadoPill } from "./EstadoPill";
 type Columna = "encolado" | "procesando" | "procesado";
 
 const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: string }[] = [
-  { key: "encolado", label: "En cola", icon: <Clock size={14} />, vacio: "Nada esperando turno." },
-  { key: "procesando", label: "Procesando", icon: <Cpu size={14} />, vacio: "Ningún contrato en análisis ahora mismo." },
+  { key: "encolado", label: "En espera", icon: <Clock size={14} />, vacio: "Nada en espera con estos filtros." },
+  { key: "procesando", label: "En análisis", icon: <Cpu size={14} />, vacio: "Ningún contrato en análisis ahora mismo." },
   { key: "procesado", label: "Procesado", icon: <CheckCircle2 size={14} />, vacio: "Todavía no se publicó ningún resultado." },
 ];
 
-// error y pendiente_de_procesamiento se muestran en la columna "En cola" con su propia píldora.
+// error y pendiente_de_procesamiento se muestran en la columna "En espera" con su propia píldora.
 const columnaDe = (estado: EstadoProc): Columna => (estado === "procesando" || estado === "procesado" ? estado : "encolado");
 
 interface Props {
@@ -62,9 +73,28 @@ interface Props {
    * que tiene esa página, así que se muestra completa como siempre.
    */
   verMasHref?: string;
+  /** Otra superficie de la página ya publica los conteos: este tablero no los repite. */
+  conteosExternos?: boolean;
+  /**
+   * Qué mostrar en el lugar de "En análisis" cuando no hay nada en análisis — que es el estado
+   * NORMAL de esta pantalla, no la excepción. ReactNode ya renderizado (puede venir de un server
+   * component); jamás una función: eso compila y rompe sólo en producción.
+   */
+  panelSecundario?: React.ReactNode;
 }
 
-export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000, limit = 100, initial, compacto = false, verMasHref }: Props) {
+export function TableroAuditoria({
+  ubigeo,
+  codigo,
+  titulo,
+  autoRefreshMs = 5000,
+  limit = 100,
+  initial,
+  compacto = false,
+  verMasHref,
+  conteosExternos = false,
+  panelSecundario,
+}: Props) {
   const [items, setItems] = useState<Procesamiento[]>(initial ?? []);
   const [cargado, setCargado] = useState<boolean>(initial != null);
   const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial != null ? Date.now() : null);
@@ -127,9 +157,35 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
   // Procesados con alerta bloqueada por la autoevaluación: se muestran en "Procesado" con su píldora, y se cuentan aparte.
   const enRevision = useMemo(() => items.filter((p) => estadoVisible(p) === "revision").length, [items]);
 
+  /** De qué está hecha cada columna, contado sobre las MISMAS tarjetas que se ven debajo. */
+  const composicion = useCallback(
+    (lista: Procesamiento[]) => {
+      const m = new Map<EstadoProc, number>();
+      for (const p of lista) {
+        const s = estadoVisible(p);
+        m.set(s, (m.get(s) ?? 0) + 1);
+      }
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    },
+    [],
+  );
+
+  // El API devuelve como mucho `limit` filas: si se llenó, lo que se cuenta acá es una página,
+  // no el universo. Decirlo es lo que evita que este tablero contradiga a la barra de estado.
+  const truncado = cargado && items.length >= limit;
+
   // Con verMasHref, "Procesado" ya vive (completo, filtrable) en el histórico de abajo: acá solo
   // quedan las dos columnas realmente "en vivo" (transitorias) + un link al histórico.
-  const columnasVisibles = useMemo(() => (verMasHref ? COLUMNAS.filter((c) => c.key !== "procesado") : COLUMNAS), [verMasHref]);
+  const sinAnalisis = porColumna.procesando.length === 0;
+  const columnasVisibles = useMemo(() => {
+    let cols = verMasHref ? COLUMNAS.filter((c) => c.key !== "procesado") : COLUMNAS;
+    // Nada en análisis + hay algo mejor que un hueco → esa columna cede su lugar.
+    if (panelSecundario && sinAnalisis) cols = cols.filter((c) => c.key !== "procesando");
+    return cols;
+  }, [verMasHref, panelSecundario, sinAnalisis]);
+
+  const conPanel = !!panelSecundario && sinAnalisis;
+  const celdas = columnasVisibles.length + (conPanel ? 1 : 0);
 
   // En móvil, arrancamos en la pestaña con actividad (sin pisar la elección del usuario).
   useEffect(() => {
@@ -139,35 +195,45 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
     else if (!verMasHref && porColumna.procesado.length) setTab("procesado");
   }, [porColumna, cargado, verMasHref]);
 
+  // Si la pestaña elegida dejó de existir (la columna "En análisis" cedió el lugar), volver a una viva.
+  useEffect(() => {
+    if (!columnasVisibles.some((c) => c.key === tab)) setTab(columnasVisibles[0]?.key ?? "encolado");
+  }, [columnasVisibles, tab]);
+
   const vacio = cargado && items.length === 0;
+  const conTabs = !vacio && columnasVisibles.length > 1;
 
   return (
     <section aria-label={titulo ?? "Tablero de auditoría en vivo"}>
       {/* encabezado */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
           {titulo && <h2 className="font-serif text-2xl font-bold text-ink">{titulo}</h2>}
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
-            {COLUMNAS.map((c) => (
-              <span key={c.key} className="inline-flex items-center gap-1">
-                <span className={c.key === "procesando" && porColumna.procesando.length ? "text-amberTexto" : ""}>{c.icon}</span>
-                <span className="font-mono text-ink transition-all">{porColumna[c.key].length}</span> {c.label.toLowerCase()}
-              </span>
-            ))}
-            {enRevision > 0 && (
-              <span className="inline-flex items-center gap-1 text-clayTexto" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Cuentan como procesados, no como señales.">
-                <Eye size={14} />
-                <span className="font-mono">{enRevision}</span> en revisión humana
-              </span>
-            )}
-          </div>
+          {/* Los conteos van una sola vez por página. Si otra superficie ya los publica, acá no. */}
+          {!conteosExternos && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
+              {COLUMNAS.map((c) => (
+                <span key={c.key} className="inline-flex items-center gap-1">
+                  <span className={c.key === "procesando" && porColumna.procesando.length ? "text-amberTexto" : ""}>{c.icon}</span>
+                  <span className="font-mono text-ink transition-all">{porColumna[c.key].length}</span> {c.label.toLowerCase()}
+                </span>
+              ))}
+              {enRevision > 0 && (
+                <span className="inline-flex items-center gap-1 text-clayTexto" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Son parte de los procesados, no se suman.">
+                  <Eye size={14} />
+                  <span className="font-mono">{enRevision}</span> de ellos en revisión humana
+                </span>
+              )}
+            </div>
+          )}
           {verMasHref && porColumna.procesado.length > 0 && (
-            <a href={verMasHref} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-mute underline-offset-2 hover:text-ink hover:underline">
-              Ver los {porColumna.procesado.length} procesados en el histórico ↓
+            <a href={verMasHref} className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-mute underline-offset-2 hover:text-ink hover:underline">
+              Ver todo lo ya leído en el histórico ↓
             </a>
           )}
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
+        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
+          {truncado && <span title={`El API devuelve como mucho ${limit} filas por consulta.`}>mostrando los {limit} más recientes</span>}
           {fallo ? (
             <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
           ) : (
@@ -180,7 +246,7 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
       </div>
 
       {/* tabs móviles */}
-      {!vacio && (
+      {conTabs && (
         <div
           className={`mt-4 grid gap-1 rounded-xl border border-line bg-paperDeep p-1 ${columnasVisibles.length === 3 ? "grid-cols-3" : "grid-cols-2"} ${compacto ? "" : "md:hidden"}`}
           role="tablist"
@@ -208,30 +274,67 @@ export function TableroAuditoria({ ubigeo, codigo, titulo, autoRefreshMs = 5000,
       {vacio ? (
         <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} />
       ) : (
-        <div className={`mt-4 grid gap-4 ${compacto ? "" : columnasVisibles.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          {columnasVisibles.map((c) => (
-            <div
-              key={c.key}
-              role="tabpanel"
-              className={`${tab === c.key ? "block" : "hidden"} ${compacto ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
-            >
-              <div className={`hidden items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-mute ${compacto ? "" : "md:flex"}`}>
-                <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
-                <span className="font-mono">{porColumna[c.key].length}</span>
+        // `grid-cols-1` explícito, no `grid` a secas: sin él la pista implícita es `auto` y
+        // se dimensiona al max-content de las tarjetas, así que en 390 px la columna medía
+        // 557 px y la página entera scrolleaba en horizontal. `grid-cols-N` de Tailwind es
+        // `minmax(0, 1fr)`, que es justamente el mínimo que hay que fijar.
+        <div
+          className={`mt-4 grid grid-cols-1 items-start gap-4 ${
+            compacto ? "" : celdas === 3 ? "md:grid-cols-3" : celdas === 2 ? "md:grid-cols-2" : ""
+          }`}
+        >
+          {columnasVisibles.map((c) => {
+            const lista = porColumna[c.key];
+            const partes = composicion(lista);
+            return (
+              <div
+                key={c.key}
+                role={conTabs ? "tabpanel" : undefined}
+                className={`${conTabs && tab !== c.key ? "hidden" : "block"} ${compacto || !conTabs ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
+              >
+                <div className={`${conTabs && !compacto ? "hidden md:block" : "block"} px-2 pb-1 pt-1.5`}>
+                  <div className="flex items-baseline justify-between gap-2 text-[11px] uppercase tracking-wide text-mute">
+                    <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
+                    <span className="font-mono">{lista.length}</span>
+                  </div>
+                  {/* De qué está hecha la columna, contado sobre estas mismas tarjetas. Con un
+                      solo estado no se repite la cifra del encabezado: se nombra y basta. */}
+                  {partes.length === 1 && (
+                    <p className="mt-0.5 text-[11px] leading-snug text-mute">
+                      {lista.length === 1 ? "" : "todos "}
+                      {ESTADO_PROC[partes[0][0]].label.toLowerCase()}
+                    </p>
+                  )}
+                  {partes.length > 1 && (
+                    <p className="mt-0.5 text-[11px] leading-snug text-mute">
+                      {partes.map(([estado, n], i) => (
+                        <span key={estado}>
+                          {i > 0 && " · "}
+                          <span className="font-mono text-inkSoft">{n}</span> {ESTADO_PROC[estado].label.toLowerCase()}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+                {/* La cola puede tener decenas de tarjetas y el panel de al lado dos pantallas
+                    menos: sin tope, la mitad derecha de la página queda en blanco. Con tope,
+                    la cola se recorre adentro y las dos mitades pesan lo mismo. */}
+                <ul className={`space-y-2 ${compacto || conPanel ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
+                  {lista.length === 0 && !cargado && <SkeletonCard />}
+                  {lista.length === 0 && cargado && (
+                    <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
+                  )}
+                  {lista.map((p) => (
+                    <li key={p.ocid}>
+                      <Tarjeta p={p} ahora={ahora} />
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
-                {porColumna[c.key].length === 0 && !cargado && <SkeletonCard />}
-                {porColumna[c.key].length === 0 && cargado && (
-                  <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
-                )}
-                {porColumna[c.key].map((p) => (
-                  <li key={p.ocid} className="animate-slideUp">
-                    <Tarjeta p={p} ahora={ahora} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
+          {/* En móvil va primero: leer lo último que se analizó vale más que scrollear la cola. */}
+          {conPanel && <div className="order-first md:order-none">{panelSecundario}</div>}
         </div>
       )}
     </section>
@@ -252,14 +355,14 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
         p.estado === "procesando" ? "border-amber/50 ring-1 ring-amber/20" : "border-line"
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-sm font-medium leading-snug text-ink">{p.titulo ?? p.ocid}</p>
-        <EstadoPill estado={estado} />
-      </div>
-      <p className="mt-1 truncate text-[12px] text-mute">{p.entidad ?? "Entidad no identificada"}</p>
-      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
+      {/* La entidad primero y en chico: es lo que ubica al lector antes de leer el objeto,
+          que es largo y en mayúsculas. La píldora de estado baja al pie y deja de robarle
+          dos líneas de ancho al título. */}
+      <p className="truncate text-[11px] font-medium uppercase tracking-wide text-mute">{p.entidad ?? "Entidad no identificada"}</p>
+      <p className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">{p.titulo ?? p.ocid}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
         <span>{p.zona}</span>
-        {p.montoPen != null && p.montoPen > 0 && <span className="font-mono">{formatPEN(p.montoPen)}</span>}
+        {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{formatPEN(p.montoPen)}</span>}
       </p>
 
       {p.estado === "procesando" && fases && prog && (
@@ -267,11 +370,11 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
           <div className="flex items-center justify-between gap-2 text-[11px]">
             <span className="min-w-0 truncate text-amberTexto" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
             <span className="shrink-0 font-mono tabular-nums text-mute">
-              {prog.hechas}/{prog.aplicables}
+              {prog.hechas}/{prog.aplicables} pasos
               {transcurrido != null && transcurrido > 0 && ` · ${duracion(transcurrido)}`}
             </span>
           </div>
-          <div className="mt-1.5" aria-label={`Avance del análisis: ${prog.pct}%`}>
+          <div className="mt-1.5" aria-label={`Avance del análisis: ${prog.hechas} de ${prog.aplicables} pasos`}>
             <MiniCarriles carriles={progresoCarriles(fases, estado)} />
           </div>
         </div>
@@ -287,19 +390,22 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
 
       {estado === "procesado" && (
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[12px]">
-          <span className={`inline-flex flex-wrap items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-moss"}`}>
+          <span className={`inline-flex flex-wrap items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-mossTexto"}`}>
             {conSenales ? <AlertTriangle size={13} aria-hidden /> : <CheckCircle2 size={13} aria-hidden />}
             {conSenales ? `${p.banderas} ${p.banderas === 1 ? "señal de riesgo" : "señales de riesgo"}` : "sin señales"}
-            {p.score != null && <span className="ml-1 font-mono text-[11px] tabular-nums text-mute">· score {Math.round(p.score)}</span>}
+            {p.score != null && <span className="ml-1 font-mono text-[11px] tabular-nums text-mute">· riesgo {Math.round(p.score)}/100</span>}
           </span>
-          <span className="inline-flex items-center gap-0.5 text-mute">ver resultado <ArrowUpRight size={12} aria-hidden /></span>
+          <span className="inline-flex items-center gap-0.5 text-mute">ver dictamen <ArrowUpRight size={12} aria-hidden /></span>
         </div>
       )}
 
-      <p className="mt-2 truncate border-t border-line pt-2 text-[11px] text-mute">
-        gracias a <span className="font-medium text-inkSoft">{p.financiador}</span>
-        <span className="font-mono"> · {p.contribucionCodigo}</span>
-      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line pt-2 text-[11px] text-mute">
+        <span className="min-w-0 truncate">
+          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+          <span className="font-mono"> · {p.contribucionCodigo}</span>
+        </span>
+        <EstadoPill estado={estado} />
+      </div>
     </Link>
   );
 }
@@ -307,7 +413,8 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
 function SkeletonCard() {
   return (
     <li className="rounded-xl border border-line bg-paper p-3" aria-hidden>
-      <Skeleton className="h-3.5 w-4/5" />
+      <Skeleton className="h-3 w-2/5" />
+      <Skeleton className="mt-2 h-3.5 w-4/5" />
       <Skeleton className="mt-2 h-3 w-3/5" />
       <Skeleton className="mt-3 h-1.5 w-full" />
     </li>
@@ -330,7 +437,7 @@ function EstadoVacio({ fallo, codigo, ubigeo }: { fallo: boolean; codigo?: strin
     ? "Los contratos se asignan al confirmar el pago. Cuando el aporte esté validado, aquí verás cada uno pasar de la cola al análisis."
     : ubigeo
       ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
-      : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar fase por fase.";
+      : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
   return (
     <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
       <Inbox size={18} className="mt-0.5 shrink-0" aria-hidden />

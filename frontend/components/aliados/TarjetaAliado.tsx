@@ -1,7 +1,11 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, Building2, User, Users } from "lucide-react";
+import { ArrowUpRight, Building2, PanelRightOpen, User, Users } from "lucide-react";
+import { Revelar } from "@/components/ui/Revelar";
+import { cn } from "@/lib/utils";
 import type { RankingRow } from "@/lib/financiamiento";
+import { SelloMaqueta } from "./AvisoMaqueta";
 
 /**
  * Presentación de un aliado, en dos formatos que son el mismo dato.
@@ -17,9 +21,17 @@ import type { RankingRow } from "@/lib/financiamiento";
  *  - El número de puesto. El orden del libro mayor ya se ve; ponerle un "1"
  *    al lado lo convierte en podio otra vez.
  *
- * `ficha` es para cuando hay pocos aliados (hoy: uno) y una fila de tabla se
- * vería como un error. `FilaAliado` es para cuando hay muchos, que es el
- * caso que el diseño tiene que aguantar sin rediseñarse.
+ * Lo que sí ganó, porque quien financia es la razón de que las auditorías
+ * existan y estaba reducido a una fila de tabla:
+ *  - **El logo es la afordancia principal y lleva a su ficha.** Antes no era
+ *    clickeable: el único camino a `/aliado/[slug]` era un link de texto al
+ *    costado.
+ *  - **Resumen al vuelo.** `<Revelar>` abre sus aportes, sus regiones y lo que
+ *    salió en sus contratos en un panel lateral, sin perder el muro. Navegar
+ *    cuesta el contexto; acá el contexto es el muro entero.
+ *  - **Identidad propia, sin podio.** Todas las tarjetas tienen la misma
+ *    estructura y el mismo peso: lo que las diferencia son sus barras, que
+ *    están a escala real. Destacar una sería volver al escenario.
  *
  * Toda cifra viaja con su denominador: "33 de 45 financiados", nunca un 33
  * suelto en una caja.
@@ -58,6 +70,9 @@ export function identidadAliado(row: RankingRow): string {
   return partes.join(" · ");
 }
 
+const ANILLO =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper";
+
 /**
  * Una comparación con su barra a escala: "33 leídos de 45 financiados".
  * Nunca un número solo en una caja — esa plantilla es justo la que la
@@ -95,14 +110,17 @@ export function Proporcion({
 }
 
 /**
- * Ficha del aliado. Se usa cuando el muro tiene pocos nombres, y como
- * cabecera de su propia página.
+ * Ficha del aliado dentro del muro. Se usa cuando el muro cabe en tarjetas
+ * (hasta una docena de nombres); pasado eso manda la tabla.
  */
 export function TarjetaAliado({
   row,
   financiadosMuro,
   regionesConCola,
   plano = false,
+  href,
+  resumen,
+  esMaqueta = false,
 }: {
   row: RankingRow;
   /** Contratos financiados por TODO el muro: es el denominador de "de lo financiado". */
@@ -115,34 +133,69 @@ export function TarjetaAliado({
    * justo lo que la dirección prohíbe. La separación la ponen los divisores del padre.
    */
   plano?: boolean;
+  /** Href de su ficha, ya armado (puede llevar `?maqueta=1`). Sin slug, no hay ficha. */
+  href?: string;
+  /**
+   * Contenido del panel de resumen, ya renderizado en el servidor. ReactNode,
+   * nunca una función: un Server Component no puede pasar funciones a un Client
+   * Component — compila, pasa `tsc` y rompe sólo en producción.
+   */
+  resumen?: ReactNode;
+  esMaqueta?: boolean;
 }) {
+  const zonas = (
+    <p className="mt-3 text-[12px] leading-relaxed text-mute">
+      Alcanzó <span className="font-mono text-inkSoft">{num(row.zonas)}</span> de las{" "}
+      <span className="font-mono text-inkSoft">{num(regionesConCola)}</span> regiones con cola abierta
+      {(row.enRevision ?? 0) > 0 && (
+        <>
+          {" "}· <span className="font-mono text-inkSoft">{num(row.enRevision ?? 0)}</span> de sus contratos
+          leídos {(row.enRevision ?? 0) === 1 ? "espera" : "esperan"} revisión humana y todavía no{" "}
+          {(row.enRevision ?? 0) === 1 ? "cuenta" : "cuentan"} como señal
+        </>
+      )}
+      .
+    </p>
+  );
+
   return (
-    <article className={plano ? "py-4 first:pt-0 last:pb-0" : "rounded-2xl border border-line bg-paper p-5 sm:p-6"}>
-      <div className="flex flex-wrap items-start gap-4">
-        <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" />
+    <article
+      className={cn(
+        "flex h-full flex-col",
+        plano
+          ? "py-4 first:pt-0 last:pb-0"
+          : esMaqueta
+            ? "rounded-2xl border border-dashed border-amber/60 bg-amber-soft/30 p-5 sm:p-6"
+            : "rounded-2xl border border-line bg-paper p-5 sm:p-6",
+      )}
+    >
+      <div className="flex items-start gap-4">
+        {href ? (
+          // Duplicado deliberado del link del nombre: el logo es la afordancia que
+          // el ojo busca, pero un segundo tab-stop al mismo destino sólo hace ruido
+          // en teclado y lector de pantalla.
+          <Link href={href} tabIndex={-1} aria-hidden className="shrink-0">
+            <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
+          </Link>
+        ) : (
+          <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
+        )}
         <div className="min-w-0 flex-1">
           <h3 className="font-serif text-xl font-bold leading-tight text-ink">
-            {row.slug ? (
-              <Link href={`/aliado/${row.slug}`} className="hover:underline">
+            {href ? (
+              <Link href={href} className={cn("rounded hover:underline", ANILLO)}>
                 {row.nombre}
               </Link>
             ) : (
               row.nombre
             )}
           </h3>
-          <p className="mt-0.5 text-[13px] text-mute">{identidadAliado(row)}</p>
+          <p className="mt-0.5 text-[13px] leading-snug text-mute">{identidadAliado(row)}</p>
         </div>
-        {row.slug && (
-          <Link
-            href={`/aliado/${row.slug}`}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-line px-3 py-1.5 text-[13px] font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
-          >
-            Ver sus contratos <ArrowUpRight size={13} aria-hidden />
-          </Link>
-        )}
+        {esMaqueta && <SelloMaqueta className="shrink-0" />}
       </div>
 
-      <div className="mt-5 grid gap-4 border-t border-line pt-4 sm:grid-cols-3">
+      <div className={cn("mt-5 space-y-3 border-t pt-4", esMaqueta ? "border-amber/40" : "border-line")}>
         <Proporcion
           parte={row.contratosFinanciados}
           total={financiadosMuro}
@@ -158,21 +211,60 @@ export function TarjetaAliado({
         <Proporcion
           parte={row.senalesHalladas}
           total={row.contratosProcesados}
-          leyenda={`de los leídos traían al menos una señal`}
+          leyenda="de los leídos traían al menos una señal"
           tono="neutro"
         />
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed text-mute">
-        Alcanzó <span className="font-mono text-inkSoft">{num(row.zonas)}</span> de las{" "}
-        <span className="font-mono text-inkSoft">{num(regionesConCola)}</span> regiones con cola abierta
-        {(row.enRevision ?? 0) > 0 && (
-          <>
-            {" "}· <span className="font-mono text-inkSoft">{num(row.enRevision ?? 0)}</span> de sus contratos
-            leídos esperan revisión humana y todavía no cuentan como señal
-          </>
-        )}
-        .
-      </p>
+      {zonas}
+
+      {(resumen || href) && (
+        <div
+          className={cn(
+            "mt-auto flex flex-wrap items-center gap-2",
+            // En la landing la tarjeta ya vive entre divisores del padre: un borde
+            // propio acá sería una raya de más cada dos filas.
+            !plano && "border-t pt-3",
+            !plano && (esMaqueta ? "border-amber/40" : "border-line"),
+            plano && "mt-3",
+          )}
+        >
+          {resumen && (
+            <Revelar
+              titulo={row.nombre}
+              descripcion={identidadAliado(row)}
+              ancho="lg"
+              etiqueta={`Ver el resumen de ${row.nombre} sin salir del muro`}
+              className={cn(
+                "w-auto inline-flex items-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-1.5 text-[13px] font-medium text-ink",
+                "transition-colors duration-rapido hover:bg-paperDeep",
+                ANILLO,
+              )}
+              pie={
+                href ? (
+                  <Link href={href} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline">
+                    Ver la ficha completa de {row.nombre} <ArrowUpRight size={13} aria-hidden />
+                  </Link>
+                ) : undefined
+              }
+              detalle={resumen}
+            >
+              <PanelRightOpen size={13} aria-hidden /> Resumen
+            </Revelar>
+          )}
+          {href && (
+            <Link
+              href={href}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-medium text-ink",
+                "transition-colors duration-rapido hover:bg-paperDeep",
+                ANILLO,
+              )}
+            >
+              Su ficha y sus contratos <ArrowUpRight size={13} aria-hidden />
+            </Link>
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -181,22 +273,39 @@ export function TarjetaAliado({
  * Fila del libro mayor. Es un `<tr>`: la tabla que la contiene pone los
  * encabezados, que es donde vive la unidad de cada columna.
  */
-export function FilaAliado({ row, regionesConCola }: { row: RankingRow; regionesConCola: number }) {
+export function FilaAliado({
+  row,
+  regionesConCola,
+  href,
+  esMaqueta = false,
+}: {
+  row: RankingRow;
+  regionesConCola: number;
+  href?: string;
+  esMaqueta?: boolean;
+}) {
   const d = desdeTxt(row.desde);
   return (
     <tr className="border-t border-line transition-colors duration-rapido hover:bg-paperSoft">
       <th scope="row" className="py-2.5 pr-3 text-left font-normal">
         <div className="flex items-center gap-2.5">
-          <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" />
+          {href ? (
+            <Link href={href} tabIndex={-1} aria-hidden className="shrink-0">
+              <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={esMaqueta} />
+            </Link>
+          ) : (
+            <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={esMaqueta} />
+          )}
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold text-ink">
-              {row.slug ? (
-                <Link href={`/aliado/${row.slug}`} className="hover:underline">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
+              {href ? (
+                <Link href={href} className={cn("truncate rounded hover:underline", ANILLO)}>
                   {row.nombre}
                 </Link>
               ) : (
-                row.nombre
+                <span className="truncate">{row.nombre}</span>
               )}
+              {esMaqueta && <SelloMaqueta className="shrink-0" />}
             </span>
             <span className="block truncate text-[11px] text-mute">
               {esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo]}
@@ -219,11 +328,8 @@ export function FilaAliado({ row, regionesConCola }: { row: RankingRow; regiones
         <span className="text-mute"> / {num(regionesConCola)}</span>
       </td>
       <td className="py-2.5 pl-3 text-right">
-        {row.slug && (
-          <Link
-            href={`/aliado/${row.slug}`}
-            className="inline-flex items-center gap-1 text-[13px] font-medium text-ink hover:underline"
-          >
+        {href && (
+          <Link href={href} className={cn("inline-flex items-center gap-1 rounded text-[13px] font-medium text-ink hover:underline", ANILLO)}>
             <span className="hidden sm:inline">Ver</span>
             <ArrowUpRight size={13} aria-hidden />
             <span className="sr-only">los contratos de {row.nombre}</span>
@@ -234,8 +340,22 @@ export function FilaAliado({ row, regionesConCola }: { row: RankingRow; regiones
   );
 }
 
-export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string; size?: "sm" | "lg" | "xl" }) {
+export function AvatarAliado({
+  tipo,
+  logoUrl,
+  nombre,
+  size = "sm",
+  maqueta = false,
+}: {
+  tipo: RankingRow["tipo"];
+  logoUrl: string | null;
+  nombre: string;
+  size?: "sm" | "lg" | "xl";
+  /** Marca el avatar de un aliado inventado: borde punteado, para distinguirlo de un vistazo. */
+  maqueta?: boolean;
+}) {
   const dims = size === "xl" ? "h-20 w-20 rounded-3xl" : size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
+  const marco = maqueta ? "border-dashed border-amber/70 bg-amber-soft/50" : "border-line bg-paper";
   if (logoUrl) {
     const px = size === "xl" ? 80 : size === "lg" ? 56 : 32;
     // El logo de Vigía Perú (el propio aliado-fundador) llega del API como URL absoluta
@@ -244,11 +364,18 @@ export function AvatarAliado({ tipo, logoUrl, nombre, size = "sm" }: { tipo: Ran
     // ruta relativa (p.ej. el logo del header), duplicando trabajo de redimensionado
     // para el mismo PNG.
     const src = logoUrl.replace(/^https?:\/\/[^/]+\.run\.app/, "");
-    return <Image src={src} alt={nombre} width={px} height={px} className={`${dims} shrink-0 border border-line bg-paper object-contain`} loading="lazy" unoptimized={!/^(https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\/|\/)/.test(src)} />;
+    return <Image src={src} alt={nombre} width={px} height={px} className={cn(dims, "shrink-0 border object-contain", marco)} loading="lazy" unoptimized={!/^(https:\/\/(storage\.googleapis\.com|[a-z0-9.-]+\.run\.app)\/|\/)/.test(src)} />;
   }
   const Icon = tipo === "empresa" ? Building2 : tipo === "organizacion" ? Users : User;
   return (
-    <span className={`inline-flex ${dims} shrink-0 items-center justify-center bg-paperDeep text-mute`} aria-hidden>
+    <span
+      className={cn(
+        dims,
+        "inline-flex shrink-0 items-center justify-center border",
+        maqueta ? `${marco} text-amberTexto` : "border-transparent bg-paperDeep text-mute",
+      )}
+      aria-hidden
+    >
       <Icon size={size === "xl" ? 32 : size === "lg" ? 24 : 15} />
     </span>
   );

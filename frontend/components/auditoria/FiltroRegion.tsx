@@ -1,27 +1,31 @@
 "use client";
 
-import { useTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Loader2, MapPin } from "lucide-react";
+import { useNavegarFiltro } from "./FiltrosHistorico";
 
 interface Opcion { ubigeo: string; nombre: string; hint?: string }
 
-/** Select de región que navega con `?ubigeo=` (sin JS cae al valor de la URL). */
+/**
+ * Select de región que navega con `?ubigeo=` (sin JS cae al valor de la URL).
+ *
+ * Usa el mismo `useNavegarFiltro` que los otros dos filtros: antes hacía
+ * `router.push(pathname + "?ubigeo=…")` a mano, y eso BORRABA el rango de fechas y el
+ * patrocinador cada vez que alguien cambiaba de región.
+ */
 export function FiltroRegion({ opciones, valor }: { opciones: Opcion[]; valor?: string }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [pendiente, start] = useTransition();
+  const { navegar, pendiente } = useNavegarFiltro();
   return (
-    <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
-      <MapPin size={14} className="text-mute" aria-hidden />
+    <label
+      className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm text-ink ${
+        valor ? "border-heroViolet/40 bg-heroViolet-soft" : "border-line bg-paper"
+      }`}
+    >
+      <MapPin size={14} className="shrink-0 text-mute" aria-hidden />
       <span className="sr-only">Filtrar por región</span>
       <select
         value={valor ?? ""}
-        onChange={(e) => {
-          const v = e.target.value;
-          start(() => router.push(v ? `${pathname}?ubigeo=${v}` : pathname));
-        }}
-        className="bg-transparent pr-1 text-sm outline-none"
+        onChange={(e) => navegar({ ubigeo: e.target.value || undefined })}
+        className="w-full min-w-0 bg-transparent pr-1 text-sm outline-none"
       >
         <option value="">Todo el Perú</option>
         {opciones.map((o) => (
@@ -30,7 +34,7 @@ export function FiltroRegion({ opciones, valor }: { opciones: Opcion[]; valor?: 
           </option>
         ))}
       </select>
-      {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Cargando" />}
+      {pendiente && <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-label="Cargando" />}
     </label>
   );
 }

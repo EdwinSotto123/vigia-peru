@@ -56,10 +56,17 @@ function PildoraEstado({ estado }: { estado: string }) {
 export function CadenaAliado({
   nombre,
   items,
+  esMaqueta = false,
 }: {
   nombre: string;
   /** Contribución + su comprobante ya resuelto (o `null` si no se pudo traer el detalle). */
   items: { contribucion: ContribucionAliado; comprobante: Comprobante | null }[];
+  /**
+   * Aliado inventado (`lib/maqueta-aliados.ts`). Cambia dos cosas que no pueden
+   * mentir: los contratos dejan de enlazar —su OCID no existe— y el aporte deja
+   * de ofrecer un comprobante público que nadie podría consultar.
+   */
+  esMaqueta?: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -81,17 +88,28 @@ export function CadenaAliado({
               etiqueta={`Ver los contratos que pagó el aporte ${c.codigo}`}
               className="transition-colors duration-rapido hover:bg-paperSoft"
               pie={
-                <Link
-                  href={`/impacto/${c.codigo}`}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline"
-                >
-                  <FileText size={13} aria-hidden /> Ver el comprobante público de {c.codigo}
-                </Link>
+                esMaqueta ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13px] text-mute">
+                    <FileText size={13} aria-hidden /> Un aporte de maqueta no tiene comprobante público:{" "}
+                    {c.codigo} no existe.
+                  </span>
+                ) : (
+                  <Link
+                    href={`/impacto/${c.codigo}`}
+                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline"
+                  >
+                    <FileText size={13} aria-hidden /> Ver el comprobante público de {c.codigo}
+                  </Link>
+                )
               }
-              detalle={<DetalleContribucion nombre={nombre} contribucion={c} comprobante={comprobante} />}
+              detalle={
+                <DetalleContribucion nombre={nombre} contribucion={c} comprobante={comprobante} esMaqueta={esMaqueta} />
+              }
             >
               <ResumenContribucion c={c} interactivo />
             </Revelar>
+          ) : esMaqueta ? (
+            <ResumenContribucion c={c} interactivo={false} />
           ) : (
             <Link href={`/impacto/${c.codigo}`} className="block transition-colors duration-rapido hover:bg-paperSoft">
               <ResumenContribucion c={c} interactivo />
@@ -140,18 +158,37 @@ function DetalleContribucion({
   nombre,
   contribucion,
   comprobante,
+  esMaqueta = false,
 }: {
   nombre: string;
   contribucion: ContribucionAliado;
   comprobante: Comprobante;
+  esMaqueta?: boolean;
 }) {
   const r = comprobante.resumen;
   return (
     <div className="space-y-4">
+      {esMaqueta && (
+        <p className="rounded-xl border border-dashed border-amber/60 bg-amber-soft px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
+          <strong className="font-semibold text-ink">Aporte de maqueta.</strong> Ni este aporte ni estos
+          contratos existen: están generados para ver cómo se lee la lista con volumen. Sus identificadores
+          llevan prefijo <span className="font-mono">MAQUETA-</span> y no enlazan a ningún expediente.
+        </p>
+      )}
       <p className="rounded-xl border border-heroViolet/25 bg-heroViolet-soft/60 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
-        Estos {num(r.asignados)} contratos salieron de la cola de {contribucion.zona} por antigüedad el{" "}
-        {fecha(contribucion.pagadaAt)}. Ni {nombre} ni Vigía Perú los eligieron, y los agentes que los
-        leyeron no reciben el nombre de quien financió.
+        {r.asignados === 0 ? (
+          <>
+            Este aporte está pagado y todavía no tiene contratos asignados: la cola de {contribucion.zona}{" "}
+            los entrega por antigüedad, y cuando salgan aparecen acá uno por uno. Ni {nombre} ni Vigía Perú
+            eligen cuáles.
+          </>
+        ) : (
+          <>
+            Estos {num(r.asignados)} contratos salieron de la cola de {contribucion.zona} por antigüedad el{" "}
+            {fecha(contribucion.pagadaAt)}. Ni {nombre} ni Vigía Perú los eligieron, y los agentes que los
+            leyeron no reciben el nombre de quien financió.
+          </>
+        )}
       </p>
 
       <dl className="space-y-1.5 text-[13px] leading-relaxed text-inkSoft">
@@ -182,32 +219,38 @@ function DetalleContribucion({
         </div>
       </dl>
 
-      <div>
-        <h3 className="text-[11px] uppercase tracking-wide text-mute">
-          Los {num(comprobante.detalle.length)} contratos, uno por uno
-        </h3>
-        <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
-          {comprobante.detalle.map((d) => (
-            <ContratoDeAporte key={d.ocid} d={d} />
-          ))}
-        </ol>
-      </div>
+      {comprobante.detalle.length > 0 && (
+        <div>
+          <h3 className="text-[11px] uppercase tracking-wide text-mute">
+            Los {num(comprobante.detalle.length)} contratos, uno por uno
+          </h3>
+          <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
+            {comprobante.detalle.map((d) => (
+              <ContratoDeAporte key={d.ocid} d={d} esMaqueta={esMaqueta} />
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
 
-function ContratoDeAporte({ d }: { d: ComprobanteContrato }) {
+function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; esMaqueta?: boolean }) {
   const sev = bandera(d.severidad);
   const enRevision = d.alertaEstado === "revision";
   return (
     <li className="px-3.5 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <Link
-          href={`/app/contratos/${encodeURIComponent(d.ocid)}`}
-          className="font-mono text-[12px] text-ink hover:underline"
-        >
-          {d.ocid}
-        </Link>
+        {esMaqueta ? (
+          <span className="font-mono text-[12px] text-mute">{d.ocid}</span>
+        ) : (
+          <Link
+            href={`/app/contratos/${encodeURIComponent(d.ocid)}`}
+            className="font-mono text-[12px] text-ink hover:underline"
+          >
+            {d.ocid}
+          </Link>
+        )}
         {d.valorReferencial != null && (
           <span className="font-mono text-[12px] text-inkSoft">{formatPEN(d.valorReferencial)}</span>
         )}

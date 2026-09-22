@@ -52,7 +52,7 @@ export function HistoricoProcesados({ pagina, paginaActual, pathname, ubigeo, de
       href={href}
       onChange={() => {}}
       cargando={false}
-      nombre="procesados"
+      nombre="contratos leídos"
     />
   );
 
@@ -64,11 +64,15 @@ export function HistoricoProcesados({ pagina, paginaActual, pathname, ubigeo, de
           <Inbox size={18} className="mt-0.5 shrink-0" aria-hidden />
           <div>
             <div className="font-medium text-ink">Nada coincide con estos filtros.</div>
-            <div className="mt-0.5">Prueba ampliando el rango de fechas o quitando el patrocinador.</div>
+            <div className="mt-0.5">Los filtros puestos están arriba, cada uno con su propia X: quitá uno y volvé a mirar.</div>
           </div>
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        // `grid-cols-1` explícito: la pista implícita `auto` se dimensiona al max-content, y
+        // las tarjetas llevan `truncate` (= white-space: nowrap), cuyo min-content es el texto
+        // entero. En 390 px eso hacía scrollear la página en horizontal. `grid-cols-N` es
+        // `minmax(0, 1fr)`, que es lo que corta la cadena.
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((p) => (
             <li key={p.ocid}>
               <Tarjeta p={p} ahora={0} />

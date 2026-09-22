@@ -1,18 +1,29 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock, Cpu, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, Cpu, Info } from "lucide-react";
+import { PageHeader } from "@/components/dashboard/PageHeader";
+import { Popover } from "@/components/ui/Flotante";
+import { TOTAL_AGENTES, TOTAL_CARRILES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
-import { FiltroFechas, FiltroPatrocinador } from "@/components/auditoria/FiltrosHistorico";
+import { FiltroFechas, FiltroPatrocinador, FiltrosActivos } from "@/components/auditoria/FiltrosHistorico";
 import { HistoricoProcesados } from "@/components/auditoria/HistoricoProcesados";
 import { PanelProcesamiento } from "@/components/auditoria/PanelProcesamiento";
-import { getFinanciadoresProcesamientos, getProcesamientos, getProcesamientosPaginado } from "@/lib/auditoria";
+import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
+import {
+  getFinanciadoresProcesamientos,
+  getProcesamiento,
+  getProcesamientos,
+  getProcesamientosPaginado,
+} from "@/lib/auditoria";
 import { getResumenVivo } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
   title: "Auditoría en vivo — Vigía Perú",
+  // El recuento sale del catálogo, nunca de una cadena escrita a mano: el producto llegó a
+  // afirmar cinco números distintos de agentes en páginas que el mismo usuario visita seguidas.
   description:
-    "Mira en tiempo real cómo cada contrato público financiado pasa de la cola al análisis de 10 fases y al dictamen con señales de riesgo.",
+    `Mirá en tiempo real cómo cada contrato público financiado pasa de la cola al análisis de ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, y al dictamen con señales de riesgo.`,
 };
 
 export const revalidate = 10;
@@ -27,13 +38,20 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
   const financiador = searchParams?.financiador?.trim().slice(0, 120) || undefined;
   const paginaActual = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   const histQuery = { ubigeo, desde, hasta, financiador, estado: "procesado" as const };
-  const [resumen, zonas, initial, historico, financiadores] = await Promise.all([
+  const [resumen, zonas, initial, historico, financiadores, ultimoRef] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
     getProcesamientos({ ubigeo, limit: 100 }),
     getProcesamientosPaginado({ ...histQuery, limit: HIST_TAM, offset: (paginaActual - 1) * HIST_TAM }),
     getFinanciadoresProcesamientos(),
+    // El último análisis terminado CON LOS FILTROS PUESTOS: es lo que se muestra cuando no
+    // hay nada en análisis, que es el estado normal de esta pantalla. Consulta propia (no la
+    // primera fila del histórico) para que no dependa de en qué página esté el paginador.
+    getProcesamientos({ ...histQuery, limit: 1 }),
   ]);
+  // El detalle trae la bitácora guardada, que es lo que hace posible repetir la corrida.
+  const ultimoOcid = ultimoRef?.[0]?.ocid;
+  const ultimo = ultimoOcid ? await getProcesamiento(ultimoOcid) : null;
   const opciones = (zonas ?? [])
     .filter((z) => z.totalCola > 0 || z.financiados > 0)
     .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
@@ -41,92 +59,116 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
   const zonaActual = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo)?.nombre : undefined;
 
   return (
-    <div className="bg-paper">
-      {/* ─── HERO ─── */}
-      <section className="relative overflow-hidden border-b border-line bg-gradient-to-br from-heroViolet/[0.06] via-paperDeep to-heroGreen/[0.05]">
-        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-heroViolet/10 blur-3xl" />
-        <div className="container-page relative space-y-6 py-10">
-          <div>
-            {/* Mismo badge "Tablero público · se actualiza solo" que ya se sacó de la landing
-                (commit 8d85633): no le aportaba nada al usuario. Se quedó vivo acá porque ese
-                rediseño no tocó esta página — ahora sí, mismo criterio. */}
-            <h1 className="font-serif text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl">
-              Auditoría en vivo
-            </h1>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
-              Cada contrato financiado por un aliado de transparencia pasa por <strong className="text-ink">10 fases de análisis</strong>:
-              reglas de contratación, lectura del expediente, precios de mercado, prensa, red de personas y dictamen.
-              Aquí lo ves ocurrir, contrato por contrato.
+    <div className="space-y-6 px-6 py-8 lg:px-10">
+      {/* El encabezado era un hero de ~200 px (título de 48 px + párrafo de cuatro líneas)
+          antes de que empezara el estado del pipeline. Esta pantalla es un tablero: se
+          entra a MIRAR, no a leer una introducción. La explicación sigue disponible, a un
+          clic, y el estado quedó arriba del pliegue. */}
+      <PageHeader
+        title="Auditoría en vivo"
+        subtitle="Cada contrato financiado pasa de la cola al análisis y al dictamen. Nadie elige cuál se lee: entran por antigüedad."
+        actions={
+          <Popover
+            titulo="Qué pasa acá adentro"
+            anchoClase="w-[22rem]"
+            className="rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-medium text-inkSoft transition-colors hover:border-paperEdge hover:bg-paperSoft"
+            trigger={<span className="inline-flex items-center gap-1.5"><Info size={13} aria-hidden /> Cómo se lee un contrato</span>}
+          >
+            <p className="text-mute">
+              <span className="font-semibold text-ink">{TOTAL_AGENTES} agentes de IA</span> leen cada contrato en{" "}
+              <span className="font-semibold text-ink">{TOTAL_PASOS} pasos</span>, repartidos en {TOTAL_CARRILES} carriles
+              que corren en paralelo: reglas de contratación, lectura del expediente, precios de mercado, prensa,
+              red de personas y dictamen.
             </p>
-          </div>
-          {/* Una franja + una fila "ahora mismo": descargados, cola, procesando, procesados hoy, errores, pendientes */}
-          <PanelProcesamiento initial={resumen} pollMs={5000} />
-        </div>
-      </section>
+            <dl className="mt-3 space-y-2.5 border-t border-line pt-2.5">
+              <Paso icon={<Clock size={14} />} titulo="En espera">
+                Asignado a un aporte confirmado. Espera sus documentos del SEACE, o su turno por antigüedad de la convocatoria.
+              </Paso>
+              <Paso icon={<Cpu size={14} />} titulo="En análisis">
+                Los agentes leen el expediente y cruzan fuentes oficiales. Entre 3 y 10 minutos por contrato.
+              </Paso>
+              <Paso icon={<CheckCircle2 size={14} />} titulo="Con dictamen publicado">
+                Cada señal cita su norma y su evidencia. Se publica aunque señale a quien lo pagó.
+              </Paso>
+            </dl>
+          </Popover>
+        }
+      />
 
-      {/* ─── TABLERO ─── */}
-      <section className="container-page py-10">
-        <div className="mb-5">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-ink">{zonaActual ? `En vivo en ${zonaActual}` : "En vivo en todo el Perú"}</h2>
-            <p className="mt-0.5 text-sm text-mute">Los contratos entran por orden de llegada. Nadie elige cuáles.</p>
+      {/* Única fuente de conteos de la página. */}
+      <PanelProcesamiento initial={resumen} pollMs={5000} />
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <h2 className="font-serif text-xl font-bold text-ink">{zonaActual ? `En vivo en ${zonaActual}` : "En vivo en todo el Perú"}</h2>
+            <p className="mt-0.5 text-[13px] text-mute">Los contratos entran por orden de llegada.</p>
           </div>
-          {/* Un solo lugar para todos los filtros (región, fecha, patrocinador) — antes estaban
-              repartidos entre acá arriba y el histórico de abajo, cada uno con su propia caja. */}
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1.3fr_1fr]">
+          {/* Un solo lugar para los tres filtros (región, fecha, quién lo pagó). Antes ocupaban
+              una fila entera de tres columnas anchas; ahora van al costado del título y el
+              rango de fechas dejó de ser dos inputs nativos crudos. */}
+          <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3 sm:gap-1.5 lg:min-w-[34rem]">
             <FiltroRegion opciones={opciones} valor={ubigeo} />
             <FiltroFechas desde={desde} hasta={hasta} />
-            <FiltroPatrocinador financiador={financiador} financiadores={financiadores} hayOtrosFiltros={!!(desde || hasta)} />
+            <FiltroPatrocinador financiador={financiador} financiadores={financiadores} />
           </div>
         </div>
-        <TableroAuditoria key={ubigeo ?? "all"} ubigeo={ubigeo} initial={initial} autoRefreshMs={5000} verMasHref="#historico" />
-      </section>
-
-      {/* ─── HISTÓRICO (todo lo ya procesado; los filtros están arriba, junto con región) ─── */}
-      <section id="historico" className="container-page border-t border-line py-10 scroll-mt-6">
-        <h2 className="sr-only">Histórico de contratos procesados</h2>
-        <HistoricoProcesados
-          pagina={historico}
-          paginaActual={paginaActual}
-          pathname="/app/auditoria"
-          ubigeo={ubigeo}
-          desde={desde}
-          hasta={hasta}
-          financiador={financiador}
-        />
-      </section>
-
-      {/* ─── LEYENDA + CTA ─── */}
-      <section className="border-t border-line bg-paperDeep py-12">
-        <div className="container-page grid gap-6 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start">
-          <Paso icon={<Clock size={16} />} titulo="En cola">
-            Asignado a un aporte confirmado. Espera turno por antigüedad de la convocatoria.
-          </Paso>
-          <Paso icon={<Cpu size={16} />} titulo="Procesando">
-            Los agentes leen el expediente y cruzan fuentes oficiales. Entre 3 y 10 minutos por contrato.
-          </Paso>
-          <Paso icon={<CheckCircle2 size={16} />} titulo="Procesado">
-            Dictamen publicado con cada señal de riesgo citando norma y evidencia. Se publica aunque señale al financiador.
-          </Paso>
-          <div className="rounded-2xl border border-line bg-paper p-5 lg:max-w-xs">
-            <ShieldCheck size={18} className="text-moss" />
-            <div className="mt-2 text-sm font-semibold text-ink">¿Tu zona no aparece?</div>
-            <p className="mt-1 text-[13px] text-mute">Cuando alguien financia la auditoría de una zona, sus contratos entran aquí. Puedes ser tú.</p>
-            <Link href="/app/financiar" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline">
-              Financiar una auditoría <ArrowRight size={14} />
-            </Link>
-          </div>
+        <div className="mt-3 empty:mt-0">
+          <FiltrosActivos zona={zonaActual} ubigeo={ubigeo} desde={desde} hasta={hasta} financiador={financiador} />
+        </div>
+        <div className="mt-4">
+          <TableroAuditoria
+            key={ubigeo ?? "all"}
+            ubigeo={ubigeo}
+            initial={initial}
+            autoRefreshMs={5000}
+            verMasHref="#historico"
+            conteosExternos
+            panelSecundario={<UltimoAnalisis p={ultimo} />}
+          />
         </div>
       </section>
+
+      {/* ─── HISTÓRICO (todo lo ya leído; los filtros están arriba, junto con región) ─── */}
+      <section id="historico" className="scroll-mt-6 border-t border-line pt-6">
+        <h2 className="font-serif text-xl font-bold text-ink">Todo lo que ya se leyó</h2>
+        <p className="mt-0.5 max-w-[80ch] text-[13px] text-mute">
+          Cada contrato leído, con las señales que encontró y quién pagó esa lectura. Incluye los que están en
+          revisión humana: se leyeron enteros, pero su dictamen todavía no se publica. Los filtros de arriba también lo acotan.
+        </p>
+        <div className="mt-4">
+          <HistoricoProcesados
+            pagina={historico}
+            paginaActual={paginaActual}
+            pathname="/app/auditoria"
+            ubigeo={ubigeo}
+            desde={desde}
+            hasta={hasta}
+            financiador={financiador}
+          />
+        </div>
+      </section>
+
+      {/* Una sola invitación a financiar, en una línea. Antes eran cuatro cajas al pie:
+          tres repetían la explicación que ahora vive en el popover del encabezado. */}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-5 text-[13px] text-mute">
+        <span>¿Tu zona no aparece? Sus contratos entran acá en cuanto alguien financia su auditoría.</span>
+        <Link href="/app/financiar" className="inline-flex items-center gap-1 font-semibold text-ink underline-offset-2 hover:underline">
+          Financiar una auditoría <ArrowRight size={13} aria-hidden />
+        </Link>
+      </p>
     </div>
   );
 }
 
 function Paso({ icon, titulo, children }: { icon: React.ReactNode; titulo: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="inline-flex items-center gap-2 text-ink">{icon}<h3 className="font-semibold">{titulo}</h3></div>
-      <p className="mt-1 text-sm leading-relaxed text-mute">{children}</p>
+    <div className="flex gap-2">
+      <span className="mt-0.5 shrink-0 text-mute" aria-hidden>{icon}</span>
+      <div className="min-w-0">
+        <dt className="text-[13px] font-semibold text-ink">{titulo}</dt>
+        <dd className="text-[12px] leading-snug text-mute">{children}</dd>
+      </div>
     </div>
   );
 }
