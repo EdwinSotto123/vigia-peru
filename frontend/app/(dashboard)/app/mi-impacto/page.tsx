@@ -25,7 +25,7 @@ import { UBIGEO_REGION } from "@/components/mapa/region-match";
 export default function MiImpactoPage() {
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
-      <PageHeader eyebrow="Mi cuenta" icon={<Heart size={11} className="text-heroViolet" />} title="Mi impacto" subtitle="Tus aportes con su progreso en vivo, tus denuncias y las zonas que sigues. Todo lo que financias es público; esta página solo lo reúne para ti." />
+      <PageHeader title="Mi impacto" subtitle="Tus aportes con su progreso en vivo, tus denuncias y las zonas que sigues. Todo lo que financias es público; esta página solo lo reúne para ti." />
       <Suspense fallback={<Cargando />}>
         <Contenido />
       </Suspense>

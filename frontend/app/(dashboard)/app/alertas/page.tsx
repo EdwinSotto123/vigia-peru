@@ -39,8 +39,6 @@ export default async function AlertasPage({ searchParams }: { searchParams?: Rec
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
       <PageHeader
-        eyebrow="Alertas activas"
-        icon={<AlertTriangle size={11} className="text-heroViolet" />}
         title="Señales de riesgo detectadas"
         subtitle="Ordenadas por score de riesgo. Click cualquier alerta para ver el dossier completo con red de personas y fuentes."
         actions={

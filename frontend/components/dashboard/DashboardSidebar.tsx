@@ -8,6 +8,10 @@ import {
   FileText,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
+  Flag,
+  Building2,
+  Camera,
   Menu,
   X,
   Lock,
@@ -39,10 +43,17 @@ type Item = {
 type Section = { title?: string; items: Item[] };
 
 /**
- * Navegación pública del dashboard. El mapa es el hub: entidades, alertas y
- * denuncias se exploran desde el panel de cada región (las rutas /app/entidades,
- * /app/alertas y /app/denuncias siguen existiendo, solo dejan de estar en la barra).
- * El análisis a demanda vive en /admin/analisis.
+ * Navegación pública del dashboard.
+ *
+ * Antes sólo el mapa era puerta de entrada: entidades, hallazgos y denuncias
+ * existían como rutas pero no estaban en la barra, y había que descubrirlas
+ * haciendo clic en una región. Eso dejaba 2.121 entidades y 94 señales
+ * escondidas detrás de una adivinanza, y hacía que el `match` del mapa tuviera
+ * que absorber media aplicación — con el efecto de que, estando dentro de un
+ * dossier, la navegación decía "Mapa".
+ *
+ * Ahora cada objeto del producto tiene su puerta y cada ruta marca activo donde
+ * corresponde. El análisis a demanda sigue viviendo en /admin/analisis.
  */
 const SECTIONS: Section[] = [
   {
@@ -53,24 +64,40 @@ const SECTIONS: Section[] = [
         label: "Mapa",
         icon: <MapPin size={16} />,
         hint: "Elige tu región",
+        // El match ya no se traga media aplicación. Antes absorbía entidades,
+        // alertas, denuncias y convocatoria, así que estando dentro de un
+        // dossier la navegación decía "Mapa" — el usuario no podía saber dónde
+        // estaba. Ahora el mapa se marca activo solo cuando es el mapa.
+        match: (p) => p === "/app" || p.startsWith("/app/mapa") || p.startsWith("/region"),
+      },
+      {
+        href: "/app/hallazgos",
+        label: "Hallazgos",
+        icon: <Flag size={16} />,
+        hint: "Señales con norma y evidencia",
         match: (p) =>
-          p === "/app" ||
-          p.startsWith("/app/mapa") ||
-          p.startsWith("/region") ||
-          p.startsWith("/app/entidades") ||
-          p.startsWith("/entidad") ||
-          p.startsWith("/app/alertas") ||
-          p.startsWith("/alerta") ||
-          p.startsWith("/app/denuncias") ||
-          p.startsWith("/app/convocatoria") ||
-          p.startsWith("/convocatoria"),
+          p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
       },
       {
         href: "/app/contratos",
         label: "Contratos",
         icon: <FileSearch size={16} />,
         hint: "Todo el SEACE, contrato a contrato",
-        match: (p) => p.startsWith("/app/contratos"),
+        // El dossier de un contrato ES un contrato: /app/convocatoria/[id] y
+        // /convocatoria/[id] marcan activo acá, no en "Mapa".
+        match: (p) =>
+          p.startsWith("/app/contratos") ||
+          p.startsWith("/app/convocatoria") ||
+          p.startsWith("/convocatoria"),
+      },
+      {
+        href: "/app/entidades",
+        label: "Entidades",
+        icon: <Building2 size={16} />,
+        hint: "Quién contrata, y cuánto",
+        // Existía la ruta pero no la entrada: sólo se llegaba desde el panel de
+        // una zona. 2.121 entidades escondidas detrás de un clic en el mapa.
+        match: (p) => p.startsWith("/app/entidades") || p.startsWith("/entidad"),
       },
       {
         href: "/app/auditoria",
@@ -78,6 +105,13 @@ const SECTIONS: Section[] = [
         icon: <Activity size={16} />,
         hint: "Cola → procesando → listo",
         match: (p) => p.startsWith("/app/auditoria"),
+      },
+      {
+        href: "/app/denuncias",
+        label: "Denuncias",
+        icon: <Camera size={16} />,
+        hint: "Lo que reporta la gente",
+        match: (p) => p.startsWith("/app/denuncias"),
       },
       {
         href: "/app/aliados",
@@ -327,20 +361,11 @@ function SidebarLink({
       {locked ? (
         <Lock size={11} className="shrink-0 text-mute" />
       ) : featured ? (
-        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
-          <span
-            className={cn(
-              "absolute inset-0 animate-ping rounded-full opacity-75",
-              active ? "bg-paper" : "bg-heroViolet",
-            )}
-          />
-          <span
-            className={cn(
-              "relative h-2 w-2 rounded-full",
-              active ? "bg-paper" : "bg-heroViolet",
-            )}
-          />
-        </span>
+        // Antes esto era un punto con animate-ping permanente. Un pulso que no
+        // para no comunica nada: no hay ningún estado que esté cambiando, sólo
+        // un item de navegación pidiendo atención para siempre. El destaque de
+        // "Financiar" ya lo cargan el fondo violeta y el peso del texto.
+        <ArrowRight size={13} className="shrink-0 opacity-60" aria-hidden />
       ) : null}
     </Link>
   );

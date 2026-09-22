@@ -21,8 +21,6 @@ export default function MapaPage({
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
       <PageHeader
-        eyebrow="Mapa de auditoría"
-        icon={<MapPin size={11} className="text-heroViolet" />}
         title="Elige tu región"
         subtitle="Cada departamento tiene contratos públicos esperando ser leídos. Toca uno para ver su cola de auditoría, las señales halladas, quién contrata y qué denuncian los vecinos — y financiar o denunciar desde ahí."
       />

@@ -78,8 +78,6 @@ export default async function DenunciasPage({
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
       <PageHeader
-        eyebrow="Acceso libre · sin login"
-        icon={<MessageSquareWarning size={11} className="text-heroViolet" />}
         title="Denuncias ciudadanas"
         subtitle="Vecinos, comerciantes y trabajadores reportan obras paralizadas, fantasmas o irregularidades. Tú puedes verlas todas — son públicas y verificables."
         actions={

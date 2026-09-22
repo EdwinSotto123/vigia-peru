@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ShieldCheck, Landmark } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { ZonaPicker } from "@/components/financiar/ZonaPicker";
 import { RankingTable } from "@/components/financiar/RankingTable";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { getEstadoGlobal, getRanking, getRecientes, getZonas, formatPEN } from "@/lib/financiamiento";
+import { getResumenContratos } from "@/lib/contratos";
 
 export const metadata = {
   title: "Financia una auditoría — Vigía Perú",
@@ -19,11 +19,12 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
   // Llegada desde el mapa con la zona ya elegida (/app/financiar?ubigeo=21) → directo al paso de cantidad.
   const u = searchParams?.ubigeo;
   if (u && /^\d{2}(\d{2}(\d{2})?)?$/.test(u)) redirect(`/app/financiar/${u}`);
-  const [zonas, estado, ranking, recientes] = await Promise.all([
+  const [zonas, estado, ranking, recientes, resumenContratos] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),
     getRanking("todo"),
     getRecientes(),
+    getResumenContratos(),
   ]);
   const precio = estado?.tarifa.precioPen ?? 3;
   const conCola = (zonas ?? []).filter((z) => z.totalCola > 0).length;
@@ -35,10 +36,11 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
         <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-heroViolet/10 blur-3xl" />
         <div className="container-page relative grid gap-10 py-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
-              <Landmark size={12} /> Financiamiento de auditoría independiente
-            </span>
-            <h1 className="mt-5 font-serif text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
+            {/* Acá había una píldora mayúscula ("FINANCIAMIENTO DE AUDITORÍA
+                INDEPENDIENTE") sobre el h1. Es el kicker que Impeccable prohíbe
+                sin excepción: le robaba jerarquía al titular sin agregar nada
+                que el titular no dijera mejor. */}
+            <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
               El Estado publica todos sus contratos.<br />
               <em className="text-heroGreen not-italic">Nadie tiene capacidad de leerlos.</em>
             </h1>
@@ -58,15 +60,24 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
             </div>
           </div>
 
-          {/* Métricas globales */}
-          <div className="grid grid-cols-2 gap-3">
-            <Metric label="Contratos financiados" value={estado?.contratosFinanciados ?? 0} />
-            <Metric label="Destinado a auditoría" value={estado?.montoPen ?? 0} format="pen" />
-            <Metric label="Contratos procesados" value={estado?.contratosProcesados ?? 0} />
-            <Metric label="Señales de riesgo halladas" value={estado?.senalesHalladas ?? 0} />
-            <Metric label="Regiones con auditoría activa" value={estado?.regionesConAuditoria ?? 0} />
-            <Metric label="Contratos en cola hoy" value={estado?.colaGlobal ?? 0} hint={`${conCola} regiones`} />
-          </div>
+          {/* Antes: seis cajas de "número grande + label chico" en grilla 2×3.
+              Seis cifras del mismo tamaño, sin relación entre ellas, y ninguna
+              comparada con nada — así "S/ 135 destinado a auditoría" y "4.162
+              contratos en cola" pesaban visualmente igual, y el dato que de
+              verdad explica por qué existe este producto (45 leídos de 18.394
+              publicados, un 0,24%) no aparecía por ningún lado.
+              Ahora el bloque ES esa comparación. */}
+          <BalanceLectura
+            leidos={estado?.contratosProcesados ?? 0}
+            financiados={estado?.contratosFinanciados ?? 0}
+            publicados={resumenContratos?.total ?? 0}
+            senales={estado?.senalesHalladas ?? 0}
+            enCola={estado?.colaGlobal ?? 0}
+            regionesConCola={estado?.regionesConCola ?? conCola}
+            regionesConAuditoria={estado?.regionesConAuditoria ?? 0}
+            montoPen={estado?.montoPen ?? 0}
+            precio={precio}
+          />
         </div>
       </section>
 
@@ -133,26 +144,84 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
   );
 }
 
-function Metric({
-  label,
-  value,
-  format = "entero",
-  hint,
+/**
+ * El déficit de lectura, que es la razón de existir del producto.
+ *
+ * La barra no es decoración: a escala real lo leído es una astilla contra el
+ * total publicado, y ver esa astilla explica en un segundo por qué hace falta
+ * financiar. Por eso la astilla tiene ancho mínimo — si se dibujara a escala
+ * exacta (0,24%) sería medio píxel y no se vería nada, que es mentir por
+ * redondeo en la dirección cómoda.
+ *
+ * Ninguna cifra viaja sola: cada una lleva al lado contra qué se compara.
+ */
+function BalanceLectura({
+  leidos,
+  financiados,
+  publicados,
+  senales,
+  enCola,
+  regionesConCola,
+  regionesConAuditoria,
+  montoPen,
+  precio,
 }: {
-  label: string;
-  value: number;
-  format?: "entero" | "pen";
-  hint?: string;
+  leidos: number;
+  financiados: number;
+  publicados: number;
+  senales: number;
+  enCola: number;
+  regionesConCola: number;
+  regionesConAuditoria: number;
+  montoPen: number;
+  precio: number;
 }) {
+  const n = (v: number) => v.toLocaleString("es-PE");
+  const pct = publicados > 0 ? (leidos / publicados) * 100 : 0;
+  const anchoLeido = publicados > 0 ? Math.max(0.8, pct) : 0;
+
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
-      {/* NumberTicker (0 -> value al entrar en pantalla): era texto estático, la cifra
-          protagonista de cada tile ahora se siente viva en vez de solo impresa. */}
-      <div className="font-mono text-2xl font-semibold text-ink">
-        <NumberTicker value={value} format={format} />
+    <div className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6">
+      <p className="text-[13px] leading-relaxed text-mute">
+        De los <strong className="font-mono font-semibold text-ink">{n(publicados)}</strong> contratos
+        publicados que Vigía tiene descargados, se han leído
+      </p>
+
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className="font-mono text-4xl font-bold leading-none text-heroViolet">{n(leidos)}</span>
+        <span className="text-sm text-mute">
+          {publicados > 0 && <>· {pct.toLocaleString("es-PE", { maximumFractionDigits: 2 })} % del total</>}
+        </span>
       </div>
-      <div className="mt-1 text-[11px] uppercase tracking-wide text-mute">{label}</div>
-      {hint && <div className="text-[11px] text-mute">{hint}</div>}
+
+      <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-paperDeep" role="img"
+        aria-label={`${n(leidos)} contratos leídos de ${n(publicados)} publicados`}>
+        <div className="h-full bg-heroViolet" style={{ width: `${anchoLeido}%` }} />
+      </div>
+
+      <dl className="mt-4 space-y-1.5 border-t border-line pt-3 text-[13px]">
+        <Fila termino="Financiados hasta hoy">
+          <strong className="font-mono text-ink">{n(financiados)}</strong> contratos ·{" "}
+          {formatPEN(montoPen)} a {formatPEN(precio)} cada uno
+        </Fila>
+        <Fila termino="Señales encontradas">
+          <strong className="font-mono text-ink">{n(senales)}</strong> en los {n(leidos)} leídos
+          {regionesConAuditoria > 0 && <> · {n(regionesConAuditoria)} regiones con auditoría activa</>}
+        </Fila>
+        <Fila termino="Esperando lectura">
+          <strong className="font-mono text-ink">{n(enCola)}</strong> contratos en cola, en{" "}
+          {n(regionesConCola)} regiones
+        </Fila>
+      </dl>
+    </div>
+  );
+}
+
+function Fila({ termino, children }: { termino: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+      <dt className="text-mute">{termino}</dt>
+      <dd className="text-right text-inkSoft">{children}</dd>
     </div>
   );
 }

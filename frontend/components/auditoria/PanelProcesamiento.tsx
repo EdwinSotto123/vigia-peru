@@ -54,40 +54,86 @@ export function PanelProcesamiento({ initial, pollMs = 5000 }: Props) {
   }, [pollMs]);
 
   const e = data?.porEstado ?? {};
-  const enCola = (e.encolado ?? 0) + (e.error ?? 0);
+  const esperando = e.esperando_documentos ?? 0;
   const procesando = e.procesando ?? 0;
   const enRevision = data?.enRevision ?? e.revision ?? 0;
-  const cifras: { label: string; value: number; tone?: "amber" | "moss" | "rust" | "clay"; title?: string }[] = [
-    { label: "Documentos (7 días)", value: data?.documentosDescargados7d?.n ?? 0,
-      title: `Documentos del SEACE bajados por el lote nocturno en los últimos 7 días${data?.documentosDescargados7d ? ` · ${data.documentosDescargados7d.contratos.toLocaleString("es-PE")} contratos` : ""}. No son contratos nuevos.` },
-    { label: "En cola", value: enCola },
-    { label: "Procesando", value: procesando, tone: procesando > 0 ? "amber" : undefined },
-    { label: "Procesados hoy", value: data?.procesadosHoy ?? 0, tone: "moss" },
-    { label: "En revisión humana", value: enRevision, tone: enRevision > 0 ? "clay" : undefined,
-      title: "Procesados cuya autoevaluación bloqueó la publicación: una persona los revisa antes de publicarlos o descartarlos. Cuentan como procesados, no como señales." },
-    { label: "Con error", value: e.error ?? 0, tone: (e.error ?? 0) > 0 ? "rust" : undefined },
-    { label: "Pendientes", value: e.pendiente_de_procesamiento ?? 0, tone: (e.pendiente_de_procesamiento ?? 0) > 0 ? "clay" : undefined,
-      title: "Pendientes de procesamiento: tipo o etapa sin análisis aplicable todavía." },
-  ];
+  // Antes esto era una franja de SIETE cajas con "número grande + label chico".
+  // En producción cinco de las siete marcaban 0 al mismo tiempo, y encima se
+  // contradecían con el tablero de tres centímetros más abajo, que decía "EN
+  // COLA 12" y listaba doce tarjetas. Dos fuentes para el mismo número, y un
+  // muro de ceros como estructura de página.
+  //
+  // Ahora es UNA barra apilada: los estados con 0 no dibujan segmento, porque
+  // no hay nada que mirar. El total va con su denominador, no suelto.
+  const tramos: { clave: string; label: string; value: number; color: string; titulo: string }[] = [
+    { clave: "procesando", label: "procesando", value: procesando, color: "bg-amber",
+      titulo: "Contratos que los agentes están leyendo en este momento." },
+    { clave: "cola", label: "en cola", value: (e.encolado ?? 0), color: "bg-inkSoft",
+      titulo: "Financiados y esperando turno. La asignación es por antigüedad, en SQL." },
+    { clave: "esperando", label: "esperan documentos", value: esperando, color: "bg-mute",
+      titulo: "Financiados cuyos documentos del SEACE se descargan en el lote nocturno." },
+    { clave: "revision", label: "en revisión humana", value: enRevision, color: "bg-clay",
+      titulo: "El análisis terminó, pero la autoevaluación no alcanzó el umbral: una persona los revisa antes de publicarlos. Cuentan como procesados, no como señales." },
+    { clave: "error", label: "con error", value: e.error ?? 0, color: "bg-rust",
+      titulo: "El análisis falló y se reintenta." },
+    { clave: "pendiente", label: "pendientes", value: e.pendiente_de_procesamiento ?? 0, color: "bg-paperEdge",
+      titulo: "Tipo o etapa sin análisis aplicable todavía." },
+  ].filter((t) => t.value > 0);
+  const enPipeline = tramos.reduce((s, t) => s + t.value, 0);
   const activos = data?.activos ?? [];
   const pedidos = data?.pedidos ?? null;
-  const esperando = e.esperando_documentos ?? 0;
   const agentes = data?.agentesActivos ?? [];
   const lote = data?.lote ?? null;
   const drift = ahora > 0 ? Math.max(0, Math.round((ahora - recibidoAt.current) / 1000)) : 0;   // segundos desde el último dato
 
   return (
     <div className="rounded-2xl border border-line bg-paper" aria-live="polite">
-      {/* Franja de cifras */}
-      <div className="grid grid-cols-4 divide-x divide-line sm:grid-cols-7">
-        {cifras.map((c) => (
-          <div key={c.label} className="px-3 py-2.5" title={c.title}>
-            <div className={cn("font-mono text-lg font-semibold leading-none tabular-nums", c.tone ? { amber: "text-amber", moss: "text-moss", rust: "text-rust", clay: "text-clay" }[c.tone] : "text-ink")}>
-              {c.value.toLocaleString("es-PE")}
+      {/* Estado del pipeline: una barra, no una pared de cajas */}
+      <div className="px-3 py-3 sm:px-4">
+        {enPipeline === 0 ? (
+          <p className="text-[13px] text-mute">
+            No hay nada en el pipeline ahora mismo.{" "}
+            {(data?.procesadosHoy ?? 0) > 0
+              ? `Hoy se leyeron ${data!.procesadosHoy.toLocaleString("es-PE")} contratos.`
+              : "El último lote ya terminó; los agentes esperan la próxima asignación."}
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="font-mono text-xl font-semibold leading-none text-ink">
+                {enPipeline.toLocaleString("es-PE")}
+              </span>
+              <span className="text-[13px] text-mute">
+                {enPipeline === 1 ? "contrato en el pipeline" : "contratos en el pipeline"}
+                {(data?.procesadosHoy ?? 0) > 0 && <> · {data!.procesadosHoy.toLocaleString("es-PE")} leídos hoy</>}
+              </span>
             </div>
-            <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-mute" title={c.title ?? c.label}>{c.label}</div>
-          </div>
-        ))}
+            <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" role="img"
+              aria-label={tramos.map((t) => `${t.value} ${t.label}`).join(", ")}>
+              {tramos.map((t) => (
+                <div key={t.clave} className={cn(t.color, "h-full")} style={{ width: `${(t.value / enPipeline) * 100}%` }} title={t.titulo} />
+              ))}
+            </div>
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {tramos.map((t) => (
+                <li key={t.clave} className="inline-flex items-center gap-1.5 text-[12px] text-mute" title={t.titulo}>
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", t.color)} aria-hidden />
+                  <span className="font-mono font-semibold text-ink">{t.value.toLocaleString("es-PE")}</span>
+                  {t.label}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {data?.documentosDescargados7d && (
+          // Esto es ingesta, no auditoría: no pertenece a la fila de estados del
+          // pipeline, donde competía por atención con cifras de otra naturaleza.
+          <p className="mt-2.5 border-t border-line pt-2 text-[12px] text-mute">
+            Aparte, el lote nocturno bajó{" "}
+            <span className="font-mono font-semibold text-inkSoft">{data.documentosDescargados7d.n.toLocaleString("es-PE")}</span>{" "}
+            documentos del SEACE en 7 días ({data.documentosDescargados7d.contratos.toLocaleString("es-PE")} contratos). No son contratos nuevos.
+          </p>
+        )}
       </div>
 
       {/* Ahora mismo */}

@@ -57,7 +57,7 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="px-6 py-8 lg:px-10 space-y-6">
-      <PageHeader eyebrow="Mi cuenta" icon={<Settings size={11} className="text-heroViolet" />} title="Configuración" subtitle="Cómo apareces en el muro de aliados, qué avisos quieres y qué guardamos de ti. Todo es opcional: sin cuenta el sitio funciona igual." />
+      <PageHeader title="Configuración" subtitle="Cómo apareces en el muro de aliados, qué avisos quieres y qué guardamos de ti. Todo es opcional: sin cuenta el sitio funciona igual." />
       {loading || (user && cargando && !perfil) ? (
         <div className="flex items-center gap-2 rounded-2xl border border-line bg-paper p-6 text-sm text-mute shadow-card" aria-busy><Loader2 size={14} className="animate-spin" aria-hidden /> Cargando…</div>
       ) : !user ? (
