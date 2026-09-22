@@ -88,7 +88,9 @@ export function FilaContrato({
   const entidad = c.entidad ?? "Entidad no identificada";
   const monto = formatMonto(c.montoPen, c.moneda);
   const href = `/app/contratos/${encodeURIComponent(c.ocid)}`;
-  const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(" · ") || "Sin clasificar";
+  const tipo = tipoLabel(c.tipo);
+  const etapa = etapaLabel(c.etapa);
+  const tipoEtapa = [tipo, etapa].filter(Boolean).join(", ") || "Sin clasificar";
 
   return (
     <li
@@ -107,9 +109,10 @@ export function FilaContrato({
         <Revelar
           titulo={titulo}
           descripcion={
-            <span className="font-mono text-[12px]">
-              {c.codigo} · {formatFecha(c.fecha)}
-              {c.zona ? <span className="font-sans"> · {c.zona}</span> : null}
+            <span className="flex flex-wrap items-baseline gap-x-3 font-mono text-[12px]">
+              <span>{c.codigo}</span>
+              <span>{formatFecha(c.fecha)}</span>
+              {c.zona ? <span className="font-sans">{c.zona}</span> : null}
             </span>
           }
           ancho="lg"
@@ -147,15 +150,14 @@ export function FilaContrato({
                 <span className="truncate text-[13px] font-medium leading-tight text-ink">{titulo}</span>
                 {c.banderas > 0 && (
                   <span className="shrink-0 text-[11px] text-mute">
-                    · {c.banderas} señal{c.banderas === 1 ? "" : "es"}
+                    {c.banderas} señal{c.banderas === 1 ? "" : "es"}
                   </span>
                 )}
               </div>
               {/* Segunda línea, sólo en móvil. El estado va con su palabra, no como
                   punto suelto: un color sin texto no es un canal, es un acertijo. */}
-              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-mute md:hidden">
+              <div className="mt-0.5 flex min-w-0 items-center gap-2.5 text-[11px] leading-tight text-mute md:hidden">
                 <EstadoLecturaCelda info={lectura} className="shrink-0 text-[11px]" />
-                <span aria-hidden>·</span>
                 <span className="truncate">{entidad}</span>
               </div>
             </div>
@@ -168,9 +170,15 @@ export function FilaContrato({
               {c.zona && <div className="truncate text-[11px] leading-tight text-mute">{c.zona}</div>}
             </div>
 
-            {/* 4 · tipo · etapa */}
-            <div className={cn(CELDA_XL, "min-w-0 truncate text-[12px] text-mute")} title={tipoEtapa}>
-              {tipoEtapa}
+            {/* 4 · tipo y etapa. Dos datos, dos elementos: el tipo manda y la
+                etapa lo matiza, así que se distinguen por peso de color y no
+                por una raya de texto plano entre medio. */}
+            {/* `xl:flex`, no `flex` a secas: CELDA_XL es "hidden xl:block" y el
+                `xl:block` le gana a un `flex` sin variante, así que el tipo y la
+                etapa quedaban pegados ("ConvenioConvocada"). */}
+            <div className={cn(CELDA_XL, "min-w-0 text-[12px] xl:flex xl:items-baseline xl:gap-x-2")} title={tipoEtapa}>
+              <span className="truncate text-inkSoft">{tipo || "Sin clasificar"}</span>
+              {etapa && <span className="shrink-0 text-mute">{etapa}</span>}
             </div>
 
             {/* 5 · estado de lectura */}

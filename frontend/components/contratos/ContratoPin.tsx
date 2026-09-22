@@ -23,8 +23,8 @@ export const COLOR_ESTADO: Record<EstadoOperativoZona, string> = {
 };
 export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
   sin_analizar: "Sin analizar",
-  documentos_listos: "Documentos listos · análisis en preparación",
-  en_cola: "En cola · financiable hoy",
+  documentos_listos: "Documentos listos, análisis en preparación",
+  en_cola: "En cola, financiable hoy",
   procesado: "Procesado",
   en_revision: "En revisión humana",
 };
@@ -94,7 +94,7 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, h
         />
       )}
       <circle r={rr} fill={color} fillOpacity={0.78} stroke="#F4EEDD" strokeWidth={sw}>
-        <title>{`${nombre} · ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"}`}</title>
+        <title>{`${nombre}: ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"}`}</title>
       </circle>
       {rr >= 6 / zoom && (
         <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#F4EEDD" pointerEvents="none">
@@ -117,7 +117,7 @@ export function ContratoPinLeyenda() {
         </li>
       ))}
       <li className="border-t border-line pt-1.5 text-[11px]">
-        Tamaño del punto = cantidad de contratos de la zona · color = estado predominante.
+        Tamaño del punto = cantidad de contratos de la zona. Color = estado predominante.
       </li>
     </ul>
   );

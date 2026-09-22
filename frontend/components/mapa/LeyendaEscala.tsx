@@ -36,10 +36,10 @@ export function LeyendaEscala({
   return (
     <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
       <div className="min-w-0">
-        <div className="mb-1 flex items-baseline gap-1.5 text-[11px] text-mute">
+        <div className="mb-1 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
           <span className="font-medium text-inkSoft">{medida.titulo}</span>
           <span>
-            · {escala.tramos.length} escalon{escala.tramos.length === 1 ? "" : "es"} por cuantil sobre {ambito}
+            {escala.tramos.length} escalon{escala.tramos.length === 1 ? "" : "es"} por cuantil sobre {ambito}
           </span>
         </div>
 

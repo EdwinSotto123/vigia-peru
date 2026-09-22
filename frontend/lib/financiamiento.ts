@@ -236,7 +236,7 @@ export const ESTADO_LABEL: Record<ZonaEstado, string> = {
   sin_datos: "Sin contratos ingresados",
   pendiente: "Pendiente de financiar",
   parcial: "Parcialmente financiada",
-  financiada: "Financiada · en proceso",
+  financiada: "Financiada, en proceso",
   procesada: "Auditoría completada",
 };
 

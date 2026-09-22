@@ -23,6 +23,17 @@ export interface AliadoPerfil {
   slug: string;
   logoUrl: string | null;
   desde: string;
+  /**
+   * Los tres campos que le dan cara propia al aliado en su ficha.
+   *
+   * Opcionales porque hoy sólo los trae la maqueta: `GET /financiamiento/
+   * aliados/:slug` todavía no los devuelve y la tabla `aliados` no tiene las
+   * columnas. Es el único pendiente de backend de esta superficie — cuando
+   * existan, la ficha los muestra sin tocar una línea de este archivo.
+   */
+  descripcion?: string | null;
+  web?: string | null;
+  email?: string | null;
 }
 
 export interface PerfilAliado {

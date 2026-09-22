@@ -276,12 +276,11 @@ function DenunciaCard({
             {reporte.descripcion}
           </p>
 
-          <div className="mt-auto flex flex-wrap items-center gap-2 text-[10px] text-mute">
+          <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-mute">
             <span className="inline-flex items-center gap-1">
               <MapPin size={10} />
               {reporte.region}
             </span>
-            <span>·</span>
             <span className="inline-flex items-center gap-1">
               <Calendar size={10} />
               hace {diasDesde} día{diasDesde === 1 ? "" : "s"}

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import type { RankingRow } from "@/lib/financiamiento";
 import { cn } from "@/lib/utils";
-import { AvatarAliado, identidadAliado } from "./TarjetaAliado";
+import { AvatarAliado, datosIdentidad } from "./TarjetaAliado";
+import { IdentidadAliado } from "./IdentidadAliado";
 
 /**
  * El podio de quienes más contratos hicieron leer.
@@ -167,7 +168,7 @@ export function RestoDelPodio({
               <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={maq} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-semibold text-ink">{row.nombre}</span>
-                <span className="block truncate text-[12px] text-mute">{identidadAliado(row)}</span>
+                <IdentidadAliado datos={datosIdentidad(row)} tam="sm" as="span" className="mt-0.5" />
               </span>
               <span className="shrink-0 text-right">
                 <span className="block font-mono text-[14px] font-semibold tabular-nums text-ink">

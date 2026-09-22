@@ -3,6 +3,7 @@ import { ArrowRight, EyeOff } from "lucide-react";
 import { getEstadoGlobal, getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
 import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { Cifras } from "@/components/ui/Cifras";
 import { cn } from "@/lib/utils";
 import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
 import { Podio } from "./Podio";
@@ -156,10 +157,15 @@ export async function MuroAliados({
             ? "Un solo aliado sostiene la lectura hoy"
             : `${num(totalVisible)} aliados sostienen la lectura hoy`}
         </h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-mute">
-          {num(financiadosMuro)} contratos financiados · {num(leidosMuro)} ya leídos. Se cuenta en
-          contratos, nunca en soles.
-        </p>
+        <Cifras
+          className="mt-1.5"
+          tam="lg"
+          items={[
+            { n: financiadosMuro, texto: "contratos financiados" },
+            { n: leidosMuro, de: financiadosMuro, texto: "ya leídos" },
+          ]}
+        />
+        <p className="mt-1 text-[12px] leading-relaxed text-mute">Se cuenta en contratos, nunca en soles.</p>
         <div className="mt-4 divide-y divide-line">
           {fichas.map((r) => (
             <TarjetaAliado
@@ -297,10 +303,15 @@ export async function MuroAliados({
         <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
           Quién financió la lectura
         </h2>
-        <p className="font-mono text-[12px] text-mute">
-          {num(totalVisible)} {totalVisible === 1 ? "aliado" : "aliados"} · {num(financiadosMuro)} contratos
-          financiados{nombreRegion ? ` en ${nombreRegion}` : ""}
-        </p>
+        <Cifras
+          items={[
+            { n: totalVisible, texto: totalVisible === 1 ? "aliado" : "aliados" },
+            {
+              n: financiadosMuro,
+              texto: `contratos financiados${nombreRegion ? ` en ${nombreRegion}` : ""}`,
+            },
+          ]}
+        />
       </div>
 
       {totalVisible > 1 && (
@@ -425,11 +436,14 @@ function Anonimos({ cantidad, contratos, breve = false }: { cantidad: number; co
   return (
     <p className={`inline-flex items-start gap-1.5 text-[12px] leading-relaxed text-mute ${breve ? "mt-3" : ""}`}>
       <EyeOff size={13} className="mt-0.5 shrink-0" aria-hidden />
+      {/* Dos cifras dentro de una frase: se dicen con la frase, no con un punto
+          medio entre medio. La prosa ya tiene puntuación propia. */}
       <span>
         <span className="font-mono text-inkSoft">{num(cantidad)}</span>{" "}
-        {cantidad === 1 ? "persona aportó" : "personas aportaron"} sin nombre ·{" "}
-        <span className="font-mono text-inkSoft">{num(contratos)}</span> contratos financiados. Cuentan
-        exactamente igual; solo no figuran en la lista.
+        {cantidad === 1 ? "persona aportó" : "personas aportaron"} sin nombre y{" "}
+        {cantidad === 1 ? "financió" : "financiaron"}{" "}
+        <span className="font-mono text-inkSoft">{num(contratos)}</span> contratos. Cuentan exactamente
+        igual; solo no figuran en la lista.
       </span>
     </p>
   );

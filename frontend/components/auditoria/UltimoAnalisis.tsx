@@ -110,7 +110,7 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
             "ninguna señal de riesgo"
           )}
           {p.score != null && (
-            <> · riesgo <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span>/100</>
+            <span className="ml-2">riesgo <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span>/100</span>
           )}
         </span>
       </div>
@@ -124,7 +124,7 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
               </span>
               <span className="min-w-0">
                 {reglaLabel(s.regla)}
-                {s.norma && <span className="text-mute"> · {s.norma}</span>}
+                {s.norma && <span className="ml-2 text-mute">{s.norma}</span>}
               </span>
             </li>
           ))}
@@ -144,19 +144,23 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
       )}
 
       {/* Cuánto trabajo costó, con el vocabulario del catálogo: 10 agentes repartidos en 12 pasos. */}
-      <p className="mt-3 border-t border-line pt-2 text-[12px] text-mute">
-        <span className="font-mono font-semibold text-inkSoft">{prog.hechas}</span> de{" "}
-        <span className="font-mono font-semibold text-inkSoft">{prog.aplicables}</span> pasos
-        {duro != null && duro > 0 && <> en {duracion(duro)}</>}
-        {" · "}lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
-        <span className="font-mono"> · {p.contribucionCodigo}</span>
+      <p className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-line pt-2 text-[12px] text-mute">
+        <span>
+          <span className="font-mono font-semibold text-inkSoft">{prog.hechas}</span> de{" "}
+          <span className="font-mono font-semibold text-inkSoft">{prog.aplicables}</span> pasos
+          {duro != null && duro > 0 && <> en {duracion(duro)}</>}
+        </span>
+        <span>
+          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+        </span>
+        <span className="font-mono">{p.contribucionCodigo}</span>
       </p>
 
       {eventos.length > 0 && (
         <div className="mt-2.5">
           <Revelar
             titulo="Cómo se analizó este contrato"
-            descripcion={`${p.titulo ?? p.ocid} · ${eventos.length} eventos de bitácora, tal como quedaron guardados`}
+            descripcion={`${p.titulo ?? p.ocid}. ${eventos.length} eventos de bitácora, tal como quedaron guardados.`}
             ancho="lg"
             etiqueta="Repetir el análisis de este contrato, paso por paso"
             detalle={<ReplayAnalisis eventos={eventos} estadoFinal={estado} compacto />}

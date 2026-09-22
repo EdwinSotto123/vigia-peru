@@ -50,7 +50,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
     ) : hayFiltros ? (
       <span>
         <strong className="font-mono font-semibold text-ink">{N(filtrados)}</strong> de {N(universo)} contratos con
-        estos filtros{leidos != null && <> · {N(leidos)} ya leídos</>}
+        estos filtros{leidos != null && <>, de los cuales {N(leidos)} ya leídos</>}
       </span>
     ) : (
       <span>

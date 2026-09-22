@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, FileText } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
+import { Cifras } from "@/components/ui/Cifras";
 import { Severidad } from "@/components/ui/Severidad";
 import { formatPEN, type Comprobante, type ComprobanteContrato } from "@/lib/financiamiento";
 
@@ -82,8 +83,16 @@ export function CadenaAliado({
         <li key={c.codigo} className="border-t border-line first:border-t-0">
           {comprobante ? (
             <Revelar
-              titulo={`${c.codigo} · ${c.zona}`}
-              descripcion={`${num(c.contratos)} contratos financiados el ${fecha(c.pagadaAt)}. Los contratos salieron de la cola por antigüedad.`}
+              titulo={c.zona}
+              descripcion={
+                <span className="block">
+                  <span className="font-mono text-inkSoft">{c.codigo}</span>
+                  <span className="mt-0.5 block">
+                    {num(c.contratos)} contratos financiados el {fecha(c.pagadaAt)}. Salieron de la cola por
+                    antigüedad.
+                  </span>
+                </span>
+              }
               ancho="xl"
               etiqueta={`Ver los contratos que pagó el aporte ${c.codigo}`}
               className="transition-colors duration-rapido hover:bg-paperSoft"
@@ -130,20 +139,19 @@ function ResumenContribucion({ c, interactivo }: { c: ContribucionAliado; intera
           <span className="text-sm font-semibold text-ink">{c.zona}</span>
           <PildoraEstado estado={c.estado} />
         </div>
-        <div className="mt-0.5 text-[11px] text-mute">
-          <span className="font-mono">{c.codigo}</span> · {fecha(c.pagadaAt)}
+        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 text-[11px] text-mute">
+          <span className="font-mono">{c.codigo}</span>
+          <span>{fecha(c.pagadaAt)}</span>
         </div>
       </div>
-      <p className="text-[13px] leading-snug text-inkSoft">
-        <span className="font-mono font-semibold text-ink">{num(c.procesados)}</span> leídos de{" "}
-        <span className="font-mono">{num(c.contratos)}</span> financiados ·{" "}
-        <span className="font-mono font-semibold text-ink">{num(c.senales)}</span> con señal
-        {(c.enRevision ?? 0) > 0 && (
-          <>
-            {" "}· <span className="font-mono">{num(c.enRevision ?? 0)}</span> en revisión humana
-          </>
-        )}
-      </p>
+      <Cifras
+        as="div"
+        items={[
+          { n: c.procesados, de: c.contratos, texto: "financiados ya leídos" },
+          { n: c.senales, texto: "con señal" },
+          { n: c.enRevision ?? 0, texto: "en revisión humana", ocultarEnCero: true },
+        ]}
+      />
       {interactivo && (
         <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-mute group-hover:text-ink">
           Ver los contratos <ChevronRight size={13} aria-hidden />
@@ -191,33 +199,29 @@ function DetalleContribucion({
         )}
       </p>
 
-      <dl className="space-y-1.5 text-[13px] leading-relaxed text-inkSoft">
-        <div>
-          <dt className="inline text-mute">Asignados y leídos: </dt>
-          <dd className="inline">
-            <span className="font-mono font-semibold text-ink">{num(r.procesados)}</span> de{" "}
-            <span className="font-mono">{num(r.asignados)}</span>
-            {r.pendientes > 0 && (
-              <span className="text-mute"> · {num(r.pendientes)} todavía sin asignar de los {num(comprobante.contratos)} pagados</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="inline text-mute">Con al menos una señal: </dt>
-          <dd className="inline">
-            <span className="font-mono font-semibold text-ink">{num(r.contratosConSenal ?? 0)}</span> de{" "}
-            <span className="font-mono">{num(r.procesados)}</span> leídos
-            <span className="text-mute"> · {num(r.senales)} señales en total</span>
-            {(r.enRevision ?? 0) > 0 && (
-              <span className="text-mute"> · {num(r.enRevision ?? 0)} esperando revisión humana</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="inline text-mute">Dinero público mirado: </dt>
-          <dd className="inline font-mono font-semibold text-ink">{formatPEN(r.montoAuditado)}</dd>
-        </div>
-      </dl>
+      {/* Antes eran tres renglones de "etiqueta: valor" con los matices colgados
+          de un punto medio ("3 de 5 · 2 todavía sin asignar · 19 señales en
+          total"). Cada cifra pasa a ser su propio elemento; lo que las separa
+          es espacio y contraste, no una raya. */}
+      <Cifras
+        className="gap-x-6"
+        tam="lg"
+        items={[
+          { n: r.procesados, de: r.asignados, texto: "asignados ya leídos" },
+          {
+            n: r.pendientes,
+            texto: `todavía sin asignar de los ${num(comprobante.contratos)} pagados`,
+            ocultarEnCero: true,
+          },
+          { n: r.contratosConSenal ?? 0, de: r.procesados, texto: "leídos con al menos una señal" },
+          { n: r.senales, texto: "señales en total" },
+          { n: r.enRevision ?? 0, texto: "esperando revisión humana", ocultarEnCero: true },
+        ]}
+      />
+      <p className="border-t border-line pt-3 text-[12px] text-mute">
+        Dinero público mirado:{" "}
+        <span className="font-mono text-[13px] font-semibold text-ink">{formatPEN(r.montoAuditado)}</span>
+      </p>
 
       {comprobante.detalle.length > 0 && (
         <div>
@@ -261,9 +265,9 @@ function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; es
       {d.entidad && <p className="mt-0.5 truncate text-[11px] text-mute">{d.entidad}</p>}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
         {d.procesadaAt == null ? (
-          <span>Todavía sin leer · sigue en la cola</span>
+          <span>Sigue en la cola, todavía sin leer</span>
         ) : enRevision ? (
-          <span>Leído · el dictamen espera revisión humana, todavía no cuenta como señal</span>
+          <span>Leído: el dictamen espera revisión humana y todavía no cuenta como señal</span>
         ) : sev ? (
           <>
             <Severidad bandera={sev} formato="linea" />
@@ -272,7 +276,7 @@ function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; es
             </span>
           </>
         ) : (
-          <span>Leído · salió sin señal</span>
+          <span>Leído, salió sin señal</span>
         )}
       </div>
     </li>

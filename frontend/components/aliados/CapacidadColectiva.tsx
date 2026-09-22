@@ -76,19 +76,19 @@ export function CapacidadColectiva({
   const escalones: Escalon[] = [
     {
       etiqueta: "Contratos públicos descargados",
-      nota: `API OCDS del OECE · ${ambito}`,
+      nota: `Descargados de la API OCDS del OECE para ${ambito}.`,
       valor: publicados,
       tono: "escala",
     },
     {
       etiqueta: "Entran hoy a la cola financiable",
-      nota: `Solo ${alcanceCorto(alcance)}${documentosListos > 0 ? ` · otros ${num(documentosListos)} ya tienen sus documentos descargados, pero su tipo de contrato todavía no está activo para análisis` : ""}`,
+      nota: `Solo ${alcanceCorto(alcance)}.${documentosListos > 0 ? ` Otros ${num(documentosListos)} ya tienen sus documentos descargados, pero su tipo de contrato todavía no está activo para análisis.` : ""}`,
       valor: cola,
       tono: "escala",
     },
     {
       etiqueta: "Financiados por aliados",
-      nota: `${formatPEN(precioPen)} por contrato · se asignan por antigüedad en la cola, nadie elige cuáles`,
+      nota: `${formatPEN(precioPen)} por contrato. Se asignan por antigüedad en la cola: nadie elige cuáles.`,
       valor: financiados,
       tono: "financiado",
     },

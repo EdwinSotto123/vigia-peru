@@ -14,7 +14,7 @@ import type { CitaDocumento } from "@/lib/contratos";
 export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid: string; cita: CitaDocumento; className?: string; corto?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const largo = `${cita.pagina != null ? `p. ${cita.pagina}` : "documento"}${cita.documentoTitulo ? ` · ${cita.documentoTitulo}` : ""}`;
+  const largo = `${cita.pagina != null ? `p. ${cita.pagina}` : "documento"}${cita.documentoTitulo ? ` de ${cita.documentoTitulo}` : ""}`;
   const label = corto ? (cita.pagina != null ? `p. ${cita.pagina}` : "doc.") : largo;
 
   async function abrir() {

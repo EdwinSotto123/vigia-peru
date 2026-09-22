@@ -29,8 +29,9 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
               <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
             </div>
             {c.mensajePublico && <div className="mt-0.5 text-[13px] italic text-mute">“{c.mensajePublico}”</div>}
-            <div className="mt-1 text-[11px] text-mute">
-              {timeAgo(c.pagadaAt)} · <Link href={`/impacto/${c.codigo}`} className="font-mono hover:underline">{c.codigo}</Link>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
+              <span>{timeAgo(c.pagadaAt)}</span>
+              <Link href={`/impacto/${c.codigo}`} className="font-mono hover:underline">{c.codigo}</Link>
             </div>
           </div>
         </li>

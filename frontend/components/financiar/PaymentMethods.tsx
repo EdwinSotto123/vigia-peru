@@ -75,8 +75,7 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-ink px-4 py-3 text-paper">
         <span className="text-sm">Monto exacto</span><span className="font-mono text-lg font-semibold">{monto}</span>
-        <span className="mx-1 hidden text-paper/40 sm:inline">·</span>
-        <span className="text-sm">Concepto</span>
+        <span className="ml-2 text-sm">Concepto</span>
         <CopyValue value={concepto} dark />
       </div>
 
@@ -90,7 +89,7 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
                 <div className={`min-w-0 space-y-1.5 ${grande ? "flex flex-col items-center" : ""}`}>
                   <CopyValue value={w.numero} label="número" size={grande ? "lg" : "md"} />
                   {w.titular && <div className="text-[12px] text-mute">Titular: <span className="text-ink">{w.titular}</span></div>}
-                  {grande && <div className="text-[11px] text-mute">Escanea el QR o copia el número · pon el código como concepto</div>}
+                  {grande && <div className="text-[11px] text-mute">Escanea el QR o copia el número, y pon el código como concepto</div>}
                 </div>
               </div>
             </div>
@@ -108,7 +107,7 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
                 <span className="text-[12px] text-mute">{c.tipo} {c.moneda}</span>
                 {c.numero && <CopyValue value={c.numero} label="cuenta" />}
                 {c.cci && <CopyValue value={c.cci} label="CCI" />}
-                {c.titular && <span className="text-[12px] text-mute">· {c.titular}</span>}
+                {c.titular && <span className="text-[12px] text-mute">Titular: {c.titular}</span>}
               </li>
             ))}
           </ul>

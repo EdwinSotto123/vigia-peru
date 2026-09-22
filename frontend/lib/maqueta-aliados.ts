@@ -76,6 +76,15 @@ interface SemillaAliado {
   nombre: string;
   tipo: RankingRow["tipo"];
   aportes: AporteMaqueta[];
+  /**
+   * Perfil público del aliado. El API real NO devuelve estos campos todavía:
+   * existen acá para poder mirar cómo se ve una ficha con presentación, sitio
+   * y contacto. Para que sean reales hace falta columna en `financiadores` y
+   * campo en GET /financiamiento/aliados/:slug.
+   */
+  descripcion?: string;
+  web?: string;
+  email?: string;
 }
 
 /**
@@ -91,6 +100,10 @@ const SEMILLAS: SemillaAliado[] = [
     id: -2,
     slug: "vigia-2",
     nombre: "VIGÍA 2",
+    descripcion:
+      "Organización de maqueta. Existe para poder mirar cómo se ve una ficha de aliado con varios aportes y varias regiones.",
+    web: "https://ejemplo-maqueta.org",
+    email: "contacto@ejemplo-maqueta.org",
     tipo: "empresa",
     aportes: [
       { codigo: "MAQ-2026-00034", contratos: 10, estado: "pagada", pagadaAt: "2026-09-19T14:10:00.000Z", ubigeo: "02", zona: "Áncash", procesados: 0, senales: 0, enRevision: 0 },
@@ -106,6 +119,8 @@ const SEMILLAS: SemillaAliado[] = [
     id: -3,
     slug: "vigia-3",
     nombre: "VIGÍA 3",
+    descripcion: "Organización de maqueta, con toda su cola ya leída.",
+    web: "https://ejemplo-maqueta.pe",
     tipo: "organizacion",
     aportes: [
       { codigo: "MAQ-2026-00020", contratos: 14, estado: "procesada", pagadaAt: "2026-08-05T12:20:00.000Z", ubigeo: "18", zona: "Moquegua", procesados: 14, senales: 4, enRevision: 1 },
@@ -198,7 +213,7 @@ export function totalesMaqueta(region?: string) {
 
 /** Perfil completo, con la misma forma que `/financiamiento/aliados/:slug`. */
 export function perfilMaqueta(slug: string): {
-  aliado: { id: number; tipo: RankingRow["tipo"]; nombre: string; slug: string; logoUrl: string | null; desde: string };
+  aliado: { id: number; tipo: RankingRow["tipo"]; nombre: string; slug: string; logoUrl: string | null; desde: string; descripcion?: string; web?: string; email?: string };
   contribuciones: ContribucionAliado[];
 } | null {
   const s = SEMILLAS.find((x) => x.slug === slug);
@@ -211,6 +226,9 @@ export function perfilMaqueta(slug: string): {
       slug: s.slug,
       logoUrl: null,
       desde: s.aportes[s.aportes.length - 1].pagadaAt,
+      descripcion: s.descripcion,
+      web: s.web,
+      email: s.email,
     },
     contribuciones: s.aportes.map((a) => ({
       codigo: a.codigo,

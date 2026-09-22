@@ -67,7 +67,7 @@ export function ZonaPicker({ zonas, precioPen }: { zonas: Zona[]; precioPen: num
                     <ChevronRight size={14} className={`text-mute transition-transform ${abierto === d.ubigeo ? "rotate-90" : ""}`} />
                     <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[d.estado] }} />
                     <span className="font-medium text-ink">{d.nombre}</span>
-                    <span className="ml-auto font-mono text-xs text-mute">{d.totalCola.toLocaleString("es-PE")} · S/ {(d.totalCola * precioPen).toLocaleString("es-PE")}</span>
+                    <span className="ml-auto font-mono text-xs text-mute">{d.totalCola.toLocaleString("es-PE")}<span className="ml-2.5">S/ {(d.totalCola * precioPen).toLocaleString("es-PE")}</span></span>
                   </button>
                   <Link href={`/app/financiar/${d.ubigeo}`} className="rounded-lg bg-ink px-2.5 py-1 text-xs font-semibold text-paper">Financiar</Link>
                 </div>
@@ -105,7 +105,7 @@ function Fila({ z, precioPen, nested = false }: { z: Zona; precioPen: number; ne
         <span className="inline-block h-2 w-2 rounded-full" style={{ background: ESTADO_FILL[z.estado] }} />
         <span className="text-ink">{z.nombre}</span>
         <span className="text-[11px] text-mute">{z.nivel}</span>
-        <span className="ml-auto font-mono text-xs text-mute">{z.totalCola.toLocaleString("es-PE")} · S/ {(z.totalCola * precioPen).toLocaleString("es-PE")}</span>
+        <span className="ml-auto font-mono text-xs text-mute">{z.totalCola.toLocaleString("es-PE")}<span className="ml-2.5">S/ {(z.totalCola * precioPen).toLocaleString("es-PE")}</span></span>
         <ChevronRight size={14} className="text-mute" />
       </Link>
     </li>

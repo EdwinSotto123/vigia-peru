@@ -72,15 +72,15 @@ export function BuscarGlobal({ variant = "campo", className }: { variant?: "camp
 
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
-    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, soles(c.montoPen)].filter(Boolean).join(" · "), icon: <FileSearch size={14} aria-hidden /> });
-    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Señales publicadas", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, a.score != null ? `score ${a.score}` : null, `${a.banderas} señal${a.banderas === 1 ? "" : "es"}`].filter(Boolean).join(" · "), icon: <AlertTriangle size={14} aria-hidden /> });
-    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, `${e.contratos.toLocaleString("es-PE")} contratos`].filter(Boolean).join(" · "), icon: <Building2 size={14} aria-hidden /> });
+    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, soles(c.montoPen)].filter(Boolean).join(", "), icon: <FileSearch size={14} aria-hidden /> });
+    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Señales publicadas", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, a.score != null ? `score ${a.score}` : null, `${a.banderas} señal${a.banderas === 1 ? "" : "es"}`].filter(Boolean).join(", "), icon: <AlertTriangle size={14} aria-hidden /> });
+    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, `${e.contratos.toLocaleString("es-PE")} contratos`].filter(Boolean).join(", "), icon: <Building2 size={14} aria-hidden /> });
     for (const z of res.zonas) {
       const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
       const href = z.nivel === "departamento" && regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;
-      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${z.totalCola.toLocaleString("es-PE")} en cola` : null, z.financiados > 0 ? `${z.financiados} financiados` : null].filter(Boolean).join(" · "), icon: <MapPin size={14} aria-hidden /> });
+      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${z.totalCola.toLocaleString("es-PE")} en cola` : null, z.financiados > 0 ? `${z.financiados} financiados` : null].filter(Boolean).join(", "), icon: <MapPin size={14} aria-hidden /> });
     }
-    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, `${p.contratos} contratos`].filter(Boolean).join(" · "), icon: <Heart size={14} aria-hidden /> });
+    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, `${p.contratos} contratos`].filter(Boolean).join(", "), icon: <Heart size={14} aria-hidden /> });
     return out;
   }, [res]);
 
@@ -93,7 +93,7 @@ export function BuscarGlobal({ variant = "campo", className }: { variant?: "camp
   };
 
   const trigger = variant === "boton" ? (
-    <button type="button" onClick={() => setOpen(true)} aria-label="Buscar (Ctrl+K)" title="Buscar · Ctrl+K" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-mute hover:bg-paperDeep hover:text-ink", className)}>
+    <button type="button" onClick={() => setOpen(true)} aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-mute hover:bg-paperDeep hover:text-ink", className)}>
       <Search size={15} aria-hidden />
     </button>
   ) : (
@@ -130,7 +130,7 @@ export function BuscarGlobal({ variant = "campo", className }: { variant?: "camp
             </div>
             <div id="buscar-resultados" role="listbox" className="max-h-[60vh] overflow-y-auto p-1.5">
               {q.trim().length < 2 && (
-                <p className="px-3 py-6 text-center text-[12px] text-mute">Escribe al menos 2 letras. Ejemplos: <span className="font-mono">1225884</span> · <span className="font-mono">VIG-2026-00004</span> · Puno · Gobierno Regional</p>
+                <p className="px-3 py-6 text-center text-[12px] text-mute">Escribe al menos 2 letras. Ejemplos: <span className="font-mono">1225884</span>, <span className="font-mono">VIG-2026-00004</span>, Puno, Gobierno Regional</p>
               )}
               {q.trim().length >= 2 && !cargando && items.length === 0 && (
                 <p className="px-3 py-6 text-center text-[12px] text-mute">Sin resultados para “{q}”.</p>

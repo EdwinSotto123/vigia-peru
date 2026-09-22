@@ -160,10 +160,10 @@ export function FiltroPatrocinador({ financiador, financiadores }: {
         className="w-full min-w-0 bg-transparent pr-1 text-sm outline-none"
       >
         <option value="">
-          {total > 0 ? `Lo pagó cualquiera · ${total.toLocaleString("es-PE")} contratos` : "Lo pagó cualquiera"}
+          {total > 0 ? `Lo pagó cualquiera (${total.toLocaleString("es-PE")} contratos)` : "Lo pagó cualquiera"}
         </option>
         {financiadores.map((f) => (
-          <option key={f.nombre} value={f.nombre}>{f.nombre} · {f.n.toLocaleString("es-PE")}</option>
+          <option key={f.nombre} value={f.nombre}>{f.nombre} ({f.n.toLocaleString("es-PE")})</option>
         ))}
       </select>
       {pendiente && <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-label="Cargando" />}

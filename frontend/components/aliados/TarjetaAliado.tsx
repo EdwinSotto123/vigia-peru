@@ -3,9 +3,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Building2, PanelRightOpen, User, Users } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
+import { Cifras } from "@/components/ui/Cifras";
 import { cn } from "@/lib/utils";
 import type { RankingRow } from "@/lib/financiamiento";
 import { SelloMaqueta } from "./AvisoMaqueta";
+import { IdentidadAliado, Insignias, insigniasDe, mesesDesde, type DatoIdentidad } from "./IdentidadAliado";
 
 /**
  * Presentación de un aliado, en dos formatos que son el mismo dato.
@@ -43,6 +45,12 @@ const TIPO_LABEL: Record<RankingRow["tipo"], string> = {
   persona: "Persona",
 };
 
+const TIPO_ICONO: Record<RankingRow["tipo"], DatoIdentidad["icono"]> = {
+  empresa: "tipo-empresa",
+  organizacion: "tipo-organizacion",
+  persona: "tipo-persona",
+};
+
 /** Vigía Perú se autofinancia con capital semilla: aparece en su propio muro y se dice tal cual. */
 export const esFundador = (row: { slug: string | null }) => row.slug === "vigia-peru";
 
@@ -62,12 +70,34 @@ function pctTxt(v: number, total: number): string {
   return `${p.toLocaleString("es-PE", { minimumFractionDigits: dec, maximumFractionDigits: dec })} %`;
 }
 
-/** Descripción de identidad sin kicker sobre el título: va debajo del nombre, en una línea. */
-export function identidadAliado(row: RankingRow): string {
-  const partes = [esFundador(row) ? "La propia plataforma · capital semilla" : TIPO_LABEL[row.tipo]];
+/**
+ * Identidad del aliado, en piezas con ícono — no en una cadena de puntos medios.
+ *
+ * Esto antes devolvía el string `"Organización · aporta desde jun 2026"`, que
+ * es la mala práctica que el producto dejó de aceptar: un separador que no es
+ * puntuación, pegando datos de distinta naturaleza en un renglón que hay que
+ * leer entero para sacar uno solo.
+ */
+export function datosIdentidad(row: RankingRow): DatoIdentidad[] {
+  const datos: DatoIdentidad[] = [
+    esFundador(row)
+      ? {
+          icono: "tipo-organizacion",
+          texto: "La propia plataforma",
+          titulo: "Vigía Perú se autofinancia con capital semilla y aparece en su propio muro.",
+        }
+      : { icono: TIPO_ICONO[row.tipo], texto: TIPO_LABEL[row.tipo] },
+  ];
   const d = desdeTxt(row.desde);
-  if (d) partes.push(`aporta desde ${d}`);
-  return partes.join(" · ");
+  if (d) datos.push({ icono: "fecha", texto: `Aporta desde ${d}` });
+  return datos;
+}
+
+/** La misma identidad como frase corta, para cuando el destino es texto (aria, title). */
+export function identidadTexto(row: RankingRow): string {
+  const d = desdeTxt(row.desde);
+  const tipo = esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo];
+  return d ? `${tipo}, aporta desde ${d}` : tipo;
 }
 
 const ANILLO =
@@ -143,19 +173,26 @@ export function TarjetaAliado({
   resumen?: ReactNode;
   esMaqueta?: boolean;
 }) {
+  const enRevision = row.enRevision ?? 0;
   const zonas = (
-    <p className="mt-3 text-[12px] leading-relaxed text-mute">
-      Alcanzó <span className="font-mono text-inkSoft">{num(row.zonas)}</span> de las{" "}
-      <span className="font-mono text-inkSoft">{num(regionesConCola)}</span> regiones con cola abierta
-      {(row.enRevision ?? 0) > 0 && (
-        <>
-          {" "}· <span className="font-mono text-inkSoft">{num(row.enRevision ?? 0)}</span> de sus contratos
-          leídos {(row.enRevision ?? 0) === 1 ? "espera" : "esperan"} revisión humana y todavía no{" "}
-          {(row.enRevision ?? 0) === 1 ? "cuenta" : "cuentan"} como señal
-        </>
-      )}
-      .
-    </p>
+    <Cifras
+      className="mt-3"
+      items={[
+        {
+          n: row.zonas,
+          de: regionesConCola,
+          texto: "regiones con cola abierta alcanzadas",
+          titulo: "No eligió ninguna: se cuentan las regiones donde cayeron los contratos que pagó.",
+        },
+        {
+          n: enRevision,
+          texto: `${enRevision === 1 ? "contrato leído espera" : "contratos leídos esperan"} revisión humana`,
+          titulo:
+            "Su dictamen ya está escrito pero todavía no cuenta como señal: una persona tiene que revisarlo antes de publicarlo.",
+          ocultarEnCero: true,
+        },
+      ]}
+    />
   );
 
   return (
@@ -190,7 +227,24 @@ export function TarjetaAliado({
               row.nombre
             )}
           </h3>
-          <p className="mt-0.5 text-[13px] leading-snug text-mute">{identidadAliado(row)}</p>
+          <IdentidadAliado datos={datosIdentidad(row)} className="mt-1" />
+          {/* Las insignias también acá, no sólo en la ficha: el muro es donde
+              de verdad mira la gente, y esta página existe para enaltecer a
+              quien financia. Se topan en tres para no tapar las barras, que son
+              las que dicen cuánto pesó cada uno. Todas se derivan de sus propias
+              cifras: ninguna se otorga a dedo. */}
+          <Insignias
+            className="mt-2"
+            limite={3}
+            insignias={insigniasDe({
+              esFundador: esFundador(row),
+              financiados: row.contratosFinanciados,
+              leidos: row.contratosProcesados,
+              regiones: row.zonas,
+              regionesConCola,
+              mesesAportando: mesesDesde(row.desde),
+            })}
+          />
         </div>
         {esMaqueta && <SelloMaqueta className="shrink-0" />}
       </div>
@@ -231,7 +285,7 @@ export function TarjetaAliado({
           {resumen && (
             <Revelar
               titulo={row.nombre}
-              descripcion={identidadAliado(row)}
+              descripcion={<IdentidadAliado datos={datosIdentidad(row)} />}
               ancho="lg"
               etiqueta={`Ver el resumen de ${row.nombre} sin salir del muro`}
               className={cn(
@@ -307,9 +361,12 @@ export function FilaAliado({
               )}
               {esMaqueta && <SelloMaqueta className="shrink-0" />}
             </span>
-            <span className="block truncate text-[11px] text-mute">
-              {esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo]}
-              {d ? ` · desde ${d}` : ""}
+            {/* Dos datos, dos elementos con su propio espacio. Antes iban pegados
+                con " · " dentro de un `truncate`, así que al angostarse la columna
+                el punto medio quedaba cortado a la mitad. */}
+            <span className="flex min-w-0 items-baseline gap-x-2.5 text-[11px] text-mute">
+              <span className="truncate">{esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo]}</span>
+              {d && <span className="shrink-0 text-mute/80">desde {d}</span>}
             </span>
           </span>
         </div>

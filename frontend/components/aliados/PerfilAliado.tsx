@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
+import { Cifras } from "@/components/ui/Cifras";
 import { formatPEN, type Comprobante, type ComprobanteContrato } from "@/lib/financiamiento";
+import { IdentidadAliado } from "./IdentidadAliado";
 import type { RegionAlcanzada } from "./perfil";
 
 /**
@@ -55,11 +57,16 @@ export function RegionesDeAliado({
                 style={{ width: `${financiados > 0 ? (r.contratos / financiados) * 100 : 0}%` }}
               />
             </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-mute">
-              <span className="font-mono text-inkSoft">{num(r.procesados)}</span> leídos ·{" "}
-              <span className="font-mono text-inkSoft">{num(r.senales)}</span> con señal ·{" "}
-              {r.aportes === 1 ? "1 aporte" : `${num(r.aportes)} aportes`}
-            </p>
+            <Cifras
+              as="div"
+              tam="sm"
+              className="mt-1.5"
+              items={[
+                { n: r.procesados, texto: "leídos" },
+                { n: r.senales, texto: "con señal" },
+                { n: r.aportes, texto: r.aportes === 1 ? "aporte" : "aportes" },
+              ]}
+            />
           </li>
         ))}
       </ol>
@@ -144,17 +151,37 @@ export function SenalesDeAliado({
             <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-ink">
               {s.titulo ?? "Sin objeto declarado en el expediente"}
             </p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-              {s.entidad ? `${s.entidad} · ` : ""}
-              {s.zona} · <span className="font-mono">{num(s.banderas)}</span>{" "}
-              {s.banderas === 1 ? "señal con norma citada" : "señales con norma citada"}
-              {s.valorReferencial != null && (
-                <>
-                  {" "}· <span className="font-mono">{formatPEN(s.valorReferencial)}</span> de valor referencial
-                </>
-              )}
-              {" "}· aporte <span className="font-mono">{s.codigoAporte}</span>
-            </p>
+            {/* Cinco datos de naturaleza distinta —entidad, zona, cuántas señales,
+                cuánta plata, qué aporte lo pagó— que antes iban en un renglón
+                pegados con puntos medios. Cada uno lleva su propio ícono: se
+                distinguen de un vistazo y se pueden escanear en columna. */}
+            <IdentidadAliado
+              as="div"
+              tam="sm"
+              className="mt-1.5"
+              datos={[
+                ...(s.entidad ? [{ icono: "entidad" as const, texto: s.entidad }] : []),
+                { icono: "zona" as const, texto: s.zona },
+                {
+                  icono: "senal" as const,
+                  texto: `${num(s.banderas)} ${s.banderas === 1 ? "señal" : "señales"} con norma citada`,
+                },
+                ...(s.valorReferencial != null
+                  ? [
+                      {
+                        icono: "monto" as const,
+                        texto: formatPEN(s.valorReferencial),
+                        titulo: "Valor referencial del contrato",
+                      },
+                    ]
+                  : []),
+                {
+                  icono: "codigo" as const,
+                  texto: s.codigoAporte,
+                  titulo: "El aporte que pagó la lectura de este contrato",
+                },
+              ]}
+            />
           </li>
         ))}
       </ol>

@@ -111,15 +111,15 @@ export function EntidadesDeZona({ regionId, nombre }: { regionId: string; nombre
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{e.nombre}</span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-mute">
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-mute">
                     <span>{TIPO_LABEL[e.tipo] ?? e.tipo ?? "Entidad"}</span>
-                    {e.provincia && <span>· {e.provincia}</span>}
+                    {e.provincia && <span>{e.provincia}</span>}
                     {e.alertas > 0 && (
                       <span className="text-rust">
-                        · {e.alertas} señal{e.alertas === 1 ? "" : "es"}
+                        {e.alertas} señal{e.alertas === 1 ? "" : "es"}
                       </span>
                     )}
-                    {e.monto > 0 && <span className="font-mono text-heroViolet">· {formatSoles(e.monto)}</span>}
+                    {e.monto > 0 && <span className="font-mono text-heroViolet">{formatSoles(e.monto)}</span>}
                   </span>
                 </span>
                 <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" />

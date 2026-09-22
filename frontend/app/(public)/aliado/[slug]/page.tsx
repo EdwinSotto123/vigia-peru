@@ -7,6 +7,14 @@ import { PruebaIndependencia } from "@/components/aliados/ReglasIndependencia";
 import { QueSalio } from "@/components/aliados/ResumenAliado";
 import { RegionesDeAliado, SenalesDeAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
 import { AvisoMaqueta, SelloMaqueta } from "@/components/aliados/AvisoMaqueta";
+import {
+  ContactoAliado,
+  IdentidadAliado,
+  Insignias,
+  insigniasDe,
+  mesesDesde,
+} from "@/components/aliados/IdentidadAliado";
+import { Cifras } from "@/components/ui/Cifras";
 import { getComprobanteDe, getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
@@ -63,7 +71,7 @@ export async function generateMetadata({
   }
   const description = `${data.aliado.nombre} financió la lectura de ${r.financiados} contratos públicos; ${r.leidos} ya fueron leídos por los agentes. No eligió cuáles: se asignan por antigüedad.`;
   return {
-    title: `${data.aliado.nombre} — Aliado de transparencia · Vigía Perú`,
+    title: `${data.aliado.nombre} — Aliado de transparencia de Vigía Perú`,
     description,
     openGraph: { title: `${data.aliado.nombre} — Aliado de transparencia`, description },
     twitter: { card: "summary" },
@@ -101,6 +109,7 @@ export default async function AliadoPage({
   const publicados = resumen?.total ?? 0;
   const regionesConCola = estado?.regionesConCola ?? 0;
   const esPlataforma = aliado.slug === "vigia-peru";
+  const mesesAportando = mesesDesde(aliado.desde);
   const volver = `/app/aliados${queryMaqueta(esMaqueta)}`;
 
   return (
@@ -122,14 +131,55 @@ export default async function AliadoPage({
               {aliado.nombre}
               {esMaqueta && <SelloMaqueta />}
             </h1>
-            <p className="mt-1 text-sm text-mute">
-              {esPlataforma ? "La propia plataforma · capital semilla" : TIPO_LABEL[aliado.tipo]}
-              {aliado.desde && ` · aporta desde ${new Date(aliado.desde).toLocaleDateString("es-PE", { month: "long", year: "numeric" })}`}
-              {` · ${num(r.aportes)} ${r.aportes === 1 ? "aporte" : "aportes"}`}
-              {` · ${num(r.regiones.length)} de las ${num(regionesConCola)} regiones con cola abierta`}
-            </p>
+            {/* Antes acá había una cadena de texto plano unida por puntos
+                medios: "Organización · aporta desde junio de 2026 · 3 aportes ·
+                3 de las 25 regiones con cola abierta". Cuatro datos de
+                naturaleza distinta pegados con un separador que no es ni una
+                coma ni una lista, y que obliga a parsear el renglón entero para
+                sacar uno solo. Cada dato es ahora su propio elemento con su
+                ícono. */}
+            <IdentidadAliado
+              className="mt-1.5"
+              datos={[
+                {
+                  icono: aliado.tipo === "empresa" ? "tipo-empresa" : aliado.tipo === "persona" ? "tipo-persona" : "tipo-organizacion",
+                  texto: esPlataforma ? "La propia plataforma" : TIPO_LABEL[aliado.tipo],
+                  titulo: esPlataforma ? "Capital semilla: puso el primer dinero del proyecto." : undefined,
+                },
+                ...(aliado.desde
+                  ? [{
+                      icono: "fecha" as const,
+                      texto: `Desde ${new Date(aliado.desde).toLocaleDateString("es-PE", { month: "long", year: "numeric" })}`,
+                    }]
+                  : []),
+                { icono: "aportes", texto: `${num(r.aportes)} ${r.aportes === 1 ? "aporte" : "aportes"}` },
+                {
+                  icono: "regiones",
+                  texto: `${num(r.regiones.length)} de ${num(regionesConCola)} regiones`,
+                  titulo: "Regiones con cola abierta que alcanzaron sus aportes. La zona sí se elige; los contratos concretos, no.",
+                },
+              ]}
+            />
           </div>
         </header>
+
+        {/* Insignias: todas derivadas de sus propias cifras, ninguna a dedo. */}
+        <Insignias
+          insignias={insigniasDe({
+            esFundador: esPlataforma,
+            financiados: r.financiados,
+            leidos: r.leidos,
+            regiones: r.regiones.length,
+            regionesConCola,
+            mesesAportando,
+          })}
+        />
+
+        {aliado.descripcion && (
+          <p className="max-w-[70ch] text-[15px] leading-relaxed text-inkSoft">{aliado.descripcion}</p>
+        )}
+
+        <ContactoAliado web={aliado.web} email={aliado.email} />
 
         {/* Cifras con su denominador, no cuatro cajas con un número grande cada una.
             La tercera compara contra el país entero: es el único contexto que vuelve
@@ -178,9 +228,12 @@ export default async function AliadoPage({
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
             <h2 className="font-serif text-lg font-bold text-ink">Aporte por aporte, contrato por contrato</h2>
-            <p className="font-mono text-[12px] text-mute">
-              {num(r.aportes)} {r.aportes === 1 ? "aporte" : "aportes"} · {num(r.financiados)} contratos
-            </p>
+            <Cifras
+              items={[
+                { n: r.aportes, texto: r.aportes === 1 ? "aporte" : "aportes" },
+                { n: r.financiados, texto: "contratos" },
+              ]}
+            />
           </div>
           <PruebaIndependencia nombre={aliado.nombre} />
           <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />

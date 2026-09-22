@@ -49,9 +49,16 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
             <FileText size={14} className="shrink-0 text-mute" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink">{d.titulo ?? tipoDocLabel(d.tipo)}</span>
-              <span className="block text-[10px] text-mute">
-                {tipoDocLabel(d.tipo)}{d.seccion === "award" ? " · adjudicación" : d.seccion === "contract" ? " · contrato" : ""}{d.formato ? ` · ${d.formato.toUpperCase()}` : ""}{d.fecha ? ` · ${formatFecha(d.fecha)}` : ""}
-                {d.enVigia ? " · copia en Vigía" : ""}
+              {/* Cinco atributos del documento, antes encadenados con puntos
+                  medios en un renglón de 10 px. Son una lista: se dibuja como
+                  lista, separada por espacio. */}
+              <span className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-[10px] text-mute">
+                <span>{tipoDocLabel(d.tipo)}</span>
+                {d.seccion === "award" && <span>adjudicación</span>}
+                {d.seccion === "contract" && <span>contrato</span>}
+                {d.formato && <span className="font-mono">{d.formato.toUpperCase()}</span>}
+                {d.fecha && <span>{formatFecha(d.fecha)}</span>}
+                {d.enVigia && <span>copia en Vigía</span>}
               </span>
             </span>
             {d.enVigia && (

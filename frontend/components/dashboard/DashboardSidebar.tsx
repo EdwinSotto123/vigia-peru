@@ -137,14 +137,14 @@ const SECTIONS: Section[] = [
         href: "/reporte/nuevo",
         label: "Denunciar",
         icon: <FileText size={16} />,
-        hint: "Foto + geo · público",
+        hint: "Foto y ubicación, públicas",
         match: (p) => p.startsWith("/reporte"),
       },
       ...(FLAGS.editorial
         ? [
             {
               href: "/noticia",
-              label: "IA · Generador",
+              label: "Generador con IA",
               icon: <Sparkles size={16} />,
               hint: "Borrador editorial",
               requiresAuth: true,

@@ -140,11 +140,11 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const enVivoBadge = (
     <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true" suppressHydrationWarning>
       {fallo ? (
-        <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
+        <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
       ) : activo ? (
         <>
           <PulseDot color="moss" size={6} />
-          en vivo{montado && actualizadoAt ? ` · actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
+          en vivo{montado && actualizadoAt ? `, actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
         </>
       ) : (
         <span suppressHydrationWarning>{!montado ? "" : p.finalizadoAt ? `finalizado el ${new Date(p.finalizadoAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}` : "sin actividad"}</span>
@@ -185,8 +185,8 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
             {transcurrido != null && transcurrido > 0 ? (
               <>
                 {duracion(transcurrido)}
-                {restante != null && <span> · quedan {restante < 15_000 ? "unos segundos" : `≈ ${duracion(restante)}`}</span>}
-                {restante == null && <span> · {estimadoLabel(estimado)} en total</span>}
+                {restante != null && <span className="ml-2">quedan {restante < 15_000 ? "unos segundos" : `≈ ${duracion(restante)}`}</span>}
+                {restante == null && <span className="ml-2">{estimadoLabel(estimado)} en total</span>}
               </>
             ) : p.estado === "encolado" ? (
               <>{estimadoLabel(estimado)} por contrato</>
@@ -282,9 +282,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       <header className="mt-3 rounded-3xl border border-line bg-paper p-6 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-mute">
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] uppercase tracking-wide text-mute">
               <span className="font-mono normal-case tracking-normal">{p.ocid}</span>
-              {p.alertaCodigo && <span className="font-mono normal-case tracking-normal">· {p.alertaCodigo}</span>}
+              {p.alertaCodigo && <span className="font-mono normal-case tracking-normal">{p.alertaCodigo}</span>}
             </div>
             <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
@@ -300,8 +300,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
           <p className="flex flex-wrap items-center gap-x-1">
             <ShieldCheck size={14} className="text-moss" aria-hidden />
             gracias a <span className="font-semibold text-ink">{p.financiador}</span>
-            <span>·</span>
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="font-mono hover:underline">{p.contribucionCodigo}</Link>
+            <Link href={`/impacto/${p.contribucionCodigo}`} className="ml-2 font-mono hover:underline">
+              {p.contribucionCodigo}
+            </Link>
           </p>
           {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid} — auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="rounded-full" />}
         </div>
@@ -344,7 +345,11 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
   return (
     <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"} text-[12px]`}>
       <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wide text-mute hover:text-ink">
-        Ficha técnica · tiempos por agente{costo?.costoUsd != null ? ` · US$ ${costo.costoUsd.toFixed(2)}` : ""}{duro ? ` · ${duracion(duro)} en total` : ""}
+        <span className="inline-flex flex-wrap items-baseline gap-x-3">
+          <span>Ficha técnica y tiempos por agente</span>
+          {costo?.costoUsd != null && <span className="font-mono normal-case">US$ {costo.costoUsd.toFixed(2)}</span>}
+          {duro ? <span className="font-mono normal-case">{duracion(duro)} en total</span> : null}
+        </span>
       </summary>
       <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
         <table className="w-full text-left text-[11px]">
@@ -354,7 +359,7 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
             {filas.map((f) => (
               <tr key={f.k}>
                 <td className="py-1 pr-2 text-ink">{faseLabel(f.k)}</td>
-                <td className="py-1 pr-2 text-mute">{f.estado === "hecho" ? "completado" : f.estado === "omitido" ? `omitido${f.motivo ? ` · ${f.motivo}` : ""}` : f.estado}</td>
+                <td className="py-1 pr-2 text-mute">{f.estado === "hecho" ? "completado" : f.estado === "omitido" ? `omitido${f.motivo ? `: ${f.motivo}` : ""}` : f.estado}</td>
                 <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : "—"}</td>
               </tr>
             ))}
@@ -366,7 +371,11 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
           {costo && (
             <div>
               <dt className="text-[9px] uppercase tracking-wide text-mute">Costo del análisis</dt>
-              <dd className="font-mono text-ink">{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "—"}{costo.llamadas != null ? ` · ${costo.llamadas} llamadas` : ""}{costo.tokens != null ? ` · ${Math.round(costo.tokens / 1000)}k tokens` : ""}</dd>
+              <dd className="flex flex-wrap items-baseline gap-x-3 font-mono text-ink">
+                <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "—"}</span>
+                {costo.llamadas != null && <span className="text-mute">{costo.llamadas} llamadas</span>}
+                {costo.tokens != null && <span className="text-mute">{Math.round(costo.tokens / 1000)}k tokens</span>}
+              </dd>
             </div>
           )}
           {r?.analizadoEn && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Analizado</dt><dd className="text-ink" suppressHydrationWarning>{new Date(r.analizadoEn).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}</dd></div>}
@@ -381,7 +390,7 @@ function VersionReglas({ perfil }: { perfil: string | null | undefined }) {
   const [v, setV] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
-    getReglasPerfil((perfil ?? "bienes").toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version} · ${r.reglas.length} reglas`); });
+    getReglasPerfil((perfil ?? "bienes").toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version}, ${r.reglas.length} reglas`); });
     return () => { vivo = false; };
   }, [perfil]);
   return <span className="font-mono">{v ?? "—"}</span>;

@@ -36,7 +36,7 @@ export function ScoreGauge({ score, size = 132, className = "" }: Props) {
   const pct = s ?? 0;
   const label = riesgo === "alto" ? "riesgo alto" : riesgo === "medio" ? "riesgo medio" : riesgo === "bajo" ? "riesgo bajo" : "sin score";
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`Score de riesgo ${s ?? "sin dato"} de 100 · ${label}`} className={className}>
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`Score de riesgo ${s ?? "sin dato"} de 100: ${label}`} className={className}>
       {/* pista con los tres tramos (umbrales 40 y 70) */}
       <path d={arco(cx, cy, r, 0, 40 * 1.8)} fill="none" stroke="#3F7D43" strokeOpacity={0.18} strokeWidth={9} strokeLinecap="butt" />
       <path d={arco(cx, cy, r, 40 * 1.8, 70 * 1.8)} fill="none" stroke="#BE7B26" strokeOpacity={0.18} strokeWidth={9} strokeLinecap="butt" />

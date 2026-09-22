@@ -104,7 +104,7 @@ export default async function EntidadesPage({
                 estático en vez del mismo lenguaje visual pulsante que el resto del sitio usa
                 para datos que se refrescan solos. */}
             {source === "api" ? <PulseDot color="moss" size={6} /> : <Cloud size={11} />}
-            {source === "api" ? "live · Cloud SQL" : "mock"}
+            {source === "api" ? "live desde Cloud SQL" : "mock"}
           </span>
         }
       />

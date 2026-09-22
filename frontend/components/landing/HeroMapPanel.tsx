@@ -171,7 +171,13 @@ export function HeroMapPanel({ zonas, top, alertas }: { zonas: Zona[]; top: Zona
             </div>
           )}
         </div>
-        <p className="mt-1.5 text-center font-mono text-[10px] text-mute/70">SEACE · OECE · OCDS — datos oficiales, en vivo</p>
+        {/* Tres fuentes: una lista, no una cadena de puntos medios. */}
+        <ul className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 font-mono text-[10px] text-mute/70">
+          {["SEACE", "OECE", "OCDS"].map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+          <li className="font-sans">datos oficiales, en vivo</li>
+        </ul>
       </div>
 
       {/* ─── COLUMNA DERECHA: qué hay en esa zona, y la llama ────────────── */}

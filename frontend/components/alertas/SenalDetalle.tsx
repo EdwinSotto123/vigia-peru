@@ -183,7 +183,8 @@ export function SenalDetalle({ s }: { s: Senal }) {
             <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
           </Dato>
           <Dato etiqueta="Score">
-            <span className="font-mono tabular-nums">{s.score}</span> de 100 · {s.senalesDelContrato}{" "}
+            <span className="font-mono tabular-nums">{s.score}</span> de 100, con{" "}
+            <span className="font-mono tabular-nums">{s.senalesDelContrato}</span>{" "}
             {s.senalesDelContrato === 1 ? "señal" : "señales"} en total
           </Dato>
         </dl>

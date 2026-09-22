@@ -46,10 +46,9 @@ export function TopAlertasList({ alertas, limit = 6, hideHeader = false }: { ale
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-mute">
+                  <div className="flex items-center gap-x-3 text-xs text-mute">
                     <span>{a.region}</span>
-                    <span>·</span>
-                    <span>{a.codigoconvocatoria}</span>
+                    <span className="font-mono">{a.codigoconvocatoria}</span>
                   </div>
                   <div className="truncate text-sm font-semibold text-ink">
                     {a.objeto}

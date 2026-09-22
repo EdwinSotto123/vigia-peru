@@ -171,7 +171,7 @@ export interface ContratosPagina {
 export type EstadoOperativo = "en_cola" | "documentos_listos" | "sin_documentos";
 export const OPERATIVOS: { value: EstadoOperativo; label: string }[] = [
   { value: "en_cola", label: "En cola (análisis activo)" },
-  { value: "documentos_listos", label: "Documentos listos · análisis en preparación" },
+  { value: "documentos_listos", label: "Documentos listos, análisis en preparación" },
   { value: "sin_documentos", label: "Sin documentos aún" },
 ];
 

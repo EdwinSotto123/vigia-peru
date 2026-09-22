@@ -30,7 +30,7 @@ export function FiltroRegion({ opciones, valor }: { opciones: Opcion[]; valor?: 
         <option value="">Todo el Perú</option>
         {opciones.map((o) => (
           <option key={o.ubigeo} value={o.ubigeo}>
-            {o.nombre}{o.hint ? ` · ${o.hint}` : ""}
+            {o.nombre}{o.hint ? ` (${o.hint})` : ""}
           </option>
         ))}
       </select>

@@ -18,7 +18,7 @@ export function Footer() {
         <div className="grid items-center gap-8 lg:grid-cols-[1.6fr,1fr]">
           {/* Brand block */}
           <div>
-            <Link href="/" aria-label="Vigía Perú · Inicio" className="inline-flex items-center">
+            <Link href="/" aria-label="Vigía Perú, ir al inicio" className="inline-flex items-center">
               <span className="rounded-2xl bg-paper px-4 py-3">
                 <Logo height={40} />
               </span>
@@ -27,7 +27,7 @@ export function Footer() {
               Infraestructura cívica anticorrupción
             </div>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-paper/70">
-              Sin fines de lucro · 100% open source. Para que la verdad no dependa
+              Sin fines de lucro y 100% open source. Para que la verdad no dependa
               de quién paga el servidor.
             </p>
           </div>
@@ -92,7 +92,7 @@ export function Footer() {
               Contrataciones Abiertas
             </FooterExtLink>
             <FooterExtLink href="https://apps.contraloria.gob.pe/ciudadano/">
-              INFOBRAS · Contraloría
+              INFOBRAS de la Contraloría
             </FooterExtLink>
             <FooterExtLink href="https://www.onpe.gob.pe/claridad/">
               ONPE Claridad
@@ -120,15 +120,23 @@ export function Footer() {
           </FooterCol>
         </div>
 
-        {/* Bottom strip */}
-        <div className="mt-10 flex flex-col gap-2 border-t border-paper/10 pt-5 text-[11px] text-paper/45 sm:flex-row sm:items-center sm:justify-between">
-          <p className="inline-flex items-center gap-1.5">
-            <PeruFlag size={16} className="rounded-[2px] ring-1 ring-paper/20" />
-            © {year} Vigía Perú · Licencia MIT · Hecho en Lima
-          </p>
-          <p className="font-mono text-paper/35">
-            Gemini 2.5 · Google ADK · Cloud Run · Cloud SQL
-          </p>
+        {/* Bottom strip.
+            Antes eran dos cadenas de puntos medios ("Vigía Perú · Licencia MIT ·
+            Hecho en Lima"). Son listas: se dibujan como listas, con espacio
+            entre ítems, no con una raya de texto plano entre medio. */}
+        <div className="mt-10 flex flex-col gap-3 border-t border-paper/10 pt-5 text-[11px] text-paper/45 sm:flex-row sm:items-center sm:justify-between">
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <li className="inline-flex items-center gap-1.5">
+              <PeruFlag size={16} className="rounded-[2px] ring-1 ring-paper/20" />© {year} Vigía Perú
+            </li>
+            <li>Licencia MIT</li>
+            <li>Hecho en Lima</li>
+          </ul>
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-paper/35">
+            {["Gemini 2.5", "Google ADK", "Cloud Run", "Cloud SQL"].map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
         </div>
       </div>
     </footer>

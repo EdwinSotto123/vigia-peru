@@ -123,8 +123,8 @@ export default async function EntidadProfile({
               <SeguirEntidadBoton ruc={ent.ruc} nombre={ent.nombre} />
               <span className="flex items-center gap-1">
                 <MapPin size={11} /> {ent.region}
-                {ent.provincia && ` · ${ent.provincia}`}
-                {ent.distrito && ` · ${ent.distrito}`}
+                {ent.provincia && `, ${ent.provincia}`}
+                {ent.distrito && `, ${ent.distrito}`}
               </span>
             </div>
           </div>
@@ -193,7 +193,7 @@ export default async function EntidadProfile({
               <div className="font-mono text-5xl font-bold text-ink">
                 <NumberTicker value={enCola} format="entero" />
               </div>
-              <div className="text-xs text-mute">en cola de auditoría · de {ent.contratos.toLocaleString("es-PE")} registradas</div>
+              <div className="text-xs text-mute">en cola de auditoría, de {ent.contratos.toLocaleString("es-PE")} registradas</div>
             </div>
             {enCola > 0 && ubigeo ? (
               <Link href={`/app/financiar/${ubigeo}`} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]">
@@ -238,7 +238,7 @@ export default async function EntidadProfile({
           <Coins size={15} className="shrink-0 text-heroViolet" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</div>
-            <div className="text-[11px] text-mute">Gasto real vs. presupuesto asignado · {ent.nombre}</div>
+            <div className="text-[11px] text-mute">Gasto real frente al presupuesto asignado de {ent.nombre}</div>
           </div>
           <ChevronRight
             size={15}
@@ -257,7 +257,7 @@ export default async function EntidadProfile({
               query={mefSearchKeywordFor(ent)}
               ruc={ent.ruc}
               title="Ejecución presupuestal"
-              subtitle={`${ent.nombre} · datos reales de MEF`}
+              subtitle={`${ent.nombre}, datos reales del MEF`}
             />
           </Suspense>
         </div>
@@ -301,9 +301,8 @@ export default async function EntidadProfile({
                     </span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-xs text-mute">
+                    <div className="flex items-center gap-x-3 text-xs text-mute">
                       <span className="font-mono">{a.codigoconvocatoria}</span>
-                      <span>·</span>
                       <span>{a.fechaBuenaPro}</span>
                     </div>
                     <div className="truncate text-sm font-semibold text-ink">

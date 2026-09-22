@@ -26,7 +26,7 @@ export function SenalesRecientes({
     return (
       <p className="flex items-center gap-1.5 text-[12px] text-inkSoft" role="status" aria-live="polite">
         <WifiOff size={13} className="text-clayTexto" aria-hidden />
-        No se pudieron cargar las señales publicadas · reintentando
+        No se pudieron cargar las señales publicadas, reintentando
       </p>
     );
   }
@@ -45,8 +45,8 @@ export function SenalesRecientes({
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <span className="text-[12px] text-mute">
-        <strong className="font-semibold text-ink">{alertas.length.toLocaleString("es-PE")}</strong> señales publicadas ·
-        las de mayor score
+        <strong className="font-semibold text-ink">{alertas.length.toLocaleString("es-PE")}</strong> señales publicadas,
+        estas son las de mayor score
       </span>
       {/* En móvil cada señal ocupa su propia línea completa y el objeto se
           queda con el ancho sobrante (flex-1 + min-w-0), porque la suma de las

@@ -3,7 +3,7 @@ import { getComprobante } from "@/lib/financiamiento";
 
 /**
  * Tarjeta compartible (Open Graph) del comprobante de impacto.
- * 1200×630 · fondo ink · sin fuentes externas (system-ui) para que corra en edge.
+ * 1200×630, fondo ink, sin fuentes externas (system-ui) para que corra en edge.
  * Si el API no responde, devuelve una tarjeta genérica en vez de fallar.
  */
 
@@ -88,7 +88,7 @@ export default async function Image({ params }: { params: { codigo: string } }) 
             )}
             {zona && (
               <>
-                <span style={{ color: MUTE }}>·</span>
+                <span style={{ color: MUTE }}>en</span>
                 <span>{zona}</span>
               </>
             )}

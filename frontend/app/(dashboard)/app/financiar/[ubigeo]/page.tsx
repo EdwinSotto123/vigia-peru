@@ -12,7 +12,7 @@ export const revalidate = 60;
 
 export async function generateMetadata({ params }: { params: { ubigeo: string } }) {
   const d = await getZona(params.ubigeo);
-  return { title: d ? `Financiar auditoría · ${d.zona.nombre} — Vigía Perú` : "Zona — Vigía Perú" };
+  return { title: d ? `Financiar auditoría en ${d.zona.nombre} — Vigía Perú` : "Zona — Vigía Perú" };
 }
 
 export default async function ZonaPage({ params }: { params: { ubigeo: string } }) {
@@ -53,7 +53,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
               <Big label={`En cola (${alcanceCorto(d.alcance)})`} v={zona.totalCola} unit="contratos" />
               <Big label="Costo de auditarla" v={zona.totalCola * zona.precioPen} format="pen" />
               <Big label="Financiados" v={zona.financiados} unit={`de ${zona.totalCola}`} />
-              <Big label="Procesados" v={zona.procesados} unit={`${zona.senales} señales${(zona.enRevision ?? 0) > 0 ? ` · ${zona.enRevision} en revisión humana` : ""}`} />
+              <Big label="Procesados" v={zona.procesados} unit={`${zona.senales} señales${(zona.enRevision ?? 0) > 0 ? `, ${zona.enRevision} en revisión humana` : ""}`} />
             </div>
             <div className="mt-4">
               <div className="flex justify-between text-[11px] text-mute"><span>financiado {pFin}%</span><span>procesado {pProc}%</span></div>
@@ -77,7 +77,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Contratos en cola</dt><dd className="font-mono text-ink">{cola.contratos.toLocaleString("es-PE")}</dd><dd className="text-[10px] text-mute">{alcanceCorto(d.alcance)}</dd></div>
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Monto contratado</dt><dd className="font-mono text-ink">{formatPEN(cola.montoReferencial)}</dd></div>
               <div><dt className="text-[11px] uppercase tracking-wide text-mute">Entidades</dt><dd className="font-mono text-ink">{cola.entidades}</dd></div>
-              <div><dt className="text-[11px] uppercase tracking-wide text-mute">Documentos listos</dt><dd className="font-mono text-ink">{(cola.documentosListos ?? 0).toLocaleString("es-PE")}</dd><dd className="text-[10px] text-mute">otros tipos · análisis en preparación</dd></div>
+              <div><dt className="text-[11px] uppercase tracking-wide text-mute">Documentos listos</dt><dd className="font-mono text-ink">{(cola.documentosListos ?? 0).toLocaleString("es-PE")}</dd><dd className="text-[10px] text-mute">otros tipos, análisis en preparación</dd></div>
             </dl>
             <details className="mt-3 text-[12px] text-mute">
               <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">¿Qué se analiza hoy?</summary>

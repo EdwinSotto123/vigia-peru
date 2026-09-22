@@ -57,10 +57,10 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
                     const e = ESTADO_PASO[v.estado];
                     const t = v.estado === "hecho" || (v.estado === "corriendo" && ahora > 0) ? v.ms : null;
                     const title =
-                      v.estado === "omitido" ? `${faseLabel(key)}: omitido · ${v.motivo ?? "no aplica"}`
-                        : v.estado === "error" ? `${faseLabel(key)}: error · ${v.motivo ?? ""}`
-                          : v.estado === "corriendo" ? `${faseLabel(key)}: en curso${v.msg ? ` · ${v.msg}` : ""}`
-                            : v.estado === "hecho" ? `${faseLabel(key)}: completada${v.motivo ? ` · ${v.motivo}` : ""}`
+                      v.estado === "omitido" ? `${faseLabel(key)}: omitido, ${v.motivo ?? "no aplica"}`
+                        : v.estado === "error" ? `${faseLabel(key)}: error. ${v.motivo ?? ""}`
+                          : v.estado === "corriendo" ? `${faseLabel(key)}: en curso${v.msg ? `. ${v.msg}` : ""}`
+                            : v.estado === "hecho" ? `${faseLabel(key)}: completada${v.motivo ? `. ${v.motivo}` : ""}`
                               : `${faseLabel(key)}: pendiente`;
                     return (
                       <span key={key} className="flex items-center">

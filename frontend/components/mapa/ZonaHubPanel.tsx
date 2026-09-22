@@ -118,7 +118,7 @@ export function ZonaHubPanel({
           <h3 className="font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
           <p className="mt-0.5 text-[12px] leading-snug text-inkSoft">
             {zona ? ESTADO_LABEL[zona.estado] : "Cargando el estado de la zona…"}
-            {zona && zona.precioPen > 0 && ` · ${formatPEN(zona.precioPen)} por contrato leído`}
+            {zona && zona.precioPen > 0 && `, a ${formatPEN(zona.precioPen)} por contrato leído`}
           </p>
           <div className="mt-2">
             <SeguirZonaBoton ubigeo={ubigeo} nombre={nombre} />
@@ -180,7 +180,7 @@ export function ZonaHubPanel({
         </TabBtn>
       </div>
 
-      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel" aria-label={`${nombre} · ${tab}`}>
+      <div className="scrollbar-warm flex-1 overflow-y-auto px-5 py-4" role="tabpanel" aria-label={`${nombre}: ${tab}`}>
         <div key={`${ubigeo || regionId}-${tab}`}>
           {tab === "resumen" && (
             <ResumenTab
@@ -377,7 +377,7 @@ function ResumenTab({
             de={`reportes con foto en ${nombre}`}
             onClick={() => goTo("denuncias")}
           />
-          <Salto etiqueta="Presupuesto MEF" valor="PIA · PIM" de="y su ejecución al día" onClick={() => goTo("presupuesto")} />
+          <Salto etiqueta="Presupuesto MEF" valor="PIA y PIM" de="y su ejecución al día" onClick={() => goTo("presupuesto")} />
         </ul>
       </section>
     </div>
@@ -470,7 +470,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
       {provinciasConCola.length > 0 && (
         <section className="border-t border-line pt-4">
           <Rotulo>
-            Provincias con cola · {provinciasConCola.length} de {hijas.length}
+            Provincias con cola: {provinciasConCola.length} de {hijas.length}
           </Rotulo>
           <ul className="divide-y divide-line border-y border-line">
             {provinciasConCola.slice(0, 8).map((h) => (
@@ -540,7 +540,7 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
                       ) : (
                         <span className="text-inkSoft">en validación</span>
                       )}
-                      {r.fecha && <span>· {String(r.fecha).slice(0, 10)}</span>}
+                      {r.fecha && <span className="font-mono">{String(r.fecha).slice(0, 10)}</span>}
                     </span>
                     <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{r.descripcion}</span>
                   </span>

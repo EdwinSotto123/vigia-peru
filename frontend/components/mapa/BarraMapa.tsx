@@ -142,7 +142,7 @@ export function BarraMapa({
         {sinConexion.length > 0 && (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-inkSoft" role="status" aria-live="polite">
             <WifiOff size={13} className="text-clayTexto" aria-hidden />
-            sin conexión con {sinConexion.join(" y ")} · reintentando
+            sin conexión con {sinConexion.join(" y ")}, reintentando
           </span>
         )}
       </div>

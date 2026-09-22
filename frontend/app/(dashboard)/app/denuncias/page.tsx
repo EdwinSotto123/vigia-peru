@@ -91,7 +91,7 @@ export default async function DenunciasPage({
               }
             >
               <Cloud size={11} />
-              {source === "api" ? "live · Cloud SQL" : "mock"}
+              {source === "api" ? "live desde Cloud SQL" : "mock"}
             </span>
             <Link
               href="/reporte/nuevo"
@@ -119,11 +119,14 @@ export default async function DenunciasPage({
         </div>
         <div className="min-w-0 flex-1 text-xs leading-relaxed text-mute">
           <p className="font-medium text-ink">Cómo se modera lo que ves acá</p>
-          <ul className="mt-1 space-y-0.5">
-            <li>· Para que aparezca como <strong className="text-moss">verificado</strong> se requieren ≥ 2 reportes independientes del mismo punto en ≤ 30 días.</li>
-            <li>· Los reportes sin foto figuran en este listado pero <strong className="text-ink">no se publican como pin en el mapa público</strong>.</li>
-            <li>· Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-amberTexto">convergente</strong>.</li>
-            <li>· Los datos personales del denunciante son anónimos por defecto.</li>
+          {/* Viñetas de verdad (`list-disc`), no un punto medio de texto plano al
+              principio de cada renglón: así el lector de pantalla las anuncia como
+              lista y la sangría la pone el navegador. */}
+          <ul className="mt-1 list-outside list-disc space-y-0.5 pl-4">
+            <li>Para que aparezca como <strong className="text-moss">verificado</strong> se requieren ≥ 2 reportes independientes del mismo punto en ≤ 30 días.</li>
+            <li>Los reportes sin foto figuran en este listado pero <strong className="text-ink">no se publican como pin en el mapa público</strong>.</li>
+            <li>Cuando un reporte coincide geográfica y temporalmente con una alerta automática → se marca <strong className="text-amberTexto">convergente</strong>.</li>
+            <li>Los datos personales del denunciante son anónimos por defecto.</li>
           </ul>
         </div>
       </div>

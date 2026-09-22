@@ -20,23 +20,23 @@ const CASOS: Caso[] = [
     tag: "Empresa fachada",
     tagColor: "rust",
     title: "RUC con 18 días gana S/ 1.49M",
-    location: "Caraz · Áncash",
+    location: "Caraz, Áncash",
     monto: "S/ 1,490,000",
     score: 93,
     flags: [
-      "RUC creado 4 abr · buena pro 22 abr (18 días)",
+      "RUC creado el 4 abr y buena pro el 22 abr (18 días)",
       "Único postor al 99.9% del valor referencial",
       "Mismo titular figura en 4 EIRL paralelas",
       "Ninguna trabajadora declarada en SUNAT",
     ],
     article: "Heurística Funes C1",
-    norma: "Art. 2 TUO Ley 30225 · Opinión OECE D56-2023",
+    norma: "Art. 2 TUO Ley 30225, con la Opinión OECE D56-2023",
   },
   {
     tag: "Aportante = ganador",
     tagColor: "rust",
     title: "Socio aportó S/ 35K al partido del alcalde",
-    location: "Yungay · Áncash",
+    location: "Yungay, Áncash",
     monto: "S/ 4,250,000",
     score: 91,
     flags: [
@@ -46,61 +46,61 @@ const CASOS: Caso[] = [
       "Tres convocatorias adjudicadas al mismo grupo",
     ],
     article: "Cruce C3",
-    norma: "Art. 27 Reglamento · Conflicto de intereses",
+    norma: "Art. 27 del Reglamento, conflicto de intereses",
   },
   {
     tag: "Adenda inflada",
     tagColor: "amber",
     title: "Contrato modificado +31% post-firma",
-    location: "Calca · Cusco",
+    location: "Calca, Cusco",
     monto: "S/ 5,100,000 → 6,700,000",
     score: 64,
     flags: [
-      "Original S/ 5.1M · adenda S/ 1.6M (+31%)",
+      "Original S/ 5.1M y adenda S/ 1.6M (+31%)",
       "Excede el tope legal del 25% sin sustento",
       "Sin justificación técnica publicada",
       "Tres adendas consecutivas en seis meses",
     ],
     article: "Regla compliance #3",
-    norma: "Art. 34 TUO Ley 30225 · Modificaciones contractuales",
+    norma: "Art. 34 TUO Ley 30225, modificaciones contractuales",
   },
   {
     tag: "Contratación directa",
     tagColor: "rust",
     title: "Emergencia sin acto resolutivo",
-    location: "Tumbes · Tumbes",
+    location: "Tumbes, Tumbes",
     monto: "S/ 406,400",
     score: 88,
     flags: [
       "Causal Art. 27.1.a (emergencia) sin D.S./D.U. citado",
       "Persona natural con CIIU \"terminación de edificios\"",
-      "Objeto: ayuda humanitaria · sin capacidad operativa",
+      "Objeto: ayuda humanitaria, sin capacidad operativa",
       "Buena pro 6 mayo sin comité formal de evaluación",
     ],
     article: "Compliance C7 + contextual",
-    norma: "Art. 27.1.a TUO · Art. 8 Reglamento",
+    norma: "Art. 27.1.a del TUO y Art. 8 del Reglamento",
   },
   {
     tag: "Spec restrictiva",
     tagColor: "amber",
     title: "Bases pedían logo institucional bordado",
-    location: "Huánuco · Huánuco",
+    location: "Huánuco, Huánuco",
     monto: "S/ 285,000",
     score: 72,
     flags: [
       "Dimensiones no estándar (excluyen 9 de 11 marcas)",
       "Logo institucional pre-impreso obligatorio",
       "Plazo de entrega: 5 días hábiles desde firma",
-      "Un único postor calificado · sin observaciones",
+      "Un único postor calificado y sin observaciones",
     ],
     article: "Regla compliance #5",
-    norma: "Art. 2 Ley 30225 · Principio de concurrencia",
+    norma: "Art. 2 Ley 30225, principio de concurrencia",
   },
   {
     tag: "Lobby pre-convocatoria",
     tagColor: "rust",
     title: "Postor visitó al alcalde 8 veces antes de la buena pro",
-    location: "Sullana · Piura",
+    location: "Sullana, Piura",
     monto: "S/ 2,150,000",
     score: 86,
     flags: [
@@ -110,7 +110,7 @@ const CASOS: Caso[] = [
       "Sin sustento técnico del contacto previo",
     ],
     article: "Regla compliance C13",
-    norma: "Ley 28024 · Registro Único de Visitas",
+    norma: "Ley 28024, Registro Único de Visitas",
   },
 ];
 
@@ -153,7 +153,6 @@ function CasoCard({ caso }: { caso: Caso }) {
             <span className="inline-flex items-center gap-1">
               <MapPin size={12} /> {caso.location}
             </span>
-            <span className="text-line">·</span>
             <span className="font-mono text-ink">{caso.monto}</span>
           </div>
 
@@ -202,7 +201,9 @@ function ScoreGauge({ score }: { score: number }) {
   const r = 40;
   const c = 2 * Math.PI * r;
   const f = Math.max(0, Math.min(100, score)) / 100;
-  const color = score >= 85 ? "#CF3A2C" : score >= 70 ? "#B26A2E" : "#BE7B26";
+  // Tokens del tema, no hexadecimales sueltos: `rust` pasó de #CF3A2C a #A81E12
+  // cuando se corrigió su contraste y este arco se quedó con el valor viejo.
+  const color = score >= 85 ? "#A81E12" : score >= 70 ? "#B26A2E" : "#BE7B26";
   return (
     <div className="relative flex h-24 w-24 shrink-0 items-center justify-center sm:h-28 sm:w-28">
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>

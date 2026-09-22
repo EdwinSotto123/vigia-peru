@@ -120,7 +120,7 @@ export function DenunciasMap({
                   {meta?.label ?? r.categoria}
                 </text>
                 <text x={10} y={35} fill="#F4EEDD" fontSize={10}>
-                  {r.region} · {r.fecha}
+                  {r.region}, {r.fecha}
                 </text>
                 <text x={10} y={49} fill="#A89887" fontSize={9}>
                   {r.confirmado ? "✓ verificado" : "en validación"}
@@ -141,7 +141,7 @@ export function DenunciasMap({
           <span className="h-2 w-2 rounded-full border border-ink/50 bg-ink/25" />
           en validación
         </span>
-        <span className="hidden sm:inline">· el color del pin es la categoría</span>
+        <span className="hidden sm:inline">el color del pin es la categoría</span>
         <span className="ml-auto">
           {reportes.length} reporte{reportes.length === 1 ? "" : "s"} en mapa
         </span>

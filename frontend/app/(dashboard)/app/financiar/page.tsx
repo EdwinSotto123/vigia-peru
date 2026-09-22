@@ -91,7 +91,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
               Si prefieres verlo en el mapa, <Link href="/app/mapa" className="underline transition-colors hover:text-ink">ábrelo aquí</Link>.
             </p>
           </div>
-          <div className="text-xs text-mute">Fuente: SEACE/OECE vía OCDS · actualizado a diario</div>
+          <div className="text-xs text-mute">Fuente: SEACE/OECE vía OCDS, actualizado a diario</div>
         </div>
         <ZonaPicker zonas={zonas ?? []} precioPen={precio} />
       </section>
@@ -190,7 +190,7 @@ function BalanceLectura({
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
         <span className="font-mono text-4xl font-bold leading-none text-heroViolet">{n(leidos)}</span>
         <span className="text-sm text-mute">
-          {publicados > 0 && <>· {pct.toLocaleString("es-PE", { maximumFractionDigits: 2 })} % del total</>}
+          {publicados > 0 && <>{pct.toLocaleString("es-PE", { maximumFractionDigits: 2 })} % del total</>}
         </span>
       </div>
 
@@ -201,12 +201,12 @@ function BalanceLectura({
 
       <dl className="mt-4 space-y-1.5 border-t border-line pt-3 text-[13px]">
         <Fila termino="Financiados hasta hoy">
-          <strong className="font-mono text-ink">{n(financiados)}</strong> contratos ·{" "}
-          {formatPEN(montoPen)} a {formatPEN(precio)} cada uno
+          <strong className="font-mono text-ink">{n(financiados)}</strong> contratos por{" "}
+          {formatPEN(montoPen)}, a {formatPEN(precio)} cada uno
         </Fila>
         <Fila termino="Señales encontradas">
           <strong className="font-mono text-ink">{n(senales)}</strong> en los {n(leidos)} leídos
-          {regionesConAuditoria > 0 && <> · {n(regionesConAuditoria)} regiones con auditoría activa</>}
+          {regionesConAuditoria > 0 && <>, repartidos en {n(regionesConAuditoria)} regiones con auditoría activa</>}
         </Fila>
         <Fila termino="Esperando lectura">
           <strong className="font-mono text-ink">{n(enCola)}</strong> contratos en cola, en{" "}

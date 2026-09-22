@@ -122,7 +122,7 @@ function SignupInner() {
               )}
             >
               {userIdError ??
-                "3-30 caracteres · letras, números o guion bajo · case-insensitive"}
+                "3-30 caracteres: letras, números o guion bajo, sin distinguir mayúsculas"}
             </p>
           </div>
 
@@ -233,7 +233,7 @@ function SignupInner() {
 
         <div className="mt-4 space-y-1 text-center text-[11px] text-mute">
           <p>El user-id es único — si está tomado te avisamos al instante.</p>
-          <p>No pedimos email · No usamos cookies de tracking.</p>
+          <p>No pedimos email ni usamos cookies de tracking.</p>
         </div>
       </div>
     </div>

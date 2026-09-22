@@ -195,9 +195,9 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
             <h3 className="font-mono text-2xl font-bold text-ink">{procesado.codigo}</h3>
             <span className="text-sm text-mute">{procesado.asignados} de {procesado.solicitados} contratos asignados en {zonaNombre}</span>
           </div>
-          <ul className="mt-4 space-y-1.5 text-[13px] text-ink">
-            <li>· {procesado.listosParaProcesar} ya tenían documentos {procesado.dispatcherDisparado ? "— el dispatcher se disparó ahora mismo" : "(el dispatcher los toma en su próximo ciclo, ≤ 5 min)"}.</li>
-            <li>· {procesado.pedidosAbiertos} quedaron con pedido de descarga: el lote nocturno los baja y luego se procesan solos.</li>
+          <ul className="mt-4 list-inside list-disc space-y-1.5 text-[13px] text-ink">
+            <li>{procesado.listosParaProcesar} ya tenían documentos {procesado.dispatcherDisparado ? "— el dispatcher se disparó ahora mismo" : "(el dispatcher los toma en su próximo ciclo, ≤ 5 min)"}.</li>
+            <li>{procesado.pedidosAbiertos} quedaron con pedido de descarga: el lote nocturno los baja y luego se procesan solos.</li>
           </ul>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Link href={`/impacto/${procesado.codigo}`} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
@@ -219,7 +219,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
           <ShieldAlert size={11} aria-hidden /> Modo administrador — a nombre de Vigía Perú, sin pasarela
         </div>
         <h3 className="font-serif text-xl font-bold text-ink">Procesar auditoría en {zonaNombre}</h3>
-        <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato (referencial) · quedan {restantes.toLocaleString("es-PE")} sin financiar</p>
+        <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato (referencial). Quedan {restantes.toLocaleString("es-PE")} sin financiar.</p>
         <CantidadPicker contratos={contratos} setContratos={setContratos} presets={presets} restantes={restantes} precioPen={precioPen} monto={monto} />
         {errorAdmin && <p className="mt-4 text-sm text-rust" role="alert">{errorAdmin}</p>}
         <button
@@ -251,7 +251,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
         {!subido ? (
           <>
             <div className="mt-5">
-              <div className="text-[11px] uppercase tracking-wide text-mute">Paso 3 · Paga {formatPEN(creada.montoPen)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-mute">Paso 3: paga {formatPEN(creada.montoPen)}</div>
               <div className="mt-2">
                 <PaymentMethods pago={creada.pago} monto={formatPEN(creada.montoPen)} concepto={creada.codigo} metodoPreferido={creada.pago.metodo} grande />
               </div>
@@ -319,7 +319,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
     <form onSubmit={crear} className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6" aria-label="Financiar auditoría">
       <Stepper step={2} />
       <h3 className="mt-5 font-serif text-xl font-bold text-ink">Financiar auditoría en {zonaNombre}</h3>
-      <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato · quedan {restantes.toLocaleString("es-PE")} sin financiar</p>
+      <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato. Quedan {restantes.toLocaleString("es-PE")} sin financiar.</p>
 
       {/* Cantidad */}
       <CantidadPicker contratos={contratos} setContratos={setContratos} presets={presets} restantes={restantes} precioPen={precioPen} monto={monto} />
@@ -389,7 +389,8 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
 
       <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-heroViolet px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60">
         {loading && <Loader2 size={14} className="animate-spin" aria-hidden />}
-        Continuar al pago · {contratos} contratos · {formatPEN(monto)}
+        Continuar al pago de {contratos} contratos
+        <span className="font-mono">{formatPEN(monto)}</span>
       </button>
       <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-mute">
         <strong className="text-ink">¿Qué pasa después?</strong> Recibes tu código y los datos de pago → validamos (≤ 48 h) → se asignan {contratos} contratos de {zonaNombre} por antigüedad → los resultados son públicos.
@@ -433,12 +434,14 @@ function CantidadPicker({ contratos, setContratos, presets, restantes, precioPen
       <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Cantidad de contratos">
         {presets.map((n) => (
           <button type="button" key={n} role="radio" aria-checked={contratos === n} onClick={() => setContratos(n)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === n ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
-            {n} · {formatPEN(n * precioPen)}
+            {n}
+            <span className="ml-2 font-mono text-[13px] opacity-75">{formatPEN(n * precioPen)}</span>
           </button>
         ))}
         {restantes > 100 && (
           <button type="button" role="radio" aria-checked={contratos === restantes} onClick={() => setContratos(restantes)} className={`rounded-lg border px-3 py-2 text-sm ${contratos === restantes ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"}`}>
-            Todos ({restantes.toLocaleString("es-PE")}) · {formatPEN(restantes * precioPen)}
+            Todos ({restantes.toLocaleString("es-PE")})
+            <span className="ml-2 font-mono text-[13px] opacity-75">{formatPEN(restantes * precioPen)}</span>
           </button>
         )}
       </div>

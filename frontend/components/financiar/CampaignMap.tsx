@@ -312,7 +312,7 @@ export function CampaignMap({
             )}
             style={tooltipStyle}
           >
-            <div className="font-semibold text-ink">{hovered.nombre} <span className="font-normal text-mute">· {hovered.nivel}</span></div>
+            <div className="font-semibold text-ink">{hovered.nombre} <span className="ml-1.5 font-normal text-mute">{hovered.nivel}</span></div>
             <div className="mt-0.5 text-mute">{ESTADO_LABEL[hovered.estado]}</div>
             {hovered.totalCola > 0 ? (
               <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[11px]">
@@ -460,7 +460,7 @@ function ZonaPanel({ zona, provincias }: { zona: Zona; provincias: Zona[] }) {
         href={`/app/financiar/${zona.ubigeo}`}
         className="mt-5 flex w-full items-center justify-center rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01]"
       >
-        {restantes > 0 ? `Financiar auditoría · quedan ${restantes.toLocaleString("es-PE")} contratos` : "Ver auditoría de la zona"}
+        {restantes > 0 ? `Financiar auditoría: quedan ${restantes.toLocaleString("es-PE")} contratos` : "Ver auditoría de la zona"}
       </Link>
       <p className="mt-2 text-center text-[11px] text-mute">Financiás capacidad de análisis. Los resultados no dependen de quién aporta.</p>
     </div>

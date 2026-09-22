@@ -49,7 +49,7 @@ export default async function LandingPage() {
 
       <FeatureHighlights />
 
-      {/* ─── EN VIVO · alertas reales ─── */}
+      {/* ─── EN VIVO: alertas reales ─── */}
       <section className="border-y border-line bg-paperDeep">
         <div className="relative overflow-hidden py-2">
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-paperDeep to-transparent" />
@@ -64,7 +64,7 @@ export default async function LandingPage() {
                 key={a.id ?? a.codigo}
                 href={`/app/convocatoria/${encodeURIComponent(a.codigoconvocatoria)}`}
                 prefetch={false}
-                className="flex items-center gap-2 whitespace-nowrap text-xs transition-opacity hover:opacity-70"
+                className="flex items-center gap-3.5 whitespace-nowrap text-xs transition-opacity hover:opacity-70"
               >
                 <span className="rounded bg-rust/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-rust">
                   score {a.score}
@@ -74,9 +74,7 @@ export default async function LandingPage() {
                     ~4.23:1 (bajo el mínimo AA de 4.5:1). text-ink/70 da ~6.17:1 sobre
                     paperDeep. Los demás usos de text-mute en la página sí cumplen y no se tocan. */}
                 <span className="text-ink/70">{a.region}</span>
-                <span className="text-mute">·</span>
                 <span className="max-w-[400px] truncate text-ink">{a.objeto}</span>
-                <span className="text-mute">·</span>
                 <span className="font-mono text-ink">{formatSoles(a.montoSoles ?? 0)}</span>
               </Link>
             ))}
@@ -145,7 +143,7 @@ export default async function LandingPage() {
             <BlurFade delayMs={180}>
               <AudienceCard
                 icon={<Persona tool={<Gavel size={12} />} />}
-                label="Fiscalía · Contraloría"
+                label="Fiscalía y Contraloría"
                 title="La auditoría que llega antes del daño."
                 body="Cola priorizada por riesgo con evidencia pre-armada — contratos, socios, sanciones, aportes políticos. Tú inicias la investigación formal sin gastar semanas cruzando portales."
                 action="Acceso institucional →"

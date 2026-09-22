@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "N reglas evaluadas · M señales": lista plegable de las reglas deterministas del perfil que
+ * "N reglas evaluadas, M señales": lista plegable de las reglas deterministas del perfil que
  * corrieron en este análisis — las que dispararon (señal) y las que NO (verde). Las señales de
  * agentes LLM (legal, prensa, mercado) se listan aparte como "otras señales".
  *
@@ -56,10 +56,13 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
         aria-controls="reglas-evaluadas"
         className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
       >
-        <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
-          <ListChecks size={13} className="text-heroViolet" aria-hidden />
-          {total} reglas evaluadas · {enRevision ? `${nSenales} en revisión` : `${nSenales} señal${nSenales === 1 ? "" : "es"}`}
-          {otras.length > 0 && !enRevision && <span className="font-normal text-mute">· {otras.length} de agentes</span>}
+        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 font-semibold text-ink">
+          <span className="inline-flex items-center gap-1.5">
+            <ListChecks size={13} className="text-heroViolet" aria-hidden />
+            {total} reglas evaluadas
+          </span>
+          <span>{enRevision ? `${nSenales} en revisión` : `${nSenales} señal${nSenales === 1 ? "" : "es"}`}</span>
+          {otras.length > 0 && !enRevision && <span className="font-normal text-mute">{otras.length} de agentes</span>}
         </span>
         <ChevronDown size={14} className={`shrink-0 text-mute transition-transform ${abierto ? "rotate-180" : ""}`} aria-hidden />
       </button>
@@ -90,7 +93,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
                   <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5" title={data.otrasSenales[s.regla]?.descripcion}>
                     <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden />
                     <span className="text-ink">{data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}</span>
-                    {s.agente && <span className="text-[10px] text-mute">· {s.agente.replace(/_agent$/, "").replace(/_/g, " ")}</span>}
+                    {s.agente && <span className="ml-1 text-[10px] text-mute">{s.agente.replace(/_agent$/, "").replace(/_/g, " ")}</span>}
                   </li>
                 ))}
               </ul>

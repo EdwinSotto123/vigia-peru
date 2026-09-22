@@ -86,21 +86,13 @@ export function EnRevision({
                 </span>
               </div>
 
-              <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-mute">
+              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11.5px] text-mute">
                 <span className="font-medium text-inkSoft">{p.entidad ?? "Entidad no registrada"}</span>
-                <span aria-hidden>·</span>
                 <span>{p.zona}</span>
-                {p.montoPen != null && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="font-mono tabular-nums">{soles(p.montoPen)}</span>
-                  </>
-                )}
-                <span aria-hidden>·</span>
+                {p.montoPen != null && <span className="font-mono tabular-nums">{soles(p.montoPen)}</span>}
                 <span>
                   {p.banderas} {p.banderas === 1 ? "señal detectada" : "señales detectadas"}, ninguna publicada
                 </span>
-                <span aria-hidden>·</span>
                 <span>analizado el {fechaHora(revision?.analizadoEn ?? p.finalizadoAt)}</span>
               </p>
 
@@ -131,7 +123,7 @@ export function EnRevision({
 
 /**
  * Un motivo de bloqueo. Cuando trae valor y umbral se dibuja el contraste en la
- * misma línea —"33 % de respaldo · mínimo 60 %"— en vez de una cifra suelta en una
+ * misma línea —"33 % de respaldo, mínimo 60 %"— en vez de una cifra suelta en una
  * caja: el número sin su umbral no significa nada, y el umbral es justo lo que hace
  * auditable la decisión.
  */
@@ -143,7 +135,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
         <h4 className="text-[13.5px] font-semibold text-ink">{m.titulo}</h4>
         {tieneMedida && (
           <span className="font-mono text-[12px] tabular-nums text-mute">
-            <span className="text-ink">{pct(m.valor)}</span> · mínimo {pct(m.umbral)}
+            <span className="text-ink">{pct(m.valor)}</span> contra un mínimo de {pct(m.umbral)}
           </span>
         )}
       </div>

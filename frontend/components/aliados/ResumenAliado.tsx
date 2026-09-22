@@ -1,5 +1,7 @@
 import { CircleDashed, TriangleAlert } from "lucide-react";
+import { Cifras } from "@/components/ui/Cifras";
 import type { ContribucionAliado } from "./CadenaAliado";
+import { IdentidadAliado } from "./IdentidadAliado";
 import { Proporcion } from "./TarjetaAliado";
 import { resumirContribuciones } from "./perfil";
 import { RegionesDeAliado } from "./PerfilAliado";
@@ -81,19 +83,30 @@ export function ResumenAliado({
         />
       </div>
 
-      <p className="text-[12px] leading-relaxed text-mute">
-        Primer aporte en {mes(contribuciones[contribuciones.length - 1].pagadaAt)} ·{" "}
-        <span className="font-mono text-inkSoft">{num(r.regiones.length)}</span> de las{" "}
-        <span className="font-mono text-inkSoft">{num(regionesConCola)}</span> regiones con cola abierta
-        {r.enRevision > 0 && (
-          <>
-            {" "}· <span className="font-mono text-inkSoft">{num(r.enRevision)}</span> de sus leídos{" "}
-            {r.enRevision === 1 ? "espera" : "esperan"} revisión humana y todavía no{" "}
-            {r.enRevision === 1 ? "cuenta" : "cuentan"} como señal
-          </>
-        )}
-        .
-      </p>
+      <div className="space-y-1.5">
+        <IdentidadAliado
+          tam="sm"
+          datos={[
+            {
+              icono: "fecha",
+              texto: `Primer aporte en ${mes(contribuciones[contribuciones.length - 1].pagadaAt)}`,
+            },
+          ]}
+        />
+        <Cifras
+          tam="sm"
+          items={[
+            { n: r.regiones.length, de: regionesConCola, texto: "regiones con cola abierta alcanzadas" },
+            {
+              n: r.enRevision,
+              texto: `de sus leídos ${r.enRevision === 1 ? "espera" : "esperan"} revisión humana`,
+              titulo:
+                "El dictamen ya está escrito, pero hasta que una persona lo revise no cuenta como señal publicada.",
+              ocultarEnCero: true,
+            },
+          ]}
+        />
+      </div>
 
       <QueSalio leidos={r.leidos} conSenal={r.conSenal} enRevision={r.enRevision} sinSenal={r.sinSenal} />
 
@@ -105,17 +118,21 @@ export function ResumenAliado({
         </h3>
         <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
           {contribuciones.map((c) => (
-            <li key={c.codigo} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3.5 py-2.5">
-              <span className="min-w-0 text-[13px] text-ink">
-                <span className="font-medium">{c.zona}</span>{" "}
-                <span className="font-mono text-[11px] text-mute">{c.codigo}</span>{" "}
-                <span className="text-[11px] text-mute">· {fecha(c.pagadaAt)}</span>
+            <li key={c.codigo} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 py-2.5">
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-medium text-ink">{c.zona}</span>
+                <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 text-[11px] text-mute">
+                  <span className="font-mono">{c.codigo}</span>
+                  <span>{fecha(c.pagadaAt)}</span>
+                </span>
               </span>
-              <span className="text-[12px] text-inkSoft">
-                <span className="font-mono font-semibold text-ink">{num(c.procesados)}</span> leídos de{" "}
-                <span className="font-mono">{num(c.contratos)}</span> ·{" "}
-                <span className="font-mono font-semibold text-ink">{num(c.senales)}</span> con señal
-              </span>
+              <Cifras
+                as="span"
+                items={[
+                  { n: c.procesados, de: c.contratos, texto: "leídos" },
+                  { n: c.senales, texto: "con señal" },
+                ]}
+              />
             </li>
           ))}
         </ol>

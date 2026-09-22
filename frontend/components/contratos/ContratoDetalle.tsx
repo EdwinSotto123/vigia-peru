@@ -39,10 +39,10 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
 
       {/* Cabecera */}
       <header className="border-b border-line pb-5">
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-mute">
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-[11px] text-mute">
           <span className="text-ink">{c.codigo}</span>
-          {c.nomenclatura && <span>· {c.nomenclatura}</span>}
-          {c.ocid !== c.codigo && <span>· {c.ocid}</span>}
+          {c.nomenclatura && <span>{c.nomenclatura}</span>}
+          {c.ocid !== c.codigo && <span>{c.ocid}</span>}
         </div>
         <h1 className="mt-1.5 max-w-4xl font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">{c.titulo ?? "(sin objeto)"}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
@@ -323,7 +323,7 @@ function AnalisisCard({ c }: { c: Detalle }) {
         </p>
         {c.pedidoDescarga && (
           <p className="mt-2 text-[11px] text-mute">
-            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"} · solicitado el {formatFecha(c.pedidoDescarga.solicitadoAt.slice(0, 10))}
+            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el {formatFecha(c.pedidoDescarga.solicitadoAt.slice(0, 10))}
           </p>
         )}
       </section>

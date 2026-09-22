@@ -55,7 +55,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/80 backdrop-blur-xl">
       <div className={cn("container-page flex h-16 items-center justify-between gap-6", isLanding && "max-w-[1600px]")}>
-        <Link href="/" aria-label="Vigía Perú · Inicio" className="flex shrink-0 items-center">
+        <Link href="/" aria-label="Vigía Perú, ir al inicio" className="flex shrink-0 items-center">
           <Logo height={30} priority />
         </Link>
 

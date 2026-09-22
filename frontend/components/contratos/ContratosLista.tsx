@@ -254,7 +254,7 @@ function Cabecera() {
           <span className="hidden md:inline">Objeto de la contratación</span>
         </span>
         <span className={cn(CELDA_MD, "truncate")}>Entidad y zona</span>
-        <span className={cn(CELDA_XL, "truncate")}>Tipo · etapa</span>
+        <span className={cn(CELDA_XL, "truncate")}>Tipo y etapa</span>
         <span className={cn(CELDA_MD, "truncate")}>Estado de lectura</span>
         <span className="truncate text-right">Valor ref.</span>
         <span className={cn(CELDA_MD, "truncate text-right")}>Convocada</span>
@@ -357,7 +357,7 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
   const lectura = estadoLecturaDe(c);
-  const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(" · ") || "Sin clasificar";
+  const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(", ") || "Sin clasificar";
   return (
     <li
       ref={ref}
@@ -384,8 +384,14 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
             {c.score != null && <span className="shrink-0 font-mono text-[10.5px] text-mute">{c.score}/100</span>}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[10.5px] leading-tight text-mute">
-            <span className="truncate">{c.entidad ?? "—"}{c.zona ? ` · ${c.zona}` : ""}</span>
-            <span className="shrink-0 font-mono">{formatMonto(c.montoPen, c.moneda)} · {formatFecha(c.fecha)}</span>
+            <span className="flex min-w-0 items-baseline gap-x-2">
+              <span className="truncate">{c.entidad ?? "—"}</span>
+              {c.zona && <span className="shrink-0 text-mute/80">{c.zona}</span>}
+            </span>
+            <span className="flex shrink-0 items-baseline gap-x-2.5 font-mono">
+              <span>{formatMonto(c.montoPen, c.moneda)}</span>
+              <span className="text-mute/80">{formatFecha(c.fecha)}</span>
+            </span>
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] leading-tight">
             <EstadoLecturaCelda info={lectura} className="shrink-0 text-[10.5px]" />

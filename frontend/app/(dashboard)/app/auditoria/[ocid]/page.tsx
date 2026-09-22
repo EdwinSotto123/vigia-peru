@@ -7,11 +7,11 @@ export const revalidate = 3;
 export async function generateMetadata({ params }: { params: { ocid: string } }) {
   const ocid = decodeURIComponent(params.ocid);
   const p = await getProcesamiento(ocid);
-  if (!p) return { title: `Contrato ${ocid} — Auditoría en vivo · Vigía Perú` };
+  if (!p) return { title: `Contrato ${ocid} — Auditoría en vivo de Vigía Perú` };
   const titulo = p.titulo ?? ocid;
   return {
-    title: `${titulo} — Auditoría en vivo · Vigía Perú`,
-    description: `${ESTADO_PROC[p.estado].label} · ${p.entidad ?? "Entidad no identificada"} · ${p.zona}. Auditoría financiada por ${p.financiador}.`,
+    title: `${titulo} — Auditoría en vivo de Vigía Perú`,
+    description: `${ESTADO_PROC[p.estado].label}. ${p.entidad ?? "Entidad no identificada"}, ${p.zona}. Auditoría financiada por ${p.financiador}.`,
   };
 }
 

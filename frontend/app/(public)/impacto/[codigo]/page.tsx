@@ -56,8 +56,8 @@ function semillaDesdeComprobante(c: Comprobante): Procesamiento[] {
 
 const ESTADO: Record<string, { label: string; tone: string }> = {
   pendiente_pago: { label: "Pago pendiente de validación", tone: "text-amberTexto" },
-  pagada: { label: "Pago confirmado · esperando contratos en cola", tone: "text-moss" },
-  en_proceso: { label: "Pago confirmado · auditoría en proceso", tone: "text-moss" },
+  pagada: { label: "Pago confirmado, esperando contratos en cola", tone: "text-moss" },
+  en_proceso: { label: "Pago confirmado, auditoría en proceso", tone: "text-moss" },
   procesada: { label: "Auditoría completada", tone: "text-moss" },
   rechazada: { label: "Aporte rechazado", tone: "text-rust" },
   reembolsada: { label: "Aporte reembolsado", tone: "text-mute" },
@@ -102,7 +102,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             <span className="text-mute"> ({c.nivel})</span>.
           </p>
           <p className="mt-1 text-sm text-mute">
-            Aporte: {formatPEN(c.montoPen)} · {c.pagadaAt ? `confirmado el ${new Date(c.pagadaAt).toLocaleDateString("es-PE")}` : `registrado el ${new Date(c.createdAt).toLocaleDateString("es-PE")}`}
+            Aporte de {formatPEN(c.montoPen)}, {c.pagadaAt ? `confirmado el ${new Date(c.pagadaAt).toLocaleDateString("es-PE")}` : `registrado el ${new Date(c.createdAt).toLocaleDateString("es-PE")}`}
           </p>
           {c.mensajePublico && <p className="mt-3 border-l-2 border-amber pl-3 text-sm italic text-mute">“{c.mensajePublico}”</p>}
 
@@ -133,9 +133,15 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
               <span className="min-w-0">
                 <span className="block text-[10px] font-semibold uppercase tracking-wide text-moss">Primer contrato procesado con este aporte</span>
                 <span className="mt-0.5 block truncate font-medium">{primero.titulo ?? primero.ocid}</span>
-                <span className="block text-[11px] text-mute">
-                  {primero.entidad ?? "Entidad no identificada"}
-                  {primero.alertaEstado === "revision" ? " · en revisión humana" : primero.banderas > 0 ? ` · ${primero.banderas} señal${primero.banderas === 1 ? "" : "es"} de riesgo` : " · sin señales"}
+                <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
+                  <span className="truncate">{primero.entidad ?? "Entidad no identificada"}</span>
+                  <span className="shrink-0">
+                    {primero.alertaEstado === "revision"
+                      ? "en revisión humana"
+                      : primero.banderas > 0
+                        ? `${primero.banderas} señal${primero.banderas === 1 ? "" : "es"} de riesgo`
+                        : "sin señales"}
+                  </span>
                 </span>
               </span>
               <ArrowRight size={16} className="shrink-0 text-moss transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -165,7 +171,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <CompartirButton
               path={`/impacto/${c.codigo}`}
-              titulo={`Auditoría financiada por ${c.financiador} · Vigía Perú`}
+              titulo={`Auditoría financiada por ${c.financiador} — Vigía Perú`}
               texto={`${c.financiador} financió la auditoría de ${c.contratos} contratos públicos en ${c.zona}. ${c.resumen.senales} señales de riesgo halladas.`}
             />
             <Link href="/app/financiar" className="ml-auto rounded-lg bg-heroViolet px-3 py-1.5 font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">Financiar otra zona</Link>

@@ -197,7 +197,7 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               <div className="space-y-3">
                 <label className="block text-sm">
                   <span className="text-mute">Nombre público {visible ? "(obligatorio para el muro)" : "(opcional)"}</span>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder="Ej. María Q. · Empresa X S.A.C." />
+                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder="Ej. María Q., o Empresa X S.A.C." />
                 </label>
                 <div>
                   <span className="text-sm text-mute">Tipo</span>
@@ -335,11 +335,11 @@ function Formulario({ perfil }: { perfil: Perfil }) {
 
               <div className="border-t border-line pt-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-mute">Qué guardamos</h3>
-                <ul className="mt-2 space-y-1 rounded-xl bg-paperSoft p-3 text-[12px] text-ink">
-                  <li>· Tu user-id (sin correo, salvo que lo dejes arriba).</li>
-                  <li>· Perfil de aliado: nombre, tipo, logo, visibilidad.</li>
-                  <li>· Zonas y entidades que sigues; preferencias de aviso.</li>
-                  <li>· Tus aportes y las denuncias enviadas con sesión.</li>
+                <ul className="mt-2 list-outside list-disc space-y-1 rounded-xl bg-paperSoft p-3 pl-7 text-[12px] text-ink">
+                  <li>Tu user-id (sin correo, salvo que lo dejes arriba).</li>
+                  <li>Perfil de aliado: nombre, tipo, logo, visibilidad.</li>
+                  <li>Zonas y entidades que sigues; preferencias de aviso.</li>
+                  <li>Tus aportes y las denuncias enviadas con sesión.</li>
                 </ul>
                 <p className="mt-2 text-[11px] text-mute">Los aportes y los contratos analizados con ellos son públicos por diseño (comprobante de impacto). Detalle en <Link href="/preguntas#cuentas" className="underline transition-colors hover:text-heroViolet">Preguntas</Link>.</p>
                 <button type="button" onClick={exportar} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-paperDeep">

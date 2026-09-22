@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Building2, User, Users } from "lucide-react";
+import { Cifras } from "@/components/ui/Cifras";
 import type { RankingRow } from "@/lib/financiamiento";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -25,9 +26,16 @@ export function RankingTable({ rows, compact = false }: { rows: RankingRow[]; co
               {r.slug ? <Link href={`/aliado/${r.slug}`} className="hover:underline">{r.nombre}</Link> : r.nombre}
             </div>
             {!compact && (
-              <div className="text-[11px] text-mute">
-                {r.zonas} {r.zonas === 1 ? "zona" : "zonas"} · {r.contratosProcesados} procesados · {r.senalesHalladas} señales
-              </div>
+              <Cifras
+                as="div"
+                tam="sm"
+                className="gap-x-3"
+                items={[
+                  { n: r.zonas, texto: r.zonas === 1 ? "zona" : "zonas" },
+                  { n: r.contratosProcesados, texto: "procesados" },
+                  { n: r.senalesHalladas, texto: "señales" },
+                ]}
+              />
             )}
           </div>
           <div className="text-right">

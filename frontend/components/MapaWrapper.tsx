@@ -363,7 +363,7 @@ export function MapaWrapper({
           score: a.score,
           label: a.objeto?.slice(0, 80),
           // La palabra de severidad viaja con el punto: el color solo nunca basta.
-          titulo: `${severidadDeScore(a.score).etiqueta} · score ${a.score ?? "—"} · ${a.region ?? ""} · ${a.objeto ?? ""}`.trim(),
+          titulo: `${severidadDeScore(a.score).etiqueta}, score ${a.score ?? "—"}. ${a.region ?? ""}. ${a.objeto ?? ""}`.trim(),
           colorClase: FILL_SEVERIDAD[nivel],
           r: RADIO_SEVERIDAD[nivel],
           href: `/app/convocatoria/${a.codigoconvocatoria || a.codigo?.replace("OECE-", "") || a.id}`,
@@ -389,7 +389,7 @@ export function MapaWrapper({
           lon,
           categoria: r.categoria,
           label: r.descripcion?.slice(0, 80),
-          titulo: `Denuncia ciudadana ${r.confirmado ? "confirmada" : "en validación"} · ${r.categoria ?? ""} · ${r.descripcion ?? ""}`.trim(),
+          titulo: `Denuncia ciudadana ${r.confirmado ? "confirmada" : "en validación"}. ${r.categoria ?? ""}. ${r.descripcion ?? ""}`.trim(),
           colorClase: r.confirmado ? "fill-rust" : "fill-clay",
           r: 3.4,
           confirmado: !!r.confirmado,
@@ -699,10 +699,10 @@ export function MapaWrapper({
                   >
                     <span className="min-w-0">
                       <span className="block font-serif text-base font-bold leading-tight text-ink">{region.nombre}</span>
-                      <span className="block text-[11px] text-inkSoft">
-                        {enteros(zPais?.enCola ?? 0)} de {enteros(zPais?.total ?? 0)} en cola ·{" "}
-                        {enteros(fPais?.financiados ?? 0)} de {enteros(zPais?.enCola ?? 0)} financiados ·{" "}
-                        {enteros(zPais?.conSenales ?? 0)} de {enteros(zPais?.procesados ?? 0)} con señal
+                      <span className="mt-0.5 flex flex-wrap gap-x-3.5 gap-y-0.5 text-[11px] text-inkSoft">
+                        <span>{enteros(zPais?.enCola ?? 0)} de {enteros(zPais?.total ?? 0)} en cola</span>
+                        <span>{enteros(fPais?.financiados ?? 0)} de {enteros(zPais?.enCola ?? 0)} financiados</span>
+                        <span>{enteros(zPais?.conSenales ?? 0)} de {enteros(zPais?.procesados ?? 0)} con señal</span>
                       </span>
                     </span>
                     {drawerAbierto ? (
@@ -735,8 +735,8 @@ export function MapaWrapper({
           contexto={
             activa
               ? activa.nivel === "provincia"
-                ? `Provincia · ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
-                : `Departamento · ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
+                ? `Provincia, ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
+                : `Departamento, ${m.sustantivo(zonaActiva ? m.valor(zonaActiva) : 0)}`
               : undefined
           }
           filas={fichaFilas}

@@ -41,19 +41,19 @@ export function ConfianzaSection() {
         </div>
         <BlurFade as="div" delayMs={150} className="rounded-3xl border border-line bg-paper p-5 shadow-card">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-heroViolet">Cuentas claras · mes pasado</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-heroViolet">Cuentas claras del mes pasado</span>
             <span className="font-mono text-[11px] text-mute">25 regiones</span>
           </div>
           <ul className="mt-3 divide-y divide-line">
             {COSTOS.map(({ icon: Icon, l, d, m }) => (
               <li key={l} className="flex flex-col items-start gap-0.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="flex items-center gap-2 text-ink"><Icon size={13} className="text-mute" />{l}<span className="text-[11px] text-mute">· {d}</span></span>
+                <span className="flex items-center gap-2 text-ink"><Icon size={13} className="text-mute" />{l}<span className="ml-1 text-[11px] text-mute">{d}</span></span>
                 <span className="font-mono text-ink">{m}</span>
               </li>
             ))}
           </ul>
           <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-heroViolet-deep px-4 py-3.5 text-paper">
-            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreenTexto">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem · 17 aliados × S/ 50 lo cubren</div></div>
+            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreenTexto">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem, y 17 aliados de S/ 50 lo cubren</div></div>
             <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
           </div>
           <Link href="/preguntas#cuentas" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>

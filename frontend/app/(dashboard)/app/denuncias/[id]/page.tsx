@@ -184,9 +184,9 @@ export default async function DenunciaDetallePage({
                   <div className="text-sm font-semibold">
                     {alertaLinked.objeto}
                   </div>
-                  <div className="mt-1 text-xs text-paper/70">
-                    Score {alertaLinked.score}/100 ·{" "}
-                    {formatSoles(alertaLinked.montoSoles)}
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-xs text-paper/70">
+                    <span>Score {alertaLinked.score}/100</span>
+                    <span className="font-mono">{formatSoles(alertaLinked.montoSoles)}</span>
                   </div>
                   <Link
                     href={`/alerta/${alertaLinked.id}`}
@@ -199,12 +199,12 @@ export default async function DenunciaDetallePage({
                   <div className="text-[10px] font-bold uppercase tracking-widest text-amberTexto">
                     Cómo se cruzaron
                   </div>
-                  <ul className="mt-2 space-y-1">
-                    <li>· Radio geográfico ≤ 500 m</li>
-                    <li>· Ventana temporal ≤ 90 días</li>
-                    <li>· Categoría coherente con la alerta</li>
+                  <ul className="mt-2 list-outside list-disc space-y-1 pl-4">
+                    <li>Radio geográfico ≤ 500 m</li>
+                    <li>Ventana temporal ≤ 90 días</li>
+                    <li>Categoría coherente con la alerta</li>
                     <li>
-                      · Generado por{" "}
+                      Generado por{" "}
                       <code className="rounded bg-white/10 px-1 font-mono">
                         citizen_match_agent
                       </code>
@@ -340,7 +340,7 @@ export default async function DenunciaDetallePage({
             <div className="surface overflow-hidden p-0">
               <div className="border-b border-line bg-paperDeep px-4 py-2.5">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-mute">
-                  Cercanos · {r.region}
+                  Cercanos en {r.region}
                 </span>
               </div>
               <ul className="divide-y divide-line">

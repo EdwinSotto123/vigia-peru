@@ -112,12 +112,12 @@ function Contenido() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-2">
                         <Link href={`/impacto/${a.codigo}`} className="font-mono text-lg font-bold text-ink hover:underline">{a.codigo}</Link>
-                        <span className="text-sm text-mute">{a.contratos} contratos · {formatPEN(a.montoPen)}</span>
+                        <span className="text-sm text-mute">{a.contratos} contratos por {formatPEN(a.montoPen)}</span>
                       </div>
                       <div className="mt-0.5 inline-flex items-center gap-1 text-sm text-ink">
                         <MapPin size={13} className="text-mute" aria-hidden />
                         <Link href={`/app/financiar/${a.ubigeo}`} className="hover:underline">{a.zona}</Link>
-                        <span className="text-[11px] text-mute">· {a.nivel}</span>
+                        <span className="ml-1.5 text-[11px] text-mute">{a.nivel}</span>
                       </div>
                     </div>
                     <div className="text-right text-[11px] text-mute">
@@ -131,7 +131,7 @@ function Contenido() {
                       <div className="flex justify-between text-[11px] text-mute">
                         <span className="inline-flex items-center gap-1.5">
                           {paso === 2 && <PulseDot color="moss" size={6} />}
-                          {a.procesados} de {a.contratos} procesados{a.enRevision > 0 ? ` · ${a.enRevision} en revisión humana` : ""}
+                          {a.procesados} de {a.contratos} procesados{a.enRevision > 0 ? `, ${a.enRevision} en revisión humana` : ""}
                         </span>
                         <span>{a.senales} señal{a.senales === 1 ? "" : "es"} hallada{a.senales === 1 ? "" : "s"}</span>
                       </div>
@@ -179,8 +179,10 @@ function Contenido() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink">{d.descripcion}</p>
-                      <div className="truncate text-[11px] text-mute">
-                        {meta?.label ?? d.categoria} · {[d.distrito, d.provincia, d.region].filter(Boolean).join(", ") || "sin zona"} · {new Date(d.createdAt).toLocaleDateString("es-PE")}
+                      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
+                        <span>{meta?.label ?? d.categoria}</span>
+                        <span className="truncate">{[d.distrito, d.provincia, d.region].filter(Boolean).join(", ") || "sin zona"}</span>
+                        <span className="shrink-0">{new Date(d.createdAt).toLocaleDateString("es-PE")}</span>
                       </div>
                     </div>
                     <ModeracionPill estado={d.moderacionEstado} confirmado={d.confirmado} convergencia={!!d.convergenciaId} />
@@ -215,7 +217,13 @@ function Contenido() {
                     <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: ESTADO_FILL[z.estado as ZonaEstado] ?? "#ccc" }} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <Link href={regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`} className="block truncate text-sm font-medium text-ink hover:underline">{z.nombre}</Link>
-                      <div className="truncate text-[11px] text-mute">{z.nivel} · {ESTADO_LABEL[z.estado as ZonaEstado] ?? z.estado} · {z.totalCola.toLocaleString("es-PE")} en cola · {z.procesados} procesados · {z.senales} señales</div>
+                      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
+                        <span>{z.nivel}</span>
+                        <span>{ESTADO_LABEL[z.estado as ZonaEstado] ?? z.estado}</span>
+                        <span>{z.totalCola.toLocaleString("es-PE")} en cola</span>
+                        <span>{z.procesados} procesados</span>
+                        <span>{z.senales} señales</span>
+                      </div>
                     </div>
                     <button type="button" onClick={() => dejarDeSeguir("zona", z.ubigeo).then(cargar)} className="shrink-0 text-[11px] text-mute hover:text-rust hover:underline">Dejar de seguir</button>
                   </li>

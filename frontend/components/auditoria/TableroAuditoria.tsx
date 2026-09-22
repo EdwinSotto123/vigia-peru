@@ -235,11 +235,11 @@ export function TableroAuditoria({
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
           {truncado && <span title={`El API devuelve como mucho ${limit} filas por consulta.`}>mostrando los {limit} más recientes</span>}
           {fallo ? (
-            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión · reintentando</span>
+            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
           ) : (
             <span className="inline-flex items-center gap-1.5">
               <PulseDot color="moss" size={6} />
-              en vivo · {ahora > 0 && actualizadoAt ? `actualizado ${haceCuanto(ahora - actualizadoAt)}` : "conectando…"}
+              {ahora > 0 && actualizadoAt ? `en vivo, actualizado ${haceCuanto(ahora - actualizadoAt)}` : "en vivo, conectando…"}
             </span>
           )}
         </div>
@@ -306,14 +306,13 @@ export function TableroAuditoria({
                     </p>
                   )}
                   {partes.length > 1 && (
-                    <p className="mt-0.5 text-[11px] leading-snug text-mute">
-                      {partes.map(([estado, n], i) => (
-                        <span key={estado}>
-                          {i > 0 && " · "}
+                    <ul className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] leading-snug text-mute">
+                      {partes.map(([estado, n]) => (
+                        <li key={estado}>
                           <span className="font-mono text-inkSoft">{n}</span> {ESTADO_PROC[estado].label.toLowerCase()}
-                        </span>
+                        </li>
                       ))}
-                    </p>
+                    </ul>
                   )}
                 </div>
                 {/* La cola puede tener decenas de tarjetas y el panel de al lado dos pantallas
@@ -371,7 +370,7 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
             <span className="min-w-0 truncate text-amberTexto" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
             <span className="shrink-0 font-mono tabular-nums text-mute">
               {prog.hechas}/{prog.aplicables} pasos
-              {transcurrido != null && transcurrido > 0 && ` · ${duracion(transcurrido)}`}
+              {transcurrido != null && transcurrido > 0 && ` en ${duracion(transcurrido)}`}
             </span>
           </div>
           <div className="mt-1.5" aria-label={`Avance del análisis: ${prog.hechas} de ${prog.aplicables} pasos`}>
@@ -381,7 +380,7 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
       )}
 
       {p.estado === "error" && (
-        <p className="mt-2 text-[11px] text-crimsonTexto">Reintento automático · intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
+        <p className="mt-2 text-[11px] text-crimsonTexto">Reintento automático, intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
       )}
 
       {estado === "revision" && (
@@ -393,16 +392,18 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
           <span className={`inline-flex flex-wrap items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-mossTexto"}`}>
             {conSenales ? <AlertTriangle size={13} aria-hidden /> : <CheckCircle2 size={13} aria-hidden />}
             {conSenales ? `${p.banderas} ${p.banderas === 1 ? "señal de riesgo" : "señales de riesgo"}` : "sin señales"}
-            {p.score != null && <span className="ml-1 font-mono text-[11px] tabular-nums text-mute">· riesgo {Math.round(p.score)}/100</span>}
+            {p.score != null && <span className="ml-2 font-mono text-[11px] tabular-nums text-mute">riesgo {Math.round(p.score)}/100</span>}
           </span>
           <span className="inline-flex items-center gap-0.5 text-mute">ver dictamen <ArrowUpRight size={12} aria-hidden /></span>
         </div>
       )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line pt-2 text-[11px] text-mute">
-        <span className="min-w-0 truncate">
-          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
-          <span className="font-mono"> · {p.contribucionCodigo}</span>
+        <span className="flex min-w-0 items-baseline gap-x-2.5">
+          <span className="truncate">
+            lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+          </span>
+          <span className="shrink-0 font-mono">{p.contribucionCodigo}</span>
         </span>
         <EstadoPill estado={estado} />
       </div>

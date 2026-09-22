@@ -80,9 +80,9 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
             <span className={`absolute inline-flex h-full w-full rounded-full bg-amber opacity-70 ${reproduciendo ? "animate-ping" : ""}`} />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber" />
           </span>
-          Repetición del análisis real{" "}
-          <span className="font-mono normal-case text-mute">
-            · {Math.round(cursorReal / 1000)}s / {Math.round(duracionReal / 1000)}s reales
+          Repetición del análisis real
+          <span className="ml-1.5 font-mono normal-case text-mute">
+            {Math.round(cursorReal / 1000)}s / {Math.round(duracionReal / 1000)}s reales
           </span>
         </span>
         <div className="flex items-center gap-1">

@@ -142,9 +142,12 @@ function Fila({ s }: { s: Senal }) {
       titulo={s.etiqueta}
       etiqueta={`Ver la señal ${s.etiqueta} del contrato ${s.ocid}`}
       descripcion={
-        <>
-          {s.entidad} · contrato <span className="font-mono">{s.ocid}</span>
-        </>
+        <span className="flex flex-wrap items-baseline gap-x-3">
+          <span>{s.entidad}</span>
+          <span>
+            contrato <span className="font-mono">{s.ocid}</span>
+          </span>
+        </span>
       }
       ancho="lg"
       className="px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft"
@@ -179,13 +182,14 @@ function Fila({ s }: { s: Senal }) {
           {s.evidencia && (
             <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-inkSoft md:truncate">{s.evidencia}</p>
           )}
-          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-mute">
+          {/* Cuatro datos que antes iban unidos por tres puntos medios sueltos
+              (`<span aria-hidden>·</span>`, o sea texto plano puesto a dibujar
+              una raya). Lo que los separa ahora es espacio: gap-x-4 los deja
+              distinguirse sin agregar un carácter que no dice nada. */}
+          <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11.5px] text-mute">
             <span className="max-w-[34ch] truncate font-medium text-inkSoft">{s.entidad}</span>
-            <span aria-hidden>·</span>
             <span>{s.agenteLabel ?? "agente no registrado"}</span>
-            <span aria-hidden>·</span>
             <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
-            <span aria-hidden>·</span>
             <span className="font-mono tabular-nums">{s.ocid}</span>
           </p>
         </div>

@@ -82,7 +82,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
             {r.revisionMotivos.map((m) => (
               <li key={m.clave}>
                 <span className="font-medium text-ink">{m.titulo}.</span> {m.detalle}
-                {m.reglas?.length ? <span className="text-mute"> Señales afectadas: {(m.reglasEtiquetas ?? m.reglas.map((x) => reglaLabel(x))).join(" · ")}.</span> : null}
+                {m.reglas?.length ? <span className="text-mute"> Señales afectadas: {(m.reglasEtiquetas ?? m.reglas.map((x) => reglaLabel(x))).join(", ")}.</span> : null}
               </li>
             ))}
           </ul>
@@ -113,7 +113,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   <span className="text-[13px] font-semibold text-ink">{reglaLabel(s.regla)}</span>
                   <span className={`text-[10px] font-semibold uppercase tracking-wide ${sev.text}`}>{sev.label}</span>
                   {s.verificada === true && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] text-moss" title="Cotejada contra fuentes oficiales (OCDS · SUNAT · documentos)">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-moss" title="Cotejada contra fuentes oficiales: OCDS, SUNAT y los documentos del expediente">
                       <BadgeCheck size={11} aria-hidden /> verificada
                     </span>
                   )}
@@ -135,7 +135,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         </ol>
       )}
 
-      {/* mercado · documentos · recortes */}
+      {/* mercado, documentos y recortes */}
       {!enRevision && (mercado || r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
         <dl className={`mt-3 grid gap-2 border-t border-line pt-3 text-[12px] ${compacto ? "" : "sm:grid-cols-2"}`}>
           {mercado && (
@@ -146,14 +146,14 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   <div key={i} className="leading-snug">
                     <div className="line-clamp-1 text-[11px] text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
                     <div className="font-mono text-[12px] tabular-nums">
-                      mediana {soles(it.mediana!)} · ofertado {soles(it.ofertado!)}
+                      mediana {soles(it.mediana!)} frente a {soles(it.ofertado!)} ofertado
                       {it.diffPct != null && <span className={`ml-1 font-semibold ${it.diffPct >= 30 ? "text-rust" : it.diffPct >= 10 ? "text-amberTexto" : "text-moss"}`}>Δ {pct(it.diffPct)}</span>}
                     </div>
                   </div>
                 ))}
                 {mercado.totalMercado != null && mercado.totalOfertado != null && mercadoItems.length !== 1 && (
                   <div className="font-mono text-[11px] tabular-nums text-mute">
-                    lote: {soles(mercado.totalMercado)} mercado · {soles(mercado.totalOfertado)} ofertado
+                    lote: {soles(mercado.totalMercado)} de mercado frente a {soles(mercado.totalOfertado)} ofertado
                     {mercado.sobreprecioPct != null && <span className={`ml-1 font-semibold ${mercado.sobreprecioPct >= 30 ? "text-rust" : "text-ink"}`}>Δ {pct(mercado.sobreprecioPct)}</span>}
                   </div>
                 )}
@@ -166,11 +166,13 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Expediente</dt>
               <dd className="mt-1 space-y-1 text-ink">
                 {r?.documentos && (
-                  <div className="inline-flex items-center gap-1.5" title={r.documentos.titulos.join(" · ")}>
-                    <FileText size={12} className="text-mute" aria-hidden />
-                    <span className="font-mono tabular-nums">{r.documentos.n}</span> documento{r.documentos.n === 1 ? "" : "s"} leído{r.documentos.n === 1 ? "" : "s"}
-                    {r.documentos.paginas > 0 && <> · <span className="font-mono tabular-nums">{r.documentos.paginas}</span> páginas</>}
-                    {r.documentos.conError > 0 && <span className="text-amberTexto"> · {r.documentos.conError} con error</span>}
+                  <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5" title={r.documentos.titulos.join(", ")}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <FileText size={12} className="text-mute" aria-hidden />
+                      <span className="font-mono tabular-nums">{r.documentos.n}</span> documento{r.documentos.n === 1 ? "" : "s"} leído{r.documentos.n === 1 ? "" : "s"}
+                    </span>
+                    {r.documentos.paginas > 0 && <span><span className="font-mono tabular-nums">{r.documentos.paginas}</span> páginas</span>}
+                    {r.documentos.conError > 0 && <span className="text-amberTexto">{r.documentos.conError} con error</span>}
                   </div>
                 )}
                 {(r?.recortes ?? 0) > 0 && (
@@ -179,8 +181,8 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   </div>
                 )}
                 {(r?.validacionesPendientes?.length ?? 0) > 0 && (
-                  <ul className="text-[11px] text-clayTexto">
-                    {r!.validacionesPendientes.map((v) => <li key={v}>· pendiente: {validacionLabel(v)}</li>)}
+                  <ul className="list-inside list-disc text-[11px] text-clayTexto">
+                    {r!.validacionesPendientes.map((v) => <li key={v}>pendiente: {validacionLabel(v)}</li>)}
                   </ul>
                 )}
               </dd>

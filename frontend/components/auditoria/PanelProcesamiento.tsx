@@ -130,7 +130,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
               <span className="font-mono font-semibold text-ink">{publicados.toLocaleString("es-PE")}</span> de{" "}
               <span className="font-mono font-semibold text-ink">{financiados.toLocaleString("es-PE")}</span>{" "}
               contratos financiados {alcance} ya tienen dictamen publicado
-              {(data?.procesadosHoy ?? 0) > 0 && <> · {data!.procesadosHoy.toLocaleString("es-PE")} leídos hoy</>}
+              {(data?.procesadosHoy ?? 0) > 0 && <>, {data!.procesadosHoy.toLocaleString("es-PE")} de ellos leídos hoy</>}
             </p>
             <div
               className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
@@ -142,7 +142,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
                   key={t.clave}
                   className={cn(t.color, "h-full")}
                   style={{ width: `${pct(t.value)}%`, minWidth: PISO_PX }}
-                  title={`${t.value} ${t.label} · ${t.titulo}`}
+                  title={`${t.value} ${t.label}. ${t.titulo}`}
                 />
               ))}
             </div>
@@ -176,16 +176,20 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
           Ahora mismo
         </span>
         {fallo && (
-          <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} /> sin conexión con el API · reintentando</span>
+          <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} /> sin conexión con el API, reintentando</span>
         )}
         {data?.procesamientoActivo && (
           <span className="inline-flex items-center gap-1 rounded-xl border border-line bg-paper px-2 py-0.5 text-mute" title={data.procesamientoActivo.nota ?? ""}>
             perfil en marcha: <span className="text-ink">{data.procesamientoActivo.tipos_activos.join(", ")}</span>
-            {data.documentosListos ? <> · {data.documentosListos.contratos.toLocaleString("es-PE")} con documentos listos</> : null}
+            {data.documentosListos ? (
+              <span className="ml-1.5">
+                {data.documentosListos.contratos.toLocaleString("es-PE")} con documentos listos
+              </span>
+            ) : null}
           </span>
         )}
         {!fallo && activos.length === 0 && agentes.length === 0 && !lote && (
-          <span className="text-mute">ningún contrato en análisis · los agentes esperan la próxima asignación</span>
+          <span className="text-mute">ningún contrato en análisis: los agentes esperan la próxima asignación</span>
         )}
         {activos.map((a) => {
           const seg = a.desdeSeg + drift;
@@ -208,7 +212,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
           );
         })}
         {lote && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2 py-0.5 text-mute" title={`Lote ${lote.id}${lote.tipo ? ` · ${lote.tipo}` : ""}`}>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2 py-0.5 text-mute" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
             <Download size={11} />
             ingesta {lote.completados ?? 0}/{lote.total ?? "?"}
             {lote.total ? (

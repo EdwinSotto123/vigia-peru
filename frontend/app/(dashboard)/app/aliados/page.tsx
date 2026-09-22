@@ -86,9 +86,12 @@ export default async function AliadosPage({
         subtitle="Quién financia que estos contratos se lean de verdad. Nadie compra un resultado ni una región: los contratos se asignan por antigüedad, en código, y lo que salga se publica igual."
         contexto={
           estado ? (
-            <span className="font-mono">
-              {financiados.toLocaleString("es-PE")} financiados · {leidos.toLocaleString("es-PE")} leídos
-              {publicados > 0 && <> de {publicados.toLocaleString("es-PE")}</>}
+            <span className="flex flex-wrap items-baseline gap-x-4 font-mono">
+              <span>{financiados.toLocaleString("es-PE")} financiados</span>
+              <span>
+                {leidos.toLocaleString("es-PE")} leídos
+                {publicados > 0 && <> de {publicados.toLocaleString("es-PE")}</>}
+              </span>
             </span>
           ) : undefined
         }
@@ -178,8 +181,8 @@ export default async function AliadosPage({
             className="underline underline-offset-2 hover:text-ink"
           >
             Ver esta página con aliados de maqueta
-          </Link>{" "}
-          · sólo en desarrollo, para mirar el diseño con varios financiadores.
+          </Link>
+          : sólo en desarrollo, para mirar el diseño con varios financiadores.
         </p>
       )}
     </div>

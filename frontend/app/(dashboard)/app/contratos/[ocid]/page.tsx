@@ -9,11 +9,11 @@ export async function generateMetadata({ params }: { params: { ocid: string } })
   const c = await getContrato(decodeURIComponent(params.ocid));
   if (!c) return { title: "Contrato — Vigía Perú" };
   const titulo = (c.titulo ?? c.codigo).slice(0, 90);
-  const desc = [c.entidad, c.zona, c.montoPen ? `S/ ${Math.round(c.montoPen).toLocaleString("es-PE")}` : null].filter(Boolean).join(" · ");
+  const desc = [c.entidad, c.zona, c.montoPen ? `S/ ${Math.round(c.montoPen).toLocaleString("es-PE")}` : null].filter(Boolean).join(", ");
   return {
-    title: `${c.codigo} · ${titulo} — Vigía Perú`,
+    title: `${c.codigo}: ${titulo} — Vigía Perú`,
     description: desc || "Contrato público del SEACE en Vigía Perú.",
-    openGraph: { title: `${c.codigo} · ${titulo}`, description: desc, type: "article" },
+    openGraph: { title: `${c.codigo}: ${titulo}`, description: desc, type: "article" },
   };
 }
 
