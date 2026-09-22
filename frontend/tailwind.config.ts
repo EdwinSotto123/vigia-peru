@@ -193,6 +193,18 @@ const config: Config = {
           "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(47,168,76,0.65), 0 0 26px -4px rgba(47,168,76,0.75)" },
           "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(47,168,76,0)" },
         },
+        /* Los datos corriendo por un cable del diagrama de orquestación. El
+           desplazamiento es -32 con un patrón de período 16: dos períodos
+           exactos, así que el bucle no tiene costura. */
+        fluirDatos: {
+          to: { strokeDashoffset: "-32" },
+        },
+        /* El anillo del orquestador: no gira ni parpadea, respira. Es el único
+           nodo que está siempre encendido porque es el único que no se apaga. */
+        latidoNodo: {
+          "0%, 100%": { transform: "scale(1)", opacity: "0.55" },
+          "50%": { transform: "scale(1.06)", opacity: "0.15" },
+        },
         /* El destello que marca dónde está la astilla de lo leído en la barra a
            escala real: 98 de 18 394 son 7 px y sin esto no se encuentran. */
         astillaViva: {
@@ -218,6 +230,8 @@ const config: Config = {
         rielPulso: "rielPulso 3.8s ease-in-out infinite",
         pasoCorriendo: "pasoCorriendo 7s ease-in-out infinite",
         astillaViva: "astillaViva 2.6s ease-in-out infinite",
+        fluirDatos: "fluirDatos 1.4s linear infinite",
+        latidoNodo: "latidoNodo 2.8s ease-in-out infinite",
       },
     },
   },

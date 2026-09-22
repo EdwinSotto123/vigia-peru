@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowRight as Flecha, Cpu, ShieldCheck } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { Orquestacion } from "./Orquestacion";
 import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril, type PasoPipeline } from "@/components/agentes/catalogo";
 
 /**
@@ -103,7 +104,13 @@ export function PipelineAgentes() {
           </div>
         </div>
 
-        <ol className="mt-10 space-y-3">
+        {/* Primero el circuito entero —qué entra, quién reparte, qué sale— y
+            después el detalle de cada carril. Sin esto, el grafo empezaba en el
+            aire: mostraba los diez agentes y no mostraba de dónde salen sus
+            datos ni quién decide el orden. */}
+        <Orquestacion />
+
+        <ol className="mt-8 space-y-3">
           {carriles.map((c) => (
             <Carril key={c.key} clave={c.key} label={c.label} pasos={c.pasos} />
           ))}
