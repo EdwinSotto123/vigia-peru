@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   Github,
-  Mail,
+  MessageSquare,
   Heart,
   ArrowUpRight,
 } from "lucide-react";
@@ -111,13 +111,12 @@ export function Footer() {
               <Heart size={12} className="inline mr-1.5 fill-heroViolet text-heroViolet" />
               Financiar
             </Link>
-            <a href="mailto:hola@vigiaperu.org">
-              <Mail size={12} className="inline mr-1.5" /> hola@vigiaperu.org
+            {/* TODO(contacto): reemplazar cuando exista un correo del equipo.
+                Antes: hola@ y prensa@vigiaperu.org, un dominio que no resuelve. */}
+            <a href="https://github.com/EdwinSotto123/vigia-peru/issues" target="_blank" rel="noreferrer">
+              <MessageSquare size={12} className="inline mr-1.5" aria-hidden /> Escríbenos (GitHub)
             </a>
-            <a href="mailto:prensa@vigiaperu.org">
-              Acceso periodistas
-            </a>
-            <Link href="/preguntas#cuentas">Cuentas claras</Link>
+            <Link href="/preguntas#cuentas">Cuánto cuesta y quién paga</Link>
           </FooterCol>
         </div>
 
@@ -136,7 +135,8 @@ export function Footer() {
           {/* paper/35 daba 3.23:1 sobre tinta. Que sea la línea menos importante
               del pie no la exime del mínimo AA: sigue siendo texto. */}
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-paper/55">
-            {["Gemini 2.5", "Google ADK", "Cloud Run", "Cloud SQL"].map((t) => (
+            {/* Sin versión de modelo: el desplegado cambia y el pie quedaba desactualizado. */}
+            {["Gemini", "Google ADK", "Cloud Run", "Cloud SQL"].map((t) => (
               <li key={t}>{t}</li>
             ))}
           </ul>

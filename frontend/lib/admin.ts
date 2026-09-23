@@ -26,11 +26,13 @@ export const fmtDate = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
 export const ESTADO_UI: Record<string, { label: string; cls: string }> = {
-  pendiente_pago: { label: "Pendiente", cls: "bg-amber-soft text-amber" },
-  pagada: { label: "Pagada", cls: "bg-moss/10 text-moss" },
-  en_proceso: { label: "En proceso", cls: "bg-moss/10 text-moss" },
+  // Texto con los tokens *Texto: amber/moss/crimson base no llegan a 4.5:1 como
+  // texto sobre sus propios fondos suaves (ver tailwind.config.ts).
+  pendiente_pago: { label: "Pendiente", cls: "bg-amber-soft text-amberTexto" },
+  pagada: { label: "Pagada", cls: "bg-moss/10 text-mossTexto" },
+  en_proceso: { label: "En proceso", cls: "bg-moss/10 text-mossTexto" },
   procesada: { label: "Procesada", cls: "bg-moss text-paper" },
-  rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimson" },
+  rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimsonTexto" },
   reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-mute" },
 };
 

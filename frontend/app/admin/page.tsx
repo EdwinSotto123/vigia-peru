@@ -56,9 +56,9 @@ export default function AdminHome() {
         <Accion href="/admin/revision" icon={<Eye size={15} />} n={op?.revision.n ?? null} label="alertas en revisión humana"
           hint={op?.revision.masAntigua ? `la más antigua espera desde ${fmtDate(op.revision.masAntigua)}` : "la autoevaluación no bloqueó ninguna"} tone="clay" />
         <Accion href="/admin/contribuciones?estado=pendiente_pago" icon={<Wallet size={15} />} n={op?.aportes.pendientesValidar ?? null} label="aportes por validar"
-          hint={op ? `${op.aportes.conComprobante} con comprobante subido · ${op.aportes.esperandoContratos} esperan contratos` : undefined} tone="amber" />
+          hint={op ? `${op.aportes.conComprobante} con comprobante subido, ${op.aportes.esperandoContratos} esperan contratos` : undefined} tone="amber" />
         <Accion href="/admin/procesamientos" icon={<Download size={15} />} n={op?.pedidos ? op.pedidos.pendientes + op.pedidos.descargando : null} label="pedidos de descarga abiertos"
-          hint={op?.pedidos ? `${op.pedidos.fallidos} fallidos · ${op.pedidos.listos24h} atendidos en 24 h` : "sin tabla de pedidos"} tone={op?.pedidos?.fallidos ? "rust" : "ink"} />
+          hint={op?.pedidos ? `${op.pedidos.fallidos} fallidos, ${op.pedidos.listos24h} atendidos en 24 h` : "sin tabla de pedidos"} tone={op?.pedidos?.fallidos ? "rust" : "ink"} />
       </div>
 
       {/* Salud */}
@@ -66,20 +66,20 @@ export default function AdminHome() {
       <div className="mt-2 grid gap-3 md:grid-cols-5">
         <Health href="/admin/procesamientos" icon={<Activity size={14} />} label="Dispatcher" ok={d?.ok ?? null}
           value={d ? (d.activos > 0 ? `${d.activos} procesando` : d.ultimaCorrida ? `hace ${horas(d.horasDesdeUltimaCorrida)}` : "sin corridas") : "—"}
-          hint={d ? `última corrida ${d.ultimaCorrida ? fmtDate(d.ultimaCorrida) : "—"} · ${d.procesados24h} procesados en 24 h${d.errores ? ` · ${d.errores} con error` : ""}${d.colgados ? ` · ${d.colgados} sin latido` : ""}` : undefined} />
+          hint={d ? `última corrida ${d.ultimaCorrida ? fmtDate(d.ultimaCorrida) : "sin dato"}, ${d.procesados24h} procesados en 24 h${d.errores ? `, ${d.errores} con error` : ""}${d.colgados ? `, ${d.colgados} sin latido` : ""}` : undefined} />
         <Health href="/admin/procesamientos" icon={<Cpu size={14} />} label="Servicios de agentes" ok={serviciosOk === null ? null : serviciosOk === 4 ? true : serviciosOk > 0 ? null : false}
           value={serviciosOk === null ? "—" : `${serviciosOk}/4 responden`}
-          hint={op ? `consultado ${fmtDate(op.servicios.consultadoAt)}${op.servicios.cacheado ? " (caché 60 s)" : ""}${op.servicios.data.some((s) => s.ok === null) ? " · arranque en frío: vuelve a consultar en 1 min" : ""}` : undefined}>
+          hint={op ? `consultado ${fmtDate(op.servicios.consultadoAt)}${op.servicios.cacheado ? " (caché 60 s)" : ""}${op.servicios.data.some((s) => s.ok === null) ? ". Arranque en frío: vuelve a consultar en 1 min" : ""}` : undefined}>
           {op && <ul className="mt-2 space-y-1">{op.servicios.data.map((s) => <Servicio key={s.perfil} s={s} />)}</ul>}
         </Health>
         <Health icon={<Radio size={14} />} label="Relay Perú (OCDS)" ok={op?.relay.ok ?? null}
           value={op ? (op.relay.ok === null ? "sin configurar" : op.relay.ok ? "responde" : "caído") : "—"} hint={relayHint} />
         <Health href="/admin/cobertura" icon={<Database size={14} />} label="Ingesta OECE" ok={op?.ingesta.ok ?? null}
           value={op?.ingesta.ultimaIngesta ? `hace ${horas(op.ingesta.horasSinIngesta)}` : "—"}
-          hint={op ? `${op.ingesta.ultimas24h.toLocaleString("es-PE")} nuevas en 24 h · ${op.ingesta.total.toLocaleString("es-PE")} contratos` : undefined} />
+          hint={op ? `${op.ingesta.ultimas24h.toLocaleString("es-PE")} nuevas en 24 h, ${op.ingesta.total.toLocaleString("es-PE")} contratos en total` : undefined} />
         <Health href="/admin/cobertura" icon={<Moon size={14} />} label="Lote nocturno (documentos)" ok={op?.lote ? op.lote.estado === "ok" ? true : op.lote.estado === "error" ? false : null : null}
           value={op?.lote ? `${op.lote.ok.toLocaleString("es-PE")}/${op.lote.total.toLocaleString("es-PE")}` : "—"}
-          hint={op?.lote ? `${op.lote.id} · ${op.lote.estado}${op.lote.fallidos ? ` · ${op.lote.fallidos} fallidos` : ""} · ${fmtDate(op.lote.finalizadoAt ?? op.lote.iniciadoAt)}` : "sin lotes"} />
+          hint={op?.lote ? `${op.lote.id}: ${op.lote.estado}${op.lote.fallidos ? `, ${op.lote.fallidos} fallidos` : ""}, ${fmtDate(op.lote.finalizadoAt ?? op.lote.iniciadoAt)}` : "sin lotes"} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -107,7 +107,7 @@ export default function AdminHome() {
           <h2 className="text-sm font-semibold text-ink">Financiamiento</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
             <Dato k="Recaudado (confirmado)" v={k ? fmtPEN(k.montoConfirmadoPen) : "—"} sub={k ? `${fmtPEN(k.montoMesPen)} este mes` : undefined} />
-            <Dato k="Contratos financiados" v={k?.contratosFinanciados ?? "—"} sub={k ? `${k.asignados} asignados · ${k.procesados} procesados` : undefined} />
+            <Dato k="Contratos financiados" v={k?.contratosFinanciados ?? "—"} sub={k ? `${k.asignados} asignados, ${k.procesados} procesados` : undefined} />
             <Dato k="Señales halladas" v={k?.senales ?? "—"} sub={k ? `${k.enRevision ?? 0} en revisión (no cuentan)` : undefined} />
             <Dato k="Financiadores" v={k?.financiadores ?? "—"} sub={k ? `${k.financiadoresOcultos} ocultos por conflicto` : undefined} />
           </dl>
@@ -115,7 +115,7 @@ export default function AdminHome() {
             {(data?.porEstado ?? []).map((e) => (
               <li key={e.estado} className="flex items-center justify-between">
                 <Badge cls={ESTADO_UI[e.estado]?.cls ?? "bg-paperDeep text-mute"}>{ESTADO_UI[e.estado]?.label ?? e.estado}</Badge>
-                <span className="font-mono text-ink">{e.n} · {fmtPEN(e.monto)}</span>
+                <span className="font-mono text-ink">{e.n} ({fmtPEN(e.monto)})</span>
               </li>
             ))}
           </ul>
@@ -134,8 +134,8 @@ export default function AdminHome() {
               <li key={u.ocid} className="flex items-center justify-between gap-3 py-2">
                 <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className="min-w-0 truncate hover:underline" title={u.titulo ?? u.ocid}>{u.titulo ?? u.ocid}</Link>
                 <span className="shrink-0 font-mono text-xs text-mute">
-                  {u.alertaEstado === "revision" && <span className="text-clayTexto">revisión · </span>}
-                  {u.score != null ? `score ${u.score} · ` : ""}{u.segundos != null ? `${Math.round(u.segundos / 60)} min` : ""}
+                  {u.alertaEstado === "revision" && <span className="text-clayTexto">revisión, </span>}
+                  {u.score != null ? `score ${u.score}, ` : ""}{u.segundos != null ? `${Math.round(u.segundos / 60)} min` : ""}
                 </span>
               </li>
             ))}
@@ -209,7 +209,7 @@ function Health({ href, icon, label, value, hint, ok, children }: { href?: strin
 function Servicio({ s }: { s: SaludServicio }) {
   const dot = s.ok === true ? "bg-moss" : s.ok === null ? "bg-amber" : "bg-rust";
   return (
-    <li className="flex items-center justify-between gap-2 text-[11px]" title={`${s.nombre} · ${s.error ?? `HTTP ${s.status}`}${s.detalle?.model ? ` · ${s.detalle.model}` : ""}`}>
+    <li className="flex items-center justify-between gap-2 text-[11px]" title={`${s.nombre}: ${s.error ?? `HTTP ${s.status}`}${s.detalle?.model ? ` (${s.detalle.model})` : ""}`}>
       <span className="flex items-center gap-1.5 text-ink"><span className={`h-1.5 w-1.5 rounded-full ${dot}`} />{PERFIL_LABEL[s.perfil]?.split(" ")[0] ?? s.perfil}</span>
       <span className="font-mono text-mute">{s.ok === true ? `${s.ms} ms` : s.ok === null ? "arrancando…" : "caído"}</span>
     </li>

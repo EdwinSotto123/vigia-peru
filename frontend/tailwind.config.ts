@@ -84,7 +84,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)", "'Source Serif Pro'", "Georgia", "serif"],
-        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
+        mono: ["var(--font-mono)", "'JetBrains Mono'", "ui-monospace", "monospace"],
       },
       // Escala de elevación real: cada nivel tiene offset Y creciente y blur
       // proporcional, así la altura se lee como altura y no como un halo.

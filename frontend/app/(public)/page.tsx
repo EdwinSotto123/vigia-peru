@@ -21,7 +21,7 @@ import { elegirCasos } from "@/lib/landing";
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
 export const metadata: Metadata = {
-  title: "Vigía Perú: en qué se gasta el dinero de tu región",
+  title: { absolute: "Vigía Perú: en qué se gasta el dinero de tu región" },
   description:
     "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, financia una lectura o denuncia una obra.",
 };
@@ -60,8 +60,11 @@ export default async function LandingPage() {
   // decir "98 leídos de 18 394". Las tres cifras salen del mismo resumen, o sea
   // del mismo universo.
   const publicados = resumen?.total ?? 0;
-  const leidos = resumen
-    ? (resumen.porRiesgo.alto ?? 0) + (resumen.porRiesgo.medio ?? 0) + (resumen.porRiesgo.bajo ?? 0)
+  // Un análisis en revisión o descartado también se leyó: suma a "leídos",
+  // aunque no a las señales.
+  const r = resumen?.porRiesgo;
+  const leidos = r
+    ? (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0)
     : 0;
   const senalAlta = resumen?.porRiesgo.alto ?? 0;
 

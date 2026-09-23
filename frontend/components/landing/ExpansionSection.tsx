@@ -49,7 +49,10 @@ export function ExpansionSection() {
             ))}
           </ul>
           <a
-            href="mailto:hola@vigiaperu.org?subject=Vig%C3%ADa%20en%20mi%20pa%C3%ADs"
+            // TODO(contacto): reemplazar por el correo del equipo cuando exista; vigiaperu.org no resuelve.
+            href="https://github.com/EdwinSotto123/vigia-peru/issues"
+            target="_blank"
+            rel="noreferrer"
             className="group inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep"
           >
             ¿Tu país publica contrataciones abiertas?

@@ -10,7 +10,9 @@
 
 import { useEffect } from "react";
 
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+// `reset` no se usa: re-renderizar el layout raíz que acaba de fallar suele fallar
+// igual. Recargar la página completa trae también el JS nuevo si hubo un deploy.
+export default function GlobalError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("[vigia] error de render en el layout raíz:", error);
     const esChunkViejo = /ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(
@@ -32,11 +34,11 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <div style={{ minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center" }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Algo salió mal</h1>
           <p style={{ maxWidth: 420, fontSize: 14, color: "#687180", margin: 0 }}>
-            Puede haber sido una actualización reciente del sitio. Recargá para continuar.
+            Puede haber sido una actualización reciente del sitio. Recarga la página para continuar.
           </p>
           <button
             type="button"
-            onClick={() => reset()}
+            onClick={() => window.location.reload()}
             style={{ borderRadius: 999, padding: "10px 22px", background: "#14171A", color: "#FFFFFF", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
           >
             Recargar

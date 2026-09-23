@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Popover } from "@/components/ui/Flotante";
 
 /**
  * Un grupo de cifras chicas, cada una con su denominador y su unidad.
@@ -29,7 +31,10 @@ export interface Cifra {
   de?: number;
   /** Qué son. Va en mute, después del número. */
   texto: ReactNode;
-  /** Matiz completo al pasar el puntero, sin gastar renglón. */
+  /**
+   * Qué significa la cifra. Se abre en un Popover al tocar el texto: antes vivía
+   * sólo en un `title=` de hover, que no existe en celular ni con teclado.
+   */
   titulo?: string;
   /** Clase del punto de color, cuando la cifra es un tramo de una barra apilada. */
   punto?: string;
@@ -66,7 +71,7 @@ export function Cifras({
   return (
     <Tag className={cn("flex flex-wrap items-baseline gap-x-5 gap-y-1 leading-snug", TAM[tam], className)}>
       {visibles.map((c, i) => (
-        <Item key={i} className="inline-flex items-baseline gap-1.5 text-mute" title={c.titulo}>
+        <Item key={i} className="inline-flex items-baseline gap-1.5 text-mute">
           {c.punto && (
             <span className={cn("h-2 w-2 shrink-0 self-center rounded-full", c.punto)} aria-hidden />
           )}
@@ -76,7 +81,26 @@ export function Cifras({
               de {fmt(c.de)}
             </span>
           )}
-          <span>{c.texto}</span>
+          {c.titulo ? (
+            <Popover
+              anchoClase="w-72"
+              className="items-baseline gap-1 rounded text-left text-mute underline decoration-dotted decoration-from-font underline-offset-2 transition-colors duration-rapido hover:text-ink"
+              trigger={
+                <>
+                  <span>{c.texto}</span>
+                  <Info size={11} className="shrink-0 self-center" aria-hidden />
+                  <span className="sr-only">(qué significa)</span>
+                </>
+              }
+            >
+              <span className="block text-inkSoft">{c.titulo}</span>
+            </Popover>
+          ) : (
+            <span>{c.texto}</span>
+          )}
+          {/* El `title` sólo lo ve quien pasa el mouse; el lector de pantalla
+              necesita la explicación en el texto. */}
+          {c.titulo && <span className="sr-only">. {c.titulo}</span>}
         </Item>
       ))}
     </Tag>

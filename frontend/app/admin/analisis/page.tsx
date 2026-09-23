@@ -18,7 +18,7 @@ export default function AdminAnalisisPage() {
   return (
     <AdminShell
       title="Análisis a demanda"
-      subtitle="Pegar un código SEACE y correr el pipeline completo · sortear · análisis recientes"
+      subtitle="Pega un código SEACE y corre el pipeline completo, sortea uno o revisa los análisis recientes"
       actions={
         <>
           <Link

@@ -40,7 +40,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
       fields: [{ name: "motivo", label: "Motivo de la decisión", type: "textarea", required: true }],
       onConfirm: async (v) => {
         await adminFetch(`/alertas/${d.id}/estado`, { method: "PUT", body: JSON.stringify({ estado, motivo: v.motivo }) });
-        toast(`${d.codigo} ${publicar ? "publicada" : "descartada"} · ranking refrescado`);
+        toast(`${d.codigo} ${publicar ? "publicada" : "descartada"}. Ranking refrescado.`);
         load();
       },
     });
@@ -71,16 +71,16 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
           {/* Cabecera: estado + motivo */}
           <div className={`rounded-2xl border p-5 ${d.estado === "revision" ? "border-clay/40 bg-amber-soft/40" : d.estado === "activa" ? "border-moss/40 bg-moss/5" : "border-line bg-paper"}`}>
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge cls={d.estado === "revision" ? "bg-paperDeep text-clayTexto" : d.estado === "activa" ? "bg-moss/10 text-moss" : "bg-crimson-soft text-crimsonTexto"}>
+              <Badge cls={d.estado === "revision" ? "bg-paperDeep text-clayTexto" : d.estado === "activa" ? "bg-moss/10 text-mossTexto" : "bg-crimson-soft text-crimsonTexto"}>
                 {d.estado === "revision" ? "En revisión humana" : d.estado === "activa" ? "Publicada" : d.estado}
               </Badge>
               <span className="font-mono text-ink">score {d.score ?? "—"}</span>
-              <span className="text-mute">· {d.banderas.length} banderas · {PERFIL_LABEL[d.perfil ?? ""] ?? d.tipo} · {d.etapa ?? "etapa —"}</span>
-              <span className="ml-auto text-[11px] text-mute">analizada {fmtDate(d.analizadoEn ?? d.createdAt)}{d.contribucionCodigo ? ` · ${d.contribucionCodigo} · ${d.financiador}` : ""}</span>
+              <span className="text-mute">{d.banderas.length} banderas, {PERFIL_LABEL[d.perfil ?? ""] ?? d.tipo}, {d.etapa ?? "etapa sin dato"}</span>
+              <span className="ml-auto text-[11px] text-mute">analizada {fmtDate(d.analizadoEn ?? d.createdAt)}{d.contribucionCodigo ? `, aporte ${d.contribucionCodigo} de ${d.financiador}` : ""}</span>
             </div>
-            <div className="mt-2 text-sm text-ink"><strong>{d.entidad ?? d.entidadRuc ?? "Entidad —"}</strong> <span className="text-mute">· {d.zona ?? d.provincia ?? d.region ?? "—"} · OCID {d.ocid}</span></div>
+            <div className="mt-2 text-sm text-ink"><strong>{d.entidad ?? d.entidadRuc ?? "Entidad sin nombre"}</strong><span className="text-mute">, {d.zona ?? d.provincia ?? d.region ?? "zona sin dato"}, OCID {d.ocid}</span></div>
             <h2 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-mute">Motivo del bloqueo</h2>
-            <p className="mt-1 text-sm text-ink">{d.motivo}{d.motivoPipeline && <span className="text-[11px] text-mute"> · registrado por el pipeline al bloquear</span>}</p>
+            <p className="mt-1 text-sm text-ink">{d.motivo}{d.motivoPipeline && <span className="text-[11px] text-mute"> (registrado por el pipeline al bloquear)</span>}</p>
             {d.motivos.length > 0 && (
               <ul className="mt-2 space-y-1 text-[12px] text-mute">
                 {d.motivos.map((m) => <li key={m.clave}><Badge cls="bg-amber-soft text-amberTexto">{m.clave}</Badge> {m.texto}{d.motivoPipeline ? " (recalculado con los umbrales actuales y las banderas persistidas)" : ""}</li>)}
@@ -89,7 +89,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
             {d.moderacion && (
               <p className="mt-3 flex items-center gap-1.5 text-sm text-ink">
                 {d.moderacion.accion === "publicar" ? <CheckCircle2 size={14} className="text-moss" /> : <XCircle size={14} className="text-rust" />}
-                <strong>{d.moderacion.actor}</strong> · {d.moderacion.accion} · {fmtDate(d.moderacion.at)}: <span className="text-mute">{d.moderacion.motivo}</span>
+                <strong>{d.moderacion.actor}</strong> ({d.moderacion.accion}, {fmtDate(d.moderacion.at)}): <span className="text-mute">{d.moderacion.motivo}</span>
               </p>
             )}
           </div>
@@ -107,10 +107,10 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <Badge cls={SEV[b.severidad] ?? SEV.baja}>{b.severidad}</Badge>
                         <span className="font-semibold text-ink">{b.regla.replace(/_/g, " ")}</span>
-                        <span className="text-[11px] text-mute">· {b.agente ?? "—"}</span>
+                        <span className="text-[11px] text-mute">{b.agente ?? "agente sin dato"}</span>
                         {b.verificacion && (
-                          <span className={`ml-auto inline-flex items-center gap-1 text-[11px] ${b.verificacion.ok ? "text-moss" : "text-rust"}`} title={(b.verificacion.motivos ?? []).join(" · ")}>
-                            {b.verificacion.ok ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />} verificación {b.verificacion.ok ? "ok" : "falló"} · {b.verificacion.n_checks ?? 0} cotejos
+                          <span className={`ml-auto inline-flex items-center gap-1 text-[11px] ${b.verificacion.ok ? "text-moss" : "text-rust"}`} title={(b.verificacion.motivos ?? []).join("; ")}>
+                            {b.verificacion.ok ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />} verificación {b.verificacion.ok ? "ok" : "falló"} ({b.verificacion.n_checks ?? 0} cotejos)
                           </span>
                         )}
                       </div>
@@ -144,8 +144,8 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
                     <Metrica k="Citas correctas" v={d.autoevaluacion.cita} umbral={d.umbrales.min_cita} />
                     <Metrica k="Precio plausible" v={d.autoevaluacion.precio} umbral={d.umbrales.min_precio} />
                     <div>
-                      <dt className="text-[10px] uppercase tracking-wide text-mute">Tono · coherencia</dt>
-                      <dd className="text-[13px] text-ink">{d.autoevaluacion.tono ?? "—"} · {d.autoevaluacion.coherencia ?? "—"}</dd>
+                      <dt className="text-[10px] uppercase tracking-wide text-mute">Tono y coherencia</dt>
+                      <dd className="text-[13px] text-ink">{d.autoevaluacion.tono ?? "—"}, {d.autoevaluacion.coherencia ?? "—"}</dd>
                     </div>
                   </dl>
                 ) : <p className="mt-2 text-sm text-mute">Sin autoevaluación guardada.</p>}
@@ -173,7 +173,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
                 <ul className="mt-2 divide-y divide-line text-[12px]">
                   {!d.log.length && <li className="py-1.5 text-mute">Sin acciones registradas.</li>}
                   {d.log.map((l, i) => (
-                    <li key={i} className="py-1.5"><span className="font-medium text-ink">{l.actor}</span> <span className="text-mute">{l.accion.replace(/_/g, " ")}</span> <span className="text-[11px] text-mute">· {fmtDate(l.createdAt)}</span>
+                    <li key={i} className="py-1.5"><span className="font-medium text-ink">{l.actor}</span> <span className="text-mute">{l.accion.replace(/_/g, " ")}</span> <span className="text-[11px] text-mute">{fmtDate(l.createdAt)}</span>
                       {motivoDe(l.detalle) && <div className="text-mute">{motivoDe(l.detalle)}</div>}
                     </li>
                   ))}
@@ -211,7 +211,7 @@ function Metrica({ k, v, umbral }: { k: string; v: { n?: number; ok?: number } |
   return (
     <div>
       <dt className="text-[10px] uppercase tracking-wide text-mute">{k}</dt>
-      <dd className={`font-mono text-[13px] ${bajo ? "text-rust" : "text-ink"}`}>{r === null ? "—" : `${Math.round(r * 100)} %`} <span className="text-[10px] text-mute">({ok}/{n} · umbral {Math.round(umbral * 100)} %)</span></dd>
+      <dd className={`font-mono text-[13px] ${bajo ? "text-rust" : "text-ink"}`}>{r === null ? "—" : `${Math.round(r * 100)} %`} <span className="text-[10px] text-mute">({ok}/{n}, umbral {Math.round(umbral * 100)} %)</span></dd>
     </div>
   );
 }

@@ -43,7 +43,7 @@ export default function ErrorBoundary({ error, reset }: { error: Error & { diges
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center text-mute">
         <RefreshCw size={20} className="animate-spin" aria-hidden />
-        <p className="text-sm">Actualizamos el sitio hace un momento — recargando…</p>
+        <p className="text-sm">Actualizamos el sitio hace un momento. Recargando…</p>
       </div>
     );
   }
@@ -56,7 +56,12 @@ export default function ErrorBoundary({ error, reset }: { error: Error & { diges
       <h1 className="font-serif text-2xl font-bold text-ink">Algo no cargó bien</h1>
       <p className="max-w-md text-sm text-mute">
         Puede haber sido una actualización del sitio justo mientras tenías esta página abierta.
-        Reintentá — si te vuelve a pasar en el mismo lugar, contanos qué estabas viendo.
+        Reintenta. Si vuelve a pasar en el mismo lugar,{" "}
+        {/* TODO(contacto): reemplazar cuando exista un correo del equipo */}
+        <a href="https://github.com/EdwinSotto123/vigia-peru/issues" target="_blank" rel="noreferrer" className="text-ink underline underline-offset-2 hover:text-heroViolet">
+          escríbenos
+        </a>{" "}
+        contando qué estabas viendo.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button

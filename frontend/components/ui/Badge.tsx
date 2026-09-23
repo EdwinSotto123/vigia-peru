@@ -10,7 +10,8 @@ export function Badge({
   className?: string;
 }) {
   const styles = {
-    neutral: "bg-line text-mute border-mute/20",
+    // mute sobre line daba 3.97:1 (bajo AA); inkSoft llega a 8.44:1.
+    neutral: "bg-line text-inkSoft border-mute/20",
     amber: "bg-amber-soft text-amberTexto border-amber/20",
     crimson: "bg-crimson-soft text-crimsonTexto border-crimson/20",
     // Antes "navy": apuntaba a un token legacy (#1B1611, un marrón casi

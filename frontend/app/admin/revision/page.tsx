@@ -43,7 +43,7 @@ export default function RevisionPage() {
       fields: [{ name: "motivo", label: "Motivo de la decisión", type: "textarea", required: true, placeholder: publicar ? "Revisé las banderas: la evidencia está en el expediente (pág. …)" : "Las banderas no se sostienen: …" }],
       onConfirm: async (v) => {
         await adminFetch(`/alertas/${r.id}/estado`, { method: "PUT", body: JSON.stringify({ estado, motivo: v.motivo }) });
-        toast(`${r.codigo} ${publicar ? "publicada" : "descartada"} · ranking refrescado`);
+        toast(`${r.codigo} ${publicar ? "publicada" : "descartada"}. Ranking refrescado.`);
         load();
       },
     });
@@ -109,7 +109,7 @@ export default function RevisionPage() {
           <thead className="text-left text-[11px] uppercase tracking-wide text-mute">
             <tr>
               <th className="px-4 py-2">Contrato</th>
-              <th className="px-2 py-2">Entidad · zona</th>
+              <th className="px-2 py-2">Entidad y zona</th>
               <th className="px-2 py-2 text-right">Score</th>
               <th className="px-2 py-2 text-right">Banderas</th>
               <th className="px-2 py-2">Motivo del bloqueo</th>
@@ -127,7 +127,7 @@ export default function RevisionPage() {
                 <td className="px-4 py-2">
                   <Link href={`/admin/revision/${r.id}`} className="font-mono text-xs text-ink hover:underline">{r.codigo}</Link>
                   <div className="mt-0.5 line-clamp-2 max-w-[300px] text-[11px] text-mute" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</div>
-                  <div className="text-[11px] text-mute">{[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? r.tipo, r.contribucionCodigo, r.financiador].filter(Boolean).join(" · ")}</div>
+                  <div className="text-[11px] text-mute">{[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? r.tipo, r.contribucionCodigo, r.financiador].filter(Boolean).join(", ")}</div>
                 </td>
                 <td className="px-2 py-2 text-[12px]">
                   <div className="line-clamp-2 max-w-[240px] text-ink" title={r.entidad ?? ""}>{r.entidad ?? r.entidadRuc ?? "—"}</div>
@@ -141,7 +141,7 @@ export default function RevisionPage() {
                   {r.moderacion && (
                     <div className="mt-1 text-[11px] text-mute">
                       {r.moderacion.accion === "publicar" ? <CheckCircle2 size={11} className="inline text-moss" /> : <XCircle size={11} className="inline text-rust" />}{" "}
-                      {r.moderacion.actor} · {r.moderacion.accion} · {fmtDate(r.moderacion.at)}: {r.moderacion.motivo}
+                      {r.moderacion.actor} ({r.moderacion.accion}, {fmtDate(r.moderacion.at)}): {r.moderacion.motivo}
                     </div>
                   )}
                 </td>

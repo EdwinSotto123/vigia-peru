@@ -19,7 +19,7 @@ interface Fuente { fuente: string; tabla: string | null; cargas: number; cargasC
 /** Etiqueta y cadencia de cada pipeline de `backend/scrapers` (batch-nocturno.sh, paso 6). */
 const FUENTES: Record<string, { nombre: string; cadencia: string; cruce: string }> = {
   pnda_visitas: { nombre: "Visitas a entidades (PNDA / PCM)", cadencia: "días 1 y 15", cruce: "visitas de postores antes de la convocatoria" },
-  portal_visitas_manual: { nombre: "Visitas — exportación manual del portal PCM", cadencia: "manual (Turnstile bloquea la automatización)", cruce: "igual que PNDA visitas; todas las entidades" },
+  portal_visitas_manual: { nombre: "Visitas: exportación manual del portal PCM", cadencia: "manual (Turnstile bloquea la automatización)", cruce: "igual que PNDA visitas; todas las entidades" },
   onpe_claridad: { nombre: "Aportantes de campaña (ONPE Claridad)", cadencia: "mensual, con sesión gráfica", cruce: "aportante = postor o socio en la entidad del partido" },
   jne_infogob: { nombre: "Autoridades vigentes (JNE)", cadencia: "día 5", cruce: "alcalde/gobernador y su organización política" },
   pnda_dji: { nombre: "Declaraciones de intereses (DJI)", cadencia: "día 5", cruce: "empleos previos y parientes de funcionarios" },
@@ -54,9 +54,9 @@ export default function CoberturaPage() {
           <FuentesExternas fuentes={d.fuentes ?? []} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <K l="Contratos en DB" v={tot.contratos.toLocaleString("es-PE")} />
-            <K l="Con record completo" v={`${tot.conRecord.toLocaleString("es-PE")} · ${pct(tot.conRecord, tot.contratos)} %`} />
-            <K l="Con documentos en GCS" v={`${tot.conDocs.toLocaleString("es-PE")} · ${pct(tot.conDocs, tot.contratos)} %`} />
-            <K l="Documentos vigentes" v={`${(d.documentos?.vigentes ?? 0).toLocaleString("es-PE")} · ${gb(d.documentos?.bytesVigentes ?? 0)}`} hint={d.documentos?.proximaExpiracion ? `primera expiración ${fmtDate(d.documentos.proximaExpiracion)}` : "retención 90 días"} />
+            <K l="Con record completo" v={`${tot.conRecord.toLocaleString("es-PE")} (${pct(tot.conRecord, tot.contratos)} %)`} />
+            <K l="Con documentos en GCS" v={`${tot.conDocs.toLocaleString("es-PE")} (${pct(tot.conDocs, tot.contratos)} %)`} />
+            <K l="Documentos vigentes" v={`${(d.documentos?.vigentes ?? 0).toLocaleString("es-PE")} (${gb(d.documentos?.bytesVigentes ?? 0)})`} hint={d.documentos?.proximaExpiracion ? `primera expiración ${fmtDate(d.documentos.proximaExpiracion)}` : "retención 90 días"} />
             <K l="Analizados" v={tot.analizados.toLocaleString("es-PE")} />
           </div>
 
@@ -97,7 +97,7 @@ export default function CoberturaPage() {
                     <tr key={l.id} className="border-t border-line">
                       <td className="px-3 py-1.5 font-mono text-[11px] text-ink">{l.id}</td>
                       <td className="text-[12px] text-mute">{l.tipo}</td>
-                      <td className="font-mono text-xs">{l.ok.toLocaleString("es-PE")}/{l.total.toLocaleString("es-PE")}{l.fallidos ? <span className="text-rust"> · {l.fallidos} fallidos</span> : null}</td>
+                      <td className="font-mono text-xs">{l.ok.toLocaleString("es-PE")}/{l.total.toLocaleString("es-PE")}{l.fallidos ? <span className="text-rust">, {l.fallidos} fallidos</span> : null}</td>
                       <td><span className={`rounded-full px-2 py-0.5 text-[11px] ${l.estado === "ok" ? "bg-moss/10 text-moss" : l.estado === "error" ? "bg-crimson-soft text-crimsonTexto" : "bg-amber-soft text-amberTexto"}`}>{l.estado}</span></td>
                       <td className="px-3 text-right text-[11px] text-mute">{fmtDate(l.finalizadoAt ?? l.iniciadoAt)}</td>
                     </tr>
@@ -110,7 +110,7 @@ export default function CoberturaPage() {
               <ul className="mt-2 divide-y divide-line text-sm">
                 {!d.porFormato.length && <li className="py-1.5 text-mute">Ninguno.</li>}
                 {d.porFormato.map((f) => (
-                  <li key={f.formato ?? "?"} className="flex justify-between py-1.5"><span className="uppercase text-ink">{f.formato ?? "?"}</span><span className="font-mono text-xs text-mute">{f.n.toLocaleString("es-PE")} · {gb(f.bytes)}</span></li>
+                  <li key={f.formato ?? "?"} className="flex justify-between py-1.5"><span className="uppercase text-ink">{f.formato ?? "?"}</span><span className="font-mono text-xs text-mute">{f.n.toLocaleString("es-PE")} ({gb(f.bytes)})</span></li>
                 ))}
               </ul>
               <p className="mt-3 text-[11px] text-mute">Lifecycle del bucket: Nearline a los 30 días, borrado a los 90. Lo financiado después de expirar se vuelve a bajar esa noche.</p>
@@ -131,18 +131,18 @@ function Progreso({ pr }: { pr: ProgresoDocumentos }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink">Lote nocturno de documentos</h2>
         <span className="text-[11px] text-mute">
-          {lote ? <>último lote <span className="font-mono">{lote.id}</span> · {lote.estado} · {lote.ok.toLocaleString("es-PE")}/{lote.total.toLocaleString("es-PE")}{lote.fallidos ? <span className="text-rust"> · {lote.fallidos} fallidos</span> : null} · {fmtDate(lote.finalizadoAt ?? lote.iniciadoAt)}</> : "sin lotes de documentos"}
+          {lote ? <>último lote <span className="font-mono">{lote.id}</span>: {lote.estado}, {lote.ok.toLocaleString("es-PE")}/{lote.total.toLocaleString("es-PE")}{lote.fallidos ? <span className="text-rust">, {lote.fallidos} fallidos</span> : null}, {fmtDate(lote.finalizadoAt ?? lote.iniciadoAt)}</> : "sin lotes de documentos"}
         </span>
       </div>
       <div className="mt-3 flex items-baseline gap-3">
         <span className="font-mono text-2xl font-semibold text-ink">{pr.vigentes.toLocaleString("es-PE")}</span>
-        <span className="text-sm text-mute">de {pr.publicados.toLocaleString("es-PE")} documentos publicados en el SEACE ya están en el almacén · <span className="font-mono text-ink">{pr.pct} %</span></span>
+        <span className="text-sm text-mute">de {pr.publicados.toLocaleString("es-PE")} documentos publicados en el SEACE ya están en el almacén (<span className="font-mono text-ink">{pr.pct} %</span>)</span>
       </div>
       <div className="mt-2 h-3 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={pr.pct} aria-valuemin={0} aria-valuemax={100}>
         <div className="h-full rounded-full bg-moss" style={{ width: `${Math.min(100, pr.pct)}%` }} />
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Faltan</dt><dd className="font-mono text-ink">{pr.restantes.toLocaleString("es-PE")} <span className="text-[11px] text-mute">docs · {pr.contratosSinBajar.toLocaleString("es-PE")} contratos sin bajar</span></dd></div>
+        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Faltan</dt><dd className="font-mono text-ink">{pr.restantes.toLocaleString("es-PE")} <span className="text-[11px] text-mute">docs, {pr.contratosSinBajar.toLocaleString("es-PE")} contratos sin bajar</span></dd></div>
         <div><dt className="text-[10px] uppercase tracking-wide text-mute">Ritmo</dt><dd className="font-mono text-ink">{pr.porNoche ? `${pr.porNoche.toLocaleString("es-PE")} / noche` : "—"} <span className="text-[11px] text-mute">promedio 7 días</span></dd></div>
         <div><dt className="text-[10px] uppercase tracking-wide text-mute">Estimación de fin</dt><dd className="font-mono text-ink">{pr.nochesRestantes !== null ? `${pr.nochesRestantes} noche${pr.nochesRestantes === 1 ? "" : "s"}` : "—"} {pr.estimadoFin && <span className="text-[11px] text-mute">≈ {new Date(pr.estimadoFin).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}</span>}</dd></div>
         <div><dt className="text-[10px] uppercase tracking-wide text-mute">Ítems pendientes en lotes</dt><dd className="font-mono text-ink">{pr.itemsPendientes.toLocaleString("es-PE")}</dd></div>
@@ -170,7 +170,7 @@ function Progreso({ pr }: { pr: ProgresoDocumentos }) {
             <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-[11px]">
               {pr.errores.map((e, i) => (
                 <li key={i} className="flex items-baseline justify-between gap-2 border-t border-line py-1 first:border-0">
-                  <span className="min-w-0 truncate font-mono text-ink" title={`${e.loteId} · ${e.clave}`}>{e.clave}</span>
+                  <span className="min-w-0 truncate font-mono text-ink" title={`${e.loteId}: ${e.clave}`}>{e.clave}</span>
                   <span className="min-w-0 truncate text-rust" title={e.error ?? ""}>{e.error ?? "error"}</span>
                   <span className="shrink-0 text-mute">{fmtDate(e.procesadoAt)}</span>
                 </li>
@@ -190,7 +190,7 @@ function FuentesExternas({ fuentes }: { fuentes: Fuente[] }) {
     <section className="mb-6 rounded-2xl border border-line bg-paper p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">Fuentes externas</h2>
-        <span className="text-[11px] text-mute">se cargan desde la laptop (IP peruana) en el batch nocturno · fuente: <code>datasets_cargas</code></span>
+        <span className="text-[11px] text-mute">se cargan desde la laptop (IP peruana) en el batch nocturno. Fuente: <code>datasets_cargas</code></span>
       </div>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-sm">
@@ -209,7 +209,7 @@ function FuentesExternas({ fuentes }: { fuentes: Fuente[] }) {
                     <div className="font-mono text-[10px] text-mute">{k}{f?.tabla ? ` → ${f.tabla}` : ""}</div>
                   </td>
                   <td className="text-right font-mono text-xs">{f ? f.filas.toLocaleString("es-PE") : <span className="text-mute">sin cargas</span>}</td>
-                  <td className="text-right font-mono text-xs">{f ? <>{f.cargas}{conError && <span className="text-rust" title={f.ultimoError ?? ""}> · {f.cargasConError} con error</span>}</> : "—"}</td>
+                  <td className="text-right font-mono text-xs">{f ? <>{f.cargas}{conError && <span className="text-rust" title={f.ultimoError ?? ""}>, {f.cargasConError} con error</span>}</> : "—"}</td>
                   <td className="pl-3 font-mono text-xs">{f?.ultimaClave ?? "—"}</td>
                   <td className="pl-3 text-xs text-mute">{f?.ultimaCarga ? fmtDate(f.ultimaCarga) : "—"}</td>
                   <td className="pl-3 text-xs text-mute">{meta.cadencia}</td>

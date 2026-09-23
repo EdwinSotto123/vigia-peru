@@ -54,7 +54,7 @@ export default function PagosPage() {
       </>
     }>
       {msg && <div className="mb-4 rounded-xl border border-line bg-paper px-4 py-2 text-sm text-ink">{msg} <button onClick={() => setMsg(null)} className="ml-2 text-mute">✕</button></div>}
-      {meta.updatedAt && <p className="mb-4 text-[12px] text-mute">Última edición: {new Date(meta.updatedAt).toLocaleString("es-PE")} · {meta.updatedBy}</p>}
+      {meta.updatedAt && <p className="mb-4 text-[12px] text-mute">Última edición: {new Date(meta.updatedAt).toLocaleString("es-PE")}{meta.updatedBy ? `, por ${meta.updatedBy}` : ""}</p>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {(["yape", "plin"] as const).map((k) => (
@@ -109,7 +109,8 @@ export default function PagosPage() {
         </label>
         <label className="block rounded-2xl border border-line bg-paper p-5 text-sm">
           <span className="font-semibold text-ink">Correo de contacto para pagos</span>
-          <input type="email" value={cfg.contacto_email} onChange={(e) => setCfg({ ...cfg, contacto_email: e.target.value })} className="mt-2 w-full rounded-lg border border-line px-3 py-2" placeholder="pagos@vigiaperu.org" />
+          <input type="email" value={cfg.contacto_email} onChange={(e) => setCfg({ ...cfg, contacto_email: e.target.value })} className="mt-2 w-full rounded-lg border border-line px-3 py-2" placeholder="el correo que atiende los pagos" />
+          {/* TODO(contacto): reemplazar cuando exista un correo del equipo. Antes el ejemplo era pagos@vigiaperu.org, un dominio que no resuelve. */}
           <p className="mt-2 text-[12px] text-mute">Se muestra al financiador por si el pago falla o necesita factura/recibo.</p>
         </label>
       </section>

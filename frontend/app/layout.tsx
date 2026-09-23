@@ -1,17 +1,27 @@
 import type { Metadata } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 // Fuentes autoalojadas por next/font: sin CSS bloqueante de fonts.googleapis (Lighthouse móvil).
 // Chakra Petch (font-techno) no se usa en ningún componente: se retiró.
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-sans" });
 const serif = Source_Serif_4({ subsets: ["latin"], weight: ["600", "700"], display: "swap", variable: "--font-serif", preload: false });
+// `font-mono` (códigos de contrato, RUC, cifras) nombraba JetBrains Mono pero nunca
+// se cargaba: cada sistema caía en su propia monoespaciada. Sin preload: es
+// secundaria y no debe competir con la fuente del texto.
+const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-mono", preload: false });
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Vigía Perú — La corrupción en el mapa, antes de que sea tarde",
+  // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
+  // http://localhost:8080 en producción.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://vigia-peru-frontend-36169102688.us-central1.run.app"),
+  title: {
+    default: "Vigía Perú: en qué se gasta el dinero de tu región",
+    template: "%s | Vigía Perú",
+  },
   description:
-    "Plataforma cívica que cruza datos públicos y reportes ciudadanos para detectar señales de corrupción en contrataciones del Estado peruano.",
+    "Plataforma cívica que lee los contratos públicos del Perú publicados en el SEACE, los cruza con fuentes oficiales y muestra señales de riesgo con la norma y la fuente de cada una.",
 };
 
 export default function RootLayout({
@@ -20,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${inter.variable} ${serif.variable}`}>
+    <html lang="es" className={`${inter.variable} ${serif.variable} ${mono.variable}`}>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

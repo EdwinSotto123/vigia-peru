@@ -48,7 +48,7 @@ function ProcesamientoActivo() {
     <div className="mb-6 rounded-2xl border border-line bg-paper p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-[11px] uppercase tracking-wide text-mute">Procesamiento activo (entra a la cola financiable)</div>
-        <div className="text-[11px] text-mute">cola hoy: <span className="font-mono text-ink">{cfg.cola?.toLocaleString("es-PE") ?? "—"}</span>{cfg.updatedAt ? ` · ${fmtDate(cfg.updatedAt)} · ${cfg.updatedBy ?? ""}` : ""}</div>
+        <div className="text-[11px] text-mute">cola hoy: <span className="font-mono text-ink">{cfg.cola?.toLocaleString("es-PE") ?? "—"}</span>{cfg.updatedAt ? `, editada ${fmtDate(cfg.updatedAt)}${cfg.updatedBy ? ` por ${cfg.updatedBy}` : ""}` : ""}</div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5"><span className="mr-1 text-[12px] text-mute">Tipos:</span>{TIPOS_CFG.map((t) => <button key={t} type="button" onClick={() => toggle("tipos_activos", t)} className={chip(v.tipos_activos?.includes(t))}>{t}</button>)}</div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="mr-1 text-[12px] text-mute">Etapas:</span>{ETAPAS_CFG.map((t) => <button key={t} type="button" onClick={() => toggle("etapas_activas", t)} className={chip(v.etapas_activas?.includes(t))}>{t.replace("_", " ")}</button>)}</div>
@@ -106,7 +106,7 @@ export default function ClasificacionPage() {
                     <td className="px-3 py-1.5 font-medium text-ink">{t}</td>
                     {etapas.map((e) => {
                       const v = grid.get(`${t}|${e}`);
-                      if (!v) return <td key={e} className="px-2 py-1.5 text-right text-mute/40">·</td>;
+                      if (!v) return <td key={e} className="px-2 py-1.5 text-right text-mute/40">0</td>;
                       const bg = `rgba(198,140,52,${0.08 + 0.5 * (v.n / max)})`;
                       return (
                         <td key={e} className="px-2 py-1.5 text-right font-mono text-xs" style={{ background: bg }}>

@@ -21,8 +21,7 @@
  * (son el motivo real de la página) y "privacidad y datos" (identificador de cuenta, qué
  * guardamos, exportar, borrar cuenta) cerrada por defecto por ser lo menos usado. "Perfil público"
  * se reabre sola si falla el guardado, para que el error de validación del nombre nunca quede
- * oculto detrás de una tarjeta cerrada. (Las superficies de producto no llevan
- * components/landing/ComoFuncionaCompacto.tsx) y micro-feedback con animate-fadeIn/slideUp en
+ * oculto detrás de una tarjeta cerrada. Y micro-feedback con animate-fadeIn/slideUp en
  * estados que ya eran condicionales (conflicto de visibilidad, error, confirmar borrado, botón
  * guardar) -- nada de eso existía antes, así que la página se sentía estática incluso al cambiar
  * de estado.
@@ -35,8 +34,8 @@ import { useRouter } from "next/navigation";
 import { Settings, Eye, EyeOff, Download, Trash2, Loader2, Check, Upload, LogIn, ShieldAlert, RefreshCw, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { actualizarPerfil, borrarCuentaApi, exportarDatos, useCuenta, type Perfil } from "@/lib/cuentas";
-import { signOut } from "@/lib/auth";
+import { actualizarPerfil, borrarCuentaApi, exportarDatos, idToken, useCuenta, type Perfil } from "@/lib/cuentas";
+import { reautenticar, signOut } from "@/lib/auth";
 import { deleteUser } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
@@ -97,6 +96,8 @@ function Formulario({ perfil }: { perfil: Perfil }) {
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [confirmTexto, setConfirmTexto] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
   // Controlado (no defaultOpen): así `guardar()` puede reabrir esta tarjeta si el guardado
   // falla -- el único error de validación del formulario (nombre público vacío) vive adentro,
@@ -124,7 +125,9 @@ function Formulario({ perfil }: { perfil: Perfil }) {
     setSubiendoLogo(true); setError(null);
     try {
       const fd = new FormData(); fd.append("file", f); fd.append("kind", "logo");
-      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      // /api/upload exige sesión para subir logos: se manda el token de Firebase.
+      const token = await idToken();
+      const r = await fetch("/api/upload", { method: "POST", body: fd, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
       const j = await r.json();
       if (!r.ok || !j.url) throw new Error(j.error ?? "No se pudo subir el logo");
       setLogoUrl(j.url);
@@ -146,13 +149,33 @@ function Formulario({ perfil }: { perfil: Perfil }) {
 
   const borrar = async () => {
     if (confirmTexto.trim().toUpperCase() !== "BORRAR") return;
-    setBorrando(true); setError(null);
+    if (!confirmPassword) { setErrorBorrar("Escribe tu contraseña para confirmar."); return; }
+    setBorrando(true); setErrorBorrar(null);
+    // 1. Primero la contraseña. Firebase sólo deja borrar el acceso con un inicio de
+    //    sesión reciente; antes se borraba el perfil en el backend y DESPUÉS fallaba
+    //    deleteUser en sesiones viejas, dejando un login vivo sin cuenta detrás.
+    //    Si la contraseña no coincide, no se borró nada.
+    try {
+      await reautenticar(confirmPassword);
+    } catch (err) {
+      setErrorBorrar((err as Error).message);
+      setBorrando(false);
+      return;
+    }
+    // 2. El perfil en el backend (anonimiza el aliado; los aportes se conservan).
     try {
       await borrarCuentaApi();
-      // Credencial de acceso: se elimina en el cliente (puede pedir re-login si la sesión es vieja).
-      try { if (auth.currentUser) await deleteUser(auth.currentUser); } catch { await signOut(); }
-      router.push("/app/mapa?cuenta=borrada");
-    } catch (err) { setError((err as Error).message); setBorrando(false); }
+    } catch (err) {
+      setErrorBorrar((err as Error).message || "No pudimos borrar tu cuenta. No se borró nada; inténtalo de nuevo.");
+      setBorrando(false);
+      return;
+    }
+    // 3. El acceso. Con la sesión recién confirmada no debería fallar; si falla (red),
+    //    se cierra la sesión igual y la página de entrada lo explica.
+    let accesoBorrado = true;
+    try { if (auth.currentUser) await deleteUser(auth.currentUser); } catch { accesoBorrado = false; await signOut(); }
+    // La confirmación se muestra en /login (?cuenta=borrada).
+    router.push(accesoBorrado ? "/login?cuenta=borrada" : "/login?cuenta=borrada&acceso=pendiente");
   };
 
   const conflicto = perfil.aliadoVisible === false && perfil.motivoNoVisible && perfil.motivoNoVisible !== "cuenta_borrada";
@@ -336,12 +359,12 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               <div className="border-t border-line pt-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-mute">Qué guardamos</h3>
                 <ul className="mt-2 list-outside list-disc space-y-1 rounded-xl bg-paperSoft p-3 pl-7 text-[12px] text-ink">
-                  <li>Tu user-id (sin correo, salvo que lo dejes arriba).</li>
+                  <li>Tu nombre de usuario (sin correo, salvo que lo dejes arriba).</li>
                   <li>Perfil de aliado: nombre, tipo, logo, visibilidad.</li>
                   <li>Zonas y entidades que sigues; preferencias de aviso.</li>
                   <li>Tus aportes y las denuncias enviadas con sesión.</li>
                 </ul>
-                <p className="mt-2 text-[11px] text-mute">Los aportes y los contratos analizados con ellos son públicos por diseño (comprobante de impacto). Detalle en <Link href="/preguntas#cuentas" className="underline transition-colors hover:text-heroViolet">Preguntas</Link>.</p>
+                <p className="mt-2 text-[11px] text-mute">Los aportes y los contratos analizados con ellos son públicos por diseño (comprobante de impacto). Detalle en <Link href="/preguntas#cuentas" className="underline transition-colors hover:text-heroViolet">Cuánto cuesta y quién paga</Link>.</p>
                 <button type="button" onClick={exportar} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-paperDeep">
                   <Download size={14} aria-hidden /> Exportar mis datos (JSON)
                 </button>
@@ -359,11 +382,24 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                     <label className="block text-[12px] text-ink">Escribe <span className="font-mono font-semibold">BORRAR</span> para confirmar
                       <input value={confirmTexto} onChange={(e) => setConfirmTexto(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm" autoComplete="off" />
                     </label>
+                    {/* Por seguridad se pide la contraseña: sin ella Firebase no deja borrar el acceso. */}
+                    <label className="block text-[12px] text-ink">Tu contraseña
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="current-password"
+                        aria-invalid={errorBorrar ? true : undefined}
+                        aria-describedby={errorBorrar ? "borrar-error" : undefined}
+                        className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm"
+                      />
+                    </label>
+                    {errorBorrar && <p id="borrar-error" role="alert" className="text-[12px] text-crimsonTexto animate-fadeIn">{errorBorrar}</p>}
                     <div className="flex gap-2">
-                      <button type="button" onClick={borrar} disabled={borrando || confirmTexto.trim().toUpperCase() !== "BORRAR"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-rust px-3 py-2 text-sm font-semibold text-paper transition-colors hover:bg-rust/90 disabled:opacity-50 disabled:hover:bg-rust">
+                      <button type="button" onClick={borrar} disabled={borrando || confirmTexto.trim().toUpperCase() !== "BORRAR" || !confirmPassword} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-rust px-3 py-2 text-sm font-semibold text-paper transition-colors hover:bg-rust/90 disabled:opacity-50 disabled:hover:bg-rust">
                         {borrando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Trash2 size={14} aria-hidden />} Borrar definitivamente
                       </button>
-                      <button type="button" onClick={() => { setConfirmar(false); setConfirmTexto(""); }} className="rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink transition-colors hover:bg-paperDeep">Cancelar</button>
+                      <button type="button" onClick={() => { setConfirmar(false); setConfirmTexto(""); setConfirmPassword(""); setErrorBorrar(null); }} className="rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink transition-colors hover:bg-paperDeep">Cancelar</button>
                     </div>
                   </div>
                 )}

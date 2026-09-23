@@ -13,8 +13,10 @@ import {
   Shield,
   Eye,
   EyeOff,
+  KeyRound,
 } from "lucide-react";
 import {
+  destinoSeguro,
   signUpWithUserId,
   validateUserId,
   validatePassword,
@@ -34,7 +36,11 @@ export default function SignupPage() {
 function SignupInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/app";
+  const nextCrudo = search.get("next");
+  // Sólo rutas internas: /signup?next=https://otro-sitio no puede sacar a nadie de Vigía.
+  const next = destinoSeguro(nextCrudo);
+  // Al saltar a "Entrar" se conserva el destino, si era válido.
+  const loginHref = nextCrudo && next === nextCrudo ? `/login?next=${encodeURIComponent(next)}` : "/login";
   const { user, loading } = useAuth();
 
   const [userId, setUserId] = useState("");
@@ -63,144 +69,173 @@ function SignupInner() {
       await signUpWithUserId(userId, password);
       router.replace(next);
     } catch (e: any) {
-      setError(e.message ?? "No se pudo crear la cuenta");
+      setError(e?.message || "No se pudo crear la cuenta. Inténtalo de nuevo.");
       setSubmitting(false);
     }
   };
+
+  const campo =
+    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none";
+  const etiqueta = "text-[10px] font-semibold uppercase tracking-wider text-mute";
+  const conError = (malo: boolean) => (malo ? "border-rust focus:border-rust" : "border-line focus:border-heroViolet");
 
   return (
     <div className="container-page flex min-h-[calc(100vh-200px)] items-center justify-center py-12">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-heroViolet text-paper">
-            <Shield size={22} strokeWidth={2.2} />
+            <Shield size={22} strokeWidth={2.2} aria-hidden />
           </div>
           <h1 className="font-serif text-3xl font-bold text-ink">
             Crea tu cuenta
           </h1>
           <p className="mt-1 text-sm text-mute">
-            Elige un usuario único y una contraseña. Sin correo, sin rastreo: la cuenta solo sirve para seguir tus denuncias y aportes.
+            Elige un nombre de usuario y una contraseña. Sin correo y sin rastreo: la cuenta solo sirve para seguir tus denuncias y aportes.
           </p>
         </div>
 
-        <form onSubmit={submit} className="surface space-y-4 p-6">
-          {/* userId */}
+        <form onSubmit={submit} className="surface space-y-4 p-6" noValidate>
+          {/* Nombre de usuario */}
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-mute">
-              Usuario (único)
+            <label htmlFor="signup-usuario" className={cn("mb-1 block", etiqueta)}>
+              Nombre de usuario
             </label>
             <div className="relative">
               <AtSign
                 size={15}
+                aria-hidden
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-mute"
               />
               <input
+                id="signup-usuario"
+                name="username"
                 type="text"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                placeholder="elige_uno_que_no_exista"
+                placeholder="ej. vecina_cusco"
                 autoComplete="username"
+                autoCapitalize="none"
                 spellCheck={false}
-                className={cn(
-                  "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
-                  userIdError
-                    ? "border-rust focus:border-rust"
-                    : "border-line focus:border-heroViolet",
-                )}
+                required
+                aria-invalid={userIdError ? true : undefined}
+                aria-describedby="signup-usuario-ayuda"
+                className={cn(campo, conError(!!userIdError))}
               />
               {userId && !userIdError && (
                 <CheckCircle2
                   size={15}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-moss"
+                  aria-hidden
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-mossTexto"
                 />
               )}
             </div>
             <p
+              id="signup-usuario-ayuda"
               className={cn(
-                "mt-1 text-[10px]",
-                userIdError ? "text-rust" : "text-mute",
+                "mt-1 text-[11px]",
+                userIdError ? "text-crimsonTexto" : "text-mute",
               )}
             >
               {userIdError ??
-                "3-30 caracteres: letras, números o guion bajo, sin distinguir mayúsculas"}
+                "De 3 a 30 caracteres: letras, números o guion bajo. No distingue mayúsculas."}
             </p>
           </div>
 
-          {/* password */}
+          {/* Contraseña. El botón mostrar/ocultar vive FUERA del <label>: adentro,
+              su texto se sumaba al nombre accesible del campo. */}
           <div>
-            <label className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-mute">
-              <span>Contraseña</span>
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="signup-password" className={etiqueta}>
+                Contraseña
+              </label>
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
-                className="inline-flex items-center gap-1 text-heroViolet hover:underline"
+                aria-controls="signup-password signup-password2"
+                aria-pressed={showPw}
+                className="inline-flex items-center gap-1 rounded text-[10px] font-semibold uppercase tracking-wider text-heroViolet hover:underline"
               >
-                {showPw ? <EyeOff size={11} /> : <Eye size={11} />}
-                {showPw ? "ocultar" : "mostrar"}
+                {showPw ? <EyeOff size={11} aria-hidden /> : <Eye size={11} aria-hidden />}
+                {showPw ? "Ocultar" : "Mostrar"}
               </button>
-            </label>
+            </div>
             <div className="relative">
               <Lock
                 size={15}
+                aria-hidden
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-mute"
               />
               <input
+                id="signup-password"
+                name="new-password"
                 type={showPw ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="al menos 6 caracteres"
                 autoComplete="new-password"
-                className={cn(
-                  "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
-                  pwError
-                    ? "border-rust focus:border-rust"
-                    : "border-line focus:border-heroViolet",
-                )}
+                required
+                aria-invalid={pwError ? true : undefined}
+                aria-describedby={pwError ? "signup-password-error signup-sin-recuperacion" : "signup-sin-recuperacion"}
+                className={cn(campo, conError(!!pwError))}
               />
             </div>
             {pwError && (
-              <p className="mt-1 text-[10px] text-rust">{pwError}</p>
+              <p id="signup-password-error" className="mt-1 text-[11px] text-crimsonTexto">{pwError}</p>
             )}
           </div>
 
-          {/* password confirm */}
+          {/* Repetir contraseña */}
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-mute">
-              Repetí la contraseña
+            <label htmlFor="signup-password2" className={cn("mb-1 block", etiqueta)}>
+              Repite la contraseña
             </label>
             <div className="relative">
               <Lock
                 size={15}
+                aria-hidden
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-mute"
               />
               <input
+                id="signup-password2"
+                name="new-password-confirm"
                 type={showPw ? "text" : "password"}
                 value={password2}
                 onChange={(e) => setPassword2(e.target.value)}
-                placeholder="confirmar"
+                placeholder="la misma de arriba"
                 autoComplete="new-password"
-                className={cn(
-                  "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none",
-                  password2 && !pwMatch
-                    ? "border-rust focus:border-rust"
-                    : "border-line focus:border-heroViolet",
-                )}
+                required
+                aria-invalid={password2 && !pwMatch ? true : undefined}
+                aria-describedby={password2 && !pwMatch ? "signup-password2-error" : undefined}
+                className={cn(campo, conError(!!password2 && !pwMatch))}
               />
               {password2 && pwMatch && (
                 <CheckCircle2
                   size={15}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-moss"
+                  aria-hidden
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-mossTexto"
                 />
               )}
             </div>
             {password2 && !pwMatch && (
-              <p className="mt-1 text-[10px] text-rust">No coincide</p>
+              <p id="signup-password2-error" className="mt-1 text-[11px] text-crimsonTexto">Las contraseñas no coinciden</p>
             )}
           </div>
 
+          {/* Sin correo no hay recuperación: se dice antes de crear la cuenta, no después de perderla. */}
+          <p
+            id="signup-sin-recuperacion"
+            className="flex items-start gap-2 rounded-xl border border-amber/30 bg-amber-soft/60 px-3 py-2 text-[12px] leading-snug text-ink"
+          >
+            <KeyRound size={14} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
+            <span>
+              <strong className="font-semibold">Guarda tu contraseña.</strong> Como no pedimos correo, si la olvidas no hay
+              forma de recuperarla.
+            </span>
+          </p>
+
           {error && (
-            <div className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2 text-xs text-rust">
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <div role="alert" className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2 text-xs text-crimsonTexto">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden />
               <span>{error}</span>
             </div>
           )}
@@ -214,26 +249,26 @@ function SignupInner() {
           >
             {submitting ? (
               <>
-                <Loader2 size={16} className="animate-spin" /> Creando cuenta…
+                <Loader2 size={16} className="animate-spin" aria-hidden /> Creando cuenta…
               </>
             ) : (
               <>
-                <UserPlus size={16} /> Crear cuenta
+                <UserPlus size={16} aria-hidden /> Crear cuenta
               </>
             )}
           </Button>
 
           <p className="text-center text-xs text-mute">
             ¿Ya tienes cuenta?{" "}
-            <Link href="/login" className="font-medium text-heroViolet hover:underline">
+            <Link href={loginHref} className="font-medium text-heroViolet hover:underline">
               Entrar →
             </Link>
           </p>
         </form>
 
         <div className="mt-4 space-y-1 text-center text-[11px] text-mute">
-          <p>El user-id es único — si está tomado te avisamos al instante.</p>
-          <p>No pedimos email ni usamos cookies de tracking.</p>
+          <p>Si el nombre de usuario ya existe, te avisamos al crear la cuenta.</p>
+          <p>No pedimos correo ni usamos cookies de rastreo.</p>
         </div>
       </div>
     </div>

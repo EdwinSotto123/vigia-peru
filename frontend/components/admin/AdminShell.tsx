@@ -71,7 +71,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
           })}
         </nav>
         <main className="p-6">{children}</main>
-        <footer className="flex items-center gap-2 px-6 pb-6 text-[11px] text-mute"><ShieldCheck size={12} /> Panel interno · las acciones quedan en la bitácora con tu nombre.</footer>
+        <footer className="flex items-center gap-2 px-6 pb-6 text-[11px] text-mute"><ShieldCheck size={12} /> Panel interno. Las acciones quedan en la bitácora con tu nombre.</footer>
       </div>
     </div>
   );

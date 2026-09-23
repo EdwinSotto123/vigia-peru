@@ -43,7 +43,7 @@ function Page() {
       ],
       onConfirm: async (v) => {
         const r = await adminFetch<{ asignados: number; estado: string }>(`/contribuciones/${c.codigo}/validar`, { method: "POST", body: JSON.stringify({ referencia: v.referencia || undefined, nota: v.nota || undefined }) });
-        toast(`${c.codigo} validada · ${r.asignados} contratos asignados${r.asignados < c.contratos ? ` (${c.contratos - r.asignados} esperan contratos nuevos en la zona)` : ""}`);
+        toast(`${c.codigo} validada: ${r.asignados} contratos asignados${r.asignados < c.contratos ? ` (${c.contratos - r.asignados} esperan contratos nuevos en la zona)` : ""}`);
         setSel(null); load();
       },
     });
@@ -91,10 +91,10 @@ function Page() {
                   <td className="px-3 py-2 font-mono text-xs">{c.codigo}</td>
                   <td>
                     <div className="flex items-center gap-1.5">{c.nombrePublico ?? <span className="text-mute">Anónimo</span>}{!c.visible && <EyeOff size={12} className="text-rust" />}</div>
-                    <div className="text-[11px] text-mute">{c.tipo}{c.ruc ? ` · ${c.ruc}` : ""}</div>
+                    <div className="text-[11px] text-mute">{c.tipo}{c.ruc ? `, RUC ${c.ruc}` : ""}</div>
                   </td>
                   <td>{c.zona} <span className="text-[11px] text-mute">{c.nivel}</span></td>
-                  <td className="text-right font-mono">{c.contratos}<span className="text-[11px] text-mute"> · {c.asignados}a/{c.procesados}p</span></td>
+                  <td className="text-right font-mono">{c.contratos}<span className="text-[11px] text-mute" title="asignados / procesados"> ({c.asignados}a/{c.procesados}p)</span></td>
                   <td className="text-right font-mono">{fmtPEN(c.montoPen)}</td>
                   <td>{c.tieneComprobante ? <FileImage size={14} className="text-moss" /> : <span className="text-[11px] text-mute">—</span>}</td>
                   <td><Badge cls={ESTADO_UI[c.estado]?.cls ?? ""}>{ESTADO_UI[c.estado]?.label ?? c.estado}</Badge></td>
@@ -127,10 +127,10 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
         <D k="Monto" v={fmtPEN(c.montoPen)} /><D k="Contratos" v={`${c.contratos} (${c.asignados} asignados, ${c.procesados} procesados)`} />
-        <D k="Zona" v={`${c.zona} · ${c.nivel}`} /><D k="Método" v={c.pasarela ?? "—"} />
-        <D k="Financiador" v={`${c.nombrePublico ?? "Anónimo"} · ${c.tipo}`} /><D k="RUC" v={c.ruc ?? "—"} />
+        <D k="Zona" v={`${c.zona} (${c.nivel})`} /><D k="Método" v={c.pasarela ?? "—"} />
+        <D k="Financiador" v={`${c.nombrePublico ?? "Anónimo"} (${c.tipo})`} /><D k="RUC" v={c.ruc ?? "—"} />
         <D k="Email" v={c.email} /><D k="Referencia" v={c.pasarelaRef ?? "—"} />
-        <D k="Creada" v={fmtDate(c.createdAt)} /><D k="Pagada" v={c.pagadaAt ? `${fmtDate(c.pagadaAt)} · ${c.validadaPor ?? ""}` : "—"} />
+        <D k="Creada" v={fmtDate(c.createdAt)} /><D k="Pagada" v={c.pagadaAt ? `${fmtDate(c.pagadaAt)}${c.validadaPor ? `, validó ${c.validadaPor}` : ""}` : "—"} />
       </dl>
       {!c.visible && <div className="mt-3 rounded-lg bg-crimson-soft p-2 text-[12px] text-crimsonTexto">Sin reconocimiento público: {c.motivoNoVisible?.replace(/_/g, " ")}. El aporte procesa contratos igual.</div>}
       {c.mensajePublico && <p className="mt-3 border-l-2 border-amber pl-2 text-[13px] italic text-mute">“{c.mensajePublico}”</p>}

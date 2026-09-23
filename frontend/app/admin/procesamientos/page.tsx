@@ -175,7 +175,7 @@ export default function AdminProcesamientosPage() {
     setBusy("run");
     try {
       await adminFetch("/dispatcher/run", { method: "POST", body: "{}" });
-      toast("Dispatcher lanzado · toma los contratos en cola en ~1 min");
+      toast("Dispatcher lanzado: toma los contratos en cola en ~1 min");
       setTimeout(load, 8000);
     } catch (e) { toast((e as Error).message, "error"); }
     finally { setBusy(null); }
@@ -256,7 +256,7 @@ export default function AdminProcesamientosPage() {
             {PERFIL_LABEL[pf].split(" ")[0]} <span className="font-mono text-[10px] opacity-70">{porPerfil[pf] ?? 0}</span>
           </button>
         ))}
-        <span className="text-[11px] text-mute">· un servicio de agentes por perfil (agent-orchestrator-adk · agente-servicios · agente-obras · agente-otros)</span>
+        <span className="text-[11px] text-mute">Un servicio de agentes por perfil (agent-orchestrator-adk, agente-servicios, agente-obras, agente-otros)</span>
       </div>
 
       <section className="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper">
@@ -296,7 +296,7 @@ export default function AdminProcesamientosPage() {
                   <div className="font-mono text-xs text-ink">{p.ocid}</div>
                   {p.titulo && <div className="mt-0.5 line-clamp-1 max-w-[320px] text-[11px] text-mute">{p.titulo}</div>}
                   <div className="text-[11px] text-mute">
-                    {[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo, p.financiador].filter(Boolean).join(" · ")}
+                    {[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo, p.financiador].filter(Boolean).join(", ")}
                   </div>
                 </td>
                 <td className="px-2 py-2">
@@ -308,7 +308,7 @@ export default function AdminProcesamientosPage() {
                 </td>
                 <td className="px-2 py-2 font-mono text-xs text-ink">
                   {p.faseActual ?? "—"}
-                  {p.faseIndex != null && <span className="text-mute"> · {p.faseIndex}/10</span>}
+                  {p.faseIndex != null && <span className="text-mute"> ({p.faseIndex}/10)</span>}
                 </td>
                 <td className="px-2 py-2 text-right font-mono text-xs">{p.intentos}</td>
                 <td className="px-2 py-2 font-mono text-[11px] text-mute">{p.worker ?? "—"}</td>
@@ -388,7 +388,7 @@ function PedidosDescarga({ onChange }: { onChange: () => void }) {
     <section className="mt-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-serif text-lg font-bold text-ink">Pedidos de descarga</h2>
-        <span className="text-[11px] text-mute">{abiertos.length} abiertos · {listos} atendidos · los baja el lote nocturno (<code>descargar pedidos</code>) desde IP peruana</span>
+        <span className="text-[11px] text-mute">{abiertos.length} abiertos, {listos} atendidos. Los baja el lote nocturno (<code>descargar pedidos</code>) desde IP peruana</span>
       </div>
       <div className="mt-2 overflow-hidden rounded-2xl border border-line bg-paper">
         <table className="w-full text-sm">
