@@ -116,7 +116,7 @@ export function AuditoriaDeAgentes({
               Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
               {conteo.total === 1 ? "señal" : "señales"} entre {agentesConSenales}{" "}
               {agentesConSenales === 1 ? "agente" : "agentes"}
-              {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Tocá
+              {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca
               uno para ver solo lo suyo.
             </>
           )}

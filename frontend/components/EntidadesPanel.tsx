@@ -227,7 +227,7 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
             </span>
             <div>
               <p className="text-sm font-medium text-ink">Sin resultados para esa búsqueda</p>
-              <p className="mt-0.5 text-xs text-mute">Probá con otro nombre, RUC, región o provincia.</p>
+              <p className="mt-0.5 text-xs text-mute">Prueba con otro nombre, RUC, región o provincia.</p>
             </div>
             {(query.q || tipoActivo !== "todos") && (
               <button

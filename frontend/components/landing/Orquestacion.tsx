@@ -34,9 +34,9 @@ import type { PasoPipeline } from "@/components/agentes/catalogo";
  */
 
 const ENTRADA = [
-  { Icono: Database, t: "Registro OCDS", d: "El contrato tal como lo publicó el Estado" },
-  { Icono: FileStack, t: "El expediente", d: "Bases, actas, contrato y adendas, en PDF" },
-  { Icono: Landmark, t: "14 registros del Estado", d: "Sanciones, visitas, aportes, autoridades" },
+  { Icono: Database, t: "El contrato publicado", d: "Tal como lo dejó el Estado en el SEACE" },
+  { Icono: FileStack, t: "Su expediente", d: "Bases, actas, contrato y adendas" },
+  { Icono: Landmark, t: "14 registros del Estado", d: "Sanciones, visitas, aportes de campaña, autoridades" },
 ];
 
 /** Duración de un turno de la ola que recorre el DAG, en segundos. */
@@ -55,7 +55,6 @@ export interface CarrilDatos {
 export function Orquestacion({
   carriles,
   totalPasos,
-  totalAgentes,
 }: {
   carriles: CarrilDatos[];
   totalPasos: number;
@@ -79,8 +78,8 @@ export function Orquestacion({
 
   return (
     <div className="mt-10">
-      {/* ── Diagrama, sólo desde lg ── */}
-      <div className="hidden items-stretch lg:flex">
+      {/* ── Diagrama, sólo desde xl: a 1024 px las cuatro columnas quedaban de 110 px y cada caja partía su título en tres renglones ── */}
+      <div className="hidden items-stretch xl:flex">
         <Columna titulo="Entra">
           <ul className="flex flex-col justify-center gap-2.5">
             {ENTRADA.map(({ Icono, t, d }) => (
@@ -101,13 +100,13 @@ export function Orquestacion({
           <div className="relative">
             <span aria-hidden className="animate-latidoNodo absolute inset-0 rounded-3xl border border-heroGreen" />
             <div className="relative rounded-3xl border border-heroGreen/50 bg-heroGreen/[0.09] px-4 py-4 text-center">
-              <span className="block font-serif text-lg font-bold text-paper">Orquestador</span>
+              <span className="block font-serif text-lg font-bold text-paper">El coordinador</span>
               <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-wide text-heroGreen">
-                corre en código
+                siempre la misma lista
               </span>
               <p className="mt-2.5 text-[11px] leading-relaxed text-paper/70">
-                Asigna el contrato por antigüedad, lanza los {totalPasos} pasos en el orden fijo y no da el
-                análisis por terminado hasta que todos corrieron.
+                Toma los contratos por orden de llegada, lanza las {totalPasos} revisiones en el mismo orden y no
+                da el análisis por terminado hasta que todas corrieron.
               </p>
             </div>
           </div>
@@ -115,7 +114,7 @@ export function Orquestacion({
 
         <Cable modo="diverge" />
 
-        <Columna titulo="Corre">
+        <Columna titulo="Revisa">
           <ul className="flex flex-col justify-center gap-2.5">
             {botones.map((b, i) => (
               <li key={carriles[i].clave}>{b}</li>
@@ -128,9 +127,9 @@ export function Orquestacion({
         <div className="flex w-[13rem] shrink-0 flex-col justify-center">
           <div className="rounded-3xl border border-paper/15 bg-paper/[0.06] px-4 py-4 text-center">
             <Scale size={18} className="mx-auto text-paper/60" aria-hidden />
-            <span className="mt-2 block font-serif text-lg font-bold text-paper">Dictamen público</span>
+            <span className="mt-2 block font-serif text-lg font-bold text-paper">Informe público</span>
             <p className="mt-1.5 text-[11px] leading-relaxed text-paper/70">
-              Cada señal con su norma citada y la página exacta del documento que la sostiene.
+              Cada señal con la ley que cita y la página exacta del documento que la sostiene.
             </p>
           </div>
         </div>
@@ -139,21 +138,21 @@ export function Orquestacion({
       {/* ── Móvil: el mismo circuito, en vertical ──
              El diagrama horizontal de cuatro columnas es ilegible a 390 px, pero
              esconderlo dejaba al orquestador existiendo sólo como párrafo. ── */}
-      <ol className="lg:hidden">
-        <EslabonMovil titulo="Entra" cuerpo="El registro OCDS, el expediente en PDF y 14 registros del Estado" />
+      <ol className="mx-auto max-w-2xl xl:hidden">
+        <EslabonMovil titulo="Entra" cuerpo="El contrato publicado, su expediente y 14 registros del Estado" />
         <EslabonMovil
-          titulo="Orquestador"
-          cuerpo={`Asigna el contrato por antigüedad y lanza los ${totalPasos} pasos en el orden fijo`}
+          titulo="El coordinador"
+          cuerpo={`Lanza las ${totalPasos} revisiones siempre en el mismo orden, sin saltarse ninguna`}
           destacado
         />
-        <EslabonMovil titulo="Corre" cuerpo="Tres carriles. Tocá uno para ver sus agentes.">
+        <EslabonMovil titulo="Revisa" cuerpo="En tres frentes. Toca uno para ver qué revisa cada parte.">
           <ul className="mt-2.5 space-y-2">
             {botones.map((b, i) => (
               <li key={carriles[i].clave}>{b}</li>
             ))}
           </ul>
         </EslabonMovil>
-        <EslabonMovil titulo="Sale" cuerpo="Dictamen público, cada señal con su norma y su página" ultimo />
+        <EslabonMovil titulo="Sale" cuerpo="Un informe público, cada señal con su ley y su página" ultimo />
       </ol>
 
       {/* ── Lo que se abre ── */}
@@ -162,7 +161,7 @@ export function Orquestacion({
           <DetalleCarril key={activo.clave} carril={activo} />
         ) : (
           <p className="rounded-2xl border border-dashed border-paper/15 px-4 py-5 text-center text-[13px] text-paper/70">
-            Elegí un carril para ver qué agentes lo componen, en qué orden corren y contra qué fuente cotejan.
+            Elige un frente para ver qué revisa, en qué orden y contra qué fuente lo compara.
           </p>
         )}
       </div>
@@ -172,11 +171,10 @@ export function Orquestacion({
       <p className="mt-5 flex max-w-[92ch] items-start gap-2.5 text-[13px] leading-relaxed text-paper/70">
         <ScrollText size={15} className="mt-0.5 shrink-0 text-heroGreen" aria-hidden />
         <span>
-          <strong className="font-semibold text-paper">La primera versión del orquestador era un LLM</strong>{" "}
-          que decidía a qué especialista llamar y en qué orden. Se rendía antes de terminar: daba el análisis
-          por completo con agentes sin correr, y el dictamen salía sin la red de personas sin que nada
-          avisara. Hoy la secuencia corre en código y garantiza que los {totalAgentes} agentes corran
-          siempre. Va a contramano de la moda, y es a propósito.
+          <strong className="font-semibold text-paper">Al principio, una inteligencia artificial decidía qué revisar y en qué orden.</strong>{" "}
+          A veces se rendía antes de terminar y daba el análisis por completo con revisiones sin hacer. Por eso
+          hoy el orden es fijo y no lo decide ningún modelo: las {totalPasos} revisiones corren siempre, en
+          todos los contratos.
         </span>
       </p>
     </div>
@@ -256,7 +254,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
               <span className="flex items-baseline gap-2 font-mono text-[10px] uppercase tracking-wide text-paper/60">
                 Etapa {gi + 1}
                 {grupo.length > 1 && (
-                  <span className="font-sans normal-case tracking-normal">— {grupo.length} en paralelo</span>
+                  <span className="font-sans normal-case tracking-normal">({grupo.length} a la vez)</span>
                 )}
               </span>
               <div className="flex flex-1 flex-col justify-center gap-2">
@@ -274,7 +272,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
 
 const TONO_TIPO = {
   agente: { caja: "border-heroGreen/25 bg-paper/[0.07]", punto: "bg-heroGreen", etiqueta: "Agente de IA" },
-  paso: { caja: "border-paper/12 bg-paper/[0.03]", punto: "bg-paper/45", etiqueta: "Verificación del pipeline" },
+  paso: { caja: "border-paper/12 bg-paper/[0.03]", punto: "bg-paper/45", etiqueta: "Verificación automática" },
 } as const;
 
 function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {

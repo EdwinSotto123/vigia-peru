@@ -219,7 +219,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         {puedeRepetir && (
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-[11px] text-mute">
-              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó — podés repetir cómo ocurrió, agente por agente."}
+              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó — puedes repetir cómo ocurrió, agente por agente."}
             </span>
             <button
               type="button"

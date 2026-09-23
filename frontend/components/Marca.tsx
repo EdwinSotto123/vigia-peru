@@ -59,7 +59,7 @@ export function Marca({
           className={cn(
             "mt-1.5 font-medium uppercase tracking-[0.2em]",
             NOTA[tamano],
-            oscuro ? "text-paper/45" : "text-mute",
+            oscuro ? "text-paper/60" : "text-mute",
           )}
         >
           {nota}

@@ -23,7 +23,6 @@ export function Footer() {
           <div>
             <Link
               href="/"
-              aria-label="Vigía Perú, ir al inicio"
               className="inline-flex rounded-lg transition-opacity duration-rapido hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
             >
               <Marca tono="oscuro" tamano="lg" nota="Infraestructura cívica anticorrupción" />
@@ -69,9 +68,9 @@ export function Footer() {
         {/* Disclaimer + columnas */}
         <div className="mt-12 grid gap-10 border-t border-paper/10 pt-10 lg:grid-cols-[1.4fr,1fr,1fr,1fr]">
           <div>
-            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen-soft/80">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen-soft/80">
               Postura editorial
-            </h4>
+            </h3>
             <p className="mt-3 text-[13px] leading-relaxed text-paper/65">
               <strong className="text-paper/90">No acusamos a nadie.</strong> Detectamos
               señales y publicamos fuentes. La denuncia formal corresponde al
@@ -126,7 +125,7 @@ export function Footer() {
             Antes eran dos cadenas de puntos medios ("Vigía Perú · Licencia MIT ·
             Hecho en Lima"). Son listas: se dibujan como listas, con espacio
             entre ítems, no con una raya de texto plano entre medio. */}
-        <div className="mt-10 flex flex-col gap-3 border-t border-paper/10 pt-5 text-[11px] text-paper/45 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-paper/10 pt-5 text-[11px] text-paper/60 sm:flex-row sm:items-center sm:justify-between">
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <li className="inline-flex items-center gap-1.5">
               <PeruFlag size={16} className="rounded-[2px] ring-1 ring-paper/20" />© {year} Vigía Perú
@@ -150,9 +149,9 @@ export function Footer() {
 function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen-soft/80">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-heroGreen-soft/80">
         {title}
-      </h4>
+      </h3>
       <div className="mt-3 flex flex-col gap-2 text-[13px] text-paper/65 [&>*]:transition-colors [&>*:hover]:text-paper">
         {children}
       </div>

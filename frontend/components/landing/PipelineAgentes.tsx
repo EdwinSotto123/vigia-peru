@@ -58,32 +58,29 @@ export function PipelineAgentes() {
         <div className="absolute bottom-0 right-0 h-[22rem] w-[22rem] rounded-full bg-heroGreen/12 blur-[110px]" />
       </div>
 
-      <div className="container-page relative max-w-[1600px]">
+      <div className="container-page relative max-w-[1400px]">
+        {/* El titular dice qué significa para la persona, no qué tecnología
+            corre. "12 pasos y 10 agentes" era un beneficio para desarrolladores;
+            para un ciudadano, lo que importa es que nada se salta y que, si hay
+            duda, decide una persona. La tecnología queda al pie, como soporte. */}
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-5">
           <div className="min-w-0">
-            <h2 id="agentes-titulo" className="max-w-[18ch] font-serif text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-              Leer un contrato son <span className="text-heroGreen">{TOTAL_PASOS} pasos</span> y{" "}
-              <span className="text-heroGreen">{TOTAL_AGENTES} agentes</span>.
+            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-serif text-4xl font-bold leading-[1.05] sm:text-5xl">
+              Cada contrato pasa por las mismas revisiones.
             </h2>
-            <p className="mt-4 max-w-[62ch] text-[15px] leading-relaxed text-paper/70">
-              Esto es el grafo real, en el orden real. El que se enciende es el que estaría corriendo. Ningún
-              modelo decide ese orden: corre en código, siempre igual, y cada paso deja su rastro en una
-              bitácora pública.
+            <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-paper/70">
+              Siempre en el mismo orden: lee el expediente, compara los precios con el mercado, investiga a la
+              empresa y a las personas detrás, y escribe un informe citando la ley. Si no está seguro de lo que
+              encontró, no lo publica: lo revisa una persona.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <span className="inline-flex items-center gap-2 text-[12px] text-paper/70">
-              <PulseDot color="moss" size={6} />
-              simulación del recorrido
-            </span>
-            <Link
-              href="/app/auditoria"
-              className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-paper/25 px-5 py-3 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
-            >
-              Verlo con un contrato de verdad
-              <ArrowRight size={15} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
-            </Link>
-          </div>
+          <Link
+            href="/app/auditoria"
+            className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-paper/25 px-5 py-3 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
+          >
+            Verlo trabajar ahora
+            <ArrowRight size={15} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
+          </Link>
         </div>
 
         {/* El circuito entero —qué entra, quién reparte, qué sale— y el carril que
@@ -93,9 +90,9 @@ export function PipelineAgentes() {
         <Orquestacion carriles={carriles} totalPasos={TOTAL_PASOS} totalAgentes={TOTAL_AGENTES} />
 
         <p className="mt-6 max-w-[84ch] text-[13px] leading-relaxed text-paper/70">
-          {TOTAL_AGENTES} de esos {TOTAL_PASOS} pasos corren un modelo y emiten señales. Los otros{" "}
-          {TOTAL_PASOS - TOTAL_AGENTES} no opinan: consultan datos o verifican lo que hicieron los demás. La
-          autoevaluación es la última y puede frenar la publicación entera.
+          Por dentro trabajan {TOTAL_AGENTES} agentes de inteligencia artificial, cada uno con una sola tarea, y{" "}
+          {TOTAL_PASOS - TOTAL_AGENTES} verificaciones que no opinan: consultan datos o revisan lo que hicieron los
+          demás. La última es una autoevaluación que puede frenar la publicación entera.
         </p>
       </div>
     </section>

@@ -58,7 +58,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/80 backdrop-blur-xl">
-      <div className={cn("container-page flex h-16 items-center justify-between gap-6", isLanding && "max-w-[1600px]")}>
+      <div className={cn("container-page flex h-16 items-center justify-between gap-6", isLanding && "max-w-[1400px]")}>
         <Link
           href="/"
           aria-label="Vigía Perú, ir al inicio"
@@ -90,7 +90,7 @@ export function Header() {
           {showNav && (
             <Link
               href="/app/financiar"
-              className="hidden items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0 sm:inline-flex"
+              className="hidden items-center gap-1.5 whitespace-nowrap rounded-full bg-heroViolet px-4 py-2 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper active:translate-y-0 sm:inline-flex"
             >
               <Heart size={14} className="fill-paper text-paper" /> Financiar una auditoría
             </Link>
@@ -129,7 +129,7 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-rapido hover:bg-paperSoft hover:text-ink",
+        "relative whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors xl:px-3 duration-rapido hover:bg-paperSoft hover:text-ink",
         // El subrayado crece desde el centro, no desde el borde izquierdo: con
         // `scale-x` sin origen declarado Tailwind usa el centro, pero el origen
         // por defecto del navegador para el resto de la transición no estaba

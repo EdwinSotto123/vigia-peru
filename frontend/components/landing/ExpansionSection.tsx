@@ -23,17 +23,16 @@ const PAISES = [
  */
 export function ExpansionSection() {
   return (
-    <section className="border-y border-line bg-gradient-to-r from-heroGreen/[0.05] via-paperSoft to-heroViolet/[0.05] py-7">
-      <div className="container-page flex max-w-[1600px] flex-wrap items-center justify-between gap-x-10 gap-y-5">
+    <section className="border-t border-line bg-paper py-8">
+      <div className="container-page flex max-w-[1400px] flex-wrap items-center justify-between gap-x-10 gap-y-5">
         <div className="min-w-0 max-w-[58ch]">
-          <h2 className="flex flex-wrap items-baseline gap-x-2.5 font-serif text-xl font-bold leading-tight text-ink sm:text-2xl">
-            <Globe2 size={16} className="shrink-0 translate-y-0.5 text-heroViolet" aria-hidden />
+          <h2 className="font-serif text-xl font-bold leading-tight text-ink sm:text-2xl">
+            <Globe2 size={17} className="mr-2 inline-block -translate-y-0.5 text-heroViolet" aria-hidden />
             Perú es el primero, <span className="text-heroViolet">no el único</span>.
           </h2>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-mute">
-            El estándar OCDS que hace posible Vigía Perú ya lo publican gobiernos en toda la región: el mismo
-            pipeline puede leer sus contratos. La corrupción no respeta fronteras, la vigilancia tampoco
-            debería.
+          <p className="mt-1.5 text-[14px] leading-relaxed text-inkSoft">
+            El Perú publica sus contratos en un formato abierto (OCDS) que también usan otros gobiernos de la
+            región. Por eso Vigía podría leer los suyos con las mismas revisiones.
           </p>
         </div>
 

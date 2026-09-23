@@ -47,8 +47,8 @@ const FAMILIAS: Familia[] = [
     bajada: "El origen de todo: convocatorias, montos, entidades, fechas y postores.",
     fuentes: [
       {
-        nombre: "SEACE / OECE, API de datos abiertos",
-        aporta: "Estándar OCDS. Es de donde sale cada contrato que ves en el mapa.",
+        nombre: "SEACE / OECE, contrataciones abiertas",
+        aporta: "Cada contrato que el Estado publica. De aquí sale todo lo que ves en el mapa.",
         url: "https://contratacionesabiertas.oece.gob.pe/",
         cada: "cada noche",
       },
@@ -58,7 +58,7 @@ const FAMILIAS: Familia[] = [
     clave: "registros",
     Icono: ScrollText,
     titulo: "Los registros del Estado",
-    bajada: "Ocho canales de ingesta que se actualizan solos, con su propio calendario.",
+    bajada: "Ocho registros públicos que se actualizan solos, cada uno con su propio calendario.",
     fuentes: [
       { nombre: "Proveedores sancionados (OECE)", aporta: "Quién está inhabilitado para contratar, y hasta cuándo.", url: "https://www.datosabiertos.gob.pe", cada: "cada mes" },
       { nombre: "Registro de visitas", aporta: "Quién entró a qué entidad pública y a ver a quién.", url: "https://visitas.servicios.gob.pe/consultas", cada: "días 1 y 15" },
@@ -89,9 +89,9 @@ const FAMILIAS: Familia[] = [
     bajada: "Lo único que no es un registro público, y por eso se declara distinto.",
     fuentes: [
       {
-        nombre: "Búsqueda de precios en vivo",
+        nombre: "Búsqueda de precios al momento",
         aporta:
-          "Precios reales peruanos para los ítems del contrato. Cuando no aparecen suficientes, el veredicto se marca como estimación — nunca se disfraza de medición.",
+          "Precios reales peruanos para los ítems del contrato. Cuando no aparecen suficientes, el veredicto se marca como estimación y nunca se disfraza de medición.",
       },
     ],
   },
@@ -104,31 +104,31 @@ export function FuentesSection() {
     <section
       id="fuentes"
       aria-labelledby="fuentes-titulo"
-      className="scroll-mt-20 border-b border-line bg-paperSoft py-14 sm:py-16"
+      className="scroll-mt-16 bg-paperSoft py-20 sm:py-24"
     >
-      <div className="container-page max-w-[1600px]">
+      <div className="container-page max-w-[1400px]">
         {/* La advertencia de "cuando una fuente no responde" va acá arriba, al
             lado del titular, y no al pie: al pie llenaba un renglón suelto y
             dejaba medio ancho de la sección en blanco, y además es parte de la
             promesa, no una nota. */}
         <div className="grid gap-x-12 gap-y-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end">
           <div>
-            <h2 id="fuentes-titulo" className="font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
-              Nada de lo que Vigía afirma sale del modelo.{" "}
-              <em className="text-heroGreenTexto not-italic">Sale de {TOTAL_FUENTES} fuentes que puedes abrir.</em>
+            <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
+              Vigía no inventa nada.{" "}
+              <span className="text-heroGreenTexto">Todo sale de {TOTAL_FUENTES} fuentes públicas que puedes abrir.</span>
             </h2>
-            <p className="mt-3 max-w-[68ch] text-[15px] leading-relaxed text-inkSoft">
+            <p className="mt-4 max-w-[68ch] text-base leading-relaxed text-inkSoft">
               Si una señal dice que el gerente del proveedor aportó a la campaña del alcalde, hay un registro
               de ONPE detrás. Si dice que el requisito direcciona, hay un artículo de ley citado y la página
               exacta del documento donde está. <strong className="font-semibold text-ink">Todas se bajan
-              solas</strong>: el lote de contratos corre cada noche y cada registro del Estado tiene su propio
-              calendario, marcado abajo.
+              solas</strong>: los contratos nuevos se descargan cada noche y cada registro del Estado tiene su
+              propio calendario, marcado abajo.
             </p>
           </div>
           <p className="flex items-start gap-2.5 rounded-2xl border border-heroGreen/25 bg-heroGreen-soft/50 px-4 py-3.5 text-[13px] leading-relaxed text-inkSoft">
             <ArrowUpRight size={15} className="mt-0.5 shrink-0 text-heroGreenTexto" aria-hidden />
             <span>
-              <strong className="font-semibold text-ink">Cuando una fuente no responde, la interfaz lo dice.</strong>{" "}
+              <strong className="font-semibold text-ink">Cuando una fuente no responde, la página lo dice.</strong>{" "}
               No se rellena el hueco con un valor plausible: un dato inventado en una herramienta
               anticorrupción vale lo mismo que una acusación inventada.
             </span>

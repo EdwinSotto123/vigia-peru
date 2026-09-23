@@ -1,67 +1,74 @@
-import Link from "next/link";
-import { Code2, Lock, ShieldCheck, Sparkles, Server, Database, Activity, ArrowUpRight } from "lucide-react";
-import { BlurFade } from "@/components/magicui/BlurFade";
+import { ArrowUpRight, Code2, FileSearch, ShieldCheck, UserCheck } from "lucide-react";
 
-const COMPROMISOS = [
-  { icon: Code2, t: "100 % open source", d: "Todo el código en GitHub. Una herramienta anticorrupción cerrada sería una contradicción.", href: "https://github.com/EdwinSotto123/vigia-peru" },
-  { icon: Lock, t: "Sin conflictos de interés", d: "Ni Estado, ni partidos, ni empresas que contratan con él. Quien financia no elige ni edita resultados." },
-  { icon: ShieldCheck, t: "No acusamos", d: "Señales de riesgo con norma, opinión OECE y fuente oficial. Denunciar formalmente es tarea de Fiscalía, Contraloría y prensa." },
-  { icon: Activity, t: "Auditable por dentro", d: "Cada análisis deja su traza completa (llamadas, costo, latencia) en Arize/Phoenix y un servidor MCP público expone los datos." },
-];
+/**
+ * Por qué creerle.
+ *
+ * Antes esta sección tenía un recuadro de "Cuentas claras del mes pasado" con
+ * tres costos y un total (S/ 845) que no salían de ningún lado, y se presentaba
+ * como "organización sin fines de lucro" sin un registro que lo respaldara. En
+ * una herramienta que le exige evidencia al Estado, eso no puede estar. Lo que
+ * cuesta leer un contrato ya está, con su desglose real, en la sección de
+ * aliados.
+ *
+ * Quedan cuatro compromisos, cada uno verificable desde la propia plataforma:
+ * el código es público, las señales citan la ley y la fuente, cada análisis deja
+ * su bitácora, y lo dudoso no se publica sin que lo mire una persona (la cifra
+ * de lo que está en revisión llega del API; sin ella, la frase no la inventa).
+ */
+export function ConfianzaSection({ enRevision }: { enRevision: number | null }) {
+  const compromisos = [
+    {
+      Icono: ShieldCheck,
+      t: "Señala, no acusa.",
+      d: "Cada señal viene con la ley que la sustenta y el documento oficial de donde sale. Investigar y denunciar formalmente le toca a Fiscalía, Contraloría y la prensa.",
+    },
+    {
+      Icono: UserCheck,
+      t: "Si duda, lo revisa una persona.",
+      d:
+        enRevision != null && enRevision > 0
+          ? `Cuando el análisis no está seguro de lo que encontró, no se publica solo: queda en revisión humana. Hoy hay ${enRevision.toLocaleString("es-PE")} ${enRevision === 1 ? "contrato" : "contratos"} en esa fila.`
+          : "Cuando el análisis no está seguro de lo que encontró, no se publica solo: queda en revisión humana.",
+    },
+    {
+      Icono: FileSearch,
+      t: "Todo queda registrado.",
+      d: "Cada análisis deja una bitácora pública, paso por paso: qué leyó, qué consultó y qué concluyó. Se puede volver a ver cuando quieras.",
+    },
+    {
+      Icono: Code2,
+      t: "El código es público.",
+      d: "Cualquiera puede revisar cómo funciona por dentro. Una herramienta de transparencia cerrada sería una contradicción.",
+      href: "https://github.com/EdwinSotto123/vigia-peru",
+    },
+  ];
 
-const COSTOS = [
-  { icon: Sparkles, l: "Gemini 2.5 (Vertex AI)", d: "~S/ 1 por contrato", m: "S/ 412" },
-  { icon: Server, l: "Cloud Run + Cloud SQL", d: "orquestador, API, base", m: "S/ 285" },
-  { icon: Database, l: "APIs externas", d: "SUNAT + Google Search", m: "S/ 148" },
-];
-
-/** "Quiénes somos" + "Plataforma" + "Cuentas claras" en una sola sección. */
-export function ConfianzaSection() {
   return (
-    <section id="organizacion" className="relative overflow-hidden scroll-mt-20 border-y border-line bg-gradient-to-br from-heroViolet/[0.05] via-paperDeep to-heroGreen/[0.04] py-16">
-      <div className="container-page grid max-w-[1600px] gap-10 lg:grid-cols-[1.2fr_0.8fr]">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-heroViolet">Organización sin fines de lucro</span>
-          <h2 className="mt-2 font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
-            Construido para no <span className="text-heroViolet">depender de nadie</span>.
-          </h2>
-          <ul className="mt-7 grid gap-3 sm:grid-cols-2">
-            {COMPROMISOS.map(({ icon: Icon, t, d, href }, i) => (
-              <BlurFade key={t} as="li" delayMs={i * 70} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
-                <div className="flex items-center gap-2 text-ink"><Icon size={15} className="text-heroGreen" /><span className="font-semibold">{t}</span></div>
-                <p className="mt-1 text-[13px] leading-relaxed text-mute">{d}</p>
-                {href && (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-heroGreenTexto hover:underline">
-                    Ver el código <ArrowUpRight size={11} />
-                  </a>
-                )}
-              </BlurFade>
-            ))}
-          </ul>
-        </div>
-        <BlurFade as="div" delayMs={150} className="rounded-3xl border border-line bg-paper p-5 shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-heroViolet">Cuentas claras del mes pasado</span>
-            <span className="font-mono text-[11px] text-mute">25 regiones</span>
-          </div>
-          <ul className="mt-3 divide-y divide-line">
-            {COSTOS.map(({ icon: Icon, l, d, m }) => (
-              <li key={l} className="flex flex-col items-start gap-0.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="flex items-center gap-2 text-ink"><Icon size={13} className="text-mute" />{l}<span className="ml-1 text-[11px] text-mute">{d}</span></span>
-                <span className="font-mono text-ink">{m}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-heroViolet-deep px-4 py-3.5 text-paper">
-            {/* heroGreenTexto es el verde CORREGIDO PARA FONDO CLARO; acá el fondo es
-                heroViolet-deep y daba 2.15:1. Sobre oscuro hay que ir al otro
-                extremo de la escala: heroGreen-soft llega a ~11:1 y sigue leyéndose
-                verde. */}
-            <div><div className="text-[10px] font-bold uppercase tracking-wide text-heroGreen-soft">Total mensual</div><div className="text-[11px] text-paper/60">Desarrollo ad honorem, y 17 aliados de S/ 50 lo cubren</div></div>
-            <div className="font-mono text-2xl font-bold text-heroGreen">S/ 845</div>
-          </div>
-          <Link href="/preguntas#cuentas" className="mt-3 block text-center text-[12px] text-mute underline-offset-2 hover:underline">Ver el balance público y el código →</Link>
-        </BlurFade>
+    <section id="organizacion" aria-labelledby="confianza-titulo" className="scroll-mt-16 border-t border-line bg-paperSoft py-20 sm:py-24">
+      <div className="container-page grid max-w-[1400px] gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
+        <h2 id="confianza-titulo" className="max-w-[16ch] font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
+          Hecho para que no tengas que creerle a nadie.
+        </h2>
+        <ul className="grid gap-x-10 gap-y-9 sm:grid-cols-2">
+          {compromisos.map(({ Icono, t, d, href }) => (
+            <li key={t} className="border-t border-line pt-5">
+              <Icono size={20} className="text-heroViolet" aria-hidden />
+              <h3 className="mt-3 text-lg font-semibold text-ink">{t}</h3>
+              <p className="mt-1.5 text-[15px] leading-relaxed text-inkSoft">{d}</p>
+              {href && (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-[14px] font-semibold text-heroViolet underline-offset-4 hover:underline"
+                >
+                  Ver el código <ArrowUpRight size={13} aria-hidden />
+                  <span className="sr-only">(se abre en una pestaña nueva)</span>
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

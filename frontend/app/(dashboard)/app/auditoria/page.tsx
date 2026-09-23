@@ -23,7 +23,7 @@ export const metadata = {
   // El recuento sale del catálogo, nunca de una cadena escrita a mano: el producto llegó a
   // afirmar cinco números distintos de agentes en páginas que el mismo usuario visita seguidas.
   description:
-    `Mirá en tiempo real cómo cada contrato público financiado pasa de la cola al análisis de ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, y al dictamen con señales de riesgo.`,
+    `Mira en tiempo real cómo cada contrato público financiado pasa de la cola al análisis de ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, y al dictamen con señales de riesgo.`,
 };
 
 export const revalidate = 10;

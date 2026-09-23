@@ -383,12 +383,12 @@ function Invitacion({ totalVisible, nombreRegion }: { totalVisible: number; nomb
       </h3>
       <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-mute">
         <li>
-          <span className="font-mono text-inkSoft">1.</span> Elegís una región y cuántos contratos querés que
+          <span className="font-mono text-inkSoft">1.</span> Eliges una región y cuántos contratos quieres que
           se lean. S/ 3 cada uno, que es lo que cuesta procesarlo.
         </li>
         <li>
           <span className="font-mono text-inkSoft">2.</span> Los contratos concretos los saca la cola por
-          antigüedad. No los elegís vos, ni los elige Vigía Perú.
+          antigüedad. No los eliges tú, ni los elige Vigía Perú.
         </li>
         <li>
           <span className="font-mono text-inkSoft">3.</span> Cuando cada uno termina de leerse, su dictamen se
