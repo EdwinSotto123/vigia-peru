@@ -9,6 +9,7 @@
  */
 
 import type { Alerta, ReporteCiudadano } from "@/types";
+import { esAlertaDemo, esAlertaReal, esConvergenciaReal, esReporteReal } from "./semillas";
 
 export const API_BASE =
   process.env.VIGIA_API_URL ??
@@ -92,7 +93,8 @@ export async function getAlertas(params: {
     if (v != null) qs.set(k, String(v));
   }
   const r = await get<{ data: ApiAlerta[] }>(`/alertas?${qs}`);
-  return r.data;
+  // Nunca las alertas de demo sembradas en la base (ver lib/semillas.ts).
+  return r.data.filter(esAlertaReal);
 }
 
 /** Página completa (con `total`) para /app/alertas — a diferencia de `getAlertas`, que
@@ -115,12 +117,17 @@ export async function getAlertasPagina(params: {
   for (const [k, v] of Object.entries(params)) {
     if (v != null) qs.set(k, String(v));
   }
-  return get<ApiAlertasPagina>(`/alertas?${qs}`);
+  const r = await get<ApiAlertasPagina>(`/alertas?${qs}`);
+  const reales = r.data.filter(esAlertaReal);
+  // El total del backend las cuenta; se descuentan las de esta página. Es una
+  // aproximación hasta que se borren de la base (lib/semillas.ts).
+  return { ...r, data: reales, total: Math.max(0, r.total - (r.data.length - reales.length)) };
 }
 
 export async function getAlerta(id: string): Promise<ApiAlerta | null> {
   try {
-    return await get<ApiAlerta>(`/alertas/${encodeURIComponent(id)}`);
+    const a = await get<ApiAlerta>(`/alertas/${encodeURIComponent(id)}`);
+    return a && esAlertaDemo(a) ? null : a;
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
@@ -281,7 +288,7 @@ export async function getReportes(params: {
     if (v != null) qs.set(k, String(v));
   }
   const r = await get<{ data: ApiReporte[] }>(`/reportes?${qs}`);
-  return r.data;
+  return r.data.filter(esReporteReal);
 }
 
 export interface ReportesPagina {
@@ -310,12 +317,14 @@ export async function getReportesPagina(params: {
   for (const [k, v] of Object.entries(params)) {
     if (v != null) qs.set(k, String(v));
   }
-  return get<ReportesPagina>(`/reportes?${qs}`);
+  const r = await get<ReportesPagina>(`/reportes?${qs}`);
+  const reales = r.data.filter(esReporteReal);
+  return { ...r, data: reales, total: Math.max(0, r.total - (r.data.length - reales.length)) };
 }
 
 export async function getConvergencias(): Promise<ApiConvergencia[]> {
   const r = await get<{ data: ApiConvergencia[] }>(`/reportes/convergencias`);
-  return r.data;
+  return r.data.filter(esConvergenciaReal);
 }
 
 /**
@@ -324,6 +333,7 @@ export async function getConvergencias(): Promise<ApiConvergencia[]> {
  * eso acá se normaliza a mano en vez de castear directo a ApiReporte.
  */
 export async function getReporte(id: string): Promise<ApiReporte | null> {
+  if (!esReporteReal({ id })) return null;
   try {
     const row = await get<Record<string, any>>(`/reportes/${encodeURIComponent(id)}`);
     return {

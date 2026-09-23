@@ -5,6 +5,10 @@ const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
+    // Los mapas de estado y severidad (lib/auditoria, lib/contratos, lib/admin…)
+    // arman clases de color. Sin esta línea Tailwind no las generaba y las
+    // píldoras "Procesando", "En revisión" o "Media" salían en tinta plana.
+    "./lib/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {

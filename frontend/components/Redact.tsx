@@ -65,27 +65,63 @@ export function Dni({ value }: { value?: string | number | null }) {
   return <Glass label="DNI — clic para revelar">{v}</Glass>;
 }
 
-// Nombre completo: muestra todo MENOS el último apellido (último token), que va en vidrio.
+/**
+ * En qué orden viene un nombre, porque de eso depende qué palabra es el apellido
+ * que se tapa:
+ *  - "nombres-primero" (JOSÉ MANUEL SARA QUISPE): el apellido materno es la
+ *    ÚLTIMA palabra.
+ *  - "sunat" (CARPIO COBOS ABEL, el orden del RUC y del RNP): los apellidos van
+ *    PRIMERO, y el materno es la SEGUNDA palabra. Tapar la última acá dejaba los
+ *    dos apellidos a la vista y escondía el nombre de pila.
+ */
+export type OrdenNombre = "nombres-primero" | "sunat";
+
+/** Índice de la palabra que se tapa, según el orden del nombre. */
+function indiceApellido(partes: string[], orden: OrdenNombre): number {
+  if (orden === "sunat") return partes.length >= 3 ? 1 : 0;
+  return partes.length - 1;
+}
+
+// Nombre completo: muestra todo MENOS un apellido, que va en vidrio (ver `OrdenNombre`).
 // Funcionarios públicos electos/designados pueden mostrarse sin censura → usar `public`.
 export function PersonName({
   name,
   isPublic = false,
+  orden = "nombres-primero",
 }: {
   name?: string | null;
   isPublic?: boolean;
+  orden?: OrdenNombre;
 }) {
   const n = (name || "").trim();
   if (!n) return null;
   if (isPublic) return <>{n}</>;
   const parts = n.split(/\s+/);
   if (parts.length < 2) return <>{n}</>;
-  const last = parts[parts.length - 1];
-  const head = parts.slice(0, -1).join(" ");
+  const k = indiceApellido(parts, orden);
   return (
     <>
-      {head} <Glass label="Apellido — clic para revelar">{last}</Glass>
+      {parts.slice(0, k).join(" ")}
+      {k > 0 ? " " : ""}
+      <Glass label="Apellido, clic para revelar">{parts[k]}</Glass>
+      {k < parts.length - 1 ? " " : ""}
+      {parts.slice(k + 1).join(" ")}
     </>
   );
+}
+
+/**
+ * Un RUC que empieza con 10 es de una persona natural con negocio, y sus dígitos
+ * 3 a 10 son su DNI. Mostrarlo en claro es mostrar el DNI.
+ */
+export const esPersonaNatural = (ruc?: string | number | null) => !!ruc && /^10\d{9}$/.test(String(ruc).trim());
+
+/** Un RUC: de empresa, tal cual; de persona natural, en vidrio (lleva el DNI adentro). */
+export function Ruc({ value }: { value?: string | number | null }) {
+  const v = value == null ? "" : String(value).trim();
+  if (!v) return null;
+  if (!esPersonaNatural(v)) return <>{v}</>;
+  return <Glass label="RUC de persona natural (contiene su DNI), clic para revelar">{v}</Glass>;
 }
 
 // Diccionario de nombres de personas PRIVADAS conocidas (del análisis estructurado)
@@ -93,25 +129,44 @@ export function PersonName({
 // dictamen). Se puebla con setRedactNames() en el render del dossier. Confiable porque
 // matchea nombres CONOCIDOS, no adivina con NER. Los funcionarios ELECTOS no se incluyen.
 let _names: string[] = [];
+/** Nombres (en minúsculas) que vienen en orden SUNAT: se les tapa la segunda palabra. */
+let _sunat = new Set<string>();
 const _esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export function setRedactNames(names: Array<string | null | undefined>) {
-  _names = Array.from(
-    new Set(
-      (names || [])
-        .map((n) => String(n || "").trim())
-        .filter((n) => n.split(/\s+/).filter(Boolean).length >= 2),
-    ),
-  ).sort((a, b) => b.length - a.length); // más largo primero → evita match parcial
+type NombreConocido = string | null | undefined | { nombre: string | null | undefined; orden: OrdenNombre };
+
+/**
+ * Registra los nombres de personas PRIVADAS que se van a tapar en el texto
+ * libre. Un nombre en orden SUNAT (proveedor persona natural, postor del RNP)
+ * se pasa como `{ nombre, orden: "sunat" }` para que se tape su apellido
+ * materno y no su nombre de pila.
+ */
+export function setRedactNames(names: NombreConocido[]) {
+  const sunat = new Set<string>();
+  const todos = (names || []).map((n) => {
+    if (n && typeof n === "object") {
+      const nombre = String(n.nombre || "").trim();
+      if (n.orden === "sunat" && nombre) sunat.add(nombre.toLowerCase());
+      return nombre;
+    }
+    return String(n || "").trim();
+  });
+  _sunat = sunat;
+  _names = Array.from(new Set(todos.filter((n) => n.split(/\s+/).filter(Boolean).length >= 2))).sort(
+    (a, b) => b.length - a.length,
+  ); // más largo primero → evita match parcial
 }
 
-// Redacta DNIs y NOMBRES conocidos embebidos en TEXTO LIBRE (evidencia, síntesis,
-// dictamen) → nodos React: DNI en vidrio; del nombre se vidria el ÚLTIMO token
-// (consistente con PersonName en las tarjetas). No-op si no hay nada que redactar.
+// Redacta DNIs, RUC de persona natural y NOMBRES conocidos embebidos en TEXTO
+// LIBRE (evidencia, síntesis, dictamen) → nodos React en vidrio. Del nombre se
+// tapa el apellido que corresponde a su orden (ver `OrdenNombre`), consistente con
+// PersonName en las tarjetas. No-op si no hay nada que redactar.
 export function redactDnis(text: any): React.ReactNode {
   if (typeof text !== "string" || !text) return text;
   const namePart = _names.length ? _names.map(_esc).join("|") + "|" : "";
-  const re = new RegExp("(" + namePart + "\\b\\d{8}\\b)", "gi");
+  // Un RUC 10 (11 dígitos) lleva el DNI adentro y va entero en vidrio. El DNI
+  // suelto son 8 dígitos con límite de palabra: no matchea dentro de un RUC 20.
+  const re = new RegExp("(" + namePart + "\\b10\\d{9}\\b|\\b\\d{8}\\b)", "gi");
   if (!re.test(text)) return text;
   re.lastIndex = 0;
   const out: React.ReactNode[] = [];
@@ -121,14 +176,18 @@ export function redactDnis(text: any): React.ReactNode {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index));
     const tok = m[0];
-    if (/^\d{8}$/.test(tok)) {
-      out.push(<Glass key={`r${i++}`} label="DNI — clic para revelar">{tok}</Glass>);
+    if (/^10\d{9}$/.test(tok)) {
+      out.push(
+        <Glass key={`r${i++}`} label="RUC de persona natural (contiene su DNI), clic para revelar">
+          {tok}
+        </Glass>,
+      );
+    } else if (/^\d{8}$/.test(tok)) {
+      out.push(<Glass key={`r${i++}`} label="DNI, clic para revelar">{tok}</Glass>);
     } else {
-      const tk = tok.split(/\s+/);
       out.push(
         <span key={`r${i++}`}>
-          {tk.slice(0, -1).join(" ")}{" "}
-          <Glass label="Apellido — clic para revelar">{tk[tk.length - 1]}</Glass>
+          <PersonName name={tok} orden={_sunat.has(tok.toLowerCase()) ? "sunat" : "nombres-primero"} />
         </span>,
       );
     }
@@ -147,7 +206,7 @@ export function redactChildren(children: React.ReactNode): React.ReactNode {
 // Para etiquetas dibujadas en CANVAS (grafo), donde no hay clic-para-revelar:
 // enmascara los DNIs de un string (sin reveal).
 export function maskDnis(text?: string | null): string {
-  return (text || "").replace(DNI_RE, "••••••••");
+  return (text || "").replace(/\b10\d{9}\b/g, "10•••••••••").replace(DNI_RE, "••••••••");
 }
 
 // Enmascara el ÚLTIMO apellido de un nombre para etiquetas de CANVAS (grafo):

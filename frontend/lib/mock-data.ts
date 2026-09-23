@@ -486,15 +486,5 @@ export const RESUMEN_REGIONES = [
   { region: "Piura", alertas: 1, reportes: 0, monto: 6700000 },
 ];
 
-export function formatSoles(n: number): string {
-  if (n >= 1_000_000_000) return `S/ ${(n / 1_000_000_000).toFixed(2)} B`;
-  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toFixed(2)} M`;
-  if (n >= 1_000) return `S/ ${(n / 1_000).toFixed(0)} K`;
-  return `S/ ${n}`;
-}
-
-export function severidadColor(s: "alta" | "media" | "baja"): string {
-  if (s === "alta") return "text-crimson bg-crimson-soft border-crimson/20";
-  if (s === "media") return "text-amber bg-amber-soft border-amber/20";
-  return "text-mute bg-line border-mute/20";
-}
+// Viven en lib/formato.ts; se re-exportan para no romper imports viejos.
+export { formatSoles, severidadColor } from "./formato";

@@ -7,6 +7,8 @@
  * revienta sólo en producción, y este repositorio ya se comió ese bug dos veces.
  */
 
+import { esAlertaReal } from "./semillas";
+
 export interface BanderaReal {
   regla: string;
   severidad: string;
@@ -54,7 +56,7 @@ export interface CasoPortada {
  * de pines). La portada vivía mostrándolas en el ticker, y si la API caía,
  * mostraba `ALERTAS_MOCK` entero sin avisar. Acá se filtran siempre.
  */
-export const esAlertaReal = (a: { codigo?: string | null }) => !!a.codigo && !/^ALT-/i.test(a.codigo);
+export { esAlertaReal };
 
 const PESO_SEVERIDAD: Record<string, number> = { alta: 3, media: 2, baja: 1 };
 
