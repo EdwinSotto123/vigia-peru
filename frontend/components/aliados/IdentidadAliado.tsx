@@ -64,11 +64,17 @@ export function IdentidadAliado({
   datos,
   className,
   tam = "md",
+  tono = "claro",
   as: Tag = "ul",
 }: {
   datos: DatoIdentidad[];
   className?: string;
   tam?: keyof typeof TAM_DATO;
+  /**
+   * `oscuro` para el muro de honor de la portada: `text-mute` está calibrado
+   * para papel y sobre violeta profundo cae por debajo del mínimo AA.
+   */
+  tono?: "claro" | "oscuro";
   /**
    * `div`/`span` cuando el padre ya es una lista, o cuando está dentro de un
    * elemento en línea y un `ul` anidado sería HTML inválido.
@@ -77,13 +83,18 @@ export function IdentidadAliado({
 }) {
   const t = TAM_DATO[tam];
   const Item = Tag === "ul" ? "li" : "span";
+  const oscuro = tono === "oscuro";
   return (
     <Tag className={cn("flex flex-wrap items-center gap-x-3.5 gap-y-1.5", t.texto, className)}>
       {datos.map((d, i) => {
         const Icono = ICONO[d.icono];
         return (
-          <Item key={i} className="inline-flex min-w-0 items-center gap-1.5 text-mute" title={d.titulo}>
-            <Icono size={t.icono} className="shrink-0 text-mute/70" aria-hidden />
+          <Item
+            key={i}
+            className={cn("inline-flex min-w-0 items-center gap-1.5", oscuro ? "text-paper/75" : "text-mute")}
+            title={d.titulo}
+          >
+            <Icono size={t.icono} className={cn("shrink-0", oscuro ? "text-paper/55" : "text-mute/70")} aria-hidden />
             <span className="truncate">{d.texto}</span>
           </Item>
         );
