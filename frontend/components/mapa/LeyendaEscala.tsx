@@ -27,20 +27,26 @@ export function LeyendaEscala({
 }: {
   escala: Escala;
   medida: Medida;
-  /** "25 departamentos" · "20 provincias de Áncash": sobre qué se calcularon los cortes. */
+  /** "los 25 departamentos", "las 20 provincias de Áncash": sobre qué se calcularon los cortes. */
   ambito: string;
   /** Con un departamento abierto también hay puntos por distrito: se explican aparte. */
   conPines?: boolean;
   cargando?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+    // La ayuda va al costado y no en una fila propia: en 390 px esa fila sola
+    // empujaba el mapa 40 px más abajo.
+    <div className="flex items-start justify-between gap-x-3 sm:items-end sm:justify-start sm:gap-x-5">
       <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
           <span className="font-medium text-inkSoft">{medida.titulo}</span>
-          <span>
-            {escala.tramos.length} escalon{escala.tramos.length === 1 ? "" : "es"} por cuantil sobre {ambito}
-          </span>
+          {cargando ? (
+            <span className="inline-block h-3 w-40 animate-pulse rounded bg-paperEdge" aria-hidden />
+          ) : escala.tramos.length > 1 ? (
+            <span>
+              {escala.tramos.length} tonos, de menos a más, sobre {ambito}
+            </span>
+          ) : null}
         </div>
 
         {cargando ? (
@@ -64,11 +70,11 @@ export function LeyendaEscala({
           // entran en dos filas y —lo que más importa— quedan alineados en
           // columna, que es lo que permite comparar un corte con el siguiente de
           // un vistazo en vez de leerlos uno por uno.
-          <ul className="grid w-fit grid-cols-3 gap-x-5 gap-y-1">
+          <ul className="grid w-fit grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3 sm:gap-x-5">
             {escala.tramos.map((t, i) => (
               <li
                 key={t.color + i}
-                className="inline-flex items-center gap-1.5 text-[11px] text-mute"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] text-mute"
                 title={`De ${medida.formato(t.desde)} a ${medida.formato(t.hasta)}`}
               >
                 <span className="inline-block h-3 w-5 shrink-0 rounded-sm" style={{ background: t.color }} />
@@ -87,7 +93,7 @@ export function LeyendaEscala({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
         <Popover
           titulo={medida.titulo}
           anchoClase="w-80"
@@ -101,12 +107,13 @@ export function LeyendaEscala({
         >
           <p>{medida.ayuda}</p>
           <p className="mt-2 text-mute">
-            Los cortes se calculan por cuantiles sobre {ambito}: cada tono agrupa aproximadamente la misma cantidad de
-            zonas. Con una escala lineal, Lima —que sola concentra casi un tercio de lo contratado— mandaba a 21 de los
-            25 departamentos al mismo escalón y el mapa se veía de un solo color.
+            Los cortes reparten {ambito} en grupos de tamaño parecido: cada tono junta más o menos la misma cantidad de
+            zonas. Con cortes parejos, Lima, que sola concentra casi un tercio de lo contratado, dejaba a 21 de los 25
+            departamentos en el mismo tono y el mapa se veía de un solo color.
           </p>
           <p className="mt-2 text-mute">
-            Rayado = la API no devolvió esa zona. Es distinto de cero: cero sí es un dato.
+            Rayado = todavía no tenemos la cifra de esa zona (está cargando o el servicio no respondió). Es distinto de
+            cero: cero sí es un dato.
           </p>
         </Popover>
 

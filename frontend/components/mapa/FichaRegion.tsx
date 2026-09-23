@@ -35,8 +35,12 @@ export function FichaRegion({
   ancla: DOMRect | null;
   titulo: string;
   contexto?: string;
-  /** Las cifras que deciden. `de` es el denominador y va en la misma línea. */
-  filas: { etiqueta: string; valor: string; de?: string; tono?: string }[];
+  /**
+   * Las cifras que deciden. `detalle` va en la misma línea y es la frase
+   * completa ("de 1.586 ingresados"): el conector lo escribe quien arma la
+   * fila, porque no toda cifra tiene un denominador.
+   */
+  filas: { etiqueta: string; valor: string; detalle?: string; tono?: string }[];
   /* `tono` sólo acepta clases que pasen 4,5:1 sobre `paper`: text-ink, text-rust
      (7,34) o text-moss (4,97). `text-amberTexto` da 3,47 y `text-clayTexto` 4,20: no. */
   pie?: string;
@@ -116,7 +120,7 @@ export function FichaRegion({
               <span className={cn("font-mono text-[13px] font-semibold tabular-nums", f.tono ?? "text-ink")}>
                 {f.valor}
               </span>
-              {f.de && <span className="ml-1 text-[11px] text-mute">de {f.de}</span>}
+              {f.detalle && <span className="ml-1 text-[11px] text-mute">{f.detalle}</span>}
             </dd>
           </div>
         ))}

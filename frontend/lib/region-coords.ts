@@ -1,7 +1,11 @@
 /**
  * Centroides aproximados de los 24 departamentos + Lima Provincia del Perú.
- * Coords en formato (lat, lon) WGS84. Usados para posicionar pines de alertas
- * cuando la convocatoria no trae lat/lon explícito.
+ * Coords en formato (lat, lon) WGS84.
+ *
+ * El mapa YA NO los usa para ubicar señales: `/alertas` trae la provincia en
+ * `region`, y los puntos se anclan al centroide de ese polígono del geojson
+ * (ver `components/mapa/region-match.ts`). El desplazamiento "determinista" de
+ * hasta 33 km que se aplicaba acá inventaba posiciones y dejaba puntos en el mar.
  *
  * Fuente: aproximaciones de capital regional, suficiente para visualización.
  */
@@ -73,22 +77,4 @@ export function coordsForRegion(regionName: string | null | undefined): { lat: n
     }
   }
   return null;
-}
-
-/**
- * Aplica un jitter determinista basado en el id para evitar que múltiples
- * alertas en la misma región queden apiladas en el mismo punto.
- */
-export function coordsForRegionWithJitter(
-  regionName: string | null | undefined,
-  id: string,
-): { lat: number; lon: number } | null {
-  const base = coordsForRegion(regionName);
-  if (!base) return null;
-  // Hash simple del id → offset entre -0.3° y +0.3° (~33km)
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
-  const dx = ((h & 0xff) / 255 - 0.5) * 0.6;
-  const dy = (((h >> 8) & 0xff) / 255 - 0.5) * 0.6;
-  return { lat: base.lat + dy, lon: base.lon + dx };
 }

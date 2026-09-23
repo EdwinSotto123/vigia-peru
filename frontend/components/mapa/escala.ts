@@ -57,7 +57,7 @@ export const MEDIDAS: Medida[] = [
     id: "contratos",
     label: "Contratos",
     titulo: "Contratos ingresados",
-    ayuda: "Expedientes descargados de la API OCDS del OECE, sin importar su estado.",
+    ayuda: "Expedientes descargados de la plataforma de contrataciones abiertas del OECE, sin importar su estado.",
     valor: (z) => z.total ?? 0,
     formato: enteros,
     sustantivo: (n) => `${enteros(n)} contrato${n === 1 ? "" : "s"} ingresados`,
@@ -75,7 +75,7 @@ export const MEDIDAS: Medida[] = [
     id: "leidos",
     label: "Leídos",
     titulo: "Contratos leídos por los agentes",
-    ayuda: "Contratos con el pipeline completo corrido y dictamen guardado.",
+    ayuda: "Contratos que los agentes ya leyeron completos, con su dictamen guardado.",
     valor: (z) => z.procesados ?? 0,
     formato: enteros,
     sustantivo: (n) => `${enteros(n)} leído${n === 1 ? "" : "s"}`,
@@ -84,7 +84,7 @@ export const MEDIDAS: Medida[] = [
     id: "senales",
     label: "Con señal",
     titulo: "Contratos con señal publicada",
-    ayuda: "Leídos cuyo dictamen publicado trae al menos una señal de riesgo con norma citada.",
+    ayuda: "Leídos cuyo dictamen publicado trae al menos una señal de riesgo media o alta, con la norma citada.",
     valor: (z) => z.conSenales ?? 0,
     formato: enteros,
     sustantivo: (n) => `${enteros(n)} con señal`,
@@ -254,18 +254,26 @@ export const FILTROS: { id: FiltroZona; label: string; ayuda: string }[] = [
   { id: "todas", label: "Todas", ayuda: "Los 25 departamentos, sin acotar." },
   { id: "senal", label: "Con señal", ayuda: "Sólo donde ya se publicó al menos una señal de riesgo." },
   { id: "financiadas", label: "Financiadas", ayuda: "Sólo donde alguien pagó para que se leyeran contratos." },
-  { id: "sinleer", label: "Sin leer", ayuda: "Sólo donde hay contratos en cola y todavía nadie los financió." },
+  { id: "sinleer", label: "Sin financiar", ayuda: "Sólo donde hay contratos esperando lectura y todavía nadie financió ninguno." },
 ];
 
-/** ¿Esta zona pasa el filtro? Recibe las cifras ya resueltas por el contenedor. */
+/**
+ * ¿Esta zona pasa el filtro? Recibe las cifras ya resueltas por el contenedor.
+ *
+ * "Financiadas" y "Sin financiar" preguntan por el FINANCIAMIENTO, así que se
+ * contestan con `/financiamiento/zonas` (`financiados`), no con `procesados` de
+ * `/contratos/geo`: un contrato puede estar leído sin que nadie lo haya
+ * financiado (lo leyó el equipo) y uno financiado puede no estar leído todavía.
+ * Medido el 2026-09-23: "Financiadas" encendía 21 departamentos; financiados hay 5.
+ */
 export function pasaFiltro(
   f: FiltroZona,
-  z: { conSenales?: number; procesados?: number; enCola?: number } | undefined,
+  z: { conSenales?: number; enCola?: number } | undefined,
+  fin?: { financiados?: number; pendientes?: number } | undefined,
 ): boolean {
   if (f === "todas") return true;
-  if (!z) return false;
-  if (f === "senal") return (z.conSenales ?? 0) > 0;
-  if (f === "financiadas") return (z.procesados ?? 0) > 0;
-  if (f === "sinleer") return (z.enCola ?? 0) > 0 && (z.procesados ?? 0) === 0;
+  if (f === "senal") return (z?.conSenales ?? 0) > 0;
+  if (f === "financiadas") return (fin?.financiados ?? 0) > 0;
+  if (f === "sinleer") return (fin?.pendientes ?? z?.enCola ?? 0) > 0 && (fin?.financiados ?? 0) === 0;
   return true;
 }

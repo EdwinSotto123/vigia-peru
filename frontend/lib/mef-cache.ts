@@ -2,9 +2,9 @@
  * Helper compartido para leer el cache de MEF pre-fetcheado por
  * `backend/scripts/fetch_mef_budget.py`. Usado por:
  *  - app/api/mef/region/[dept]/route.ts
- *  - app/(dashboard)/region/[id]/page.tsx (server-side prefetch)
+ *  - components/EjecucionPresupuestal.tsx (ficha de entidad)
  *
- * La idea: SIEMPRE preferí el JSON estático antes que pegarle al portal MEF,
+ * La idea: SIEMPRE preferir el JSON estático antes que pegarle al portal MEF,
  * que tarda 60-120 s con cualquier departamento mediano.
  */
 
@@ -33,6 +33,20 @@ interface EntityCacheEntry {
   totalRows: number;
   matchedPliegos: string[];
   byYear: MefBudgetRow[];
+  fetchedAt?: string;
+}
+
+/**
+ * Fecha de descarga de una entrada del cache. Los JSON de hoy no la traen
+ * (`fetch_mef_budget.py` no la escribe), así que devuelve `null` y la interfaz
+ * dice "sin fecha registrada". No se usa la fecha del archivo: en un clon
+ * nuevo es la del checkout, y en Cloud Run (buildpacks) es 1980. Sería otra
+ * fecha falsa como el "Datos al <hoy>" que había antes.
+ */
+function fechaDe(entry: unknown): string | null {
+  const e = entry as { fetchedAt?: unknown; fechaDescarga?: unknown } | null;
+  const f = e?.fetchedAt ?? e?.fechaDescarga;
+  return typeof f === "string" && !Number.isNaN(new Date(f).getTime()) ? f : null;
 }
 
 async function loadCache(): Promise<Record<string, RegionBudgetSummary>> {
@@ -66,12 +80,13 @@ export async function getRegionBudget(
   // 1. Cache estático
   const cache = await loadCache();
   if (cache[dept] && cache[dept].totalRows > 0) {
-    return cache[dept];
+    return { ...cache[dept], fechaDescarga: fechaDe(cache[dept]) };
   }
 
-  // 2. Fallback live (lento)
+  // 2. Fallback live (lento): se descargó recién.
   try {
-    return await fetchRegionBudget(dept);
+    const vivo = await fetchRegionBudget(dept);
+    return vivo ? { ...vivo, fechaDescarga: new Date().toISOString() } : null;
   } catch (e) {
     console.error("[mef-cache] live fallback failed for", dept, e);
     return null;
@@ -124,6 +139,7 @@ export async function getEntityBudget(
             matchedPliegos: entry.matchedPliegos,
             totalRows: entry.totalRows,
             byYear: entry.byYear,
+            fechaDescarga: fechaDe(entry),
           },
         };
       }
@@ -136,6 +152,8 @@ export async function getEntityBudget(
     }
   }
 
-  // 2. Live (con cache en memoria 1h adentro de fetchMefBudget)
-  return await fetchMefBudget(keyword);
+  // 2. Live (con cache en memoria 1h adentro de fetchMefBudget): la fecha es la de ahora
+  //    como mucho una hora atrás; se dice "descargado hoy" sin inventar la hora.
+  const vivo = await fetchMefBudget(keyword);
+  return vivo.kind === "ok" ? { ...vivo, data: { ...vivo.data, fechaDescarga: vivo.data.fechaDescarga ?? new Date().toISOString() } } : vivo;
 }

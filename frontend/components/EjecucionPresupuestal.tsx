@@ -1,6 +1,8 @@
 import {
   ejecucionPct,
+  fechaCorta,
   formatPEN,
+  sinAnioRepetido,
   type MefBudgetSummary,
 } from "@/lib/mef";
 import { getEntityBudget } from "@/lib/mef-cache";
@@ -8,11 +10,11 @@ import {
   Coins,
   Activity,
   AlertTriangle,
-  CheckCircle2,
   ExternalLink,
   Database,
   Clock,
   WifiOff,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -40,37 +42,24 @@ export async function EjecucionPresupuestal({
       <section className="surface overflow-hidden p-0">
         <Header
           title={title ?? "Ejecución presupuestal MEF"}
-          subtitle="MEF respondió lento — datos no cargaron"
+          subtitle="El MEF respondió lento y los datos no cargaron"
         />
         <div className="space-y-3 px-5 py-6">
           <div className="flex items-start gap-3 rounded-xl border border-amber/40 bg-amber-soft px-4 py-3">
             <Clock size={18} className="mt-0.5 shrink-0 text-amberTexto" />
             <div className="text-sm text-ink">
-              <strong>MEF Datos Abiertos está respondiendo lento (&gt; 28s).</strong>{" "}
-              Las queries con <code className="rounded bg-paperDeep px-1 font-mono text-xs">LIKE</code> sobre la tabla de 8M filas{" "}
-              <strong>no tienen índice</strong>, así que el portal hace
-              full-scan. Es una limitación conocida del endpoint público.
+              <strong>El portal de Datos Abiertos del MEF está respondiendo lento</strong> (más de 28 segundos). Para
+              encontrar a una entidad tiene que recorrer millones de filas, y a veces no termina a tiempo.
             </div>
           </div>
           <details className="rounded-xl border border-line bg-paperSoft px-4 py-3 text-xs text-mute">
             <summary className="cursor-pointer font-semibold text-ink">
               ¿Por qué pasa esto?
             </summary>
-            <ul className="mt-2 space-y-1">
-              <li>
-                · El campo <code className="rounded bg-paperDeep px-1 font-mono">PLIEGO_NOMBRE</code>{" "}
-                no está indexado en MEF; entidades grandes generan millones de filas para escanear.
-              </li>
-              <li>
-                · Una vez que la query corre por primera vez, la cacheamos 1 h
-                en memoria — refrescá la página en 30-60 s y debería cargar de inmediato.
-              </li>
-              <li>
-                · Para entidades a nivel <strong>departamental</strong>{" "}
-                (Gobiernos Regionales) el cache pre-fetcheado por{" "}
-                <code className="rounded bg-paperDeep px-1 font-mono">backend/scripts/fetch_mef_budget.py</code>{" "}
-                sí está disponible — la pantalla regional <code className="font-mono">/region/&lt;id&gt;</code> carga al toque.
-              </li>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              <li>El MEF no tiene un índice por nombre de entidad: con las entidades grandes, la búsqueda recorre millones de filas.</li>
+              <li>Cuando la consulta termina una vez, la guardamos por una hora: recarga la página en un minuto y debería aparecer.</li>
+              <li>El presupuesto por departamento ya está guardado y carga al instante en la pestaña Presupuesto del mapa.</li>
             </ul>
           </details>
           <p className="text-center text-xs text-mute">
@@ -91,11 +80,11 @@ export async function EjecucionPresupuestal({
         <div className="px-5 py-6 text-center text-sm">
           <WifiOff size={20} className="mx-auto mb-2 text-amberTexto" />
           <p className="font-medium text-ink">
-            La API de Datos Abiertos del MEF no respondió.
+            El portal de Datos Abiertos del MEF no respondió.
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-mute">
             El portal del MEF se satura al consultar su dataset de 8 millones de
-            filas y por momentos devuelve error. No es una falla de Vigía — vuelve
+            filas y por momentos devuelve error. No es una falla de Vigía: vuelve
             a intentar en unos segundos o consulta el dato directo en el MEF.
           </p>
           <a
@@ -145,12 +134,15 @@ function EjecucionView({
   title?: string;
   subtitle?: string;
 }) {
-  const last5 = data.byYear;
+  // El año que el MEF todavía no publica (repite al anterior al centavo) no se muestra como dato.
+  const { years: last5, repetido } = sinAnioRepetido(data.byYear);
   const current = last5[last5.length - 1];
   const prevYear = last5[last5.length - 2];
+  const anioActual = new Date().getFullYear();
+  const fecha = fechaCorta(data.fechaDescarga);
 
   const ejPct = ejecucionPct(current);
-  const isUnderExecuted = current.pim > 0 && ejPct < 40 && current.year < 2026;
+  const isUnderExecuted = current.pim > 0 && ejPct < 40 && current.year < anioActual;
   const isOverExecuted = current.pim > 0 && current.devengado > current.pim;
 
   // Crecimiento PIM vs año anterior
@@ -165,7 +157,7 @@ function EjecucionView({
         title={title ?? "Ejecución presupuestal MEF"}
         subtitle={
           subtitle ??
-          `Pliego "${data.query}" · ${data.totalRows.toLocaleString("es-PE")} registros agregados`
+          `Pliego "${data.query}", ${data.totalRows.toLocaleString("es-PE")} registros agregados`
         }
       />
 
@@ -185,7 +177,17 @@ function EjecucionView({
         </div>
       )}
 
-      {/* KPIs año actual */}
+      {repetido && (
+        <div className="flex items-start gap-2 border-b border-line bg-paperSoft px-5 py-2.5 text-xs leading-relaxed text-inkSoft">
+          <Info size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+          <span>
+            Las cifras de <strong className="text-ink">{repetido}</strong> todavía no están cargadas: en la copia
+            descargada, {repetido} repite al centavo los valores de {repetido - 1}, así que no se muestran.
+          </span>
+        </div>
+      )}
+
+      {/* KPIs del último año con cifras propias */}
       <div className="grid gap-3 px-5 py-5 sm:grid-cols-4">
         <KPI
           icon={<Coins size={15} />}
@@ -211,7 +213,7 @@ function EjecucionView({
           icon={<Activity size={15} />}
           label="Girado"
           value={formatPEN(current.girado)}
-          hint={current.pim > 0 ? `${((current.girado / current.pim) * 100).toFixed(1)}% del PIM` : "—"}
+          hint={current.pim > 0 ? `${((current.girado / current.pim) * 100).toFixed(1)}% del PIM` : "sin PIM"}
           tone="ink"
         />
       </div>
@@ -257,7 +259,7 @@ function EjecucionView({
           <tbody>
             {last5.map((row) => {
               const pct = ejecucionPct(row);
-              const isUnder = row.pim > 0 && pct < 40 && row.year < 2026;
+              const isUnder = row.pim > 0 && pct < 40 && row.year < anioActual;
               return (
                 <tr key={row.year} className="border-t border-line">
                   <td className="px-5 py-2 font-mono font-semibold text-ink">
@@ -287,17 +289,21 @@ function EjecucionView({
 
       {/* Footer con fuente */}
       <div className="border-t border-line bg-paperSoft px-5 py-2.5 text-[11px] text-mute">
-        <a
-          href="https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-heroViolet hover:underline"
-        >
-          <ExternalLink size={11} />
-          MEF — Datos Abiertos · comparativo_gastos_2022_2026
-        </a>
-        <span className="mx-2">·</span>
-        <span>Cache 1h · agregado por SUM(PIA/PIM/Devengado/Girado)</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <a
+            href="https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-heroViolet hover:underline"
+          >
+            <ExternalLink size={11} aria-hidden />
+            Fuente: MEF, Datos Abiertos, comparativo de gastos 2022-2026
+          </a>
+          <span>
+            Suma de PIA, PIM, devengado y girado.{" "}
+            {fecha ? `Descargado el ${fecha}.` : "La copia no registró su fecha de descarga."}
+          </span>
+        </div>
       </div>
     </section>
   );
@@ -310,8 +316,8 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
         <Database size={16} />
       </div>
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-heroViolet">
-          MEF · Datos Abiertos
+        <div className="text-[11px] font-semibold text-heroViolet">
+          MEF, Datos Abiertos
         </div>
         <h3 className="font-serif text-lg font-bold text-ink">{title}</h3>
         <p className="text-xs text-mute">{subtitle}</p>
@@ -366,7 +372,7 @@ function EjecBadge({ pct, flag }: { pct: number; flag?: boolean }) {
       )}
     >
       {flag && <AlertTriangle size={9} />}
-      {pct === 0 ? "—" : `${pct.toFixed(0)}%`}
+      {pct === 0 ? "sin dato" : `${pct.toFixed(0)}%`}
     </span>
   );
 }

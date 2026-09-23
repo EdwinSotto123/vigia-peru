@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 /**
  * Punto agregado de contratos por zona sobre el mapa (PeruChoropleth).
  * Radio ∝ √total · color por ESTADO OPERATIVO dominante (plan 2026-09-16 · U1) · anillo cuando está seleccionado.
@@ -63,15 +65,27 @@ export interface ContratoPinProps {
   total: number;
   nombre: string;
   zoom: number;
+  /**
+   * Píxeles de pantalla por unidad del viewBox (sin el zoom). Con esto el área
+   * que se puede tocar mide al menos 12 px REALES aunque el punto dibujado sea
+   * de 4: un punto de 2,2 unidades era imposible de acertar con el dedo.
+   */
+  escalaPantalla?: number;
   selected?: boolean;
   hovered?: boolean;
   onClick?: () => void;
   onHover?: (on: boolean) => void;
 }
 
-export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, hovered, onClick, onHover }: ContratoPinProps) {
+/** Radio mínimo del área táctil, en píxeles de pantalla (12 px de diámetro). */
+const RADIO_TOQUE_PX = 6;
+
+export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPantalla = 1, selected, hovered, onClick, onHover }: ContratoPinProps) {
+  const [foco, setFoco] = useState(false);
   const rr = r / zoom;
   const sw = 0.7 / zoom;
+  const rToque = Math.max(rr, RADIO_TOQUE_PX / ((escalaPantalla || 1) * zoom));
+  const etiqueta = `${nombre}: ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"} ingresado${total === 1 ? "" : "s"}. Acota la lista a este distrito`;
   return (
     <g
       transform={`translate(${px},${py})`}
@@ -79,11 +93,35 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, selected, h
       onClick={onClick}
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
+      // Antes sólo se alcanzaba con el mouse: ahora es un control de verdad.
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? etiqueta : undefined}
+      aria-pressed={onClick ? !!selected : undefined}
+      className="foco-propio"
+      onKeyDown={(e) => {
+        if (!onClick) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      onFocus={() => {
+        setFoco(true);
+        onHover?.(true);
+      }}
+      onBlur={() => {
+        setFoco(false);
+        onHover?.(false);
+      }}
     >
+      {/* Área táctil invisible: el punto dibujado puede medir 4 px. */}
+      <circle r={rToque} fill="transparent" />
       {/* Anillo estático. El `<animate>` que latía sin fin sobre el punto
           seleccionado se retiró: era movimiento perpetuo sobre un dato y sobre
           la selección, justo donde el usuario necesita leer una cifra quieta.
           La selección ya se distingue por grosor y opacidad del anillo. */}
+      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#4F3D96" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
       {(selected || hovered) && (
         <circle
           r={rr + 2.4 / zoom}

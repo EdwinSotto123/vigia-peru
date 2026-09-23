@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { geoMercator, geoPath } from "d3-geo";
+import { useRouter } from "next/navigation";
+import { geoContains, geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { AlertCircle, Terminal } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { ContratoPin } from "./contratos/ContratoPin";
 import { nivelDeEtiqueta, tintaSobre, SIN_DATO, SIN_DATO_TRAMA } from "./mapa/escala";
+import { nombreDepartamento } from "./mapa/region-match";
+import { conAcentos } from "@/lib/financiamiento";
 
 const VB_W = 480;
 const VB_H = 700;
@@ -31,8 +34,17 @@ type ProvGeo = FeatureCollection<Geometry, ProvinceProps>;
 
 export interface MapPoint {
   id: string;
-  lat: number;
-  lon: number;
+  /** Coordenadas reales, cuando la fuente las trae (distritos, denuncias con GPS). */
+  lat?: number;
+  lon?: number;
+  /**
+   * Zona donde se ancla el punto cuando no hay coordenadas: provincia (4 díg.)
+   * o departamento (2 díg.). Se dibuja en el centroide de ESE polígono del
+   * geojson, no en un desplazamiento inventado alrededor de la capital.
+   */
+  zona?: string;
+  /** Posición dentro de los puntos que comparten `zona`: se abren en espiral alrededor del centroide, a pocos píxeles. */
+  grupo?: { i: number; n: number };
   kind: "alerta" | "reporte" | "contratos";
   label?: string;
   /** Texto completo del `<title>` nativo: ya trae la palabra de severidad, no sólo el color. */
@@ -92,6 +104,18 @@ export interface PeruChoroplethProps {
   points?: MapPoint[];
   onPointClick?: (pt: MapPoint) => void;
   onPointHover?: (pt: MapPoint | null) => void;
+  /**
+   * Departamentos (ubigeo de 2 dígitos) donde AHORA hay contratos leyéndose o
+   * esperando su lectura, con la frase que lo dice. Se marcan con un contorno
+   * que late (quieto con `prefers-reduced-motion`). Sólo llegan si son > 0.
+   */
+  pulsos?: Record<string, string>;
+  /**
+   * Cambia cada vez que el usuario cambia la medida o el mes. Al cambiar, los
+   * departamentos se recolorean en una ola corta de oeste a este (0,3 s), así
+   * se ve QUE el dato cambió y no sólo el resultado. Hover y selección no la disparan.
+   */
+  ola?: number;
 }
 
 export function PeruChoropleth({
@@ -107,7 +131,31 @@ export function PeruChoropleth({
   points = [],
   onPointClick,
   onPointHover,
+  pulsos,
+  ola = 0,
 }: PeruChoroplethProps) {
+  const router = useRouter();
+  const [focoPunto, setFocoPunto] = useState<string | null>(null);
+  const [reducido, setReducido] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const leer = () => setReducido(mq.matches);
+    leer();
+    mq.addEventListener?.("change", leer);
+    return () => mq.removeEventListener?.("change", leer);
+  }, []);
+
+  // La ola de recoloreo: sólo mientras dura, así hover y selección siguen instantáneos.
+  const [escalonando, setEscalonando] = useState(false);
+  const olaPrevia = useRef(ola);
+  useEffect(() => {
+    if (olaPrevia.current === ola) return;
+    olaPrevia.current = ola;
+    setEscalonando(true);
+    const t = window.setTimeout(() => setEscalonando(false), 700);
+    return () => window.clearTimeout(t);
+  }, [ola]);
   const [deptData, setDeptData] = useState<DeptGeo | null>(null);
   const [provData, setProvData] = useState<ProvGeo | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
@@ -186,11 +234,13 @@ export function PeruChoropleth({
   const deptPaths = useMemo(() => {
     if (!deptData || !projection) return [];
     const pg = geoPath(projection);
+    // El geojson trae los nombres sin tilde ("Ancash", "Huanuco", "Madre De
+    // Dios"): el nombre que se imprime y se lee sale del catálogo del producto.
     return (deptData.features as DeptFeature[])
       .map((feat) => ({
         ubigeo: feat.properties.code ?? "",
         id: feat.properties.id,
-        name: feat.properties.name,
+        name: feat.properties.code ? nombreDepartamento(feat.properties.code) : feat.properties.name,
         d: pg(feat as any) || "",
         centroid: pg.centroid(feat as any) as [number, number],
         bounds: pg.bounds(feat as any),
@@ -204,15 +254,44 @@ export function PeruChoropleth({
     const pg = geoPath(projection);
     return (provData.features as ProvFeature[])
       .filter((f) => (f.properties.code ?? "").startsWith(seleccion))
-      .map((f) => ({
+      .map((f, i) => ({
+        // El geojson parte dos provincias en dos polígonos con el mismo código
+        // ("Piura"/"Puira", "Victor Fajardo"/"Victor Fafardo"): la llave no puede ser sólo el código.
+        key: `${f.properties.code ?? ""}-${i}`,
         ubigeo: f.properties.code ?? "",
-        name: f.properties.name,
+        name: conAcentos(f.properties.name),
         d: pg(f as any) || "",
         centroid: pg.centroid(f as any) as [number, number],
+        area: pg.area(f as any),
       }))
       .filter((p) => !!p.ubigeo)
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
   }, [provData, projection, seleccion]);
+
+  /**
+   * Centroide proyectado de cada zona (departamento y provincia), para anclar
+   * los puntos que no traen coordenadas. De una provincia partida en dos
+   * polígonos se usa el más grande.
+   */
+  const centroides = useMemo(() => {
+    const out = new Map<string, [number, number]>();
+    if (!projection) return out;
+    const pg = geoPath(projection);
+    for (const p of deptPaths) out.set(p.ubigeo, p.centroid);
+    if (provData) {
+      const area = new Map<string, number>();
+      for (const f of provData.features as ProvFeature[]) {
+        const code = f.properties.code;
+        if (!code) continue;
+        const a = pg.area(f as any);
+        if (a > (area.get(code) ?? -1)) {
+          area.set(code, a);
+          out.set(code, pg.centroid(f as any) as [number, number]);
+        }
+      }
+    }
+    return out;
+  }, [projection, deptPaths, provData]);
 
   /**
    * Qué nombres de departamento se imprimen sobre el mapa.
@@ -240,7 +319,7 @@ export function PeruChoropleth({
       return n === "alto" ? 14 : n === "medio" ? 12 : 10;
     };
     const candidatos = deptPaths
-      .filter((p) => !p.name.toLowerCase().includes("callao"))
+      .filter((p) => p.ubigeo !== "07")
       .sort((a, b) => prioridad(a.ubigeo) - prioridad(b.ubigeo) || a.name.localeCompare(b.name, "es"));
 
     const colocadas: { x1: number; y1: number; x2: number; y2: number }[] = [];
@@ -261,6 +340,54 @@ export function PeruChoropleth({
     }
     return visibles;
   }, [deptPaths, regiones, fitScale]);
+
+  /**
+   * Posición de cada punto anclado a una zona. Los que comparten zona se abren
+   * en espiral (ángulo áureo) desde el centroide, a pasos de 6 px REALES, y
+   * sólo se aceptan posiciones que caen DENTRO del polígono (geoContains): a
+   * escala país la provincia de Lima mide 15 px y una espiral libre dejaba
+   * puntos en el mar. Si el polígono es tan chico que no entran todos, los que
+   * sobran se apilan sobre los ya ubicados en vez de salirse.
+   */
+  const posiciones = useMemo(() => {
+    const out = new Map<string, [number, number]>();
+    if (!projection || !deptData) return out;
+    const escala = (fitScale || 1) * (animTransform.s || 1);
+    const feats = new Map<string, Feature[]>();
+    for (const f of deptData.features as DeptFeature[]) if (f.properties.code) feats.set(f.properties.code, [f]);
+    for (const f of (provData?.features ?? []) as ProvFeature[]) {
+      const code = f.properties.code;
+      if (code) feats.set(code, [...(feats.get(code) ?? []), f]);
+    }
+    const grupos = new Map<string, MapPoint[]>();
+    for (const pt of points) {
+      if (!pt.zona || !centroides.has(pt.zona)) continue;
+      const g = grupos.get(pt.zona) ?? [];
+      g.push(pt);
+      grupos.set(pt.zona, g);
+    }
+    for (const [zona, pts] of grupos) {
+      const c = centroides.get(zona)!;
+      const poligonos = feats.get(zona) ?? [];
+      const dentro = (x: number, y: number) => {
+        const ll = projection.invert?.([x, y]);
+        return !!ll && poligonos.some((f) => geoContains(f as any, ll as [number, number]));
+      };
+      const paso = 6 / escala;
+      const ok: [number, number][] = [];
+      for (let k = 0; ok.length < pts.length && k < 300; k++) {
+        const rad = paso * Math.sqrt(k);
+        const ang = k * 2.39996;
+        const x = c[0] + rad * Math.cos(ang);
+        const y = c[1] + rad * Math.sin(ang);
+        if (poligonos.length === 0 || dentro(x, y)) ok.push([x, y]);
+      }
+      if (ok.length === 0) ok.push(c);
+      const orden = [...pts].sort((a, b) => (a.grupo?.i ?? 0) - (b.grupo?.i ?? 0));
+      orden.forEach((p, i) => out.set(p.id, ok[i] ?? ok[i % ok.length]));
+    }
+    return out;
+  }, [points, projection, deptData, provData, centroides, fitScale, animTransform.s]);
 
   // Computa target transform basado en el departamento abierto
   const targetTransform = useMemo(() => {
@@ -350,6 +477,14 @@ export function PeruChoropleth({
     // fina. Un halo grueso hace que se lea un bulto blanco, no una palabra.
     labelHalo: px(2.2),
     labelHaloSm: px(1.8),
+  };
+
+  /** Dónde va un punto, en unidades del viewBox: su lugar en la espiral de su zona, o la proyección de sus coordenadas. */
+  const posicionDe = (pt: MapPoint): [number, number] | null => {
+    const anclada = posiciones.get(pt.id);
+    if (anclada) return anclada;
+    if (typeof pt.lat === "number" && typeof pt.lon === "number" && projection) return projection([pt.lon, pt.lat]) as [number, number] | null;
+    return null;
   };
 
   const focoPath =
@@ -464,7 +599,9 @@ export function PeruChoropleth({
                   }}
                   style={{
                     cursor: "pointer",
-                    transition: "fill 200ms ease, stroke 200ms ease, filter 200ms ease",
+                    transition: reducido ? "none" : "fill 260ms ease, stroke 200ms ease, filter 200ms ease",
+                    // La ola va de oeste a este según el centroide: de 0 a 280 ms.
+                    transitionDelay: escalonando && !reducido ? `${Math.round((p.centroid[0] / VB_W) * 280)}ms` : "0ms",
                     filter: activa && !isSelected ? "brightness(1.08)" : undefined,
                   }}
                 />
@@ -481,7 +618,7 @@ export function PeruChoropleth({
                 const activa = activaUbigeo === p.ubigeo;
                 return (
                   <path
-                    key={p.ubigeo}
+                    key={p.key}
                     d={p.d}
                     role="button"
                     tabIndex={0}
@@ -512,7 +649,12 @@ export function PeruChoropleth({
                         onSelectProvincia(p.ubigeo, p.name);
                       }
                     }}
-                    style={{ cursor: "pointer", transition: "fill 200ms, filter 200ms", filter: activa ? "brightness(1.08)" : undefined }}
+                    style={{
+                      cursor: "pointer",
+                      transition: reducido ? "none" : "fill 260ms, filter 200ms",
+                      transitionDelay: escalonando && !reducido ? `${Math.round((p.centroid[0] / VB_W) * 280)}ms` : "0ms",
+                      filter: activa ? "brightness(1.08)" : undefined,
+                    }}
                   />
                 );
               })}
@@ -520,12 +662,34 @@ export function PeruChoropleth({
           )}
 
           {/* Pines de contratos (distritos), alertas y denuncias */}
+          {/* Departamentos donde ahora mismo hay contratos leyéndose o esperando
+              su lectura: un contorno que late. Sólo con datos reales > 0. */}
+          {pulsos && Object.keys(pulsos).length > 0 && (
+            <g pointerEvents="none">
+              {deptPaths
+                .filter((p) => pulsos[p.ubigeo])
+                .map((p) => (
+                  <path
+                    key={`pulso-${p.ubigeo}`}
+                    d={p.d}
+                    fill="none"
+                    stroke="#2FA84C"
+                    strokeWidth={px(2.4)}
+                    strokeLinejoin="round"
+                    className="motion-safe:animate-pulseSoft"
+                  >
+                    <title>{`${p.name}: ${pulsos[p.ubigeo]}`}</title>
+                  </path>
+                ))}
+            </g>
+          )}
+
           {projection && points.length > 0 && (
             <g pointerEvents="auto">
               {points.map((pt) => {
-                const proj = projection([pt.lon, pt.lat]);
-                if (!proj) return null;
-                const [px, py] = proj;
+                const pos = posicionDe(pt);
+                if (!pos) return null;
+                const [px, py] = pos;
                 if (pt.kind === "contratos") {
                   return (
                     <ContratoPin
@@ -537,6 +701,7 @@ export function PeruChoropleth({
                       total={pt.total ?? 0}
                       nombre={pt.label ?? ""}
                       zoom={zoomScale}
+                      escalaPantalla={fitScale}
                       selected={pt.selected}
                       hovered={pt.hovered}
                       onClick={onPointClick ? () => onPointClick(pt) : undefined}
@@ -554,24 +719,39 @@ export function PeruChoropleth({
                 // bajar a 1,03:1, así que la separación no puede depender del
                 // contraste entre los dos colores — la tiene que dar el anillo.
                 const sw2 = 1.6 / (fitScale * zoomScale);
+                // Área que se toca: al menos 12 px reales de diámetro aunque el punto mida 6.
+                const rToque = Math.max(r, 6 / (fitScale * zoomScale));
+                const ir = () => {
+                  if (pt.href) router.push(pt.href);
+                  else onPointClick?.(pt);
+                };
+                const enfocado = focoPunto === pt.id;
                 return (
-                  <circle
+                  <g
                     key={`pt-${pt.id}`}
-                    cx={px}
-                    cy={py}
-                    r={r}
-                    className={pt.colorClase}
-                    fill={pt.color ?? "#687180"}
-                    stroke="#FFFFFF"
-                    strokeWidth={sw2}
-                    style={{ cursor: pt.href ? "pointer" : "default" }}
-                    onClick={() => {
-                      if (pt.href) window.location.assign(pt.href);
-                      else onPointClick?.(pt);
+                    role={pt.href ? "link" : "button"}
+                    tabIndex={0}
+                    aria-label={pt.titulo ?? pt.label ?? ""}
+                    className="foco-propio"
+                    style={{ cursor: "pointer" }}
+                    onClick={ir}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || (!pt.href && e.key === " ")) {
+                        e.preventDefault();
+                        ir();
+                      }
                     }}
+                    onFocus={() => setFocoPunto(pt.id)}
+                    onBlur={() => setFocoPunto((f) => (f === pt.id ? null : f))}
                   >
-                    <title>{pt.titulo ?? pt.label ?? ""}</title>
-                  </circle>
+                    <circle cx={px} cy={py} r={rToque} fill="transparent" />
+                    {enfocado && (
+                      <circle cx={px} cy={py} r={r + 3.2 / (fitScale * zoomScale)} fill="none" stroke="#4F3D96" strokeWidth={2.2 / (fitScale * zoomScale)} />
+                    )}
+                    <circle cx={px} cy={py} r={r} className={pt.colorClase} fill={pt.color ?? "#687180"} stroke="#FFFFFF" strokeWidth={sw2}>
+                      <title>{pt.titulo ?? pt.label ?? ""}</title>
+                    </circle>
+                  </g>
                 );
               })}
             </g>
@@ -637,9 +817,11 @@ export function PeruChoropleth({
           {seleccion && (
             <g pointerEvents="none">
               {provincePaths.map((p) => {
+                // De una provincia partida en dos polígonos se rotula sólo el más grande.
+                if (provincePaths.some((q) => q.ubigeo === p.ubigeo && q.area > p.area)) return null;
                 const [cx, cy] = p.centroid;
                 return (
-                  <g key={`lb-prov-${p.ubigeo}`} transform={`translate(${cx},${cy})`}>
+                  <g key={`lb-prov-${p.key}`} transform={`translate(${cx},${cy})`}>
                     <text
                       textAnchor="middle"
                       dy="0.35em"
@@ -704,15 +886,13 @@ function FetchError() {
 function MissingGeoJSON() {
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div className="flex max-w-lg flex-col items-center gap-4 rounded-2xl border border-paperEdge bg-paperSoft p-7 text-center shadow-card">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-paperDeep text-heroViolet">
-          <Terminal size={22} />
-        </div>
-        <h3 className="font-serif text-xl font-bold text-ink">Falta la geometría del Perú</h3>
-        <p className="text-sm leading-relaxed text-mute">Generala una vez con:</p>
-        <pre className="w-full rounded-xl border border-line bg-paperDeep px-4 py-3 text-left font-mono text-xs leading-relaxed text-ink">
-          python backend/scripts/fetch_peru_geo.py
-        </pre>
+      <div className="flex max-w-lg flex-col items-center gap-3 rounded-2xl border border-paperEdge bg-paperSoft p-7 text-center shadow-card">
+        <AlertCircle size={28} className="text-heroViolet" aria-hidden />
+        <h3 className="font-serif text-xl font-bold text-ink">No se pudo dibujar el mapa</h3>
+        <p className="text-sm leading-relaxed text-mute">
+          Falta el archivo con los límites del Perú. Recarga la página; si sigue igual, el problema es nuestro. Mientras
+          tanto, los contratos se pueden ver en la lista de contratos.
+        </p>
       </div>
     </div>
   );

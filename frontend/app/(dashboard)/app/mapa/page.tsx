@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { MapaWrapper } from "@/components/MapaWrapper";
 import type { ZonaTab } from "@/components/mapa/ZonaHubPanel";
+
+/** Sólo la parte de la página: el layout raíz le agrega " | Vigía Perú". */
+export const metadata: Metadata = { title: "Mapa" };
 
 const TABS: ZonaTab[] = ["resumen", "cola", "entidades", "alertas", "denuncias", "presupuesto"];
 
@@ -27,7 +31,7 @@ export default function MapaPage({
   // se notaba tanto. Ahora el suelo es el tono hundido y el bloque es blanco: la
   // jerarquía la carga la superficie, no una línea.
   return (
-    <div className="min-h-screen space-y-6 bg-paperDeep px-6 py-8 lg:px-10">
+    <div className="min-h-screen space-y-6 bg-paperDeep px-4 py-5 sm:px-6 sm:py-8 lg:px-10">
       <MapaWrapper initialRegionId={region} initialTab={tab} />
     </div>
   );

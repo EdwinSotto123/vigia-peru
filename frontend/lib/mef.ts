@@ -37,6 +37,8 @@ export interface MefBudgetSummary {
   matchedPliegos: string[]; // top 5 PLIEGO_NOMBRE distintos que matchearon
   totalRows: number;
   byYear: MefBudgetRow[];
+  /** Cuándo se descargó del portal del MEF (ISO). `null` si la copia no lo registró. */
+  fechaDescarga?: string | null;
 }
 
 export type MefBudgetResult =
@@ -237,6 +239,8 @@ export interface RegionBudgetSummary {
   topPliegos: BreakdownRow[];
   topProgramas: BreakdownRow[];
   topGenericas?: BreakdownRow[];
+  /** Cuándo se descargó del portal del MEF (ISO). `null` si la copia no lo registró. */
+  fechaDescarga?: string | null;
 }
 
 const TOP_LIMIT = 6;
@@ -399,12 +403,42 @@ export function ejecucionPct(row: MefBudgetRow): number {
 }
 
 /**
- * Formatea soles compactos (S/. 4.25M).
+ * Formatea soles compactos (S/ 4.25 M, S/ 6.89 mil M). "mil M" y no "B": en
+ * español un billón es un millón de millones, así que "S/ 6.89 B" leía mil
+ * veces más de lo que es.
  */
 export function formatPEN(v: number): string {
-  if (!v) return "S/. 0";
-  if (v >= 1_000_000_000) return `S/. ${(v / 1_000_000_000).toFixed(2)} B`;
-  if (v >= 1_000_000) return `S/. ${(v / 1_000_000).toFixed(2)} M`;
-  if (v >= 1_000) return `S/. ${(v / 1_000).toFixed(0)} K`;
-  return `S/. ${v.toLocaleString("es-PE")}`;
+  if (!v) return "S/ 0";
+  if (v >= 1_000_000_000) return `S/ ${(v / 1_000_000_000).toFixed(2)} mil M`;
+  if (v >= 1_000_000) return `S/ ${(v / 1_000_000).toFixed(2)} M`;
+  if (v >= 1_000) return `S/ ${(v / 1_000).toFixed(0)} mil`;
+  return `S/ ${v.toLocaleString("es-PE")}`;
+}
+
+/**
+ * Detecta el año que el MEF todavía no publica y la copia rellenó con el
+ * anterior: PIA, PIM, devengado y girado idénticos al centavo al año previo.
+ *
+ * Medido el 2026-09-23 en `public/mef-budget.json` y `public/mef-entities.json`:
+ * en los 25 departamentos y las 25 entidades, 2026 repite 2025. Mostrado tal
+ * cual, el panel decía "EJERCICIO 2026 EN CURSO… Devengado 96% contra 73% del
+ * año", que era el cierre de 2025 presentado como el año en curso.
+ *
+ * Devuelve los años sin el repetido y cuál se quitó (o `null`).
+ */
+export function sinAnioRepetido(byYear: MefBudgetRow[]): { years: MefBudgetRow[]; repetido: number | null } {
+  if (byYear.length < 2) return { years: byYear, repetido: null };
+  const ult = byYear[byYear.length - 1];
+  const ant = byYear[byYear.length - 2];
+  const igual =
+    ult.pim > 0 && ult.pia === ant.pia && ult.pim === ant.pim && ult.devengado === ant.devengado && ult.girado === ant.girado;
+  return igual ? { years: byYear.slice(0, -1), repetido: ult.year } : { years: byYear, repetido: null };
+}
+
+/** "16 may. 2026" en hora de Lima, o `null` si no hay fecha válida. */
+export function fechaCorta(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Lima" });
 }
