@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import type { RankingRow } from "@/lib/financiamiento";
+import { queryMaqueta } from "@/lib/maqueta-aliados";
 import { cn } from "@/lib/utils";
-import { AvatarAliado, datosIdentidad } from "./TarjetaAliado";
-import { IdentidadAliado } from "./IdentidadAliado";
+import { AvatarAliado } from "./TarjetaAliado";
+import { SelloMaqueta } from "./AvisoMaqueta";
 
 /**
  * El podio de quienes más contratos hicieron leer.
@@ -72,7 +73,7 @@ export function Podio({
         <h2 className="text-center font-serif text-xl font-bold text-paper sm:text-2xl">
           Quienes más contratos hicieron leer
         </h2>
-        <p className="mx-auto mt-1 max-w-[52ch] text-center text-[13px] leading-relaxed text-paper/60">
+        <p className="mx-auto mt-1 max-w-[52ch] text-center text-[13px] leading-relaxed text-paper/80">
           Se cuenta en contratos, nunca en soles. Nadie elige cuáles: salen de la cola por antigüedad.
         </p>
 
@@ -81,7 +82,8 @@ export function Podio({
             const puesto = (i + 1) as 1 | 2 | 3;
             const e = ESCALON[puesto];
             const maq = esMaqueta(row);
-            const href = row.slug ? `/aliado/${row.slug}` : undefined;
+            // Un aliado de maqueta sólo existe con el interruptor puesto: su ficha lo lleva.
+            const href = row.slug ? `/aliado/${row.slug}${maq ? queryMaqueta(true) : ""}` : undefined;
             const pct = financiadosAmbito > 0 ? (row.contratosFinanciados / financiadosAmbito) * 100 : 0;
 
             const cabeza = (
@@ -90,6 +92,7 @@ export function Podio({
                 <span className={cn("mt-2 block max-w-full truncate font-semibold text-paper", e.nombre)}>
                   {row.nombre}
                 </span>
+                {maq && <SelloMaqueta className="mt-1" />}
               </>
             );
 
@@ -101,7 +104,7 @@ export function Podio({
                     className="group flex min-w-0 flex-col items-center rounded-2xl px-1 pb-2 pt-1 text-center transition-transform duration-normal ease-salida hover:-translate-y-0.5"
                   >
                     {cabeza}
-                    <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-paper/50 group-hover:text-paper/80">
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-paper/80 group-hover:text-paper">
                       Ver su ficha <ArrowUpRight size={11} aria-hidden />
                     </span>
                   </Link>
@@ -109,11 +112,11 @@ export function Podio({
                   <div className="flex min-w-0 flex-col items-center px-1 pb-2 pt-1 text-center">{cabeza}</div>
                 )}
 
-                <p className="text-center text-[12px] leading-tight text-paper/70">
+                <p className="text-center text-[12px] leading-tight text-paper/80">
                   <span className="font-mono text-base font-bold tabular-nums text-paper">{n(row.contratosFinanciados)}</span>{" "}
                   contratos
                   {financiadosAmbito > 0 && (
-                    <span className="block text-paper/45">
+                    <span className="block text-paper/75">
                       {pct.toLocaleString("es-PE", { maximumFractionDigits: pct >= 10 ? 0 : 1 })} % del muro
                     </span>
                   )}
@@ -135,55 +138,5 @@ export function Podio({
         </ol>
       </div>
     </section>
-  );
-}
-
-/** Los que siguen al podio: fila compacta, mismo dato, sin pedestal. */
-export function RestoDelPodio({
-  filas,
-  desde,
-  financiadosAmbito,
-  esMaqueta,
-}: {
-  filas: RankingRow[];
-  /** Puesto del primero de esta lista (4 si el podio se llevó tres). */
-  desde: number;
-  financiadosAmbito: number;
-  esMaqueta: (row: RankingRow) => boolean;
-}) {
-  if (!filas.length) return null;
-  const n = (v: number) => v.toLocaleString("es-PE");
-  return (
-    <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-      {filas.map((row, i) => {
-        const maq = esMaqueta(row);
-        const pct = financiadosAmbito > 0 ? (row.contratosFinanciados / financiadosAmbito) * 100 : 0;
-        return (
-          <li key={row.slug ?? row.id} className={cn("relative", maq && "bg-amber-soft/25")}>
-            <Link
-              href={row.slug ? `/aliado/${row.slug}` : "#"}
-              className="flex items-center gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft"
-            >
-              <span className="w-5 shrink-0 text-center font-mono text-[13px] tabular-nums text-mute">{desde + i}</span>
-              <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={maq} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-semibold text-ink">{row.nombre}</span>
-                <IdentidadAliado datos={datosIdentidad(row)} tam="sm" as="span" className="mt-0.5" />
-              </span>
-              <span className="shrink-0 text-right">
-                <span className="block font-mono text-[14px] font-semibold tabular-nums text-ink">
-                  {n(row.contratosFinanciados)}
-                </span>
-                <span className="block text-[11px] text-mute">
-                  {financiadosAmbito > 0
-                    ? `${pct.toLocaleString("es-PE", { maximumFractionDigits: 1 })} %`
-                    : "contratos"}
-                </span>
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ol>
   );
 }

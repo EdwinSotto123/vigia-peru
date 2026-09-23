@@ -105,6 +105,8 @@ export interface ContribucionReciente {
   pagadaAt: string;
   estado: string;
   mensajePublico: string | null;
+  /** Hoy /financiamiento/recientes no lo trae; si llega, "institucional" = lote del capital semilla. */
+  pasarela?: string | null;
   ubigeo: string;
   zona: string;
   nivel: NivelZona;
@@ -122,6 +124,11 @@ export interface Comprobante {
   pagadaAt: string | null;
   createdAt: string;
   mensajePublico: string | null;
+  /**
+   * Método con el que entró el aporte: "yape" | "plin" | "transferencia" para un aporte
+   * ciudadano, "institucional" para un lote del capital semilla de Vigía Perú (sin pago).
+   */
+  pasarela?: string | null;
   ubigeo: string;
   zona: string;
   nivel: NivelZona;
@@ -158,9 +165,21 @@ async function getJson<T>(path: string, revalidate = 120): Promise<T | null> {
 }
 
 export const getZonas = (nivel: NivelZona = "departamento", padre?: string) =>
-  getJson<{ data: Zona[] }>(`/financiamiento/zonas?nivel=${nivel}${padre ? `&padre=${padre}` : ""}`, 300).then((r) => r?.data ?? null);
+  getJson<{ data: Zona[] }>(`/financiamiento/zonas?nivel=${nivel}${padre ? `&padre=${padre}` : ""}`, 300).then((r) =>
+    r?.data ? r.data.map((z) => ({ ...z, nombre: conAcentos(z.nombre) })) : null,
+  );
 
-export const getZona = (ubigeo: string) => getJson<ZonaDetalle>(`/financiamiento/zonas/${ubigeo}`, 60);
+export const getZona = (ubigeo: string) =>
+  getJson<ZonaDetalle>(`/financiamiento/zonas/${ubigeo}`, 60).then((d) =>
+    d
+      ? {
+          ...d,
+          zona: { ...d.zona, nombre: conAcentos(d.zona.nombre) },
+          breadcrumb: d.breadcrumb.map((b) => ({ ...b, nombre: conAcentos(b.nombre) })),
+          hijas: d.hijas.map((h) => ({ ...h, nombre: conAcentos(h.nombre) })),
+        }
+      : null,
+  );
 
 export const getRanking = (periodo: "mes" | "anio" | "todo" = "todo") =>
   getJson<{ data: RankingRow[] }>(`/financiamiento/ranking?periodo=${periodo}`, 300).then((r) => r?.data ?? null);
@@ -196,12 +215,16 @@ export const getRankingPaginado = (q: RankingQuery = {}) =>
 export const getEstadoGlobal = () => getJson<EstadoGlobal>("/financiamiento/estado", 120);
 
 export const getRecientes = () =>
-  getJson<{ data: ContribucionReciente[] }>("/financiamiento/recientes", 60).then((r) => r?.data ?? null);
+  getJson<{ data: ContribucionReciente[] }>("/financiamiento/recientes", 60).then((r) =>
+    r?.data ? r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })) : null,
+  );
 
 export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);
 
 export const getComprobante = (codigo: string) =>
-  getJson<Comprobante>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30);
+  getJson<Comprobante>(`/financiamiento/impacto/${encodeURIComponent(codigo)}`, 30).then((c) =>
+    c ? { ...c, zona: conAcentos(c.zona) } : null,
+  );
 
 export const getAlcance = () => getJson<Alcance>("/financiamiento/alcance", 60);
 
@@ -252,3 +275,78 @@ export const ESTADO_FILL: Record<ZonaEstado, string> = {
 export const formatPEN = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDigits: 0 })}`;
 export const formatUSD = (n: number) => `US$ ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 export const pct = (a: number, b: number) => (b > 0 ? Math.min(100, Math.round((a / b) * 100)) : 0);
+
+/** "S/ 3.2 millones", "S/ 228 mil": montos grandes dentro de una frase. */
+export function formatPENCorto(n: number): string {
+  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toLocaleString("es-PE", { maximumFractionDigits: 1 })} millones`;
+  if (n >= 10_000) return `S/ ${Math.round(n / 1_000).toLocaleString("es-PE")} mil`;
+  return formatPEN(n);
+}
+
+/** Mínimo de contratos por aporte: mismo CHECK (contratos >= 5) que exige el backend. */
+export const MIN_CONTRATOS = 5;
+
+/** Tipo de financiador en palabras (el API lo manda crudo: "organizacion"). */
+export const TIPO_FINANCIADOR_LABEL: Record<Aliado["tipo"], string> = {
+  empresa: "Empresa",
+  organizacion: "Organización",
+  persona: "Persona",
+};
+
+/**
+ * El mensaje público de un aporte, si se puede mostrar.
+ * Los lotes institucionales (capital semilla, procesados desde el panel admin) traen
+ * un texto interno ("Procesado desde el panel admin por …") que no es para el público.
+ */
+export function mensajePublicoVisible(mensaje: string | null | undefined, pasarela?: string | null): string | null {
+  if (!mensaje) return null;
+  if (pasarela === "institucional") return null;
+  if (/panel admin/i.test(mensaje)) return null;
+  return mensaje;
+}
+
+export interface ParteTarifa {
+  monto: number;
+  concepto: string;
+}
+
+/**
+ * "S/1 procesamiento · S/1 infraestructura y datos · S/1 reserva expedientes pesados"
+ * → partes con monto. El separador del API nunca llega a la pantalla.
+ */
+export function partesTarifa(nota: string | null | undefined): ParteTarifa[] {
+  if (!nota) return [];
+  return nota
+    .split(/\s*·\s*/)
+    .map((p) => p.match(/^S\/\s?(\d+(?:[.,]\d+)?)\s+(.+)$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => ({ monto: Number(m[1].replace(",", ".")), concepto: m[2].trim() }));
+}
+
+/** "procesamiento (S/ 1), infraestructura y datos (S/ 1) y reserva expedientes pesados (S/ 1)". */
+export function frasePartesTarifa(partes: ParteTarifa[]): string {
+  const xs = partes.map((p) => `${p.concepto} (${formatPEN(p.monto)})`);
+  return xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
+}
+
+/**
+ * Tildes para mostrar los nombres de zona: el API los guarda sin acento ("Ancash",
+ * "Apurimac", "Junin", "La Convencion"). Palabra por palabra, solo las que en el
+ * Perú siempre se escriben con tilde; lo que no está acá se muestra tal cual.
+ */
+const ACENTOS: Record<string, string> = {
+  Ancash: "Áncash", Apurimac: "Apurímac", Junin: "Junín", Huanuco: "Huánuco", Martin: "Martín",
+  Convencion: "Convención", Asuncion: "Asunción", Concepcion: "Concepción", Bolivar: "Bolívar",
+  Bongara: "Bongará", Camana: "Camaná", Caraveli: "Caravelí", Celendin: "Celendín", Chepen: "Chepén",
+  Contumaza: "Contumazá", Fermin: "Fermín", Carrion: "Carrión", Sanchez: "Sánchez", Chimu: "Chimú",
+  Huamalies: "Huamalíes", Huancane: "Huancané", Huarochiri: "Huarochirí", Huaytara: "Huaytará",
+  Jaen: "Jaén", Julcan: "Julcán", Union: "Unión", Caceres: "Cáceres", Ramon: "Ramón", Morropon: "Morropón",
+  Oyon: "Oyón", Purus: "Purús", Rodriguez: "Rodríguez", Roman: "Román", Victor: "Víctor", Huaman: "Huamán",
+  Viru: "Virú", Azangaro: "Azángaro", Marañon: "Marañón", Rimac: "Rímac", Belen: "Belén", Jose: "José",
+  Maria: "María", Andres: "Andrés", Tomas: "Tomás", Nicolas: "Nicolás", Jesus: "Jesús",
+};
+
+export function conAcentos(nombre: string): string {
+  if (!nombre) return nombre;
+  return nombre.replace(/[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+/g, (w) => ACENTOS[w] ?? w);
+}

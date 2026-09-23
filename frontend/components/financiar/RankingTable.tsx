@@ -1,52 +1,13 @@
-import Link from "next/link";
 import Image from "next/image";
 import { Building2, User, Users } from "lucide-react";
-import { Cifras } from "@/components/ui/Cifras";
 import type { RankingRow } from "@/lib/financiamiento";
 
-const MEDAL = ["🥇", "🥈", "🥉"];
-
-export function RankingTable({ rows, compact = false }: { rows: RankingRow[]; compact?: boolean }) {
-  if (!rows.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-mute">
-        Todavía no hay aportes confirmados. El primero abre el ranking.
-      </div>
-    );
-  }
-  const list = compact ? rows.slice(0, 3) : rows;
-  return (
-    <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
-      {list.map((r) => (
-        <li key={r.id} className="flex items-center gap-3 bg-paper px-4 py-3 transition-colors hover:bg-paperDeep">
-          <span className="w-8 text-center font-mono text-sm text-mute">{MEDAL[r.posicion - 1] ?? r.posicion}</span>
-          <Avatar tipo={r.tipo} logoUrl={r.logoUrl} nombre={r.nombre} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-ink">
-              {r.slug ? <Link href={`/aliado/${r.slug}`} className="hover:underline">{r.nombre}</Link> : r.nombre}
-            </div>
-            {!compact && (
-              <Cifras
-                as="div"
-                tam="sm"
-                className="gap-x-3"
-                items={[
-                  { n: r.zonas, texto: r.zonas === 1 ? "zona" : "zonas" },
-                  { n: r.contratosProcesados, texto: "procesados" },
-                  { n: r.senalesHalladas, texto: "señales" },
-                ]}
-              />
-            )}
-          </div>
-          <div className="text-right">
-            <div className="font-mono text-sm font-semibold text-ink">{r.contratosFinanciados.toLocaleString("es-PE")}</div>
-            <div className="text-[10px] uppercase tracking-wide text-mute">contratos</div>
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
+/*
+ * Aquí vivía también `RankingTable`, la tabla "Ranking de impacto" de /app/financiar con
+ * medallas emoji. Duplicaba el muro de /app/aliados (que ya ordena por contratos, sin podio
+ * de medallas), así que se fue: /app/financiar enlaza al muro. Queda el avatar, que usan
+ * el feed de aportes, la ficha de zona y el comprobante.
+ */
 
 export function Avatar({ tipo, logoUrl, nombre }: { tipo: RankingRow["tipo"]; logoUrl: string | null; nombre: string }) {
   if (logoUrl) {

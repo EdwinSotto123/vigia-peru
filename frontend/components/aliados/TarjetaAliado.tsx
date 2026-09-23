@@ -218,14 +218,17 @@ export function TarjetaAliado({
           <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
         )}
         <div className="min-w-0 flex-1">
-          <h3 className="font-serif text-xl font-bold leading-tight text-ink">
+          {/* El sello de maqueta va en la línea del nombre y baja de renglón si no cabe:
+              como columna aparte empujaba la tarjeta a 399 px en un teléfono de 390. */}
+          <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 font-serif text-xl font-bold leading-tight text-ink">
             {href ? (
-              <Link href={href} className={cn("rounded hover:underline", ANILLO)}>
+              <Link href={href} className={cn("min-w-0 break-words rounded hover:underline", ANILLO)}>
                 {row.nombre}
               </Link>
             ) : (
-              row.nombre
+              <span className="min-w-0 break-words">{row.nombre}</span>
             )}
+            {esMaqueta && <SelloMaqueta className="shrink-0 font-sans" />}
           </h3>
           <IdentidadAliado datos={datosIdentidad(row)} className="mt-1" />
           {/* Las insignias también acá, no sólo en la ficha: el muro es donde
@@ -246,7 +249,6 @@ export function TarjetaAliado({
             })}
           />
         </div>
-        {esMaqueta && <SelloMaqueta className="shrink-0" />}
       </div>
 
       <div className={cn("mt-5 space-y-3 border-t pt-4", esMaqueta ? "border-amber/40" : "border-line")}>

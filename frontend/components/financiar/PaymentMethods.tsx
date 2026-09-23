@@ -64,8 +64,10 @@ export function CopyValue({ value, label, mono = true, size = "md", dark = false
 export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande = false }: { pago: PagoPublico; monto: string; concepto: string; metodoPreferido?: string; grande?: boolean }) {
   if (!pago.configurado) {
     return (
-      <div className="rounded-xl border border-dashed border-line p-4 text-sm text-mute">
-        Los medios de pago todavía no están configurados. Te escribimos con los datos{pago.contactoEmail ? ` desde ${pago.contactoEmail}` : ""} en las próximas horas.
+      <div className="rounded-xl border border-dashed border-line p-4 text-sm text-inkSoft">
+        Los medios de pago todavía no están configurados, así que este aporte no se puede pagar por ahora.
+        Guarda el código <span className="font-mono text-ink">{concepto}</span>: con él ves su estado en su comprobante público.
+        {pago.contactoEmail && <> Si tienes dudas, escribe a <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="underline">{pago.contactoEmail}</a>.</>}
       </div>
     );
   }

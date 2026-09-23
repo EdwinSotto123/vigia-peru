@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { auth } from "./firebase";
 import { PUBLIC_API_BASE } from "./auditoria";
+import { conAcentos } from "./financiamiento";
 
 export interface ZonaSeguida { ubigeo: string; nombre: string; nivel: "departamento" | "provincia" | "distrito" }
 export interface EntidadSeguida { ruc: string; nombre: string }
@@ -113,7 +114,12 @@ export const dejarDeSeguir = (tipo: "zona" | "entidad", id: string) =>
 export const reclamarAporte = (codigo: string, email: string) =>
   authFetch("/cuentas/me/reclamar", { method: "POST", body: JSON.stringify({ codigo, email }) }).then((r) => json<{ ok: true; codigo: string; perfil: Perfil }>(r)).then((x) => { setPerfil(x.perfil); return x; });
 
-export const getImpacto = () => authFetch("/cuentas/me/impacto").then((r) => json<Impacto>(r));
+export const getImpacto = () =>
+  authFetch("/cuentas/me/impacto").then((r) => json<Impacto>(r)).then((d) => ({
+    ...d,
+    aportes: d.aportes.map((a) => ({ ...a, zona: conAcentos(a.zona) })),
+    zonasSeguidas: d.zonasSeguidas.map((z) => ({ ...z, nombre: conAcentos(z.nombre) })),
+  }));
 
 export const exportarDatos = () => authFetch("/cuentas/me/exportar").then((r) => json<Record<string, unknown>>(r));
 

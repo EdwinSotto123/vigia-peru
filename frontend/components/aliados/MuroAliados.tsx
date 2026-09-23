@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { ArrowRight, EyeOff } from "lucide-react";
-import { getEstadoGlobal, getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
+import { EyeOff } from "lucide-react";
+import { formatPEN, frasePartesTarifa, getEstadoGlobal, getRankingPaginado, partesTarifa, type RankingRow } from "@/lib/financiamiento";
 import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Cifras } from "@/components/ui/Cifras";
@@ -81,11 +80,10 @@ const num = (n: number) => n.toLocaleString("es-PE");
  * leídos —300 vecinos que financian 300 pesan igual que una empresa que
  * financia 300— y por eso este componente nunca muestra soles.
  *
- * `compact` es el bloque de la landing (sección Aliados), que comparte el mismo
- * dato y las mismas reglas.
+ * La invitación a financiar NO vive acá: /app/aliados tiene un solo botón para eso, al
+ * pie de la página. (Antes el muro, la cascada del déficit y la página tenían uno cada uno.)
  */
 export async function MuroAliados({
-  compact = false,
   region,
   pagina = 1,
   nombreRegion,
@@ -93,7 +91,6 @@ export async function MuroAliados({
   maqueta = false,
   orden = "financiados",
 }: {
-  compact?: boolean;
   /** Ubigeo de 2–6 dígitos; en la URL de /app/aliados viaja como `?ubigeo=`. */
   region?: string;
   pagina?: number;
@@ -106,7 +103,7 @@ export async function MuroAliados({
    * por lo bajo.
    */
   financiadosAmbito?: number;
-  /** Interruptor `?maqueta=1`: mezcla los aliados inventados de lib/maqueta-aliados.ts. */
+  /** Maqueta activa (sólo en desarrollo): mezcla los aliados inventados de lib/maqueta-aliados.ts. */
   maqueta?: boolean;
   orden?: ClaveOrden;
 }) {
@@ -114,7 +111,7 @@ export async function MuroAliados({
   const offset = (paginaActual - 1) * TAM;
   const [resumenRaw, paginaRaw, estado] = await Promise.all([
     getRankingPaginado({ periodo: "todo", region, limit: RESUMEN_LIMIT }),
-    compact ? Promise.resolve(null) : getRankingPaginado({ periodo: "todo", region, limit: TAM, offset }),
+    getRankingPaginado({ periodo: "todo", region, limit: TAM, offset }),
     getEstadoGlobal(),
   ]);
 
@@ -123,7 +120,7 @@ export async function MuroAliados({
     return (
       <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm text-mute">
         No se pudo leer el registro de aportes ahora mismo. Es una falla de esta página, no un muro
-        vacío: los aportes siguen registrados. Volvé a intentar en un momento.
+        vacío: los aportes siguen registrados. Vuelve a intentarlo en un momento.
       </p>
     );
   }
@@ -136,58 +133,17 @@ export async function MuroAliados({
   const conNombre = resumen.filter((r) => !esAnonimo(r));
   const financiadosMuro = financiadosAmbito ?? resumen.reduce((n, r) => n + r.contratosFinanciados, 0);
   const regionesConCola = estado?.regionesConCola ?? 0;
-  const leidosMuro = resumen.reduce((n, r) => n + r.contratosProcesados, 0);
+  const precio = estado?.tarifa.precioPen ?? null;
+  const partes = partesTarifa(estado?.tarifa.nota);
 
   if (totalVisible === 0) {
-    return <MuroVacio nombreRegion={nombreRegion} plano={compact} />;
+    return <MuroVacio nombreRegion={nombreRegion} precio={precio} />;
   }
 
   const enFichas = totalVisible <= UMBRAL_FICHA;
   const cabeEnUnaPagina = totalVisible <= RESUMEN_LIMIT;
   const href = (r: RankingRow) =>
     r.slug ? `/aliado/${r.slug}${esSlugMaqueta(r.slug) ? queryMaqueta(true) : ""}` : undefined;
-
-  // ── Camino de la landing: tres fichas planas, sin paneles ni paginación ──
-  if (compact) {
-    const fichas = (conNombre.length ? conNombre : resumen).slice(0, UMBRAL_INVITACION);
-    return (
-      <div>
-        <h3 className="font-serif text-lg font-bold text-ink">
-          {totalVisible === 1
-            ? "Un solo aliado sostiene la lectura hoy"
-            : `${num(totalVisible)} aliados sostienen la lectura hoy`}
-        </h3>
-        <Cifras
-          className="mt-1.5"
-          tam="lg"
-          items={[
-            { n: financiadosMuro, texto: "contratos financiados" },
-            { n: leidosMuro, de: financiadosMuro, texto: "ya leídos" },
-          ]}
-        />
-        <p className="mt-1 text-[12px] leading-relaxed text-mute">Se cuenta en contratos, nunca en soles.</p>
-        <div className="mt-4 divide-y divide-line">
-          {fichas.map((r) => (
-            <TarjetaAliado
-              key={r.id}
-              row={r}
-              financiadosMuro={financiadosMuro}
-              regionesConCola={regionesConCola}
-              href={href(r)}
-              plano
-            />
-          ))}
-        </div>
-        <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} breve />
-        <Link
-          href="/app/aliados"
-          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline-offset-2 hover:underline"
-        >
-          Ver el libro mayor completo <ArrowRight size={14} aria-hidden />
-        </Link>
-      </div>
-    );
-  }
 
   // ── Muro de /app/aliados ────────────────────────────────────────────────
   const ordenadas = ordenar(conNombre, orden);
@@ -203,10 +159,12 @@ export async function MuroAliados({
   const perfiles = await Promise.all(conPerfil.map((r) => getPerfilAliado(r.slug as string, maqueta, 300)));
   const porSlug = new Map(conPerfil.map((r, i) => [r.slug as string, perfiles[i]]));
 
+  const queryMaquetaPaginacion = !maqueta && process.env.NODE_ENV !== "production" ? "0" : undefined;
   const opcionesOrden: OpcionOrden[] = (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => {
     const params = new URLSearchParams();
     if (region) params.set("ubigeo", region);
-    if (maqueta) params.set("maqueta", "1");
+    // En desarrollo la maqueta está encendida por defecto: si se apagó, el orden la mantiene apagada.
+    if (!maqueta && process.env.NODE_ENV !== "production") params.set("maqueta", "0");
     if (clave !== "financiados") params.set("orden", clave);
     const qs = params.toString();
     return { clave, etiqueta: ORDEN_LABEL[clave], href: qs ? `/app/aliados?${qs}` : "/app/aliados" };
@@ -338,7 +296,7 @@ export async function MuroAliados({
           tam={TAM}
           navegacion="url"
           hrefBase="/app/aliados"
-          query={{ ubigeo: region, maqueta: maqueta ? "1" : undefined, orden: orden !== "financiados" ? orden : undefined }}
+          query={{ ubigeo: region, maqueta: queryMaquetaPaginacion, orden: orden !== "financiados" ? orden : undefined }}
           cargando={false}
           nombre="aliados"
         />
@@ -354,14 +312,14 @@ export async function MuroAliados({
           tam={TAM}
           navegacion="url"
           hrefBase="/app/aliados"
-          query={{ ubigeo: region, maqueta: maqueta ? "1" : undefined, orden: orden !== "financiados" ? orden : undefined }}
+          query={{ ubigeo: region, maqueta: queryMaquetaPaginacion, orden: orden !== "financiados" ? orden : undefined }}
           cargando={false}
           nombre="aliados"
         />
       )}
 
       {totalVisible <= UMBRAL_INVITACION && (
-        <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} />
+        <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} precio={precio} desglose={frasePartesTarifa(partes)} />
       )}
       <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} />
     </section>
@@ -373,7 +331,14 @@ export async function MuroAliados({
  * como tal, explicando el mecanismo, en vez de rellenar una grilla con losas
  * "vacante" que solo subrayan que no hay nadie.
  */
-function Invitacion({ totalVisible, nombreRegion }: { totalVisible: number; nombreRegion?: string }) {
+function Invitacion({ totalVisible, nombreRegion, precio, desglose }: {
+  totalVisible: number;
+  nombreRegion?: string;
+  /** Precio real de la tarifa; sin él no se dice un monto. */
+  precio: number | null;
+  /** "procesamiento (S/ 1), infraestructura y datos (S/ 1) y ...", o vacío. */
+  desglose: string;
+}) {
   return (
     <div className="rounded-2xl border border-dashed border-line px-5 py-5">
       <h3 className="text-sm font-semibold text-ink">
@@ -384,7 +349,8 @@ function Invitacion({ totalVisible, nombreRegion }: { totalVisible: number; nomb
       <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-mute">
         <li>
           <span className="font-mono text-inkSoft">1.</span> Eliges una región y cuántos contratos quieres que
-          se lean. S/ 3 cada uno, que es lo que cuesta procesarlo.
+          se lean.
+          {precio != null && <> {formatPEN(precio)} cada uno{desglose ? `: ${desglose}` : ""}.</>}
         </li>
         <li>
           <span className="font-mono text-inkSoft">2.</span> Los contratos concretos los saca la cola por
@@ -393,23 +359,17 @@ function Invitacion({ totalVisible, nombreRegion }: { totalVisible: number; nomb
         <li>
           <span className="font-mono text-inkSoft">3.</span> Cuando cada uno termina de leerse, su dictamen se
           publica con la norma citada, y tu comprobante lista uno por uno los contratos que tu aporte hizo
-          leer — hayan salido con señal o limpios.
+          leer, hayan salido con señal o limpios.
         </li>
       </ol>
-      <Link
-        href="/app/financiar"
-        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
-      >
-        Financiar una auditoría <ArrowRight size={14} aria-hidden />
-      </Link>
     </div>
   );
 }
 
 /** Nadie ha aportado todavía en este ámbito: se dice qué falta, no se finge una grilla. */
-function MuroVacio({ nombreRegion, plano = false }: { nombreRegion?: string; plano?: boolean }) {
+function MuroVacio({ nombreRegion, precio }: { nombreRegion?: string; precio: number | null }) {
   return (
-    <section aria-labelledby="muro-titulo" className={plano ? "" : "rounded-2xl border border-dashed border-line px-5 py-6"}>
+    <section aria-labelledby="muro-titulo" className="rounded-2xl border border-dashed border-line px-5 py-6">
       <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
         {nombreRegion
           ? `Todavía nadie financió la lectura de un contrato de ${nombreRegion}`
@@ -417,24 +377,18 @@ function MuroVacio({ nombreRegion, plano = false }: { nombreRegion?: string; pla
       </h2>
       <p className="mt-2 max-w-[72ch] text-[13px] leading-relaxed text-mute">
         Los contratos {nombreRegion ? `de ${nombreRegion} ` : ""}ya están descargados y clasificados: lo que
-        falta es capacidad para leerlos. Cuesta S/ 3 por contrato, se asignan por antigüedad y el primer
-        nombre que aporte abre este muro.
+        falta es capacidad para leerlos.{precio != null && <> Cuesta {formatPEN(precio)} por contrato.</>} Los
+        contratos se asignan por antigüedad y el primer nombre que aporte abre este muro.
       </p>
-      <Link
-        href="/app/financiar"
-        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
-      >
-        Financiar una auditoría <ArrowRight size={14} aria-hidden />
-      </Link>
     </section>
   );
 }
 
 /** Los aportes sin nombre pesan igual en el conteo; solo no aparecen en la lista. */
-function Anonimos({ cantidad, contratos, breve = false }: { cantidad: number; contratos: number; breve?: boolean }) {
+function Anonimos({ cantidad, contratos }: { cantidad: number; contratos: number }) {
   if (cantidad === 0) return null;
   return (
-    <p className={`inline-flex items-start gap-1.5 text-[12px] leading-relaxed text-mute ${breve ? "mt-3" : ""}`}>
+    <p className="inline-flex items-start gap-1.5 text-[12px] leading-relaxed text-mute">
       <EyeOff size={13} className="mt-0.5 shrink-0" aria-hidden />
       {/* Dos cifras dentro de una frase: se dicen con la frase, no con un punto
           medio entre medio. La prosa ya tiene puntuación propia. */}

@@ -16,7 +16,7 @@ const REGLAS = [
     titulo: "Nadie elige qué se audita",
     resumen: "Ni quien paga, ni nosotros.",
     detalle:
-      "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. El pipeline de agentes no recibe ni conoce el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
+      "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. Los agentes que leen los contratos no reciben ni conocen el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
   },
   {
     Icono: ListOrdered,
@@ -30,7 +30,7 @@ const REGLAS = [
     titulo: "Conflicto de interés, automático",
     resumen: "Con sanción vigente se puede aportar, pero no aparecer.",
     detalle:
-      "Una empresa con sanción vigente, o señalada en alertas de la zona que quiere financiar, puede aportar: su aporte entra a la cola igual. Lo que no hace es aparecer en este muro. El reconocimiento público se pierde; la lectura del contrato, no.",
+      "Una empresa con sanción vigente del OECE, o con alertas activas como proveedora, puede aportar: su aporte entra a la cola igual. Lo que no hace es aparecer en este muro. El reconocimiento público se pierde; la lectura del contrato, no.",
   },
 ];
 

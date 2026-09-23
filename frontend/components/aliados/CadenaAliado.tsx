@@ -35,8 +35,8 @@ export interface ContribucionAliado {
 /** Mismo vocabulario que el panel de contribuciones del admin; sin movimiento en loop. */
 const ESTADO_CONTRIB: Record<string, { label: string; cls: string }> = {
   pendiente_pago: { label: "Pendiente de pago", cls: "bg-amber-soft text-amberTexto border-amber/30" },
-  pagada: { label: "Pagada", cls: "bg-moss/10 text-moss border-moss/30" },
-  en_proceso: { label: "Leyéndose ahora", cls: "bg-moss/10 text-moss border-moss/30" },
+  pagada: { label: "Financiada", cls: "bg-moss/10 text-moss border-moss/30" },
+  en_proceso: { label: "En proceso", cls: "bg-moss/10 text-moss border-moss/30" },
   procesada: { label: "Leída y publicada", cls: "bg-moss text-paper border-moss" },
   rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimsonTexto border-crimson/30" },
   reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-mute border-line" },
@@ -174,6 +174,10 @@ function DetalleContribucion({
   esMaqueta?: boolean;
 }) {
   const r = comprobante.resumen;
+  const valorAsignado = comprobante.detalle.reduce((n, d) => n + (d.valorReferencial ?? 0), 0);
+  const valorLeido = comprobante.detalle
+    .filter((d) => d.procesadaAt != null)
+    .reduce((n, d) => n + (d.valorReferencial ?? 0), 0);
   return (
     <div className="space-y-4">
       {esMaqueta && (
@@ -186,7 +190,7 @@ function DetalleContribucion({
       <p className="rounded-xl border border-heroViolet/25 bg-heroViolet-soft/60 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
         {r.asignados === 0 ? (
           <>
-            Este aporte está pagado y todavía no tiene contratos asignados: la cola de {contribucion.zona}{" "}
+            Este aporte está financiado y todavía no tiene contratos asignados: la cola de {contribucion.zona}{" "}
             los entrega por antigüedad, y cuando salgan aparecen acá uno por uno. Ni {nombre} ni Vigía Perú
             eligen cuáles.
           </>
@@ -218,9 +222,12 @@ function DetalleContribucion({
           { n: r.enRevision ?? 0, texto: "esperando revisión humana", ocultarEnCero: true },
         ]}
       />
-      <p className="border-t border-line pt-3 text-[12px] text-mute">
-        Dinero público mirado:{" "}
-        <span className="font-mono text-[13px] font-semibold text-ink">{formatPEN(r.montoAuditado)}</span>
+      {/* Sólo lo LEÍDO: `resumen.montoAuditado` del API suma también los asignados que
+          siguen en la cola, y un contrato sin leer no es dinero mirado. */}
+      <p className="border-t border-line pt-3 text-[12px] text-inkSoft">
+        Valor referencial de los contratos ya leídos:{" "}
+        <span className="font-mono text-[13px] font-semibold text-ink">{formatPEN(valorLeido)}</span>
+        {valorAsignado > valorLeido && <> de {formatPEN(valorAsignado)} asignados</>}
       </p>
 
       {comprobante.detalle.length > 0 && (

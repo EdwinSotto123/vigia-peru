@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ContribucionReciente } from "@/lib/financiamiento";
+import { mensajePublicoVisible, type ContribucionReciente } from "@/lib/financiamiento";
 import { Avatar } from "./RankingTable";
 
 function timeAgo(iso: string): string {
@@ -19,7 +19,9 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
   }
   return (
     <ul className="space-y-2">
-      {items.map((c) => (
+      {items.map((c) => {
+        const mensaje = mensajePublicoVisible(c.mensajePublico, c.pasarela);
+        return (
         <li key={c.codigo} className="flex items-start gap-3 rounded-xl border border-line bg-paper px-4 py-3">
           <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
           <div className="min-w-0 flex-1 text-sm">
@@ -28,14 +30,15 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
               <span className="font-mono">{c.contratos}</span> contratos en{" "}
               <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
             </div>
-            {c.mensajePublico && <div className="mt-0.5 text-[13px] italic text-mute">“{c.mensajePublico}”</div>}
+            {mensaje && <div className="mt-0.5 text-[13px] italic text-mute">“{mensaje}”</div>}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
               <span>{timeAgo(c.pagadaAt)}</span>
               <Link href={`/impacto/${c.codigo}`} className="font-mono hover:underline">{c.codigo}</Link>
             </div>
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

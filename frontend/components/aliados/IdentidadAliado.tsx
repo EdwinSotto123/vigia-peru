@@ -18,6 +18,7 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { Popover } from "@/components/ui/Flotante";
 import { cn } from "@/lib/utils";
 
 /**
@@ -51,7 +52,10 @@ const ICONO = {
 export interface DatoIdentidad {
   icono: keyof typeof ICONO;
   texto: React.ReactNode;
-  /** Explicación completa al pasar el puntero, sin gastar renglón. */
+  /**
+   * Explicación completa. Se abre en un Popover al tocar el dato (antes vivía en un
+   * `title=""`, que no existe en pantallas táctiles ni con teclado).
+   */
   titulo?: string;
 }
 
@@ -92,10 +96,20 @@ export function IdentidadAliado({
           <Item
             key={i}
             className={cn("inline-flex min-w-0 items-center gap-1.5", oscuro ? "text-paper/75" : "text-mute")}
-            title={d.titulo}
           >
-            <Icono size={t.icono} className={cn("shrink-0", oscuro ? "text-paper/55" : "text-mute/70")} aria-hidden />
-            <span className="truncate">{d.texto}</span>
+            <Icono size={t.icono} className={cn("shrink-0", oscuro ? "text-paper/60" : "text-mute/70")} aria-hidden />
+            {d.titulo ? (
+              <Popover
+                titulo={typeof d.texto === "string" ? d.texto : undefined}
+                anchoClase="w-72"
+                className="min-w-0 truncate text-left underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                trigger={<span className="truncate">{d.texto}</span>}
+              >
+                {d.titulo}
+              </Popover>
+            ) : (
+              <span className="truncate">{d.texto}</span>
+            )}
           </Item>
         );
       })}
@@ -159,7 +173,7 @@ export function insigniasDe({
       clave: "limpio",
       etiqueta: "Sin conflicto de interés",
       detalle:
-        "Aparecer en este muro exige no tener sanción vigente ni estar señalado en alertas de la zona que financia. Quien no pasa ese chequeo puede aportar igual, pero no figura.",
+        "Aparecer en este muro exige no tener sanción vigente del OECE ni alertas activas como proveedor. Quien no pasa ese chequeo puede aportar igual, pero no figura.",
       icono: "limpio",
       tono: "verde",
     },
@@ -238,15 +252,18 @@ export function Insignias({
     <ul className={cn("flex flex-wrap gap-1.5", tam === "sm" && "text-[11px]", className)}>
       {visibles.map((i) => {
         const Icono = ICONO_INSIGNIA[i.icono];
+        // El detalle se abre al tocar la insignia (antes era un `title=""`: invisible en
+        // pantallas táctiles y con teclado, y es justo lo que explica de dónde sale).
         return (
           <li key={i.clave}>
-            <span
+            <Popover
+              titulo={i.etiqueta}
+              anchoClase="w-72"
               className={cn("pill border", TONO_INSIGNIA[i.tono])}
-              title={i.detalle}
+              trigger={<><Icono size={11} aria-hidden />{i.etiqueta}</>}
             >
-              <Icono size={11} aria-hidden />
-              {i.etiqueta}
-            </span>
+              {i.detalle}
+            </Popover>
           </li>
         );
       })}

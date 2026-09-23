@@ -8,7 +8,7 @@ import { getComprobante } from "@/lib/financiamiento";
  */
 
 export const runtime = "edge";
-export const alt = "Comprobante de impacto — Vigía Perú";
+export const alt = "Comprobante de impacto de Vigía Perú";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

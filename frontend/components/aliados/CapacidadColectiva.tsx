@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { Popover } from "@/components/ui/Flotante";
 import { alcanceCorto, formatPEN, type AlcanceProcesamiento } from "@/lib/financiamiento";
 
 /**
@@ -126,11 +125,12 @@ export function CapacidadColectiva({
           Antes eran cuatro renglones apilados, cada uno con su barra y su nota
           de dos líneas: 785 px, el 31 % de la página, y encima ARRIBA del muro.
           Esta página existe para enaltecer a quien financia, y el contexto le
-          estaba ganando la pantalla al protagonista. Las notas de cada escalón
-          pasan al `title`: siguen disponibles, dejan de ocupar. */}
+          estaba ganando la pantalla al protagonista. La nota de cada escalón se
+          abre al tocar su etiqueta (Popover): antes vivía en un `title=""`, que no
+          existe en pantallas táctiles ni con teclado. */}
       <ol className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
         {escalones.map((e) => (
-          <li key={e.etiqueta} title={e.nota}>
+          <li key={e.etiqueta}>
             <div className="flex items-baseline gap-1.5">
               <span className="font-mono text-lg font-bold tabular-nums text-ink">{num(e.valor)}</span>
               <span className="font-mono text-[11px] text-mute">{pctTxt(e.valor, publicados)}</span>
@@ -141,7 +141,18 @@ export function CapacidadColectiva({
                 style={{ width: `${publicados > 0 ? (e.valor / publicados) * 100 : 0}%` }}
               />
             </div>
-            <p className="mt-1 text-[12px] leading-snug text-mute">{e.etiqueta}</p>
+            {e.nota ? (
+              <Popover
+                titulo={e.etiqueta}
+                anchoClase="w-72"
+                className="mt-1 text-left text-[12px] leading-snug text-inkSoft underline decoration-dotted underline-offset-2 hover:text-ink"
+                trigger={<>{e.etiqueta}</>}
+              >
+                {e.nota}
+              </Popover>
+            ) : (
+              <p className="mt-1 text-[12px] leading-snug text-inkSoft">{e.etiqueta}</p>
+            )}
           </li>
         ))}
       </ol>
@@ -171,21 +182,14 @@ export function CapacidadColectiva({
         </div>
       )}
 
+      {/* Sin botón propio: /app/aliados tiene UNA invitación a financiar, al pie. */}
       {porFinanciar > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line pt-3">
-          <p className="max-w-[54ch] text-[13px] leading-relaxed text-inkSoft">
-            Quedan <span className="font-mono font-semibold text-ink">{num(porFinanciar)}</span> contratos
-            en la cola sin financiar. Leerlos todos cuesta{" "}
-            <span className="font-mono font-semibold text-ink">{formatPEN(porFinanciar * precioPen)}</span> a{" "}
-            {formatPEN(precioPen)} por contrato.
-          </p>
-          <Link
-            href="/app/financiar"
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
-          >
-            Financiar una auditoría <ArrowRight size={14} aria-hidden />
-          </Link>
-        </div>
+        <p className="mt-4 max-w-[60ch] border-t border-line pt-3 text-[13px] leading-relaxed text-inkSoft">
+          Quedan <span className="font-mono font-semibold text-ink">{num(porFinanciar)}</span> contratos
+          en la cola sin financiar. Leerlos todos cuesta{" "}
+          <span className="font-mono font-semibold text-ink">{formatPEN(porFinanciar * precioPen)}</span> a{" "}
+          {formatPEN(precioPen)} por contrato.
+        </p>
       )}
     </section>
   );

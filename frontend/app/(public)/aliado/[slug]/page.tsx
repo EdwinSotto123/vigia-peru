@@ -18,7 +18,7 @@ import { Cifras } from "@/components/ui/Cifras";
 import { getComprobanteDe, getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
-import { maquetaActiva, queryMaqueta } from "@/lib/maqueta-aliados";
+import { hrefSinMaqueta, maquetaActiva, queryMaqueta } from "@/lib/maqueta-aliados";
 
 export const revalidate = 30;
 
@@ -60,20 +60,20 @@ export async function generateMetadata({
   searchParams?: { maqueta?: string };
 }) {
   const data = await getPerfilAliado(params.slug, maquetaActiva(searchParams?.maqueta));
-  if (!data) return { title: "Aliado no encontrado — Vigía Perú" };
+  if (!data) return { title: "Aliado no encontrado" };
   const r = resumirContribuciones(data.contribuciones);
   if (data.esMaqueta) {
     return {
-      title: `${data.aliado.nombre} (maqueta) — Vigía Perú`,
+      title: `${data.aliado.nombre} (maqueta)`,
       description: "Aliado inventado para probar el diseño. No existe y sus cifras no son reales.",
       robots: { index: false, follow: false },
     };
   }
   const description = `${data.aliado.nombre} financió la lectura de ${r.financiados} contratos públicos; ${r.leidos} ya fueron leídos por los agentes. No eligió cuáles: se asignan por antigüedad.`;
   return {
-    title: `${data.aliado.nombre} — Aliado de transparencia de Vigía Perú`,
+    title: `${data.aliado.nombre}, aliado de transparencia`,
     description,
-    openGraph: { title: `${data.aliado.nombre} — Aliado de transparencia`, description },
+    openGraph: { title: `${data.aliado.nombre}, aliado de transparencia`, description },
     twitter: { card: "summary" },
   };
 }
@@ -119,7 +119,7 @@ export default async function AliadoPage({
           <ArrowLeft size={14} aria-hidden /> Aliados de transparencia
         </Link>
 
-        {esMaqueta && <AvisoMaqueta volverHref="/app/aliados" />}
+        {esMaqueta && <AvisoMaqueta volverHref={hrefSinMaqueta("/app/aliados")} />}
 
         {/* Identidad. Sin kicker sobre el título: lo que antes era una píldora en
             versalitas encima del h1 ahora es la línea de contexto debajo, que es
@@ -143,8 +143,7 @@ export default async function AliadoPage({
               datos={[
                 {
                   icono: aliado.tipo === "empresa" ? "tipo-empresa" : aliado.tipo === "persona" ? "tipo-persona" : "tipo-organizacion",
-                  texto: esPlataforma ? "La propia plataforma" : TIPO_LABEL[aliado.tipo],
-                  titulo: esPlataforma ? "Capital semilla: puso el primer dinero del proyecto." : undefined,
+                  texto: esPlataforma ? "La propia plataforma, con capital semilla" : TIPO_LABEL[aliado.tipo],
                 },
                 ...(aliado.desde
                   ? [{
@@ -155,7 +154,7 @@ export default async function AliadoPage({
                 { icono: "aportes", texto: `${num(r.aportes)} ${r.aportes === 1 ? "aporte" : "aportes"}` },
                 {
                   icono: "regiones",
-                  texto: `${num(r.regiones.length)} de ${num(regionesConCola)} regiones`,
+                  texto: `${num(r.regiones.length)} de ${num(regionesConCola)} regiones con cola`,
                   titulo: "Regiones con cola abierta que alcanzaron sus aportes. La zona sí se elige; los contratos concretos, no.",
                 },
               ]}
@@ -247,8 +246,8 @@ export default async function AliadoPage({
 
         <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-line bg-paperSoft px-5 py-4">
           <p className="max-w-[58ch] text-sm leading-relaxed text-inkSoft">
-            Desde 5 contratos. Con tu nombre, como colectivo o sin nombre —{" "}
-            <span className="text-mute">se cuenta en contratos leídos, nunca en soles.</span>
+            Desde 5 contratos. Con tu nombre, como colectivo o sin nombre: se cuenta en contratos
+            leídos, nunca en soles.
           </p>
           <Link
             href="/app/financiar"

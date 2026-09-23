@@ -8,10 +8,10 @@ import { AvisoMaqueta, MarcaMaquetaBarra } from "@/components/aliados/AvisoMaque
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
-import { maquetaActiva, totalesMaqueta } from "@/lib/maqueta-aliados";
+import { hrefSinMaqueta, maquetaActiva, totalesMaqueta } from "@/lib/maqueta-aliados";
 
 export const metadata = {
-  title: "Aliados de transparencia — Vigía Perú",
+  title: "Aliados de transparencia",
   description:
     "Cuánto se ha leído de todo lo que hay por leer, y quién pagó por ello. El reconocimiento se cuenta en contratos, nunca en soles, y nadie elige qué se audita.",
 };
@@ -33,9 +33,10 @@ export const revalidate = 300;
  * con su logo clickeable y su resumen al costado— y al final las reglas que
  * hacen que ese dinero no compre nada.
  *
- * `?maqueta=1` mezcla tres aliados INVENTADOS (lib/maqueta-aliados.ts) para
- * poder mirar el diseño con volumen. Sin ese parámetro no existen; con él, la
- * página lo avisa arriba, en la barra pegajosa y en cada tarjeta.
+ * En DESARROLLO la página mezcla tres aliados INVENTADOS (lib/maqueta-aliados.ts)
+ * para poder mirar el diseño con volumen, y lo avisa arriba, en la barra pegajosa
+ * y en cada tarjeta; `?maqueta=0` los apaga. En PRODUCCIÓN no existen nunca, ni
+ * con `?maqueta=1` escrito a mano.
  */
 export default async function AliadosPage({
   searchParams,
@@ -77,7 +78,8 @@ export default async function AliadosPage({
   const leidos = (zona ? zona.procesados : estado?.contratosProcesados ?? 0) + extra.leidos;
   const financiados = (zona ? zona.financiados : estado?.contratosFinanciados ?? 0) + extra.financiados;
 
-  const hrefSinMaqueta = ubigeo ? `/app/aliados?ubigeo=${ubigeo}` : "/app/aliados";
+  // `?maqueta=0`: en desarrollo la vista sin parámetro vuelve a encender la maqueta.
+  const salirMaqueta = hrefSinMaqueta(ubigeo ? `/app/aliados?ubigeo=${ubigeo}` : "/app/aliados");
 
   return (
     <div className="container-page space-y-10 py-8">
@@ -98,7 +100,7 @@ export default async function AliadosPage({
       />
 
       {maqueta && (
-        <AvisoMaqueta volverHref={hrefSinMaqueta} financiados={extra.financiados} leidos={extra.leidos} />
+        <AvisoMaqueta volverHref={salirMaqueta} financiados={extra.financiados} leidos={extra.leidos} />
       )}
 
       {/* Filtro pegajoso: el libro mayor pagina hasta 24 filas, cambiar de región no debería
@@ -109,19 +111,19 @@ export default async function AliadosPage({
           <p className="text-sm text-mute">
             {zona
               ? `Mirando ${zona.nombre}: ${zona.pendientes.toLocaleString("es-PE")} contratos esperan que alguien pague su lectura.`
-              : "Mirando todo el Perú. Filtrá por región para ver su déficit y quién lo cubre."}
+              : "Mirando todo el Perú. Filtra por región para ver su déficit y quién lo cubre."}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {/* El recordatorio de maqueta viaja con la barra: mientras se recorre el muro,
                 no se va de la pantalla. */}
-            {maqueta && <MarcaMaquetaBarra volverHref={hrefSinMaqueta} />}
+            {maqueta && <MarcaMaquetaBarra volverHref={salirMaqueta} />}
             <FiltroRegion opciones={opciones} valor={ubigeo} />
           </div>
         </div>
       </div>
 
       {/* EL MURO VA PRIMERO. Estaba debajo de la cascada del déficit, que
-          ocupaba 785 px —el 31 % de la página— antes de que apareciera un
+          ocupaba 785 px (el 31 % de la página) antes de que apareciera un
           solo nombre. Esta página existe para enaltecer a quien financia: el
           contexto no puede ganarle la pantalla al protagonista. */}
       <MuroAliados
@@ -157,10 +159,11 @@ export default async function AliadosPage({
 
       <ReglasIndependencia />
 
+      {/* La ÚNICA invitación a financiar de esta página (antes había tres: en el muro, en la
+          cascada del déficit y acá). */}
       <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-line bg-paperSoft px-5 py-4">
         <p className="max-w-[60ch] text-sm leading-relaxed text-inkSoft">
-          Desde 5 contratos. Con tu nombre, como colectivo o sin nombre —{" "}
-          <span className="text-mute">en el conteo pesa exactamente igual.</span>
+          Desde 5 contratos. Con tu nombre, como colectivo o sin nombre: en el conteo pesa exactamente igual.
         </p>
         <Link
           href="/app/financiar"
@@ -170,10 +173,9 @@ export default async function AliadosPage({
         </Link>
       </section>
 
-      {/* La puerta de entrada a la maqueta existe sólo en desarrollo. En producción el
-          interruptor sigue funcionando si alguien escribe ?maqueta=1 —y entonces la
-          página lo grita— pero nada en la interfaz invita a un visitante a entrar a
-          una vista con datos inventados. */}
+      {/* La puerta de vuelta a la maqueta existe sólo en desarrollo (tras salir con
+          ?maqueta=0). En producción la maqueta no existe: maquetaActiva() devuelve false
+          aunque alguien escriba ?maqueta=1. */}
       {process.env.NODE_ENV !== "production" && !maqueta && (
         <p className="text-[12px] text-mute">
           <Link

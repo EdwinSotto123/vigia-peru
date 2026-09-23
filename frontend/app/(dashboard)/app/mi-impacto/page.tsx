@@ -12,8 +12,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Heart, MapPin, Camera, ArrowRight, Loader2, Eye, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
 import { EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
+import { SubirComprobante } from "@/components/financiar/SubirComprobante";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -83,7 +83,7 @@ function Contenido() {
 
       {resumenTiles.length > 0 && (
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {resumenTiles.map((t, i) => <Cifra key={t.k} i={i} k={t.k} v={t.v} hint={t.hint} />)}
+          {resumenTiles.map((t) => <Cifra key={t.k} k={t.k} v={t.v} hint={t.hint} />)}
         </dl>
       )}
 
@@ -104,10 +104,7 @@ function Contenido() {
               const paso = indicePaso(a.estado, a.procesados, a.contratos);
               const p = pct(a.procesados, a.contratos);
               return (
-                // Cada aporte entra en cascada (tope ~840ms para que una cuenta con
-                // muchos aportes no se sienta lenta): son unidades independientes, no
-                // pasos de un flujo — el mismo criterio que ya usa ConfianzaSection.
-                <li className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow duration-200 hover:shadow-paper">
+                <li key={a.codigo} className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow duration-200 hover:shadow-paper">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -143,11 +140,15 @@ function Contenido() {
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
                     <Link href={`/impacto/${a.codigo}`} className="inline-flex items-center gap-1 font-semibold text-ink hover:underline">Comprobante público <ArrowRight size={12} aria-hidden /></Link>
                     {a.primerOcid && <Link href={`/app/auditoria/${encodeURIComponent(a.primerOcid)}`} className="text-mute hover:text-ink hover:underline">Primer contrato procesado</Link>}
-                    {a.estado === "pendiente_pago" && !a.tieneComprobante && (
-                      <Link href={`/app/financiar/${a.ubigeo}`} className="text-clayTexto hover:underline">Enviar comprobante de pago</Link>
-                    )}
                     {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={11} aria-hidden /></a>}
                   </div>
+                  {/* Pendiente y sin comprobante: se sube acá mismo (antes el enlace llevaba a un formulario nuevo, en blanco). */}
+                  {a.estado === "pendiente_pago" && !a.tieneComprobante && (
+                    <div className="mt-3 border-t border-line pt-3">
+                      <p className="mb-2 text-[12px] text-inkSoft">Envía la captura o constancia de tu pago para que podamos validarlo.</p>
+                      <SubirComprobante codigo={a.codigo} onSubido={cargar} compacto />
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -253,7 +254,7 @@ function Contenido() {
         </section>
       </div>
 
-      <p className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
+      <p className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-inkSoft">
         <Bell size={14} className="mt-0.5 shrink-0 text-clayTexto" aria-hidden />
         <span>Los avisos por correo (cuando se procese un contrato que financiaste o haya señales en tu zona) se configuran en <Link href="/app/configuracion" className="underline hover:text-ink">Configuración</Link>. Por ahora solo guardamos tu preferencia; el envío se activará más adelante.</span>
       </p>
@@ -318,13 +319,13 @@ function EstadoVacio({ icon: Icon, children }: { icon: LucideIcon; children: Rea
 
 // Raíz propia (no un <div> envolviendo a otro) para no romper el modelo de
 // contenido de <dl>: cada tarjeta sigue siendo el único div entre <dl> y su dt/dd.
-// El número cuenta desde 0 en vez de aparecer estático: es la cifra protagonista de
-// cada tarjeta de resumen, el primer dato "vivo" que ve el usuario en la página.
-function Cifra({ k, v, hint, i }: { k: string; v: number; hint?: string; i: number }) {
+// La cifra se pinta con su valor real: un contador que arranca en 0 mostraba "0 aportes"
+// hasta que terminaba de animar, y un cero que parece dato es peor que ninguna animación.
+function Cifra({ k, v, hint }: { k: string; v: number; hint?: string }) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-4 shadow-card transition-shadow hover:shadow-paper">
       <dt className="text-[11px] uppercase tracking-wide text-mute">{k}</dt>
-      <dd className="font-mono text-2xl font-semibold text-ink"><NumberTicker value={v} format="entero" /></dd>
+      <dd className="font-mono text-2xl font-semibold tabular-nums text-ink">{v.toLocaleString("es-PE")}</dd>
       {hint && <dd className="text-[10px] text-mute">{hint}</dd>}
     </div>
   );

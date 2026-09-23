@@ -22,7 +22,7 @@ export function AvisoMaqueta({
   financiados,
   leidos,
 }: {
-  /** URL de la misma vista sin el interruptor `?maqueta=1`. */
+  /** URL de la misma vista con `?maqueta=0` (en desarrollo, sin parámetro la maqueta vuelve a encenderse). */
   volverHref: string;
   /** Contratos de maqueta sumados a la cascada de esta página. */
   financiados?: number;

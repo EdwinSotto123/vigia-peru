@@ -1,5 +1,5 @@
 import { API_BASE } from "@/lib/api-client";
-import { getComprobante, type Comprobante } from "@/lib/financiamiento";
+import { conAcentos, getComprobante, type Comprobante } from "@/lib/financiamiento";
 import { comprobanteMaqueta, esSlugMaqueta, perfilMaqueta } from "@/lib/maqueta-aliados";
 import type { ContribucionAliado } from "./CadenaAliado";
 
@@ -60,7 +60,11 @@ export async function getPerfilAliado(slug: string, maqueta = false, revalidate 
     } as any);
     if (!r.ok) return null;
     const data = (await r.json()) as { aliado: AliadoPerfil; contribuciones: ContribucionAliado[] };
-    return { aliado: data.aliado, contribuciones: data.contribuciones ?? [], esMaqueta: false };
+    return {
+      aliado: data.aliado,
+      contribuciones: (data.contribuciones ?? []).map((c) => ({ ...c, zona: conAcentos(c.zona) })),
+      esMaqueta: false,
+    };
   } catch {
     return null;
   }

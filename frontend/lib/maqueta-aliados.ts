@@ -10,10 +10,11 @@
  * Las tres reglas que hacen que esto no sea una mentira dentro de un producto
  * que acusa públicamente de falta de transparencia:
  *
- *  1. **No aparecen nunca por defecto.** Hacen falta dos condiciones: el
- *     interruptor `?maqueta=1` en la URL, y que la página lo pase
- *     explícitamente. Sin eso, `/app/aliados` y `/aliado/[slug]` se comportan
- *     exactamente como hoy — la ficha de un slug de maqueta da 404.
+ *  1. **En producción no existen, nunca.** `maquetaActiva()` devuelve false
+ *     con NODE_ENV=production aunque alguien escriba `?maqueta=1` a mano: la
+ *     ficha de un slug de maqueta da 404 y ninguna cifra los suma. En
+ *     desarrollo aparecen por defecto (para mirar el diseño con volumen) y se
+ *     apagan con `?maqueta=0`, que es a donde apuntan los enlaces de salida.
  *  2. **Se nombran como lo que son.** "VIGÍA 2" no es el nombre de ninguna
  *     organización peruana; los códigos de aporte llevan prefijo `MAQ-` en vez
  *     de `VIG-`; los contratos llevan `MAQUETA-…` en vez de un OCID real y no
@@ -35,28 +36,32 @@ import type { ContribucionAliado } from "@/components/aliados/CadenaAliado";
 /** Interruptor de URL. Una sola grafía, en un solo lugar. */
 export const PARAM_MAQUETA = "maqueta";
 
-/** `?maqueta=1` y nada más: cualquier otro valor deja la vista real. */
 /**
  * ¿Se mezclan los aliados inventados?
+ *
+ * En PRODUCCIÓN no, nunca, ni con `?maqueta=1` escrito a mano: un visitante no
+ * puede toparse con datos inventados en un sitio que acusa a otros de falta de
+ * transparencia, ni siquiera siguiendo un enlace compartido.
  *
  * En DESARROLLO sí, por defecto: la maqueta existe para poder mirar el diseño
  * con varios nombres, y esconderla detrás de un parámetro que hay que ir a
  * buscar al pie de la página la volvía inútil para eso. Se apaga con
  * `?maqueta=0` cuando hace falta ver la página real.
- *
- * En PRODUCCIÓN sigue apagada salvo que alguien escriba `?maqueta=1` a mano, y
- * entonces la página lo grita por todos lados. Un visitante nunca se topa con
- * datos inventados en un sitio que acusa a otros de falta de transparencia.
  */
 export function maquetaActiva(valor: string | string[] | undefined): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   const v = Array.isArray(valor) ? valor[0] : valor;
-  if (v === "1") return true;
-  if (v === "0") return false;
-  return process.env.NODE_ENV !== "production";
+  return v !== "0";
 }
 
 /** Sufijo listo para pegar a un href y conservar el interruptor al navegar. */
 export const queryMaqueta = (activa: boolean) => (activa ? `?${PARAM_MAQUETA}=1` : "");
+
+/**
+ * Href de "salir de la maqueta": lleva `?maqueta=0` porque en desarrollo la vista
+ * sin parámetro vuelve a encender la maqueta. `base` puede traer su propia query.
+ */
+export const hrefSinMaqueta = (base: string) => `${base}${base.includes("?") ? "&" : "?"}${PARAM_MAQUETA}=0`;
 
 interface AporteMaqueta {
   codigo: string;
