@@ -50,6 +50,7 @@ export function PipelineAgentes() {
   return (
     <section
       id="agentes"
+      data-tema="oscuro"
       aria-labelledby="agentes-titulo"
       className="relative scroll-mt-20 overflow-hidden bg-ink py-16 text-paper sm:py-20"
     >

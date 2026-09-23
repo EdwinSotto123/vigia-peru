@@ -211,6 +211,15 @@ const config: Config = {
           "0%, 100%": { boxShadow: "0 0 0 0 rgba(47,168,76,0.55)" },
           "50%": { boxShadow: "0 0 18px 3px rgba(47,168,76,0.85)" },
         },
+        /* El corazón del botón de financiar: dos golpes, como un latido, y
+           quieto. Sólo al pasar el cursor; nunca en bucle. */
+        latir: {
+          "0%, 100%": { transform: "scale(1)" },
+          "14%": { transform: "scale(1.28)" },
+          "28%": { transform: "scale(1)" },
+          "42%": { transform: "scale(1.16)" },
+          "70%": { transform: "scale(1)" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -232,6 +241,7 @@ const config: Config = {
         astillaViva: "astillaViva 2.6s ease-in-out infinite",
         fluirDatos: "fluirDatos 1.4s linear infinite",
         latidoNodo: "latidoNodo 2.8s ease-in-out infinite",
+        latir: "latir 900ms ease-in-out",
       },
     },
   },

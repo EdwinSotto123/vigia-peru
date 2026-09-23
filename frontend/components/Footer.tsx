@@ -12,7 +12,7 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-20 bg-ink text-paper">
+    <footer data-tema="oscuro" className="mt-20 bg-ink text-paper">
       <div className="container-page py-14">
         {/* Top: brand + CTA donación lado a lado */}
         <div className="grid items-center gap-8 lg:grid-cols-[1.6fr,1fr]">

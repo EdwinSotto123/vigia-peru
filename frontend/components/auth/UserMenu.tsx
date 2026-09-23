@@ -47,7 +47,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
         <LogIn size={13} aria-hidden /> Entrar
       </Link>
     ) : (
-      <Link href={`/login${next}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3.5 py-2 text-sm font-medium text-ink hover:bg-paperDeep">
+      <Link href={`/login${next}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3.5 py-2 text-sm font-medium text-ink transition-colors duration-300 hover:bg-paperDeep group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20">
         <LogIn size={14} aria-hidden /> Entrar
       </Link>
     );

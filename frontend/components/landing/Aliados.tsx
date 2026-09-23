@@ -60,7 +60,7 @@ export async function Aliados() {
   const partes = partesDeTarifa(estado?.tarifa.nota);
 
   return (
-    <section id="aliados" aria-labelledby="aliados-titulo" className="relative scroll-mt-16 overflow-hidden bg-ink text-paper">
+    <section id="aliados" data-tema="oscuro" aria-labelledby="aliados-titulo" className="relative scroll-mt-16 overflow-hidden bg-ink text-paper">
       <EscenaAliados>
         <div className="container-page relative max-w-[1400px] py-20 sm:py-24">
           <div className="max-w-3xl">

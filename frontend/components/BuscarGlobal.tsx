@@ -93,7 +93,7 @@ export function BuscarGlobal({ variant = "campo", className }: { variant?: "camp
   };
 
   const trigger = variant === "boton" ? (
-    <button type="button" onClick={() => setOpen(true)} aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-mute hover:bg-paperDeep hover:text-ink", className)}>
+    <button type="button" onClick={() => setOpen(true)} aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-mute transition-colors duration-300 hover:bg-paperDeep hover:text-ink group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
       <Search size={15} aria-hidden />
     </button>
   ) : (

@@ -93,6 +93,7 @@ export function CasoLeido({ caso }: { caso: CasoPortada }) {
     <section
       ref={raiz}
       id="como"
+      data-tema="oscuro"
       aria-labelledby="caso-titulo"
       className="relative scroll-mt-16 overflow-hidden bg-ink text-paper"
     >

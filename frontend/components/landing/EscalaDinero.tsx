@@ -87,7 +87,7 @@ export function EscalaDinero({
   );
 
   return (
-    <section ref={raiz} aria-labelledby="escala-titulo" className="relative overflow-hidden bg-ink text-paper">
+    <section ref={raiz} data-tema="oscuro" aria-labelledby="escala-titulo" className="relative overflow-hidden bg-ink text-paper">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-40 top-24 h-[30rem] w-[30rem] rounded-full bg-heroViolet/25 blur-[130px]" />
       </div>

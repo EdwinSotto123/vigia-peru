@@ -77,6 +77,12 @@ export function HeroLupa() {
             scrub: 0.8,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            // Cuando la lupa ya cubrió la escena, lo que hay bajo el header es
+            // negro: se lo dice al header (que lee `data-tema`) para que pase a
+            // vidrio oscuro junto con la página.
+            onUpdate: (self) => {
+              raiz.dataset.tema = self.progress > 0.62 ? "oscuro" : "claro";
+            },
           },
         });
 
@@ -96,7 +102,10 @@ export function HeroLupa() {
           .fromTo(".puente", { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.12 }, 0.82)
           .to({}, { duration: 0.08 });
       });
-      return () => mm.revert();
+      return () => {
+        mm.revert();
+        delete escena.current?.dataset.tema;
+      };
     },
     { scope: escena },
   );
