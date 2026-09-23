@@ -17,8 +17,12 @@
 #   3. servicios/obras/otros: se toma el spec vivo de agent-orchestrator-adk (`describe --format yaml`),
 #      se limpian los campos de solo lectura, se cambia nombre/imagen/PIPELINE_PROFILE y se aplica con
 #      `gcloud run services replace` → heredan variables, secretos, Cloud SQL, 8Gi/2 CPU/3600 s/
-#      concurrency 1 sin transcribirlos. Luego `add-iam-policy-binding allUsers roles/run.invoker`.
-#   4. Verifica GET / de cada servicio (devuelve {ok, perfil, modelos}).
+#      concurrency 1 sin transcribirlos. Luego roles/run.invoker a la cuenta de servicio que los invoca
+#      (INVOKER_SA; default: la SA de Compute que usan frontend, API y dispatcher). allUsers SOLO con
+#      AGENTES_PUBLICOS=1 (comportamiento histórico): el objetivo es que los agentes sean IAM-only.
+#   4. Verifica GET / de cada servicio (devuelve {ok, perfil, modelos}) con un ID token de gcloud.
+#   DECOLECTA_API_KEY: bienes la monta desde Secret Manager (secretos_decolecta_flags, _common.sh);
+#   servicios/obras/otros la heredan al copiar el spec.
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 QUE="${1:-all}"
@@ -43,6 +47,12 @@ GEMINI_MODEL_JUDGE="${GEMINI_MODEL_JUDGE:-gemini-3.5-flash}"
 MODEL_ENV="GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MODEL_SMART=${GEMINI_MODEL_SMART},GEMINI_MODEL_FAST=${GEMINI_MODEL_FAST},GEMINI_MODEL_JUDGE=${GEMINI_MODEL_JUDGE}"
 
 declare -A SERVICIO=( [bienes]="$BASE_SERVICE" [servicios]="agente-servicios" [obras]="agente-obras" [otros]="agente-otros" )
+# Quién invoca a los agentes (frontend /api/agent/*, API /admin/operacion, job vigia-dispatcher): hoy
+# todos corren con la SA de Compute por defecto.
+AGENTES_PUBLICOS="${AGENTES_PUBLICOS:-0}"
+if [[ -z "${INVOKER_SA:-}" ]]; then
+  INVOKER_SA="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+fi
 
 case "$QUE" in
   all) PERFILES=(bienes servicios obras otros) ;;
@@ -75,7 +85,11 @@ env_flag() {  # PIPELINE_PROFILE + modelos + EXTRA_ENV
 verificar() {  # GET / → {ok, perfil, …}
   local svc="$1" perfil="$2"
   local url; url="$(gcloud run services describe "$svc" --region "$REGION" --format='value(status.url)')"
-  local body; body="$(curl -fsS --max-time 60 "$url/" || true)"
+  # ID token (el servicio puede ser IAM-only): --audiences solo vale para cuentas de servicio
+  # (Cloud Build); con cuenta de usuario, gcloud emite uno que Cloud Run acepta sin audiencia.
+  local tok; tok="$(gcloud auth print-identity-token --audiences="$url" 2>/dev/null || gcloud auth print-identity-token 2>/dev/null || true)"
+  local auth=(); [[ -n "$tok" ]] && auth=(-H "Authorization: Bearer ${tok}")
+  local body; body="$(curl -fsS --max-time 60 "${auth[@]}" "$url/" || true)"
   if [[ "$body" == *"\"perfil\": \"${perfil}\""* ]]; then
     echo "✓ ${svc} ${url} → perfil ${perfil}"
   else
@@ -133,7 +147,13 @@ yaml.safe_dump(d, open(dst, "w", encoding="utf-8"), sort_keys=False, allow_unico
 print(f"spec de {os.environ['SVC']}: {len(env)} variables, imagen {os.environ['IMAGE']}")
 PY
   gcloud run services replace "$tmp" --region "$REGION" --quiet
-  gcloud run services add-iam-policy-binding "$svc" --region "$REGION" --member=allUsers --role=roles/run.invoker --quiet >/dev/null
+  if [[ "$AGENTES_PUBLICOS" == "1" ]]; then
+    gcloud run services add-iam-policy-binding "$svc" --region "$REGION" --member=allUsers --role=roles/run.invoker --quiet >/dev/null
+  else
+    # Aditivo e idempotente: no quita allUsers si ya estaba (eso se hace a propósito, después de
+    # desplegar los clientes con ID token — ver infrastructure/README.md).
+    gcloud run services add-iam-policy-binding "$svc" --region "$REGION" --member="serviceAccount:${INVOKER_SA}" --role=roles/run.invoker --quiet >/dev/null
+  fi
   rm -f "$tmp" "$tmp.base"
 }
 
@@ -142,8 +162,9 @@ for perfil in "${PERFILES[@]}"; do
   svc="${SERVICIO[$perfil]}"
   echo "▶ ${perfil} → ${svc}"
   if [[ "$perfil" == "bienes" ]]; then
+    mapfile -t SECRET_FLAGS < <(secretos_decolecta_flags)
     gcloud run services update "$svc" --region "$REGION" --image "$IMAGE" \
-      --update-env-vars "$(env_flag bienes)" --quiet
+      --update-env-vars "$(env_flag bienes)" "${SECRET_FLAGS[@]}" --quiet
   else
     replace_desde_base "$perfil"
   fi

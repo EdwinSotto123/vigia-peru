@@ -34,10 +34,11 @@ locals {
     DOCAI_LOCATION            = "us"
   })
   agent_secrets = {
-    PGPASSWORD       = google_secret_manager_secret.cloudsql_password.secret_id
-    GOOGLE_API_KEY   = "google-api-key"
-    PHOENIX_API_KEY  = "phoenix-api-key"
-    PINECONE_API_KEY = "pinecone-api-key"
+    PGPASSWORD        = google_secret_manager_secret.cloudsql_password.secret_id
+    GOOGLE_API_KEY    = "google-api-key"
+    PHOENIX_API_KEY   = "phoenix-api-key"
+    PINECONE_API_KEY  = "pinecone-api-key"
+    DECOLECTA_API_KEY = "decolecta-api-key" # SUNAT (decolecta); antes texto plano en el servicio
   }
   # Perfil → nombre del servicio (bienes es el histórico, recurso `agent` abajo).
   agent_profiles = {
@@ -392,16 +393,33 @@ resource "google_cloud_run_v2_service" "frontend" {
   depends_on = [google_project_service.apis]
 }
 
-# Todos públicos (demo). Para producción: quitar y poner IAP / Cloud Armor delante.
+locals {
+  # Los 4 servicios de agentes (cada corrida cuesta): IAM-only cuando var.agents_public = false.
+  agent_services = merge(
+    { agent = google_cloud_run_v2_service.agent.name },
+    { for k, s in google_cloud_run_v2_service.agente_perfil : "agente_${k}" => s.name },
+  )
+}
+
+# API, MCP y frontend son públicos por diseño. Los agentes, solo mientras var.agents_public = true.
 resource "google_cloud_run_v2_service_iam_member" "public" {
   for_each = merge({
-    agent    = google_cloud_run_v2_service.agent.name
     api      = google_cloud_run_v2_service.api.name
     mcp      = google_cloud_run_v2_service.mcp.name
     frontend = google_cloud_run_v2_service.frontend.name
-  }, { for k, s in google_cloud_run_v2_service.agente_perfil : "agente_${k}" => s.name })
+  }, { for k, v in local.agent_services : k => v if var.agents_public })
   name     = each.value
   location = var.region
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# Quien invoca a los agentes con ID token (frontend, API y job vigia-dispatcher corren con la SA de
+# runtime). Aditivo: con agents_public = true no cambia nada visible.
+resource "google_cloud_run_v2_service_iam_member" "agent_invoker" {
+  for_each = local.agent_services
+  name     = each.value
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${local.runtime_sa}"
 }

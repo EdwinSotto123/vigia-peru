@@ -330,7 +330,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
               </p>
             </div>
             <div className="mt-5">
-              <SubirComprobante codigo={creada.codigo} onSubido={() => { setSubido(true); borrarBorrador(ubigeo); }} />
+              <SubirComprobante codigo={creada.codigo} email={email.trim() || null} onSubido={() => { setSubido(true); borrarBorrador(ubigeo); }} />
               <p className="mt-2 text-[12px] text-inkSoft">
                 Si lo envías después: desde <Link href="/app/mi-impacto" className="underline">Mi impacto</Link> con una cuenta, o volviendo a esta página en este mismo navegador.
               </p>

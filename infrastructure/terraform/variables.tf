@@ -52,6 +52,12 @@ variable "agent_max_instances" {
   default = 5
 }
 
+variable "agents_public" {
+  description = "Si los 4 servicios de agentes aceptan invocaciones sin autenticar (allUsers). Pasar a false DESPUÉS de desplegar los clientes que mandan ID token (frontend /api/agent/*, API /admin/operacion, job vigia-dispatcher): quedan IAM-only con roles/run.invoker para la SA de runtime."
+  type        = bool
+  default     = true
+}
+
 variable "placeholder_image" {
   description = "Imagen inicial de los servicios Cloud Run. El código real se despliega con infrastructure/deploy/*.sh (gcloud run deploy --source); Terraform ignora cambios de imagen."
   type        = string

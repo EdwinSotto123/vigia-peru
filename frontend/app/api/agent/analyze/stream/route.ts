@@ -14,6 +14,7 @@
 import type { NextRequest } from "next/server";
 import { Agent as UndiciAgent } from "undici";
 import { exigirAdmin } from "../_admin";
+import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../../_orquestador";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 3600;  // 60 min — Cloud Run max es 3600s
@@ -23,10 +24,6 @@ const LONG_TIMEOUT_DISPATCHER = new UndiciAgent({
   bodyTimeout: 3_600_000,
   connectTimeout: 30_000,
 });
-
-const ORCHESTRATOR_URL =
-  process.env.VIGIA_AGENT_URL ||
-  "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app";
 
 export async function POST(req: NextRequest) {
   // Cada corrida cuesta: solo el equipo (cookie de admin verificada) puede dispararla.
@@ -55,7 +52,7 @@ export async function POST(req: NextRequest) {
   try {
     upstream = await fetch(orchUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
       body: JSON.stringify({
         input,
         ocds: body.ocds ?? null,

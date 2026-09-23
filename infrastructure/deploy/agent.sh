@@ -20,11 +20,17 @@ ENV_VARS="PIPELINE_PROFILE=bienes,GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MODEL_SMAR
 EXTRA_ENV="${EXTRA_ENV:-}"
 if [[ -n "$EXTRA_ENV" ]]; then ENV_VARS="${ENV_VARS},${EXTRA_ENV}"; fi
 
+# DECOLECTA_API_KEY (SUNAT) sale de Secret Manager — antes era una variable en texto plano, visible
+# en la configuración del servicio. Ver secretos_decolecta_flags en _common.sh.
+mapfile -t SECRET_FLAGS < <(secretos_decolecta_flags)
+
+# Sin --allow-unauthenticated: en un servicio existente, `gcloud run deploy` sin ese flag NO toca la
+# política IAM. Así un deploy no vuelve a abrir el orquestador a allUsers después de pasarlo a
+# IAM-only (lo invocan con ID token: frontend /api/agent/*, API /admin/operacion y el dispatcher).
 cd "$REPO_ROOT/backend/agent"
 gcloud run deploy agent-orchestrator-adk \
   --source . \
   --region "$REGION" \
-  --allow-unauthenticated \
   --memory 8Gi \
   --cpu 2 \
   --timeout 3600 \
@@ -32,4 +38,5 @@ gcloud run deploy agent-orchestrator-adk \
   --max-instances "${MAX_INSTANCES:-5}" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
   --update-env-vars "$ENV_VARS" \
+  "${SECRET_FLAGS[@]}" \
   --quiet

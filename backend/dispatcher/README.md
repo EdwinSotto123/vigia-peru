@@ -56,6 +56,7 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
 | `DISPATCHER_STREAM_TIMEOUT` | 1200 | segundos sin datos del stream antes de darlo por cortado |
 | `DISPATCHER_GRACE_MINUTES` | 20 | si el stream corta sin `final`, cuánto esperar (sondeando la DB) a que el orquestador —que sigue corriendo— persista la alerta |
 | `DISPATCHER_PREFETCH_OCDS` | 1 | intenta bajar el `compiledRelease` desde esta IP y lo pasa precargado al orquestador (sirve desde laptop/VPS en Perú; desde GCP el WAF lo bloquea y el orquestador usa su cadena relay → Worker → directo) |
+| `AGENT_ID_TOKEN` | — | solo local: ID token para servicios de agentes IAM-only (`$(gcloud auth print-identity-token)`). En Cloud Run no hace falta: `auth.py` lo pide al servidor de metadatos (audiencia = URL del servicio, caché 50 min). Un 401/403 del servicio re-encola sin consumir intento y corta la corrida |
 | `DISPATCHER_REQUIERE_DOCS_GCS` | 1 | si el contrato no tiene documentos vigentes en GCS (`documentos_vigentes()`, migración 15) no se procesa: abre un `pedido_descarga`, queda `esperando_documentos` y el batch nocturno (`descargar pedidos`) lo baja desde IP peruana; la ingesta lo re-encola al día siguiente. Con `0` (corrida manual con relay/downloader vivo) se procesa igual |
 
 ## Correr local (contra prod, un contrato)

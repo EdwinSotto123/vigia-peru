@@ -50,7 +50,22 @@ Firebase antes del primer deploy.
 
 **Orquestador:** nunca usar `--set-env-vars`. Borra las ~40 variables
 operativas, los secretos montados y la conexión Cloud SQL. `agent.sh` solo usa
-`--update-env-vars`.
+`--update-env-vars`. Lo mismo con secretos: `--update-secrets`, nunca `--set-secrets`
+(borra los demás secretos montados).
+
+**SUNAT (decolecta):** `DECOLECTA_API_KEY` se monta desde el secreto `decolecta-api-key`
+(`agent.sh` / `agentes.sh` lo hacen solos cuando el secreto existe; mientras no exista, dejan la
+variable como está). Para crearlo con una key válida:
+
+```bash
+printf '%s' "$DECOLECTA_KEY" | gcloud secrets create decolecta-api-key --replication-policy=automatic --data-file=-
+# rotarla después:  printf '%s' "$NUEVA" | gcloud secrets versions add decolecta-api-key --data-file=-
+```
+
+**Agentes IAM-only:** los 4 servicios de agentes se invocan con ID token de Google (frontend
+`/api/agent/*`, API `/admin/operacion`, job `vigia-dispatcher`). Los deploys ya no agregan
+`allUsers` (`AGENTES_PUBLICOS=1` en `agentes.sh` restaura el comportamiento viejo). Quitar
+`allUsers` a mano solo DESPUÉS de desplegar esos tres clientes.
 
 El relay residencial (`backend/relay/`) no se despliega en GCP: corre en un VPS
 en Lima con systemd/Docker (instrucciones en su propio README).
@@ -64,7 +79,7 @@ en Lima con systemd/Docker (instrucciones en su propio README).
 | OCR | `DOCAI_PROJECT`, `DOCAI_LOCATION`, `DOCAI_PROCESSOR_ID`, `DOCAI_LAYOUT_TEXT` |
 | RAG legal | `LEGAL_RAG_BACKEND` (`vertex` \| `pgvector`), `LEGAL_RAG_ENGINE`, `LEGAL_RAG_DATASTORE`, `PINECONE_API_KEY` (legacy, secreto) |
 | Egress `.gob.pe` | `LOCAL_DOWNLOADER_URL`, `LOCAL_DOWNLOADER_TOKEN`, `OECE_RELAY_URL`, `VIGIA_SCRAPER_URL` |
-| Fuentes externas | `DECOLECTA_API_KEY`, `DECOLECTA_BASE` |
+| Fuentes externas | `DECOLECTA_API_KEY` (secreto `decolecta-api-key`), `DECOLECTA_BASE` |
 | Pipeline | `DETERMINISTIC_PIPELINE`, `PARALLEL_RESEARCH`, `PARSE_*`, `MARKET_*`, `SANITIZE_ITEMS_MODEL` |
 | Observabilidad | `PHOENIX_API_KEY` (secreto), `PHOENIX_COLLECTOR_ENDPOINT`, `ARIZE_API_KEY`, `ARIZE_SPACE_ID`, `ARIZE_PROJECT` |
 

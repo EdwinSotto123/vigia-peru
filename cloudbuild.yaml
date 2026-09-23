@@ -46,7 +46,9 @@ steps:
       - -c
       - |
         [[ ",${_DEPLOY}," == *",agent,"* ]] || { echo "skip agent"; exit 0; }
-        gcloud run deploy agent-orchestrator-adk --source backend/agent --region ${_REGION} --allow-unauthenticated \
+        # Sin --allow-unauthenticated: el deploy no toca la IAM del orquestador (va a ser IAM-only;
+        # sus clientes mandan ID token). Los secretos montados (DECOLECTA_API_KEY incluido) se conservan.
+        gcloud run deploy agent-orchestrator-adk --source backend/agent --region ${_REGION} \
           --memory 8Gi --cpu 2 --timeout 3600 --concurrency 1 --max-instances 5 \
           --add-cloudsql-instances ${_SQL} --update-env-vars PIPELINE_PROFILE=bienes --quiet
 

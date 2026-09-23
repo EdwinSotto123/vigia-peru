@@ -334,6 +334,7 @@ def upsert_alerta_y_banderas(cur, ocid: str, banderas: list[dict]) -> str | None
             INSERT INTO banderas (alerta_id, regla, severidad, evidencia,
                                   norma, fuente_url, agente_origen)
             VALUES (%s, %s, %s, %s, %s, %s, 'compliance_agent')
+            ON CONFLICT DO NOTHING
             """,
             (alerta_id, b["regla"], b["severidad"], b["evidencia"],
              b["norma"], b["fuente_url"]),

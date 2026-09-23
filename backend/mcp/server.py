@@ -28,6 +28,14 @@ PG_DB = os.getenv("PGDATABASE", "vigia")
 _DISCLAIMER = ("Señal de riesgo, no acusación. La denuncia formal corresponde a "
                "Contraloría/Fiscalía. Verificar en la fuente oficial SEACE/OECE.")
 
+# Regla de PUBLICACIÓN — la misma de la API de lectura (backend/api/src/lib/publicacion.ts ·
+# alertaPublica): alerta publicada = estado 'activa' o 'confirmada' (función SQL
+# alerta_publicada(), migración 22) y no es semilla de demo (las reales se codifican OECE-…, las
+# de demo ALT-…). Una alerta en 'revision' (la autoevaluación bloqueó la publicación) o
+# 'descartada' no expone score, banderas ni conteos: para este servidor no existe.
+# (pg8000 no reinterpreta el % dentro de un literal entre comillas: va un solo %.)
+_ALERTA_PUBLICA = "(alerta_publicada(a.estado) AND a.codigo NOT LIKE 'ALT-%')"
+
 
 def _pg():
     if PG_HOST.startswith("/cloudsql/"):
@@ -51,7 +59,8 @@ mcp = FastMCP("vigia-peru", host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
 
 @mcp.tool()
 def buscar_alertas(region: str = "", severidad_min: int = 0, limite: int = 20) -> list[dict]:
-    """Lista alertas de riesgo de corrupción en contrataciones públicas del Perú.
+    """Lista alertas de riesgo de corrupción en contrataciones públicas del Perú
+    (solo las publicadas: las que están en revisión humana no se exponen).
 
     Args:
         region: filtra por región/departamento (vacío = todas).
@@ -67,7 +76,8 @@ def buscar_alertas(region: str = "", severidad_min: int = 0, limite: int = 20) -
                       (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)
                  FROM alertas a
                  LEFT JOIN convocatorias c ON c.ocid = a.ocid
-                WHERE (%s = '' OR a.region ILIKE %s)
+                WHERE """ + _ALERTA_PUBLICA + """
+                  AND (%s = '' OR a.region ILIKE %s)
                   AND COALESCE(a.score, 0) >= %s
                 ORDER BY a.score DESC NULLS LAST
                 LIMIT %s""",
@@ -86,6 +96,7 @@ def buscar_alertas(region: str = "", severidad_min: int = 0, limite: int = 20) -
 @mcp.tool()
 def riesgo_convocatoria(ocid: str) -> dict:
     """Score de riesgo + banderas (con evidencia y norma citada) de una convocatoria.
+    Solo alertas publicadas: una alerta en revisión humana se reporta como no encontrada.
 
     Args:
         ocid: OCID o código (ej. '1221190' o 'OECE-1221190').
@@ -97,7 +108,8 @@ def riesgo_convocatoria(ocid: str) -> dict:
         cur.execute(
             """SELECT a.id, a.codigo, a.ocid, a.score, a.region, a.monto_adjudicado, c.objeto
                  FROM alertas a LEFT JOIN convocatorias c ON c.ocid = a.ocid
-                WHERE a.ocid = %s OR a.codigo = %s OR a.codigo = %s
+                WHERE (a.ocid = %s OR a.codigo = %s OR a.codigo = %s)
+                  AND """ + _ALERTA_PUBLICA + """
                 LIMIT 1""",
             (short, str(ocid), f"OECE-{short}"),
         )

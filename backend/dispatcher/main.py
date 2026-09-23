@@ -41,6 +41,7 @@ import psycopg2
 import requests
 from psycopg2.extras import Json
 
+from .auth import cabeceras as cabeceras_invocacion
 from .events import VISIBLES, canonico, reduce_event
 
 log = logging.getLogger("dispatcher")
@@ -347,7 +348,18 @@ def procesar(ocid: str) -> str:
                      f" · pendientes {clas['validaciones_pendientes']}" if clas["validaciones_pendientes"] else "")
         if ocds:
             log.info("OCDS precargado para %s (%s)", ocid, str((ocds.get("tender") or {}).get("title") or "")[:60])
-        with requests.post(f"{agent_url}?stream=1", json=body, stream=True, timeout=(30, STREAM_TIMEOUT)) as r:
+        # ID token de Cloud Run (audiencia = URL del servicio): los servicios de agentes pasan a IAM-only.
+        with requests.post(f"{agent_url}?stream=1", json=body, headers=cabeceras_invocacion(agent_url),
+                           stream=True, timeout=(30, STREAM_TIMEOUT)) as r:
+            if r.status_code in (401, 403):
+                # Cloud Run rechazó la invocación (falta roles/run.invoker o el ID token): es
+                # configuración, no culpa del contrato → vuelve a la cola sin consumir intento y la
+                # corrida deja de reclamar (como con una fuente caída).
+                err = (f"sin permiso para invocar el servicio {perfil}: HTTP {r.status_code} "
+                       "(¿roles/run.invoker de la cuenta del job o ID token ausente?)")
+                log.error("⏸ %s %s", ocid, err)
+                terminar(ocid, ABORT, err)
+                return ABORT
             if r.status_code == 409:
                 # El servicio rechazó el tipo (perfil ≠ tipo): mala configuración de URLs, no un
                 # fallo del contrato → pendiente sin consumir intento.

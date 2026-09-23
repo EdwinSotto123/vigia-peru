@@ -16,6 +16,7 @@
 import { Hono } from "hono";
 import { pool } from "../lib/db.js";
 import { actor, log } from "../lib/adminlog.js";
+import { cabecerasInvocacion } from "../lib/cloudrun-auth.js";
 
 export const adminOperacionRouter = new Hono();
 
@@ -36,12 +37,18 @@ export interface SaludServicio {
   error: string | null;
 }
 
+/** Cabeceras del health: ID token de Cloud Run (los servicios de agentes pasan a IAM-only). */
+async function cabecerasPing(url: string): Promise<Record<string, string>> {
+  return { accept: "application/json", ...(await cabecerasInvocacion(url).catch(() => ({}))) };
+}
+
 async function pingServicio(s: (typeof SERVICIOS)[number]): Promise<SaludServicio> {
+  const headers = await cabecerasPing(s.url);
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 3000);
   const t0 = Date.now();
   try {
-    const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers: { accept: "application/json" } });
+    const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers });
     const ms = Date.now() - t0;
     const j = await r.json().catch(() => null) as SaludServicio["detalle"] & { ok?: boolean } | null;
     return { ...s, ok: r.ok && (j?.ok ?? true), status: r.status, ms,
@@ -69,10 +76,11 @@ async function saludServicios(): Promise<{ data: SaludServicio[]; consultadoAt: 
   data.forEach((s, i) => {
     if (s.ok !== null) return;
     (async () => {
+      const headers = await cabecerasPing(s.url);
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20_000);
       const t0 = Date.now();
       try {
-        const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers: { accept: "application/json" } });
+        const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers });
         const j = await r.json().catch(() => null) as { ok?: boolean; perfil?: string; tipos_aceptados?: string[]; agentes?: string[]; model?: string } | null;
         cache.data[i] = { ...s, ok: r.ok && (j?.ok ?? true), status: r.status, ms: Date.now() - t0,
           detalle: j ? { perfil: j.perfil, tipos_aceptados: j.tipos_aceptados, model: j.model, agentes: j.agentes } : null,

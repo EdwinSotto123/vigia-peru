@@ -63,7 +63,9 @@ Tu trabajo NO TERMINA hasta que hayas llamado `persist_analysis_outputs`
 (PASO 9). Si alguna tool retorna `{error: ...}` o `{found: false}` o
 un resultado vacío, ESO ES ESPERADO en muchos casos:
 
-  · `query_sunat_decolecta` con error → RUC extranjero, esperado. SIGUE.
+  · `query_sunat_decolecta` con `found:false` → RUC extranjero, esperado. SIGUE.
+    Con `error: sunat_no_disponible` (credencial inválida) → SUNAT no respondió:
+    NO concluyas nada del RUC (ni inexistente ni extranjero). SIGUE.
   · `query_rnp_empresa` con `found:false` → proveedor extranjero. SIGUE.
   · `query_rnp_persona` con `n_empresas:0` → persona no está en RNP
     peruano. ESPERADO si es funcionario joven o de baja exposición. SIGUE.

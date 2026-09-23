@@ -42,12 +42,31 @@ def _norma_slug(s: str) -> str:
 # analizado_en` (07) y `alertas.monto_referencial` (21) se crean SOLO por migración.
 
 
+# Dedupe de banderas: una bandera cuya (alerta_id, regla, evidencia) ya existe en la alerta NO se
+# vuelve a insertar — ni dentro del mismo lote (el NOT EXISTS ve las filas insertadas antes en la
+# misma transacción) ni contra filas previas (otro agente u otra corrida). Producción llegó a tener
+# 12 filas duplicadas exactas. La comparación usa la MISMA expresión que el índice único de la
+# migración 27 (md5 de la evidencia, NULL = ''), y `ON CONFLICT DO NOTHING` (sin target, válido
+# aunque la migración aún no esté aplicada) cubre la carrera entre dos corridas concurrentes una
+# vez que el índice existe. Se mantienen los 8 parámetros posicionales en el mismo orden.
+_INSERT_BANDERA_SQL = """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
+                                 fuente_url, agente_origen, verificacion)
+           SELECT v.alerta_id, v.regla, v.severidad, v.evidencia, v.norma,
+                  v.fuente_url, v.agente_origen, v.verificacion
+             FROM (SELECT %s::uuid AS alerta_id, %s::text AS regla, %s::text AS severidad,
+                          %s::text AS evidencia, %s::text AS norma, %s::text AS fuente_url,
+                          %s::text AS agente_origen, %s::jsonb AS verificacion) v
+            WHERE NOT EXISTS (
+                  SELECT 1 FROM banderas b
+                   WHERE b.alerta_id = v.alerta_id AND b.regla = v.regla
+                     AND md5(coalesce(b.evidencia::text, '')) = md5(coalesce(v.evidencia, '')))
+           ON CONFLICT DO NOTHING"""
+
+
 def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
                     agente_origen, verificacion) -> None:
     cur.execute(
-        """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
-                                 fuente_url, agente_origen, verificacion)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)""",
+        _INSERT_BANDERA_SQL,
         (alerta_id, (regla or "sin_regla")[:80], severidad if severidad in ("alta", "media", "baja") else "media",
          (evidencia or "")[:500], (norma or "")[:300], (fuente_url or None),
          agente_origen, json.dumps(verificacion or {}, ensure_ascii=False, default=str)),

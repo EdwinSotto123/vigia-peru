@@ -1,9 +1,11 @@
-# Los 4 secretos que consumen los servicios vía --set-secrets. Terraform crea el
+# Los secretos que consumen los servicios vía --update-secrets. Terraform crea el
 # contenedor; el VALOR se carga fuera de Terraform (no queda en el state):
 #   printf '%s' "$VALUE" | gcloud secrets versions add google-api-key --data-file=-
 # Excepción: cloudsql-password sí se genera y carga acá porque Terraform crea el usuario.
+# decolecta-api-key (SUNAT): cargar una versión ANTES de que un servicio lo referencie, o la
+# revisión no arranca ("secret version not found").
 locals {
-  secret_ids = ["google-api-key", "phoenix-api-key", "pinecone-api-key"]
+  secret_ids = ["google-api-key", "phoenix-api-key", "pinecone-api-key", "decolecta-api-key"]
 }
 
 resource "google_secret_manager_secret" "external" {

@@ -16,6 +16,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirAdmin } from "./_admin";
+import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../_orquestador";
 import { Agent as UndiciAgent, setGlobalDispatcher } from "undici";
 import { Storage } from "@google-cloud/storage";
 
@@ -32,10 +33,6 @@ const LONG_TIMEOUT_DISPATCHER = new UndiciAgent({
   bodyTimeout: 3_600_000,
   connectTimeout: 30_000,
 });
-
-const ORCHESTRATOR_URL =
-  process.env.VIGIA_AGENT_URL ||
-  "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app";
 
 const OECE_BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
 // Cap por PDF en el path server-side (fallback cuando el cliente no pre-fetcheó).
@@ -576,7 +573,7 @@ export async function POST(req: NextRequest) {
   try {
     const r = await fetch(ORCHESTRATOR_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
       body: JSON.stringify({ input, ocds: cr, docs_b64: body_docs_b64, doc_urls }),
       // @ts-expect-error undici dispatcher is supported by Node fetch
       dispatcher: LONG_TIMEOUT_DISPATCHER,

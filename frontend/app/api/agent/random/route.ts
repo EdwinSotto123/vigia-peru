@@ -10,12 +10,9 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirAdmin } from "../analyze/_admin";
+import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../_orquestador";
 
 export const dynamic = "force-dynamic";
-
-const ORCHESTRATOR_URL =
-  process.env.VIGIA_AGENT_URL ||
-  "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app";
 
 export async function GET(req: NextRequest) {
   const noAdmin = await exigirAdmin(req);
@@ -25,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     const r = await fetch(
       `${ORCHESTRATOR_URL}?action=random${todas ? "&excluir_analizadas=0" : ""}`,
-      { cache: "no-store" },
+      { cache: "no-store", headers: await cabecerasOrquestador(ORCHESTRATOR_URL) },
     );
     if (!r.ok) {
       return NextResponse.json(

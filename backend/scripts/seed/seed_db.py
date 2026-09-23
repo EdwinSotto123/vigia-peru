@@ -184,6 +184,7 @@ def seed_empresas_y_alertas(conn, mocks: dict) -> tuple[int, int, int]:
                     INSERT INTO banderas
                       (alerta_id, regla, severidad, evidencia, norma, opinion_oece, fuente_url, agente_origen)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
                     """,
                     (
                         alerta_id, b["regla"], b["severidad"], b["evidencia"],

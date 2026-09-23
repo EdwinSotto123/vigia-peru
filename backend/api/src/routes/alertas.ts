@@ -362,6 +362,16 @@ const CreateBody = z.object({
   })).default([]),
 });
 
+// Crear una alerta publica una señal de riesgo sobre una entidad real: nunca
+// puede quedar abierto. Antes no pedía nada y cualquiera podía publicar una
+// alerta con banderas inventadas. Mismo candado que /admin (x-admin-token).
+alertasRouter.post("/", async (c, next) => {
+  const token = process.env.ADMIN_TOKEN;
+  const got = c.req.header("x-admin-token") ?? "";
+  if (!token || got !== token) return c.json({ error: "forbidden" }, 403);
+  await next();
+});
+
 alertasRouter.post("/", async (c) => {
   const body = await c.req.json();
   const parsed = CreateBody.safeParse(body);
@@ -382,8 +392,10 @@ alertasRouter.post("/", async (c) => {
     const alertaId = a.rows[0].id;
     for (const b of d.banderas) {
       await client.query(
+        // Índice único (alerta_id, regla, md5(evidencia)) de la migración 27: un duplicado se omite.
         `INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma, opinion_oece, fuente_url, agente_origen)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT DO NOTHING`,
         [alertaId, b.regla, b.severidad, b.evidencia, b.norma, b.opinion_oece, b.fuente_url, b.agente_origen],
       );
     }

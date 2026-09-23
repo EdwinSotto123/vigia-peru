@@ -60,8 +60,38 @@ PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY", "")
 PHOENIX_PROJECT = os.getenv("PHOENIX_PROJECT", "vigia-peru")
 
 # ── HTTP helpers ────────────────────────────────────────────────────────────
+_ORCH_TOKEN: list[str | None] = []   # memo del ID token (una sola resolución por corrida)
+
+
+def _orch_auth_headers() -> dict:
+    """ID token para el orquestador (servicios de agentes IAM-only, roles/run.invoker).
+    Script LOCAL: `AGENT_ID_TOKEN` si está exportado; si no, `gcloud auth print-identity-token`
+    de la cuenta activa; sin ninguno, va sin cabecera (sirve mientras el servicio sea público)."""
+    if not _ORCH_TOKEN:
+        tok = (os.getenv("AGENT_ID_TOKEN") or "").strip() or None
+        if not tok:
+            import shutil
+            import subprocess
+            gcloud = shutil.which("gcloud")
+            if gcloud:
+                try:
+                    out = subprocess.run([gcloud, "auth", "print-identity-token"], capture_output=True,
+                                         text=True, timeout=30)
+                    tok = (out.stdout.strip() or None) if out.returncode == 0 else None
+                except (OSError, subprocess.SubprocessError):
+                    tok = None
+            if not tok:
+                print("⚠ sin ID token para el orquestador (AGENT_ID_TOKEN / gcloud): la llamada va sin "
+                      "Authorization.", file=sys.stderr)
+        _ORCH_TOKEN.append(tok)
+    return {"Authorization": f"Bearer {_ORCH_TOKEN[0]}"} if _ORCH_TOKEN[0] else {}
+
+
 def _http_get(url: str, timeout: int = 120) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "vigia-evals/1.0"})
+    headers = {"User-Agent": "vigia-evals/1.0"}
+    if url.startswith(ORCH_URL):
+        headers.update(_orch_auth_headers())
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 

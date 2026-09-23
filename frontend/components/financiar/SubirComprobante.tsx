@@ -2,53 +2,102 @@
 
 /**
  * Adjuntar el comprobante de pago (captura de Yape/Plin o constancia de transferencia)
- * a un aporte en `pendiente_pago`. Lo usan el paso de pago del formulario y Mi impacto
- * (donde la cuenta ya probó que el aporte es suyo), para que "lo envío después" tenga
- * un lugar real al que volver.
+ * a un aporte en `pendiente_pago`. Lo usan el paso de pago del formulario y Mi impacto,
+ * para que "lo envío después" tenga un lugar real al que volver.
+ *
+ * El código del aporte es correlativo y público: la API exige probar que el aporte es tuyo
+ * (POST /contribuciones/:codigo/comprobante). Se mandan las dos pruebas que haya a mano:
+ *   · la sesión (Firebase ID token), si la cuenta es la dueña del aporte (Mi impacto);
+ *   · el correo con el que se registró el aporte (el formulario lo pasa por `email`; si no se
+ *     conoce y no hay sesión, se le pide a la persona).
  */
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Camera, CheckCircle2, Loader2, Upload } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
+import { idToken } from "@/lib/cuentas";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const ERRORES: Record<string, string> = {
   invalid_body: "El archivo subió, pero no pudimos asociarlo al aporte. Inténtalo de nuevo.",
   not_found_or_not_pending: "Este aporte ya no espera comprobante: se validó o se anuló.",
+  titularidad_requerida:
+    "Para adjuntar el comprobante, escribe el correo con el que registraste el aporte o inicia sesión con la cuenta del aporte.",
+  titularidad_no_coincide:
+    "Ese correo no coincide con el del aporte. Usa el mismo correo que ingresaste al registrarlo, o inicia sesión con la cuenta del aporte.",
 };
+
+const CORREO_VALIDO = /^\S+@\S+\.\S+$/;
 
 const ANILLO_ETIQUETA =
   "focus-within:outline-none focus-within:ring-2 focus-within:ring-heroViolet/60 focus-within:ring-offset-1 focus-within:ring-offset-paper";
 
 export function SubirComprobante({
   codigo,
+  email,
   onSubido,
   compacto = false,
 }: {
   codigo: string;
+  /** Correo con el que se registró el aporte, si ya se conoce (formulario de aporte). */
+  email?: string | null;
   onSubido?: () => void;
   compacto?: boolean;
 }) {
+  const { user, loading: authLoading } = useAuth();
+  const idCorreo = useId();
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subido, setSubido] = useState(false);
+  const [correo, setCorreo] = useState(email?.trim() ?? "");
+  // true tras un 403: la sesión o el correo no alcanzaron y hay que (re)escribir el correo.
+  const [pedirCorreo, setPedirCorreo] = useState(false);
+  // URL del archivo ya subido: si la API rechaza la titularidad, reintentar no vuelve a subirlo.
+  const [urlSubida, setUrlSubida] = useState<string | null>(null);
+
+  useEffect(() => { if (email?.trim()) setCorreo(email.trim()); }, [email]);
+
+  const sinSesion = !authLoading && !user;
+  const mostrarCorreo = pedirCorreo || (sinSesion && !email?.trim());
+
+  function elegir(f: File | null) {
+    setArchivo(f);
+    setUrlSubida(null);
+  }
 
   async function enviar() {
     if (!archivo) return;
-    setCargando(true);
     setError(null);
-    setProgreso(0);
+    const token = await idToken();
+    const correoLimpio = correo.trim();
+    if (!token && !CORREO_VALIDO.test(correoLimpio)) {
+      setPedirCorreo(true);
+      setError("Escribe el correo con el que registraste el aporte: con él comprobamos que es tuyo.");
+      return;
+    }
+    setCargando(true);
     try {
-      const url = await subirConProgreso(archivo, setProgreso);
+      let url = urlSubida;
+      if (!url) {
+        setProgreso(0);
+        url = await subirConProgreso(archivo, setProgreso);
+        setUrlSubida(url);
+      }
       const r = await fetch(`${PUBLIC_API_BASE}/contribuciones/${encodeURIComponent(codigo)}/comprobante`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ url, email: CORREO_VALIDO.test(correoLimpio) ? correoLimpio : undefined }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(ERRORES[(j as { error?: string }).error ?? ""] ?? "No se pudo adjuntar el comprobante. Inténtalo de nuevo.");
+        const codigoError = (j as { error?: string }).error ?? "";
+        if (r.status === 403) setPedirCorreo(true);
+        throw new Error(
+          ERRORES[codigoError]
+            ?? (r.status === 403 ? ERRORES.titularidad_no_coincide : "No se pudo adjuntar el comprobante. Inténtalo de nuevo."),
+        );
       }
       setSubido(true);
       onSubido?.();
@@ -76,14 +125,33 @@ export function SubirComprobante({
           <p className="mt-1 text-sm text-mute">Captura de Yape o Plin, o constancia de transferencia. Se guarda en privado; solo lo ve quien valida.</p>
         </>
       )}
+      {mostrarCorreo && (
+        <div className={compacto ? "mb-2" : "mt-3"}>
+          <label htmlFor={idCorreo} className="block text-sm text-mute">Correo con el que registraste el aporte</label>
+          <input
+            id={idCorreo}
+            type="email"
+            required
+            autoComplete="email"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            aria-describedby={`${idCorreo}-ayuda`}
+            className="mt-1 w-full max-w-sm rounded-lg border border-line px-3 py-2 text-sm"
+            placeholder="tu@correo.pe"
+          />
+          <p id={`${idCorreo}-ayuda`} className="mt-1 text-[12px] text-inkSoft">
+            Solo lo usamos para comprobar que el aporte {codigo} es tuyo; no se publica.
+          </p>
+        </div>
+      )}
       <div className={`${compacto ? "" : "mt-3 "}flex flex-wrap items-center gap-2`}>
         <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paperDeep sm:hidden ${ANILLO_ETIQUETA}`}>
           <Camera size={14} aria-hidden /> Tomar foto
-          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => elegir(e.target.files?.[0] ?? null)} />
         </label>
         <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paperDeep ${ANILLO_ETIQUETA}`}>
           <Upload size={14} aria-hidden /> Elegir archivo
-          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(e) => elegir(e.target.files?.[0] ?? null)} />
         </label>
         {archivo && <span className="max-w-[16rem] truncate text-[12px] text-inkSoft">{archivo.name}</span>}
         <button type="button" onClick={enviar} disabled={!archivo || cargando} className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-1.5 text-sm font-semibold text-paper disabled:opacity-50">

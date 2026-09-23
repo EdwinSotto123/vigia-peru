@@ -2,7 +2,8 @@
  * "Financia una auditoría" — escritura.
  *
  *   POST /contribuciones                       crea una contribución en `pendiente_pago` (fase 0: transferencia/Yape)
- *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload)
+ *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload);
+ *                                              exige probar titularidad (sesión dueña o correo del aporte)
  *   GET  /contribuciones/:codigo               estado (privado: incluye email enmascarado) — requiere token
  *   (las rutas /admin/* viven en routes/admin.ts)
  *
@@ -150,11 +151,46 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
 });
 
 // ─── POST /contribuciones/:codigo/comprobante ────────────────────────────────
-contribucionesRouter.post("/:codigo/comprobante", async (c) => {
+// Los códigos son correlativos (VIG-2026-00001, 00002…) y públicos (URL del comprobante de impacto):
+// el código solo NO prueba que el aporte sea tuyo. Hace falta UNA de estas pruebas de titularidad:
+//   · sesión: `Authorization: Bearer <Firebase ID token>` de la cuenta dueña del aporte
+//     (financiadores.firebase_uid, o usuarios.financiador_id — mismo criterio que /cuentas/me/impacto);
+//   · correo: `email` en el cuerpo = el correo con el que se registró el aporte (financiadores.email),
+//     sin distinguir mayúsculas ni espacios (mismo criterio que /cuentas/me/reclamar).
+// Sin ninguna → 403 `titularidad_requerida`; con una que no coincide → 403 `titularidad_no_coincide`.
+// La URL solo puede apuntar a un archivo subido por /api/upload como comprobante (GCS, prefijo
+// comprobantes/): el panel admin la descarga con la cuenta de servicio de la API.
+const URL_COMPROBANTE = /^https:\/\/storage\.googleapis\.com\/[a-z0-9][a-z0-9._-]{1,220}\/comprobantes\/[A-Za-z0-9._-]{1,120}$/;
+const ComprobanteBody = z.object({
+  url: z.string().url().regex(URL_COMPROBANTE),
+  referencia: z.string().max(80).optional(),
+  email: z.string().trim().max(254).optional(),
+});
+
+contribucionesRouter.post("/:codigo/comprobante", optionalAuth, async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
-  const body = z.object({ url: z.string().url(), referencia: z.string().max(80).optional() })
-    .safeParse(await c.req.json().catch(() => null));
+  const body = ComprobanteBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
+  const uid = c.get("user")?.uid ?? null;
+  const email = body.data.email?.trim().toLowerCase() || null;
+  if (!uid && !email) {
+    return c.json({ error: "titularidad_requerida",
+      detail: "Para adjuntar el comprobante inicia sesión con la cuenta del aporte o indica el correo con el que lo registraste." }, 403);
+  }
+  const dueno = await pool.query(
+    `SELECT co.estado,
+            COALESCE(($2::text IS NOT NULL AND (f.firebase_uid = $2
+               OR EXISTS (SELECT 1 FROM usuarios u WHERE u.firebase_uid = $2 AND u.financiador_id = co.financiador_id)))
+             OR ($3::text IS NOT NULL AND lower(btrim(f.email)) = $3), false) AS "esTitular"
+       FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
+      WHERE co.codigo = $1`,
+    [codigo, uid, email]);
+  const fila = dueno.rows[0] as { estado: string; esTitular: boolean } | undefined;
+  if (!fila) return c.json({ error: "not_found_or_not_pending" }, 404);
+  if (!fila.esTitular) {
+    return c.json({ error: "titularidad_no_coincide",
+      detail: "El correo o la cuenta no coinciden con los del aporte." }, 403);
+  }
   const r = await pool.query(
     `UPDATE contribuciones SET comprobante_url = $2, pasarela_ref = COALESCE($3, pasarela_ref)
      WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING codigo`,
