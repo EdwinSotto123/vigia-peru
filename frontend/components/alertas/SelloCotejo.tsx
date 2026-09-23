@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 export function SelloCotejo({ verificada, className }: { verificada: boolean | null; className?: string }) {
   if (verificada === true) {
     return (
-      <span className={cn("pill border-moss/40 bg-moss/12 font-semibold text-moss", className)}>
+      <span className={cn("pill border-moss/40 bg-moss/12 font-semibold text-mossTexto", className)}>
         <ShieldCheck size={12} aria-hidden />
         Cotejada
       </span>
@@ -45,9 +45,10 @@ export function SelloCotejo({ verificada, className }: { verificada: boolean | n
 export function LeyendaCotejo({ cotejadas, total }: { cotejadas: number; total: number }) {
   return (
     <p className="text-[12.5px] leading-relaxed text-mute">
-      <ShieldCheck size={12} className="mr-1 inline align-[-1px] text-moss" aria-hidden />
-      <strong className="font-semibold text-moss">Cotejada</strong> significa que el monto, el RUC, la fecha o la URL
-      que cita la señal se volvieron a comprobar contra el registro OCDS, SUNAT o el propio expediente:{" "}
+      <ShieldCheck size={12} className="mr-1 inline align-[-1px] text-mossTexto" aria-hidden />
+      <strong className="font-semibold text-mossTexto">Cotejada</strong> significa que el monto, el RUC, la fecha o el enlace
+      que cita la señal se volvieron a comprobar contra el registro de contrataciones del OECE, SUNAT o el propio
+      expediente:{" "}
       <span className="font-mono tabular-nums text-ink">{cotejadas.toLocaleString("es-PE")}</span> de{" "}
       <span className="font-mono tabular-nums text-ink">{total.toLocaleString("es-PE")}</span> señales.{" "}
       <ShieldQuestion size={12} className="mr-1 inline align-[-1px]" aria-hidden />

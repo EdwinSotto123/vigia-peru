@@ -2,23 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { geoMercator, geoPath } from "d3-geo";
-import Link from "next/link";
 import type { ReporteCiudadano } from "@/types";
-import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
+import { CATEGORIA_META, tieneUbicacion, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 
 /**
- * Mapa SVG de Perú con pines por reporte ciudadano. Pasale los reportes ya
- * filtrados — el mapa solo dibuja.
+ * Ubicador de UNA denuncia: el contorno del Perú con un solo punto, para que la
+ * ficha diga dónde queda sin obligar a salir de ella.
+ *
+ * No es un mapa para explorar: el producto tiene uno solo, /app/mapa, y antes
+ * este componente era un segundo mapa interactivo (pines con hover, tooltip,
+ * enlace flotante) montado dentro de /app/denuncias. Ahora es una figura
+ * estática, sin eventos. Quien la llama decide si la muestra: sin ubicación
+ * real (`tieneUbicacion`), no hay punto que dibujar y no se dibuja ninguno.
  */
 export function DenunciasMap({
-  reportes,
-  highlightId,
+  reporte,
 }: {
-  reportes: ReporteCiudadano[];
-  highlightId?: string;
+  reporte: Pick<ReporteCiudadano, "lat" | "lon" | "categoria" | "region">;
 }) {
   const [geo, setGeo] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/peru-departments.json")
@@ -31,131 +33,34 @@ export function DenunciasMap({
   const H = 520;
 
   const { projection, paths } = useMemo(() => {
-    if (!geo) return { projection: null, paths: [] as any[] };
+    if (!geo) return { projection: null, paths: [] as string[] };
     const proj = geoMercator().fitSize([W, H], geo as any);
     const pathFn = geoPath(proj);
-    const pp = (geo.features || []).map((f: any) => ({
-      d: pathFn(f) ?? "",
-      name: f.properties?.NAME_1 ?? f.properties?.name ?? "",
-    }));
-    return { projection: proj, paths: pp };
+    return { projection: proj, paths: (geo.features || []).map((f: any) => pathFn(f) ?? "") };
   }, [geo]);
 
+  if (!tieneUbicacion(reporte)) return null;
+  const pt = projection ? projection([Number(reporte.lon), Number(reporte.lat)]) : null;
+  const color = CATEGORIA_META[reporte.categoria as CategoriaDenuncia]?.color ?? "#8B2A1E";
+
   return (
-    <div className="surface relative overflow-hidden p-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-        {/* Polígonos del Perú */}
-        {paths.map((p, i) => (
-          <path
-            key={i}
-            d={p.d}
-            fill="#FAF6E9"
-            stroke="#D9CFB7"
-            strokeWidth={0.6}
-          />
+    <figure className="surface overflow-hidden p-0">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={`Ubicación de la denuncia${reporte.region ? ` en ${reporte.region}` : ""}`}
+      >
+        {paths.map((d, i) => (
+          <path key={i} d={d} fill="#FAF6E9" stroke="#D9CFB7" strokeWidth={0.6} />
         ))}
-
-        {/* Pines */}
-        {projection &&
-          reportes.map((r) => {
-            const pt = projection([r.lon, r.lat]);
-            if (!pt) return null;
-            const [x, y] = pt;
-            const meta = CATEGORIA_META[r.categoria as CategoriaDenuncia];
-            const color = meta?.color ?? "#8B2A1E";
-            const isHover = hovered === r.id || highlightId === r.id;
-            return (
-              <g key={r.id} transform={`translate(${x}, ${y})`}>
-                <circle
-                  r={isHover ? 9 : 6}
-                  fill={color}
-                  fillOpacity={r.confirmado ? 0.95 : 0.55}
-                  stroke="#FAF6E9"
-                  strokeWidth={1.8}
-                  className="cursor-pointer transition-all"
-                  onMouseEnter={() => setHovered(r.id)}
-                  onMouseLeave={() => setHovered(null)}
-                />
-                {!r.confirmado && (
-                  <circle
-                    r={9}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={1.2}
-                    strokeDasharray="2 2"
-                    opacity={0.7}
-                  />
-                )}
-              </g>
-            );
-          })}
-
-        {/* Tooltip flotante para el hovereado */}
-        {hovered &&
-          (() => {
-            const r = reportes.find((x) => x.id === hovered);
-            if (!r || !projection) return null;
-            const pt = projection([r.lon, r.lat]);
-            if (!pt) return null;
-            const [x, y] = pt;
-            const tx = Math.min(x + 12, W - 180);
-            const ty = Math.max(y - 30, 10);
-            const meta = CATEGORIA_META[r.categoria as CategoriaDenuncia];
-            return (
-              <g transform={`translate(${tx}, ${ty})`}>
-                <rect
-                  width={180}
-                  height={56}
-                  rx={8}
-                  fill="#1B1611"
-                  fillOpacity={0.92}
-                />
-                <text
-                  x={10}
-                  y={18}
-                  fill="#F4EEDD"
-                  fontSize={10}
-                  fontFamily="ui-monospace, monospace"
-                >
-                  {meta?.label ?? r.categoria}
-                </text>
-                <text x={10} y={35} fill="#F4EEDD" fontSize={10}>
-                  {r.region}, {r.fecha}
-                </text>
-                <text x={10} y={49} fill="#A89887" fontSize={9}>
-                  {r.confirmado ? "✓ verificado" : "en validación"}
-                </text>
-              </g>
-            );
-          })()}
+        {pt && (
+          <g transform={`translate(${pt[0]}, ${pt[1]})`}>
+            <circle r={14} fill={color} fillOpacity={0.18} />
+            <circle r={7} fill={color} stroke="#FAF6E9" strokeWidth={2} />
+          </g>
+        )}
       </svg>
-
-      {/* Leyenda — el matiz de cada pin es su categoría (ver badges de las tarjetas);
-          acá solo se explica lo que el mapa codifica con relleno sólido vs. punteado. */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-line bg-paperSoft px-4 py-2 text-[10px] text-mute">
-        <span className="font-semibold text-ink">Leyenda:</span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-ink" /> verificado
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full border border-ink/50 bg-ink/25" />
-          en validación
-        </span>
-        <span className="hidden sm:inline">el color del pin es la categoría</span>
-        <span className="ml-auto">
-          {reportes.length} reporte{reportes.length === 1 ? "" : "s"} en mapa
-        </span>
-      </div>
-
-      {/* Link rápido al detalle del hovereado */}
-      {hovered && (
-        <Link
-          href={`/app/denuncias/${hovered}`}
-          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-paper shadow-paper"
-        >
-          Ver detalle →
-        </Link>
-      )}
-    </div>
+    </figure>
   );
 }

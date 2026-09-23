@@ -1,70 +1,87 @@
-import { Building2, Cloud } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { WifiOff } from "lucide-react";
 import { EntidadesPanel } from "@/components/EntidadesPanel";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { PulseDot } from "@/components/ui/PulseDot";
 import {
-  ENTIDADES_PAGE_SIZE,
+  API_BASE,
   getEntidadesPagina,
   getEntidadesResumen,
   parseEntidadesQuery,
+  entidadesQueryString,
+  type ApiAlerta,
   type ApiEntidad,
   type EntidadesPagina,
-  type EntidadesQuery,
   type EntidadesResumen,
 } from "@/lib/api-client";
-import { ENTIDADES, type Entidad } from "@/lib/mock-entities";
+import { esAlertaDemo } from "@/lib/semillas";
 
-/** Mock → forma ApiEntidad, para que el fallback tenga el mismo tipo que la API real. */
-function mockToApi(e: Entidad): ApiEntidad {
+export const metadata: Metadata = {
+  title: "Entidades del Estado",
+  description:
+    "Municipalidades, gobiernos regionales, ministerios y empresas públicas, ordenados por cuántos de sus contratos tienen señales de riesgo.",
+};
+
+/**
+ * Las 10 alertas de demo (`ALT-2026-00xx`, ver lib/semillas.ts) siguen en la
+ * base y el backend las cuenta en `GET /entidades` y en `/entidades/summary`:
+ * le sumaban un contrato con señales a diez entidades reales y S/ 45,7 millones
+ * al monto total. Hasta que se borren, se descuentan aquí, entidad por entidad,
+ * leyendo cuáles son desde la lista pública de alertas.
+ */
+interface Demo {
+  n: number;
+  monto: number;
+  score: number;
+}
+
+async function alertasDemoPorEntidad(): Promise<{ demo: Map<string, Demo>; conReales: Set<string> } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/alertas?limit=500`, { next: { revalidate: 300 } } as RequestInit);
+    if (!res.ok) return null;
+    const data = ((await res.json()) as { data?: ApiAlerta[] }).data ?? [];
+    const demo = new Map<string, Demo>();
+    const conReales = new Set<string>();
+    for (const a of data) {
+      const ruc = String(a.rucEntidad ?? "");
+      if (!ruc) continue;
+      if (esAlertaDemo(a)) {
+        const d = demo.get(ruc) ?? { n: 0, monto: 0, score: 0 };
+        d.n += 1;
+        d.monto += Number(a.montoSoles ?? 0);
+        d.score += Number(a.score ?? 0);
+        demo.set(ruc, d);
+      } else if (a.codigo) {
+        conReales.add(ruc);
+      }
+    }
+    return { demo, conReales };
+  } catch {
+    return null;
+  }
+}
+
+function descontarFila(e: ApiEntidad, d: Demo | undefined): ApiEntidad {
+  if (!d) return e;
+  const alertas = Math.max(0, e.alertas - d.n);
+  const score = alertas > 0 ? Math.round((e.scorePromedio * e.alertas - d.score) / alertas) : 0;
   return {
-    ruc: e.ruc,
-    nombre: e.nombre,
-    tipo: e.tipo,
-    region: e.region,
-    provincia: e.provincia ?? null,
-    distrito: e.distrito ?? null,
-    pliegoNombreMef: null,
-    alertas: e.alertas,
-    monto: e.monto,
-    scorePromedio: e.scorePromedio,
-    reportes: e.reportes,
-    contratos: e.contratos,
-    contratosVigilados: e.contratosVigilados,
-    serie: e.serie,
+    ...e,
+    alertas,
+    monto: Math.max(0, e.monto - d.monto),
+    scorePromedio: Math.max(0, Math.min(100, score)),
+    contratosVigilados: alertas,
   };
 }
 
-/** Mismo filtro (q/tipo) que antes hacía el panel en el cliente, ahora aplicado al mock y ya
- *  paginado — para que el modo degradado (API caída) siga respetando la búsqueda y la página. */
-function paginarMock(query: EntidadesQuery): EntidadesPagina {
-  const q = (query.q ?? "").trim().toLowerCase();
-  const filtered = ENTIDADES.filter((e) => {
-    if (query.tipo && e.tipo !== query.tipo) return false;
-    if (!q) return true;
-    return (
-      e.nombre.toLowerCase().includes(q) ||
-      e.ruc.includes(q) ||
-      e.region.toLowerCase().includes(q) ||
-      (e.provincia ?? "").toLowerCase().includes(q)
-    );
-  });
-  const sorted = [...filtered].sort((a, b) => b.alertas - a.alertas);
-  const page = Math.max(1, query.page ?? 1);
-  const start = (page - 1) * ENTIDADES_PAGE_SIZE;
-  return {
-    data: sorted.slice(start, start + ENTIDADES_PAGE_SIZE).map(mockToApi),
-    total: filtered.length,
-    page,
-    size: ENTIDADES_PAGE_SIZE,
-  };
-}
-
-function resumenMock(): EntidadesResumen {
-  return {
-    totalEntidades: ENTIDADES.length,
-    conAlertas: ENTIDADES.filter((e) => e.alertas > 0).length,
-    monto: ENTIDADES.reduce((s, e) => s + e.monto, 0),
-  };
+function descontarResumen(r: EntidadesResumen, demo: Map<string, Demo>, conReales: Set<string>): EntidadesResumen {
+  let soloDemo = 0;
+  let monto = 0;
+  for (const [ruc, d] of demo) {
+    monto += d.monto;
+    if (!conReales.has(ruc)) soloDemo++;
+  }
+  return { ...r, conAlertas: Math.max(0, r.conAlertas - soloDemo), monto: Math.max(0, r.monto - monto) };
 }
 
 export default async function EntidadesPage({
@@ -72,43 +89,49 @@ export default async function EntidadesPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  const query = parseEntidadesQuery(searchParams);
-  let pagina: EntidadesPagina;
-  let resumen: EntidadesResumen;
-  let source: "api" | "mock" = "api";
+  // El filtro por tipo se retiró: el backend tiene `tipo` nulo en la mayoría de
+  // las 2.121 entidades, así que "Gobierno regional" dejaba fuera a casi todos
+  // los gobiernos regionales. El tipo se sigue MOSTRANDO, inferido del nombre.
+  const query = { ...parseEntidadesQuery(searchParams), tipo: undefined };
+
+  let pagina: EntidadesPagina | null = null;
+  let resumen: EntidadesResumen | null = null;
   try {
-    [pagina, resumen] = await Promise.all([getEntidadesPagina(query), getEntidadesResumen()]);
+    const [p, r, ajuste] = await Promise.all([getEntidadesPagina(query), getEntidadesResumen(), alertasDemoPorEntidad()]);
+    if (ajuste) {
+      pagina = { ...p, data: p.data.map((e) => descontarFila(e, ajuste.demo.get(e.ruc))) };
+      resumen = descontarResumen(r, ajuste.demo, ajuste.conReales);
+    }
   } catch (e) {
-    console.error("[entidades page] API falló, uso mock:", (e as Error).message);
-    source = "mock";
-    pagina = paginarMock(query);
-    resumen = resumenMock();
+    console.error("[entidades] el API no respondió:", (e as Error).message);
   }
 
+  const qs = entidadesQueryString(query);
+
   return (
-    <div className="px-6 py-8 lg:px-10 space-y-6">
+    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
       <PageHeader
-        title="Gobiernos regionales y municipios"
-        subtitle="Ordenados por riesgo. Click cualquier entidad para ver perfil completo con ejecución MEF y proveedores."
-        actions={
-          <span
-            className={
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest " +
-              (source === "api"
-                ? "border-moss/40 bg-moss/10 text-moss"
-                : "border-amber/40 bg-amber-soft text-amberTexto")
-            }
-          >
-            {/* Mismo indicador "en vivo" que TableroAuditoria/ContratoEnVivo/PanelProcesamiento/
-                /app/alertas (PulseDot) — el badge decía "live" pero mostraba un ícono de nube
-                estático en vez del mismo lenguaje visual pulsante que el resto del sitio usa
-                para datos que se refrescan solos. */}
-            {source === "api" ? <PulseDot color="moss" size={6} /> : <Cloud size={11} />}
-            {source === "api" ? "live desde Cloud SQL" : "mock"}
-          </span>
-        }
+        title="Entidades del Estado"
+        subtitle="Ordenadas por cuántos de sus contratos tienen señales de riesgo. Toca una entidad para ver su ficha, con su ejecución presupuestal según el MEF."
       />
-      <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
+      {pagina && resumen ? (
+        <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
+      ) : (
+        <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
+          <span className="inline-flex text-mute" aria-hidden>
+            <WifiOff size={18} />
+          </span>
+          <h2 className="mt-2 font-serif text-lg font-bold text-ink">No pudimos leer las entidades</h2>
+          <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">
+            El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+          </p>
+          <div className="mt-4 text-sm">
+            <Link href={qs ? `/app/entidades?${qs}` : "/app/entidades"} className="font-medium text-heroViolet hover:underline">
+              Reintentar
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

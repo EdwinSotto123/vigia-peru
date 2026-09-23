@@ -95,7 +95,10 @@ export function FiltrosSenales({ query, facetas }: { query: SenalesQuery; faceta
   const hayFiltros = !!(query.regla || query.severidad || query.entidad || query.agente);
 
   return (
-    <div className="sticky top-0 z-barra flex flex-wrap items-center gap-2 border-b border-line/70 bg-paper/95 py-2.5 backdrop-blur">
+    // Pegajosa sólo desde md: en un teléfono de 390 px la barra envuelve en cuatro
+    // renglones (~195 px) y, fija arriba, se comía un cuarto de la pantalla mientras
+    // se leía la lista. Ahí se queda en su sitio y se vuelve a ella subiendo.
+    <div className="z-barra flex flex-wrap items-center gap-2 border-b border-line/70 bg-paper/95 py-2.5 backdrop-blur md:sticky md:top-0">
       <span
         className="inline-flex items-center gap-0.5 rounded-xl border border-line bg-paper p-1"
         role="group"

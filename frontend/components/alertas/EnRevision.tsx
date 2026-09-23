@@ -90,9 +90,13 @@ export function EnRevision({
                 <span className="font-medium text-inkSoft">{p.entidad ?? "Entidad no registrada"}</span>
                 <span>{p.zona}</span>
                 {p.montoPen != null && <span className="font-mono tabular-nums">{soles(p.montoPen)}</span>}
-                <span>
-                  {p.banderas} {p.banderas === 1 ? "señal detectada" : "señales detectadas"}, ninguna publicada
-                </span>
+                {/* La API deja de devolver el conteo de lo que está en revisión:
+                    ni siquiera el número se publica antes de que lo mire una persona. */}
+                {p.banderas != null && (
+                  <span>
+                    {p.banderas} {p.banderas === 1 ? "señal detectada" : "señales detectadas"}, ninguna publicada
+                  </span>
+                )}
                 <span>analizado el {fechaHora(revision?.analizadoEn ?? p.finalizadoAt)}</span>
               </p>
 

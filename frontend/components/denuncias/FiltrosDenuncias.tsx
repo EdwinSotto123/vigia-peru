@@ -1,15 +1,10 @@
 "use client";
 
 /**
- * Filtros de /app/denuncias: región, categoría y estado (verificado / en
- * validación) — viven en la URL (`?region=&categoria=&estado=`), mismo patrón
+ * Filtros de /app/denuncias: región, categoría y estado (confirmada / sin
+ * confirmar). Viven en la URL (`?region=&categoria=&estado=`), mismo patrón
  * que FiltroRegion.tsx / FiltrosHistorico.tsx (auditoría): cada cambio hace
  * `router.push`, cae al valor de la URL sin JS, vuelve a la página 1.
- *
- * "Convergentes" no está acá: es una etiqueta cruzada con /reportes/convergencias
- * (no una columna filtrable en el backend), así que se mantiene solo como
- * badge visual en cada tarjeta (ver DenunciasGrid) en vez de un filtro a medias
- * que solo mira la página actual.
  *
  * El estado de moderación (pendiente/aprobado/rechazado) del backend NO se usa
  * como filtro público a propósito: la página existe para mostrar TODAS las
@@ -78,9 +73,9 @@ export function FiltrosDenuncias({ query }: Props) {
           onChange={(e) => navegar({ estado: (e.target.value || undefined) as DenunciasQuery["estado"] })}
           className={sel}
         >
-          <option value="">Todo estado</option>
-          <option value="verificados">✓ Verificados</option>
-          <option value="en_validacion">En validación</option>
+          <option value="">Confirmadas y sin confirmar</option>
+          <option value="verificados">Confirmadas</option>
+          <option value="en_validacion">Sin confirmar</option>
         </select>
       </label>
 

@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo, LeyendaCotejo } from "@/components/alertas/SelloCotejo";
 import { SenalDetalle } from "@/components/alertas/SenalDetalle";
+import { TextoProtegido } from "@/components/alertas/Protegido";
+import { TOTAL_FASES } from "@/lib/auditoria";
 import { senalesQueryParams, soles, type Senal, type SenalesQuery } from "@/lib/revision";
 
 /**
@@ -60,7 +62,7 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
       <Vacio
         icono={<WifiOff size={18} />}
         titulo="No se pudo leer el índice de señales"
-        cuerpo="El API de Vigía no respondió. No se muestra nada en su lugar: una lista vacía es más honesta que una lista inventada."
+        cuerpo="El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento."
         accion={
           <Link href="/app/hallazgos" className="font-medium text-heroViolet hover:underline">
             Reintentar
@@ -86,7 +88,7 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
       <Vacio
         icono={<Inbox size={18} />}
         titulo="Todavía no hay señales publicadas"
-        cuerpo="Una señal aparece aquí cuando un contrato pasa por los once agentes, dispara al menos una regla y la autoevaluación deja publicar el resultado. Mientras nadie financie una lectura, no hay nada que listar."
+        cuerpo={`Una señal aparece aquí cuando un contrato pasa por los ${TOTAL_FASES} agentes, dispara al menos una regla y la autoevaluación deja publicar el resultado. Mientras nadie financie una lectura, no hay nada que listar.`}
         accion={
           <Link href="/app/contratos" className="font-medium text-heroViolet hover:underline">
             Ver la cola de contratos sin leer
@@ -103,9 +105,10 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
       {contratosSinDetalle > 0 && (
         <p className="rounded-xl border border-dashed border-line bg-paperSoft px-3 py-2 text-[12.5px] leading-relaxed text-mute">
           En todo el índice hay {contratosSinDetalle}{" "}
-          {contratosSinDetalle === 1 ? "contrato que ya no responde" : "contratos que ya no responden"} en el registro
-          OCDS del OECE. Sus señales se listan igual, con la norma y la evidencia que se guardaron, pero sin agente de
-          origen ni cotejo: aparecen como “sin agente registrado”, no con un agente supuesto.
+          {contratosSinDetalle === 1 ? "contrato cuya ficha ya no aparece" : "contratos cuyas fichas ya no aparecen"} en el
+          portal de contrataciones abiertas del OECE. Sus señales se listan igual, con la norma y la evidencia que se
+          guardaron, pero sin saber qué agente las encontró ni si se volvieron a comprobar: aparecen como “agente no
+          registrado”, no con un agente supuesto.
         </p>
       )}
 
@@ -180,7 +183,9 @@ function Fila({ s }: { s: Senal }) {
         <div className="min-w-0">
           <p className="line-clamp-2 text-[14.5px] font-semibold leading-snug text-ink md:truncate">{s.etiqueta}</p>
           {s.evidencia && (
-            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-inkSoft md:truncate">{s.evidencia}</p>
+            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-inkSoft md:truncate">
+              <TextoProtegido texto={s.evidencia} nombres={s.personasPrivadas} />
+            </p>
           )}
           {/* Cuatro datos que antes iban unidos por tres puntos medios sueltos
               (`<span aria-hidden>·</span>`, o sea texto plano puesto a dibujar

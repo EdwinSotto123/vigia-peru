@@ -1,6 +1,8 @@
 import { BookOpen, Bot, ExternalLink, FileText, Quote, Scale } from "lucide-react";
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo } from "@/components/alertas/SelloCotejo";
+import { ProveedorProtegido, TextoProtegido } from "@/components/alertas/Protegido";
+import { Ruc } from "@/components/Redact";
 import { soles, type Senal } from "@/lib/revision";
 
 /**
@@ -43,21 +45,22 @@ export function SenalDetalle({ s }: { s: Senal }) {
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <NivelSenal nivel={s.severidad} formato="pastilla" />
           <SelloCotejo verificada={s.verificada} />
-          <span className="font-mono text-[11px] text-mute">{s.regla}</span>
         </div>
         {s.queMira ? (
           <p className="text-[14px] leading-relaxed text-ink">{s.queMira}</p>
         ) : (
           <p className="text-[13px] leading-relaxed text-mute">
-            Esta regla no está en el catálogo publicado del pipeline, así que no hay una descripción oficial de qué
-            mira. Lo que sí hay es su evidencia y la norma que cita, aquí abajo.
+            Esta regla todavía no tiene una descripción publicada, así que no hay una explicación oficial de qué mira.
+            Lo que sí hay es su evidencia y la norma que cita, aquí abajo.
           </p>
         )}
       </Bloque>
 
       <Bloque icono={<FileText size={12} />} titulo="Evidencia">
         {s.evidencia ? (
-          <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink">{s.evidencia}</p>
+          <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink">
+            <TextoProtegido texto={s.evidencia} nombres={s.personasPrivadas} />
+          </p>
         ) : (
           <p className="text-[13px] text-mute">
             El análisis registró la señal pero no guardó el texto de su evidencia. Sin evidencia legible, esta señal no
@@ -94,7 +97,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
                 </div>
                 {c.cita && (
                   <blockquote className="mt-1.5 border-l-2 border-heroViolet/40 pl-3 text-[13.5px] italic leading-relaxed text-ink">
-                    “{c.cita}”
+                    “<TextoProtegido texto={c.cita} nombres={s.personasPrivadas} />”
                   </blockquote>
                 )}
                 {c.documentoUrl && (
@@ -112,9 +115,10 @@ export function SenalDetalle({ s }: { s: Senal }) {
           </ul>
         ) : (
           <p className="text-[13px] leading-relaxed text-mute">
-            Sin cita de página. La página exacta la deja el agente que lee el expediente en PDF; esta señal no la tiene,
-            sea porque salió de datos estructurados —registro OCDS, RNP, SUNAT— o porque el texto no se pudo anclar a
-            una página concreta. El documento fuente sigue abajo, entero.
+            Sin cita de página. La página exacta la anota el agente que lee los PDF del expediente, y esta señal no la
+            tiene: salió de registros oficiales (el de contrataciones del OECE, el Registro Nacional de Proveedores o
+            SUNAT) o su texto no se pudo ubicar en una página concreta.
+            {s.fuenteUrl ? " La ficha oficial del contrato está en el pie de este panel." : ""}
           </p>
         )}
       </Bloque>
@@ -123,19 +127,17 @@ export function SenalDetalle({ s }: { s: Senal }) {
         <dl>
           <Dato etiqueta="Agente">
             {s.agenteLabel ? (
-              <>
-                {s.agenteLabel} <span className="font-mono text-[11px] text-mute">({s.agente})</span>
-              </>
+              s.agenteLabel
             ) : (
               <span className="text-mute">
-                No consta. El análisis es anterior a que se guardara el agente de origen, o el contrato ya no responde
-                en el índice OCDS.
+                No consta. El análisis es anterior a que se guardara qué agente encontró cada señal, o la ficha del
+                contrato ya no aparece en el portal de contrataciones del OECE.
               </span>
             )}
           </Dato>
           <Dato etiqueta="Cotejo">
             {s.verificada === true
-              ? "Los montos, RUC, fechas y URLs que cita se volvieron a comprobar contra fuentes oficiales."
+              ? "Los montos, RUC, fechas y enlaces que cita se volvieron a comprobar contra fuentes oficiales."
               : s.verificada === false
                 ? "El cotejo automático no pudo confirmar alguno de los datos citados."
                 : "No consta que se haya cotejado por segunda vez. No es lo mismo que haber fallado."}
@@ -164,7 +166,8 @@ export function SenalDetalle({ s }: { s: Senal }) {
           </li>
           <li>
             <strong className="font-semibold text-ink">Nadie dio su descargo.</strong> Vigía lee expedientes públicos;
-            no le pidió explicaciones a {s.entidad} ni a {s.proveedor}, y ninguno de los dos respondió aquí.
+            no le pidió explicaciones a {s.entidad} ni a <ProveedorProtegido nombre={s.proveedor} ruc={s.rucProveedor} />,
+            y ninguno de los dos respondió aquí.
           </li>
           <li>
             <strong className="font-semibold text-ink">No se suma con las otras.</strong> Que el contrato tenga{" "}
@@ -178,14 +181,25 @@ export function SenalDetalle({ s }: { s: Senal }) {
         <dl>
           <Dato etiqueta="Objeto">{s.objeto}</Dato>
           <Dato etiqueta="Entidad">{s.entidad}</Dato>
-          <Dato etiqueta="Proveedor">{s.proveedor}</Dato>
+          <Dato etiqueta="Proveedor">
+            <ProveedorProtegido nombre={s.proveedor} ruc={s.rucProveedor} />
+            {s.rucProveedor && (
+              <span className="mt-0.5 block font-mono text-[12px] text-mute">
+                RUC <Ruc value={s.rucProveedor} />
+              </span>
+            )}
+          </Dato>
           <Dato etiqueta="Monto">
             <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
           </Dato>
-          <Dato etiqueta="Score">
+          <Dato etiqueta="Puntaje de riesgo">
             <span className="font-mono tabular-nums">{s.score}</span> de 100, con{" "}
             <span className="font-mono tabular-nums">{s.senalesDelContrato}</span>{" "}
-            {s.senalesDelContrato === 1 ? "señal" : "señales"} en total
+            {s.senalesDelContrato === 1 ? "señal" : "señales"} en total.
+            <span className="mt-0.5 block text-[12px] text-mute">
+              Es del contrato completo, no de esta señal: suma el peso de cada señal según su severidad, con tope en
+              100. No es una probabilidad de delito.
+            </span>
           </Dato>
         </dl>
       </Bloque>

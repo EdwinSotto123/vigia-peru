@@ -46,6 +46,7 @@
 
 import { API_BASE, type ApiAlerta } from "@/lib/api-client";
 import { FASES, canonico, getProcesamientos, getReglasPerfil, type CitaDocumento, type Procesamiento, type RevisionMotivo } from "@/lib/auditoria";
+import { esAlertaReal } from "@/lib/semillas";
 
 export type NivelBandera = "alta" | "media" | "baja";
 
@@ -87,6 +88,15 @@ export interface Senal {
   entidad: string;
   rucEntidad: string;
   proveedor: string;
+  /** RUC del proveedor. Uno que empieza con 10 es de una persona natural: lleva su DNI adentro. */
+  rucProveedor: string | null;
+  /**
+   * Personas PRIVADAS cuyo apellido hay que tapar en el texto libre de esta señal
+   * (evidencia, citas): el proveedor cuando es persona natural, en sus dos órdenes,
+   * y cualquier nombre que la evidencia pegue a un DNI. Datos planos, listos para
+   * `setRedactNames` del lado cliente. Empresas y funcionarios públicos no van.
+   */
+  personasPrivadas: PersonaPrivada[];
   montoSoles: number;
   fechaBuenaPro: string | null;
   score: number;
@@ -152,8 +162,81 @@ export async function getCatalogoReglas(): Promise<CatalogoReglas> {
   return cat;
 }
 
+/**
+ * Correcciones al catálogo del backend, cuando su etiqueta promete más de lo que
+ * la regla cubre. `red_flag_documental` se publica como "Requisito dirigido en las
+ * bases", pero es la señal genérica del análisis legal de los documentos: la
+ * emite igual para un requisito a medida que para un comité vacío, un plazo
+ * imposible o un único postor. Rotularla toda como "requisito dirigido" le
+ * atribuye a cada fila una acusación concreta que su evidencia no siempre hace.
+ */
+const CATALOGO_CORREGIDO: CatalogoReglas = {
+  red_flag_documental: {
+    etiqueta: "Hallazgo en el expediente",
+    descripcion:
+      "El análisis legal de los documentos del expediente encontró algo que merece revisión: un requisito que parece hecho a la medida de un proveedor, un plazo o una penalidad fuera de lo común, una inconsistencia entre documentos. La evidencia de abajo dice cuál de esas cosas es.",
+  },
+};
+
 export function etiquetaRegla(id: string, cat: CatalogoReglas): string {
-  return cat[id]?.etiqueta ?? humanizarRegla(id);
+  return CATALOGO_CORREGIDO[id]?.etiqueta ?? cat[id]?.etiqueta ?? humanizarRegla(id);
+}
+
+function descripcionRegla(id: string, cat: CatalogoReglas): string | null {
+  return CATALOGO_CORREGIDO[id]?.descripcion ?? cat[id]?.descripcion ?? null;
+}
+
+// ─── Personas privadas en el texto libre ──────────────────────────────────
+
+export interface PersonaPrivada {
+  nombre: string;
+  orden: "sunat" | "nombres-primero";
+}
+
+/**
+ * Un RUC que empieza con 10 es de una persona natural con negocio. Copia de
+ * `esPersonaNatural` de components/Redact.tsx: aquella vive en un módulo
+ * "use client" y llamarla desde el servidor revienta en producción.
+ */
+export const esRucPersonaNatural = (ruc?: string | null) => !!ruc && /^10\d{9}$/.test(ruc.trim());
+
+/**
+ * "CARPIO COBOS ABEL" (orden SUNAT: apellidos primero) → "ABEL CARPIO COBOS".
+ * La evidencia que redacta un agente suele nombrar al proveedor en el orden
+ * hablado, así que se registran las dos formas: en ambas se tapa el mismo
+ * apellido materno.
+ */
+function ordenHablado(sunat: string): string | null {
+  const p = sunat.trim().split(/\s+/);
+  if (p.length < 3) return null;
+  return [...p.slice(2), ...p.slice(0, 2)].join(" ");
+}
+
+/**
+ * Nombres que el texto pega a un DNI: "PEZO VARGAS DIEGO (DNI 73524824)". El DNI
+ * es la marca de que se trata de una persona natural y del orden RNP/SUNAT
+ * (apellidos primero). No es adivinar con NER: sin el DNI al lado no se toca nada.
+ */
+const NOMBRE_CON_DNI = /([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+(?:\s+[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+){1,4}),?\s*\(\s*DNI\s*(?:N[°º.]?\s*)?\d{8}\s*\)/g;
+
+function personasPrivadas(proveedor: string | null, rucProveedor: string | null, textos: (string | null)[]): PersonaPrivada[] {
+  const out: PersonaPrivada[] = [];
+  if (proveedor && esRucPersonaNatural(rucProveedor)) {
+    out.push({ nombre: proveedor, orden: "sunat" });
+    const hablado = ordenHablado(proveedor);
+    if (hablado) out.push({ nombre: hablado, orden: "nombres-primero" });
+  }
+  for (const t of textos) {
+    if (!t) continue;
+    for (const m of t.matchAll(NOMBRE_CON_DNI)) out.push({ nombre: m[1], orden: "sunat" });
+  }
+  const vistos = new Set<string>();
+  return out.filter((p) => {
+    const k = p.nombre.toLowerCase();
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
 }
 
 /** `agente_origen` ("market_price_agent") → el nombre con el que el producto llama a ese agente. */
@@ -268,22 +351,59 @@ async function banderasRicas(ocid: string): Promise<BanderaRica[]> {
   }
 }
 
+/**
+ * La misma señal guardada dos veces: el pipeline a veces persiste la misma bandera
+ * (misma regla, misma evidencia palabra por palabra) en dos pasadas. En producción
+ * son 12 filas repetidas, casi todas en OECE-1211887 y OECE-1216608. Contarlas dos
+ * veces infla el índice y hace que un contrato parezca tener el doble de indicios.
+ */
+const claveSenal = (regla: string, evidencia: string | null | undefined) =>
+  `${regla}\u0000${(evidencia ?? "").replace(/\s+/g, " ").trim().toLowerCase()}`;
+
+/** Cuántas señales DISTINTAS trae una alerta (sin las repetidas). */
+function contarDistintas(a: ApiAlerta): number {
+  const banderas = (Array.isArray(a.banderas) ? a.banderas : []) as unknown as BanderaLista[];
+  return new Set(banderas.map((b) => claveSenal(b.regla, b.evidencia))).size;
+}
+
+const claveCita = (c: CitaDocumento) => `${c.documentoUrl ?? ""}|${c.pagina ?? ""}|${c.cita ?? ""}`;
+
 /** Aplana una alerta en sus señales y le pega lo que sabe `/contratos/:ocid`. */
 function aplanar(a: ApiAlerta, ricas: BanderaRica[], cat: CatalogoReglas): Senal[] {
   const banderas = (Array.isArray(a.banderas) ? a.banderas : []) as unknown as BanderaLista[];
+  const distintas = contarDistintas(a);
+  const rucProveedor = a.rucProveedor ? String(a.rucProveedor) : null;
   // Las dos fuentes ordenan por severidad pero sin el mismo desempate, así que se
-  // emparejan por regla y, dentro de la misma regla, por orden de aparición.
+  // emparejan por regla y, dentro de la misma regla, por orden de aparición. El
+  // emparejamiento corre sobre la lista COMPLETA (repetidas incluidas), porque
+  // `/contratos/:ocid` también las trae repetidas; recién después se deduplica.
   const usadas = new Map<string, number>();
-  return banderas.map((b) => {
+  const porClave = new Map<string, Senal>();
+  for (const b of banderas) {
     const n = usadas.get(b.regla) ?? 0;
     usadas.set(b.regla, n + 1);
     const rica = ricas.filter((r) => r.regla === b.regla)[n] ?? null;
+    const citas = (rica?.citas ?? []).filter((c) => c && (c.pagina != null || c.documentoUrl));
+    const clave = claveSenal(b.regla, b.evidencia);
+    const previa = porClave.get(clave);
+    if (previa) {
+      // Repetida: no es una señal más. Lo único que puede aportar es el agente, el
+      // cotejo o una cita que a la primera copia le faltaban.
+      if (!previa.agente && rica?.agente) {
+        previa.agente = rica.agente;
+        previa.agenteLabel = agenteLabel(rica.agente);
+      }
+      if (previa.verificada == null && rica?.verificada != null) previa.verificada = rica.verificada;
+      const ya = new Set(previa.citas.map(claveCita));
+      previa.citas.push(...citas.filter((c) => !ya.has(claveCita(c))));
+      continue;
+    }
     const sev: NivelBandera = SEVERIDADES.includes(b.severidad) ? b.severidad : "baja";
-    return {
+    porClave.set(clave, {
       id: `${a.codigo ?? a.codigoconvocatoria}-${b.regla}-${n}`,
       regla: b.regla,
       etiqueta: etiquetaRegla(b.regla, cat),
-      queMira: cat[b.regla]?.descripcion ?? null,
+      queMira: descripcionRegla(b.regla, cat),
       severidad: sev,
       evidencia: b.evidencia || null,
       norma: b.norma || null,
@@ -292,19 +412,26 @@ function aplanar(a: ApiAlerta, ricas: BanderaRica[], cat: CatalogoReglas): Senal
       agente: rica?.agente ?? null,
       agenteLabel: agenteLabel(rica?.agente),
       verificada: rica?.verificada ?? null,
-      citas: (rica?.citas ?? []).filter((c) => c && (c.pagina != null || c.documentoUrl)),
+      citas,
       ocid: String(a.codigoconvocatoria),
       alertaCodigo: a.codigo ?? null,
       objeto: a.objeto ?? "—",
       entidad: a.entidad ?? "—",
       rucEntidad: a.rucEntidad ?? "",
       proveedor: a.proveedor ?? "—",
+      rucProveedor,
+      personasPrivadas: [],
       montoSoles: Number(a.montoSoles ?? 0),
       fechaBuenaPro: a.fechaBuenaPro ?? null,
       score: Number(a.score ?? 0),
-      senalesDelContrato: banderas.length,
-    };
-  });
+      senalesDelContrato: distintas,
+    });
+  }
+  const senales = [...porClave.values()];
+  for (const s of senales) {
+    s.personasPrivadas = personasPrivadas(a.proveedor ?? null, rucProveedor, [s.evidencia, ...s.citas.map((c) => c.cita ?? null)]);
+  }
+  return senales;
 }
 
 const PESO: Record<NivelBandera, number> = { alta: 0, media: 1, baja: 2 };
@@ -319,16 +446,52 @@ async function getAlertasPublicadas(): Promise<{ alertas: ApiAlerta[]; fallo: bo
   try {
     const res = await fetch(`${API_BASE}/alertas?limit=500`, { next: { revalidate: 300 } } as RequestInit);
     if (!res.ok) throw new Error(String(res.status));
-    return { alertas: ((await res.json()) as { data: ApiAlerta[] }).data ?? [], fallo: false };
+    const data = ((await res.json()) as { data: ApiAlerta[] }).data ?? [];
+    // Nunca las 10 alertas de demo `ALT-2026-00xx` que siguen sembradas en la base
+    // (ver lib/semillas.ts): traían RUC y montos inventados sobre municipalidades reales.
+    return { alertas: data.filter(esAlertaReal), fallo: false };
   } catch {
     return { alertas: [], fallo: true };
   }
 }
 
-/** Cuántas señales hay publicadas, sin enriquecer nada (un solo fetch, ya cacheado). */
+/** Cuántas señales hay publicadas, sin enriquecer nada (un solo fetch, ya cacheado). Sin repetidas. */
 export async function contarSenalesPublicadas(): Promise<number> {
   const { alertas } = await getAlertasPublicadas();
-  return alertas.reduce((n, a) => n + (Array.isArray(a.banderas) ? a.banderas.length : 0), 0);
+  return alertas.reduce((n, a) => n + contarDistintas(a), 0);
+}
+
+export interface UltimoAnalisis {
+  entidad: string;
+  ocid: string;
+  analizadoEn: string;
+}
+
+/**
+ * El análisis más reciente que terminó en señales PUBLICADAS. Sale de
+ * `GET /alertas/analizadas`, el único listado que trae `analizado_en` (la fecha
+ * de buena pro es la del contrato, no la del análisis). Ese listado incluye los
+ * análisis que quedaron en revisión humana, así que se cruza contra los códigos
+ * que sí están publicados antes de elegir uno. Si no responde, `null`: la línea
+ * no se muestra, no se inventa una fecha.
+ */
+export async function getUltimoAnalisisPublicado(publicados: ReadonlySet<string>): Promise<UltimoAnalisis | null> {
+  if (publicados.size === 0) return null;
+  try {
+    const res = await fetch(`${API_BASE}/alertas/analizadas?limit=60`, { next: { revalidate: 300 } } as RequestInit);
+    if (!res.ok) return null;
+    const j = (await res.json()) as {
+      items?: { codigo?: string; ocid?: string; codigo_convocatoria?: string; entidad?: string; analizado_en?: string; n_banderas?: number | string }[];
+    };
+    const items = (j.items ?? [])
+      .filter((it) => it.codigo && publicados.has(it.codigo) && it.analizado_en && Number(it.n_banderas ?? 0) > 0)
+      .sort((x, y) => String(y.analizado_en).localeCompare(String(x.analizado_en)));
+    const it = items[0];
+    if (!it || !it.entidad || Number.isNaN(new Date(String(it.analizado_en)).getTime())) return null;
+    return { entidad: it.entidad, ocid: String(it.codigo_convocatoria ?? it.ocid ?? ""), analizadoEn: String(it.analizado_en) };
+  } catch {
+    return null;
+  }
 }
 
 export interface UniversoSenales {

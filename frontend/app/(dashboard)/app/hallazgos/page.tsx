@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { FiltrosSenales, SelectorVista } from "@/components/alertas/FiltrosSenales";
 import { ListaSenales, ListaSenalesSkeleton } from "@/components/alertas/ListaSenales";
@@ -10,13 +11,14 @@ import {
   facetasSenales,
   filtrarSenales,
   getAnalisisEnRevision,
+  getUltimoAnalisisPublicado,
   getUniversoSenales,
   parseSenalesQuery,
   type SenalesQuery,
 } from "@/lib/revision";
 
 export const metadata = {
-  title: "Señales — Vigía Perú",
+  title: "Señales",
   description:
     "Cada señal de riesgo publicada por Vigía Perú, con la regla que la disparó, la norma que cita, la evidencia del expediente y el agente que la encontró.",
 };
@@ -85,6 +87,8 @@ function Cargando({ children }: { children: React.ReactNode }) {
 
 async function VistaPublicadas({ query }: { query: SenalesQuery }) {
   const [universo, resumen] = await Promise.all([getUniversoSenales(), getResumenProcesamientos().catch(() => null)]);
+  const publicados = new Set(universo.senales.map((s) => s.alertaCodigo).filter((c): c is string => !!c));
+  const ultimo = await getUltimoAnalisisPublicado(publicados);
   const filtradas = filtrarSenales(universo.senales, query);
   const facetas = facetasSenales(universo.senales, query);
   const pagina = Math.min(query.pagina, Math.max(1, Math.ceil(filtradas.length / TAM)));
@@ -104,6 +108,24 @@ async function VistaPublicadas({ query }: { query: SenalesQuery }) {
           <span className="font-mono tabular-nums">{universo.contratos.toLocaleString("es-PE")}</span> contratos leídos
         </p>
       </div>
+
+      {ultimo && (
+        <p className="text-[13px] leading-relaxed text-mute">
+          El último contrato con señales publicadas se analizó{" "}
+          <time dateTime={ultimo.analizadoEn} className="font-medium text-ink">
+            {haceCuanto(ultimo.analizadoEn)}
+          </time>
+          :{" "}
+          {ultimo.ocid ? (
+            <Link href={`/app/convocatoria/${ultimo.ocid}`} className="font-medium text-heroViolet hover:underline">
+              {ultimo.entidad}
+            </Link>
+          ) : (
+            <span className="font-medium text-ink">{ultimo.entidad}</span>
+          )}
+          .
+        </p>
+      )}
 
       <FiltrosSenales query={query} facetas={facetas} />
 
@@ -135,4 +157,17 @@ async function VistaRevision() {
       <EnRevision items={items} procesados={resumen?.porEstado.procesado ?? null} publicadas={publicadas} />
     </div>
   );
+}
+
+/**
+ * "hace 5 h", "hace 3 días". Se calcula al renderizar en el servidor: la página es
+ * dinámica (depende de la URL), así que no queda congelado en un build viejo.
+ */
+function haceCuanto(iso: string): string {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (min < 60) return min <= 1 ? "hace un momento" : `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return `hace ${d} días`;
 }

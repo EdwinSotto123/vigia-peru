@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { senalesQueryString, type NivelBandera } from "@/lib/revision";
 
+// Nunca llega a pintarse (redirige), pero una pestaña que se detiene en el redirect no queda sin título.
+export const metadata = { title: "Señales" };
+
 /**
  * /app/alertas ya no existe como superficie: es /app/hallazgos.
  *
@@ -8,8 +11,8 @@ import { senalesQueryString, type NivelBandera } from "@/lib/revision";
  * 48 px y los slugs de las reglas (`unico_postor_alto`) como píldoras— cuando la
  * unidad atómica del producto es la **señal**. Tener las dos superficies dejaba dos
  * puertas al mismo sitio, que es justo lo que este producto ya decidió no hacer
- * (un destino, un botón). Los enlaces existentes —AlertasDeZona, TopAlertasList, la
- * barra lateral— siguen funcionando: caen aquí y se redirigen.
+ * (un destino, un botón). Los enlaces existentes (AlertasDeZona, la barra lateral)
+ * siguen funcionando: caen aquí y se redirigen.
  *
  * Se traduce lo único del filtro viejo que tiene equivalente honesto:
  *  - `scoreMin` ≥ 70 / ≥ 40 → severidad alta / media. No es el mismo eje (aquel era

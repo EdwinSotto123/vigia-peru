@@ -22,13 +22,13 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
       <div className="mb-2.5 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
           {ready ? (
-            <Sparkles size={13} className="text-moss" />
+            <Sparkles size={13} className="text-mossTexto" aria-hidden />
           ) : (
-            <Eye size={13} className="text-heroViolet" />
+            <Eye size={13} className="text-heroViolet" aria-hidden />
           )}
           {ready
-            ? "Reporte completo — listo para enviar"
-            : `Tu reporte: ${doneCount} de ${milestones.length}`}
+            ? "Denuncia completa: lista para enviar"
+            : `Tu denuncia: ${doneCount} de ${milestones.length}`}
         </span>
         <span className="font-mono text-[11px] text-mute">{Math.round(pct)}%</span>
       </div>
@@ -47,7 +47,7 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
             key={m.label}
             className={cn(
               "flex items-center justify-center gap-1 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors",
-              m.done ? "bg-moss/10 text-moss" : "bg-paperDeep/60 text-mute",
+              m.done ? "bg-moss/10 text-mossTexto" : "bg-paperDeep/60 text-mute",
             )}
           >
             {m.done ? (
