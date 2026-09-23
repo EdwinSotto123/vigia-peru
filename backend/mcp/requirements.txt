@@ -1,2 +1,2 @@
-mcp>=1.12.0
+mcp>=1.12.0,<2  # 2.x renombró FastMCP a MCPServer; server.py usa la API 1.x
 pg8000>=1.30.0
