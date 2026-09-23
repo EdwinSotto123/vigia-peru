@@ -2,14 +2,25 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { motivosRevision } from "./procesamientos.js";
+import {
+  alertaNoDemo, alertaPublica, convergenciaPublica, esAlertaDemo, esPublicada, latPublica, lonPublica, reporteIdsPublicos,
+} from "../lib/publicacion.js";
 
 export const alertasRouter = new Hono();
 
 // ─── GET /alertas — lista con joins (entidad+proveedor) + banderas inline ──
+//   ?region=&estado=&scoreMin=&conSenales=true&limit=&offset=
+//   · Solo alertas PUBLICADAS (activa/confirmada) y no demo — ver lib/publicacion.ts. Las que la
+//     autoevaluación bloqueó (`revision`) o una persona descartó (`descartada`) no se listan: sus
+//     motivos públicos están en GET /alertas/:id/revision. `estado=descartada|en_revision` es válido
+//     pero no devuelve filas.
+//   · `conSenales=true`: solo contratos con ≥ 1 bandera (los analizados sin señal traen
+//     `banderas = []` y score 0). `total` refleja el mismo filtro. Sin el parámetro: todas, como antes.
 const ListQuery = z.object({
   region: z.string().optional(),
   estado: z.enum(["activa", "descartada", "confirmada", "en_revision"]).optional(),
   scoreMin: z.coerce.number().int().min(0).max(100).optional(),
+  conSenales: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -17,16 +28,15 @@ const ListQuery = z.object({
 alertasRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
-  const { region, estado, scoreMin, limit, offset } = parsed.data;
+  const { region, estado, scoreMin, conSenales, limit, offset } = parsed.data;
 
-  const conds: string[] = [];
+  // Base: publicada y no demo (antes solo `estado <> 'revision'`: se colaban las descartadas y las semillas).
+  const conds: string[] = [alertaPublica("a")];
   const vals: any[] = [];
   if (region)            { vals.push(region);    conds.push(`a.region = $${vals.length}`); }
   if (estado)            { vals.push(estado);    conds.push(`a.estado = $${vals.length}`); }
   if (scoreMin != null)  { vals.push(scoreMin);  conds.push(`a.score >= $${vals.length}`); }
-  // Las alertas que la self-eval del orquestador bloqueó (estado 'revision': respaldo bajo,
-  // tono acusatorio o dictamen incoherente) NO se publican: se revisan en /admin antes.
-  conds.push(`a.estado <> 'revision'`);
+  if (conSenales === "true") conds.push(`EXISTS (SELECT 1 FROM banderas bx WHERE bx.alerta_id = a.id)`);
   const where = `WHERE ${conds.join(" AND ")}`;
 
   const totalVals = [...vals];
@@ -104,7 +114,7 @@ alertasRouter.get("/analizadas", async (c) => {
            FROM banderas WHERE alerta_id = a.id
        ) bc ON TRUE
       WHERE (a.analizado_en IS NOT NULL OR a.score > 0 OR COALESCE(bc.n_banderas, 0) > 0)
-        AND a.estado <> 'revision'
+        AND ${alertaPublica("a")}
       ORDER BY COALESCE(a.analizado_en, a.created_at, a.updated_at) DESC NULLS LAST
       LIMIT $1`,
     [limit],
@@ -143,7 +153,8 @@ alertasRouter.get("/:id/revision", async (c) => {
   const id = c.req.param("id");
   const r = await pool.query(
     `SELECT a.id, a.codigo, a.estado, a.analizado_en AS "analizadoEn" FROM alertas a
-     WHERE a.codigo = $1 OR a.id::text = $1 OR (a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto($1))
+     WHERE (a.codigo = $1 OR a.id::text = $1 OR (a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto($1)))
+       AND ${alertaNoDemo("a")}
      ORDER BY a.analizado_en DESC NULLS LAST LIMIT 1`, [id]).catch(() => ({ rows: [] as any[] }));
   const a = r.rows[0];
   if (!a) return c.json({ error: "not_found" }, 404);
@@ -160,7 +171,7 @@ alertasRouter.get("/:id/revision", async (c) => {
 alertasRouter.get("/:id/full", async (c) => {
   const id = c.req.param("id");
   const r = await pool.query(
-    `SELECT a.id, a.codigo, a.ocid, a.score, a.objeto,
+    `SELECT a.id, a.codigo, a.ocid, a.score, a.estado, a.objeto,
             a.monto_adjudicado::float AS monto, a.region,
             to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS fecha_buena_pro,
             a.analizado_en, a.entidad_ruc, a.proveedor_ruc,
@@ -170,7 +181,8 @@ alertasRouter.get("/:id/full", async (c) => {
        FROM alertas a
        LEFT JOIN entidades e    ON e.ruc   = a.entidad_ruc
        LEFT JOIN convocatorias cv ON cv.ocid = a.ocid
-      WHERE a.id::text = $1 OR a.codigo = $1 OR a.ocid = $1 OR a.codigo_convocatoria = $1
+      WHERE (a.id::text = $1 OR a.codigo = $1 OR a.ocid = $1 OR a.codigo_convocatoria = $1)
+        AND ${alertaNoDemo("a")}
       -- Determinismo: si varias filas matchean (p.ej. mismo codigo_convocatoria
       -- por reprocesos), devolver SIEMPRE el análisis MÁS RECIENTE. Sin ORDER BY,
       -- LIMIT 1 es no-determinista y la data mostrada "cambia" entre cargas.
@@ -180,6 +192,51 @@ alertasRouter.get("/:id/full", async (c) => {
   );
   if (r.rows.length === 0) return c.json({ error: "not_found", query: id }, 404);
   const row = r.rows[0];
+  const publicada = esPublicada(row.estado);
+
+  // Alerta NO publicada (revision = la autoevaluación bloqueó la publicación; descartada = una
+  // persona decidió no publicarla): el análisis entero queda fuera — score, señales, dictamen (que
+  // puede ser justo el texto de tono acusatorio que se bloqueó), texto de los jueces y la salida de
+  // cada agente (cada una trae sus propias señales: sobreprecio, sospechas de postores, prensa…).
+  // Queda lo que ya es público (ficha del contrato y registro OCDS), el costo del análisis y el estado.
+  // Los motivos, en lenguaje claro: GET /alertas/:id/revision.
+  if (!publicada) {
+    c.header("Cache-Control", "public, max-age=30, s-maxage=60");
+    return c.json({
+      alerta_codigo: row.codigo,
+      ocid: row.ocid,
+      estado: row.estado,
+      publicada: false,
+      enRevision: row.estado === "revision",
+      score: null,
+      objeto: row.objeto,
+      monto: Number(row.monto ?? 0),
+      region: row.region,
+      fecha_buena_pro: row.fecha_buena_pro ?? null,
+      analizado_en: row.analizado_en ? new Date(row.analizado_en).toISOString() : null,
+      entidad_ruc: row.entidad_ruc,
+      proveedor_ruc: row.proveedor_ruc,
+      entidad: row.entidad,
+      banderas: null,
+      market_analysis: null,
+      document_analysis: null,
+      web_research: null,
+      news_research: null,
+      person_network: null,
+      person_network_context: null,
+      entity_personnel: null,
+      normative_compliance: null,
+      causal_directa_invocada: null,
+      acto_resolutivo_directa: null,
+      estado_real: null,
+      analisis_postores: null,
+      agent_trace: [],
+      llm_metrics: row.analisis_full?.llm_metrics ?? null,
+      self_evals: null,
+      dictamen_markdown: "",
+      ocds_payload: row.ocds_payload ?? null,
+    });
+  }
 
   const b = await pool.query(
     `SELECT regla, severidad, evidencia, norma, fuente_url
@@ -192,6 +249,9 @@ alertasRouter.get("/:id/full", async (c) => {
   const body = {
     alerta_codigo: row.codigo,
     ocid: row.ocid,
+    estado: row.estado,
+    publicada: true,
+    enRevision: false,
     score: Number(row.score ?? 0),
     objeto: row.objeto,
     monto: Number(row.monto ?? 0),
@@ -243,18 +303,41 @@ alertasRouter.get("/:id", async (c) => {
        ) AS banderas,
        (SELECT payload FROM network_expansions
         WHERE alerta_id = a.id ORDER BY created_at DESC LIMIT 1) AS network,
-       (SELECT row_to_json(c.*) FROM convergencias c
-        WHERE c.alerta_id = a.id LIMIT 1) AS convergencia
+       -- Convergencia pública (no demo, con ≥ 1 reporte público): coordenadas redondeadas y
+       -- solo los ids de reportes públicos. Antes row_to_json(c.*) sacaba el punto exacto.
+       (SELECT json_build_object('id', c.id, 'reporteIds', ${reporteIdsPublicos("c")},
+                                 'lat', ${latPublica("c.ubicacion_geo")}, 'lon', ${lonPublica("c.ubicacion_geo")},
+                                 'resumen', c.resumen)
+          FROM convergencias c
+         WHERE c.alerta_id = a.id AND ${convergenciaPublica("c")}
+         ORDER BY c.created_at DESC LIMIT 1) AS convergencia
      FROM alertas a
      LEFT JOIN entidades e   ON e.ruc   = a.entidad_ruc
      LEFT JOIN empresas  emp ON emp.ruc = a.proveedor_ruc
-     WHERE a.id::text = $1 OR a.codigo = $1
+     WHERE (a.id::text = $1 OR a.codigo = $1) AND ${alertaNoDemo("a")}
      ORDER BY a.analizado_en DESC NULLS LAST, a.updated_at DESC NULLS LAST
      LIMIT 1`,
     [id],
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
-  return c.json(r.rows[0]);
+  // `moderacion` ({accion, actor, motivo, at}) es la bitácora interna del panel admin: no se publica.
+  const { moderacion: _moderacion, ...row } = r.rows[0];
+  if (esAlertaDemo(row.codigo)) return c.json({ error: "not_found" }, 404);
+  if (esPublicada(row.estado)) return c.json({ ...row, publicada: true, enRevision: false });
+  // No publicada (revision / descartada): existe, pero sin score, señales, reglas, dictamen ni
+  // análisis — ver GET /alertas/:id/full y /alertas/:id/revision.
+  return c.json({
+    ...row,
+    publicada: false,
+    enRevision: row.estado === "revision",
+    score: null,
+    banderas: null,
+    reglas_disparadas: null,
+    analisis_full: null,
+    dictamen_markdown: null,
+    network: null,
+    convergencia: null,
+  });
 });
 
 // ─── POST /alertas — crear ────────────────────────────────────────

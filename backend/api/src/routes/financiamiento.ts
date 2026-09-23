@@ -22,8 +22,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { getPagosConfig } from "./contribuciones.js";
+import { alertaNoDemo, alertaPublica } from "../lib/publicacion.js";
 
 export const financiamientoRouter = new Hono();
+
+// Conteos de alertas (lib/publicacion.ts): "señal hallada" = alerta pública (publicada, no demo) con
+// ≥ 1 bandera; "en revisión" = estado 'revision' (tampoco demo).
+const SENAL_HALLADA = `${alertaPublica("a")} AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id)`;
+const EN_REVISION = `a.estado = 'revision' AND ${alertaNoDemo("a")}`;
 
 const cache = (c: any, seconds: number) => c.header("Cache-Control", `public, s-maxage=${seconds}, stale-while-revalidate=60`);
 
@@ -124,11 +130,10 @@ financiamientoRouter.get("/ranking", async (c) => {
               SUM(co.contratos)::int AS "contratosFinanciados",
               COUNT(DISTINCT co.ubigeo)::int AS zonas,
               (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND alerta_publicada(a.estado)
-                  AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senalesHalladas",
+                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND ${SENAL_HALLADA})::int AS "senalesHalladas",
               (SELECT count(s.procesada_at) FROM asignaciones s WHERE s.contribucion_id = ANY(array_agg(co.id)))::int AS "contratosProcesados",
               (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND a.estado = 'revision')::int AS "enRevision",
+                WHERE s.contribucion_id = ANY(array_agg(co.id)) AND ${EN_REVISION})::int AS "enRevision",
               MIN(co.pagada_at) AS desde
        ${fromWhere}
        GROUP BY f.id ORDER BY "contratosFinanciados" DESC, desde ASC LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
@@ -153,15 +158,15 @@ financiamientoRouter.get("/estado", async (c) => {
               COUNT(DISTINCT left(co.ubigeo,2))::int AS "regionesConAuditoria",
               (SELECT count(*) FROM asignaciones WHERE procesada_at IS NOT NULL)::int AS "contratosProcesados",
               (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-                WHERE alerta_publicada(a.estado) AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senalesHalladas",
-              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id WHERE a.estado = 'revision')::int AS "enRevision",
+                WHERE ${SENAL_HALLADA})::int AS "senalesHalladas",
+              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id WHERE ${EN_REVISION})::int AS "enRevision",
               (SELECT count(*) FROM cola_auditoria)::int AS "colaGlobal",
               (SELECT count(*) FROM zona_estado WHERE nivel='departamento' AND total_cola > 0)::int AS "regionesConCola",
               (SELECT COALESCE(sum(documentos_listos), 0) FROM zona_estado WHERE nivel='departamento')::int AS "documentosListos"
        FROM contribuciones co WHERE co.estado IN ('pagada','en_proceso','procesada')`),
     pool.query(`SELECT precio_pen::float AS "precioPen", precio_usd::float AS "precioUsd", costo_real_pen::float AS "costoRealPen", nota
                 FROM tarifas ORDER BY vigente_desde DESC LIMIT 1`),
-    pool.query(`SELECT (SELECT count(*) FROM alertas WHERE created_at::date = current_date)::int AS "procesadosHoy",
+    pool.query(`SELECT (SELECT count(*) FROM alertas a WHERE a.created_at::date = current_date AND ${alertaNoDemo("a")})::int AS "procesadosHoy",
                        (SELECT count(*) FROM convocatorias WHERE created_at::date = current_date)::int AS "ingresadosHoy"`),
   ]);
   const alcance = await getAlcance();
@@ -199,17 +204,26 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
      JOIN tarifas t ON t.id = co.tarifa_id
      WHERE co.codigo = $1`, [codigo]);
   if (!head.rows.length) return c.json({ error: "not_found" }, 404);
+  // Por contrato: score, severidad y conteo de señales SOLO si la alerta está publicada; en revisión
+  // humana o descartada salen null (con `alertaEstado` y `enRevision` para decir por qué).
   const det = await pool.query(
     `SELECT s.ocid, s.asignada_at AS "asignadaAt", s.procesada_at AS "procesadaAt",
             cv.objeto AS titulo, cv.cuantia_referencial::float AS "valorReferencial", e.nombre AS entidad,
-            a.codigo AS "alertaCodigo", a.score, a.estado AS "alertaEstado",
-            (SELECT max(b.severidad) FROM banderas b WHERE b.alerta_id = a.id) AS severidad,
-            (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int AS banderas
+            a.codigo AS "alertaCodigo",
+            CASE WHEN alerta_publicada(a.estado) THEN a.score END AS score,
+            a.estado AS "alertaEstado",
+            COALESCE(a.estado = 'revision', false) AS "enRevision",
+            -- La más grave (no max() de texto: alfabéticamente 'media' > 'alta').
+            CASE WHEN alerta_publicada(a.estado)
+                 THEN (SELECT b.severidad FROM banderas b WHERE b.alerta_id = a.id
+                        ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END LIMIT 1) END AS severidad,
+            CASE WHEN a.id IS NULL OR alerta_publicada(a.estado)
+                 THEN (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int END AS banderas
      FROM asignaciones s
      JOIN contribuciones co ON co.id = s.contribucion_id
      JOIN convocatorias cv ON cv.ocid = s.ocid
      LEFT JOIN entidades e ON e.ruc = cv.entidad_ruc
-     LEFT JOIN alertas a ON a.id = s.alerta_id
+     LEFT JOIN alertas a ON a.id = s.alerta_id AND ${alertaNoDemo("a")}
      WHERE co.codigo = $1 ORDER BY s.asignada_at`, [codigo]);
   const h = head.rows[0];
   const procesados = det.rows.filter((r) => r.procesadaAt).length;
@@ -243,10 +257,9 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
     `SELECT co.codigo, co.contratos, co.estado, co.pagada_at AS "pagadaAt", z.ubigeo, z.nombre AS zona, z.nivel,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-              WHERE s.contribucion_id = co.id AND alerta_publicada(a.estado)
-                AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS senales,
+              WHERE s.contribucion_id = co.id AND ${SENAL_HALLADA})::int AS senales,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-              WHERE s.contribucion_id = co.id AND a.estado = 'revision')::int AS "enRevision"
+              WHERE s.contribucion_id = co.id AND ${EN_REVISION})::int AS "enRevision"
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.financiador_id = $1 AND co.estado IN ('pagada','en_proceso','procesada')
      ORDER BY co.pagada_at DESC`, [f.rows[0].id]);

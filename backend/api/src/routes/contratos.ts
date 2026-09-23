@@ -3,7 +3,9 @@
  * Plan: docs/superpowers/plans/2026-09-15-seace-escala.md · Workstream F
  *
  *   GET /contratos?page=1&size=50&q=&tipo=&etapa=&ubigeo=15&entidad=<ruc>&monto_min=&monto_max=
- *                 &riesgo=alto|medio|bajo|sin_analizar&orden=fecha|monto|score
+ *                 &riesgo=alto|medio|bajo|sin_analizar|en_revision|descartado&orden=fecha|monto|score
+ *       (alto/medio/bajo y `score` solo cuentan alertas PUBLICADAS; una alerta en revisión humana o
+ *        descartada sale con score/banderas = null y riesgo en_revision/descartado — lib/publicacion.ts)
  *       → { data: ContratoResumen[], total, page, size }
  *   GET /contratos/geo?nivel=distrito|provincia|departamento&ubigeo=15&tipo=&etapa=&riesgo=
  *       → { data: { ubigeo, nombre, nivel, lat, lon, total, sinAnalizar, procesados, conSenales, enCola, documentosListos, enRevision }[] }
@@ -22,8 +24,12 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
-import { RESULTADO_SQL } from "./procesamientos.js";
+import { COLS as COLS_PROCESAMIENTO, RESULTADO_SQL } from "./procesamientos.js";
 import { signReadUrl } from "../lib/storage.js";
+import { alertaNoDemo, convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publicacion.js";
+
+/** Score público de la alerta unida como `a`: solo si está publicada (lib/publicacion.ts §2). */
+const SCORE_PUBLICO = `CASE WHEN alerta_publicada(a.estado) THEN a.score END`;
 
 export const contratosRouter = new Hono();
 
@@ -128,13 +134,18 @@ function exprs(cols: Set<string>, alcance?: { tipos: string[]; etapas: string[] 
               WHEN EXISTS (SELECT 1 FROM documentos_gcs d WHERE d.ocid = c.ocid AND d.borrado_at IS NULL AND d.expira_at > now()) THEN 'documentos_listos'
               ELSE 'sin_documentos' END`
       : `'en_cola'`,
-    riesgo: `CASE WHEN a.score IS NULL THEN 'sin_analizar' WHEN a.score >= 70 THEN 'alto' WHEN a.score >= 40 THEN 'medio' ELSE 'bajo' END`,
+    // alto/medio/bajo = señales PUBLICADAS. Una alerta en revisión humana o descartada va a su propio
+    // balde: si no, su score (no publicado) inflaba "Señal alta" en la landing y en /app/contratos.
+    riesgo: `CASE WHEN a.score IS NULL THEN 'sin_analizar'
+                  WHEN a.estado = 'revision' THEN 'en_revision'
+                  WHEN NOT alerta_publicada(a.estado) THEN 'descartado'
+                  WHEN a.score >= 70 THEN 'alto' WHEN a.score >= 40 THEN 'medio' ELSE 'bajo' END`,
   };
 }
 
 const TIPOS = ["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro"] as const;
 const ETAPAS = ["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada", "desierta", "cancelada", "nula", "desconocida"] as const;
-const RIESGOS = ["alto", "medio", "bajo", "sin_analizar"] as const;
+const RIESGOS = ["alto", "medio", "bajo", "sin_analizar", "en_revision", "descartado"] as const;
 
 const ListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -160,7 +171,8 @@ const ListQuery = z.object({
  *  c/cz/a/p/e deben existir en el FROM. `excluir` salta una condición (facetas: el conteo de
  *  "tipo" no debe filtrarse por el propio tipo elegido, para poder mostrar las otras opciones). */
 function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[], excluir?: Set<string>): string[] {
-  const w: string[] = [];
+  // Siempre: fuera la convocatoria sembrada de demo (lib/publicacion.ts).
+  const w: string[] = [convocatoriaNoDemo("c")];
   const salta = (k: string) => excluir?.has(k) ?? false;
   const add = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
   if (q.q && !salta("q")) {
@@ -195,7 +207,7 @@ const FROM_BASE = `
   LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
   LEFT JOIN LATERAL (
     SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
-    WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid)
+    WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid) AND ${alertaNoDemo("a")}
     ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
   LEFT JOIN procesamientos p ON p.ocid = c.ocid
   LEFT JOIN entidades e ON e.ruc = c.entidad_ruc`;
@@ -211,7 +223,9 @@ function selectResumen(ex: Exprs): string {
     ${ex.procesable} AS procesable,
     ${ex.estadoProc} AS "estadoProcesamiento",
     ${ex.operativo} AS "estadoOperativo",
-    a.score, COALESCE(b.n, 0)::int AS banderas,
+    ${SCORE_PUBLICO} AS score,
+    CASE WHEN a.id IS NULL OR alerta_publicada(a.estado) THEN COALESCE(b.n, 0)::int END AS banderas,
+    COALESCE(a.estado = 'revision', false) AS "enRevision",
     ${ex.proveedorNombre} AS proveedor, ${ex.proveedorRuc} AS "proveedorRuc"`;
 }
 
@@ -266,7 +280,7 @@ contratosRouter.get("/", async (c) => {
   const order = q.orden === "monto"
     ? `c.cuantia_referencial DESC NULLS LAST, c.fecha_convocatoria DESC NULLS LAST`
     : q.orden === "score"
-      ? `a.score DESC NULLS LAST, c.fecha_convocatoria DESC NULLS LAST`
+      ? `${SCORE_PUBLICO} DESC NULLS LAST, c.fecha_convocatoria DESC NULLS LAST`
       : `c.fecha_convocatoria DESC NULLS LAST, c.created_at DESC`;
   vals.push(q.size, (q.page - 1) * q.size);
   const emp = cols.has("proveedor_ruc")
@@ -287,7 +301,7 @@ contratosRouter.get("/", async (c) => {
      LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
      LEFT JOIN LATERAL (
        SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
-       WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid)
+       WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid) AND ${alertaNoDemo("a")}
        ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
      LEFT JOIN procesamientos p ON p.ocid = c.ocid
      LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
@@ -404,7 +418,7 @@ contratosRouter.get("/:ocid", async (c) => {
      ${FROM_BASE}
      ${emp}
      ${JOIN_RESUMEN}
-     WHERE c.ocid = $1 OR ocid_corto(c.ocid) = ocid_corto($1)
+     WHERE (c.ocid = $1 OR ocid_corto(c.ocid) = ocid_corto($1)) AND ${convocatoriaNoDemo("c")}
      ORDER BY (c.ocid = $1) DESC LIMIT 1`,
     [ocid],
   );
@@ -412,15 +426,11 @@ contratosRouter.get("/:ocid", async (c) => {
   const row = r.rows[0];
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
-  const [alerta, proc, docsGcs, pedido, expediente] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expedienteRaw] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
-    pool.query(
-      `SELECT ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
-              finalizado_at AS "finalizadoAt", intentos, contribucion_codigo AS "contribucionCodigo", financiador,
-              financiador_visible AS "financiadorVisible", ubigeo, zona, titulo, entidad, monto_pen::float AS "montoPen",
-              alerta_codigo AS "alertaCodigo", score, banderas::int, fases, alerta_estado AS "alertaEstado"
-       FROM procesamientos_publico WHERE ocid = $1`, [row.ocid]),
+    // Mismas columnas que el tablero (score/banderas en null si la alerta no está publicada).
+    pool.query(`SELECT ${COLS_PROCESAMIENTO} FROM procesamientos_publico WHERE ocid = $1`, [row.ocid]),
     // Migración 15: documentos vigentes en GCS (retención 90 días) y pedido de descarga abierto.
     pool.query(`SELECT url_origen AS "urlOrigen", url_gcs AS "urlGcs", expira_at AS "expiraAt" FROM documentos_vigentes($1)`, [row.ocid])
       .then((q) => q.rows as { urlOrigen: string; urlGcs: string; expiraAt: string }[]).catch(() => null),
@@ -429,6 +439,11 @@ contratosRouter.get("/:ocid", async (c) => {
     // U5: postores con ofertas, ítems con precio contratado y citas con página (document_analysis / legal_analysis).
     alerta_id ? pool.query(EXPEDIENTE_SQL, [alerta_id]).then((q) => q.rows[0] ?? null).catch(() => null) : Promise.resolve(null),
   ]);
+
+  // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
+  // agentes leyeron del expediente — el análisis entero está sin publicar (lib/publicacion.ts §2).
+  const alertaRow: Record<string, any> | null = redactarResultado(alerta?.rows[0] ?? null);
+  const expediente = alertaRow && esPublicada(alertaRow.estado) ? expedienteRaw : null;
 
   const items = (Array.isArray(items_raw) ? items_raw : []).map((it: any, i: number) => ({
     id: String(it?.id ?? i + 1),
@@ -521,7 +536,6 @@ contratosRouter.get("/:ocid", async (c) => {
   const norm = (t: unknown) => String(t ?? "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
   const redFlags = ((expediente?.redFlags ?? []) as any[]).map((f) => ({ desc: norm(f?.descripcion), citas: (Array.isArray(f?.evidencia) ? f.evidencia : []).map(cita) }));
   const legalEvid = ((expediente?.legalEvidencia ?? []) as any[]).map(cita);
-  const alertaRow = alerta?.rows[0] ?? null;
   if (alertaRow && Array.isArray(alertaRow.banderas)) {
     alertaRow.banderas = alertaRow.banderas.map((b: any) => {
       const ev = norm(b?.evidencia);

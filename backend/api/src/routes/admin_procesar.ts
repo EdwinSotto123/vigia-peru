@@ -81,11 +81,15 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
     if (!tarifa.rowCount) { await client.query("ROLLBACK"); return c.json({ error: "sin_tarifa_vigente" }, 500); }
     const precio = Number(tarifa.rows[0].precio_pen);
     codigo = (await client.query("SELECT next_codigo_contribucion() AS c")).rows[0].c as string;
-    const mensaje = `Procesado desde el panel admin por ${quien}, a nombre de Vigía Perú`;
+    // `mensaje_publico` sale tal cual en /financiamiento/recientes e /impacto/:codigo: antes guardaba
+    // "Procesado desde el panel admin por {admin}…" y publicaba el nombre de quien operó el panel.
+    // Queda NULL; quién lo hizo sigue registrado en privado: `validada_por` (columna interna, no la
+    // lee ninguna ruta pública) + la bitácora `admin_log` (log(...) más abajo). El carácter institucional
+    // ya se ve público por `pasarela = 'institucional'` y el financiador "Vigía Perú".
     const ins = await client.query(
       `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, estado, pasarela, pasarela_ref, validada_por, pagada_at, mensaje_publico)
-       VALUES ($1,$2,$3,$4,$5,$6,'pagada','institucional','admin-panel',$7,now(),$8) RETURNING id`,
-      [codigo, fid, ubigeo, contratos, tarifa.rows[0].id, precio * contratos, quien, mensaje]);
+       VALUES ($1,$2,$3,$4,$5,$6,'pagada','institucional','admin-panel',$7,now(),NULL) RETURNING id`,
+      [codigo, fid, ubigeo, contratos, tarifa.rows[0].id, precio * contratos, quien]);
     cid = ins.rows[0].id as number;
     await client.query("COMMIT");
   } catch (e) {

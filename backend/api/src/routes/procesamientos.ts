@@ -3,6 +3,13 @@
  * Lee la vista `procesamientos_publico` (migración 12): sin email ni worker.
  *
  *   GET /financiamiento/procesamientos?ubigeo=15&codigo=VIG-2026-00002&estado=procesando&limit=100
+ *       estado = encolado | procesando | procesado | error | pendiente_de_procesamiento | esperando_documentos
+ *              | activos  (= todo lo que aún no terminó bien: esperando_documentos, pendiente_de_procesamiento,
+ *                           encolado, procesando, error)
+ *       Orden por defecto: primero lo activo (procesando → encolado → esperando_documentos → error →
+ *       pendiente_de_procesamiento) y al final lo procesado, así un `limit` corto no deja afuera la cola.
+ *       Si la alerta no está publicada (`alertaEstado` revision/descartada): `score` y `banderas` = null
+ *       y `enRevision` = true para revision (lib/publicacion.ts §2).
  *   GET /financiamiento/procesamientos/resumen        conteo por estado + procesados hoy + activos (fase, segundos)
  *                                                     + lote de ingesta en curso + documentos descargados (7 días) + en revisión + agentes activos
  *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}] + fases + resultado
@@ -22,15 +29,21 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import reglasJson from "../data/reglas.json" with { type: "json" };
 import { motivosDesdeEval, umbralesSelfEval } from "./admin_revision.js";
+import { procBanderasSql, procScoreSql, redactarResultado } from "../lib/publicacion.js";
 
 export const procesamientosRouter = new Hono();
 
 const cache = (c: Context, s: number) => c.header("Cache-Control", `public, s-maxage=${s}, stale-while-revalidate=10`);
 
-const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
+/** Columnas públicas de `procesamientos_publico`. Score y conteo de señales solo si la alerta está publicada. */
+export const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
   finalizado_at AS "finalizadoAt", intentos, contribucion_codigo AS "contribucionCodigo", financiador,
   financiador_visible AS "financiadorVisible", ubigeo, zona, titulo, entidad, monto_pen::float AS "montoPen",
-  alerta_codigo AS "alertaCodigo", score, banderas::int, fases, alerta_estado AS "alertaEstado"`;
+  alerta_codigo AS "alertaCodigo", ${procScoreSql()} AS score, ${procBanderasSql()} AS banderas, fases,
+  alerta_estado AS "alertaEstado", COALESCE(alerta_estado = 'revision', false) AS "enRevision"`;
+
+/** Estados "activos" (aún no terminaron bien) para `?estado=activos` y para el orden por defecto. */
+const ESTADOS_ACTIVOS = ["esperando_documentos", "pendiente_de_procesamiento", "encolado", "procesando", "error"] as const;
 
 /** Cuánto suele tardar un análisis (mediana de los procesados en 7 días) para el "estimado" del tablero. */
 const ESTIMADO_SQL = `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finalizado_at - iniciado_at)))::int AS "medianaSeg",
@@ -84,13 +97,18 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
        THEN a.analisis_full->'compliance_resumen_det'->'reglas' ELSE NULL END AS "reglasDisparadas"
   FROM alertas a WHERE a.id = $1`;
 
-const ORDER = `ORDER BY CASE estado WHEN 'procesando' THEN 0 WHEN 'encolado' THEN 1 WHEN 'procesado' THEN 2 WHEN 'error' THEN 3 ELSE 4 END,
+// Lo activo primero: antes `esperando_documentos` y `pendiente_de_procesamiento` caían después de
+// todo lo procesado y un `limit` corto los dejaba fuera de la respuesta.
+const ORDER = `ORDER BY CASE estado WHEN 'procesando' THEN 0 WHEN 'encolado' THEN 1 WHEN 'esperando_documentos' THEN 2
+                                 WHEN 'error' THEN 3 WHEN 'pendiente_de_procesamiento' THEN 4 WHEN 'procesado' THEN 5 ELSE 6 END,
   COALESCE(finalizado_at, iniciado_at, encolado_at) DESC, ocid`;
 
 const Q = z.object({
   ubigeo: z.string().regex(/^\d{2,6}$/).optional(),
   codigo: z.string().max(20).optional(),
-  estado: z.enum(["encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento"]).optional(),
+  estado: z.enum([
+    "encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento", "esperando_documentos", "activos",
+  ]).optional(),
   financiador: z.string().min(1).max(120).optional(),
   desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -106,7 +124,8 @@ procesamientosRouter.get("/", async (c) => {
   const w: string[] = [];
   if (ubigeo) { vals.push(ubigeo); w.push(`ubigeo LIKE $${vals.length} || '%'`); }
   if (codigo) { vals.push(codigo.toUpperCase()); w.push(`contribucion_codigo = $${vals.length}`); }
-  if (estado) { vals.push(estado); w.push(`estado = $${vals.length}`); }
+  if (estado === "activos") { vals.push([...ESTADOS_ACTIVOS]); w.push(`estado = ANY($${vals.length}::text[])`); }
+  else if (estado) { vals.push(estado); w.push(`estado = $${vals.length}`); }
   // `financiador` (procesamientos_publico) ya sale como 'Anónimo' cuando financiador_visible es falso,
   // así que un ILIKE acá nunca expone a quien pidió no aparecer.
   if (financiador) { vals.push(`%${financiador}%`); w.push(`financiador ILIKE $${vals.length}`); }
@@ -257,7 +276,10 @@ procesamientosRouter.get("/:ocid", async (c) => {
     revisionMotivos = await motivosRevision(alertaId).catch(() => []);
   }
   cache(c, 3);
-  return c.json({ ...row, resultado: resultado ? { ...resultado, revisionMotivo, revisionMotivos } : null, estimado });
+  // Alerta no publicada → resultado sin score, señales, mercado ni reglas disparadas (sí documentos
+  // leídos, costo y autoevaluación, que explican el bloqueo). Ver lib/publicacion.ts §2.
+  const publico = redactarResultado(resultado);
+  return c.json({ ...row, resultado: publico ? { ...publico, revisionMotivo, revisionMotivos } : null, estimado });
 });
 
 // ─── Motivos de revisión humana en lenguaje claro (públicos, sin el texto de los jueces) ──

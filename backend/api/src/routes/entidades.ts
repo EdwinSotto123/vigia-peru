@@ -1,8 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 
 export const entidadesRouter = new Hono();
+
+// Agregados de alertas: solo `activa` (como siempre) y NUNCA las semillas de demo `ALT-…`. Tampoco
+// se leen las claves `*_mock` que seed_db.py dejó en entidades.metadata (reportes_mock, serie_mock,
+// contratos, contratos_vigilados…): eran cifras inventadas. Ver lib/publicacion.ts §1.
+const ALERTAS_ACTIVAS = `a.estado = 'activa' AND ${alertaNoDemo("a")}`;
 
 const ListQuery = z.object({
   q: z.string().optional(),
@@ -38,21 +44,21 @@ entidadesRouter.get("/", async (c) => {
          COALESCE(a.alertas, 0)      AS alertas,
          COALESCE(a.monto, 0)::float AS monto,
          COALESCE(a.score_avg, 0)::int AS "scorePromedio",
-         (e.metadata->>'reportes_mock')::int             AS reportes,
-         COALESCE(cv.contratos, (e.metadata->>'contratos')::int, 0)::int AS contratos,
-         COALESCE(a.alertas, (e.metadata->>'contratos_vigilados')::int, 0)::int AS "contratosVigilados",
-         e.metadata->'serie_mock'                        AS serie
+         NULL::int                   AS reportes,   -- antes metadata.reportes_mock (inventado)
+         COALESCE(cv.contratos, 0)::int AS contratos,
+         COALESCE(a.alertas, 0)::int AS "contratosVigilados",
+         NULL::jsonb                 AS serie       -- antes metadata.serie_mock (inventado)
        FROM entidades e
        LEFT JOIN (
-         SELECT entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias GROUP BY entidad_ruc
+         SELECT c.entidad_ruc, COUNT(*)::int AS contratos FROM convocatorias c WHERE ${convocatoriaNoDemo("c")} GROUP BY c.entidad_ruc
        ) cv ON cv.entidad_ruc = e.ruc
        LEFT JOIN (
-         SELECT entidad_ruc,
+         SELECT a.entidad_ruc,
                 COUNT(*)::int AS alertas,
-                SUM(monto_adjudicado) AS monto,
-                AVG(score)::int AS score_avg
-         FROM alertas WHERE estado = 'activa'
-         GROUP BY entidad_ruc
+                SUM(a.monto_adjudicado) AS monto,
+                AVG(a.score)::int AS score_avg
+         FROM alertas a WHERE ${ALERTAS_ACTIVAS}
+         GROUP BY a.entidad_ruc
        ) a ON a.entidad_ruc = e.ruc
        ${where}
        ORDER BY a.alertas DESC NULLS LAST, e.nombre
@@ -70,9 +76,9 @@ entidadesRouter.get("/summary", async (c) => {
     `SELECT
        (SELECT COUNT(*)::int FROM entidades) AS total_entidades,
        (SELECT COUNT(*)::int FROM entidades e
-          WHERE EXISTS (SELECT 1 FROM alertas WHERE entidad_ruc = e.ruc AND estado = 'activa')
+          WHERE EXISTS (SELECT 1 FROM alertas a WHERE a.entidad_ruc = e.ruc AND ${ALERTAS_ACTIVAS})
        ) AS con_alertas,
-       (SELECT COALESCE(SUM(monto_adjudicado), 0)::float FROM alertas WHERE estado = 'activa') AS monto`,
+       (SELECT COALESCE(SUM(a.monto_adjudicado), 0)::float FROM alertas a WHERE ${ALERTAS_ACTIVAS}) AS monto`,
   );
   return c.json(r.rows[0]);
 });
@@ -85,29 +91,38 @@ entidadesRouter.get("/:ruc", async (c) => {
       `SELECT e.*,
               COALESCE(a.alertas, 0)::int AS alertas,
               COALESCE(a.monto, 0)::float AS monto,
-              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc)::int AS contratos,
+              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc AND ${convocatoriaNoDemo("c")})::int AS contratos,
               (SELECT count(*) FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE c.entidad_ruc = e.ruc)::int AS "contratosEnCola",
               (SELECT z.nombre FROM zonas z WHERE z.ubigeo = e.ubigeo) AS "zonaNombre"
          FROM entidades e
          LEFT JOIN (
-           SELECT entidad_ruc, COUNT(*) AS alertas, SUM(monto_adjudicado) AS monto
-           FROM alertas WHERE estado='activa' GROUP BY entidad_ruc
+           SELECT a.entidad_ruc, COUNT(*) AS alertas, SUM(a.monto_adjudicado) AS monto
+           FROM alertas a WHERE ${ALERTAS_ACTIVAS} GROUP BY a.entidad_ruc
          ) a ON a.entidad_ruc = e.ruc
          WHERE e.ruc = $1`,
       [ruc],
     ),
     pool.query("SELECT * FROM mef_entity_budget WHERE entidad_ruc = $1", [ruc]),
+    // Solo alertas PUBLICADAS y no demo: antes salían también las que están en revisión humana o
+    // descartadas, con su score (no publicado).
     pool.query(
-      `SELECT id, codigo, codigo_convocatoria, score, fecha_buena_pro,
-              monto_adjudicado, estado, objeto, region
-         FROM alertas WHERE entidad_ruc = $1
-         ORDER BY score DESC LIMIT 20`,
+      `SELECT a.id, a.codigo, a.codigo_convocatoria, a.score, a.fecha_buena_pro,
+              a.monto_adjudicado, a.estado, a.objeto, a.region
+         FROM alertas a WHERE a.entidad_ruc = $1 AND ${alertaPublica("a")}
+         ORDER BY a.score DESC LIMIT 20`,
       [ruc],
     ),
   ]);
   if (ent.rows.length === 0) return c.json({ error: "not_found" }, 404);
+  // metadata sin las claves `*_mock` de seed_db.py (cifras inventadas).
+  const entidad = ent.rows[0];
+  if (entidad.metadata && typeof entidad.metadata === "object") {
+    const limpia: Record<string, unknown> = { ...entidad.metadata };
+    for (const k of ENTIDAD_METADATA_MOCK) delete limpia[k];
+    entidad.metadata = limpia;
+  }
   return c.json({
-    entidad: ent.rows[0],
+    entidad,
     mef: mef.rows[0] ?? null,
     alertas: alertas.rows,
   });

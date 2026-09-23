@@ -16,6 +16,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
+import { alertaNoDemo } from "../lib/publicacion.js";
 
 export const contribucionesRouter = new Hono();
 
@@ -110,7 +111,7 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
       const conflicto = await client.query(
         `SELECT
            EXISTS (SELECT 1 FROM osce_sancionados s WHERE s.ruc = $1 AND (s.fecha_hasta IS NULL OR s.fecha_hasta >= current_date)) AS sancionado,
-           EXISTS (SELECT 1 FROM alertas a WHERE a.proveedor_ruc = $1 AND a.estado = 'activa') AS con_alertas`,
+           EXISTS (SELECT 1 FROM alertas a WHERE a.proveedor_ruc = $1 AND a.estado = 'activa' AND ${alertaNoDemo("a")}) AS con_alertas`,
         [f.ruc]);
       const { sancionado, con_alertas } = conflicto.rows[0];
       if (sancionado || con_alertas) {
@@ -159,7 +160,12 @@ contribucionesRouter.post("/:codigo/comprobante", async (c) => {
      WHERE codigo = $1 AND estado = 'pendiente_pago' RETURNING codigo`,
     [codigo, body.data.url, body.data.referencia ?? null]);
   if (!r.rows.length) return c.json({ error: "not_found_or_not_pending" }, 404);
-  return c.json({ ok: true, codigo, estado: "pendiente_pago", mensaje: "Comprobante recibido. Te avisamos por email al validarlo." });
+  // No hay envío de correos: el mensaje no puede prometer un aviso. El estado se consulta con el código
+  // (GET /contribuciones/:codigo y el comprobante público /financiamiento/impacto/:codigo).
+  return c.json({
+    ok: true, codigo, estado: "pendiente_pago",
+    mensaje: `Comprobante recibido. Lo validamos en menos de 48 h; consulta el estado de tu aporte con el código ${codigo}.`,
+  });
 });
 
 // ─── GET /contribuciones/:codigo (estado, para quien tiene el código) ────────

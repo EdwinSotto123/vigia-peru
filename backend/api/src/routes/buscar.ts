@@ -12,6 +12,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { pool } from "../lib/db.js";
+import { alertaPublica, convocatoriaNoDemo } from "../lib/publicacion.js";
 
 export const buscarRouter = new Hono();
 
@@ -33,18 +34,19 @@ buscarRouter.get("/", async (c) => {
         ? `SELECT c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.cuantia_referencial::float AS "montoPen", z.nombre AS zona
            FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
            LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid LEFT JOIN zonas z ON z.ubigeo = cz.ubigeo::text
-           WHERE ocid_corto(c.ocid) = ocid_corto($1) OR c.codigo ILIKE $1 || '%' OR ocid_corto(c.ocid) LIKE ocid_corto($1) || '%'
+           WHERE (ocid_corto(c.ocid) = ocid_corto($1) OR c.codigo ILIKE $1 || '%' OR ocid_corto(c.ocid) LIKE ocid_corto($1) || '%')
+             AND ${convocatoriaNoDemo("c")}
            ORDER BY (ocid_corto(c.ocid) = ocid_corto($1)) DESC, c.fecha_convocatoria DESC NULLS LAST LIMIT 5`
         : `SELECT c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.cuantia_referencial::float AS "montoPen", z.nombre AS zona
            FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
            LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid LEFT JOIN zonas z ON z.ubigeo = cz.ubigeo::text
-           WHERE c.texto_busqueda @@ websearch_to_tsquery('spanish', $1)
+           WHERE c.texto_busqueda @@ websearch_to_tsquery('spanish', $1) AND ${convocatoriaNoDemo("c")}
            ORDER BY ts_rank(c.texto_busqueda, websearch_to_tsquery('spanish', $1)) DESC, c.fecha_convocatoria DESC NULLS LAST LIMIT 5`,
       [q]).catch(() => ({ rows: [] as any[] })),
     // Entidades: RUC exacto o nombre (sin tildes).
     pool.query(
       `SELECT e.ruc, e.nombre, e.tipo, e.region,
-              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc)::int AS contratos
+              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc AND ${convocatoriaNoDemo("c")})::int AS contratos
        FROM entidades e
        WHERE ($2::boolean AND e.ruc = $1) OR (NOT $2::boolean AND immutable_unaccent(lower(e.nombre)) LIKE immutable_unaccent($3))
        ORDER BY contratos DESC, e.nombre LIMIT 5`, [q, esRuc, like]).catch(() => ({ rows: [] as any[] })),
@@ -64,13 +66,13 @@ buscarRouter.get("/", async (c) => {
            WHERE co.codigo ILIKE $1 || '%' AND co.estado IN ('pagada','en_proceso','procesada','pendiente_pago')
            ORDER BY co.codigo DESC LIMIT 5`, [q.toUpperCase()]).catch(() => ({ rows: [] as any[] }))
       : Promise.resolve({ rows: [] as any[] }),
-    // Alertas publicadas: por código o por OCID (solo activas/confirmadas).
+    // Alertas publicadas: por código o por OCID (solo activas/confirmadas, nunca las semillas `ALT-…`).
     esCodigo
       ? pool.query(
           `SELECT a.codigo, a.ocid, a.score, a.estado, a.objeto, a.region,
                   (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int AS banderas
            FROM alertas a
-           WHERE alerta_publicada(a.estado) AND (a.codigo ILIKE '%' || $1 || '%' OR ocid_corto(a.ocid) = ocid_corto($1))
+           WHERE ${alertaPublica("a")} AND (a.codigo ILIKE '%' || $1 || '%' OR ocid_corto(a.ocid) = ocid_corto($1))
            ORDER BY a.analizado_en DESC NULLS LAST LIMIT 5`, [q]).catch(() => ({ rows: [] as any[] }))
       : Promise.resolve({ rows: [] as any[] }),
   ]);

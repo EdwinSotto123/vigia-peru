@@ -11,12 +11,36 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import {
+  convergenciaPublica, latPublica, lonPublica, reporteIdsPublicos, reportePublico,
+} from "../lib/publicacion.js";
 
 export const reportesRouter = new Hono();
+
+// Qué reporte es público (moderación, denuncias a entidades, semillas de demo) y por qué las
+// coordenadas salen redondeadas: ver el encabezado de lib/publicacion.ts (§1, §3, §4).
+
+/**
+ * Columnas PÚBLICAS de un reporte (alias `r`), las mismas en la lista y en el detalle. Nunca
+ * `SELECT *`: la tabla guarda contacto_email / contacto_nombre / contacto_telefono,
+ * personas_involucradas, user_id, direccion_texto y media_urls, que no se publican.
+ * `convergenciaId` solo si esa convergencia también es pública.
+ */
+const COLS_PUBLICAS = `
+  r.id, r.categoria, r.descripcion,
+  r.foto_url AS "fotoUrl",
+  r.region,
+  to_char(r.fecha, 'YYYY-MM-DD') AS fecha,
+  r.confirmado,
+  r.confirmaciones,
+  (SELECT cv.id FROM convergencias cv WHERE cv.id = r.convergencia_id AND ${convergenciaPublica("cv")}) AS "convergenciaId",
+  ${latPublica("r.ubicacion_geo")} AS lat,
+  ${lonPublica("r.ubicacion_geo")} AS lon`;
 
 const ListQuery = z.object({
   region: z.string().optional(),
   categoria: z.string().optional(),
+  // Filtro por moderación: `rechazado` es válido pero nunca devuelve filas (no se publica).
   estado: z.enum(["pendiente", "aprobado", "rechazado"]).optional(),
   confirmados: z.enum(["true", "false"]).optional(),
   bbox: z.string().optional(), // 'minLon,minLat,maxLon,maxLat'
@@ -30,58 +54,54 @@ reportesRouter.get("/", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
   const { region, categoria, estado, confirmados, bbox, limit, offset } = parsed.data;
 
-  const conds: string[] = [];
+  // Base: solo reportes publicables (obra, no rechazados, no demo). El total usa el mismo WHERE.
+  const conds: string[] = [reportePublico("r")];
   const vals: any[] = [];
-  if (region)    { vals.push(region);    conds.push(`region = $${vals.length}`); }
-  if (categoria) { vals.push(categoria); conds.push(`categoria = $${vals.length}`); }
-  if (estado)    { vals.push(estado);    conds.push(`moderacion_estado = $${vals.length}`); }
-  if (confirmados === "true")  conds.push(`confirmado = TRUE`);
-  if (confirmados === "false") conds.push(`confirmado = FALSE`);
+  if (region)    { vals.push(region);    conds.push(`r.region = $${vals.length}`); }
+  if (categoria) { vals.push(categoria); conds.push(`r.categoria = $${vals.length}`); }
+  if (estado)    { vals.push(estado);    conds.push(`COALESCE(r.moderacion_estado, 'pendiente') = $${vals.length}`); }
+  if (confirmados === "true")  conds.push(`r.confirmado = TRUE`);
+  if (confirmados === "false") conds.push(`r.confirmado = FALSE`);
   if (bbox) {
     const parts = bbox.split(",").map(Number);
     if (parts.length === 4 && parts.every(Number.isFinite)) {
+      // Contra el punto REDONDEADO (el mismo que se publica), no el exacto: si no, bisecando
+      // cajas cada vez más chicas se recuperaría el GPS original de quien denunció.
       vals.push(parts[0], parts[1], parts[2], parts[3]);
       conds.push(
-        `ST_Within(ubicacion_geo::geometry, ST_MakeEnvelope(
-           $${vals.length - 3}, $${vals.length - 2},
-           $${vals.length - 1}, $${vals.length}, 4326))`,
+        `${lonPublica("r.ubicacion_geo")} BETWEEN $${vals.length - 3} AND $${vals.length - 1}
+         AND ${latPublica("r.ubicacion_geo")} BETWEEN $${vals.length - 2} AND $${vals.length}`,
       );
     }
   }
-  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  const where = `WHERE ${conds.join(" AND ")}`;
   const totalVals = [...vals];
   vals.push(limit, offset);
 
   const [r, total] = await Promise.all([
     pool.query(
-      `SELECT
-         id, categoria, descripcion,
-         foto_url       AS "fotoUrl",
-         region,
-         to_char(fecha, 'YYYY-MM-DD') AS fecha,
-         confirmado,
-         confirmaciones,
-         convergencia_id AS "convergenciaId",
-         ST_Y(ubicacion_geo::geometry) AS lat,
-         ST_X(ubicacion_geo::geometry) AS lon
-       FROM reportes_indexados ${where}
-       ORDER BY fecha DESC, created_at DESC
+      `SELECT ${COLS_PUBLICAS}
+       FROM reportes_indexados r ${where}
+       ORDER BY r.fecha DESC, r.created_at DESC
        LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
       vals,
     ),
-    pool.query(`SELECT count(*)::int AS n FROM reportes_indexados ${where}`, totalVals),
+    pool.query(`SELECT count(*)::int AS n FROM reportes_indexados r ${where}`, totalVals),
   ]);
   return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /reportes/convergencias — para el cruce con alertas ─────
+// Solo convergencias públicas: no demo, con la alerta PUBLICADA (una alerta en revisión o descartada
+// no se cruza en público) y al menos un reporte público; `reporteIds` lista solo los públicos.
 reportesRouter.get("/convergencias", async (c) => {
   const r = await pool.query(
-    `SELECT c.id, c.alerta_id AS "alertaId", c.reporte_ids AS "reporteIds",
-            ST_Y(c.ubicacion_geo::geometry) AS lat,
-            ST_X(c.ubicacion_geo::geometry) AS lon,
+    `SELECT c.id, c.alerta_id AS "alertaId", ${reporteIdsPublicos("c")} AS "reporteIds",
+            ${latPublica("c.ubicacion_geo")} AS lat,
+            ${lonPublica("c.ubicacion_geo")} AS lon,
             c.resumen
        FROM convergencias c
+      WHERE ${convergenciaPublica("c")}
        ORDER BY c.created_at DESC`,
   );
   return c.json({ data: r.rows });
@@ -232,13 +252,15 @@ reportesRouter.post("/", async (c) => {
 });
 
 // ─── GET /reportes/:id ───────────────────────────────────────────
+// Misma forma y mismas columnas públicas que cada fila de GET /reportes (camelCase). Un reporte
+// no publicable (denuncia a entidad, rechazado, demo) responde 404 igual que uno inexistente:
+// no se confirma su existencia.
 reportesRouter.get("/:id", async (c) => {
   const id = c.req.param("id");
   const r = await pool.query(
-    `SELECT *,
-            ST_Y(ubicacion_geo::geometry) AS lat,
-            ST_X(ubicacion_geo::geometry) AS lon
-       FROM reportes_indexados WHERE id = $1`,
+    `SELECT ${COLS_PUBLICAS}
+       FROM reportes_indexados r
+      WHERE r.id = $1 AND ${reportePublico("r")}`,
     [id],
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
