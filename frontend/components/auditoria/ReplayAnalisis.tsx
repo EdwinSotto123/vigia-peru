@@ -109,7 +109,9 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
         <FlowGraph
           override={{
             ...nodoActivoYHechos(fases),
-            narracion: faseHumana({ estado: estadoVirtual, faseActual: null, faseIndex: null, fases, iniciadoAt: null }, ahoraVirtual, fases),
+            narracion: terminoReplay
+              ? "análisis terminado"
+              : faseHumana({ estado: estadoVirtual, faseActual: null, faseIndex: null, fases, iniciadoAt: null }, ahoraVirtual, fases),
           }}
         />
       )}

@@ -1,12 +1,24 @@
 "use client";
 
 /**
- * Bitácora en vivo: los últimos `max` eventos del pipeline en lenguaje humano, con la
- * hora relativa. `warn` en ámbar, `error` en óxido, `final` en musgo. El más reciente arriba.
+ * Bitácora: los últimos `max` eventos del pipeline en lenguaje humano. `warn` en ámbar,
+ * `error` en óxido, `final` en musgo. El más reciente arriba.
+ *
+ * El tiempo de cada fila depende de si la corrida está viva:
+ *  · en vivo (`activo`): "hace 12 s", que es lo que importa mientras se mira;
+ *  · terminada: "+2:13" desde el primer evento. Un análisis de hace seis días mostraba
+ *    "hace 6 d" en las doce filas, que no dice nada; el desfase cuenta cómo corrió.
+ *
+ * Sin región viva propia: la página tiene UNA sola (en ContratoEnVivo) y anuncia cambios de
+ * estado, no cada línea que entra.
+ *
+ * La clave de cada fila es ts + nombre + tipo (+ ordinal si se repite), contada en orden
+ * cronológico: con el índice invertido, cada evento nuevo cambiaba la clave de TODAS las
+ * filas y React las volvía a montar.
  */
 
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
-import { haceCuanto, humanizar, type EventoFase } from "@/lib/auditoria";
+import { desfase, haceCuanto, horaLima, humanizar, type EventoFase } from "@/lib/auditoria";
 
 interface Props {
   eventos: EventoFase[];
@@ -16,27 +28,40 @@ interface Props {
   compacto?: boolean;
 }
 
-function hora(ts: string): string {
-  const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
 export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = false }: Props) {
-  const ultimos = eventos.slice(-max).reverse();
+  // Claves estables: se cuentan en orden cronológico, así un evento nuevo no mueve las de antes.
+  const vistos = new Map<string, number>();
+  const conClave = eventos.map((ev) => {
+    const base = `${ev.ts}|${ev.name}|${ev.kind}`;
+    const n = vistos.get(base) ?? 0;
+    vistos.set(base, n + 1);
+    return { ev, key: n ? `${base}|${n}` : base };
+  });
+  const t0 = eventos.reduce((min, ev) => {
+    const t = new Date(ev.ts).getTime();
+    return Number.isFinite(t) && t < min ? t : min;
+  }, Infinity);
+  const ultimos = conClave.slice(-max).reverse();
+
   if (!ultimos.length) {
     return (
-      <p className={`text-mute ${compacto ? "text-[11px]" : "text-[12px]"}`} aria-live="polite">
+      <p className={`text-mute ${compacto ? "text-[11px]" : "text-[12px]"}`}>
         {activo ? "Esperando el primer evento de los agentes…" : "Sin eventos registrados."}
       </p>
     );
   }
   return (
-    <ol className={compacto ? "space-y-1" : "space-y-1.5"} aria-live="polite" aria-relevant="additions" aria-label="Bitácora del análisis">
-      {ultimos.map((ev, i) => {
-        const tono = ev.kind === "error" ? "text-rust" : ev.kind === "warn" ? "text-amberTexto" : ev.kind === "final" ? "text-moss" : "text-inkSoft";
-        const ms = ahora - new Date(ev.ts).getTime();
+    <ol className={compacto ? "space-y-1" : "space-y-1.5"} aria-label="Bitácora del análisis">
+      {ultimos.map(({ ev, key }, i) => {
+        const tono = ev.kind === "error" ? "text-rust" : ev.kind === "warn" ? "text-amberTexto" : ev.kind === "final" ? "text-mossTexto" : "text-inkSoft";
+        const t = new Date(ev.ts).getTime();
+        const tiempo = !Number.isFinite(t)
+          ? ""
+          : activo
+            ? ahora > 0 ? haceCuanto(ahora - t) : ""
+            : Number.isFinite(t0) ? desfase(t - t0) : "";
         return (
-          <li key={`${ev.ts}-${ev.name}-${i}`} className={`flex items-start gap-2 ${compacto ? "text-[11px]" : "text-[12.5px]"} ${i === 0 && activo ? "animate-slideUp" : ""}`}>
+          <li key={key} className={`flex items-start gap-2 ${compacto ? "text-[11px]" : "text-[12.5px]"} ${i === 0 && activo ? "animate-slideUp" : ""}`}>
             <span className={`mt-[3px] shrink-0 ${tono}`} aria-hidden>
               {ev.kind === "error" ? <XCircle size={12} /> : ev.kind === "warn" ? <AlertTriangle size={12} /> : ev.kind === "final" ? <CheckCircle2 size={12} /> : <span className={`block h-1.5 w-1.5 translate-y-[3px] rounded-full ${i === 0 && activo ? "bg-amber" : "bg-line"}`} />}
             </span>
@@ -44,8 +69,13 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
               {humanizar(ev)}
               <span className="sr-only">{ev.kind === "error" ? " (error)" : ev.kind === "warn" ? " (advertencia)" : ""}</span>
             </span>
-            <time dateTime={ev.ts} title={hora(ev.ts)} className="shrink-0 font-mono text-[10px] tabular-nums text-mute" suppressHydrationWarning>
-              {ahora > 0 && Number.isFinite(ms) ? haceCuanto(ms) : ""}
+            <time
+              dateTime={ev.ts}
+              title={`${horaLima(ev.ts)}, hora de Lima`}
+              className="shrink-0 font-mono text-[10px] tabular-nums text-mute"
+              suppressHydrationWarning
+            >
+              {tiempo}
             </time>
           </li>
         );

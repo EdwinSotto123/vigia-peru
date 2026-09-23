@@ -2,12 +2,22 @@
 
 /**
  * "Mira cómo se ejecuta": un contrato asignado a un aporte, en vivo.
- *   · cabecera (título, entidad, zona, monto, gracias a {financiador} · {código})
+ *   · cabecera (título, entidad, zona, monto, gracias a {financiador}, {código})
  *   · progreso global (fases hechas / aplicables), tiempo transcurrido y estimado
- *   · los tres carriles del DAG con cada agente como chip (DagCarriles)
- *   · bitácora en vivo (últimos 12 eventos humanizados)
+ *   · los tres carriles del DAG con cada agente (DagCarriles)
+ *   · bitácora (últimos 12 eventos humanizados)
  *   · al terminar → Resultados (ResultadoAnalisis) en la misma página
- * Poll cada `pollMs` (3 s) mientras el estado sea encolado/procesando.
+ *
+ * Cada estado tiene su propia cadencia de consulta: encolado/procesando cada `pollMs` (3 s),
+ * esperando documentos o con error cada minuto (nada cambia en segundos), terminado nunca.
+ * Antes un contrato esperando documentos consultaba cada 3 s para siempre y mostraba "Sin
+ * actividad", doce filas "pendiente" y "Esperando el primer evento…": un callejón sin salida.
+ * Ahora ese estado tiene su propio bloque que explica qué espera y desde cuándo.
+ *
+ * Revisión humana: ni el puntaje, ni las señales, ni cuántas encontró cada agente. Lo dice
+ * ResultadoAnalisis, y acá los carriles no reciben las señales.
+ *
+ * UNA región viva por página: anuncia cambios de estado y el paso en curso, nada más.
  *
  * `compacto` (aside de /app/contratos/[ocid]): sin cabecera ni navegación; carriles y
  * bitácora corta.
@@ -17,11 +27,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, Clock, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
-  AGENTES_PROGRESO, PUBLIC_API_BASE, duracion, esActivo, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, getReglasPerfil, haceCuanto, nodoActivoYHechos, progresoFases,
-  type ProcesamientoDetalle,
+  AGENTES_PROGRESO, ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, fechaLima,
+  getReglasPerfil, motivoHumano, nodoActivoYHechos, progresoFases, relojEdad, tipoContratoHumano,
+  type EstadoProc, type ProcesamientoDetalle,
 } from "@/lib/auditoria";
 import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -40,14 +52,32 @@ interface Props {
   compacto?: boolean;
 }
 
+/** Cada cuánto se vuelve a consultar según el estado; null = no se consulta más. */
+function cadencia(estado: EstadoProc | null, pollMs: number): number | null {
+  if (estado === "procesando" || estado === "encolado" || estado === null) return Math.max(1500, pollMs);
+  if (estado === "esperando_documentos" || estado === "error") return 60_000;
+  return null;
+}
+
+/** Lo que oye un lector de pantalla cuando el contrato cambia de estado. */
+const ANUNCIO_ESTADO: Partial<Record<EstadoProc, string>> = {
+  encolado: "El contrato entró a la cola.",
+  procesando: "Empezó el análisis.",
+  procesado: "El análisis terminó.",
+  revision: "El análisis terminó y quedó en revisión humana antes de publicarse.",
+  error: "El análisis falló.",
+  esperando_documentos: "El contrato quedó esperando sus documentos.",
+};
+
 export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false }: Props) {
+  const router = useRouter();
   const [data, setData] = useState<ProcesamientoDetalle | null>(initial ?? null);
   const [cargando, setCargando] = useState(initial == null);
   const [fallo, setFallo] = useState(false);
-  const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial ? Date.now() : null);
   // 0 hasta montar: así el HTML del servidor no lleva cronómetros ni "hace N s" (sin desajuste de hidratación).
   const [ahora, setAhora] = useState(0);
-  const activoRef = useRef<boolean>(initial ? esActivo(initial.estado) : true);
+  const [anuncio, setAnuncio] = useState("");
+  const estadoRef = useRef<EstadoProc | null>(initial?.estado ?? null);
   // Al terminar hacemos UNA lectura más para traer `resultado` (el poll se detiene con el estado final).
   const resultadoPedido = useRef(false);
   // "Ver cómo se analizó": repite la bitácora real ya guardada, para poder mirar la animación
@@ -58,6 +88,12 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   useEffect(() => {
     let vivo = true;
     let ctrl: AbortController | null = null;
+    let timer: number | undefined;
+    const programar = () => {
+      window.clearTimeout(timer);
+      const ms = cadencia(estadoRef.current, pollMs);
+      if (ms != null) timer = window.setTimeout(tick, ms);
+    };
     const cargar = async () => {
       ctrl?.abort();
       ctrl = new AbortController();
@@ -67,10 +103,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         const json = (await res.json()) as ProcesamientoDetalle;
         if (!vivo) return;
         setData({ ...json, eventos: Array.isArray(json.eventos) ? json.eventos : [] });
-        setActualizadoAt(Date.now());
         setFallo(false);
-        activoRef.current = esActivo(json.estado);
-        if (!activoRef.current && json.estado === "procesado" && !json.resultado && !resultadoPedido.current) {
+        estadoRef.current = json.estado;
+        if (json.estado === "procesado" && !json.resultado && !resultadoPedido.current) {
           // el dictamen se publica segundos después del `final`: una relectura corta
           resultadoPedido.current = true;
           window.setTimeout(() => { if (vivo) void cargar(); }, 4000);
@@ -79,21 +114,25 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         if ((e as Error)?.name === "AbortError" || !vivo) return;
         setFallo(true);
       } finally {
-        if (vivo) setCargando(false);
+        if (vivo) {
+          setCargando(false);
+          programar();
+        }
       }
     };
-    void cargar();
-    const id = window.setInterval(() => {
-      if (!activoRef.current) return;
-      if (document.visibilityState !== "visible") return;
+    function tick() {
+      if (document.visibilityState !== "visible") { programar(); return; }
       void cargar();
-    }, Math.max(1500, pollMs));
-    const onVis = () => { if (document.visibilityState === "visible" && activoRef.current) void cargar(); };
+    }
+    void cargar();
+    const onVis = () => {
+      if (document.visibilityState === "visible" && cadencia(estadoRef.current, pollMs) != null) void cargar();
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       vivo = false;
       ctrl?.abort();
-      window.clearInterval(id);
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [ocid, pollMs]);
@@ -105,6 +144,19 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   }, []);
 
   const fases = useMemo(() => (data ? fasesEfectivas(data, data.eventos) : {}), [data]);
+
+  // La única región viva: cambios de estado y el paso en curso. Nunca el primer render.
+  const anterior = useRef<{ estado: EstadoProc; paso: string } | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const estado = estadoVisible(data);
+    const paso = data.estado === "procesando" ? faseHumana(data, undefined, fases) : "";
+    const prev = anterior.current;
+    anterior.current = { estado, paso };
+    if (!prev) return;
+    if (prev.estado !== estado) setAnuncio(ANUNCIO_ESTADO[estado] ?? `Estado: ${ESTADO_PROC[estado].label}.`);
+    else if (paso && paso !== prev.paso) setAnuncio(`Ahora: ${paso}.`);
+  }, [data, fases]);
 
   if (!data) {
     return cargando ? (
@@ -126,8 +178,10 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
   const p = data;
   const estado = estadoVisible(p);
-  const activo = esActivo(p.estado);
+  const enRevision = estado === "revision";
+  const vivoAhora = p.estado === "procesando" || p.estado === "encolado";
   const terminado = p.estado === "procesado";
+  const sinEjecucion = p.estado === "esperando_documentos" || p.estado === "pendiente_de_procesamiento";
   const montado = ahora > 0;
   const transcurrido = montado && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   const duro = p.iniciadoAt && p.finalizadoAt ? new Date(p.finalizadoAt).getTime() - new Date(p.iniciadoAt).getTime() : null;
@@ -135,46 +189,53 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const estimado = p.estimado ?? null;
   const restante = estimado?.medianaSeg && transcurrido != null ? Math.max(0, estimado.medianaSeg * 1000 - transcurrido) : null;
   const sinEventos = p.estado === "procesando" && p.eventos.length === 0;
-  const puedeRepetir = (p.estado === "procesado" || p.estado === "revision") && p.eventos.length > 0;
+  const puedeRepetir = terminado && p.eventos.length > 0;
+
+  const regionViva = <p className="sr-only" aria-live="polite" aria-atomic="true">{anuncio}</p>;
 
   const enVivoBadge = (
-    <span className="inline-flex items-center gap-1.5 text-[11px]" aria-live="polite" aria-atomic="true" suppressHydrationWarning>
+    <span className="inline-flex items-center gap-1.5 text-[11px]">
       {fallo ? (
         <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
-      ) : activo ? (
+      ) : vivoAhora ? (
         <>
           <PulseDot color="moss" size={6} />
-          en vivo{montado && actualizadoAt ? `, actualizado ${haceCuanto(ahora - actualizadoAt)}` : ""}
+          en vivo
         </>
-      ) : (
-        <span suppressHydrationWarning>{!montado ? "" : p.finalizadoAt ? `finalizado el ${new Date(p.finalizadoAt).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}` : "sin actividad"}</span>
-      )}
+      ) : p.estado === "esperando_documentos" ? (
+        <span className="inline-flex items-center gap-1 text-mute">
+          <Clock size={12} aria-hidden />
+          {p.iniciadoAt ? `esperando documentos desde el ${fechaLima(p.iniciadoAt)}` : "esperando documentos"}
+        </span>
+      ) : terminado && p.finalizadoAt ? (
+        <span className="text-mute">finalizado el {fechaLima(p.finalizadoAt, { hora: true })}</span>
+      ) : null}
     </span>
   );
 
   // ── Bloque "cómo se ejecuta" (progreso + carriles + bitácora) ──
-  const ejecucion = (
+  const ejecucion = sinEjecucion ? (
+    <SinEjecucion p={p} ahora={ahora} compacto={compacto} />
+  ) : (
     <section className={`rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`} aria-label="Cómo se ejecuta el análisis">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">
-            {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Reintento automático" : terminado ? "Cómo se ejecutó" : "Estado"}
+            {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
           </div>
-          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} aria-live="polite" suppressHydrationWarning>
+          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} suppressHydrationWarning>
             {p.estado === "procesando"
               ? faseHumana(p, montado ? ahora : undefined, fases)
               : p.estado === "encolado"
                 ? "Espera turno"
                 : p.estado === "error"
-                  ? `Intento ${Math.min(3, Math.max(1, p.intentos))} de 3`
+                  ? p.intentos >= 3 ? "Falló en los 3 intentos" : `Falló el intento ${Math.max(1, p.intentos)} de 3`
                   : terminado
-                    // "pasos", no "agentes": prog.hechas cuenta los pasos del
-                    // DAG, y dos de ellos (SUNAT/OECE y la autoevaluación) no
-                    // son agentes de IA. Decir "12 agentes" acá reabría la
-                    // contradicción de recuentos que el catálogo vino a cerrar:
-                    // son 10 agentes repartidos en 12 pasos.
-                    ? `${prog.hechas} pasos en ${duro != null && duro > 0 ? duracion(duro) : "—"}`
-                    : "Sin actividad"}
+                    // "pasos", no "agentes": prog.hechas cuenta los pasos del DAG, y dos de
+                    // ellos (SUNAT/OECE y la autoevaluación) no son agentes de IA: son 10
+                    // agentes repartidos en 12 pasos.
+                    ? `${prog.hechas} pasos${duro != null && duro > 0 ? ` en ${duracion(duro)}` : ""}`
+                    : ESTADO_PROC[estado].label}
           </div>
         </div>
         <div className="text-right">
@@ -194,7 +255,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
           </div>
         </div>
       </div>
-      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={prog.aplicables} aria-valuenow={prog.hechas} aria-label="Agentes completados">
+      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={prog.aplicables} aria-valuenow={prog.hechas} aria-label="Pasos completados">
         <div className={`h-full rounded-full transition-all duration-700 ease-out ${terminado ? "bg-moss" : "bg-amber"}`} style={{ width: `${Math.max(p.estado === "procesando" ? 3 : 0, prog.pct)}%` }} />
       </div>
 
@@ -207,26 +268,26 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       {p.estado === "error" && (
         <p className="mt-3 text-[12px] text-crimsonTexto">
           {p.intentos < 3
-            ? "El intento anterior falló; el pipeline vuelve a tomar el contrato desde el inicio."
-            : "Tras 3 intentos automáticos quedó en revisión manual. El equipo lo re-encolará y el aporte no pierde su contrato."}
+            ? "El intento anterior falló; el análisis vuelve a tomar el contrato desde el inicio."
+            : "Tras 3 intentos automáticos quedó en revisión manual. El equipo lo volverá a poner en la cola y el aporte no pierde su contrato."}
         </p>
       )}
       {sinEventos && (
-        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no emiten eventos: el orquestador está tomando el contrato (puede tardar un minuto si hay varios en cola).</p>
+        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis (puede tardar un minuto si hay varios en cola).</p>
       )}
 
       <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
         {puedeRepetir && (
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-[11px] text-mute">
-              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó — puedes repetir cómo ocurrió, agente por agente."}
+              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó: puedes repetir cómo ocurrió, agente por agente."}
             </span>
             <button
               type="button"
               onClick={() => setVerReplay((v) => !v)}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper transition-transform hover:scale-[1.02]"
             >
-              <Play size={11} /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
+              <Play size={11} aria-hidden /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
             </button>
           </div>
         )}
@@ -239,14 +300,15 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
                 <FlowGraph override={{ ...nodoActivoYHechos(fases), narracion: faseHumana(p, montado ? ahora : undefined, fases) }} />
               </div>
             )}
-            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={p.resultado?.banderas ?? null} />
+            {/* En revisión, los carriles no cuentan señales por agente: serían señales publicadas. */}
+            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={enRevision ? null : p.resultado?.banderas ?? null} />
             {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
             <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
               <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
                 <span>Bitácora</span>
                 <span className="font-mono normal-case tracking-normal">{p.eventos.length} eventos</span>
               </div>
-              <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={activo} compacto={compacto} />
+              <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={vivoAhora} compacto={compacto} />
             </div>
           </>
         )}
@@ -257,8 +319,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   if (compacto) {
     return (
       <div className="space-y-3">
+        {regionViva}
         {terminado && (
-          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} compacto sharePath={`/app/contratos/${encodeURIComponent(p.ocid)}`} />
+          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} compacto sharePath={`/app/contratos/${encodeURIComponent(p.ocid)}`} />
         )}
         {ejecucion}
         <div className="flex items-center justify-between text-[11px] text-mute">
@@ -271,9 +334,24 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
   return (
     <div>
+      {regionViva}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-mute">
-        <Link href={`/app/auditoria?ubigeo=${p.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 hover:underline">
-          <ChevronLeft size={14} /> Auditoría en vivo
+        {/* Vuelve a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no,
+            al tablero sin filtros. Antes forzaba ?ubigeo= aunque nadie lo hubiera elegido. */}
+        <Link
+          href="/app/auditoria"
+          onClick={(e) => {
+            try {
+              const ref = document.referrer ? new URL(document.referrer) : null;
+              if (ref && ref.origin === window.location.origin && ref.pathname === "/app/auditoria" && window.history.length > 1) {
+                e.preventDefault();
+                router.back();
+              }
+            } catch { /* referrer ilegible: se sigue el enlace */ }
+          }}
+          className="inline-flex items-center gap-1 hover:underline"
+        >
+          <ChevronLeft size={14} aria-hidden /> Auditoría en vivo
         </Link>
         {enVivoBadge}
       </div>
@@ -281,19 +359,23 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       {/* cabecera */}
       <header className="mt-3 rounded-3xl border border-line bg-paper p-6 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+          {/* basis-full en móvil: si no, la píldora de estado le robaba el ancho
+              al título y un objeto largo quedaba en una columna de una palabra por renglón. */}
+          <div className="min-w-0 flex-1 basis-full sm:basis-0">
             <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] uppercase tracking-wide text-mute">
               <span className="font-mono normal-case tracking-normal">{p.ocid}</span>
               {p.alertaCodigo && <span className="font-mono normal-case tracking-normal">{p.alertaCodigo}</span>}
             </div>
-            <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
+            <h1 className="mt-1 break-words font-serif text-xl font-bold leading-tight text-ink sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
               <span className="inline-flex items-center gap-1"><Landmark size={13} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
               <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
               {p.montoPen != null && p.montoPen > 0 && <span className="font-mono text-ink">{formatPEN(p.montoPen)}</span>}
             </div>
           </div>
-          <EstadoPill estado={estado} size="md" />
+          <div className="order-first sm:order-none">
+            <EstadoPill estado={estado} size="md" intentos={p.intentos} />
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-sm text-mute">
@@ -304,19 +386,19 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
               {p.contribucionCodigo}
             </Link>
           </p>
-          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid} — auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="rounded-full" />}
+          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="rounded-full" />}
         </div>
       </header>
 
       <div className={`mt-6 grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
         {terminado && (
-          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} className="animate-slideUp lg:sticky lg:top-24 lg:self-start" />
+          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} className="animate-slideUp lg:sticky lg:top-24 lg:self-start" />
         )}
         <div className="space-y-4">
           {ejecucion}
           <div className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-moss" aria-hidden />
-            <span>El pipeline no sabe quién financió este análisis. Los resultados se publican aunque señalen al financiador. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
+            <span>Los agentes no saben quién pagó este análisis. Los resultados se publican aunque señalen a quien lo financió. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
           </div>
         </div>
       </div>
@@ -325,8 +407,57 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 }
 
 /**
+ * Esperando documentos (o sin análisis aplicable): no hay nada que ejecutar todavía, así que
+ * no se dibujan doce pasos "pendiente" ni una bitácora vacía. Se dice qué falta y desde cuándo.
+ */
+function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: number; compacto: boolean }) {
+  const desde = p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
+  const conFecha = Number.isFinite(desde);
+  if (p.estado === "pendiente_de_procesamiento") {
+    return (
+      <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Sin análisis aplicable</div>
+        <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no hay análisis para este tipo de contrato</div>
+        <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
+          Este contrato ya está pagado, pero es de un tipo o de una etapa que los agentes todavía no leen. Queda
+          reservado: cuando ese análisis exista, entra a la cola sin que nadie tenga que volver a pagarlo.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
+      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-clayTexto">
+        <Clock size={12} aria-hidden /> Esperando documentos
+      </div>
+      <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no se puede leer: faltan sus documentos</div>
+      <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
+        Este contrato ya está pagado. El análisis empieza cuando se descargan sus documentos publicados en el SEACE.
+        Esa descarga se hace desde una conexión en Perú, porque el SEACE bloquea los servidores en la nube. Cuando
+        termine, el contrato pasa a la cola y aquí verás a los agentes trabajar.
+      </p>
+      {conFecha && (
+        <dl className="mt-3 grid gap-3 rounded-xl bg-paperSoft p-3 text-[12px] sm:grid-cols-2">
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Espera desde</dt>
+            <dd className="mt-0.5 text-ink"><time dateTime={p.iniciadoAt!}>{fechaLima(desde, { larga: true, hora: true })}</time></dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Lleva esperando</dt>
+            <dd className="mt-0.5 font-mono tabular-nums text-ink" suppressHydrationWarning>{ahora > 0 ? relojEdad(ahora - desde) : "…"}</dd>
+          </div>
+        </dl>
+      )}
+      <p className="mt-3 text-[11px] text-mute">Esta página vuelve a consultar el estado cada minuto.</p>
+    </section>
+  );
+}
+
+const ESTADO_FASE_HUMANO: Record<string, string> = { hecho: "completado", corriendo: "en curso", error: "falló", omitido: "omitido" };
+
+/**
  * Ficha técnica del análisis terminado: tiempo por agente (de `fases`), costo y tokens
- * (llm_metrics), modelo, perfil y versión de las reglas. Plegable para no estorbar.
+ * (llm_metrics), modelo, tipo de contrato y versión de las reglas. Plegable para no estorbar.
  */
 function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; fases: ReturnType<typeof fasesEfectivas>; duro: number | null; compacto: boolean }) {
   const r = p.resultado ?? null;
@@ -359,26 +490,26 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
             {filas.map((f) => (
               <tr key={f.k}>
                 <td className="py-1 pr-2 text-ink">{faseLabel(f.k)}</td>
-                <td className="py-1 pr-2 text-mute">{f.estado === "hecho" ? "completado" : f.estado === "omitido" ? `omitido${f.motivo ? `: ${f.motivo}` : ""}` : f.estado}</td>
+                <td className="py-1 pr-2 text-mute">{f.estado === "omitido" ? `omitido: ${motivoHumano(f.motivo)}` : ESTADO_FASE_HUMANO[f.estado] ?? f.estado}</td>
                 <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <dl className="space-y-1 text-[11px] sm:min-w-[180px]">
-          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Perfil del pipeline</dt><dd className="font-mono text-ink">{r?.perfil ?? "bienes"}</dd></div>
+          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Tipo de contrato</dt><dd className="text-ink">{tipoContratoHumano(r?.perfil) ?? "sin declarar"}</dd></div>
           {r?.modelo && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
           {costo && (
             <div>
               <dt className="text-[9px] uppercase tracking-wide text-mute">Costo del análisis</dt>
               <dd className="flex flex-wrap items-baseline gap-x-3 font-mono text-ink">
-                <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "—"}</span>
+                <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "sin dato"}</span>
                 {costo.llamadas != null && <span className="text-mute">{costo.llamadas} llamadas</span>}
                 {costo.tokens != null && <span className="text-mute">{Math.round(costo.tokens / 1000)}k tokens</span>}
               </dd>
             </div>
           )}
-          {r?.analizadoEn && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Analizado</dt><dd className="text-ink" suppressHydrationWarning>{new Date(r.analizadoEn).toLocaleString("es-PE", { dateStyle: "medium", timeStyle: "short" })}</dd></div>}
+          {r?.analizadoEn && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
           <div><dt className="text-[9px] uppercase tracking-wide text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
         </dl>
       </div>
@@ -389,9 +520,12 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
 function VersionReglas({ perfil }: { perfil: string | null | undefined }) {
   const [v, setV] = useState<string | null>(null);
   useEffect(() => {
+    // Sin perfil declarado no se adivina uno: pedir las de "bienes" era inventar la versión.
+    if (!perfil) { setV(null); return; }
     let vivo = true;
-    getReglasPerfil((perfil ?? "bienes").toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version}, ${r.reglas.length} reglas`); });
+    getReglasPerfil(perfil.toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version}, ${r.reglas.length} reglas`); });
     return () => { vivo = false; };
   }, [perfil]);
-  return <span className="font-mono">{v ?? "—"}</span>;
+  if (!perfil) return <span>sin declarar</span>;
+  return <span className="font-mono">{v ?? "…"}</span>;
 }

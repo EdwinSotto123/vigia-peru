@@ -64,7 +64,7 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                     )}
                   >
                     <span className="w-[6.5rem] shrink-0 sm:w-40">
-                      <span className={cn("block truncate text-[12.5px] text-ink", seleccionado && "font-semibold")}>{p.nombre}</span>
+                      <span className={cn("block text-[12.5px] leading-tight text-ink sm:truncate", seleccionado && "font-semibold")}>{p.nombre}</span>
                       {p.tipo === "paso" && <span className="block text-[10px] text-mute">no es un agente</span>}
                     </span>
                     <span className="min-w-0 flex-1 text-[12px] leading-snug text-mute">
@@ -72,7 +72,6 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                       {seleccionado && p.fuentes.length > 0 && (
                         <span className="mt-0.5 block text-inkSoft">
                           Coteja contra: {p.fuentes.join(", ")}.
-                          {p.id && <span className="ml-1.5 font-mono text-[10px] text-mute">{p.id}</span>}
                         </span>
                       )}
                     </span>

@@ -45,6 +45,17 @@ interface Props {
 
 const SEVERIDADES: Sev[] = ["alta", "media", "baja"];
 
+/**
+ * Cómo corren los carriles, dicho como corren (CARRILES en lib/auditoria): expediente y
+ * proveedor a la vez, la síntesis al final. "N carriles en paralelo" era falso: la síntesis
+ * espera a las otras dos ramas.
+ */
+function formaCarriles(n: number): string {
+  if (n >= 3) return "en dos ramas en paralelo y una síntesis al final";
+  if (n === 2) return "en dos carriles";
+  return "en un solo carril";
+}
+
 export function AuditoriaDeAgentes({
   senales,
   fases,
@@ -99,14 +110,14 @@ export function AuditoriaDeAgentes({
         <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
           {hayEje ? (
             <>
-              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> en{" "}
-              {carriles} carriles que avanzan en paralelo
+              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong>{" "}
+              {formaCarriles(carriles)}
               {omitidos > 0 && <> ({omitidos} de los {pasos.length} pasos no aplicaban y se saltaron)</>}.
             </>
           ) : (
             <>
               A este contrato le aplican <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> de los{" "}
-              {TOTAL_PASOS} pasos del pipeline, repartidos en {carriles} carriles paralelos.
+              {TOTAL_PASOS} pasos del análisis, {formaCarriles(carriles)}.
             </>
           )}{" "}
           {conteo.total === 0 ? (
@@ -114,10 +125,16 @@ export function AuditoriaDeAgentes({
           ) : (
             <>
               Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
-              {conteo.total === 1 ? "señal" : "señales"} entre {agentesConSenales}{" "}
-              {agentesConSenales === 1 ? "agente" : "agentes"}
-              {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca
-              uno para ver solo lo suyo.
+              {conteo.total === 1 ? "señal" : "señales"}
+              {agentesConSenales > 0 ? (
+                <>
+                  {" "}entre {agentesConSenales} {agentesConSenales === 1 ? "agente" : "agentes"}
+                  {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca uno para
+                  ver solo lo suyo.
+                </>
+              ) : (
+                <>, sin declarar de qué agente salió cada una.</>
+              )}
             </>
           )}
         </p>
@@ -178,14 +195,14 @@ export function AuditoriaDeAgentes({
             <>
               Señales de {pasoSel?.nombre ?? "sin agente declarado"}{" "}
               <span className="font-normal text-mute">
-                · {filtradas.length} de {conteo.total}
+                ({filtradas.length} de {conteo.total})
               </span>
             </>
           ) : (
             <>
               Señales{" "}
               <span className="font-normal text-mute">
-                · {filtradas.length} de {conteo.total}
+                ({filtradas.length} de {conteo.total})
               </span>
             </>
           )}
@@ -208,7 +225,7 @@ export function AuditoriaDeAgentes({
                 )}
               >
                 <Severidad bandera={s} formato="punto" />
-                {ui.etiqueta} · {n}
+                {ui.etiqueta} ({n})
               </button>
             );
           })}
@@ -234,7 +251,7 @@ export function AuditoriaDeAgentes({
       {conteo.conCotejo > 0 && (
         <p className="border-t border-line bg-paperSoft px-4 py-2 text-[12px] text-mute sm:px-5">
           {conteo.verificadas} de las {conteo.total} señales quedaron cotejadas contra su fuente
-          oficial por el propio pipeline; el resto sigue siendo una pista que hay que comprobar.
+          oficial por el propio análisis; el resto sigue siendo una pista que hay que comprobar.
         </p>
       )}
 
@@ -274,7 +291,7 @@ function VacioSenales({ total, filtroActivo, agente }: { total: number; filtroAc
           : "Ninguna señal coincide con el recorte elegido."}
       </p>
       {agente && <p className="mt-1 max-w-[65ch]">{agente.que}</p>}
-      {filtroActivo && <p className="mt-1">Las otras {total} siguen ahí: quitá el filtro para verlas.</p>}
+      {filtroActivo && <p className="mt-1">Las otras {total} siguen ahí: quita el filtro para verlas.</p>}
     </div>
   );
 }

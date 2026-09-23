@@ -23,7 +23,7 @@ const SELLO = {
     clase: "border-moss/40 bg-moss/10 text-moss",
     titulo: "Señal cotejada",
     texto:
-      "El pipeline volvió a comprobar contra la fuente oficial —registro OCDS, SUNAT o el documento del expediente— el dato que sostiene esta señal, antes de publicarla.",
+      "Antes de publicarla, el análisis volvió a comprobar el dato que sostiene esta señal contra la fuente oficial: el registro público del proceso, la SUNAT o el documento del expediente.",
   },
   no: {
     Icono: ShieldAlert,

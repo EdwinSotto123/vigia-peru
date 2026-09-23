@@ -13,11 +13,12 @@
  */
 
 import { AlertTriangle, Check } from "lucide-react";
-import { reglaLabel, type ReglasPerfil } from "@/lib/auditoria";
+import { reglaLabel, tipoContratoHumano, type ReglasPerfil } from "@/lib/auditoria";
 import { Popover } from "@/components/ui/Flotante";
 import { Severidad } from "@/components/ui/Severidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
+import { redactDnis } from "@/components/Redact";
 import { nombreDeAgente } from "./catalogo";
 import { ORDEN_SEVERIDAD, type SenalAgente } from "./senales";
 
@@ -72,8 +73,8 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
         </ul>
         <p className="mt-2">
           El catálogo de las reglas que <em>no</em> dispararon no llega en esta respuesta: sin el
-          perfil del análisis (bienes · servicios · obras · otros) no se puede decir cuáles se
-          descartaron, y mostrar el de otro perfil sería inventarlo.
+          tipo de contrato del análisis (bienes, servicios, obras u otros) no se puede decir cuáles se
+          descartaron, y mostrar el de otro tipo sería inventarlo.
         </p>
       </div>
     );
@@ -88,10 +89,10 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
   return (
     <div className="px-5 py-4">
       <p className="text-[13px] leading-relaxed text-ink">
-        Se evaluaron <strong className="font-semibold tabular-nums">{data.reglas.length} reglas</strong> del perfil{" "}
-        <span className="font-mono text-[12px]">{data.perfil}</span> y dispararon{" "}
+        Se evaluaron <strong className="font-semibold tabular-nums">{data.reglas.length} reglas</strong> para contratos de{" "}
+        {tipoContratoHumano(data.perfil) ?? data.perfil} y dispararon{" "}
         <strong className="font-semibold tabular-nums">{nDisparadas}</strong>
-        {nDisparadas !== data.reglas.length && <> · las otras {data.reglas.length - nDisparadas} se descartaron</>}.
+        {nDisparadas !== data.reglas.length && <>; las otras {data.reglas.length - nDisparadas} se descartaron</>}.
       </p>
       <ul className="mt-2 grid gap-x-4 gap-y-0.5 sm:grid-cols-2" aria-label="Reglas evaluadas en este contrato">
         {reglas.map((r) => {
@@ -130,8 +131,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                     </span>
                   )}
                 </span>
-                {on && s?.evidencia && <span className="mt-1 block text-[12px] text-inkSoft">{s.evidencia}</span>}
-                <span className="mt-1.5 block font-mono text-[10px] text-mute">{r.id}</span>
+                {on && s?.evidencia && <span className="mt-1 block text-[12px] text-inkSoft">{redactDnis(s.evidencia)}</span>}
               </Popover>
             </li>
           );

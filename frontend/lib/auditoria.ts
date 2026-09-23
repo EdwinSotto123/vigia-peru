@@ -202,19 +202,20 @@ export const TOTAL_AGENTES = FASES.length;
 /** Etiquetas de todo lo que aparece en la bitácora (agentes + pasos del driver). */
 const LABELS: Record<string, string> = Object.fromEntries(FASES.map((f) => [f.key, f.label]));
 Object.assign(LABELS, {
-  started: "Iniciando",
-  deterministic: "Arrancando el pipeline",
-  perfil: "Perfil de análisis",
-  ocds: "Registro OCDS",
+  started: "Inicio",
+  deterministic: "Inicio del análisis",
+  perfil: "Tipo de contrato",
+  ocds: "Registro público del proceso",
   clasificacion: "Clasificación",
   dag: "Ramas en paralelo",
-  dag_join: "Uniendo ramas",
+  dag_join: "Unión de las ramas",
   proveedor: "Perfil del proveedor",
-  persist_checkpoint: "Guardando avance",
+  persist_checkpoint: "Guardado del avance",
   safety_net: "Verificación final",
-  persist: "Publicando",
+  // `persist` guarda el análisis; publicarlo o no lo decide la autoevaluación que viene después.
+  persist: "Guardado del análisis",
   self_eval: "Autoevaluación",
-  final: "Dictamen publicado",
+  final: "Fin del análisis",
 });
 
 /** Etiqueta corta para los chips de los carriles. */
@@ -247,14 +248,18 @@ export const CARRILES: { key: string; label: string; pasos: string[][] }[] = [
 /** Agentes que cuentan para el progreso (los chips de los carriles). */
 export const AGENTES_PROGRESO: string[] = CARRILES.flatMap((c) => c.pasos.flat());
 
+/**
+ * Píldoras de estado. El texto usa los tokens `*Texto` (≥ 4.5:1 sobre su fondo): los tonos
+ * base (clay, amber, crimson) daban 2.9–4.0:1 sobre su propio `-soft`, por debajo de AA.
+ */
 export const ESTADO_PROC: Record<EstadoProc, { label: string; cls: string }> = {
   encolado: { label: "En cola", cls: "bg-paperDeep text-mute" },
-  procesando: { label: "Procesando", cls: "bg-amber-soft text-amber" },
-  procesado: { label: "Procesado", cls: "bg-moss/10 text-moss" },
-  error: { label: "Reintentando", cls: "bg-crimson-soft text-crimson" },
-  pendiente_de_procesamiento: { label: "Pendiente de procesamiento", cls: "bg-paperDeep text-amber" },
-  esperando_documentos: { label: "Esperando documentos", cls: "bg-amber-soft/60 text-clay" },
-  revision: { label: "En revisión humana", cls: "bg-paperDeep text-clay" },
+  procesando: { label: "Procesando", cls: "bg-amber-soft text-amberTexto" },
+  procesado: { label: "Procesado", cls: "bg-moss/10 text-mossTexto" },
+  error: { label: "Reintentando", cls: "bg-crimson-soft text-crimsonTexto" },
+  pendiente_de_procesamiento: { label: "Pendiente de procesamiento", cls: "bg-paperDeep text-amberTexto" },
+  esperando_documentos: { label: "Esperando documentos", cls: "bg-amber-soft/60 text-clayTexto" },
+  revision: { label: "En revisión humana", cls: "bg-paperDeep text-clayTexto" },
 };
 
 /** Estado que se muestra: procesado con alerta bloqueada por la autoevaluación → revisión. */
@@ -526,8 +531,9 @@ export function faseHumana(p: Pick<Procesamiento, "estado" | "faseActual" | "fas
   fases = fases ?? fasesEfectivas(p);
   const corriendo = AGENTES_PROGRESO.filter((k) => fases[k]?.estado === "corriendo");
   if (corriendo.length) {
-    const nombres = corriendo.slice(0, 2).map(faseLabelCorto).join(" ∥ ");
-    return corriendo.length > 2 ? `${nombres} +${corriendo.length - 2}` : nombres;
+    const nombres = corriendo.slice(0, 2).map(faseLabelCorto);
+    if (corriendo.length > 2) return `${nombres.join(", ")} y ${corriendo.length - 2} más`;
+    return nombres.join(" y ");
   }
   if (p.faseActual === "started" || !p.faseActual) {
     const espera = ahora && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : 0;
@@ -543,68 +549,184 @@ export function faseProgreso(p: Pick<Procesamiento, "estado" | "faseIndex" | "fa
   return progresoFases(fasesEfectivas(p), p.estado).pct;
 }
 
-/** Bitácora en lenguaje humano: "document_parser: procesando documentos SEACE" → "Leyendo los documentos del expediente". */
+// ─── Lenguaje humano: tipo de contrato, etapa, estrategia de mercado ─────────
+
+const TIPO_HUMANO: Record<string, string> = {
+  bienes: "bienes",
+  servicios: "servicios",
+  obras: "obras",
+  otros: "otro tipo",
+  otro: "otro tipo",
+  consultoria: "consultoría",
+  convenio: "convenios",
+  directa: "contratación directa",
+};
+const ETAPA_HUMANA: Record<string, string> = {
+  convocada: "convocada",
+  adjudicada: "adjudicada",
+  contratada: "contratada",
+  en_ejecucion: "en ejecución",
+  finalizada: "finalizada",
+};
+/** Estrategia de precios del perfil (reglas.json · market_estrategia) en palabras de un ciudadano. */
+const ESTRATEGIA_MERCADO: Record<string, string> = {
+  goods_retail: "precios de venta al público",
+  historico_seace: "precios pagados antes por el Estado",
+  presupuesto_obra: "presupuestos de obra",
+  cotizaciones: "cotizaciones",
+};
+
+/** "bienes" → "bienes"; "otros" → "otro tipo". Nunca devuelve el id crudo con guiones bajos. */
+export const tipoContratoHumano = (t: string | null | undefined): string | null =>
+  t ? TIPO_HUMANO[t.toLowerCase()] ?? t.replace(/_/g, " ") : null;
+
+function tipoEtapaHumano(par: string): string {
+  const [t, e] = par.split("/");
+  return `contratos de ${tipoContratoHumano(t) ?? t} en etapa ${ETAPA_HUMANA[e] ?? (e ?? "").replace(/_/g, " ")}`;
+}
+
+/** Motivo de un paso omitido ("no aplica a bienes/contratada") en castellano llano. */
+export function motivoHumano(motivo: string | null | undefined): string {
+  const m = (motivo ?? "").trim();
+  if (!m || /^no aplica$/i.test(m)) return "no aplica a este contrato";
+  const te = /no aplica al?\s+([\w-]+\/[\w-]+)/i.exec(m);
+  if (te) return `no aplica a ${tipoEtapaHumano(te[1])}`;
+  if (/default tipado|sin resultados/i.test(m)) return "terminó sin resultados";
+  return m;
+}
+
+const RAMA_HUMANA: Record<string, string> = { compliance: "de las reglas", documentos: "del expediente", proveedor: "del proveedor" };
+
+/**
+ * Bitácora en lenguaje humano: "document_parser: procesando documentos SEACE" → "Leyendo los
+ * documentos del expediente".
+ *
+ * Nunca cae a imprimir el mensaje crudo del backend: la bitácora llegó a mostrar
+ * "web_research: hallazgos_prensa 1→0 por schema (1 descarte(s) anotados en state.descartes)".
+ * Un aviso que no se reconoce se dice en una línea genérica; el detalle técnico vive en los
+ * logs del backend, no en la pantalla de un ciudadano.
+ */
 export function humanizar(ev: Pick<EventoFase, "kind" | "name" | "msg">): string {
   const name = canonico(ev.name);
   const msg = (ev.msg ?? "").trim();
   const label = faseLabel(name);
-  if (ev.kind === "final") return msg && /abort/i.test(msg) ? `Análisis abortado: ${msg}` : "Análisis terminado";
+  if (ev.kind === "final") return msg && /abort/i.test(msg) ? "El análisis se detuvo antes de terminar" : "Análisis terminado";
   if (ev.kind === "phase") {
     if (msg.startsWith("omitido")) {
       const motivo = msg.includes(":") ? msg.slice(msg.indexOf(":") + 1).trim() : "no aplica";
-      return `${label}: omitido · ${motivo.replace(/^no aplica a(l)?\s*/i, "no aplica a ")}`;
+      return `${label}: se omitió porque ${motivoHumano(motivo)}`;
     }
     switch (name) {
-      case "started": return "Despachando a los agentes";
-      case "deterministic": return "Pipeline en marcha";
+      case "started": return "El contrato entra al análisis";
+      case "deterministic": return "Empieza el análisis";
       case "perfil": {
         const m = /^(\w+)(?: · mercado=(\w+))?(?: · agentes: (.+))?$/.exec(msg);
-        if (m?.[3]) return `Perfil ${m[1]} · ${m[3].split(",").length} agentes aplican`;
-        return `Perfil de análisis: ${m?.[1] ?? msg}`;
+        const tipo = tipoContratoHumano(m?.[1] ?? null);
+        if (m?.[3]) return `Contrato de ${tipo}: le aplican ${m[3].split(",").length} agentes`;
+        return tipo ? `Contrato de ${tipo}` : "Identificando el tipo de contrato";
       }
-      case "ocds": return "Obteniendo el registro OCDS del proceso";
+      case "ocds": return "Leyendo el registro público del proceso en el OECE";
       case "clasificacion": {
         const m = /tipo × etapa ([\w-]+\/[\w-]+)/.exec(msg);
-        return m ? `Matriz tipo × etapa: ${m[1].replace("/", " · ")}` : "Clasificando tipo y etapa";
+        return m ? `Clasificado entre los ${tipoEtapaHumano(m[1])}` : "Clasificando el tipo y la etapa del contrato";
       }
-      case "dag": return "Tres ramas en paralelo: reglas ∥ expediente ∥ proveedor";
+      case "dag": return "Arrancan tres ramas a la vez: reglas, expediente y proveedor";
       case "dag_join": return "Las ramas terminaron; empieza la síntesis";
-      case "compliance": return "Evaluando las reglas duras de contratación";
+      case "compliance": return "Evaluando las reglas de contratación";
       case "document_parser": return "Leyendo los documentos del expediente";
-      case "proveedor": return "Perfilando al proveedor adjudicado (OECE · SUNAT)";
-      case "web_research": return msg.includes("∥") ? "Investigando empresa, prensa y funcionarios en paralelo" : "Investigando a la empresa en la web";
+      case "proveedor": return "Revisando al proveedor ganador en el OECE y la SUNAT";
+      case "web_research": return msg.includes("∥") ? "Investigando a la vez la empresa, la prensa y los funcionarios" : "Investigando a la empresa en la web";
       case "news_research": return "Buscando cobertura de prensa";
       case "entity_personnel": return "Identificando funcionarios de la entidad";
       case "document_legal_analyst": return "Analizando legalmente el requerimiento";
       case "market": {
         const m = /\((\w+)\)/.exec(msg);
-        return `Comparando precios con el mercado${m ? ` (${m[1].replace(/_/g, " ")})` : ""}`;
+        const estrategia = m ? ESTRATEGIA_MERCADO[m[1]] : null;
+        return `Comparando precios con el mercado${estrategia ? `, contra ${estrategia}` : ""}`;
       }
       case "person_network": return "Mapeando la red de personas";
-      case "compliance_extended": return /código/i.test(msg) ? "Reglas del perfil en código (sin LLM)" : "Cumplimiento normativo extendido (12 reglas + RAG OECE)";
+      case "compliance_extended": return /código/i.test(msg) ? "Aplicando las reglas fijas de este tipo de contrato (sin IA)" : "Revisando el cumplimiento de la norma";
       case "persist_checkpoint": return "Guardando el avance del análisis";
       case "report_writer": return "Escribiendo el dictamen";
-      case "safety_net": return "Verificando la completitud del análisis";
-      case "persist": return "Publicando el análisis";
-      case "self_eval": return "Autoevaluación: 8 evaluadores revisan el análisis";
-      default: return msg ? `${label}: ${msg}` : label;
+      case "safety_net": return "Comprobando que el análisis esté completo";
+      case "persist": return "Guardando el análisis";
+      case "self_eval": return "Ocho revisores automáticos controlan el análisis";
+      default: return label;
     }
   }
   // warn / error
   let m: RegExpExecArray | null;
-  if ((m = /ítems canónicos tras sanitización por LLM: (\d+) \(de (\d+) crudos\)/.exec(msg))) return `Expediente: ${m[1]} ítem${m[1] === "1" ? "" : "s"} canónico${m[1] === "1" ? "" : "s"} (de ${m[2]} crudos)`;
-  if (/vacío tras reintento/i.test(msg)) return `${label}: sin resultados tras reintentar (sección vacía, declarada)`;
-  if (/vacío — reintento/i.test(msg)) return `${label}: sin resultados, reintentando`;
-  if (/output_key .* ausente/i.test(msg)) return `${label}: la salida del agente llegó incompleta`;
-  if (/REVISI/i.test(msg) && name === "self_eval") return `Autoevaluación: alerta en revisión humana · ${msg.replace(/^.*?\(no publicada\):\s*/i, "")}`;
-  if (/salida no es JSON/i.test(msg)) return `${label}: salida sin estructura (no validada)`;
-  if (/Tool '.*' not found/i.test(msg)) return `${label}: herramienta no disponible, se reintenta`;
-  if (/OCDS no disponible/i.test(msg)) return "Registro OCDS no disponible: fuente OECE inaccesible";
-  if (/^rama (\w+):/i.test(msg)) return `Rama ${/^rama (\w+):/i.exec(msg)![1]} falló: ${msg.replace(/^rama \w+:\s*/i, "")}`;
-  return msg ? `${label}: ${msg}` : label;
+  if ((m = /ítems canónicos tras sanitización por LLM: (\d+) \(de (\d+) crudos\)/.exec(msg))) {
+    return `Expediente: ${m[1]} ${m[1] === "1" ? "ítem útil" : "ítems útiles"} de ${m[2]} ${m[2] === "1" ? "leído" : "leídos"}`;
+  }
+  if (/vacío tras reintento/i.test(msg)) return `${label}: sin resultados después de reintentar`;
+  if (/vacío\s*[—-]\s*reintento/i.test(msg)) return `${label}: sin resultados, se reintenta`;
+  if (/output_key .* ausente/i.test(msg)) return `${label}: su resultado llegó incompleto`;
+  if (/REVISI/i.test(msg) && name === "self_eval") return "La autoevaluación pidió que una persona revise el análisis antes de publicarlo";
+  if (/salida no es JSON/i.test(msg)) return `${label}: su resultado llegó sin formato y no se usó`;
+  if (/Tool '.*' not found/i.test(msg)) return `${label}: no pudo usar la búsqueda web`;
+  if (/OCDS no disponible/i.test(msg)) return "El registro público del OECE no respondió";
+  if ((m = /^rama (\w+):/i.exec(msg))) return `Falló la rama ${RAMA_HUMANA[m[1].toLowerCase()] ?? m[1]}`;
+  if ((m = /(\d+) descarte\(s\)/.exec(msg))) {
+    return `${label}: ${m[1] === "1" ? "se descartó 1 dato que no tenía" : `se descartaron ${m[1]} datos que no tenían`} el formato esperado`;
+  }
+  if (/malformado/i.test(msg) && name === "report_writer") return "Dictamen: el primer borrador salió incompleto y se vuelve a escribir";
+  if ((m = /(\d+) RUC sin respaldo/i.exec(msg))) return `Dictamen: se ${m[1] === "1" ? "quitó 1 RUC" : `quitaron ${m[1]} RUC`} sin respaldo`;
+  return ev.kind === "error" ? `${label}: falló este paso` : `${label}: aviso técnico durante este paso`;
 }
 
-/** "hace 3 s" · "hace 2 min" · "hace 1 h" */
+// ─── Fechas: siempre en hora de Lima ─────────────────────────────────────────
+// Las fechas de esta pantalla se renderizan también en el servidor (Cloud Run, en UTC). Sin
+// `timeZone`, un análisis de las 21:00 de Lima salía fechado al día siguiente. Los meses se
+// escriben a mano (no con `month: "short"`): el ICU del servidor y el del navegador no siempre
+// abrevian igual, y un "sept." contra "set." rompe la hidratación.
+
+export const ZONA_LIMA = "America/Lima";
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre"];
+const MESES_CORTOS = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
+const PARTES_LIMA = new Intl.DateTimeFormat("en-US", {
+  timeZone: ZONA_LIMA, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23",
+});
+
+export interface PartesFecha { y: number; m: number; d: number; h: number; min: number }
+
+/** Año, mes (1-12), día, hora y minuto en Lima. null si la fecha no es válida. */
+export function partesLima(v: string | number | Date | null | undefined): PartesFecha | null {
+  if (v == null || v === "") return null;
+  const t = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(t.getTime())) return null;
+  const o: Record<string, number> = {};
+  for (const p of PARTES_LIMA.formatToParts(t)) if (p.type !== "literal") o[p.type] = Number(p.value);
+  return { y: o.year, m: o.month, d: o.day, h: o.hour === 24 ? 0 : o.hour, min: o.minute };
+}
+
+/** "2026-09-17": el día calendario en Lima (para agrupar por día). */
+export function diaLima(v: string | number | Date | null | undefined): string | null {
+  const p = partesLima(v);
+  return p ? `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}` : null;
+}
+
+/**
+ * "17 set." · "17 set., 13:54" · "17 de setiembre, 13:54" (`larga`). Hora de Lima.
+ * `anio` agrega el año sólo cuando se pide.
+ */
+export function fechaLima(v: string | number | Date | null | undefined, o: { hora?: boolean; larga?: boolean; anio?: boolean } = {}): string {
+  const p = partesLima(v);
+  if (!p) return "";
+  const dia = o.larga ? `${p.d} de ${MESES[p.m - 1]}` : `${p.d} ${MESES_CORTOS[p.m - 1]}`;
+  const conAnio = o.anio ? (o.larga ? `${dia} de ${p.y}` : `${dia} ${p.y}`) : dia;
+  return o.hora ? `${conAnio}, ${String(p.h).padStart(2, "0")}:${String(p.min).padStart(2, "0")}` : conAnio;
+}
+
+/** "13:54:07" en Lima. */
+export function horaLima(v: string | number | Date | null | undefined): string {
+  if (v == null || v === "") return "";
+  const t = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(t.getTime())) return "";
+  return t.toLocaleTimeString("es-PE", { timeZone: ZONA_LIMA, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+}
+
+/** "hace 3 s" · "hace 2 min" · "hace 1 h" · "hace 6 días" */
 export function haceCuanto(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `hace ${s} s`;
@@ -612,7 +734,18 @@ export function haceCuanto(ms: number): string {
   if (m < 60) return `hace ${m} min`;
   const h = Math.round(m / 60);
   if (h < 24) return `hace ${h} h`;
-  return `hace ${Math.round(h / 24)} d`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} ${d === 1 ? "día" : "días"}`;
+}
+
+/** Reloj de antigüedad que avanza de a un segundo: "6 días 03:12:05" · "03:12:05". */
+export function relojEdad(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86_400);
+  const hh = String(Math.floor((s % 86_400) / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  return d > 0 ? `${d} ${d === 1 ? "día" : "días"} ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
 /** "2 min 13 s" · "48 s" · "1 h 04 min" */
@@ -623,6 +756,45 @@ export function duracion(ms: number): string {
   if (m < 60) return `${m} min ${String(s % 60).padStart(2, "0")} s`;
   const h = Math.floor(m / 60);
   return `${h} h ${String(m % 60).padStart(2, "0")} min`;
+}
+
+/** "+0:42" · "+3:05": desde el primer evento de la corrida. Para bitácoras que ya terminaron. */
+export function desfase(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h > 0 ? `+${h}:${String(m).padStart(2, "0")}:${ss}` : `+${m}:${ss}`;
+}
+
+/**
+ * Ritmo real: análisis terminados por día (hora de Lima) en los últimos `dias` días, hasta
+ * hoy inclusive. Los días sin análisis también van, en 0: esconderlos es justamente lo que
+ * haría parecer vivo un tablero que lleva días quieto.
+ */
+export function ritmoDiario(finalizados: (string | null | undefined)[], ahora: number, dias = 14): { dia: string; n: number }[] {
+  const conteo = new Map<string, number>();
+  for (const f of finalizados) {
+    const d = diaLima(f);
+    if (d) conteo.set(d, (conteo.get(d) ?? 0) + 1);
+  }
+  const hoy = partesLima(ahora);
+  if (!hoy) return [];
+  // Mediodía UTC del día de hoy en Lima: restar días completos nunca cruza un borde de fecha.
+  const base = Date.UTC(hoy.y, hoy.m - 1, hoy.d, 12);
+  const out: { dia: string; n: number }[] = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const t = new Date(base - i * 86_400_000);
+    const dia = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+    out.push({ dia, n: conteo.get(dia) ?? 0 });
+  }
+  return out;
+}
+
+/** "17 set." a partir de "2026-09-17" (sin construir un Date: no hay zona que desfasar). */
+export function diaCorto(dia: string): string {
+  const [, m, d] = dia.split("-").map(Number);
+  return m && d ? `${d} ${MESES_CORTOS[m - 1]}` : dia;
 }
 
 /** "≈ 3 min" · "≈ 3–5 min" (sin historial) */
@@ -636,8 +808,57 @@ export const esActivo = (estado: EstadoProc) => estado === "encolado" || estado 
 
 export function severidadCls(s: SenalRiesgo["severidad"]): { dot: string; text: string; label: string } {
   if (s === "alta") return { dot: "bg-rust", text: "text-rust", label: "Alta" };
-  if (s === "media") return { dot: "bg-amber", text: "text-amber", label: "Media" };
+  // amber base sobre papel da 3.47:1: el texto va en amberTexto; el punto puede seguir en amber.
+  if (s === "media") return { dot: "bg-amber", text: "text-amberTexto", label: "Media" };
   return { dot: "bg-mute", text: "text-mute", label: "Baja" };
 }
 
-export const reglaLabel = (regla: string) => regla.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+/**
+ * Etiquetas del catálogo de reglas (backend/api/src/data/reglas.json, versión 7929ab6: perfiles
+ * + otras señales). Copia chica para superficies que no cargan el catálogo (server components,
+ * tarjetas): antes se armaban del id y salía "Firmante con empresa rnp". Si una regla nueva no
+ * está acá, se cae al id legible; el catálogo cargado (useReglasPerfil) siempre tiene prioridad.
+ */
+const ETIQUETA_REGLA: Record<string, string> = {
+  ampliacion_denegada_penalidad: "Ampliación denegada y penalidad",
+  ciiu_vs_objeto: "Giro del proveedor vs. objeto",
+  concentracion_entidad: "Concentración en la entidad",
+  directa_sin_fundamento: "Contratación directa sin sustento",
+  fecha_buena_pro_incoherente: "Fechas de buena pro incoherentes",
+  firmante_con_empresa_rnp: "Firmante con empresa en el RNP",
+  firmante_vinculado_ganador: "Firmante vinculado al ganador",
+  fraccionamiento: "Fraccionamiento",
+  ganador_no_invitado: "Ganador no invitado",
+  inconsistencia_doc_vs_ocds: "Documento vs. registro OCDS",
+  lobby_visits_pre_convocatoria: "Visitas previas a la convocatoria",
+  oferta_igual_valor_referencial: "Oferta igual al valor referencial",
+  oferta_mas_barata_no_gana: "La oferta más barata no ganó",
+  ofertas_agrupadas: "Ofertas agrupadas",
+  plazo_convocatoria_minimo: "Plazo de convocatoria muy corto",
+  postor_unico_mayoritario: "Postor mayoritario en la entidad",
+  postores_vinculados_rnp: "Postores vinculados entre sí",
+  procedimiento_no_competitivo: "Procedimiento no competitivo",
+  proveedor_sancionado_osce: "Proveedor con sanción OSCE/OECE",
+  ruc_ganador_muy_nuevo: "RUC del ganador muy reciente",
+  ruc_ultra_nuevo: "Postor con RUC ultra reciente",
+  testaferro_multi_ruc: "Misma persona en varios RUC",
+  tipo_proceso_vs_monto: "Procedimiento vs. monto",
+  unica_oferta_valida: "Única oferta válida",
+  unico_postor_alto: "Único postor con oferta alta",
+  personal_clave_vinculado: "Personal clave vinculado",
+  adicional_acumulado: "Adicionales acumulados",
+  directa_recurrente: "Contratación directa recurrente",
+  red_flag_documental: "Requisito dirigido en las bases",
+  objeto_no_corresponde_documento: "Objeto vs. documentos",
+  sobreprecio_elevado: "Sobreprecio frente al mercado",
+  cobertura_prensa_adversa: "Cobertura de prensa adversa",
+  antecedentes_proveedor: "Antecedentes del proveedor",
+  funcionario_con_historial_politico: "Funcionario con historial político",
+  red_personas_vinculada: "Red de personas vinculada",
+};
+
+const SIGLAS = /\b(rnp|ruc|ciiu|oece|osce|ocds|sunat|onpe|jne|mef|pep)\b/gi;
+
+export const reglaLabel = (regla: string) =>
+  ETIQUETA_REGLA[regla] ??
+  regla.replace(/_/g, " ").replace(SIGLAS, (s) => s.toUpperCase()).replace(/^\w/, (c) => c.toUpperCase());

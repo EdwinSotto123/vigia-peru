@@ -10,7 +10,8 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, Check, AlertTriangle, ListChecks } from "lucide-react";
-import { getReglasPerfil, reglaLabel, type ReglasPerfil, type SenalRiesgo } from "@/lib/auditoria";
+import { getReglasPerfil, reglaLabel, tipoContratoHumano, type ReglasPerfil, type SenalRiesgo } from "@/lib/auditoria";
+import { nombreDeAgente } from "@/components/agentes/catalogo";
 
 interface Props {
   perfil: string | null | undefined;
@@ -69,7 +70,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
       {abierto && (
         <div id="reglas-evaluadas" className="border-t border-line px-3 py-2">
           <p className="mb-2 text-[11px] text-mute">
-            Reglas deterministas del perfil <span className="font-mono">{data.perfil}</span> (v{data.version}). Cada una corrió sobre el registro OCDS, el expediente y las fuentes oficiales; las que no dispararon también cuentan: dicen qué se descartó.
+            Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil} (versión <span className="font-mono">{data.version}</span>). Cada una se comprobó contra el registro público del proceso, el expediente y las fuentes oficiales; las que no dispararon también cuentan: dicen qué se descartó.
           </p>
           <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2" aria-label="Reglas evaluadas">
             {[...reglas].sort((a, b) => Number(disparadas.has(b.id)) - Number(disparadas.has(a.id)) || a.etiqueta.localeCompare(b.etiqueta)).map((r) => {
@@ -93,7 +94,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
                   <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5" title={data.otrasSenales[s.regla]?.descripcion}>
                     <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden />
                     <span className="text-ink">{data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}</span>
-                    {s.agente && <span className="ml-1 text-[10px] text-mute">{s.agente.replace(/_agent$/, "").replace(/_/g, " ")}</span>}
+                    {s.agente && <span className="ml-1 text-[10px] text-mute">{nombreDeAgente(s.agente)}</span>}
                   </li>
                 ))}
               </ul>

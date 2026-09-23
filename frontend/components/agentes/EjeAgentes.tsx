@@ -14,7 +14,7 @@
  */
 
 import { useState } from "react";
-import { duracion, estadoDeFase, type EstadoFase, type EstadoProc, type FasesMap, faseLabel } from "@/lib/auditoria";
+import { duracion, estadoDeFase, humanizar, motivoHumano, type EstadoFase, type EstadoProc, type FasesMap, faseLabel } from "@/lib/auditoria";
 import { Severidad } from "@/components/ui/Severidad";
 import { cn } from "@/lib/utils";
 import { PASOS, porCarril, type PasoPipeline } from "./catalogo";
@@ -84,6 +84,8 @@ interface Props {
   onSeleccion?: (clave: string | null) => void;
 }
 
+const listaY = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
 export function EjeAgentes({
   fases,
   estado,
@@ -112,9 +114,12 @@ export function EjeAgentes({
   return (
     <div className="min-w-0">
       {/* Cabecera del eje: qué mide cada columna. Es lo que le da denominador a cada cifra de abajo. */}
-      <div className="grid grid-cols-[6rem_minmax(0,1fr)_3rem] items-end gap-x-2 border-b border-line pb-1 text-[10px] uppercase tracking-wide text-mute sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]">
+      <div className={cn(
+        "grid items-end gap-x-2 border-b border-line pb-1 text-[10px] uppercase tracking-wide text-mute",
+        conSenales ? "grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]" : "grid-cols-[minmax(0,1fr)_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem]",
+      )}>
         <span>Agente</span>
-        <span className="flex min-w-0 items-baseline justify-between gap-2">
+        <span className="hidden min-w-0 items-baseline justify-between gap-2 sm:flex">
           <span className="truncate">{rango ? "Ejecución real" : "Estado"}</span>
           {rango && (
             <span className="shrink-0 font-mono normal-case tracking-normal" suppressHydrationWarning>
@@ -123,8 +128,14 @@ export function EjeAgentes({
           )}
         </span>
         <span className="text-right">Duró</span>
-        {conSenales && <span className="hidden text-right sm:block">Señales</span>}
+        {conSenales && <span className="text-right">Señales</span>}
       </div>
+      {/* En móvil el total del eje va aparte: la columna de la pista no tiene encabezado propio. */}
+      {rango && (
+        <p className="mt-1 font-mono text-[10px] text-mute sm:hidden" suppressHydrationWarning>
+          Ejecución real: {duracion(rango.span)} en total
+        </p>
+      )}
 
       {carriles.map((c) => {
         const ventanas = c.pasos.map((p) => ventanaDe(fases, p.clave, estado, ahora));
@@ -137,7 +148,7 @@ export function EjeAgentes({
                 Carril {c.label}
                 <span className="ml-1.5 font-normal text-mute">
                   {listos} de {c.pasos.length} {c.pasos.length === 1 ? "paso listo" : "pasos listos"}
-                  {corriendo > 0 && ` · ${corriendo} en curso`}
+                  {corriendo > 0 && `, ${corriendo} en curso`}
                 </span>
               </span>
             </h4>
@@ -163,8 +174,8 @@ export function EjeAgentes({
 
       {otras.length > 0 && (
         <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
-          Además de los {pasos.length} pasos de los carriles corrieron {otras.length} del propio
-          orquestador, que no son agentes: {otras.map((k) => faseLabel(k).toLowerCase()).join(" · ")}.
+          Además de los {pasos.length} pasos de los carriles corrieron {otras.length} pasos de control
+          del análisis, que no son agentes: {listaY(otras.map((k) => faseLabel(k).toLowerCase()))}.
         </p>
       )}
     </div>
@@ -220,20 +231,21 @@ function FilaAgente({
         aria-pressed={seleccionado}
         aria-label={etiqueta}
         className={cn(
-          "grid w-full grid-cols-[6rem_minmax(0,1fr)_3rem] items-center gap-x-2 rounded-lg px-1 py-1 text-left transition-colors duration-rapido sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]",
+          "grid w-full items-center gap-x-2 gap-y-0.5 rounded-lg px-1 py-1 text-left transition-colors duration-rapido",
+          conSenales ? "grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]" : "grid-cols-[minmax(0,1fr)_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem]",
           "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
           seleccionado && "bg-heroViolet-soft hover:bg-heroViolet-soft",
         )}
       >
         <span className="flex min-w-0 items-center gap-1.5">
           <IconoEstado estado={v.estado} />
-          <span className={cn("truncate text-[12px]", v.estado === "omitido" ? "text-mute line-through decoration-mute/50" : "text-ink", seleccionado && "font-semibold")}>
+          <span className={cn("min-w-0 text-[12px] leading-tight sm:truncate", v.estado === "omitido" ? "text-mute line-through decoration-mute/50" : "text-ink", seleccionado && "font-semibold")}>
             {paso.nombre}
           </span>
         </span>
 
         {/* Pista del eje: todas las filas comparten el mismo origen y la misma escala. */}
-        <span className="relative block h-4 min-w-0">
+        <span className="relative order-last col-span-full block h-4 min-w-0 sm:order-none sm:col-span-1">
           <span aria-hidden className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line" />
           {rango && [25, 50, 75].map((p) => (
             <span key={p} aria-hidden className="absolute top-0 h-4 w-px bg-line/60" style={{ left: `${p}%` }} />
@@ -246,7 +258,7 @@ function FilaAgente({
             />
           ) : (
             <span className={cn("absolute inset-y-0 left-0 flex items-center truncate text-[11px]", e.texto)}>
-              {v.estado === "omitido" ? `omitido · ${v.motivo ?? "no aplica a este contrato"}` : e.label}
+              {v.estado === "omitido" ? `omitido: ${motivoHumano(v.motivo)}` : e.label}
             </span>
           )}
           {v.estado === "corriendo" && puedeDibujar && (
@@ -261,7 +273,7 @@ function FilaAgente({
         </span>
 
         {conSenales && (
-          <span className="hidden items-center justify-end gap-1 text-[11px] sm:flex">
+          <span className="flex items-center justify-end gap-1 text-[11px]">
             {n > 0 && peor ? (
               <>
                 <Severidad bandera={peor} formato="punto" />
@@ -280,21 +292,20 @@ function FilaAgente({
           {paso.fuentes.length > 0 && (
             <p className="mt-0.5 text-mute">
               Coteja contra: {paso.fuentes.join(", ")}.
-              {paso.id && <span className="ml-1.5 font-mono text-[10px]">{paso.id}</span>}
             </p>
           )}
           {v.estado === "omitido" && (
-            <p className="mt-0.5 text-mute">No corrió en este contrato: {v.motivo ?? "no aplica al perfil"}.</p>
+            <p className="mt-0.5 text-mute">No corrió en este contrato: {motivoHumano(v.motivo)}.</p>
           )}
-          {v.estado === "error" && v.motivo && <p className="mt-0.5 text-rust">Falló: {v.motivo}</p>}
-          {v.estado === "corriendo" && v.msg && <p className="mt-0.5 text-amberTexto">Ahora: {v.msg}</p>}
+          {v.estado === "error" && <p className="mt-0.5 text-rust">{humanizar({ kind: "error", name: paso.clave, msg: v.motivo ?? "" })}.</p>}
+          {v.estado === "corriendo" && v.msg && <p className="mt-0.5 text-amberTexto">Ahora: {humanizar({ kind: "phase", name: paso.clave, msg: v.msg })}</p>}
           {conSenales && (
             <p className="mt-0.5 text-mute">
               {n === 0
                 ? `Corrió y no encontró señales${totalSenales ? ` (las ${totalSenales} del análisis salieron de otros agentes)` : ""}.`
                 : `Emitió ${n} ${n === 1 ? "señal" : "señales"}${totalSenales ? ` de las ${totalSenales} del análisis` : ""}${
                     senales && senales.length
-                      ? ` · ${[...senales]
+                      ? `: ${[...senales]
                           .sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad])
                           .slice(0, 3)
                           .map((s) => s.severidad)

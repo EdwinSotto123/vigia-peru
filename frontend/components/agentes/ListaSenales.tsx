@@ -56,7 +56,7 @@ export function ListaSenales({
               <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <Severidad bandera={s.severidad} formato="punto" />
                 <span className="text-[13px] font-medium leading-snug text-ink">{etiqueta}</span>
-                <span className="text-[11px] text-mute">· {nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
+                <span className="text-[11px] text-mute">{nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
                 {s.item && <span className="font-mono text-[10px] text-mute">ítem {s.item}</span>}
               </span>
               {/* En el resumen el DNI va enmascarado y no revelable: dentro de un botón, un clic

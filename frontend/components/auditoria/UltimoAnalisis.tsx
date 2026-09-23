@@ -3,14 +3,18 @@
  *
  * Que no haya ningún contrato en análisis es el estado NORMAL de esta pantalla, no la
  * excepción: una corrida dura ~4 minutos y entre corrida y corrida pasan horas. Antes,
- * media pantalla era una caja vacía que decía "Ningún contrato en análisis ahora mismo" —
- * el momento en que el producto tenía MÁS para mostrar (98 dossieres con traza completa)
- * era justo el momento en que no mostraba nada.
+ * media pantalla era una caja vacía que decía "Ningún contrato en análisis ahora mismo":
+ * el momento en que el producto tenía MÁS para mostrar era justo el momento en que no
+ * mostraba nada.
  *
  * Acá va, en su lugar, la última lectura real: qué contrato fue, qué encontró, en cuántos
- * pasos, y la repetición de la bitácora guardada — que es la prueba de que se leyó de
+ * pasos, y la repetición de la bitácora guardada, que es la prueba de que se leyó de
  * verdad. La repetición vive dentro de <Revelar>, así que no arranca sola al cargar la
  * página: se monta recién cuando alguien la pide.
+ *
+ * Si esa última lectura quedó EN REVISIÓN HUMANA, no se muestra nada de lo que encontró (ni
+ * señales, ni severidad, ni puntaje): sólo que está en revisión y por qué. Publicar acá el
+ * "riesgo 60/100" de un análisis que el propio sistema frenó era publicarlo igual.
  *
  * Server component. `ReplayAnalisis` (cliente) recibe solo datos serializables.
  */
@@ -24,6 +28,7 @@ import {
   duracion,
   estadoVisible,
   fasesEfectivas,
+  fechaLima,
   progresoFases,
   reglaLabel,
   type ProcesamientoDetalle,
@@ -31,17 +36,15 @@ import {
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { ReplayAnalisis } from "./ReplayAnalisis";
 
-const fechaLarga = (iso: string) =>
-  new Date(iso).toLocaleString("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-
-export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
+export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDetalle | null; hayFiltros?: boolean }) {
   if (!p) {
     return (
       <div className="rounded-2xl border border-dashed border-line p-5">
         <h3 className="text-sm font-semibold text-ink">Todavía no hay ninguna lectura terminada acá</h3>
         <p className="mt-1 text-[13px] leading-relaxed text-mute">
-          Los agentes trabajan por tandas: cada contrato toma unos minutos y entre tanda y tanda pasan horas.
-          Con los filtros puestos no hay ningún dictamen que mostrar — quitá uno arriba y volvé a mirar.
+          {hayFiltros
+            ? "Con los filtros puestos no hay ningún análisis terminado que mostrar. Quita uno arriba y vuelve a mirar."
+            : "Todavía no terminó ningún análisis. Cuando termine el primero, aparece acá con lo que encontró."}
         </p>
       </div>
     );
@@ -67,6 +70,7 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
     (peor, s) => (!peor || ORDEN_SEV[s.severidad] > ORDEN_SEV[peor] ? s.severidad : peor),
     null,
   );
+  const motivos = enRevision ? p.resultado?.revisionMotivos ?? [] : [];
 
   return (
     <div className="rounded-2xl border border-line bg-paper p-4">
@@ -75,7 +79,11 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
             acá sería la tercera vez que la página afirma lo mismo. Este panel solo existe
             cuando eso es cierto, así que se presenta por lo que muestra. */}
         <h3 className="text-sm font-semibold text-ink">Lo último que se leyó</h3>
-        {p.finalizadoAt && <span className="text-[11px] text-mute">{fechaLarga(p.finalizadoAt)}</span>}
+        {p.finalizadoAt && (
+          <time dateTime={p.finalizadoAt} className="text-[11px] text-mute">
+            {fechaLima(p.finalizadoAt, { larga: true, hora: true })}
+          </time>
+        )}
       </div>
 
       <Link
@@ -89,58 +97,73 @@ export function UltimoAnalisis({ p }: { p: ProcesamientoDetalle | null }) {
         <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
           <span>{p.zona}</span>
           {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{formatPEN(p.montoPen)}</span>}
-          <span className="inline-flex items-center gap-0.5">ver dictamen <ArrowUpRight size={11} aria-hidden /></span>
+          <span className="inline-flex items-center gap-0.5">
+            {enRevision ? "ver su estado" : "ver dictamen"} <ArrowUpRight size={11} aria-hidden />
+          </span>
         </p>
       </Link>
 
-      {/* Qué encontró. El score siempre con su denominador. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {peorSenal ? (
-          <Severidad bandera={peorSenal} formato="pastilla" />
-        ) : conSenales ? null : (
-          <Severidad score={p.score} formato="pastilla" />
-        )}
-        <span className="text-[13px] text-mute">
-          {conSenales ? (
-            <>
-              <span className="font-mono font-semibold text-ink">{nSenales}</span>{" "}
-              {nSenales === 1 ? "señal de riesgo" : "señales de riesgo"}
-            </>
-          ) : (
-            "ninguna señal de riesgo"
+      {enRevision ? (
+        <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-1.5 font-semibold text-clayTexto">
+            <Eye size={13} className="mt-0.5 shrink-0" aria-hidden />
+            En revisión humana: no se publica hasta que una persona lo revise.
+          </p>
+          {motivos.length > 0 && (
+            <ul className="mt-1 space-y-1 pl-5">
+              {motivos.map((m) => (
+                <li key={m.clave}>
+                  <span className="font-medium text-ink">{m.titulo}.</span> {m.detalle}
+                </li>
+              ))}
+            </ul>
           )}
-          {p.score != null && (
-            <span className="ml-2">riesgo <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span>/100</span>
-          )}
-        </span>
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* Qué encontró. El score siempre con su denominador. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            {peorSenal ? (
+              <Severidad bandera={peorSenal} formato="pastilla" />
+            ) : conSenales ? null : (
+              <Severidad score={p.score} formato="pastilla" />
+            )}
+            <span className="text-[13px] text-mute">
+              {conSenales ? (
+                <>
+                  <span className="font-mono font-semibold text-ink">{nSenales}</span>{" "}
+                  {nSenales === 1 ? "señal de riesgo" : "señales de riesgo"}
+                </>
+              ) : (
+                "ninguna señal de riesgo"
+              )}
+              {p.score != null && (
+                <span className="ml-2">riesgo <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span>/100</span>
+              )}
+            </span>
+          </div>
 
-      {senales.length > 0 && (
-        <ul className="mt-2 space-y-1">
-          {senales.slice(0, 3).map((s, i) => (
-            <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5 text-[12px] leading-snug text-inkSoft">
-              <span className="mt-0.5 shrink-0">
-                <Severidad bandera={s.severidad} formato="punto" />
-              </span>
-              <span className="min-w-0">
-                {reglaLabel(s.regla)}
-                {s.norma && <span className="ml-2 text-mute">{s.norma}</span>}
-              </span>
-            </li>
-          ))}
-          {senales.length > 3 && (
-            <li className="pl-5 text-[12px] text-mute">
-              y {senales.length - 3} {senales.length - 3 === 1 ? "señal más" : "señales más"} en el dictamen
-            </li>
+          {senales.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {senales.slice(0, 3).map((s, i) => (
+                <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5 text-[12px] leading-snug text-inkSoft">
+                  <span className="mt-0.5 shrink-0">
+                    <Severidad bandera={s.severidad} formato="punto" />
+                  </span>
+                  <span className="min-w-0">
+                    {reglaLabel(s.regla)}
+                    {s.norma && <span className="ml-2 text-mute">{s.norma}</span>}
+                  </span>
+                </li>
+              ))}
+              {senales.length > 3 && (
+                <li className="pl-5 text-[12px] text-mute">
+                  y {senales.length - 3} {senales.length - 3 === 1 ? "señal más" : "señales más"} en el dictamen
+                </li>
+              )}
+            </ul>
           )}
-        </ul>
-      )}
-
-      {enRevision && (
-        <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-snug text-clayTexto">
-          <Eye size={13} className="mt-0.5 shrink-0" aria-hidden />
-          La autoevaluación no alcanzó el umbral: una persona revisa este dictamen antes de publicarlo.
-        </p>
+        </>
       )}
 
       {/* Cuánto trabajo costó, con el vocabulario del catálogo: 10 agentes repartidos en 12 pasos. */}

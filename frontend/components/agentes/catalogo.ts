@@ -45,9 +45,9 @@ export interface PasoPipeline {
 
 const QUE: Record<string, string> = {
   compliance:
-    "Evalúa las reglas duras de contratación sobre el registro OCDS y abre la alerta base.",
+    "Evalúa las reglas de contratación sobre el registro público del proceso y abre la alerta.",
   document_parser:
-    "Lee los documentos del expediente con OCR y extrae ítems, postores y especificaciones técnicas.",
+    "Lee los documentos del expediente, incluso los escaneados, y extrae ítems, postores y especificaciones técnicas.",
   document_legal_analyst:
     "Analiza legalmente el requerimiento y emite señales citando la norma y la opinión OECE aplicable.",
   market:
@@ -71,18 +71,18 @@ const QUE: Record<string, string> = {
 };
 
 const FUENTE: Record<string, string[]> = {
-  compliance: ["Registro OCDS", "SUNAT", "Sanciones OECE"],
-  document_parser: ["Documentos publicados en el SEACE (Document AI)"],
-  document_legal_analyst: ["Opiniones jurídicas del OECE (RAG)"],
+  compliance: ["Registro público del proceso (OECE)", "SUNAT", "Sanciones del OECE"],
+  document_parser: ["Documentos publicados en el SEACE"],
+  document_legal_analyst: ["Opiniones jurídicas del OECE"],
   market: ["Búsqueda de precios en vivo"],
   proveedor: ["OECE", "SUNAT"],
   web_research: ["Portales oficiales", "Web abierta"],
   news_research: ["Prensa peruana"],
   entity_personnel: ["Autoridades y actos resolutivos de la entidad"],
   person_network: ["RNP", "ONPE", "JNE", "PEPs", "Registro de visitas"],
-  compliance_extended: ["Reglas del perfil en código", "Opiniones OECE"],
+  compliance_extended: ["Reglas fijas de cada tipo de contrato", "Opiniones del OECE"],
   report_writer: ["Todo lo que encontraron los agentes anteriores"],
-  self_eval: ["El propio análisis: 4 jueces LLM y 4 deterministas"],
+  self_eval: ["El propio análisis: 4 jueces de IA y 4 comprobaciones en código"],
 };
 
 /** Id del agente en la traza, cuando el paso es un agente del pipeline. */
@@ -137,7 +137,7 @@ export const esOrquestador = (nombre: string | null | undefined): boolean =>
 export function nombreDeAgente(nombre: string | null | undefined): string {
   const p = pasoDeClave(claveDePaso(nombre));
   if (p) return p.nombre;
-  if (esOrquestador(nombre)) return "Orquestador";
+  if (esOrquestador(nombre)) return "Coordinador del análisis";
   const n = (nombre ?? "").trim();
   return n ? faseLabelCorto(canonico(n)) : "Sin agente declarado";
 }

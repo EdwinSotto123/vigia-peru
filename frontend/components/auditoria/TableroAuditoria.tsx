@@ -10,20 +10,32 @@
  *  · `verMasHref`: la página ya tiene su propio histórico completo más abajo, así que la
  *    columna "Procesado" no se repite acá.
  *  · `conteosExternos`: otra superficie de la misma página ya publica los conteos (en
- *    /app/auditoria, la barra de estado del pipeline). Entonces este tablero NO los repite:
- *    dos fuentes para el mismo número fue el defecto histórico de esta pantalla — los mismos
- *    doce contratos salían como "esperan documentos" arriba y "en cola" acá abajo.
+ *    /app/auditoria, la barra de estado del pipeline). Entonces este tablero NO los repite.
  *
  * La primera columna se llama "En espera" y no "En cola" a propósito: agrupa cuatro estados
  * (en cola, esperando documentos, con error, sin análisis aplicable) y "en cola" es uno solo
- * de ellos. Cada tarjeta lleva su estado exacto en la píldora, y el encabezado de la columna
- * dice de qué está hecha.
+ * de ellos. Cada tarjeta lleva su estado exacto en la píldora.
  *
- * Datos: GET /financiamiento/procesamientos?ubigeo=&codigo=&limit=
+ * Honestidad del "en vivo":
+ *  · El punto pulsante sólo aparece cuando hay algo en análisis. Si nada se movió, el
+ *    encabezado dice "Sin cambios desde {el último evento real}". Antes decía "en vivo,
+ *    actualizado hace 3 s" refiriéndose al último sondeo, y escondía que la cola llevaba seis
+ *    días quieta.
+ *  · Cada tarjeta que espera documentos lleva su antigüedad real, con un reloj que avanza.
+ *  · Cuando un sondeo trae un cambio de estado real, la tarjeta viaja a su nueva columna
+ *    (FLIP, sin movimiento si el sistema pide menos movimiento) y se anuncia UNA vez en la
+ *    única región viva de la página. Nada más en la página es región viva.
+ *
+ * Datos: GET /financiamiento/procesamientos?ubigeo=&codigo=&desde=&hasta=&financiador=&limit=
+ * El backend ordena procesando → encolado → procesado → error → el resto (esperando
+ * documentos incluido) y su filtro `estado` no acepta `esperando_documentos`. Si la primera
+ * página no trae todo, se pide la cola del listado con un offset calculado, para que los que
+ * esperan no se caigan del tablero detrás de los procesados.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Eye, Inbox, WifiOff } from "lucide-react";
 import { formatPEN } from "@/lib/financiamiento";
 import {
@@ -33,12 +45,15 @@ import {
   estadoVisible,
   faseHumana,
   fasesEfectivas,
+  fechaLima,
   haceCuanto,
   procesamientosQueryString,
   progresoCarriles,
   progresoFases,
+  relojEdad,
   type EstadoProc,
   type Procesamiento,
+  type ProcesamientosQuery,
 } from "@/lib/auditoria";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -48,19 +63,77 @@ import { EstadoPill } from "./EstadoPill";
 type Columna = "encolado" | "procesando" | "procesado";
 
 const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: string }[] = [
-  { key: "encolado", label: "En espera", icon: <Clock size={14} />, vacio: "Nada en espera con estos filtros." },
-  { key: "procesando", label: "En análisis", icon: <Cpu size={14} />, vacio: "Ningún contrato en análisis ahora mismo." },
-  { key: "procesado", label: "Procesado", icon: <CheckCircle2 size={14} />, vacio: "Todavía no se publicó ningún resultado." },
+  { key: "encolado", label: "En espera", icon: <Clock size={14} aria-hidden />, vacio: "Nada en espera con estos filtros." },
+  { key: "procesando", label: "En análisis", icon: <Cpu size={14} aria-hidden />, vacio: "Ningún contrato en análisis ahora mismo." },
+  { key: "procesado", label: "Procesado", icon: <CheckCircle2 size={14} aria-hidden />, vacio: "Todavía no se publicó ningún resultado." },
 ];
 
 // error y pendiente_de_procesamiento se muestran en la columna "En espera" con su propia píldora.
-const columnaDe = (estado: EstadoProc): Columna => (estado === "procesando" || estado === "procesado" ? estado : "encolado");
+// Recibe el estado CRUDO (`p.estado`): "revision" no es una columna, es un procesado.
+const columnaDe = (estado: EstadoProc): Columna =>
+  estado === "procesando" ? "procesando" : estado === "procesado" || estado === "revision" ? "procesado" : "encolado";
+
+// useLayoutEffect avisa en el render del servidor; el efecto sólo hace falta en el navegador.
+const useLayoutEffectCliente = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/** Cómo se dice cada llegada, en singular y en plural. */
+const VERBO: Record<EstadoProc, [string, string]> = {
+  encolado: ["entró a la cola", "entraron a la cola"],
+  procesando: ["empezó su análisis", "empezaron su análisis"],
+  procesado: ["terminó su análisis", "terminaron su análisis"],
+  revision: ["terminó su análisis y quedó en revisión humana", "terminaron su análisis y quedaron en revisión humana"],
+  error: ["falló y se va a reintentar", "fallaron y se van a reintentar"],
+  esperando_documentos: ["quedó esperando sus documentos", "quedaron esperando sus documentos"],
+  pendiente_de_procesamiento: ["quedó sin análisis aplicable", "quedaron sin análisis aplicable"],
+};
+
+interface Cambio { ocid: string; titulo: string; de: EstadoProc | null; a: EstadoProc; columnaDe: Columna | null; columnaA: Columna }
+
+const recortar = (t: string, n = 70) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t);
+const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+/** Una sola frase para lo que cambió entre dos sondeos. Es lo único que oye un lector de pantalla. */
+function describirCambios(cambios: Cambio[]): string {
+  const movidos = cambios.filter((c) => c.de !== null);
+  const nuevos = cambios.filter((c) => c.de === null);
+  const partes: string[] = [];
+  if (movidos.length === 1) {
+    const c = movidos[0];
+    partes.push(`“${recortar(c.titulo)}” ${VERBO[c.a][0]}`);
+  } else if (movidos.length > 1) {
+    const porEstado = new Map<EstadoProc, number>();
+    for (const c of movidos) porEstado.set(c.a, (porEstado.get(c.a) ?? 0) + 1);
+    const detalle = [...porEstado.entries()].map(([a, n]) => `${n} ${n === 1 ? VERBO[a][0] : VERBO[a][1]}`);
+    partes.push(`${movidos.length} contratos cambiaron de estado: ${lista(detalle)}`);
+  }
+  if (nuevos.length === 1) partes.push(`llegó un contrato nuevo al tablero: “${recortar(nuevos[0].titulo)}”`);
+  else if (nuevos.length > 1) partes.push(`llegaron ${nuevos.length} contratos nuevos al tablero`);
+  const frase = partes.join(". ");
+  return frase ? `${frase.charAt(0).toUpperCase()}${frase.slice(1)}.` : "";
+}
+
+/** El último momento en que algo se movió de verdad en este tablero (no el último sondeo). */
+function ultimoMovimiento(items: Procesamiento[]): number | null {
+  let max = -Infinity;
+  for (const p of items) {
+    for (const v of [p.finalizadoAt, p.iniciadoAt]) {
+      const t = v ? Date.parse(v) : NaN;
+      if (Number.isFinite(t) && t > max) max = t;
+    }
+  }
+  return Number.isFinite(max) ? max : null;
+}
 
 interface Props {
   ubigeo?: string;
   codigo?: string;
+  /** Mismos filtros que el histórico: el tablero en vivo también los obedece. YYYY-MM-DD sobre la entrada a la cola. */
+  desde?: string;
+  hasta?: string;
+  financiador?: string;
   titulo?: string;
   autoRefreshMs?: number;
+  /** Filas por consulta (el API acepta hasta 300). */
   limit?: number;
   /** Datos ya cargados en el servidor (evita el parpadeo inicial y sirve de respaldo si el API cae). */
   initial?: Procesamiento[] | null;
@@ -68,7 +141,7 @@ interface Props {
   compacto?: boolean;
   /**
    * Si se pasa, esta página YA tiene su propio histórico completo más abajo (p.ej. /app/auditoria):
-   * la columna "Procesado" no se repite acá — solo queda un link a ese histórico. Sin esto (p.ej.
+   * la columna "Procesado" no se repite acá; solo queda un link a ese histórico. Sin esto (p.ej.
    * /financiar/[ubigeo] compacto, /impacto/[codigo]), "Procesado" es la ÚNICA vista de resultados
    * que tiene esa página, así que se muestra completa como siempre.
    */
@@ -76,7 +149,7 @@ interface Props {
   /** Otra superficie de la página ya publica los conteos: este tablero no los repite. */
   conteosExternos?: boolean;
   /**
-   * Qué mostrar en el lugar de "En análisis" cuando no hay nada en análisis — que es el estado
+   * Qué mostrar en el lugar de "En análisis" cuando no hay nada en análisis, que es el estado
    * NORMAL de esta pantalla, no la excepción. ReactNode ya renderizado (puede venir de un server
    * component); jamás una función: eso compila y rompe sólo en producción.
    */
@@ -86,37 +159,122 @@ interface Props {
 export function TableroAuditoria({
   ubigeo,
   codigo,
+  desde,
+  hasta,
+  financiador,
   titulo,
   autoRefreshMs = 5000,
-  limit = 100,
+  limit = 300,
   initial,
   compacto = false,
   verMasHref,
   conteosExternos = false,
   panelSecundario,
 }: Props) {
+  const router = useRouter();
   const [items, setItems] = useState<Procesamiento[]>(initial ?? []);
+  const [total, setTotal] = useState<number>(initial?.length ?? 0);
   const [cargado, setCargado] = useState<boolean>(initial != null);
-  const [actualizadoAt, setActualizadoAt] = useState<number | null>(initial != null ? Date.now() : null);
   const [fallo, setFallo] = useState(false);
   const [ahora, setAhora] = useState(0);   // 0 hasta montar: el HTML del servidor no lleva cronómetros
   const [tab, setTab] = useState<Columna>("procesando");
+  const [anuncio, setAnuncio] = useState("");
+  const [ultimoCambio, setUltimoCambio] = useState<{ texto: string; at: number } | null>(null);
+  const [recien, setRecien] = useState<Record<string, true>>({});
   const tabElegida = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Estado conocido de cada tarjeta (crudo y visible), para detectar cambios reales entre sondeos.
+  const conocido = useRef<Map<string, { crudo: EstadoProc; visible: EstadoProc }> | null>(
+    initial ? new Map(initial.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p) }])) : null,
+  );
+  const tarjetas = useRef(new Map<string, HTMLElement>());
+  const rectsAntes = useRef<Map<string, DOMRect> | null>(null);
+  const menosMovimiento = useRef(false);
 
-  const qs = useMemo(() => procesamientosQueryString({ ubigeo, codigo, limit }), [ubigeo, codigo, limit]);
+  const filtros: ProcesamientosQuery = useMemo(() => ({ ubigeo, codigo, desde, hasta, financiador }), [ubigeo, codigo, desde, hasta, financiador]);
+
+  useEffect(() => {
+    try {
+      menosMovimiento.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch { /* sin matchMedia: se anima */ }
+  }, []);
 
   const cargar = useCallback(async () => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    try {
-      const res = await fetch(`${PUBLIC_API_BASE}/financiamiento/procesamientos?${qs}`, { cache: "no-store", signal: ctrl.signal });
+    const base = `${PUBLIC_API_BASE}/financiamiento/procesamientos`;
+    const pedir = async (q: ProcesamientosQuery) => {
+      const res = await fetch(`${base}?${procesamientosQueryString(q)}`, { cache: "no-store", signal: ctrl.signal });
       if (!res.ok) throw new Error(String(res.status));
-      const json = (await res.json()) as { data?: Procesamiento[] };
+      const j = (await res.json()) as { data?: Procesamiento[]; total?: number };
+      return { data: Array.isArray(j.data) ? j.data : [], total: typeof j.total === "number" ? j.total : null };
+    };
+    try {
+      const primera = await pedir({ ...filtros, limit });
+      let data = primera.data;
+      const tot = primera.total ?? data.length;
+      // La primera página no trajo todo: los que esperan documentos quedaron detrás de los
+      // procesados. Se pide la cola del listado saltando procesando + encolado + procesados.
+      if (tot > data.length) {
+        const activos = data.filter((p) => p.estado === "procesando" || p.estado === "encolado").length;
+        if (activos < data.length) {
+          const procesados = await pedir({ ...filtros, estado: "procesado", limit: 1 });
+          const offset = activos + (procesados.total ?? 0);
+          if (offset < tot) {
+            const cola = await pedir({ ...filtros, limit, offset });
+            const vistos = new Set(data.map((p) => p.ocid));
+            data = [...data, ...cola.data.filter((p) => !vistos.has(p.ocid))];
+          }
+        }
+      }
       if (ctrl.signal.aborted) return;
-      setItems(Array.isArray(json.data) ? json.data : []);
-      setActualizadoAt(Date.now());
+
+      // ¿Qué cambió de verdad desde el sondeo anterior?
+      const prev = conocido.current;
+      const cambios: Cambio[] = [];
+      if (prev) {
+        for (const p of data) {
+          const visible = estadoVisible(p);
+          const antes = prev.get(p.ocid);
+          if (!antes) cambios.push({ ocid: p.ocid, titulo: p.titulo ?? p.ocid, de: null, a: visible, columnaDe: null, columnaA: columnaDe(p.estado) });
+          else if (antes.visible !== visible) {
+            cambios.push({ ocid: p.ocid, titulo: p.titulo ?? p.ocid, de: antes.visible, a: visible, columnaDe: columnaDe(antes.crudo), columnaA: columnaDe(p.estado) });
+          }
+        }
+      }
+      conocido.current = new Map(data.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p) }]));
+
+      if (cambios.length) {
+        // FLIP, primer paso: dónde estaba cada tarjeta que cambia de columna.
+        if (!menosMovimiento.current) {
+          const rects = new Map<string, DOMRect>();
+          for (const c of cambios) {
+            if (c.columnaDe === null || c.columnaDe === c.columnaA) continue;
+            const el = tarjetas.current.get(c.ocid);
+            if (el) rects.set(c.ocid, el.getBoundingClientRect());
+          }
+          rectsAntes.current = rects.size ? rects : null;
+        }
+        const texto = describirCambios(cambios);
+        setAnuncio(texto);
+        setUltimoCambio({ texto, at: Date.now() });
+        const marcados = Object.fromEntries(cambios.map((c) => [c.ocid, true as const]));
+        setRecien((r) => ({ ...r, ...marcados }));
+        window.setTimeout(() => {
+          setRecien((r) => {
+            const s = { ...r };
+            for (const k of Object.keys(marcados)) delete s[k];
+            return s;
+          });
+        }, 6000);
+        // Un contrato terminó: lo que la página renderiza en el servidor (último análisis,
+        // histórico) quedó viejo. Se refresca sin recargar.
+        if (cambios.some((c) => c.de !== null && (c.a === "procesado" || c.a === "revision"))) router.refresh();
+      }
+
+      setItems(data);
+      setTotal(Math.max(tot, data.length));
       setFallo(false);
     } catch (e) {
       if ((e as Error)?.name === "AbortError") return;
@@ -124,7 +282,7 @@ export function TableroAuditoria({
     } finally {
       if (!ctrl.signal.aborted) setCargado(true);
     }
-  }, [qs]);
+  }, [filtros, limit, router]);
 
   // Polling sólo con la pestaña visible; al volver, refresca de inmediato.
   useEffect(() => {
@@ -142,12 +300,35 @@ export function TableroAuditoria({
     };
   }, [cargar, autoRefreshMs]);
 
-  // Reloj de 1 s para "actualizado hace Ns" y los tiempos transcurridos.
+  // Reloj de 1 s para los tiempos transcurridos y la antigüedad de lo que espera.
   useEffect(() => {
     setAhora(Date.now());
     const id = window.setInterval(() => setAhora(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  // FLIP, segundo paso: la tarjeta ya está en su columna nueva; arranca desde donde estaba.
+  useLayoutEffectCliente(() => {
+    const rects = rectsAntes.current;
+    if (!rects) return;
+    rectsAntes.current = null;
+    for (const [ocid, r0] of rects) {
+      const el = tarjetas.current.get(ocid);
+      if (!el || r0.width === 0 || typeof el.animate !== "function") continue;
+      const r1 = el.getBoundingClientRect();
+      if (r1.width === 0) continue;   // su columna está oculta (pestañas en móvil)
+      const dx = r0.left - r1.left;
+      const dy = r0.top - r1.top;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.7 },
+          { transform: "translate(0, 0)", opacity: 1 },
+        ],
+        { duration: 700, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    }
+  }, [items]);
 
   const porColumna = useMemo(() => {
     const m: Record<Columna, Procesamiento[]> = { encolado: [], procesando: [], procesado: [] };
@@ -156,12 +337,13 @@ export function TableroAuditoria({
   }, [items]);
   // Procesados con alerta bloqueada por la autoevaluación: se muestran en "Procesado" con su píldora, y se cuentan aparte.
   const enRevision = useMemo(() => items.filter((p) => estadoVisible(p) === "revision").length, [items]);
+  const movido = useMemo(() => ultimoMovimiento(items), [items]);
 
   /** De qué está hecha cada columna, contado sobre las MISMAS tarjetas que se ven debajo. */
   const composicion = useCallback(
-    (lista: Procesamiento[]) => {
+    (listaCol: Procesamiento[]) => {
       const m = new Map<EstadoProc, number>();
-      for (const p of lista) {
+      for (const p of listaCol) {
         const s = estadoVisible(p);
         m.set(s, (m.get(s) ?? 0) + 1);
       }
@@ -170,9 +352,8 @@ export function TableroAuditoria({
     [],
   );
 
-  // El API devuelve como mucho `limit` filas: si se llenó, lo que se cuenta acá es una página,
-  // no el universo. Decirlo es lo que evita que este tablero contradiga a la barra de estado.
-  const truncado = cargado && items.length >= limit;
+  // El API puede no devolverlo todo: si faltan filas, se dice cuántas se muestran de cuántas.
+  const truncado = cargado && total > items.length;
 
   // Con verMasHref, "Procesado" ya vive (completo, filtrable) en el histórico de abajo: acá solo
   // quedan las dos columnas realmente "en vivo" (transitorias) + un link al histórico.
@@ -202,9 +383,13 @@ export function TableroAuditoria({
 
   const vacio = cargado && items.length === 0;
   const conTabs = !vacio && columnasVisibles.length > 1;
+  const nAnalisis = porColumna.procesando.length;
 
   return (
     <section aria-label={titulo ?? "Tablero de auditoría en vivo"}>
+      {/* La ÚNICA región viva del tablero: anuncia cambios de estado reales, una vez cada uno. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{anuncio}</p>
+
       {/* encabezado */}
       <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
@@ -220,7 +405,7 @@ export function TableroAuditoria({
               ))}
               {enRevision > 0 && (
                 <span className="inline-flex items-center gap-1 text-clayTexto" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Son parte de los procesados, no se suman.">
-                  <Eye size={14} />
+                  <Eye size={14} aria-hidden />
                   <span className="font-mono">{enRevision}</span> de ellos en revisión humana
                 </span>
               )}
@@ -232,18 +417,39 @@ export function TableroAuditoria({
             </a>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[11px] text-mute" aria-live="polite" aria-atomic="true">
-          {truncado && <span title={`El API devuelve como mucho ${limit} filas por consulta.`}>mostrando los {limit} más recientes</span>}
+        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[11px] text-mute">
+          {truncado && <span title={`El API devuelve como mucho ${limit} filas por consulta.`}>mostrando {items.length} de {total}</span>}
           {fallo ? (
             <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <PulseDot color="moss" size={6} />
-              {ahora > 0 && actualizadoAt ? `en vivo, actualizado ${haceCuanto(ahora - actualizadoAt)}` : "en vivo, conectando…"}
+          ) : nAnalisis > 0 ? (
+            <span className="inline-flex items-center gap-1.5 font-medium text-amberTexto">
+              <PulseDot color="amber" size={6} />
+              en vivo: {nAnalisis} {nAnalisis === 1 ? "contrato en análisis" : "contratos en análisis"}
             </span>
+          ) : movido != null ? (
+            <span className="inline-flex items-center gap-1.5" title="Último contrato que empezó o terminó su análisis en este tablero. Se vuelve a consultar cada pocos segundos.">
+              <Clock size={12} aria-hidden />
+              <span>
+                Sin cambios desde el <time dateTime={new Date(movido).toISOString()}>{fechaLima(movido, { hora: true })}</time>
+                {ahora > 0 && <span suppressHydrationWarning> ({haceCuanto(ahora - movido)})</span>}
+              </span>
+            </span>
+          ) : cargado ? (
+            <span>Sin movimientos todavía</span>
+          ) : (
+            <span>conectando…</span>
           )}
         </div>
       </div>
+
+      {/* Lo último que se movió mientras esta página estuvo abierta. */}
+      {ultimoCambio && (
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-heroViolet-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink">
+          <span className="font-semibold">Recién:</span>
+          <span className="min-w-0">{ultimoCambio.texto}</span>
+          {ahora > 0 && <span className="font-mono text-[11px] text-mute" suppressHydrationWarning>{haceCuanto(Math.max(0, ahora - ultimoCambio.at))}</span>}
+        </p>
+      )}
 
       {/* tabs móviles */}
       {conTabs && (
@@ -272,7 +478,7 @@ export function TableroAuditoria({
 
       {/* cuerpo */}
       {vacio ? (
-        <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} />
+        <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} filtrado={!!(desde || hasta || financiador)} />
       ) : (
         // `grid-cols-1` explícito, no `grid` a secas: sin él la pista implícita es `auto` y
         // se dimensiona al max-content de las tarjetas, así que en 390 px la columna medía
@@ -284,24 +490,25 @@ export function TableroAuditoria({
           }`}
         >
           {columnasVisibles.map((c) => {
-            const lista = porColumna[c.key];
-            const partes = composicion(lista);
+            const listaCol = porColumna[c.key];
+            const partes = composicion(listaCol);
             return (
               <div
                 key={c.key}
                 role={conTabs ? "tabpanel" : undefined}
+                aria-label={c.label}
                 className={`${conTabs && tab !== c.key ? "hidden" : "block"} ${compacto || !conTabs ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
               >
                 <div className={`${conTabs && !compacto ? "hidden md:block" : "block"} px-2 pb-1 pt-1.5`}>
                   <div className="flex items-baseline justify-between gap-2 text-[11px] uppercase tracking-wide text-mute">
                     <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
-                    <span className="font-mono">{lista.length}</span>
+                    <span className="font-mono">{listaCol.length}</span>
                   </div>
                   {/* De qué está hecha la columna, contado sobre estas mismas tarjetas. Con un
                       solo estado no se repite la cifra del encabezado: se nombra y basta. */}
                   {partes.length === 1 && (
                     <p className="mt-0.5 text-[11px] leading-snug text-mute">
-                      {lista.length === 1 ? "" : "todos "}
+                      {listaCol.length === 1 ? "" : "todos "}
                       {ESTADO_PROC[partes[0][0]].label.toLowerCase()}
                     </p>
                   )}
@@ -315,17 +522,23 @@ export function TableroAuditoria({
                     </ul>
                   )}
                 </div>
-                {/* La cola puede tener decenas de tarjetas y el panel de al lado dos pantallas
-                    menos: sin tope, la mitad derecha de la página queda en blanco. Con tope,
-                    la cola se recorre adentro y las dos mitades pesan lo mismo. */}
-                <ul className={`space-y-2 ${compacto || conPanel ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : ""}`}>
-                  {lista.length === 0 && !cargado && <SkeletonCard />}
-                  {lista.length === 0 && cargado && (
+                {/* Con el panel al lado (escritorio), la cola se recorre adentro para que las dos
+                    mitades pesen lo mismo. En móvil las columnas van apiladas: una caja con su
+                    propio scroll dentro de la página era un scroll anidado, y no se hace. */}
+                <ul className={`space-y-2 ${compacto ? "max-h-[28rem] overflow-y-auto pr-1 scrollbar-warm" : conPanel ? "scrollbar-warm md:max-h-[28rem] md:overflow-y-auto md:pr-1" : ""}`}>
+                  {listaCol.length === 0 && !cargado && <SkeletonCard />}
+                  {listaCol.length === 0 && cargado && (
                     <li className="rounded-xl border border-dashed border-line p-4 text-center text-[12px] text-mute">{c.vacio}</li>
                   )}
-                  {lista.map((p) => (
-                    <li key={p.ocid}>
-                      <Tarjeta p={p} ahora={ahora} />
+                  {listaCol.map((p) => (
+                    <li
+                      key={p.ocid}
+                      ref={(el) => {
+                        if (el) tarjetas.current.set(p.ocid, el);
+                        else tarjetas.current.delete(p.ocid);
+                      }}
+                    >
+                      <Tarjeta p={p} ahora={ahora} recien={!!recien[p.ocid]} />
                     </li>
                   ))}
                 </ul>
@@ -341,17 +554,20 @@ export function TableroAuditoria({
 }
 
 /** Exportada: la reusa HistoricoProcesados.tsx (mismo diseño de tarjeta en el buscador histórico). */
-export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
+export function Tarjeta({ p, ahora, recien = false }: { p: Procesamiento; ahora: number; recien?: boolean }) {
   const estado = estadoVisible(p);
   const conSenales = p.banderas > 0;
   const transcurrido = ahora > 0 && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   const fases = p.estado === "procesando" ? fasesEfectivas(p) : null;
   const prog = fases ? progresoFases(fases, estado) : null;
+  const esperaDesde = p.estado === "esperando_documentos" && p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
   return (
     <Link
       href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
       className={`block rounded-xl border bg-paper p-3 transition-all hover:-translate-y-0.5 hover:shadow-card ${
-        p.estado === "procesando" ? "border-amber/50 ring-1 ring-amber/20" : "border-line"
+        recien
+          ? "border-heroViolet/50 ring-2 ring-heroViolet/40"
+          : p.estado === "procesando" ? "border-amber/50 ring-1 ring-amber/20" : "border-line"
       }`}
     >
       {/* La entidad primero y en chico: es lo que ubica al lector antes de leer el objeto,
@@ -367,7 +583,7 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
       {p.estado === "procesando" && fases && prog && (
         <div className="mt-2.5">
           <div className="flex items-center justify-between gap-2 text-[11px]">
-            <span className="min-w-0 truncate text-amberTexto" aria-live="polite">{faseHumana(p, ahora || undefined, fases)}</span>
+            <span className="min-w-0 truncate text-amberTexto">{faseHumana(p, ahora || undefined, fases)}</span>
             <span className="shrink-0 font-mono tabular-nums text-mute">
               {prog.hechas}/{prog.aplicables} pasos
               {transcurrido != null && transcurrido > 0 && ` en ${duracion(transcurrido)}`}
@@ -379,12 +595,32 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
         </div>
       )}
 
+      {/* Lo que espera documentos dice desde cuándo, y su reloj avanza de verdad. */}
+      {p.estado === "esperando_documentos" && (
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-[11px] text-clayTexto">
+          <span>
+            {Number.isFinite(esperaDesde)
+              ? <>Espera sus documentos desde el <time dateTime={p.iniciadoAt!}>{fechaLima(esperaDesde, { hora: true })}</time></>
+              : "Espera que se descarguen sus documentos"}
+          </span>
+          {Number.isFinite(esperaDesde) && ahora > 0 && (
+            <span className="font-mono tabular-nums" title="Tiempo que lleva esperando" suppressHydrationWarning>
+              {relojEdad(ahora - esperaDesde)}
+            </span>
+          )}
+        </div>
+      )}
+
       {p.estado === "error" && (
-        <p className="mt-2 text-[11px] text-crimsonTexto">Reintento automático, intento {Math.min(3, Math.max(1, p.intentos))} de 3</p>
+        <p className="mt-2 text-[11px] text-crimsonTexto">
+          {p.intentos >= 3
+            ? "Falló en los 3 intentos automáticos; el equipo lo revisa a mano."
+            : `Falló el intento ${Math.max(1, p.intentos)} de 3; se vuelve a intentar solo.`}
+        </p>
       )}
 
       {estado === "revision" && (
-        <p className="mt-2 text-[11px] text-clayTexto">La autoevaluación pidió revisión humana antes de publicar.</p>
+        <p className="mt-2 text-[11px] text-clayTexto">En revisión humana: no se publica hasta que una persona lo revise.</p>
       )}
 
       {estado === "procesado" && (
@@ -405,7 +641,7 @@ export function Tarjeta({ p, ahora }: { p: Procesamiento; ahora: number }) {
           </span>
           <span className="shrink-0 font-mono">{p.contribucionCodigo}</span>
         </span>
-        <EstadoPill estado={estado} />
+        <EstadoPill estado={estado} intentos={p.intentos} />
       </div>
     </Link>
   );
@@ -422,7 +658,7 @@ function SkeletonCard() {
   );
 }
 
-function EstadoVacio({ fallo, codigo, ubigeo }: { fallo: boolean; codigo?: string; ubigeo?: string }) {
+function EstadoVacio({ fallo, codigo, ubigeo, filtrado }: { fallo: boolean; codigo?: string; ubigeo?: string; filtrado: boolean }) {
   if (fallo) {
     return (
       <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
@@ -434,16 +670,18 @@ function EstadoVacio({ fallo, codigo, ubigeo }: { fallo: boolean; codigo?: strin
       </div>
     );
   }
-  const copy = codigo
-    ? "Los contratos se asignan al confirmar el pago. Cuando el aporte esté validado, aquí verás cada uno pasar de la cola al análisis."
-    : ubigeo
-      ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
-      : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
+  const copy = filtrado
+    ? "Ningún contrato financiado coincide con la fecha o con quien lo pagó. Quita un filtro arriba para ver el resto."
+    : codigo
+      ? "Los contratos se asignan al confirmar el pago. Cuando el aporte esté validado, aquí verás cada uno pasar de la cola al análisis."
+      : ubigeo
+        ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
+        : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
   return (
     <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
       <Inbox size={18} className="mt-0.5 shrink-0" aria-hidden />
       <div>
-        <div className="font-medium text-ink">Nada en proceso todavía.</div>
+        <div className="font-medium text-ink">{filtrado ? "Nada coincide con estos filtros." : "Nada en proceso todavía."}</div>
         <div className="mt-0.5">{copy}</div>
       </div>
     </div>

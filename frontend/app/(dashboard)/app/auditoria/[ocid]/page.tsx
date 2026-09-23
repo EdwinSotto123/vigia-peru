@@ -1,17 +1,18 @@
 import { notFound } from "next/navigation";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
-import { ESTADO_PROC, getProcesamiento } from "@/lib/auditoria";
+import { ESTADO_PROC, estadoVisible, getProcesamiento } from "@/lib/auditoria";
 
 export const revalidate = 3;
 
 export async function generateMetadata({ params }: { params: { ocid: string } }) {
   const ocid = decodeURIComponent(params.ocid);
   const p = await getProcesamiento(ocid);
-  if (!p) return { title: `Contrato ${ocid} — Auditoría en vivo de Vigía Perú` };
+  if (!p) return { title: `Contrato ${ocid}, auditoría en vivo` };
   const titulo = p.titulo ?? ocid;
   return {
-    title: `${titulo} — Auditoría en vivo de Vigía Perú`,
-    description: `${ESTADO_PROC[p.estado].label}. ${p.entidad ?? "Entidad no identificada"}, ${p.zona}. Auditoría financiada por ${p.financiador}.`,
+    title: `${titulo}, auditoría en vivo`,
+    // Estado visible: un procesado en revisión humana no se anuncia como "Procesado".
+    description: `${ESTADO_PROC[estadoVisible(p)].label}. ${p.entidad ?? "Entidad no identificada"}, ${p.zona}. Auditoría financiada por ${p.financiador}.`,
   };
 }
 
