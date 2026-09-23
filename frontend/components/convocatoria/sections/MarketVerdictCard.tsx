@@ -3,6 +3,7 @@
 import { Sparkles } from "lucide-react";
 import { ICONO_SEVERIDAD, resumenLote } from "@/components/charts/mercado";
 import { cn } from "@/lib/utils";
+import { observacionesLegibles } from "../dossier";
 
 /**
  * Veredicto del contrato completo contra el mercado.
@@ -39,6 +40,9 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
   const cobertura = r.cobertura !== null ? Math.round(r.cobertura * 100) : null;
   const conteo =
     r.nItems !== null && r.nConMediana !== null ? `${r.nConMediana} de ${r.nItems} ítems con precio de mercado` : null;
+  // Las líneas de bitácora del backend ("fan-out de 10 workers", "chunk(s) excedieron
+  // el timeout") no son hallazgos: se quedan fuera.
+  const observaciones = observacionesLegibles(market?.observaciones_clave);
 
   return (
     <section className="rounded-2xl border border-line bg-paper p-5 shadow-card">
@@ -48,9 +52,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
           pastilla con color, ícono y palabra. */}
       <div className={cn("border-l pl-4", r.veredicto.ui.borde)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-mute">
-            Veredicto del contrato · precio ofertado contra el mercado
-          </span>
+          <span className="text-[12px] font-medium text-mute">Precio ofertado contra el mercado</span>
           <span className={cn("pill px-2 py-0 text-[10px]", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
             <Icono size={11} aria-hidden />
             {r.veredicto.etiqueta}
@@ -74,17 +76,21 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
                     {r.abs > 0 ? "+" : "−"}
                     {fmtMoney(Math.abs(r.abs))}
                   </strong>{" "}
-                  de diferencia ·{" "}
+                  de diferencia.{" "}
                 </>
               )}
               {r.totalOfertado !== null && r.totalMercado !== null && (
                 <>
                   {fmtMoney(r.totalOfertado)} {r.esReferencial ? "de cuantía estimada" : "ofertados"} contra{" "}
-                  {fmtMoney(r.totalMercado)} de mercado ·{" "}
+                  {fmtMoney(r.totalMercado)} de mercado.{" "}
                 </>
               )}
-              {conteo}
-              {cobertura !== null && ` (${cobertura} % del valor del contrato)`}
+              {conteo && (
+                <>
+                  Medido en {conteo}
+                  {cobertura !== null && ` (${cobertura} % del valor del contrato)`}.
+                </>
+              )}
             </p>
           </>
         ) : (
@@ -103,6 +109,9 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         )}
       </div>
 
+      {/* Sin sobreprecio medido no se imprimen totales: un "total de mercado" hecho con
+          los pocos ítems que sí se tasaron se lee como el precio del lote, y no lo es. */}
+      {r.comparable && (
       <dl className="mt-3">
         {r.totalOfertado !== null && (
           <Cifra
@@ -146,8 +155,9 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
           />
         )}
       </dl>
+      )}
 
-      {!r.comparable && r.estimadoVsMercadoPct !== null && (
+      {!r.comparable && r.estimadoVsMercadoPct !== null && (r.nConMediana ?? 0) > 0 && (
         <p className="mt-3 border-l-2 border-line pl-3 text-[12px] text-mute">
           La cuantía que estimó la entidad está{" "}
           <strong className="font-semibold text-ink">
@@ -159,9 +169,9 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         </p>
       )}
 
-      {(market?.observaciones_clave || []).length > 0 && (
+      {observaciones.length > 0 && (
         <ul className="mt-3 space-y-1 text-[13px] text-ink">
-          {market.observaciones_clave.map((o: string, i: number) => (
+          {observaciones.map((o: string, i: number) => (
             <li key={i} className="flex items-start gap-2">
               <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-heroViolet" aria-hidden />
               <span>{o}</span>

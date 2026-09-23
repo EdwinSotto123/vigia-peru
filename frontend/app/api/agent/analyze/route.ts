@@ -14,7 +14,8 @@
  *      forma que la UI ya conoce (convocatoria + compliance + dictamen).
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { exigirAdmin } from "./_admin";
 import { Agent as UndiciAgent, setGlobalDispatcher } from "undici";
 import { Storage } from "@google-cloud/storage";
 
@@ -413,9 +414,14 @@ function adaptAdkResponse(adk: any, ocds: any, ocid: string) {
 
   // Dictamen
   const dictamenText = state.final_dictamen || adk?.final_response || "";
+  // El modelo NO se escribe a mano: antes decía "gemini-2.5-pro" fijo, y los perfiles
+  // corren otro modelo. Solo se informa si el orquestador lo declara; si no, se omite.
+  const modeloDeclarado = [state.gen_meta?.model, state.model, adk?.model].find(
+    (m): m is string => typeof m === "string" && m.trim().length > 0,
+  );
   const dictamen = {
     dictamen_markdown: dictamenText,
-    gen_meta: { model: "gemini-2.5-pro" },
+    gen_meta: modeloDeclarado ? { model: modeloDeclarado } : {},
   };
 
   return {
@@ -447,7 +453,10 @@ function adaptAdkResponse(adk: any, ocds: any, ocid: string) {
   };
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Cada corrida cuesta: solo el equipo (cookie de admin verificada) puede dispararla.
+  const noAdmin = await exigirAdmin(req);
+  if (noAdmin) return noAdmin;
   const t0 = Date.now();
   const body = await req.json().catch(() => ({}));
   const input = (body.input ?? "").toString().trim();

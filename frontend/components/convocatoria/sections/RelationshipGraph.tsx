@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Network, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { maskApellido, maskDnis, redactDnis } from "../../Redact";
+import { redactDnis } from "../../Redact";
 import type { GraphNode, GraphEdge } from "../types";
 import { wrapText } from "../utils";
 import { NodeDetailPanel } from "./NodeDetailPanel";
@@ -31,8 +31,11 @@ export function RelationshipGraph({
   const panningRef = useRef<{ mx: number; my: number; vx: number; vy: number } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const graphData = buildRelationshipGraphData(person, web, proveedor, ctx);
-  if (!graphData) return null;
-  const { nodes, edges, positions } = graphData;
+  // El `return null` va DESPUÉS de los hooks: cortarlo acá arriba cambiaba la
+  // cantidad de hooks entre renders cuando el grafo pasaba de vacío a lleno.
+  const nodes: GraphNode[] = graphData?.nodes ?? [];
+  const edges: GraphEdge[] = graphData?.edges ?? [];
+  const positions = graphData?.positions ?? new Map<string, { x: number; y: number }>();
   // Aplicar overrides por drag (el user arrastró esos nodos) — el viewBox base
   // es 920×600 pero al haber zoom + pan, los nodos pueden ir más allá; no
   // clampeamos, el user puede arrastrar el grafo con pan.
@@ -223,7 +226,7 @@ export function RelationshipGraph({
     acc[e.kind] = (acc[e.kind] || 0) + 1;
     return acc;
   }, {});
-  const banderasRed: any[] = person?.banderas_red || [];
+  const banderasRed: any[] = Array.isArray(person?.banderas_red) ? person.banderas_red : [];
   const banderasAlta = banderasRed.filter((b) => b.severidad === "alta");
   const banderasMedia = banderasRed.filter((b) => b.severidad === "media");
 
@@ -248,16 +251,20 @@ export function RelationshipGraph({
       label: "Vínculos detectados",
       count: edges.length,
       hint: edgesByKind.titular ? `${edgesByKind.titular} de titularidad` : "relaciones formales",
-      color: "bg-moss/10 text-moss border-moss/30",
+      color: "bg-moss/10 text-mossTexto border-moss/30",
     },
     {
       key: "banderas_red",
       label: "Banderas de red",
       count: banderasRed.length,
-      hint: banderasAlta.length > 0 ? `${banderasAlta.length} alta · ${banderasMedia.length} media` : "sin riesgo detectado",
+      hint: banderasAlta.length > 0
+        ? `${banderasAlta.length} alta${banderasAlta.length === 1 ? "" : "s"}, ${banderasMedia.length} media${banderasMedia.length === 1 ? "" : "s"}`
+        : "sin riesgo detectado",
       color: banderasAlta.length > 0 ? "bg-rust/15 text-rust border-rust/40" : "bg-paperSoft text-mute border-line",
     },
   ];
+
+  if (!graphData) return null;
 
   return (
     <div className="border-t border-line bg-paperSoft px-5 py-5">
@@ -276,7 +283,7 @@ export function RelationshipGraph({
       {banderasRed.length > 0 && (
         <div className="mb-4 rounded-lg border border-line bg-paper px-3 py-2.5">
           <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-            ⚡ Hallazgos clave de la red empresarial
+            Hallazgos clave de la red empresarial
           </div>
           <ul className="space-y-1">
             {banderasRed.slice(0, 6).map((b, i) => (
@@ -284,18 +291,18 @@ export function RelationshipGraph({
                 <span className={cn(
                   "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest",
                   b.severidad === "alta" ? "bg-rust text-paper" :
-                  b.severidad === "media" ? "bg-amber text-paper" :
-                  "bg-paperDeep text-mute",
+                  b.severidad === "media" ? "bg-amber-soft text-amberTexto" :
+                  "bg-paperDeep text-inkSoft",
                 )}>
                   {b.severidad || "info"}
                 </span>
                 <div>
-                  <span className="font-semibold text-ink">{b.titulo || b.tipo || "Hallazgo"}</span>
-                  {b.descripcion && (
-                    <span className="ml-1.5 text-inkSoft">— {redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</span>
-                  )}
+                  <span className="font-semibold text-ink">{redactDnis(String(b.titulo || b.tipo || "Hallazgo"))}</span>
                   {b.requiere_verificacion && (
-                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">⏳ requiere verificación</span>
+                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">requiere verificación</span>
+                  )}
+                  {b.descripcion && (
+                    <div className="text-inkSoft">{redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</div>
                   )}
                 </div>
               </li>
@@ -305,10 +312,13 @@ export function RelationshipGraph({
       )}
 
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-          <Network size={11} className="mr-1 inline" />
-          Grafo de relaciones · arrastrá los nodos para reorganizar
-        </h3>
+        <div>
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+            <Network size={11} className="mr-1 inline" aria-hidden />
+            Grafo de relaciones
+          </h3>
+          <p className="text-[10px] text-mute">Arrastra los nodos para reorganizarlos.</p>
+        </div>
         {Object.keys(posOverride).length > 0 && (
           <button
             type="button"
@@ -363,6 +373,7 @@ export function RelationshipGraph({
             onClick={() => handleZoom(0.85)}
             className="flex h-7 w-7 items-center justify-center rounded text-ink hover:bg-paperDeep"
             title="Acercar"
+            aria-label="Acercar el grafo"
           >
             <span className="text-base font-bold leading-none">+</span>
           </button>
@@ -371,6 +382,7 @@ export function RelationshipGraph({
             onClick={() => handleZoom(1.18)}
             className="flex h-7 w-7 items-center justify-center rounded text-ink hover:bg-paperDeep"
             title="Alejar"
+            aria-label="Alejar el grafo"
           >
             <span className="text-base font-bold leading-none">−</span>
           </button>
@@ -378,7 +390,8 @@ export function RelationshipGraph({
             type="button"
             onClick={resetViewBox}
             className="flex h-7 w-7 items-center justify-center rounded text-ink hover:bg-paperDeep"
-            title="Resetear zoom"
+            title="Volver al zoom inicial"
+            aria-label="Volver al zoom inicial"
           >
             <RotateCcw size={12} />
           </button>
@@ -389,7 +402,7 @@ export function RelationshipGraph({
 
         {/* Hint sutil */}
         <div className="absolute left-2 top-2 z-10 rounded-md bg-paperDeep/80 px-2 py-0.5 text-[9px] text-mute backdrop-blur-sm">
-          rueda = zoom · arrastrá fondo = mover · click nodo = detalle
+          Rueda para acercar. Arrastra el fondo para moverte. Clic en un nodo para ver el detalle.
         </div>
 
         <svg
@@ -450,7 +463,7 @@ export function RelationshipGraph({
               const initials = (n.label || "?").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
               return (
                 <g key={n.id} onClick={handleNodeClick(n.id)} onMouseDown={handleNodeMouseDown(n.id)} style={{ cursor: "grab" }}>
-                  <title>{(n.tooltip || n.label) + " · arrastrá para mover · click para detalle"}</title>
+                  <title>{`${n.tooltip || n.label}\nArrastra para mover, clic para ver el detalle`}</title>
                   {isSelected && (
                     <circle cx={pos.x} cy={pos.y} r={s.r + 6} fill="none" stroke={s.stroke} strokeWidth={2} opacity={0.4}>
                       <animate attributeName="r" values={`${s.r + 6};${s.r + 10};${s.r + 6}`} dur="1.5s" repeatCount="indefinite" />
@@ -478,7 +491,7 @@ export function RelationshipGraph({
             }
             return (
               <g key={n.id} onClick={handleNodeClick(n.id)} onMouseDown={handleNodeMouseDown(n.id)} style={{ cursor: "grab" }}>
-                <title>{(n.tooltip || n.label) + " · arrastrá para mover · click para detalle"}</title>
+                <title>{`${n.tooltip || n.label}\nArrastra para mover, clic para ver el detalle`}</title>
                 {isSelected && (
                   <rect x={pos.x - wRect / 2 - 4} y={pos.y - hRect / 2 - 4} width={wRect + 8} height={hRect + 8} rx={10}
                         fill="none" stroke={s.stroke} strokeWidth={2} opacity={0.5}>

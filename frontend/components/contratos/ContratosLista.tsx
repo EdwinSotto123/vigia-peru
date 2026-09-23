@@ -176,9 +176,12 @@ export function ContratosLista({
     />
   );
 
+  /** ?page=999 con 368 páginas: el contador diría "49 901–18 394 de 18 394". Se oculta y el aviso lo explica. */
+  const fueraDeRango = !rows.length && !cargando && total > 0 && actual > paginas;
+
   return (
     <div className="space-y-2">
-      {pag}
+      {!fueraDeRango && pag}
       {fallo && !rows.length ? (
         <Aviso
           icon={<WifiOff size={18} />}
@@ -192,13 +195,28 @@ export function ContratosLista({
             )
           }
         />
+      ) : fueraDeRango ? (
+        // Página fuera de rango (?page=999): hay contratos, solo que no tantos. Decir
+        // "no hay contratos" acá era falso: se ofrece volver a la última página real.
+        <Aviso
+          icon={<Inbox size={18} />}
+          text={`Esta página no existe: la lista llega hasta la página ${paginas.toLocaleString("es-PE")}.`}
+          ayuda={`Hay ${total.toLocaleString("es-PE")} contratos${hayFiltros ? " con estos filtros" : ""}, ${tam} por página.`}
+          action={
+            navegacion === "url" ? (
+              <Link href={hrefPagina(paginas)} className={ACCION_CLS}>Ir a la última página</Link>
+            ) : (
+              <button type="button" onClick={() => setPage(paginas)} className={ACCION_CLS}>Ir a la última página</button>
+            )
+          }
+        />
       ) : !rows.length && !cargando ? (
         <Aviso
           icon={<Inbox size={18} />}
           text={hayFiltros ? "Ningún contrato cumple todos los filtros a la vez." : "Esta consulta no devolvió ningún contrato."}
           ayuda={
             hayFiltros
-              ? "Los filtros se combinan con «y», no con «o». Quita arriba el más restrictivo —cada uno se quita por separado— y la lista se vuelve a llenar."
+              ? "Los filtros se combinan con «y», no con «o». Quita arriba el más restrictivo (cada uno se quita por separado) y la lista se vuelve a llenar."
               : "La cola de Vigía se rearma cada noche con lo que publica la API OCDS del OECE. Si acá no hay nada, es que esa zona no tiene convocatorias en el rango pedido."
           }
           action={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
@@ -227,15 +245,19 @@ function TablaContratos({ rows, selectedOcid, onHover, cargando }: FilasProps) {
   const vacia = !rows.length && cargando;
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+      {/* role="table" con filas y celdas ARIA (la rejilla es CSS grid, no un <table>, para que
+          cabecera, fila y skeleton compartan literalmente la misma plantilla de columnas). */}
+      {/* `isolate`: el z-10 de la celda del enlace (para quedar sobre el ::after de la fila) no
+          debe escaparse de la tabla y pintarse encima de la barra de filtros pegajosa. */}
+      <div role="table" aria-label="Contratos" aria-busy={cargando} className="isolate overflow-hidden rounded-2xl border border-line bg-paper">
         <Cabecera />
-        <ul role="list" className={cn(cargando && !vacia && "opacity-60")} aria-busy={cargando}>
+        <div role="rowgroup" className={cn(cargando && !vacia && "opacity-60")}>
           {vacia
             ? Array.from({ length: 12 }, (_, i) => <SkeletonFilaTabla key={i} />)
             : rows.map((c) => (
                 <FilaContrato key={c.ocid} c={c} selected={selectedOcid === c.ocid} onHover={onHover} />
               ))}
-        </ul>
+        </div>
       </div>
       <PieDeTabla />
     </div>
@@ -245,21 +267,25 @@ function TablaContratos({ rows, selectedOcid, onHover, cargando }: FilasProps) {
 /** Cabecera de columnas. Usa la MISMA rejilla que la fila: si se tocan por separado, se desalinean. */
 function Cabecera() {
   return (
-    <div className="flex items-stretch border-b border-line bg-paperSoft text-[11px] leading-tight text-mute" aria-hidden>
-      <div className={cn(REJILLA, PAD_FILA, "min-w-0 flex-1")}>
-        <span className="truncate">Señal</span>
-        <span className="truncate">
-          {/* En móvil la columna mide ~110 px: el rótulo largo se cortaría a la mitad. */}
-          <span className="md:hidden">Contrato</span>
-          <span className="hidden md:inline">Objeto de la contratación</span>
-        </span>
-        <span className={cn(CELDA_MD, "truncate")}>Entidad y zona</span>
-        <span className={cn(CELDA_XL, "truncate")}>Tipo y etapa</span>
-        <span className={cn(CELDA_MD, "truncate")}>Estado de lectura</span>
-        <span className="truncate text-right">Valor ref.</span>
-        <span className={cn(CELDA_MD, "truncate text-right")}>Convocada</span>
+    <div role="rowgroup">
+      <div role="row" className="flex items-stretch border-b border-line bg-paperSoft text-[11px] leading-tight text-mute">
+        <div className={cn(REJILLA, PAD_FILA, "min-w-0 flex-1")}>
+          <span role="columnheader" className="truncate">Señal</span>
+          <span role="columnheader" className="truncate">
+            {/* En móvil la columna mide ~110 px: el rótulo largo se cortaría a la mitad. */}
+            <span className="md:hidden">Contrato</span>
+            <span className="hidden md:inline">Objeto de la contratación</span>
+          </span>
+          <span role="columnheader" className={cn(CELDA_MD, "truncate")}>Entidad y zona</span>
+          <span role="columnheader" className={cn(CELDA_XL, "truncate")}>Tipo y etapa</span>
+          <span role="columnheader" className={cn(CELDA_MD, "truncate")}>Estado de lectura</span>
+          <span role="columnheader" className="truncate text-right">Valor ref.</span>
+          <span role="columnheader" className={cn(CELDA_MD, "truncate text-right")}>Convocada</span>
+        </div>
+        <div role="columnheader" className={cn(ANCHO_IR, "shrink-0 border-l border-line")}>
+          <span className="sr-only">Dossier</span>
+        </div>
       </div>
-      <div className={cn(ANCHO_IR, "shrink-0 border-l border-line")} />
     </div>
   );
 }
@@ -267,7 +293,7 @@ function Cabecera() {
 /** Mismo alto y misma rejilla que la fila real: la tabla no debe saltar al terminar de cargar. */
 function SkeletonFilaTabla() {
   return (
-    <li className="border-b border-line last:border-b-0" aria-hidden>
+    <div className="border-b border-line last:border-b-0" aria-hidden>
       <div className="flex items-stretch">
         <div className={cn(REJILLA, ALTO_FILA, PAD_FILA, "min-w-0 flex-1")}>
           <Skeleton className="h-3 w-3 rounded-full" />
@@ -280,7 +306,7 @@ function SkeletonFilaTabla() {
         </div>
         <div className={cn(ANCHO_IR, "shrink-0 border-l border-line")} />
       </div>
-    </li>
+    </div>
   );
 }
 

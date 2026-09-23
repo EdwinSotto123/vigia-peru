@@ -2,9 +2,28 @@
 
 import { ExternalLink, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { severidadColor } from "@/lib/formato";
+import { reglaLabel } from "@/lib/auditoria";
 import { redactDnis } from "../../Redact";
+import { evidenciaComoTexto } from "./Evidencia";
 
-export function CumplimientoNormativoSection({ nc }: { nc: any }) {
+const FUENTE_HALLAZGO: Record<string, string> = {
+  compliance_rule: "Reglas de contratación",
+  legal_analyst_red_flag: "Análisis legal",
+  market_spec_restrictiva: "Precios de mercado",
+  market_sobreprecio: "Precios de mercado",
+  parser_red_flag: "Lectura del expediente",
+  person_cruce: "Red de personas",
+};
+
+export function CumplimientoNormativoSection({
+  nc,
+  sobreprecioMedido = true,
+}: {
+  nc: any;
+  /** false cuando el agente de precios no pudo medir el sobreprecio: esas filas se marcan no verificables. */
+  sobreprecioMedido?: boolean;
+}) {
   const evals: any[] = nc?.evaluaciones || [];
   const conOpinion = evals.filter((e: any) => e.opinion_oece);
   const sinOpinion = evals.filter((e: any) => !e.opinion_oece);
@@ -13,17 +32,16 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
       <div className="border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-              <Scale size={11} className="mr-1 inline" />
-              evaluate_normative_compliance · RAG sobre 723 opiniones OECE
-            </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-ink">
+            <h2 className="font-serif text-xl font-bold text-ink">
               Cumplimiento normativo
             </h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-mute">
+              <Scale size={11} aria-hidden /> Cada hallazgo contrastado con las opiniones jurídicas del OECE
+            </p>
           </div>
           <div className="shrink-0 text-right">
             <div className="font-mono text-2xl font-bold text-heroViolet">{evals.length}</div>
-            <div className="text-[10px] uppercase tracking-wider text-mute">hallazgos evaluados</div>
+            <div className="text-[11px] text-mute">hallazgos evaluados</div>
           </div>
         </div>
         <p className="mt-1 text-xs text-mute">
@@ -46,7 +64,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                 <th className="px-3 py-2 font-bold uppercase tracking-wider">Hallazgo / bandera</th>
                 <th className="px-3 py-2 font-bold uppercase tracking-wider">Severidad</th>
                 <th className="px-3 py-2 font-bold uppercase tracking-wider">Opinión OECE relacionada</th>
-                <th className="px-3 py-2 font-bold uppercase tracking-wider">Score</th>
+                <th className="px-3 py-2 font-bold uppercase tracking-wider" title="Qué tan parecida es la opinión al hallazgo (búsqueda semántica)">Parecido</th>
               </tr>
             </thead>
             <tbody>
@@ -57,20 +75,25 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                   <tr key={i} className="border-b border-line/50 align-top hover:bg-paper">
                     <td className="px-3 py-2 text-mute">
                       <span className="rounded bg-paperDeep px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-heroViolet">
-                        {(h.fuente || "").replace(/_/g, " ")}
+                        {FUENTE_HALLAZGO[h.fuente] ?? String(h.fuente || "").replace(/_/g, " ")}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-ink">
-                      <div className="font-semibold leading-tight">{h.titulo}</div>
-                      <div className="mt-0.5 text-[11px] text-mute">{redactDnis(h.descripcion)}</div>
+                      <div className="font-semibold leading-tight">
+                        {/^[a-z0-9_]+$/.test(String(h.titulo || "")) ? reglaLabel(h.titulo) : h.titulo}
+                        {!sobreprecioMedido && h.fuente === "market_sobreprecio" && (
+                          <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-[10px] font-normal text-mute">
+                            no verificable
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-mute">{redactDnis(typeof h.descripcion === "string" ? h.descripcion : evidenciaComoTexto(h.descripcion))}</div>
                     </td>
                     <td className="px-3 py-2">
                       <span className={cn(
-                        "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
-                        h.severidad === "alta"  ? "bg-rust text-paper" :
-                        h.severidad === "media" ? "bg-amber text-paper" :
-                                                  "bg-paperDeep text-mute",
-                      )}>● {h.severidad || "media"}</span>
+                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                        severidadColor(h.severidad === "alta" || h.severidad === "media" ? h.severidad : "baja"),
+                      )}>{h.severidad || "media"}</span>
                     </td>
                     <td className="px-3 py-2 text-ink">
                       {op ? (
@@ -81,7 +104,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
                           </div>
                           {(op.art_ley || op.art_reglamento) && (
                             <div className="text-[10px] text-mute">
-                              {op.art_ley && <>Ley {op.art_ley}{op.art_reglamento ? " · " : ""}</>}
+                              {op.art_ley && <>Ley {op.art_ley}{op.art_reglamento ? ", " : ""}</>}
                               {op.art_reglamento && <>Reglamento {op.art_reglamento}</>}
                             </div>
                           )}
@@ -120,7 +143,7 @@ export function CumplimientoNormativoSection({ nc }: { nc: any }) {
 
       {sinOpinion.length > 0 && (
         <div className="border-t border-line bg-paperSoft px-5 py-2 text-[10px] text-mute">
-          {conOpinion.length} de {evals.length} hallazgos tienen opinión OECE relacionada (matching ≥ umbral).
+          {conOpinion.length} de {evals.length} hallazgos tienen una opinión del OECE lo bastante parecida para citarla.
         </div>
       )}
     </section>

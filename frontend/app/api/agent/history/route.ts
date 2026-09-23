@@ -5,6 +5,7 @@
  * corrió y persistió el dictamen). Proxy a la Cloud Function en GCP.
  */
 import { NextResponse } from "next/server";
+import { esAlertaDemo } from "@/lib/semillas";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,15 @@ export async function GET(req: Request) {
       );
     }
     const data = await r.json();
+    // Fuera las alertas de DEMO sembradas en la base (ALT-2026-00xx, con RUC y
+    // montos inventados) y las filas sin OCID o sin fecha de análisis: no hay
+    // dossier real detrás, y listarlas es presentar como hecho algo que nadie leyó.
+    if (Array.isArray(data?.items)) {
+      data.items = data.items.filter(
+        (it: any) => it && !esAlertaDemo(it) && !!it.ocid && !!it.analizado_en,
+      );
+      data.count = data.items.length;
+    }
     return NextResponse.json(data, {
       headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" },
     });

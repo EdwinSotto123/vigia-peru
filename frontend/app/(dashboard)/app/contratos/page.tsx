@@ -6,7 +6,8 @@ import { getContratos, getResumenContratos, parseContratosQuery } from "@/lib/co
 import { getZonas } from "@/lib/financiamiento";
 
 export const metadata = {
-  title: "Contratos — Vigía Perú",
+  // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
+  title: "Contratos",
   description: "Todos los contratos públicos del SEACE ingeridos por Vigía, con su tipo, etapa, zona y estado de análisis.",
 };
 

@@ -1,99 +1,111 @@
 "use client";
 
-import { AlertTriangle, Award, Calendar, CheckCircle2, FileText } from "lucide-react";
+import { AlertTriangle, Award, Calendar, FilePen, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { reglaLabel } from "@/lib/auditoria";
+import { redactDnis } from "../../Redact";
+import { evidenciaComoTexto } from "./Evidencia";
 
-export function CronologiaSection({ convocatoria }: { convocatoria: any }) {
+/**
+ * La línea de tiempo del proceso, con las fechas reales del registro OCDS.
+ *
+ * Antes rotulaba la fecha de buena pro como "Cierre presentación" y juzgaba el
+ * plazo contra mínimos legales escritos a mano (22, 12, 8, 5 días) que no
+ * salían de ninguna regla del backend. Ahora solo dice lo que el registro trae:
+ * las fechas y los días entre una y otra. Si una regla de plazo sí disparó, se
+ * muestra su señal, con su evidencia.
+ */
+
+const DIA = 86_400_000;
+function diasEntre(a: string, b: string): number | null {
+  const pa = /^(\d{4})-(\d{2})-(\d{2})/.exec(a);
+  const pb = /^(\d{4})-(\d{2})-(\d{2})/.exec(b);
+  if (!pa || !pb) return null;
+  const ta = Date.UTC(+pa[1], +pa[2] - 1, +pa[3]);
+  const tb = Date.UTC(+pb[1], +pb[2] - 1, +pb[3]);
+  return Math.round((tb - ta) / DIA);
+}
+
+type Paso = { key: string; label: string; fecha: string; icon: React.ReactNode };
+
+export function CronologiaSection({ convocatoria, banderas = [] }: { convocatoria: any; banderas?: any[] }) {
   const c = convocatoria || {};
-  const steps = [
-    { key: "pub", label: "Publicación", fecha: c.fecha_publicacion, icon: <FileText size={12} /> },
-    { key: "ini", label: "Inicio convocatoria", fecha: c.fecha_inicio, icon: <Calendar size={12} /> },
-    { key: "fin", label: "Cierre presentación", fecha: c.fecha_fin, icon: <Calendar size={12} /> },
-    { key: "bp",  label: "Buena pro", fecha: c.fecha_buena_pro, icon: <Award size={12} /> },
-  ].filter(s => s.fecha);
+  const mismaPresentacion = c.fecha_inicio && c.fecha_fin && c.fecha_inicio === c.fecha_fin;
+  const candidatos: (Paso | null)[] = [
+    c.fecha_publicacion ? { key: "pub", label: "Convocatoria publicada", fecha: c.fecha_publicacion, icon: <FileText size={12} /> } : null,
+    mismaPresentacion
+      ? { key: "ofe", label: "Presentación de ofertas", fecha: c.fecha_inicio, icon: <Calendar size={12} /> }
+      : c.fecha_inicio
+        ? { key: "ini", label: "Inicio de presentación", fecha: c.fecha_inicio, icon: <Calendar size={12} /> }
+        : null,
+    !mismaPresentacion && c.fecha_fin ? { key: "fin", label: "Cierre de presentación", fecha: c.fecha_fin, icon: <Calendar size={12} /> } : null,
+    c.fecha_buena_pro ? { key: "bp", label: "Buena pro", fecha: c.fecha_buena_pro, icon: <Award size={12} /> } : null,
+    c.fecha_contrato ? { key: "ctr", label: "Firma del contrato", fecha: c.fecha_contrato, icon: <FilePen size={12} /> } : null,
+  ];
+  const steps = candidatos.filter((s): s is Paso => !!s);
 
-  if (steps.length === 0) return null;
+  const senalPlazo = (banderas || []).find((b: any) => /plazo/i.test(String(b?.regla || "")));
 
-  // Verificación de plazo entre inicio y buena pro
-  let plazo_dias: number | null = null;
-  let plazo_ok: boolean | null = null;
-  let plazo_minimo_legal: number | null = null;
-  if (c.fecha_inicio && c.fecha_buena_pro) {
-    const d1 = new Date(c.fecha_inicio);
-    const d2 = new Date(c.fecha_buena_pro);
-    plazo_dias = Math.round((d2.getTime() - d1.getTime()) / 86400000);
-    const tp = (c.tipo_proceso || "").toUpperCase();
-    if (tp.includes("LICITACION") || tp.includes("CONCURSO")) plazo_minimo_legal = 22;
-    else if (tp.includes("SUBASTA")) plazo_minimo_legal = 12;
-    else if (tp.includes("ADJUDICACION SIMPLIFICADA") || tp.includes("AS-")) plazo_minimo_legal = 8;
-    else if (tp.includes("COMPARACION")) plazo_minimo_legal = 5;
-    if (plazo_minimo_legal != null && plazo_dias != null) {
-      plazo_ok = plazo_dias >= plazo_minimo_legal;
-    }
-  }
+  if (steps.length === 0 && !senalPlazo) return null;
 
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-          <Calendar size={11} className="mr-1 inline" />
-          Cronología del expediente
+        <h2 className="font-serif text-xl font-bold text-ink">Línea de tiempo del proceso</h2>
+        <p className="mt-0.5 text-[12px] text-mute">
+          Fechas del registro OCDS publicado por el OECE
+          {c.tipo_proceso && (
+            <>
+              {" "}para un proceso de <strong className="font-semibold text-ink">{c.tipo_proceso}</strong>
+            </>
+          )}
+          .
+        </p>
+      </div>
+      {steps.length > 0 && (
+        <div className="overflow-x-auto px-5 py-6">
+          <ol className="flex min-w-max items-start">
+            {steps.map((s, i) => {
+              const siguiente = steps[i + 1];
+              const gap = siguiente ? diasEntre(s.fecha, siguiente.fecha) : null;
+              return (
+                <li key={s.key} className="flex items-start">
+                  <div className="flex w-36 flex-col items-start">
+                    <div
+                      className={cn(
+                        "grid h-10 w-10 place-items-center rounded-full ring-4 ring-paper",
+                        i === steps.length - 1 ? "bg-heroViolet text-paper" : "bg-paperDeep text-inkSoft",
+                      )}
+                      aria-hidden
+                    >
+                      {s.icon}
+                    </div>
+                    <div className="mt-2 text-[12px] font-semibold text-ink">{s.label}</div>
+                    <div className="mt-0.5 font-mono text-xs text-inkSoft">{s.fecha}</div>
+                  </div>
+                  {siguiente && (
+                    <div className="mt-5 flex w-20 flex-col items-center">
+                      <div className="h-px w-full bg-line" />
+                      {gap !== null && (
+                        <span className="mt-1 text-[11px] tabular-nums text-mute">
+                          {gap} {Math.abs(gap) === 1 ? "día" : "días"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-          Línea de tiempo del proceso
-        </h2>
-        {c.tipo_proceso && (
-          <p className="mt-1 text-xs text-mute">Tipo de proceso: <strong className="text-ink">{c.tipo_proceso}</strong></p>
-        )}
-      </div>
-      <div className="overflow-x-auto px-5 py-6">
-        <ol className="relative flex min-w-max items-start gap-4 pl-2">
-          {/* línea horizontal */}
-          <div className="absolute left-2 right-2 top-5 h-px bg-line" />
-          {steps.map((s, i) => (
-            <li key={s.key} className="relative z-10 flex w-40 flex-col items-start">
-              <div className={cn(
-                "grid h-10 w-10 place-items-center rounded-full ring-4 ring-paper text-paper",
-                i === steps.length - 1 ? "bg-heroViolet" : "bg-mute",
-              )}>
-                {s.icon}
-              </div>
-              <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-                {s.label}
-              </div>
-              <div className="mt-0.5 font-mono text-xs text-ink">{s.fecha}</div>
-            </li>
-          ))}
-        </ol>
-      </div>
-      {plazo_dias != null && (
-        <div className={cn(
-          "border-t border-line px-5 py-3 text-xs",
-          plazo_ok === false ? "bg-crimson-soft" : "bg-paperSoft",
-        )}>
-          <div className="flex flex-wrap items-baseline gap-2">
-            <strong className="text-ink">Plazo entre inicio y buena pro:</strong>
-            <span className="font-mono font-bold text-ink">{plazo_dias} días</span>
-            {plazo_minimo_legal != null && (
-              <>
-                <span className="text-mute">·</span>
-                <span className="text-mute">Mínimo legal {c.tipo_proceso}:</span>
-                <span className="font-mono text-ink">{plazo_minimo_legal} días</span>
-                {plazo_ok === false && (
-                  <span className="ml-2 rounded-full bg-rust px-2 py-0.5 text-[10px] font-bold text-paper">
-                    <AlertTriangle size={9} className="mr-1 inline" />
-                    INCUMPLE PLAZO LEGAL
-                  </span>
-                )}
-                {plazo_ok === true && (
-                  <span className="ml-2 rounded-full bg-moss/30 px-2 py-0.5 text-[10px] font-bold text-moss">
-                    <CheckCircle2 size={9} className="mr-1 inline" />
-                    cumple plazo
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+      )}
+      {senalPlazo && (
+        <div className="border-t border-line bg-crimson-soft/60 px-5 py-3 text-[12px] leading-relaxed text-inkSoft">
+          <p className="flex items-center gap-1.5 font-semibold text-crimsonTexto">
+            <AlertTriangle size={12} aria-hidden /> {reglaLabel(String(senalPlazo.regla))}
+          </p>
+          {evidenciaComoTexto(senalPlazo.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(senalPlazo.evidencia))}</p>}
+          {senalPlazo.norma && <p className="mt-0.5 text-[11px] text-mute">Norma: {senalPlazo.norma}</p>}
         </div>
       )}
     </section>

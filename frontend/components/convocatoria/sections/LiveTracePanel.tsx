@@ -22,12 +22,12 @@ export function LiveTracePanel({ events }: { events: any[] }) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline gap-2">
           <span className="h-1.5 w-1.5 animate-pulse self-center rounded-full bg-moss" />
-          <h3 className="font-serif text-sm font-bold text-ink">Tracking del análisis · en vivo</h3>
+          <h3 className="font-serif text-sm font-bold text-ink">Seguimiento del análisis en vivo</h3>
           <span className="font-mono text-[10px] text-mute">{steps.length} pasos</span>
         </div>
         <div className="flex gap-1.5 font-mono text-[9px]">
-          {nTools > 0 && <span className="rounded bg-amber-soft px-1.5 py-0.5 font-bold text-amberTexto">{nTools} tool calls</span>}
-          {nRes > 0 && <span className="rounded bg-moss/10 px-1.5 py-0.5 font-bold text-moss">{nRes} resultados</span>}
+          {nTools > 0 && <span className="rounded bg-amber-soft px-1.5 py-0.5 font-bold text-amberTexto">{nTools} consultas</span>}
+          {nRes > 0 && <span className="rounded bg-moss/10 px-1.5 py-0.5 font-bold text-mossTexto">{nRes} resultados</span>}
         </div>
       </div>
       <ol className="max-h-[440px] divide-y divide-line overflow-y-auto">

@@ -56,7 +56,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
       const cls = ev.pct >= 80 ? "border-moss/40 bg-moss/10 text-moss" : ev.pct >= 50 ? "border-amber/40 bg-amber-soft text-amberTexto" : "border-rust/40 bg-crimson-soft text-rust";
       return (
         <span className={cn("pill text-[10px] font-semibold tabular-nums", cls)}>
-          {ev.pct}%{ev.n ? ` · ${ev.ok} de ${ev.n}` : ""}
+          {ev.pct}%{ev.n ? ` (${ev.ok} de ${ev.n})` : ""}
         </span>
       );
     }
@@ -83,13 +83,13 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
               href="https://app.phoenix.arize.com/s/edwin-soto-c"
               target="_blank"
               rel="noreferrer"
-              title={`Trace ID: ${m.phoenix_trace_id} — abre el proyecto vigia-peru en Phoenix y busca este ID`}
+              title={`Identificador de la traza: ${m.phoenix_trace_id}. Abre el proyecto vigia-peru en Phoenix y búscalo`}
               className="inline-flex items-center gap-1 rounded-full bg-heroGreen/20 px-2 py-0.5 font-semibold text-heroGreen transition-colors duration-rapido hover:bg-heroGreen/30"
             >
               Ver la traza completa <ExternalLink size={10} aria-hidden />
             </a>
           ) : null}
-          <span className="font-mono">Arize Phoenix Cloud · <b className="text-paper">vigia-peru</b></span>
+          <span>Trazas en Arize Phoenix</span>
         </div>
       </header>
 
@@ -100,7 +100,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
             <CheckCircle2 size={13} className="text-moss" aria-hidden />
             {hechos > 0 ? `${hechos} de ${EVALS.length} evaluadores ya revisaron este análisis` : `${EVALS.length} evaluadores revisan el análisis al cerrar`}
           </h3>
-          <span className="text-[11px] text-mute">4 con LLM como juez · 4 deterministas en código</span>
+          <span className="text-[11px] text-mute">4 con un modelo como juez, 4 deterministas en código</span>
         </div>
         <ul className="divide-y divide-line/60">
           {EVALS.map((e) => {
@@ -114,7 +114,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
                     <p className="mt-1 border-l-2 border-line pl-2 text-[11px] italic leading-snug text-mute">{ev.reason}</p>
                   )}
                   {Array.isArray(ev?.faltantes) && ev.faltantes.length > 0 && (
-                    <p className="mt-1 text-[11px] font-medium text-rust">faltó: {ev.faltantes.join(" · ")}</p>
+                    <p className="mt-1 text-[11px] font-medium text-crimsonTexto">faltó: {ev.faltantes.join(", ")}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">

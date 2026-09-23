@@ -33,7 +33,7 @@ export function TracePhaseGroup({
   const distintas = Array.from(new Set(tools.map((e) => e.ev.name).filter(Boolean))) as string[];
   const resumen =
     tools.length > 0
-      ? `${tools.length} ${tools.length === 1 ? "llamada" : "llamadas"} · ${distintas.slice(0, 3).join(", ")}${distintas.length > 3 ? ` +${distintas.length - 3}` : ""}`
+      ? `${tools.length} ${tools.length === 1 ? "llamada" : "llamadas"}: ${distintas.slice(0, 3).join(", ")}${distintas.length > 3 ? ` y ${distintas.length - 3} más` : ""}`
       : transferTo
         ? `delega en ${nombreDeAgente(transferTo)}`
         : hasThought

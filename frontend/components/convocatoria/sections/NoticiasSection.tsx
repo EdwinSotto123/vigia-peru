@@ -19,11 +19,13 @@ export function NoticiasSection({ news }: { news: any }) {
     return fb.localeCompare(fa);
   });
 
+  // Texto blanco sobre ámbar no llega a 4.5:1: la media va en su fondo suave
+  // con el tono de TEXTO del ámbar.
   const sevColor = (s: string) =>
     s === "alta"  ? "bg-rust text-paper" :
-    s === "media" ? "bg-amber text-paper" :
-    s === "baja"  ? "bg-paperDeep text-mute" :
-                    "bg-paperSoft text-mute";
+    s === "media" ? "bg-amber-soft text-amberTexto" :
+    s === "baja"  ? "bg-paperDeep text-inkSoft" :
+                    "bg-paperSoft text-inkSoft";
 
   const catLabel: Record<string, string> = {
     corrupcion: "Corrupción",
@@ -41,13 +43,12 @@ export function NoticiasSection({ news }: { news: any }) {
       <div className="border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-              <Eye size={11} className="mr-1 inline" />
-              news_research_agent · cobertura periodística
-            </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-ink">
+            <h2 className="font-serif text-xl font-bold text-ink">
               Noticias y prensa
             </h2>
+            <p className="mt-0.5 text-[12px] text-mute">
+              Cobertura periodística sobre el proveedor, la entidad y lo que se compró
+            </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-1 text-[10px]">
             {porSeveridad.alta > 0 && (
@@ -56,18 +57,18 @@ export function NoticiasSection({ news }: { news: any }) {
               </span>
             )}
             {porSeveridad.media > 0 && (
-              <span className="rounded-full bg-amber px-2 py-0.5 font-bold text-paper">
+              <span className="rounded-full bg-amber-soft px-2 py-0.5 font-bold text-amberTexto">
                 {porSeveridad.media} media
               </span>
             )}
             {porSeveridad.baja > 0 && (
-              <span className="rounded-full bg-paperSoft px-2 py-0.5 font-bold text-mute">
+              <span className="rounded-full bg-paperSoft px-2 py-0.5 font-bold text-inkSoft">
                 {porSeveridad.baja} baja
               </span>
             )}
             {porSeveridad.info > 0 && (
-              <span className="rounded-full bg-paperSoft px-2 py-0.5 font-bold text-mute">
-                {porSeveridad.info} info
+              <span className="rounded-full bg-paperSoft px-2 py-0.5 font-bold text-inkSoft">
+                {porSeveridad.info} informativa{porSeveridad.info === 1 ? "" : "s"}
               </span>
             )}
           </div>
@@ -92,7 +93,7 @@ export function NoticiasSection({ news }: { news: any }) {
                     "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
                     sevColor(b.severidad),
                   )}>● {b.severidad || "media"}</span>
-                  <strong className="text-ink">{b.titulo}</strong>
+                  <strong className="text-ink">{redactDnis(b.titulo)}</strong>
                 </div>
                 <p className="mt-1 text-inkSoft">{redactDnis(b.descripcion)}</p>
                 {b.url && (
@@ -111,11 +112,10 @@ export function NoticiasSection({ news }: { news: any }) {
       {sinMenciones || ordenadas.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-mute">
           <Eye size={20} className="mx-auto mb-2 text-mute opacity-50" />
-          {news?.resumen_ejecutivo
-            ? news.resumen_ejecutivo
-            : "Sin menciones relevantes en prensa peruana para los actores investigados."}
+          {/* La síntesis ya va en la cabecera: acá no se repite. */}
+          Sin menciones relevantes en prensa peruana para los actores investigados.
           <p className="mt-2 text-[11px] text-mute">
-            La ausencia de cobertura no implica ausencia de riesgo — solo significa que no hubo notas
+            Que no haya cobertura no significa que no haya riesgo: solo que no hubo notas
             indexadas sobre estos actores en el período consultado.
           </p>
         </div>
@@ -125,7 +125,7 @@ export function NoticiasSection({ news }: { news: any }) {
             const dotColor =
               n.severidad === "alta"  ? "bg-rust" :
               n.severidad === "media" ? "bg-amber" :
-              n.severidad === "baja"  ? "bg-paperDeep" : "bg-heroViolet";
+              n.severidad === "baja"  ? "bg-mute" : "bg-heroViolet";
             return (
               <li key={i} className="relative pl-10 pr-5 pb-5">
                 {/* dot del timeline */}
@@ -138,15 +138,15 @@ export function NoticiasSection({ news }: { news: any }) {
                 <div className="rounded-lg border border-line bg-paperSoft p-3 hover:border-heroViolet transition-colors">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="font-mono text-[10px] text-mute">
-                      {n.fecha || "fecha N/D"}
+                      {n.fecha || "sin fecha"}
                     </span>
                     <span className={cn(
                       "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
                       sevColor(n.severidad),
-                    )}>● {n.severidad || "info"}</span>
+                    )}>● {n.severidad === "info" || !n.severidad ? "informativa" : n.severidad}</span>
                     {n.categoria && (
                       <span className="rounded-md bg-paperDeep px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-mute">
-                        {catLabel[n.categoria] || n.categoria}
+                        {catLabel[n.categoria] || String(n.categoria).replace(/_/g, " ")}
                       </span>
                     )}
                     {n.fuente && (
@@ -155,14 +155,14 @@ export function NoticiasSection({ news }: { news: any }) {
                   </div>
                   {n.titulo && (
                     <h3 className="mt-2 text-sm font-bold leading-snug text-ink">
-                      {n.titulo}
+                      {redactDnis(n.titulo)}
                     </h3>
                   )}
                   <p className="mt-1 text-xs leading-relaxed text-inkSoft">{redactDnis(n.resumen)}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
                     {n.actor_principal && (
                       <span className="rounded-md bg-paper px-2 py-0.5 text-mute">
-                        sobre <strong className="text-ink">{n.actor_principal}</strong>
+                        sobre <strong className="text-ink">{redactDnis(n.actor_principal)}</strong>
                       </span>
                     )}
                     {n.url && (
@@ -189,8 +189,8 @@ export function NoticiasSection({ news }: { news: any }) {
             {Object.entries(porActor).map(([actor, n]: any) => (
               <span key={actor}
                     className="inline-flex items-center gap-1.5 rounded-md bg-paper px-2 py-0.5 text-[11px] text-ink">
-                <strong>{actor}</strong>
-                <span className="font-mono text-mute">×{n}</span>
+                <strong>{redactDnis(actor)}</strong>
+                <span className="font-mono text-mute">{String(n)} nota{Number(n) === 1 ? "" : "s"}</span>
               </span>
             ))}
           </div>

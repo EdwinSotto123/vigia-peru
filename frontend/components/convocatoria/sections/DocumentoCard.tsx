@@ -2,6 +2,8 @@
 
 import { AlertTriangle, Award, Coins, ExternalLink, Package, Scale, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
+import { formatoNormalizado } from "./DocumentosSection";
 
 export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) => string }) {
   const meta = doc.__doc_meta || {};
@@ -23,11 +25,11 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
           <div className="truncate text-sm font-semibold text-ink">
             {meta.titulo || "(sin título)"}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-mute">
-            {meta.format && <span className="font-mono">{meta.format.toUpperCase()}</span>}
-            {doc.size_bytes && <span>· {(doc.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
-            {meta.datePublished && <span>· {meta.datePublished.slice(0, 10)}</span>}
-            {doc.format_detectado && <span>· detectado: {doc.format_detectado}</span>}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-mute">
+            {meta.format && <span className="font-mono">{formatoNormalizado(meta.format).toUpperCase()}</span>}
+            {doc.size_bytes && <span>{(doc.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
+            {meta.datePublished && <span>{meta.datePublished.slice(0, 10)}</span>}
+            {doc.format_detectado && <span>detectado: {formatoNormalizado(doc.format_detectado)}</span>}
           </div>
         </div>
         {meta.url_oece && (
@@ -41,7 +43,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
         {hasError && (
           <div className="rounded-lg border border-rust/30 bg-crimson-soft px-2.5 py-2 text-[11px] text-rust">
             <AlertTriangle size={11} className="mr-1 inline" />
-            No se pudo procesar: <strong>{doc.error}</strong> · {doc.detail?.slice(0, 80)}
+            No se pudo leer este documento.
           </div>
         )}
 
@@ -93,12 +95,22 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
                 <li key={i} className="rounded-lg bg-amber-soft/50 px-2.5 py-1 text-[11px]">
                   <div className="flex items-center gap-2">
                     <Award size={10} className="text-amberTexto" />
-                    <span className="font-medium text-ink truncate flex-1">{p.razon_social || p.nombre || p.empresa || "—"}</span>
+                    <span className="font-medium text-ink truncate flex-1">
+                      {esPersonaNatural(p.ruc) ? (
+                        <PersonName name={p.razon_social || p.nombre || p.empresa} orden="sunat" />
+                      ) : (
+                        p.razon_social || p.nombre || p.empresa || "—"
+                      )}
+                    </span>
                     {(p.monto_oferta != null || p.monto != null) && (
                       <span className="font-mono text-mute">{fmtMoney(p.monto_oferta ?? p.monto)}</span>
                     )}
                   </div>
-                  {p.ruc && <div className="ml-4 font-mono text-[10px] text-mute">RUC {p.ruc}</div>}
+                  {p.ruc && (
+                    <div className="ml-4 font-mono text-[10px] text-mute">
+                      RUC <Ruc value={p.ruc} />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -124,7 +136,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
         {fundamento.length > 0 && (
           <div className="text-[10px] text-mute">
             <Scale size={10} className="mr-1 inline" />
-            Fundamento: {fundamento.slice(0, 2).join(" · ")}
+            Fundamento: {fundamento.slice(0, 2).join("; ")}
           </div>
         )}
 

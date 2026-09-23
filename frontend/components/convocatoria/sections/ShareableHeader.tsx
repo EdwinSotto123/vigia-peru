@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ExternalLink, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { oeceProcesoUrl } from "../utils";
 
@@ -9,27 +9,25 @@ export function ShareableHeader({
   conv,
   codigo,
   nAlta,
-  totalSec,
-  eventsADK,
   onReset,
 }: {
   conv: any;
   codigo: string;
   nAlta: number;
+  /** Ya no se muestran: se aceptan para no romper a quien todavía los pase. */
   totalSec?: number;
-  eventsADK: number;
+  eventsADK?: number;
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
 
   const handleShare = async () => {
     try {
       const url = `${typeof window !== "undefined" ? window.location.origin : ""}/app/convocatoria/${codigo}`;
       if (navigator.share) {
         await navigator.share({
-          title: `Vigía Perú · ${conv.objeto?.slice(0, 80) || "Análisis"}`,
-          text: `Análisis automático de la convocatoria ${codigo}: ${nAlta} bandera${nAlta === 1 ? "" : "s"} de alta severidad. Verificalo:`,
+          title: `Vigía Perú: ${conv.objeto?.slice(0, 80) || "análisis de un contrato"}`,
+          text: `Análisis automático de la convocatoria ${codigo}: ${nAlta} ${nAlta === 1 ? "señal" : "señales"} de severidad alta. Revísalo tú mismo:`,
           url,
         });
       } else {
@@ -38,60 +36,75 @@ export function ShareableHeader({
         setTimeout(() => setCopied(false), 2000);
       }
     } catch {
-      // user cancelled share dialog
+      // la persona cerró el diálogo de compartir
     }
   };
 
   const oeceUrl = oeceProcesoUrl(conv.ocid || codigo);
+  const buenaPro = conv.fecha_buena_pro ?? null;
 
   return (
     <header className="surface px-4 py-3">
-      {/* TOP ROW: código + acciones */}
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[11px] font-bold text-mute">#{codigo}</span>
-        {conv.fecha_fin && (
-          <span className="text-[11px] text-mute">· Buena pro {conv.fecha_fin}</span>
-        )}
-        <span className="ml-auto flex items-center gap-1">
+      {/* Fila superior: código y fecha a la izquierda (se apilan si falta ancho), acciones a la derecha. */}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        {/* min-w: sin piso, esta columna se encogía a cero en móvil y el código
+            y la fecha quedaban debajo de los botones en vez de envolver. */}
+        <div className="min-w-[9.5rem] flex-1">
+          <div className="font-mono text-[12px] font-bold text-mute">#{codigo}</div>
+          {buenaPro && <div className="whitespace-nowrap text-[12px] text-mute">Buena pro: {buenaPro}</div>}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[10px] font-semibold text-ink hover:bg-paperDeep"
-            title="Nueva búsqueda"
+            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
           >
-            <RotateCcw size={10} /> Nueva
+            <ArrowLeft size={11} aria-hidden /> Otro contrato
           </button>
           <a
             href={oeceUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[10px] font-semibold text-ink hover:bg-paperDeep"
-            title="Ver en portal oficial OECE"
+            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
+            title="Ver este proceso en el portal oficial del OECE"
           >
-            <ExternalLink size={10} /> OECE
+            <ExternalLink size={11} aria-hidden /> OECE
           </a>
           <button
             type="button"
             onClick={handleShare}
+            aria-live="polite"
             className={cn(
-              "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-paper transition-colors",
-              copied ? "bg-moss" : "bg-heroViolet hover:bg-heroViolet/90",
+              "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-paper transition-colors",
+              copied ? "bg-mossTexto" : "bg-heroViolet hover:bg-heroViolet/90",
             )}
-            title={copied ? "Link copiado" : "Copiar link compartible"}
+            title={copied ? "Enlace copiado" : "Copiar el enlace para compartir"}
           >
             {copied ? (
-              <><CheckCircle2 size={11} /> Copiado</>
+              <>
+                <CheckCircle2 size={11} aria-hidden /> Copiado
+              </>
             ) : (
-              <><Sparkles size={11} /> Compartir</>
+              <>
+                <Share2 size={11} aria-hidden /> Compartir
+              </>
             )}
           </button>
-        </span>
+        </div>
       </div>
 
-      {/* OBJETO — h2 más compacto */}
-      <h1 className="mt-2 font-serif text-lg font-bold leading-snug text-ink sm:text-xl">
-        {conv.objeto}
-      </h1>
+      <h1 className="mt-2 break-words font-serif text-lg font-bold leading-snug text-ink sm:text-xl">{objetoCompleto(conv.objeto)}</h1>
     </header>
   );
+}
+
+/**
+ * El objeto llega de SEACE cortado a 300 caracteres, a veces a mitad de un
+ * paréntesis ("…EMP. CU-989 ("). Si viene al tope y no cierra en puntuación, se
+ * marca como cortado en vez de parecer un título que termina en "(".
+ */
+function objetoCompleto(objeto?: string | null): string {
+  const t = (objeto ?? "").trim();
+  if (t.length < 295 || /[.…)"»]$/.test(t)) return t;
+  return `${t.replace(/[\s(,;:-]+$/, "")}…`;
 }

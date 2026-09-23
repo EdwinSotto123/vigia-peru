@@ -19,7 +19,7 @@ function ExpandableThought({ text }: { text: string }) {
       {text}
       {truncated && (
         <span className="ml-1 not-italic font-semibold text-heroViolet">
-          {open ? " · cerrar" : ""}
+          {open ? "(cerrar)" : ""}
         </span>
       )}
     </div>
@@ -84,15 +84,15 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
               )}
               {ev.kind === "tool_result" && (
                 <div className="truncate">
-                  <span className="font-semibold text-moss">↳ {ev.name}</span>
+                  <span className="font-semibold text-mossTexto">↳ {ev.name}</span>
                   <span className="ml-2 text-mute">
-                    {Object.keys(ev.result_preview || {}).slice(0, 3).join(" · ") || "ok"}
+                    {Object.keys(ev.result_preview || {}).slice(0, 3).join(", ") || "ok"}
                   </span>
                 </div>
               )}
               {ev.kind === "transfer" && (
                 <div className="truncate">
-                  <span className="font-bold text-amberTexto">transfer →</span>
+                  <span className="font-bold text-amberTexto">delega en →</span>
                   <span className="ml-1 text-ink">{fmtAgent(ev.to)}</span>
                 </div>
               )}

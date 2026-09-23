@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { Eye, ExternalLink, FileText, Loader2, X, Download } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
-import { tipoDocLabel, formatFecha, type ContratoDocumento } from "@/lib/contratos";
+import { esPdf, formatoDoc, tipoDocLabel, formatFecha, type ContratoDocumento } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 
 interface Firmada { url: string; formato: string; bytes: number | null; previsualizable: boolean; venceEnSeg: number }
@@ -19,19 +19,35 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
   const [abierto, setAbierto] = useState<{ doc: ContratoDocumento; f: Firmada } | null>(null);
   const [cargando, setCargando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enlace, setEnlace] = useState<{ url: string; titulo: string } | null>(null);
 
   async function ver(d: ContratoDocumento) {
     setError(null);
+    setEnlace(null);
     setCargando(d.url);
+    // Lo que no es PDF se abre en otra pestaña. Esa pestaña se abre YA, dentro del gesto
+    // del clic, y después se le pone la URL firmada: un `window.open` después de un
+    // `await` lo bloquean Safari en iOS y Firefox, y el botón "Bajar" no hacía nada.
+    // (Sin "noopener" en la llamada, que la haría devolver null; se corta a mano.)
+    const w = esPdf(d.formato) ? null : window.open("about:blank", "_blank");
+    if (w) w.opener = null;
     try {
       const res = await fetch(`${PUBLIC_API_BASE}/contratos/${encodeURIComponent(ocid)}/documento?url=${encodeURIComponent(d.url)}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.detail ?? j.error ?? `HTTP ${res.status}`);
       const f = j as Firmada;
-      if (f.previsualizable) setAbierto({ doc: d, f });
-      else window.open(f.url, "_blank", "noopener");
+      if (f.previsualizable) {
+        w?.close();
+        setAbierto({ doc: d, f });
+      } else if (w && !w.closed) {
+        w.location.href = f.url;
+      } else {
+        // El navegador bloqueó la pestaña: se deja el enlace firmado a mano, sin sacar a nadie de la página.
+        setEnlace({ url: f.url, titulo: d.titulo ?? tipoDocLabel(d.tipo) });
+      }
     } catch (e) {
-      setError((e as Error).message);
+      w?.close();
+      setError(`No se pudo abrir la copia de Vigía (${(e as Error).message}). El enlace “SEACE” abre el original.`);
     } finally {
       setCargando(null);
     }
@@ -56,7 +72,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
                 <span>{tipoDocLabel(d.tipo)}</span>
                 {d.seccion === "award" && <span>adjudicación</span>}
                 {d.seccion === "contract" && <span>contrato</span>}
-                {d.formato && <span className="font-mono">{d.formato.toUpperCase()}</span>}
+                {formatoDoc(d.formato) && <span className="font-mono">{formatoDoc(d.formato)!.toUpperCase()}</span>}
                 {d.fecha && <span>{formatFecha(d.fecha)}</span>}
                 {d.enVigia && <span>copia en Vigía</span>}
               </span>
@@ -67,10 +83,10 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
                 onClick={() => ver(d)}
                 disabled={cargando === d.url}
                 className="inline-flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-[11px] font-medium text-ink hover:bg-paperDeep disabled:opacity-60"
-                title={d.formato?.toLowerCase() === "pdf" ? "Vista previa" : "Descargar (enlace de 15 min)"}
+                title={esPdf(d.formato) ? "Vista previa" : "Descargar (enlace de 15 min)"}
               >
-                {cargando === d.url ? <Loader2 size={12} className="animate-spin" /> : d.formato?.toLowerCase() === "pdf" ? <Eye size={12} /> : <Download size={12} />}
-                {d.formato?.toLowerCase() === "pdf" ? "Ver" : "Bajar"}
+                {cargando === d.url ? <Loader2 size={12} className="animate-spin" /> : esPdf(d.formato) ? <Eye size={12} /> : <Download size={12} />}
+                {esPdf(d.formato) ? "Ver" : "Bajar"}
               </button>
             )}
             <a href={d.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-mute hover:text-ink" title="Abrir en el SEACE (fuente oficial)">
@@ -80,6 +96,15 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
         ))}
       </ul>
       {error && <p className="mt-2 text-[12px] text-rust">{error}</p>}
+      {enlace && (
+        <p className="mt-2 text-[12px] text-ink">
+          Documento listo:{" "}
+          <a href={enlace.url} target="_blank" rel="noopener noreferrer" className="font-medium text-heroViolet underline underline-offset-2">
+            abrir {enlace.titulo}
+          </a>{" "}
+          <span className="text-mute">(enlace válido por 15 minutos)</span>
+        </p>
+      )}
       {abierto && (
         <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-paper shadow-card">
           <div className="flex items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-[11px] text-mute">

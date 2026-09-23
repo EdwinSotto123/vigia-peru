@@ -41,12 +41,16 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-amber-soft px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amberTexto">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
-              procesando · {elapsed}s / ≈{Math.round(totalEta/60)}min
+              {/* Solo el tiempo transcurrido, que es un dato. El "≈11 min" salía de sumar
+                  estimaciones a mano y contradecía la mediana real de producción. */}
+              procesando, {elapsed} s
             </div>
             <h2 className="mt-2 font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
-              Flujo agéntico Vigía
+              Los agentes están leyendo el contrato
             </h2>
-            <p className="mt-0.5 font-mono text-xs text-mute">convocatoria {codigo} · {STEPS.length} pasos</p>
+            <p className="mt-0.5 text-xs text-mute">
+              Convocatoria <span className="font-mono">{codigo}</span>
+            </p>
           </div>
           <div className="text-right">
             <div className="font-mono text-3xl font-bold tabular-nums text-heroViolet">{progressPct}%</div>

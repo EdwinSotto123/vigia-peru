@@ -3,9 +3,13 @@
  *
  * Elige al azar una convocatoria del SEACE (ingestada en Cloud SQL). Por
  * defecto excluye las ya analizadas — sirve para "explorar una convocatoria
- * nueva sin saber cuál". Pasá ?todas=1 para incluir las analizadas.
+ * nueva sin saber cuál". Con ?todas=1 incluye las analizadas.
+ *
+ * Solo equipo: despierta al orquestador (8 GiB, una sola instancia) y su único
+ * uso es elegir un contrato para despachar un análisis pagado.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { exigirAdmin } from "../analyze/_admin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +17,9 @@ const ORCHESTRATOR_URL =
   process.env.VIGIA_AGENT_URL ||
   "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const noAdmin = await exigirAdmin(req);
+  if (noAdmin) return noAdmin;
   const { searchParams } = new URL(req.url);
   const todas = searchParams.get("todas") === "1";
   try {

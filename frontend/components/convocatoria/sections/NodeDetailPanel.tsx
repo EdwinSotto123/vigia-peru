@@ -2,8 +2,9 @@
 
 import { ExternalLink, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Dni, redactDnis } from "../../Redact";
+import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
 import type { GraphNode } from "../types";
+import { Evidencia } from "./Evidencia";
 
 export function NodeDetailPanel({
   node,
@@ -23,28 +24,28 @@ export function NodeDetailPanel({
     autoridad: "Autoridad pública vinculada",
     firmante_conflicto: "Firmante con conflicto",
     entidad: "Entidad contratante",
-    alcalde: "Alcalde / autoridad electa",
+    alcalde: "Alcalde o autoridad electa",
     funcionario_designado: "Funcionario designado",
     municipio_familiar: "Municipio donde trabaja un familiar",
     partido_compartido: "Partido político del municipio",
     postor_rival: "Postor rival (no ganador)",
-    socio_postor_conflicto: "⚠ Socio de postor rival = Funcionario público",
+    socio_postor_conflicto: "Socio de postor rival que es funcionario público",
     entidad_secundaria: "Entidad secundaria (doble vinculación)",
   };
   const kindColor: Record<GraphNode["kind"], string> = {
     person: "bg-[#7a3b2e] text-paper",
     pareja: "bg-[#7c3aed] text-paper",
     company_main: "bg-rust text-paper",
-    company_titular: "bg-amber text-paper",
+    company_titular: "bg-amber-soft text-amberTexto",
     company_domicilio: "bg-rust text-paper",
     party: "bg-rust text-paper",
     contract: "bg-[#a16207] text-paper",
     cargo_pasado: "bg-ink text-paper",
-    autoridad: "bg-amber text-paper",
+    autoridad: "bg-amber-soft text-amberTexto",
     firmante_conflicto: "bg-rust text-paper",
     entidad: "bg-[#1e3a8a] text-paper",
     alcalde: "bg-[#1e3a8a] text-paper",
-    funcionario_designado: "bg-[#3b82f6] text-paper",
+    funcionario_designado: "bg-[#1d4ed8] text-paper",
     municipio_familiar: "bg-[#6b21a8] text-paper",
     partido_compartido: "bg-rust text-paper",
     postor_rival: "bg-[#9a3412] text-paper",
@@ -59,9 +60,11 @@ export function NodeDetailPanel({
     links.push({ label: "OECE (búsqueda proveedor)", href: `https://contratacionesabiertas.oece.gob.pe/perfilProveedor/#!/transactions/${m.ruc}` });
   }
   if (m.dni) {
-    links.push({ label: "RENIEC (PerúConsulta)", href: `https://eldni.com/pe/buscar-por-dni?dni=${m.dni}` });
+    links.push({ label: "Buscar el DNI (eldni.com)", href: `https://eldni.com/pe/buscar-por-dni?dni=${m.dni}` });
   }
-  if (m.fuente_url) {
+  // Solo URLs públicas: el backend a veces deja "file://ERM2022…xlsx" o el
+  // nombre interno "person_network_context", que como enlace no llevan a nada.
+  if (m.fuente_url && /^https?:\/\//i.test(m.fuente_url)) {
     links.push({ label: "Fuente del dato", href: m.fuente_url });
   }
   if (m.partido) {
@@ -76,7 +79,7 @@ export function NodeDetailPanel({
             {kindLabel[node.kind]}
           </span>
           {m.rol && (
-            <span className="text-[10px] font-semibold text-mute">{m.rol}</span>
+            <span className="text-[10px] font-semibold text-mute">{String(m.rol).replace(/_/g, " ")}</span>
           )}
         </div>
         <button
@@ -84,6 +87,7 @@ export function NodeDetailPanel({
           onClick={onClose}
           className="rounded-md px-2 py-0.5 text-xs text-mute hover:bg-paperDeep hover:text-ink"
           title="Cerrar"
+          aria-label="Cerrar el detalle"
         >
           ✕
         </button>
@@ -91,7 +95,11 @@ export function NodeDetailPanel({
 
       <div className="p-4">
         <h4 className="font-serif text-lg font-bold leading-tight text-ink">
-          {m.razon_social || m.partido || m.institucion || m.entidad || node.label}
+          {/* Persona natural con negocio (RUC 10): la "razón social" es su nombre
+              en orden SUNAT; va con el apellido materno en vidrio. */}
+          {m.razon_social && esPersonaNatural(m.ruc)
+            ? <PersonName name={m.razon_social} orden="sunat" />
+            : m.razon_social || m.partido || m.institucion || m.entidad || node.label}
         </h4>
 
         {/* Detalles según tipo */}
@@ -99,7 +107,7 @@ export function NodeDetailPanel({
           {m.ruc && (
             <div className="rounded-md bg-paperSoft px-2 py-1.5">
               <dt className="text-[9px] uppercase tracking-widest text-mute">RUC</dt>
-              <dd className="font-mono font-bold text-ink">{m.ruc}</dd>
+              <dd className="font-mono font-bold text-ink"><Ruc value={m.ruc} /></dd>
             </div>
           )}
           {m.dni && (
@@ -134,14 +142,17 @@ export function NodeDetailPanel({
           )}
           {m.direccion && (
             <div className="col-span-full rounded-md bg-paperSoft px-2 py-1.5">
-              <dt className="text-[9px] uppercase tracking-widest text-mute">📍 Dirección</dt>
+              <dt className="text-[9px] uppercase tracking-widest text-mute">Dirección</dt>
               <dd className="text-ink">{m.direccion}</dd>
             </div>
           )}
           {m.observacion && (
             <div className="col-span-full rounded-md bg-crimson-soft px-2 py-1.5">
-              <dt className="text-[9px] uppercase tracking-widest text-rust">Observación</dt>
-              <dd className="italic text-rust">{redactDnis(m.observacion)}</dd>
+              <dt className="text-[9px] uppercase tracking-widest text-crimsonTexto">Observación</dt>
+              <dd className="italic text-crimsonTexto">
+                {/* La observación a veces llega como lista de citas: nunca se pinta el objeto crudo. */}
+                {typeof m.observacion === "string" ? redactDnis(m.observacion) : <Evidencia value={m.observacion} />}
+              </dd>
             </div>
           )}
           {m.objeto && (

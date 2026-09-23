@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { cn } from "@/lib/utils";
@@ -34,12 +34,60 @@ import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
  * con `preserveAspectRatio="none"` el hachurado se inclina y el texto se
  * estira. Antes de la primera medición el renglón ya ocupa su alto, así que
  * no hay salto de layout.
+ *
+ * Movimiento: la primera vez que el gráfico entra en pantalla, cada segmento
+ * crece desde la mediana de mercado hasta lo ofertado, así el ojo recorre la
+ * distancia que el renglón está midiendo. Lo que se pinta de entrada es SIEMPRE
+ * el estado final; la animación es un `<animate>` SVG que solo existe mientras
+ * corre, y no corre nunca con `prefers-reduced-motion: reduce`.
  */
 
 const ALTO = 26;
 const PAD = 5; // deja entrar la marca gruesa (8 px) en los extremos
 const ETIQUETAS_DIRECTAS = 4;
 const VISIBLES = 12;
+
+/** Crecimiento mediana → ofertado. Corto: es un gesto de lectura, no un espectáculo. */
+const CRECER_SEG = 0.7;
+const ESCALON_SEG = 0.04;
+const CURVA = "0.22 1 0.36 1";
+
+/** useLayoutEffect en el cliente, useEffect en el servidor (evita el aviso de SSR). */
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * `true` desde que el gráfico entra en pantalla por primera vez, si el
+ * sistema permite movimiento. Nunca vuelve a `false`: se anima una sola vez.
+ */
+function usarPrimeraVista(ref: React.RefObject<HTMLElement>, activo: boolean): boolean {
+  const [visto, setVisto] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!activo || !el || visto) return;
+    try {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    } catch {
+      return;
+    }
+    // Si ya está en pantalla al montar, se anima de una: esperar al observer
+    // dejaría ver un cuadro del estado final antes de volver a la mediana.
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) {
+      setVisto(true);
+      return;
+    }
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entradas) => {
+      if (entradas.some((e) => e.isIntersecting)) {
+        setVisto(true);
+        io.disconnect();
+      }
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, activo, visto]);
+  return visto;
+}
 
 function usarAnchoDe(): [React.RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
@@ -83,11 +131,17 @@ function Trazo({
   ancho,
   maximo,
   hachuraId,
+  animar = false,
+  indice = 0,
 }: {
   fila: FilaPrecio;
   ancho: number;
   maximo: number;
   hachuraId: string;
+  /** Crecer desde la mediana hasta lo ofertado (una sola vez). */
+  animar?: boolean;
+  /** Posición del renglón: escalona el arranque. */
+  indice?: number;
 }) {
   const util = Math.max(ancho - PAD * 2, 1);
   const x = (v: number) => PAD + (v / maximo) * util;
@@ -99,12 +153,57 @@ function Trazo({
   // como territorio hachurado: hay un hueco, pero nadie lo midió.
   const hueco = !fila.medido && !hayBanda && ref !== null && of !== null && Math.abs(of - ref) > 0;
 
+  // Solo crece lo que tiene de dónde a dónde: mediana y ofertado, distintos.
+  const animable = !hueco && ref !== null && of !== null && Math.abs(x(of) - x(ref)) >= 2;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const hecho = useRef(false);
+  const [animando, setAnimando] = useState(false);
+  // Los dos pasos corren ANTES de pintar: el primer cuadro visible ya es el
+  // arranque en la mediana, nunca un salto desde el estado final.
+  useIsoLayoutEffect(() => {
+    if (animar && animable && !hecho.current) {
+      hecho.current = true;
+      setAnimando(true);
+    }
+  }, [animar, animable]);
+  useIsoLayoutEffect(() => {
+    if (!animando || !svgRef.current) return;
+    const retraso = Math.min(indice, 11) * ESCALON_SEG;
+    svgRef.current.querySelectorAll("animate").forEach((a) => {
+      try {
+        (a as SVGAnimationElement).beginElementAt(retraso);
+      } catch {
+        /* sin SMIL: queda el estado final, que es el correcto */
+      }
+    });
+    // Terminada la animación se sacan los <animate>: el atributo base ya es el
+    // valor final, y así un cambio de ancho posterior no queda congelado.
+    const t = window.setTimeout(() => setAnimando(false), (retraso + CRECER_SEG) * 1000 + 80);
+    return () => window.clearTimeout(t);
+  }, [animando, indice]);
+
+  const crecer = (atributo: string, desde: number, hasta: number) =>
+    animando ? (
+      <animate
+        attributeName={atributo}
+        from={desde}
+        to={hasta}
+        dur={`${CRECER_SEG}s`}
+        begin="indefinite"
+        fill="freeze"
+        calcMode="spline"
+        keyTimes="0;1"
+        keySplines={CURVA}
+      />
+    ) : null;
+
   // `width="100%"` sobre el viewBox medido: si el ancho real cambió entre la
   // medición y el pintado (aparece la barra de scroll al expandir, por
   // ejemplo) el trazo se encoge un 2 % en vez de desbordar sobre la columna
   // vecina. Con el ancho correcto la escala es exactamente 1:1.
   return (
     <svg
+      ref={svgRef}
       width="100%"
       height={ALTO}
       viewBox={`0 0 ${ancho} ${ALTO}`}
@@ -178,7 +277,9 @@ function Trazo({
           strokeWidth="3"
           strokeDasharray={fila.medido ? undefined : "3 2"}
           className={fila.sobreElRango ? "stroke-rust" : "stroke-mute"}
-        />
+        >
+          {animable && crecer("x2", x(ref), x(of))}
+        </line>
       )}
 
       {/* Mediana de mercado (2 px) — punteada cuando es estimación del modelo. */}
@@ -195,7 +296,11 @@ function Trazo({
       )}
 
       {/* Lo ofertado (8 px). Es un hecho del expediente: va en tinta, no en color de severidad. */}
-      {of !== null && <rect x={x(of) - 4} y={medio - 7} width="8" height="14" rx="1" className="fill-ink" />}
+      {of !== null && (
+        <rect x={x(of) - 4} y={medio - 7} width="8" height="14" rx="1" className="fill-ink">
+          {animable && ref !== null && crecer("x", x(ref) - 4, x(of) - 4)}
+        </rect>
+      )}
     </svg>
   );
 }
@@ -207,6 +312,8 @@ function Renglon({
   etiquetaDirecta,
   fmtMoney,
   detalle,
+  animar = false,
+  indice = 0,
 }: {
   fila: FilaPrecio;
   ancho: number;
@@ -214,6 +321,8 @@ function Renglon({
   etiquetaDirecta: boolean;
   fmtMoney: (n: any) => string;
   detalle?: React.ReactNode;
+  animar?: boolean;
+  indice?: number;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const hachuraId = `hachura-${uid}`;
@@ -253,14 +362,16 @@ function Renglon({
         </div>
         <div className="truncate text-[10px] text-mute">
           {fila.cantidad !== null ? `${fila.cantidad.toLocaleString("es-PE")} ${fila.unidad}` : "sin cantidad"}
-          {fila.ofertadoUnit !== null && ` · ${fmtMoney(fila.ofertadoUnit)} c/u`}
+          {fila.ofertadoUnit !== null && `, ${fmtMoney(fila.ofertadoUnit)} c/u`}
           {fila.referenciaUnit !== null &&
-            ` · mercado ${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)} c/u`}
+            `, mercado ${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)} c/u`}
         </div>
       </div>
 
       <div className="relative order-last col-span-2 h-[26px] sm:order-none sm:col-span-1">
-        {ancho > 0 && <Trazo fila={fila} ancho={ancho} maximo={maximo} hachuraId={hachuraId} />}
+        {ancho > 0 && (
+          <Trazo fila={fila} ancho={ancho} maximo={maximo} hachuraId={hachuraId} animar={animar} indice={indice} />
+        )}
         {etiqueta && xOf !== null && ancho > 0 && (
           <span
             className={cn(
@@ -305,9 +416,9 @@ function Renglon({
   if (!detalle) return <div className="group">{cuerpo}</div>;
   return (
     <Revelar
-      titulo={`Ítem ${fila.numero} · ${fila.descripcion.slice(0, 60)}`}
+      titulo={`Ítem ${fila.numero}: ${fila.descripcion.slice(0, 60)}`}
       descripcion={`${fila.veredicto.etiqueta}${
-        fila.diffPct !== null ? ` · ${fila.diffPct > 0 ? "+" : ""}${fila.diffPct.toFixed(1)} % vs mediana` : ""
+        fila.diffPct !== null ? `, ${fila.diffPct > 0 ? "+" : ""}${fila.diffPct.toFixed(1)} % vs mediana` : ""
       }`}
       detalle={detalle}
       ancho="xl"
@@ -339,14 +450,17 @@ export function RangoPrecios({
   const [ref, ancho] = usarAnchoDe();
   const [todas, setTodas] = useState(false);
   const hachuraLeyenda = `hachura-leyenda-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const figuraRef = useRef<HTMLElement>(null);
+  const hayGrafico = filas.length > 0 && maximo > 0;
+  const animar = usarPrimeraVista(figuraRef, hayGrafico);
 
-  if (filas.length === 0 || maximo <= 0) return null;
+  if (!hayGrafico) return null;
 
   const ocultas = Math.max(filas.length - VISIBLES, 0);
   const visibles = todas ? filas : filas.slice(0, VISIBLES);
 
   return (
-    <figure className="m-0">
+    <figure ref={figuraRef} className="m-0">
       <figcaption className="sr-only">{titulo}</figcaption>
 
       {/* Eje. Este bloque además mide el ancho del área de dibujo de todos los renglones. */}
@@ -387,6 +501,8 @@ export function RangoPrecios({
             etiquetaDirecta={i < ETIQUETAS_DIRECTAS}
             fmtMoney={fmtMoney}
             detalle={detalles?.[fila.key]}
+            animar={animar}
+            indice={i}
           />
         ))}
       </div>

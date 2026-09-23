@@ -102,7 +102,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             <>
               {" "}
               La cifra de mercado que se muestra es una estimación del modelo desde su conocimiento previo
-              {f.confianza_estimacion_ia ? ` (confianza ${f.confianza_estimacion_ia})` : ""} — no es una búsqueda
+              {f.confianza_estimacion_ia ? ` (confianza ${f.confianza_estimacion_ia})` : ""}. No es una búsqueda
               con fuentes y, por regla del proyecto, nunca mueve el sobreprecio.
             </>
           )}
@@ -147,7 +147,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {observados.length > 0 && (
         <>
           <Titulo>
-            Precios encontrados en el mercado · {observados.length} referencia(s), {fila.nFuentes} con enlace
+            Precios encontrados en el mercado: {observados.length} referencia{observados.length === 1 ? "" : "s"}, {fila.nFuentes} con enlace
           </Titulo>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[11px]">
@@ -162,7 +162,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                 {observados.map((p, j) => (
                   <tr key={j} className="border-b border-line/50 align-top">
                     <td className="py-1.5 pr-2">
-                      <div className="font-medium text-ink">{p.producto || p.producto_titulo || "—"}</div>
+                      <div className="font-medium text-ink">{p.producto || p.producto_titulo || "Producto sin nombre"}</div>
                       <div className="text-mute">
                         {p.proveedor || p.dominio || "—"}
                         {p.url && (
@@ -210,19 +210,18 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {referencias.length > 0 && (
         <>
           <Titulo>
-            Contratos comparables en la BD del propio SEACE · {referencias.length}
+            Contratos comparables en el propio SEACE: {referencias.length}
             {ancla?.estado === "hallado" && typeof ancla.mediana === "number"
-              ? ` · mediana regional ${fmtMoney(ancla.mediana)}`
+              ? `, mediana regional ${fmtMoney(ancla.mediana)}`
               : ""}
           </Titulo>
           <ul className="space-y-1">
             {referencias.slice(0, 8).map((r, j) => (
               <li key={j} className="flex items-baseline justify-between gap-3 border-b border-line/50 py-1 text-[11px]">
                 <span className="min-w-0">
-                  <span className="truncate text-ink">{String(r.descripcion || "—").slice(0, 70)}</span>
+                  <span className="block truncate text-ink">{String(r.descripcion || "Sin descripción").slice(0, 70)}</span>
                   <span className="text-mute">
-                    {" "}
-                    · {r.entidad || "entidad s/n"} {r.region ? `· ${r.region}` : ""}
+                    {r.entidad || "entidad sin nombre"}{r.region ? `, ${r.region}` : ""}
                   </span>
                   {r.url && (
                     <a
@@ -253,7 +252,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             {proveedores.map((p, j) => (
               <li key={j}>
                 <span className="font-medium">{p.nombre || "—"}</span>
-                {p.linea && <span className="text-mute"> · línea {p.linea}</span>}
+                {p.linea && <span className="text-mute">, línea {p.linea}</span>}
                 {p.url && (
                   <a
                     href={p.url}
@@ -273,7 +272,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
       {queries.length > 0 && (
         <details className="mt-4 text-[11px] text-mute">
           <summary className="cursor-pointer font-semibold uppercase tracking-widest hover:text-ink">
-            Qué buscó el agente · {queries.length} consulta(s)
+            Qué buscó el agente: {queries.length} consulta{queries.length === 1 ? "" : "s"}
           </summary>
           <ul className="mt-1 space-y-0.5">
             {queries.map((q, j) => (

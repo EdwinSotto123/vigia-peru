@@ -18,7 +18,8 @@
  * Response:
  *   { ok: true, original_url: "...", gcs_url: "https://...", gcs_path: "gs://..." }
  */
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { exigirAdmin } from "../analyze/_admin";
 import { Storage } from "@google-cloud/storage";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,10 @@ function safeName(name: string): string {
     .slice(0, 200);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Escribe en el bucket del proyecto: solo el equipo, igual que el análisis que lo usa.
+  const noAdmin = await exigirAdmin(req);
+  if (noAdmin) return noAdmin;
   let body: any;
   try {
     body = await req.json();

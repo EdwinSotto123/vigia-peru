@@ -64,29 +64,29 @@ export function humanizeError(raw: string, errClass?: string): string {
   if (s.includes("quota_exhausted") || s.includes("resource_exhausted")
       || s.includes("429") || s.includes("quota")
       || cls.includes("resourceexhausted")) {
-    return "No se pudo procesar el OCID porque se agotó la cuota de Gemini Vertex AI (HTTP 429 RESOURCE_EXHAUSTED). Espera 1–2 minutos y reintenta, o procesa los OCIDs de uno en uno.";
+    return "No se pudo procesar el contrato: el modelo alcanzó su límite de uso por ahora. Espera uno o dos minutos y vuelve a intentarlo, de a un contrato por vez.";
   }
   if (s.includes("tool 'run' not found") || s.includes("tool not found")) {
-    return "No se pudo procesar el OCID debido a una desconfiguración del agente (tool inexistente). El equipo ya fue notificado. Reintenta en unos minutos.";
+    return "No se pudo procesar el contrato por un error de configuración de los agentes. Vuelve a intentarlo en unos minutos.";
   }
   if (s.includes("stream_interrupted") || s.includes("stream cerró")
       || s.includes("stream cerro")) {
-    return "El análisis se interrumpió antes de completarse. Esto suele ocurrir por timeout del backend o cuota de Gemini. Reintenta o intenta con otro OCID.";
+    return "El análisis se interrumpió antes de terminar, casi siempre porque el servidor tardó demasiado o el modelo llegó a su límite. Vuelve a intentarlo o prueba con otro contrato.";
   }
   if (s.includes("runner_exception") || cls.includes("clienterror")
       || cls.includes("apierror")) {
     const cleanMsg = String(raw || "").replace(/^.*?:\s*/, "").slice(0, 240);
-    return `No se pudo procesar el OCID debido a un error interno del agente: ${cleanMsg || "fallo desconocido"}.`;
+    return `No se pudo procesar el contrato por un error interno de los agentes: ${cleanMsg || "fallo desconocido"}.`;
   }
   if (s.includes("ocds") && s.includes("404")) {
-    return "El OCID no existe en SEACE o aún no tiene datos publicados. Verifica el código.";
+    return "Ese código no existe en el SEACE o todavía no tiene datos publicados. Revisa el código.";
   }
   if (s.includes("timeout") || s.includes("502") || s.includes("503")) {
-    return "El servicio de análisis no respondió a tiempo. Es probablemente un timeout de Cloud Run. Reintenta en unos segundos.";
+    return "El servicio de análisis no respondió a tiempo. Vuelve a intentarlo en unos segundos.";
   }
   // Fallback: limpiar y devolver el mensaje original con un prefijo claro
   const cleaned = String(raw || "").slice(0, 300).trim();
-  return `No se pudo procesar el OCID: ${cleaned || "error desconocido"}`;
+  return `No se pudo procesar el contrato: ${cleaned || "error desconocido"}`;
 }
 
 export function inferCategoria(objeto: string | null | undefined): CatFilter {
@@ -157,7 +157,7 @@ const TRACE_TOOLS: Array<{ rx: RegExp; node: string; verb: string; msg: (a: any)
   { rx: /fetch_documents|archive_docs|download/i,       node: "seace",       verb: "consulta", msg: () => "descarga los documentos del expediente (SEACE)" },
   { rx: /parse_document_pdf|extract_doc|ocr/i,          node: "seace",       verb: "consulta", msg: () => "lee los PDFs del expediente (OCR / Vision)" },
   { rx: /ingest_to_db|insert_|^persist_alert/i,         node: "sql",         verb: "persiste", msg: () => "estructura y guarda el proceso en la base de datos" },
-  { rx: /persist_analysis|persist_market|persist_/i,    node: "sql",         verb: "persiste", msg: () => "guarda las banderas y el análisis en Cloud SQL" },
+  { rx: /persist_analysis|persist_market|persist_/i,    node: "sql",         verb: "persiste", msg: () => "guarda las señales y el análisis en la base de datos" },
   { rx: /query_legal_rag|lookup_opinion_oece/i,         node: "pgvec",       verb: "consulta", msg: (a) => a?.question ? `busca opiniones OECE: "${String(a.question).slice(0, 46)}…"` : "busca las opiniones OECE relevantes (RAG)" },
   { rx: /evaluate_normative_compliance|run_hard_rules/i, node: "sql",        verb: "invoca",   msg: () => "aplica las reglas duras de la Ley de Contrataciones" },
   { rx: /query_oece_perfil/i,                           node: "oece_perfil", verb: "consulta", msg: (a) => `obtiene el perfil del proveedor${rucArg(a)} (estado, sanciones, aptitud)` },
@@ -166,7 +166,7 @@ const TRACE_TOOLS: Array<{ rx: RegExp; node: string; verb: string; msg: (a: any)
   { rx: /query_rnp|rnp_conformacion/i,                  node: "rnp",         verb: "consulta", msg: () => "obtiene los socios y representantes legales (RNP)" },
   { rx: /cruce_firmantes/i,                             node: "sql",         verb: "invoca",   msg: () => "cruza los firmantes del acta con la red de personas" },
   { rx: /batch_person_lookup/i,                         node: "onpe",        verb: "invoca",   msg: (a) => `cruza ${(a?.personas?.length || a?.dnis?.length || a?.docs?.length) ?? "varias"} personas en paralelo (ONPE, JNE, PEPs, visitas)` },
-  { rx: /analyze_market_sharded|build_market_input|web_search_market|market_price/i, node: "google", verb: "consulta", msg: () => "tasa los ítems contra el mercado real (Google · fan-out)" },
+  { rx: /analyze_market_sharded|build_market_input|web_search_market|market_price/i, node: "google", verb: "consulta", msg: () => "tasa los ítems contra precios de mercado reales, buscando en la web" },
   { rx: /query_onpe/i,                                  node: "onpe",        verb: "consulta", msg: () => "busca aportes de campaña (ONPE)" },
   { rx: /query_jne/i,                                   node: "jne",         verb: "consulta", msg: () => "busca candidaturas y hojas de vida (JNE)" },
   { rx: /query_pep/i,                                   node: "pep",         verb: "consulta", msg: () => "verifica personas expuestas políticamente (PEPs)" },
@@ -202,7 +202,7 @@ export function buildTrace(events: any[]): TraceStep[] {
       }
     } else if (ev.kind === "phase") {
       if (ev.name === "writer_forced" || ev.name === "persist" || ev.name === "safety_net")
-        step = { f: "writer", t: "sql", v: "persiste", m: "guarda el dictamen y las banderas en Cloud SQL" };
+        step = { f: "writer", t: "sql", v: "persiste", m: "guarda el dictamen y las señales en la base de datos" };
     }
     if (!step) continue;
     const last = out[out.length - 1];

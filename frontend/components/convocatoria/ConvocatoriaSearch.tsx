@@ -1,646 +1,526 @@
 "use client";
 
+/**
+ * /app/convocatoria (y /admin/analisis): buscar un análisis publicado o, sólo
+ * para el equipo, despachar uno nuevo.
+ *
+ * Antes cualquier visitante podía disparar una corrida pagada de los agentes:
+ * con el botón "Despachar agentes", con "Sortear nueva del SEACE" o con sólo
+ * abrir `/app/convocatoria?run=<código>`, que arrancaba el análisis solo. Ahora:
+ *  - el `?run=` ya no dispara nada;
+ *  - despachar y sortear aparecen sólo con sesión de equipo (`useEsAdmin`), y
+ *    las rutas /api/agent/analyze*, /upload-doc y /random exigen la cookie de
+ *    admin verificada contra el API (401 si no);
+ *  - el público busca entre lo ya analizado y, si el contrato no está, se le
+ *    explica que Vigía lee los contratos en orden de cola cuando alguien
+ *    financia la auditoría de su zona.
+ */
+
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getAnalyzedList } from "@/lib/dossier-cache";
-import {
-  Search,
-  Loader2,
-  ArrowRight,
-  Sparkles,
-  ScanSearch,
-  Network,
-  Globe2,
-  FileText,
-  Receipt,
-  CheckCircle2,
-  AlertTriangle,
-  Building2,
-  Coins,
-  Download,
-  Cloud,
-  ExternalLink,
-  Users,
-  Package,
-  Award,
-  ChevronRight,
-  Scale,
-  RotateCcw,
-  MapPin,
-  Calendar,
-  ShieldAlert,
-  Eye,
-  Newspaper,
-  ListChecks,
-  Pen,
-  Globe,
-  Brain,
-  Shuffle,
-  Hammer,
-  HardHat,
-  Boxes,
-  Compass,
-} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ArrowRight, ChevronRight, Info, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  resolveOcid,
-  fetchOcdsFromBrowser,
-  fetchOcdsFromBrowserDetailed,
-  fetchAllDocsFromOcds,
-} from "@/lib/oece-bridge";
-import type { AgentTraceEvent, ApiResult, SortKey, SevFilter, CatFilter, GNode, TraceStep, Bandera, GraphNode, GraphEdge } from "./types";
-import { CAT_LABEL, CAT_TONE, NODE_META, PHASE_HEX, AGENT_IDS, G_COLOR, G_DONE, G_FLOW, TYPE_LABEL, TRACE_ROLE, VERB_HEX, AGENT_VISUAL, TOOL_INFO, VEREDICTO_VISUAL, AGENTE_VISUAL, FUENTE_GROUPS, STEPS } from "./constants";
-import { oeceProcesoUrl, countFindings, humanizeError, inferCategoria, extractFindings, traceNodeForAgent, rucArg, buildTrace, inferAgente, wrapText, inferStepFromEvents } from "./utils";
+import { getAnalyzedList } from "@/lib/dossier-cache";
+import { getResumenVivo } from "@/lib/contratos";
+import { useEsAdmin } from "@/lib/useEsAdmin";
+import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
+import { resolveOcid, fetchOcdsFromBrowserDetailed, fetchAllDocsFromOcds } from "@/lib/oece-bridge";
+import { STEPS } from "./constants";
+import { oeceProcesoUrl, humanizeError } from "./utils";
 import { AgentsPipeline } from "./sections/AgentsPipeline";
 import { QuickAccessPanel } from "./sections/QuickAccessPanel";
-import { AgentTraceRow } from "./sections/AgentTraceRow";
-import { AnalizadasRecientes } from "./sections/AnalizadasRecientes";
+import { AnalizadasRecientes, esAnalisisPublicado } from "./sections/AnalizadasRecientes";
+import { FRANJA_NIVEL, NIVEL_ANALISIS, nivelDeAnalisis } from "./sections/conteoRiesgo";
 import { LoadingView } from "./sections/LoadingView";
-import { ShareableHeader } from "./sections/ShareableHeader";
-import { ResumenHumano } from "./sections/ResumenHumano";
-import { ResultadoView } from "./ResultadoView";
 
-const SAMPLES = [
-  { id: "1203694", label: "Mun. Callao · herramientas S/. 93K" },
-  { id: "1202858", label: "Chira Piura · maquinaria S/. 7.1M" },
-];
+/** El API respondió 401: la sesión de equipo no está o venció. */
+class SesionVencida extends Error {}
+
+const MSG_SESION = "Tu sesión de equipo venció o no está activa. Vuelve a entrar desde /admin/login y reintenta.";
+
+/** "ocds-dgv273-seacev3-1212841" / "OECE-1212841" / " 1212841 " → "1212841". */
+const codigoCorto = (raw: string) =>
+  raw.trim().replace(/^ocds-[a-z0-9]+-seacev3-/i, "").replace(/^OECE-/i, "");
+
+/** ¿El análisis coincide con lo que se escribió? (código, OCID, objeto, entidad o RUC). */
+const coincide = (it: any, qLower: string) =>
+  [it.codigo_convocatoria, it.ocid, it.objeto, it.entidad, it.entidad_ruc, it.proveedor_ruc]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(qLower);
+
+type Aviso = { tipo: "sin_analisis"; codigo: string } | { tipo: "varias"; n: number };
 
 export function ConvocatoriaSearch() {
+  const esAdmin = useEsAdmin();
   const [id, setId] = useState("");
   const [loading, setLoading] = useState(false);
   const [stepIdx, setStepIdx] = useState(-1);
   const [elapsed, setElapsed] = useState(0);
-  const [result, setResult] = useState<ApiResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [cached, setCached] = useState<any[] | null>(null);
+  const [listaOk, setListaOk] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
   const [liveEvents, setLiveEvents] = useState<any[]>([]);
-  // Fallback manual: cuando el proxy OECE bloquea, pedir al usuario que pegue
-  // el JSON del OCDS. Guarda el ocid pendiente + el textarea content.
-  const [blockedOcid, setBlockedOcid] = useState<string | null>(null);
-  const [manualOcdsText, setManualOcdsText] = useState("");
-  const [manualOcdsError, setManualOcdsError] = useState<string | null>(null);
+  const [mediana, setMediana] = useState<{ seg: number | null; n: number | null }>({ seg: null, n: null });
   const startTime = useRef(0);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  // Prefetch del cache para alimentar el autocomplete del input principal.
-  // getAnalyzedList deduplica con la lista "Análisis previos" → 1 sola request.
-  // Mismo límite (500) que la lista: el dedup es por vuelo en curso, NO por límite,
-  // así que ambos callers deben pedir lo mismo o el primero define cuántos llegan.
+  // Lista de análisis publicados para el autocompletado y la búsqueda del público.
+  // getAnalyzedList deduplica con la lista de abajo → 1 sola request (mismo límite, 500).
   useEffect(() => {
     getAnalyzedList(500)
-      .then(d => setCached(d?.items || []))
+      .then((d) => {
+        if (d?.error || !Array.isArray(d?.items)) {
+          setCached([]);
+          return;
+        }
+        setCached(d.items.filter(esAnalisisPublicado));
+        setListaOk(true);
+      })
       .catch(() => setCached([]));
   }, []);
 
-  // Si la URL tiene ?run=<codigo>, autopopulá el input y disparalo automático.
-  // Usamos un ref con el código ya disparado (no boolean) para permitir
-  // que `?run=A` → falla → `?run=B` dispare correctamente.
-  const lastRunRef = useRef<string | null>(null);
+  // Duración real de una lectura (mediana medida en producción). Sin dato, no se promete ninguna.
   useEffect(() => {
-    const runCode = searchParams?.get("run");
-    if (runCode && lastRunRef.current !== runCode && !loading && !result) {
-      lastRunRef.current = runCode;
-      setId(runCode);
-      submit(null, runCode);
+    let vivo = true;
+    getResumenVivo()
+      .then((r) => {
+        if (vivo && r?.estimado?.medianaSeg) setMediana({ seg: r.estimado.medianaSeg, n: r.estimado.n ?? null });
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  // `?run=<código>` ya NO arranca un análisis: cualquiera podía compartir un
+  // enlace que disparaba una corrida pagada con sólo abrirlo.
+  // `?ocid=<código>` sólo PRELLENA el buscador (lo usa "Procesar ahora" del
+  // dossier para mandar al equipo a /admin/analisis): nunca despacha nada solo.
+  useEffect(() => {
+    try {
+      const pre = new URLSearchParams(window.location.search).get("ocid");
+      if (pre) setId(pre.trim().slice(0, 120));
+    } catch {
+      /* sin window.location: nada que prellenar */
     }
-  }, [searchParams, loading, result]);
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
     const elapsedTimer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.current) / 1000));
     }, 500);
-    // Breakpoints calculados como suma acumulada de eta_s de cada STEP.
-    // Cuando elapsed >= breakpoint[i], el step i pasa a "active".
+    // Breakpoints = suma acumulada de eta_s de cada STEP: cuando elapsed los
+    // pasa, el paso i queda "activo" (el stream real lo corrige si llega antes).
     const breakpoints: number[] = [];
     let acc = 0;
     for (const s of STEPS) {
       acc += s.eta_s;
       breakpoints.push(acc);
     }
-    const timers = breakpoints.map((sec, i) =>
-      setTimeout(() => setStepIdx(i + 1), sec * 1000),
-    );
+    const timers = breakpoints.map((sec, i) => setTimeout(() => setStepIdx(i + 1), sec * 1000));
     return () => {
       clearInterval(elapsedTimer);
       timers.forEach(clearTimeout);
     };
   }, [loading]);
 
-  const submit = async (e: React.FormEvent | null, overrideCode?: string, overrideOcds?: any) => {
+  const loadFromCache = (ocidOrCodigo: string) => {
+    // Navegar a /app/convocatoria/{id} para que la URL sea compartible.
+    router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto(ocidOrCodigo))}`);
+  };
+
+  const matchesDe = (q: string) => {
+    const qLower = q.trim().toLowerCase();
+    if (!qLower || !cached) return [];
+    return cached.filter((it) => coincide(it, qLower));
+  };
+
+  /** Público: abrir un análisis ya publicado. Nunca dispara agentes. */
+  const buscar = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = id.trim();
+    if (!q) return;
+    setAviso(null);
+    const codigo = codigoCorto(q);
+    // Sin la lista (no cargó), no podemos saber si existe: que decida el dossier.
+    if (!listaOk || !cached) {
+      loadFromCache(codigo);
+      return;
+    }
+    const cLower = codigo.toLowerCase();
+    const exacta = cached.find((it) =>
+      [it.codigo_convocatoria, it.ocid].some((v) => v && String(v).toLowerCase() === cLower),
+    );
+    if (exacta) {
+      loadFromCache(exacta.codigo_convocatoria || exacta.ocid);
+      return;
+    }
+    const parciales = matchesDe(q);
+    if (parciales.length === 1) {
+      loadFromCache(parciales[0].codigo_convocatoria || parciales[0].ocid);
+      return;
+    }
+    if (parciales.length > 1) {
+      setShowSugg(true);
+      setAviso({ tipo: "varias", n: parciales.length });
+      return;
+    }
+    setAviso({ tipo: "sin_analisis", codigo });
+  };
+
+  /** Equipo: despachar los agentes (corrida pagada). Las rutas exigen la cookie de admin. */
+  const despachar = async (e: React.FormEvent | null, overrideCode?: string) => {
     if (e) e.preventDefault();
+    if (!esAdmin) return;
     const rawCode = overrideCode != null ? overrideCode : id;
-    // Permitir tres formatos: código numérico ("1212841"), OCID completo
-    // ("ocds-dgv273-seacev3-1212841"), o cualquier substring con guiones.
-    // Si trae prefijo "ocds-" lo conservamos tal cual; si no, removemos chars
-    // no alfanuméricos pero MANTENEMOS letras (alguna nomenclatura nueva del
-    // OECE puede tenerlas).
+    // Tres formatos: código numérico ("1212841"), OCID completo
+    // ("ocds-dgv273-seacev3-1212841") o cualquier código con guiones.
     const trimmed = rawCode.trim();
-    const clean = trimmed.toLowerCase().startsWith("ocds-")
-      ? trimmed
-      : trimmed.replace(/[^0-9a-zA-Z-]/g, "");
+    const clean = trimmed.toLowerCase().startsWith("ocds-") ? trimmed : trimmed.replace(/[^0-9a-zA-Z-]/g, "");
     if (!clean) return;
     setLoading(true);
     setError(null);
-    setResult(null);
-    setBlockedOcid(null);
-    setManualOcdsError(null);
+    setAviso(null);
     setStepIdx(0);
     setLiveEvents([]);
     startTime.current = Date.now();
     try {
-      // 1) Fetch OCDS desde el browser vía Cloudflare Worker.
-      //    Si nos pasaron un OCDS manual (override), saltamos el proxy.
+      // 1) OCDS desde el browser vía el relay. Si OECE bloquea (403), seguimos
+      //    con ocds=null: el orquestador lo trae por el downloader local.
       const ocid = resolveOcid(clean);
-      let ocds: any = overrideOcds || null;
-      if (!ocds) {
-        const ocdsRes = await fetchOcdsFromBrowserDetailed(ocid);
-        ocds = ocdsRes.cr;
-        if (!ocds && ocdsRes.reason === "blocked") {
-          // OECE bloquea el relay (403). NO pedimos pegar JSON: el orquestador
-          // trae el OCDS + los documentos por el downloader local (IP peruana).
-          // Seguimos con ocds=null → el backend hace el fetch.
-          console.log(`[Vigía] relay bloqueado para ${ocid} — el backend lo traerá por el downloader local`);
-        } else if (!ocds) {
-          // Convocatoria inexistente (404) vs error de red.
-          const url = oeceProcesoUrl(ocid);
-          const msg =
-            ocdsRes.reason === "not_found"
-              ? `La convocatoria ${ocid} no existe o ya no es accesible en el portal OECE (404). ` +
-                `Verifica manualmente en ${url}`
-              : `No se pudo obtener la convocatoria ${ocid} desde OECE ` +
-                `(error de red al llamar al proxy). Verifica tu conexión y reintenta. URL oficial: ${url}`;
-          setError(msg);
-          // Si veníamos del autoSubmit (?run=), limpiar el query param para no loop.
-          if (searchParams?.get("run")) {
-            router.replace("/app/convocatoria");
-          }
-          return;
-        }
+      const ocdsRes = await fetchOcdsFromBrowserDetailed(ocid);
+      const ocds: any = ocdsRes.cr;
+      if (!ocds && ocdsRes.reason !== "blocked") {
+        const url = oeceProcesoUrl(ocid);
+        setError(
+          ocdsRes.reason === "not_found"
+            ? `La convocatoria ${ocid} no existe o ya no es accesible en el portal del OECE. Verifícala en ${url}`
+            : `No se pudo obtener la convocatoria ${ocid} desde el OECE (error de red). Revisa tu conexión y reintenta. Enlace oficial: ${url}`,
+        );
+        return;
       }
 
-      // 2) Descargar PDFs del tender desde el browser.
+      // 2) Descargar los documentos del expediente desde el browser y subir cada
+      //    uno a GCS por separado (cada request < 32 MB).
       const { docs: fetchedDocs } = await fetchAllDocsFromOcds(ocds);
-
-      // 2b) Subir CADA PDF a GCS individualmente (request <32MB cada uno).
-      //     Esto procesa TODOS los PDFs — ninguno se omite.
-      const docs_meta: Array<{ url: string; filename: string; contentType: string; size_bytes: number }> = [];
-      const doc_urls: Record<string, string> = {};   // originalUrl → gcs_url
-      const docs_b64: Record<string, string> = {};   // se queda vacío: usamos doc_urls
-
+      const doc_urls: Record<string, string> = {};
+      const docs_b64: Record<string, string> = {};
       const uploadResults = await Promise.allSettled(
         fetchedDocs.map(async (d) => {
           const r = await fetch("/api/agent/upload-doc", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ocid,
-              url: d.url,
-              base64: d.base64,
-              filename: d.filename,
-              contentType: d.contentType,
-            }),
+            body: JSON.stringify({ ocid, url: d.url, base64: d.base64, filename: d.filename, contentType: d.contentType }),
           });
+          if (r.status === 401) throw new SesionVencida(MSG_SESION);
           const text = await r.text();
           let data: any = null;
-          try { data = JSON.parse(text); } catch {
+          try {
+            data = JSON.parse(text);
+          } catch {
             throw new Error(`upload ${d.filename}: respuesta no-JSON (${r.status}) ${text.slice(0, 150)}`);
           }
-          if (!r.ok || !data?.ok) {
-            throw new Error(`upload ${d.filename}: ${data?.error || r.status} ${data?.detail || ""}`);
-          }
+          if (!r.ok || !data?.ok) throw new Error(`upload ${d.filename}: ${data?.error || r.status} ${data?.detail || ""}`);
           return { ...d, gcs_url: data.gcs_url };
-        })
+        }),
       );
-
-      let nUploaded = 0;
+      if (uploadResults.some((res) => res.status === "rejected" && res.reason instanceof SesionVencida)) {
+        throw new SesionVencida(MSG_SESION);
+      }
       const failed: string[] = [];
       uploadResults.forEach((res, i) => {
-        const d = fetchedDocs[i];
-        if (res.status === "fulfilled") {
-          doc_urls[res.value.url] = res.value.gcs_url;
-          docs_meta.push({
-            url: d.url, filename: d.filename, contentType: d.contentType, size_bytes: d.size_bytes,
-          });
-          nUploaded++;
-        } else {
-          failed.push(`${d.filename}: ${(res.reason as Error).message}`);
-        }
+        if (res.status === "fulfilled") doc_urls[res.value.url] = res.value.gcs_url;
+        else failed.push(`${fetchedDocs[i].filename}: ${(res.reason as Error).message}`);
       });
-
-      const totalSize = fetchedDocs.reduce((s, d) => s + d.size_bytes, 0);
       console.log(
-        `[Vigía] OCID ${ocid} · ${nUploaded}/${fetchedDocs.length} PDFs subidos a GCS · ` +
-        `${(totalSize/1e6).toFixed(2)}MB total` +
-        (failed.length > 0 ? ` · ${failed.length} fallos: ${failed.join("; ")}` : "")
+        `[Vigía] OCID ${ocid}: ${fetchedDocs.length - failed.length}/${fetchedDocs.length} documentos subidos` +
+          (failed.length > 0 ? `, ${failed.length} fallos: ${failed.join("; ")}` : ""),
       );
 
-      const useStream = true;
-
-      if (useStream) {
-        // ── STREAMING PATH ─────────────────────────────────────────
-        const r = await fetch("/api/agent/analyze/stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: clean, ocds, docs_b64, docs_meta, doc_urls }),
-        });
-        if (!r.ok || !r.body) {
-          const txt = await r.text().catch(() => "");
-          throw new Error(txt.slice(0, 300) || `stream_failed (${r.status})`);
-        }
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let finalEvent: any = null;
-        let lastErrorEvent: any = null; // tracked para mostrar mejor mensaje si stream colapsa
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            buf += decoder.decode();
-            const tail = buf.trim();
-            if (tail) {
-              try {
-                const ev = JSON.parse(tail);
-                if (ev.kind === "final") finalEvent = ev;
-                else {
-                  if (ev.kind === "error") lastErrorEvent = ev;
-                  setLiveEvents(prev => [...prev, ev]);
-                }
-              } catch { /* línea final malformada — ignoramos */ }
-            }
-            break;
+      // 3) Stream NDJSON del orquestador.
+      const r = await fetch("/api/agent/analyze/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: clean, ocds, docs_b64, doc_urls }),
+      });
+      if (r.status === 401) throw new SesionVencida(MSG_SESION);
+      if (!r.ok || !r.body) {
+        const txt = await r.text().catch(() => "");
+        throw new Error(txt.slice(0, 300) || `stream_failed (${r.status})`);
+      }
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finalEvent: any = null;
+      let lastErrorEvent: any = null; // para un mejor mensaje si el stream colapsa
+      const procesarLinea = (line: string) => {
+        try {
+          const ev = JSON.parse(line);
+          if (ev.kind === "final") finalEvent = ev;
+          else {
+            if (ev.kind === "error") lastErrorEvent = ev;
+            setLiveEvents((prev) => [...prev, ev]);
           }
-          buf += decoder.decode(value, { stream: true });
-          let nl: number;
-          while ((nl = buf.indexOf("\n")) >= 0) {
-            const line = buf.slice(0, nl).trim();
-            buf = buf.slice(nl + 1);
-            if (!line) continue;
-            try {
-              const ev = JSON.parse(line);
-              if (ev.kind === "final") {
-                finalEvent = ev;
-              } else {
-                if (ev.kind === "error") lastErrorEvent = ev;
-                setLiveEvents(prev => [...prev, ev]);
-              }
-            } catch {/* línea malformada — ignoramos */}
-          }
+        } catch {
+          /* línea malformada: se ignora */
         }
-        if (!finalEvent) {
-          throw new Error(humanizeError(
-            lastErrorEvent ? `${lastErrorEvent.error_kind || "runner_exception"}: ${lastErrorEvent.detail || ""}` : "stream_interrupted"
-          ));
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          buf += decoder.decode();
+          const tail = buf.trim();
+          if (tail) procesarLinea(tail);
+          break;
         }
-        // El backend ahora emite `runner_error` en el evento final cuando el
-        // runner explotó pero la safety_net pudo persistir un análisis parcial.
-        // Si hay error, mostrarlo al usuario en lugar de seguir como si nada.
-        if (finalEvent.runner_error) {
-          const re = finalEvent.runner_error;
-          throw new Error(humanizeError(
-            `${re.kind || "runner_exception"}: ${re.msg || ""}`,
-            re.class,
-          ));
-        }
-
-        // 4) Análisis persistido en Cloud SQL — navegar a la URL shareable.
-        const codigoCorto = clean.replace(/^ocds-[a-z0-9]+-seacev3-/i, "");
-        router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto)}`);
-        return;
-      } else {
-        // ── FALLBACK NON-STREAMING ─────────────────────────────────
-        const r = await fetch("/api/agent/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: clean, ocds, docs_b64, docs_meta }),
-        });
-        // Defensive parsing: si el server devuelve HTML (502/timeout) el json() rompe
-        const text = await r.text();
-        let data: any = null;
-        try { data = JSON.parse(text); } catch {
-          setError(humanizeError(`timeout: el servidor devolvió ${r.status} sin JSON`));
-          return;
-        }
-        if (!r.ok) {
-          const raw = data?.hint ? `${data.error}: ${data.hint}` : data?.error || `Error ${r.status}`;
-          setError(humanizeError(raw));
-        } else {
-          // Navegar a la URL shareable
-          const codigoCorto = clean.replace(/^ocds-[a-z0-9]+-seacev3-/i, "");
-          router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto)}`);
-          return;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (line) procesarLinea(line);
         }
       }
+      if (!finalEvent) {
+        throw new Error(
+          humanizeError(
+            lastErrorEvent
+              ? `${lastErrorEvent.error_kind || "runner_exception"}: ${lastErrorEvent.detail || ""}`
+              : "stream_interrupted",
+          ),
+        );
+      }
+      // El backend emite `runner_error` en el evento final cuando el runner
+      // explotó pero se pudo persistir un análisis parcial: se muestra.
+      if (finalEvent.runner_error) {
+        const re = finalEvent.runner_error;
+        throw new Error(humanizeError(`${re.kind || "runner_exception"}: ${re.msg || ""}`, re.class));
+      }
+
+      // 4) Análisis persistido: navegar al dossier compartible.
+      router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto(clean))}`);
     } catch (err) {
-      const msg = (err as Error).message || "";
-      // Si ya pasó por humanizeError (mensaje empieza con "No se pudo procesar"
-      // o "El análisis..."), no re-formatear. Si es un error crudo, humanizar.
-      const alreadyHumanized = /^(No se pudo procesar|El análisis|El OCID|El servicio)/.test(msg);
-      setError(alreadyHumanized ? msg : humanizeError(msg));
+      if (err instanceof SesionVencida) {
+        setError(err.message);
+      } else {
+        const msg = (err as Error).message || "";
+        // Si ya pasó por humanizeError no se re-formatea.
+        const yaHumano = /^(No se pudo procesar|El análisis|El OCID|El servicio)/.test(msg);
+        setError(yaHumano ? msg : humanizeError(msg));
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const reset = () => {
-    setResult(null);
-    setError(null);
-    setStepIdx(-1);
-    setElapsed(0);
-    setId("");
-  };
-
-  const loadFromCache = (ocidOrCodigo: string) => {
-    // Navegar a /app/convocatoria/{id} para que la URL sea shareable.
-    const codigoCorto = ocidOrCodigo.replace(/^ocds-[a-z0-9]+-seacev3-/i, "").replace(/^OECE-/, "");
-    router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto)}`);
-  };
-
-  if (result) return <ResultadoView result={result} onReset={reset} />;
   if (loading) return <LoadingView stepIdx={stepIdx} elapsed={elapsed} codigo={id} liveEvents={liveEvents} />;
+
+  const sugerencias = showSugg ? matchesDe(id).slice(0, 6) : [];
 
   return (
     <div className="space-y-8">
-      {/* HERO — split 2 columnas: buscador izquierda · quick access derecha */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),360px]">
-        {/* ─── COLUMNA IZQUIERDA · BUSCADOR ─── */}
-        <div className="surface relative isolate overflow-hidden p-5 sm:p-6">
+        {/* ─── COLUMNA IZQUIERDA: BUSCADOR ─── */}
+        <div className="surface relative isolate p-5 sm:p-6">
           <div
             aria-hidden
-            className="absolute inset-0 -z-10 opacity-[0.04]"
+            className="absolute inset-0 -z-10 overflow-hidden rounded-[inherit] opacity-[0.04]"
             style={{
               backgroundImage: `radial-gradient(circle, #1B1611 1px, transparent 1px)`,
               backgroundSize: "24px 24px",
             }}
           />
-          <div
-            aria-hidden
-            className="absolute -right-20 -top-20 -z-10 h-60 w-60 rounded-full bg-heroViolet/10 blur-3xl"
-          />
 
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-heroViolet/30 bg-heroViolet-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-heroViolet opacity-75" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-heroViolet" />
-            </span>
-            Núcleo · análisis a demanda
-          </span>
-          <h1 className="mt-2 font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
-            Analiza cualquier contrato del Estado
-          </h1>
-          <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
-            Pega el código (o OCID/RUC) de cualquier convocatoria del SEACE y los
-            10 agentes la procesan a demanda — o abre uno de los análisis ya hechos.
-          </p>
+          {esAdmin ? (
+            <>
+              <h1 className="font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
+                Analiza un contrato del SEACE
+              </h1>
+              <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
+                Pega el código de la convocatoria o su OCID. Los {TOTAL_AGENTES} agentes leen el expediente y el
+                dossier queda público al terminar. Si el contrato ya está analizado, elígelo en la lista que
+                aparece al escribir y se abre sin volver a procesarlo.
+              </p>
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-soft px-2 py-1 text-[11px] font-medium text-amberTexto">
+                <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
+                Busca un contrato analizado
+              </h1>
+              <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
+                Escribe el código de la convocatoria del SEACE, su OCID o el RUC de la entidad o del proveedor.
+                Si Vigía ya lo leyó, abres su dossier con las señales, la evidencia y el dictamen.
+              </p>
+            </>
+          )}
 
-        <form onSubmit={submit} className="mt-4">
-          <div className="relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-mute" />
-            <input
-              type="text"
-              value={id}
-              onChange={(e) => { setId(e.target.value); setShowSugg(true); }}
-              onFocus={() => setShowSugg(true)}
-              onBlur={() => setTimeout(() => setShowSugg(false), 180)}
-              placeholder="Código de convocatoria, OCID o RUC"
-              autoFocus
-              className="w-full rounded-2xl border border-line bg-paper py-4 pl-12 pr-44 text-base font-mono placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-2 focus:ring-heroViolet/20"
-            />
-            <button
-              type="submit"
-              disabled={!id.trim()}
-              className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-50"
-            >
-              Despachar agentes <ArrowRight size={15} />
-            </button>
+          <form onSubmit={esAdmin ? (e) => despachar(e) : buscar} className="mt-4" role="search">
+            <div className="relative">
+              <label htmlFor="buscar-convocatoria" className="sr-only">
+                {esAdmin ? "Código u OCID de la convocatoria" : "Código, OCID o RUC"}
+              </label>
+              <Search size={18} aria-hidden className="absolute left-4 top-1/2 -translate-y-1/2 text-mute" />
+              <input
+                id="buscar-convocatoria"
+                type="text"
+                value={id}
+                onChange={(e) => {
+                  setId(e.target.value);
+                  setShowSugg(true);
+                  setAviso(null);
+                }}
+                onFocus={() => setShowSugg(true)}
+                onBlur={() => setTimeout(() => setShowSugg(false), 180)}
+                placeholder={esAdmin ? "Código de convocatoria u OCID" : "Código de convocatoria, OCID o RUC"}
+                autoComplete="off"
+                className="w-full rounded-2xl border border-line bg-paper py-4 pl-12 pr-36 text-base font-mono placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-2 focus:ring-heroViolet/20 sm:pr-44"
+              />
+              <button
+                type="submit"
+                disabled={!id.trim()}
+                className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-50 sm:px-5"
+              >
+                {esAdmin ? "Despachar agentes" : "Buscar"} <ArrowRight size={15} aria-hidden />
+              </button>
 
-            {/* Autocomplete dropdown con matches del cache */}
-            {showSugg && id.trim() && cached && cached.length > 0 && (() => {
-              const qLower = id.trim().toLowerCase();
-              const matches = cached.filter((it: any) => {
-                const hay = [it.codigo_convocatoria, it.ocid, it.objeto, it.entidad, it.entidad_ruc, it.proveedor_ruc]
-                  .filter(Boolean).join(" ").toLowerCase();
-                return hay.includes(qLower);
-              }).slice(0, 6);
-              if (matches.length === 0) return null;
-              return (
+              {/* Autocompletado con los análisis ya publicados */}
+              {sugerencias.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-xl">
-                  <div className="flex items-center justify-between border-b border-line bg-paperSoft px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-                    <span>{matches.length} ya analizada{matches.length === 1 ? "" : "s"} · click para ver sin re-procesar</span>
-                    <span className="rounded-full bg-moss/15 px-2 py-0 font-mono normal-case text-moss">Cloud SQL</span>
+                  <div className="border-b border-line bg-paperSoft px-4 py-2 text-[11px] font-semibold text-inkSoft">
+                    {sugerencias.length === 1
+                      ? "1 contrato ya analizado: elígelo para abrir su dossier"
+                      : `${sugerencias.length} contratos ya analizados: elige uno para abrir su dossier`}
                   </div>
                   <ul className="max-h-72 divide-y divide-line overflow-y-auto">
-                    {matches.map((it: any, i: number) => (
-                      <li key={i}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => { e.preventDefault(); loadFromCache(it.codigo_convocatoria || it.ocid); }}
-                          className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paperDeep"
-                        >
-                          <div className={cn(
-                            "flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-md text-paper",
-                            (it.score || 0) >= 85 ? "bg-rust" :
-                            (it.score || 0) >= 70 ? "bg-clay" :
-                            (it.score || 0) >= 40 ? "bg-amber" : "bg-moss",
-                          )}>
-                            <span className="font-mono text-[11px] font-bold leading-none">{it.score || 0}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-1.5">
-                              <span className="rounded bg-paperDeep px-1 py-0 font-mono text-[10px] font-bold text-ink">
-                                {it.codigo_convocatoria}
-                              </span>
-                              {it.region && (
-                                <span className="rounded-full bg-paperSoft px-1.5 py-0 text-[9px] font-medium text-heroViolet">{it.region}</span>
+                    {sugerencias.map((it: any) => {
+                      const nivel = nivelDeAnalisis(it);
+                      return (
+                        <li key={it.codigo_convocatoria || it.ocid}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              loadFromCache(it.codigo_convocatoria || it.ocid);
+                            }}
+                            className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paperDeep"
+                          >
+                            <div
+                              className={cn(
+                                "flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-md",
+                                FRANJA_NIVEL[nivel ?? "sin"],
                               )}
-                              {(it.n_alta || 0) > 0 && (
-                                <span className="rounded-full bg-rust px-1.5 py-0 text-[9px] font-bold text-paper">{it.n_alta} alta</span>
-                              )}
-                              {(it.n_banderas || 0) === 0 && (
-                                <span className="rounded-full bg-moss/20 px-1.5 py-0 text-[9px] font-bold text-moss">✓ sin banderas</span>
-                              )}
+                              title={nivel ? NIVEL_ANALISIS[nivel].etiqueta : undefined}
+                            >
+                              <span className="font-mono text-[11px] font-bold leading-none">{it.score ?? "—"}</span>
                             </div>
-                            <div className="line-clamp-1 text-xs font-medium text-ink">{it.objeto}</div>
-                            <div className="line-clamp-1 text-[10px] text-mute">{it.entidad || "—"}</div>
-                          </div>
-                          <ChevronRight size={12} className="mt-2 shrink-0 text-mute" />
-                        </button>
-                      </li>
-                    ))}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline gap-1.5">
+                                <span className="rounded bg-paperDeep px-1 py-0 font-mono text-[10px] font-bold text-ink">
+                                  {it.codigo_convocatoria}
+                                </span>
+                                {it.region && (
+                                  <span className="rounded-full bg-paperSoft px-1.5 py-0 text-[10px] font-medium text-heroViolet">
+                                    {it.region}
+                                  </span>
+                                )}
+                                {(it.n_alta || 0) > 0 && (
+                                  <span className="rounded-full bg-crimson-soft px-1.5 py-0 text-[10px] font-bold text-crimsonTexto">
+                                    {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
+                                  </span>
+                                )}
+                                {(it.n_banderas || 0) === 0 && (
+                                  <span className="rounded-full bg-paperDeep px-1.5 py-0 text-[10px] font-semibold text-mute">
+                                    sin señales
+                                  </span>
+                                )}
+                              </div>
+                              <div className="line-clamp-1 text-xs font-medium text-ink">{it.objeto}</div>
+                              <div className="line-clamp-1 text-[11px] text-mute">{it.entidad || "—"}</div>
+                            </div>
+                            <ChevronRight size={12} aria-hidden className="mt-2 shrink-0 text-mute" />
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
-              );
-            })()}
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {SAMPLES.slice(0, 3).map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setId(s.id)}
-                className="rounded-md border border-line bg-paper px-2 py-0.5 text-[10px] font-mono text-mute transition-colors hover:bg-paperDeep hover:text-ink"
-                title={s.label}
-              >
-                {s.id}
-              </button>
-            ))}
-          </div>
-          {error && (
-            <div className="mt-3 rounded-xl border border-rust/30 bg-crimson-soft p-3 text-xs text-rust">
-              <AlertTriangle size={12} className="mr-1 inline" />
-              {error}
+              )}
             </div>
-          )}
 
-          {/* Fallback manual: pegar OCDS cuando el proxy está bloqueado */}
-          {blockedOcid && (
-            <div className="mt-3 rounded-xl border-2 border-amber bg-amber/10 p-4 text-sm">
-              <div className="mb-2 flex items-start gap-2">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amberTexto" />
-                <div>
-                  <div className="font-semibold text-ink">
-                    El proxy OECE está bloqueado para tu ruta — pegá el OCDS manualmente
-                  </div>
-                  <div className="mt-1 text-[12px] text-mute">
-                    1. Abre esta URL en otra pestaña:{" "}
-                    <a
-                      href={`https://contratacionesabiertas.oece.gob.pe/api/v1/record/${blockedOcid}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-heroViolet underline transition-colors hover:text-heroViolet-deep"
-                    >
-                      contratacionesabiertas.oece.gob.pe/api/v1/record/{blockedOcid}
-                    </a>
-                    <br />
-                    2. Copia TODO el JSON que aparece (Ctrl+A → Ctrl+C)
-                    <br />
-                    3. Pegalo aquí abajo y dale &quot;Procesar con OCDS pegado&quot;
-                  </div>
+            {error && (
+              <div role="alert" className="mt-3 rounded-xl border border-rust/30 bg-crimson-soft p-3 text-xs text-crimsonTexto">
+                <AlertTriangle size={12} aria-hidden className="mr-1 inline" />
+                {error}
+              </div>
+            )}
+
+            {aviso?.tipo === "varias" && (
+              <p role="status" className="mt-3 text-xs text-mute">
+                Hay {aviso.n} análisis que coinciden. Elige uno de la lista o escribe el código completo.
+              </p>
+            )}
+
+            {aviso?.tipo === "sin_analisis" && (
+              <div role="status" className="mt-3 rounded-xl border border-line bg-paperSoft p-4 text-sm">
+                <p className="font-semibold text-ink">
+                  Vigía todavía no publicó un análisis de <span className="font-mono">{aviso.codigo}</span>.
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
+                  No analizamos contratos a pedido: los leemos en orden de cola, zona por zona, cuando alguien
+                  financia la auditoría de esa zona.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    href={`/app/contratos?q=${encodeURIComponent(aviso.codigo)}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-paperDeep"
+                  >
+                    Buscarlo entre los contratos del SEACE
+                  </Link>
+                  <Link
+                    href="/app/financiar"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper transition-colors hover:bg-ink/90"
+                  >
+                    Financiar la auditoría de su zona <ArrowRight size={12} aria-hidden />
+                  </Link>
                 </div>
               </div>
-              <textarea
-                value={manualOcdsText}
-                onChange={(e) => {
-                  setManualOcdsText(e.target.value);
-                  setManualOcdsError(null);
-                }}
-                placeholder='Pega aquí el JSON completo que devuelve la URL (debe empezar con {"version":"1.1",...})'
-                className="mt-2 w-full rounded-md border border-line bg-paper p-2 font-mono text-[11px]"
-                rows={6}
-              />
-              {manualOcdsError && (
-                <div className="mt-1.5 text-[11px] text-rust">{manualOcdsError}</div>
-              )}
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setManualOcdsError(null);
-                    try {
-                      const parsed = JSON.parse(manualOcdsText);
-                      const cr =
-                        parsed?.records?.[0]?.compiledRelease ??
-                        parsed?.compiledRelease ??
-                        (parsed?.ocid && parsed?.tender ? parsed : null);
-                      if (!cr) {
-                        setManualOcdsError(
-                          "JSON pegado no parece un OCDS válido. Esperaba un objeto con 'records[0].compiledRelease' o 'compiledRelease'.",
-                        );
-                        return;
-                      }
-                      // Preferir el OCID que viene del JSON pegado — es la fuente
-                      // más confiable, no depende del input del usuario ni del
-                      // sanitizer. Si el JSON no trae ocid, caemos al input.
-                      const ocidFromJson = cr?.ocid as string | undefined;
-                      const pendingOcid = ocidFromJson || blockedOcid || id;
-                      setBlockedOcid(null);
-                      setManualOcdsText("");
-                      submit(null, pendingOcid, cr);
-                    } catch (err: any) {
-                      setManualOcdsError(`JSON inválido: ${err?.message || String(err)}`);
-                    }
-                  }}
-                  disabled={!manualOcdsText.trim()}
-                  className="rounded-full bg-ink px-4 py-1.5 text-xs font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-40"
-                >
-                  Procesar con OCDS pegado →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBlockedOcid(null);
-                    setManualOcdsText("");
-                    setManualOcdsError(null);
-                  }}
-                  className="rounded-full border border-line bg-paper px-3 py-1.5 text-[11px] text-mute hover:text-ink"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </form>
+            )}
+          </form>
 
-        {/* PIPELINE compacto dentro del hero — colapsable */}
-        <div className="mt-4">
-          <AgentsPipeline />
-        </div>
+          {/* Cómo se lee un contrato: compacto y colapsable */}
+          <div className="mt-4">
+            <AgentsPipeline medianaSeg={mediana.seg} nLecturas={mediana.n} />
+          </div>
         </div>
 
-        {/* ─── COLUMNA DERECHA · QUICK ACCESS DEL CACHE ─── */}
+        {/* ─── COLUMNA DERECHA: cómo llega un contrato (público) o acción de equipo ─── */}
         <QuickAccessPanel
           cached={cached}
-          onSelect={loadFromCache}
-          onRunNew={(codigo) => {
-            setId(codigo);
-            submit(null, codigo);
-          }}
+          esAdmin={esAdmin}
+          medianaSeg={mediana.seg}
+          nLecturas={mediana.n}
+          onRunNew={
+            esAdmin
+              ? (codigo) => {
+                  setId(codigo);
+                  despachar(null, codigo);
+                }
+              : undefined
+          }
         />
       </div>
 
-      {/* ANALIZADAS RECIENTEMENTE */}
+      {/* ANÁLISIS PUBLICADOS */}
       <AnalizadasRecientes onSelect={loadFromCache} />
     </div>
   );
 }
-
-
-// Heurística por keywords sobre el `objeto` para clasificar la convocatoria
-// (el OECE no expone `mainProcurementCategory` estándar en este dataset).
-
-
-// ─── LOADING ───────────────────────────────────────────────────
-
-
-
-// ── Grafo agéntico en CANVAS ──────────────────────────────────────────────
-// Nodos por tipo + aristas curvas + PARTÍCULAS que fluyen. El nodo activo
-// (paso real en vivo) se enciende con halo pulsante; al terminar queda VERDE.
-// Las fuentes se "encienden" cuando el agente activo las consulta. Clickeable:
-// muestra qué hace cada nodo. Abajo, panel de HALLAZGOS reales del stream.
-
-// Extrae entidades reales (empresa, RUC, estado, socios, señales) del stream.
-
-// Grafo force-directed. Sin posiciones fijas: la física las acomoda.
-// `name` = nombre completo (panel de descubrimiento); `label`/`sub` = dentro del nodo.
-
-// Tracking RICO en vivo: mismos pasos detallados (TOOL_CALL/TOOL_RESULT con
-// args + JSON de salida expandible) que el resultado final, pero durante el
-// proceso. Reusa AgentTraceRow sobre el stream liveEvents y auto-scrollea.
-
-
-// ─── RESULTADO ───────────────────────────────────────────────
-
-// ════════════════════════════════════════════════════════════════════
-// ShareableHeader — header con código + monto + botones compartir/volver
-// ════════════════════════════════════════════════════════════════════
-
-
-// ════════════════════════════════════════════════════════════════════
-// ResumenHumano — overview ejecutivo con score, monto, ganador y top flags
-// ════════════════════════════════════════════════════════════════════
-
-

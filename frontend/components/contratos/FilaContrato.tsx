@@ -22,10 +22,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { ArrowUpRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
-import { Glass, PersonName } from "@/components/Redact";
+import { PersonName, Ruc } from "@/components/Redact";
+import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { severidadDeScore } from "@/lib/severidad";
 import {
   esPersonaNatural,
@@ -78,7 +79,7 @@ export function FilaContrato({
   selected: boolean;
   onHover?: (c: ContratoResumen | null) => void;
 }) {
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ block: "nearest" });
   }, [selected]);
@@ -92,11 +93,17 @@ export function FilaContrato({
   const etapa = etapaLabel(c.etapa);
   const tipoEtapa = [tipo, etapa].filter(Boolean).join(", ") || "Sin clasificar";
 
+  // Semántica de tabla: la fila es role="row" y cada columna un role="cell", así un
+  // lector de pantalla recorre por columna y anuncia su encabezado. Antes la fila
+  // entera era un <button>, y los hijos de un botón son presentacionales: ninguna
+  // celda existía. Ahora el botón (Revelar) vive DENTRO de la celda del objeto y se
+  // estira con un ::after sobre toda la fila, que sigue siendo clickeable completa.
   return (
-    <li
+    <div
       ref={ref}
+      role="row"
       className={cn(
-        "border-b border-line last:border-b-0",
+        "relative border-b border-line transition-colors duration-rapido last:border-b-0 hover:bg-paperSoft",
         // Violeta = "sincronizado con el mapa", no advertencia. Barra a la
         // izquierda en vez de fondo pleno: en una tabla densa el fondo pleno
         // pelea con la lectura de las columnas.
@@ -106,106 +113,110 @@ export function FilaContrato({
       onMouseLeave={() => onHover?.(null)}
     >
       <div className="flex items-stretch">
-        <Revelar
-          titulo={titulo}
-          descripcion={
-            <span className="flex flex-wrap items-baseline gap-x-3 font-mono text-[12px]">
-              <span>{c.codigo}</span>
-              <span>{formatFecha(c.fecha)}</span>
-              {c.zona ? <span className="font-sans">{c.zona}</span> : null}
-            </span>
-          }
-          ancho="lg"
-          etiqueta={[
-            `Ver resumen de ${titulo}`,
-            entidad,
-            c.montoPen ? monto : "sin valor referencial publicado",
-            `estado: ${lectura.label}`,
-            c.score != null ? `${severidadDeScore(c.score).etiqueta}, score ${c.score} de 100` : null,
-          ].filter(Boolean).join(". ")}
-          className={cn(
-            "min-w-0 flex-1 transition-colors duration-rapido hover:bg-paperSoft",
-            PAD_FILA,
-          )}
-          detalle={<DetalleContrato c={c} />}
-          pie={
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] text-mute">Fuente: SEACE/OECE vía la API OCDS</span>
-              <Link
-                href={href}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-inkSoft"
-              >
-                Ver dossier completo <ArrowUpRight size={14} />
-              </Link>
-            </div>
-          }
-        >
-          <div className={cn(REJILLA, ALTO_FILA)}>
-            {/* 1 · señal */}
+        <div className={cn(REJILLA, ALTO_FILA, PAD_FILA, "min-w-0 flex-1")}>
+          {/* 1 · señal */}
+          <div role="cell" className="min-w-0">
             <Severidad score={c.score} formato="punto" />
-
-            {/* 2 · objeto (+ segunda línea solo en móvil) */}
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-baseline gap-1.5">
-                <span className="truncate text-[13px] font-medium leading-tight text-ink">{titulo}</span>
-                {c.banderas > 0 && (
-                  <span className="shrink-0 text-[11px] text-mute">
-                    {c.banderas} señal{c.banderas === 1 ? "" : "es"}
-                  </span>
-                )}
-              </div>
-              {/* Segunda línea, sólo en móvil. El estado va con su palabra, no como
-                  punto suelto: un color sin texto no es un canal, es un acertijo. */}
-              <div className="mt-0.5 flex min-w-0 items-center gap-2.5 text-[11px] leading-tight text-mute md:hidden">
-                <EstadoLecturaCelda info={lectura} className="shrink-0 text-[11px]" />
-                <span className="truncate">{entidad}</span>
-              </div>
-            </div>
-
-            {/* 3 · entidad */}
-            <div className={cn(CELDA_MD, "min-w-0")}>
-              <div className="truncate text-[12px] leading-tight text-inkSoft" title={entidad}>
-                {entidad}
-              </div>
-              {c.zona && <div className="truncate text-[11px] leading-tight text-mute">{c.zona}</div>}
-            </div>
-
-            {/* 4 · tipo y etapa. Dos datos, dos elementos: el tipo manda y la
-                etapa lo matiza, así que se distinguen por peso de color y no
-                por una raya de texto plano entre medio. */}
-            {/* `xl:flex`, no `flex` a secas: CELDA_XL es "hidden xl:block" y el
-                `xl:block` le gana a un `flex` sin variante, así que el tipo y la
-                etapa quedaban pegados ("ConvenioConvocada"). */}
-            <div className={cn(CELDA_XL, "min-w-0 text-[12px] xl:flex xl:items-baseline xl:gap-x-2")} title={tipoEtapa}>
-              <span className="truncate text-inkSoft">{tipo || "Sin clasificar"}</span>
-              {etapa && <span className="shrink-0 text-mute">{etapa}</span>}
-            </div>
-
-            {/* 5 · estado de lectura */}
-            <div className={cn(CELDA_MD, "min-w-0")}>
-              <EstadoLecturaCelda info={lectura} />
-            </div>
-
-            {/* 6 · monto */}
-            <div className="truncate text-right font-mono text-[12.5px] font-semibold text-ink">{monto}</div>
-
-            {/* 7 · convocada */}
-            <div className={cn(CELDA_MD, "text-right font-mono text-[11.5px] text-mute")}>{formatFecha(c.fecha)}</div>
           </div>
-        </Revelar>
 
-        <Link
-          href={href}
-          aria-label={`Abrir el dossier completo de ${c.codigo}`}
-          className={cn(
-            ANCHO_IR,
-            "flex shrink-0 items-center justify-center border-l border-line text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-ink",
-          )}
-        >
-          <ArrowUpRight size={14} aria-hidden />
-        </Link>
+          {/* 2 · objeto (+ segunda línea solo en móvil) */}
+          <div role="cell" className="min-w-0">
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <Revelar
+                titulo={titulo}
+                descripcion={
+                  <span className="flex flex-wrap items-baseline gap-x-3 font-mono text-[12px]">
+                    <span>{c.codigo}</span>
+                    <span>{formatFecha(c.fecha)}</span>
+                    {c.zona ? <span className="font-sans">{c.zona}</span> : null}
+                  </span>
+                }
+                ancho="lg"
+                etiqueta={[
+                  `Ver resumen de ${titulo}`,
+                  entidad,
+                  c.montoPen ? monto : "sin valor referencial publicado",
+                  `estado: ${lectura.label}`,
+                  c.score != null ? `${severidadDeScore(c.score).etiqueta}, score ${c.score} de 100` : null,
+                ].filter(Boolean).join(". ")}
+                className={cn(
+                  "min-w-0 truncate text-[13px] font-medium leading-tight text-ink",
+                  // El ::after cubre la fila completa (la fila es `relative`): toda la fila
+                  // sigue abriendo el panel, y el foco dibuja su anillo sobre la fila entera.
+                  "after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-heroViolet",
+                )}
+                detalle={<DetalleContrato c={c} />}
+                pie={
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-mute">Fuente: SEACE/OECE, vía la API OCDS</span>
+                    <Link
+                      href={href}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-inkSoft"
+                    >
+                      Ver dossier completo <ArrowRight size={14} aria-hidden />
+                    </Link>
+                  </div>
+                }
+              >
+                {titulo}
+              </Revelar>
+              {c.banderas > 0 && (
+                <span className="shrink-0 text-[11px] text-mute">
+                  {c.banderas} señal{c.banderas === 1 ? "" : "es"}
+                </span>
+              )}
+            </div>
+            {/* Segunda línea, sólo en móvil. El estado va con su palabra, no como
+                punto suelto: un color sin texto no es un canal, es un acertijo. */}
+            <div className="mt-0.5 flex min-w-0 items-center gap-2.5 text-[11px] leading-tight text-mute md:hidden">
+              <EstadoLecturaCelda info={lectura} className="shrink-0 text-[11px]" />
+              <span className="truncate">{entidad}</span>
+            </div>
+          </div>
+
+          {/* 3 · entidad */}
+          <div role="cell" className={cn(CELDA_MD, "min-w-0")}>
+            <div className="truncate text-[12px] leading-tight text-inkSoft" title={entidad}>
+              {entidad}
+            </div>
+            {c.zona && <div className="truncate text-[11px] leading-tight text-mute">{c.zona}</div>}
+          </div>
+
+          {/* 4 · tipo y etapa. Dos datos, dos elementos: el tipo manda y la
+              etapa lo matiza, así que se distinguen por peso de color y no
+              por una raya de texto plano entre medio. */}
+          {/* `xl:flex`, no `flex` a secas: CELDA_XL es "hidden xl:block" y el
+              `xl:block` le gana a un `flex` sin variante, así que el tipo y la
+              etapa quedaban pegados ("ConvenioConvocada"). */}
+          <div role="cell" className={cn(CELDA_XL, "min-w-0 text-[12px] xl:flex xl:items-baseline xl:gap-x-2")} title={tipoEtapa}>
+            <span className="truncate text-inkSoft">{tipo || "Sin clasificar"}</span>
+            {etapa && <span className="shrink-0 text-mute">{etapa}</span>}
+          </div>
+
+          {/* 5 · estado de lectura */}
+          <div role="cell" className={cn(CELDA_MD, "min-w-0")}>
+            <EstadoLecturaCelda info={lectura} />
+          </div>
+
+          {/* 6 · monto */}
+          <div role="cell" className="truncate text-right font-mono text-[12.5px] font-semibold text-ink">{monto}</div>
+
+          {/* 7 · convocada */}
+          <div role="cell" className={cn(CELDA_MD, "text-right font-mono text-[11.5px] text-mute")}>{formatFecha(c.fecha)}</div>
+        </div>
+
+        {/* 8 · enlace al dossier. `relative z-10`: queda por encima del ::after del botón. */}
+        <div role="cell" className={cn(ANCHO_IR, "relative z-10 flex shrink-0 border-l border-line")}>
+          <Link
+            href={href}
+            aria-label={`Abrir el dossier completo de ${c.codigo}`}
+            className="flex w-full items-center justify-center text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-ink"
+          >
+            <ArrowUpRight size={14} aria-hidden />
+          </Link>
+        </div>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -238,24 +249,26 @@ function DetalleContrato({ c }: { c: ContratoResumen }) {
             <p className="text-[12.5px] leading-relaxed text-mute">
               {c.banderas > 0
                 ? `Los agentes registraron ${c.banderas} señal${c.banderas === 1 ? "" : "es"} en este expediente. Cada una lleva su norma citada y la página del documento donde se apoya: eso vive en el dossier.`
-                : "El análisis corrió y no registró ninguna señal: el dictamen está igual publicado en el dossier."}
+                : "El análisis no registró señales. Que no haya señales no certifica que el contrato esté limpio: el dossier dice qué se revisó."}
             </p>
           </div>
         ) : (
           // Estado vacío que enseña el mecanismo, no un guion. Ninguna cifra
           // inventada: de un contrato sin leer no se sabe nada todavía.
           <div className="mt-1.5 rounded-xl border border-dashed border-line bg-paperSoft px-3 py-2.5">
+            {/* El número de agentes sale del catálogo (el DAG real del backend), no se escribe a
+                mano: esta frase decía "once agentes… catorce portales… unos diez minutos" mientras
+                otras páginas decían otra cosa. Lo que no tiene fuente, no se dice. */}
             <p className="text-[12.5px] leading-relaxed text-mute">
-              Todavía no hay dictamen: nadie ha leído este expediente. Cuando su lectura se financia, once
-              agentes recorren el expediente y catorce portales del Estado, y publican las señales que
-              encuentren con su norma citada. Toma unos diez minutos y el resultado es público, lo señale a
-              quien lo señale.
+              Todavía no hay dictamen: nadie ha leído este expediente. Cuando su lectura se financia, {TOTAL_AGENTES}{" "}
+              agentes leen el expediente, lo cruzan con registros públicos del Estado y publican las señales que
+              encuentren con su norma citada. El resultado es público, lo señale a quien lo señale.
             </p>
             <Link
               href={c.ubigeo ? `/app/financiar/${c.ubigeo}` : "/app/financiar"}
               className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink underline-offset-2 hover:underline"
             >
-              Financiar la lectura de {c.zona ?? "esta zona"} <ExternalLink size={12} aria-hidden />
+              Financiar la lectura de {c.zona ?? "esta zona"} <ArrowRight size={12} aria-hidden />
             </Link>
           </div>
         )}
@@ -291,15 +304,11 @@ function DetalleContrato({ c }: { c: ContratoResumen }) {
           <Dato k="Proveedor">
             {c.proveedor ? (
               <>
-                {natural ? <PersonName name={c.proveedor} /> : c.proveedor}
+                {/* Orden SUNAT (apellidos primero): se tapa el apellido materno, no el nombre de pila. */}
+                {natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
                 {c.proveedorRuc && (
                   <span className="ml-2 font-mono text-[11px] text-mute">
-                    RUC{" "}
-                    {natural ? (
-                      <Glass label="RUC de persona natural — clic para revelar">{c.proveedorRuc}</Glass>
-                    ) : (
-                      c.proveedorRuc
-                    )}
+                    RUC <Ruc value={c.proveedorRuc} />
                   </span>
                 )}
               </>

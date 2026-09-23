@@ -14,6 +14,18 @@
 
 const mem = new Map<string, any>();
 
+/**
+ * Por qué no hay dossier. `not_found` = no hay análisis publicado para ese código;
+ * `error` = la API o la red fallaron y conviene reintentar. Antes las dos cosas
+ * se veían como "no se ha analizado todavía".
+ */
+export class DossierError extends Error {
+  constructor(public tipo: "not_found" | "error", message: string) {
+    super(message);
+    this.name = "DossierError";
+  }
+}
+
 /** Normaliza el id a la llave de cache (quita prefijo OECE-, decodifica). */
 function keyOf(rawId: string): string {
   return decodeURIComponent(rawId || "").replace(/^OECE-/i, "").trim();
@@ -49,27 +61,33 @@ export async function getDossier(rawId: string): Promise<any> {
 
   const DELAYS = [0, 700, 1500]; // 3 intentos, ~2.2s peor caso antes de "not_found"
   const run = (async () => {
-    let lastErr: any = null;
+    let lastErr: DossierError | null = null;
     for (let i = 0; i < DELAYS.length; i++) {
       if (DELAYS[i]) await new Promise((r) => setTimeout(r, DELAYS[i]));
-      const res = await fetch(`/api/agent/history/${encodeURIComponent(key)}`);
+      let res: Response;
+      try {
+        res = await fetch(`/api/agent/history/${encodeURIComponent(key)}`);
+      } catch (e) {
+        lastErr = new DossierError("error", (e as Error)?.message || "sin conexión");
+        break;
+      }
       const txt = await res.text();
       let data: any;
       try {
         data = JSON.parse(txt);
       } catch {
-        lastErr = new Error(`Respuesta no-JSON (${res.status}). ${txt.slice(0, 160)}`);
+        lastErr = new DossierError("error", `Respuesta ilegible (${res.status})`);
         break;
       }
-      const notFound = !res.ok || data?.error === "not_found";
-      if (!notFound && !data?.error) {
+      const notFound = res.status === 404 || data?.error === "not_found";
+      if (res.ok && !data?.error) {
         mem.set(key, data);
         return data;
       }
-      lastErr = new Error(data?.detail || data?.error || `Error ${res.status}`);
+      lastErr = new DossierError(notFound ? "not_found" : "error", data?.detail || data?.error || `Error ${res.status}`);
       if (!notFound) break; // error real (no 404) → no reintentar
     }
-    throw lastErr ?? new Error("not_found");
+    throw lastErr ?? new DossierError("not_found", "not_found");
   })();
 
   inflight.set(key, run);

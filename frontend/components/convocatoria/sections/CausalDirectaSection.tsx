@@ -10,19 +10,17 @@ export function CausalDirectaSection({
   if (!causal?.match) return null;
   const tieneActo = acto?.encontrado === true;
   const sevColor = tieneActo
-    ? "bg-moss/10 text-moss border-moss/30"
+    ? "bg-moss/10 text-mossTexto border-moss/30"
     : "bg-rust/15 text-rust border-rust/40";
 
   return (
     <section className="surface overflow-hidden p-0">
       <div className={cn("border-b border-line px-5 py-3", "bg-paperDeep")}>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-          <Scale size={11} className="mr-1 inline" />
-          Causal de Contratación Directa · Art. 27 TUO Ley 30225
-        </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-          Lit. {causal.causal_letra?.toUpperCase()} — {causal.descripcion}
+        <h2 className="font-serif text-xl font-bold text-ink">
+          <Scale size={16} className="mr-1.5 inline text-heroViolet" aria-hidden />
+          Contratación directa, literal {causal.causal_letra?.toUpperCase()}: {causal.descripcion}
         </h2>
+        <p className="mt-0.5 text-[12px] text-mute">Causal invocada según el Art. 27 del TUO de la Ley 30225</p>
       </div>
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
@@ -42,7 +40,7 @@ export function CausalDirectaSection({
             {causal.evidencia_text && (
               <div className="rounded-md bg-paper px-2 py-1.5">
                 <dt className="text-[9px] uppercase tracking-widest text-mute">Evidencia en el documento</dt>
-                <dd className="italic text-inkSoft">"{causal.evidencia_text}"</dd>
+                <dd className="italic text-inkSoft">“{redactDnis(causal.evidencia_text)}”</dd>
               </div>
             )}
             <div className="rounded-md bg-paper px-2 py-1.5">
@@ -77,7 +75,7 @@ export function CausalDirectaSection({
               {acto.fragmento && (
                 <div className="rounded-md bg-paper px-2 py-1.5">
                   <dt className="text-[9px] uppercase tracking-widest text-mute">Fragmento del documento</dt>
-                  <dd className="italic text-inkSoft text-[11px]">"{acto.fragmento}"</dd>
+                  <dd className="italic text-inkSoft text-[11px]">“{redactDnis(acto.fragmento)}”</dd>
                 </div>
               )}
             </div>
@@ -90,7 +88,7 @@ export function CausalDirectaSection({
                 {acto?.motivo || "Los documentos publicados no mencionan número de D.S./D.U./Resolución/Acuerdo Regional/Ordenanza que sustente esta causal."}
               </p>
               <p className="border-t border-line pt-2 text-[10px]">
-                <strong>Norma:</strong> Art. 27.1 lit. a TUO Ley 30225 — la situación de
+                <strong>Norma:</strong> Art. 27.1 lit. a del TUO de la Ley 30225: la situación de
                 emergencia debe estar acreditada por declaratoria oficial.
               </p>
             </div>

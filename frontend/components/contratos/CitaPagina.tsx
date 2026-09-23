@@ -14,21 +14,35 @@ import type { CitaDocumento } from "@/lib/contratos";
 export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid: string; cita: CitaDocumento; className?: string; corto?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enlace, setEnlace] = useState<string | null>(null);
   const largo = `${cita.pagina != null ? `p. ${cita.pagina}` : "documento"}${cita.documentoTitulo ? ` de ${cita.documentoTitulo}` : ""}`;
   const label = corto ? (cita.pagina != null ? `p. ${cita.pagina}` : "doc.") : largo;
 
   async function abrir() {
     if (!cita.documentoUrl) return;
-    setBusy(true); setError(null);
+    const seace = cita.documentoUrl;
+    // La pestaña se abre AHORA, dentro del gesto del clic, y recién después se le pone la
+    // URL firmada. Un `window.open` después de un `await` ya no cuenta como gesto del usuario:
+    // Safari en iOS y Firefox lo bloquean como popup y el clic no hacía nada.
+    // Sin "noopener" en la llamada (con él, `window.open` devuelve null); se corta a mano.
+    const w = window.open("about:blank", "_blank");
+    if (w) w.opener = null;
+    // Si el navegador bloqueó la pestaña igual, se deja el enlace a mano en vez de sacar a
+    // la persona de la página en la que está leyendo.
+    const ir = (url: string) => {
+      if (w && !w.closed) w.location.href = url;
+      else setEnlace(url);
+    };
+    setBusy(true); setError(null); setEnlace(null);
     try {
-      const res = await fetch(`${PUBLIC_API_BASE}/contratos/${encodeURIComponent(ocid)}/documento?url=${encodeURIComponent(cita.documentoUrl)}`);
+      const res = await fetch(`${PUBLIC_API_BASE}/contratos/${encodeURIComponent(ocid)}/documento?url=${encodeURIComponent(seace)}`);
       const j = await res.json();
       if (!res.ok || !j.url) throw new Error(j.detail ?? "no disponible");
       const hash = cita.pagina != null && j.previsualizable ? `#page=${cita.pagina}` : "";
-      window.open(`${j.url}${hash}`, "_blank", "noopener");
+      ir(`${j.url}${hash}`);
     } catch {
       setError("no está en el almacén de Vigía");
-      window.open(cita.documentoUrl, "_blank", "noopener");
+      ir(seace);
     } finally {
       setBusy(false);
     }
@@ -43,7 +57,10 @@ export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid
         type="button"
         onClick={abrir}
         disabled={busy}
-        title={`${largo}${cita.cita ? ` — “${cita.cita.slice(0, 200)}”` : ""}`}
+        // Sin la cita textual en el `title`: suele traer el nombre y el RUC de una persona
+        // natural ("Señor(es): ABEL CARPIO COBOS | RUC: 10…"), y un tooltip no se puede
+        // poner en vidrio. La cita se lee en la página del PDF que abre este botón.
+        title={largo}
         aria-label={`Abrir ${largo}`}
         className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-1.5 py-0.5 text-[11px] text-ink transition-colors hover:bg-paperDeep disabled:opacity-60"
       >
@@ -52,6 +69,11 @@ export function CitaPagina({ ocid, cita, className = "", corto = false }: { ocid
         <ExternalLink size={10} className="text-mute" aria-hidden />
       </button>
       {error && <span className="text-[10px] text-mute">({error}; abrimos el SEACE)</span>}
+      {enlace && (
+        <a href={enlace} target="_blank" rel="noopener noreferrer" className="text-[10px] font-medium text-heroViolet underline underline-offset-2">
+          abrir el documento
+        </a>
+      )}
     </span>
   );
 }

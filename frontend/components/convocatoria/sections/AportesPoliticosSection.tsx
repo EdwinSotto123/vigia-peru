@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { redactDnis } from "../../Redact";
 import { PersonaVinculacionesPanel } from "./PersonaVinculacionesPanel";
 
 export function AportesPoliticosSection({ web, person, ctx }: { web: any; person: any; ctx?: any }) {
@@ -22,17 +22,14 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-          <ShieldAlert size={11} className="mr-1 inline" />
-          Aportes políticos y candidaturas · ONPE + JNE
-        </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-ink">
+        <h2 className="font-serif text-xl font-bold text-ink">
+          <ShieldAlert size={16} className="mr-1.5 inline text-heroViolet" aria-hidden />
           Vinculaciones políticas
         </h2>
         <p className="mt-1 text-xs text-mute">
           Aportes a campañas registrados en ONPE Claridad y postulaciones en el
           JNE asociados al proveedor o su gerente. Una vinculación política no
-          implica delito — pero amerita verificación si coincide con el partido
+          implica delito, pero amerita verificación si coincide con el partido
           que gobierna la entidad contratante.
         </p>
       </div>
@@ -56,7 +53,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                     <strong className="text-sm text-ink">{a.partido}</strong>
                     {a.monto != null && (
                       <span className="ml-auto font-mono text-xs font-bold text-heroViolet">
-                        S/. {Number(a.monto).toLocaleString()}
+                        S/ {Number(a.monto).toLocaleString("es-PE")}
                       </span>
                     )}
                   </div>
@@ -118,13 +115,14 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
             {hallazgos.map((h: any, i: number) => (
               <li key={i} className="text-[11px] text-ink">
                 <strong>{h.fuente}:</strong>{" "}
-                <span className={h.estado === "alerta" ? "text-rust" : h.estado === "ok" ? "text-moss" : "text-mute"}>
-                  {h.mensaje}
+                <span className={h.estado === "alerta" ? "text-crimsonTexto" : h.estado === "ok" ? "text-mossTexto" : "text-mute"}>
+                  {redactDnis(h.mensaje)}
                 </span>
                 {h.url && (
                   <a href={h.url} target="_blank" rel="noreferrer"
-                     className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline">
-                    <ExternalLink size={9} />
+                     className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                     aria-label={`Abrir la fuente: ${h.fuente}`}>
+                    <ExternalLink size={9} aria-hidden />
                   </a>
                 )}
               </li>

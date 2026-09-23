@@ -3,7 +3,42 @@
 // Separado del componente (que sigue en RelationshipGraph.tsx) para que ninguno de los dos
 // archivos pase de 800 líneas.
 import type { GraphNode, GraphEdge } from "../types";
-import { maskApellido, maskDnis } from "../../Redact";
+import { esPersonaNatural, maskApellido, maskDnis } from "../../Redact";
+import { evidenciaComoTexto } from "./Evidencia";
+
+// El grafo es SVG sin clic-para-revelar en las etiquetas: los datos personales
+// se enmascaran acá, antes de llegar al dibujo. El panel de detalle (HTML) es
+// el que ofrece el vidrio revelable.
+
+/**
+ * Enmascara el apellido materno de un nombre en orden SUNAT/RNP
+ * (APELLIDO APELLIDO NOMBRE): la SEGUNDA palabra. `maskApellido` tapa la
+ * última, que en este orden es el nombre de pila y dejaba los dos apellidos
+ * a la vista.
+ */
+function maskApellidoSunat(name?: string | null): string {
+  const n = (name || "").trim();
+  if (!n) return n;
+  const parts = n.split(/\s+/);
+  if (parts.length < 2) return n;
+  const k = parts.length >= 3 ? 1 : 0;
+  parts[k] = "•".repeat(Math.min(Math.max(parts[k].length, 3), 8));
+  return parts.join(" ");
+}
+
+/** Nombre de una parte (proveedor, postor): persona natural (RUC 10) → enmascarado; empresa → tal cual. */
+const nombreParte = (nombre: string, ruc?: string | null) => (esPersonaNatural(ruc) ? maskApellidoSunat(nombre) : nombre);
+
+/** "sin_vinculo" → "sin vinculo". Los enums del backend no se muestran crudos. */
+const ACENTOS: Record<string, string> = { "sin vinculo": "sin vínculo", vinculo: "vínculo", "posible familiar": "posible familiar" };
+const legible = (v: unknown) => {
+  const t = String(v ?? "").replace(/_/g, " ").trim();
+  return ACENTOS[t.toLowerCase()] ?? t;
+};
+
+/** Une partes de un tooltip con comas, sin dejar huecos. */
+const unir = (...partes: unknown[]) =>
+  partes.map((x) => (x == null ? "" : String(x).trim())).filter(Boolean).join(", ");
 
 export function buildRelationshipGraphData(
   person: any,
@@ -64,18 +99,26 @@ export function buildRelationshipGraphData(
   const idCompanyMain = "co_main";
   const idEntidad = "entidad";
 
+  const personaEsProveedorNatural =
+    esPersonaNatural(proveedorRuc) &&
+    String(p.nombre_completo || "").trim().toUpperCase() === String(proveedor?.nombre || "").trim().toUpperCase();
   nodes.push({
-    id: idPerson, kind: "person", label: maskApellido(personLabel),
+    id: idPerson, kind: "person",
+    // "Persona no identificada" no es un nombre: no se enmascara.
+    label: !p.nombre_completo
+      ? personLabel
+      : personaEsProveedorNatural ? maskApellidoSunat(personLabel) : maskApellido(personLabel),
     sublabel: p.cargo_actual || (p.dni ? `DNI ${maskDnis(String(p.dni))}` : undefined),
     meta: { dni: p.dni, cargo: p.cargo_actual, fuente_url: p.datosperu_url || p.linkedin },
   });
 
   // Empresa principal (proveedor de la convocatoria actual)
+  const proveedorEtiqueta = nombreParte(proveedorNombre, proveedorRuc);
   nodes.push({
     id: idCompanyMain, kind: "company_main",
-    label: proveedorNombre.length > 36 ? proveedorNombre.slice(0, 33) + "…" : proveedorNombre,
-    sublabel: proveedorRuc ? `RUC ${proveedorRuc}` : undefined,
-    tooltip: proveedorNombre,
+    label: proveedorEtiqueta.length > 36 ? proveedorEtiqueta.slice(0, 33) + "…" : proveedorEtiqueta,
+    sublabel: proveedorRuc ? `RUC ${maskDnis(String(proveedorRuc))}` : undefined,
+    tooltip: proveedorEtiqueta,
     meta: { ruc: proveedorRuc, razon_social: proveedorNombre, rol: "Proveedor de la convocatoria actual" },
   });
   edges.push({ from: idPerson, to: idCompanyMain, kind: "titular", label: "rep. legal" });
@@ -83,26 +126,26 @@ export function buildRelationshipGraphData(
   // Otras empresas con mismo titular
   empresasTitular.forEach((e: any, i: number) => {
     const id = `co_t_${i}`;
-    const lbl = (e.razon_social || `RUC ${e.ruc}`) as string;
+    const lbl = (e.razon_social ? nombreParte(e.razon_social, e.ruc) : `RUC ${maskDnis(String(e.ruc ?? ""))}`) as string;
     nodes.push({
       id, kind: "company_titular",
       label: lbl.length > 34 ? lbl.slice(0, 31) + "…" : lbl,
-      sublabel: e.ruc ? `RUC ${e.ruc}` : undefined,
-      tooltip: `${lbl}${e.rol_del_gerente ? " · " + e.rol_del_gerente : ""}`,
-      meta: { ruc: e.ruc, razon_social: e.razon_social, rol: e.rol_del_gerente || "Titular o socio" },
+      sublabel: e.ruc ? `RUC ${maskDnis(String(e.ruc))}` : undefined,
+      tooltip: unir(lbl, legible(e.rol_del_gerente)),
+      meta: { ruc: e.ruc, razon_social: e.razon_social, rol: legible(e.rol_del_gerente) || "Titular o socio" },
     });
-    edges.push({ from: idPerson, to: id, kind: "titular", label: e.rol_del_gerente || "titular" });
+    edges.push({ from: idPerson, to: id, kind: "titular", label: legible(e.rol_del_gerente) || "titular" });
   });
 
   // Empresas mismo domicilio
   empresasDomicilio.forEach((e: any, i: number) => {
     const id = `co_d_${i}`;
-    const lbl = (e.razon_social || `RUC ${e.ruc}`) as string;
+    const lbl = (e.razon_social ? nombreParte(e.razon_social, e.ruc) : `RUC ${maskDnis(String(e.ruc ?? ""))}`) as string;
     nodes.push({
       id, kind: "company_domicilio",
       label: lbl.length > 34 ? lbl.slice(0, 31) + "…" : lbl,
-      sublabel: e.direccion ? "📍 mismo domicilio" : undefined,
-      tooltip: `${lbl} — ${e.direccion || "mismo domicilio fiscal"}`,
+      sublabel: e.direccion ? "mismo domicilio" : undefined,
+      tooltip: unir(lbl, e.direccion || "mismo domicilio fiscal"),
       meta: { ruc: e.ruc, razon_social: e.razon_social, direccion: e.direccion, observacion: e.observacion, rol: "Mismo domicilio fiscal" },
     });
     edges.push({ from: idCompanyMain, to: id, kind: "domicilio", label: "mismo domicilio" });
@@ -148,7 +191,7 @@ export function buildRelationshipGraphData(
       id, kind: "cargo_pasado",
       label: inst.length > 28 ? inst.slice(0, 25) + "…" : inst,
       sublabel: c.periodo || c.cargo,
-      tooltip: `${c.cargo || ""} · ${inst}${c.periodo ? " (" + c.periodo + ")" : ""}`,
+      tooltip: unir(c.cargo, `${inst}${c.periodo ? " (" + c.periodo + ")" : ""}`),
       meta: { cargo: c.cargo, institucion: inst, periodo: c.periodo, fuente_url: c.fuente_url },
     });
     edges.push({ from: idPerson, to: id, kind: "cargo", label: c.periodo || "cargo público" });
@@ -163,14 +206,15 @@ export function buildRelationshipGraphData(
   familia.slice(0, 8).forEach((f: any, i: number) => {
     const id = `fa_${i}`;
     const nombre = maskApellido((f.nombre || "Familiar") as string);
+    const parentesco = legible(f.parentesco);
     nodes.push({
       id, kind: "pareja",
       label: nombre,
-      sublabel: f.parentesco || "vínculo familiar",
-      tooltip: `${nombre} · ${f.parentesco || ""} · ${f.detalles || ""}`,
-      meta: { rol: f.parentesco, observacion: f.detalles, fuente_url: f.fuente_url },
+      sublabel: parentesco || "vínculo familiar",
+      tooltip: unir(nombre, parentesco, maskDnis(f.detalles)),
+      meta: { rol: parentesco, observacion: f.detalles || evidenciaComoTexto(f.evidencia) || undefined, fuente_url: f.fuente_url },
     });
-    edges.push({ from: idPerson, to: id, kind: "pareja", label: f.parentesco || "familiar" });
+    edges.push({ from: idPerson, to: id, kind: "pareja", label: parentesco || "familiar" });
 
     // Cargos públicos del familiar → nodo MUNICIPIO con partido
     const cargosFam = (f.cargos_publicos || f.cargos || []) as any[];
@@ -192,11 +236,11 @@ export function buildRelationshipGraphData(
         id: subId, kind: "municipio_familiar",
         label: entidad,
         sublabel: c.cargo
-          ? `${c.cargo}${c.periodo ? " · " + c.periodo : ""}`
+          ? unir(c.cargo, c.periodo)
           : (c.periodo || "cargo público"),
         tooltip: `${nombre} es ${c.cargo || "funcionario"} en ${entidad}${
-          partido ? " · alcalde del partido " + partido : ""
-        }${esMismoMunicipio ? " · ⚠ mismo municipio que contrata" : ""}`,
+          partido ? ", con alcalde del partido " + partido : ""
+        }${esMismoMunicipio ? ". ⚠ Es el mismo municipio que contrata" : ""}`,
         meta: {
           cargo: c.cargo,
           institucion: entidad,
@@ -204,9 +248,9 @@ export function buildRelationshipGraphData(
           partido,
           fuente_url: c.fuente_url,
           observacion: c.observacion
-            || `${f.parentesco || "Familiar"} del titular del proveedor${
-              esMismoMunicipio ? " · MISMO municipio contratante" : ""
-            }${compartePartido ? " · MISMO partido del alcalde contratante" : ""}`,
+            || `${parentesco || "Familiar"} del titular del proveedor${
+              esMismoMunicipio ? ". Trabaja en el MISMO municipio que contrata" : ""
+            }${compartePartido ? ". Mismo partido que el alcalde que contrata" : ""}`,
           rol: esMismoMunicipio ? "⚠ Conflicto directo" : "Vínculo cruzado",
         },
       });
@@ -245,16 +289,19 @@ export function buildRelationshipGraphData(
   autoridades.slice(0, 5).forEach((a: any, i: number) => {
     const id = `au_${i}`;
     const nombre = (a.autoridad || "Autoridad") as string;
+    // `evidencia` llega como string o como lista de citas: se aplana a texto.
+    const obs = a.descripcion || evidenciaComoTexto(a.evidencia) || undefined;
+    const fuente = /^https?:\/\//i.test(String(a.fuente_url || "")) ? a.fuente_url : undefined;
     nodes.push({
       id, kind: "autoridad",
       label: nombre,
       sublabel: a.cargo || a.entidad,
-      tooltip: `${nombre} · ${a.cargo || ""} · ${a.entidad || ""} · ${a.evidencia || ""}`,
-      meta: { cargo: a.cargo, institucion: a.entidad, observacion: a.evidencia, fuente_url: a.fuente_url, rol: a.vinculo_con_gerente },
+      tooltip: unir(nombre, a.cargo, a.entidad),
+      meta: { cargo: a.cargo, institucion: a.entidad, observacion: obs, fuente_url: fuente, rol: legible(a.vinculo_con_gerente) },
     });
     edges.push({
       from: idPerson, to: id, kind: "autoridad",
-      label: a.vinculo_con_gerente || "vínculo",
+      label: legible(a.vinculo_con_gerente) || "vínculo",
     });
   });
 
@@ -262,16 +309,22 @@ export function buildRelationshipGraphData(
   cruceFirmantes.slice(0, 3).forEach((c: any, i: number) => {
     const id = `fc_${i}`;
     const nombre = maskApellido((c.firmante || "Firmante") as string);
+    const relacion = legible(c.tipo_relacion);
     nodes.push({
       id, kind: "firmante_conflicto",
       label: nombre.length > 26 ? nombre.slice(0, 23) + "…" : nombre,
-      sublabel: c.tipo_relacion || "relación detectada",
-      tooltip: `${nombre} · ${c.cargo_firmante || ""} · ${c.entidad_firmante || ""} · ${c.evidencia || ""}`,
-      meta: { cargo: c.cargo_firmante, institucion: c.entidad_firmante, observacion: c.evidencia, fuente_url: c.fuente_url, rol: c.tipo_relacion },
+      sublabel: relacion || "relación detectada",
+      tooltip: unir(nombre, c.cargo_firmante, c.entidad_firmante),
+      meta: {
+        cargo: c.cargo_firmante, institucion: c.entidad_firmante,
+        observacion: c.descripcion || evidenciaComoTexto(c.evidencia) || undefined,
+        fuente_url: /^https?:\/\//i.test(String(c.fuente_url || "")) ? c.fuente_url : undefined,
+        rol: relacion,
+      },
     });
     edges.push({
       from: idPerson, to: id, kind: "firma_conflicto",
-      label: c.tipo_relacion || "conflicto",
+      label: relacion || "conflicto",
     });
   });
 
@@ -285,7 +338,7 @@ export function buildRelationshipGraphData(
       id, kind: "contract",
       label: ent.length > 30 ? ent.slice(0, 27) + "…" : ent,
       sublabel: monto ? `S/. ${monto.toLocaleString("es-PE")}` : (c.año || c.fecha || undefined),
-      tooltip: `${ent}${c.objeto ? " — " + c.objeto : ""}`,
+      tooltip: `${ent}${c.objeto ? ": " + c.objeto : ""}`,
       meta: { entidad: ent, monto, año: c.año || c.fecha, objeto: c.objeto, fuente_url: c.fuente_url || c.url },
     });
     edges.push({ from: idCompanyMain, to: id, kind: "contrato", label: c.año || "contrato" });
@@ -336,7 +389,7 @@ export function buildRelationshipGraphData(
       id: idAlc, kind: "alcalde",
       label: nombre.length > 30 ? nombre.slice(0, 27) + "…" : nombre,
       sublabel: alcaldeData.partido || alcaldeData.cargo || "Alcalde electo",
-      tooltip: `${nombre} · ${alcaldeData.partido || ""} · ${alcaldeData.periodo || ""}`,
+      tooltip: unir(nombre, alcaldeData.partido, alcaldeData.periodo),
       meta: {
         cargo: alcaldeData.cargo || "Alcalde distrital",
         partido: alcaldeData.partido,
@@ -366,21 +419,23 @@ export function buildRelationshipGraphData(
     const conf = (f.confianza_match || "sin_lookup") as string;
     const hallazgosCount = Array.isArray(f.hallazgos_summary) ? f.hallazgos_summary.length : 0;
     const sublabelExtra = hallazgosCount > 0 && (conf === "alta" || conf === "media")
-      ? ` · ${hallazgosCount} hallazgos`
+      ? `, ${hallazgosCount} hallazgo${hallazgosCount === 1 ? "" : "s"}`
       : "";
     nodes.push({
       id, kind: "funcionario_designado",
       label: nombre,
       sublabel: cargo + sublabelExtra,
-      tooltip: `${nombre} · ${cargo}${f.fecha_designacion ? " (desde " + f.fecha_designacion + ")" : ""}${
-        conf === "muy_baja" || conf === "sin_lookup" ? " · ⚠ sin DNI verificado" : ""
-      }`,
+      tooltip: unir(
+        nombre,
+        `${cargo}${f.fecha_designacion ? " (desde " + f.fecha_designacion + ")" : ""}`,
+        conf === "muy_baja" || conf === "sin_lookup" ? "⚠ sin DNI verificado" : "",
+      ),
       meta: {
         cargo, institucion: f.area, dni: f.dni,
         fuente_url: f.fuente_url,
         observacion: conf === "muy_baja" || conf === "sin_lookup"
-          ? "Sin DNI verificado — los hallazgos por nombre son fuzzy match"
-          : (Array.isArray(f.hallazgos_summary) ? f.hallazgos_summary.join(" · ") : ""),
+          ? "Sin DNI verificado: los hallazgos por nombre son coincidencias aproximadas y pueden ser homónimos."
+          : (Array.isArray(f.hallazgos_summary) ? f.hallazgos_summary.join("; ") : ""),
         rol: isConflict
           ? "⚠ Conflicto detectado"
           : (conf === "muy_baja" || conf === "sin_lookup"
@@ -409,11 +464,12 @@ export function buildRelationshipGraphData(
   sociosPostoresRivales.slice(0, 4).forEach((pr: any, i: number) => {
     const id = `pr_${i}`;
     const razon = (pr.razon_social || "Postor rival") as string;
+    const razonEtiqueta = nombreParte(razon, pr.ruc_postor);
     nodes.push({
       id, kind: "postor_rival",
-      label: razon,
-      sublabel: pr.ruc_postor ? `RUC ${pr.ruc_postor}` : "postor no ganador",
-      tooltip: `${razon} · postor no ganador · ${pr.n_socios || 0} socios`,
+      label: razonEtiqueta,
+      sublabel: pr.ruc_postor ? `RUC ${maskDnis(String(pr.ruc_postor))}` : "postor no ganador",
+      tooltip: unir(razonEtiqueta, "postor no ganador", pr.n_socios ? `${pr.n_socios} socio${pr.n_socios === 1 ? "" : "s"}` : ""),
       meta: { ruc: pr.ruc_postor, razon_social: razon, rol: "Postor no ganador" },
     });
     // Edge desde la entidad: todos compitieron por el mismo contrato
@@ -429,19 +485,25 @@ export function buildRelationshipGraphData(
       const nombre = (s.nombre || "Socio") as string;
       // Detectar si es funcionario público activo (cruce con autoridades)
       const esFuncionarioActivo = autoridadesActivasNombres.has(nombre.toUpperCase());
+      // Los socios salen del RNP, que publica APELLIDO APELLIDO NOMBRE.
+      const socioEtiqueta = maskApellidoSunat(nombre);
+      const rol = legible(s.rol_en_postor) || "socio";
       nodes.push({
         id: socId,
         kind: esFuncionarioActivo ? "socio_postor_conflicto" : "company_titular",
-        label: maskApellido(nombre),
-        sublabel: s.dni ? `DNI ${maskDnis(String(s.dni))}` : (s.rol_en_postor || "socio"),
-        tooltip: `${maskApellido(nombre)}${s.dni ? " · DNI " + maskDnis(String(s.dni)) : ""} · ${s.rol_en_postor || "socio"}${
-          esFuncionarioActivo ? " · ⚠ FUNCIONARIO PÚBLICO ACTIVO" : ""
-        }`,
+        label: socioEtiqueta,
+        sublabel: s.dni ? `DNI ${maskDnis(String(s.dni))}` : rol,
+        tooltip: unir(
+          socioEtiqueta,
+          s.dni ? "DNI " + maskDnis(String(s.dni)) : "",
+          rol,
+          esFuncionarioActivo ? "⚠ FUNCIONARIO PÚBLICO ACTIVO" : "",
+        ),
         meta: {
-          dni: s.dni, rol: s.rol_en_postor,
+          dni: s.dni, rol,
           observacion: esFuncionarioActivo
             ? "⚠ Socio de postor rival es funcionario público activo en la región"
-            : `Socio de postor no ganador (${razon})`,
+            : `Socio de postor no ganador (${razonEtiqueta})`,
         },
       });
       edges.push({
@@ -467,13 +529,13 @@ export function buildRelationshipGraphData(
       id, kind: "entidad_secundaria",
       label: entRep,
       sublabel: "doble vinculación",
-      tooltip: `${v.persona || "Un funcionario"} representó a ${entRep} en visita a ${
+      tooltip: `${v.persona ? maskApellido(v.persona) : "Un funcionario"} representó a ${entRep} en visita a ${
         v.entidad_visitada || "entidad pública"
       }${v.fecha ? " (" + v.fecha + ")" : ""}`,
       meta: {
         entidad: entRep,
-        observacion: `${v.persona} (funcionario de ${entidadContratante?.nombre || "la entidad"}) representó a esta otra entidad`,
-        rol: "Entidad secundaria · doble vinculación detectada",
+        observacion: `${v.persona ? maskApellido(v.persona) : "Un funcionario"} (funcionario de ${entidadContratante?.nombre || "la entidad"}) representó a esta otra entidad`,
+        rol: "Entidad secundaria, doble vinculación detectada",
       },
     });
     edges.push({

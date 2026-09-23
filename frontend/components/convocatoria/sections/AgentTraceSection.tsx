@@ -108,10 +108,14 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
                 <span className={cn("w-[7.5rem] shrink-0 truncate text-[12.5px] text-ink sm:w-44", on && "font-semibold")}>
                   {nombreDeAgente(a.agent)}
                 </span>
-                <span className="min-w-0 flex-1 text-[12px] text-mute">
-                  {a.pasos} de {trace.length} pasos
-                  {a.nTools > 0 && <> · {a.nTools} {a.nTools === 1 ? "herramienta" : "herramientas"} distintas</>}
-                  {a.tramos > 1 && <> · retomó {a.tramos} veces</>}
+                <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 text-[12px] text-mute">
+                  <span>{a.pasos} de {trace.length} pasos</span>
+                  {a.nTools > 0 && (
+                    <span>
+                      {a.nTools} {a.nTools === 1 ? "herramienta" : "herramientas"} distintas
+                    </span>
+                  )}
+                  {a.tramos > 1 && <span>retomó {a.tramos} veces</span>}
                 </span>
                 {a.errores > 0 && (
                   <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-rust">
@@ -128,11 +132,11 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
         <span className="text-[12px] text-mute">
           {agente ? (
             <>
-              Tramos de <strong className="font-semibold text-ink">{nombreDeAgente(agente)}</strong> ·{" "}
+              Tramos de <strong className="font-semibold text-ink">{nombreDeAgente(agente)}</strong>:{" "}
               {pasosVisibles} de {trace.length} pasos
             </>
           ) : (
-            <>Todos los tramos · {trace.length} pasos en {grupos.length} tramos</>
+            <>Todos los tramos: {trace.length} pasos en {grupos.length} tramos</>
           )}
         </span>
         {agente && (

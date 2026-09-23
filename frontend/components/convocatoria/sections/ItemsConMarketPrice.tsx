@@ -68,7 +68,7 @@ export function ItemsConMarketPrice({
     <div className="space-y-3 px-5 py-4">
       {padreLote && (
         <p className="border-l-2 border-heroViolet/40 pl-3 text-[12px] text-mute">
-          <strong className="font-semibold text-ink">Lote OCDS {padreLote.numero}</strong> ·{" "}
+          <strong className="font-semibold text-ink">Lote OCDS {padreLote.numero}:</strong>{" "}
           {padreLote.cantidad !== null ? `${padreLote.cantidad.toLocaleString("es-PE")} ${padreLote.unidad}` : padreLote.unidad}{" "}
           por {padreLote.cuantia !== null ? fmtMoney(padreLote.cuantia) : "cuantía no publicada"}, desglosado acá en{" "}
           {filas.length} sub-ítem(s). {String(padreLote.descripcion).slice(0, 120)}
@@ -110,7 +110,7 @@ export function ItemsConMarketPrice({
       ) : (
         <p className="border-l-2 border-line pl-3 text-[12px] text-mute">
           Ningún ítem llegó a tener precio de mercado y cantidad a la vez, que es lo mínimo para compararlo. No hay
-          gráfico porque no hay comparación que dibujar — el detalle de por qué está abajo, ítem por ítem.
+          gráfico porque no hay comparación que dibujar. El detalle de por qué está abajo, ítem por ítem.
         </p>
       )}
 
@@ -137,7 +137,7 @@ export function ItemsConMarketPrice({
               <div className="text-[13px] text-ink">
                 <p className="mb-3 text-[12px] text-mute">
                   El agente de precios necesita dos cosas para comparar un ítem: la cantidad del requerimiento y al
-                  menos tres precios de mercado con fuente verificable. Estos no las tienen. Se listan igual —
+                  menos tres precios de mercado con fuente verificable. Estos no las tienen. Se listan igual:
                   desaparecerlos haría ver una cobertura que no existe.
                 </p>
                 <ul className="divide-y divide-line/60">
@@ -147,12 +147,13 @@ export function ItemsConMarketPrice({
                         <span className="font-mono text-[10px] font-bold text-heroViolet">{f.numero}</span>
                         <span className="font-medium">{f.descripcion}</span>
                       </div>
-                      <div className="text-[11px] text-mute">
-                        {f.cantidad !== null
-                          ? `${f.cantidad.toLocaleString("es-PE")} ${f.unidad}`
-                          : "sin cantidad en el expediente"}
-                        {" · "}
-                        {f.motivo ?? f.veredicto.etiqueta.toLowerCase()}
+                      <div className="flex flex-wrap gap-x-3 text-[11px] text-mute">
+                        <span>
+                          {f.cantidad !== null
+                            ? `${f.cantidad.toLocaleString("es-PE")} ${f.unidad}`
+                            : "sin cantidad en el expediente"}
+                        </span>
+                        <span>{f.motivo ?? f.veredicto.etiqueta.toLowerCase()}</span>
                       </div>
                     </li>
                   ))}
@@ -164,7 +165,7 @@ export function ItemsConMarketPrice({
             etiqueta={`Ver por qué ${fuera.length} ítems no tienen comparación de mercado`}
           >
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1 text-[11px] font-semibold text-mute transition-colors duration-rapido group-hover:bg-paperSoft group-hover:text-ink">
-              {fuera.length} sin comparación · por qué
+              Por qué {fuera.length} {fuera.length === 1 ? "ítem no tiene" : "ítems no tienen"} comparación
             </span>
           </Revelar>
         )}

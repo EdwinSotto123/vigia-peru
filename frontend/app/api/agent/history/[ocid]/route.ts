@@ -7,6 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { gzipSync } from "zlib";
+import { esAlertaDemo } from "@/lib/semillas";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,17 @@ const API_BASE =
   process.env.VIGIA_API_URL ||
   process.env.NEXT_PUBLIC_VIGIA_API_URL ||
   "https://vigia-peru-api-36169102688.us-central1.run.app";
+
+/** Perfil del pipeline registrado en la traza (`result_preview.perfil.nombre`), si quedó. */
+function perfilDeTraza(trace: unknown): string | null {
+  if (!Array.isArray(trace)) return null;
+  for (const ev of trace) {
+    const p = (ev as any)?.result_preview?.perfil;
+    const nombre = typeof p === "string" ? p : p?.nombre;
+    if (typeof nombre === "string" && /^[a-z_]{3,30}$/.test(nombre)) return nombre;
+  }
+  return null;
+}
 
 /** Adapta la respuesta del Cloud Function (load) al shape que usa la UI. */
 function adaptLoadedToUi(loaded: any) {
@@ -73,22 +85,41 @@ function adaptLoadedToUi(loaded: any) {
     }
   }
 
+  // `loaded.monto` es el monto ADJUDICADO, no el presupuesto: usarlo como
+  // cuantía hacía que 41 dossiers dijeran "igual al presupuesto" cuando la
+  // adjudicación lo superaba (1190803: 84,172 contra 77,995 de referencia).
+  // El presupuesto es el valor referencial del OCDS; si no vino, no se inventa.
+  const referencial = Number(tender?.value?.amount);
+  const dia = (s: unknown) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : null);
+  const award0 = (ocds?.awards ?? [])[0] ?? {};
+  const contract0 = (ocds?.contracts ?? [])[0] ?? {};
+
   return {
     ocid: loaded.ocid,
     convocatoria: {
       codigo: (loaded.ocid || "").split("-").pop(),
       ocid: loaded.ocid,
       entidad: loaded.entidad,
-      buyer_ruc,
+      buyer_ruc: buyer_ruc ?? loaded.entidad_ruc ?? null,
       objeto: loaded.objeto,
       region: loaded.region,
-      cuantia_total: loaded.monto,
-      fecha_fin: loaded.fecha_buena_pro,
+      cuantia_total: Number.isFinite(referencial) && referencial > 0 ? referencial : null,
+      monto_adjudicado: loaded.monto ?? null,
+      // Fechas reales del registro OCDS. `fecha_fin` es el cierre de la
+      // presentación de ofertas, no la buena pro (antes se rotulaba al revés).
+      fecha_publicacion: dia(tender?.datePublished),
+      fecha_inicio: dia(tender?.tenderPeriod?.startDate),
+      fecha_fin: dia(tender?.tenderPeriod?.endDate),
+      fecha_buena_pro: dia(loaded.fecha_buena_pro) ?? dia(award0?.date),
+      fecha_contrato: dia(contract0?.dateSigned),
       tipo_proceso: tender?.procurementMethodDetails,
       n_items: items.length,
       n_postores: postores.length,
       n_docs: documentos.length,
     },
+    entidad: loaded.entidad ?? null,
+    entidad_ruc: loaded.entidad_ruc ?? buyer_ruc ?? null,
+    proveedor_ruc: loaded.proveedor_ruc ?? null,
     postores,
     items,
     documentos,
@@ -96,6 +127,13 @@ function adaptLoadedToUi(loaded: any) {
       alerta_codigo: loaded.alerta_codigo,
       score: loaded.score,
       banderas: loaded.banderas || [],
+      // El perfil del pipeline (bienes, servicios…) viaja dentro de la traza, en
+      // el contexto que recibe el dictamen. Con él la UI carga el catálogo de
+      // reglas y nombra cada señal con su etiqueta, no con su id.
+      perfil: perfilDeTraza(loaded.agent_trace),
+      reglas_disparadas: Array.from(
+        new Set(((loaded.banderas || []) as any[]).map((b) => b?.regla).filter((r) => typeof r === "string" && r)),
+      ),
     },
     document_analysis:    loaded.document_analysis,
     market_analysis:      loaded.market_analysis,
@@ -116,12 +154,14 @@ function adaptLoadedToUi(loaded: any) {
     person_network_raw: "",
     dictamen: {
       dictamen_markdown: loaded.dictamen_markdown || "",
-      gen_meta: { model: "gemini-2.5-pro (cacheado)" },
+      // El modelo se nombra solo si la API lo trae; antes se escribía uno a mano.
+      gen_meta: loaded.dictamen_model || loaded.model ? { model: loaded.dictamen_model || loaded.model } : {},
     },
     agent_trace: loaded.agent_trace || [],
     llm_metrics: loaded.llm_metrics,
     self_evals: loaded.self_evals,
-    timing: { total_s: 0 },
+    // Sin duración real persistida: no se manda un 0 que parezca una medición.
+    timing: {},
     _bridge_meta: { cached: true, analizado_en: loaded.analizado_en },
   };
 }
@@ -147,14 +187,21 @@ export async function GET(req: Request, { params }: { params: { ocid: string } }
     }
     const loaded = await r.json();
     if (loaded?.error) return NextResponse.json(loaded, { status: 404 });
+    // Las 10 alertas de demo `ALT-2026-00xx` viven en la base de producción
+    // (ver lib/semillas.ts): sin registro OCDS ni fecha de análisis. No son un
+    // dossier; para la interfaz no existen.
+    if (esAlertaDemo({ codigo: loaded?.alerta_codigo }) || (!loaded?.ocds_payload && !loaded?.analizado_en)) {
+      return NextResponse.json({ error: "not_found", query: ocid }, { status: 404 });
+    }
 
     // El dossier pesa ~480 KB sin comprimir y Next no gzipea las route handlers
     // en Cloud Run → lo comprimimos a mano (zlib). gzip baja JSON ~8-10x.
     const json = JSON.stringify(adaptLoadedToUi(loaded));
     const headers: Record<string, string> = {
       "Content-Type": "application/json; charset=utf-8",
-      // Inmutable → el browser puede cachear; revisitar no re-pega ni a Next.
-      "Cache-Control": "private, max-age=300, stale-while-revalidate=3600",
+      // Un dossier se puede reprocesar (lib/dossier-cache.ts promete que una
+      // recarga trae la última corrida): cache corto, no de una hora.
+      "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
     };
     const accepts = req.headers.get("accept-encoding") || "";
     if (accepts.includes("gzip")) {

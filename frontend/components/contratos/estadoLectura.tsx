@@ -109,7 +109,9 @@ export function estadoLecturaDe(
       return {
         estado: "en_cola",
         label: "Procesando",
-        detalle: "Los agentes lo están leyendo ahora mismo. Una corrida completa toma unos diez minutos.",
+        // Sin duración escrita a mano ("unos diez minutos"): la mediana real vive en la API y
+        // la muestra el panel en vivo del contrato; acá no hay de dónde sacarla.
+        detalle: "Los agentes lo están leyendo ahora mismo. El dossier muestra en vivo en qué paso va.",
       };
     case "encolado":
       return {

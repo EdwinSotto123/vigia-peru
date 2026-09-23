@@ -17,6 +17,13 @@ export type EtapaContrato =
   | "planificacion" | "convocada" | "adjudicada" | "contratada" | "en_ejecucion"
   | "finalizada" | "desierta" | "cancelada" | "nula" | "desconocida";
 export type RiesgoContrato = "alto" | "medio" | "bajo" | "sin_analizar";
+
+/**
+ * Los grupos del resumen. `en_revision` y `descartado` los agrega la API cuando el
+ * análisis existe pero no se publicó (lo frenó la autoevaluación, o una persona lo
+ * descartó): cuentan como leídos, nunca como señal.
+ */
+export type GrupoResumen = RiesgoContrato | "en_revision" | "descartado";
 export type EstadoContrato = "sin_analizar" | "pendiente_de_procesamiento" | "esperando_documentos" | "encolado" | "procesando" | "procesado" | "error";
 export type OrdenContratos = "fecha" | "monto" | "score";
 
@@ -251,13 +258,123 @@ export function riesgoDe(score: number | null | undefined): RiesgoContrato {
 
 export const RIESGO_CLS: Record<RiesgoContrato, string> = {
   alto: "text-rust",
-  medio: "text-amber",
-  bajo: "text-moss",
+  medio: "text-amberTexto",
+  bajo: "text-mossTexto",
   sin_analizar: "text-mute",
 };
 
 /** RUC que empieza en 10 = persona natural con negocio (contiene el DNI): se redacta. */
 export const esPersonaNatural = (ruc: string | null | undefined) => !!ruc && /^10\d{9}$/.test(ruc);
+
+/**
+ * "CARPIO COBOS ABEL" (orden SUNAT, apellidos primero) → "ABEL CARPIO COBOS" (orden
+ * hablado, como lo escriben las actas). Con tres palabras o más; si no, null.
+ */
+export function ordenHablado(sunat: string): string | null {
+  const p = sunat.trim().split(/\s+/);
+  if (p.length < 3) return null;
+  return [...p.slice(2), ...p.slice(0, 2)].join(" ");
+}
+
+/**
+ * En qué orden viene el nombre de un postor persona natural, para tapar su apellido
+ * y no su nombre de pila. El proveedor del OCDS viene en orden SUNAT; las actas lo
+ * escriben en orden hablado ("ABEL CARPIO COBOS"). Si el nombre coincide con la forma
+ * hablada del proveedor adjudicado, se tapa la última palabra (el mismo apellido
+ * materno); si no se sabe, se asume el orden del RNP (SUNAT).
+ */
+export function ordenNombrePostor(
+  nombre: string,
+  ruc: string | null | undefined,
+  proveedor: string | null | undefined,
+  proveedorRuc: string | null | undefined,
+): "sunat" | "nombres-primero" {
+  if (ruc && proveedor && ruc === proveedorRuc) {
+    const hablado = ordenHablado(proveedor.toUpperCase());
+    if (hablado && nombre.trim().toUpperCase().replace(/\s+/g, " ") === hablado) return "nombres-primero";
+  }
+  return "sunat";
+}
+
+/**
+ * Personas naturales de un contrato (proveedor y postores con RUC 10), en las dos
+ * formas en que aparecen en el texto libre de la evidencia. Se usa para taparles un
+ * apellido también dentro de la prosa, no solo en las tarjetas.
+ */
+export function personasNaturalesDe(c: Pick<ContratoDetalle, "proveedor" | "proveedorRuc" | "postoresDetalle">): { nombre: string; orden: "sunat" | "nombres-primero" }[] {
+  const out: { nombre: string; orden: "sunat" | "nombres-primero" }[] = [];
+  const agregar = (nombre: string | null | undefined, ruc: string | null | undefined) => {
+    if (!nombre || !esPersonaNatural(ruc)) return;
+    const orden = ordenNombrePostor(nombre, ruc, c.proveedor, c.proveedorRuc);
+    out.push({ nombre, orden });
+    if (orden === "sunat") {
+      const hablado = ordenHablado(nombre);
+      if (hablado) out.push({ nombre: hablado, orden: "nombres-primero" });
+    }
+  };
+  agregar(c.proveedor, c.proveedorRuc);
+  for (const p of c.postoresDetalle ?? []) agregar(p.razonSocial, p.ruc);
+  const vistos = new Set<string>();
+  return out.filter((p) => {
+    const k = p.nombre.toLowerCase();
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
+const PALABRA_CON_TILDE: Record<string, string> = {
+  retrotraido: "retrotraído",
+  resolucion: "resolución",
+  adjudicacion: "adjudicación",
+  suspension: "suspensión",
+  evaluacion: "evaluación",
+  descalificacion: "descalificación",
+  admision: "admisión",
+  calificacion: "calificación",
+  ejecucion: "ejecución",
+  cancelacion: "cancelación",
+  valido: "válido",
+  valida: "válida",
+  unico: "único",
+  unica: "única",
+};
+
+/**
+ * Un código crudo del backend o del OCDS ("RETROTRAIDO_POR_RESOLUCION", "admitido",
+ * "CONTRATADO") como texto para leer: minúsculas, sin guiones bajos, con tildes en
+ * las palabras conocidas y la primera en mayúscula. No le inventa significado.
+ */
+export function humanizarCodigo(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const palabras = s
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => PALABRA_CON_TILDE[w] ?? w);
+  const t = palabras.join(" ");
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
+}
+
+/**
+ * Formato de un documento, venga como extensión ("pdf") o como tipo MIME en
+ * cualquier caja ("APPLICATION/PDF"). Antes se comparaba `formato === "pdf"` y un
+ * PDF publicado como "APPLICATION/PDF" salía como "Bajar" en vez de "Ver".
+ */
+export function formatoDoc(f: string | null | undefined): string | null {
+  if (!f) return null;
+  const v = f.trim().toLowerCase().replace(/^application\//, "").replace(/^x-/, "");
+  if (v.includes("pdf")) return "pdf";
+  if (v.includes("wordprocessingml") || v === "docx") return "docx";
+  if (v === "msword" || v === "doc") return "doc";
+  if (v.includes("spreadsheetml") || v === "xlsx") return "xlsx";
+  if (v.includes("zip")) return "zip";
+  if (v.includes("rar")) return "rar";
+  return v || null;
+}
+
+export const esPdf = (f: string | null | undefined) => formatoDoc(f) === "pdf";
 
 export function contratosQueryString(q: ContratosQuery = {}): string {
   const params = new URLSearchParams();
@@ -312,13 +429,31 @@ export interface ResumenContratos {
   total: number;
   porTipo: Partial<Record<TipoContrato | "sin_clasificar", number>>;
   porOperativo: Partial<Record<EstadoOperativo, number>>;
-  porRiesgo: Partial<Record<RiesgoContrato, number>>;
+  porRiesgo: Partial<Record<GrupoResumen, number>>;
 }
 export const getResumenContratos = (q: ContratosQuery = {}) =>
   getJson<ResumenContratos>(`/contratos/resumen?${contratosQueryString({ ...q, page: undefined, size: undefined, orden: undefined })}`, 60);
 
 export const getContrato = (ocid: string) =>
   getJson<ContratoDetalle>(`/contratos/${encodeURIComponent(ocid)}`, 60);
+
+/**
+ * Lo que alguien pega en /app/contratos/[x]: el OCID (2026-425-9, 1225392), el OCID
+ * largo (ocds-dgv273-seacev3-1235259) o el código SEACE (1235259). `GET /contratos/:id`
+ * solo resuelve el OCID; si no lo encuentra y lo pegado termina en un código numérico,
+ * se busca ese código y, si hay una fila con ese código EXACTO, se devuelve su OCID para
+ * redirigir. Nunca se elige "el más parecido": sin coincidencia exacta, no hay contrato.
+ */
+export async function resolverContrato(param: string): Promise<{ contrato: ContratoDetalle | null; redirigirA: string | null }> {
+  const directo = await getContrato(param);
+  if (directo) return { contrato: directo, redirigirA: null };
+  const codigo = param.match(/(?:^|-)(\d{5,})$/)?.[1];
+  if (!codigo) return { contrato: null, redirigirA: null };
+  const busqueda = await getJson<ContratosPagina>(`/contratos?${contratosQueryString({ q: codigo, size: 10 })}`, 300);
+  const fila = busqueda?.data.find((r) => r.codigo === codigo);
+  if (!fila || fila.ocid === param) return { contrato: null, redirigirA: null };
+  return { contrato: null, redirigirA: fila.ocid };
+}
 
 export const getContratosGeo = (q: Pick<ContratosQuery, "tipo" | "etapa" | "riesgo" | "ubigeo" | "entidad" | "q" | "desde" | "hasta"> & { nivel?: "distrito" | "provincia" | "departamento" } = {}) =>
   getJson<{ nivel: string; data: ContratoZona[] }>(`/contratos/geo?${contratosQueryString(q as ContratosQuery)}`, 300).then((r) => r?.data ?? null);

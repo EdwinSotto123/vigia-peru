@@ -76,21 +76,23 @@ export const TRACE_ROLE: Record<string, string> = {
 
 export const VERB_HEX: Record<string, string> = { delega: "#5b51c9", invoca: "#2f8f86", consulta: "#3b8bd4", persiste: "#ba7517" };
 
-// Mapeo visual de cada agente
+// Mapeo visual de cada agente. Rótulos en castellano (los de FASES en lib/auditoria), no el
+// nombre interno en inglés. Texto blanco sólo sobre fondos que pasan 4.5:1 (ink, heroViolet,
+// rust, moss); ámbar y clay no llegan, así que van en su versión suave con el token de texto.
 export const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   vigia_orchestrator:    { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
   pipeline:              { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
   orquestador:           { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  compliance_agent:      { color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Compliance" },
-  document_parser_agent: { color: "bg-heroViolet text-paper",         icon: <FileText size={11} />,      label: "Doc Parser" },
-  document_legal_analyst_agent: { color: "bg-heroViolet text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis Legal" },
-  market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Market Price" },
-  web_research_agent:    { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Web Research" },
+  compliance_agent:      { color: "bg-amber-soft text-amberTexto",   icon: <ScanSearch size={11} />,    label: "Reglas de contratación" },
+  document_parser_agent: { color: "bg-heroViolet text-paper",         icon: <FileText size={11} />,      label: "Lectura del expediente" },
+  document_legal_analyst_agent: { color: "bg-heroViolet text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis legal" },
+  market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Precios de mercado" },
+  web_research_agent:    { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Investigación de la empresa" },
   news_research_agent:   { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Prensa" },
-  entity_personnel_agent:{ color: "bg-amber text-paper",        icon: <ScanSearch size={11} />,    label: "Funcionarios" },
-  person_network_agent:  { color: "bg-heroViolet text-paper",         icon: <ScanSearch size={11} />,    label: "Red de Personas" },
-  compliance_extended_agent: { color: "bg-amber text-paper",    icon: <ScanSearch size={11} />,    label: "Compliance+" },
-  report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Report Writer" },
+  entity_personnel_agent:{ color: "bg-amber-soft text-amberTexto",   icon: <ScanSearch size={11} />,    label: "Funcionarios de la entidad" },
+  person_network_agent:  { color: "bg-heroViolet text-paper",         icon: <ScanSearch size={11} />,    label: "Red de personas" },
+  compliance_extended_agent: { color: "bg-amber-soft text-amberTexto", icon: <ScanSearch size={11} />,  label: "Cumplimiento extendido" },
+  report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Dictamen" },
 };
 
 // Qué hace cada tool / regla / agente — alimenta el botón de info (ⓘ) del tracking.
@@ -172,17 +174,17 @@ export const TOOL_INFO: Record<string, string> = {
   news_research_agent: "Busca cobertura de prensa peruana sobre el proveedor, la entidad y el objeto de la contratación.",
   entity_personnel_agent: "Descubre los funcionarios designados de la entidad contratante (con su acto resolutivo).",
   person_network_agent: "Mapea la red de personas: socios, representantes, firmantes, autoridades y los vínculos entre ellos.",
-  compliance_extended_agent: "Corre los chequeos normativos extendidos (12 reglas) + las banderas de juicio y prepara el cruce RAG.",
+  compliance_extended_agent: "Corre los chequeos normativos extendidos y las banderas de juicio, y prepara el cruce con las opiniones del OECE.",
   report_writer_agent: "Redacta el dictamen final con el análisis consolidado y las citas normativas del OECE.",
 };
 
 export const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: string; label: string }> = {
-  alineado:      { color: "text-moss",  bg: "bg-moss/10 border-moss/30",   emoji: "🟢", label: "ALINEADO" },
+  alineado:      { color: "text-mossTexto", bg: "bg-moss/10 border-moss/30", emoji: "🟢", label: "ALINEADO" },
   elevado:       { color: "text-amberTexto", bg: "bg-amber-soft border-amber/40", emoji: "🟠", label: "ELEVADO" },
   muy_elevado:   { color: "text-rust",  bg: "bg-crimson-soft border-rust/40", emoji: "🔴", label: "MUY ELEVADO" },
   barato:        { color: "text-clayTexto",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
   estimacion:    { color: "text-mute",  bg: "bg-paperDeep border-line",     emoji: "⚪", label: "ESTIMACIÓN" },
-  sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "S/ OFERTADO" },
+  sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "SIN PRECIO OFERTADO" },
   // El backend ya corrió el juez de plausibilidad y decidió que el lote NO es comparable
   // (cobertura insuficiente frente al total de ítems reales, o una comparación implausible);
   // antes caía en el "⚪ ESTIMACIÓN" genérico y se perdía esa distinción.
@@ -190,14 +192,14 @@ export const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji
 };
 
 export const AGENTE_VISUAL: Record<string, { label: string; chipClass: string; iconClass: string }> = {
-  compliance_agent:               { label: "Compliance",        chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
-  compliance_extended_agent:      { label: "Compliance ext.",   chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
-  document_legal_analyst_agent:   { label: "Legal analyst",     chipClass: "bg-heroViolet/15 text-heroViolet",      iconClass: "text-heroViolet" },
-  document_parser_agent:          { label: "Doc parser",        chipClass: "bg-amber/15 text-amberTexto",    iconClass: "text-amberTexto" },
-  market_price_agent:             { label: "Market price",      chipClass: "bg-moss/15 text-moss",      iconClass: "text-moss" },
-  person_network_agent:           { label: "Person network",    chipClass: "bg-mute/15 text-mute",      iconClass: "text-mute" },
-  news_research_agent:            { label: "News research",     chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
-  web_research_agent:             { label: "Web research",      chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  compliance_agent:               { label: "Reglas de contratación", chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
+  compliance_extended_agent:      { label: "Cumplimiento extendido", chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
+  document_legal_analyst_agent:   { label: "Análisis legal",         chipClass: "bg-heroViolet/15 text-heroViolet",      iconClass: "text-heroViolet" },
+  document_parser_agent:          { label: "Lectura del expediente", chipClass: "bg-amber/15 text-amberTexto",    iconClass: "text-amberTexto" },
+  market_price_agent:             { label: "Precios de mercado",     chipClass: "bg-moss/15 text-mossTexto",  iconClass: "text-mossTexto" },
+  person_network_agent:           { label: "Red de personas",        chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  news_research_agent:            { label: "Prensa",                 chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  web_research_agent:             { label: "Investigación de la empresa", chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
   "?":                            { label: "Sistema",           chipClass: "bg-line text-ink",          iconClass: "text-mute" },
 };
 
@@ -217,20 +219,22 @@ export const FUENTE_GROUPS = [
 // (basado en timing observado en runs reales, ≈ 9-10 min total). Total
 // estimado: 638s ≈ 10.6 min. Si el run termina antes, el frontend salta al
 // último paso. Si tarda más, el último paso queda "active" hasta llegar.
+// Los rótulos no llevan recuentos ni modelo ("13 fuentes", "7 reglas", "Gemini 2.5 Pro"):
+// ninguno salía de un dato y se contradecían con el catálogo de agentes.
 export const STEPS = [
-  { key: "fetch",       label: "Trayendo OCDS del OECE",                      icon: <Search size={14} />,         eta_s: 3,    lane: "ingesta" },
-  { key: "pdfs",        label: "Descargando PDFs / DOCXs publicados",         icon: <Download size={14} />,       eta_s: 12,   lane: "ingesta" },
-  { key: "db",          label: "Guardando en base de datos",                  icon: <ScanSearch size={14} />,     eta_s: 5,    lane: "ingesta" },
-  { key: "compliance",  label: "Compliance · 3 reglas duras + RAG",           icon: <AlertTriangle size={14} />,  eta_s: 35,   lane: "auditoría" },
-  { key: "parser",      label: "Document Parser · OCR Vision",                icon: <FileText size={14} />,       eta_s: 110,  lane: "auditoría" },
-  { key: "legal",       label: "Legal Analyst · banderas + opinión OECE",     icon: <Scale size={14} />,          eta_s: 40,   lane: "auditoría" },
-  { key: "market",      label: "Market Price · google_search por sub-ítem",   icon: <Receipt size={14} />,        eta_s: 130,  lane: "investigación" },
-  { key: "sunat",       label: "SUNAT · validación de RUC",                   icon: <Building2 size={14} />,      eta_s: 8,    lane: "investigación" },
-  { key: "web",         label: "Web Research · 13 fuentes oficiales",         icon: <Globe size={14} />,          eta_s: 60,   lane: "investigación" },
-  { key: "news",        label: "News Research · prensa peruana",              icon: <Newspaper size={14} />,      eta_s: 60,   lane: "investigación" },
-  { key: "rnp",         label: "RNP · red empresarial + cruce firmantes",     icon: <Network size={14} />,        eta_s: 80,   lane: "investigación" },
-  { key: "extended",    label: "Compliance extendido · 7 reglas + RAG",       icon: <ListChecks size={14} />,     eta_s: 35,   lane: "auditoría" },
-  { key: "writer",      label: "Report Writer · dictamen · Gemini 2.5 Pro",   icon: <Pen size={14} />,            eta_s: 60,   lane: "dictamen" },
+  { key: "fetch",       label: "Trayendo el registro OCDS del OECE",            icon: <Search size={14} />,         eta_s: 3,    lane: "ingesta" },
+  { key: "pdfs",        label: "Descargando los documentos publicados",         icon: <Download size={14} />,       eta_s: 12,   lane: "ingesta" },
+  { key: "db",          label: "Guardando el proceso en la base de datos",      icon: <ScanSearch size={14} />,     eta_s: 5,    lane: "ingesta" },
+  { key: "compliance",  label: "Reglas de contratación sobre el registro",      icon: <AlertTriangle size={14} />,  eta_s: 35,   lane: "auditoría" },
+  { key: "parser",      label: "Lectura del expediente con OCR",                icon: <FileText size={14} />,       eta_s: 110,  lane: "auditoría" },
+  { key: "legal",       label: "Análisis legal con opiniones del OECE",         icon: <Scale size={14} />,          eta_s: 40,   lane: "auditoría" },
+  { key: "market",      label: "Precios de mercado, ítem por ítem",             icon: <Receipt size={14} />,        eta_s: 130,  lane: "investigación" },
+  { key: "sunat",       label: "Validación del RUC en SUNAT",                   icon: <Building2 size={14} />,      eta_s: 8,    lane: "investigación" },
+  { key: "web",         label: "Investigación de la empresa en fuentes oficiales", icon: <Globe size={14} />,       eta_s: 60,   lane: "investigación" },
+  { key: "news",        label: "Búsqueda en prensa peruana",                    icon: <Newspaper size={14} />,      eta_s: 60,   lane: "investigación" },
+  { key: "rnp",         label: "Red de socios y cruce con los firmantes",       icon: <Network size={14} />,        eta_s: 80,   lane: "investigación" },
+  { key: "extended",    label: "Cruces extendidos: puerta giratoria y aportes", icon: <ListChecks size={14} />,     eta_s: 35,   lane: "auditoría" },
+  { key: "writer",      label: "Redacción del dictamen",                        icon: <Pen size={14} />,            eta_s: 60,   lane: "dictamen" },
 ];
 
 // Mapea tool/transfer/phase a la key de STEP. Usa el último evento "fuerte"

@@ -157,6 +157,7 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
             avanzados ? "border-heroViolet bg-heroViolet-soft text-heroViolet" : "border-line bg-paper text-mute hover:border-heroViolet/30 hover:text-ink",
           )}
           aria-expanded={avanzados}
+          aria-controls="filtros-avanzados"
         >
           <SlidersHorizontal size={11} aria-hidden /> Más filtros
           {/* Cuántos hay puestos ahí dentro: plegado, el panel avanzado escondía
@@ -172,7 +173,15 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
           su alto con CSS puro: grid-template-rows 0fr→1fr + overflow-hidden en el div interno.
           Antes aparecía/desaparecía de golpe (mount/unmount); ahora abre y cierra con una
           transición real, sin librería de animación. */}
-      <div className={cn("grid transition-[grid-template-rows] duration-300 ease-out", avanzados ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+      {/* Plegado, el panel sigue montado (para la transición de alto) pero `inert`: si no,
+          el Tab recorría nueve controles invisibles antes de llegar a la lista. React 18 no
+          tipa `inert`; se pasa como atributo string ("" = presente, undefined = ausente). */}
+      <div
+        id="filtros-avanzados"
+        className={cn("grid transition-[grid-template-rows] duration-300 ease-out", avanzados ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}
+        {...({ inert: avanzados ? undefined : "" } as Record<string, string | undefined>)}
+        aria-hidden={avanzados ? undefined : true}
+      >
         <div className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-paperSoft/60 p-2.5">
           <Campo label="Región">

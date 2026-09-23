@@ -20,16 +20,14 @@ export function EstructuraEntidadSection({
   return (
     <section className="surface overflow-hidden p-0">
       <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-          <Network size={11} className="mr-1 inline" />
-          Estructura de la entidad contratante
-        </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-ink">
-          ¿Quién dirige y firma en {entidad?.nombre || a.entidad_consultada || "esta entidad"}?
+        <h2 className="font-serif text-xl font-bold text-ink">
+          <Network size={16} className="mr-1.5 inline text-heroViolet" aria-hidden />
+          {/* `entidad` llega como string (nombre) o como objeto {nombre, ruc}. */}
+          ¿Quién dirige y firma en {(typeof entidad === "string" ? entidad : entidad?.nombre) || a.entidad_consultada || "esta entidad"}?
         </h2>
         <p className="mt-1 text-xs text-mute">
-          Capa 2 (autoridades electas vía JNE) + Capa 3 (gerentes designados de
-          confianza) — quienes toman las decisiones de contratación pública en
+          Las autoridades electas (según el JNE) y los funcionarios designados de
+          confianza: quienes toman las decisiones de contratación de la entidad en
           el período actual.
         </p>
       </div>
@@ -54,8 +52,10 @@ export function EstructuraEntidadSection({
                     </span>
                     <strong className="text-ink">{alcaldeP.nombre}</strong>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-inkSoft">
-                    {alcaldeP.partido} · electo {alcaldeP.año_eleccion} · {alcaldeP.provincia}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-inkSoft">
+                    {alcaldeP.partido && <span>{alcaldeP.partido}</span>}
+                    {alcaldeP.año_eleccion && <span>electo en {alcaldeP.año_eleccion}</span>}
+                    {alcaldeP.provincia && <span>{alcaldeP.provincia}</span>}
                   </div>
                   {alcaldeP.fuente_url && (
                     <a href={alcaldeP.fuente_url} target="_blank" rel="noreferrer"
@@ -73,8 +73,10 @@ export function EstructuraEntidadSection({
                     </span>
                     <strong className="text-ink">{alcaldeD.nombre}</strong>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-inkSoft">
-                    {alcaldeD.partido} · electo {alcaldeD.año_eleccion} · {alcaldeD.distrito}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-inkSoft">
+                    {alcaldeD.partido && <span>{alcaldeD.partido}</span>}
+                    {alcaldeD.año_eleccion && <span>electo en {alcaldeD.año_eleccion}</span>}
+                    {alcaldeD.distrito && <span>{alcaldeD.distrito}</span>}
                   </div>
                 </li>
               )}
@@ -86,8 +88,10 @@ export function EstructuraEntidadSection({
                     </span>
                     <strong className="text-ink">{gobernador.nombre}</strong>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-inkSoft">
-                    {gobernador.partido} · electo {gobernador.año_eleccion} · {gobernador.region}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-inkSoft">
+                    {gobernador.partido && <span>{gobernador.partido}</span>}
+                    {gobernador.año_eleccion && <span>electo en {gobernador.año_eleccion}</span>}
+                    {gobernador.region && <span>{gobernador.region}</span>}
                   </div>
                 </li>
               )}
@@ -100,7 +104,7 @@ export function EstructuraEntidadSection({
                     {regidores.map((r, i) => (
                       <li key={i} className="text-[11px] text-ink">
                         <strong>{r.nombre}</strong>
-                        {r.partido && <span className="ml-1 text-inkSoft italic">— {r.partido}</span>}
+                        {r.partido && <span className="ml-1 text-inkSoft italic">({r.partido})</span>}
                       </li>
                     ))}
                   </ul>
@@ -119,14 +123,14 @@ export function EstructuraEntidadSection({
             <p className="mt-2 text-[11px] text-mute italic">
               {ep.sin_data_publica
                 ? "La entidad no publica su directorio en portal de transparencia."
-                : "Aún no se identificaron gerentes designados. El sub-agente entity_personnel_agent investiga vía El Peruano + portal transparencia."}
+                : "Todavía no se identificaron funcionarios designados en El Peruano ni en el portal de transparencia de la entidad."}
             </p>
           ) : (
             <ul className="mt-2 space-y-2 text-[12px]">
               {funcionarios.map((f, i) => (
                 <li key={i} className="rounded-md bg-paper px-3 py-2">
                   <div className="flex items-baseline gap-2">
-                    <span className="rounded-full bg-moss/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-moss">
+                    <span className="rounded-full bg-moss/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-mossTexto">
                       {f.cargo || "Funcionario"}
                     </span>
                     {f.vigente && (
@@ -168,7 +172,7 @@ export function EstructuraEntidadSection({
                   <li key={i} className="text-ink">
                     <strong className="font-mono">{r.numero}</strong>
                     {r.fecha && <span className="ml-1 text-mute">({r.fecha})</span>}
-                    {r.objeto && <span className="ml-1 italic text-inkSoft">— {r.objeto}</span>}
+                    {r.objeto && <div className="italic text-inkSoft">{r.objeto}</div>}
                     {r.url && (
                       <a href={r.url} target="_blank" rel="noreferrer"
                          className="ml-1 text-heroViolet hover:underline">

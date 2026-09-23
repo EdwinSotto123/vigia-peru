@@ -14,6 +14,10 @@
  */
 
 import { useMemo } from "react";
+import { CircleSlash } from "lucide-react";
+import { reglaLabel } from "@/lib/auditoria";
+import { redactDnis } from "../../Redact";
+import { evidenciaComoTexto } from "./Evidencia";
 import type { FasesMap } from "@/lib/auditoria";
 import { AuditoriaDeAgentes } from "@/components/agentes/AuditoriaDeAgentes";
 import { claveDePaso } from "@/components/agentes/catalogo";
@@ -46,7 +50,8 @@ function desdeBandera(b: Bandera): SenalAgente {
     agente: claveDePaso(bruto),
     agenteBruto: bruto,
     verificada: cotejo,
-    evidencia: txt(b.evidencia),
+    // La evidencia puede venir como texto o como lista de citas: nunca se pierde.
+    evidencia: txt(evidenciaComoTexto(b.evidencia)),
     evidenciaTextual: txt(b.evidencia_textual),
     norma: txt(b.norma),
     fuenteUrl: txt(b.fuente_url),
@@ -68,24 +73,61 @@ export function BanderasAgrupadas({
   perfil,
   reglasDisparadas,
   fases,
+  noVerificables = [],
 }: {
   banderas: Bandera[];
-  reglas_evaluadas: number;
+  /** Solo si el análisis lo trae: no se supone un número. */
+  reglas_evaluadas?: number | null;
   /** Perfil del pipeline (bienes · servicios · obras · otros): destraba el catálogo de reglas. */
   perfil?: string | null;
   reglasDisparadas?: string[] | null;
   /** Ventanas reales por agente, si el análisis las trae: habilita el eje de tiempo. */
   fases?: FasesMap | null;
+  /**
+   * Señales de sobreprecio de un dossier donde el agente de precios no pudo medir el
+   * sobreprecio (`sobreprecio_pct` null): se muestran aparte, marcadas como no
+   * verificables, y no cuentan en los totales.
+   */
+  noVerificables?: Bandera[];
 }) {
   const senales = useMemo(() => (banderas ?? []).map(desdeBandera), [banderas]);
   return (
-    <AuditoriaDeAgentes
-      senales={senales}
-      fases={fases}
-      perfil={perfil}
-      reglasDisparadas={reglasDisparadas}
-      reglasEvaluadas={reglas_evaluadas}
-      nota="Señales de riesgo, no acusaciones: cada una se publica con su norma y su fuente para que se pueda comprobar."
-    />
+    <div className="space-y-3">
+      {senales.length > 0 && (
+        <AuditoriaDeAgentes
+          senales={senales}
+          fases={fases}
+          perfil={perfil}
+          reglasDisparadas={reglasDisparadas}
+          reglasEvaluadas={reglas_evaluadas ?? undefined}
+          nota="Señales de riesgo, no acusaciones: cada una se publica con su norma y su fuente para que se pueda comprobar."
+        />
+      )}
+      {noVerificables.length > 0 && (
+        <details className="surface p-4 text-[13px]">
+          <summary className="flex cursor-pointer items-start gap-2 text-ink">
+            <CircleSlash size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+            <span>
+              <strong className="font-semibold">
+                {noVerificables.length} {noVerificables.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
+              </strong>
+              <span className="block text-[12px] text-mute">
+                El agente de precios no pudo medir el sobreprecio de este contrato con fuentes suficientes, así que estas
+                señales no se cuentan ni se usan en el resumen. Se dejan a la vista para que se puedan revisar.
+              </span>
+            </span>
+          </summary>
+          <ul className="mt-3 space-y-2 border-t border-line pt-3">
+            {noVerificables.map((b, i) => (
+              <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
+                <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "sobreprecio"))}</span>
+                <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-[11px] text-mute">no verificable</span>
+                {evidenciaComoTexto(b.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(b.evidencia))}</p>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }

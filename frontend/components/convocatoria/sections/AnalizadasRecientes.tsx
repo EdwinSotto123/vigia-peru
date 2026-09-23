@@ -4,15 +4,24 @@ import { useEffect, useState } from "react";
 import { Building2, ChevronRight, Search, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAnalyzedList } from "@/lib/dossier-cache";
+import { esAlertaDemo } from "@/lib/semillas";
+import { SEVERIDAD } from "@/lib/severidad";
+import { formatSoles } from "@/lib/formato";
 import { inferCategoria } from "../utils";
-import type { CatFilter, SortKey, SevFilter } from "../types";
+import type { CatFilter, SortKey } from "../types";
 import { CAT_LABEL, CAT_TONE } from "../constants";
+import { contarPorNivel, FRANJA_NIVEL, NIVEL_ANALISIS, nivelDeAnalisis, type NivelAnalisis } from "./conteoRiesgo";
+
+type FiltroNivel = "todos" | NivelAnalisis;
+
+/** Solo análisis reales: nunca las alertas de demo sembradas ni filas sin OCID o sin fecha de análisis. */
+export const esAnalisisPublicado = (it: any) => !!it && !esAlertaDemo(it) && !!it.ocid && !!it.analizado_en;
 
 export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) => void }) {
   const [items, setItems] = useState<any[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [sev, setSev] = useState<SevFilter>("todos");
+  const [sev, setSev] = useState<FiltroNivel>("todos");
   const [region, setRegion] = useState<string>("todas");
   const [cat, setCat] = useState<CatFilter>("todas");
   const [sort, setSort] = useState<SortKey>("reciente");
@@ -24,19 +33,14 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
     getAnalyzedList(500)
       .then((d) => {
         if (d?.error) setErr(d.error);
-        else setItems(d.items || []);
+        else setItems((d.items || []).filter(esAnalisisPublicado));
       })
       .catch((e) => setErr(e.message));
   }, []);
   // Volver a la página 1 cuando cambian filtros/orden/búsqueda (no quedar en una página vacía).
   useEffect(() => { setPage(1); }, [q, sev, region, cat, sort]);
 
-  const fmtMoney = (n: number) => {
-    if (!n) return "—";
-    if (n >= 1e6) return `S/. ${(n/1e6).toFixed(2)} M`;
-    if (n >= 1e3) return `S/. ${(n/1e3).toFixed(0)} K`;
-    return `S/. ${n.toLocaleString("es-PE")}`;
-  };
+  const fmtMoney = (n: number) => (n ? formatSoles(n) : "—");
   const fmtFecha = (iso: string | null) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -85,9 +89,8 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
     }
     if (region !== "todas" && it.region !== region) return false;
     if (cat    !== "todas" && it._cat !== cat) return false;
-    if (sev === "alta"  && (it.n_alta  || 0) === 0) return false;
-    if (sev === "media" && (it.n_media || 0) + (it.n_alta || 0) === 0) return false;
-    if (sev === "sin"   && (it.n_banderas || 0) > 0) return false;
+    // Mismo criterio que los contadores (conteoRiesgo): el nivel sale del puntaje.
+    if (sev !== "todos" && nivelDeAnalisis(it) !== sev) return false;
     return true;
   });
 
@@ -115,32 +118,32 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
   if (items.length === 0) {
     return (
       <div className="surface p-6 text-center">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-mute">
-          Análisis previos
-        </div>
+        <h2 className="font-serif text-base font-bold text-ink">Análisis publicados</h2>
         <p className="mt-2 text-sm text-mute">
-          Aún no hay convocatorias analizadas. Despacha los agentes con un código arriba.
+          Todavía no hay contratos analizados publicados.
         </p>
       </div>
     );
   }
 
-  // Conteo agregado para los chips de severidad
-  const countAlta  = items.filter((it: any) => (it.n_alta || 0) > 0).length;
-  const countMedia = items.filter((it: any) => (it.n_media || 0) + (it.n_alta || 0) > 0).length;
-  const countSin   = items.filter((it: any) => (it.n_banderas || 0) === 0).length;
+  // Conteo por nivel de riesgo: la MISMA función que usa el panel lateral.
+  const conteo = contarPorNivel(items);
 
-  const sevChip = (key: SevFilter, label: string, count: number, tone: string) => (
+  const sevChip = (key: FiltroNivel, label: string, count: number, punto: string | null, title?: string) => (
     <button
+      key={key}
       type="button"
       onClick={() => setSev(key)}
+      aria-pressed={sev === key}
+      title={title}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
         sev === key
-          ? `${tone} text-paper border-transparent shadow-sm`
+          ? "border-transparent bg-ink text-paper shadow-sm"
           : "border-line bg-paper text-ink hover:bg-paperDeep",
       )}
     >
+      {punto && <span aria-hidden className={cn("inline-block h-1.5 w-1.5 rounded-full", punto)} />}
       <span>{label}</span>
       <span className={cn(
         "rounded-full px-1.5 py-0 text-[10px] tabular-nums",
@@ -156,7 +159,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <h2 className="font-serif text-base font-bold text-ink">Análisis previos</h2>
+              <h2 className="font-serif text-base font-bold text-ink">Análisis publicados</h2>
               <span className="rounded-full bg-paperDeep px-1.5 py-0 font-mono text-[10px] font-bold text-ink">{items.length}</span>
             </div>
           </div>
@@ -168,13 +171,15 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar código / objeto / RUC…"
+              aria-label="Filtrar los análisis publicados"
+              placeholder="Filtrar por código, objeto o RUC…"
               className="w-full rounded-lg border border-line bg-paper py-1.5 pl-7 pr-7 text-xs placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-1 focus:ring-heroViolet/30"
             />
             {q && (
               <button
                 type="button"
                 onClick={() => setQ("")}
+                aria-label="Borrar el filtro"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md px-1 py-0 text-[10px] text-mute hover:bg-paperDeep"
               >×</button>
             )}
@@ -186,20 +191,21 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             onClick={handleShuffle}
             disabled={sorted.length === 0}
             className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-[11px] font-semibold text-ink shadow-sm transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-            title={`Elegir uno al azar de los ${sorted.length} filtrados`}
+            title={`Abrir uno al azar de los ${sorted.length} filtrados`}
+            aria-label={`Abrir uno al azar de los ${sorted.length} filtrados`}
           >
-            <Shuffle size={12} />
+            <Shuffle size={12} aria-hidden />
             <span className="hidden sm:inline">Sortear</span>
           </button>
         </div>
 
         {/* Chips: severidad · categoría · sort · región — UNA SOLA FILA scrolleable */}
         <div className="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
-          {/* Severidad */}
-          {sevChip("todos", "Todas", items.length, "bg-ink")}
-          {sevChip("alta",  "● Alta",  countAlta,  "bg-rust")}
-          {sevChip("media", "● Media", countMedia, "bg-amber")}
-          {sevChip("sin",   "Limpio", countSin,   "bg-moss")}
+          {/* Nivel de riesgo (por puntaje, cortes de lib/severidad) */}
+          {sevChip("todos", "Todos", conteo.total, null)}
+          {(["alta", "media", "baja"] as NivelAnalisis[]).map((k) =>
+            sevChip(k, NIVEL_ANALISIS[k].etiqueta, conteo[k], SEVERIDAD[k].punto, NIVEL_ANALISIS[k].rango),
+          )}
 
           <span className="mx-1 h-4 w-px shrink-0 bg-line" />
 
@@ -246,7 +252,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                   : "border-line bg-paper text-ink hover:bg-paperDeep",
               )}
             >
-              {k === "reciente" ? "↓ Reciente" : k === "score" ? "↓ Score" : "↓ Monto"}
+              {k === "reciente" ? "Más recientes" : k === "score" ? "Mayor puntaje" : "Mayor monto"}
             </button>
           ))}
 
@@ -293,15 +299,16 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                 onClick={() => onSelect(it.codigo_convocatoria || it.ocid)}
                 className="flex w-full items-stretch text-left"
               >
-                {/* SCORE STRIPE — solo número, sin emoji */}
-                <div className={cn(
-                  "flex w-12 shrink-0 flex-col items-center justify-center px-1 py-3 text-paper",
-                  it.score >= 85 ? "bg-rust" :
-                  it.score >= 70 ? "bg-clay" :
-                  it.score >= 40 ? "bg-amber" : "bg-moss",
-                )}>
-                  <span className="font-mono text-lg font-bold leading-none">{it.score}</span>
-                  <span className="mt-0.5 text-[8px] uppercase tracking-wider opacity-80">/100</span>
+                {/* FRANJA DE PUNTAJE: nivel por lib/severidad, texto oscuro sobre fondo suave */}
+                <div
+                  className={cn(
+                    "flex w-12 shrink-0 flex-col items-center justify-center px-1 py-3",
+                    FRANJA_NIVEL[nivelDeAnalisis(it) ?? "sin"],
+                  )}
+                  title={nivelDeAnalisis(it) ? NIVEL_ANALISIS[nivelDeAnalisis(it)!].etiqueta : undefined}
+                >
+                  <span className="font-mono text-lg font-bold leading-none">{it.score ?? "—"}</span>
+                  <span className="mt-0.5 text-[8px] uppercase tracking-wider">/100</span>
                 </div>
 
                 {/* MAIN BODY */}
@@ -316,7 +323,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                       </span>
                     )}
                     {it.region && (
-                      <span className="text-[10px] text-mute">· {it.region}</span>
+                      <span className="text-[10px] text-mute">{it.region}</span>
                     )}
                     <span className="ml-auto text-[10px] text-mute">{fmtFecha(it.analizado_en)}</span>
                   </div>
@@ -332,13 +339,17 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {it.n_alta > 0 && (
-                        <span className="rounded bg-rust px-1 py-0 text-[10px] font-bold text-paper">{it.n_alta} alta</span>
+                        <span className="rounded bg-crimson-soft px-1 py-0 text-[10px] font-bold text-crimsonTexto">
+                          {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
+                        </span>
                       )}
                       {it.n_media > 0 && (
-                        <span className="rounded bg-amber px-1 py-0 text-[10px] font-bold text-paper">{it.n_media}</span>
+                        <span className="rounded bg-amber-soft px-1 py-0 text-[10px] font-bold text-amberTexto">
+                          {it.n_media} {it.n_media === 1 ? "media" : "medias"}
+                        </span>
                       )}
                       {it.n_banderas === 0 && (
-                        <span className="rounded bg-moss/20 px-1 py-0 text-[10px] font-bold text-moss">limpio</span>
+                        <span className="rounded bg-paperDeep px-1 py-0 text-[10px] font-semibold text-mute">sin señales</span>
                       )}
                       <span className="font-mono text-[11px] font-bold text-ink">{fmtMoney(it.monto)}</span>
                     </div>

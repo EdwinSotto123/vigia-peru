@@ -1,7 +1,7 @@
 /**
  * Detalle de un contrato: cabecera, clasificación, ítems, documentos oficiales y el
- * estado de su análisis (dictamen · en vivo · financiar capacidad · pendiente).
- * Server component; solo `ContratoEnVivo` y `Redact` son islas de cliente.
+ * estado de su análisis (dictamen, en vivo, financiar capacidad o pendiente).
+ * Server component; solo `ContratoEnVivo`, `Redact` y `TextoRedactado` son islas de cliente.
  */
 
 import Link from "next/link";
@@ -10,26 +10,55 @@ import {
 } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
-import { Glass, PersonName } from "@/components/Redact";
+import { PersonName, Ruc } from "@/components/Redact";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { EstadoContratoPill } from "./ContratosLista";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
+import { TextoRedactado } from "./TextoRedactado";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
+import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import {
-  esPersonaNatural, etapaLabel, formatFecha, formatMonto, motivoLabel, tipoLabel,
-  validacionLabel, type ContratoDetalle as Detalle,
+  esPersonaNatural, etapaLabel, formatFecha, formatMonto, humanizarCodigo, motivoLabel, ordenNombrePostor,
+  personasNaturalesDe, tipoLabel, validacionLabel, type ContratoDetalle as Detalle, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
 
-export function ContratoDetalle({ c }: { c: Detalle }) {
+/** Qué se analiza hoy, tal como lo informa la API (`procesamientoActivo` del resumen de procesamientos). */
+export interface AlcanceActivo {
+  tipos_activos?: string[];
+  etapas_activas?: string[];
+  nota?: string;
+}
+
+/**
+ * Referencia contra la que se compara la oferta de UN postor. La oferta es por ítem
+ * (`p.item`): compararla con el valor referencial del proceso entero daba "−71 %"
+ * a un postor que ofertó exactamente el valor de su ítem en un proceso de tres
+ * ítems. Se usa la referencia del ítem que ofertó; con un solo ítem, el total del
+ * proceso es la misma cifra. Sin ítem identificable, no se compara.
+ */
+function referenciaDe(p: PostorContrato, c: Detalle): number | null {
+  const n = p.item != null ? Number(String(p.item).trim()) : NaN;
+  if (Number.isFinite(n)) {
+    const it = c.items.find((x) => x.posicion === n);
+    if (it?.montoPen) return it.montoPen;
+  }
+  if (c.items.length <= 1 && c.montoPen) return c.montoPen;
+  return null;
+}
+
+export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detalle; alcance?: AlcanceActivo | null; catalogo?: CatalogoReglas }) {
   const regionId = c.ubigeo ? UBIGEO_REGION[c.ubigeo.slice(0, 2)] : undefined;
   const mapaHref = regionId ? `/app/mapa?region=${regionId}&tab=cola${c.ubigeo && c.ubigeo.length === 6 ? `&ubigeo=${c.ubigeo}` : ""}` : "/app/mapa";
   const natural = esPersonaNatural(c.proveedorRuc);
   const postores = c.postoresDetalle ?? [];
   const itemsAnalizados = (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
   const senalesConCita = (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
+  const personas = personasNaturalesDe(c);
+  // La columna "vs. referencia" solo existe si al menos un postor tiene contra qué compararse.
+  const hayReferencia = postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
 
   return (
     <div className="space-y-6">
@@ -80,10 +109,11 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
               <dd className="mt-0.5 text-ink">
                 {c.proveedor ? (
                   <>
-                    {natural ? <PersonName name={c.proveedor} /> : c.proveedor}
+                    {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
+                    {natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
                     {c.proveedorRuc && (
                       <span className="ml-2 font-mono text-[11px] text-mute">
-                        RUC {natural ? <Glass label="RUC de persona natural — clic para revelar">{c.proveedorRuc}</Glass> : c.proveedorRuc}
+                        RUC <Ruc value={c.proveedorRuc} />
                       </span>
                     )}
                   </>
@@ -132,7 +162,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                           {it.cantidad != null ? it.cantidad.toLocaleString("es-PE") : "—"}{it.unidad ? <span className="ml-1 text-[10px] text-mute">{it.unidad}</span> : null}
                         </td>
                         <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{formatMonto(it.montoPen, c.moneda)}</td>
-                        <td className="px-3 py-2 text-mute">{it.estado ?? "—"}</td>
+                        <td className="px-3 py-2 text-mute">{humanizarCodigo(it.estado) ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -159,26 +189,39 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                       <th className="w-8 px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Postor</th>
                       <th className="w-28 px-3 py-2 font-semibold">Estado</th>
+                      {c.items.length > 1 && <th className="w-14 px-3 py-2 font-semibold">Ítem</th>}
                       <th className="w-32 px-3 py-2 text-right font-semibold">Oferta</th>
-                      <th className="w-24 px-3 py-2 text-right font-semibold">vs. referencia</th>
+                      {hayReferencia && <th className="w-24 px-3 py-2 text-right font-semibold">vs. referencia</th>}
                       <th className="w-24 px-3 py-2 font-semibold">Fuente</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {[...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99)).map((p, i) => {
                       const nat = esPersonaNatural(p.ruc);
-                      const dif = p.montoOferta != null && c.montoPen ? ((p.montoOferta - c.montoPen) / c.montoPen) * 100 : null;
+                      const ref = referenciaDe(p, c);
+                      const dif = p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
+                      const estado = humanizarCodigo(p.estado);
                       return (
                         <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={cn("transition-colors hover:bg-paperSoft", p.esGanador && "bg-moss/5")}>
                           <td className="px-3 py-2 font-mono text-mute">{p.ordenPrelacion ?? i + 1}</td>
                           <td className="px-3 py-2 text-ink">
-                            {p.razonSocial ? (nat ? <PersonName name={p.razonSocial} /> : p.razonSocial) : "—"}
-                            {p.ruc && <span className="ml-2 font-mono text-[10px] text-mute">RUC {nat ? <Glass label="RUC de persona natural — clic para revelar">{p.ruc}</Glass> : p.ruc}</span>}
+                            {p.razonSocial
+                              ? nat
+                                ? <PersonName name={p.razonSocial} orden={ordenNombrePostor(p.razonSocial, p.ruc, c.proveedor, c.proveedorRuc)} />
+                                : p.razonSocial
+                              : "—"}
+                            {p.ruc && <span className="ml-2 font-mono text-[10px] text-mute">RUC <Ruc value={p.ruc} /></span>}
                             {p.esGanador && <span className="ml-2 rounded-full bg-moss px-1.5 py-0.5 text-[9px] font-semibold uppercase text-paper">ganador</span>}
                           </td>
-                          <td className="px-3 py-2 text-mute" title={p.motivoEstado ?? undefined}>{p.estado ? p.estado.replace(/_/g, " ") : "—"}</td>
+                          <td className="px-3 py-2 text-mute">
+                            {estado ?? "—"}
+                            {p.motivoEstado && <span className="block text-[10px] leading-snug">{humanizarCodigo(p.motivoEstado)}</span>}
+                          </td>
+                          {c.items.length > 1 && <td className="px-3 py-2 font-mono text-mute">{p.item ?? "—"}</td>}
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{p.montoOferta != null ? formatMonto(p.montoOferta, c.moneda) : "—"}</td>
-                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", dif == null ? "text-mute" : dif > 0 ? "text-rust" : "text-moss")}>{dif == null ? "—" : `${dif > 0 ? "+" : ""}${dif.toFixed(1)} %`}</td>
+                          {hayReferencia && (
+                            <td className={cn("px-3 py-2 text-right font-mono tabular-nums", dif == null ? "text-mute" : dif > 0 ? "text-rust" : "text-mossTexto")}>{dif == null ? "—" : `${dif > 0 ? "+" : ""}${dif.toFixed(1)} %`}</td>
+                          )}
                           <td className="px-3 py-2">{p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
                         </tr>
                       );
@@ -186,7 +229,14 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-1 text-[10px] text-mute">Ofertas leídas de las actas y cuadros comparativos del expediente; “vs. referencia” compara con el valor referencial del proceso. Toca la fuente para abrir la página citada del PDF.</p>
+              <p className="mt-1 text-[10px] text-mute">
+                Ofertas leídas de las actas y cuadros comparativos del expediente.
+                {hayReferencia &&
+                  (c.items.length > 1
+                    ? " “vs. referencia” compara cada oferta con el valor referencial del ítem al que se presentó."
+                    : " “vs. referencia” compara con el valor referencial del proceso.")}{" "}
+                Toca la fuente para abrir la página citada del PDF.
+              </p>
             </details>
           )}
 
@@ -226,7 +276,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{it.cantidad != null ? it.cantidad.toLocaleString("es-PE") : "—"}{it.unidad ? <span className="ml-1 text-[10px] text-mute">{it.unidad}</span> : null}</td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-mute">{it.referenciaUnitaria != null ? formatMonto(it.referenciaUnitaria, c.moneda) : "—"}</td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{unit != null ? formatMonto(unit, c.moneda) : "—"}{it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null && <span className="block text-[9px] text-mute">ofertado</span>}</td>
-                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", d == null ? "text-mute" : d > 0 ? "text-rust" : "text-moss")}>{d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)} %`}</td>
+                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", d == null ? "text-mute" : d > 0 ? "text-rust" : "text-mossTexto")}>{d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)} %`}</td>
                           <td className="px-3 py-2">{it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
                         </tr>
                       );
@@ -249,8 +299,12 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
               <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper shadow-card">
                 {senalesConCita.map((b, i) => (
                   <li key={`${b.regla}-${i}`} className="px-4 py-2.5 text-sm">
-                    <div className="text-[13px] font-semibold text-ink">{b.regla.replace(/_/g, " ").replace(/^\w/, (x) => x.toUpperCase())}</div>
-                    {b.evidencia && <p className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft">{b.evidencia}</p>}
+                    <div className="text-[13px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
+                    {b.evidencia && (
+                      <p className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft">
+                        <TextoRedactado texto={b.evidencia} personas={personas} />
+                      </p>
+                    )}
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
                     </div>
@@ -285,7 +339,7 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
         {/* Análisis */}
         {/* En móvil el resultado del análisis va antes de ítems/postores/documentos; en escritorio, columna derecha pegajosa. */}
         <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-6 lg:self-start">
-          <AnalisisCard c={c} />
+          <AnalisisCard c={c} alcance={alcance} />
           {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
           {!c.procesamiento && <ClasificacionCard c={c} />}
         </aside>
@@ -296,7 +350,20 @@ export function ContratoDetalle({ c }: { c: Detalle }) {
 
 // ─── Estado del análisis ─────────────────────────────────────────────────────
 
-function AnalisisCard({ c }: { c: Detalle }) {
+const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+/** "Hoy se analizan contratos de bienes en etapa adjudicada, contratada…" + la nota de la API. Null si la API no dijo nada. */
+function alcanceTexto(a: AlcanceActivo | null): string | null {
+  if (!a) return null;
+  const tipos = (a.tipos_activos ?? []).map((t) => tipoLabel(t)?.toLowerCase() ?? t.replace(/_/g, " "));
+  const etapas = (a.etapas_activas ?? []).map((e) => etapaLabel(e)?.toLowerCase() ?? e.replace(/_/g, " "));
+  const partes: string[] = [];
+  if (tipos.length) partes.push(`Hoy se analizan contratos de ${lista(tipos)}${etapas.length ? ` en etapa ${lista(etapas)}` : ""}.`);
+  if (a.nota) partes.push(a.nota.trim().replace(/([^.])$/, "$1."));
+  return partes.length ? partes.join(" ") : null;
+}
+
+function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | null }) {
   const estado = c.estadoProcesamiento;
 
   if (estado === "procesado" && c.alerta) {
@@ -360,8 +427,11 @@ function AnalisisCard({ c }: { c: Detalle }) {
         <p className="mt-2 text-sm leading-relaxed text-ink">
           {listo
             ? `Los documentos de este contrato ya están descargados y clasificados. El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo; cuando se active, entrará a la cola de su zona en orden de llegada.`
-            : `El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo. Hoy se procesan contratos de bienes con adjudicación o contrato.`}
+            : `El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo.`}
         </p>
+        {/* El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano:
+            antes decía "hoy se procesan bienes con adjudicación o contrato" aunque el backend cambiara. */}
+        {alcanceTexto(alcance) && <p className="mt-2 text-[12px] leading-relaxed text-mute">{alcanceTexto(alcance)}</p>}
         <Pendientes v={c.clasificacion.validacionesPendientes} />
       </section>
     );
