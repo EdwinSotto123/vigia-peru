@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Un build de producción local (medir tiempos) sin pisar el .next del `next dev` que está corriendo.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // tsc --noEmit está limpio: un error de tipos vuelve a frenar el build.
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true },

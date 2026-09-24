@@ -242,14 +242,17 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
           </div>
           <ul className="mt-4 list-inside list-disc space-y-1.5 text-[13px] text-ink">
             <li>{procesado.listosParaProcesar} ya tenían documentos {procesado.dispatcherDisparado ? "y el dispatcher se disparó ahora mismo" : "(el dispatcher los toma en su próximo ciclo, ≤ 5 min)"}.</li>
-            <li>{procesado.pedidosAbiertos} quedaron con pedido de descarga: el lote nocturno los baja y luego se procesan solos.</li>
+            <li>{procesado.pedidosAbiertos} esperan sus documentos: se procesan cuando el lote nocturno los baje.</li>
           </ul>
+          {/* El admin sigue su lote en el panel, no en la vista pública: antes los
+              dos botones llevaban a /impacto y /app/auditoria y el lote no se
+              veía en ningún lado del admin. */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Link href={`/impacto/${procesado.codigo}`} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
-              Ver comprobante <ArrowRight size={14} aria-hidden />
+            <Link href={`/admin/procesamientos?lote=${encodeURIComponent(procesado.codigo)}`} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
+              Seguir el lote en el panel <ArrowRight size={14} aria-hidden />
             </Link>
-            <Link href={`/app/auditoria?ubigeo=${ubigeo}`} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-paperDeep">
-              Ver en auditoría en vivo
+            <Link href={`/impacto/${procesado.codigo}`} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-paperDeep">
+              Ver comprobante público
             </Link>
           </div>
           <button type="button" onClick={() => setProcesado(null)} className="mt-4 text-[11px] text-mute underline hover:text-ink">
@@ -288,7 +291,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
           </p>
         )}
         <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-inkSoft">
-          Se asignan por antigüedad: nadie elige contratos, ni el admin. Con documentos ya listos, se procesan ahora; sin ellos, esta noche.
+          Se asignan por antigüedad: nadie elige contratos, ni el admin. Con documentos ya listos, se procesan ahora; sin ellos, cuando el lote nocturno los baje.
         </p>
       </div>
     );

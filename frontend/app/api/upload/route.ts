@@ -28,6 +28,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { Storage } from "@google-cloud/storage";
+import { COOKIE_ADMIN, leerSesion } from "@/lib/admin-sesion";
+import { puede } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -287,7 +289,8 @@ function sinMetadatos(b: Buffer, f: Formato): Buffer {
  * Las denuncias ciudadanas y los comprobantes de aporte se suben sin sesión (se
  * puede denunciar sin cuenta). Lo que se publica como parte del SITIO sí la pide:
  *  - `pago` (QR de Yape/Plin que ve cualquier financiador): sólo el panel admin,
- *    que se autentica con la cookie httpOnly `vigia_admin` (igual que /api/admin/*).
+ *    con su sesión firmada (lib/admin-sesion.ts). Antes bastaba con que existiera
+ *    una cookie con ese nombre, cualquiera fuera su valor.
  *  - `logo` (logo de un aliado en el muro público): una sesión de Firebase,
  *    enviada como `Authorization: Bearer <idToken>` (igual que lib/cuentas.ts), o
  *    el admin.
@@ -295,12 +298,13 @@ function sinMetadatos(b: Buffer, f: Formato): Buffer {
  * backend en cada acción real. Alcanza para que el bucket público deje de ser
  * un hosting anónimo con la marca del sitio.
  */
-function autorizado(req: NextRequest, kind: string): boolean {
-  const admin = !!req.cookies.get("vigia_admin")?.value;
-  if (kind === "pago") return admin;
+async function autorizado(req: NextRequest, kind: string): Promise<boolean> {
+  const sesion = await leerSesion(req.cookies.get(COOKIE_ADMIN)?.value);
+  // Los QR de los medios de pago son plata: sólo el perfil admin (lib/permisos.ts).
+  if (kind === "pago") return !!sesion && puede(sesion.rol, "subir_medios_pago");
   if (kind === "logo") {
     const bearer = /^Bearer\s+(\S+)/i.exec(req.headers.get("authorization") ?? "")?.[1];
-    return admin || !!bearer;
+    return !!sesion || !!bearer;
   }
   return true;
 }
@@ -322,7 +326,7 @@ export async function POST(req: NextRequest) {
 
   const kindRaw = form.get("kind");
   const kind = typeof kindRaw === "string" ? kindRaw : "";
-  if (!autorizado(req, kind)) return fallar("no_autorizado");
+  if (!(await autorizado(req, kind))) return fallar("no_autorizado");
 
   const original = Buffer.from(await file.arrayBuffer());
   const formato = reconocer(original);

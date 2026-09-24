@@ -1,11 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, AlertTriangle, ExternalLink } from "lucide-react";
-import { AdminShell, Badge } from "@/components/admin/AdminShell";
-import { adminFetch, fmtPEN, fmtDate } from "@/lib/admin";
+import { AlertTriangle, Eye, EyeOff, ExternalLink, Pencil, RefreshCw, Users } from "lucide-react";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { adminFetch, fmtPEN } from "@/lib/admin";
+import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 import { useDialog } from "@/components/admin/Dialog";
+import {
+  Badge,
+  claseBoton,
+  DataTable,
+  EmptyState,
+  ErrorBanner,
+  PageSection,
+  StatCard,
+  StatGrid,
+  fmtDia,
+  mensajeError,
+  motivoNoVisibleLabel,
+  tipoFinanciadorLabel,
+  type Columna,
+} from "@/components/admin/ui";
+
+/**
+ * Financiadores: quién aporta, cuánto y quién queda sin reconocimiento público por
+ * conflicto de interés (regla 3 de independencia). Ocultar no toca dinero ni asignaciones.
+ * Fuente: GET /api/admin/financiadores · PATCH /api/admin/financiadores/:id
+ */
 
 interface F {
   id: number; tipo: string; nombrePublico: string | null; slug: string | null; ruc: string | null; email: string; logoUrl: string | null;
@@ -14,11 +36,15 @@ interface F {
 }
 
 export default function FinanciadoresPage() {
-  const [rows, setRows] = useState<F[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
+  const { data, error, isLoading, isValidating, mutate } = useAdmin<{ data: F[] }>("/financiadores");
+  const rows = data?.data ?? null;
   const { open, toast } = useDialog();
-  async function load() { try { setRows((await adminFetch<{ data: F[] }>("/financiadores")).data); } catch (e) { setMsg((e as Error).message); } }
-  useEffect(() => { load(); }, []);
+  const guardar = async (f: F, body: Record<string, unknown>) => {
+    try {
+      await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    } catch (e) { throw new Error(mensajeError(e)); }
+    refrescarAdmin("/financiadores");
+  };
 
   function toggle(f: F) {
     const nombre = f.nombrePublico ?? f.email;
@@ -29,72 +55,162 @@ export default function FinanciadoresPage() {
         fields: [{ name: "motivo", label: "Motivo", type: "select", defaultValue: "decision_admin", options: [
           { value: "decision_admin", label: "Decisión del equipo" }, { value: "sancion_vigente_osce", label: "Sanción OSCE vigente" },
           { value: "proveedor_con_alertas_activas", label: "Proveedor con alertas activas" }, { value: "solicitud_del_financiador", label: "Lo pidió el financiador" }] }],
-        onConfirm: async (v) => { await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: false, motivoNoVisible: v.motivo }) }); toast(`${nombre} oculto`); load(); },
+        onConfirm: async (v) => { await guardar(f, { visible: false, motivoNoVisible: v.motivo }); toast(`${nombre} oculto`); },
       });
     } else {
       open({
         title: `Volver visible a ${nombre}`, tone: "success", confirmLabel: "Mostrar",
-        body: <>{f.sancionVigente && <p className="text-rust">Ojo: tiene sanción OSCE vigente.</p>}{f.alertasActivas && <p className="text-rust">Ojo: aparece como proveedor en alertas activas.</p>}<p>Volverá a aparecer en ranking, muro y comprobantes.</p></>,
-        onConfirm: async () => { await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ visible: true }) }); toast(`${nombre} visible`); load(); },
+        body: <>{f.sancionVigente && <p className="text-crimsonTexto">Ojo: tiene sanción OSCE vigente.</p>}{f.alertasActivas && <p className="text-crimsonTexto">Ojo: aparece como proveedor en alertas activas.</p>}<p>Volverá a aparecer en ranking, muro y comprobantes.</p></>,
+        onConfirm: async () => { await guardar(f, { visible: true }); toast(`${nombre} visible`); },
       });
     }
   }
 
+  // Hoy el API sólo cambia valores: un campo vacío deja el que había (no lo borra). Por eso sólo se
+  // manda lo que cambió y el formulario no promete "vacío = anónimo" ni quitar el logo.
   function editar(f: F) {
     open({
       title: "Editar financiador", confirmLabel: "Guardar",
       fields: [
-        { name: "nombre", label: "Nombre público", defaultValue: f.nombrePublico ?? "", placeholder: "Vacío = anónimo" },
-        { name: "logo", label: "URL del logo", defaultValue: f.logoUrl ?? "", placeholder: "https://…/logo.png", hint: "PNG/SVG cuadrado, fondo transparente." },
+        { name: "nombre", label: "Nombre público", defaultValue: f.nombrePublico ?? "", placeholder: "Nombre que se muestra en el sitio", hint: "Si lo dejas vacío, se mantiene el nombre actual." },
+        { name: "logo", label: "URL del logo", defaultValue: f.logoUrl ?? "", placeholder: "https://…/logo.png", hint: "PNG/SVG cuadrado, fondo transparente. Si lo dejas vacío, se mantiene el logo actual." },
       ],
       onConfirm: async (v) => {
-        await adminFetch(`/financiadores/${f.id}`, { method: "PATCH", body: JSON.stringify({ nombrePublico: v.nombre || null, logoUrl: v.logo || null }) });
-        toast("Financiador actualizado"); load();
+        const nombre = v.nombre.trim(), logo = v.logo.trim();
+        const cambios = {
+          ...(nombre && nombre !== (f.nombrePublico ?? "") ? { nombrePublico: nombre } : {}),
+          ...(logo && logo !== (f.logoUrl ?? "") ? { logoUrl: logo } : {}),
+        };
+        if (!Object.keys(cambios).length) { toast("No había cambios que guardar"); return; }
+        await guardar(f, cambios);
+        toast("Financiador actualizado");
       },
     });
   }
 
+  const tot = useMemo(() => {
+    const r = rows ?? [];
+    return {
+      n: r.length,
+      visibles: r.filter((f) => f.visible).length,
+      ocultos: r.filter((f) => !f.visible).length,
+      conConflicto: r.filter((f) => f.sancionVigente || f.alertasActivas).length,
+      monto: r.reduce((a, f) => a + Number(f.montoPen || 0), 0),
+      contratos: r.reduce((a, f) => a + Number(f.contratosFinanciados || 0), 0),
+    };
+  }, [rows]);
+
+  const columnas: Columna<F>[] = [
+    {
+      clave: "financiador",
+      titulo: "Financiador",
+      principal: true,
+      celda: (f) => (
+        <div className="flex items-start gap-2.5">
+          {f.logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={f.logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-line bg-paper object-contain" />
+          ) : (
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-paperDeep text-inkSoft" aria-hidden><Users size={14} /></span>
+          )}
+          <span className="min-w-0">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium text-ink">{f.nombrePublico ?? <span className="text-mute">Anónimo</span>}</span>
+              {f.slug && (
+                <Link href={`/aliado/${f.slug}`} target="_blank" className="text-mute hover:text-ink" aria-label={`Página pública de ${f.nombrePublico ?? "este financiador"}`}>
+                  <ExternalLink size={12} aria-hidden />
+                </Link>
+              )}
+            </span>
+            <span className="block text-[11px] text-mute">{tipoFinanciadorLabel(f.tipo)}</span>
+            {(f.sancionVigente || f.alertasActivas) && (
+              <span className="mt-0.5 flex items-center gap-1 text-[11px] text-crimsonTexto">
+                <AlertTriangle size={11} aria-hidden />{f.sancionVigente ? "Sanción OSCE vigente" : "Proveedor con alertas activas"}
+              </span>
+            )}
+          </span>
+        </div>
+      ),
+    },
+    {
+      clave: "contacto",
+      titulo: "Contacto",
+      className: "text-[12px]",
+      celda: (f) => (
+        <>
+          <span className="block break-all text-ink">{f.email}</span>
+          <span className="block font-mono text-[11px] text-mute">{f.ruc ? `RUC ${f.ruc}` : "Sin RUC"}</span>
+        </>
+      ),
+    },
+    { clave: "aportes", titulo: "Aportes", alinear: "derecha", celda: (f) => f.aportes },
+    { clave: "contratos", titulo: "Contratos", alinear: "derecha", celda: (f) => f.contratosFinanciados },
+    { clave: "monto", titulo: "Monto", alinear: "derecha", celda: (f) => fmtPEN(f.montoPen) },
+    {
+      clave: "visible",
+      titulo: "En público",
+      celda: (f) =>
+        f.visible ? (
+          <Badge tono="ok" punto>Visible</Badge>
+        ) : (
+          <span className="inline-flex flex-col items-start gap-0.5">
+            <Badge tono="danger" punto>Oculto</Badge>
+            <span className="text-[11px] text-mute">{motivoNoVisibleLabel(f.motivoNoVisible) ?? "sin motivo registrado"}</span>
+          </span>
+        ),
+    },
+    { clave: "alta", titulo: "Alta", className: "whitespace-nowrap text-[12px] text-mute", celda: (f) => fmtDia(f.createdAt) },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      acciones: true,
+      celda: (f) => (
+        <div className="inline-flex items-center justify-end gap-1">
+          <button onClick={() => editar(f)} className={claseBoton("secundario", "xs")}><Pencil size={11} aria-hidden /> Editar</button>
+          <button onClick={() => toggle(f)} className={claseBoton(f.visible ? "peligro" : "secundario", "xs")}>
+            {f.visible ? <><EyeOff size={11} aria-hidden /> Ocultar</> : <><Eye size={11} aria-hidden /> Mostrar</>}
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <AdminShell title="Financiadores" subtitle="Quién aporta, cuánto, y quién queda sin reconocimiento público por conflicto de interés">
-      {msg && <div className="mb-4 rounded-xl border border-crimson/30 bg-crimson-soft p-3 text-sm text-crimsonTexto">{msg}</div>}
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-        <table className="w-full text-sm">
-          <thead className="bg-paperDeep text-left text-[11px] uppercase tracking-wide text-mute">
-            <tr><th className="px-3 py-2">Financiador</th><th>Tipo</th><th>RUC / email</th><th className="text-right">Aportes</th><th className="text-right">Contratos</th><th className="text-right">Monto</th><th>Visibilidad</th><th>Alta</th><th></th></tr>
-          </thead>
-          <tbody>
-            {!rows.length && <tr><td colSpan={9} className="px-3 py-8 text-center text-mute">Todavía no hay financiadores.</td></tr>}
-            {rows.map((f) => (
-              <tr key={f.id} className="border-t border-line">
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    {f.logoUrl ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={f.logoUrl} alt="" className="h-6 w-6 rounded border border-line object-contain" /> : null}
-                    <span className="font-medium text-ink">{f.nombrePublico ?? <span className="text-mute">Anónimo</span>}</span>
-                    {f.slug && <Link href={`/aliado/${f.slug}`} target="_blank" className="text-mute hover:text-ink"><ExternalLink size={12} /></Link>}
-                  </div>
-                  {(f.sancionVigente || f.alertasActivas) && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-rust"><AlertTriangle size={11} />{f.sancionVigente ? "sanción OSCE vigente" : "proveedor con alertas activas"}</div>
-                  )}
-                </td>
-                <td className="text-xs text-mute">{f.tipo}</td>
-                <td className="text-xs"><div className="font-mono">{f.ruc ?? "—"}</div><div className="text-mute">{f.email}</div></td>
-                <td className="text-right font-mono">{f.aportes}</td>
-                <td className="text-right font-mono">{f.contratosFinanciados}</td>
-                <td className="text-right font-mono">{fmtPEN(f.montoPen)}</td>
-                <td>{f.visible ? <Badge cls="bg-moss/10 text-mossTexto">visible</Badge> : <Badge cls="bg-crimson-soft text-crimsonTexto">oculto: {f.motivoNoVisible?.replace(/_/g, " ")}</Badge>}</td>
-                <td className="text-[11px] text-mute">{fmtDate(f.createdAt)}</td>
-                <td className="pr-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    <button onClick={() => editar(f)} className="rounded-lg border border-line px-2 py-1 text-xs hover:bg-paperDeep">Editar</button>
-                    <button onClick={() => toggle(f)} className="rounded-lg border border-line px-2 py-1 text-xs hover:bg-paperDeep" title={f.visible ? "Ocultar" : "Mostrar"}>{f.visible ? <EyeOff size={13} /> : <Eye size={13} />}</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <AdminShell
+      title="Financiadores"
+      subtitle="Quién aporta, cuánto, y quién queda sin reconocimiento público por conflicto de interés"
+      actions={
+        <button onClick={() => mutate()} className={claseBoton("secundario")}>
+          <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} aria-hidden /> Actualizar
+        </button>
+      }
+    >
+      <div className="space-y-8">
+        <ErrorBanner error={error} onReintentar={() => mutate()} />
+
+        <StatGrid columnas={4}>
+          <StatCard etiqueta="Financiadores" valor={rows ? tot.n : null} cargando={isLoading} pista={rows ? `${tot.visibles} visibles en público` : undefined} />
+          <StatCard etiqueta="Ocultos" valor={rows ? tot.ocultos : null} cargando={isLoading} tono={tot.ocultos ? "danger" : "neutral"} pista={rows ? (tot.conConflicto ? `${tot.conConflicto} con sanción o alertas` : "ninguno con sanción ni alertas") : undefined} />
+          <StatCard etiqueta="Recaudado" valor={rows ? fmtPEN(tot.monto) : null} cargando={isLoading} tono="ok" pista="suma de aportes confirmados" />
+          <StatCard etiqueta="Contratos financiados" valor={rows ? tot.contratos : null} cargando={isLoading} />
+        </StatGrid>
+
+        <PageSection
+          titulo="Todos los financiadores"
+          meta={rows ? `${rows.length}` : undefined}
+          descripcion="Ocultar a alguien no toca su dinero ni sus asignaciones: solo lo saca del ranking, del muro de aliados y de los comprobantes públicos."
+        >
+          <DataTable
+            etiqueta="Financiadores"
+            columnas={columnas}
+            filas={rows}
+            claveFila={(f) => String(f.id)}
+            cargando={isLoading}
+            apilarHasta="lg"
+            vacio={<EmptyState compacto icono={<Users size={18} />} titulo="Todavía no hay financiadores" descripcion="Aparecen cuando alguien registra su primer aporte en la página pública de financiar." />}
+          />
+        </PageSection>
       </div>
-      <p className="mt-3 text-[12px] text-mute">Ocultar a un financiador no toca su dinero ni sus asignaciones: solo lo saca del ranking, del muro de aliados y de los comprobantes públicos (regla 3 de independencia).</p>
     </AdminShell>
   );
 }

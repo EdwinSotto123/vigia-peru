@@ -1,246 +1,241 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { adminFetch, fmtDate, type ProgresoDocumentos } from "@/lib/admin";
+import { type ProgresoDocumentos } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
+import {
+  Badge,
+  claseBoton,
+  DataTable,
+  EmptyState,
+  ErrorBanner,
+  Expandable,
+  PageSection,
+  Card,
+  SkeletonPanel,
+  SkeletonStats,
+  SkeletonTabla,
+  StatCard,
+  StatGrid,
+  estadoLote,
+  fmtBytes,
+  fmtDia,
+  fmtFechaHora,
+  fmtNum,
+  hace,
+  pct,
+  tipoLoteLabel,
+  type Columna,
+} from "@/components/admin/ui";
+import { Progreso } from "./Progreso";
+import { Fuentes, totalFuentes, type Fuente } from "./Fuentes";
+
+/**
+ * Cobertura: qué tiene Vigía de cada mes, a ciencia cierta. Sale de las tablas que escribe el
+ * pipeline (migración 16), no de estimaciones: documentos del SEACE en el almacén (lote
+ * nocturno), contratos por mes, fuentes externas y el historial de lotes.
+ * Fuente: GET /api/admin/cobertura · GET /api/admin/cobertura/progreso (ambas con caché de 1 min en el API)
+ */
 
 interface Mes { mes: string | null; contratos: number; conRecord: number; conDocs: number; docsPublicados: number; docsVigentes: number; clasificados: number; analizados: number; enCola: number }
 interface Lote { id: string; tipo: string; estado: string; total: number; ok: number; fallidos: number; iniciadoAt: string | null; finalizadoAt: string | null; error: string | null }
 interface Cobertura {
   meses: Mes[];
   lotes: Lote[];
-  documentos: { total: number; vigentes: number; bytesVigentes: number; proximaExpiracion: string | null } | null;
-  porFormato: { formato: string | null; n: number; bytes: number }[];
+  documentos: { total: number; vigentes: number; bytesVigentes: number | string; proximaExpiracion: string | null } | null;
+  porFormato: { formato: string | null; n: number; bytes: number | string }[];
   fuentes?: Fuente[];
   generadoAt: string;
 }
-interface Fuente { fuente: string; tabla: string | null; cargas: number; cargasConError: number; filas: number; ultimaClave: string | null; ultimaDescarga: string | null; ultimaCarga: string | null; ultimoError: string | null }
 
-/** Etiqueta y cadencia de cada pipeline de `backend/scrapers` (batch-nocturno.sh, paso 6). */
-const FUENTES: Record<string, { nombre: string; cadencia: string; cruce: string }> = {
-  pnda_visitas: { nombre: "Visitas a entidades (PNDA / PCM)", cadencia: "días 1 y 15", cruce: "visitas de postores antes de la convocatoria" },
-  portal_visitas_manual: { nombre: "Visitas: exportación manual del portal PCM", cadencia: "manual (Turnstile bloquea la automatización)", cruce: "igual que PNDA visitas; todas las entidades" },
-  onpe_claridad: { nombre: "Aportantes de campaña (ONPE Claridad)", cadencia: "mensual, con sesión gráfica", cruce: "aportante = postor o socio en la entidad del partido" },
-  jne_infogob: { nombre: "Autoridades vigentes (JNE)", cadencia: "día 5", cruce: "alcalde/gobernador y su organización política" },
-  pnda_dji: { nombre: "Declaraciones de intereses (DJI)", cadencia: "día 5", cruce: "empleos previos y parientes de funcionarios" },
+const nombreMes = (iso: string) => {
+  const t = new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-PE", { month: "long", year: "numeric" });
+  return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
-const gb = (b: number) => `${(b / 1e9).toLocaleString("es-PE", { maximumFractionDigits: b < 1e9 ? 2 : 1 })} GB`;
-const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+/** Colores de la barra de formatos: tinta en escalones (no son estados, así que no usan tonos). */
+const TINTA = ["bg-ink/75", "bg-ink/50", "bg-ink/30", "bg-ink/20", "bg-ink/10"];
 
-/** Qué tiene Vigía de cada mes, a ciencia cierta: sale de las tablas que escribe el pipeline (migración 16). */
-export default function CoberturaPage() {
-  const [d, setD] = useState<Cobertura | null>(null);
-  const [pr, setPr] = useState<ProgresoDocumentos | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    const load = () => {
-      adminFetch<Cobertura>("/cobertura").then(setD).catch((e) => setErr(e.message));
-      adminFetch<ProgresoDocumentos>("/cobertura/progreso").then(setPr).catch(() => setPr(null));
-    };
-    load();
-    const id = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  const meses = (d?.meses ?? []).filter((m) => m.mes);
-  const tot = meses.reduce((a, m) => ({ contratos: a.contratos + m.contratos, conRecord: a.conRecord + m.conRecord, conDocs: a.conDocs + m.conDocs, docsPublicados: a.docsPublicados + m.docsPublicados, docsVigentes: a.docsVigentes + m.docsVigentes, analizados: a.analizados + m.analizados }), { contratos: 0, conRecord: 0, conDocs: 0, docsPublicados: 0, docsVigentes: 0, analizados: 0 });
-
+/** Qué hay en el almacén: una barra partida por formato y su leyenda, con el vencimiento. */
+function Almacen({ documentos, porFormato }: { documentos: Cobertura["documentos"]; porFormato: Cobertura["porFormato"] }) {
+  const total = porFormato.reduce((a, f) => a + f.n, 0);
   return (
-    <AdminShell title="Cobertura" subtitle="Qué hay descargado, en el bucket y analizado, mes por mes (fuente: Cloud SQL, no estimaciones)">
-      {err && <div className="rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2 text-sm text-rust">{err}</div>}
-      {pr && <Progreso pr={pr} />}
-      {d && (
+    <Card>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-sm font-semibold text-ink">
+          En el almacén: {fmtNum(documentos?.vigentes) ?? "sin dato"} documentos
+          {documentos && <span className="font-normal text-mute"> · {fmtBytes(documentos.bytesVigentes) ?? "tamaño sin dato"}</span>}
+        </p>
+        <p className="text-[12px] text-mute">{documentos?.proximaExpiracion ? `El primero vence el ${fmtDia(documentos.proximaExpiracion)}` : "Ninguno por vencer"}</p>
+      </div>
+      {total > 0 && (
         <>
-          <FuentesExternas fuentes={d.fuentes ?? []} />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <K l="Contratos en DB" v={tot.contratos.toLocaleString("es-PE")} />
-            <K l="Con record completo" v={`${tot.conRecord.toLocaleString("es-PE")} (${pct(tot.conRecord, tot.contratos)} %)`} />
-            <K l="Con documentos en GCS" v={`${tot.conDocs.toLocaleString("es-PE")} (${pct(tot.conDocs, tot.contratos)} %)`} />
-            <K l="Documentos vigentes" v={`${(d.documentos?.vigentes ?? 0).toLocaleString("es-PE")} (${gb(d.documentos?.bytesVigentes ?? 0)})`} hint={d.documentos?.proximaExpiracion ? `primera expiración ${fmtDate(d.documentos.proximaExpiracion)}` : "retención 90 días"} />
-            <K l="Analizados" v={tot.analizados.toLocaleString("es-PE")} />
+          <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+            {porFormato.map((f, i) => <span key={f.formato ?? i} className={TINTA[Math.min(i, TINTA.length - 1)]} style={{ width: `${(f.n / total) * 100}%` }} />)}
           </div>
-
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper">
-            <table className="w-full text-sm">
-              <thead className="bg-paperDeep text-left text-[11px] uppercase tracking-wide text-mute">
-                <tr><th className="px-3 py-2">Mes de convocatoria</th><th className="text-right">Contratos</th><th className="text-right">Record completo</th><th className="text-right">Docs publicados</th><th className="text-right">Docs en GCS</th><th className="text-right">Contratos con docs</th><th className="text-right">Clasificados</th><th className="text-right">Analizados</th><th className="text-right">En cola</th></tr>
-              </thead>
-              <tbody>
-                {meses.map((m) => (
-                  <tr key={m.mes} className="border-t border-line font-mono text-xs">
-                    <td className="px-3 py-1.5 font-sans text-sm text-ink">{new Date(m.mes!.slice(0, 10) + "T12:00:00").toLocaleDateString("es-PE", { month: "long", year: "numeric" })}</td>
-                    <td className="text-right">{m.contratos.toLocaleString("es-PE")}</td>
-                    <td className="text-right"><Barra a={m.conRecord} b={m.contratos} /></td>
-                    <td className="text-right">{m.docsPublicados.toLocaleString("es-PE")}</td>
-                    <td className="text-right"><Barra a={m.docsVigentes} b={m.docsPublicados} /></td>
-                    <td className="text-right">{m.conDocs.toLocaleString("es-PE")}</td>
-                    <td className="text-right"><Barra a={m.clasificados} b={m.contratos} /></td>
-                    <td className="text-right">{m.analizados.toLocaleString("es-PE")}</td>
-                    <td className="text-right">{m.enCola.toLocaleString("es-PE")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-[12px] text-mute">
-            <strong>Record completo</strong> = bajado por lotes desde <code>/record/&lt;ocid&gt;</code> (trae partes, adjudicaciones y contratos); sin él solo tenemos el release recortado de <code>/releasesAfter</code>.
-            <strong> Docs en GCS</strong> = vigentes (no expirados) en <code>gs://vigia-peru-batch/batch/documentos/</code>. Actualizado {fmtDate(d.generadoAt)}.
-          </p>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              <div className="border-b border-line bg-paperDeep px-3 py-2 text-[11px] uppercase tracking-wide text-mute">Lotes ingeridos (job vigia-ingest)</div>
-              <table className="w-full text-sm">
-                <tbody>
-                  {!d.lotes.length && <tr><td className="px-3 py-6 text-center text-mute">Todavía no se ingirió ningún lote.</td></tr>}
-                  {d.lotes.map((l) => (
-                    <tr key={l.id} className="border-t border-line">
-                      <td className="px-3 py-1.5 font-mono text-[11px] text-ink">{l.id}</td>
-                      <td className="text-[12px] text-mute">{l.tipo}</td>
-                      <td className="font-mono text-xs">{l.ok.toLocaleString("es-PE")}/{l.total.toLocaleString("es-PE")}{l.fallidos ? <span className="text-rust">, {l.fallidos} fallidos</span> : null}</td>
-                      <td><span className={`rounded-full px-2 py-0.5 text-[11px] ${l.estado === "ok" ? "bg-moss/10 text-moss" : l.estado === "error" ? "bg-crimson-soft text-crimsonTexto" : "bg-amber-soft text-amberTexto"}`}>{l.estado}</span></td>
-                      <td className="px-3 text-right text-[11px] text-mute">{fmtDate(l.finalizadoAt ?? l.iniciadoAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-2xl border border-line bg-paper p-4">
-              <div className="text-[11px] uppercase tracking-wide text-mute">Documentos vigentes por formato</div>
-              <ul className="mt-2 divide-y divide-line text-sm">
-                {!d.porFormato.length && <li className="py-1.5 text-mute">Ninguno.</li>}
-                {d.porFormato.map((f) => (
-                  <li key={f.formato ?? "?"} className="flex justify-between py-1.5"><span className="uppercase text-ink">{f.formato ?? "?"}</span><span className="font-mono text-xs text-mute">{f.n.toLocaleString("es-PE")} ({gb(f.bytes)})</span></li>
-                ))}
-              </ul>
-              <p className="mt-3 text-[11px] text-mute">Lifecycle del bucket: Nearline a los 30 días, borrado a los 90. Lo financiado después de expirar se vuelve a bajar esa noche.</p>
-            </div>
-          </div>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-inkSoft">
+            {porFormato.map((f, i) => (
+              <li key={f.formato ?? i} className="inline-flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${TINTA[Math.min(i, TINTA.length - 1)]}`} aria-hidden />
+                <span className="font-medium uppercase text-ink">{f.formato ?? "sin formato"}</span>
+                <span className="font-mono">{fmtNum(f.n)}</span>
+                <span className="text-mute">({fmtBytes(f.bytes)})</span>
+              </li>
+            ))}
+          </ul>
         </>
       )}
-    </AdminShell>
+      <p className="mt-3 text-[11.5px] leading-snug text-mute">Pasan a almacenamiento frío a los 30 días y se borran a los 90. Si alguien financia un contrato con documentos vencidos, se vuelven a bajar esa noche.</p>
+    </Card>
   );
 }
 
-/** Lote nocturno de documentos: cuánto falta, a qué ritmo va y qué falló (plan 2026-09-16 · U4). */
-function Progreso({ pr }: { pr: ProgresoDocumentos }) {
-  const lote = pr.loteActual;
-  const dia = (iso: string) => new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short" });
-  return (
-    <section className="mb-6 rounded-2xl border border-line bg-paper p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-ink">Lote nocturno de documentos</h2>
-        <span className="text-[11px] text-mute">
-          {lote ? <>último lote <span className="font-mono">{lote.id}</span>: {lote.estado}, {lote.ok.toLocaleString("es-PE")}/{lote.total.toLocaleString("es-PE")}{lote.fallidos ? <span className="text-rust">, {lote.fallidos} fallidos</span> : null}, {fmtDate(lote.finalizadoAt ?? lote.iniciadoAt)}</> : "sin lotes de documentos"}
-        </span>
-      </div>
-      <div className="mt-3 flex items-baseline gap-3">
-        <span className="font-mono text-2xl font-semibold text-ink">{pr.vigentes.toLocaleString("es-PE")}</span>
-        <span className="text-sm text-mute">de {pr.publicados.toLocaleString("es-PE")} documentos publicados en el SEACE ya están en el almacén (<span className="font-mono text-ink">{pr.pct} %</span>)</span>
-      </div>
-      <div className="mt-2 h-3 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={pr.pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="h-full rounded-full bg-moss" style={{ width: `${Math.min(100, pr.pct)}%` }} />
-      </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Faltan</dt><dd className="font-mono text-ink">{pr.restantes.toLocaleString("es-PE")} <span className="text-[11px] text-mute">docs, {pr.contratosSinBajar.toLocaleString("es-PE")} contratos sin bajar</span></dd></div>
-        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Ritmo</dt><dd className="font-mono text-ink">{pr.porNoche ? `${pr.porNoche.toLocaleString("es-PE")} / noche` : "—"} <span className="text-[11px] text-mute">promedio 7 días</span></dd></div>
-        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Estimación de fin</dt><dd className="font-mono text-ink">{pr.nochesRestantes !== null ? `${pr.nochesRestantes} noche${pr.nochesRestantes === 1 ? "" : "s"}` : "—"} {pr.estimadoFin && <span className="text-[11px] text-mute">≈ {new Date(pr.estimadoFin).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}</span>}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-wide text-mute">Ítems pendientes en lotes</dt><dd className="font-mono text-ink">{pr.itemsPendientes.toLocaleString("es-PE")}</dd></div>
-      </dl>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-mute">Descargados por noche (7 días)</div>
-          <ul className="mt-1 space-y-1 text-[12px]">
-            {!pr.ritmo.length && <li className="text-mute">Sin descargas en la última semana.</li>}
-            {pr.ritmo.map((r) => {
-              const max = Math.max(...pr.ritmo.map((x) => x.n), 1);
-              return (
-                <li key={r.dia} className="flex items-center gap-2">
-                  <span className="w-20 text-mute">{dia(r.dia)}</span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep"><span className="block h-full bg-moss" style={{ width: `${Math.round((r.n / max) * 100)}%` }} /></span>
-                  <span className="w-28 whitespace-nowrap text-right font-mono text-ink" title={`${r.contratos.toLocaleString("es-PE")} contratos`}>{r.n.toLocaleString("es-PE")}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-mute">Últimos errores por ítem</div>
-          {!pr.errores.length ? <p className="mt-1 text-[12px] text-mute">Ningún ítem falló en los últimos lotes.</p> : (
-            <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-[11px]">
-              {pr.errores.map((e, i) => (
-                <li key={i} className="flex items-baseline justify-between gap-2 border-t border-line py-1 first:border-0">
-                  <span className="min-w-0 truncate font-mono text-ink" title={`${e.loteId}: ${e.clave}`}>{e.clave}</span>
-                  <span className="min-w-0 truncate text-rust" title={e.error ?? ""}>{e.error ?? "error"}</span>
-                  <span className="shrink-0 text-mute">{fmtDate(e.procesadoAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Datasets que no vienen del SEACE (migración 23): cuántas filas hay, hasta qué periodo y si la última carga falló. */
-function FuentesExternas({ fuentes }: { fuentes: Fuente[] }) {
-  const claves = Array.from(new Set([...Object.keys(FUENTES), ...fuentes.map((f) => f.fuente)]));
-  return (
-    <section className="mb-6 rounded-2xl border border-line bg-paper p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-ink">Fuentes externas</h2>
-        <span className="text-[11px] text-mute">se cargan desde la laptop (IP peruana) en el batch nocturno. Fuente: <code>datasets_cargas</code></span>
-      </div>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wide text-mute">
-            <tr><th className="py-1 pr-3">Fuente</th><th className="text-right">Filas</th><th className="text-right">Cargas</th><th className="pl-3">Hasta</th><th className="pl-3">Última carga</th><th className="pl-3">Cadencia</th><th className="pl-3">Sirve para</th></tr>
-          </thead>
-          <tbody>
-            {claves.map((k) => {
-              const f = fuentes.find((x) => x.fuente === k);
-              const meta = FUENTES[k] ?? { nombre: k, cadencia: "—", cruce: "—" };
-              const conError = (f?.cargasConError ?? 0) > 0;
-              return (
-                <tr key={k} className="border-t border-line">
-                  <td className="py-1.5 pr-3">
-                    <div className="text-ink">{meta.nombre}</div>
-                    <div className="font-mono text-[10px] text-mute">{k}{f?.tabla ? ` → ${f.tabla}` : ""}</div>
-                  </td>
-                  <td className="text-right font-mono text-xs">{f ? f.filas.toLocaleString("es-PE") : <span className="text-mute">sin cargas</span>}</td>
-                  <td className="text-right font-mono text-xs">{f ? <>{f.cargas}{conError && <span className="text-rust" title={f.ultimoError ?? ""}>, {f.cargasConError} con error</span>}</> : "—"}</td>
-                  <td className="pl-3 font-mono text-xs">{f?.ultimaClave ?? "—"}</td>
-                  <td className="pl-3 text-xs text-mute">{f?.ultimaCarga ? fmtDate(f.ultimaCarga) : "—"}</td>
-                  <td className="pl-3 text-xs text-mute">{meta.cadencia}</td>
-                  <td className="pl-3 text-xs text-mute">{meta.cruce}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function K({ l, v, hint }: { l: string; v: string; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-line bg-paper p-3">
-      <div className="font-mono text-lg font-semibold text-ink">{v}</div>
-      <div className="text-[10px] uppercase tracking-wide text-mute">{l}</div>
-      {hint && <div className="text-[10px] text-mute">{hint}</div>}
-    </div>
-  );
-}
-
-function Barra({ a, b }: { a: number; b: number }) {
+/** Cantidad con su proporción sobre un total, y una barra chica. */
+function Proporcion({ a, b }: { a: number; b: number }) {
   const p = pct(a, b);
   return (
-    <span className="inline-flex items-center justify-end gap-1.5">
-      <span className="inline-block h-1.5 w-12 overflow-hidden rounded-full bg-paperDeep" aria-hidden><span className="block h-full bg-moss" style={{ width: `${p}%` }} /></span>
-      <span className="w-14 text-right">{a.toLocaleString("es-PE")}</span>
-      <span className="w-9 text-right text-mute">{p} %</span>
+    <span className="inline-flex items-center justify-end gap-2">
+      <span className="font-mono">{fmtNum(a)}</span>
+      <span className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-paperDeep sm:inline-block" aria-hidden>
+        <span className="block h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
+      </span>
+      <span className="w-10 text-right font-sans text-[11px] text-mute">{p} %</span>
     </span>
+  );
+}
+
+export default function CoberturaPage() {
+  const cob = useAdmin<Cobertura>("/cobertura", { refreshInterval: 60_000 });
+  const pro = useAdmin<ProgresoDocumentos>("/cobertura/progreso", { refreshInterval: 60_000 });
+  const d = cob.data;
+  const pr = pro.data;
+  const refrescar = () => { cob.mutate(); pro.mutate(); };
+
+  const meses = (d?.meses ?? []).filter((m) => m.mes);
+  const sinMes = (d?.meses ?? []).find((m) => !m.mes);
+  const tot = meses.reduce(
+    (a, m) => ({ contratos: a.contratos + m.contratos, conRecord: a.conRecord + m.conRecord, conDocs: a.conDocs + m.conDocs, analizados: a.analizados + m.analizados, enCola: a.enCola + m.enCola }),
+    { contratos: 0, conRecord: 0, conDocs: 0, analizados: 0, enCola: 0 },
+  );
+
+  const colMeses: Columna<Mes>[] = [
+    { clave: "mes", titulo: "Mes de convocatoria", principal: true, celda: (m) => <span className="font-medium text-ink">{nombreMes(m.mes!)}</span> },
+    { clave: "contratos", titulo: "Contratos", alinear: "derecha", celda: (m) => fmtNum(m.contratos) },
+    { clave: "record", titulo: "Expediente completo", alinear: "derecha", celda: (m) => <Proporcion a={m.conRecord} b={m.contratos} /> },
+    { clave: "docs", titulo: "Documentos bajados", alinear: "derecha", celda: (m) => <span title={`${fmtNum(m.docsVigentes)} de ${fmtNum(m.docsPublicados)} publicados`}><Proporcion a={m.docsVigentes} b={m.docsPublicados} /></span> },
+    { clave: "condocs", titulo: "Contratos con documentos", alinear: "derecha", celda: (m) => fmtNum(m.conDocs) },
+    { clave: "clasif", titulo: "Clasificados", alinear: "derecha", celda: (m) => <Proporcion a={m.clasificados} b={m.contratos} /> },
+    { clave: "analizados", titulo: "Analizados", alinear: "derecha", celda: (m) => fmtNum(m.analizados) },
+    { clave: "cola", titulo: "En proceso", alinear: "derecha", celda: (m) => fmtNum(m.enCola) },
+  ];
+
+  const colLotes: Columna<Lote>[] = [
+    {
+      clave: "lote",
+      titulo: "Lote",
+      principal: true,
+      celda: (l) => (
+        <span title={l.id}>
+          <span className="block font-medium text-ink">{tipoLoteLabel(l.tipo)}</span>
+          <span className="block text-[11px] text-mute">{fmtFechaHora(l.iniciadoAt ?? l.finalizadoAt) ?? "sin fecha"}</span>
+        </span>
+      ),
+    },
+    {
+      clave: "resultado",
+      titulo: "Resultado",
+      celda: (l) => (
+        <span className="text-[12px] text-inkSoft">
+          <span className="font-mono text-ink">{fmtNum(l.ok)}</span> de {fmtNum(l.total)}
+          {l.fallidos ? <span className="text-crimsonTexto">, {fmtNum(l.fallidos)} fallidos</span> : null}
+        </span>
+      ),
+    },
+    { clave: "estado", titulo: "Estado", celda: (l) => { const e = estadoLote(l.estado); return <Badge tono={e.tono}>{e.label}</Badge>; } },
+    { clave: "cuando", titulo: "Terminó", className: "whitespace-nowrap text-[12px] text-mute", celda: (l) => hace(l.finalizadoAt) ?? "sin terminar" },
+  ];
+
+  return (
+    <AdminShell
+      title="Cobertura"
+      subtitle="Qué tenemos de cada mes: expedientes, documentos y análisis, según la base de datos"
+      actions={
+        <button onClick={refrescar} className={claseBoton("secundario")}>
+          <RefreshCw size={12} className={cob.isValidating || pro.isValidating ? "animate-spin" : ""} aria-hidden /> Actualizar
+        </button>
+      }
+    >
+      <div className="space-y-10">
+        <PageSection titulo="Documentos del SEACE" descripcion="El lote nocturno los baja desde una conexión peruana (el SEACE no deja entrar a la nube) y los guarda en el almacén 90 días.">
+          <ErrorBanner error={pro.error} titulo="No se pudo leer el avance del lote nocturno" onReintentar={() => pro.mutate()} className="mb-3" />
+          {pr ? <Progreso pr={pr} /> : pro.isLoading && <div className="space-y-3"><SkeletonPanel lineas={2} /><SkeletonStats n={4} /></div>}
+          {d ? <Almacen documentos={d.documentos} porFormato={d.porFormato} /> : cob.isLoading && <SkeletonPanel lineas={2} className="mt-3" />}
+        </PageSection>
+
+        <ErrorBanner error={cob.error} titulo="No se pudo leer la cobertura" onReintentar={() => cob.mutate()} />
+
+        <PageSection
+          titulo="Contratos por mes"
+          meta={d ? `${fmtNum(tot.contratos)} contratos` : undefined}
+          descripcion={d ? `Cifras de la base, actualizadas ${fmtFechaHora(d.generadoAt)}` : undefined}
+        >
+          {!d ? (
+            cob.isLoading && <div className="space-y-3"><SkeletonStats n={5} /><SkeletonTabla filas={6} columnas={6} /></div>
+          ) : (
+            <div className="space-y-3">
+              <StatGrid columnas={5}>
+                <StatCard etiqueta="Contratos" valor={tot.contratos} pista="con mes de convocatoria" />
+                <StatCard etiqueta="Expediente completo" valor={tot.conRecord} tono="ok" pista={`${pct(tot.conRecord, tot.contratos)} % del total`} />
+                <StatCard etiqueta="Con documentos" valor={tot.conDocs} tono={tot.conDocs ? "ok" : "warn"} pista={`${pct(tot.conDocs, tot.contratos)} % tiene al menos uno bajado`} />
+                <StatCard etiqueta="En proceso" valor={tot.enCola} tono={tot.enCola ? "pending" : "neutral"} pista="financiados: en cola, leyéndose o esperando documentos" href="/admin/procesamientos" />
+                <StatCard etiqueta="Analizados" valor={tot.analizados} tono="ok" pista="con informe de la revisión" />
+              </StatGrid>
+
+              <DataTable
+                etiqueta="Cobertura por mes de convocatoria"
+                columnas={colMeses}
+                filas={meses}
+                claveFila={(m) => m.mes!}
+                apilarHasta="lg"
+                anchoMinimo="min-w-[860px]"
+                vacio={<EmptyState compacto titulo="Todavía no hay contratos ingeridos" descripcion="Aparecen cuando corre la ingesta diaria de convocatorias." />}
+              />
+              {sinMes && sinMes.contratos > 0 && (
+                <p className="text-[12px] text-inkSoft">{fmtNum(sinMes.contratos)} contratos no tienen fecha de convocatoria: no entran en esta tabla ni en los totales.</p>
+              )}
+              <Expandable variante="linea" resumen="Qué mide cada columna">
+                <dl className="grid max-w-4xl gap-x-6 gap-y-2 text-[12.5px] leading-relaxed text-inkSoft md:grid-cols-2">
+                  <div><dt className="font-semibold text-ink">Expediente completo</dt><dd>Bajamos el expediente entero del OECE (partes, adjudicaciones y contratos). Sin él solo tenemos el aviso de convocatoria. <span className="font-mono text-[11px] text-mute">/record/&lt;ocid&gt; frente a /releasesAfter</span></dd></div>
+                  <div><dt className="font-semibold text-ink">Documentos bajados</dt><dd>Documentos guardados y vigentes frente a los que el SEACE publica para ese mes. <span className="font-mono text-[11px] text-mute">gs://vigia-peru-batch/batch/documentos/</span></dd></div>
+                  <div><dt className="font-semibold text-ink">Clasificados</dt><dd>Contratos a los que ya se les asignó tipo y etapa.</dd></div>
+                  <div><dt className="font-semibold text-ink">En proceso</dt><dd>Financiados y en camino: en cola, leyéndose o esperando documentos.</dd></div>
+                </dl>
+              </Expandable>
+            </div>
+          )}
+        </PageSection>
+
+        <PageSection
+          titulo="Fuentes externas"
+          meta={d ? `${totalFuentes(d.fuentes ?? [])} fuentes` : undefined}
+          descripcion="Datos que no vienen del SEACE y se cruzan con cada contrato: visitas, aportes de campaña, autoridades, declaraciones de intereses."
+        >
+          {d ? <Fuentes fuentes={d.fuentes ?? []} /> : cob.isLoading && <SkeletonTabla filas={5} columnas={5} />}
+        </PageSection>
+
+        {d && (
+          <PageSection titulo="Historial de lotes" meta={`${d.lotes.length} más recientes`} descripcion="Lo que corre cada noche: convocatorias nuevas, expedientes completos y documentos." plegable abierto={false}>
+            <DataTable
+              etiqueta="Lotes ingeridos"
+              columnas={colLotes}
+              filas={d.lotes}
+              claveFila={(l) => l.id}
+              vacio={<EmptyState compacto titulo="Todavía no se ingirió ningún lote" />}
+            />
+          </PageSection>
+        )}
+      </div>
+    </AdminShell>
   );
 }

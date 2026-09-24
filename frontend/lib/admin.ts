@@ -27,13 +27,14 @@ export const fmtDate = (iso: string | null | undefined) =>
 
 export const ESTADO_UI: Record<string, { label: string; cls: string }> = {
   // Texto con los tokens *Texto: amber/moss/crimson base no llegan a 4.5:1 como
-  // texto sobre sus propios fondos suaves (ver tailwind.config.ts).
+  // texto sobre sus propios fondos suaves (ver tailwind.config.ts). Tampoco mute
+  // sobre paperDeep (≈ 4.2:1): lo apagado va en inkSoft, como TONO.muted del kit.
   pendiente_pago: { label: "Pendiente", cls: "bg-amber-soft text-amberTexto" },
   pagada: { label: "Pagada", cls: "bg-moss/10 text-mossTexto" },
   en_proceso: { label: "En proceso", cls: "bg-moss/10 text-mossTexto" },
   procesada: { label: "Procesada", cls: "bg-moss text-paper" },
   rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimsonTexto" },
-  reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-mute" },
+  reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-inkSoft" },
 };
 
 export interface Resumen {
@@ -84,7 +85,8 @@ export interface Operacion {
   };
   cola: Record<string, number>;
   servicios: { data: SaludServicio[]; consultadoAt: string; cacheado: boolean };
-  relay: { url: string | null; ok: boolean | null };
+  /** `comprobando`: la API arrancó en frío y el sondeo sigue en segundo plano (el siguiente refresco trae el dato). */
+  relay: { url: string | null; ok: boolean | null; comprobando?: boolean; consultadoAt?: string | null };
   pedidos: { pendientes: number; descargando: number; fallidos: number; listos24h: number } | null;
   aportes: { pendientesValidar: number; conComprobante: number; esperandoContratos: number };
   revision: { n: number; masAntigua: string | null };
@@ -116,13 +118,16 @@ export interface BanderaRevision {
   verificacion: { ok?: boolean; motivos?: string[]; n_checks?: number } | null;
 }
 
-export interface RevisionDetalle extends RevisionRow {
-  banderas: number;
-  banderasDetalle?: never;
+/** Un hallazgo que el pipeline descartó o recortó (`analisis_full.descartes`); la forma varía por etapa. */
+export interface DescarteRevision { donde?: string; motivo?: string; detalle?: string; agente?: string; motivos?: string[]; chars?: number }
+
+export interface RevisionDetalle extends Omit<RevisionRow, "banderas"> {
+  /** En el detalle, las banderas vienen enteras (en la lista es solo el conteo). */
+  banderas: BanderaRevision[];
   dictamen: string | null;
-  verificacionDictamen: unknown;
+  verificacionDictamen: Record<string, unknown> | null;
   validacionesPendientes: string[];
-  descartes: unknown[];
+  descartes: DescarteRevision[];
   autoevaluacion: {
     pct: Record<string, number | string> | null;
     respaldo: { n?: number; ok?: number } | null; cita: { n?: number; ok?: number } | null; precio: { n?: number; ok?: number } | null;
@@ -132,6 +137,18 @@ export interface RevisionDetalle extends RevisionRow {
   } | null;
   umbrales: SelfEvalConfig;
   log: { actor: string; accion: string; detalle: unknown; createdAt: string }[];
+}
+
+/**
+ * GET /admin/revision/:id/informe — el dossier completo, publicado o no. Misma forma que
+ * GET /alertas/:id/full de una alerta publicada: se pasa por `adaptLoadedToUi` (lib/dossier-adaptar)
+ * y se pinta con el <ResultadoView> público. Acá solo se tipa lo que el panel mira por su cuenta.
+ */
+export interface InformeRevision {
+  alerta_codigo: string; ocid: string | null; estado: string; publicada: boolean; enRevision: boolean;
+  score: number | null; objeto: string | null; monto: number; entidad: string | null; analizado_en: string | null;
+  dictamen_markdown: string;
+  [campo: string]: unknown;
 }
 
 // ─── U4 · Cobertura: progreso del lote nocturno (GET /admin/cobertura/progreso) ──

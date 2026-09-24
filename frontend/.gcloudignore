@@ -4,6 +4,8 @@
 
 node_modules/
 .next/
+# builds locales de medición (NEXT_DIST_DIR=.next-medir, next.config.js)
+.next-*/
 out/
 dist/
 build/

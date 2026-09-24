@@ -14,4 +14,11 @@ gcloud run deploy vigia-peru-frontend \
   --allow-unauthenticated \
   --memory 1Gi \
   --update-env-vars "VIGIA_API_URL=${API_URL},VIGIA_AGENT_URL=${AGENT_URL},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},DOCS_BUCKET=${BUCKET_DOCUMENTOS},REPORTES_BUCKET=${BUCKET_REPORTES}" \
+  --update-secrets "ADMIN_TOKEN=admin-token:latest,ADMIN_EMAILS=admin-emails:latest,ADMIN_SESSION_SECRET=admin-session-secret:latest" \
   --quiet
+# Acceso al panel (lib/admin-sesion.ts): se entra con una cuenta de Firebase y
+# sólo pasan los correos del secreto `admin-emails` (separados por coma; fuera
+# del repo porque es público) o, desde /admin/equipo, los de la tabla `equipo`.
+# ADMIN_TOKEN no llega al navegador: lo usa el servidor para hablar con el API.
+# La cookie de sesión se firma SÓLO con ADMIN_SESSION_SECRET (secreto
+# `admin-session-secret`, ≥ 32 caracteres, distinto del token).
