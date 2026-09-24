@@ -95,8 +95,17 @@ Trigger en push a `main`: ver el comentario del archivo. El `.env.production` de
 frontend (NEXT_PUBLIC_FIREBASE_*) vive en el secreto `frontend-env-production` y
 Cloud Build lo materializa antes del build.
 
-Secretos adicionales de "Financia una auditoría": `admin-token` (login del panel `/admin`,
-validación de pagos y Cloud Scheduler; para entrar: `gcloud secrets versions access latest --secret=admin-token`) y `frontend-env-production`. El job de Cloud Scheduler
+Secretos del panel `/admin`:
+- `admin-token`: token de servicio entre el frontend (servidor) y el API, y del job de Cloud
+  Scheduler. No es un login: nadie lo escribe en el navegador. Rotarlo = versión nueva,
+  redesplegar API y frontend, actualizar la cabecera `x-admin-token` del job de Scheduler y
+  deshabilitar la versión anterior (rotado el 2026-09-24).
+- `admin-session-secret`: llave (≥ 32 caracteres) con la que el frontend firma la cookie de
+  sesión. Distinta del token: quien conozca el token no puede fabricarse una sesión.
+- `admin-emails`: administradores principales. Se entra en `/admin/login` con una cuenta de
+  Firebase de correo verificado; el resto del equipo (perfiles admin | revisor) se gestiona en
+  `/admin/equipo` (tabla `equipo`, migración 29).
+- `frontend-env-production`. El job de Cloud Scheduler
 `vigia-financiamiento-asignar` (cada 10 min) llama a `POST /admin/asignar`, que asigna
 contratos FIFO a contribuciones pagadas y refresca `zona_estado` / `ranking_impacto`.
 
