@@ -2,8 +2,9 @@
  * Operación del panel admin (plan 2026-09-16 · U4). Se monta bajo /admin (hereda el x-admin-token).
  *
  *   GET  /admin/operacion                         resumen en una pantalla: dispatcher (última corrida), servicios de
- *                                                 agentes (GET / con timeout 3 s, caché 60 s), relay, cola por estado,
- *                                                 pedidos de descarga, aportes por validar, alertas en revisión, último lote
+ *                                                 agentes y relay (lib/salud.ts: último estado conocido, nunca espera
+ *                                                 un sondeo), cola por estado, pedidos de descarga, aportes por validar,
+ *                                                 alertas en revisión, último lote
  *   POST /admin/procesamientos/:ocid/reanalizar   vuelve a encolar un contrato ya procesado (≈ US$ 0.25, ~3 min);
  *                                                 409 si hay un procesamiento activo (Cloud Run devuelve 429 al 2.º request)
  *   GET  /admin/cobertura/progreso                lote nocturno de documentos: descargados vs publicados, ritmo, estimación,
@@ -16,94 +17,9 @@
 import { Hono } from "hono";
 import { pool } from "../lib/db.js";
 import { actor, log } from "../lib/adminlog.js";
-import { cabecerasInvocacion } from "../lib/cloudrun-auth.js";
+import { ingestaConvocatorias, saludRelay, saludServicios } from "../lib/salud.js";
 
 export const adminOperacionRouter = new Hono();
-
-// ─── Servicios de agentes (uno por perfil) ───────────────────────────────────
-const HOST = process.env.AGENT_HOST_SUFFIX ?? "oq3gq6a4ka-uc.a.run.app";
-const SERVICIOS: { perfil: "bienes" | "servicios" | "obras" | "otros"; nombre: string; url: string }[] = [
-  { perfil: "bienes", nombre: "agent-orchestrator-adk", url: process.env.AGENT_URL_BIENES ?? `https://agent-orchestrator-adk-${HOST}` },
-  { perfil: "servicios", nombre: "agente-servicios", url: process.env.AGENT_URL_SERVICIOS ?? `https://agente-servicios-${HOST}` },
-  { perfil: "obras", nombre: "agente-obras", url: process.env.AGENT_URL_OBRAS ?? `https://agente-obras-${HOST}` },
-  { perfil: "otros", nombre: "agente-otros", url: process.env.AGENT_URL_OTROS ?? `https://agente-otros-${HOST}` },
-];
-
-export interface SaludServicio {
-  perfil: string; nombre: string; url: string;
-  ok: boolean | null;                 // null = sin respuesta en 3 s (posible arranque en frío)
-  status: number | null; ms: number | null;
-  detalle: { perfil?: string; tipos_aceptados?: string[]; model?: string; agentes?: string[] } | null;
-  error: string | null;
-}
-
-/** Cabeceras del health: ID token de Cloud Run (los servicios de agentes pasan a IAM-only). */
-async function cabecerasPing(url: string): Promise<Record<string, string>> {
-  return { accept: "application/json", ...(await cabecerasInvocacion(url).catch(() => ({}))) };
-}
-
-async function pingServicio(s: (typeof SERVICIOS)[number]): Promise<SaludServicio> {
-  const headers = await cabecerasPing(s.url);
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 3000);
-  const t0 = Date.now();
-  try {
-    const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers });
-    const ms = Date.now() - t0;
-    const j = await r.json().catch(() => null) as SaludServicio["detalle"] & { ok?: boolean } | null;
-    return { ...s, ok: r.ok && (j?.ok ?? true), status: r.status, ms,
-      detalle: j ? { perfil: j.perfil, tipos_aceptados: j.tipos_aceptados, model: (j as any).model ?? (j as any).modelo, agentes: j.agentes } : null,
-      error: r.ok ? null : `HTTP ${r.status}` };
-  } catch (e) {
-    const abort = (e as Error).name === "AbortError";
-    return { ...s, ok: abort ? null : false, status: null, ms: Date.now() - t0, detalle: null,
-      error: abort ? "sin respuesta en 3 s (posible arranque en frío)" : (e as Error).message.slice(0, 120) };
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-let serviciosCache: { at: number; data: SaludServicio[] } | null = null;
-async function saludServicios(): Promise<{ data: SaludServicio[]; consultadoAt: string; cacheado: boolean }> {
-  if (serviciosCache && Date.now() - serviciosCache.at < 60_000) {
-    return { data: serviciosCache.data, consultadoAt: new Date(serviciosCache.at).toISOString(), cacheado: true };
-  }
-  const data = await Promise.all(SERVICIOS.map(pingServicio));
-  const cache = { at: Date.now(), data };
-  serviciosCache = cache;
-  // Arranque en frío (~8 s en Cloud Run): los que no respondieron en 3 s se vuelven a consultar en
-  // segundo plano con 20 s y se corrigen en la caché; el siguiente refresco del panel ya los ve.
-  data.forEach((s, i) => {
-    if (s.ok !== null) return;
-    (async () => {
-      const headers = await cabecerasPing(s.url);
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20_000);
-      const t0 = Date.now();
-      try {
-        const r = await fetch(s.url.replace(/\/$/, "") + "/", { signal: ctl.signal, headers });
-        const j = await r.json().catch(() => null) as { ok?: boolean; perfil?: string; tipos_aceptados?: string[]; agentes?: string[]; model?: string } | null;
-        cache.data[i] = { ...s, ok: r.ok && (j?.ok ?? true), status: r.status, ms: Date.now() - t0,
-          detalle: j ? { perfil: j.perfil, tipos_aceptados: j.tipos_aceptados, model: j.model, agentes: j.agentes } : null,
-          error: r.ok ? "respondió en el 2.º intento (arranque en frío)" : `HTTP ${r.status}` };
-      } catch (e) {
-        cache.data[i] = { ...s, ok: false, status: null, ms: Date.now() - t0, detalle: null, error: `sin respuesta en 20 s: ${(e as Error).message.slice(0, 80)}` };
-      } finally { clearTimeout(t); }
-    })();
-  });
-  return { data, consultadoAt: new Date().toISOString(), cacheado: false };
-}
-
-async function saludRelay(): Promise<{ url: string | null; ok: boolean | null }> {
-  const relayUrl = process.env.LOCAL_DOWNLOADER_URL ?? null;
-  if (!relayUrl) return { url: null, ok: null };
-  try {
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 3000);
-    const base = relayUrl.replace(/\/$/, "");
-    const r = await fetch(base + "/health", { signal: ctl.signal }).catch(() => fetch(base, { signal: ctl.signal }));
-    clearTimeout(t);
-    return { url: relayUrl, ok: r.ok || r.status < 500 };
-  } catch { return { url: relayUrl, ok: false }; }
-}
 
 // ─── GET /operacion ──────────────────────────────────────────────────────────
 adminOperacionRouter.get("/operacion", async (c) => {
@@ -129,8 +45,9 @@ adminOperacionRouter.get("/operacion", async (c) => {
     pool.query(`SELECT id, tipo, estado, total::int, ok::int, fallidos::int, iniciado_at AS "iniciadoAt", finalizado_at AS "finalizadoAt", error
                 FROM lotes_ingesta WHERE tipo = 'documentos' ORDER BY COALESCE(finalizado_at, iniciado_at, creado_at) DESC NULLS LAST LIMIT 1`)
       .then((q) => q.rows[0] ?? null).catch(() => null),
-    pool.query(`SELECT max(created_at) AS "ultimaIngesta", count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS "ultimas24h",
-                       count(*)::int AS total FROM convocatorias`).then((q) => q.rows[0]),
+    // Compartida con /salud y en caché 30 s (recorre las ~18 k convocatorias). Misma forma que antes, sin conUbigeo.
+    ingestaConvocatorias().then(({ conUbigeo: _c, ...i }) => i),
+    // Salud externa (lib/salud.ts): último estado conocido al instante; el sondeo corre en segundo plano.
     saludServicios(),
     saludRelay(),
     pool.query(`SELECT p.ocid, p.finalizado_at AS "finalizadoAt", EXTRACT(EPOCH FROM (p.finalizado_at - p.iniciado_at))::int AS segundos,

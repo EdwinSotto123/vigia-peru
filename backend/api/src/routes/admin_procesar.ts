@@ -11,7 +11,7 @@
  * nadie elige contratos), `documentos_vigentes()`, `pedir_descarga()`, `refresh_financiamiento()`.
  *
  *   GET  /admin/procesar-lote/preview?ubigeo=        zona + contratos en cola + precio (antes de confirmar)
- *   POST /admin/procesar-lote {ubigeo, contratos, correrDispatcher}
+ *   POST /admin/procesar-lote {ubigeo, contratos, correrDispatcher}   (5–500; un revisor, hasta 50: 403 tope_revisor)
  *        → crea/reusa el financiador "Vigía Perú" (slug vigia-peru), contribución YA `pagada`,
  *          asigna hasta `contratos` por antigüedad, abre pedido de descarga para los que no
  *          tengan documentos vigentes (el batch nocturno los toma; correrDispatcher además
@@ -21,7 +21,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
-import { actor, log } from "../lib/adminlog.js";
+import { actor, esRevisor, log } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 
 export const adminProcesarRouter = new Hono();
@@ -63,10 +63,16 @@ const ProcesarBody = z.object({
   correrDispatcher: z.boolean().optional().default(true),
 });
 
+// Un revisor (x-admin-rol) procesa lotes chicos; el tope de 500 queda para el admin.
+const TOPE_REVISOR = 50;
+
 adminProcesarRouter.post("/procesar-lote", async (c) => {
   const parsed = ProcesarBody.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return c.json({ error: "invalid_body", issues: parsed.error.issues }, 400);
   const { ubigeo, contratos, correrDispatcher } = parsed.data;
+  if (esRevisor(c) && contratos > TOPE_REVISOR) {
+    return c.json({ error: "tope_revisor", detail: `Un revisor procesa hasta ${TOPE_REVISOR} contratos por lote; para más, pídeselo a un administrador.` }, 403);
+  }
   const quien = actor(c);
 
   const client = await pool.connect();

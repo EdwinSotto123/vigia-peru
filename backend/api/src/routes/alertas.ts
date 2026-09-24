@@ -2,6 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { motivosRevision } from "./procesamientos.js";
+// Dossier completo (búsqueda + armado): compartido con GET /admin/revision/:id/informe.
+import { dossierCompleto, filaDossier } from "../lib/dossier.js";
+import { tokenAdminValido } from "../lib/adminlog.js";
 import {
   alertaNoDemo, alertaPublica, convergenciaPublica, esAlertaDemo, esPublicada, latPublica, lonPublica, reporteIdsPublicos,
 } from "../lib/publicacion.js";
@@ -142,10 +145,6 @@ alertasRouter.get("/analizadas", async (c) => {
   return c.json({ count: items.length, items });
 });
 
-// ─── GET /alertas/:id/full — dossier completo cacheado ────────────
-// Reemplaza al orquestador (action=load) para la NAVEGACIÓN. Lee analisis_full
-// (inmutable una vez analizado) del mismo Cloud SQL. Misma forma que
-// _load_analyzed → el adaptLoadedToUi del frontend lo consume sin cambios.
 // ─── GET /alertas/:codigo/revision — motivos públicos de la revisión humana ─────────────
 // Variante acotada de GET /admin/revision/:id: solo los motivos en lenguaje claro (sin el texto
 // de los jueces ni datos sensibles). Acepta código de alerta (OECE-…), uuid u OCID.
@@ -168,30 +167,14 @@ alertasRouter.get("/:id/revision", async (c) => {
   });
 });
 
+// ─── GET /alertas/:id/full — dossier completo cacheado ────────────
+// Reemplaza al orquestador (action=load) para la NAVEGACIÓN. Lee analisis_full
+// (inmutable una vez analizado) del mismo Cloud SQL. Misma forma que
+// _load_analyzed → el adaptLoadedToUi del frontend lo consume sin cambios.
 alertasRouter.get("/:id/full", async (c) => {
   const id = c.req.param("id");
-  const r = await pool.query(
-    `SELECT a.id, a.codigo, a.ocid, a.score, a.estado, a.objeto,
-            a.monto_adjudicado::float AS monto, a.region,
-            to_char(a.fecha_buena_pro, 'YYYY-MM-DD') AS fecha_buena_pro,
-            a.analizado_en, a.entidad_ruc, a.proveedor_ruc,
-            a.analisis_full, a.dictamen_markdown,
-            e.nombre AS entidad,
-            cv.ocds_payload
-       FROM alertas a
-       LEFT JOIN entidades e    ON e.ruc   = a.entidad_ruc
-       LEFT JOIN convocatorias cv ON cv.ocid = a.ocid
-      WHERE (a.id::text = $1 OR a.codigo = $1 OR a.ocid = $1 OR a.codigo_convocatoria = $1)
-        AND ${alertaNoDemo("a")}
-      -- Determinismo: si varias filas matchean (p.ej. mismo codigo_convocatoria
-      -- por reprocesos), devolver SIEMPRE el análisis MÁS RECIENTE. Sin ORDER BY,
-      -- LIMIT 1 es no-determinista y la data mostrada "cambia" entre cargas.
-      ORDER BY a.analizado_en DESC NULLS LAST, a.updated_at DESC NULLS LAST
-      LIMIT 1`,
-    [id],
-  );
-  if (r.rows.length === 0) return c.json({ error: "not_found", query: id }, 404);
-  const row = r.rows[0];
+  const row = await filaDossier(id);
+  if (!row) return c.json({ error: "not_found", query: id }, 404);
   const publicada = esPublicada(row.estado);
 
   // Alerta NO publicada (revision = la autoevaluación bloqueó la publicación; descartada = una
@@ -238,48 +221,7 @@ alertasRouter.get("/:id/full", async (c) => {
     });
   }
 
-  const b = await pool.query(
-    `SELECT regla, severidad, evidencia, norma, fuente_url
-       FROM banderas WHERE alerta_id = $1
-      ORDER BY CASE severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END`,
-    [row.id],
-  );
-
-  const an = row.analisis_full ?? {};
-  const body = {
-    alerta_codigo: row.codigo,
-    ocid: row.ocid,
-    estado: row.estado,
-    publicada: true,
-    enRevision: false,
-    score: Number(row.score ?? 0),
-    objeto: row.objeto,
-    monto: Number(row.monto ?? 0),
-    region: row.region,
-    fecha_buena_pro: row.fecha_buena_pro ?? null,
-    analizado_en: row.analizado_en ? new Date(row.analizado_en).toISOString() : null,
-    entidad_ruc: row.entidad_ruc,
-    proveedor_ruc: row.proveedor_ruc,
-    entidad: row.entidad,
-    banderas: b.rows,
-    market_analysis: an.market_analysis ?? null,
-    document_analysis: an.document_analysis ?? null,
-    web_research: an.web_research ?? null,
-    news_research: an.news_research ?? null,
-    person_network: an.person_network ?? null,
-    person_network_context: an.person_network_context ?? null,
-    entity_personnel: an.entity_personnel ?? null,
-    normative_compliance: an.normative_compliance ?? null,
-    causal_directa_invocada: an.causal_directa_invocada ?? null,
-    acto_resolutivo_directa: an.acto_resolutivo_directa ?? null,
-    estado_real: an.estado_real ?? null,
-    analisis_postores: an.analisis_postores ?? null,
-    agent_trace: an.agent_trace ?? [],
-    llm_metrics: an.llm_metrics ?? null,
-    self_evals: an.self_evals ?? null,
-    dictamen_markdown: row.dictamen_markdown ?? "",
-    ocds_payload: row.ocds_payload ?? null,
-  };
+  const body = await dossierCompleto(row);
   // Inmutable una vez analizado → cache agresivo en el edge y el browser.
   c.header("Cache-Control", "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400");
   return c.json(body);
@@ -366,9 +308,7 @@ const CreateBody = z.object({
 // puede quedar abierto. Antes no pedía nada y cualquiera podía publicar una
 // alerta con banderas inventadas. Mismo candado que /admin (x-admin-token).
 alertasRouter.post("/", async (c, next) => {
-  const token = process.env.ADMIN_TOKEN;
-  const got = c.req.header("x-admin-token") ?? "";
-  if (!token || got !== token) return c.json({ error: "forbidden" }, 403);
+  if (!tokenAdminValido(c)) return c.json({ error: "forbidden" }, 403);
   await next();
 });
 

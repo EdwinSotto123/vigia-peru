@@ -35,7 +35,8 @@ app.use("*", cors({
     return null; // rechaza
   },
   allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "x-admin-token", "x-admin-actor"],
+  // Sin x-admin-*: el panel pasa por el proxy del servidor del frontend (servidor a servidor, sin CORS).
+  allowHeaders: ["Content-Type", "Authorization"],
   maxAge: 600,
 }));
 

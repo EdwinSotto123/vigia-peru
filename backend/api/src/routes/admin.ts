@@ -1,10 +1,10 @@
 /**
  * Panel admin de "Financia una auditoría". Todo bajo /admin, protegido por
  * `x-admin-token` (secreto `admin-token`). El frontend nunca expone el token:
- * lo guarda en una cookie httpOnly y proxea vía /api/admin/*.
+ * sólo su servidor lo tiene y proxea vía /api/admin/*, con el perfil en `x-admin-rol`.
  *
  *   GET   /admin/ping                                  valida el token
- *   GET   /admin/resumen                               KPIs, serie diaria, pendientes, cola
+ *   GET   /admin/resumen                               KPIs, serie diaria, pendientes, cola (revisor: sin montos ni financiadores)
  *   GET   /admin/contribuciones?estado=pendiente_pago|todas&q=
  *   GET   /admin/contribuciones/:codigo                detalle privado (email, comprobante, asignaciones)
  *   GET   /admin/contribuciones/:codigo/comprobante    stream del comprobante desde GCS (bucket privado)
@@ -14,7 +14,7 @@
  *   GET   /admin/financiadores
  *   PATCH /admin/financiadores/:id                     {visible, motivoNoVisible, nombrePublico, logoUrl}
  *   GET   /admin/config/pagos · PUT /admin/config/pagos
- *   GET   /admin/log
+ *   GET   /admin/log                                   (revisor: sin plata, configuración ni equipo)
  *   POST  /admin/asignar                               re-asigna abiertas + refresh (lo llama Cloud Scheduler)
  *   GET   /admin/procesamientos?estado=                monitor del dispatcher (+ worker, error, latido)
  *   POST  /admin/procesamientos/:ocid/reencolar        vuelve a encolar (intentos=0)
@@ -24,25 +24,37 @@
  *   + admin_revision.ts  (/revision, /alertas/:id/estado, /config/self_eval)
  *   + admin_operacion.ts (/operacion, /procesamientos/:ocid/reanalizar, /cobertura/progreso)
  *   + admin_procesar.ts  (GET /procesar-lote/preview, POST /procesar-lote — a nombre de Vigía Perú, sin pasarela)
+ *   + admin_equipo.ts    (/equipo: miembros del panel y su perfil, admin o revisor — migración 29)
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { storage } from "../lib/storage.js";
-import { actor, log } from "../lib/adminlog.js";
+import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
+import { invalidarMemosEnTodas } from "../lib/cache.js";
+import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
+import { alcanceORespaldo } from "./financiamiento.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
+import { adminEquipoRouter } from "./admin_equipo.js";
 
 export const adminRouter = new Hono();
 
+// Pedidos que no cambian nada público: no vacían cachés (el último ingreso al panel es sólo una marca).
+const SIN_INVALIDAR = /\/equipo\/ingreso\//;
+
 adminRouter.use("*", async (c, next) => {
-  const token = process.env.ADMIN_TOKEN;
-  const got = c.req.header("x-admin-token") ?? "";
-  if (!token || got !== token) return c.json({ error: "forbidden" }, 403);
+  if (!tokenAdminValido(c)) return c.json({ error: "forbidden" }, 403);
   await next();
+  // Toda escritura del panel (validar un aporte, publicar/descartar una alerta, cambiar el alcance…)
+  // vacía las cachés en memoria de esta instancia y avisa a las demás (lib/cache.ts: ≤ ~2 s).
+  const metodo = c.req.method;
+  if (metodo === "GET" || metodo === "HEAD" || metodo === "OPTIONS" || c.res.status >= 400) return;
+  if (SIN_INVALIDAR.test(c.req.path)) return;
+  await invalidarMemosEnTodas();
 });
 
 adminRouter.get("/ping", (c) => c.json({ ok: true }));
@@ -52,10 +64,12 @@ adminRouter.route("/", adminRevisionRouter);
 adminRouter.route("/", adminOperacionRouter);
 // U6: procesar un lote a nombre de Vigía Perú desde el panel, sin pasarela (admin_procesar.ts).
 adminRouter.route("/", adminProcesarRouter);
+// Equipo del panel: quién entra y con qué perfil (admin_equipo.ts, migración 29).
+adminRouter.route("/", adminEquipoRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {
-  const [kpi, serie, porEstado, cola, top] = await Promise.all([
+  const [kpi, serie, porEstado, cola, top, alcance] = await Promise.all([
     pool.query(`
       SELECT
         (SELECT count(*) FROM contribuciones WHERE estado = 'pendiente_pago')::int                        AS "pendientesValidar",
@@ -71,7 +85,6 @@ adminRouter.get("/resumen", async (c) => {
         (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
            WHERE alerta_publicada(a.estado) AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id))::int AS "senales",
         (SELECT count(*) FROM alertas WHERE estado = 'revision')::int                                     AS "enRevision",
-        (SELECT count(*) FROM cola_auditoria)::int                                                        AS "colaGlobal",
         (SELECT count(*) FROM contribuciones WHERE estado IN ('pagada','en_proceso')
            AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id))::int AS "esperandoContratos"`),
     pool.query(`
@@ -88,8 +101,23 @@ adminRouter.get("/resumen", async (c) => {
     pool.query(`SELECT nombre, tipo, contratos_financiados AS "contratosFinanciados", contratos_procesados AS "contratosProcesados",
                        senales_halladas AS "senalesHalladas", en_revision AS "enRevision"
                 FROM ranking_impacto ORDER BY contratos_financiados DESC LIMIT 5`),
+    // count(*) FROM cola_auditoria cuesta ~130 ms (procesamiento_activo() por fila): se reusa el de
+    // getAlcance (caché 60 s; toda escritura del panel la vacía). Con la base fallando, cola 0.
+    alcanceORespaldo(),
   ]);
-  return c.json({ kpi: kpi.rows[0], serie: serie.rows, porEstado: porEstado.rows, cola: cola.rows, top: top.rows });
+  const colaGlobal = alcance.colaFinanciable;
+  if (esRevisor(c)) {
+    // El revisor no ve plata ni quién financia: montos en null y sin el ranking de financiadores.
+    // Quedan los conteos de procesamiento, señales, cola y revisión.
+    return c.json({
+      kpi: { ...kpi.rows[0], montoConfirmadoPen: null, montoMesPen: null, colaGlobal },
+      serie: serie.rows.map((r) => ({ ...r, monto: null })),
+      porEstado: porEstado.rows.map((r) => ({ ...r, monto: null })),
+      cola: cola.rows,
+      top: [],
+    });
+  }
+  return c.json({ kpi: { ...kpi.rows[0], colaGlobal }, serie: serie.rows, porEstado: porEstado.rows, cola: cola.rows, top: top.rows });
 });
 
 // ─── Contribuciones ──────────────────────────────────────────────────────────
@@ -270,9 +298,12 @@ const ProcesamientoSchema = z.object({
 });
 
 adminRouter.get("/config/procesamiento", async (c) => {
-  const r = await pool.query("SELECT valor, updated_at AS \"updatedAt\", updated_by AS \"updatedBy\" FROM ajustes WHERE clave = 'procesamiento'");
-  const cola = await pool.query("SELECT count(*)::int AS n FROM cola_auditoria").catch(() => ({ rows: [{ n: null }] }));
-  return c.json({ ...(r.rows[0] ?? { valor: {} }), cola: cola.rows[0].n });
+  // El conteo de la cola sale de getAlcance (misma consulta, ~130 ms, en caché; el PUT de abajo la vacía).
+  const [r, alcance] = await Promise.all([
+    pool.query("SELECT valor, updated_at AS \"updatedAt\", updated_by AS \"updatedBy\" FROM ajustes WHERE clave = 'procesamiento'"),
+    alcanceORespaldo(),
+  ]);
+  return c.json({ ...(r.rows[0] ?? { valor: {} }), cola: alcance.colaFinanciable });
 });
 
 adminRouter.put("/config/procesamiento", async (c) => {
@@ -288,19 +319,26 @@ adminRouter.put("/config/procesamiento", async (c) => {
 });
 
 // ─── Bitácora ────────────────────────────────────────────────────────────────
+// El revisor no ve lo de plata (aportes, financiadores, medios de pago), la configuración (ajustes:
+// pagos, procesamiento, self_eval) ni los cambios del equipo: sólo lo que opera (alertas, procesos,
+// lotes, pedidos, dispatcher). Por acción y por objeto, así una acción nueva sobre esos objetos
+// tampoco se cuela.
+const LOG_OCULTO_REVISOR = `accion NOT IN ('validar', 'rechazar', 'editar_financiador', 'editar_pagos', 'editar_procesamiento',
+    'editar_self_eval', 'equipo_agregar', 'equipo_cambiar', 'equipo_quitar')
+  AND objeto NOT LIKE 'contribucion:%' AND objeto NOT LIKE 'financiador:%'
+  AND objeto NOT LIKE 'ajustes:%' AND objeto NOT LIKE 'equipo:%'`;
+
 adminRouter.get("/log", async (c) => {
-  const r = await pool.query(`SELECT actor, accion, objeto, detalle, created_at AS "createdAt" FROM admin_log ORDER BY created_at DESC LIMIT 100`);
+  const where = esRevisor(c) ? `WHERE ${LOG_OCULTO_REVISOR}` : "";
+  const r = await pool.query(`SELECT actor, accion, objeto, detalle, created_at AS "createdAt" FROM admin_log ${where} ORDER BY created_at DESC LIMIT 100`);
   return c.json({ data: r.rows });
 });
 
 
 // ─── Salud del sistema (para el resumen del panel) ───────────────────────────
 adminRouter.get("/salud", async (c) => {
-  const [ingesta, proc, ult, pend, sched] = await Promise.all([
-    pool.query(`SELECT max(created_at) AS "ultimaIngesta",
-                       count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS "ultimas24h",
-                       count(*)::int AS total, count(ubigeo)::int AS "conUbigeo"
-                FROM convocatorias`),
+  const [ingesta, proc, ult, pend, sched, relay] = await Promise.all([
+    ingestaConvocatorias(), // compartida con /operacion, caché 30 s (lib/salud.ts)
     pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
     pool.query(`SELECT p.ocid, p.finalizado_at AS "finalizadoAt",
                        EXTRACT(EPOCH FROM (p.finalizado_at - p.iniciado_at))::int AS "segundos",
@@ -315,25 +353,18 @@ adminRouter.get("/salud", async (c) => {
     pool.query(`SELECT max(iniciado_at) AS "ultimoInicio", max(latido_at) AS "ultimoLatido",
                        count(*) FILTER (WHERE estado = 'procesando')::int AS "activos"
                 FROM procesamientos`),
+    // Relay residencial (VPS Lima): sin él, el orquestador en GCP no obtiene el OCDS. Antes se esperaba
+    // el fetch (4 s con el relay caído); ahora sale el último estado conocido (lib/salud.ts).
+    saludRelay(),
   ]);
-  // Relay residencial (VPS Lima): sin él, el orquestador en GCP no obtiene el OCDS.
-  const relayUrl = process.env.LOCAL_DOWNLOADER_URL ?? null;
-  let relayOk: boolean | null = null;
-  if (relayUrl) {
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-      const r = await fetch(relayUrl.replace(/\/$/, "") + "/health", { signal: ctl.signal }).catch(() => fetch(relayUrl, { signal: ctl.signal }));
-      clearTimeout(t); relayOk = r.ok || r.status < 500;
-    } catch { relayOk = false; }
-  }
   const porEstado = Object.fromEntries(proc.rows.map((r) => [r.estado, r.n]));
-  const ultimaIngesta: Date | null = ingesta.rows[0].ultimaIngesta;
+  const ultimaIngesta = ingesta.ultimaIngesta;
   const horasSinIngesta = ultimaIngesta ? (Date.now() - new Date(ultimaIngesta).getTime()) / 36e5 : null;
   return c.json({
-    ingesta: { ...ingesta.rows[0], horasSinIngesta, ok: horasSinIngesta !== null && horasSinIngesta < 36 },
+    ingesta: { ...ingesta, horasSinIngesta, ok: horasSinIngesta !== null && horasSinIngesta < 36 },
     procesamientos: { porEstado, ultimos: ult.rows, ...sched.rows[0] },
     contribuciones: pend.rows[0],
-    relay: { url: relayUrl, ok: relayOk },
+    relay,
     generadoEn: new Date().toISOString(),
   });
 });
@@ -431,7 +462,7 @@ adminRouter.get("/pedidos", async (c) => {
             p.atendido_at AS "atendidoAt", p.intentos, p.lote_id AS "loteId", p.error,
             c.objeto AS titulo, e.nombre AS entidad
      FROM pedidos_descarga p
-     LEFT JOIN convocatorias c ON ocid_corto(c.ocid) = ocid_corto(p.ocid)
+     LEFT JOIN convocatorias c ON c.ocid = ANY(${OCID_CANDIDATOS("p.ocid")}) AND ocid_corto(c.ocid) = ocid_corto(p.ocid)
      LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
      ORDER BY CASE p.estado WHEN 'descargando' THEN 0 WHEN 'pendiente' THEN 1 WHEN 'fallido' THEN 2 ELSE 3 END, p.solicitado_at DESC
      LIMIT 200`).catch(() => ({ rows: [] }));

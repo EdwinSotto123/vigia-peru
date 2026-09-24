@@ -30,6 +30,7 @@ import { pool } from "../lib/db.js";
 import reglasJson from "../data/reglas.json" with { type: "json" };
 import { motivosDesdeEval, umbralesSelfEval } from "./admin_revision.js";
 import { procBanderasSql, procScoreSql, redactarResultado } from "../lib/publicacion.js";
+import { Memo } from "../lib/cache.js";
 
 export const procesamientosRouter = new Hono();
 
@@ -174,67 +175,74 @@ async function hayLotesIngesta(): Promise<boolean> {
   return lotesTabla;
 }
 
+// Lo sondea cada 5 s el tablero público (y cada visitante): en caché 4 s (< su Cache-Control de 5 s),
+// así N visitantes simultáneos cuestan UNA pasada (~35 ms: tres recorridos de documentos_gcs y convocatorias).
+const resumenMemo = new Memo<Record<string, unknown>>({ nombre: "procesamientos:resumen", ttlMs: 4_000 });
+
 procesamientosRouter.get("/resumen", async (c) => {
-  const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado, docs7d, revision] = await Promise.all([
-    pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
-    pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
-    pool.query(
-      `SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo, fases,
-              GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
-       FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
-    pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
-    // Migración 19: qué tipos/etapas se analizan hoy + cuántos contratos tienen documentos listos.
-    pool.query(`SELECT valor FROM ajustes WHERE clave = 'procesamiento'`).then((q) => q.rows[0]?.valor ?? null).catch(() => null),
-    pool.query(`SELECT count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS n,
-                       count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos
-                FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
-    // Migración 15: pedidos de descarga (contratos financiados sin documentos en GCS).
-    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente')::int AS pendientes,
-                       count(*) FILTER (WHERE estado = 'descargando')::int AS descargando,
-                       count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int AS "listos24h",
-                       count(*) FILTER (WHERE estado = 'fallido')::int AS fallidos
-                FROM pedidos_descarga`).then((q) => q.rows[0]).catch(() => null),
-    (async () => {
-      if (!(await hayLotesIngesta())) return null;
-      try {
-        const q = await pool.query(
-          `SELECT id, tipo, estado, total::int, ok::int AS completados, fallidos::int, iniciado_at AS iniciado
-           FROM lotes_ingesta WHERE finalizado_at IS NULL
-           ORDER BY iniciado_at DESC NULLS LAST LIMIT 1`);
-        return q.rows[0] ?? null;
-      } catch {
-        return null;
-      }
-    })(),
-    pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null),
-    // Documentos del SEACE bajados por el lote nocturno en los últimos 7 días (no son contratos nuevos).
-    pool.query(`SELECT count(*)::int AS n, count(DISTINCT ocid)::int AS contratos FROM documentos_gcs WHERE creado_at >= now() - interval '7 days'`)
-      .then((q) => q.rows[0]).catch(() => ({ n: 0, contratos: 0 })),
-    // Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
-    pool.query(`SELECT count(*)::int AS n FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
-                WHERE p.estado = 'procesado' AND a.estado = 'revision'`).then((q) => q.rows[0].n as number).catch(() => 0),
-  ]);
-  const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0 };
-  for (const x of r.rows) porEstado[x.estado] = x.n;
-  porEstado.revision = revision;
-  const agentesActivos = Array.from(new Set(
-    activos.rows.map((a) => a.faseActual as string | null).filter((f): f is string => !!f && f !== "started" && f !== "final"),
-  ));
-  cache(c, 5);
-  return c.json({
-    porEstado,
-    procesadosHoy: hoy.rows[0].n,
-    activos: activos.rows,
-    lote,
-    descargados24h: descargados.rows[0].n,
-    documentosDescargados7d: docs7d,
-    enRevision: revision,
-    procesamientoActivo,
-    documentosListos,
-    pedidos,
-    agentesActivos,
-    estimado,
+  const body = await resumenMemo.obtener("resumen", async () => {
+    const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado, docs7d, revision] = await Promise.all([
+      pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
+      pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
+      pool.query(
+        `SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo, fases,
+                GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
+         FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
+      pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
+      // Migración 19: qué tipos/etapas se analizan hoy + cuántos contratos tienen documentos listos.
+      pool.query(`SELECT valor FROM ajustes WHERE clave = 'procesamiento'`).then((q) => q.rows[0]?.valor ?? null).catch(() => null),
+      pool.query(`SELECT count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS n,
+                         count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos
+                  FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
+      // Migración 15: pedidos de descarga (contratos financiados sin documentos en GCS).
+      pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente')::int AS pendientes,
+                         count(*) FILTER (WHERE estado = 'descargando')::int AS descargando,
+                         count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int AS "listos24h",
+                         count(*) FILTER (WHERE estado = 'fallido')::int AS fallidos
+                  FROM pedidos_descarga`).then((q) => q.rows[0]).catch(() => null),
+      (async () => {
+        if (!(await hayLotesIngesta())) return null;
+        try {
+          const q = await pool.query(
+            `SELECT id, tipo, estado, total::int, ok::int AS completados, fallidos::int, iniciado_at AS iniciado
+             FROM lotes_ingesta WHERE finalizado_at IS NULL
+             ORDER BY iniciado_at DESC NULLS LAST LIMIT 1`);
+          return q.rows[0] ?? null;
+        } catch {
+          return null;
+        }
+      })(),
+      pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null),
+      // Documentos del SEACE bajados por el lote nocturno en los últimos 7 días (no son contratos nuevos).
+      pool.query(`SELECT count(*)::int AS n, count(DISTINCT ocid)::int AS contratos FROM documentos_gcs WHERE creado_at >= now() - interval '7 days'`)
+        .then((q) => q.rows[0]).catch(() => ({ n: 0, contratos: 0 })),
+      // Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
+      pool.query(`SELECT count(*)::int AS n FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
+                  WHERE p.estado = 'procesado' AND a.estado = 'revision'`).then((q) => q.rows[0].n as number).catch(() => 0),
+    ]);
+    const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0 };
+    for (const x of r.rows) porEstado[x.estado] = x.n;
+    porEstado.revision = revision;
+    const agentesActivos = Array.from(new Set(
+      activos.rows.map((a) => a.faseActual as string | null).filter((f): f is string => !!f && f !== "started" && f !== "final"),
+    ));
+    return {
+      porEstado,
+      procesadosHoy: hoy.rows[0].n,
+      activos: activos.rows,
+      lote,
+      descargados24h: descargados.rows[0].n,
+      documentosDescargados7d: docs7d,
+      enRevision: revision,
+      procesamientoActivo,
+      documentosListos,
+      pedidos,
+      agentesActivos,
+      estimado,
+    };
   });
+  cache(c, 5);
+  return c.json(body);
 });
 
 // ─── GET /financiamiento/procesamientos/reglas?perfil=bienes ─────────────────────────────

@@ -23,10 +23,11 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { COLS as COLS_PROCESAMIENTO, RESULTADO_SQL } from "./procesamientos.js";
 import { signReadUrl } from "../lib/storage.js";
 import { alertaNoDemo, convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publicacion.js";
+import { Memo } from "../lib/cache.js";
 
 /** Score público de la alerta unida como `a`: solo si está publicada (lib/publicacion.ts §2). */
 const SCORE_PUBLICO = `CASE WHEN alerta_publicada(a.estado) THEN a.score END`;
@@ -89,20 +90,21 @@ interface Exprs {
 // en la SQL como literales validados — la función estado_operativo() por fila costaba ~6 ms × 18 k.
 const TIPOS_OK = ["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro"];
 const ETAPAS_OK = ["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada", "desierta", "cancelada", "nula", "desconocida"];
-let alcanceCache: { at: number; tipos: string[]; etapas: string[] } | null = null;
-async function alcanceActivo(): Promise<{ tipos: string[]; etapas: string[] }> {
-  if (alcanceCache && Date.now() - alcanceCache.at < 60_000) return alcanceCache;
-  let tipos = TIPOS_OK, etapas = ETAPAS_OK;
-  try {
-    const r = await pool.query("SELECT valor FROM ajustes WHERE clave = 'procesamiento'");
-    const v = r.rows[0]?.valor;
-    if (v && Array.isArray(v.tipos_activos) && Array.isArray(v.etapas_activas)) {
-      tipos = v.tipos_activos.filter((x: unknown) => typeof x === "string" && TIPOS_OK.includes(x));
-      etapas = v.etapas_activas.filter((x: unknown) => typeof x === "string" && ETAPAS_OK.includes(x));
-    }
-  } catch { /* sin la tabla/fila → todo activo (comportamiento anterior) */ }
-  alcanceCache = { at: Date.now(), tipos, etapas };
-  return alcanceCache;
+// En lib/cache.ts para que un cambio de alcance desde el panel admin la vacíe al instante.
+const alcanceMemo = new Memo<{ tipos: string[]; etapas: string[] }>({ nombre: "alcance:contratos", ttlMs: 60_000 });
+function alcanceActivo(): Promise<{ tipos: string[]; etapas: string[] }> {
+  return alcanceMemo.obtener("alcance", async () => {
+    let tipos = TIPOS_OK, etapas = ETAPAS_OK;
+    try {
+      const r = await pool.query("SELECT valor FROM ajustes WHERE clave = 'procesamiento'");
+      const v = r.rows[0]?.valor;
+      if (v && Array.isArray(v.tipos_activos) && Array.isArray(v.etapas_activas)) {
+        tipos = v.tipos_activos.filter((x: unknown) => typeof x === "string" && TIPOS_OK.includes(x));
+        etapas = v.etapas_activas.filter((x: unknown) => typeof x === "string" && ETAPAS_OK.includes(x));
+      }
+    } catch { /* sin la tabla/fila → todo activo (comportamiento anterior) */ }
+    return { tipos, etapas };
+  });
 }
 const sqlArray = (xs: string[]) => `ARRAY[${xs.map((x) => `'${x}'`).join(",")}]::text[]`;
 
@@ -179,7 +181,7 @@ function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[], ex
     if (/^[\w-]+$/.test(q.q) && /\d/.test(q.q)) {
       // Código/OCID: igualdad por forma corta o larga.
       const p = add(q.q);
-      w.push(`(ocid_corto(c.ocid) = ocid_corto(${p}) OR c.codigo = ${p})`);
+      w.push(`((c.ocid = ANY(${OCID_CANDIDATOS(p)}) AND ocid_corto(c.ocid) = ocid_corto(${p})) OR c.codigo = ${p})`);
     } else {
       const p = add(q.q);
       const like = add(`%${q.q.toLowerCase()}%`);
@@ -201,16 +203,35 @@ function buildWhere(q: z.infer<typeof ListQuery>, ex: Exprs, vals: unknown[], ex
   return w;
 }
 
-// FROM base: convocatoria + zona + alerta (una, la más reciente) + procesamiento + entidad.
-const FROM_BASE = `
-  FROM convocatorias c
-  LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
-  LEFT JOIN LATERAL (
+// Alerta de cada convocatoria: la más reciente, sin semillas de demo. El desempate por `a.id` hace que
+// las dos formas de abajo elijan SIEMPRE la misma fila.
+//  · ALERTA_POR_OCID: una fila por OCID corto, unida por hash. Para lo que recorre las ~18 k
+//    convocatorias (lista, facetas, mapa): el LATERAL hacía 18 k búsquedas (~70 ms por consulta).
+//  · ALERTA_LATERAL: búsqueda por índice para UNA convocatoria (detalle, filas de la página).
+const ALERTA_ORDEN = `a.analizado_en DESC NULLS LAST, a.created_at DESC, a.id`;
+const ALERTA_POR_OCID = `LEFT JOIN (
+    SELECT DISTINCT ON (ocid_corto(a.ocid)) ocid_corto(a.ocid) AS ocid_c, a.id, a.codigo, a.score, a.estado FROM alertas a
+    WHERE a.ocid IS NOT NULL AND ${alertaNoDemo("a")}
+    ORDER BY ocid_corto(a.ocid), ${ALERTA_ORDEN}) a ON a.ocid_c = ocid_corto(c.ocid)`;
+const ALERTA_LATERAL = `LEFT JOIN LATERAL (
     SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
     WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid) AND ${alertaNoDemo("a")}
-    ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
+    ORDER BY ${ALERTA_ORDEN} LIMIT 1) a ON TRUE`;
+
+// FROM base: convocatoria + zona + alerta (una, la más reciente) + procesamiento + entidad.
+const fromBase = (alerta: string) => `
+  FROM convocatorias c
+  LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
+  ${alerta}
   LEFT JOIN procesamientos p ON p.ocid = c.ocid
   LEFT JOIN entidades e ON e.ruc = c.entidad_ruc`;
+const FROM_BASE = fromBase(ALERTA_POR_OCID);   // recorridos y agregados
+const FROM_FILA = fromBase(ALERTA_LATERAL);    // una convocatoria
+
+// Cachés en memoria (lib/cache.ts) por combinación de filtros. TTL + stale ≤ el Cache-Control de cada ruta.
+const resumenMemo = new Memo<unknown>({ nombre: "contratos:resumen", ttlMs: 30_000, staleMs: 30_000, max: 300 });
+const geoMemo = new Memo<unknown>({ nombre: "contratos:geo", ttlMs: 60_000, staleMs: 60_000, max: 40 });
+const listaMemo = new Memo<unknown>({ nombre: "contratos:lista", ttlMs: 30_000, staleMs: 30_000, max: 200 });
 
 function selectResumen(ex: Exprs): string {
   return `
@@ -240,31 +261,37 @@ const JOIN_RESUMEN = `
 // riesgo elegido. Reusa `exprs`/`buildWhere`/`FROM_BASE` de la lista para no duplicar reglas.
 const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true });
 
+type Faceta = "tipo" | "operativo" | "riesgo";
+const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
+
 contratosRouter.get("/resumen", async (c) => {
   const parsed = ResumenQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = { ...parsed.data, page: 1, size: 1, orden: "fecha" as const };
-  const cols = await colsDisponibles();
-  const ex = exprs(cols, await alcanceActivo());
-
-  const contarPor = async (campo: string, dimension: string) => {
+  const body = await resumenMemo.obtener(JSON.stringify(parsed.data), async () => {
+    const cols = await colsDisponibles();
+    const ex = exprs(cols, await alcanceActivo());
+    // UNA pasada (antes eran 4 consultas de ~90 ms cada una sobre las ~18 k convocatorias): la base se
+    // filtra por todo MENOS las tres facetas y sale el cubo tipo × operativo × riesgo (unas decenas de
+    // celdas). Acá se reparte: cada faceta respeta los filtros de las otras dos e ignora el suyo; el
+    // total respeta los tres — exactamente lo que hacían las 4 consultas con buildWhere(…, excluir).
     const vals: unknown[] = [];
-    const w = buildWhere(q, ex, vals, new Set([dimension]));
-    const where = w.length ? `WHERE ${w.join(" AND ")}` : "";
-    const r = await pool.query<{ clave: string | null; n: number }>(
-      `SELECT ${campo} AS clave, count(*)::int AS n ${FROM_BASE} ${where} GROUP BY 1`, vals);
-    return Object.fromEntries(r.rows.map((row) => [row.clave ?? "sin_clasificar", row.n]));
-  };
-  const totalVals: unknown[] = [];
-  const totalWhere = buildWhere(q, ex, totalVals);
-  const [porTipo, porOperativo, porRiesgo, totalRow] = await Promise.all([
-    contarPor(ex.tipo, "tipo"),
-    contarPor(ex.operativo, "operativo"),
-    contarPor(ex.riesgo, "riesgo"),
-    pool.query<{ n: number }>(`SELECT count(*)::int AS n ${FROM_BASE} ${totalWhere.length ? `WHERE ${totalWhere.join(" AND ")}` : ""}`, totalVals),
-  ]);
+    const w = buildWhere(q, ex, vals, new Set<string>(FACETAS));
+    const r = await pool.query<Record<Faceta, string | null> & { n: number }>(
+      `SELECT ${ex.tipo} AS tipo, ${ex.operativo} AS operativo, ${ex.riesgo} AS riesgo, count(*)::int AS n
+       ${FROM_BASE} WHERE ${w.join(" AND ")} GROUP BY 1, 2, 3`, vals);
+    const pasa = (celda: Record<Faceta, string | null>, salvo: Faceta | null) =>
+      FACETAS.every((f) => f === salvo || q[f] == null || celda[f] === q[f]);
+    const contar = (f: Faceta) => {
+      const out: Record<string, number> = {};
+      for (const celda of r.rows) if (pasa(celda, f)) { const k = celda[f] ?? "sin_clasificar"; out[k] = (out[k] ?? 0) + celda.n; }
+      return out;
+    };
+    const total = r.rows.reduce((s, celda) => s + (pasa(celda, null) ? celda.n : 0), 0);
+    return { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo") };
+  });
   cache(c, 60);
-  return c.json({ total: totalRow.rows[0]?.n ?? 0, porTipo, porOperativo, porRiesgo });
+  return c.json(body);
 });
 
 // ─── GET /contratos ──────────────────────────────────────────────────────────
@@ -289,31 +316,31 @@ contratosRouter.get("/", async (c) => {
 
   // 1) filtrar/ordenar/paginar sobre lo mínimo (total con count(*) OVER());
   // 2) enriquecer solo la página (zona, banderas, proveedor).
-  const r = await pool.query(
-    `WITH pag AS (
-       SELECT c.ocid, (count(*) OVER())::int AS total
-       ${FROM_BASE}
-       ${where}
-       ORDER BY ${order}, c.ocid
-       LIMIT $${vals.length - 1} OFFSET $${vals.length})
-     SELECT ${selectResumen(ex)}, pag.total
-     FROM pag JOIN convocatorias c ON c.ocid = pag.ocid
-     LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
-     LEFT JOIN LATERAL (
-       SELECT a.id, a.codigo, a.score, a.estado FROM alertas a
-       WHERE a.ocid IS NOT NULL AND ocid_corto(a.ocid) = ocid_corto(c.ocid) AND ${alertaNoDemo("a")}
-       ORDER BY a.analizado_en DESC NULLS LAST, a.created_at DESC LIMIT 1) a ON TRUE
-     LEFT JOIN procesamientos p ON p.ocid = c.ocid
-     LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
-     ${emp}
-     ${JOIN_RESUMEN}
-     ORDER BY ${order}, c.ocid`,
-    vals,
-  );
-  const total: number = r.rows[0]?.total ?? (q.page === 1 ? 0 : await contar(where, vals.slice(0, -2)));
-  const data = r.rows.map(({ total: _t, ...row }) => row);
+  const body = await listaMemo.obtener(JSON.stringify(q), async () => {
+    const r = await pool.query(
+      `WITH pag AS (
+         SELECT c.ocid, (count(*) OVER())::int AS total
+         ${FROM_BASE}
+         ${where}
+         ORDER BY ${order}, c.ocid
+         LIMIT $${vals.length - 1} OFFSET $${vals.length})
+       SELECT ${selectResumen(ex)}, pag.total
+       FROM pag JOIN convocatorias c ON c.ocid = pag.ocid
+       LEFT JOIN convocatoria_zona cz ON cz.ocid = c.ocid
+       ${ALERTA_LATERAL}
+       LEFT JOIN procesamientos p ON p.ocid = c.ocid
+       LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+       ${emp}
+       ${JOIN_RESUMEN}
+       ORDER BY ${order}, c.ocid`,
+      vals,
+    );
+    const total: number = r.rows[0]?.total ?? (q.page === 1 ? 0 : await contar(where, vals.slice(0, -2)));
+    const data = r.rows.map(({ total: _t, ...row }) => row);
+    return { data, total, page: q.page, size: q.size };
+  });
   cache(c, 60);
-  return c.json({ data, total, page: q.page, size: q.size });
+  return c.json(body);
 });
 
 /** Total cuando la página pedida está fuera de rango (no hay filas → no hay count(*) OVER()). */
@@ -331,39 +358,42 @@ contratosRouter.get("/geo", async (c) => {
   const parsed = GeoQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = parsed.data;
-  const cols = await colsDisponibles();
-  const ex = exprs(cols, await alcanceActivo());
-  const vals: unknown[] = [];
-  const w = buildWhere({ ...q, page: 1, size: 1, orden: "fecha" }, ex, vals);
-  w.push(`cz.ubigeo IS NOT NULL`);
-  const len = q.nivel === "distrito" ? 6 : q.nivel === "provincia" ? 4 : 2;
-  vals.push(len);
-  const r = await pool.query(
-    `WITH agg AS (
-       SELECT left(cz.ubigeo::text, $${vals.length}) AS ubigeo,
-              count(*)::int AS total,
-              count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar')::int AS "sinAnalizar",
-              count(*) FILTER (WHERE ${ex.estadoProc} = 'pendiente_de_procesamiento')::int AS pendientes,
-              count(*) FILTER (WHERE ${ex.estadoProc} IN ('encolado','procesando'))::int AS "enProceso",
-              count(*) FILTER (WHERE ${ex.estadoProc} = 'procesado')::int AS procesados,
-              count(*) FILTER (WHERE a.score >= 40 AND alerta_publicada(a.estado))::int AS "conSenales",
-              count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'en_cola')::int AS "enCola",
-              count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'documentos_listos')::int AS "documentosListos",
-              count(*) FILTER (WHERE a.estado = 'revision')::int AS "enRevision",
-              COALESCE(sum(c.cuantia_referencial), 0)::float AS "montoPen"
-       ${FROM_BASE}
-       WHERE ${w.join(" AND ")}
-       GROUP BY 1)
-     SELECT agg.ubigeo, z.nombre, z.nivel, z.lat::float AS lat, z.lon::float AS lon,
-            agg.total, agg."sinAnalizar", agg.pendientes, agg."enProceso", agg.procesados, agg."conSenales",
-            agg."enCola", agg."documentosListos", agg."enRevision", agg."montoPen"
-     FROM agg JOIN zonas z ON z.ubigeo = agg.ubigeo
-     WHERE z.lat IS NOT NULL AND z.lon IS NOT NULL
-     ORDER BY agg.total DESC`,
-    vals,
-  );
+  const body = await geoMemo.obtener(JSON.stringify(q), async () => {
+    const cols = await colsDisponibles();
+    const ex = exprs(cols, await alcanceActivo());
+    const vals: unknown[] = [];
+    const w = buildWhere({ ...q, page: 1, size: 1, orden: "fecha" }, ex, vals);
+    w.push(`cz.ubigeo IS NOT NULL`);
+    const len = q.nivel === "distrito" ? 6 : q.nivel === "provincia" ? 4 : 2;
+    vals.push(len);
+    const r = await pool.query(
+      `WITH agg AS (
+         SELECT left(cz.ubigeo::text, $${vals.length}) AS ubigeo,
+                count(*)::int AS total,
+                count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar')::int AS "sinAnalizar",
+                count(*) FILTER (WHERE ${ex.estadoProc} = 'pendiente_de_procesamiento')::int AS pendientes,
+                count(*) FILTER (WHERE ${ex.estadoProc} IN ('encolado','procesando'))::int AS "enProceso",
+                count(*) FILTER (WHERE ${ex.estadoProc} = 'procesado')::int AS procesados,
+                count(*) FILTER (WHERE a.score >= 40 AND alerta_publicada(a.estado))::int AS "conSenales",
+                count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'en_cola')::int AS "enCola",
+                count(*) FILTER (WHERE ${ex.estadoProc} = 'sin_analizar' AND ${ex.operativo} = 'documentos_listos')::int AS "documentosListos",
+                count(*) FILTER (WHERE a.estado = 'revision')::int AS "enRevision",
+                COALESCE(sum(c.cuantia_referencial), 0)::float AS "montoPen"
+         ${FROM_BASE}
+         WHERE ${w.join(" AND ")}
+         GROUP BY 1)
+       SELECT agg.ubigeo, z.nombre, z.nivel, z.lat::float AS lat, z.lon::float AS lon,
+              agg.total, agg."sinAnalizar", agg.pendientes, agg."enProceso", agg.procesados, agg."conSenales",
+              agg."enCola", agg."documentosListos", agg."enRevision", agg."montoPen"
+       FROM agg JOIN zonas z ON z.ubigeo = agg.ubigeo
+       WHERE z.lat IS NOT NULL AND z.lon IS NOT NULL
+       ORDER BY agg.total DESC`,
+      vals,
+    );
+    return { nivel: q.nivel, data: r.rows };
+  });
   cache(c, 300);
-  return c.json({ nivel: q.nivel, data: r.rows });
+  return c.json(body);
 });
 
 // ─── GET /contratos/:ocid ────────────────────────────────────────────────────
@@ -415,10 +445,10 @@ contratosRouter.get("/:ocid", async (c) => {
             a.id AS alerta_id, a.codigo AS "alertaCodigo",
             ${ex.motivo} AS "motivoNoProcesable", ${ex.agentes} AS "agentesAplicables", ${ex.validaciones} AS "validacionesPendientes",
             ${col(cols, "clasificado_at", "timestamptz")} AS "clasificadoAt"
-     ${FROM_BASE}
+     ${FROM_FILA}
      ${emp}
      ${JOIN_RESUMEN}
-     WHERE (c.ocid = $1 OR ocid_corto(c.ocid) = ocid_corto($1)) AND ${convocatoriaNoDemo("c")}
+     WHERE c.ocid = ANY(${OCID_CANDIDATOS("$1")}) AND ocid_corto(c.ocid) = ocid_corto($1) AND ${convocatoriaNoDemo("c")}
      ORDER BY (c.ocid = $1) DESC LIMIT 1`,
     [ocid],
   );

@@ -23,6 +23,7 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { getPagosConfig } from "./contribuciones.js";
 import { alertaNoDemo, alertaPublica } from "../lib/publicacion.js";
+import { Memo } from "../lib/cache.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -57,9 +58,19 @@ financiamientoRouter.get("/zonas", async (c) => {
 });
 
 // ─── GET /financiamiento/zonas/:ubigeo ───────────────────────────────────────
+// En caché 60 s por ubigeo (= su Cache-Control): el resumen de la cola evalúa cola_auditoria (~100 ms).
+const zonaMemo = new Memo<Record<string, unknown> | null>({ nombre: "financiamiento:zona", ttlMs: 60_000, max: 300 });
+
 financiamientoRouter.get("/zonas/:ubigeo", async (c) => {
   const ubigeo = c.req.param("ubigeo");
   if (!/^\d{2}(\d{2}(\d{2})?)?$/.test(ubigeo)) return c.json({ error: "invalid_ubigeo" }, 400);
+  const body = await zonaMemo.obtener(ubigeo, (ctl) => detalleZona(ubigeo, ctl.noGuardar));
+  if (!body) return c.json({ error: "not_found" }, 404);
+  cache(c, 60);
+  return c.json(body);
+});
+
+async function detalleZona(ubigeo: string, noGuardar: () => void): Promise<Record<string, unknown> | null> {
   const [zona, hijas, aliados, breadcrumb, resumenCola, alcance] = await Promise.all([
     pool.query(
       `SELECT ubigeo, nivel, nombre, padre_ubigeo AS "padreUbigeo", lat::float, lon::float,
@@ -86,19 +97,18 @@ financiamientoRouter.get("/zonas/:ubigeo", async (c) => {
       `SELECT count(*)::int AS contratos, COALESCE(sum(c.cuantia_referencial),0)::float AS "montoReferencial",
               count(DISTINCT c.entidad_ruc)::int AS entidades
        FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE q.ubigeo LIKE $1 || '%'`, [ubigeo]),
-    getAlcance(),
+    alcanceORespaldo(noGuardar),
   ]);
-  if (!zona.rows.length) return c.json({ error: "not_found" }, 404);
-  cache(c, 60);
-  return c.json({
+  if (!zona.rows.length) return null;
+  return {
     zona: zona.rows[0],
     breadcrumb: breadcrumb.rows.reverse(),
     hijas: hijas.rows,
     aliados: aliados.rows,
     cola: { ...resumenCola.rows[0], documentosListos: zona.rows[0].documentosListos ?? 0 },
     alcance: alcance.procesamiento,
-  });
-});
+  };
+}
 
 const RankingQuery = z.object({
   periodo: z.enum(["mes", "anio", "todo"]).default("todo"),
@@ -149,29 +159,39 @@ financiamientoRouter.get("/ranking", async (c) => {
 });
 
 // ─── GET /financiamiento/estado ──────────────────────────────────────────────
+// En caché 30 s (+30 s sirviendo lo último mientras refresca): lo pide cada página pública. Antes
+// contaba cola_auditoria dos veces (acá y en getAlcance, en serie): ~130 ms cada una en la base.
+const estadoMemo = new Memo<Record<string, unknown>>({ nombre: "financiamiento:estado", ttlMs: 30_000, staleMs: 30_000 });
+
 financiamientoRouter.get("/estado", async (c) => {
-  const [tot, tarifa, hoy] = await Promise.all([
-    pool.query(
-      `SELECT COALESCE(SUM(co.contratos),0)::int AS "contratosFinanciados",
-              COALESCE(SUM(co.monto_pen),0)::float AS "montoPen",
-              COUNT(DISTINCT co.financiador_id)::int AS financiadores,
-              COUNT(DISTINCT left(co.ubigeo,2))::int AS "regionesConAuditoria",
-              (SELECT count(*) FROM asignaciones WHERE procesada_at IS NOT NULL)::int AS "contratosProcesados",
-              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
-                WHERE ${SENAL_HALLADA})::int AS "senalesHalladas",
-              (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id WHERE ${EN_REVISION})::int AS "enRevision",
-              (SELECT count(*) FROM cola_auditoria)::int AS "colaGlobal",
-              (SELECT count(*) FROM zona_estado WHERE nivel='departamento' AND total_cola > 0)::int AS "regionesConCola",
-              (SELECT COALESCE(sum(documentos_listos), 0) FROM zona_estado WHERE nivel='departamento')::int AS "documentosListos"
-       FROM contribuciones co WHERE co.estado IN ('pagada','en_proceso','procesada')`),
-    pool.query(`SELECT precio_pen::float AS "precioPen", precio_usd::float AS "precioUsd", costo_real_pen::float AS "costoRealPen", nota
-                FROM tarifas ORDER BY vigente_desde DESC LIMIT 1`),
-    pool.query(`SELECT (SELECT count(*) FROM alertas a WHERE a.created_at::date = current_date AND ${alertaNoDemo("a")})::int AS "procesadosHoy",
-                       (SELECT count(*) FROM convocatorias WHERE created_at::date = current_date)::int AS "ingresadosHoy"`),
-  ]);
-  const alcance = await getAlcance();
+  const body = await estadoMemo.obtener("estado", async (ctl) => {
+    const [tot, tarifa, hoy, alcance] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(SUM(co.contratos),0)::int AS "contratosFinanciados",
+                COALESCE(SUM(co.monto_pen),0)::float AS "montoPen",
+                COUNT(DISTINCT co.financiador_id)::int AS financiadores,
+                COUNT(DISTINCT left(co.ubigeo,2))::int AS "regionesConAuditoria",
+                (SELECT count(*) FROM asignaciones WHERE procesada_at IS NOT NULL)::int AS "contratosProcesados",
+                (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
+                  WHERE ${SENAL_HALLADA})::int AS "senalesHalladas",
+                (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id WHERE ${EN_REVISION})::int AS "enRevision",
+                (SELECT count(*) FROM zona_estado WHERE nivel='departamento' AND total_cola > 0)::int AS "regionesConCola",
+                (SELECT COALESCE(sum(documentos_listos), 0) FROM zona_estado WHERE nivel='departamento')::int AS "documentosListos"
+         FROM contribuciones co WHERE co.estado IN ('pagada','en_proceso','procesada')`),
+      pool.query(`SELECT precio_pen::float AS "precioPen", precio_usd::float AS "precioUsd", costo_real_pen::float AS "costoRealPen", nota
+                  FROM tarifas ORDER BY vigente_desde DESC LIMIT 1`),
+      // "Hoy" como rango (mismo día que created_at::date = current_date en la zona de la sesión): así un
+      // índice sobre created_at sirve; con el cast a date la base recorría las ~18 k convocatorias.
+      pool.query(`SELECT (SELECT count(*) FROM alertas a WHERE a.created_at >= current_date::timestamptz
+                            AND a.created_at < (current_date + 1)::timestamptz AND ${alertaNoDemo("a")})::int AS "procesadosHoy",
+                         (SELECT count(*) FROM convocatorias WHERE created_at >= current_date::timestamptz
+                            AND created_at < (current_date + 1)::timestamptz)::int AS "ingresadosHoy"`),
+      alcanceORespaldo(ctl.noGuardar),
+    ]);
+    return { ...tot.rows[0], colaGlobal: alcance.colaFinanciable, ...hoy.rows[0], tarifa: tarifa.rows[0], alcance: alcance.procesamiento };
+  });
   cache(c, 30);
-  return c.json({ ...tot.rows[0], ...hoy.rows[0], tarifa: tarifa.rows[0], alcance: alcance.procesamiento });
+  return c.json(body);
 });
 
 // ─── GET /financiamiento/recientes ───────────────────────────────────────────
@@ -274,28 +294,45 @@ export interface Alcance {
   documentosListos: number;
   actualizadoAt: string | null;
 }
-let alcanceCache: { at: number; body: Alcance } | null = null;
-export async function getAlcance(): Promise<Alcance> {
-  if (alcanceCache && Date.now() - alcanceCache.at < 60_000) return alcanceCache.body;
-  const [aj, cola, docs] = await Promise.all([
-    pool.query(`SELECT valor, updated_at AS "updatedAt" FROM ajustes WHERE clave = 'procesamiento'`).catch(() => ({ rows: [] as any[] })),
-    pool.query(`SELECT count(*)::int AS n FROM cola_auditoria`).catch(() => ({ rows: [{ n: 0 }] })),
-    pool.query(`SELECT COALESCE(sum(documentos_listos), 0)::int AS n FROM zona_estado WHERE nivel = 'departamento'`).catch(() => ({ rows: [{ n: 0 }] })),
-  ]);
-  const body: Alcance = {
-    procesamiento: aj.rows[0]?.valor ?? null,
-    colaFinanciable: cola.rows[0]?.n ?? 0,
-    documentosListos: docs.rows[0]?.n ?? 0,
-    actualizadoAt: aj.rows[0]?.updatedAt ?? null,
-  };
-  alcanceCache = { at: Date.now(), body };
-  return body;
+// 60 s como antes, más 60 s sirviendo lo último mientras se refresca: el count(*) de cola_auditoria
+// cuesta ~130 ms y lo comparten /estado, /zonas/:ubigeo, /alcance y el panel admin.
+const alcanceMemo = new Memo<Alcance>({ nombre: "alcance:financiamiento", ttlMs: 60_000, staleMs: 60_000 });
+
+/** Tira si falla la base: así la caché no guarda ceros (antes cada consulta caía a 0 y eso quedaba minutos). */
+export function getAlcance(): Promise<Alcance> {
+  return alcanceMemo.obtener("alcance", async () => {
+    const [aj, cola, docs] = await Promise.all([
+      pool.query(`SELECT valor, updated_at AS "updatedAt" FROM ajustes WHERE clave = 'procesamiento'`),
+      pool.query(`SELECT count(*)::int AS n FROM cola_auditoria`),
+      pool.query(`SELECT COALESCE(sum(documentos_listos), 0)::int AS n FROM zona_estado WHERE nivel = 'departamento'`),
+    ]);
+    return {
+      procesamiento: aj.rows[0]?.valor ?? null,
+      colaFinanciable: cola.rows[0]?.n ?? 0,
+      documentosListos: docs.rows[0]?.n ?? 0,
+      actualizadoAt: aj.rows[0]?.updatedAt ?? null,
+    };
+  });
+}
+
+const ALCANCE_VACIO: Alcance = { procesamiento: null, colaFinanciable: 0, documentosListos: 0, actualizadoAt: null };
+
+/**
+ * getAlcance() que nunca tira: con la base fallando responde como antes (cola 0, sin alcance). Quien
+ * lo usa dentro de otra caché pasa su `noGuardar` en `alFallar`, para que esa tampoco guarde el respaldo.
+ */
+export function alcanceORespaldo(alFallar?: () => void): Promise<Alcance> {
+  return getAlcance().catch((e) => {
+    console.warn(`[financiamiento] alcance sin datos (respaldo en 0, no se guarda): ${(e as Error).message}`);
+    alFallar?.();
+    return ALCANCE_VACIO;
+  });
 }
 
 // ─── GET /financiamiento/alcance ─────────────────────────────────────────────
 financiamientoRouter.get("/alcance", async (c) => {
   cache(c, 60);
-  return c.json(await getAlcance());
+  return c.json(await alcanceORespaldo());
 });
 
 // ─── GET /financiamiento/pago ────────────────────────────────────────────────

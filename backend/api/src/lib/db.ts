@@ -26,6 +26,14 @@ pool.on("error", (err) => {
   console.error("[db] pool error:", err.message);
 });
 
+/**
+ * SQL: OCIDs (corto y largo) que cumplen `ocid_corto(x) = ocid_corto(p)`. `convocatorias` no tiene
+ * índice sobre ocid_corto(ocid) y esa igualdad la recorre entera (~18 k filas, 35–45 ms); con
+ * `c.ocid = ANY(OCID_CANDIDATOS(p)) AND ocid_corto(c.ocid) = ocid_corto(p)` se busca por PK y el
+ * resultado es exactamente el mismo. El prefijo es el de la función ocid_corto() (migración 12).
+ */
+export const OCID_CANDIDATOS = (p: string) => `ARRAY[${p}, ocid_corto(${p}), 'ocds-dgv273-seacev3-' || ocid_corto(${p})]`;
+
 export async function ping(): Promise<{ ok: true; now: Date } | { ok: false; err: string }> {
   try {
     const r = await pool.query<{ now: Date }>("SELECT NOW() as now");

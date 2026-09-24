@@ -3,7 +3,9 @@
  *
  *   GET  /admin/revision                    alertas con estado='revision': OCID, entidad, zona, score, motivo del bloqueo
  *   GET  /admin/revision/:id                detalle: banderas con su verificación, dictamen, autoevaluación, bitácora
- *   PUT  /admin/alertas/:id/estado          {estado: 'activa'|'descartada', motivo} → bitácora + refresh del ranking
+ *   GET  /admin/revision/:id/informe        el dossier completo, como lo verá el público al publicarlo
+ *   PUT  /admin/alertas/:id/estado          {estado: 'activa'|'descartada', motivo} → bitácora + refresh del ranking;
+ *                                           sólo desde 'revision' (si otra persona ya la decidió: 409 ya_resuelta)
  *   GET  /admin/config/self_eval · PUT      umbrales de la autoevaluación (ajustes.self_eval, migración 22)
  *
  * El motivo del bloqueo sale de dos lugares: (1) el warn `self_eval` que el pipeline dejó en
@@ -14,8 +16,9 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { actor, log, refrescarRanking } from "../lib/adminlog.js";
+import { dossierCompleto, filaDossier } from "../lib/dossier.js";
 
 export const adminRevisionRouter = new Hono();
 
@@ -84,10 +87,16 @@ export function motivosDesdeEval(ev: SelfEvals | null | undefined, u: SelfEvalCo
   return out;
 }
 
-/** Warn que dejó el pipeline en la bitácora del procesamiento (trae el umbral real que aplicó). */
-const WARN_SQL = `SELECT e->>'msg' AS msg FROM procesamientos p, jsonb_array_elements(p.eventos) e
-  WHERE ocid_corto(p.ocid) = ocid_corto($1) AND e->>'kind' = 'warn' AND e->>'name' = 'self_eval' AND e->>'msg' ILIKE '%REVISI%'
-  ORDER BY e->>'ts' DESC LIMIT 1`;
+/**
+ * Warn que dejó el pipeline en la bitácora del procesamiento (trae el umbral real que aplicó): el más
+ * reciente de cada OCID, en un solo query para todas las filas (antes, uno por alerta).
+ */
+const WARN_SQL = `SELECT DISTINCT ON (x) x AS ocid, e->>'msg' AS msg
+  FROM unnest($1::text[]) x
+  JOIN procesamientos p ON p.ocid = ANY(${OCID_CANDIDATOS("x")}) AND ocid_corto(p.ocid) = ocid_corto(x)
+  CROSS JOIN LATERAL jsonb_array_elements(p.eventos) e
+  WHERE e->>'kind' = 'warn' AND e->>'name' = 'self_eval' AND e->>'msg' ILIKE '%REVISI%'
+  ORDER BY x, e->>'ts' DESC`;
 const limpiarWarn = (msg: string | null | undefined) => msg ? msg.replace(/^.*?\(no publicada\):\s*/i, "").trim() : null;
 
 const HEAD_SQL = `
@@ -104,18 +113,26 @@ const HEAD_SQL = `
          pp.contribucion_codigo AS "contribucionCodigo", pp.financiador, pp.ocid AS "procesamientoOcid"
   FROM alertas a
   LEFT JOIN entidades e ON e.ruc = a.entidad_ruc
-  LEFT JOIN convocatorias cv ON ocid_corto(cv.ocid) = ocid_corto(a.ocid)
+  -- Por PK con los candidatos del OCID (lib/db.ts): mismo resultado que comparar ocid_corto() sin índice.
+  LEFT JOIN convocatorias cv ON cv.ocid = ANY(${OCID_CANDIDATOS("a.ocid")}) AND ocid_corto(cv.ocid) = ocid_corto(a.ocid)
   LEFT JOIN zonas z ON z.ubigeo = cv.ubigeo
   LEFT JOIN LATERAL (SELECT contribucion_codigo, financiador, ocid FROM procesamientos_publico v
-                      WHERE ocid_corto(v.ocid) = ocid_corto(a.ocid) LIMIT 1) pp ON true`;
+                      WHERE v.ocid = ANY(${OCID_CANDIDATOS("a.ocid")}) AND ocid_corto(v.ocid) = ocid_corto(a.ocid) LIMIT 1) pp ON true`;
 
 async function conMotivo<T extends { ocid: string; selfEvals: SelfEvals | null }>(rows: T[]) {
-  const u = (await umbralesSelfEval()).valor;
-  return Promise.all(rows.map(async (r) => {
-    const warn = await pool.query(WARN_SQL, [r.ocid]).then((q) => limpiarWarn(q.rows[0]?.msg)).catch(() => null);
+  const [u, warns] = await Promise.all([
+    umbralesSelfEval().then((x) => x.valor),
+    rows.length
+      ? pool.query<{ ocid: string; msg: string | null }>(WARN_SQL, [rows.map((r) => r.ocid)])
+          .then((q) => new Map(q.rows.map((w) => [w.ocid, limpiarWarn(w.msg)])))
+          .catch(() => new Map<string, string | null>())
+      : new Map<string, string | null>(),
+  ]);
+  return rows.map((r) => {
+    const warn = warns.get(r.ocid) ?? null;
     const motivos = motivosDesdeEval(r.selfEvals, u);
     return { ...r, motivoPipeline: warn, motivos, motivo: warn ?? (motivos.map((m) => m.texto).join(" · ") || "La autoevaluación no dejó motivo legible; revisa banderas y dictamen."), selfEvals: undefined };
-  }));
+  });
 }
 
 // ─── GET /revision ───────────────────────────────────────────────────────────
@@ -168,24 +185,60 @@ adminRevisionRouter.get("/revision/:id", async (c) => {
   });
 });
 
-// ─── PUT /alertas/:id/estado ─────────────────────────────────────────────────
-const EstadoBody = z.object({
-  estado: z.enum(["activa", "descartada"]),
-  motivo: z.string().trim().min(3).max(500),
+// ─── GET /revision/:id/informe ───────────────────────────────────────────────
+// El dossier ENTERO, publicado o no: misma forma que GET /alertas/:id/full para una alerta
+// publicada (sale de la misma función), así el panel previsualiza el informe tal como lo verá el
+// público al publicarlo. La ruta pública lo recorta mientras la alerta no está publicada.
+// Acepta el uuid de la alerta (lo que tiene la página de revisión) o su código (OECE-…).
+adminRevisionRouter.get("/revision/:id/informe", async (c) => {
+  const id = c.req.param("id").trim();
+  if (!id || id.length > 80) return c.json({ error: "invalid_id" }, 400);
+  const row = await filaDossier(id);
+  if (!row) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", "no-store");
+  return c.json(await dossierCompleto(row));
 });
+
+// ─── PUT /alertas/:id/estado ─────────────────────────────────────────────────
+// Sólo se decide una alerta EN REVISIÓN. Antes bastaba con que el estado fuera otro: si dos personas
+// la decidían a la vez (o una con la página vieja), la segunda pisaba la decisión y el `moderacion`
+// de la primera. Ahora la segunda recibe 409 `ya_resuelta` con el estado en que quedó.
+const EstadoBody = z.object({
+  estado: z.enum(["activa", "descartada"], { message: "Elige publicar o descartar la alerta." }),
+  motivo: z.string({ message: "Escribe el motivo de la decisión." }).trim()
+    .refine((s) => s.replace(/\s/g, "").length >= 3, { message: "Escribe el motivo de la decisión: al menos 3 caracteres, sin contar espacios." })
+    .refine((s) => s.length <= 500, { message: "El motivo puede tener hasta 500 caracteres." }),
+});
+/** El estado de una alerta en palabras llanas. */
+const ESTADO_LLANO: Record<string, string> = { activa: "publicada", confirmada: "publicada", descartada: "descartada", revision: "en revisión", en_revision: "en revisión" };
+
 adminRevisionRouter.put("/alertas/:id/estado", async (c) => {
   const id = c.req.param("id");
   if (!/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: "invalid_id" }, 400);
   const body = EstadoBody.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  if (!body.success) {
+    const detail = body.error.issues[0]?.path.length ? body.error.issues[0].message : "Elige publicar o descartar y escribe el motivo de la decisión.";
+    return c.json({ error: "invalid_body", detail, issues: body.error.issues }, 400);
+  }
   const who = actor(c);
   const accion = body.data.estado === "activa" ? "publicar" : "descartar";
   const moderacion = { accion, actor: who, motivo: body.data.motivo, at: new Date().toISOString() };
   const r = await pool.query(
     `UPDATE alertas SET estado = $2, moderacion = $3::jsonb, updated_at = now()
-     WHERE id = $1 AND estado <> $2 RETURNING codigo, ocid, estado`,
+     WHERE id = $1 AND estado = 'revision' RETURNING codigo, ocid, estado`,
     [id, body.data.estado, JSON.stringify(moderacion)]);
-  if (!r.rows.length) return c.json({ error: "not_found_or_same_state" }, 404);
+  if (!r.rows.length) {
+    const actual = await pool.query(`SELECT estado, moderacion IS NOT NULL AS decidida FROM alertas WHERE id = $1`, [id]);
+    if (!actual.rows.length) return c.json({ error: "not_found", detail: "Esa alerta no existe." }, 404);
+    const { estado, decidida } = actual.rows[0] as { estado: string; decidida: boolean };
+    const llano = ESTADO_LLANO[estado] ?? estado;
+    return c.json({
+      error: "ya_resuelta", estado,
+      detail: decidida
+        ? `Otra persona ya decidió esta alerta: quedó ${llano}. Recarga para ver cómo quedó.`
+        : `Esta alerta ya no está en revisión: quedó ${llano}. Recarga para ver cómo quedó.`,
+    }, 409);
+  }
   await log(who, `alerta_${accion}`, `alerta:${id}`, { codigo: r.rows[0].codigo, ocid: r.rows[0].ocid, estado: body.data.estado, motivo: body.data.motivo });
   const refrescado = await refrescarRanking();
   return c.json({ ok: true, id, codigo: r.rows[0].codigo, estado: r.rows[0].estado, rankingRefrescado: refrescado });
