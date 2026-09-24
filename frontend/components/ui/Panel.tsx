@@ -51,11 +51,11 @@ export function Panel({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [saliendo, setSaliendo] = useState(false);
-  // Montaje perezoso del contenido. Una lista de 50 contratos con <Revelar> en
-  // cada fila renderizaba 50 paneles completos —miles de nodos— aunque el
-  // usuario no abriera ninguno. `display:none` no cuesta layout ni pintado,
-  // pero sí costaba construirlo, y la escena de uso dominante del producto es
-  // un celular de gama baja con datos móviles.
+  // Montaje perezoso. Una lista de 50 contratos con <Revelar> en cada fila
+  // renderizaba 50 paneles completos —miles de nodos— aunque el usuario no
+  // abriera ninguno, y la escena de uso dominante del producto es un celular
+  // de gama baja con datos móviles. Ni el <dialog> vacío se dibuja hasta la
+  // primera apertura: sólo sus cabeceras eran 92 KB del HTML de /app/contratos.
   //
   // Una vez abierto queda montado: reabrir el mismo panel no debe perder el
   // scroll ni el estado de lo que haya adentro.
@@ -96,7 +96,8 @@ export function Panel({
     };
     d.addEventListener("cancel", onCancel);
     return () => d.removeEventListener("cancel", onCancel);
-  }, [cerrarConAnimacion]);
+    // `yaAbierto`: el <dialog> recién existe tras la primera apertura.
+  }, [cerrarConAnimacion, yaAbierto]);
 
   const anchos = {
     sm: "sm:max-w-sm",
@@ -126,6 +127,8 @@ export function Panel({
         : saliendo
           ? "translate-y-full sm:translate-y-0 sm:translate-x-full"
           : "translate-y-0 sm:translate-x-0";
+
+  if (!yaAbierto) return null;
 
   return (
     <dialog
@@ -162,10 +165,10 @@ export function Panel({
       </header>
 
       <div className="scrollbar-warm min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-        {yaAbierto ? children : null}
+        {children}
       </div>
 
-      {pie && yaAbierto && <footer className="shrink-0 border-t border-line bg-paperSoft px-5 py-3">{pie}</footer>}
+      {pie && <footer className="shrink-0 border-t border-line bg-paperSoft px-5 py-3">{pie}</footer>}
     </dialog>
   );
 }

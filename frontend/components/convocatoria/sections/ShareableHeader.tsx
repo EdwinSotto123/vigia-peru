@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { ArrowLeft, CheckCircle2, ExternalLink, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { oeceProcesoUrl } from "../utils";
+import { NivelTituloDossier } from "./nivelTitulo";
 
 export function ShareableHeader({
   conv,
   codigo,
   nAlta,
   onReset,
+  compartible = true,
 }: {
   conv: any;
   codigo: string;
@@ -17,9 +19,14 @@ export function ShareableHeader({
   /** Ya no se muestran: se aceptan para no romper a quien todavía los pase. */
   totalSec?: number;
   eventsADK?: number;
-  onReset: () => void;
+  /** Sin él no se muestra "Otro contrato" (la vista previa del panel admin no navega a otro). */
+  onReset?: () => void;
+  /** false: sin "Compartir" (una alerta en revisión todavía no tiene enlace público). */
+  compartible?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  // <h1> en la página pública; <h2> dentro de la vista previa del panel (ver ./nivelTitulo).
+  const Titulo = useContext(NivelTituloDossier);
 
   const handleShare = async () => {
     try {
@@ -54,13 +61,15 @@ export function ShareableHeader({
           {buenaPro && <div className="whitespace-nowrap text-[12px] text-mute">Buena pro: {buenaPro}</div>}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1">
-          <button
-            type="button"
-            onClick={onReset}
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
-          >
-            <ArrowLeft size={11} aria-hidden /> Otro contrato
-          </button>
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
+            >
+              <ArrowLeft size={11} aria-hidden /> Otro contrato
+            </button>
+          )}
           <a
             href={oeceUrl}
             target="_blank"
@@ -70,30 +79,32 @@ export function ShareableHeader({
           >
             <ExternalLink size={11} aria-hidden /> OECE
           </a>
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-live="polite"
-            className={cn(
-              "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-paper transition-colors",
-              copied ? "bg-mossTexto" : "bg-heroViolet hover:bg-heroViolet/90",
-            )}
-            title={copied ? "Enlace copiado" : "Copiar el enlace para compartir"}
-          >
-            {copied ? (
-              <>
-                <CheckCircle2 size={11} aria-hidden /> Copiado
-              </>
-            ) : (
-              <>
-                <Share2 size={11} aria-hidden /> Compartir
-              </>
-            )}
-          </button>
+          {compartible && (
+            <button
+              type="button"
+              onClick={handleShare}
+              aria-live="polite"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-paper transition-colors",
+                copied ? "bg-mossTexto" : "bg-heroViolet hover:bg-heroViolet/90",
+              )}
+              title={copied ? "Enlace copiado" : "Copiar el enlace para compartir"}
+            >
+              {copied ? (
+                <>
+                  <CheckCircle2 size={11} aria-hidden /> Copiado
+                </>
+              ) : (
+                <>
+                  <Share2 size={11} aria-hidden /> Compartir
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      <h1 className="mt-2 break-words font-serif text-lg font-bold leading-snug text-ink sm:text-xl">{objetoCompleto(conv.objeto)}</h1>
+      <Titulo className="mt-2 break-words font-serif text-lg font-bold leading-snug text-ink sm:text-xl">{objetoCompleto(conv.objeto)}</Titulo>
     </header>
   );
 }

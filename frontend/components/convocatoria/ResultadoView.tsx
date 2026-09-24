@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { esPersonaNatural, maskDnis, redactChildren, setRedactNames } from "../Redact";
+import { setRedactNames } from "../Redact";
+import { nombresPrivadosDe } from "./nombresPrivados";
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,8 +11,6 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDashed,
-  Copy,
-  ExternalLink,
   FileText,
   Globe,
   Info,
@@ -53,43 +50,13 @@ import { PersonNetworkSection } from "./sections/PersonNetworkSection";
 import { ShareableHeader } from "./sections/ShareableHeader";
 import { ResumenHumano } from "./sections/ResumenHumano";
 import { SeccionSegura } from "./sections/SeccionSegura";
+import { DictamenSection } from "./sections/DictamenSection";
 import { evidenciaComoTexto } from "./sections/Evidencia";
 import { NumberTicker } from "@/components/magicui/NumberTicker";
 
 type TabKey = "resumen" | "dictamen" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
 const TAB_KEYS: TabKey[] = ["resumen", "dictamen", "items", "proveedor", "documentos", "prensa", "trace"];
 const esTab = (v: string | null | undefined): v is TabKey => !!v && (TAB_KEYS as string[]).includes(v);
-
-type NombreConocido = string | null | undefined | { nombre: string | null | undefined; orden: "sunat" | "nombres-primero" };
-
-/** "CARPIO COBOS ABEL" (orden SUNAT) → "ABEL CARPIO COBOS": la misma persona como la escribe la prosa. */
-function rotarSunat(n: string): string | null {
-  const p = n.trim().split(/\s+/);
-  if (p.length < 3) return null;
-  return [...p.slice(2), p[0], p[1]].join(" ");
-}
-
-const escRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/**
- * Versión en texto plano, para el portapapeles, de lo que la pantalla muestra en
- * vidrio: DNI y RUC de persona natural enmascarados, y el apellido que
- * corresponde de cada persona privada conocida reemplazado por "•••".
- */
-function redactarTextoPlano(texto: string, nombres: NombreConocido[]): string {
-  let out = maskDnis(texto);
-  const lista = nombres
-    .map((n) => (n && typeof n === "object" ? { nombre: String(n.nombre || "").trim(), orden: n.orden } : { nombre: String(n || "").trim(), orden: "nombres-primero" as const }))
-    .filter((n) => n.nombre.split(/\s+/).length >= 2)
-    .sort((a, b) => b.nombre.length - a.nombre.length);
-  for (const { nombre, orden } of lista) {
-    const partes = nombre.split(/\s+/);
-    const k = orden === "sunat" ? (partes.length >= 3 ? 1 : 0) : partes.length - 1;
-    const tapado = partes.map((p, i) => (i === k ? "•••" : p)).join(" ");
-    out = out.replace(new RegExp(escRx(nombre), "gi"), tapado);
-  }
-  return out;
-}
 
 /** Aviso de sección vacía: dice por qué no hay nada, en vez de dejar la pestaña en blanco. */
 function Vacio({ titulo, children, icon }: { titulo: string; children?: React.ReactNode; icon?: React.ReactNode }) {
@@ -104,7 +71,21 @@ function Vacio({ titulo, children, icon }: { titulo: string; children?: React.Re
   );
 }
 
-export function ResultadoView({ result, onReset }: { result: ApiResult; onReset: () => void }) {
+/**
+ * El dossier de un contrato, tal como lo ve el público. `vistaPrevia` es para el panel admin, que
+ * muestra el informe de una alerta en revisión antes de publicarla: mismo contenido, sin las acciones
+ * que no tienen sentido ahí (otro contrato, compartir un enlace que todavía no es público) y sin
+ * pestañas pegajosas que se montarían sobre la cabecera del panel.
+ */
+export function ResultadoView({
+  result,
+  onReset,
+  vistaPrevia = false,
+}: {
+  result: ApiResult;
+  onReset?: () => void;
+  vistaPrevia?: boolean;
+}) {
   const conv = result.convocatoria || {};
   const compl = result.compliance || {};
   const dict = result.dictamen?.dictamen_markdown || "";
@@ -185,49 +166,9 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
     (result.web_research?.otros_contratos_con_estado || []).length;
 
   // Diccionario de personas PRIVADAS conocidas para censurar su apellido también en la
-  // PROSA (síntesis, dictamen, evidencia). Los funcionarios ELECTOS no se incluyen: son
-  // públicos. Un ganador o postor persona natural (RUC 10) viene en orden SUNAT
-  // (APELLIDO APELLIDO NOMBRE): se registra así y además rotado, porque la prosa del
-  // dictamen lo escribe con el nombre primero ("ABEL CARPIO COBOS").
-  const nombresPrivados = useMemo<NombreConocido[]>(() => {
-    const da = result.document_analysis || {};
-    // Solo el registro OCDS (y el RNP/SUNAT, de donde sale el gerente) garantiza el orden
-    // SUNAT. Las actas escriben a la misma persona con el nombre primero.
-    const enOrdenSunat = ((result.postores || []) as any[])
-      .filter((p) => typeof p?.nombre === "string" && esPersonaNatural(p?.ruc))
-      .map((p) => String(p.nombre).trim());
-    const gerente = result.web_research?.empresa?.gerente_general?.nombre;
-    if (typeof gerente === "string" && gerente.trim()) enOrdenSunat.push(gerente.trim());
-    const clave = (n: string) => n.toLowerCase().split(/\s+/).sort().join(" ");
-    const conocidas = new Set(enOrdenSunat.map(clave));
-    const sunat: NombreConocido[] = [];
-    for (const n of enOrdenSunat) {
-      sunat.push({ nombre: n, orden: "sunat" });
-      const rotado = rotarSunat(n);
-      if (rotado) sunat.push(rotado);
-    }
-    // Personas naturales que aparecen solo en los documentos: su orden no se conoce; si
-    // son la misma persona del OCDS ya quedaron cubiertas por la versión rotada.
-    const deDocumentos = [
-      ...((da.postores_consolidados || da.postores_extraidos || []) as any[]).map((p) => ({ nombre: p?.razon_social || p?.nombre, ruc: p?.ruc })),
-      ...((da.motivos_adjudicacion || []) as any[]).map((m) => ({ nombre: m?.ganador_razon_social, ruc: m?.ganador_ruc })),
-    ]
-      .filter((p) => typeof p.nombre === "string" && esPersonaNatural(p.ruc) && !conocidas.has(clave(p.nombre)))
-      .map((p) => String(p.nombre));
-    return [
-      ...sunat,
-      ...deDocumentos,
-      _persona.nombre_completo,
-      ...((da.firmantes || []) as any[]).map((f) => f?.nombre_completo),
-      ...((da.comite_evaluacion || []) as any[]).map((m) => m?.nombre_completo || m?.nombre),
-      ...((_pn.cruce_firmantes_ganador || []) as any[]).map((c) => c?.firmante),
-      ...(((result as any).entity_personnel?.funcionarios_designados || []) as any[]).map((f) => f?.nombre_completo || f?.nombre),
-      ...((_pn.pareja_o_familia || []) as any[]).map((f) => f?.nombre),
-      ...((result.web_research?.empresa?.socios || []) as any[]).map((s) => s?.nombre),
-      ...(((result as any).proveedor?.socios || []) as any[]).map((s) => s?.nombre),
-      ...((_red.socios || []) as any[]).map((s) => s?.nombre),
-    ];
-  }, [result, _pn, _persona, _red]);
+  // PROSA (síntesis, dictamen, evidencia). Se arma en ./nombresPrivados.ts, que también
+  // usa el panel de revisión para registrarla antes de que este componente cargue.
+  const nombresPrivados = useMemo(() => nombresPrivadosDe(result), [result]);
   setRedactNames(nombresPrivados);
   const nombresSunat = useMemo(
     () => nombresPrivados.flatMap((n) => (n && typeof n === "object" && n.orden === "sunat" && n.nombre ? [n.nombre] : [])),
@@ -256,18 +197,6 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
     return `S/ ${v.toLocaleString("es-PE")}`;
   };
 
-  // ─── Copiar el dictamen, ya censurado ───
-  const [copiado, setCopiado] = useState<"ok" | "error" | null>(null);
-  const copiarDictamen = async () => {
-    try {
-      await navigator.clipboard.writeText(redactarTextoPlano(dict, nombresPrivados));
-      setCopiado("ok");
-    } catch {
-      setCopiado("error");
-    }
-    setTimeout(() => setCopiado(null), 2500);
-  };
-
   const TABS: { key: TabKey; label: string; icon: React.ReactNode; badge: number | string | null; badgeColor: string }[] = [
     { key: "resumen", label: "Resumen", icon: <ShieldAlert size={13} aria-hidden />, badge: banderasArr.length || null, badgeColor: "bg-rust" },
     { key: "dictamen", label: "Dictamen", icon: <Pen size={13} aria-hidden />, badge: dict.length > 100 ? "✓" : null, badgeColor: "bg-mossTexto" },
@@ -292,7 +221,6 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
     tabRefs.current[TABS[j].key]?.focus();
   };
 
-  const nombreAgenteDictamen = result.dictamen?.gen_meta?.model ? ` con ${result.dictamen.gen_meta.model}` : "";
   const corrio = (clave: string) => corrida.agentes.includes(clave);
 
   // ─── Contenido de cada pestaña ───
@@ -368,109 +296,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
             </Vacio>
           );
         }
-        return (
-          <section className="surface overflow-hidden p-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperDeep px-5 py-3">
-              <div>
-                <h2 className="font-serif text-xl font-bold text-ink">Dictamen periodístico</h2>
-                <div className="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-mute">
-                  <FileText size={11} aria-hidden />
-                  Redactado por el agente de dictamen{nombreAgenteDictamen}, con la evidencia de los demás agentes
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={copiarDictamen}
-                aria-live="polite"
-                title="Copia el texto con los datos personales ya ocultos"
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  copiado === "ok"
-                    ? "border-moss/40 bg-moss/10 text-mossTexto"
-                    : copiado === "error"
-                      ? "border-rust/40 bg-crimson-soft text-crimsonTexto"
-                      : "border-line bg-paper text-ink hover:bg-paperDeep",
-                )}
-              >
-                {copiado === "ok" ? <CheckCircle2 size={11} aria-hidden /> : <Copy size={11} aria-hidden />}
-                {copiado === "ok" ? "Copiado, sin datos personales" : copiado === "error" ? "No se pudo copiar" : "Copiar"}
-              </button>
-            </div>
-            <article
-              className={cn(
-                // Medida de lectura: el dictamen es prosa larga; 68ch se lee sin esfuerzo.
-                "mx-auto max-w-[68ch] px-4 py-8 sm:px-6",
-                "prose prose-sm lg:prose-base",
-                "prose-headings:font-serif prose-headings:text-ink prose-headings:font-bold prose-headings:tracking-tight",
-                "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-3 prose-h1:pb-2 prose-h1:border-b prose-h1:border-heroViolet",
-                "prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-line",
-                "prose-h3:text-base prose-h3:mt-7 prose-h3:mb-2 prose-h3:text-heroViolet prose-h3:font-bold",
-                "prose-h4:text-sm prose-h4:mt-5 prose-h4:mb-1.5 prose-h4:font-bold prose-h4:text-ink",
-                "prose-p:text-ink prose-p:leading-[1.7] prose-p:my-3.5",
-                "prose-strong:text-ink prose-strong:font-bold",
-                "prose-em:text-inkSoft prose-em:italic",
-                "prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-1.5",
-                "prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-1.5",
-                "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-heroViolet",
-                "prose-a:text-heroViolet prose-a:font-medium prose-a:underline prose-a:decoration-heroViolet/40 hover:prose-a:decoration-heroViolet",
-                "prose-a:break-words",
-                "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-heroViolet prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
-                "prose-blockquote:border-l prose-blockquote:border-heroViolet/50 prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
-                "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
-                "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-bold prose-th:uppercase prose-th:tracking-wider prose-th:text-[10px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
-                "prose-td:text-ink prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-line prose-td:align-top",
-                "prose-hr:my-6 prose-hr:border-line",
-              )}
-            >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  // Censura DNI, RUC de persona natural y apellidos conocidos en la prosa (vidrio revelable).
-                  p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
-                  li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,
-                  strong: ({ node, children, ...props }) => <strong {...props}>{redactChildren(children)}</strong>,
-                  em: ({ node, children, ...props }) => <em {...props}>{redactChildren(children)}</em>,
-                  td: ({ node, children, ...props }) => <td {...props}>{redactChildren(children)}</td>,
-                  // Una tabla de datos necesita ancho: rompe la medida y scrollea en su propia caja.
-                  table: ({ node, children, ...props }) => (
-                    <div className="scrollbar-warm -mx-2 my-4 overflow-x-auto sm:-mx-6 lg:-mx-10">
-                      <div className="min-w-full px-2 sm:px-6 lg:px-10">
-                        <table {...props}>{children}</table>
-                      </div>
-                    </div>
-                  ),
-                  a: ({ node, href, children, ...props }) => {
-                    const isLongUrl = typeof href === "string" && href.length > 80;
-                    return (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noreferrer"
-                        {...props}
-                        className={cn(
-                          "text-heroViolet font-medium hover:text-heroViolet-deep transition-colors",
-                          isLongUrl ? "inline-flex items-center gap-1 max-w-full" : "underline decoration-heroViolet/40 hover:decoration-heroViolet",
-                        )}
-                        title={typeof href === "string" ? href : undefined}
-                      >
-                        {isLongUrl ? (
-                          <>
-                            <span className="truncate max-w-[36ch] underline decoration-heroViolet/40">{String(children)}</span>
-                            <ExternalLink size={10} className="shrink-0" aria-hidden />
-                          </>
-                        ) : (
-                          children
-                        )}
-                      </a>
-                    );
-                  },
-                }}
-              >
-                {dict}
-              </ReactMarkdown>
-            </article>
-          </section>
-        );
+        return <DictamenSection dictamen={dict} nombresPrivados={nombresPrivados} modelo={result.dictamen?.gen_meta?.model ?? null} />;
 
       case "items": {
         const hayItems = (result.items || []).length > 0 || (result.market_analysis?.findings || []).length > 0;
@@ -731,7 +557,7 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),360px]">
       {/* ─── COLUMNA PRINCIPAL ─── */}
       <div className="min-w-0 space-y-3">
-        <ShareableHeader conv={conv} codigo={conv.codigo} nAlta={nAlta} onReset={onReset} />
+        <ShareableHeader conv={conv} codigo={conv.codigo} nAlta={nAlta} onReset={vistaPrevia ? undefined : onReset} compartible={!vistaPrevia} />
 
         {/* En el celular la barra lateral queda al final: el nivel va arriba, compacto. */}
         <div className="lg:hidden">
@@ -783,7 +609,10 @@ export function ResultadoView({ result, onReset }: { result: ApiResult; onReset:
         <div
           role="tablist"
           aria-label="Secciones del dossier"
-          className="sticky top-2 z-30 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-line bg-paper/95 px-1 py-1.5 shadow-sm backdrop-blur"
+          className={cn(
+            "-mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-line bg-paper/95 px-1 py-1.5 shadow-sm backdrop-blur",
+            !vistaPrevia && "sticky top-2 z-30",
+          )}
         >
           {TABS.map((t, i) => {
             const isActive = activeTab === t.key;

@@ -14,6 +14,11 @@
  *  - el público busca entre lo ya analizado y, si el contrato no está, se le
  *    explica que Vigía lee los contratos en orden de cola cuando alguien
  *    financia la auditoría de su zona.
+ *
+ * `enPanel` (sólo /admin/analisis): el modo equipo se pinta desde el primer
+ * render, sin esperar a que el ping de sesión responda (el middleware ya exigió
+ * la sesión para entrar al panel, y las rutas de análisis la vuelven a
+ * verificar), y el título baja a h2 porque la página ya tiene su h1.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -53,8 +58,11 @@ const coincide = (it: any, qLower: string) =>
 
 type Aviso = { tipo: "sin_analisis"; codigo: string } | { tipo: "varias"; n: number };
 
-export function ConvocatoriaSearch() {
-  const esAdmin = useEsAdmin();
+export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = {}) {
+  const sesionAdmin = useEsAdmin();
+  const esAdmin = enPanel || sesionAdmin;
+  const Titulo = enPanel ? "h2" : "h1";
+  const claseTitulo = enPanel ? "font-serif text-xl font-bold leading-tight text-ink sm:text-2xl" : "font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl";
   const [id, setId] = useState("");
   const [loading, setLoading] = useState(false);
   const [stepIdx, setStepIdx] = useState(-1);
@@ -339,23 +347,22 @@ export function ConvocatoriaSearch() {
 
           {esAdmin ? (
             <>
-              <h1 className="font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
-                Analiza un contrato del SEACE
-              </h1>
+              <Titulo className={claseTitulo}>Analiza un contrato del SEACE</Titulo>
               <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
                 Pega el código de la convocatoria o su OCID. Los {TOTAL_AGENTES} agentes leen el expediente y el
                 dossier queda público al terminar. Si el contrato ya está analizado, elígelo en la lista que
                 aparece al escribir y se abre sin volver a procesarlo.
               </p>
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-soft px-2 py-1 text-[11px] font-medium text-amberTexto">
-                <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado.
-              </p>
+              {/* En el panel, el aviso de costo ya está arriba de la página. */}
+              {!enPanel && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-soft px-2 py-1 text-[11px] font-medium text-amberTexto">
+                  <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado.
+                </p>
+              )}
             </>
           ) : (
             <>
-              <h1 className="font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
-                Busca un contrato analizado
-              </h1>
+              <Titulo className={claseTitulo}>Busca un contrato analizado</Titulo>
               <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
                 Escribe el código de la convocatoria del SEACE, su OCID o el RUC de la entidad o del proveedor.
                 Si Vigía ya lo leyó, abres su dossier con las señales, la evidencia y el dictamen.

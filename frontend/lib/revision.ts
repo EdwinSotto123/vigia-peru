@@ -214,8 +214,9 @@ function ordenHablado(sunat: string): string | null {
 
 /**
  * Nombres que el texto pega a un DNI: "PEZO VARGAS DIEGO (DNI 73524824)". El DNI
- * es la marca de que se trata de una persona natural y del orden RNP/SUNAT
- * (apellidos primero). No es adivinar con NER: sin el DNI al lado no se toca nada.
+ * es la marca de que se trata de una persona natural y, con 2 o 3 palabras, del
+ * orden RNP/SUNAT (apellidos primero; con 4+, ver `personasPrivadas`). No es
+ * adivinar con NER: sin el DNI al lado no se toca nada.
  */
 const NOMBRE_CON_DNI = /([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+(?:\s+[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+){1,4}),?\s*\(\s*DNI\s*(?:N[°º.]?\s*)?\d{8}\s*\)/g;
 
@@ -228,7 +229,17 @@ function personasPrivadas(proveedor: string | null, rucProveedor: string | null,
   }
   for (const t of textos) {
     if (!t) continue;
-    for (const m of t.matchAll(NOMBRE_CON_DNI)) out.push({ nombre: m[1], orden: "sunat" });
+    for (const m of t.matchAll(NOMBRE_CON_DNI)) {
+      // Con 4+ palabras el orden es ambiguo ("DIEGO ARMANDO PEZO VARGAS" o "PEZO
+      // VARGAS DIEGO ARMANDO"), y forzar SUNAT tapaba el segundo nombre de pila
+      // del orden hablado. Además la captura puede arrastrar una palabra de más
+      // por delante ("GERENTE JUAN PEREZ LOPEZ"), pero termina siempre pegada al
+      // DNI. Va en lectura natural (se tapa la última palabra) y setRedactNames
+      // registra también el otro orden, así que en los dos se tapa el mismo
+      // segundo apellido. Con 2 o 3 palabras sigue el orden RNP/SUNAT.
+      const palabras = m[1].split(/\s+/).length;
+      out.push({ nombre: m[1], orden: palabras >= 4 ? "nombres-primero" : "sunat" });
+    }
   }
   const vistos = new Set<string>();
   return out.filter((p) => {

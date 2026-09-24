@@ -15,6 +15,7 @@ import {
   getProcesamiento,
   getProcesamientos,
   getProcesamientosPaginado,
+  type Procesamiento,
 } from "@/lib/auditoria";
 import { getResumenVivo } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
@@ -35,6 +36,16 @@ const listaY = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, 
 const HIST_TAM = 24;
 const FECHA_RX = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * `fases` (el estado por agente, ~1 KB por fila) sólo se dibuja en las tarjetas que están
+ * "procesando". En las demás cruzaba al navegador sin usarse: 110 de los 177 KB del tablero
+ * y 60 de los 77 KB del histórico. Se quita antes de pasarlas a los client components; el
+ * primer sondeo del tablero trae las filas completas igual.
+ */
+function sinFasesInactivas(ps: Procesamiento[]): Procesamiento[] {
+  return ps.map((p) => (p.estado === "procesando" || p.fases == null ? p : { ...p, fases: null }));
+}
+
 export default async function AuditoriaPage({ searchParams }: { searchParams?: { ubigeo?: string; desde?: string; hasta?: string; financiador?: string; pagina?: string } }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
   const desde = searchParams?.desde && FECHA_RX.test(searchParams.desde) ? searchParams.desde : undefined;
@@ -43,7 +54,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
   const paginaActual = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   const histQuery = { ubigeo, desde, hasta, financiador, estado: "procesado" as const };
   const filtrosVivo = { ubigeo, desde, hasta, financiador };
-  const [resumen, zonas, initial, historico, financiadores, ultimoRef, procesados] = await Promise.all([
+  const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, procesados] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
     // El tablero en vivo obedece los mismos filtros que el histórico (región, fecha, quién pagó).
@@ -53,18 +64,19 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
     // El último análisis terminado CON LOS FILTROS PUESTOS: es lo que se muestra cuando no
     // hay nada en análisis, que es el estado normal de esta pantalla. Consulta propia (no la
     // primera fila del histórico) para que no dependa de en qué página esté el paginador.
-    getProcesamientos({ ...histQuery, limit: 1 }),
+    // Su detalle (con la bitácora, que es lo que permite repetir la corrida) se encadena acá
+    // mismo: antes se pedía DESPUÉS de todo lo demás, en serie.
+    getProcesamientos({ ...histQuery, limit: 1 }).then((ref) => (ref?.[0]?.ocid ? getProcesamiento(ref[0].ocid) : null)),
     // Ritmo real (todo el Perú, como la barra de estado): cuándo terminó cada análisis.
     getProcesamientos({ estado: "procesado", limit: 300 }),
   ]);
+  const initial = initialCompleto ? sinFasesInactivas(initialCompleto) : null;
+  const historico = historicoCompleto ? { ...historicoCompleto, data: sinFasesInactivas(historicoCompleto.data ?? []) } : null;
   const finalizados = procesados ? procesados.map((p) => p.finalizadoAt).filter((f): f is string => !!f) : null;
   const hayFiltros = !!(ubigeo || desde || hasta || financiador);
   // Un selector con una sola opción no filtra nada: se muestra sólo si hay a quién elegir (o si ya hay uno puesto).
   const conPatrocinador = financiadores.length > 1 || !!financiador;
   const nActivos = (ubigeo ? 1 : 0) + (desde || hasta ? 1 : 0) + (financiador ? 1 : 0);
-  // El detalle trae la bitácora guardada, que es lo que hace posible repetir la corrida.
-  const ultimoOcid = ultimoRef?.[0]?.ocid;
-  const ultimo = ultimoOcid ? await getProcesamiento(ultimoOcid) : null;
   const opciones = (zonas ?? [])
     .filter((z) => z.totalCola > 0 || z.financiados > 0)
     .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
