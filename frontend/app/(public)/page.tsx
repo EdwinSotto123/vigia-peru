@@ -15,7 +15,8 @@ import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal } from "@/lib/financiamiento";
-import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
+import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
+import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
 import { elegirCasos } from "@/lib/landing";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
@@ -68,6 +69,22 @@ export default async function LandingPage() {
     : 0;
   const senalAlta = resumen?.porRiesgo.alto ?? 0;
 
+  // Los gráficos del mapa de fuentes: las mismas cifras de arriba, nada nuevo.
+  // Si una lectura falló, su gráfico no se dibuja (queda null).
+  const cifrasFuentes: CifrasFlujo = {
+    publicados: resumen?.total ?? null,
+    leidos: r ? leidos : null,
+    porTipo: resumen ? tiposConResto(resumen.total, resumen.porTipo) : null,
+    // Los mismos cinco grupos que suman `leidos`: el nodo de señales y el del
+    // informe cuentan el mismo universo.
+    porRiesgo: r
+      ? { alto: r.alto ?? 0, medio: r.medio ?? 0, bajo: r.bajo ?? 0, enRevision: r.en_revision ?? 0, descartado: r.descartado ?? 0 }
+      : null,
+    regiones: regiones?.length
+      ? [...regiones].sort((a, b) => b.total - a.total).slice(0, 5).map((z) => ({ nombre: z.nombre, n: z.total }))
+      : null,
+  };
+
   const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
 
   return (
@@ -82,7 +99,7 @@ export default async function LandingPage() {
 
       <PipelineAgentes />
 
-      <FuentesSection />
+      <FuentesSection cifras={cifrasFuentes} />
 
       {regiones && regiones.length > 0 && <MapaRegiones zonas={regiones} />}
 
@@ -92,13 +109,34 @@ export default async function LandingPage() {
 
       <Participar />
 
-      <ConfianzaSection enRevision={estado?.enRevision ?? null} />
+      {/* La misma cuenta que el gráfico de señales del mapa de fuentes (resumen de
+          contratos). El estado global contaba otro universo y la portada decía 12
+          en una sección y 14 en otra. */}
+      <ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} />
 
       <ExpansionSection />
 
       <CierreLanding enCola={estado?.colaGlobal ?? null} />
     </>
   );
+}
+
+/**
+ * Los cinco tipos de contrato más comunes y una última barra con lo que falta
+ * para llegar al total: los otros tipos y los que no tienen tipo. Así
+ * las barras suman el número del título ("N contratos publicados, por tipo").
+ */
+function tiposConResto(total: number, porTipo: Partial<Record<string, number>>): NonNullable<CifrasFlujo["porTipo"]> {
+  const top = TIPOS.map((t) => ({ etiqueta: t.label, n: porTipo[t.value] ?? 0 }))
+    .filter((t) => t.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5);
+  const resto = total - top.reduce((s, t) => s + t.n, 0);
+  if (resto <= 0) return top;
+  const sinClasificar = porTipo.sin_clasificar ?? 0;
+  const etiqueta =
+    sinClasificar <= 0 ? "Otros tipos" : sinClasificar >= resto ? "Sin clasificar" : "Otros tipos o sin clasificar";
+  return [...top, { etiqueta, n: resto, resto: true }];
 }
 
 /** El cierre: una cifra real y las dos acciones que importan. */

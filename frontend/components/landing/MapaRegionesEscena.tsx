@@ -282,7 +282,10 @@ export function MapaRegionesEscena({
           <figure className="order-first lg:sticky lg:top-24 lg:order-none lg:self-start [.apilado+&]:static [.apilado+&]:self-auto">
             <svg
               viewBox={`0 0 ${ancho} ${alto}`}
-              className="mx-auto h-auto max-h-[70vh] w-full lg:h-[calc(100dvh-4rem-9rem)] lg:max-h-[46rem] lg:w-auto"
+              // `lg:max-w-full`: con alto fijo, `w-auto` sacaba el ancho de la
+              // proporción del mapa (500 px a 1024 de ventana) y desbordaba su
+              // columna de 454, con barra de scroll horizontal en toda la página.
+              className="mx-auto h-auto max-h-[70vh] w-full lg:h-[calc(100dvh-4rem-9rem)] lg:max-h-[46rem] lg:w-auto lg:max-w-full"
               role="img"
               aria-label="Mapa del Perú por regiones. Los números de cada región están en el selector “Tu región”."
               onMouseLeave={() => setEncima(null)}

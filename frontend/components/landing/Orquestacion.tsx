@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, Cpu, Database, FileStack, Landmark, ScrollText, Scale } from "lucide-react";
+import { ChevronDown, Cpu, Database, FileStack, Landmark, Scale } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import type { PasoPipeline } from "@/components/agentes/catalogo";
 
@@ -36,7 +36,7 @@ import type { PasoPipeline } from "@/components/agentes/catalogo";
 const ENTRADA = [
   { Icono: Database, t: "El contrato publicado", d: "Tal como lo dejó el Estado en el SEACE" },
   { Icono: FileStack, t: "Su expediente", d: "Bases, actas, contrato y adendas" },
-  { Icono: Landmark, t: "14 registros del Estado", d: "Sanciones, visitas, aportes de campaña, autoridades" },
+  { Icono: Landmark, t: "Los registros del Estado", d: "Sanciones, visitas, aportes de campaña, autoridades" },
 ];
 
 /** Duración de un turno de la ola que recorre el DAG, en segundos. */
@@ -139,7 +139,7 @@ export function Orquestacion({
              El diagrama horizontal de cuatro columnas es ilegible a 390 px, pero
              esconderlo dejaba al orquestador existiendo sólo como párrafo. ── */}
       <ol className="mx-auto max-w-2xl xl:hidden">
-        <EslabonMovil titulo="Entra" cuerpo="El contrato publicado, su expediente y 14 registros del Estado" />
+        <EslabonMovil titulo="Entra" cuerpo="El contrato publicado, su expediente y los registros del Estado" />
         <EslabonMovil
           titulo="El coordinador"
           cuerpo={`Lanza las ${totalPasos} revisiones siempre en el mismo orden, sin saltarse ninguna`}
@@ -165,21 +165,29 @@ export function Orquestacion({
           </p>
         )}
       </div>
-
-      {/* ── La historia del orquestador. Es contenido, no decoración: va siempre,
-             también en móvil, porque es lo que explica por qué esto no improvisa. ── */}
-      <p className="mt-5 flex max-w-[92ch] items-start gap-2.5 text-[13px] leading-relaxed text-paper/70">
-        <ScrollText size={15} className="mt-0.5 shrink-0 text-heroGreen" aria-hidden />
-        <span>
-          <strong className="font-semibold text-paper">Al principio, una inteligencia artificial decidía qué revisar y en qué orden.</strong>{" "}
-          A veces se rendía antes de terminar y daba el análisis por completo con revisiones sin hacer. Por eso
-          hoy el orden es fijo y no lo decide ningún modelo: las {totalPasos} revisiones corren siempre, en
-          todos los contratos.
-        </span>
-      </p>
     </div>
   );
 }
+
+/**
+ * Qué revisa cada carril, en palabras. Antes decía "4 agentes en 3 etapas": un
+ * dato de ingeniería que al ciudadano no le dice qué se mira. Sale de los
+ * pasos reales de cada carril (`CARRILES` en lib/auditoria.ts).
+ */
+const QUE_REVISA: Record<string, string> = {
+  expediente: "Las reglas, los documentos, la ley y los precios",
+  proveedor: "La empresa, las noticias y el personal de la entidad",
+  sintesis: "Las personas detrás, el informe y su verificación",
+};
+
+/**
+ * Fuentes que el catálogo declara pero que hoy no responden, y que por eso la
+ * portada no nombra. SUNAT: se consulta con la llave de Decolecta, que responde
+ * 401 desde setiembre de 2026. Cuando exista el secreto `decolecta-api-key` con
+ * una llave válida, se saca de acá.
+ */
+const SIN_SERVICIO = new Set(["SUNAT"]);
+const fuentesVivas = (p: PasoPipeline) => p.fuentes.filter((f) => !SIN_SERVICIO.has(f));
 
 function BotonCarril({
   carril,
@@ -207,7 +215,7 @@ function BotonCarril({
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-semibold text-paper">Carril {carril.label}</span>
         <span className="mt-0.5 block text-[11px] text-paper/70">
-          {carril.nAgentes} agentes en {carril.grupos.length} etapas
+          {QUE_REVISA[carril.clave] ?? ""}
         </span>
       </span>
       <ChevronDown
@@ -225,9 +233,6 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
     <div className="animate-slideUp rounded-3xl border border-paper/10 bg-paper/[0.04] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
         <h3 className="text-[15px] font-semibold text-paper">Carril {carril.label}</h3>
-        <span className="text-[12px] text-paper/65">
-          Cada etapa espera a que termine la anterior; dentro de una etapa, todos corren a la vez.
-        </span>
       </div>
 
       {/* El riel. Arranca desfasado porque así arranca de verdad: Proveedor y
@@ -253,9 +258,6 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <span className="flex items-baseline gap-2 font-mono text-[10px] uppercase tracking-wide text-paper/60">
                 Etapa {gi + 1}
-                {grupo.length > 1 && (
-                  <span className="font-sans normal-case tracking-normal">({grupo.length} a la vez)</span>
-                )}
               </span>
               <div className="flex flex-1 flex-col justify-center gap-2">
                 {grupo.map((p) => (
@@ -293,8 +295,8 @@ function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {
             <span className={`h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full ${t.punto}`} aria-hidden />
             <span className="text-[13px] font-semibold leading-snug text-paper">{p.titulo}</span>
           </span>
-          {p.fuentes.length > 0 && (
-            <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-paper/75">{p.fuentes.join(", ")}</span>
+          {fuentesVivas(p).length > 0 && (
+            <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-paper/75">{fuentesVivas(p).join(", ")}</span>
           )}
         </span>
       }
@@ -304,11 +306,11 @@ function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {
           <Cpu size={12} aria-hidden /> {t.etiqueta}
         </span>
         <span className="mt-2 block text-[13px] leading-relaxed text-inkSoft">{p.que}</span>
-        {p.fuentes.length > 0 && (
+        {fuentesVivas(p).length > 0 && (
           <span className="mt-2 block border-t border-line pt-2 text-[12px] text-mute">
             Lo coteja contra:
             <span className="mt-1 flex flex-wrap gap-1">
-              {p.fuentes.map((f) => (
+              {fuentesVivas(p).map((f) => (
                 <span key={f} className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-inkSoft">
                   {f}
                 </span>

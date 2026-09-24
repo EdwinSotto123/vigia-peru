@@ -113,8 +113,19 @@ const fechaLarga = (iso: string) =>
  * palabra, una comilla. Si el texto trae un "?", el "¿" es de verdad y no se
  * toca.
  */
-function limpiar(t: string): string {
-  let r = t.replace(/\s*·\s*/g, ", ");
+function limpiar(t: string, raya = ", "): string {
+  // "S/." es como lo escribe el análisis; la portada usa "S/" en todas partes.
+  // La raya larga entre espacios pasa a coma en el texto y a dos puntos en la
+  // cita de la norma ("Art. 5 Ley 32069: principio de competencia"), salvo
+  // entre dos cifras: "2023 – 2024" es un rango y queda como está. Se mira el
+  // carácter de cada lado con una función y no con un lookbehind, que no
+  // compila en Safari anterior a 16.4.
+  let r = t
+    .replace(/S\/\.\s?/g, "S/ ")
+    .replace(/(\S?)\s[—–]\s(\S?)/g, (m, antes: string, despues: string) =>
+      /\d/.test(antes) && /\d/.test(despues) ? m : `${antes}${raya}${despues}`,
+    )
+    .replace(/\s*·\s*/g, ", ");
   if (!r.includes("?")) r = r.replace(/\s¿\s/g, " - ").replace(/¿/g, '"');
   return r.replace(/\s{2,}/g, " ").trim();
 }
@@ -132,7 +143,7 @@ function aCaso(a: AlertaReal, b: BanderaReal): CasoPortada {
     region: a.region,
     fuenteUrl: a.fuenteUrl,
     hallazgo: limpiar(b.evidencia!),
-    norma: limpiar(b.norma!),
+    norma: limpiar(b.norma!, ": "),
     severidad: sev,
     otrasSenales: Math.max(0, (a.banderas?.length ?? 1) - 1),
   };

@@ -89,12 +89,6 @@ export function PipelineAgentes() {
             desplegado: repetía el encabezado que el diagrama ya daba y dejaba la
             sección en 1 558 px con dos tercios que nadie lee. */}
         <Orquestacion carriles={carriles} totalPasos={TOTAL_PASOS} totalAgentes={TOTAL_AGENTES} />
-
-        <p className="mt-6 max-w-[84ch] text-[13px] leading-relaxed text-paper/70">
-          Por dentro trabajan {TOTAL_AGENTES} agentes de inteligencia artificial, cada uno con una sola tarea, y{" "}
-          {TOTAL_PASOS - TOTAL_AGENTES} verificaciones que no opinan: consultan datos o revisan lo que hicieron los
-          demás. La última es una autoevaluación que puede frenar la publicación entera.
-        </p>
       </div>
     </section>
   );

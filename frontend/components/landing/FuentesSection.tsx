@@ -1,212 +1,150 @@
-import { ArrowUpRight, ExternalLink, Gavel, Landmark, RefreshCw, ScrollText, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Gavel, Search } from "lucide-react";
+import { ICONO_SEVERIDAD, veredictoMercado } from "@/components/charts/mercado";
+import { cn } from "@/lib/utils";
+import { ExploradorFuentes, type CifrasFlujo } from "./ExploradorFuentes";
+import { NORMA } from "./fuentesFlujo";
 
 /**
  * De dónde sale cada dato.
  *
  * Es la contracara obligatoria de la sección de agentes: diez agentes leyendo
- * no significa nada si lo que leen sale del modelo. La landing afirmaba "cruza
- * 14 portales del Estado" sin nombrar ni uno — que es pedirle al visitante
- * exactamente la confianza ciega que este producto le niega al Estado.
+ * no significa nada si lo que leen sale del modelo. Cada fuente nombrada acá
+ * existe y lleva enlace sólo cuando su URL pública está verificada: inventar
+ * un link a un portal es inventar un dato.
  *
- * Cada fuente que se nombra acá existe y tiene su enlace cuando el repo lo
- * declara (`backend/scrapers/*` y el pie del sitio). Las que no tienen URL
- * pública verificada se nombran sin enlace: inventar un link a un portal es
- * inventar un dato.
+ * Las fuentes se ordenan por CÓMO llegan:
+ *  1. El mapa FUENTES → VIGÍA → RESULTADOS (ExploradorFuentes): cada nodo se
+ *     abre en su lugar. Una fuente cuenta en palabras dónde está, en qué llega
+ *     y qué se toma; un resultado muestra qué se obtiene, con un gráfico de
+ *     cifras reales cuando la portada las tiene.
+ *  2. La norma: bibliotecas fijas, no descargas.
+ *  3. Las que se consultan en el momento, contrato por contrato.
  *
- * Deliberadamente NO son tarjetas: son cuatro listas. Cuatro cajas con ícono,
- * título y párrafo es la plantilla que este producto ya sacó del resto de la
- * app, y acá además escondería lo único que importa — que son muchas fuentes
- * y que cada una se puede abrir.
+ * Antes eran catorce tarjetas iguales y el texto prometía "cada registro tiene
+ * su propio calendario, marcado abajo" sin mostrar ninguno. Además ONPE
+ * figuraba como "se descarga cada mes" junto a "se actualizan solos", y no es
+ * así: su portal exige un navegador abierto y esa descarga la lanza una
+ * persona. Acá se dice.
  */
 
-interface Fuente {
-  nombre: string;
-  aporta: string;
-  url?: string;
-  /**
-   * Cada cuánto se vuelve a bajar. Sale del calendario real de
-   * `backend/scrapers` (el mismo que lista el panel de cobertura del admin), no
-   * de una promesa: una fuente sin cadencia declarada no lleva insignia.
-   */
-  cada?: string;
-}
-
-interface Familia {
-  clave: string;
-  Icono: typeof Landmark;
-  titulo: string;
-  bajada: string;
-  fuentes: Fuente[];
-}
-
-const FAMILIAS: Familia[] = [
-  {
-    clave: "contratos",
-    Icono: Landmark,
-    titulo: "Los contratos",
-    bajada: "El origen de todo: convocatorias, montos, entidades, fechas y postores.",
-    fuentes: [
-      {
-        nombre: "SEACE / OECE, contrataciones abiertas",
-        aporta: "Cada contrato que el Estado publica. De aquí sale todo lo que ves en el mapa.",
-        url: "https://contratacionesabiertas.oece.gob.pe/",
-        cada: "cada noche",
-      },
-    ],
-  },
-  {
-    clave: "registros",
-    Icono: ScrollText,
-    titulo: "Los registros del Estado",
-    bajada: "Ocho registros públicos que se actualizan solos, cada uno con su propio calendario.",
-    fuentes: [
-      { nombre: "Proveedores sancionados (OECE)", aporta: "Quién está inhabilitado para contratar, y hasta cuándo.", url: "https://www.datosabiertos.gob.pe", cada: "cada mes" },
-      { nombre: "Registro de visitas", aporta: "Quién entró a qué entidad pública y a ver a quién.", url: "https://visitas.servicios.gob.pe/consultas", cada: "días 1 y 15" },
-      { nombre: "Declaraciones juradas de intereses", aporta: "Qué empresas y parentescos declaró un funcionario. Es la llave de la puerta giratoria.", url: "https://www.datosabiertos.gob.pe", cada: "día 5" },
-      { nombre: "Datasets OECE", aporta: "Ofertantes, consorcios y obras.", url: "https://www.datosabiertos.gob.pe", cada: "cada mes" },
-      { nombre: "Presupuesto (MEF)", aporta: "Cuánto tiene asignado cada pliego y cuánto ejecutó.", url: "https://www.datosabiertos.gob.pe", cada: "cada mes" },
-      { nombre: "Aportes de campaña (ONPE Claridad)", aporta: "Quién financió a qué candidato.", url: "https://claridadportal.onpe.gob.pe/", cada: "cada mes" },
-      { nombre: "Autoridades (JNE Infogob)", aporta: "Quién fue electo y quién se candidateó, con su historial.", url: "https://plataformaelectoral.jne.gob.pe/", cada: "día 5" },
-      { nombre: "Personal de entidades", aporta: "Los designados, que no aparecen en ningún registro electoral." },
-    ],
-  },
-  {
-    clave: "norma",
-    Icono: Gavel,
-    titulo: "La norma",
-    bajada: "Cuatro bibliotecas legales con los artículos segmentados uno por uno.",
-    fuentes: [
-      { nombre: "Normas vigentes", aporta: "Ley 32069, su reglamento y las bases estándar." },
-      { nombre: "Normas históricas", aporta: "Ley 30225 y su reglamento: un contrato de 2023 se juzga con la ley de 2023." },
-      { nombre: "Criterios vinculantes", aporta: "Acuerdos de Sala Plena y opiniones de la Dirección Técnico Normativa del OECE." },
-      { nombre: "Control", aporta: "Directivas de la Contraloría.", url: "https://apps.contraloria.gob.pe/ciudadano/" },
-    ],
-  },
-  {
-    clave: "mercado",
-    Icono: TrendingUp,
-    titulo: "El mercado",
-    bajada: "Lo único que no es un registro público, y por eso se declara distinto.",
-    fuentes: [
-      {
-        nombre: "Búsqueda de precios al momento",
-        aporta:
-          "Precios reales peruanos para los ítems del contrato. Cuando no aparecen suficientes, el veredicto se marca como estimación y nunca se disfraza de medición.",
-      },
-    ],
-  },
-];
-
-const TOTAL_FUENTES = FAMILIAS.reduce((n, f) => n + f.fuentes.length, 0);
-
-export function FuentesSection() {
+export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
   return (
-    <section
-      id="fuentes"
-      aria-labelledby="fuentes-titulo"
-      className="scroll-mt-16 bg-paperSoft py-20 sm:py-24"
-    >
+    <section id="fuentes" aria-labelledby="fuentes-titulo" className="scroll-mt-16 bg-paperSoft py-20 sm:py-24">
       <div className="container-page max-w-[1400px]">
-        {/* La advertencia de "cuando una fuente no responde" va acá arriba, al
-            lado del titular, y no al pie: al pie llenaba un renglón suelto y
-            dejaba medio ancho de la sección en blanco, y además es parte de la
-            promesa, no una nota. */}
-        <div className="grid gap-x-12 gap-y-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end">
-          <div>
-            <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
-              Vigía no inventa nada.{" "}
-              <span className="text-heroGreenTexto">Todo sale de {TOTAL_FUENTES} fuentes públicas que puedes abrir.</span>
-            </h2>
-            <p className="mt-4 max-w-[68ch] text-base leading-relaxed text-inkSoft">
-              Si una señal dice que el gerente del proveedor aportó a la campaña del alcalde, hay un registro
-              de ONPE detrás. Si dice que el requisito direcciona, hay un artículo de ley citado y la página
-              exacta del documento donde está. <strong className="font-semibold text-ink">Todas se bajan
-              solas</strong>: los contratos nuevos se descargan cada noche y cada registro del Estado tiene su
-              propio calendario, marcado abajo.
+        <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
+          Vigía no inventa nada.{" "}
+          <span className="text-heroGreenTexto">Cada señal sale de un registro público que puedes revisar.</span>
+        </h2>
+        <p className="mt-4 max-w-[68ch] text-base leading-relaxed text-inkSoft">
+          Si una señal dice que el gerente del proveedor aportó a la campaña del alcalde, hay un registro de ONPE
+          detrás. Si dice que el requisito direcciona, hay un artículo de ley citado y la página exacta del documento
+          donde está. Y cuando algo es una estimación, lo dice. Toca una fuente para ver dónde está y qué tomamos de ella, o un resultado para ver qué
+          información sale de todo eso.
+        </p>
+
+        {/* ── 1. Las que se descargan ─────────────────────────────────── */}
+        {/* La "próxima descarga" la calcula cada ficha con el reloj del
+            navegador al abrirse: la portada es ISR y un `ahora` del servidor
+            podía llegar con días de atraso. */}
+        <ExploradorFuentes cifras={cifras} />
+
+        {/* ── 2 y 3. La norma, y lo que se consulta en el momento ─────────── */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <section aria-labelledby="fuentes-norma" className="rounded-2xl bg-heroViolet-deep p-6 text-paper sm:p-8 lg:col-span-7">
+            <h3 id="fuentes-norma" className="flex items-center gap-2.5">
+              <Gavel size={17} className="shrink-0 text-heroGreen" aria-hidden />
+              <span className="font-serif text-2xl font-bold">La norma</span>
+              <span className="ml-auto font-mono text-[12px] font-normal text-paper/60">{NORMA.length}</span>
+            </h3>
+            <p className="mt-2 max-w-[54ch] text-sm leading-relaxed text-paper/75">
+              {/* Cifras de docs/design/RAG_NORMATIVO.md (contenido del bucket gs://vigia-peru-rag). */}
+              Cuatro bibliotecas legales: 1,176 artículos y 721 opiniones del OECE. Por eso cada señal puede
+              citar el artículo exacto.
             </p>
-          </div>
-          <p className="flex items-start gap-2.5 rounded-2xl border border-heroGreen/25 bg-heroGreen-soft/50 px-4 py-3.5 text-[13px] leading-relaxed text-inkSoft">
-            <ArrowUpRight size={15} className="mt-0.5 shrink-0 text-heroGreenTexto" aria-hidden />
-            <span>
-              <strong className="font-semibold text-ink">Cuando una fuente no responde, la página lo dice.</strong>{" "}
-              No se rellena el hueco con un valor plausible: un dato inventado en una herramienta
-              anticorrupción vale lo mismo que una acusación inventada.
-            </span>
+            <ul className="mt-6 grid gap-x-8 gap-y-6 sm:grid-cols-2">
+              {NORMA.map((n) => (
+                <li key={n.nombre} className="border-t border-paper/15 pt-4">
+                  <p className="font-serif text-3xl font-bold leading-none">{n.sigla}</p>
+                  {n.url ? (
+                    <a
+                      href={n.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group mt-3 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold underline decoration-paper/30 underline-offset-4 transition-colors duration-rapido hover:decoration-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen focus-visible:ring-offset-2 focus-visible:ring-offset-heroViolet-deep"
+                    >
+                      {n.nombre}
+                      <ArrowUpRight size={13} className="transition-transform duration-rapido group-hover:-translate-y-px group-hover:translate-x-px" aria-hidden />
+                      <span className="sr-only">(se abre en una pestaña nueva)</span>
+                    </a>
+                  ) : (
+                    <p className="mt-3 text-[13px] font-semibold">{n.nombre}</p>
+                  )}
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-paper/70">{n.aporta}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-labelledby="fuentes-momento" className="rounded-2xl border border-line bg-paper p-6 shadow-card sm:p-8 lg:col-span-5">
+            <h3 id="fuentes-momento" className="flex items-center gap-2.5">
+              <Search size={17} className="shrink-0 text-heroViolet" aria-hidden />
+              <span className="font-serif text-2xl font-bold text-ink">Al leer cada contrato</span>
+              <span className="ml-auto font-mono text-[12px] font-normal text-mute">2</span>
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-inkSoft">
+              Dos fuentes no tienen calendario: se consultan en el momento, para el contrato que se está leyendo.
+            </p>
+            <ul className="mt-6 space-y-5">
+              <li className="border-t border-line pt-4">
+                <p className="text-[14px] font-semibold text-ink">Personal de entidades</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-mute">
+                  Los designados de confianza, que no aparecen en ningún registro electoral. Se buscan en las
+                  resoluciones de la propia entidad.
+                </p>
+              </li>
+              <li className="border-t border-line pt-4">
+                <p className="text-[14px] font-semibold text-ink">Búsqueda de precios al momento</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-mute">
+                  Precios reales peruanos para los ítems del contrato. Es lo único que no es un registro público, y
+                  por eso cada veredicto dice de dónde salió:
+                </p>
+                {/* Las dos pastillas son las del informe real (vocabulario de
+                    components/charts/mercado.ts), no una maqueta. */}
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <Veredicto clave="alineado" nota="medido con precios encontrados" />
+                  <Veredicto clave="estimado_ia" nota="cuando no aparecen suficientes precios" />
+                </div>
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        {/* La promesa cierra la sección: es la regla que sostiene a todas. */}
+        <div className="mt-12 border-t border-line pt-8 sm:mt-14">
+          <p className="max-w-[34ch] text-balance font-serif text-2xl font-bold leading-snug text-ink sm:text-3xl">
+            Si un dato no está, queda vacío.
+          </p>
+          <p className="mt-3 max-w-[65ch] text-base leading-relaxed text-inkSoft">
+            No se rellena el hueco con un valor plausible: un dato inventado en una herramienta anticorrupción vale
+            lo mismo que una acusación inventada.
           </p>
         </div>
-
-        {/* Los registros del Estado son ocho y los demás grupos uno o cuatro. En
-            cuatro columnas iguales esa columna medía el doble de alto que la
-            sección entera; con doble ancho su lista cae en dos columnas y las
-            cuatro familias vuelven a pesar parecido. */}
-        <div className="mt-8 grid gap-x-10 gap-y-8 md:grid-cols-2 xl:grid-cols-[1fr_2fr_1fr_1fr]">
-          {FAMILIAS.map(({ clave, Icono, titulo, bajada, fuentes }) => (
-            <section key={clave} aria-labelledby={`fuentes-${clave}`} className="min-w-0">
-              <h3 id={`fuentes-${clave}`} className="flex items-baseline gap-2.5 border-b border-line pb-2">
-                <Icono size={15} className="shrink-0 translate-y-0.5 text-heroViolet" aria-hidden />
-                <span className="text-[15px] font-semibold text-ink">{titulo}</span>
-                <span className="ml-auto shrink-0 font-mono text-[12px] text-mute">{fuentes.length}</span>
-              </h3>
-              <p className="mt-2 text-[12px] leading-relaxed text-mute">{bajada}</p>
-              {/* Cada fuente es una tarjeta que se abre, no un renglón de texto:
-                  lo que esta sección promete es justamente que se pueden abrir,
-                  y un enlace subrayado dentro de un párrafo no lo parecía. La
-                  que no tiene URL pública verificada se dibuja igual pero sin
-                  afordancia de clic — inventarle un link sería inventar el dato. */}
-              <ul className={`mt-3 grid gap-2 ${fuentes.length > 4 ? "sm:grid-cols-2" : ""}`}>
-                {fuentes.map((f) => (
-                  <li key={f.nombre}>
-                    <FichaFuente f={f} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-
       </div>
     </section>
   );
 }
 
-/** Una fuente: tarjeta si se puede abrir, caja igual pero quieta si no. */
-function FichaFuente({ f }: { f: Fuente }) {
-  const cuerpo = (
-    <>
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-[13px] font-semibold leading-snug text-ink">{f.nombre}</span>
-        {f.url && (
-          <ExternalLink
-            size={12}
-            className="mt-0.5 shrink-0 text-mute transition-colors duration-rapido group-hover:text-heroViolet"
-            aria-hidden
-          />
-        )}
-      </span>
-      <span className="mt-1 block text-[12px] leading-relaxed text-mute">{f.aporta}</span>
-      {f.cada && (
-        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-inkSoft">
-          <RefreshCw size={10} className="shrink-0 text-heroGreenTexto" aria-hidden />
-          se descarga {f.cada}
-        </span>
-      )}
-    </>
-  );
-
-  const base = "block h-full rounded-2xl border px-3.5 py-3 transition-all duration-rapido";
-
-  if (!f.url) {
-    return <span className={`${base} border-dashed border-line bg-paper/60`}>{cuerpo}</span>;
-  }
+/** Una pastilla de veredicto tal como sale en el informe, con una línea de qué significa. */
+function Veredicto({ clave, nota }: { clave: string; nota: string }) {
+  const v = veredictoMercado(clave);
+  const Icono = ICONO_SEVERIDAD[v.ui.icono];
   return (
-    <a
-      href={f.url}
-      target="_blank"
-      rel="noreferrer"
-      className={`group ${base} border-line bg-paper hover:-translate-y-0.5 hover:border-heroViolet/40 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paperSoft`}
-    >
-      {cuerpo}
-      <span className="sr-only">(se abre en una pestaña nueva)</span>
-    </a>
+    <div className="rounded-xl bg-paperSoft px-3 py-2.5">
+      <span className={cn("pill", v.ui.fondo, v.ui.texto, v.ui.borde)}>
+        <Icono size={11} aria-hidden />
+        {v.etiqueta}
+      </span>
+      <p className="mt-1.5 text-[11.5px] leading-snug text-mute">{nota}</p>
+    </div>
   );
 }

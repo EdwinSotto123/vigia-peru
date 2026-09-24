@@ -32,7 +32,9 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
               Lo que ya encontró.
             </h2>
             <p className="mt-3 max-w-[58ch] text-base leading-relaxed text-inkSoft">
-              Contratos reales, tal como quedaron publicados. Son señales para revisar con calma, no acusaciones.
+              Contratos reales, tal como quedaron publicados. Señal alta quiere decir que hay indicios fuertes de
+              que algo no se hizo como manda la ley; señal media, que hay algo inusual que conviene mirar. Ninguna
+              es una acusación.
             </p>
           </div>
           <Link

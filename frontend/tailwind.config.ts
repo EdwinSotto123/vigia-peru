@@ -224,6 +224,12 @@ const config: Config = {
           "42%": { transform: "scale(1.16)" },
           "70%": { transform: "scale(1)" },
         },
+        /* La barra de la fuente elegida en el explorador de fuentes: se llena
+           mientras la selección avanza sola. La duración la pone el componente. */
+        llenarBarra: {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
+        },
       },
       animation: {
         fadeIn: "fadeIn 200ms ease-out",
@@ -246,6 +252,7 @@ const config: Config = {
         fluirDatos: "fluirDatos 1.4s linear infinite",
         latidoNodo: "latidoNodo 2.8s ease-in-out infinite",
         latir: "latir 900ms ease-in-out",
+        llenarBarra: "llenarBarra linear both",
       },
     },
   },
