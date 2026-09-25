@@ -70,8 +70,8 @@ Terminología del producto (es la que ve el usuario, no se traduce ni se adorna)
 - **El que paga no elige.** Cualquier elemento visual que sugiera que un financiador dirigió una auditoría es un defecto de producto, no de estilo.
 - **Los resultados se publican igual**, incluso si señalan a quien financió.
 - Reconocimiento medido en **contratos leídos**, jamás en soles: 300 vecinos que financian 300 contratos valen lo mismo que una empresa que financia 300.
-- Paleta comprometida: `heroViolet #4F3D96` (marca), `heroGreen #2FA84C` (positivo). `rust` / `amber` / `clay` / `moss` son **semántica de severidad y estado**, no decoración.
-- Atribución pública del proyecto: Antigravity. La landing y su propuesta de valor ya fueron aprobadas y NO están en alcance de rediseño.
+- Identidad (2026-09-25): la del logo — **granate `#711C30`**, la **llamita** y la **lupa tejida en manta andina**; acento `maiz` sobre oscuro y paleta textil sólo decorativa. Reemplaza al violeta/verde anterior. `rust` / `amber` / `clay` / `moss` siguen siendo **semántica de severidad y estado**, no decoración. Detalle y reglas: `DESIGN_SYSTEM.md`.
+- Atribución pública del proyecto: Antigravity. La propuesta de valor y el relato de la landing ya fueron aprobados: el rediseño de identidad (2026-09-25) cambia su aspecto, no su contenido.
 
 ## Evidence on Hand
 

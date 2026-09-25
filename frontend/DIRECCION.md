@@ -23,6 +23,10 @@ conversión.
 
 ## OWN-WORLD
 
+> **Actualización 2026-09-25:** el color y la tipografía de este apartado quedan reemplazados por
+> `DESIGN_SYSTEM.md` (granate del logo, llamita, maíz, Montserrat). La arquitectura compositiva de
+> abajo (densidad, tres profundidades, severidad con tres canales, sin kicker) sigue vigente.
+
 Se conserva el mundo visual existente —`heroViolet` de marca, `heroGreen`
 positivo, neutros de papel, serif para títulos— porque la identidad no es el
 problema y la landing ya la validó. Lo que se reemplaza es la **arquitectura
