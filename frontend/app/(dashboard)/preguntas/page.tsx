@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EncabezadoPagina, Pagina } from "@/components/patrones";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { FUENTES_FLUJO } from "@/components/landing/fuentesFlujo";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { soles } from "@/lib/formato";
-import { Acordeon, type PreguntaFAQ } from "./Acordeon";
+import { AbrirPorAncla } from "./AbrirPorAncla";
+import { TemaPreguntas, type TemaFAQ } from "./TemaPreguntas";
 
 export const metadata: Metadata = {
   title: "Preguntas frecuentes",
@@ -15,7 +18,7 @@ const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 // TODO(contacto): reemplazar cuando exista un correo del equipo
 const CONTACTO = `${REPO}/issues`;
 
-const EXTERNO = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate";
+const ENLACE = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate";
 
 /** "S/1 procesamiento · S/1 infraestructura y datos · …" → [{monto, concepto}]. Mismo formato que lee la portada. */
 function partesDeTarifa(nota: string | null | undefined): { monto: number; concepto: string }[] {
@@ -34,6 +37,20 @@ function enumerar(xs: string[]): string {
   return `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
 }
 
+/**
+ * Cómo se nombra cada fuente dentro de una oración. QUÉ fuentes se nombran no se
+ * escribe acá: sale de `FUENTES_FLUJO` (el mapa de fuentes de la portada,
+ * verificado contra el código), sólo las que hoy se usan. Antes esta respuesta
+ * nombraba SUNAT e INFOBRAS, que ningún análisis lee hoy.
+ */
+const FUENTE_EN_FRASE: Record<string, string> = {
+  rnp: "los socios y representantes de cada proveedor (RNP)",
+  sancionados: "los proveedores sancionados",
+  visitas: "las visitas a entidades públicas",
+  onpe: "los aportes de campaña (ONPE)",
+  jne: "las candidaturas y autoridades electas (JNE)",
+};
+
 export default async function PreguntasPage() {
   // La tarifa sale del mismo endpoint público que usa la portada. Si el API no
   // responde, la respuesta no inventa cifras: remite al desglose en vivo.
@@ -48,152 +65,241 @@ export default async function PreguntasPage() {
         {partes.length > 0 && <>: {enumerar(partes.map((p) => `${soles(p.monto)} de ${p.concepto}`))}</>}.
       </>
     ) : (
-      <>Leer un contrato con todos sus documentos tiene un precio fijo por contrato, publicado con su desglose en la portada.</>
+      <>
+        Leer un contrato con todos sus documentos tiene un precio fijo, publicado con su desglose en{" "}
+        <Link href="/#aliados" className={ENLACE}>
+          la portada
+        </Link>
+        .
+      </>
     );
 
-  const FAQ: PreguntaFAQ[] = [
-    {
-      slug: "acusa",
-      q: "¿Vigía Perú acusa a alguien de corrupción?",
-      a: "No. Decimos 'señal de riesgo' o 'patrón detectado'. La diferencia es jurídica y ética: las acusaciones las hacen el Ministerio Público o la Contraloría, no nosotros. Cada señal cita la norma específica que aparenta incumplirse y enlaza a la fuente oficial (SEACE, OECE, MEF).",
-    },
-    {
-      slug: "fuentes",
-      q: "¿De dónde salen los contratos?",
-      a: "De la API de Contrataciones Abiertas del OECE (estándar OCDS): todos los procesos publicados en el SEACE, de todo el Perú, se descargan y quedan representados en el mapa y en la lista de contratos aunque todavía nadie los haya analizado. Para el análisis se cruzan además SUNAT (edad del RUC), INFOBRAS (avance de obras), Claridad ONPE (aportes de campaña), JNE (hojas de vida) y el registro de sancionados del OSCE.",
-    },
-    {
-      slug: "financiar",
-      q: "¿Qué significa 'financiar una auditoría'?",
-      a: (
-        <>
-          {costo} Al financiar, aportas capacidad de lectura para una zona (región, provincia o distrito). Los contratos se
-          toman en orden de llegada: nadie, ni tú ni nosotros, elige cuál se analiza ni qué se publica. Recibes un
-          comprobante público con cada contrato procesado y las señales halladas.
-        </>
-      ),
-    },
-    {
-      slug: "sin-eleccion",
-      q: "¿Por qué no puedo elegir qué contrato se audita?",
-      a: (
-        <>
-          Porque si el financiador eligiera el contrato, el sistema podría usarse para presionar a una entidad o a un
-          competidor. Financias capacidad, no resultados. Y si quien aporta tiene un conflicto de interés que el sistema
-          detecta (una empresa con sanción vigente o con alertas activas en esa zona), su aporte procesa contratos igual,
-          pero no aparece en el ranking ni en el muro de aliados: puede financiar, pero no recibe reconocimiento. Si el
-          análisis que financió lo encuentra a él, se publica igual. Todas las reglas están en{" "}
-          <Link href="/app/financiar#independencia" className={EXTERNO}>
-            Financiar
-          </Link>
-          .
-        </>
-      ),
-    },
-    {
-      slug: "clasificacion",
-      q: "¿Todos los contratos del SEACE se analizan igual?",
-      a: "No. Cada contrato se clasifica por tipo (bienes, servicios, consultoría, obras, convenio, contratación directa) y por etapa (convocado, adjudicado, contratado, en ejecución, desierto…). Solo corren los análisis que aplican: por ejemplo, la comparación de precios de mercado solo tiene sentido en bienes con ítems y cantidades; el cruce de proveedores solo cuando ya hay adjudicación. Lo que aún no se puede analizar queda marcado como 'pendiente de procesamiento' con el motivo visible.",
-    },
-    {
-      slug: "anonimato",
-      q: "Si denuncio algo, ¿se publica mi nombre?",
-      a: "No. Las denuncias se envían sin tu nombre por defecto, y no mostramos DNI ni nombres de personas naturales. Si dejas un correo, queda guardado junto a la denuncia y nunca se publica.",
-    },
-    {
-      slug: "verificacion",
-      q: "¿Quién revisa las denuncias de los vecinos?",
-      a: "Nadie las edita antes de publicarlas. Una denuncia de obra necesita una foto y se publica tal como llegó, en la lista y en el mapa; figura como «confirmada» sólo cuando la respaldan dos o más reportes independientes del mismo lugar. Es el testimonio de un vecino, no un hallazgo de Vigía. Las denuncias sobre una entidad no se publican: quedan en reserva.",
-    },
-    {
-      slug: "ia",
-      q: "¿La IA decide quién es corrupto?",
-      a: "No, y no queremos que lo haga. Los modelos de lenguaje se usan para leer los expedientes, cruzarlos con las opiniones normativas del OECE y redactar el dictamen en lenguaje claro. Las señales las produce código determinista con reglas y normas explícitas; una señal siempre tiene regla, norma y fuente, nunca es una opinión del modelo.",
-    },
-    {
-      slug: "como-se-sostiene",
-      q: "¿Cómo se sostiene el proyecto?",
-      a: (
-        <>
-          Con los aportes de{" "}
-          <Link href="/app/financiar" className={EXTERNO}>
-            Financia una auditoría
-          </Link>
-          , nunca con publicidad ni venta de datos. El{" "}
-          <a href={REPO} target="_blank" rel="noreferrer" className={EXTERNO}>
-            código es abierto
-          </a>
-          : una herramienta anticorrupción cerrada sería una contradicción.
-        </>
-      ),
-    },
-    {
-      slug: "cuentas",
-      q: "¿Cuánto cuesta leer un contrato y quién lo paga?",
-      a: (
-        <>
-          {costo} Lo pagan las personas, colectivos y empresas que{" "}
-          <Link href="/app/financiar" className={EXTERNO}>
-            financian una auditoría
-          </Link>
-          , y su aporte se cuenta en contratos, no en soles. El desglose vigente está en la portada, en la sección{" "}
-          <Link href="/#aliados" className={EXTERNO}>
-            Aliados
-          </Link>
-          , y el código que asigna y procesa cada contrato es público en{" "}
-          <a href={REPO} target="_blank" rel="noreferrer" className={EXTERNO}>
-            GitHub
-          </a>
-          .
-        </>
-      ),
-    },
-    {
-      slug: "contraloria",
-      q: "¿Reemplaza a la Contraloría o al periodismo?",
-      a: "No. Vigía detecta y prioriza: entrega a Contraloría, fiscalía y periodistas una cola ordenada por riesgo con el expediente pre-armado y la cita normativa lista. La investigación y la sanción siguen siendo de ellos.",
-    },
+  const seace = FUENTES_FLUJO.find((f) => f.clave === "seace");
+  const cruces = FUENTES_FLUJO.filter((f) => f.estado === "en_uso" && f.clave !== "seace").map(
+    (f) => FUENTE_EN_FRASE[f.clave] ?? f.corto,
+  );
+
+  // Dos columnas en escritorio, cada una una pila propia: abrir una respuesta sólo
+  // empuja lo que tiene debajo en SU columna, no deja un hueco en la de al lado.
+  const COLUMNAS: TemaFAQ[][] = [
+    [
+      {
+        id: "senales",
+        titulo: "Las señales",
+        preguntas: [
+          {
+            slug: "acusa",
+            q: "¿Vigía Perú acusa a alguien de corrupción?",
+            a: "No. Publica señales de riesgo, no acusaciones: acusar le corresponde al Ministerio Público o a la Contraloría. Cada señal cita la norma que parece incumplirse y enlaza al registro oficial de donde sale.",
+          },
+          {
+            slug: "ia",
+            q: "¿La IA decide quién es corrupto?",
+            a: "No. La IA lee los documentos de cada contrato, los compara con los criterios del OECE y redacta el dictamen en palabras simples. Las señales salen de reglas fijas y escritas: cada una tiene su regla, la norma que cita y la fuente del dato, nunca una opinión de la IA.",
+          },
+          {
+            slug: "contraloria",
+            q: "¿Reemplaza a la Contraloría o al periodismo?",
+            a: "No. Vigía detecta y ordena por riesgo: a la Contraloría, la fiscalía y el periodismo les deja el expediente armado y la norma citada. Investigar y sancionar sigue siendo trabajo de ellos.",
+          },
+        ],
+      },
+      {
+        id: "contratos",
+        titulo: "Los contratos",
+        preguntas: [
+          {
+            slug: "fuentes",
+            q: "¿De dónde salen los contratos?",
+            a: (
+              <>
+                Del SEACE, a través de{" "}
+                {seace?.url ? (
+                  <a href={seace.url} target="_blank" rel="noreferrer" className={ENLACE}>
+                    Contrataciones Abiertas del OECE
+                    <span className="sr-only"> (se abre en otra pestaña)</span>
+                  </a>
+                ) : (
+                  "Contrataciones Abiertas del OECE"
+                )}
+                : cada contrato que el Estado publica, de todo el Perú, está en el mapa y en la{" "}
+                <Link href="/app/contratos" className={ENLACE}>
+                  lista de contratos
+                </Link>{" "}
+                aunque nadie lo haya leído todavía.
+                {cruces.length > 0 && <> Al leerlo, Vigía lo cruza con {enumerar(cruces)}.</>} Qué se toma de cada
+                fuente está en el{" "}
+                <Link href="/#fuentes" className={ENLACE}>
+                  mapa de fuentes
+                </Link>
+                .
+              </>
+            ),
+          },
+          {
+            slug: "clasificacion",
+            q: "¿Todos los contratos del SEACE se analizan igual?",
+            a: "No. Cada contrato se clasifica por tipo (bienes, servicios, consultoría, obras…) y por etapa (convocado, adjudicado, en ejecución…), y sólo se hacen las revisiones que le aplican: los precios de mercado se comparan en compras de bienes con cantidades, y los proveedores se cruzan cuando ya hay un ganador. Lo que todavía no se puede revisar queda marcado como pendiente, con el motivo a la vista.",
+          },
+        ],
+      },
+    ],
+    [
+      {
+        id: "financiar",
+        titulo: "Financiar",
+        preguntas: [
+          {
+            slug: "financiar",
+            q: "¿Qué significa «financiar una auditoría»?",
+            a: "Aportas capacidad de lectura para una zona: una región, provincia o distrito. Sus contratos se leen en orden de llegada; nadie, ni tú ni nosotros, elige cuál se lee ni qué se publica. Recibes un comprobante público con cada contrato leído y sus señales.",
+          },
+          {
+            slug: "cuentas",
+            q: "¿Cuánto cuesta leer un contrato y quién lo paga?",
+            a: (
+              <>
+                {costo} Lo pagan las personas, colectivos y empresas que{" "}
+                <Link href="/app/financiar" className={ENLACE}>
+                  financian una auditoría
+                </Link>
+                , y cada aporte se cuenta en contratos leídos, no en soles. Sus nombres están en el{" "}
+                <Link href="/app/aliados" className={ENLACE}>
+                  ranking de aliados
+                </Link>
+                .
+              </>
+            ),
+          },
+          {
+            slug: "sin-eleccion",
+            q: "¿Por qué no puedo elegir qué contrato se audita?",
+            a: (
+              <>
+                Porque si quien paga eligiera, Vigía podría usarse para presionar a una entidad o a un competidor: financias
+                capacidad, no resultados. Si quien aporta tiene un conflicto de interés que el sistema detecta (una sanción
+                vigente o señales activas en esa zona), su aporte se usa igual, pero no aparece en el ranking de aliados. Y
+                si el análisis que financió lo encuentra a él, se publica igual. Todas las reglas están en{" "}
+                <Link href="/app/financiar#independencia" className={ENLACE}>
+                  Financiar
+                </Link>
+                .
+              </>
+            ),
+          },
+          {
+            slug: "como-se-sostiene",
+            q: "¿Cómo se sostiene el proyecto?",
+            a: (
+              <>
+                Con los aportes de quienes financian auditorías, nunca con publicidad ni venta de datos. El{" "}
+                <a href={REPO} target="_blank" rel="noreferrer" className={ENLACE}>
+                  código es abierto
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
+                </a>
+                : cualquiera puede revisar cómo trabaja.
+              </>
+            ),
+          },
+        ],
+      },
+      {
+        id: "denuncias",
+        titulo: "Denuncias",
+        preguntas: [
+          {
+            slug: "anonimato",
+            q: "Si denuncio algo, ¿se publica mi nombre?",
+            a: "No. Para denunciar no necesitas cuenta ni nombre. Si dejas un correo, se guarda con la denuncia y nunca se publica.",
+          },
+          {
+            slug: "verificacion",
+            q: "¿Quién revisa las denuncias de los vecinos?",
+            a: (
+              <>
+                Nadie las edita. Una denuncia de obra lleva foto y se publica tal como llegó, en el mapa y en la{" "}
+                <Link href="/app/denuncias" className={ENLACE}>
+                  lista de denuncias
+                </Link>
+                ; pasa a «confirmada» cuando dos o más reportes independientes señalan el mismo lugar. Es el testimonio de
+                un vecino, no un hallazgo de Vigía. Las denuncias sobre una entidad no se publican: quedan en reserva.
+              </>
+            ),
+          },
+        ],
+      },
+    ],
   ];
 
+  const temas = COLUMNAS.flat();
+
   return (
-    // Prosa: la única vista con medida de lectura (DESIGN_SYSTEM.md §10.7).
-    <Pagina ancho="lectura">
+    <Pagina>
+      <AbrirPorAncla />
       <EncabezadoPagina
         titulo="¿Cómo funciona Vigía Perú?"
         bajada={
           <>
             Si tu pregunta no está,{" "}
-            <a className={EXTERNO} href={CONTACTO} target="_blank" rel="noreferrer">
-              escríbenos (GitHub)
+            <a className={ENLACE} href={CONTACTO} target="_blank" rel="noreferrer">
+              déjala en GitHub
+              <span className="sr-only"> (se abre en otra pestaña)</span>
             </a>
             .
           </>
         }
       />
 
-      <Acordeon items={FAQ} />
+      {/* Índice de temas sólo en una columna (celular, tableta): en escritorio los
+          cuatro temas se ven juntos y el índice repetiría lo que ya está a la vista. */}
+      <nav aria-label="Temas" className="xl:hidden">
+        <ul className="flex flex-wrap gap-2">
+          {temas.map((t) => (
+            <li key={t.id}>
+              <a
+                href={`#tema-${t.id}`}
+                className="inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 text-sm font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+              >
+                {t.titulo}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
-      {/* Llamado de marca: granate profundo, con `sobre-oscuro` para que el foco pase a maíz. */}
-      <div className="sobre-oscuro rounded-2xl bg-granate-deep p-6 text-paper">
-        <h2 className="font-display text-xl font-bold text-balance">¿Eres periodista, fiscal o auditor?</h2>
-        <p className="mt-2 text-sm leading-relaxed text-paper/75">
-          Cada dictamen publicado cita la norma, enlaza la fuente oficial y muestra la traza del análisis, listo para verificar.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/app/auditoria" className="inline-flex min-h-[44px] items-center rounded-full bg-paper px-5 py-2 text-sm font-semibold text-granate transition-colors duration-rapido hover:bg-maiz-soft">
-            Ver la auditoría en vivo
-          </Link>
-          {/* TODO(contacto): reemplazar cuando exista un correo del equipo */}
-          <a
-            href={CONTACTO}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-[44px] items-center rounded-full border border-paper/40 px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
-          >
-            Escríbenos (GitHub)
-          </a>
-        </div>
+      <div className="grid items-start gap-8 xl:grid-cols-2 xl:gap-10">
+        {COLUMNAS.map((columna, i) => (
+          <div key={i} className="min-w-0 space-y-8">
+            {columna.map((t) => (
+              <TemaPreguntas key={t.id} tema={t} />
+            ))}
+          </div>
+        ))}
       </div>
+
+      {/* Llamado de marca en una franja baja: granate profundo, con `sobre-oscuro`
+          para que el foco pase a maíz. */}
+      <section
+        aria-labelledby="para-periodistas"
+        className="sobre-oscuro flex flex-col gap-4 rounded-2xl bg-granate-deep p-5 text-paper sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8"
+      >
+        <div className="min-w-0">
+          <h2 id="para-periodistas" className="font-display text-lg font-bold text-balance">
+            ¿Eres periodista, fiscal o auditor?
+          </h2>
+          <p className="mt-1 text-sm leading-snug text-paper/75 text-pretty">
+            Cada señal publicada trae la regla que la disparó, la norma que cita y la evidencia del expediente.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-3">
+          <EnlaceAccion href="/app/hallazgos" variante="oscuro" flecha>
+            Ver las señales
+          </EnlaceAccion>
+          <EnlaceAccion href="/app/auditoria?seccion=leidos" variante="contornoOscuro">
+            Ver los contratos ya leídos
+          </EnlaceAccion>
+        </div>
+      </section>
     </Pagina>
   );
 }

@@ -17,7 +17,7 @@ import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
-import { contarLeidos, elegirCasos, type AlertaReal, type AnioEscala, type CasoPortada, type TipoEscala } from "@/lib/landing";
+import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal, type TipoEscala } from "@/lib/landing";
 import { reglaLabel } from "@/lib/auditoria";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
@@ -96,6 +96,7 @@ export default async function LandingPage() {
 
   const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
   const reglaCaso = casoPrincipal ? reglaDelCaso(alertas, casoPrincipal) : null;
+  const otrasDelCaso = casoPrincipal ? otrasSenalesDelCaso(alertas, casoPrincipal, reglaCaso) : [];
 
   return (
     <>
@@ -112,7 +113,7 @@ export default async function LandingPage() {
         />
       )}
 
-      {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} />}
+      {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
 
       <PipelineAgentes />
 
@@ -150,6 +151,26 @@ function reglaDelCaso(alertas: AlertaReal[], caso: CasoPortada): string | null {
   const alerta = alertas.find((a) => a.codigoconvocatoria === caso.convocatoria && (a.codigo ?? "") === caso.codigo);
   const bandera = alerta?.banderas?.find((b) => b.evidencia && clave(b.evidencia) === buscada);
   return bandera ? reglaLabel(bandera.regla) : null;
+}
+
+/**
+ * Las otras señales de proceso del contrato de portada, sólo por su nombre ("Procedimiento
+ * no competitivo"), sin repetir la que ya se muestra. Las que hablan de personas o las que
+ * redacta un modelo leyendo el PDF no se nombran acá: quedan contadas en "otrasSenales".
+ */
+function otrasSenalesDelCaso(alertas: AlertaReal[], caso: CasoPortada, reglaMostrada: string | null): OtraSenal[] {
+  const alerta = alertas.find((a) => a.codigoconvocatoria === caso.convocatoria && (a.codigo ?? "") === caso.codigo);
+  const vistas = new Set<string>(reglaMostrada ? [reglaMostrada] : []);
+  const otras: OtraSenal[] = [];
+  for (const b of alerta?.banderas ?? []) {
+    if (!esReglaDeProceso(b.regla)) continue;
+    const etiqueta = reglaLabel(b.regla);
+    if (vistas.has(etiqueta)) continue;
+    vistas.add(etiqueta);
+    const severidad = b.severidad === "alta" || b.severidad === "media" || b.severidad === "baja" ? b.severidad : "media";
+    otras.push({ etiqueta, severidad });
+  }
+  return otras;
 }
 
 /** Los cuatro tipos con cajita propia, en palabras de persona. El resto va en "Convenios y otros". */

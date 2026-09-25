@@ -11,32 +11,40 @@
  * comparación honesta que existe en el producto (lo que aporta un ciudadano por una lectura).
  */
 
+import { useMemo } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Eye } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
-
-const EVALS: { n: string; label: string; d: string }[] = [
-  { n: "respaldo_de_bandera", label: "Respaldo de bandera", d: "¿la bandera está respaldada por datos verificables (RUC, monto, fecha, artículo)?" },
-  { n: "cita_evidencia", label: "Cita de evidencia", d: "¿cada bandera cita norma + fuente oficial (SEACE/OECE)?" },
-  { n: "plausibilidad_precio", label: "Plausibilidad de precio", d: "¿el sobreprecio se sostiene con la mediana de mercado?" },
-  { n: "coherencia_objeto_items", label: "Coherencia objeto ↔ ítems", d: "¿los ítems analizados pertenecen al objeto de la convocatoria?" },
-  { n: "tono_no_acusatorio", label: "Tono no acusatorio", d: "¿el dictamen usa 'señal de riesgo' y nunca acusa de delito?" },
-  { n: "completitud_analisis", label: "Completitud del análisis", d: "¿corrieron todas las etapas (docs, mercado, red, dictamen, banderas)?" },
-  { n: "cobertura_prensa", label: "Cobertura de prensa", d: "¿el agente de prensa devolvió cobertura estructurada (noticias o 'sin menciones'), no vacío?" },
-  { n: "firmantes_plausibles", label: "Firmantes plausibles", d: "¿los firmantes son reales, no placeholders de plantilla ('POSTOR N' sin DNI)?" },
-];
+// Los ocho evaluadores: el mismo catálogo que los "Controles de calidad" del informe.
+import { EVALS } from "../traza/evaluadores";
+import { ProveedorSensibles, TextoSeguro, sensiblesDeTraza } from "../traza/redaccion";
 
 const num = (n: any): string => numero(typeof n === "number" ? n : null);
 
-export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?: any[]; metrics?: any }) {
+export function ObservabilidadPanel({
+  liveEvents = [],
+  metrics,
+  enCurso = false,
+}: {
+  liveEvents?: any[];
+  metrics?: any;
+  /**
+   * El análisis está corriendo ahora (LoadingView). "En vivo" sale de acá y no de que haya
+   * eventos de métricas: la traza guardada de un análisis cerrado también los trae, y el panel
+   * decía "en vivo" sobre informes terminados.
+   */
+  enCurso?: boolean;
+}) {
   let liveM: any = null;
   for (let i = liveEvents.length - 1; i >= 0; i--) {
     if (liveEvents[i]?.kind === "metrics") { liveM = liveEvents[i]; break; }
   }
-  const live = !!liveM;
+  const live = enCurso;
+  // Las notas de los evaluadores pueden nombrar personas: misma redacción que la traza.
+  const sensibles = useMemo(() => sensiblesDeTraza(liveEvents), [liveEvents]);
   const m = liveM || metrics || null; // resultado: usa métricas persistidas (llm_metrics)
   const hasM = !!m;
 
@@ -66,6 +74,7 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
   };
 
   return (
+    <ProveedorSensibles valor={sensibles}>
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
       <header className="sobre-oscuro flex flex-wrap items-center justify-between gap-2 border-b border-line bg-ink px-4 py-3 text-paper sm:px-5">
         <div className="flex items-center gap-2">
@@ -113,10 +122,14 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
                   <p className="text-[12.5px] font-medium text-ink">{e.label}</p>
                   <p className="mt-0.5 text-[11.5px] leading-snug text-mute">{ev?.pregunta || e.d}</p>
                   {ev?.reason && (
-                    <p className="mt-1 border-l-2 border-line pl-2 text-[11px] italic leading-snug text-mute">{ev.reason}</p>
+                    <p className="mt-1 border-l-2 border-line pl-2 text-[11px] italic leading-snug text-mute">
+                      <TextoSeguro texto={String(ev.reason)} />
+                    </p>
                   )}
                   {Array.isArray(ev?.faltantes) && ev.faltantes.length > 0 && (
-                    <p className="mt-1 text-[11px] font-medium text-crimsonTexto">faltó: {ev.faltantes.join(", ")}</p>
+                    <p className="mt-1 text-[11px] font-medium text-crimsonTexto">
+                      faltó: <TextoSeguro texto={ev.faltantes.join(", ")} />
+                    </p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -175,5 +188,6 @@ export function ObservabilidadPanel({ liveEvents = [], metrics }: { liveEvents?:
         )}
       </div>
     </section>
+    </ProveedorSensibles>
   );
 }

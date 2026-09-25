@@ -240,7 +240,7 @@ export const RESULTADOS: Resultado[] = [
     clave: "senales",
     nombre: "Señales de riesgo",
     que: "Alertas con su evidencia: proveedor inhabilitado, postor único, fraccionamiento, postores que comparten socios, visitas antes de la convocatoria, aportes a la campaña de la autoridad.",
-    donde: { texto: "Ver las señales", href: "/app/alertas" },
+    donde: { texto: "Ver las señales", href: "/app/hallazgos" },
   },
   {
     clave: "informe",
@@ -262,5 +262,5 @@ export const NORMA: Norma[] = [
   { sigla: "Ley 32069", nombre: "Normas vigentes", aporta: "La ley, su reglamento y las bases estándar." },
   { sigla: "Ley 30225", nombre: "Normas históricas", aporta: "La ley anterior y su reglamento: un contrato de 2023 se juzga con la ley de 2023." },
   { sigla: "OECE", nombre: "Criterios vinculantes", aporta: "Acuerdos de Sala Plena y opiniones de su Dirección Técnico Normativa." },
-  { sigla: "Contraloría", nombre: "Control", aporta: "Las directivas de control que la Contraloría publica.", url: "https://apps.contraloria.gob.pe/ciudadano/" },
+  { sigla: "Contraloría", nombre: "Control", aporta: "Las directivas de control que la Contraloría publica.", url: "https://www.gob.pe/institucion/contraloria/normas-legales" },
 ];

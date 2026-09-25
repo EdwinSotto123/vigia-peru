@@ -33,8 +33,7 @@ import { CausalDirectaSection } from "./CausalDirectaSection";
 import { NoticiasSection } from "./NoticiasSection";
 import { AnalisisPostoresSection } from "./AnalisisPostoresSection";
 import { CollapsibleSection } from "./CollapsibleSection";
-import { ObservabilidadPanel } from "./ObservabilidadPanel";
-import { AgentTraceSection } from "./AgentTraceSection";
+import { TrazaAnalisis } from "../traza/TrazaAnalisis";
 import { FirmantesYAdjudicacionSection } from "./FirmantesYAdjudicacionSection";
 import { PersonNetworkSection } from "./PersonNetworkSection";
 import { SeccionSegura } from "./SeccionSegura";
@@ -344,22 +343,16 @@ function PanelPrensa({ result }: PanelDossierProps) {
 // ─── Cómo se hizo: aquí sí va el vocabulario técnico (agentes, trazas, evaluadores) ───
 
 function PanelComoSeHizo({ result, nEvents }: PanelDossierProps) {
-  const total = Number(result.timing?.total_s);
+  if (nEvents === 0) {
+    return (
+      <AvisoSeccion titulo="Este análisis no guardó su traza paso a paso">
+        Fue procesado antes de que la traza se guardara con el dossier. Las señales y el dictamen sí quedaron.
+      </AvisoSeccion>
+    );
+  }
   return (
-    <div className="space-y-5">
-      <SeccionSegura nombre="la observabilidad">
-        <ObservabilidadPanel liveEvents={result.agent_trace || []} metrics={result.llm_metrics} />
-      </SeccionSegura>
-      {nEvents > 0 ? (
-        <SeccionSegura nombre="la traza de agentes">
-          <AgentTraceSection trace={result.agent_trace!} />
-        </SeccionSegura>
-      ) : (
-        <AvisoSeccion titulo="Este análisis no guardó su traza paso a paso">
-          Fue procesado antes de que la traza se guardara con el dossier. Las señales y el dictamen sí quedaron.
-        </AvisoSeccion>
-      )}
-      {total > 0 && <p className="text-[12px] text-mute">Duración de esta corrida: {Math.round(total)} segundos.</p>}
-    </div>
+    <SeccionSegura nombre="la traza del análisis">
+      <TrazaAnalisis result={result} />
+    </SeccionSegura>
   );
 }

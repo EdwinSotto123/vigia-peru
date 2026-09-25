@@ -35,7 +35,7 @@ const NAV = [
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
   { href: "/app/aliados", label: "Aliados", dorado: true },
   { href: "/reporte/nuevo", label: "Denunciar" },
-  { href: "/preguntas", label: "FAQ" },
+  { href: "/preguntas", label: "Preguntas" },
 ];
 
 type Tema = "claro" | "oscuro";

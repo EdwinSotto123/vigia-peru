@@ -87,6 +87,15 @@ const MARCA_DE_ORGANIZACION =
 const nombraAUnaPersona = (texto: string) =>
   (texto.match(/(?:\b[A-ZÁÉÍÓÚÑ]{2,}\b[ ,]*){3,}/g) ?? []).some((tramo) => !MARCA_DE_ORGANIZACION.test(tramo));
 
+/** Si una regla describe el PROCESO (competencia, precios, plazos…): las únicas que la portada nombra. */
+export const esReglaDeProceso = (regla: string) => REGLAS_DE_PROCESO.test(regla);
+
+/** Otra señal del mismo contrato, sólo por su nombre: nunca su evidencia (puede nombrar personas). */
+export interface OtraSenal {
+  etiqueta: string;
+  severidad: "alta" | "media" | "baja";
+}
+
 /** La bandera más fuerte que se puede mostrar: de proceso, con evidencia legible y norma citada. */
 function mejorBandera(a: AlertaReal): BanderaReal | null {
   const legibles = (a.banderas ?? []).filter(

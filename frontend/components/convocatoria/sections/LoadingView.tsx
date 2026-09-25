@@ -70,7 +70,7 @@ export function LoadingView({
         />
         {barra}
         <FlowGraph liveEvents={liveEvents} />
-        <ObservabilidadPanel liveEvents={liveEvents} />
+        <ObservabilidadPanel liveEvents={liveEvents} enCurso />
         {liveEvents.length > 0 && <LiveTracePanel events={liveEvents} />}
       </CuerpoDetalle>
     );
@@ -118,7 +118,7 @@ export function LoadingView({
         </div>
 
         <div className="mt-5">
-          <ObservabilidadPanel liveEvents={liveEvents} />
+          <ObservabilidadPanel liveEvents={liveEvents} enCurso />
         </div>
       </div>
 

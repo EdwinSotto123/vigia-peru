@@ -1,15 +1,22 @@
 "use client";
 
 /**
- * Una línea de la traza técnica: una llamada a herramienta, su respuesta, una delegación, un
- * razonamiento o un error.
+ * Una línea de la traza en vivo: una llamada a herramienta, su respuesta, una delegación, un
+ * razonamiento o un error (la usa LiveTracePanel).
  *
- * Tres cosas cambiaron respecto de la versión anterior:
- *  · la fila expandible es un `<button>` de verdad (era un `div` con onClick: invisible para el
- *    teclado, que es justamente el usuario que audita este panel);
- *  · "▶ ver" / "▼ ocultar" / "ⓘ" eran caracteres haciendo de íconos — ahora son lucide;
+ *  · la fila expandible es un `<button>` de verdad (teclado incluido);
  *  · la explicación de la herramienta vive en un <Popover> del top layer, así no la recorta el
- *    contenedor con scroll en el que este panel siempre está metido.
+ *    contenedor con scroll en el que este panel siempre está metido;
+ *  · todo lo que viene de la traza (argumentos, respuestas, razonamientos, errores y el dato
+ *    crudo desplegado) pasa por la redacción de `traza/redaccion`: DNI, carné, RUC de persona
+ *    natural, correos y apellidos de personas privadas en vidrio. Antes el dato crudo se pintaba
+ *    tal cual. Lo que se copia al portapapeles sale tapado: copiar no es revelar.
+ *
+ * Lo que va dentro de la fila (que es un botón) se tapa con puntos, sin vidrio: un vidrio clicable
+ * sería un control dentro de otro. El vidrio revelable queda en el dato crudo desplegado.
+ *
+ * Necesita un `ProveedorSensibles` arriba (lo pone LiveTracePanel); sin él, igual tapa DNIs,
+ * RUC de persona natural y los nombres que registró el informe.
  */
 
 import { useState } from "react";
@@ -19,24 +26,35 @@ import { cn } from "@/lib/utils";
 import type { AgentTraceEvent } from "../types";
 import { TOOL_INFO } from "../constants";
 import { nombreDeAgente } from "@/components/agentes/catalogo";
+import { TextoSeguro, useTaparTexto } from "../traza/redaccion";
 
-function linkify(text: string): React.ReactNode {
-  const parts = String(text || "").split(/(https?:\/\/[^\s"'<>)\]]+)/g);
-  return parts.map((p, i) =>
-    /^https?:\/\//.test(p) ? (
-      <a
-        key={i}
-        href={p}
-        target="_blank"
-        rel="noreferrer"
-        className="break-all text-granate underline decoration-granate/40 hover:text-granate-deep"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {p}
-      </a>
-    ) : (
-      <span key={i}>{p}</span>
-    ),
+/**
+ * El dato crudo con sus enlaces clicables. Un enlace que lleva un número de 8 dígitos o más
+ * (un DNI en la consulta, por ejemplo) no se enlaza: se muestra tapado como el resto del texto.
+ */
+function DatoCrudo({ texto }: { texto: string }) {
+  const partes = String(texto || "").split(/(https?:\/\/[^\s"'<>)\]]+)/g);
+  return (
+    <>
+      {partes.map((p, i) =>
+        /^https?:\/\//.test(p) && !/\d{8,}/.test(p) ? (
+          <a
+            key={i}
+            href={p}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all text-granate underline decoration-granate/40 hover:text-granate-deep"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p}
+          </a>
+        ) : (
+          <span key={i}>
+            <TextoSeguro texto={p} />
+          </span>
+        ),
+      )}
+    </>
   );
 }
 
@@ -46,6 +64,14 @@ const KIND_LABEL: Record<string, string> = {
   transfer: "delega",
   thought: "razona",
   error: "error",
+};
+
+const safeJson = (v: any) => {
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
 };
 
 export function AgentTraceRow({
@@ -59,18 +85,11 @@ export function AgentTraceRow({
   mostrarAgente?: boolean;
 }) {
   const [expandido, setExpandido] = useState(false);
+  const tapar = useTaparTexto();
 
   let preview: React.ReactNode = null;
   let payload: string | null = null;
   let hayMas = false;
-
-  const safeJson = (v: any) => {
-    try {
-      return JSON.stringify(v, null, 2);
-    } catch {
-      return String(v);
-    }
-  };
 
   if (ev.kind === "tool_call") {
     const argsStr = safeJson(ev.args || {});
@@ -85,10 +104,13 @@ export function AgentTraceRow({
             {i > 0 && <span className="text-mute">, </span>}
             <span className="text-mute">{k}=</span>
             <span className="font-mono text-inkSoft">
-              {(() => {
-                const s = JSON.stringify(v);
-                return s && s.length > 140 ? s.slice(0, 140) + "…" : s;
-              })()}
+              <TextoSeguro
+                plano
+                texto={(() => {
+                  const s = JSON.stringify(v) ?? "";
+                  return s.length > 140 ? s.slice(0, 140) + "…" : s;
+                })()}
+              />
             </span>
           </span>
         ))}
@@ -106,7 +128,7 @@ export function AgentTraceRow({
         <span className="font-mono text-[12.5px] text-mute">{ev.name}</span>
         <span className="text-[11px] text-mute"> → </span>
         <span className="font-mono text-[11.5px] text-ink">
-          {keys.length > 0 ? `{ ${keys.join(", ")} }` : String(JSON.stringify(result) ?? "").slice(0, 100)}
+          <TextoSeguro plano texto={keys.length > 0 ? `{ ${keys.join(", ")} }` : String(JSON.stringify(result) ?? "").slice(0, 100)} />
         </span>
       </>
     );
@@ -118,7 +140,8 @@ export function AgentTraceRow({
     payload = t;
     preview = (
       <span className="text-[12px] italic text-inkSoft">
-        &quot;{t.slice(0, 200)}
+        &quot;
+        <TextoSeguro plano texto={t.slice(0, 200)} />
         {hayMas ? "…" : ""}&quot;
       </span>
     );
@@ -127,7 +150,7 @@ export function AgentTraceRow({
     hayMas = (ev.detail || "").length > 200;
     preview = (
       <span className="text-[12px] text-crimsonTexto">
-        {(ev.detail || "").slice(0, 200)}
+        <TextoSeguro plano texto={(ev.detail || "").slice(0, 200)} />
         {hayMas ? "…" : ""}
       </span>
     );
@@ -207,13 +230,13 @@ export function AgentTraceRow({
             <button
               type="button"
               className="rounded text-[11px] font-medium text-granate transition-colors duration-rapido hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
-              onClick={() => navigator.clipboard?.writeText(payload || "")}
+              onClick={() => navigator.clipboard?.writeText(tapar(payload || ""))}
             >
               copiar
             </button>
           </div>
           <pre className="scrollbar-warm max-h-[400px] overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-relaxed text-ink">
-            {linkify(payload)}
+            <DatoCrudo texto={payload} />
           </pre>
         </div>
       )}
