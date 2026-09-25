@@ -2,6 +2,8 @@
 
 /** Cliente del panel admin: todo pasa por /api/admin/* (cookie httpOnly → API). */
 
+import type { RedSocial } from "@/components/aliados/perfil";
+
 export class AdminError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -56,6 +58,36 @@ export interface ContribucionAdmin {
   financiadorId: number; tipo: string; nombrePublico: string | null; ruc: string | null; email: string; visible: boolean; motivoNoVisible: string | null;
   asignados: number; procesados: number;
 }
+
+// ─── Financiadores (GET /admin/financiadores · PATCH /admin/financiadores/:id) ──
+
+/**
+ * Lo que el aliado publica en su perfil (/aliado/<slug>, migración 30). `emailPublico` es el correo
+ * de CONTACTO que eligió mostrar; `email` (en FinanciadorAdmin) es el del pago y es privado.
+ */
+export interface PerfilAliadoAdmin {
+  descripcion: string | null;
+  sitioWeb: string | null;
+  emailPublico: string | null;
+  redes: Partial<Record<RedSocial, string>>;
+  portadaUrl: string | null;
+}
+
+export interface FinanciadorAdmin extends PerfilAliadoAdmin {
+  id: number; tipo: string; nombrePublico: string | null; slug: string | null; ruc: string | null; email: string; logoUrl: string | null;
+  visible: boolean; motivoNoVisible: string | null; createdAt: string; aportes: number; contratosFinanciados: number; montoPen: number;
+  sancionVigente: boolean; alertasActivas: boolean;
+}
+
+/** `perfil: false` = la base todavía no tiene las columnas (migración 30 sin aplicar): no se puede editar. */
+export interface FinanciadoresRespuesta { data: FinanciadorAdmin[]; perfil?: boolean }
+
+/** Cambios del perfil: sólo lo que cambió; "" borra el dato (en `redes`, borra esa red). */
+export type CambiosPerfilAliado = Partial<Omit<PerfilAliadoAdmin, "redes">> & { redes?: Partial<Record<RedSocial, string>> };
+
+/** Guarda el perfil público. Un 400 o 503 trae en el mensaje qué pasó, en palabras (dato inválido, falta la migración). */
+export const editarPerfilAliado = (id: number, cambios: CambiosPerfilAliado) =>
+  adminFetch<{ ok: true }>(`/financiadores/${id}`, { method: "PATCH", body: JSON.stringify(cambios) });
 
 export interface PagosConfig {
   yape: { numero: string; titular: string; qr_url: string };

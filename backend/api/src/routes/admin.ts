@@ -11,8 +11,9 @@
  *   POST  /admin/contribuciones/:codigo/validar        → pagada + asignación FIFO
  *   POST  /admin/contribuciones/:codigo/rechazar       {motivo}
  *   PATCH /admin/contribuciones/:codigo                {notaAdmin}
- *   GET   /admin/financiadores
- *   PATCH /admin/financiadores/:id                     {visible, motivoNoVisible, nombrePublico, logoUrl}
+ *   GET   /admin/financiadores                         (+ perfil público y `perfil`: ¿está la migración 30?)
+ *   PATCH /admin/financiadores/:id                     {visible, motivoNoVisible, nombrePublico, logoUrl,
+ *                                                       descripcion, sitioWeb, emailPublico, portadaUrl, redes}
  *   GET   /admin/config/pagos · PUT /admin/config/pagos
  *   GET   /admin/log                                   (revisor: sin plata, configuración ni equipo)
  *   POST  /admin/asignar                               re-asigna abiertas + refresh (lo llama Cloud Scheduler)
@@ -35,7 +36,10 @@ import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
 import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
-import { alcanceORespaldo } from "./financiamiento.js";
+import {
+  alcanceORespaldo, CLAVES_RED, columnaAusente, conPerfilAliado, CORREO_PUBLICO, enlaceDeRed, perfilAliadoDisponible,
+  REDES_ALIADO, urlHttps, type RedAliado,
+} from "./financiamiento.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
@@ -222,38 +226,175 @@ adminRouter.patch("/contribuciones/:codigo", async (c) => {
 });
 
 // ─── Financiadores ───────────────────────────────────────────────────────────
+// Perfil público (migración 30): descripción, web, correo de CONTACTO (`email_publico`; `email` es el
+// del pago), redes y portada. Sin las columnas, la lista sale con el perfil vacío y `perfil: false`
+// (el panel avisa y no deja editarlo) y un PATCH que lo toca responde 503 en palabras, no un 500.
+const COLS_PERFIL_ADMIN = `f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.redes, f.portada_url AS "portadaUrl"`;
+const COLS_PERFIL_VACIO = `NULL::text AS descripcion, NULL::text AS "sitioWeb", NULL::text AS "emailPublico", '{}'::jsonb AS redes, NULL::text AS "portadaUrl"`;
+
 adminRouter.get("/financiadores", async (c) => {
-  const r = await pool.query(
+  const { valor: r, perfil } = await conPerfilAliado((conPerfil) => pool.query(
     `SELECT f.id, f.tipo, f.nombre_publico AS "nombrePublico", f.slug, f.ruc, f.email, f.logo_url AS "logoUrl", f.visible, f.motivo_no_visible AS "motivoNoVisible", f.created_at AS "createdAt",
+            ${conPerfil ? COLS_PERFIL_ADMIN : COLS_PERFIL_VACIO},
             (SELECT count(*) FROM contribuciones co WHERE co.financiador_id = f.id)::int AS aportes,
             (SELECT COALESCE(sum(contratos),0) FROM contribuciones co WHERE co.financiador_id = f.id AND co.estado IN ('pagada','en_proceso','procesada'))::int AS "contratosFinanciados",
             (SELECT COALESCE(sum(monto_pen),0) FROM contribuciones co WHERE co.financiador_id = f.id AND co.estado IN ('pagada','en_proceso','procesada'))::float AS "montoPen",
             EXISTS (SELECT 1 FROM osce_sancionados s WHERE s.ruc = f.ruc AND (s.fecha_hasta IS NULL OR s.fecha_hasta >= current_date)) AS "sancionVigente",
             EXISTS (SELECT 1 FROM alertas a WHERE a.proveedor_ruc = f.ruc AND a.estado = 'activa') AS "alertasActivas"
-     FROM financiadores f ORDER BY f.created_at DESC LIMIT 500`);
-  return c.json({ data: r.rows });
+     FROM financiadores f ORDER BY f.created_at DESC LIMIT 500`));
+  return c.json({ data: r.rows, perfil });
 });
+
+const SIN_MIGRACION_30 = {
+  error: "sin_migracion",
+  detail: "El perfil público todavía no se puede guardar: falta aplicar la migración 30 (perfil del aliado) en la base. Nombre, logo y visibilidad sí se pueden cambiar.",
+};
+
+// Perfil: campo ausente = no se toca; "" = se borra. Estos topes son del texto crudo; la regla fina
+// (280 caracteres, https, dominio de cada red) va en perfilDelCuerpo.
+const Enlace = z.string().max(500).optional();
+const FinanciadorPatch = z.object({
+  visible: z.boolean().optional(),
+  motivoNoVisible: z.string().max(200).nullable().optional(),
+  nombrePublico: z.string().max(80).nullable().optional(),
+  logoUrl: z.string().url().nullable().optional(),
+  descripcion: z.string().max(1000).optional(),
+  sitioWeb: Enlace,
+  emailPublico: z.string().max(254).optional(),
+  portadaUrl: Enlace,
+  redes: z.object({ facebook: Enlace, instagram: Enlace, linkedin: Enlace, x: Enlace, tiktok: Enlace, youtube: Enlace }).strict().optional(),
+});
+type FinanciadorPatch = z.infer<typeof FinanciadorPatch>;
+
+/** Campo del API → columna de `financiadores` (lista cerrada: es lo único que entra en el SET). */
+const COL_PERFIL = { descripcion: "descripcion", sitioWeb: "sitio_web", emailPublico: "email_publico", portadaUrl: "portada_url" } as const;
+type CampoPerfil = keyof typeof COL_PERFIL;
+interface CambiosPerfil {
+  campos: Partial<Record<CampoPerfil, string | null>>;
+  poner: Partial<Record<RedAliado, string>>;
+  quitar: RedAliado[];
+}
+
+/** El primer problema del cuerpo, en palabras: el panel lo muestra tal cual. */
+function problemaDeZod(e: z.ZodError): string {
+  const i = e.issues[0];
+  const campo = String(i?.path[0] ?? "");
+  if (campo === "redes") {
+    return i.code === "unrecognized_keys"
+      ? `Sólo se aceptan estas redes: ${CLAVES_RED.map((r) => REDES_ALIADO[r].nombre).join(", ")}.`
+      : "Cada red va como un enlace de hasta 500 caracteres.";
+  }
+  if (campo === "descripcion") return "La descripción es demasiado larga: el máximo es 280 caracteres.";
+  if (campo === "emailPublico") return "El correo de contacto no es válido.";
+  if (campo === "sitioWeb" || campo === "portadaUrl" || campo === "logoUrl") return "Ese enlace no es válido.";
+  return "Los datos no se aceptaron: revisa lo que ingresaste.";
+}
+
+/** Valida y normaliza el perfil del cuerpo (las mismas reglas que los CHECK de la 30). Error = texto. */
+function perfilDelCuerpo(b: FinanciadorPatch): CambiosPerfil | string {
+  const campos: CambiosPerfil["campos"] = {};
+  if (b.descripcion !== undefined) {
+    // Una línea: la cabecera del perfil es un párrafo corto. Caracteres como char_length() del CHECK.
+    const d = b.descripcion.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+    const n = [...d].length;
+    if (n > 280) return `La descripción tiene ${n} caracteres: el máximo es 280.`;
+    campos.descripcion = d || null;
+  }
+  for (const [campo, nombre] of [["sitioWeb", "La web"], ["portadaUrl", "La imagen de portada"]] as const) {
+    const v = b[campo]?.trim();
+    if (v === undefined) continue;
+    const href = v ? urlHttps(v) : null;
+    if (v && !href) return `${nombre} tiene que ser un enlace completo que empiece con https:// (por ejemplo https://empresa.pe).`;
+    campos[campo] = href;
+  }
+  if (b.emailPublico !== undefined) {
+    const v = b.emailPublico.trim().toLowerCase();
+    if (v && !(CORREO_PUBLICO.test(v) && z.string().email().safeParse(v).success)) return "El correo de contacto no es válido.";
+    campos.emailPublico = v || null;
+  }
+  const poner: CambiosPerfil["poner"] = {};
+  const quitar: RedAliado[] = [];
+  for (const red of CLAVES_RED) {
+    const v = b.redes?.[red]?.trim();
+    if (v === undefined) continue;
+    if (!v) { quitar.push(red); continue; }
+    const href = enlaceDeRed(red, v);
+    if (!href) {
+      const { nombre, dominios } = REDES_ALIADO[red];
+      return `El enlace de ${nombre} tiene que empezar con https:// y ser de ${dominios.join(" o ")}, con la página del aliado (no la portada de la red).`;
+    }
+    poner[red] = href;
+  }
+  return { campos, poner, quitar };
+}
 
 adminRouter.patch("/financiadores/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const body = z.object({
-    visible: z.boolean().optional(),
-    motivoNoVisible: z.string().max(200).nullable().optional(),
-    nombrePublico: z.string().max(80).nullable().optional(),
-    logoUrl: z.string().url().nullable().optional(),
-  }).safeParse(await c.req.json().catch(() => null));
-  if (!body.success || !Number.isFinite(id)) return c.json({ error: "invalid_body" }, 400);
+  const body = FinanciadorPatch.safeParse(await c.req.json().catch(() => null));
+  if (!Number.isSafeInteger(id) || id <= 0) return c.json({ error: "invalid_body" }, 400);
+  if (!body.success) return c.json({ error: "invalid_body", detail: problemaDeZod(body.error) }, 400);
   const b = body.data;
-  await pool.query(
-    `UPDATE financiadores SET
-       visible = COALESCE($2, visible),
-       motivo_no_visible = CASE WHEN $2 IS TRUE THEN NULL ELSE COALESCE($3, motivo_no_visible) END,
-       nombre_publico = COALESCE($4, nombre_publico),
-       logo_url = COALESCE($5, logo_url)
-     WHERE id = $1`,
-    [id, b.visible ?? null, b.motivoNoVisible ?? null, b.nombrePublico ?? null, b.logoUrl ?? null]);
-  await pool.query("SELECT refresh_financiamiento()");
-  await log(actor(c), "editar_financiador", `financiador:${id}`, b);
+  const perfil = perfilDelCuerpo(b);
+  if (typeof perfil === "string") return c.json({ error: "datos_invalidos", detail: perfil }, 400);
+  const tocaRedes = Object.keys(perfil.poner).length > 0 || perfil.quitar.length > 0;
+  const tocaPerfil = tocaRedes || Object.keys(perfil.campos).length > 0;
+  if (tocaPerfil && !(await perfilAliadoDisponible())) return c.json(SIN_MIGRACION_30, 503);
+
+  // Nombre, logo y visibilidad como siempre (null o ausente = se mantiene); del perfil, sólo lo que llegó.
+  const vals: unknown[] = [id, b.visible ?? null, b.motivoNoVisible ?? null, b.nombrePublico ?? null, b.logoUrl ?? null];
+  const sets = [
+    "visible = COALESCE($2, visible)",
+    "motivo_no_visible = CASE WHEN $2 IS TRUE THEN NULL ELSE COALESCE($3, motivo_no_visible) END",
+    "nombre_publico = COALESCE($4, nombre_publico)",
+    "logo_url = COALESCE($5, logo_url)",
+  ];
+  for (const [campo, v] of Object.entries(perfil.campos) as [CampoPerfil, string | null][]) {
+    vals.push(v);
+    sets.push(`${COL_PERFIL[campo]} = $${vals.length}`);
+  }
+  if (tocaRedes) {
+    vals.push(JSON.stringify(perfil.poner), perfil.quitar);
+    sets.push(`redes = (redes || $${vals.length - 1}::jsonb) - $${vals.length}::text[]`);
+  }
+
+  let antes: Record<string, unknown> = {};
+  try {
+    if (tocaPerfil) {
+      const a = await pool.query(`SELECT ${COLS_PERFIL_ADMIN} FROM financiadores f WHERE f.id = $1`, [id]);
+      antes = a.rows[0] ?? {};
+    }
+    const r = await pool.query(`UPDATE financiadores SET ${sets.join(", ")} WHERE id = $1 RETURNING id`, vals);
+    if (!r.rows.length) return c.json({ error: "not_found", detail: "Ese financiador ya no existe." }, 404);
+  } catch (e) {
+    if (columnaAusente(e)) return c.json(SIN_MIGRACION_30, 503);
+    // 23514 = check_violation: algo pasó la validación de acá y no la de la base.
+    if ((e as { code?: string })?.code === "23514") {
+      return c.json({ error: "datos_invalidos", detail: "La base rechazó un dato del perfil por su formato. Revisa los enlaces y el correo." }, 400);
+    }
+    throw e;
+  }
+  // El ranking y el muro leen nombre, logo y visibilidad de vistas materializadas; el perfil no está ahí.
+  if (b.visible !== undefined || b.motivoNoVisible != null || b.nombrePublico != null || b.logoUrl != null) {
+    await pool.query("SELECT refresh_financiamiento()");
+  }
+
+  // Bitácora: lo de siempre arriba (lo lee components/admin/ui/bitacora.ts) y el perfil con su valor anterior.
+  const detalle: Record<string, unknown> = {
+    visible: b.visible, motivoNoVisible: b.motivoNoVisible, nombrePublico: b.nombrePublico, logoUrl: b.logoUrl,
+  };
+  if (tocaPerfil) {
+    const redesTocadas = [...(Object.keys(perfil.poner) as RedAliado[]), ...perfil.quitar];
+    const redesAntes = (antes.redes ?? {}) as Record<string, unknown>;
+    detalle.perfil = {
+      ...perfil.campos,
+      ...(tocaRedes ? { redes: Object.fromEntries(redesTocadas.map((r) => [r, perfil.poner[r] ?? null])) } : {}),
+    };
+    detalle.perfilAntes = {
+      ...Object.fromEntries(Object.keys(perfil.campos).map((k) => [k, antes[k] ?? null])),
+      ...(tocaRedes ? { redes: Object.fromEntries(redesTocadas.map((r) => [r, redesAntes[r] ?? null])) } : {}),
+    };
+  }
+  await log(actor(c), "editar_financiador", `financiador:${id}`, detalle);
   return c.json({ ok: true });
 });
 
