@@ -1,23 +1,17 @@
 import Link from "next/link";
-import { ArrowRight, ChevronRight, ShieldQuestion } from "lucide-react";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { Revelar } from "@/components/ui/Revelar";
+import { ArrowRight, ShieldQuestion } from "lucide-react";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
-import { fechaCorta, numero, porcentaje, soles } from "@/lib/formato";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { numero, porcentaje, soles } from "@/lib/formato";
 import type { AnalisisEnRevision, RevisionMotivo } from "@/lib/revision";
 
 /**
- * "Financiados en revisión": los análisis financiados que terminaron y NO se
- * publicaron (DESIGN_SYSTEM.md §10.1 y §10.4).
+ * "Financiados en revisión" sobre la plantilla Listado (§14.1): los análisis
+ * financiados que terminaron y NO se publicaron (§10.1 y §10.4).
  *
- * Dato primero (§10.7): una fila por contrato —qué es, cuánto, cuándo y por qué
- * quedó en revisión, en chips— y el detalle de cada motivo (valor contra umbral,
- * reglas sin respaldo) a un clic, en el panel lateral. Antes cada contrato era una
- * tarjeta con el título entero, un párrafo por motivo y una barra: se leía como un
- * blog, no como una lista.
- *
- * Las columnas entran en `lg`, no en `md`: en `md` la barra lateral ya ocupa 256 px y
- * con columnas fijas el título quedaba en ~0 px.
+ * Indicadores: cuántos, de cuántos, y los motivos más frecuentes. Tabla: una fila por
+ * contrato —qué es, por qué (chips con la medida), cuánto, cuándo— y el detalle de
+ * cada motivo (valor contra umbral, reglas sin respaldo) en el panel lateral.
  *
  * §10.4: de una alerta en revisión se dice "En revisión" y el motivo, nada más —ni
  * puntaje, ni señales—. Todo sale de `GET /alertas/:codigo/revision`.
@@ -25,36 +19,39 @@ import type { AnalisisEnRevision, RevisionMotivo } from "@/lib/revision";
 
 const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
 
-/** La cifra de la vista, con su explicación a un clic. Va junto al selector de vista. */
-export function ResumenRevision({
-  n,
-  procesados,
-  publicadas,
-}: {
-  n: number;
-  /** Financiados ya leídos (el denominador). `null` si el tablero no respondió: sin fracción inventada. */
-  procesados: number | null;
-  publicadas: number;
-}) {
-  const conDenominador = procesados != null && procesados >= n;
-  return (
-    <p className="inline-flex items-center gap-1 text-[13px] tabular-nums text-inkSoft">
-      <span>
-        <strong className="font-semibold text-ink">{numero(n)}</strong>
-        {conDenominador ? ` de ${numero(procesados)} financiados leídos` : " financiados"} en revisión
-      </span>
-      <Ayuda titulo="¿Por qué están en revisión?">
-        <span className="block">
-          El análisis terminó, pero la autoevaluación no alcanzó el umbral para publicarlo. Una persona lo revisa y decide
-          publicar o descartar; mientras tanto no cuenta como señal hallada.
-        </span>
-        <span className="block mt-2 text-mute">
-          Se muestran a propósito: las {numero(publicadas)} señales publicadas sólo significan algo si se sabe qué quedó
-          fuera y por qué.
-        </span>
-      </Ayuda>
-    </p>
-  );
+const COLUMNAS: Columna[] = [
+  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.4fr)" },
+  { clave: "motivo", titulo: "Por qué está en revisión", ancho: "minmax(0,1fr)", desde: "md" },
+  { clave: "valor", titulo: "Valor referencial", ancho: "124px", alinear: "der", desde: "lg" },
+  { clave: "leido", titulo: "Leído", ancho: "80px", desde: "lg" },
+];
+
+/** Las cifras de la vista: el total con su denominador y los motivos que más frenan. */
+export function indicadoresRevision(items: AnalisisEnRevision[], procesados: number | null, publicadas: number): Indicador[] {
+  const porMotivo = new Map<string, number>();
+  for (const it of items) for (const m of it.revision?.motivos ?? []) porMotivo.set(m.titulo, (porMotivo.get(m.titulo) ?? 0) + 1);
+  const top = [...porMotivo.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const conDenominador = procesados != null && procesados >= items.length;
+  return [
+    {
+      valor: numero(items.length),
+      etiqueta: "financiados en revisión",
+      contexto: conDenominador ? `de ${numero(procesados)} financiados leídos` : undefined,
+      ayuda: (
+        <Ayuda titulo="¿Por qué están en revisión?">
+          <span className="block">
+            El análisis terminó, pero la autoevaluación no alcanzó el umbral para publicarlo. Una persona lo revisa y
+            decide publicar o descartar; mientras tanto no cuenta como señal hallada.
+          </span>
+          <span className="mt-2 block text-mute">
+            Se muestran a propósito: las {numero(publicadas)} señales publicadas sólo significan algo si se sabe qué
+            quedó fuera y por qué.
+          </span>
+        </Ayuda>
+      ),
+    },
+    ...top.map(([titulo, n]) => ({ valor: numero(n), etiqueta: titulo, contexto: `de ${numero(items.length)} en revisión` })),
+  ];
 }
 
 export function EnRevision({ items }: { items: AnalisisEnRevision[] }) {
@@ -65,84 +62,56 @@ export function EnRevision({ items }: { items: AnalisisEnRevision[] }) {
       </EstadoVacio>
     );
   }
-  return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <div
-        className="hidden grid-cols-[minmax(0,1fr)_128px_88px_minmax(0,300px)_20px] items-center gap-4 border-b border-line bg-paperSoft px-4 py-2 text-[11px] font-semibold text-mute lg:grid"
-        aria-hidden
-      >
-        <span>Contrato</span>
-        <span className="text-right">Valor referencial</span>
-        <span>Leído</span>
-        <span>Motivo</span>
-        <span />
-      </div>
-      <ul>
-        {items.map((item) => (
-          <li key={item.procesamiento.ocid} className="border-b border-line/70 last:border-b-0">
-            <Fila item={item} />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  const filas: Fila[] = items.map(({ procesamiento: p, revision }) => {
+    const motivos = revision?.motivos ?? [];
+    const titulo = p.titulo ?? "Contrato sin título en el registro";
+    return {
+      id: p.ocid,
+      celdas: {
+        contrato: <CeldaPrincipal titulo={titulo} meta={`${p.entidad ?? "Entidad no registrada"} · ${p.zona}`} />,
+        motivo: (
+          <span className="flex min-w-0 flex-wrap gap-1.5">
+            {motivos.length === 0 ? (
+              <span className="pill border-dashed border-line text-mute">Motivo sin leer</span>
+            ) : (
+              motivos.map((m) => (
+                <span key={m.clave} className="pill border-line bg-paperSoft text-inkSoft">
+                  {m.titulo}
+                  {m.valor != null && <span className="font-semibold tabular-nums text-ink">{pct(m.valor)}</span>}
+                </span>
+              ))
+            )}
+          </span>
+        ),
+        valor: <CeldaNumero>{p.montoPen != null && p.montoPen > 0 ? soles(p.montoPen) : "Sin dato"}</CeldaNumero>,
+        leido: <CeldaFecha fecha={revision?.analizadoEn ?? p.finalizadoAt} />,
+      },
+      detalle: {
+        titulo,
+        etiqueta: `Ver por qué está en revisión: ${titulo}`,
+        descripcion: (
+          <span className="flex flex-wrap gap-x-3">
+            <span>{p.entidad ?? "Entidad no registrada"}</span>
+            <span className="font-mono">{p.alertaCodigo ?? p.ocid}</span>
+          </span>
+        ),
+        contenido: <DetalleMotivos titulo={titulo} motivos={motivos} />,
+        pie: (
+          <Link href={`/app/auditoria/${p.ocid}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
+            Ver el análisis completo, fase por fase <ArrowRight size={13} aria-hidden />
+          </Link>
+        ),
+      },
+    };
+  });
+  return <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Financiados en revisión" />;
 }
 
-function Fila({ item: { procesamiento: p, revision } }: { item: AnalisisEnRevision }) {
-  const motivos = revision?.motivos ?? [];
-  const leido = revision?.analizadoEn ?? p.finalizadoAt;
-  const titulo = p.titulo ?? "Contrato sin título en el registro";
-  return (
-    <Revelar
-      titulo={titulo}
-      etiqueta={`Ver por qué está en revisión: ${titulo}`}
-      descripcion={
-        <span className="flex flex-wrap gap-x-3">
-          <span>{p.entidad ?? "Entidad no registrada"}</span>
-          <span className="font-mono">{p.alertaCodigo ?? p.ocid}</span>
-        </span>
-      }
-      ancho="lg"
-      className="px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft"
-      detalle={<DetalleMotivos titulo={titulo} motivos={motivos} />}
-      pie={
-        <Link href={`/app/auditoria/${p.ocid}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
-          Ver el análisis completo, fase por fase <ArrowRight size={13} aria-hidden />
-        </Link>
-      }
-    >
-      <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 lg:grid-cols-[minmax(0,1fr)_128px_88px_minmax(0,300px)_20px] lg:items-center">
-        <div className="min-w-0">
-          <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink lg:truncate" title={titulo}>
-            {titulo}
-          </p>
-          <p className="mt-0.5 truncate text-[12px] text-mute">
-            {p.entidad ?? "Entidad no registrada"} · {p.zona}
-          </p>
-        </div>
-        <span className="font-mono text-[12.5px] tabular-nums text-inkSoft lg:text-right">
-          {p.montoPen != null && p.montoPen > 0 ? soles(p.montoPen) : "Sin dato"}
-        </span>
-        <span className="text-[12.5px] tabular-nums text-mute">{leido ? fechaCorta(leido) : "Sin fecha"}</span>
-        <div className="flex min-w-0 flex-wrap gap-1.5">
-          {motivos.length === 0 ? (
-            <span className="pill border-dashed border-line text-mute">Motivo sin leer</span>
-          ) : (
-            motivos.map((m) => (
-              <span key={m.clave} className="pill border-line bg-paperSoft text-inkSoft">
-                {m.titulo}
-                {m.valor != null && <span className="font-semibold tabular-nums text-ink">{pct(m.valor)}</span>}
-              </span>
-            ))
-          )}
-        </div>
-        <ChevronRight size={16} className="hidden text-mute lg:block" aria-hidden />
-      </div>
-    </Revelar>
-  );
+export function EnRevisionSkeleton() {
+  return <TablaSkeleton columnas={COLUMNAS} filas={8} />;
 }
 
-/** El panel: cada motivo con su medida contra el umbral y las reglas sin respaldo. */
+/** El panel: el objeto completo y cada motivo con su medida contra el umbral. */
 function DetalleMotivos({ titulo, motivos }: { titulo: string; motivos: RevisionMotivo[] }) {
   // La cabecera del panel recorta el título a una línea; el objeto completo va aquí.
   const objeto = titulo.length > 70 ? <p className="mb-4 text-[13px] leading-snug text-inkSoft">{titulo}</p> : null;
@@ -169,10 +138,7 @@ function DetalleMotivos({ titulo, motivos }: { titulo: string; motivos: Revision
   );
 }
 
-/**
- * Un motivo: la medida y su umbral en la misma línea ("33 % · mínimo 60 %"), la
- * barra y lo que lo explica. El número sin su umbral no significa nada.
- */
+/** Un motivo: la medida y su umbral en la misma línea ("33 % · mínimo 60 %"), la barra y lo que lo explica. */
 function Motivo({ m }: { m: RevisionMotivo }) {
   const tieneMedida = m.valor != null && m.umbral != null;
   return (
@@ -201,10 +167,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
   );
 }
 
-/**
- * Valor contra umbral. Barra neutra, no roja: quedar debajo del umbral no es un
- * error del producto, es el control de calidad haciendo su trabajo.
- */
+/** Valor contra umbral. Barra neutra, no roja: quedar debajo del umbral es el control de calidad trabajando. */
 function Medidor({ valor, umbral, titulo }: { valor: number; umbral: number; titulo: string }) {
   const v = Math.max(0, Math.min(1, valor));
   const u = Math.max(0, Math.min(1, umbral));
@@ -216,30 +179,6 @@ function Medidor({ valor, umbral, titulo }: { valor: number; umbral: number; tit
     >
       <div className="h-full rounded-full bg-mute" style={{ width: `${v * 100}%` }} />
       <span className="absolute inset-y-0 w-0.5 bg-ink" style={{ left: `calc(${u * 100}% - 1px)` }} aria-hidden />
-    </div>
-  );
-}
-
-/** Misma forma que la tabla real. */
-export function EnRevisionSkeleton({ filas = 6 }: { filas?: number }) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <div className="border-b border-line bg-paperSoft px-4 py-2.5">
-        <Skeleton className="h-3 w-40" />
-      </div>
-      <ul>
-        {Array.from({ length: filas }).map((_, i) => (
-          <li key={i} className="grid grid-cols-1 items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_128px_88px_minmax(0,300px)]">
-            <div className="space-y-1.5">
-              <Skeleton className="h-3.5 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-5 w-48 rounded-full" />
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

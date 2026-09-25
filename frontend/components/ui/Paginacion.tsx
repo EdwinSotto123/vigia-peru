@@ -38,13 +38,15 @@ interface Props {
   /** Uso directo desde un server component: solo datos, sin funciones. */
   hrefBase?: string;
   query?: Record<string, string | undefined>;
+  /** Nombre del parámetro de página en la URL (`pagina` por defecto; el API de contratos usa `page`). */
+  paramPagina?: string;
 }
 
-export function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando, nombre, hrefBase, query }: Props) {
+export function Paginacion({ actual, paginas, total, tam, navegacion, href, onChange, cargando, nombre, hrefBase, query, paramPagina = "pagina" }: Props) {
   const resolvedHref = href ?? ((n: number) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(query ?? {})) if (v) params.set(k, v);
-    if (n > 1) params.set("pagina", String(n));
+    if (n > 1) params.set(paramPagina, String(n));
     const qs = params.toString();
     return qs ? `${hrefBase ?? ""}?${qs}` : hrefBase ?? "";
   });
@@ -55,11 +57,11 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
   const pagina = Math.min(Math.max(1, Math.floor(actual) || 1), ultima);
   const desde = total === 0 ? 0 : (pagina - 1) * tam + 1;
   const hasta = Math.min(total, pagina * tam);
-  const btn = "inline-flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper text-ink transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:pointer-events-none aria-disabled:opacity-40";
+  const btn = "inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper text-ink transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:pointer-events-none aria-disabled:opacity-40";
   const prev = Math.max(1, pagina - 1);
   const next = Math.min(ultima, pagina + 1);
   return (
-    <div className="flex items-center justify-between gap-2 text-[11px] text-mute">
+    <div className="flex items-center justify-between gap-2 text-[12px] text-mute">
       {/* Sin aria-live: varias páginas muestran dos paginadores (arriba y abajo) y el
           lector de pantalla anunciaba el mismo rango dos veces en cada cambio. */}
       <span className="font-mono tabular-nums">

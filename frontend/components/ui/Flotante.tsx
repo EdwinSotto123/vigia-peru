@@ -22,7 +22,7 @@ type Lado = "arriba" | "abajo";
  * ir en medio de una oración (`<p>… <Ayuda/></p>`) sin romper la hidratación. Por
  * lo mismo, su contenido es texto o `<span className="block">`, nunca `<p>`/`<div>`.
  */
-function usarFlotante(abierto: boolean) {
+function usarFlotante(abierto: boolean, preferir: Lado = "arriba") {
   const anclaRef = useRef<HTMLElement>(null);
   const flotanteRef = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; lado: Lado } | null>(null);
@@ -35,18 +35,19 @@ function usarFlotante(abierto: boolean) {
     const f = flot.getBoundingClientRect();
     const margen = 8;
 
-    // Arriba por defecto; abajo si no entra. Se mide contra el viewport, que
-    // es el marco real del top layer.
+    // El lado preferido si entra; si no, el otro. Se mide contra el viewport, que
+    // es el marco real del top layer. Un menú de filtros prefiere abrirse hacia abajo.
     const cabeArriba = a.top - f.height - margen > 0;
-    const lado: Lado = cabeArriba ? "arriba" : "abajo";
-    const top = cabeArriba ? a.top - f.height - margen : a.bottom + margen;
+    const cabeAbajo = a.bottom + f.height + margen < window.innerHeight;
+    const lado: Lado = preferir === "abajo" ? (cabeAbajo || !cabeArriba ? "abajo" : "arriba") : cabeArriba ? "arriba" : "abajo";
+    const top = lado === "arriba" ? a.top - f.height - margen : a.bottom + margen;
 
     // Centrado sobre el ancla, pero sin salirse por ningún borde.
     let left = a.left + a.width / 2 - f.width / 2;
     left = Math.max(margen, Math.min(left, window.innerWidth - f.width - margen));
 
     setPos({ top, left, lado });
-  }, []);
+  }, [preferir]);
 
   useLayoutEffect(() => {
     const el = flotanteRef.current;
@@ -147,6 +148,7 @@ export function Popover({
   className,
   estilo,
   anchoClase = "w-72",
+  lado = "arriba",
 }: {
   trigger: React.ReactNode;
   titulo?: string;
@@ -160,10 +162,12 @@ export function Popover({
    */
   estilo?: React.CSSProperties;
   anchoClase?: string;
+  /** Lado preferido. Un menú (filtros, orden) va `abajo`; una aclaración, `arriba`. */
+  lado?: Lado;
 }) {
   const [abierto, setAbierto] = useState(false);
   const id = useId();
-  const { anclaRef, flotanteRef, pos } = usarFlotante(abierto);
+  const { anclaRef, flotanteRef, pos } = usarFlotante(abierto, lado);
 
   useEffect(() => {
     if (!abierto) return;

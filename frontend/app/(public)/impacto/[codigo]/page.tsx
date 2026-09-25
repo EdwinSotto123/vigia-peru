@@ -9,13 +9,14 @@ import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { CompartirButton } from "@/components/auditoria/CompartirButton";
 import { Severidad } from "@/components/ui/Severidad";
 import { FranjaTextil } from "@/components/marca";
-import { Ayuda } from "@/components/patrones";
+import { Ayuda, Seccion } from "@/components/patrones";
+import { Indicadores } from "@/components/listado";
+import { esSenalPublicada, indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
 import {
   TIPO_FINANCIADOR_LABEL,
   getComprobante,
   mensajePublicoVisible,
-  pct,
   type Comprobante,
   type ComprobanteContrato,
 } from "@/lib/financiamiento";
@@ -93,11 +94,6 @@ function estadoInstitucional(estado: string, esperando: boolean): { label: strin
   return { label: "Aporte institucional (capital semilla)", tono: "positivo" };
 }
 
-/** Señal publicada: leída, con al menos una bandera y fuera de revisión humana (mismo filtro que el backend). */
-const esSenalPublicada = (k: ComprobanteContrato) => k.procesadaAt != null && k.alertaEstado !== "revision" && k.banderas > 0;
-
-const suma = (xs: ComprobanteContrato[]) => xs.reduce((n, k) => n + (k.valorReferencial ?? 0), 0);
-
 const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
   s === "alta" || s === "media" || s === "baja" ? s : null;
 
@@ -108,23 +104,25 @@ const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
  * pantalla); la llamita no aparece acá, porque esta página nombra a quien financió
  * y muestra señales, y la llamita nunca va al lado de una persona ni de una señal.
  *
+ * Orden de ficha (DESIGN_SYSTEM.md §14.2): identidad → `Indicadores` (las cifras del
+ * aporte, las mismas del panel del aporte en la ficha del aliado) → el aporte en una
+ * frase → su estado en cuatro pasos → los contratos, en vivo.
+ *
  * Contenedor: el `container-page` de la cabecera pública, sin la columna angosta
  * centrada de antes (el tablero de contratos necesita el ancho). Avisos y notas, en
- * una línea con su ⓘ (DESIGN_SYSTEM.md §10.7).
+ * una línea con su ⓘ (§10.7).
  */
 export default async function ImpactoPage({ params }: { params: { codigo: string } }) {
   const c = await getComprobante(params.codigo);
   if (!c) notFound();
   const institucional = c.pasarela === "institucional";
-  const p = pct(c.resumen.procesados, c.contratos);
   // El tablero en vivo arranca con lo que ya sabe el API de procesamientos; si aún no
   // responde (o la contribución no tiene asignaciones), usa el detalle del comprobante.
   const enVivo = await getProcesamientos({ codigo: c.codigo, limit: 300 });
   const semilla = enVivo && enVivo.length ? enVivo : semillaDesdeComprobante(c);
 
   const leidos = c.detalle.filter((k) => k.procesadaAt);
-  const valorLeido = suma(leidos);
-  const valorAsignado = suma(c.detalle);
+  const valorAsignado = c.detalle.reduce((n, k) => n + (k.valorReferencial ?? 0), 0);
   const esperandoDocumentos = (enVivo ?? []).filter((x) => x.estado === "esperando_documentos").length;
   const asignadaAt = c.detalle.map((k) => k.asignadaAt).filter(Boolean).sort()[0] ?? null;
   const esperando = c.resumen.procesados === 0 && c.resumen.asignados > 0 && esperandoDocumentos > 0;
@@ -134,12 +132,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
   // Primer contrato procesado: el resultado más antiguo del aporte, con enlace a su lectura.
   const primero = [...leidos].sort((a, b) => String(a.procesadaAt).localeCompare(String(b.procesadaAt)))[0] ?? null;
 
-  // "Por leer" = pagados menos leídos. Antes restaba de los ASIGNADOS, y un aporte pendiente
-  // (0 asignados) decía "Leídos 0/5 · Por leer 0": cinco contratos pagados que no estaban en ningún lado.
-  const porLeer = Math.max(0, c.contratos - c.resumen.procesados);
-  const sinAsignar = Math.max(0, c.contratos - c.resumen.asignados);
   const nConSenal = c.resumen.contratosConSenal ?? leidos.filter(esSenalPublicada).length;
-  const enRevision = c.resumen.enRevision ?? 0;
 
   return (
     <div className="container-page py-8 sm:py-10">
@@ -172,9 +165,6 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             </div>
           </header>
 
-          {/* El aporte en una frase, armada con el detalle real del comprobante. */}
-          <EnUnaFrase c={c} leidos={leidos} valorAsignado={valorAsignado} esperandoDocumentos={esperandoDocumentos} />
-
           <p className="mt-4 text-sm text-inkSoft">
             {institucional
               ? `Asignado el ${fecha(asignadaAt ?? c.createdAt)} con capital semilla de Vigía Perú.`
@@ -183,6 +173,12 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
                 : `Registrado el ${fecha(c.createdAt)}.`}
           </p>
           {mensaje && <blockquote className="mt-3 border-l-2 border-granate-200 pl-3 text-sm italic text-inkSoft">“{mensaje}”</blockquote>}
+
+          {/* Cada cifra con su denominador (§10.2), número → qué es → contexto. */}
+          <Indicadores className="mt-6" items={indicadoresAporte(c, esperandoDocumentos)} />
+
+          {/* El aporte en una frase, armada con el detalle real del comprobante. */}
+          <EnUnaFrase c={c} leidos={leidos} valorAsignado={valorAsignado} esperandoDocumentos={esperandoDocumentos} />
 
           {/* Estado del aporte en 4 pasos */}
           <div className="mt-6">
@@ -194,66 +190,6 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
               registrado={c.createdAt}
               espera={c.resumen.asignados > 0 ? { asignadoHace: haceDias(asignadaAt), esperandoDocumentos, asignados: c.resumen.asignados } : null}
             />
-          </div>
-
-          {/* Cada cifra con su denominador (DESIGN_SYSTEM.md §10.2). */}
-          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4 rounded-2xl border border-line p-4 sm:grid-cols-4">
-            <DatoAporte
-              etiqueta="Leídos"
-              valor={<>{numero(c.resumen.procesados)} <span className="text-base font-semibold text-mute">de {numero(c.contratos)}</span></>}
-              contexto={enRevision > 0 ? `${numero(enRevision)} en revisión humana` : undefined}
-            />
-            <DatoAporte
-              etiqueta="Por leer"
-              valor={numero(porLeer)}
-              contexto={
-                esperandoDocumentos > 0
-                  ? `${numero(esperandoDocumentos)} esperan sus documentos`
-                  : sinAsignar > 0 && porLeer > 0
-                    ? c.estado === "pendiente_pago"
-                      ? "se asignan al validar el pago"
-                      : `${numero(sinAsignar)} todavía sin asignar`
-                    : undefined
-              }
-            />
-            <DatoAporte
-              etiqueta="Con señales"
-              valor={
-                c.resumen.procesados > 0
-                  ? <>{numero(nConSenal)} <span className="text-base font-semibold text-mute">de {numero(c.resumen.procesados)}</span></>
-                  : numero(nConSenal)
-              }
-              contexto={
-                c.resumen.procesados > 0
-                  ? `${plural(c.resumen.senales, "señal", "señales")} en total, con dictamen publicado`
-                  : "ningún contrato leído todavía"
-              }
-            />
-            {/* Compacto, como toda cifra de tarjeta (§10.3): un valor de millones en soles completos
-                no entra en media columna de 360 px. */}
-            <DatoAporte
-              etiqueta="Valor referencial leído"
-              valor={solesCompacto(valorLeido)}
-              contexto={valorAsignado > valorLeido ? `de ${solesCompacto(valorAsignado)} asignados` : c.resumen.asignados === 0 ? "todavía sin contratos asignados" : undefined}
-            />
-          </dl>
-          {enRevision > 0 && (
-            <p className="mt-2 inline-flex flex-wrap items-center gap-1 text-[12px] text-inkSoft">
-              <span>
-                <strong className="font-mono text-ink">{numero(enRevision)}</strong>{" "}
-                {enRevision === 1 ? "contrato leído espera" : "contratos leídos esperan"} revisión humana
-              </span>
-              <Ayuda titulo="¿Por qué en revisión?">
-                La autoevaluación no alcanzó el umbral para publicar y una persona decide. No cuentan como señal.
-              </Ayuda>
-            </p>
-          )}
-          <div
-            className="mt-3 h-2.5 overflow-hidden rounded-full bg-paperDeep"
-            role="img"
-            aria-label={`${numero(c.resumen.procesados)} de ${numero(c.contratos)} contratos ya leídos`}
-          >
-            <div className="h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
           </div>
 
           {/* Primer contrato leído. Tarjeta neutra: puede traer señales, y un verde de "logro" las taparía. */}
@@ -281,17 +217,18 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           )}
 
           {/* Contratos en vivo */}
-          <section aria-labelledby="contratos-aporte" className="mt-8">
-            <h2 id="contratos-aporte" className="font-display text-lg font-bold text-ink">Contratos de este aporte</h2>
-            <p className="mt-0.5 text-[13px] text-inkSoft">
-              {c.estado === "pendiente_pago"
+          <Seccion
+            id="contratos-aporte"
+            className="mt-8"
+            titulo="Contratos de este aporte"
+            descripcion={
+              c.estado === "pendiente_pago"
                 ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
-                : "Toca uno para ver su lectura paso por paso."}
-            </p>
-            <div className="mt-4">
-              <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
-            </div>
-          </section>
+                : "Toca uno para ver su lectura paso por paso."
+            }
+          >
+            <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
+          </Seccion>
 
           <p className="mt-8 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
@@ -377,17 +314,6 @@ function EnUnaFrase({ c, leidos, valorAsignado, esperandoDocumentos }: {
           <ArrowRight size={16} className="mt-1 shrink-0 text-inkSoft transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
         </Link>
       )}
-    </div>
-  );
-}
-
-/** Una cifra del recibo: qué es, cuánto, y su contexto. Sin sombra: una tarjeta en reposo no flota. */
-function DatoAporte({ etiqueta, valor, contexto }: { etiqueta: string; valor: React.ReactNode; contexto?: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[12px] font-semibold text-inkSoft">{etiqueta}</dt>
-      <dd className="mt-1 font-mono text-xl font-semibold tabular-nums leading-tight text-ink">{valor}</dd>
-      {contexto && <dd className="mt-0.5 text-[12px] leading-snug text-mute">{contexto}</dd>}
     </div>
   );
 }

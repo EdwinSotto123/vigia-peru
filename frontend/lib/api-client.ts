@@ -181,15 +181,6 @@ export interface EntidadesQuery {
 
 export const ENTIDADES_PAGE_SIZE = 20;
 
-export function entidadesQueryString(q: EntidadesQuery = {}): string {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(q)) {
-    if (v == null || v === "" || (k === "page" && Number(v) <= 1)) continue;
-    params.set(k, String(v));
-  }
-  return params.toString();
-}
-
 /** Lee `searchParams` de Next (strings sueltos) y deja solo lo válido — mismo patrón que parseContratosQuery. */
 export function parseEntidadesQuery(sp: Record<string, string | string[] | undefined> = {}): EntidadesQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);

@@ -440,7 +440,7 @@ estado**; el "qué significa", el "por qué" y el "cómo se calcula" están a un
 | Aviso inevitable | Una línea + ⓘ ("1 contrato ya no figura en el OECE ⓘ") |
 | Fila o tarjeta de lista | Identidad corta + cifra + estado (chip). Título del contrato en **1 línea** en escritorio (`truncate`, texto completo en `title`) y 2 en celular (`line-clamp-2`). Evidencia o descripción: 1 línea |
 | Detalle de un ítem | `Revelar` (panel lateral) o su página. Nunca todo desplegado en la lista |
-| Cifras de cabecera | Una línea de datos: "226 de 226 señales · 73 de 97 contratos · última lectura hace 21 h" |
+| Cifras de cabecera | `Indicadores`: 2–4 cifras, cada una con el **número grande**, **qué es** justo debajo y su **contexto** (denominador, fuente, fecha) en tercer nivel. Nunca cifras dentro de una frase gris: se pierde la jerarquía y la correspondencia texto-dato |
 | Motivos, razones, categorías | Chips, con el valor dentro ("Evidencia insuficiente 50 %"); la frase completa en el detalle |
 | Centrado | Sólo estados vacíos, 404 y confirmaciones. Una vista de datos se alinea a la izquierda y usa el ancho (tabla o grid) |
 | Medida de línea (`max-w-[70ch]`) | Sólo en prosa: dictamen, preguntas frecuentes, noticia |
@@ -529,13 +529,72 @@ error en línea, `autocomplete`/`inputMode`), `Pestanas` (`role="tablist"`, flec
 
 ## 14. Plantillas de página
 
+Cada página es una de estas plantillas, armada con las mismas piezas en el mismo
+orden. Si una vista no encaja en ninguna, primero se discute la plantilla, no se
+inventa un layout.
+
 | Plantilla | Estructura |
 |---|---|
 | **Landing** | Cabecera (franja 4 px) → hero con la llamita/isotipo y la promesa → relato aprobado → cierre en `granate-deep` → pie con franja bandera |
-| **Listado** (`/app/contratos`, entidades, hallazgos) | `EncabezadoPagina` → filtros (chips con conteo) → tabla densa → paginación → `EstadoVacio` si no hay resultados |
-| **Detalle** (contrato, informe) | Encabezado con identidad del objeto → veredicto en palabras + señales → evidencia y fuentes → "Cómo se hizo" plegado |
-| **Conversión** (financiar, aliados, impacto) | una pregunta por pantalla, cifras con denominador, confirmación con la llamita |
+| **Listado** | §14.1 — contratos, análisis publicados, señales, entidades, histórico de auditoría, denuncias |
+| **Ficha** (contrato, informe, entidad, zona) | §14.2 |
+| **Tablero** (auditoría en vivo, mapa) | `EncabezadoPagina` → `Indicadores` del estado actual → la pieza viva (cola, mapa) → el Listado de lo ya hecho |
+| **Conversión** (financiar, aliados, impacto) | una pregunta por pantalla, `Indicadores` con denominador, el formulario a la derecha en escritorio, confirmación con la llamita |
 | **Estados de sistema** (404, error, mantenimiento) | llamita con lupa + qué pasó + a dónde ir |
+
+### 14.1 Listado
+
+```
+Pagina
+├─ EncabezadoPagina   h1 · una oración ⓘ · acción principal (derecha)
+├─ Vistas             (si hay poblaciones distintas)  Publicadas 226 | En revisión 19
+├─ Indicadores        2–4 cifras: NÚMERO · qué es · contexto
+└─ Listado (estado en la URL)
+   ├─ BarraFiltros    [buscar…] [faceta principal: chips con conteo] ··· [Filtros (n)] [Orden]
+   │                  Filtrando por: Regla: Sobreprecio ×  Entidad: … ×  Quitar todo
+   └─ ZonaResultados  (se atenúa + barra de progreso mientras llega la página)
+      ├─ Paginacion   1–25 de 226  ‹ 1/10 ›        (arriba a la derecha y abajo)
+      ├─ Tabla        cabecera y filas en la misma rejilla
+      │               estado (chip) · qué es (título 1 línea + meta) · datos (derecha) · fecha · ›
+      └─ EstadoVacio / EstadoError (filtrado vacío ≠ todavía no hay datos)
+```
+
+Piezas en `components/listado/`: `Indicadores` (+ `IndicadoresSkeleton`; `valor: null` =
+"Sin dato"), `Vistas`, `Listado` + `ZonaResultados`, `BarraFiltros` (faceta con conteos e
+íconos de estado; `nombreEnChip`; filtros secundarios en el menú **Filtros**; `orden`),
+`Tabla` (columnas con `desde`, `alinear`, `ayuda` y `apilar`; filas con `href`, `externo` o
+`detalle`; `grupos` con rótulo fijo) + `CeldaPrincipal`, `CeldaNumero`, `CeldaTexto`,
+`CeldaFecha`, `TablaSkeleton`. En `components/patrones/`: `Volver`, y `Seccion plegable`
+para lo largo y secundario. `Paginacion` acepta `paramPagina`. Reglas:
+
+- **Una faceta principal** en chips (severidad, riesgo, estado): la pregunta que casi
+  todos hacen. Las demás (regla, entidad, zona, tipo, fechas) van en **Filtros**.
+- **El estado va a la URL** (compartible, el botón atrás lo deshace). Todo cambio de
+  filtro vuelve a la página 1.
+- **Feedback**: al filtrar, spinner en la barra + resultados atenuados + barra de
+  progreso; cada filtro activo es un chip con ×; los conteos de cada opción se
+  calculan sobre los otros filtros (ninguna opción lleva a cero).
+- **La columna de estado siempre es un chip** (`Severidad`, estado de lectura, cotejo),
+  nunca texto suelto. Números a la derecha y tabulares. Una fila = una acción
+  (`href` a su página o `detalle` en panel lateral): sus celdas no llevan enlaces.
+- En el celular la fila es: título → contexto → chip de estado (la columna de estado
+  lleva `desde: "md", apilar: true`); la faceta es una sola fila que se desliza; las
+  demás columnas entran por breakpoint (`desde`).
+- **Si el kit no alcanza, se amplía el kit** (con un caso concreto), nunca se copia una
+  variante en la página: así llegaron `apilar`, `grupos`, `externo`, `Volver` y
+  `Seccion plegable`.
+
+### 14.2 Ficha
+
+```
+Pagina
+├─ Migas / volver            ← Contratos
+├─ Identidad                 h1 (el objeto) · código y entidad en una línea · chips de estado
+├─ Indicadores               lo que importa del objeto: monto, fechas, conteos
+├─ Veredicto / estado        una tarjeta: qué se sabe, en palabras, con su chip
+└─ Secciones (Seccion)       h2 + contenido; lo largo, plegado o en pestañas; fuente al pie
+   └─ columna lateral (lg)   datos de proceso, enlaces, "cómo se hizo"
+```
 
 ---
 

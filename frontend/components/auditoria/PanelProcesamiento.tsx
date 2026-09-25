@@ -1,32 +1,28 @@
 "use client";
 
 /**
- * Estado del pipeline: UNA línea de datos (publicados de financiados, leídos hoy, ritmo de 14
- * días, último análisis), UNA barra con el ciclo completo y UNA fila "ahora mismo". Lo que
- * significa cada estado y cómo se cuenta está a un clic (Ayuda), no en párrafos encima de la
- * cifra (DESIGN_SYSTEM.md §10.7). Poll cada `pollMs` (5 s) solo con la pestaña visible.
+ * El estado actual de la auditoría, arriba del Tablero (DESIGN_SYSTEM.md §14): las cifras en
+ * `Indicadores` —número grande, qué es, contexto—, debajo un visual compacto (la barra del
+ * ciclo y los análisis por día) y una línea de "ahora mismo". Antes todo esto iba en frases
+ * grises ("34 de 100 financiados en todo el Perú con dictamen publicado · 0 leídos hoy…"):
+ * la cifra y lo que cuenta se perdían en la misma línea.
  *
- * Esta barra es la ÚNICA fuente de conteos de la pantalla. Antes había dos, y los mismos doce
- * contratos aparecían como "esperan documentos" arriba y "en cola" abajo, y los doce en
- * revisión se leían como sumables a los 33 procesados cuando en realidad SON doce de esos 33.
- * Ahora:
+ * Es la ÚNICA fuente de conteos del estado global en la pantalla, y habla de todo el Perú aunque
+ * el tablero de abajo esté filtrado (el endpoint de resumen no acepta `ubigeo`; se dice en el ⓘ).
  *
- *  · el total es el universo entero (todo lo financiado), no un subconjunto móvil;
- *  · `procesado` se parte en "con dictamen publicado" (procesado − revisión) y "en
- *    revisión humana", que es lo que evita el doble conteo;
- *  · los estados en 0 no dibujan segmento ni entrada de leyenda;
- *  · cada segmento mide exactamente su proporción (value/total), con un piso de 3 px para
- *    que un 1 de 500 siga siendo visible;
- *  · el alcance se DICE: el endpoint no acepta `ubigeo`, así que la barra siempre habla
- *    de todo el Perú aunque el tablero de abajo esté filtrado por región.
+ *  · `procesado` se parte en "con dictamen publicado" (procesado − revisión) y "financiados
+ *    en revisión": son doce de esos 33, no doce más. Sumarlos era el doble conteo de antes.
+ *  · "En espera" es la misma palabra y el mismo número que el rótulo del grupo del tablero
+ *    (esperan documentos + en cola + con error + sin análisis aplicable), sin filtros puestos.
+ *  · Ritmo real: los análisis que terminaron cada día (hora de Lima) y "último hace N días".
+ *    Es lo que impide que la pantalla parezca viva cuando lleva días quieta.
  *
- * Ritmo real: cuántos análisis terminaron cada día (hora de Lima), con los días en cero
- * dibujados, y "Último análisis hace N días". Es lo que impide que la pantalla parezca viva
- * cuando lleva días quieta. Sale de `finalizadoAt` de los procesados; se vuelve a pedir sólo
- * cuando el resumen dice que cambió la cantidad de procesados.
+ * "Ahora mismo" (la cola de descarga) va como UNA línea y no como otra fila de Indicadores:
+ * es detalle operativo que cambia de minuto a minuto, y sus pedidos pendientes son casi
+ * siempre los mismos contratos que "esperan documentos". Con cifras grandes competiría con el
+ * estado del ciclo y lo repetiría.
  *
- * Sin región viva: el componente entero lo era, cronómetros por segundo incluidos, y el lector
- * de pantalla repetía la tarjeta completa en cada sondeo. La región viva de la página es la
+ * Poll cada `pollMs` (5 s) solo con la pestaña visible. Sin región viva: la de la página es la
  * del tablero, que anuncia cambios reales.
  *
  * Datos: GET /financiamiento/procesamientos/resumen
@@ -34,26 +30,22 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Cpu, Download, WifiOff } from "lucide-react";
 import {
   PUBLIC_API_BASE,
   diaCorto,
-  duracion,
-  faseHumana,
-  fasesEfectivas,
   fechaLima,
   haceCuanto,
   procesamientosQueryString,
-  progresoFases,
   ritmoDiario,
   tipoContratoHumano,
   type Procesamiento,
 } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
+import { Indicadores, IndicadoresSkeleton, type Indicador } from "@/components/listado";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { numero, porcentaje } from "@/lib/formato";
+import { numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -77,12 +69,14 @@ interface Tramo {
 const PISO_PX = 3;
 const DIAS_RITMO = 14;
 
+/** Las etiquetas de los Indicadores. */
+const ETIQUETAS = ["con dictamen publicado", "financiados en revisión", "financiados en espera", "leídos hoy"];
+
 export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo el Perú", finalizados: finalizadosIniciales }: Props) {
   const [data, setData] = useState<ResumenProcesamientoVivo | null>(initial ?? null);
   const [fallo, setFallo] = useState(false);
-  const [ahora, setAhora] = useState(0);   // 0 hasta montar: sin desajuste de hidratación en los cronómetros
+  const [ahora, setAhora] = useState(0);   // 0 hasta montar: sin desajuste de hidratación en los relativos
   const [finalizados, setFinalizados] = useState<string[] | null>(finalizadosIniciales ?? null);
-  const recibidoAt = useRef<number>(Date.now());
   const procesadosConocidos = useRef<number | null>(initial?.porEstado?.procesado ?? null);
 
   useEffect(() => {
@@ -106,7 +100,6 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
         const json = (await res.json()) as ResumenProcesamientoVivo;
         if (!vivo) return;
         setData(json);
-        recibidoAt.current = Date.now();
         setFallo(false);
         // El ritmo sólo cambia cuando termina un análisis: se vuelve a pedir sólo entonces.
         const n = json.porEstado?.procesado ?? null;
@@ -122,50 +115,13 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
     if (finalizadosIniciales == null) void pedirRitmo();
     void cargar();
     const id = window.setInterval(() => { if (document.visibilityState === "visible") void cargar(); }, Math.max(2000, pollMs));
+    // Un minuto basta: acá no hay cronómetros, sólo "último análisis hace N h".
     setAhora(Date.now());
-    const tick = window.setInterval(() => setAhora(Date.now()), 1000);
+    const tick = window.setInterval(() => setAhora(Date.now()), 60_000);
     return () => { vivo = false; ctrl?.abort(); window.clearInterval(id); window.clearInterval(tick); };
     // `finalizadosIniciales` sólo decide la primera carga.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollMs]);
-
-  const e = data?.porEstado ?? {};
-  const esperando = e.esperando_documentos ?? 0;
-  const procesando = e.procesando ?? 0;
-  const enRevision = data?.enRevision ?? e.revision ?? 0;
-  // `revision` NO es un estado aparte en la base: es `procesado` con la alerta bloqueada por
-  // la autoevaluación. Restarlo es lo que impide contar los mismos doce contratos dos veces.
-  const publicados = Math.max(0, (e.procesado ?? 0) - enRevision);
-
-  // Orden cronológico del ciclo: llega → espera documentos → espera turno → lo leen →
-  // lo revisa una persona → se publica. Los dos estados excepcionales van al final.
-  const tramos: Tramo[] = [
-    // Sin "lote nocturno": es el diseño (backend/dispatcher/README.md), pero los pedidos
-    // pendientes pueden pasar días sin que nadie los tome. Se dice sólo lo que siempre es cierto.
-    { clave: "esperando", label: "esperan documentos", value: esperando, color: "bg-mute",
-      titulo: "Financiados cuyos documentos del SEACE todavía no se descargaron. La descarga se hace desde una conexión en Perú, porque el SEACE bloquea los servidores en la nube; cuando termina, el contrato pasa a la cola." },
-    { clave: "cola", label: "en cola", value: e.encolado ?? 0, color: "bg-inkSoft",
-      titulo: "Con documentos listos, esperando turno. El turno es automático, por antigüedad: nadie elige cuál va primero." },
-    { clave: "procesando", label: "en análisis", value: procesando, color: "bg-amber",
-      titulo: "Los agentes los están leyendo en este momento." },
-    // "Financiados en revisión" (§10.1): esta barra sólo conoce lo financiado.
-    { clave: "revision", label: "en revisión", value: enRevision, color: "bg-clay",
-      titulo: "Financiados cuyo análisis terminó, pero la autoevaluación no alcanzó el mínimo: una persona lo revisa antes de publicarlo. Cuentan como leídos, no como señales." },
-    { clave: "publicado", label: "con dictamen publicado", value: publicados, color: "bg-moss",
-      titulo: "Dictamen público, con cada señal citando norma y evidencia." },
-    // Error de SISTEMA = crimson (DESIGN_SYSTEM.md §3.7); rust es la severidad alta de una señal.
-    { clave: "error", label: "con error", value: e.error ?? 0, color: "bg-crimson",
-      titulo: "El análisis falló y se reintenta automáticamente, hasta tres veces." },
-    { clave: "pendiente", label: "sin análisis aplicable", value: e.pendiente_de_procesamiento ?? 0, color: "bg-paperEdge",
-      titulo: "Contratos de un tipo o una etapa que todavía no se analiza." },
-  ].filter((t) => t.value > 0);
-
-  const financiados = tramos.reduce((s, t) => s + t.value, 0);
-  const pct = (v: number) => (financiados ? (v / financiados) * 100 : 0);
-  const activos = data?.activos ?? [];
-  const lote = data?.lote ?? null;
-  const pedidos = data?.pedidos ?? null;
-  const drift = ahora > 0 ? Math.max(0, Math.round((ahora - recibidoAt.current) / 1000)) : 0;   // segundos desde el último dato
 
   // Ritmo real, en días de Lima. `ahora` es 0 en el servidor: el día de hoy se toma del reloj.
   const reloj = ahora || Date.now();
@@ -175,177 +131,227 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
     for (const f of finalizados ?? []) { const t = Date.parse(f); if (Number.isFinite(t) && t > max) max = t; }
     return Number.isFinite(max) ? max : null;
   }, [finalizados]);
-  const hoy = ritmo?.[ritmo.length - 1]?.n ?? data?.procesadosHoy ?? 0;
-  const totalRitmo = ritmo ? ritmo.reduce((s, d) => s + d.n, 0) : 0;
-  const tipos = (data?.procesamientoActivo?.tipos_activos ?? []).map((t) => tipoContratoHumano(t)).filter((t): t is string => !!t);
+
+  if (!data) {
+    return fallo ? (
+      <p className="inline-flex items-center gap-1.5 rounded-xl bg-crimson-soft/60 px-3 py-2 text-[13px] text-crimsonTexto">
+        <WifiOff size={13} aria-hidden /> No pudimos leer el estado de la auditoría; se vuelve a intentar solo.
+      </p>
+    ) : (
+      <IndicadoresSkeleton n={4} />
+    );
+  }
+
+  const e = data.porEstado ?? {};
+  const esperando = e.esperando_documentos ?? 0;
+  const cola = e.encolado ?? 0;
+  const conError = e.error ?? 0;
+  const sinAnalisis = e.pendiente_de_procesamiento ?? 0;
+  const procesando = e.procesando ?? 0;
+  const leidos = e.procesado ?? 0;
+  const enRevision = data.enRevision ?? e.revision ?? 0;
+  // `revision` NO es un estado aparte en la base: es `procesado` con la alerta bloqueada por
+  // la autoevaluación. Restarlo es lo que impide contar los mismos contratos dos veces.
+  const publicados = Math.max(0, leidos - enRevision);
+  const enEspera = esperando + cola + conError + sinAnalisis;
+
+  // Orden cronológico del ciclo: llega → espera documentos → espera turno → lo leen →
+  // lo revisa una persona → se publica. Los dos estados excepcionales van al final.
+  const tramos: Tramo[] = [
+    // Sin "lote nocturno": es el diseño (backend/dispatcher/README.md), pero los pedidos
+    // pendientes pueden pasar días sin que nadie los tome. Se dice sólo lo que siempre es cierto.
+    { clave: "esperando", label: "esperan documentos", value: esperando, color: "bg-mute",
+      titulo: "Financiados cuyos documentos del SEACE todavía no se descargaron. La descarga se hace desde una conexión en Perú, porque el SEACE bloquea los servidores en la nube; cuando termina, el contrato pasa a la cola." },
+    { clave: "cola", label: "en cola", value: cola, color: "bg-inkSoft",
+      titulo: "Con documentos listos, esperando turno. El turno es automático, por antigüedad: nadie elige cuál va primero." },
+    { clave: "procesando", label: "en análisis", value: procesando, color: "bg-amber",
+      titulo: "Los agentes los están leyendo en este momento." },
+    // "Financiados en revisión" (§10.1): esta barra sólo conoce lo financiado.
+    { clave: "revision", label: "en revisión", value: enRevision, color: "bg-clay",
+      titulo: "Financiados cuyo análisis terminó, pero la autoevaluación no alcanzó el mínimo: una persona lo revisa antes de publicarlo. Cuentan como leídos, no como señales." },
+    { clave: "publicado", label: "con dictamen publicado", value: publicados, color: "bg-moss",
+      titulo: "Dictamen público, con cada señal citando norma y evidencia." },
+    // Error de SISTEMA = crimson (DESIGN_SYSTEM.md §3.7); rust es la severidad alta de una señal.
+    { clave: "error", label: "con error", value: conError, color: "bg-crimson",
+      titulo: "El análisis falló y se reintenta automáticamente, hasta tres veces." },
+    { clave: "pendiente", label: "sin análisis aplicable", value: sinAnalisis, color: "bg-paperEdge",
+      titulo: "Contratos de un tipo o una etapa que todavía no se analiza." },
+  ].filter((t) => t.value > 0);
+  const financiados = tramos.reduce((s, t) => s + t.value, 0);
+
+  const hoy = ritmo?.[ritmo.length - 1]?.n ?? data.procesadosHoy ?? 0;
+  const totalRitmo = ritmo ? ritmo.reduce((s, d) => s + d.n, 0) : null;
+
+  const items: Indicador[] = [
+    {
+      valor: numero(publicados),
+      etiqueta: ETIQUETAS[0],
+      contexto: `de ${numero(financiados)} financiados`,
+      ayuda: (
+        <Ayuda titulo="¿Cómo se cuenta?">
+          <span className="block">
+            Todos los contratos financiados {alcance}, aunque filtres el tablero de abajo. Los días se cuentan en hora de Lima.
+          </span>
+          <span className="mt-2 block text-mute">
+            Un contrato en revisión ya se leyó, pero su dictamen no está publicado: cuenta como leído, no como señal.
+          </span>
+        </Ayuda>
+      ),
+    },
+    {
+      valor: numero(enRevision),
+      etiqueta: ETIQUETAS[1],
+      contexto: `de ${numero(leidos)} leídos`,
+      // La lista de esos mismos contratos, con el motivo de cada uno.
+      href: "/app/hallazgos?vista=revision",
+    },
+    { valor: numero(enEspera), etiqueta: ETIQUETAS[2], contexto: composicionEspera(esperando, cola, conError, sinAnalisis) },
+    {
+      valor: numero(hoy),
+      etiqueta: hoy === 1 ? "leído hoy" : ETIQUETAS[3],
+      contexto: (
+        <>
+          {totalRitmo != null && <>{numero(totalRitmo)} en {DIAS_RITMO} días · </>}
+          <UltimoTerminado ultimoFin={ultimoFin} ahora={ahora} />
+        </>
+      ),
+    },
+  ];
+
+  const pedidos = data.pedidos ?? null;
+  const lote = data.lote ?? null;
+  const tipos = (data.procesamientoActivo?.tipos_activos ?? []).map((t) => tipoContratoHumano(t)).filter((t): t is string => !!t);
 
   return (
-    <div className="rounded-2xl border border-line bg-paper">
-      <div className="space-y-2 px-3 py-3 sm:px-4">
-        {financiados === 0 ? (
-          <p className="text-[13px] text-mute">Todavía no hay ningún contrato financiado {alcance}.</p>
-        ) : (
-          <>
-            {/* UNA línea de datos (§10.7): el ciclo, el día y el ritmo, cada cifra con su contexto.
-                A la derecha, las barras por día: es lo que impide que la pantalla parezca viva
-                cuando lleva días quieta. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-              <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
-                <span>
-                  <strong className="font-semibold text-ink">{numero(publicados)}</strong> de{" "}
-                  <strong className="font-semibold text-ink">{numero(financiados)}</strong> financiados {alcance} con dictamen publicado
-                </span>
-                <span>
-                  <strong className="font-semibold text-ink">{numero(hoy)}</strong> {hoy === 1 ? "leído" : "leídos"} hoy
-                </span>
-                {ritmo && (
-                  <span>
-                    <strong className="font-semibold text-ink">{numero(totalRitmo)}</strong> en {ritmo.length} días
-                  </span>
-                )}
-                <UltimoTerminado ultimoFin={ultimoFin} ahora={ahora} />
-                <Ayuda titulo="¿Cómo se cuenta?">
-                  <span className="block">
-                    Todos los contratos financiados {alcance}, aunque filtres el tablero de abajo por región. Los días se
-                    cuentan en hora de Lima.
-                  </span>
-                  <span className="mt-2 block text-mute">
-                    Un contrato en revisión ya se leyó, pero su dictamen no está publicado: cuenta como leído, no como
-                    señal.
-                  </span>
-                </Ayuda>
-              </p>
-              {ritmo && <BarrasRitmo ritmo={ritmo} />}
-            </div>
+    <section aria-label="Estado de la auditoría" className="space-y-3">
+      {financiados === 0 ? (
+        <p className="text-[13px] text-mute">Todavía no hay ningún contrato financiado {alcance}.</p>
+      ) : (
+        <>
+          <Indicadores items={items} />
+          {/* El visual no repite cifras: la proporción del ciclo y la forma del ritmo. Cada
+              segmento y cada día llevan su número exacto en `title` y en el nombre accesible. */}
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-1">
+            <Ciclo tramos={tramos} financiados={financiados} />
+            {ritmo && <BarrasRitmo ritmo={ritmo} />}
+          </div>
+        </>
+      )}
 
-            <div
-              className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
-              role="img"
-              aria-label={`${tramos.map((t) => `${t.value} ${t.label}`).join(", ")}; ${financiados} en total`}
-            >
-              {tramos.map((t) => (
-                <div
-                  key={t.clave}
-                  className={cn(t.color, "h-full")}
-                  style={{ width: `${pct(t.value)}%`, minWidth: PISO_PX }}
-                  title={`${t.value} ${t.label}`}
-                />
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                {tramos.map((t) => (
-                  <li key={t.clave} className="inline-flex items-baseline gap-1.5 text-[12px] text-inkSoft">
-                    <span className={cn("relative top-[1px] h-2 w-2 shrink-0 rounded-full", t.color)} aria-hidden />
-                    <span className="font-semibold tabular-nums text-ink">{numero(t.value)}</span>
-                    {t.label}
-                    <span className="text-[11px] tabular-nums text-mute">{porcentaje(pct(t.value))}</span>
-                  </li>
-                ))}
-              </ul>
-              <Ayuda titulo="¿Qué es cada estado?" ancho="w-[22rem]">
-                {tramos.map((t, i) => (
-                  <span key={t.clave} className={cn("block", i > 0 && "mt-1.5")}>
-                    <span className="font-semibold text-ink">{t.label.charAt(0).toUpperCase() + t.label.slice(1)}:</span> {t.titulo}
-                  </span>
-                ))}
-              </Ayuda>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Ahora mismo. Nada de lo que ya cuenta la barra se repite acá. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-paperSoft px-3 py-2 text-[12px] sm:px-4">
-        <span className="inline-flex items-center gap-1.5 font-semibold text-inkSoft">
+      {/* Ahora mismo: una línea. Nada de lo que ya dicen los Indicadores se repite acá. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-paperSoft px-3 py-2 text-[12.5px] text-inkSoft">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
           {procesando > 0 ? <PulseDot color="amber" size={6} /> : <Cpu size={12} aria-hidden />}
           Ahora mismo
         </span>
-        {fallo && (
+        {fallo ? (
           <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} aria-hidden /> Sin conexión con el servicio; reintentando…</span>
+        ) : (
+          <span className={procesando > 0 ? "font-medium text-amberTexto" : undefined}>
+            {procesando > 0 ? plural(procesando, "contrato en análisis", "contratos en análisis") : "Ningún contrato en análisis"}
+          </span>
         )}
-        {activos.length === 0 && !fallo && <span className="text-inkSoft">Ningún contrato en análisis</span>}
-        {activos.map((a) => {
-          const seg = a.desdeSeg + drift;
-          // iniciadoAt en el epoch + "ahora" = segundos transcurridos: faseHumana mide la espera sin tocar Date.now() en el render.
-          const p = { estado: "procesando" as const, faseActual: a.faseActual, faseIndex: a.faseIndex, fases: a.fases ?? null, iniciadoAt: new Date(0).toISOString() };
-          const fases = fasesEfectivas(p);
-          const prog = progresoFases(fases, "procesando");
-          return (
-            <Link
-              key={a.ocid}
-              href={`/app/auditoria/${encodeURIComponent(a.ocid)}`}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber/40 bg-amber-soft px-2 py-0.5 text-[11px] text-ink hover:border-amber"
-              title={a.titulo ?? a.ocid}
-            >
-              <span className="max-w-[14rem] truncate font-medium">{a.titulo ?? a.ocid}</span>
-              <span className="font-mono tabular-nums text-mute">{prog.hechas}/{prog.aplicables} pasos</span>
-              <span className="truncate text-amberTexto">{faseHumana(p, seg * 1000, fases)}</span>
-              <span className="font-mono tabular-nums text-mute">{duracion(seg * 1000)}</span>
-            </Link>
-          );
-        })}
         {pedidos && pedidos.pendientes + pedidos.descargando > 0 && (
           // Los números del pedido de descarga, tal cual (ceros incluidos): si nadie los toma, se ve.
-          <span className="text-mute">
-            Descargas de documentos:{" "}
-            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.pendientes)}</span> {pedidos.pendientes === 1 ? "pendiente" : "pendientes"} ·{" "}
-            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.descargando)}</span> en curso ·{" "}
-            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.listos24h)}</span> {pedidos.listos24h === 1 ? "lista" : "listas"} en 24 h
+          <span>
+            Descarga de documentos: <span className="tabular-nums text-ink">{numero(pedidos.descargando)}</span> en curso ·{" "}
+            <span className="tabular-nums text-ink">{numero(pedidos.pendientes)}</span> {pedidos.pendientes === 1 ? "pendiente" : "pendientes"} ·{" "}
+            <span className="tabular-nums text-ink">{numero(pedidos.listos24h)}</span> {pedidos.listos24h === 1 ? "lista" : "listas"} en 24 h
             {pedidos.fallidos > 0 && (
-              <>
-                {" "}· <span className="text-crimsonTexto"><span className="font-semibold tabular-nums">{numero(pedidos.fallidos)}</span> {pedidos.fallidos === 1 ? "fallida" : "fallidas"}</span>
-              </>
+              <span className="text-crimsonTexto"> · {plural(pedidos.fallidos, "fallida", "fallidas")}</span>
             )}
           </span>
         )}
         {lote && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2 py-0.5 text-[11px] text-mute" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
+          <span className="inline-flex items-center gap-1.5 text-mute" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
             <Download size={11} aria-hidden />
-            descarga de documentos {lote.completados ?? 0}/{lote.total ?? "?"}
-            {lote.total ? (
-              <span className="inline-block h-1 w-16 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                <span className="block h-full bg-moss" style={{ width: `${Math.min(100, Math.round(((lote.completados ?? 0) / lote.total) * 100))}%` }} />
-              </span>
-            ) : null}
-            {(lote.fallidos ?? 0) > 0 && <span className="text-crimsonTexto">{lote.fallidos} fallidos</span>}
+            lote de documentos <span className="tabular-nums text-inkSoft">{lote.completados ?? 0}/{lote.total ?? "?"}</span>
+            {(lote.fallidos ?? 0) > 0 && <span className="text-crimsonTexto">{plural(lote.fallidos ?? 0, "fallido", "fallidos")}</span>}
           </span>
         )}
         {tipos.length > 0 && (
           <span className="inline-flex items-center gap-1 text-mute">
             Se analizan contratos de {tipos.length === 1 ? tipos[0] : `${tipos.slice(0, -1).join(", ")} y ${tipos[tipos.length - 1]}`}
-            {data?.procesamientoActivo?.nota && <Ayuda titulo="¿Qué contratos se analizan?">{data.procesamientoActivo.nota}</Ayuda>}
+            {data.procesamientoActivo?.nota && <Ayuda titulo="¿Qué contratos se analizan?">{data.procesamientoActivo.nota}</Ayuda>}
           </span>
         )}
-        {data?.documentosDescargados7d && data.documentosDescargados7d.n > 0 && (
+        {data.documentosDescargados7d && data.documentosDescargados7d.n > 0 && (
           // Ingesta, no auditoría: va al final, en voz baja, con su explicación a un clic.
           <span className="inline-flex items-center gap-1 text-mute">
-            <span>
-              Catálogo: <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.n)}</span> documentos de{" "}
-              <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.contratos)}</span> contratos en 7 días
-            </span>
+            Catálogo: {numero(data.documentosDescargados7d.n)} documentos en 7 días
             <Ayuda titulo="¿Qué son esos documentos?">
-              Documentos del SEACE descargados en los últimos 7 días para contratos del catálogo general. No son contratos
-              financiados: es material para lecturas futuras.
+              Documentos del SEACE descargados en los últimos 7 días para{" "}
+              {plural(data.documentosDescargados7d.contratos, "contrato", "contratos")} del catálogo general. No son
+              contratos financiados: es material para lecturas futuras.
             </Ayuda>
           </span>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
-/** "último análisis hace 21 h" (la fecha exacta, en `title`). Antes de montar, la fecha: sin cronómetro en el HTML del servidor. */
+/** De qué está hecho "en espera", en palabras. Un solo motivo: "todos esperan sus documentos". */
+function composicionEspera(esperando: number, cola: number, conError: number, sinAnalisis: number): string {
+  const partes = [
+    { n: esperando, corta: "esperan documentos", todos: "esperan sus documentos" },
+    { n: cola, corta: "en cola", todos: "esperan turno en la cola" },
+    { n: conError, corta: "con error", todos: "esperan un reintento" },
+    { n: sinAnalisis, corta: "sin análisis aplicable", todos: "esperan un análisis aplicable" },
+  ].filter((p) => p.n > 0);
+  if (partes.length === 0) return "ninguno esperando";
+  if (partes.length === 1) return partes[0].n === 1 ? partes[0].todos.replace(/^esperan/, "espera") : `todos ${partes[0].todos}`;
+  return partes.map((p) => `${numero(p.n)} ${p.corta}`).join(" · ");
+}
+
+/** "último hace 21 h" (la fecha exacta, en `title`). Antes de montar, la fecha: sin relativo en el HTML del servidor. */
 function UltimoTerminado({ ultimoFin, ahora }: { ultimoFin: number | null; ahora: number }) {
-  if (ultimoFin == null) return <span>ningún análisis terminado todavía</span>;
+  if (ultimoFin == null) return <span>ningún análisis terminado</span>;
   const exacta = fechaLima(ultimoFin, { hora: true });
   return (
-    <span title={`${exacta}, hora de Lima`}>
-      último análisis{" "}
-      <strong className="font-semibold text-ink" suppressHydrationWarning>
-        {ahora > 0 ? haceCuanto(ahora - ultimoFin) : `el ${exacta}`}
-      </strong>
+    <span title={`${exacta}, hora de Lima`} suppressHydrationWarning>
+      último {ahora > 0 ? haceCuanto(ahora - ultimoFin) : `el ${exacta}`}
     </span>
+  );
+}
+
+/** La proporción del ciclo: una barra y su leyenda (sin cifras: están arriba, en los Indicadores). */
+function Ciclo({ tramos, financiados }: { tramos: Tramo[]; financiados: number }) {
+  const pct = (v: number) => (financiados ? (v / financiados) * 100 : 0);
+  return (
+    <div className="min-w-[16rem] flex-1 space-y-1.5">
+      <div
+        className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
+        role="img"
+        aria-label={`Ciclo de los ${financiados} financiados: ${tramos.map((t) => `${t.value} ${t.label}`).join(", ")}`}
+      >
+        {tramos.map((t) => (
+          <div
+            key={t.clave}
+            className={cn(t.color, "h-full")}
+            style={{ width: `${pct(t.value)}%`, minWidth: PISO_PX }}
+            title={`${t.value} ${t.label}`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <ul className="flex flex-wrap gap-x-3 gap-y-1" aria-hidden>
+          {tramos.map((t) => (
+            <li key={t.clave} className="inline-flex items-center gap-1.5 text-[12px] text-inkSoft">
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", t.color)} />
+              {t.label}
+            </li>
+          ))}
+        </ul>
+        <Ayuda titulo="¿Qué es cada estado?" ancho="w-[22rem]">
+          {tramos.map((t, i) => (
+            <span key={t.clave} className={cn("block", i > 0 && "mt-1.5")}>
+              <span className="font-semibold text-ink">{t.label.charAt(0).toUpperCase() + t.label.slice(1)}:</span> {t.titulo}
+            </span>
+          ))}
+        </Ayuda>
+      </div>
+    </div>
   );
 }
 
@@ -380,9 +386,10 @@ function BarrasRitmo({ ritmo }: { ritmo: { dia: string; n: number }[] }) {
           );
         })}
       </div>
-      <figcaption className="mt-0.5 flex justify-between font-mono text-[10px] text-mute" aria-hidden>
-        <span>{diaCorto(ritmo[0].dia)}</span>
-        <span>hoy</span>
+      <figcaption className="mt-0.5 flex justify-between text-[10.5px] text-mute" aria-hidden>
+        <span className="font-mono">{diaCorto(ritmo[0].dia)}</span>
+        <span>análisis por día</span>
+        <span className="font-mono">hoy</span>
       </figcaption>
     </figure>
   );

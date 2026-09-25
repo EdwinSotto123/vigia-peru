@@ -10,6 +10,7 @@ import { getZonas, getEstadoGlobal, type EstadoGlobal, type Zona } from "@/lib/f
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { numero } from "@/lib/formato";
 import { EncabezadoPagina } from "@/components/patrones";
+import { Indicadores } from "@/components/listado";
 import { Llamita } from "@/components/marca";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
 import { colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
@@ -18,7 +19,7 @@ import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
 import { type RangoMes } from "./mapa/FiltroMes";
 import { BarraMapa } from "./mapa/BarraMapa";
 import { FichaRegion } from "./mapa/FichaRegion";
-import { NumeroVivo } from "./mapa/NumeroVivo";
+import { indicadoresPais, indicadoresRegion } from "./mapa/indicadoresMapa";
 import { SenalesRecientes } from "./mapa/SenalesRecientes";
 import { RastroMapa } from "./mapa/RastroMapa";
 import { PanelZonaMovil } from "./mapa/PanelZonaMovil";
@@ -91,7 +92,8 @@ export function MapaWrapper({
   const [geoProv, setGeoProv] = useState<ContratoZona[] | null>(null);
   const [geoDist, setGeoDist] = useState<ContratoZona[] | null>(null);
   const [zonas, setZonas] = useState<Zona[] | null>(null);
-  const [estado, setEstado] = useState<EstadoGlobal | null>(null);
+  /** `undefined` = todavía no respondió; `null` = no respondió. */
+  const [estado, setEstado] = useState<EstadoGlobal | null | undefined>(undefined);
   const [alertas, setAlertas] = useState<any[] | null>(null);
   const [reportes, setReportes] = useState<any[] | null>(null);
   const enCurso = useEnCurso();
@@ -483,14 +485,6 @@ export function MapaWrapper({
       ? `los ${geoPais.length} departamentos`
       : "los departamentos del país";
 
-  /**
-   * "Esperando" y "financiados" como un solo par, de una sola fuente
-   * (`/financiamiento/zonas`: `pendientes` + `financiados`). Con un mes elegido el
-   * financiamiento no se puede acotar por mes, así que se dice sólo lo que sí:
-   * cuántos del mes esperan lectura.
-   */
-  const esperandoDe = (z: ContratoZona | undefined, f: Zona | undefined) => (mes ? z?.enCola : f?.pendientes ?? z?.enCola);
-
   // ─── Ficha flotante anclada a la zona ────────────────────────────────────
   const zonaActiva = activa ? zonaPorUbigeo.get(activa.ubigeo) : undefined;
   const finActiva = activa && activa.nivel === "departamento" && !mes ? financiamientoPorUbigeo.get(activa.ubigeo) : undefined;
@@ -519,54 +513,11 @@ export function MapaWrapper({
     return filas;
   }, [activa, zonaActiva, finActiva, mes, cargandoPais, enCurso]);
 
-  const hoy = estado && (estado.ingresadosHoy > 0 || estado.procesadosHoy > 0) ? estado : null;
-
-  const contextoHeader = cargandoPais ? (
-    // Mismo alto que la línea de datos que reemplaza: el encabezado no salta al cargar.
-    <span className="block" role="status" aria-busy>
-      <span className="block h-4 w-72 max-w-full animate-pulse rounded bg-paperEdge" />
-      <span className="sr-only">Cargando las cifras…</span>
-    </span>
-  ) : region ? (
-    // Una línea de datos (§10.7): cada cifra con su contexto, separadas por espacio y no por comas.
-    <span className="flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums sm:justify-end">
-      {!mes && fPais ? (
-        <>
-          <span>
-            <NumeroVivo valor={fPais.financiados} className="font-semibold text-ink" /> financiados
-          </span>
-          <span>
-            <NumeroVivo valor={fPais.pendientes} className="font-semibold text-ink" /> esperando lectura
-          </span>
-        </>
-      ) : (
-        <span>
-          <NumeroVivo valor={esperandoDe(zPais, fPais) ?? 0} className="font-semibold text-ink" /> esperando lectura
-        </span>
-      )}
-      <span>
-        <NumeroVivo valor={zPais?.conSenales ?? 0} className="font-semibold text-ink" /> de riesgo medio o alto, de{" "}
-        <NumeroVivo valor={zPais?.procesados ?? 0} className="font-semibold text-ink" /> leídos
-        {mes ? ` en ${mes.etiqueta}` : ""}
-      </span>
-    </span>
-  ) : (
-    <span className="flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums sm:justify-end">
-      <span>
-        <NumeroVivo valor={totalPais.leidos} className="font-semibold text-ink" /> leídos de{" "}
-        <NumeroVivo valor={totalPais.total} className="font-semibold text-ink" /> contratos publicados
-        {mes ? ` en ${mes.etiqueta}` : ""}
-      </span>
-      <span>
-        <NumeroVivo valor={totalPais.conSenales} className="font-semibold text-ink" /> de riesgo medio o alto
-      </span>
-      {hoy && !mes && (
-        <span>
-          hoy: {enteros(hoy.ingresadosHoy)} nuevos, {enteros(hoy.procesadosHoy)} leídos
-        </span>
-      )}
-    </span>
-  );
+  // Plantilla Tablero (§14): las cifras del estado actual van en `Indicadores`, entre el
+  // encabezado y el mapa, y cambian con la región y el mes elegidos.
+  const indicadores = region
+    ? indicadoresRegion({ zona: cargandoPais ? undefined : zPais, financiamiento: fPais, financiamientoCargando: zonas === null, mes })
+    : indicadoresPais({ total: totalPais, cargando: cargandoPais, mes, estado });
 
   const resumenMovil =
     zBase && fPais
@@ -598,22 +549,21 @@ export function MapaWrapper({
               : "Toca un departamento para ver qué se contrata y qué se encontró."
           }
           acciones={
-            <>
-              <div className="text-[13px] text-inkSoft" aria-live="polite">
-                {contextoHeader}
-              </div>
-              {region && (
-                <button
-                  type="button"
-                  onClick={() => elegirRegion(null)}
-                  className="inline-flex min-h-[36px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 py-1.5 text-xs font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
-                >
-                  <ArrowLeft size={14} aria-hidden /> Volver al Perú
-                </button>
-              )}
-            </>
+            region && (
+              <button
+                type="button"
+                onClick={() => elegirRegion(null)}
+                className="inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+              >
+                <ArrowLeft size={14} aria-hidden /> Volver al Perú
+              </button>
+            )
           }
         />
+
+        <div aria-live="polite">
+          <Indicadores items={indicadores} />
+        </div>
 
         {/* Un bloque blanco con borde sobre el suelo teñido: sin sombra en reposo (DESIGN_SYSTEM.md §5). */}
         <div className="relative overflow-hidden rounded-2xl border border-line bg-paper">

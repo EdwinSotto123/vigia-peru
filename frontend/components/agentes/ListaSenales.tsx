@@ -1,90 +1,22 @@
 "use client";
 
 /**
- * Las señales, en filas densas: severidad (color + ícono + palabra, vía <Severidad>), la regla,
- * el AGENTE que la produjo, la evidencia en UNA línea y el sello de cotejo. El detalle completo
- * —evidencia, texto citado del documento, norma, opinión OECE, páginas del expediente y fuente
- * oficial— abre en un panel al costado con <Revelar>, sin navegar: la lista filtrada de atrás es
- * parte de la prueba (DESIGN_SYSTEM.md §10.7: la fila resume, el panel explica).
- *
- * El sello y la fila no pueden ser el mismo botón (un botón dentro de otro botón no es HTML
- * válido ni es alcanzable con teclado), así que el sello va al costado, como hermano.
+ * Las piezas de una señal que comparten el informe (/app/convocatoria/[id]) y el índice de
+ * señales (/app/hallazgos): la evidencia de la fila en texto plano y sin datos personales
+ * (`resumenSinDatosPersonales` / `ResumenEvidencia`) y la ficha completa del panel lateral
+ * (`DetalleSenal`). La lista en sí es la `Tabla` del kit (components/listado): la arma
+ * AuditoriaDeAgentes en el informe y components/alertas/ListaSenales en el índice.
  */
 
 import { ExternalLink, FileText } from "lucide-react";
-import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
-import { severidadDeBandera } from "@/lib/severidad";
 import { maskDnis, pareceEmpresa, redactDnis, type NombreConocido } from "@/components/Redact";
-import type { ReglasPerfil } from "@/lib/auditoria";
-import { cn } from "@/lib/utils";
 import { nombreDeAgente, pasoDeClave } from "./catalogo";
 import { SelloVerificada } from "./SelloVerificada";
 import type { SenalAgente } from "./senales";
-import { descripcionDeRegla, etiquetaDeRegla } from "./useReglasPerfil";
 
 /** Lo que cabe en una línea de la fila: el resto de la evidencia está en el panel. */
 const MAX_RESUMEN = 160;
-
-export function ListaSenales({
-  senales,
-  reglas,
-  mostrarSello = true,
-  nombres = [],
-}: {
-  senales: SenalAgente[];
-  reglas: ReglasPerfil | null;
-  mostrarSello?: boolean;
-  /** Personas privadas del dossier (nombresPrivadosDe): su apellido no va en claro en la fila. */
-  nombres?: NombreConocido[];
-}) {
-  return (
-    <ul className="divide-y divide-line">
-      {senales.map((s, i) => {
-        const sev = severidadDeBandera(s.severidad);
-        const etiqueta = etiquetaDeRegla(s.regla, reglas);
-        return (
-          <li key={`${s.regla}-${i}`}>
-            {/* La barra de color es un div: la fila se lee como bloque y no como un párrafo largo. */}
-            <div className="flex items-start gap-2 px-3 py-2 sm:px-5">
-              <div aria-hidden className={cn("mt-0.5 w-1 shrink-0 self-stretch rounded-full", sev.punto)} />
-              <Revelar
-                className="min-w-0 flex-1 rounded-lg px-1 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
-                titulo={etiqueta}
-                descripcion={
-                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Severidad bandera={s.severidad} formato="linea" />
-                    <span>
-                      la encontró <strong className="font-semibold text-ink">{nombreDeAgente(s.agenteBruto ?? s.agente)}</strong>
-                    </span>
-                  </span>
-                }
-                detalle={<DetalleSenal senal={s} etiqueta={etiqueta} descripcion={descripcionDeRegla(s.regla, reglas)} />}
-                etiqueta={`Ver la evidencia de ${etiqueta}`}
-              >
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <Severidad bandera={s.severidad} formato="punto" />
-                  <span className="text-[13px] font-medium leading-snug text-ink">{etiqueta}</span>
-                  <span className="text-[11px] text-mute">{nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
-                  {s.item && <span className="font-mono text-[11px] text-mute">ítem {s.item}</span>}
-                </span>
-                {/* Una línea (dos en el celular). Dentro de un botón no puede ir el vidrio revelable
-                    (un clic cerca del dato personal sería ambiguo): DNI y apellidos privados van
-                    tapados sin revelar, y se revelan en el panel, deliberadamente. */}
-                {s.evidencia && (
-                  <span className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-inkSoft md:truncate">
-                    {resumenSinDatosPersonales(s.evidencia, nombres)}
-                  </span>
-                )}
-              </Revelar>
-              {mostrarSello && <SelloVerificada verificada={s.verificada} className="mt-0.5" />}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /**
  * La palabra que `PersonName` tapa de cada persona privada: en orden SUNAT el materno (2.ª
@@ -120,6 +52,14 @@ export function resumenSinDatosPersonales(texto: string, nombres: NombreConocido
   const corte = limpio.slice(0, MAX_RESUMEN);
   const esp = corte.lastIndexOf(" ");
   return `${esp > MAX_RESUMEN * 0.6 ? corte.slice(0, esp) : corte}…`;
+}
+
+/**
+ * El mismo resumen como componente: la función vive en este módulo cliente, así que un
+ * server component (la tabla de /app/hallazgos) la usa a través de aquí, pasando sólo datos.
+ */
+export function ResumenEvidencia({ texto, nombres }: { texto: string; nombres?: NombreConocido[] }) {
+  return <>{resumenSinDatosPersonales(texto, nombres)}</>;
 }
 
 export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; etiqueta: string; descripcion: string | null }) {

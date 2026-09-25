@@ -138,3 +138,23 @@ export function EstadoAporte({
     </ol>
   );
 }
+
+/**
+ * El estado de un aporte como chip de la columna de estado de un listado (§14.1): la
+ * lista de aportes de un aliado y la de "Mi impacto" dicen lo mismo con las mismas
+ * palabras. Financiado y en proceso = granate (la marca acompañando el trámite); leído =
+ * moss (positivo); pendiente = neutro. Nunca ámbar: es "Señal media".
+ */
+const CHIP_APORTE: Record<string, { label: string; cls: string }> = {
+  pendiente_pago: { label: "Pendiente de pago", cls: "bg-paperDeep text-inkSoft border-line" },
+  pagada: { label: "Financiado", cls: "bg-granate-soft text-granate border-granate/20" },
+  en_proceso: { label: "En proceso", cls: "bg-granate-soft text-granate border-granate/20" },
+  procesada: { label: "Leído y publicado", cls: "bg-moss/10 text-mossTexto border-moss/30" },
+  rechazada: { label: "Rechazado", cls: "bg-crimson-soft text-crimsonTexto border-crimson/30" },
+  reembolsada: { label: "Reembolsado", cls: "bg-paperDeep text-inkSoft border-line" },
+};
+
+export function ChipAporte({ estado }: { estado: EstadoContribucion }) {
+  const cfg = CHIP_APORTE[estado] ?? { label: estado.replace(/_/g, " "), cls: "bg-paperDeep text-mute border-line" };
+  return <span className={`pill whitespace-nowrap ${cfg.cls}`}>{cfg.label}</span>;
+}

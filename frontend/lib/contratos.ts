@@ -209,7 +209,8 @@ export interface ContratosQuery {
   /** YYYY-MM-DD, sobre fecha_convocatoria. */
   desde?: string;
   hasta?: string;
-  riesgo?: RiesgoContrato | "";
+  /** Los cuatro tramos, o `en_revision` (el API lo acepta: leídos frenados para revisión humana). */
+  riesgo?: RiesgoContrato | "en_revision" | "";
   estado?: EstadoContrato | "";
   operativo?: EstadoOperativo | "";
   orden?: OrdenContratos | "";
@@ -405,7 +406,28 @@ export function contratosQueryString(q: ContratosQuery = {}): string {
   return params.toString();
 }
 
-/** Lee `searchParams` de Next (strings sueltos) y deja solo lo válido. */
+/** Riesgos que acepta la URL: los cuatro tramos y "en revisión". */
+const RIESGOS_URL: string[] = [...RIESGOS.map((r) => r.value), "en_revision"];
+
+/** "2026-08" → primer y último día de ese mes (el API filtra por [desde, hasta]). */
+export function rangoDeMes(mes: string): { desde: string; hasta: string } | null {
+  const m = mes.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (!m) return null;
+  const ultimo = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0)).getUTCDate();
+  return { desde: `${mes}-01`, hasta: `${mes}-${String(ultimo).padStart(2, "0")}` };
+}
+
+/** Lo inverso: "2026-08" si [desde, hasta] es exactamente un mes calendario; si no, null. */
+export function mesDeRango(desde: string | undefined, hasta: string | undefined): string | null {
+  if (!desde || !hasta) return null;
+  const r = rangoDeMes(desde.slice(0, 7));
+  return r && r.desde === desde && r.hasta === hasta ? desde.slice(0, 7) : null;
+}
+
+/**
+ * Lee `searchParams` de Next (strings sueltos) y deja solo lo válido. `mes=AAAA-MM` (el
+ * filtro "Mes de convocatoria" de la lista) se traduce a `desde`/`hasta` para el API.
+ */
 export function parseContratosQuery(sp: Record<string, string | string[] | undefined> = {}): ContratosQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   const page = Math.max(1, Number(s("page") ?? 1) || 1);
@@ -413,6 +435,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
   const ubigeo = s("ubigeo");
   const entidad = s("entidad");
   const fecha = (k: string) => { const v = s(k); return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
+  const mes = rangoDeMes(s("mes") ?? "");
   return {
     page,
     q: s("q")?.slice(0, 120) || undefined,
@@ -422,11 +445,36 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     entidad: entidad && /^\d{11}$/.test(entidad) ? entidad : undefined,
     monto_min: num("monto_min"),
     monto_max: num("monto_max"),
-    desde: fecha("desde"),
-    hasta: fecha("hasta"),
-    riesgo: RIESGOS.some((t) => t.value === s("riesgo")) ? (s("riesgo") as RiesgoContrato) : undefined,
+    desde: mes?.desde ?? fecha("desde"),
+    hasta: mes?.hasta ?? fecha("hasta"),
+    riesgo: RIESGOS_URL.includes(s("riesgo") ?? "") ? (s("riesgo") as ContratosQuery["riesgo"]) : undefined,
     operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
+  };
+}
+
+/**
+ * Los parámetros de la URL de /app/contratos como datos planos (strings), para el `Listado`
+ * del kit: sin página (la borra cada filtro) y con `mes` en vez de `desde`/`hasta` cuando el
+ * rango es un mes entero, que es como lo escribe el filtro.
+ */
+export function contratosParametros(q: ContratosQuery): Record<string, string | undefined> {
+  const mes = mesDeRango(q.desde, q.hasta);
+  const txt = (v: string | number | undefined) => (v == null || v === "" ? undefined : String(v));
+  return {
+    q: txt(q.q),
+    riesgo: txt(q.riesgo),
+    operativo: txt(q.operativo),
+    tipo: txt(q.tipo),
+    etapa: txt(q.etapa),
+    ubigeo: txt(q.ubigeo),
+    entidad: txt(q.entidad),
+    mes: mes ?? undefined,
+    desde: mes ? undefined : txt(q.desde),
+    hasta: mes ? undefined : txt(q.hasta),
+    monto_min: txt(q.monto_min),
+    monto_max: txt(q.monto_max),
+    orden: q.orden && q.orden !== "fecha" ? q.orden : undefined,
   };
 }
 

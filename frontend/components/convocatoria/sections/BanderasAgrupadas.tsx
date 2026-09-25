@@ -7,10 +7,9 @@
  * que usa el dossier. Antes había dos lecturas distintas del mismo hecho en dos páginas que el
  * usuario visita seguidas.
  *
- * Lo que cambió en la lectura, no solo en el dibujo:
- *  · el agente que produjo cada señal deja de ser un chip de color y pasa a ser el filtro;
- *  · las reglas que NO dispararon se muestran (antes solo se contaban: "25 reglas evaluadas");
- *  · el cotejo contra la fuente oficial se ve por señal, o se declara que no vino en el payload.
+ * La tabla (kit de listados), los carriles de agentes y la matriz de reglas los arma
+ * AuditoriaDeAgentes; aquí se agregan, aparte y fuera de los conteos, las señales de precio
+ * que el mercado no pudo sostener.
  */
 
 import { useMemo } from "react";
@@ -34,8 +33,8 @@ type BanderaConCotejo = Bandera & {
 
 const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
-/** La `Bandera` del payload → la señal normalizada (la usa también el resumen de arriba, ResumenHumano). */
-export function desdeBandera(b: Bandera): SenalAgente {
+/** La `Bandera` del payload → la señal normalizada que pinta la tabla de señales. */
+function desdeBandera(b: Bandera): SenalAgente {
   const raw = b as BanderaConCotejo;
   const inferido = inferAgente(b);
   const bruto = txt(b.agente_origen) ?? (inferido && inferido !== "?" ? inferido : null);
@@ -96,45 +95,46 @@ export function BanderasAgrupadas({
   nombresPrivados?: NombreConocido[];
 }) {
   const senales = useMemo(() => (banderas ?? []).map(desdeBandera), [banderas]);
+  const apartadas = noVerificables.length > 0 && <NoVerificables banderas={noVerificables} />;
+  // Sin `nota` al pie: "una señal no es una acusación" lo dice una sola vez el informe, al final.
+  if (senales.length === 0) return apartadas || null;
   return (
-    <div className="space-y-3">
-      {/* Sin `nota` al pie: "una señal no es una acusación" lo dice una sola vez el informe, al final. */}
-      {senales.length > 0 && (
-        <AuditoriaDeAgentes
-          senales={senales}
-          fases={fases}
-          perfil={perfil}
-          reglasDisparadas={reglasDisparadas}
-          reglasEvaluadas={reglas_evaluadas ?? undefined}
-          titulo="Las señales, una por una"
-          carrilesPlegados
-          nombresPrivados={nombresPrivados}
-        />
-      )}
-      {noVerificables.length > 0 && (
-        <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
-          <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
-            <CircleSlash size={15} className="shrink-0 text-mute" aria-hidden />
-            <strong className="font-semibold">
-              {noVerificables.length} {noVerificables.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
-            </strong>
-            <span className="text-[12px] text-mute">fuera de los conteos</span>
-          </summary>
-          <p className="mt-2 text-[12px] leading-snug text-mute">
-            El agente de precios no pudo medir el sobreprecio con fuentes suficientes: estas señales no se cuentan ni se usan
-            en el resumen, y se dejan a la vista para revisarlas.
-          </p>
-          <ul className="mt-3 space-y-2 border-t border-line pt-3">
-            {noVerificables.map((b, i) => (
-              <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
-                <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "sobreprecio"))}</span>
-                <span className="ml-1.5 rounded-full border border-line bg-paper px-1.5 py-0 text-[11px] text-inkSoft">no verificable</span>
-                {evidenciaComoTexto(b.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(b.evidencia))}</p>}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
+    <AuditoriaDeAgentes
+      senales={senales}
+      fases={fases}
+      perfil={perfil}
+      reglasDisparadas={reglasDisparadas}
+      reglasEvaluadas={reglas_evaluadas ?? undefined}
+      nombresPrivados={nombresPrivados}
+      anexo={apartadas}
+    />
+  );
+}
+
+/** Las señales de sobreprecio que el mercado no sostiene: a la vista, plegadas y fuera de los conteos. */
+function NoVerificables({ banderas }: { banderas: Bandera[] }) {
+  return (
+    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
+      <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
+        <CircleSlash size={15} className="shrink-0 text-mute" aria-hidden />
+        <strong className="font-semibold">
+          {banderas.length} {banderas.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
+        </strong>
+        <span className="text-[12px] text-mute">fuera de los conteos</span>
+      </summary>
+      <p className="mt-2 text-[12px] leading-snug text-mute">
+        El agente de precios no pudo medir el sobreprecio con fuentes suficientes: estas señales no se cuentan ni se usan en
+        el resumen, y se dejan a la vista para revisarlas.
+      </p>
+      <ul className="mt-3 space-y-2 border-t border-line pt-3">
+        {banderas.map((b, i) => (
+          <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
+            <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "sobreprecio"))}</span>
+            <span className="ml-1.5 rounded-full border border-line bg-paper px-1.5 py-0 text-[11px] text-inkSoft">no verificable</span>
+            {evidenciaComoTexto(b.evidencia) && <span className="mt-0.5 block">{redactDnis(evidenciaComoTexto(b.evidencia))}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

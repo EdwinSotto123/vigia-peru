@@ -64,8 +64,6 @@ export interface ApiResult {
 
 export type SortKey = "reciente" | "score" | "monto";
 
-export type SevFilter = "todos" | "alta" | "media" | "sin";
-
 export type CatFilter = "todas" | "bienes" | "servicios" | "obras" | "consultoria";
 
 // Qué hace cada nodo (para el click).

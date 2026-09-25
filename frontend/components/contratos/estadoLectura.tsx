@@ -18,7 +18,7 @@
  * null) cuando la autoevaluación frenó la alerta. Antes esa marca se ignoraba y la
  * misma fila decía "Sin leer todavía" en la columna de riesgo y "Procesado" en la
  * de lectura (auditoría de coherencia 2026-09-24, punto 9). Ahora manda sobre todo
- * lo demás y las dos celdas dicen "En revisión" (DESIGN_SYSTEM.md §10.4).
+ * lo demás y el chip de la fila dice "En revisión" (DESIGN_SYSTEM.md §10.4).
  *
  * Las palabras son las de §10.1: "Leído" (el análisis terminó), "En cola" (espera
  * financiamiento para leerse), "En revisión".
@@ -28,6 +28,7 @@ import { ESTADO_CONTRATO_EXTRA, type ContratoResumen, type EstadoContrato } from
 import { ESTADO_PROC, type EstadoProc } from "@/lib/auditoria";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { COLOR_ESTADO, type EstadoOperativoZona } from "./ContratoPin";
+import { PesoRiesgo } from "./PesoRiesgo";
 import { cn } from "@/lib/utils";
 
 export type EstadoLectura = EstadoOperativoZona;
@@ -39,15 +40,6 @@ export interface LecturaInfo {
   /** Qué significa y qué falta. Se muestra completa en el panel del contrato. */
   detalle: string;
 }
-
-/** Orden de avance, de nada leído a leído. Es el orden de la leyenda. */
-export const ORDEN_LECTURA: EstadoLectura[] = [
-  "sin_analizar",
-  "documentos_listos",
-  "en_cola",
-  "procesado",
-  "en_revision",
-];
 
 const BASE: Record<EstadoLectura, LecturaInfo> = {
   sin_analizar: {
@@ -81,15 +73,6 @@ const BASE: Record<EstadoLectura, LecturaInfo> = {
   },
 };
 
-/** Etiquetas cortas de la leyenda, para no repetir el catálogo en cada superficie. */
-export const LECTURA_LABEL: Record<EstadoLectura, string> = {
-  sin_analizar: BASE.sin_analizar.label,
-  documentos_listos: BASE.documentos_listos.label,
-  en_cola: BASE.en_cola.label,
-  procesado: BASE.procesado.label,
-  en_revision: BASE.en_revision.label,
-};
-
 /**
  * Traduce una fila del API a uno de los cinco estados. Los estados del pipeline
  * (`procesando`, `encolado`, `esperando_documentos`, `error`) son más finos que
@@ -97,7 +80,7 @@ export const LECTURA_LABEL: Record<EstadoLectura, string> = {
  * pero conservan su palabra propia, que es información real y no se tira.
  */
 export function estadoLecturaDe(
-  c: Pick<ContratoResumen, "estadoProcesamiento" | "estadoOperativo" | "enRevision">,
+  c: Pick<ContratoResumen, "estadoProcesamiento" | "estadoOperativo" | "enRevision"> & { score?: number | null },
 ): LecturaInfo {
   // La marca de revisión manda: la fila llega con estadoProcesamiento "procesado".
   if (c.enRevision) return BASE.en_revision;
@@ -108,6 +91,15 @@ export function estadoLecturaDe(
     case "revision":
       return BASE.en_revision;
     case "procesado":
+      // Leído sin puntaje público y sin revisión pendiente: una persona lo descartó (el API
+      // manda score null). Decir "dictamen publicado" ahí era falso.
+      if ("score" in c && c.score == null) {
+        return {
+          estado: "procesado",
+          label: "Leído, sin publicar",
+          detalle: "Los agentes lo leyeron, pero el resultado no se publicó.",
+        };
+      }
       return BASE.procesado;
     case "procesando":
       return {
@@ -167,33 +159,29 @@ export function PuntoLectura({ estado, className }: { estado: EstadoLectura; cla
 }
 
 /**
- * Celda de estado de lectura: punto canónico + palabra, en texto neutro.
- * El texto va en `inkSoft` a propósito — si la palabra tomara el color del
- * estado, el ojo leería esta columna como una segunda escala de severidad.
+ * El chip de la columna "Estado" de un contrato (DESIGN_SYSTEM.md §14.1: la columna de
+ * estado siempre es un chip). Uno solo, con lo más específico que se sabe:
+ *  - leído → su peso del riesgo ("Riesgo alto", "Sin señales"…) o "En revisión" (§10.4);
+ *  - sin leer → dónde está su lectura ("En cola", "Procesando", "Docs listos"…).
+ * Son etapas sucesivas, no dos escalas en la misma celda: el peso sólo existe después
+ * de leer. Y no se confunden a la vista: el peso usa la escala de severidad; la lectura
+ * va neutra, con el punto del catálogo del mapa (el mismo color que el punto de su zona).
  */
-export function EstadoLecturaCelda({ info, className }: { info: LecturaInfo; className?: string }) {
+export function EstadoContratoChip({
+  c,
+  className,
+}: {
+  c: Pick<ContratoResumen, "estadoProcesamiento" | "estadoOperativo" | "enRevision" | "score" | "banderas">;
+  className?: string;
+}) {
+  if (c.enRevision || c.score != null) {
+    return <PesoRiesgo score={c.score} banderas={c.banderas} enRevision={c.enRevision} formato="pastilla" className={className} />;
+  }
+  const l = estadoLecturaDe(c);
   return (
-    <span
-      className={cn("inline-flex min-w-0 items-center gap-1.5 text-[12px] text-inkSoft", className)}
-      title={info.detalle}
-    >
-      <PuntoLectura estado={info.estado} />
-      <span className="truncate">{info.label}</span>
-    </span>
-  );
-}
-
-/** Leyenda de los cinco estados. Densa, una línea, para el pie de la tabla. */
-export function LeyendaLectura({ className }: { className?: string }) {
-  return (
-    <span className={cn("inline-flex flex-wrap items-center gap-x-3 gap-y-1", className)}>
-      <span className="text-mute">Estado de lectura:</span>
-      {ORDEN_LECTURA.map((e) => (
-        <span key={e} className="inline-flex items-center gap-1.5 text-inkSoft" title={BASE[e].detalle}>
-          <PuntoLectura estado={e} />
-          {LECTURA_LABEL[e]}
-        </span>
-      ))}
+    <span className={cn("pill max-w-full border-line bg-paperSoft text-inkSoft", className)} title={l.detalle}>
+      <PuntoLectura estado={l.estado} />
+      <span className="truncate">{l.label}</span>
     </span>
   );
 }

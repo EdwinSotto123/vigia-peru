@@ -2,8 +2,8 @@
 
 /**
  * Acción de equipo: sortear un contrato del SEACE que Vigía todavía no leyó y despachar los
- * agentes. Vivía en una columna lateral junto a un recuento por nivel que repetía los chips de
- * la lista; ahora es un botón al lado del campo de despacho, con su explicación a un clic.
+ * agentes. Es un botón con su explicación a un clic: en la cabecera de /app/convocatoria
+ * (DespachoEquipo) y al lado del campo de despacho de /admin/analisis.
  *
  * Sólo se monta con sesión de equipo: /api/agent/random exige la cookie de admin (401 si no).
  */

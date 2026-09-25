@@ -1,29 +1,24 @@
 "use client";
 
 /**
- * "Mira cómo se ejecuta": un contrato asignado a un aporte, en vivo.
- *   · cabecera (título, entidad, zona, monto, gracias a {financiador}, {código})
- *   · progreso global (fases hechas / aplicables), tiempo transcurrido y estimado
- *   · los tres carriles del DAG con cada agente (DagCarriles)
- *   · bitácora (últimos 12 eventos humanizados): abierta en vivo, plegada al terminar
- *   · al terminar → Resultados (ResultadoAnalisis) en la misma página
+ * "Mira cómo se ejecuta": un contrato asignado a un aporte, en vivo, con la plantilla Ficha
+ * (DESIGN_SYSTEM.md §14.2):
+ *   ← Auditoría en vivo
+ *   identidad: h1 (el objeto) · estado (chip) · entidad, zona y códigos en una línea
+ *   Indicadores: valor referencial, pasos completados y el tiempo que importa según el estado
+ *   estado / veredicto: UNA tarjeta — el resultado (ResultadoAnalisis) o qué pasa ahora
+ *   Seccion "cómo se analiza": carriles del DAG, grafo en vivo, tiempos por agente y bitácora
+ *   columna lateral (lg): zona, quién pagó y cómo se hizo (DatosProceso)
  *
- * Dato primero (DESIGN_SYSTEM.md §10.7): los porqués (independencia de quien paga, por qué
- * faltan documentos, cuándo le toca) van en un ⓘ junto a lo que explican, no en párrafos.
+ * Todo sondea junto (por eso la página entera es este componente): cada estado tiene su propia
+ * cadencia de consulta: encolado/procesando cada `pollMs` (3 s), esperando documentos o con
+ * error cada minuto (nada cambia en segundos), terminado nunca.
  *
- * Cada estado tiene su propia cadencia de consulta: encolado/procesando cada `pollMs` (3 s),
- * esperando documentos o con error cada minuto (nada cambia en segundos), terminado nunca.
- * Antes un contrato esperando documentos consultaba cada 3 s para siempre y mostraba "Sin
- * actividad", doce filas "pendiente" y "Esperando el primer evento…": un callejón sin salida.
- * Ahora ese estado tiene su propio bloque que explica qué espera y desde cuándo.
- *
- * Revisión humana: ni el puntaje, ni las señales, ni cuántas encontró cada agente. Lo dice
- * ResultadoAnalisis, y acá los carriles no reciben las señales.
- *
+ * Revisión humana: ni el puntaje, ni las señales, ni cuántas encontró cada agente (§10.4).
  * UNA región viva por página: anuncia cambios de estado y el paso en curso, nada más.
  *
- * `compacto` (aside de /app/contratos/[ocid]): sin cabecera ni navegación; carriles y
- * bitácora corta.
+ * `compacto` (aside de /app/contratos/[ocid]): sin identidad ni navegación; resultado, una
+ * tarjeta de ejecución con la ficha técnica plegada y la bitácora corta.
  *
  * Datos: GET /financiamiento/procesamientos/:ocid
  */
@@ -31,23 +26,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Clock, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
-import { solesCompacto } from "@/lib/formato";
-import { EstadoError } from "@/components/patrones";
-import { Ayuda } from "@/components/patrones/Ayuda";
+import { Clock, Landmark, Play, WifiOff } from "lucide-react";
+import { numero, soles, solesCompacto } from "@/lib/formato";
+import { EstadoError, Seccion, Volver } from "@/components/patrones";
+import { Indicadores, type Indicador } from "@/components/listado";
 import {
-  AGENTES_PROGRESO, ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, fechaLima,
-  getReglasPerfil, motivoHumano, nodoActivoYHechos, progresoFases, relojEdad, tipoContratoHumano,
+  ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, fasesEfectivas, fechaLima, progresoFases,
   type EstadoProc, type ProcesamientoDetalle,
 } from "@/lib/auditoria";
-import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Bitacora } from "./Bitacora";
 import { CompartirButton } from "./CompartirButton";
-import { DagCarriles } from "./DagCarriles";
+import { CabeceraEjecucion, CuerpoEjecucion, DatosProceso, SinEjecucion } from "./EjecucionAnalisis";
 import { EstadoPill } from "./EstadoPill";
-import { ReplayAnalisis } from "./ReplayAnalisis";
 import { ResultadoAnalisis } from "./ResultadoAnalisis";
 
 interface Props {
@@ -74,6 +65,12 @@ const ANUNCIO_ESTADO: Partial<Record<EstadoProc, string>> = {
   esperando_documentos: "El contrato quedó esperando sus documentos.",
 };
 
+/** "6 días" desde un día; por debajo, la duración exacta. Para una cifra grande, no un reloj. */
+const edad = (ms: number) => {
+  const d = Math.floor(ms / 86_400_000);
+  return d >= 1 ? `${d} ${d === 1 ? "día" : "días"}` : duracion(ms);
+};
+
 export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false }: Props) {
   const router = useRouter();
   const [data, setData] = useState<ProcesamientoDetalle | null>(initial ?? null);
@@ -86,8 +83,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   // Al terminar hacemos UNA lectura más para traer `resultado` (el poll se detiene con el estado final).
   const resultadoPedido = useRef(false);
   // "Ver cómo se analizó": repite la bitácora real ya guardada, para poder mirar la animación
-  // aunque el análisis haya terminado hace días (la ventana de verlo EN VIVO es rarísima: solo
-  // corre cuando hay algo en cola, unos minutos cada vez).
+  // aunque el análisis haya terminado hace días (verlo EN VIVO es rarísimo: unos minutos cada vez).
   const [verReplay, setVerReplay] = useState(false);
 
   useEffect(() => {
@@ -183,19 +179,14 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   const vivoAhora = p.estado === "procesando" || p.estado === "encolado";
   const terminado = p.estado === "procesado";
   const sinEjecucion = p.estado === "esperando_documentos" || p.estado === "pendiente_de_procesamiento";
-  const montado = ahora > 0;
-  const transcurrido = montado && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   const duro = p.iniciadoAt && p.finalizadoAt ? new Date(p.finalizadoAt).getTime() - new Date(p.iniciadoAt).getTime() : null;
   const prog = progresoFases(fases, estado);
-  const estimado = p.estimado ?? null;
-  const restante = estimado?.medianaSeg && transcurrido != null ? Math.max(0, estimado.medianaSeg * 1000 - transcurrido) : null;
-  const sinEventos = p.estado === "procesando" && p.eventos.length === 0;
   const puedeRepetir = terminado && p.eventos.length > 0;
 
   const regionViva = <p className="sr-only" aria-live="polite" aria-atomic="true">{anuncio}</p>;
 
   const enVivoBadge = (
-    <span className="inline-flex items-center gap-1.5 text-[11px]">
+    <span className="inline-flex items-center gap-1.5 text-[12px]">
       {fallo ? (
         <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
       ) : vivoAhora ? (
@@ -214,127 +205,17 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
     </span>
   );
 
-  // ── Bloque "cómo se ejecuta" (progreso + carriles + bitácora) ──
-  const ejecucion = sinEjecucion ? (
-    <SinEjecucion p={p} ahora={ahora} compacto={compacto} />
-  ) : (
-    <section className={`rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`} aria-label="Cómo se ejecuta el análisis">
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1 text-[12px] font-semibold text-mute">
-            {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
-            {p.estado === "encolado" && (
-              <Ayuda titulo="¿Cuándo le toca?">
-                Está asignado a un aporte confirmado. El sistema lo toma por orden de llegada: nadie elige cuál va primero.
-              </Ayuda>
-            )}
-          </div>
-          <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} suppressHydrationWarning>
-            {p.estado === "procesando"
-              ? faseHumana(p, montado ? ahora : undefined, fases)
-              : p.estado === "encolado"
-                ? "Espera turno"
-                : p.estado === "error"
-                  ? p.intentos >= 3 ? "Falló en los 3 intentos" : `Falló el intento ${Math.max(1, p.intentos)} de 3`
-                  : terminado
-                    // "pasos", no "agentes": prog.hechas cuenta los pasos del DAG, y dos de
-                    // ellos (SUNAT/OECE y la autoevaluación) no son agentes de IA: son 10
-                    // agentes repartidos en 12 pasos.
-                    ? `${prog.hechas} pasos${duro != null && duro > 0 ? ` en ${duracion(duro)}` : ""}`
-                    : ESTADO_PROC[estado].label}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className={`font-mono font-semibold tabular-nums text-ink ${compacto ? "text-lg" : "text-2xl"}`}>
-            {prog.hechas}<span className="text-mute">/{prog.aplicables}</span>
-          </div>
-          <div className="font-mono text-[11px] tabular-nums text-mute" suppressHydrationWarning>
-            {transcurrido != null && transcurrido > 0 ? (
-              <>
-                {duracion(transcurrido)}
-                {restante != null && <span className="ml-2">quedan {restante < 15_000 ? "unos segundos" : `≈ ${duracion(restante)}`}</span>}
-                {restante == null && <span className="ml-2">{estimadoLabel(estimado)} en total</span>}
-              </>
-            ) : p.estado === "encolado" ? (
-              <>{estimadoLabel(estimado)} por contrato</>
-            ) : null}
-          </div>
-        </div>
-      </div>
-      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuemin={0} aria-valuemax={prog.aplicables} aria-valuenow={prog.hechas} aria-label="Pasos completados">
-        <div className={`h-full rounded-full transition-all duration-700 ease-out ${terminado ? "bg-moss" : "bg-amber"}`} style={{ width: `${Math.max(p.estado === "procesando" ? 3 : 0, prog.pct)}%` }} />
-      </div>
+  const botonReplay = puedeRepetir ? (
+    <button
+      type="button"
+      onClick={() => setVerReplay((v) => !v)}
+      className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
+    >
+      <Play size={11} aria-hidden /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
+    </button>
+  ) : null;
 
-      {p.estado === "encolado" && p.intentos > 0 && (
-        <p className="mt-3 text-[12px] text-mute">
-          Intentos previos: <span className="font-mono">{p.intentos}</span>; se reintenta automáticamente.
-        </p>
-      )}
-      {p.estado === "error" && (
-        <p className="mt-3 text-[12px] text-crimsonTexto">
-          {p.intentos < 3
-            ? "El intento anterior falló; el análisis vuelve a tomar el contrato desde el inicio."
-            : "Tras 3 intentos quedó en revisión manual: el equipo lo vuelve a poner en la cola y el aporte no pierde su contrato."}
-        </p>
-      )}
-      {sinEventos && (
-        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis.</p>
-      )}
-
-      <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-        {/* Terminado: se puede repetir cómo ocurrió, agente por agente. El botón lo dice solo. */}
-        {puedeRepetir && (
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setVerReplay((v) => !v)}
-              className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
-            >
-              <Play size={11} aria-hidden /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
-            </button>
-          </div>
-        )}
-        {verReplay && puedeRepetir ? (
-          <ReplayAnalisis eventos={p.eventos} estadoFinal={estado} compacto={compacto} />
-        ) : (
-          <>
-            {!compacto && p.estado === "procesando" && (
-              <div className="mb-4">
-                <FlowGraph override={{ ...nodoActivoYHechos(fases), narracion: faseHumana(p, montado ? ahora : undefined, fases) }} />
-              </div>
-            )}
-            {/* En revisión, los carriles no cuentan señales por agente: serían señales publicadas. */}
-            <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={enRevision ? null : p.resultado?.banderas ?? null} />
-            {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
-            {/* En vivo, la bitácora es lo que se mira y va abierta. Terminado, es el registro:
-                queda plegada debajo de la ficha técnica, a un clic. */}
-            {!terminado ? (
-              <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-                <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-mute">
-                  <span>Bitácora</span>
-                  <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
-                </div>
-                <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={vivoAhora} compacto={compacto} />
-              </div>
-            ) : (
-              <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-                {/* `display` por defecto: conserva el triángulo del <summary>, que es lo que dice "se abre". */}
-                <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
-                  <span className="inline-flex items-baseline gap-x-3">
-                    <span>Bitácora</span>
-                    <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
-                  </span>
-                </summary>
-                <div className="mt-2">
-                  <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={false} compacto={compacto} />
-                </div>
-              </details>
-            )}
-          </>
-        )}
-      </div>
-    </section>
-  );
+  const tarjeta = `rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`;
 
   if (compacto) {
     return (
@@ -343,7 +224,17 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         {terminado && (
           <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} compacto sharePath={`/app/contratos/${encodeURIComponent(p.ocid)}`} />
         )}
-        {ejecucion}
+        {sinEjecucion ? (
+          <SinEjecucion p={p} ahora={ahora} compacto />
+        ) : (
+          <section className={tarjeta} aria-label="Cómo se ejecuta el análisis">
+            <CabeceraEjecucion p={p} fases={fases} prog={prog} ahora={ahora} duro={duro} compacto conCifras />
+            <div className="mt-3 border-t border-line pt-3">
+              {botonReplay && <div className="mb-3 flex justify-end">{botonReplay}</div>}
+              <CuerpoEjecucion p={p} fases={fases} ahora={ahora} duro={duro} compacto verReplay={verReplay} />
+            </div>
+          </section>
+        )}
         <div className="flex items-center justify-between text-[11px] text-mute">
           {enVivoBadge}
           <Link href={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="hover:underline">Ver en auditoría en vivo</Link>
@@ -353,14 +244,15 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {regionViva}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-mute">
-        {/* Vuelve a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no,
-            al tablero sin filtros. Antes forzaba ?ubigeo= aunque nadie lo hubiera elegido. */}
-        <Link
-          href="/app/auditoria"
-          onClick={(e) => {
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Volver a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no, al
+            tablero sin filtros. `Volver` es un enlace simple: la vuelta atrás se decide al
+            capturar el clic, antes que el enlace (que respeta el `preventDefault`). */}
+        <span
+          onClickCapture={(e) => {
             try {
               const ref = document.referrer ? new URL(document.referrer) : null;
               if (ref && ref.origin === window.location.origin && ref.pathname === "/app/auditoria" && window.history.length > 1) {
@@ -369,189 +261,128 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
               }
             } catch { /* referrer ilegible: se sigue el enlace */ }
           }}
-          className="inline-flex items-center gap-1 hover:underline"
         >
-          <ChevronLeft size={14} aria-hidden /> Auditoría en vivo
-        </Link>
+          <Volver href="/app/auditoria">Auditoría en vivo</Volver>
+        </span>
         {enVivoBadge}
       </div>
 
-      {/* Cabecera: el objeto entero (es su propia página), y debajo una línea de datos por
-          renglón: quién compra y cuánto; los códigos y quién pagó. */}
-      <header className="border-b border-line pb-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          {/* basis-full en móvil: si no, la píldora de estado le robaba el ancho
-              al título y un objeto largo quedaba en una columna de una palabra por renglón. */}
-          <h1 className="min-w-0 max-w-5xl flex-1 basis-full break-words font-display text-[22px] font-bold leading-snug tracking-tight text-ink text-balance sm:basis-0 sm:text-[26px]">
-            {p.titulo ?? "Contrato sin título registrado"}
-          </h1>
-          <div className="order-first sm:order-none">
-            <EstadoPill estado={estado} size="md" intentos={p.intentos} />
-          </div>
-        </div>
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
-          <span className="inline-flex items-center gap-1"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
-          <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
-          {p.montoPen != null && p.montoPen > 0 && <span className="tabular-nums text-ink">valor referencial {solesCompacto(p.montoPen)}</span>}
-        </p>
-        {/* Los códigos van debajo del título, no encima (sin kicker, DESIGN_SYSTEM.md §4). */}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
+      {/* Identidad: el objeto entero (es su propia página); estado, entidad, zona y códigos en una línea. */}
+      <header className="space-y-2.5">
+        <h1 className="max-w-5xl break-words font-display text-[22px] font-bold leading-snug tracking-tight text-ink text-balance sm:text-[26px]">
+          {p.titulo ?? "Contrato sin título registrado"}
+        </h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-mute">
+          <EstadoPill estado={estado} size="md" intentos={p.intentos} />
+          <span className="inline-flex items-center gap-1 text-inkSoft"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
+          <span>{p.zona}</span>
           <span>OCID <span className="font-mono">{p.ocid}</span></span>
           {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
-          <span className="inline-flex flex-wrap items-center gap-x-1">
-            <ShieldCheck size={13} className="text-mossTexto" aria-hidden />
-            gracias a <span className="font-semibold text-ink">{p.financiador}</span>
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="ml-1 font-mono hover:underline">
-              {p.contribucionCodigo}
-            </Link>
-            <Ayuda titulo="¿Quién pagó influye en el resultado?">
-              Los agentes no saben quién pagó este análisis, y los resultados se publican aunque señalen a quien lo
-              financió.{" "}
-              <Link href="/app/financiar#independencia" className="font-medium text-granate underline">
-                Reglas de independencia
-              </Link>
-              .
-            </Ayuda>
-          </span>
-          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="ml-auto rounded-full" />}
         </div>
       </header>
 
-      <div className={`grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
-        {terminado && (
-          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} className="lg:sticky lg:top-24 lg:self-start" />
-        )}
-        <div className="min-w-0">{ejecucion}</div>
+      <Indicadores items={indicadores(p, prog, duro, ahora)} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-w-0 space-y-6">
+          {/* Estado / veredicto: una tarjeta. Terminado, el resultado; si no, qué pasa ahora. */}
+          {terminado ? (
+            <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} />
+          ) : sinEjecucion ? (
+            <SinEjecucion p={p} ahora={ahora} compacto={false} />
+          ) : (
+            <section className={tarjeta} aria-label="Estado del análisis">
+              <CabeceraEjecucion p={p} fases={fases} prog={prog} ahora={ahora} duro={duro} compacto={false} conCifras={false} />
+            </section>
+          )}
+
+          {/* En vivo, cómo se ejecuta ES lo que se mira: abierto. Terminado, es el registro de
+              cómo se hizo, debajo del resultado: plegado (§14.2, lo largo y secundario). */}
+          {!sinEjecucion &&
+            (terminado ? (
+              <Seccion id="ejecucion" titulo="Cómo se analizó" acciones={botonReplay} plegable>
+                <CuerpoEjecucion p={p} fases={fases} ahora={ahora} duro={duro} compacto={false} verReplay={verReplay} />
+              </Seccion>
+            ) : (
+              <Seccion id="ejecucion" titulo="Cómo se está analizando">
+                <div className="rounded-2xl border border-line bg-paper p-5">
+                  <CuerpoEjecucion p={p} fases={fases} ahora={ahora} duro={duro} compacto={false} verReplay={false} />
+                </div>
+              </Seccion>
+            ))}
+        </div>
+
+        <aside className="space-y-3 lg:sticky lg:top-24 lg:self-start">
+          <DatosProceso p={p} />
+          {!terminado && (
+            <CompartirButton
+              titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`}
+              texto="Mira cómo se ejecuta el análisis de este contrato."
+              path={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+              className="rounded-full"
+            />
+          )}
+        </aside>
       </div>
     </div>
   );
 }
 
 /**
- * Esperando documentos (o sin análisis aplicable): no hay nada que ejecutar todavía, así que
- * no se dibujan doce pasos "pendiente" ni una bitácora vacía. Se dice qué falta y desde cuándo,
- * en una línea; el porqué, a un clic.
+ * Lo que importa del contrato, en cifras (§14.2): cuánto vale, cuánto se avanzó y el tiempo
+ * que cuenta según el estado. El conteo de señales no va acá: es el titular de la tarjeta de
+ * resultado, justo debajo, y en revisión no se muestra (§10.4).
  */
-function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: number; compacto: boolean }) {
-  const desde = p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
-  const conFecha = Number.isFinite(desde);
-  if (p.estado === "pendiente_de_procesamiento") {
-    return (
-      <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-        <div className="text-[12px] font-semibold text-mute">Sin análisis aplicable</div>
-        <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
-          Todavía no hay análisis para este tipo de contrato
-          <Ayuda titulo="¿Qué pasa con lo que se pagó?">
-            Es de un tipo o de una etapa que los agentes todavía no leen. Queda reservado: cuando ese análisis exista, entra
-            a la cola sin que nadie tenga que volver a pagarlo.
-          </Ayuda>
-        </div>
-        <p className="mt-1 text-[13px] text-inkSoft">Ya está pagado y queda reservado.</p>
-      </section>
-    );
+function indicadores(p: ProcesamientoDetalle, prog: { hechas: number; aplicables: number }, duro: number | null, ahora: number): Indicador[] {
+  const montado = ahora > 0;
+  const espera = <Skeleton className="h-6 w-16" />;   // antes de montar: sin reloj en el HTML del servidor
+  const monto = p.montoPen != null && p.montoPen > 0 ? p.montoPen : null;
+  const items: Indicador[] = [
+    {
+      valor: monto != null ? solesCompacto(monto) : null,
+      etiqueta: "valor referencial",
+      contexto: monto != null ? `${soles(monto)} según el SEACE` : "el SEACE no publica el valor",
+    },
+  ];
+  if (p.estado === "esperando_documentos") {
+    const desde = p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
+    if (Number.isFinite(desde)) {
+      items.push({
+        valor: montado ? <span suppressHydrationWarning>{edad(ahora - desde)}</span> : espera,
+        etiqueta: "esperando documentos",
+        contexto: `desde el ${fechaLima(desde)}`,
+      });
+    }
+    return items;
   }
-  return (
-    <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-      <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-clayTexto">
-        <Clock size={13} aria-hidden /> Esperando documentos
-      </div>
-      <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
-        Todavía no se puede leer: faltan sus documentos
-        <Ayuda titulo="¿Por qué faltan?">
-          <span className="block">
-            Ya está pagado. El análisis empieza cuando se descargan sus documentos del SEACE, desde una conexión en Perú: el
-            SEACE bloquea los servidores en la nube. Después pasa a la cola y aquí se ve a los agentes trabajar.
-          </span>
-          <span className="mt-2 block text-mute">Esta página vuelve a consultar el estado cada minuto.</span>
-        </Ayuda>
-      </div>
-      {conFecha && (
-        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-mute">
-          <span>
-            Espera desde <time dateTime={p.iniciadoAt!} className="text-ink">{fechaLima(desde, { larga: true, hora: true })}</time>
-          </span>
-          <span>
-            lleva <span className="font-mono tabular-nums text-ink" suppressHydrationWarning>{ahora > 0 ? relojEdad(ahora - desde) : "…"}</span>
-          </span>
-        </p>
-      )}
-    </section>
-  );
-}
+  if (p.estado === "pendiente_de_procesamiento") return items;
 
-const ESTADO_FASE_HUMANO: Record<string, string> = { hecho: "completado", corriendo: "en curso", error: "falló", omitido: "omitido" };
+  items.push({ valor: numero(prog.hechas), etiqueta: "pasos completados", contexto: `de ${numero(prog.aplicables)} que aplican a este contrato` });
 
-/**
- * Ficha técnica del análisis terminado: tiempo por agente (de `fases`), costo y tokens
- * (llm_metrics), modelo, tipo de contrato y versión de las reglas. Plegable para no estorbar.
- */
-function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; fases: ReturnType<typeof fasesEfectivas>; duro: number | null; compacto: boolean }) {
-  const r = p.resultado ?? null;
-  const filas = AGENTES_PROGRESO
-    .map((k) => {
-      const f = fases[k];
-      if (!f || !f.desde) return null;
-      const a = new Date(f.desde).getTime();
-      const b = f.hasta ? new Date(f.hasta).getTime() : NaN;
-      const ms = Number.isNaN(a) || Number.isNaN(b) ? null : Math.max(0, b - a);
-      return { k, estado: f.estado as string, ms, motivo: f.motivo ?? null };
-    })
-    .filter((x): x is { k: string; estado: string; ms: number | null; motivo: string | null } => !!x);
-  if (!filas.length && !r?.costo && !r?.modelo) return null;
-  const costo = r?.costo ?? null;
-  return (
-    <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"} text-[12px]`}>
-      <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
-        <span className="inline-flex flex-wrap items-baseline gap-x-3">
-          <span>Ficha técnica y tiempos por agente</span>
-          {costo?.costoUsd != null && <span className="font-mono normal-case">US$ {costo.costoUsd.toFixed(2)}</span>}
-          {duro ? <span className="font-mono normal-case">{duracion(duro)} en total</span> : null}
-        </span>
-      </summary>
-      <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
-        <table className="w-full text-left text-[11px]">
-          <caption className="sr-only">Tiempo por agente</caption>
-          <thead className="text-[11px] text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
-          <tbody className="divide-y divide-line">
-            {filas.map((f) => (
-              <tr key={f.k}>
-                <td className="py-1 pr-2 text-ink">{faseLabel(f.k)}</td>
-                <td className="py-1 pr-2 text-mute">{f.estado === "omitido" ? `omitido: ${motivoHumano(f.motivo)}` : ESTADO_FASE_HUMANO[f.estado] ?? f.estado}</td>
-                <td className="py-1 text-right font-mono tabular-nums text-ink">{f.ms != null && f.estado !== "omitido" ? (f.ms < 1000 ? "<1 s" : duracion(f.ms)) : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <dl className="space-y-1 text-[11px] sm:min-w-[180px]">
-          <div><dt className="text-[11px] text-mute">Tipo de contrato</dt><dd className="text-ink">{tipoContratoHumano(r?.perfil) ?? "sin declarar"}</dd></div>
-          {r?.modelo && <div><dt className="text-[11px] text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
-          {costo && (
-            <div>
-              <dt className="text-[11px] text-mute">Costo del análisis</dt>
-              <dd className="flex flex-wrap items-baseline gap-x-3 font-mono text-ink">
-                <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "sin dato"}</span>
-                {costo.llamadas != null && <span className="text-mute">{costo.llamadas} llamadas</span>}
-                {costo.tokens != null && <span className="text-mute">{Math.round(costo.tokens / 1000)}k tokens</span>}
-              </dd>
-            </div>
-          )}
-          {r?.analizadoEn && <div><dt className="text-[11px] text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
-          <div><dt className="text-[11px] text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
-        </dl>
-      </div>
-    </details>
-  );
-}
-
-function VersionReglas({ perfil }: { perfil: string | null | undefined }) {
-  const [v, setV] = useState<string | null>(null);
-  useEffect(() => {
-    // Sin perfil declarado no se adivina uno: pedir las de "bienes" era inventar la versión.
-    if (!perfil) { setV(null); return; }
-    let vivo = true;
-    getReglasPerfil(perfil.toLowerCase()).then((r) => { if (vivo && r) setV(`${r.version}, ${r.reglas.length} reglas`); });
-    return () => { vivo = false; };
-  }, [perfil]);
-  if (!perfil) return <span>sin declarar</span>;
-  return <span className="font-mono">{v ?? "…"}</span>;
+  if (p.estado === "procesando") {
+    const t = montado && p.iniciadoAt ? ahora - Date.parse(p.iniciadoAt) : null;
+    const estimado = p.estimado ?? null;
+    const restante = estimado?.medianaSeg && t != null ? Math.max(0, estimado.medianaSeg * 1000 - t) : null;
+    items.push({
+      valor: t != null && t > 0 ? <span suppressHydrationWarning>{duracion(t)}</span> : espera,
+      etiqueta: "en análisis",
+      contexto: restante != null ? (restante < 15_000 ? "quedan unos segundos" : `quedan ≈ ${duracion(restante)}`) : `${estimadoLabel(estimado)} en total`,
+    });
+  } else if (p.estado === "encolado") {
+    items.push({ valor: estimadoLabel(p.estimado ?? null), etiqueta: "por contrato", contexto: "lo que suele tardar un análisis" });
+  } else if (p.estado === "error") {
+    items.push({
+      valor: `${Math.min(3, Math.max(1, p.intentos))} de 3`,
+      etiqueta: "intentos",
+      // Sin tono: un error del sistema no es la severidad de una señal (sólo ésta colorea la cifra).
+      contexto: p.intentos >= 3 ? "queda en revisión manual" : "se reintenta solo",
+    });
+  } else if (p.estado === "procesado" && duro != null && duro > 0) {
+    items.push({
+      valor: duracion(duro),
+      etiqueta: "duró el análisis",
+      contexto: p.finalizadoAt ? `terminó el ${fechaLima(p.finalizadoAt, { hora: true })}` : undefined,
+    });
+  }
+  return items;
 }

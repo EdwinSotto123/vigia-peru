@@ -13,9 +13,6 @@ import { Ayuda } from "@/components/patrones/Ayuda";
  * nombres exactos de lo que es falso y que las cifras de la página los incluyen,
  * y ofrece la salida en un clic. El cuánto y los prefijos de código, en el ⓘ
  * (DESIGN_SYSTEM.md §10.7).
- *
- * La versión `compacta` viaja en la barra pegajosa: mientras el usuario
- * recorre el muro, el recordatorio no se va de la pantalla.
  */
 
 const num = numero;
@@ -66,19 +63,6 @@ export function AvisoMaqueta({
         Volver a la vista real
       </Link>
     </aside>
-  );
-}
-
-/** Recordatorio permanente para la barra pegajosa: no ocupa línea propia. */
-export function MarcaMaquetaBarra({ volverHref }: { volverHref: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-[12px] text-amberTexto">
-      <TriangleAlert size={13} aria-hidden />
-      <span className="font-semibold">Maqueta activa</span>
-      <Link href={volverHref} className="inline-flex min-h-[24px] items-center underline underline-offset-2 hover:text-ink">
-        salir
-      </Link>
-    </span>
   );
 }
 

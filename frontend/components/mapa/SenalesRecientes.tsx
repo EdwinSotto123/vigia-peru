@@ -1,29 +1,36 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowUpRight, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { Seccion } from "@/components/patrones";
+import { CeldaNumero, CeldaPrincipal, Tabla, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { recortar } from "@/components/contratos/recortar";
-import { plural } from "@/lib/formato";
-import { formatoSoles } from "./escala";
+import { plural, soles } from "@/lib/formato";
 import { alertaHref, esSenal } from "./senales";
 
 /**
- * Los contratos de mayor peso del riesgo, en una tira estática debajo del mapa.
+ * Lo ya hecho, debajo de la pieza viva (plantilla Tablero, DESIGN_SYSTEM.md §14): los
+ * contratos leídos de mayor peso del riesgo, en la `Tabla` del kit —chip · contrato ·
+ * valor referencial · ›—, la misma fila que el resto de listados.
  *
- * Reemplaza al marquee "EN VIVO" que había acá. Dos motivos, los dos de
- * fondo: (1) cuando la API no respondía, el marquee caía a `ALERTAS_MOCK` y
- * mostraba alertas inventadas sobre convocatorias inventadas sin decirlo, en
- * un producto que acusa de falta de transparencia; (2) era una animación
- * infinita corriendo sobre datos, que además obligaba a esperar a que el
- * texto pasara para poder leerlo.
+ * Antes era una frase gris con la cifra adentro ("44 contratos con peso del riesgo
+ * medio o alto. Los de mayor peso: …"); la cifra ya está en los `Indicadores` de la
+ * cabecera y no se repite. Y antes de eso, un marquee "EN VIVO" que caía a alertas
+ * inventadas cuando la API no respondía: si no responde, se dice.
  *
  * Cuenta sólo los de peso del riesgo medio o alto (`esSenal`, ≥ 40): `/alertas`
- * también trae los leídos sin nada que señalar, y antes esos entraban al "94
- * señales". Se nombran por lo que son, no "con señal" (DESIGN_SYSTEM.md §10.1).
+ * también trae los leídos sin nada que señalar (DESIGN_SYSTEM.md §10.1).
  */
+
+const COLUMNAS: Columna[] = [
+  { clave: "riesgo", titulo: "Peso del riesgo", ancho: "136px" },
+  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
+  { clave: "monto", titulo: "Valor referencial", ancho: "128px", alinear: "der", desde: "md" },
+];
+
+const TOP = 5;
+
 export function SenalesRecientes({
   alertas,
   fallo,
@@ -41,19 +48,9 @@ export function SenalesRecientes({
     );
   }
 
-  if (alertas === null) {
-    return (
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2" role="status" aria-busy>
-        <Skeleton className="h-4 w-64 max-w-full" />
-        <Skeleton className="h-4 w-80 max-w-full" />
-        <span className="sr-only">Cargando las señales publicadas…</span>
-      </div>
-    );
-  }
+  const senales = alertas?.filter(esSenal) ?? null;
 
-  const senales = alertas.filter(esSenal);
-
-  if (senales.length === 0) {
+  if (senales && senales.length === 0) {
     return (
       <p className="flex items-center gap-1 text-[12px] text-mute">
         Todavía no hay contratos leídos con peso del riesgo medio o alto.
@@ -64,45 +61,45 @@ export function SenalesRecientes({
     );
   }
 
-  const top = [...senales].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 3);
+  const filas: Fila[] = (senales ?? [])
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, TOP)
+    .map((a) => {
+      const n = Array.isArray(a.banderas) ? a.banderas.length : 0;
+      const objeto = typeof a.objeto === "string" && a.objeto ? a.objeto : "Sin objeto registrado";
+      return {
+        id: String(a.id ?? a.codigo),
+        href: alertaHref(a),
+        celdas: {
+          riesgo: <Severidad score={a.score} />,
+          // Recortado en una palabra: el objeto entero va en el dossier.
+          contrato: <CeldaPrincipal titulo={recortar(objeto, 140)} meta={[plural(n, "señal", "señales"), a.entidad, a.region].filter(Boolean).join(" · ")} />,
+          monto: (
+            <CeldaNumero>
+              {typeof a.montoSoles === "number" && a.montoSoles > 0 ? soles(a.montoSoles) : <span className="font-sans text-mute">Sin dato</span>}
+            </CeldaNumero>
+          ),
+        },
+      };
+    });
 
   return (
-    <section aria-label="Contratos de mayor peso del riesgo" className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <span className="text-[12px] tabular-nums text-inkSoft">
-        <strong className="font-semibold text-ink">{plural(senales.length, "contrato", "contratos")}</strong> con peso del
-        riesgo medio o alto. Los de mayor peso:
-      </span>
-      {/* En móvil cada señal ocupa su propia línea completa y el objeto se
-          queda con el ancho sobrante (flex-1 + min-w-0), porque la suma de las
-          piezas fijas (nivel, código, región, monto) ya se comía los 390 px y
-          empujaba la página 51 px hacia la derecha. El código y el monto son
-          contexto secundario: desaparecen en pantalla angosta en vez de
-          desbordar. */}
-      <ul className="flex w-full min-w-0 flex-col gap-y-1.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
-        {top.map((a) => (
-          <li key={a.id ?? a.codigo} className="min-w-0">
-            <Link href={alertaHref(a)} className="group flex min-w-0 items-center gap-2 text-[12px] text-ink hover:text-granate">
-              <span className="shrink-0">
-                <Severidad score={a.score} formato="linea" />
-              </span>
-              <span className="hidden shrink-0 font-mono text-[11px] text-mute sm:inline">
-                {a.codigoconvocatoria ?? a.codigo}
-              </span>
-              <span className="shrink-0 text-mute">{a.region}</span>
-              {/* Se ven ≤ 40 caracteres: al DOM va el comienzo, el objeto entero en `title`. */}
-              <span className="min-w-0 flex-1 truncate sm:max-w-[40ch] sm:flex-none" title={a.objeto ?? undefined}>
-                {typeof a.objeto === "string" ? recortar(a.objeto, 80) : a.objeto}
-              </span>
-              {typeof a.montoSoles === "number" && a.montoSoles > 0 && (
-                <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-mute sm:inline">
-                  {formatoSoles(a.montoSoles)}
-                </span>
-              )}
-              <ArrowUpRight size={12} className="shrink-0 text-mute transition-colors group-hover:text-granate" aria-hidden />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <Seccion
+      titulo="Los de mayor peso del riesgo"
+      ayuda={
+        <Ayuda titulo="¿Cuáles aparecen aquí?">
+          Los {TOP} contratos leídos de puntaje más alto, entre los de riesgo medio o alto con el dictamen publicado.
+        </Ayuda>
+      }
+    >
+      {senales === null ? (
+        <div role="status" aria-busy>
+          <TablaSkeleton columnas={COLUMNAS} filas={3} />
+          <span className="sr-only">Cargando las señales publicadas…</span>
+        </div>
+      ) : (
+        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Contratos de mayor peso del riesgo" />
+      )}
+    </Seccion>
   );
 }

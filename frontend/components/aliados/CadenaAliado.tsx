@@ -1,24 +1,24 @@
 import Link from "next/link";
-import { ChevronRight, FileText } from "lucide-react";
-import { Revelar } from "@/components/ui/Revelar";
-import { Cifras } from "@/components/ui/Cifras";
+import { FileText } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
+import { ChipAporte } from "@/components/financiar/EstadoAporte";
+import { indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
-import { fecha as fechaLarga, numero, soles } from "@/lib/formato";
+import { fecha, numero, soles } from "@/lib/formato";
 
 /**
  * La cadena completa de un aliado: aporte → contratos asignados → señal.
  *
  * Esto es lo que justifica que exista una ficha de aliado en un producto que,
  * por principio, no le da escenario a quien paga: no es un agradecimiento,
- * es la trazabilidad de en qué se convirtió cada sol. El aporte se abre en un
- * panel lateral (`Revelar`) en vez de navegar, para que la línea de tiempo
- * siga a la vista mientras se mira un aporte concreto.
+ * es la trazabilidad de en qué se convirtió cada sol.
  *
- * Todo el dato es real y ya resuelto en el servidor: `/financiamiento/aliados/
- * :slug` da la línea de tiempo y `/financiamiento/impacto/:codigo` el detalle
- * por contrato. Lo que el API no trae —el desglose de regiones, el monto por
- * aliado— no se pinta.
+ * Con la `Tabla` de todo listado (DESIGN_SYSTEM.md §14.1): una fila por aporte
+ * —estado (chip) · zona y código · leídos · con señales · fecha · ›— y el aporte
+ * abierto en el panel lateral, con las mismas cifras que su comprobante público y sus
+ * contratos en otra tabla. Todo el dato es real y ya resuelto en el servidor.
  */
 
 export interface ContribucionAliado {
@@ -33,35 +33,35 @@ export interface ContribucionAliado {
   enRevision?: number;
 }
 
-/**
- * Mismo vocabulario que el panel de contribuciones del admin; sin movimiento en loop.
- * Financiada y en proceso = granate (la marca acompañando el trámite); leída = moss
- * (positivo: el trabajo terminó); pendiente = neutro. Nunca ámbar: es "Señal media".
- */
-const ESTADO_CONTRIB: Record<string, { label: string; cls: string }> = {
-  pendiente_pago: { label: "Pendiente de pago", cls: "bg-paperDeep text-inkSoft border-line" },
-  pagada: { label: "Financiada", cls: "bg-granate-soft text-granate border-granate/20" },
-  en_proceso: { label: "En proceso", cls: "bg-granate-soft text-granate border-granate/20" },
-  procesada: { label: "Leída y publicada", cls: "bg-moss/10 text-mossTexto border-moss/30" },
-  rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimsonTexto border-crimson/30" },
-  reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-inkSoft border-line" },
-};
-
 const num = numero;
-const fecha = (iso: string) => fechaLarga(iso);
 
 const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
   s === "alta" || s === "media" || s === "baja" ? s : null;
 
-function PildoraEstado({ estado }: { estado: string }) {
-  const cfg = ESTADO_CONTRIB[estado] ?? { label: estado.replace(/_/g, " "), cls: "bg-paperDeep text-mute border-line" };
-  return <span className={`pill ${cfg.cls}`}>{cfg.label}</span>;
-}
+const COLUMNAS: Columna[] = [
+  { clave: "estado", desde: "md", apilar: true, titulo: "Estado", ancho: "150px" },
+  { clave: "aporte", titulo: "Aporte", ancho: "minmax(0,1fr)" },
+  { clave: "leidos", titulo: "Leídos", ancho: "96px", alinear: "der", desde: "md" },
+  { clave: "senales", titulo: "Con señales", ancho: "112px", alinear: "der", desde: "lg" },
+  { clave: "fecha", titulo: "Financiado", ancho: "104px", desde: "lg" },
+];
+
+/**
+ * Dentro del panel de resumen del muro (≤ 672 px aunque la ventana sea ancha): menos
+ * columnas, porque los cortes de la tabla son por ancho de ventana, no del panel.
+ */
+const COLUMNAS_COMPACTAS: Columna[] = [
+  { clave: "estado", desde: "md", apilar: true, titulo: "Estado", ancho: "150px" },
+  { clave: "aporte", titulo: "Aporte", ancho: "minmax(0,1fr)" },
+  { clave: "leidos", titulo: "Leídos", ancho: "88px", alinear: "der", desde: "md" },
+  { clave: "senales", titulo: "Con señales", ancho: "104px", alinear: "der", desde: "md" },
+];
 
 export function CadenaAliado({
   nombre,
   items,
   esMaqueta = false,
+  compacta = false,
 }: {
   nombre: string;
   /** Contribución + su comprobante ya resuelto (o `null` si no se pudo traer el detalle). */
@@ -72,100 +72,66 @@ export function CadenaAliado({
    * de ofrecer un comprobante público que nadie podría consultar.
    */
   esMaqueta?: boolean;
+  /** Para el panel de resumen del muro: sin fecha y con menos columnas. */
+  compacta?: boolean;
 }) {
   if (items.length === 0) {
+    // Sin la llamita de `EstadoVacio`: esta ficha nombra a una persona u organización (§2.3).
     return (
       <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-6 text-sm leading-relaxed text-inkSoft">
-        {nombre} todavía no tiene aportes confirmados. Cuando el primero se confirme, cada contrato que
-        haga leer aparece acá con su entidad y su dictamen.
+        {nombre} todavía no tiene aportes confirmados. Cuando el primero se confirme, cada contrato que haga leer
+        aparece acá con su entidad y su dictamen.
       </p>
     );
   }
-  return (
-    <ol className="overflow-hidden rounded-2xl border border-line bg-paper">
-      {items.map(({ contribucion: c, comprobante }) => (
-        <li key={c.codigo} className="border-t border-line first:border-t-0">
-          {comprobante ? (
-            <Revelar
-              titulo={c.zona}
-              descripcion={
-                <span className="block">
-                  <span className="font-mono text-inkSoft">{c.codigo}</span>
-                  <span className="mt-0.5 block">
-                    {num(c.contratos)} contratos financiados el {fecha(c.pagadaAt)}. Salieron de la cola por
-                    antigüedad.
-                  </span>
-                </span>
-              }
-              ancho="xl"
-              etiqueta={`Ver los contratos que pagó el aporte ${c.codigo}`}
-              className="transition-colors duration-rapido hover:bg-paperSoft"
-              pie={
-                esMaqueta ? (
-                  <span className="inline-flex items-center gap-1.5 text-[13px] text-mute">
-                    <FileText size={13} aria-hidden /> Un aporte de maqueta no tiene comprobante público:{" "}
-                    {c.codigo} no existe.
-                  </span>
-                ) : (
-                  <Link
-                    href={`/impacto/${c.codigo}`}
-                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline"
-                  >
-                    <FileText size={13} aria-hidden /> Ver el comprobante público de {c.codigo}
-                  </Link>
-                )
-              }
-              detalle={
-                <DetalleContribucion nombre={nombre} contribucion={c} comprobante={comprobante} esMaqueta={esMaqueta} />
-              }
-            >
-              <ResumenContribucion c={c} interactivo />
-            </Revelar>
-          ) : esMaqueta ? (
-            <ResumenContribucion c={c} interactivo={false} />
-          ) : (
-            <Link href={`/impacto/${c.codigo}`} className="block transition-colors duration-rapido hover:bg-paperSoft">
-              <ResumenContribucion c={c} interactivo />
-            </Link>
-          )}
-        </li>
-      ))}
-    </ol>
-  );
+  const filas: Fila[] = items.map(({ contribucion: c, comprobante }) => {
+    const enRevision = c.enRevision ?? 0;
+    const fila: Fila = {
+      id: c.codigo,
+      celdas: {
+        estado: <ChipAporte estado={c.estado} />,
+        aporte: <CeldaPrincipal titulo={c.zona} meta={<span className="font-mono">{c.codigo}</span>} />,
+        leidos: <CeldaNumero sub={`de ${num(c.contratos)}`}>{num(c.procesados)}</CeldaNumero>,
+        senales: (
+          <CeldaNumero sub={enRevision > 0 ? `${num(enRevision)} en revisión` : undefined}>{num(c.senales)}</CeldaNumero>
+        ),
+        fecha: <CeldaFecha fecha={c.pagadaAt} />,
+      },
+    };
+    if (comprobante) {
+      // El aporte se abre en el panel: la lista de aportes sigue a la vista.
+      fila.detalle = {
+        titulo: c.zona,
+        etiqueta: `Ver los contratos que pagó el aporte ${c.codigo}`,
+        descripcion: (
+          <span className="block">
+            <span className="font-mono text-inkSoft">{c.codigo}</span>
+            <span className="mt-0.5 block">
+              {num(c.contratos)} contratos financiados el {fecha(c.pagadaAt)}. Salieron de la cola por antigüedad.
+            </span>
+          </span>
+        ),
+        contenido: <DetalleContribucion nombre={nombre} contribucion={c} comprobante={comprobante} esMaqueta={esMaqueta} />,
+        pie: esMaqueta ? (
+          <span className="inline-flex items-center gap-1.5 text-[13px] text-mute">
+            <FileText size={13} aria-hidden /> Un aporte de maqueta no tiene comprobante público: {c.codigo} no existe.
+          </span>
+        ) : (
+          <Link href={`/impacto/${c.codigo}`} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline">
+            <FileText size={13} aria-hidden /> Ver el comprobante público de {c.codigo}
+          </Link>
+        ),
+      };
+    } else if (!esMaqueta) {
+      // Sin detalle traído (pasado el tope de la ficha): la fila lleva al comprobante.
+      fila.href = `/impacto/${c.codigo}`;
+    }
+    return fila;
+  });
+  return <Tabla columnas={compacta ? COLUMNAS_COMPACTAS : COLUMNAS} filas={filas} etiqueta={`Aportes de ${nombre}`} />;
 }
 
-/** La fila visible del aporte. Sin enlaces adentro: vive dentro del botón de `Revelar`. */
-function ResumenContribucion({ c, interactivo }: { c: ContribucionAliado; interactivo: boolean }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-semibold text-ink">{c.zona}</span>
-          <PildoraEstado estado={c.estado} />
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 text-[11px] text-mute">
-          <span className="font-mono">{c.codigo}</span>
-          <span>{fecha(c.pagadaAt)}</span>
-        </div>
-      </div>
-      <Cifras
-        as="div"
-        items={[
-          { n: c.procesados, de: c.contratos, texto: "financiados ya leídos" },
-          { n: c.senales, texto: "con señales" },
-          { n: c.enRevision ?? 0, texto: "en revisión humana", ocultarEnCero: true },
-        ]}
-      />
-      {interactivo && (
-        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-granate group-hover:underline">
-          Ver los contratos <ChevronRight size={13} aria-hidden />
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** Contenido del panel: qué contratos concretos pagó este aporte, uno por uno. */
+/** Contenido del panel: las cifras del aporte y qué contratos concretos pagó, uno por uno. */
 function DetalleContribucion({
   nombre,
   contribucion,
@@ -178,10 +144,6 @@ function DetalleContribucion({
   esMaqueta?: boolean;
 }) {
   const r = comprobante.resumen;
-  const valorAsignado = comprobante.detalle.reduce((n, d) => n + (d.valorReferencial ?? 0), 0);
-  const valorLeido = comprobante.detalle
-    .filter((d) => d.procesadaAt != null)
-    .reduce((n, d) => n + (d.valorReferencial ?? 0), 0);
   return (
     <div className="space-y-4">
       {esMaqueta && (
@@ -195,101 +157,68 @@ function DetalleContribucion({
         {r.asignados === 0 ? (
           <>
             Este aporte está financiado y todavía no tiene contratos asignados: la cola de {contribucion.zona}{" "}
-            los entrega por antigüedad, y cuando salgan aparecen acá uno por uno. Ni {nombre} ni Vigía Perú
-            eligen cuáles.
+            los entrega por antigüedad. Ni {nombre} ni Vigía Perú eligen cuáles.
           </>
         ) : (
           <>
-            Estos {num(r.asignados)} contratos salieron de la cola de {contribucion.zona} por antigüedad el{" "}
-            {fecha(contribucion.pagadaAt)}. Ni {nombre} ni Vigía Perú los eligieron, y su lectura se hizo sin
-            conocer el nombre de quien financió.
+            Estos {num(r.asignados)} contratos salieron de la cola de {contribucion.zona} por antigüedad. Ni {nombre} ni
+            Vigía Perú los eligieron, y su lectura se hizo sin conocer el nombre de quien financió.
           </>
         )}
       </p>
 
-      {/* Antes eran tres renglones de "etiqueta: valor" con los matices colgados
-          de un punto medio ("3 de 5 · 2 todavía sin asignar · 19 señales en
-          total"). Cada cifra pasa a ser su propio elemento; lo que las separa
-          es espacio y contraste, no una raya. */}
-      <Cifras
-        className="gap-x-6"
-        tam="lg"
-        items={[
-          { n: r.procesados, de: r.asignados, texto: "asignados ya leídos" },
-          {
-            n: r.pendientes,
-            texto: `todavía sin asignar de los ${num(comprobante.contratos)} pagados`,
-            ocultarEnCero: true,
-          },
-          { n: r.contratosConSenal ?? 0, de: r.procesados, texto: "leídos con al menos una señal" },
-          { n: r.senales, texto: "señales en total" },
-          { n: r.enRevision ?? 0, texto: "esperando revisión humana", ocultarEnCero: true },
-        ]}
-      />
-      {/* Sólo lo LEÍDO: `resumen.montoAuditado` del API suma también los asignados que
-          siguen en la cola, y un contrato sin leer no es dinero mirado. */}
-      <p className="border-t border-line pt-3 text-[12px] text-inkSoft">
-        Valor referencial de los contratos ya leídos:{" "}
-        <span className="font-mono text-[13px] font-semibold tabular-nums text-ink">{soles(valorLeido)}</span>
-        {valorAsignado > valorLeido && <> de {soles(valorAsignado)} asignados</>}
-      </p>
+      {/* Las mismas cifras que el comprobante público del aporte. */}
+      <Indicadores items={indicadoresAporte(comprobante)} />
 
       {comprobante.detalle.length > 0 && (
-        <div>
-          <h3 className="text-[13px] font-semibold text-ink">
-            {comprobante.detalle.length === 1 ? "El contrato" : `Los ${num(comprobante.detalle.length)} contratos, uno por uno`}
-          </h3>
-          <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
-            {comprobante.detalle.map((d) => (
-              <ContratoDeAporte key={d.ocid} d={d} esMaqueta={esMaqueta} />
-            ))}
-          </ol>
-        </div>
+        <Tabla
+          columnas={COLUMNAS_CONTRATOS}
+          filas={comprobante.detalle.map((d) => filaContrato(d, esMaqueta))}
+          etiqueta={`Contratos del aporte ${comprobante.codigo}`}
+        />
       )}
     </div>
   );
 }
 
-function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; esMaqueta?: boolean }) {
+const COLUMNAS_CONTRATOS: Columna[] = [
+  { clave: "estado", desde: "md", apilar: true, titulo: "Estado", ancho: "132px" },
+  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
+  { clave: "valor", titulo: "Valor referencial", ancho: "124px", alinear: "der", desde: "md" },
+];
+
+/**
+ * Un contrato del aporte. La columna de estado es siempre un chip: sin leer, en revisión,
+ * sin señales (los tres, con el mismo chip que la lista de contratos) o la severidad de su
+ * señal más fuerte. Un contrato de maqueta no enlaza: su OCID no existe.
+ */
+function filaContrato(d: ComprobanteContrato, esMaqueta: boolean): Fila {
   const sev = bandera(d.severidad);
   const enRevision = d.alertaEstado === "revision";
-  return (
-    <li className="px-3.5 py-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        {esMaqueta ? (
-          <span className="font-mono text-[12px] text-mute">{d.ocid}</span>
-        ) : (
-          <Link
-            href={`/app/contratos/${encodeURIComponent(d.ocid)}`}
-            className="font-mono text-[12px] text-ink hover:underline"
-          >
-            {d.ocid}
-          </Link>
-        )}
-        {d.valorReferencial != null && (
-          <span className="font-mono text-[12px] tabular-nums text-inkSoft">{soles(d.valorReferencial)}</span>
-        )}
-      </div>
-      <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-ink">
-        {d.titulo ?? "Sin objeto declarado en el expediente"}
-      </p>
-      {d.entidad && <p className="mt-0.5 truncate text-[11px] text-mute">{d.entidad}</p>}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
-        {d.procesadaAt == null ? (
-          <span>Sigue en la cola, todavía sin leer</span>
-        ) : enRevision ? (
-          <span>En revisión: el dictamen espera revisión humana y todavía no cuenta como señal</span>
-        ) : sev && d.banderas > 0 ? (
-          <>
-            <Severidad bandera={sev} formato="linea" />
-            <span>
-              {num(d.banderas)} {d.banderas === 1 ? "señal" : "señales"} con norma citada
-            </span>
-          </>
-        ) : (
-          <span>Leído, sin señales</span>
-        )}
-      </div>
-    </li>
-  );
+  const estado =
+    d.procesadaAt == null ? (
+      <PesoRiesgo score={null} formato="pastilla" />
+    ) : enRevision ? (
+      <PesoRiesgo score={null} enRevision formato="pastilla" />
+    ) : sev && d.banderas > 0 ? (
+      <Severidad bandera={sev} />
+    ) : (
+      <PesoRiesgo score={0} banderas={0} formato="pastilla" />
+    );
+  return {
+    id: d.ocid,
+    href: esMaqueta ? undefined : `/app/contratos/${encodeURIComponent(d.ocid)}`,
+    celdas: {
+      estado,
+      contrato: (
+        <CeldaPrincipal
+          titulo={d.titulo ?? "Sin objeto declarado en el expediente"}
+          meta={[d.entidad, d.banderas > 0 && !enRevision ? `${num(d.banderas)} ${d.banderas === 1 ? "señal" : "señales"}` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+      ),
+      valor: <CeldaNumero>{d.valorReferencial != null ? soles(d.valorReferencial) : "Sin dato"}</CeldaNumero>,
+    },
+  };
 }

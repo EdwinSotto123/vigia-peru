@@ -1,13 +1,12 @@
 import { CircleDashed, TriangleAlert } from "lucide-react";
-import { Cifras } from "@/components/ui/Cifras";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { fechaCorta, numero } from "@/lib/formato";
-import type { ContribucionAliado } from "./CadenaAliado";
-import { PARTES_LECTURA } from "./CapacidadColectiva";
+import { CadenaAliado, type ContribucionAliado } from "./CadenaAliado";
+import { PARTES_LECTURA } from "./proporcion";
 import { IdentidadAliado } from "./IdentidadAliado";
-import { Proporcion } from "./TarjetaAliado";
 import { resumirContribuciones } from "./perfil";
-import { RegionesDeAliado } from "./PerfilAliado";
+import { RegionesDeAliado, indicadoresAliado } from "./PerfilAliado";
+import { Indicadores } from "@/components/listado";
 
 /**
  * El resumen de un aliado sin salir del muro.
@@ -63,80 +62,39 @@ export function ResumenAliado({
           </span>
         </p>
       )}
-      <div className="space-y-3">
-        <Proporcion
-          parte={r.leidos}
-          total={r.financiados}
-          leyenda={`de sus ${num(r.financiados)} contratos financiados ya leídos`}
-          tono="leido"
-        />
-        <Proporcion
-          parte={r.conSenal}
-          total={r.leidos}
-          leyenda={`de sus ${num(r.leidos)} financiados leídos tienen señales`}
-          tono="neutro"
-        />
-        <Proporcion
-          parte={r.financiados}
-          total={financiadosMuro}
-          leyenda={`de los ${num(financiadosMuro)} contratos financiados en todo el muro`}
-          tono="financiado"
-        />
-      </div>
+      {/* Las mismas cifras que su ficha; el contexto de la primera es todo el muro. */}
+      <Indicadores items={indicadoresAliado(r, { total: financiadosMuro, texto: "del muro" }, regionesConCola)} />
 
-      <div className="space-y-1.5">
-        <IdentidadAliado
-          tam="sm"
-          datos={[
-            {
-              icono: "fecha",
-              texto: `Primer aporte el ${fechaCorta(contribuciones[contribuciones.length - 1].pagadaAt)}`,
-            },
-          ]}
-        />
-        <Cifras
-          tam="sm"
-          items={[
-            { n: r.regionesDistintas, de: regionesConCola, texto: "regiones con cola abierta alcanzadas" },
-            {
-              n: r.enRevision,
-              texto: `de sus leídos ${r.enRevision === 1 ? "espera" : "esperan"} revisión humana`,
-              titulo:
-                "El dictamen ya está escrito, pero hasta que una persona lo revise no cuenta como señal publicada.",
-              ocultarEnCero: true,
-            },
-          ]}
-        />
-      </div>
+      <IdentidadAliado
+        tam="sm"
+        datos={[
+          {
+            icono: "fecha",
+            texto: `Primer aporte el ${fechaCorta(contribuciones[contribuciones.length - 1].pagadaAt)}`,
+          },
+        ]}
+      />
 
       <QueSalio leidos={r.leidos} conSenal={r.conSenal} enRevision={r.enRevision} sinSenal={r.sinSenal} />
 
-      <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} titulo="En qué zonas cayeron sus contratos" />
+      <section>
+        <h3 className="text-[13px] font-semibold text-ink">En qué zonas cayeron sus contratos</h3>
+        <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} className="mt-2" />
+      </section>
 
       <section>
         <h3 className="text-[13px] font-semibold text-ink">
           {r.aportes === 1 ? "Su aporte" : `Sus ${num(r.aportes)} aportes, uno por uno`}
         </h3>
-        <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
-          {contribuciones.map((c) => (
-            <li key={c.codigo} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3.5 py-2.5">
-              <span className="min-w-0">
-                <span className="block truncate text-[13px] font-medium text-ink">{c.zona}</span>
-                <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 text-[11px] text-mute">
-                  <span className="font-mono">{c.codigo}</span>
-                  <span>{fechaCorta(c.pagadaAt)}</span>
-                </span>
-              </span>
-              <Cifras
-                as="span"
-                items={[
-                  { n: c.procesados, de: c.contratos, texto: "leídos" },
-                  { n: c.senales, texto: "con señales" },
-                ]}
-              />
-            </li>
-          ))}
-        </ol>
+        {/* La misma tabla de aportes que su ficha; cada fila abre su comprobante público. */}
+        <div className="mt-2">
+          <CadenaAliado
+            nombre={nombre}
+            items={contribuciones.map((contribucion) => ({ contribucion, comprobante: null }))}
+            esMaqueta={esMaqueta}
+            compacta
+          />
+        </div>
       </section>
 
       <p className="rounded-xl border border-granate/20 bg-granate-50 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">

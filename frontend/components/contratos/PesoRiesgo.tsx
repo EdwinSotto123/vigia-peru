@@ -72,21 +72,3 @@ export function PesoRiesgo({
     </span>
   );
 }
-
-/**
- * Leyenda del eje, con el MISMO componente que usan las filas: una muestra por
- * tramo, en el orden en que se leen.
- */
-export function LeyendaPeso({ className }: { className?: string }) {
-  return (
-    <span className={cn("inline-flex flex-wrap items-center gap-x-3 gap-y-1", className)}>
-      <span className="text-mute">Peso del riesgo:</span>
-      <PesoRiesgo score={85} className="text-[11px]" />
-      <PesoRiesgo score={55} className="text-[11px]" />
-      <PesoRiesgo score={10} className="text-[11px]" />
-      <PesoRiesgo score={0} className="text-[11px]" />
-      <PesoRiesgo score={null} enRevision className="text-[11px]" />
-      <PesoRiesgo score={null} className="text-[11px]" />
-    </span>
-  );
-}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, FileSearch } from "lucide-react";
 import { EstadoVacio, Pagina } from "@/components/patrones";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 
 /**
  * (El título de la pestaña lo pone `generateMetadata` de la página: "Contrato no encontrado".)
@@ -25,12 +26,9 @@ export default function ContratoNoEncontrado() {
         titulo="No encontramos ese contrato"
         className="mx-auto max-w-2xl"
         accion={
-          <Link
-            href="/app/contratos"
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
-          >
+          <EnlaceAccion href="/app/contratos">
             <FileSearch size={15} aria-hidden /> Buscar en la lista de contratos
-          </Link>
+          </EnlaceAccion>
         }
       >
         El código no está entre los contratos que Vigía tomó del SEACE: puede estar mal escrito, ser anterior o ya no

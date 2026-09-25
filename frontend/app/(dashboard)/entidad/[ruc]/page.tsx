@@ -2,18 +2,31 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowLeft, Building2, ChevronRight, Coins, Flag, MapPin } from "lucide-react";
+import { Building2, Flag, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
-import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { esAlertaReal } from "@/lib/semillas";
-import { severidadDeScore, ETIQUETA_PESO } from "@/lib/severidad";
+import { ETIQUETA_PESO, nivelDeScore } from "@/lib/severidad";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
-import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
+import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Seccion } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Seccion, Volver } from "@/components/patrones";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
-import { Skeleton } from "@/components/ui/Skeleton";
+
+/**
+ * /entidad/[ruc] — la plantilla Ficha (DESIGN_SYSTEM.md §14.2):
+ *   volver → identidad (nombre; tipo, RUC y zona en una línea; acciones) → Indicadores
+ *   (con dictamen, con señales, adjudicado, en cola) → sus contratos con dictamen en la
+ *   `Tabla` del kit (la misma fila que el listado de contratos: chip · objeto · monto · fecha · ›)
+ *   → la ejecución presupuestal del MEF, plegada, con sus cifras como Indicadores.
+ *
+ * Antes las cuatro cifras iban en una frase gris y el peso del riesgo en una fila de chips
+ * con conteo encima de una <table> propia; ahora cada cifra tiene su número, su nombre y su
+ * contexto, y la tabla es la de todos los listados.
+ */
 
 /** Lo que devuelve `GET /entidades/:ruc` en `alertas[]` (snake_case, máximo 20, por score). */
 interface AlertaEntidad {
@@ -36,7 +49,7 @@ const DEPARTAMENTO: Record<string, string> = {
   "21": "Puno", "22": "San Martín", "23": "Tacna", "24": "Tumbes", "25": "Ucayali",
 };
 
-const normal = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const normal = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 /**
  * ¿El ubigeo que trae la entidad cae en su misma región? El ubigeo de la ficha
@@ -60,25 +73,23 @@ const diaDe = (v: string | null | undefined): string | null => {
   return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
 };
 
-/** Enlace con forma de botón (píldora, §5). Primario = granate; secundario = borde. */
-const BOTON_PRIMARIO =
-  "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep";
-const BOTON_SECUNDARIO =
-  "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50";
 
-/** Los tramos del peso del riesgo, con un score de muestra para pintarlos con el mismo componente que las filas. */
-const TRAMOS = [
-  { clave: "alta", muestra: 85 },
-  { clave: "media", muestra: 55 },
-  { clave: "baja", muestra: 10 },
-  { clave: "sin", muestra: 0 },
-] as const;
-
-function tramoDe(score: number): (typeof TRAMOS)[number]["clave"] {
-  const n = severidadDeScore(score);
-  if (score === 0) return "sin";
-  return n.nivel === "alta" ? "alta" : n.nivel === "media" ? "media" : "baja";
-}
+/** La fila de un contrato, como en el listado de contratos: peso del riesgo (chip) · objeto · monto · fecha · ›. */
+const COLUMNAS: Columna[] = [
+  {
+    clave: "peso",
+    titulo: ETIQUETA_PESO,
+    ancho: "140px",
+    ayuda: (
+      <Ayuda titulo="¿Qué es el peso del riesgo?">
+        Cómo pesan las señales de cada contrato. Sale de su puntaje; no es una probabilidad de delito.
+      </Ayuda>
+    ),
+  },
+  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
+  { clave: "adjudicado", titulo: "Adjudicado", ancho: "140px", alinear: "der", desde: "md" },
+  { clave: "buenaPro", titulo: "Buena pro", ancho: "96px", desde: "md" },
+];
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const r = await getEntidad(params.ruc).catch(() => null);
@@ -127,40 +138,113 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
   // Con la lista cortada en 20 (por score, de mayor a menor): si la última listada ya tiene
   // score 0, las que no vinieron tampoco tienen señales y el conteo es exacto; si no, es un piso.
   const scores = publicadas.map((a) => Number(a.score) || 0);
+  const ultimo = scores.length > 0 ? scores[scores.length - 1] : null;
   const conSenales = scores.filter((x) => x > 0).length;
-  const conSenalesEsPiso = truncada && scores.length > 0 && scores[scores.length - 1] > 0;
-  const porTramo = scores.reduce<Record<string, number>>((acc, x) => {
-    const k = tramoDe(x);
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
+  const conSenalesEsPiso = truncada && ultimo != null && ultimo > 0;
+  // Los de riesgo alto, con el mismo criterio: exactos si la última listada ya no es alta.
+  const altos = scores.filter((x) => nivelDeScore(x) === "alta").length;
+  const altosExacto = !truncada || (ultimo != null && nivelDeScore(ultimo) !== "alta");
 
-  const titulosLeidos =
-    publicadas.length === 0
-      ? null
-      : truncada
-        ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
-        : `${plural(publicadas.length, "contrato leído y publicado", "contratos leídos y publicados")}.`;
+  const indicadores: Indicador[] = [
+    {
+      valor: numero(nAlertas),
+      etiqueta: "con dictamen publicado",
+      contexto: `de ${plural(contratos, "contrato registrado", "contratos registrados")}`,
+      ayuda: (
+        <Ayuda titulo="¿Qué cuenta esta cifra?">
+          Contratos de esta entidad en el SEACE que Vigía leyó y publicó, con o sin señales.
+        </Ayuda>
+      ),
+    },
+    {
+      valor: nAlertas === 0 ? null : numero(conSenales),
+      etiqueta: "con señales",
+      contexto:
+        nAlertas === 0
+          ? undefined
+          : `${conSenalesEsPiso ? "como mínimo, " : ""}de ${numero(nAlertas)} con dictamen${altos > 0 && altosExacto ? ` · ${numero(altos)} de riesgo alto` : ""}`,
+      ayuda: (
+        <Ayuda titulo="¿Qué es un contrato con señales?">
+          Uno con al menos una señal publicada, de cualquier peso.
+          {conSenalesEsPiso && ` Se cuentan los ${numero(publicadas.length)} de mayor puntaje: el total puede ser mayor.`}
+        </Ayuda>
+      ),
+    },
+    {
+      valor: nAlertas === 0 ? null : solesCompacto(monto),
+      etiqueta: "adjudicado",
+      contexto: nAlertas === 0 ? undefined : "en sus contratos con dictamen",
+    },
+    {
+      valor: numero(enCola),
+      etiqueta: "en cola",
+      contexto: enCola > 0 && !financiable ? "no se puede financiar desde aquí" : `de ${numero(contratos)} registrados`,
+      ayuda: (
+        <Ayuda titulo="¿Qué está en cola?">
+          <span className="block">Convocatorias que Vigía todavía no leyó y esperan financiamiento.</span>
+          {financiable && (
+            <span className="mt-2 block">Se leen por antigüedad dentro de la zona: no se puede elegir una entidad concreta.</span>
+          )}
+          {enCola > 0 && !financiable && (
+            <span className="mt-2 block">
+              Todavía no sabemos a qué zona pertenece esta entidad. La lectura se financia por zona, y un aporte sobre una
+              zona equivocada iría a otro lugar.
+            </span>
+          )}
+        </Ayuda>
+      ),
+    },
+  ];
+
+  const filas: Fila[] = publicadas.map((a) => {
+    const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
+    const adjudicado = a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : null;
+    return {
+      id: a.id,
+      href: codigo ? `/app/convocatoria/${encodeURIComponent(codigo)}` : undefined,
+      celdas: {
+        peso: <Severidad score={Number(a.score) || 0} formato="pastilla" />,
+        contrato: (
+          <CeldaPrincipal
+            titulo={a.objeto || "Contrato sin objeto registrado"}
+            meta={
+              <>
+                <span className="font-mono" translate="no">
+                  {codigo || "Sin código"}
+                </span>
+                {/* En el celular la columna del monto no entra: va en la meta. */}
+                {adjudicado && <span className="md:hidden"> · {adjudicado}</span>}
+              </>
+            }
+          />
+        ),
+        adjudicado: adjudicado ? <CeldaNumero>{adjudicado}</CeldaNumero> : undefined,
+        buenaPro: <CeldaFecha fecha={diaDe(a.fecha_buena_pro)} />,
+      },
+    };
+  });
 
   return (
     <Pagina>
-      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={15} aria-hidden /> Volver a entidades
-      </Link>
+      <Volver href="/app/entidades">Entidades</Volver>
 
+      {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. */}
       <EncabezadoPagina
         titulo={nombre}
         bajada={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute">
-            <span className="inline-flex items-center gap-1">
-              <Building2 size={13} aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
+          <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
             </span>
-            <span className="font-mono" translate="no">
-              RUC {e.ruc}
+            <span>
+              RUC{" "}
+              <span className="font-mono text-ink" translate="no">
+                {e.ruc}
+              </span>
             </span>
             {region && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin size={13} aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={14} className="shrink-0 text-mute" aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
               </span>
             )}
           </span>
@@ -168,205 +252,63 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
         acciones={
           <>
             <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
-            <Link href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} className={BOTON_SECUNDARIO}>
+            <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario">
               <Flag size={14} aria-hidden /> Denunciar a esta entidad
-            </Link>
+            </EnlaceAccion>
+            {/* La única acción sobre su cola: financiar la zona. Por qué no hay botón, en el ⓘ de "en cola". */}
+            {financiable && ubigeo && (
+              <EnlaceAccion href={`/app/financiar/${ubigeo}`} flecha>
+                Financiar la lectura de {zonaFinanciar}
+              </EnlaceAccion>
+            )}
           </>
         }
       />
 
-      <DisclaimerBanner />
+      {/* 2. Lo que Vigía sabe de ella, cifra por cifra. */}
+      <Indicadores items={indicadores} />
 
-      {/* Lo leído de esta entidad en UNA línea de datos (§10.7), cada cifra con su denominador
-          (§10.2), y la única acción de la ficha —financiar la cola— al lado. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-line py-3">
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
-          <span>
-            <strong className="font-semibold text-ink">{numero(nAlertas)}</strong> de{" "}
-            {plural(contratos, "contrato registrado", "contratos registrados")} con dictamen publicado
-          </span>
-          <span>
-            {nAlertas === 0 ? (
-              <>
-                Con señales: <span className="text-mute">Sin dato</span>
-              </>
-            ) : (
-              <>
-                <strong className="font-semibold text-ink">
-                  {conSenalesEsPiso ? "al menos " : ""}
-                  {numero(conSenales)}
-                </strong>{" "}
-                de {numero(nAlertas)} con señales
-              </>
-            )}
-          </span>
-          <span>
-            {nAlertas === 0 ? (
-              <>
-                Adjudicado: <span className="text-mute">Sin dato</span>
-              </>
-            ) : (
-              <>
-                <strong className="font-semibold text-ink">{solesCompacto(monto)}</strong> adjudicado en esos contratos
-              </>
-            )}
-          </span>
-          <span>
-            <strong className="font-semibold text-ink">{numero(enCola)}</strong> de {numero(contratos)} en cola
-          </span>
-          <Ayuda titulo="¿Qué cuenta cada cifra?">
-            <span className="block">
-              Con dictamen publicado: contratos de esta entidad en el SEACE que Vigía leyó y publicó. Con señales: los que
-              tienen al menos una señal publicada. El monto suma lo adjudicado en ellos.
-            </span>
-            <span className="mt-2 block">En cola: convocatorias que Vigía todavía no leyó y esperan financiamiento.</span>
-          </Ayuda>
-        </p>
-        {financiable && ubigeo ? (
-          <span className="inline-flex items-center gap-1">
-            <Link href={`/app/financiar/${ubigeo}`} className={BOTON_PRIMARIO}>
-              Financiar la lectura de {zonaFinanciar}
-              <ChevronRight size={15} aria-hidden />
-            </Link>
-            <Ayuda titulo="¿Qué contratos se leen?">
-              Los contratos se leen por antigüedad dentro de la zona; no se puede elegir una entidad concreta.
-            </Ayuda>
-          </span>
-        ) : enCola > 0 ? (
-          <span className="inline-flex items-center gap-1 text-[13px] text-mute">
-            No se puede financiar su lectura desde aquí
-            <Ayuda titulo="¿Por qué no se puede financiar?">
-              Todavía no sabemos a qué zona pertenece esta entidad. La lectura se financia por zona, y un aporte sobre una
-              zona equivocada iría a otro lugar.
-            </Ayuda>
-          </span>
-        ) : null}
-      </div>
-
+      {/* 3. Sus contratos con dictamen, con la fila del listado de contratos. */}
       <Seccion
         id="contratos-leidos"
         titulo="Contratos con dictamen publicado"
-        descripcion={titulosLeidos}
+        descripcion={
+          truncada && publicadas.length > 0
+            ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
+            : undefined
+        }
         ayuda={
           <Ayuda titulo="¿Qué abre cada contrato?">
-            Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o sin señales.
+            Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o sin señales,
+            del mayor peso del riesgo al menor.
           </Ayuda>
         }
+        acciones={
+          contratos > 0 ? (
+            <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
+              Ver sus {plural(contratos, "contrato", "contratos")}
+            </EnlaceAccion>
+          ) : undefined
+        }
       >
+        <DisclaimerBanner className="mb-3" />
         {publicadas.length === 0 ? (
           // Sin llamita: esta sección habla de una entidad, y la llamita no acompaña a nadie señalado.
-          <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-4 text-sm text-mute">
+          <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-sm text-mute">
             Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
           </p>
         ) : (
-          <div className="space-y-3">
-            {/* El peso del riesgo como chips con su conteo, encima de la tabla que lo detalla. */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-inkSoft">
-              <span className="inline-flex items-center gap-0.5">
-                {ETIQUETA_PESO}
-                <Ayuda titulo="¿Qué es el peso del riesgo?">
-                  Cómo pesan las señales de sus contratos con dictamen publicado. Sale del puntaje de cada contrato; no es
-                  una probabilidad de delito.
-                  {truncada
-                    ? ` Cuenta los ${numero(publicadas.length)} contratos de mayor puntaje, de ${numero(nAlertas)} con dictamen.`
-                    : ""}
-                </Ayuda>
-              </span>
-              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5" aria-label={ETIQUETA_PESO}>
-                {TRAMOS.map((t) => (
-                  <li key={t.clave} className="inline-flex items-center gap-1.5">
-                    <Severidad score={t.muestra} formato="pastilla" />
-                    <span className="font-mono font-semibold tabular-nums text-ink">{numero(porTramo[t.clave] ?? 0)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              <table className="w-full table-fixed border-collapse text-left text-[13px]">
-                <caption className="sr-only">Contratos de {nombre} con dictamen publicado, por peso del riesgo</caption>
-                <thead className="border-b border-line bg-paperSoft text-[12px] text-mute">
-                  <tr>
-                    <th scope="col" className="w-[9.5rem] px-4 py-2.5 font-semibold sm:w-40">
-                      {ETIQUETA_PESO}
-                    </th>
-                    <th scope="col" className="px-3 py-2.5 font-semibold">
-                      Contrato
-                    </th>
-                    <th scope="col" className="hidden w-32 px-3 py-2.5 font-semibold md:table-cell">
-                      Buena pro
-                    </th>
-                    <th scope="col" className="hidden w-36 px-4 py-2.5 text-right font-semibold md:table-cell">
-                      Adjudicado
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {publicadas.map((a) => {
-                    const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
-                    const dia = diaDe(a.fecha_buena_pro);
-                    const objeto = a.objeto || "Contrato sin objeto registrado";
-                    return (
-                      <tr key={a.id} className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
-                        <td className="px-4 py-2.5">
-                          <Severidad score={Number(a.score) || 0} formato="pastilla" />
-                        </td>
-                        <td className="min-w-0 px-3 py-2.5">
-                          {/* Una línea en escritorio (el objeto completo en `title`), dos en el celular (§10.7). */}
-                          <Link
-                            href={`/app/convocatoria/${encodeURIComponent(codigo)}`}
-                            title={objeto}
-                            className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline md:line-clamp-none md:block md:truncate"
-                          >
-                            {objeto}
-                          </Link>
-                          <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-mute">
-                            <span className="font-mono" translate="no">
-                              {codigo}
-                            </span>
-                            {dia && <span className="md:hidden">Buena pro: {fechaCorta(dia)}</span>}
-                            <span className="md:hidden">
-                              {a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : "Sin monto adjudicado"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="hidden px-3 py-2.5 tabular-nums text-inkSoft md:table-cell">
-                          {dia ? fechaCorta(dia) : <span className="text-[12px] text-mute">Sin dato</span>}
-                        </td>
-                        <td className="hidden px-4 py-2.5 text-right font-mono tabular-nums text-ink md:table-cell">
-                          {a.monto_adjudicado != null ? (
-                            soles(Number(a.monto_adjudicado))
-                          ) : (
-                            <span className="font-sans text-[12px] text-mute">Sin dato</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Contratos de ${nombre} con dictamen publicado`} />
         )}
       </Seccion>
 
-      {/* Ejecución presupuestal MEF (real): plegada, es la sección más densa y no
-          lo primero que busca quien vino a ver los contratos leídos. */}
-      <details className="group rounded-2xl border border-line bg-paper">
-        <summary className="flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl px-4 py-3 transition-colors duration-150 hover:bg-paperSoft">
-          <Coins size={15} className="shrink-0 text-granate" aria-hidden />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</span>
-            <span className="block text-[12px] text-mute">Gasto real frente al presupuesto asignado</span>
-          </span>
-          <ChevronRight size={15} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90" aria-hidden />
-        </summary>
-        <div className="border-t border-line">
-          <Suspense fallback={<CargandoMef />}>
-            <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
-          </Suspense>
-        </div>
-      </details>
+      {/* 4. Ejecución presupuestal del MEF: plegada, es contexto y no lo primero que busca quien
+          vino a ver los contratos leídos. */}
+      <Seccion titulo="Ejecución presupuestal" descripcion="Gasto real frente al presupuesto asignado, según el MEF" plegable>
+        <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
+          <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
+        </Suspense>
+      </Seccion>
     </Pagina>
   );
 }
@@ -374,40 +316,15 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
     <Pagina>
-      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={15} aria-hidden /> Volver a entidades
-      </Link>
+      <Volver href="/app/entidades">Entidades</Volver>
       <EncabezadoPagina titulo={`Entidad con RUC ${ruc}`} />
       <EstadoError
         titulo="No pudimos leer la ficha de esta entidad"
-        accion={
-          <Link href={`/entidad/${encodeURIComponent(ruc)}`} className={BOTON_PRIMARIO}>
-            Reintentar
-          </Link>
-        }
+        accion={<EnlaceAccion href={`/entidad/${encodeURIComponent(ruc)}`}>Reintentar</EnlaceAccion>}
       >
         El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
       </EstadoError>
     </Pagina>
-  );
-}
-
-/**
- * Mientras responde el MEF: esqueleto con la forma de la tabla. Sin la llamita a
- * propósito: esta sección es la ficha de una entidad, y la llamita no acompaña a
- * nadie señalado (DESIGN_SYSTEM.md §2.3).
- */
-function CargandoMef() {
-  return (
-    <div role="status" aria-live="polite" className="space-y-3 p-4">
-      <p className="text-sm text-mute">Consultando los datos abiertos del MEF…</p>
-      <Skeleton className="h-3.5 w-1/2" />
-      <div className="space-y-2" aria-hidden>
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-3.5 w-full" />
-        ))}
-      </div>
-    </div>
   );
 }
 

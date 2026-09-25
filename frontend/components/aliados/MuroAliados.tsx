@@ -1,21 +1,23 @@
 import { EyeOff } from "lucide-react";
-import { frasePartesTarifa, getEstadoGlobal, getRankingPaginado, partesTarifa, type RankingRow } from "@/lib/financiamiento";
+import { frasePartesTarifa, getEstadoGlobal, getRankingPaginado, partesTarifa, TIPO_FINANCIADOR_LABEL, type RankingRow } from "@/lib/financiamiento";
 import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { Cifras } from "@/components/ui/Cifras";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
+import { AvatarAliado, TarjetaAliado, esFundador } from "./TarjetaAliado";
 import { Podio } from "./Podio";
-import { OrdenMuro, type OpcionOrden } from "./OrdenMuro";
 import { ResumenAliado } from "./ResumenAliado";
 import { getPerfilAliado, resumirContribuciones } from "./perfil";
 
 /** Tamaño de página del libro mayor (tope del backend también es 60). */
 const TAM = 24;
-/** Muestra para el encabezado y el recuento de anónimos: no se pagina, solo da contexto. */
-const RESUMEN_LIMIT = 60;
+/**
+ * Muestra para el recuento de anónimos y el orden: no se pagina, solo da contexto. Hasta
+ * esta cantidad el muro se ordena en la página; pasada, lo ordena el API (por financiados).
+ */
+export const RESUMEN_LIMIT = 60;
 /**
  * Hasta acá el muro se dibuja con fichas; pasado esto, con tabla.
  *
@@ -36,10 +38,11 @@ const MAX_RESUMEN = 12;
 
 export type ClaveOrden = "financiados" | "senales" | "regiones";
 
-const ORDEN_LABEL: Record<ClaveOrden, string> = {
-  financiados: "Contratos financiados",
-  senales: "Contratos con señales",
-  regiones: "Regiones alcanzadas",
+/** Las opciones del orden, para el `orden` de `BarraFiltros` (la página lo arma). */
+export const ORDEN_LABEL: Record<ClaveOrden, string> = {
+  financiados: "Más contratos financiados",
+  senales: "Más contratos con señales",
+  regiones: "Más regiones alcanzadas",
 };
 
 const ORDEN_VALOR: Record<ClaveOrden, (r: RankingRow) => number> = {
@@ -84,6 +87,10 @@ const num = numero;
  *
  * La invitación a financiar NO vive acá: /app/aliados tiene un solo botón para eso, al
  * pie de la página. (Antes el muro, la cascada del déficit y la página tenían uno cada uno.)
+ *
+ * Va dentro de la `ZonaResultados` de /app/aliados (§14.1): la región y el orden viven
+ * en la `BarraFiltros` de la página, y las cifras del ámbito en sus `Indicadores`. Pasadas
+ * las doce fichas, el muro es la `Tabla` de todo listado.
  */
 export async function MuroAliados({
   region,
@@ -168,15 +175,20 @@ export async function MuroAliados({
   const porSlug = new Map(conPerfil.map((r, i) => [r.slug as string, perfiles[i]]));
 
   const queryMaquetaPaginacion = !maqueta && process.env.NODE_ENV !== "production" ? "0" : undefined;
-  const opcionesOrden: OpcionOrden[] = (Object.keys(ORDEN_LABEL) as ClaveOrden[]).map((clave) => {
-    const params = new URLSearchParams();
-    if (region) params.set("ubigeo", region);
-    // En desarrollo la maqueta está encendida por defecto: si se apagó, el orden la mantiene apagada.
-    if (!maqueta && process.env.NODE_ENV !== "production") params.set("maqueta", "0");
-    if (clave !== "financiados") params.set("orden", clave);
-    const qs = params.toString();
-    return { clave, etiqueta: ORDEN_LABEL[clave], href: qs ? `/app/aliados?${qs}` : "/app/aliados" };
-  });
+  const paginado = !cabeEnUnaPagina && paginas > 1;
+  const paginacion = paginado ? (
+    <Paginacion
+      actual={paginaActual}
+      paginas={paginas}
+      total={totalPagina}
+      tam={TAM}
+      navegacion="url"
+      hrefBase="/app/aliados"
+      query={{ ubigeo: region, maqueta: queryMaquetaPaginacion, orden: orden !== "financiados" ? orden : undefined }}
+      cargando={false}
+      nombre="aliados"
+    />
+  ) : null;
 
   // El podio sólo existe ordenando por contratos financiados: con el muro
   // ordenado por señales o por regiones, un pedestal más alto significaría otra
@@ -222,114 +234,32 @@ export async function MuroAliados({
       </ul>
     </div>
   ) : (
-    <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
-      <table className="w-full min-w-[34rem] text-left">
-        <caption className="sr-only">
-          Aliados ordenados por {ORDEN_LABEL[orden].toLowerCase()}. El orden no es un ranking de mérito:
-          nadie elige qué se audita.
-        </caption>
-        <thead>
-          <tr className="text-[11px] uppercase tracking-wide text-mute">
-            <th scope="col" className="px-4 py-2.5 font-medium">Aliado</th>
-            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Financiados</th>
-            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Leídos</th>
-            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Con señales</th>
-            <th scope="col" className="hidden py-2.5 pl-3 text-right font-medium sm:table-cell">Regiones</th>
-            <th scope="col" className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Ficha</span></th>
-          </tr>
-        </thead>
-        <tbody className="[&>tr>*:first-child]:pl-4 [&>tr>*:last-child]:pr-4">
-          {(cabeEnUnaPagina ? ordenadas : [...inventados, ...filasPagina]).map((r) => (
-            <FilaAliado
-              key={r.id}
-              row={r}
-              regionesConCola={regionesConCola}
-              href={href(r)}
-              esMaqueta={esSlugMaqueta(r.slug)}
-            />
-          ))}
-          {!cabeEnUnaPagina && filasPagina.length === 0 && (
-            <tr className="border-t border-line">
-              <td colSpan={6} className="px-4 py-5 text-sm text-mute">
-                Los aportes de esta página se hicieron sin nombre: cuentan igual en el total.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+    <Tabla
+      columnas={COLUMNAS_TABLA}
+      filas={(cabeEnUnaPagina ? ordenadas : [...inventados, ...filasPagina]).map((r) =>
+        filaAliado(r, href(r), esSlugMaqueta(r.slug)),
+      )}
+      etiqueta={`Aliados, ordenados por ${ORDEN_LABEL[orden].toLowerCase()}`}
+    />
   );
 
   return (
     <section aria-labelledby="muro-titulo" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-        <div className="flex items-center gap-1.5">
-          <h2 id="muro-titulo" className="font-display text-lg font-bold text-ink">
-            Quién financió la lectura
-          </h2>
-          <Ayuda titulo="¿Cómo se lee este muro?">
-            <span className="block">
-              No es un ranking de mérito: nadie elige qué se audita ni compra un resultado. Se cuenta en contratos,
-              nunca en soles, y los aportes sin nombre pesan igual.
-            </span>
-            <span className="mt-2 block text-mute">
-              Todos los que figuran acá pasaron el chequeo de conflicto de interés: sin sanción vigente del OECE ni
-              alertas activas como proveedor.
-            </span>
-          </Ayuda>
-        </div>
-        <Cifras
-          items={[
-            { n: totalVisible, texto: totalVisible === 1 ? "aliado" : "aliados" },
-            {
-              n: financiadosMuro,
-              texto: `contratos financiados${nombreRegion ? ` en ${nombreRegion}` : ""}`,
-            },
-          ]}
-        />
-      </div>
+      {/* El h2 existe para la jerarquía (las fichas y el podio llevan h3); a la vista, la
+          barra de filtros y los indicadores de la página ya dicen de qué es el muro. */}
+      <h2 id="muro-titulo" className="sr-only">Quién financió la lectura</h2>
 
-      {totalVisible > 1 && (
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          {cabeEnUnaPagina ? (
-            <OrdenMuro opciones={opcionesOrden} valor={orden} />
-          ) : (
-            <p className="text-[12px] text-mute">
-              Con más de {num(RESUMEN_LIMIT)} aliados, ordenado por contratos financiados.
-            </p>
-          )}
-        </div>
+      {paginacion && <div className="flex justify-end">{paginacion}</div>}
+      {!cabeEnUnaPagina && totalVisible > 1 && (
+        <p className="text-[12.5px] text-mute">Con más de {num(RESUMEN_LIMIT)} aliados, el muro se ordena por contratos financiados.</p>
       )}
-
-      {!cabeEnUnaPagina && paginas > 1 && (
-        <Paginacion
-          actual={paginaActual}
-          paginas={paginas}
-          total={totalPagina}
-          tam={TAM}
-          navegacion="url"
-          hrefBase="/app/aliados"
-          query={{ ubigeo: region, maqueta: queryMaquetaPaginacion, orden: orden !== "financiados" ? orden : undefined }}
-          cargando={false}
-          nombre="aliados"
-        />
+      {!cabeEnUnaPagina && filasPagina.length === 0 && (
+        <p className="text-sm text-mute">Los aportes de esta página se hicieron sin nombre: cuentan igual en el total.</p>
       )}
 
       {cuerpo}
 
-      {!cabeEnUnaPagina && paginas > 1 && (
-        <Paginacion
-          actual={paginaActual}
-          paginas={paginas}
-          total={totalPagina}
-          tam={TAM}
-          navegacion="url"
-          hrefBase="/app/aliados"
-          query={{ ubigeo: region, maqueta: queryMaquetaPaginacion, orden: orden !== "financiados" ? orden : undefined }}
-          cargando={false}
-          nombre="aliados"
-        />
-      )}
+      {paginacion && <div className="flex justify-end">{paginacion}</div>}
 
       {totalVisible <= UMBRAL_INVITACION && (
         <Invitacion totalVisible={totalVisible} nombreRegion={nombreRegion} precio={precio} desglose={frasePartesTarifa(partes)} />
@@ -337,6 +267,55 @@ export async function MuroAliados({
       <Anonimos cantidad={anonimos.length} contratos={anonimosContratos} />
     </section>
   );
+}
+
+/**
+ * La tabla del muro, con la anatomía de fila de todo listado: el aliado (logo, nombre y
+ * qué es) · lo que hizo leer, a la derecha y con su denominador · desde cuándo · ›.
+ * Sin montos: el reconocimiento se cuenta en contratos.
+ */
+const COLUMNAS_TABLA: Columna[] = [
+  { clave: "aliado", titulo: "Aliado", ancho: "minmax(0,1fr)" },
+  { clave: "financiados", titulo: "Financiados", ancho: "104px", alinear: "der" },
+  { clave: "leidos", titulo: "Leídos", ancho: "104px", alinear: "der", desde: "md" },
+  { clave: "senales", titulo: "Con señales", ancho: "104px", alinear: "der", desde: "lg" },
+  {
+    clave: "zonas",
+    titulo: "Zonas",
+    ancho: "80px",
+    alinear: "der",
+    desde: "xl",
+    ayuda: (
+      <Ayuda titulo="¿Qué cuenta “zonas”?">
+        Regiones, provincias o distritos distintos donde cayeron sus aportes, tal como se financiaron.
+      </Ayuda>
+    ),
+  },
+  { clave: "desde", titulo: "Desde", ancho: "96px", desde: "xl" },
+];
+
+function filaAliado(r: RankingRow, href: string | undefined, esMaqueta: boolean): Fila {
+  const tipo = esFundador(r) ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[r.tipo];
+  return {
+    id: String(r.id),
+    href,
+    celdas: {
+      aliado: (
+        <span className="flex w-full min-w-0 items-center gap-3">
+          {/* El nombre ya lo dice: el logo es decorativo para el lector de pantalla. */}
+          <span aria-hidden className="shrink-0">
+            <AvatarAliado tipo={r.tipo} logoUrl={r.logoUrl} nombre={r.nombre} size="sm" maqueta={esMaqueta} />
+          </span>
+          <CeldaPrincipal titulo={r.nombre} meta={esMaqueta ? `Maqueta, no existe · ${tipo}` : tipo} />
+        </span>
+      ),
+      financiados: <CeldaNumero>{num(r.contratosFinanciados)}</CeldaNumero>,
+      leidos: <CeldaNumero sub={`de ${num(r.contratosFinanciados)}`}>{num(r.contratosProcesados)}</CeldaNumero>,
+      senales: <CeldaNumero sub={`de ${num(r.contratosProcesados)}`}>{num(r.senalesHalladas)}</CeldaNumero>,
+      zonas: <CeldaNumero>{num(r.zonas)}</CeldaNumero>,
+      desde: <CeldaFecha fecha={r.desde} />,
+    },
+  };
 }
 
 /**

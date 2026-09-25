@@ -93,10 +93,14 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
   );
 }
 
-/** Mini-progreso por carril (tres barritas) para las tarjetas del kanban. */
+/** Mini-progreso por carril (tres barritas) en la fila de un contrato en análisis. Sólo `span`: va dentro del enlace de la fila. */
 export function MiniCarriles({ carriles }: { carriles: { key: string; label: string; pct: number; activo: boolean }[] }) {
   return (
-    <div className="flex items-center gap-1" aria-label="Avance por carril" role="img">
+    <span
+      className="flex items-center gap-1"
+      role="img"
+      aria-label={`Avance por carril: ${carriles.map((c) => `${c.label} ${c.pct} %`).join(", ")}`}
+    >
       {carriles.map((c) => (
         <span key={c.key} title={`${c.label}: ${c.pct}%`} className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep">
           <span
@@ -107,6 +111,6 @@ export function MiniCarriles({ carriles }: { carriles: { key: string; label: str
           {c.activo && c.pct < 100 && <span aria-hidden className="absolute inset-y-0 right-0 w-1/3 animate-pulse rounded-full bg-amber/40" />}
         </span>
       ))}
-    </div>
+    </span>
   );
 }

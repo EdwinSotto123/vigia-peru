@@ -6,25 +6,6 @@ import {
   Sparkles, ScanSearch, FileText, Receipt, Globe2, Search, Download, AlertTriangle,
   Scale, Building2, Globe, Newspaper, Network, ListChecks, Pen,
 } from "lucide-react";
-import type { CatFilter } from "./types";
-
-export const CAT_LABEL: Record<CatFilter, string> = {
-  todas: "Todas",
-  bienes: "Bienes",
-  servicios: "Servicios",
-  obras: "Obras",
-  consultoria: "Consultoría",
-};
-
-// Punto de color por categoría: paleta textil, que es la de las series categóricas
-// (DESIGN_SYSTEM.md §3.4). Antes eran los tonos de severidad: "obras" salía rojo de señal alta.
-export const CAT_TONE: Record<CatFilter, string> = {
-  todas:       "bg-ink",
-  bienes:      "bg-textil-anil",
-  servicios:   "bg-textil-achiote",
-  obras:       "bg-textil-verde",
-  consultoria: "bg-textil-ocre",
-};
 
 export const AGENT_IDS = ["compliance", "parser", "legal", "market", "web", "news", "person", "entity", "extended", "writer"];
 

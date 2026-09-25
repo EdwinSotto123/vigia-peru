@@ -22,11 +22,14 @@ export function EstadoVacio({
   children,
   accion,
   compacto = false,
+  conLlamita = true,
   nivel = "p",
   className,
 }: {
   titulo: string;
   nivel?: NivelTitulo;
+  /** `false` cuando ya hay una llamita en la pantalla (máximo una, §2.4): dos vacíos juntos. */
+  conLlamita?: boolean;
   /** Qué falta, en palabras. */
   children?: ReactNode;
   /** Qué hacer: un `<Link>` o un `<button>` ya armado. */
@@ -42,7 +45,7 @@ export function EstadoVacio({
         className,
       )}
     >
-      <Llamita className={cn("text-granate/80", compacto ? "w-7" : "w-10")} />
+      {conLlamita && <Llamita className={cn("text-granate/80", compacto ? "w-7" : "w-10")} />}
       <Titulo nivel={nivel} className={cn("font-display font-bold text-ink text-balance", compacto ? "text-[15px]" : "text-lg")}>{titulo}</Titulo>
       {children && <div className="max-w-md text-sm leading-relaxed text-inkSoft text-pretty">{children}</div>}
       {accion && <div className="mt-1">{accion}</div>}

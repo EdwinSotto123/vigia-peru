@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fechaCorta } from "@/lib/formato";
 
@@ -85,6 +86,7 @@ export function Seccion({
   titulo,
   descripcion,
   ayuda,
+  plegable,
   acciones,
   id,
   children,
@@ -94,23 +96,50 @@ export function Seccion({
   /** Una línea, o nada. Lo demás, en `ayuda`. */
   descripcion?: ReactNode;
   ayuda?: ReactNode;
+  /**
+   * Plegada con `<details>` (el h2 va en el `<summary>`): para lo largo y secundario
+   * (presupuesto MEF, tablas de más de ~10 filas). `"abierta"` la muestra desplegada.
+   */
+  plegable?: boolean | "abierta";
   acciones?: ReactNode;
   id?: string;
   children: ReactNode;
   className?: string;
 }) {
+  const cabecera = (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-[20px] font-bold leading-tight text-ink text-balance">
+          {titulo}
+        </h2>
+        {ayuda}
+      </div>
+      {descripcion && <p className="mt-0.5 text-sm leading-snug text-inkSoft text-pretty">{descripcion}</p>}
+    </div>
+  );
+  if (plegable) {
+    return (
+      <details
+        id={id}
+        open={plegable === "abierta"}
+        aria-labelledby={id ? `${id}-titulo` : undefined}
+        className={cn("group/plegable scroll-mt-24 rounded-2xl border border-line bg-paper", className)}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          {cabecera}
+          <ChevronDown size={18} className="shrink-0 text-mute transition-transform duration-rapido group-open/plegable:rotate-180" aria-hidden />
+        </summary>
+        <div className="border-t border-line px-4 py-4">
+          {acciones && <div className="mb-3 flex flex-wrap items-center gap-2">{acciones}</div>}
+          {children}
+        </div>
+      </details>
+    );
+  }
   return (
     <section id={id} aria-labelledby={id ? `${id}-titulo` : undefined} className={cn("scroll-mt-24", className)}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-[20px] font-bold leading-tight text-ink text-balance">
-              {titulo}
-            </h2>
-            {ayuda}
-          </div>
-          {descripcion && <p className="mt-0.5 text-sm leading-snug text-inkSoft text-pretty">{descripcion}</p>}
-        </div>
+        {cabecera}
         {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>
       {children}
@@ -174,5 +203,18 @@ export function FuenteDato({
         texto
       )}
     </p>
+  );
+}
+
+/** El regreso de una ficha a su listado (§14.2): "← Contratos". Uno por página, arriba del h1. */
+export function Volver({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+  return (
+    <Link
+      href={href}
+      className={cn("inline-flex min-h-[32px] items-center gap-1.5 text-[14px] text-inkSoft transition-colors duration-rapido hover:text-granate", className)}
+    >
+      <ArrowLeft size={15} aria-hidden />
+      {children}
+    </Link>
   );
 }

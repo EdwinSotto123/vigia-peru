@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
 import { fechaCorta, numero } from "@/lib/formato";
 import type { RankingRow } from "@/lib/financiamiento";
 import { SelloMaqueta } from "./AvisoMaqueta";
-import { pctProporcion } from "./CapacidadColectiva";
 import { IdentidadAliado, Insignias, insigniasDe, mesesDesde, type DatoIdentidad } from "./IdentidadAliado";
 
 /**
- * Presentación de un aliado, en dos formatos que son el mismo dato.
+ * La ficha de un aliado en el muro (la fila de la tabla, pasadas las doce fichas, la
+ * arma `MuroAliados` con la `Tabla` de todo listado).
  *
  * Lo que se fue de acá, y no vuelve:
  *  - Las medallas de oro/plata/bronce, que además eran emoji: los únicos
@@ -90,13 +90,6 @@ export function datosIdentidad(row: RankingRow): DatoIdentidad[] {
   return datos;
 }
 
-/** La misma identidad como frase corta, para cuando el destino es texto (aria, title). */
-export function identidadTexto(row: RankingRow): string {
-  const d = desdeTxt(row.desde);
-  const tipo = esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo];
-  return d ? `${tipo}, aporta desde ${d}` : tipo;
-}
-
 const ANILLO =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2 focus-visible:ring-offset-paper";
 
@@ -105,49 +98,8 @@ const ACCION_TARJETA =
   "inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors duration-rapido";
 
 /**
- * Una comparación con su barra a escala: "33 leídos de 45 financiados".
- * Nunca un número solo en una caja — esa plantilla es justo la que la
- * dirección rechaza, y aquí además borraría la única historia que importa,
- * que es la proporción.
- *
- * Tonos (DESIGN_SYSTEM.md §3): financiado = granate (la marca: alguien pagó);
- * leído = moss (positivo: el trabajo se hizo); neutro = tinta suave. El maíz del
- * renombre no va acá: sobre papel no llega ni a 2:1.
- */
-export function Proporcion({
-  parte,
-  total,
-  leyenda,
-  tono,
-}: {
-  parte: number;
-  total: number;
-  leyenda: string;
-  tono: "financiado" | "leido" | "neutro";
-}) {
-  const barra = tono === "financiado" ? "bg-granate" : tono === "leido" ? "bg-moss" : "bg-inkSoft/40";
-  const p = pctProporcion(parte, total);
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[13px] leading-snug text-inkSoft">
-          <span className="font-mono text-sm font-semibold tabular-nums text-ink">{num(parte)}</span> {leyenda}
-        </span>
-        {p && <span className="shrink-0 font-mono text-[12px] tabular-nums text-mute">{p}</span>}
-      </div>
-      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
-        <div
-          className={`h-1.5 min-w-[2px] rounded-full ${barra}`}
-          style={{ width: `${total > 0 ? (parte / total) * 100 : 0}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
  * Ficha del aliado dentro del muro. Se usa cuando el muro cabe en tarjetas
- * (hasta una docena de nombres); pasado eso manda la tabla.
+ * (hasta una docena de nombres); pasado eso manda la tabla del listado.
  */
 export function TarjetaAliado({
   row,
@@ -314,80 +266,6 @@ export function TarjetaAliado({
         )}
       </div>
     </article>
-  );
-}
-
-/**
- * Fila del libro mayor. Es un `<tr>`: la tabla que la contiene pone los
- * encabezados, que es donde vive la unidad de cada columna.
- */
-export function FilaAliado({
-  row,
-  regionesConCola,
-  href,
-  esMaqueta = false,
-}: {
-  row: RankingRow;
-  regionesConCola: number;
-  href?: string;
-  esMaqueta?: boolean;
-}) {
-  const d = desdeTxt(row.desde);
-  return (
-    <tr className="border-t border-line transition-colors duration-rapido hover:bg-paperSoft">
-      <th scope="row" className="py-2.5 pr-3 text-left font-normal">
-        <div className="flex items-center gap-2.5">
-          {href ? (
-            <Link href={href} tabIndex={-1} aria-hidden className="shrink-0">
-              <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={esMaqueta} />
-            </Link>
-          ) : (
-            <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="sm" maqueta={esMaqueta} />
-          )}
-          <span className="min-w-0">
-            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
-              {href ? (
-                <Link href={href} className={cn("truncate rounded hover:underline", ANILLO)}>
-                  {row.nombre}
-                </Link>
-              ) : (
-                <span className="truncate">{row.nombre}</span>
-              )}
-              {esMaqueta && <SelloMaqueta className="shrink-0" />}
-            </span>
-            {/* Dos datos, dos elementos con su propio espacio. Antes iban pegados
-                con " · " dentro de un `truncate`, así que al angostarse la columna
-                el punto medio quedaba cortado a la mitad. */}
-            <span className="flex min-w-0 items-baseline gap-x-2.5 text-[11px] text-mute">
-              <span className="truncate">{esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo]}</span>
-              {d && <span className="shrink-0">desde {d}</span>}
-            </span>
-          </span>
-        </div>
-      </th>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">{num(row.contratosFinanciados)}</td>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">
-        {num(row.contratosProcesados)}
-        <span className="text-mute"> / {num(row.contratosFinanciados)}</span>
-      </td>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">
-        {num(row.senalesHalladas)}
-        <span className="text-mute"> / {num(row.contratosProcesados)}</span>
-      </td>
-      <td className="hidden py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink sm:table-cell">
-        {num(row.zonas)}
-        <span className="text-mute"> / {num(regionesConCola)}</span>
-      </td>
-      <td className="py-2.5 pl-3 text-right">
-        {href && (
-          <Link href={href} className={cn("inline-flex min-h-[24px] min-w-[24px] items-center justify-end gap-1 rounded text-[13px] font-medium text-granate underline-offset-2 hover:underline", ANILLO)}>
-            <span className="hidden sm:inline">Ver</span>
-            <ArrowUpRight size={13} aria-hidden />
-            <span className="sr-only">los contratos de {row.nombre}</span>
-          </Link>
-        )}
-      </td>
-    </tr>
   );
 }
 

@@ -21,8 +21,9 @@ export default async function ContratoEnVivoPage({ params }: { params: { ocid: s
   const ocid = decodeURIComponent(params.ocid);
   const data = await getProcesamiento(ocid);
   if (!data) notFound();
-  // Ancho completo, alineado a la izquierda (DESIGN_SYSTEM.md §10.7): resultado y ejecución van
-  // lado a lado desde `lg`; centrado en 5xl dejaba dos columnas vacías a los costados.
+  // Plantilla Ficha (DESIGN_SYSTEM.md §14.2): volver → identidad → Indicadores → estado →
+  // secciones, con los datos del proceso en la columna lateral. La arma ContratoEnVivo entera
+  // porque todo cambia con el mismo sondeo; acá sólo el primer dato, ya en el HTML.
   return (
     <Pagina>
       <ContratoEnVivo ocid={ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} />

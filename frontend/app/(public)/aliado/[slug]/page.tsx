@@ -1,11 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Eye } from "lucide-react";
-import { AvatarAliado, Proporcion } from "@/components/aliados/TarjetaAliado";
+import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
 import { CadenaAliado } from "@/components/aliados/CadenaAliado";
 import { PruebaIndependencia } from "@/components/aliados/ReglasIndependencia";
-import { QueSalio } from "@/components/aliados/ResumenAliado";
-import { RegionesDeAliado, SenalesDeAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
+import { RegionesDeAliado, SenalesDeAliado, indicadoresAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
 import { AvisoMaqueta, SelloMaqueta } from "@/components/aliados/AvisoMaqueta";
 import {
   ContactoAliado,
@@ -15,8 +12,8 @@ import {
   mesesDesde,
 } from "@/components/aliados/IdentidadAliado";
 import { InvitacionFinanciar } from "@/components/aliados/InvitacionFinanciar";
-import { Cifras } from "@/components/ui/Cifras";
-import { Ayuda } from "@/components/patrones";
+import { Seccion, Volver } from "@/components/patrones";
+import { Indicadores } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
 import { getComprobanteDe, getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
@@ -33,14 +30,12 @@ export const revalidate = 30;
  * sí se puede construir la cadena entera —aporte → contratos asignados →
  * entidad → señal— que es trazabilidad, no agradecimiento.
  *
- * Lo que faltaba y ahora está, porque la ficha tiene que valer el viaje desde
- * el muro: **en qué regiones cayó** lo que pagó, **qué salió** en el conjunto
- * de sus contratos (antes había que abrir los cinco paneles uno por uno para
- * enterarse) y **las señales concretas**, ordenadas por score, con su enlace al
- * dossier. La prueba de independencia sigue pegada a la lista de contratos y no
- * en la letra chica: la asignación es FIFO por antigüedad en SQL y el pipeline
- * no sabe quién financió. Mostrarlo donde el lector está mirando los contratos
- * es la diferencia entre demostrarlo y declararlo.
+ * Orden de ficha (DESIGN_SYSTEM.md §14.2): identidad → `Indicadores` (lo que hizo
+ * leer y qué salió, cada cifra con su denominador) → secciones con la `Tabla` de todo
+ * listado: las señales concretas (ordenadas por score), las zonas donde cayó lo que
+ * pagó y sus aportes, uno por uno. La prueba de independencia sigue pegada a la lista
+ * de aportes: la asignación es FIFO por antigüedad en SQL y el pipeline no sabe quién
+ * financió. Mostrarlo donde el lector mira los contratos es demostrarlo, no declararlo.
  *
  * Son ~1 + N fetches (perfil + comprobante por aporte). Con N acotado es
  * aceptable; pasado el tope, la fila enlaza al comprobante en vez de traerlo.
@@ -123,9 +118,7 @@ export default async function AliadoPage({
 
   return (
     <div className="container-page space-y-8 py-8 sm:py-10">
-      <Link href={volver} className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-inkSoft transition-colors duration-rapido hover:text-ink">
-        <ArrowLeft size={14} aria-hidden /> Aliados de transparencia
-      </Link>
+      <Volver href={volver}>Aliados de transparencia</Volver>
 
       {esMaqueta && <AvisoMaqueta volverHref={hrefSinMaqueta("/app/aliados")} />}
 
@@ -170,11 +163,6 @@ export default async function AliadoPage({
                       }]
                     : []),
                   { icono: "aportes", texto: plural(r.aportes, "aporte", "aportes") },
-                  {
-                    icono: "regiones",
-                    texto: `${num(r.regionesDistintas)} de ${num(regionesConCola)} regiones con cola`,
-                    titulo: "Regiones con cola abierta que alcanzaron sus aportes. La zona sí se elige; los contratos concretos, no.",
-                  },
                 ]}
               />
             </div>
@@ -200,76 +188,31 @@ export default async function AliadoPage({
         </div>
       </section>
 
-      {/* Lo que hizo leer: cifras con su denominador, no cuatro cajas con un número
-          grande cada una. La tercera compara contra el país entero: es el único
-          contexto que vuelve legible un "45" en un producto con 18 mil contratos. */}
-      <section aria-labelledby="que-hizo-leer" className="space-y-6">
-        <h2 id="que-hizo-leer" className="border-b border-line pb-2 font-display text-lg font-bold text-ink">
-          Lo que hizo leer
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Proporcion
-            parte={r.leidos}
-            total={r.financiados}
-            leyenda={`de sus ${num(r.financiados)} contratos financiados ya leídos`}
-            tono="leido"
-          />
-          <Proporcion
-            parte={r.conSenal}
-            total={r.leidos}
-            leyenda={`de sus ${num(r.leidos)} financiados leídos tienen señales`}
-            tono="neutro"
-          />
-          {publicados > 0 && (
-            <Proporcion
-              parte={r.financiados}
-              total={publicados}
-              leyenda={`de los ${num(publicados)} contratos publicados`}
-              tono="financiado"
-            />
-          )}
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <QueSalio leidos={r.leidos} conSenal={r.conSenal} enRevision={r.enRevision} sinSenal={r.sinSenal} />
-          <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} />
-        </div>
-
-        {r.enRevision > 0 && (
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
-            <Eye size={14} className="shrink-0 text-mute" aria-hidden />
-            <span>
-              <span className="font-mono font-semibold tabular-nums text-ink">{num(r.enRevision)}</span> de sus{" "}
-              {num(r.leidos)} financiados leídos {r.enRevision === 1 ? "está" : "están"} en revisión
-            </span>
-            <Ayuda titulo="¿Por qué en revisión?">
-              La autoevaluación de la lectura no alcanzó el umbral para publicar y decide una persona. No cuentan como
-              señal hasta entonces.
-            </Ayuda>
-          </p>
-        )}
-      </section>
+      {/* Lo que hizo leer: cada cifra con su denominador. La primera compara contra el país
+          entero: es el único contexto que vuelve legible un "45" entre 18 mil contratos. */}
+      <Indicadores
+        items={indicadoresAliado(r, publicados > 0 ? { total: publicados, texto: "publicados" } : null, regionesConCola)}
+      />
 
       <SenalesDeAliado senales={senales} nombre={aliado.nombre} esMaqueta={esMaqueta} />
 
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-          <h2 className="font-display text-lg font-bold text-ink">Aporte por aporte, contrato por contrato</h2>
-          <Cifras
-            items={[
-              { n: r.aportes, texto: r.aportes === 1 ? "aporte" : "aportes" },
-              { n: r.financiados, texto: r.financiados === 1 ? "contrato" : "contratos" },
-            ]}
-          />
+      {r.regiones.length > 0 && (
+        <Seccion titulo="En qué zonas cayeron sus contratos">
+          <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} />
+        </Seccion>
+      )}
+
+      <Seccion titulo="Aporte por aporte, contrato por contrato">
+        <div className="space-y-3">
+          <PruebaIndependencia nombre={aliado.nombre} />
+          <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />
+          {contribuciones.length > MAX_DETALLE && (
+            <p className="text-[12.5px] text-mute">
+              Desde el aporte {num(MAX_DETALLE + 1)}, la fila abre su comprobante público en vez del panel.
+            </p>
+          )}
         </div>
-        <PruebaIndependencia nombre={aliado.nombre} />
-        <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />
-        {contribuciones.length > MAX_DETALLE && (
-          <p className="text-[12px] text-mute">
-            Desde el aporte {num(MAX_DETALLE + 1)}, el detalle está en su comprobante público.
-          </p>
-        )}
-      </section>
+      </Seccion>
 
       <InvitacionFinanciar />
     </div>

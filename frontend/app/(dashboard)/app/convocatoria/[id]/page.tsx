@@ -1,5 +1,5 @@
 /**
- * /app/convocatoria/[id]
+ * /app/convocatoria/[id] — el informe de un contrato, plantilla Ficha (DESIGN_SYSTEM.md §14.2).
  *
  * Vista compartible del análisis. Carga el resultado guardado vía
  * /api/agent/history/[id] y renderiza el ResultadoView completo. Soporta código
@@ -14,10 +14,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { useParams } from "next/navigation";
+import { RotateCcw } from "lucide-react";
 import { ResultadoView } from "@/components/convocatoria/ResultadoView";
-import { Cargando, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
+import { Cargando, EstadoError, EstadoVacio, Pagina, Volver } from "@/components/patrones";
 import { DossierError, getDossier, peekDossier } from "@/lib/dossier-cache";
 import { esAlertaDemo } from "@/lib/semillas";
 import { useEsAdmin } from "@/lib/useEsAdmin";
@@ -31,7 +31,6 @@ const BOTON_SECUNDARIO =
 
 export default function ConvocatoriaSharePage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const id = decodeURIComponent(params.id || "");
   const esAdmin = useEsAdmin();
 
@@ -80,9 +79,9 @@ export default function ConvocatoriaSharePage() {
     return (
       <Pagina>
         <div className="mx-auto max-w-2xl">
-          <Link href="/app/convocatoria" className="mb-4 inline-flex min-h-[32px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-            <ArrowLeft size={16} aria-hidden /> Volver a los análisis publicados
-          </Link>
+          <Volver href="/app/convocatoria" className="mb-4">
+            Análisis publicados
+          </Volver>
           {noExiste ? (
             <>
               {/* Página sin informe: el título es el h1 de la página. */}
@@ -150,7 +149,7 @@ export default function ConvocatoriaSharePage() {
 
   return (
     <Pagina>
-      <ResultadoView result={result} onReset={() => router.push("/app/convocatoria")} />
+      <ResultadoView result={result} />
     </Pagina>
   );
 }

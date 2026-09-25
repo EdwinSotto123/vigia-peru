@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Clock, Code2, ShieldCheck } from "lucide-react";
-import { ZonaPicker } from "@/components/financiar/ZonaPicker";
+import { ListaZonas, type ZonaListada } from "@/components/financiar/ListaZonas";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Popover } from "@/components/ui/Flotante";
-import { Ayuda, EncabezadoPagina, FuenteDato, Pagina, Seccion } from "@/components/patrones";
+import { Paginacion } from "@/components/ui/Paginacion";
+import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Pagina, Seccion } from "@/components/patrones";
+import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
-import { numero, porcentaje, soles } from "@/lib/formato";
+import { numero, plural, porcentaje, soles } from "@/lib/formato";
 import {
   alcanceCorto,
   getEstadoGlobal,
@@ -16,11 +18,14 @@ import {
   getZonas,
   partesTarifa,
   type EstadoGlobal,
-  type ParteTarifa,
+  type Zona,
 } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
 
 const REPO = "https://github.com/EdwinSotto123/vigia-peru";
+
+/** Zonas por página: las 25 regiones caben en una; una búsqueda amplia ("san") pagina. */
+const TAM = 25;
 
 export async function generateMetadata() {
   const estado = await getEstadoGlobal();
@@ -35,8 +40,7 @@ export const revalidate = 120;
 
 /**
  * Las reglas que hacen que financiar no compre nada: una frase visible por regla y el
- * detalle a un clic (DESIGN_SYSTEM.md §10.7). Antes eran seis tarjetas con dos o tres
- * renglones cada una al pie de la página.
+ * detalle a un clic (DESIGN_SYSTEM.md §10.7).
  */
 const REGLAS: { titulo: string; resumen: string; detalle: string }[] = [
   {
@@ -72,34 +76,70 @@ const REGLAS: { titulo: string; resumen: string; detalle: string }[] = [
   },
 ];
 
+/** Comparación sin tildes ni mayúsculas: "cañete" encuentra "Cañete", "apurimac" encuentra "Apurímac". */
+const norm = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const porCola = (a: Pick<Zona, "pendientes" | "nombre">, b: Pick<Zona, "pendientes" | "nombre">) => b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre, "es");
+
+/** La acción de un estado vacío o de error: la misma píldora secundaria de todos los listados. */
+const ACCION =
+  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+
 /**
  * /app/financiar — plantilla de conversión (DESIGN_SYSTEM.md §14): una pregunta por
- * pantalla, "¿qué zona quieres que se lea?". Dato primero (§10.7): el título, una
- * línea de cifras con su denominador (el déficit de lectura, el precio) y enseguida
- * el selector de zona; el porqué y el desglose, a un clic. Al pie, en granate
- * profundo, las reglas que hacen que financiar no compre nada.
+ * pantalla, "¿qué contratos de tu zona quieres que se lean?". Encabezado → Indicadores
+ * (el déficit de lectura y el precio, cada cifra con su contexto) → la lista de zonas
+ * con la anatomía de todo listado (§14.1) y, al costado, los últimos aportes. La
+ * búsqueda vive en la URL (`?q=`): se comparte y el botón atrás la deshace.
  */
-export default async function FinanciarPage({ searchParams }: { searchParams?: { ubigeo?: string } }) {
+export default async function FinanciarPage({
+  searchParams,
+}: {
+  searchParams?: { ubigeo?: string; q?: string; pagina?: string };
+}) {
   // Llegada desde el mapa con la zona ya elegida (/app/financiar?ubigeo=21) → directo al paso de cantidad.
   const u = searchParams?.ubigeo;
   if (u && /^\d{2}(\d{2}(\d{2})?)?$/.test(u)) redirect(`/app/financiar/${u}`);
-  const [zonas, estado, recientes, resumenContratos, pago] = await Promise.all([
+
+  const q = (searchParams?.q ?? "").trim().slice(0, 60);
+  // Con dos letras o más la búsqueda también mira las provincias (una sola lista, cacheada).
+  const buscaProvincias = q.length >= 2;
+  const [zonas, estado, recientes, resumenContratos, pago, provincias] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),
     getRecientes(),
     getResumenContratos(),
     getPago(),
+    buscaProvincias ? getZonas("provincia") : Promise.resolve(null),
   ]);
   const precio = estado?.tarifa.precioPen ?? null;
-  const partes = partesTarifa(estado?.tarifa.nota);
-  const conCola = (zonas ?? []).filter((z) => z.totalCola > 0).length;
   const pagosAbiertos = !!pago?.configurado;
 
   // "Leídos" es la misma cifra de la portada y de /app/contratos (DESIGN_SYSTEM.md §10.1):
-  // todo contrato cuyo análisis terminó, por cualquier vía. Los financiados leídos son un
-  // subconjunto y se nombran como tal; antes esta página llamaba "leídos" sólo a esos.
+  // todo contrato cuyo análisis terminó, por cualquier vía.
   const r = resumenContratos?.porRiesgo;
   const leidos = r ? (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0) : null;
+  const publicados = resumenContratos?.total ?? null;
+
+  // ─── La lista: regiones con cola, o lo que coincide con la búsqueda ───
+  const deptos = (zonas ?? []).filter((z) => z.totalCola > 0);
+  const nombreRegion = new Map((zonas ?? []).map((z) => [z.ubigeo, z.nombre]));
+  let lista: ZonaListada[];
+  if (q) {
+    const t = norm(q);
+    const pool: ZonaListada[] = [
+      ...deptos.map((z) => ({ ...z, lugar: "Región" })),
+      ...(provincias ?? [])
+        .filter((p) => p.totalCola > 0)
+        .map((p) => ({ ...p, lugar: `Provincia en ${nombreRegion.get(p.padreUbigeo ?? "") ?? "el Perú"}` })),
+    ];
+    lista = pool.filter((z) => norm(z.nombre).includes(t)).sort(porCola);
+  } else {
+    lista = [...deptos].sort(porCola);
+  }
+  const paginas = Math.max(1, Math.ceil(lista.length / TAM));
+  const pagina = Math.min(paginas, Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1));
+  const fallaronProvincias = buscaProvincias && provincias === null;
 
   return (
     <Pagina className="space-y-8">
@@ -123,14 +163,13 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
             </EnlaceAccion>
           }
         />
-        {/* El bloque ES la comparación: leídos contra publicados. Ninguna cifra viaja sola. */}
-        <BalanceLectura
-          estado={estado}
-          publicados={resumenContratos?.total ?? null}
+        <CifrasFinanciar
           leidos={leidos}
-          conCola={conCola}
+          publicados={publicados}
+          estado={estado}
+          regionesConCola={estado?.regionesConCola ?? deptos.length}
           precio={precio}
-          partes={partes}
+          nota={estado?.tarifa.nota ?? null}
         />
         {!pagosAbiertos && (
           <p className="inline-flex flex-wrap items-center gap-1.5 text-[13px] text-inkSoft" role="note">
@@ -145,7 +184,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
       </div>
 
       {/* La lista de zonas y los últimos aportes, lado a lado: la vista usa el ancho (§10.7). */}
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         {/* ─── ELIGE TU ZONA (sin mapa: el mapa vive en /app/mapa) ─── */}
         <Seccion
           id="zonas"
@@ -157,21 +196,31 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
             </>
           }
           ayuda={
-            <Ayuda titulo="¿Cómo se lee esta lista?">
-              <span className="block">
-                <strong className="text-ink">En cola</strong>: contratos de la zona que esperan financiamiento para
-                leerse. Hoy entran solo {alcanceCorto(estado?.alcance)}. La zona es la sede de la entidad que contrata.
-              </span>
-              {precio != null && (
-                <span className="mt-2 block">
-                  <strong className="text-ink">Costo</strong>: {soles(precio)} por contrato.
-                </span>
-              )}
+            <Ayuda titulo="¿Qué zonas aparecen?">
+              Las que tienen contratos en cola. Hoy entran solo {alcanceCorto(estado?.alcance)}. El punto de color es el
+              estado de la zona, dicho también en palabras debajo de su nombre.
             </Ayuda>
           }
           acciones={<FuenteDato fuente="OECE, API OCDS" />}
         >
-          <ZonaPicker zonas={zonas ?? []} precioPen={precio ?? 0} />
+          <Listado ruta="/app/financiar" parametros={{ q: q || undefined }}>
+            <div className="space-y-3">
+              <BarraFiltros
+                busqueda={{ param: "q", placeholder: "Ej. Huamanga, Cañete, Cusco", etiqueta: "Buscar una región o provincia" }}
+              />
+              <ZonaResultados>
+                <ResultadosZonas
+                  hayZonas={!!zonas}
+                  lista={lista}
+                  q={q}
+                  pagina={pagina}
+                  paginas={paginas}
+                  fallaronProvincias={fallaronProvincias}
+                  precio={precio}
+                />
+              </ZonaResultados>
+            </div>
+          </Listado>
         </Seccion>
 
         {/* ─── ÚLTIMOS APORTES (el orden por aliado vive en /app/aliados) ─── */}
@@ -187,9 +236,7 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
           {recientes ? (
             <RecientesFeed items={recientes} />
           ) : (
-            <p className="rounded-2xl border border-dashed border-line px-5 py-4 text-sm text-mute">
-              No se pudo leer la lista de aportes ahora mismo. Vuelve a intentarlo en un momento.
-            </p>
+            <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
           )}
         </Seccion>
       </div>
@@ -238,103 +285,182 @@ export default async function FinanciarPage({ searchParams }: { searchParams?: {
   );
 }
 
-/**
- * El déficit de lectura, que es la razón de existir del producto, en UNA línea de datos
- * (§10.7) y una barra.
- *
- * La barra no es decoración: a escala real lo leído es una astilla contra el total
- * publicado, y ver esa astilla explica en un segundo por qué hace falta financiar. Por
- * eso tiene ancho mínimo: a escala exacta (0,24 %) sería medio píxel.
- *
- * Ninguna cifra viaja sola, y lo financiado se cuenta en contratos, igual que en el muro
- * de aliados. Lo que no se pudo leer dice "Sin dato"; nunca un cero que parezca un dato.
- * El precio es un dato más de la línea; su desglose, a un clic.
- */
-function BalanceLectura({
-  estado,
-  publicados,
-  leidos,
-  conCola,
+/** Lo que va en la zona de resultados: los cinco estados de §10.5, y la tabla. */
+function ResultadosZonas({
+  hayZonas,
+  lista,
+  q,
+  pagina,
+  paginas,
+  fallaronProvincias,
   precio,
-  partes,
 }: {
-  estado: EstadoGlobal | null;
-  /** Contratos publicados en la base (resumen de /contratos). */
-  publicados: number | null;
-  /** Leídos por cualquier vía (misma cifra que la portada). */
-  leidos: number | null;
-  /** Respaldo de "regiones con cola" si el estado no lo trae. */
-  conCola: number;
+  /** El API de zonas respondió. */
+  hayZonas: boolean;
+  lista: ZonaListada[];
+  q: string;
+  pagina: number;
+  paginas: number;
+  /** Se buscó en las provincias y esa lista no respondió. */
+  fallaronProvincias: boolean;
   precio: number | null;
-  /** Desglose real de la tarifa (`estado.tarifa.nota`). */
-  partes: ParteTarifa[];
 }) {
-  const base = publicados != null && publicados > 0 && leidos != null ? { publicados, leidos } : null;
-  const pct = base ? (base.leidos / base.publicados) * 100 : 0;
-  const anchoLeido = base ? Math.max(0.8, pct) : 0;
-  const cifra = "font-semibold text-ink";
-
+  if (!hayZonas) {
+    return (
+      <EstadoError titulo="No pudimos leer las zonas" accion={<Link href="/app/financiar" className={ACCION}>Reintentar</Link>}>
+        El servidor no respondió. No mostramos nada en su lugar.
+      </EstadoError>
+    );
+  }
+  if (lista.length === 0 && !q) {
+    return (
+      <EstadoVacio titulo="Ninguna zona tiene contratos en cola">
+        Aparecen aquí cuando el OECE publica contratos que entran a la cola.
+      </EstadoVacio>
+    );
+  }
+  if (lista.length === 0 && fallaronProvincias) {
+    return (
+      <EstadoError titulo="No pudimos buscar en las provincias" accion={<Link href="/app/financiar" className={ACCION}>Ver todas las regiones</Link>}>
+        Prueba con el nombre de la región.
+      </EstadoError>
+    );
+  }
+  if (lista.length === 0) {
+    return (
+      <EstadoVacio
+        compacto
+        titulo={`Ninguna zona con contratos en cola coincide con “${q}”`}
+        accion={<Link href="/app/financiar" className={ACCION}>Quitar la búsqueda</Link>}
+      >
+        Prueba con el nombre de la región o de la provincia.
+      </EstadoVacio>
+    );
+  }
   return (
-    <section aria-label="Cuánto se ha leído de lo publicado" className="space-y-2">
-      {/* Una cifra por elemento (como `Cifras`): se escanean de a una, no se leen como un párrafo. */}
-      <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] tabular-nums text-inkSoft">
-        <li>
-          {leidos != null ? <strong className={cifra}>{numero(leidos)}</strong> : <span className="text-mute">Sin dato</span>} de{" "}
-          {numero(publicados)} publicados leídos
-          {base && <span className="text-mute"> ({porcentaje(pct, { decimales: pct < 1 ? 2 : 1 })})</span>}
-        </li>
-        {estado && (
-          <>
-            <li>
-              <strong className={cifra}>{numero(estado.contratosFinanciados)}</strong> financiados
-              {estado.regionesConAuditoria > 0 && (
-                <> en {estado.regionesConAuditoria === 1 ? "1 región" : `${numero(estado.regionesConAuditoria)} regiones`}</>
-              )}
-              {estado.financiadores > 0 && <>, de {estado.financiadores === 1 ? "1 aliado" : `${numero(estado.financiadores)} aliados`}</>}
-            </li>
-            <li>
-              <strong className={cifra}>{numero(estado.contratosProcesados)}</strong> de {numero(estado.contratosFinanciados)} financiados leídos
-            </li>
-            <li>
-              <strong className={cifra}>{numero(estado.senalesHalladas)}</strong> de {numero(estado.contratosProcesados)} con señales
-            </li>
-            <li>
-              <strong className={cifra}>{numero(estado.colaGlobal)}</strong> en cola, en {numero(estado.regionesConCola ?? conCola)} regiones
-            </li>
-          </>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Parcial (§10.5): se dice qué falta. */}
+        {fallaronProvincias ? (
+          <p className="text-[12.5px] text-mute" role="note">No pudimos buscar en las provincias: sólo se muestran regiones.</p>
+        ) : (
+          <span />
         )}
-        {precio != null && (
-          <li className="inline-flex items-center gap-1">
-            <span>
-              <strong className={cifra}>{soles(precio)}</strong> por contrato
-            </span>
-            {partes.length > 0 && (
-              <Ayuda titulo="¿En qué se va cada contrato?">
-                {partes.map((p) => (
-                  <span key={p.concepto} className="flex items-baseline gap-2">
-                    <span className="w-10 shrink-0 font-mono tabular-nums text-ink">{soles(p.monto)}</span>
-                    <span>{p.concepto}</span>
-                  </span>
-                ))}
-              </Ayuda>
-            )}
-          </li>
-        )}
-      </ul>
-
-      {base && (
-        <div
-          className="flex h-1.5 w-full overflow-hidden rounded-full bg-paperDeep"
-          role="img"
-          aria-label={`${numero(base.leidos)} contratos leídos de ${numero(base.publicados)} publicados`}
-        >
-          <div className="h-full rounded-full bg-moss" style={{ width: `${anchoLeido}%` }} />
+        <PaginacionZonas pagina={pagina} paginas={paginas} total={lista.length} q={q} />
+      </div>
+      <ListaZonas
+        zonas={lista.slice((pagina - 1) * TAM, pagina * TAM)}
+        precioPen={precio}
+        etiqueta={q ? `Zonas que coinciden con “${q}”` : "Regiones con contratos en cola"}
+      />
+      {paginas > 1 && (
+        <div className="flex justify-end">
+          <PaginacionZonas pagina={pagina} paginas={paginas} total={lista.length} q={q} />
         </div>
       )}
-
-      {!estado && (
-        <p className="text-[13px] text-mute">No se pudo leer el estado del financiamiento. Vuelve a intentarlo en un momento.</p>
-      )}
-    </section>
+    </div>
   );
+}
+
+function PaginacionZonas({ pagina, paginas, total, q }: { pagina: number; paginas: number; total: number; q: string }) {
+  return (
+    <Paginacion
+      actual={pagina}
+      paginas={paginas}
+      total={total}
+      tam={TAM}
+      navegacion="url"
+      hrefBase="/app/financiar"
+      query={{ q: q || undefined }}
+      cargando={false}
+      nombre="zonas"
+    />
+  );
+}
+
+/**
+ * El déficit de lectura, que es la razón de existir del producto, y el precio, como
+ * `Indicadores` (§10.7): cada número grande con lo que es y su contexto. Antes iban
+ * seis cifras dentro de una línea gris ("118 de 18,393 publicados leídos (0.64 %) ·
+ * 100 financiados en 6 regiones…"): se perdía cuál número decía qué.
+ *
+ * Lo que no se pudo leer dice "Sin dato"; nunca un cero que parezca un dato.
+ */
+function CifrasFinanciar({
+  leidos,
+  publicados,
+  estado,
+  regionesConCola,
+  precio,
+  nota,
+}: {
+  leidos: number | null;
+  publicados: number | null;
+  estado: EstadoGlobal | null;
+  /** Regiones con cola, con respaldo en la lista de zonas si el estado no lo trae. */
+  regionesConCola: number;
+  precio: number | null;
+  /** Desglose de la tarifa (`estado.tarifa.nota`). */
+  nota: string | null;
+}) {
+  const pct = publicados && leidos != null ? (leidos / publicados) * 100 : null;
+  const partes = partesTarifa(nota);
+  const items: Indicador[] = [
+    {
+      valor: leidos != null ? numero(leidos) : null,
+      etiqueta: "contratos leídos",
+      contexto:
+        publicados != null
+          ? `de ${numero(publicados)} publicados${pct != null ? ` (${porcentaje(pct, { decimales: pct < 1 ? 2 : 1 })})` : ""}`
+          : undefined,
+      ayuda: (
+        <Ayuda titulo="¿Qué cuenta como leído?">
+          Todo contrato cuyo análisis terminó, por cualquier vía, financiado o no. Es la misma cifra de la portada y de
+          Contratos.
+        </Ayuda>
+      ),
+    },
+  ];
+  if (estado) {
+    items.push(
+      {
+        valor: numero(estado.colaGlobal),
+        etiqueta: "en cola",
+        contexto: `en ${plural(regionesConCola, "región", "regiones")}`,
+        ayuda: (
+          <Ayuda titulo="¿Qué entra a la cola?">
+            Contratos que esperan financiamiento para leerse. Hoy entran solo {alcanceCorto(estado.alcance)}.
+          </Ayuda>
+        ),
+      },
+      {
+        valor: numero(estado.contratosFinanciados),
+        etiqueta: "contratos financiados",
+        contexto: `${numero(estado.contratosProcesados)} ya leídos, ${numero(estado.senalesHalladas)} con señales`,
+        href: "/app/auditoria",
+      },
+    );
+  }
+  if (precio != null) {
+    items.push({
+      valor: soles(precio),
+      etiqueta: "por contrato",
+      contexto: "lectura completa y publicada",
+      ayuda:
+        partes.length > 0 ? (
+          <Ayuda titulo="¿En qué se va cada contrato?">
+            {partes.map((p) => (
+              <span key={p.concepto} className="flex items-baseline gap-2">
+                <span className="w-10 shrink-0 font-mono tabular-nums text-ink">{soles(p.monto)}</span>
+                <span>{p.concepto}</span>
+              </span>
+            ))}
+          </Ayuda>
+        ) : undefined,
+    });
+  }
+  if (!estado) {
+    return <p className="text-[13px] text-mute" role="note">No se pudo leer el estado del financiamiento. Vuelve a intentarlo en un momento.</p>;
+  }
+  return <Indicadores items={items} />;
 }
