@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EncabezadoPagina } from "@/components/patrones";
+import { EncabezadoPagina, Pagina } from "@/components/patrones";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { soles } from "@/lib/formato";
 import { Acordeon, type PreguntaFAQ } from "./Acordeon";
@@ -156,7 +156,8 @@ export default async function PreguntasPage() {
   ];
 
   return (
-    <div className="container-page max-w-3xl space-y-8 py-8 sm:py-10">
+    // Prosa: la única vista con medida de lectura (DESIGN_SYSTEM.md §10.7).
+    <Pagina ancho="lectura">
       <EncabezadoPagina
         titulo="¿Cómo funciona Vigía Perú?"
         bajada={
@@ -193,6 +194,6 @@ export default async function PreguntasPage() {
           </a>
         </div>
       </div>
-    </div>
+    </Pagina>
   );
 }

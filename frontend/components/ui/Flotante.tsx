@@ -17,10 +17,14 @@ type Lado = "arriba" | "abajo";
  *
  * Posición calculada en JS y no con CSS anchor positioning porque anchor
  * todavía es solo Chromium; esto funciona en todos lados.
+ *
+ * El flotante es un `<span>` (con `block` adentro), no un `<div>`: así un ⓘ puede
+ * ir en medio de una oración (`<p>… <Ayuda/></p>`) sin romper la hidratación. Por
+ * lo mismo, su contenido es texto o `<span className="block">`, nunca `<p>`/`<div>`.
  */
 function usarFlotante(abierto: boolean) {
   const anclaRef = useRef<HTMLElement>(null);
-  const flotanteRef = useRef<HTMLDivElement>(null);
+  const flotanteRef = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; lado: Lado } | null>(null);
 
   const colocar = useCallback(() => {
@@ -113,7 +117,7 @@ export function Tooltip({
       >
         {children}
       </span>
-      <div
+      <span
         ref={flotanteRef}
         id={id}
         role="tooltip"
@@ -126,7 +130,7 @@ export function Tooltip({
         )}
       >
         {texto}
-      </div>
+      </span>
     </>
   );
 }
@@ -198,7 +202,7 @@ export function Popover({
       >
         {trigger}
       </button>
-      <div
+      <span
         ref={flotanteRef}
         id={id}
         role="dialog"
@@ -213,12 +217,10 @@ export function Popover({
         )}
       >
         {titulo && (
-          <div className="border-b border-line bg-paperSoft px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-mute">
-            {titulo}
-          </div>
+          <span className="block border-b border-line bg-paperSoft px-3 py-2 text-[13px] font-semibold text-ink">{titulo}</span>
         )}
-        <div className="px-3 py-2.5 text-[13px] leading-relaxed">{children}</div>
-      </div>
+        <span className="block px-3 py-2.5 text-[13px] leading-relaxed">{children}</span>
+      </span>
     </>
   );
 }

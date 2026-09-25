@@ -8,6 +8,7 @@ import { ArrowRight, Building2, ChevronRight, FileText, Info, Newspaper, Package
 import { cn } from "@/lib/utils";
 import { fechaCorta, numero } from "@/lib/formato";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import type { ApiResult } from "./types";
 import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, separarBanderas } from "./dossier";
 import { ShareableHeader } from "./sections/ShareableHeader";
@@ -135,15 +136,16 @@ export function ResultadoView({
     [nombresPrivados],
   );
 
-  // Resumen ejecutivo del dictamen: se corta en un final de oración, nunca a mitad de palabra.
+  // Resumen ejecutivo del dictamen, como anticipo de dos líneas (§10.7: ≈180 caracteres); el
+  // dictamen entero está en su pestaña. Se corta en un final de oración, nunca a mitad de palabra.
   const resumenEjecutivo = (() => {
     const m = dict.match(/#{2,3}\s*Resumen ejecutivo\s*\n+([\s\S]*?)(?:\n#{2,3}\s|$)/i);
     const raw = (m ? m[1] : dict) || "";
     const limpio = raw.replace(/[#*`>\[\]]/g, "").replace(/\s+/g, " ").trim();
-    if (limpio.length <= 400) return limpio;
-    const corte = limpio.slice(0, 400);
+    if (limpio.length <= 180) return limpio;
+    const corte = limpio.slice(0, 180);
     const finOracion = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("? "), corte.lastIndexOf("! "));
-    if (finOracion > 200) return corte.slice(0, finOracion + 1);
+    if (finOracion > 90) return corte.slice(0, finOracion + 1);
     const finPalabra = corte.lastIndexOf(" ");
     return (finPalabra > 0 ? corte.slice(0, finPalabra) : corte) + "…";
   })();
@@ -274,12 +276,15 @@ export function ResultadoView({
           </SeccionSegura>
         </div>
 
-        <p className="flex items-start gap-1.5 border-t border-line pt-3 text-[12px] leading-relaxed text-mute">
-          <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          <span>
-            Vigía detecta señales cruzando datos públicos (OECE, SUNAT, ONPE, JNE, prensa). Una señal no es una acusación. La
-            denuncia formal corresponde a la Contraloría, la Fiscalía o el periodismo.
-          </span>
+        {/* Una línea + ⓘ (§10.7). Es la única vez que el informe lo dice: antes lo repetían el
+            veredicto, el pie de la lista de señales y este párrafo. */}
+        <p className="flex items-center gap-1 border-t border-line pt-3 text-[12px] text-mute">
+          <Info size={13} className="shrink-0" aria-hidden />
+          Una señal no es una acusación.
+          <Ayuda titulo="¿De dónde salen y qué hago con ellas?">
+            Vigía detecta señales cruzando datos públicos (OECE, SUNAT, ONPE, JNE, prensa). Cada una es una pista para
+            comprobar en su fuente. La denuncia formal corresponde a la Contraloría, la Fiscalía o el periodismo.
+          </Ayuda>
         </p>
       </div>
 
@@ -287,12 +292,13 @@ export function ResultadoView({
       <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start" aria-label="Datos del proceso">
         <div className="rounded-2xl border border-line bg-paper p-4">
           <h2 className="text-[13px] font-semibold text-ink">Datos del proceso</h2>
-          <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
+          {/* Filas etiqueta · cifra, alineadas a la izquierda: antes eran tres baldosas centradas. */}
+          <dl className="mt-1.5 divide-y divide-line/70 text-[13px]">
             <DatoProceso valor={conv.n_postores} etiqueta={Number(conv.n_postores) === 1 ? "Postor" : "Postores"} />
             <DatoProceso valor={conv.n_items} etiqueta="Ítems" />
             <DatoProceso valor={conv.n_docs} etiqueta="Documentos" />
           </dl>
-          {Number(conv.n_postores) === 1 && <p className="mt-2 text-[12px] leading-snug text-inkSoft">Se presentó un solo postor.</p>}
+          {Number(conv.n_postores) === 1 && <p className="mt-1.5 text-[12px] leading-snug text-inkSoft">Se presentó un solo postor.</p>}
           {(ocidContrato || entidadRuc) && (
             <ul className="mt-3 space-y-1.5 border-t border-line pt-3 text-[13px]">
               {ocidContrato && (
@@ -340,13 +346,13 @@ export function ResultadoView({
   );
 }
 
-/** Una cifra del proceso con su etiqueta. Sin dato no se inventa un cero. */
+/** Una cifra del proceso con su etiqueta, en una fila. Sin dato no se inventa un cero. */
 function DatoProceso({ valor, etiqueta }: { valor: unknown; etiqueta: string }) {
   const n = typeof valor === "number" && Number.isFinite(valor) ? valor : null;
   return (
-    <div className="flex flex-col rounded-xl bg-paperSoft px-1 py-2">
-      <dt className="order-2 mt-1 text-[11px] text-mute">{etiqueta}</dt>
-      <dd className={cn("order-1 font-mono tabular-nums leading-none", n === null ? "text-[12px] text-mute" : "text-base font-semibold text-ink")}>
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="text-mute">{etiqueta}</dt>
+      <dd className={cn("font-mono tabular-nums", n === null ? "font-sans text-[12px] text-mute" : "font-semibold text-ink")}>
         {n === null ? "Sin dato" : numero(n)}
       </dd>
     </div>
@@ -355,29 +361,33 @@ function DatoProceso({ valor, etiqueta }: { valor: unknown; etiqueta: string }) 
 
 /**
  * Los documentos y el portal oficial no coinciden en la etapa del proceso. Es un dato sobre el
- * registro, no una señal: va en tinta neutra (antes, en el rojo de error del sistema).
+ * registro, no una señal: va en tinta neutra (antes, en el rojo de error del sistema). Aviso
+ * inevitable = una línea + ⓘ (§10.7); los documentos que lo muestran van en la ⓘ.
  */
 function EstadoInconsistente({ er }: { er: any }) {
   const legible = (s: unknown) => String(s || "").replace(/_/g, " ");
+  const docs: any[] = er.documentos_clave || [];
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4">
-      <Info size={18} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">Los documentos y el portal oficial no coinciden</p>
-        <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
-          El registro OCDS del OECE muestra el estado <strong className="font-semibold text-ink">{legible(er.estado_ocds)}</strong>, pero el
-          expediente ya tiene documentos de <strong className="font-semibold text-ink">{legible(er.estado_documentos)}</strong> (
-          {numero(er.documentos_clave?.length || 0)} {(er.documentos_clave?.length || 0) === 1 ? "documento clave" : "documentos clave"}). El
-          portal oficial puede estar desactualizado o la publicación de la adjudicación, pendiente.
-        </p>
-        {(er.documentos_clave || []).slice(0, 3).map((d: any, i: number) => (
-          <p key={i} className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-[12px]">
-            <span className="font-semibold text-ink">{legible(d.tipo)}</span>
-            <span className="line-clamp-1 text-inkSoft">{d.titulo}</span>
-            {d.fecha && <span className="text-mute">{fechaCorta(String(d.fecha).slice(0, 10))}</span>}
-          </p>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-line bg-paperSoft px-4 py-2.5 text-[13px]">
+      <Info size={15} className="shrink-0 text-inkSoft" aria-hidden />
+      <span className="font-semibold text-ink">Los documentos y el portal oficial no coinciden</span>
+      <span className="text-inkSoft">
+        OECE: {legible(er.estado_ocds)} · expediente: {legible(er.estado_documentos)}
+      </span>
+      <Ayuda titulo="¿Por qué no coinciden?">
+        <span className="block">
+          El registro OCDS del OECE muestra el estado &ldquo;{legible(er.estado_ocds)}&rdquo;, pero el expediente ya tiene{" "}
+          {numero(docs.length)} {docs.length === 1 ? "documento clave" : "documentos clave"} de &ldquo;
+          {legible(er.estado_documentos)}&rdquo;. El portal puede estar desactualizado o la publicación de la adjudicación,
+          pendiente.
+        </span>
+        {docs.slice(0, 3).map((d: any, i: number) => (
+          <span key={i} className="mt-1.5 block text-[12px] text-inkSoft">
+            <strong className="font-semibold text-ink">{legible(d.tipo)}</strong> {d.titulo}
+            {d.fecha && <span className="text-mute"> · {fechaCorta(String(d.fecha).slice(0, 10))}</span>}
+          </span>
         ))}
-      </div>
+      </Ayuda>
     </div>
   );
 }

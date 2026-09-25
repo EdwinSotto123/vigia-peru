@@ -40,7 +40,8 @@ export function FiltrosDenuncias({ query }: Props) {
     "inline-flex min-h-[40px] max-w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-1.5 text-sm text-ink transition-colors duration-rapido focus-within:border-granate hover:border-paperEdge";
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paperSoft p-3" role="group" aria-label="Filtrar denuncias">
+    // Sin caja propia: vive dentro de la barra de herramientas de la lista (DenunciasGrid).
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar denuncias">
       <label className={caja}>
         <MapPin size={14} className="text-mute" aria-hidden />
         <span className="sr-only">Filtrar por región</span>

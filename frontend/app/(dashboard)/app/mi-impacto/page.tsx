@@ -9,13 +9,16 @@
  * Palabras (DESIGN_SYSTEM.md §10.1): "leídos" = contratos cuyo análisis terminó; "con señales" =
  * contratos con al menos una señal publicada (así cuenta el API: `EXISTS banderas`), no señales
  * sueltas. Antes decía "procesados" y "señales halladas", que en otras páginas contaban otra cosa.
+ *
+ * Densidad (§10.7): la bajada es una oración, las cifras de la cuenta van en UNA línea de datos
+ * (antes, cuatro cajas con número grande) y las notas, en una línea con su ⓘ.
  */
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, type LucideIcon } from "lucide-react";
-import { Cargando, Cifra, EncabezadoPagina, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { SubirComprobante } from "@/components/financiar/SubirComprobante";
 import { PulseDot } from "@/components/ui/PulseDot";
@@ -40,15 +43,21 @@ const esDeEntidad = (d: Pick<DenunciaMia, "id" | "categoria">) => d.id.startsWit
 
 export default function MiImpactoPage() {
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <EncabezadoPagina
         titulo="Mi impacto"
-        bajada="Tus aportes con su progreso en vivo, tus denuncias y las zonas que sigues. Todo lo que financias es público; esta página sólo lo reúne para ti."
+        bajada="Tus aportes, tus denuncias y las zonas que sigues, en un solo lugar."
+        ayuda={
+          <Ayuda titulo="¿Qué reúne esta página?">
+            Tus aportes con su progreso en vivo, las denuncias que enviaste con sesión y las zonas y entidades que
+            sigues. Todo lo que financias es público; esta página sólo lo reúne para ti.
+          </Ayuda>
+        }
       />
       <Suspense fallback={<Cargando texto="Cargando tu cuenta…" />}>
         <Contenido />
       </Suspense>
-    </div>
+    </Pagina>
   );
 }
 
@@ -110,41 +119,48 @@ function Contenido() {
             </div>
           }
         >
-          Aquí se juntan tus aportes, tus denuncias enviadas con sesión y las zonas y entidades que sigues. Si
-          financiaste como invitado, abre tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span> y
+          Si financiaste como invitado, abre tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span> y
           asócialo desde ahí.
         </EstadoVacio>
       </div>
     );
   }
 
-  // Cifras con su contexto (§10.2), sólo con lo que el usuario realmente tiene: nada de ceros decorativos.
-  const resumenTiles: { k: string; v: number; contexto: string }[] = [];
-  if (aportes.length > 0) {
-    resumenTiles.push(
-      { k: "Aportes", v: aportes.length, contexto: "hechos con esta cuenta" },
-      { k: "Contratos financiados", v: resumen.contratosFinanciados, contexto: "en aportes ya validados" },
-      { k: "Leídos", v: resumen.procesados, contexto: `de ${numero(resumen.contratosFinanciados)} financiados` },
-      { k: "Con señales", v: resumen.senales, contexto: `de ${numero(resumen.procesados)} leídos; al menos una señal publicada` },
-    );
-  } else if (denuncias.length > 0) {
-    // Sin aportes, las denuncias son su única cifra de impacto: vale mostrarla arriba.
-    resumenTiles.push({ k: "Denuncias enviadas", v: denuncias.length, contexto: "con esta cuenta" });
-  }
 
   return (
     <div className="space-y-8">
       {aporteParam && !yaTiene && <Reclamar codigo={aporteParam.toUpperCase()} onOk={cargar} />}
 
-      {resumenTiles.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {resumenTiles.map((t) => (
-            <div key={t.k} className="rounded-2xl border border-line bg-paper p-4">
-              <Cifra valor={numero(t.v)} etiqueta={t.k} contexto={t.contexto} />
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Cifras con su denominador (§10.2) en UNA línea (§10.7), sólo con lo que el usuario
+          realmente tiene: nada de ceros decorativos. */}
+      {aportes.length > 0 ? (
+        <p className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+          <span>
+            <strong className="font-semibold text-ink">{numero(aportes.length)}</strong> {aportes.length === 1 ? "aporte" : "aportes"}
+          </span>
+          <span>
+            <strong className="font-semibold text-ink">{numero(resumen.contratosFinanciados)}</strong> contratos financiados
+          </span>
+          <span>
+            <strong className="font-semibold text-ink">{numero(resumen.procesados)}</strong> de {numero(resumen.contratosFinanciados)} leídos
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span>
+              <strong className="font-semibold text-ink">{numero(resumen.senales)}</strong> de {numero(resumen.procesados)} con señales
+            </span>
+            <Ayuda titulo="¿Qué cuenta cada cifra?">
+              <span className="block">Financiados: contratos de tus aportes ya validados.</span>
+              <span className="mt-1 block">Con señales: leídos con al menos una señal publicada.</span>
+            </Ayuda>
+          </span>
+        </p>
+      ) : denuncias.length > 0 ? (
+        // Sin aportes, las denuncias son su única cifra de impacto: vale mostrarla arriba.
+        <p className="text-[13px] tabular-nums text-inkSoft">
+          <strong className="font-semibold text-ink">{numero(denuncias.length)}</strong>{" "}
+          {denuncias.length === 1 ? "denuncia enviada" : "denuncias enviadas"} con esta cuenta
+        </p>
+      ) : null}
 
       {/* Aportes */}
       <section aria-labelledby="mis-aportes">
@@ -153,7 +169,7 @@ function Contenido() {
         </CabeceraSeccion>
         {aportes.length === 0 ? (
           <VacioSeccion icon={Building2}>
-            <p>Todavía no tienes aportes con esta cuenta. Si financiaste como invitado, abre tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span> y asócialo desde ahí.</p>
+            <p>Todavía no tienes aportes. Si financiaste como invitado, asócialo desde tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span>.</p>
             <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Elegir una zona en el mapa <ArrowRight size={14} aria-hidden /></Link>
           </VacioSeccion>
         ) : (
@@ -222,7 +238,7 @@ function Contenido() {
         </CabeceraSeccion>
         {denuncias.length === 0 ? (
           <VacioSeccion icon={Camera}>
-            <p>No hay denuncias asociadas a tu cuenta. Las que envías con sesión aparecen aquí con su estado; en público se siguen mostrando sin tu nombre.</p>
+            <p>Las denuncias que envías con sesión aparecen aquí con su estado; en público, sin tu nombre.</p>
             <Link href="/reporte/nuevo" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Enviar tu primera denuncia <ArrowRight size={14} aria-hidden /></Link>
           </VacioSeccion>
         ) : (
@@ -320,9 +336,15 @@ function Contenido() {
         </section>
       </div>
 
-      <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft p-4 text-[13px] text-inkSoft">
-        <Bell size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
-        <span>Los avisos por correo (cuando se lea un contrato que financiaste o haya señales en tu zona) se configuran en <Link href="/app/configuracion" className="font-medium text-granate underline underline-offset-2">Configuración</Link>. Por ahora sólo guardamos tu preferencia: todavía no enviamos correos.</span>
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+        <Bell size={15} className="shrink-0 text-mute" aria-hidden />
+        <span>
+          Avisos por correo: en <Link href="/app/configuracion" className="font-medium text-granate underline underline-offset-2">Configuración</Link>.
+        </span>
+        <Ayuda titulo="¿Qué avisos llegan?">
+          Cuando se lea un contrato que financiaste o haya señales en tu zona. Por ahora sólo guardamos tu preferencia:
+          todavía no enviamos correos.
+        </Ayuda>
       </p>
     </div>
   );
@@ -421,8 +443,8 @@ function SinSesion() {
         </div>
       }
     >
-      Sin cuenta puedes ver todo, financiar como invitado (con tu código VIG-… ves el comprobante) y denunciar sin tu
-      nombre. Con cuenta, además, reúnes aquí tus aportes, denuncias y zonas seguidas.
+      Sin cuenta puedes ver todo, financiar como invitado (con tu código VIG-…) y denunciar sin tu nombre. Con cuenta,
+      lo reúnes aquí.
     </EstadoVacio>
   );
 }

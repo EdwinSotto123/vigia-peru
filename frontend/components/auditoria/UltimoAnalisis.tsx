@@ -12,6 +12,10 @@
  * verdad. La repetición vive dentro de <Revelar>, así que no arranca sola al cargar la
  * página: se monta recién cuando alguien la pide.
  *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): una franja de cuatro líneas —cuándo, qué, qué
+ * encontró, cuánto costó— con las señales y los motivos como chips. Lo que explica cada
+ * motivo está a un clic (Ayuda); el dictamen, en la página del contrato.
+ *
  * Si esa última lectura quedó EN REVISIÓN HUMANA, no se muestra nada de lo que encontró (ni
  * señales, ni severidad, ni puntaje): sólo que está en revisión y por qué. Publicar acá el
  * "riesgo 60/100" de un análisis que el propio sistema frenó era publicarlo igual.
@@ -20,10 +24,11 @@
  */
 
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Eye } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Eye, Play } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
-import { plural, solesCompacto } from "@/lib/formato";
+import { Ayuda } from "@/components/patrones";
+import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import {
   duracion,
   estadoVisible,
@@ -36,15 +41,17 @@ import {
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { ReplayAnalisis } from "./ReplayAnalisis";
 
+const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
+
 export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDetalle | null; hayFiltros?: boolean }) {
   if (!p) {
     return (
-      <div className="rounded-2xl border border-dashed border-line bg-paperSoft p-5">
+      <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-3">
         <h3 className="text-sm font-semibold text-ink">Todavía no hay ninguna lectura terminada acá</h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
+        <p className="mt-0.5 text-[13px] text-inkSoft">
           {hayFiltros
-            ? "Con los filtros puestos no hay ningún análisis terminado que mostrar. Quita uno arriba y vuelve a mirar."
-            : "Todavía no terminó ningún análisis. Cuando termine el primero, aparece acá con lo que encontró."}
+            ? "Con estos filtros no hay ningún análisis terminado: quita uno arriba."
+            : "Cuando termine el primer análisis, aparece acá con lo que encontró."}
         </p>
       </div>
     );
@@ -71,58 +78,80 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
     null,
   );
   const motivos = enRevision ? p.resultado?.revisionMotivos ?? [] : [];
+  const titulo = p.titulo ?? p.ocid;
+  const href = `/app/auditoria/${encodeURIComponent(p.ocid)}`;
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        {/* "Ningún contrato en análisis" ya lo dice la franja de estado de arriba: repetirlo
-            acá sería la tercera vez que la página afirma lo mismo. Este panel solo existe
-            cuando eso es cierto, así que se presenta por lo que muestra. */}
-        <h3 className="text-sm font-semibold text-ink">Lo último que se leyó</h3>
-        {p.finalizadoAt && (
-          <time dateTime={p.finalizadoAt} className="text-[11px] text-mute">
-            {fechaLima(p.finalizadoAt, { larga: true, hora: true })}
-          </time>
+    <div className="rounded-2xl border border-line bg-paper px-4 py-3">
+      {/* "Ningún contrato en análisis" ya lo dice la franja de estado de arriba: este panel solo
+          existe cuando eso es cierto, así que se presenta por lo que muestra. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h3 className="inline-flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-ink">
+          Lo último que se leyó
+          {p.finalizadoAt && (
+            <time dateTime={p.finalizadoAt} className="text-[12px] font-normal text-mute">
+              {fechaLima(p.finalizadoAt, { larga: true, hora: true })}
+            </time>
+          )}
+        </h3>
+        {eventos.length > 0 && (
+          <Revelar
+            titulo="Cómo se analizó este contrato"
+            descripcion={`${plural(eventos.length, "evento", "eventos")} de bitácora tal como quedaron guardados · ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, con los tiempos reales.`}
+            ancho="lg"
+            etiqueta="Repetir el análisis de este contrato, paso por paso"
+            className="w-auto"
+            detalle={<ReplayAnalisis eventos={eventos} estadoFinal={estado} compacto />}
+          >
+            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-[12px] font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
+              <Play size={11} aria-hidden /> Repetir el análisis paso por paso
+            </span>
+          </Revelar>
         )}
       </div>
 
-      <Link
-        href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
-        className="mt-3 block rounded-xl border border-line bg-paperSoft p-3 transition-colors hover:border-paperEdge hover:bg-paperDeep"
-      >
-        <p className="truncate text-[12px] font-medium text-mute">
-          {p.entidad ?? "Entidad no identificada"}
-        </p>
-        <p className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">{p.titulo ?? p.ocid}</p>
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] text-mute">
-          <span>{p.zona}</span>
+      {/* Qué fue: el objeto en una línea (entero en `title`), entidad · zona · valor. */}
+      <Link href={href} className="group mt-1.5 block min-w-0 rounded-lg">
+        <span className="text-[14px] font-semibold leading-snug text-ink line-clamp-2 group-hover:text-granate md:truncate" title={titulo}>
+          {titulo}
+        </span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-mute">
+          <span className="min-w-0 truncate">{p.entidad ?? "Entidad no identificada"} · {p.zona}</span>
           {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{solesCompacto(p.montoPen)}</span>}
           <span className="inline-flex items-center gap-0.5 font-medium text-granate">
             {enRevision ? "Ver su estado" : "Ver el dictamen"} <ArrowUpRight size={12} aria-hidden />
           </span>
-        </p>
+        </span>
       </Link>
 
-      {enRevision ? (
-        <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft">
-          <p className="flex items-start gap-1.5 font-semibold text-clayTexto">
-            <Eye size={13} className="mt-0.5 shrink-0" aria-hidden />
-            En revisión: una persona lo revisa antes de publicarlo.
-          </p>
-          {motivos.length > 0 && (
-            <ul className="mt-1 space-y-1 pl-5">
+      {/* Qué encontró, en una línea de chips. En revisión: sólo eso y sus motivos (§10.4). */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px]">
+        {enRevision ? (
+          <>
+            <span className="pill border-clay/40 bg-paperDeep font-semibold text-clayTexto">
+              <Eye size={11} aria-hidden /> En revisión
+            </span>
+            {motivos.map((m) => (
+              <span key={m.clave} className="pill border-line bg-paperSoft text-inkSoft">
+                {m.titulo}
+                {m.valor != null && <span className="font-semibold tabular-nums text-ink">{pct(m.valor)}</span>}
+              </span>
+            ))}
+            <Ayuda titulo="¿Por qué está en revisión?">
+              <span className="block">Una persona lo revisa antes de publicarlo; mientras tanto no cuenta como señal hallada.</span>
               {motivos.map((m) => (
-                <li key={m.clave}>
-                  <span className="font-medium text-ink">{m.titulo}.</span> {m.detalle}
-                </li>
+                <span key={m.clave} className="mt-1.5 block text-mute">
+                  <span className="font-semibold text-ink">{m.titulo}</span>
+                  {m.valor != null && m.umbral != null && (
+                    <span className="tabular-nums"> ({pct(m.valor)} · mínimo {pct(m.umbral)})</span>
+                  )}
+                  . {m.detalle}
+                </span>
               ))}
-            </ul>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Qué encontró. El score siempre con su denominador. */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            </Ayuda>
+          </>
+        ) : (
+          <>
             {peorSenal ? (
               <Severidad bandera={peorSenal} formato="pastilla" />
             ) : conSenales ? null : (
@@ -131,73 +160,42 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
                 <CheckCircle2 size={11} aria-hidden /> Sin señales
               </span>
             )}
-            <span className="text-[13px] text-mute">
-              {conSenales ? (
+            {conSenales && (
+              <span className="text-[13px] text-mute">
                 <span className="font-semibold text-ink">{plural(nSenales, "señal de riesgo", "señales de riesgo")}</span>
-              ) : (
-                "sin señales"
-              )}
-              {/* El puntaje sólo junto a las señales que lo explican (§10.4). */}
-              {conSenales && p.score != null && (
-                <span className="ml-2">puntaje <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span> de 100</span>
-              )}
-            </span>
-          </div>
-
-          {senales.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {senales.slice(0, 3).map((s, i) => (
-                <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5 text-[12px] leading-snug text-inkSoft">
-                  <span className="mt-0.5 shrink-0">
-                    <Severidad bandera={s.severidad} formato="punto" />
+                {/* El puntaje sólo junto a las señales que lo explican (§10.4). */}
+                {p.score != null && (
+                  <span className="ml-2">
+                    puntaje <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span> de 100
                   </span>
-                  <span className="min-w-0">
-                    {reglaLabel(s.regla)}
-                    {s.norma && <span className="ml-2 text-mute">{s.norma}</span>}
-                  </span>
-                </li>
-              ))}
-              {senales.length > 3 && (
-                <li className="pl-5 text-[12px] text-mute">
-                  y {plural(senales.length - 3, "señal más", "señales más")} en el dictamen
-                </li>
-              )}
-            </ul>
-          )}
-        </>
-      )}
+                )}
+              </span>
+            )}
+            {senales.slice(0, 3).map((s, i) => (
+              <span key={`${s.regla}-${i}`} className="pill max-w-full border-line bg-paperSoft text-inkSoft" title={s.norma ?? undefined}>
+                <Severidad bandera={s.severidad} formato="punto" />
+                <span className="truncate">{reglaLabel(s.regla)}</span>
+              </span>
+            ))}
+            {senales.length > 3 && (
+              <span className="text-mute">y {plural(senales.length - 3, "señal más", "señales más")} en el dictamen</span>
+            )}
+          </>
+        )}
+      </div>
 
-      {/* Cuánto trabajo costó, con el vocabulario del catálogo: 10 agentes repartidos en 12 pasos. */}
-      <p className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-line pt-2 text-[12px] text-mute">
+      {/* Cuánto trabajo costó y quién lo pagó, en una línea. */}
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12px] text-mute">
         <span>
           <span className="font-mono font-semibold text-inkSoft">{prog.hechas}</span> de{" "}
           <span className="font-mono font-semibold text-inkSoft">{prog.aplicables}</span> pasos
           {duro != null && duro > 0 && <> en {duracion(duro)}</>}
         </span>
         <span>
-          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>{" "}
+          <span className="font-mono">{p.contribucionCodigo}</span>
         </span>
-        <span className="font-mono">{p.contribucionCodigo}</span>
       </p>
-
-      {eventos.length > 0 && (
-        <div className="mt-2.5">
-          <Revelar
-            titulo="Cómo se analizó este contrato"
-            descripcion={`${p.titulo ?? p.ocid}. ${eventos.length} eventos de bitácora, tal como quedaron guardados.`}
-            ancho="lg"
-            etiqueta="Repetir el análisis de este contrato, paso por paso"
-            detalle={<ReplayAnalisis eventos={eventos} estadoFinal={estado} compacto />}
-          >
-            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-[12px] font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
-              Repetir el análisis paso por paso
-            </span>
-          </Revelar>
-          <p className="mt-1.5 text-[11px] leading-snug text-mute">
-            {TOTAL_AGENTES} agentes en {TOTAL_PASOS} pasos, con los tiempos reales de esta corrida.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

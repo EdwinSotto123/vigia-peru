@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, CheckCircle2, Clock, Search, Map as MapIcon, Camera, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock, Search, Map as MapIcon, Camera, ArrowRight, ChevronRight } from "lucide-react";
 import type { ApiReporte } from "@/lib/api-client";
 import { CATEGORIA_META, estaConfirmada, type CategoriaDenuncia } from "@/lib/denuncias-meta";
-import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query";
+import { type DenunciasQuery, denunciasQueryString } from "@/lib/denuncias-query";
 import { REGIONES } from "@/lib/peru-data";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { TextoProtegido } from "@/components/alertas/Protegido";
+import { maskDnis } from "@/components/Redact";
 import { EstadoVacio } from "@/components/patrones";
 import { cn } from "@/lib/utils";
+import { FiltrosDenuncias } from "./FiltrosDenuncias";
 import { haceCuantoSeReporto } from "./fechaDenuncia";
 
 interface Props {
@@ -25,10 +26,20 @@ interface Props {
 }
 
 /**
- * Grilla de denuncias. Región/categoría/estado ya llegan resueltos desde el
- * servidor (ver FiltrosDenuncias, en la página); acá sólo queda un filtro de
- * texto libre puramente local, porque el API no tiene búsqueda full-text: afina
- * la página que ya llegó.
+ * Lista de denuncias. Región/categoría/estado se resuelven en el servidor (los
+ * selectores de FiltrosDenuncias viven en esta misma barra); acá sólo queda un
+ * filtro de texto libre puramente local, porque el API no tiene búsqueda
+ * full-text: afina la página que ya llegó.
+ *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): una fila por denuncia —miniatura, qué
+ * pasa, dónde, cuándo y si está confirmada— y la ficha completa en su página.
+ * Antes era una rejilla de tarjetas con foto de 160 px y tres líneas de relato:
+ * en una pantalla cabían seis.
+ *
+ * El relato va en UNA línea y con los DNI enmascarados (§10.6: nunca un DNI en
+ * claro en un listado). Se usa `maskDnis`, texto plano, y no el vidrio revelable:
+ * la fila entera es un enlace, y un botón dentro de un enlace no se puede usar.
+ * El vidrio que se revela al clic está en la ficha.
  *
  * Antes había un conmutador Lista/Mapa que montaba un SEGUNDO mapa interactivo.
  * El producto tiene un solo mapa, /app/mapa, y ya pinta estas mismas denuncias:
@@ -75,8 +86,10 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
   );
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper/95 p-3 backdrop-blur md:sticky md:top-0 md:z-10">
+    <div className="space-y-3">
+      {/* Una sola barra: filtros del servidor, búsqueda en la página y el enlace al único mapa. */}
+      <div className="flex flex-wrap items-center gap-2 border-y border-line bg-paper/95 py-2.5 backdrop-blur md:sticky md:top-0 md:z-10">
+        <FiltrosDenuncias query={query} />
         <div className="relative min-w-[200px] flex-1">
           <label htmlFor="buscar-denuncias" className="sr-only">
             Buscar en esta página por descripción, región o código
@@ -87,7 +100,7 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
             type="search"
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="Buscar por descripción, región o código…"
+            placeholder="Buscar en esta página…"
             className="min-h-[40px] w-full rounded-xl border border-line bg-paperDeep py-2 pl-9 pr-3 text-sm text-ink placeholder:text-mute focus:border-granate"
           />
         </div>
@@ -104,6 +117,7 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
       {filtrados.length === 0 ? (
         // Un solo vacío por pantalla, con la llamita: dice qué pasó y ofrece la salida.
         <EstadoVacio
+          compacto
           titulo={
             total === 0
               ? "Ninguna denuncia coincide con esos filtros"
@@ -134,11 +148,25 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
               : "La búsqueda sólo mira las denuncias de esta página: por descripción, región o código."}
         </EstadoVacio>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtrados.map((r) => (
-            <DenunciaCard key={r.id} reporte={r} />
-          ))}
-        </ul>
+        <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <div
+            className={cn(COLUMNAS, "hidden border-b border-line bg-paperSoft px-3 py-2 text-[11px] font-semibold text-mute md:grid")}
+            aria-hidden
+          >
+            <span>Foto</span>
+            <span>Categoría</span>
+            <span>Lo que se reportó</span>
+            <span>Región</span>
+            <span>Reportada</span>
+            <span>Estado</span>
+            <span />
+          </div>
+          <ul>
+            {filtrados.map((r) => (
+              <FilaDenuncia key={r.id} reporte={r} />
+            ))}
+          </ul>
+        </div>
       )}
       {filtrados.length > 10 && paginacion}
     </div>
@@ -149,85 +177,88 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
 const ACCION_VACIO =
   "inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
-function DenunciaCard({ reporte }: { reporte: ApiReporte }) {
+/** La misma grilla para la cabecera y las filas (escritorio). */
+const COLUMNAS = "md:grid-cols-[48px_176px_minmax(0,1fr)_128px_96px_128px_16px] md:items-center md:gap-4";
+
+function FilaDenuncia({ reporte }: { reporte: ApiReporte }) {
   const meta = CATEGORIA_META[reporte.categoria as CategoriaDenuncia];
   const Icon = meta?.icon ?? Camera;
   const confirmada = estaConfirmada(reporte);
   const cuando = haceCuantoSeReporto(reporte.fecha);
+  // §10.6: DNI enmascarados también en el `title`, que el navegador muestra tal cual.
+  const relato = maskDnis(reporte.descripcion) || "Sin descripción";
+  const categoria = (
+    <span
+      className={cn(
+        "inline-flex max-w-full items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+        meta?.tone ?? "border-line bg-paperSoft text-ink",
+      )}
+    >
+      <Icon size={10} className="shrink-0" aria-hidden />
+      <span className="truncate">{meta?.label ?? "Denuncia"}</span>
+    </span>
+  );
 
   return (
-    <li>
+    <li className="border-b border-line/70 last:border-b-0">
       <Link
         href={`/app/denuncias/${reporte.id}`}
-        className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-paper transition-[border-color,box-shadow] duration-rapido hover:border-granate/30 hover:shadow-card"
+        className={cn(
+          "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 transition-colors duration-rapido hover:bg-paperSoft",
+          COLUMNAS,
+        )}
       >
-        <div className="relative h-40 w-full overflow-hidden bg-paperDeep">
+        <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-paperDeep text-mute">
           {reporte.fotoUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={reporte.fotoUrl}
-                alt=""
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-ink/10 to-transparent" aria-hidden />
-            </>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={reporte.fotoUrl}
+              alt=""
+              loading="lazy"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+              className="h-full w-full object-cover"
+            />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-mute">
-              <Camera size={24} aria-hidden />
-              <span className="ml-2 text-xs font-medium">Sin foto</span>
-            </div>
+            <Camera size={16} aria-hidden />
           )}
+          {!reporte.fotoUrl && <span className="sr-only">Sin foto</span>}
+        </span>
 
-          <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold backdrop-blur-md",
-                meta?.tone ?? "border-line bg-paperSoft text-ink",
-              )}
-            >
-              <Icon size={10} aria-hidden />
-              {meta?.label ?? "Denuncia"}
+        <span className="hidden min-w-0 md:block">{categoria}</span>
+
+        <span className="min-w-0">
+          <span className="block truncate text-[14px] font-medium text-ink" title={relato}>
+            {relato}
+          </span>
+          {/* En el celular, lo que en escritorio va en columnas; en escritorio, el código. */}
+          <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-mute">
+            <span className="md:hidden">{meta?.label ?? "Denuncia"}</span>
+            {reporte.region && <span className="md:hidden">{reporte.region}</span>}
+            {cuando && <span className="md:hidden">{cuando}</span>}
+            <span className="font-mono text-[11px]" translate="no">
+              {reporte.id}
             </span>
-          </div>
+          </span>
+        </span>
 
-          <div className={cn("absolute bottom-2 right-3 font-mono text-[11px]", reporte.fotoUrl ? "text-paper" : "text-mute")} translate="no">
-            {reporte.id}
-          </div>
-        </div>
+        <span className="hidden truncate text-[13px] text-inkSoft md:block">{reporte.region ?? "Sin región"}</span>
+        <span className="hidden text-[13px] tabular-nums text-mute md:block">{cuando ?? "Sin fecha"}</span>
 
-        <div className="flex flex-1 flex-col gap-2 p-4">
-          <p className="line-clamp-3 text-sm leading-relaxed text-ink">
-            <TextoProtegido texto={reporte.descripcion ?? ""} nombres={[]} />
-          </p>
-
-          <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
-            {reporte.region && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin size={10} aria-hidden />
-                {reporte.region}
-              </span>
-            )}
-            {cuando && (
-              <span className="inline-flex items-center gap-1">
-                <Calendar size={10} aria-hidden />
-                {cuando}
-              </span>
-            )}
-            <span className="ml-auto">
-              {confirmada ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-moss/30 bg-moss/10 px-2 py-0.5 text-[11px] font-semibold text-mossTexto">
-                  <CheckCircle2 size={11} aria-hidden /> Confirmada
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paperDeep px-2 py-0.5 text-[11px] font-medium text-inkSoft">
-                  <Clock size={11} aria-hidden /> Sin confirmar
-                </span>
-              )}
+        <span className="justify-self-end md:justify-self-start">
+          {confirmada ? (
+            <span className="pill border-moss/30 bg-moss/10 font-semibold text-mossTexto">
+              <CheckCircle2 size={11} aria-hidden /> Confirmada
             </span>
-          </div>
-        </div>
+          ) : (
+            <span className="pill border-line bg-paperDeep text-inkSoft">
+              <Clock size={11} aria-hidden /> Sin confirmar
+            </span>
+          )}
+        </span>
+
+        <ChevronRight size={16} className="hidden text-mute md:block" aria-hidden />
       </Link>
     </li>
   );

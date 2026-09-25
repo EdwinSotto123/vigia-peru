@@ -57,6 +57,7 @@ import {
   estadoLecturaDe,
 } from "./estadoLectura";
 import { LeyendaPeso, PesoRiesgo } from "./PesoRiesgo";
+import { recortar } from "./recortar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -198,7 +199,7 @@ export function ContratosLista({
             )
           }
         >
-          Suele ser momentáneo. No te mostramos una copia vieja ni datos de relleno: vuelve a intentarlo en unos segundos.
+          Suele ser momentáneo: vuelve a intentarlo en unos segundos.
         </EstadoError>
       ) : fueraDeRango ? (
         // Página fuera de rango (?page=999): hay contratos, solo que no tantos. Decir
@@ -224,7 +225,7 @@ export function ContratosLista({
           accion={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
         >
           {hayFiltros
-            ? "Los filtros se suman: cada uno recorta más la lista. Quita el más restrictivo (arriba, cada uno se quita por separado) y la lista se vuelve a llenar."
+            ? "Los filtros se suman: quita el más restrictivo y la lista se vuelve a llenar."
             : "Esta zona no tiene convocatorias publicadas en el SEACE para el rango pedido."}
         </EstadoVacio>
       ) : compacto ? (
@@ -399,7 +400,7 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
           <div className="flex min-w-0 items-center gap-1.5">
             <PesoRiesgo score={c.score} banderas={c.banderas} enRevision={c.enRevision} formato="punto" />
             <span className="truncate text-[12px] font-medium leading-tight text-ink" title={c.titulo ?? undefined}>
-              {c.titulo ?? "(sin objeto registrado)"}
+              {c.titulo ? recortar(c.titulo, 110) : "(sin objeto registrado)"}
             </span>
             {nSenales > 0 && (
               <span className="shrink-0 text-[10.5px] tabular-nums text-mute">{plural(nSenales, "señal", "señales")}</span>

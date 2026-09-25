@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Camera, MapPin, Lock, Check, Upload, Loader2, Send, AlertTriangle, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
 import { REGIONES } from "@/lib/peru-data";
@@ -303,9 +304,13 @@ export function FormObra({
             ))}
           </ul>
         )}
-        <p id="foto-ayuda" className="mt-2 text-xs text-mute">
-          La foto se publica con la denuncia. Antes de guardarla le quitamos los datos ocultos que traen las fotos de
-          celular: la ubicación GPS, la hora y el modelo del teléfono.
+        {/* Lo que decide si subirla va a la vista (se publica); el detalle técnico, a un clic (§10.7). */}
+        <p id="foto-ayuda" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-mute">
+          La foto se publica con la denuncia, sin los datos ocultos del celular.
+          <Ayuda titulo="¿Qué datos ocultos le quitamos?">
+            Antes de guardarla le quitamos los datos ocultos que traen las fotos de celular: la ubicación GPS, la hora y el
+            modelo del teléfono.
+          </Ayuda>
         </p>
       </Step>
 
@@ -532,9 +537,11 @@ export function FormObra({
           className={campo}
         />
         {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
-        <p className="mt-2 text-[11px] text-mute">
-          No hace falta cuenta. Si marcas «sin mi nombre», tu nombre no se envía. El correo es opcional: si lo dejas,
-          queda guardado junto a la denuncia.
+        <p className="mt-2 flex flex-wrap items-center gap-x-1 text-[11px] text-mute">
+          Si lo dejas, el correo queda guardado junto a la denuncia.
+          <Ayuda titulo="¿Qué se envía de mí?">
+            No hace falta cuenta. Si marcas «sin mi nombre», tu nombre no se envía. El correo es opcional.
+          </Ayuda>
         </p>
       </Step>
 

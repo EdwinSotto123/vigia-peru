@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { ejecucionPct, sinAnioRepetido, type BreakdownRow, type MefBudgetRow, type RegionBudgetSummary } from "@/lib/mef";
 import { fechaCorta, numero, porcentaje, solesCompacto } from "@/lib/formato";
-import { Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
+import { Ayuda, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones";
 import { cn } from "@/lib/utils";
 
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
@@ -164,14 +164,16 @@ export function PresupuestoRegional({
 
       {/* El año que el MEF todavía no publica: se dice, no se disfraza de dato. */}
       {repetido && (
-        <div className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-[12px] leading-relaxed text-inkSoft">
-          <Info size={14} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
+        <p className="flex items-center gap-1.5 rounded-xl border border-line bg-paperSoft px-3 py-1.5 text-[12px] text-inkSoft">
+          <Info size={14} className="shrink-0 text-inkSoft" aria-hidden />
           <span>
-            Las cifras de <strong className="text-ink">{repetido}</strong> todavía no están cargadas: en la copia
-            descargada, {repetido} repite al centavo los valores de {repetido - 1}, así que no se muestran. Lo último
-            cargado es el cierre de {current.year}.
+            <strong className="text-ink">{repetido}</strong> todavía sin cifras: se muestra el cierre de {current.year}.
           </span>
-        </div>
+          <Ayuda titulo={`¿Por qué no se muestra ${repetido}?`}>
+            En la copia descargada del MEF, {repetido} repite al centavo los valores de {repetido - 1}: eso no es un dato,
+            así que no se presenta como tal.
+          </Ayuda>
+        </p>
       )}
 
       {/* Ejercicio en curso: sólo con cifras propias del año. Un estado, no una advertencia: tono neutro. */}
@@ -386,17 +388,11 @@ function PildoraEjecucion({ pct, sufijo }: { pct: number; sufijo?: string }) {
 function BarrasPorAnio({ years, currentYear }: { years: MefBudgetRow[]; currentYear: number }) {
   const validYears = years.filter((y) => y.pim > 0);
   if (validYears.length === 0) return null;
-  const hayEnCurso = years.some((y) => y.year === currentYear && y.pim > 0);
 
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <p className="text-[12px] font-semibold text-mute">Año por año: ejecutado contra presupuesto</p>
-          <p className="text-[11px] text-mute">
-            {hayEnCurso ? `${currentYear} aparece marcado como ejercicio en curso.` : "Todos los años que se muestran están cerrados."}
-          </p>
-        </div>
+        <p className="text-[12px] font-semibold text-mute">Año por año: ejecutado contra presupuesto</p>
         <div className="flex items-center gap-2 text-[11px] text-mute" aria-hidden>
           <span className="flex items-center gap-1">
             <span className="h-2 w-3 rounded-sm bg-textil-anil" /> ejecutado
@@ -533,12 +529,15 @@ function TiposDeGasto({ items, anio, compact = false }: { items: BreakdownRow[];
         </ul>
 
         {items.find((i) => i.nombre.toUpperCase() === "ADQUISICION DE ACTIVOS NO FINANCIEROS") && (
-          <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-inkSoft">
-            <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
+          <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-inkSoft">
+            <Info size={13} className="shrink-0" aria-hidden />
             <span>
-              <strong className="font-semibold text-ink">Inversión (obras y activos)</strong> es la genérica donde se
-              concentran las obras públicas. Compara el porcentaje ejecutado con el avance físico que publica INFOBRAS.
+              Las obras públicas van en <strong className="font-semibold text-ink">Inversión</strong>.
             </span>
+            <Ayuda titulo="¿Cómo contrastarlo?">
+              Inversión (obras y activos) es la genérica donde se concentran las obras públicas. Compara su porcentaje
+              ejecutado con el avance físico que publica INFOBRAS.
+            </Ayuda>
           </p>
         )}
       </div>
@@ -568,7 +567,7 @@ function Desglose({
         <p className="flex items-center gap-1 text-[12px] font-semibold text-mute">
           {icono} {titulo}
         </p>
-        <p className="text-[11px] text-mute">{bajada}. La píldora dice cuánto de su presupuesto ejecutó.</p>
+        <p className="text-[11px] text-mute">{bajada}</p>
       </div>
       <ul className="space-y-2 rounded-xl border border-line bg-paperSoft p-3">
         {filas.map((it, i) => (
@@ -581,7 +580,7 @@ function Desglose({
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
                 <div className="h-full bg-textil-anil" style={{ width: `${(it.pim / max) * 100}%` }} />
               </div>
-              <PildoraEjecucion pct={it.ejecPct} />
+              <PildoraEjecucion pct={it.ejecPct} sufijo=" ejecutado" />
             </div>
           </li>
         ))}

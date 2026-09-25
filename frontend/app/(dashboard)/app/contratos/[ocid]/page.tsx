@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ContratoDetalle } from "@/components/contratos/ContratoDetalle";
+import { recortar as corto } from "@/components/contratos/recortar";
+import { Pagina } from "@/components/patrones";
 import { getResumenVivo, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { soles } from "@/lib/formato";
 
 export const revalidate = 60;
-
-/** Corta en el último espacio antes de `max`, nunca a mitad de palabra. */
-function corto(s: string, max: number): string {
-  const t = s.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const c = t.slice(0, max);
-  const i = c.lastIndexOf(" ");
-  return `${(i > max * 0.5 ? c.slice(0, i) : c).replace(/[\s,.;:(-]+$/, "")}…`;
-}
 
 export async function generateMetadata({ params }: { params: { ocid: string } }): Promise<Metadata> {
   const { contrato: c } = await resolverContrato(decodeURIComponent(params.ocid));
@@ -49,8 +42,8 @@ export default async function ContratoPage({ params }: { params: { ocid: string 
   if (redirigirA) redirect(`/app/contratos/${encodeURIComponent(redirigirA)}`);
   if (!c) notFound();
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <ContratoDetalle c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} />
-    </div>
+    </Pagina>
   );
 }

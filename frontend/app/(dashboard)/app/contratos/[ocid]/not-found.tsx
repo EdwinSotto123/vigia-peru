@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, FileSearch } from "lucide-react";
-import { EstadoVacio } from "@/components/patrones";
+import { EstadoVacio, Pagina } from "@/components/patrones";
 
 /**
  * (El título de la pestaña lo pone `generateMetadata` de la página: "Contrato no encontrado".)
@@ -12,7 +12,7 @@ import { EstadoVacio } from "@/components/patrones";
  */
 export default function ContratoNoEncontrado() {
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <Link
         href="/app/contratos"
         className="inline-flex min-h-6 items-center gap-1.5 rounded-full text-sm text-mute transition-colors duration-rapido hover:text-granate"
@@ -33,10 +33,9 @@ export default function ContratoNoEncontrado() {
           </Link>
         }
       >
-        El código del enlace no está entre los contratos que Vigía tomó del registro público de compras del Estado
-        (SEACE). Puede que esté mal escrito, que la convocatoria sea anterior a las que Vigía tomó o que ya no figure
-        en el registro.
+        El código no está entre los contratos que Vigía tomó del SEACE: puede estar mal escrito, ser anterior o ya no
+        figurar en el registro.
       </EstadoVacio>
-    </div>
+    </Pagina>
   );
 }

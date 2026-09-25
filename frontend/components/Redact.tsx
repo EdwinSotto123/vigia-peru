@@ -312,9 +312,8 @@ export function redactChildren(children: React.ReactNode): React.ReactNode {
 
 // Para etiquetas dibujadas en CANVAS (grafo), donde no hay clic-para-revelar:
 // enmascara los DNIs de un string (sin reveal).
-export function maskDnis(text?: string | null): string {
-  return (text || "").replace(/\b10\d{9}\b/g, "10•••••••••").replace(DNI_RE, "••••••••");
-}
+// maskDnis vive en lib/privacidad.ts (sin "use client") para que los server components lo usen.
+export { maskDnis } from "@/lib/privacidad";
 
 // Enmascara el ÚLTIMO apellido de un nombre para etiquetas de CANVAS (grafo):
 // "EDUARDO SOLANO SIU" -> "EDUARDO SOLANO •••". Sin reveal (el canvas no lo permite).

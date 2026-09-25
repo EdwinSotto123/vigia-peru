@@ -11,12 +11,16 @@
  *
  * Si una carga falla se dice que falló: "sin provincias con contratos en cola" sería un dato
  * falso cuando lo que pasó es que la red no respondió.
+ *
+ * Qué significa "en cola" y el costo viven en el ⓘ del título de la sección (la página); acá
+ * queda sólo la leyenda de los puntos de estado, en una línea: antes era una tarjeta lateral
+ * con tres definiciones que le quitaba media pantalla a la lista.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
-import { ESTADO_LABEL, ESTADO_PUNTO, conAcentos, type ParteTarifa, type Zona } from "@/lib/financiamiento";
+import { ESTADO_LABEL, ESTADO_PUNTO, conAcentos, type Zona } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -28,19 +32,7 @@ function norm(s: string) {
 
 const conNombre = (zs: Zona[]) => zs.map((z) => ({ ...z, nombre: conAcentos(z.nombre) }));
 
-export function ZonaPicker({
-  zonas,
-  precioPen,
-  partes,
-  alcance,
-}: {
-  zonas: Zona[];
-  precioPen: number;
-  /** Desglose real de la tarifa (`estado.tarifa.nota`), ya separado en partes. */
-  partes: ParteTarifa[];
-  /** Qué entra hoy a la cola financiable, en palabras (`alcanceCorto`). */
-  alcance: string;
-}) {
+export function ZonaPicker({ zonas, precioPen }: { zonas: Zona[]; precioPen: number }) {
   const [q, setQ] = useState("");
   const [abierto, setAbierto] = useState<string | null>(null);           // departamento expandido
   const [hijas, setHijas] = useState<Record<string, Zona[]>>({});          // ubigeo → provincias
@@ -77,112 +69,81 @@ export function ZonaPicker({
   }, [q, zonas, todasProv]);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-      <div className="min-w-0">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <label htmlFor="buscar-zona" className="text-sm font-medium text-ink">Busca tu región, provincia o distrito</label>
-        <div className="relative mt-1.5">
-          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-          <input
-            id="buscar-zona"
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Ej. Huamanga, Cañete, Cusco"
-            autoComplete="off"
-            className="w-full rounded-xl border border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-mute"
-          />
-        </div>
-        {resultados ? (
-          <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-live="polite">
-            {!resultados.length && (
-              <li className="px-4 py-6 text-center text-sm text-mute">
-                {falloBusqueda
-                  ? "No pudimos buscar en las provincias ahora mismo. Prueba con el nombre de la región."
-                  : `Ninguna zona con contratos en cola coincide con “${q}”.`}
-              </li>
-            )}
-            {resultados.map((z) => <Fila key={z.ubigeo} z={z} precioPen={precioPen} />)}
-          </ul>
-        ) : (
-          <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-            {deptos.length === 0 && (
-              <li className="px-4 py-6 text-center text-sm text-mute">
-                No pudimos leer las zonas ahora mismo. Vuelve a intentarlo en unos segundos.
-              </li>
-            )}
-            {deptos.map((d) => (
-              <li key={d.ubigeo}>
-                <div className="flex items-stretch">
-                  <button
-                    type="button"
-                    onClick={() => setAbierto(abierto === d.ubigeo ? null : d.ubigeo)}
-                    aria-expanded={abierto === d.ubigeo}
-                    aria-label={`${abierto === d.ubigeo ? "Ocultar" : "Ver"} provincias de ${d.nombre}`}
-                    className="flex min-w-[40px] shrink-0 items-center justify-center text-mute transition-colors duration-150 hover:bg-paperDeep hover:text-ink"
-                  >
-                    <ChevronRight size={14} className={cn("transition-transform duration-200", abierto === d.ubigeo && "rotate-90")} aria-hidden />
-                  </button>
-                  <FilaEnlace z={d} precioPen={precioPen} className="flex-1 pl-0" />
-                </div>
-                {abierto === d.ubigeo && (
-                  <ul className="border-t border-line bg-paperSoft">
-                    {fallo[d.ubigeo] ? (
-                      <li className="px-10 py-2.5 text-[13px] text-inkSoft" role="alert">
-                        No se pudieron cargar las provincias. Cierra y vuelve a abrir {d.nombre} para reintentar.
-                      </li>
-                    ) : !hijas[d.ubigeo] ? (
-                      <li className="px-10 py-2.5 text-[13px] text-mute" role="status">Cargando provincias…</li>
-                    ) : hijas[d.ubigeo].length === 0 ? (
-                      <li className="px-10 py-2.5 text-[13px] text-mute">Ninguna provincia tiene contratos en cola.</li>
-                    ) : null}
-                    {(hijas[d.ubigeo] ?? []).map((p) => <Fila key={p.ubigeo} z={p} precioPen={precioPen} nested />)}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* La leyenda de los puntos, en una línea: el color solo no dice nada. */}
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-inkSoft" aria-label="Estados de una zona">
+          {(["pendiente", "parcial", "financiada", "procesada"] as const).map((e) => (
+            <li key={e} className="inline-flex items-center gap-1.5">
+              <span className={cn("h-2 w-2 rounded-full", ESTADO_PUNTO[e])} aria-hidden />
+              {ESTADO_LABEL[e]}
+            </li>
+          ))}
+        </ul>
       </div>
-
-      <aside className="h-fit rounded-2xl border border-line bg-paperSoft p-5">
-        <h3 className="font-display text-base font-bold text-ink">Cómo se lee esta lista</h3>
-        <dl className="mt-3 space-y-3 text-sm">
-          <div>
-            <dt className="font-semibold text-ink">En cola</dt>
-            <dd className="text-inkSoft">
-              Contratos de la zona que esperan financiamiento para leerse. Hoy entran a la cola solo {alcance}. La zona
-              es la sede de la entidad que contrata.
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-ink">Costo</dt>
-            <dd className="text-inkSoft">
-              {soles(precioPen)} por contrato.
-              {partes.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5 text-[13px]">
-                  {partes.map((p) => (
-                    <li key={p.concepto} className="flex items-baseline gap-2">
-                      <span className="w-10 shrink-0 font-mono tabular-nums text-ink">{soles(p.monto)}</span>
-                      <span>{p.concepto}</span>
+      <div className="relative mt-1.5">
+        <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+        <input
+          id="buscar-zona"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Ej. Huamanga, Cañete, Cusco"
+          autoComplete="off"
+          className="w-full rounded-xl border border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-mute"
+        />
+      </div>
+      {resultados ? (
+        <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper" aria-live="polite">
+          {!resultados.length && (
+            <li className="px-4 py-6 text-center text-sm text-mute">
+              {falloBusqueda
+                ? "No pudimos buscar en las provincias ahora mismo. Prueba con el nombre de la región."
+                : `Ninguna zona con contratos en cola coincide con “${q}”.`}
+            </li>
+          )}
+          {resultados.map((z) => <Fila key={z.ubigeo} z={z} precioPen={precioPen} />)}
+        </ul>
+      ) : (
+        <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+          {deptos.length === 0 && (
+            <li className="px-4 py-6 text-center text-sm text-mute">
+              No pudimos leer las zonas ahora mismo. Vuelve a intentarlo en unos segundos.
+            </li>
+          )}
+          {deptos.map((d) => (
+            <li key={d.ubigeo}>
+              <div className="flex items-stretch">
+                <button
+                  type="button"
+                  onClick={() => setAbierto(abierto === d.ubigeo ? null : d.ubigeo)}
+                  aria-expanded={abierto === d.ubigeo}
+                  aria-label={`${abierto === d.ubigeo ? "Ocultar" : "Ver"} provincias de ${d.nombre}`}
+                  className="flex min-w-[40px] shrink-0 items-center justify-center text-mute transition-colors duration-150 hover:bg-paperDeep hover:text-ink"
+                >
+                  <ChevronRight size={14} className={cn("transition-transform duration-200", abierto === d.ubigeo && "rotate-90")} aria-hidden />
+                </button>
+                <FilaEnlace z={d} precioPen={precioPen} className="flex-1 pl-0" />
+              </div>
+              {abierto === d.ubigeo && (
+                <ul className="border-t border-line bg-paperSoft">
+                  {fallo[d.ubigeo] ? (
+                    <li className="px-10 py-2.5 text-[13px] text-inkSoft" role="alert">
+                      No se pudieron cargar las provincias. Cierra y vuelve a abrir {d.nombre} para reintentar.
                     </li>
-                  ))}
+                  ) : !hijas[d.ubigeo] ? (
+                    <li className="px-10 py-2.5 text-[13px] text-mute" role="status">Cargando provincias…</li>
+                  ) : hijas[d.ubigeo].length === 0 ? (
+                    <li className="px-10 py-2.5 text-[13px] text-mute">Ninguna provincia tiene contratos en cola.</li>
+                  ) : null}
+                  {(hijas[d.ubigeo] ?? []).map((p) => <Fila key={p.ubigeo} z={p} precioPen={precioPen} nested />)}
                 </ul>
               )}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-ink">Estados</dt>
-            <dd className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-inkSoft">
-              {(["pendiente", "parcial", "financiada", "procesada"] as const).map((e) => (
-                <span key={e} className="inline-flex items-center gap-1.5">
-                  <span className={cn("h-2 w-2 rounded-full", ESTADO_PUNTO[e])} aria-hidden />
-                  {ESTADO_LABEL[e]}
-                </span>
-              ))}
-            </dd>
-          </div>
-        </dl>
-      </aside>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

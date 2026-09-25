@@ -1,5 +1,6 @@
 import { CircleDashed, TriangleAlert } from "lucide-react";
 import { Cifras } from "@/components/ui/Cifras";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { fechaCorta, numero } from "@/lib/formato";
 import type { ContribucionAliado } from "./CadenaAliado";
 import { PARTES_LECTURA } from "./CapacidadColectiva";
@@ -172,8 +173,8 @@ export function QueSalio({
       <p className="flex items-start gap-2 rounded-xl border border-dashed border-line px-3.5 py-3 text-[12px] leading-relaxed text-mute">
         <CircleDashed size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span>
-          Ninguno de sus contratos terminó de leerse todavía: la cola los toma por antigüedad y cada uno
-          aparece acá en cuanto su dictamen se publica.
+          Ninguno de sus contratos terminó de leerse todavía: cada uno aparece acá en cuanto su dictamen se
+          publica.
         </span>
       </p>
     );
@@ -186,7 +187,14 @@ export function QueSalio({
 
   return (
     <section>
-      <h3 className="text-[13px] font-semibold text-ink">{titulo}</h3>
+      <div className="flex items-center gap-1">
+        <h3 className="text-[13px] font-semibold text-ink">{titulo}</h3>
+        {conSenal > 0 && (
+          <Ayuda titulo="¿Una señal es una acusación?">
+            No: es un hallazgo con su norma citada y el documento oficial que lo sostiene.
+          </Ayuda>
+        )}
+      </div>
       <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
         {partes.map((p) => (
           <div key={p.clave} className={p.barra} style={{ width: `${(p.valor / leidos) * 100}%` }} />
@@ -203,12 +211,6 @@ export function QueSalio({
           </li>
         ))}
       </ul>
-      {conSenal > 0 && (
-        <p className="mt-2 max-w-[72ch] text-[11px] leading-relaxed text-mute">
-          Una señal no es una acusación: es un hallazgo con su norma citada y el documento oficial que lo
-          sostiene.
-        </p>
-      )}
     </section>
   );
 }

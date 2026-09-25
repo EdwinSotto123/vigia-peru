@@ -16,7 +16,7 @@
  * Palabras y tonos salen de lib/severidad, los mismos que usan las listas de contratos.
  */
 
-import { CORTE_ALTA, CORTE_MEDIA, nivelDeScore, SEVERIDAD, SIN_SENALES } from "@/lib/severidad";
+import { CORTE_ALTA, CORTE_MEDIA, nivelDeScore, SEVERIDAD, SIN_SENALES, type SeveridadUI } from "@/lib/severidad";
 
 export type NivelAnalisis = "alta" | "media" | "baja" | "sin_senales";
 
@@ -62,23 +62,14 @@ export const NIVEL_ANALISIS: Record<NivelAnalisis, { etiqueta: string; rango: st
 };
 
 /**
- * Tokens de cada nivel. Severidad con sus tonos de texto (AA en los tres fondos); el bajo va
- * en tinta neutra, como una señal baja; "sin señales" es el único verde.
+ * Color, ícono y palabra de cada nivel, de lib/severidad: el tramo con señales lleva los tonos
+ * de severidad y la palabra del peso del riesgo ("Riesgo alto"); "Sin señales" es el único verde.
  */
-export const TONO_NIVEL: Record<NivelAnalisis, { fondo: string; texto: string; punto: string }> = {
-  alta: SEVERIDAD.alta,
-  media: SEVERIDAD.media,
-  baja: SEVERIDAD.baja,
+export const UI_NIVEL: Record<NivelAnalisis, SeveridadUI> = {
+  alta: { ...SEVERIDAD.alta, etiqueta: NIVEL_ANALISIS.alta.etiqueta },
+  media: { ...SEVERIDAD.media, etiqueta: NIVEL_ANALISIS.media.etiqueta },
+  baja: { ...SEVERIDAD.baja, etiqueta: NIVEL_ANALISIS.baja.etiqueta },
   sin_senales: SIN_SENALES,
-};
-
-/** Clases de la franja de puntaje: tokens de nivel, texto oscuro sobre fondo suave. */
-export const FRANJA_NIVEL: Record<NivelAnalisis | "sin", string> = {
-  alta: `${TONO_NIVEL.alta.fondo} ${TONO_NIVEL.alta.texto}`,
-  media: `${TONO_NIVEL.media.fondo} ${TONO_NIVEL.media.texto}`,
-  baja: `${TONO_NIVEL.baja.fondo} ${TONO_NIVEL.baja.texto}`,
-  sin_senales: `${TONO_NIVEL.sin_senales.fondo} ${TONO_NIVEL.sin_senales.texto}`,
-  sin: "bg-paperDeep text-mute",
 };
 
 /** Duración mediana de una lectura, en palabras ("unos 4 minutos"). `null` si no hay dato. */

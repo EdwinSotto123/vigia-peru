@@ -4,9 +4,8 @@ import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliad
 import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Cifras } from "@/components/ui/Cifras";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { cn } from "@/lib/utils";
 import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
 import { Podio } from "./Podio";
 import { OrdenMuro, type OpcionOrden } from "./OrdenMuro";
@@ -191,39 +190,36 @@ export async function MuroAliados({
       {conPodio && (
         <Podio filas={enPodio} financiadosAmbito={financiadosMuro} esMaqueta={(r) => esSlugMaqueta(r.slug)} />
       )}
-      <div
-        className={cn(
-          "grid gap-4",
-          fueraDelPodio.length > 1 && "sm:grid-cols-2",
-          fueraDelPodio.length > 4 && "xl:grid-cols-3",
-        )}
-      >
-      {fueraDelPodio.map((r) => {
-        const perfil = r.slug ? porSlug.get(r.slug) : null;
-        return (
-          <TarjetaAliado
-            key={r.id}
-            row={r}
-            financiadosMuro={financiadosMuro}
-            regionesConCola={regionesConCola}
-            regionesAlcanzadas={perfil ? resumirContribuciones(perfil.contribuciones).regionesDistintas : undefined}
-            href={href(r)}
-            esMaqueta={esSlugMaqueta(r.slug)}
-            resumen={
-              perfil ? (
-                <ResumenAliado
-                  nombre={r.nombre}
-                  contribuciones={perfil.contribuciones}
-                  regionesConCola={regionesConCola}
-                  financiadosMuro={financiadosMuro}
-                  esMaqueta={perfil.esMaqueta}
-                />
-              ) : undefined
-            }
-          />
-        );
-      })}
-      </div>
+      {/* Siempre en grilla, aunque haya un solo nombre: una ficha estirada a todo el ancho
+          se lee como un cartel, no como una ficha. */}
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {fueraDelPodio.map((r) => {
+          const perfil = r.slug ? porSlug.get(r.slug) : null;
+          return (
+            <li key={r.id} className="flex [&>article]:w-full">
+              <TarjetaAliado
+                row={r}
+                financiadosMuro={financiadosMuro}
+                regionesConCola={regionesConCola}
+                regionesAlcanzadas={perfil ? resumirContribuciones(perfil.contribuciones).regionesDistintas : undefined}
+                href={href(r)}
+                esMaqueta={esSlugMaqueta(r.slug)}
+                resumen={
+                  perfil ? (
+                    <ResumenAliado
+                      nombre={r.nombre}
+                      contribuciones={perfil.contribuciones}
+                      regionesConCola={regionesConCola}
+                      financiadosMuro={financiadosMuro}
+                      esMaqueta={perfil.esMaqueta}
+                    />
+                  ) : undefined
+                }
+              />
+            </li>
+          );
+        })}
+      </ul>
     </div>
   ) : (
     <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
@@ -255,8 +251,7 @@ export async function MuroAliados({
           {!cabeEnUnaPagina && filasPagina.length === 0 && (
             <tr className="border-t border-line">
               <td colSpan={6} className="px-4 py-5 text-sm text-mute">
-                Todos los aportes de esta página se hicieron sin nombre. Cuentan igual en el total de
-                arriba; solo no figuran en la lista.
+                Los aportes de esta página se hicieron sin nombre: cuentan igual en el total.
               </td>
             </tr>
           )}
@@ -268,9 +263,21 @@ export async function MuroAliados({
   return (
     <section aria-labelledby="muro-titulo" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-        <h2 id="muro-titulo" className="font-display text-lg font-bold text-ink">
-          Quién financió la lectura
-        </h2>
+        <div className="flex items-center gap-1.5">
+          <h2 id="muro-titulo" className="font-display text-lg font-bold text-ink">
+            Quién financió la lectura
+          </h2>
+          <Ayuda titulo="¿Cómo se lee este muro?">
+            <span className="block">
+              No es un ranking de mérito: nadie elige qué se audita ni compra un resultado. Se cuenta en contratos,
+              nunca en soles, y los aportes sin nombre pesan igual.
+            </span>
+            <span className="mt-2 block text-mute">
+              Todos los que figuran acá pasaron el chequeo de conflicto de interés: sin sanción vigente del OECE ni
+              alertas activas como proveedor.
+            </span>
+          </Ayuda>
+        </div>
         <Cifras
           items={[
             { n: totalVisible, texto: totalVisible === 1 ? "aliado" : "aliados" },
@@ -288,13 +295,9 @@ export async function MuroAliados({
             <OrdenMuro opciones={opcionesOrden} valor={orden} />
           ) : (
             <p className="text-[12px] text-mute">
-              Con más de {num(RESUMEN_LIMIT)} aliados el orden lo resuelve el servidor, por contratos
-              financiados.
+              Con más de {num(RESUMEN_LIMIT)} aliados, ordenado por contratos financiados.
             </p>
           )}
-          <p className="max-w-[52ch] text-[12px] leading-relaxed text-mute">
-            El orden no es un ranking de mérito: nadie elige qué se audita ni compra un resultado.
-          </p>
         </div>
       )}
 
@@ -339,7 +342,8 @@ export async function MuroAliados({
 /**
  * Con uno o dos nombres, este muro es sobre todo una invitación — y se diseña
  * como tal, explicando el mecanismo, en vez de rellenar una grilla con losas
- * "vacante" que solo subrayan que no hay nadie.
+ * "vacante" que solo subrayan que no hay nadie. Tres pasos de una línea, lado a
+ * lado (§10.7); el desglose del precio, en su ⓘ.
  */
 function Invitacion({ totalVisible, nombreRegion, precio, desglose }: {
   totalVisible: number;
@@ -350,26 +354,38 @@ function Invitacion({ totalVisible, nombreRegion, precio, desglose }: {
   desglose: string;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-5">
+    <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-4">
       <h3 className="font-display text-base font-bold text-ink">
         {totalVisible === 1
           ? `Hay un solo nombre en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`
           : `Hay ${num(totalVisible)} nombres en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`}
       </h3>
-      <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-inkSoft">
-        <li>
-          <span className="font-mono text-inkSoft">1.</span> Eliges una región y cuántos contratos quieres que
-          se lean.
-          {precio != null && <> {soles(precio)} cada uno{desglose ? `: ${desglose}` : ""}.</>}
+      <ol className="mt-2 grid gap-x-6 gap-y-2 text-[13px] leading-snug text-inkSoft md:grid-cols-3">
+        <li className="flex gap-2">
+          <span className="font-mono text-mute">1.</span>
+          <span>
+            Eliges una región y cuántos contratos.
+            {precio != null && (
+              <>
+                {" "}
+                {soles(precio)} cada uno
+                {desglose && (
+                  <>
+                    {" "}
+                    <Ayuda titulo="¿En qué se va cada contrato?">{desglose}.</Ayuda>
+                  </>
+                )}
+              </>
+            )}
+          </span>
         </li>
-        <li>
-          <span className="font-mono text-inkSoft">2.</span> Los contratos concretos los saca la cola por
-          antigüedad. No los eliges tú, ni los elige Vigía Perú.
+        <li className="flex gap-2">
+          <span className="font-mono text-mute">2.</span>
+          <span>La cola los asigna por antigüedad: no los eliges tú ni Vigía Perú.</span>
         </li>
-        <li>
-          <span className="font-mono text-inkSoft">3.</span> Cuando cada uno termina de leerse, su dictamen se
-          publica con la norma citada, y tu comprobante lista uno por uno los contratos que tu aporte hizo
-          leer, hayan salido con señal o limpios.
+        <li className="flex gap-2">
+          <span className="font-mono text-mute">3.</span>
+          <span>Cada dictamen se publica con su norma, y tu comprobante lista cada contrato leído.</span>
         </li>
       </ol>
     </div>
@@ -397,9 +413,8 @@ function MuroVacio({ nombreRegion, region, precio }: { nombreRegion?: string; re
           </EnlaceAccion>
         }
       >
-        Los contratos {nombreRegion ? `de ${nombreRegion} ` : ""}ya están descargados y clasificados: lo que
-        falta es capacidad para leerlos.{precio != null && <> Cuesta {soles(precio)} por contrato.</>} Se asignan
-        por antigüedad, y el primer nombre que aporte abre este muro.
+        Sus contratos ya están descargados: falta quien pague su lectura
+        {precio != null && <>, a {soles(precio)} por contrato</>}.
       </EstadoVacio>
     </section>
   );
@@ -417,8 +432,8 @@ function Anonimos({ cantidad, contratos }: { cantidad: number; contratos: number
         <span className="font-mono text-inkSoft">{num(cantidad)}</span>{" "}
         {cantidad === 1 ? "persona aportó" : "personas aportaron"} sin nombre y{" "}
         {cantidad === 1 ? "financió" : "financiaron"}{" "}
-        <span className="font-mono text-inkSoft">{num(contratos)}</span> {contratos === 1 ? "contrato" : "contratos"}. Cuentan
-        exactamente igual; solo no figuran en la lista.
+        <span className="font-mono text-inkSoft">{num(contratos)}</span> {contratos === 1 ? "contrato" : "contratos"}: cuentan
+        igual, solo no figuran en la lista.
       </span>
     </p>
   );

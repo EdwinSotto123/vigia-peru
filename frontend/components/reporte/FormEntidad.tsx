@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { Building2, Search, Upload, Check, Loader2, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 import { createReporte, getEntidad, getEntidades } from "@/lib/api-client";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
@@ -362,7 +363,10 @@ export function FormEntidad({
           </button>
         )}
         {errores.evidencia && <ErrorCampo>{errores.evidencia}</ErrorCampo>}
-        <p className="mt-2 text-xs text-mute">A las fotos les quitamos los datos ocultos (ubicación GPS, modelo del teléfono) antes de guardarlas.</p>
+        <p className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-mute">
+          A las fotos les quitamos los datos ocultos antes de guardarlas.
+          <Ayuda titulo="¿Qué datos ocultos les quitamos?">La ubicación GPS y el modelo del teléfono.</Ayuda>
+        </p>
       </Step>
 
       <Step n={5} title="Contacto (opcional)">

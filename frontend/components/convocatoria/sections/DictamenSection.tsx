@@ -42,8 +42,9 @@ function redactarTextoPlano(texto: string, nombres: NombreConocido[]): string {
 }
 
 const PROSA = cn(
-  // Medida de lectura: el dictamen es prosa larga; 68ch se lee sin esfuerzo.
-  "mx-auto max-w-[68ch] px-4 py-8 sm:px-6",
+  // Medida de lectura: el dictamen es prosa larga; 68ch se lee sin esfuerzo. Alineado a la
+  // izquierda, como el resto del informe (§10.7: centrar deja dos columnas vacías).
+  "max-w-[68ch] px-4 py-8 sm:px-6",
   "prose prose-sm lg:prose-base",
   // Los títulos del markdown bajan dos niveles (ver COMPONENTES): "#" → h3, "##" → h4, "###" → h5,
   // "####" → h6. Así el dictamen no trae un segundo h1 a la página ni salta niveles bajo el h2

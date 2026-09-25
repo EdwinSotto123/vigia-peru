@@ -16,7 +16,7 @@
 import { useMemo } from "react";
 import { CircleSlash } from "lucide-react";
 import { reglaLabel } from "@/lib/auditoria";
-import { redactDnis } from "../../Redact";
+import { redactDnis, type NombreConocido } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
 import type { FasesMap } from "@/lib/auditoria";
 import { AuditoriaDeAgentes } from "@/components/agentes/AuditoriaDeAgentes";
@@ -34,7 +34,8 @@ type BanderaConCotejo = Bandera & {
 
 const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
-function desdeBandera(b: Bandera): SenalAgente {
+/** La `Bandera` del payload → la señal normalizada (la usa también el resumen de arriba, ResumenHumano). */
+export function desdeBandera(b: Bandera): SenalAgente {
   const raw = b as BanderaConCotejo;
   const inferido = inferAgente(b);
   const bruto = txt(b.agente_origen) ?? (inferido && inferido !== "?" ? inferido : null);
@@ -75,6 +76,7 @@ export function BanderasAgrupadas({
   reglasDisparadas,
   fases,
   noVerificables = [],
+  nombresPrivados,
 }: {
   banderas: Bandera[];
   /** Solo si el análisis lo trae: no se supone un número. */
@@ -90,10 +92,13 @@ export function BanderasAgrupadas({
    * verificables, y no cuentan en los totales.
    */
   noVerificables?: Bandera[];
+  /** Personas privadas del dossier: su apellido va tapado también en la línea de cada señal. */
+  nombresPrivados?: NombreConocido[];
 }) {
   const senales = useMemo(() => (banderas ?? []).map(desdeBandera), [banderas]);
   return (
     <div className="space-y-3">
+      {/* Sin `nota` al pie: "una señal no es una acusación" lo dice una sola vez el informe, al final. */}
       {senales.length > 0 && (
         <AuditoriaDeAgentes
           senales={senales}
@@ -103,23 +108,22 @@ export function BanderasAgrupadas({
           reglasEvaluadas={reglas_evaluadas ?? undefined}
           titulo="Las señales, una por una"
           carrilesPlegados
-          nota="Señales de riesgo, no acusaciones: cada una se publica con su norma y su fuente para que se pueda comprobar."
+          nombresPrivados={nombresPrivados}
         />
       )}
       {noVerificables.length > 0 && (
-        <details className="rounded-2xl border border-line bg-paperSoft p-4 text-[13px]">
-          <summary className="flex cursor-pointer items-start gap-2 text-ink">
-            <CircleSlash size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
-            <span>
-              <strong className="font-semibold">
-                {noVerificables.length} {noVerificables.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
-              </strong>
-              <span className="block text-[12px] text-mute">
-                El agente de precios no pudo medir el sobreprecio de este contrato con fuentes suficientes, así que estas
-                señales no se cuentan ni se usan en el resumen. Se dejan a la vista para que se puedan revisar.
-              </span>
-            </span>
+        <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
+          <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
+            <CircleSlash size={15} className="shrink-0 text-mute" aria-hidden />
+            <strong className="font-semibold">
+              {noVerificables.length} {noVerificables.length === 1 ? "señal de precio no verificable" : "señales de precio no verificables"}
+            </strong>
+            <span className="text-[12px] text-mute">fuera de los conteos</span>
           </summary>
+          <p className="mt-2 text-[12px] leading-snug text-mute">
+            El agente de precios no pudo medir el sobreprecio con fuentes suficientes: estas señales no se cuentan ni se usan
+            en el resumen, y se dejan a la vista para revisarlas.
+          </p>
           <ul className="mt-3 space-y-2 border-t border-line pt-3">
             {noVerificables.map((b, i) => (
               <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">

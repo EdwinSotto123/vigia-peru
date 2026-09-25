@@ -11,7 +11,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Cifra, EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Seccion } from "@/components/patrones";
 import { Severidad } from "@/components/ui/Severidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -135,245 +135,260 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
     return acc;
   }, {});
 
+  const titulosLeidos =
+    publicadas.length === 0
+      ? null
+      : truncada
+        ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
+        : `${plural(publicadas.length, "contrato leído y publicado", "contratos leídos y publicados")}.`;
+
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-          <ArrowLeft size={15} aria-hidden /> Volver a entidades
-        </Link>
+    <Pagina>
+      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
+        <ArrowLeft size={15} aria-hidden /> Volver a entidades
+      </Link>
 
-        <EncabezadoPagina
-          titulo={nombre}
-          bajada={
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute">
-              <span className="inline-flex items-center gap-1">
-                <Building2 size={13} aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
-              </span>
-              <span className="font-mono" translate="no">
-                RUC {e.ruc}
-              </span>
-              {region && (
-                <span className="inline-flex items-center gap-1">
-                  <MapPin size={13} aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
-                </span>
-              )}
+      <EncabezadoPagina
+        titulo={nombre}
+        bajada={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute">
+            <span className="inline-flex items-center gap-1">
+              <Building2 size={13} aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
             </span>
-          }
-          acciones={
-            <>
-              <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
-              <Link href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} className={BOTON_SECUNDARIO}>
-                <Flag size={14} aria-hidden /> Denunciar a esta entidad
-              </Link>
-            </>
-          }
-        />
+            <span className="font-mono" translate="no">
+              RUC {e.ruc}
+            </span>
+            {region && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={13} aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+              </span>
+            )}
+          </span>
+        }
+        acciones={
+          <>
+            <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
+            <Link href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} className={BOTON_SECUNDARIO}>
+              <Flag size={14} aria-hidden /> Denunciar a esta entidad
+            </Link>
+          </>
+        }
+      />
 
-        <DisclaimerBanner />
+      <DisclaimerBanner />
 
-        {/* Lo leído de esta entidad: cada cifra con su denominador. */}
-        <section aria-label="Contratos leídos de esta entidad" className="grid gap-5 rounded-2xl border border-line bg-paper p-5 sm:grid-cols-3">
-          <Cifra
-            valor={numero(nAlertas)}
-            etiqueta="Con dictamen publicado"
-            contexto={`de ${plural(contratos, "contrato registrado", "contratos registrados")} de esta entidad en el SEACE`}
-          />
-          <Cifra
-            valor={nAlertas === 0 ? "Sin dato" : `${conSenalesEsPiso ? "Al menos " : ""}${numero(conSenales)}`}
-            etiqueta="Con señales"
-            contexto={
-              nAlertas === 0
-                ? "Todavía no hay contratos leídos y publicados"
-                : `de ${numero(nAlertas)} con dictamen publicado tienen al menos una señal`
-            }
-          />
-          <Cifra
-            valor={nAlertas === 0 ? "Sin dato" : solesCompacto(monto)}
-            etiqueta="Adjudicado en esos contratos"
-            contexto="Suma de lo adjudicado en los contratos con dictamen publicado"
-          />
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-line bg-paper p-5 lg:col-span-2">
-            <h2 className="font-display text-lg font-bold text-ink">Contratos que esperan su lectura</h2>
-            <p className="mt-1 text-[13px] text-mute">Convocatorias de esta entidad que Vigía todavía no leyó.</p>
-            <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-4">
-              <Cifra
-                valor={numero(enCola)}
-                etiqueta="En cola"
-                contexto={`de ${plural(contratos, "contrato registrado", "contratos registrados")} esperan financiamiento para leerse`}
-              />
-              {financiable && ubigeo ? (
-                <Link href={`/app/financiar/${ubigeo}`} className={BOTON_PRIMARIO}>
-                  Financiar la lectura de {zonaFinanciar}
-                  <ChevronRight size={15} aria-hidden />
-                </Link>
-              ) : (
-                <p className="max-w-[44ch] text-sm text-mute">
-                  {enCola === 0
-                    ? "No hay contratos de esta entidad esperando en la cola."
-                    : "Todavía no sabemos a qué zona pertenece esta entidad, así que no se puede financiar su lectura desde aquí."}
-                </p>
-              )}
-            </div>
-            <p className="mt-4 text-[12px] text-mute">
-              Los contratos se leen por antigüedad dentro de la zona; no se puede elegir una entidad concreta.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-paper p-5">
-            <h2 className="font-display text-lg font-bold text-ink">{ETIQUETA_PESO}</h2>
-            <p className="mt-1 text-[13px] text-mute">
-              Cómo pesan las señales de sus contratos con dictamen publicado. El peso sale del puntaje de cada contrato; no
-              es una probabilidad de delito.
-            </p>
-            {publicadas.length ? (
+      {/* Lo leído de esta entidad en UNA línea de datos (§10.7), cada cifra con su denominador
+          (§10.2), y la única acción de la ficha —financiar la cola— al lado. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-line py-3">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+          <span>
+            <strong className="font-semibold text-ink">{numero(nAlertas)}</strong> de{" "}
+            {plural(contratos, "contrato registrado", "contratos registrados")} con dictamen publicado
+          </span>
+          <span>
+            {nAlertas === 0 ? (
               <>
-                <ul className="mt-4 space-y-2">
-                  {TRAMOS.map((t) => (
-                    <li key={t.clave} className="flex items-center justify-between gap-3">
-                      <Severidad score={t.muestra} formato="pastilla" />
-                      <span className="font-mono text-sm font-semibold tabular-nums text-ink">
-                        {numero(porTramo[t.clave] ?? 0)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {truncada && (
-                  <p className="mt-3 text-[12px] text-mute">
-                    Cuenta los {numero(publicadas.length)} contratos de mayor puntaje, de {numero(nAlertas)} con dictamen.
-                  </p>
-                )}
+                Con señales: <span className="text-mute">Sin dato</span>
               </>
             ) : (
-              <p className="mt-4 text-sm text-mute">Sin contratos con dictamen publicado: todavía no hay nada que pesar.</p>
+              <>
+                <strong className="font-semibold text-ink">
+                  {conSenalesEsPiso ? "al menos " : ""}
+                  {numero(conSenales)}
+                </strong>{" "}
+                de {numero(nAlertas)} con señales
+              </>
             )}
-          </div>
-        </section>
-
-        {/* Ejecución presupuestal MEF (real): plegada, es la sección más densa y no
-            lo primero que busca quien vino a ver los contratos leídos. */}
-        <details className="group rounded-2xl border border-line bg-paper">
-          <summary className="flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl px-5 py-3.5 transition-colors duration-150 hover:bg-paperSoft">
-            <Coins size={15} className="shrink-0 text-granate" aria-hidden />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</span>
-              <span className="block text-[12px] text-mute">Gasto real frente al presupuesto asignado</span>
+          </span>
+          <span>
+            {nAlertas === 0 ? (
+              <>
+                Adjudicado: <span className="text-mute">Sin dato</span>
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold text-ink">{solesCompacto(monto)}</strong> adjudicado en esos contratos
+              </>
+            )}
+          </span>
+          <span>
+            <strong className="font-semibold text-ink">{numero(enCola)}</strong> de {numero(contratos)} en cola
+          </span>
+          <Ayuda titulo="¿Qué cuenta cada cifra?">
+            <span className="block">
+              Con dictamen publicado: contratos de esta entidad en el SEACE que Vigía leyó y publicó. Con señales: los que
+              tienen al menos una señal publicada. El monto suma lo adjudicado en ellos.
             </span>
-            <ChevronRight size={15} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90" aria-hidden />
-          </summary>
-          <div className="border-t border-line p-3 sm:p-4">
-            <Suspense fallback={<CargandoMef />}>
-              <EjecucionPresupuestal
-                query={mefSearchKeywordFor(nombre)}
-                ruc={e.ruc}
-                title="Ejecución presupuestal"
-                subtitle={`${nombre}, según el MEF`}
-              />
-            </Suspense>
-          </div>
-        </details>
-
-        <section aria-labelledby="contratos-leidos-titulo" className="overflow-hidden rounded-2xl border border-line bg-paper">
-          <div className="border-b border-line bg-paperSoft px-5 py-4">
-            <h2 id="contratos-leidos-titulo" className="font-display text-xl font-bold text-ink">
-              Contratos con dictamen publicado
-            </h2>
-            <p className="mt-1 text-[13px] text-mute">
-              {publicadas.length === 0
-                ? "Contratos de esta entidad que Vigía leyó y publicó, con o sin señales."
-                : truncada
-                  ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado. Cada uno abre su dictamen con las señales y la norma que las respalda.`
-                  : `${plural(publicadas.length, "contrato leído y publicado", "contratos leídos y publicados")}. Cada uno abre su dictamen con las señales y la norma que las respalda.`}
-            </p>
-          </div>
-          {publicadas.length === 0 ? (
-            // Sin llamita: esta sección habla de una entidad, y la llamita no acompaña a nadie señalado.
-            <p className="px-5 py-10 text-center text-sm text-mute">
-              Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
-            </p>
-          ) : (
-            <table className="w-full table-fixed border-collapse text-left text-[13px]">
-              <caption className="sr-only">Contratos de {nombre} con dictamen publicado, por peso del riesgo</caption>
-              <thead className="border-b border-line text-[12px] text-mute">
-                <tr>
-                  <th scope="col" className="w-[9.5rem] px-4 py-2.5 font-semibold sm:w-44 sm:px-5">
-                    {ETIQUETA_PESO}
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">
-                    Contrato
-                  </th>
-                  <th scope="col" className="hidden w-36 px-5 py-2.5 text-right font-semibold md:table-cell">
-                    Adjudicado
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {publicadas.map((a) => {
-                  const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
-                  const dia = diaDe(a.fecha_buena_pro);
-                  return (
-                    <tr key={a.id} className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
-                      <td className="px-4 py-3 sm:px-5">
-                        <Severidad score={Number(a.score) || 0} formato="pastilla" />
-                      </td>
-                      <td className="min-w-0 px-3 py-3">
-                        <Link
-                          href={`/app/convocatoria/${encodeURIComponent(codigo)}`}
-                          className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline"
-                        >
-                          {a.objeto || "Contrato sin objeto registrado"}
-                        </Link>
-                        <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-mute">
-                          <span className="font-mono" translate="no">
-                            {codigo}
-                          </span>
-                          {dia && <span>Buena pro: {fechaCorta(dia)}</span>}
-                          <span className="md:hidden">
-                            {a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : "Sin monto adjudicado"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="hidden px-5 py-3 text-right font-mono tabular-nums text-ink md:table-cell">
-                        {a.monto_adjudicado != null ? (
-                          soles(Number(a.monto_adjudicado))
-                        ) : (
-                          <span className="font-sans text-[12px] text-mute">Sin dato</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
+            <span className="mt-2 block">En cola: convocatorias que Vigía todavía no leyó y esperan financiamiento.</span>
+          </Ayuda>
+        </p>
+        {financiable && ubigeo ? (
+          <span className="inline-flex items-center gap-1">
+            <Link href={`/app/financiar/${ubigeo}`} className={BOTON_PRIMARIO}>
+              Financiar la lectura de {zonaFinanciar}
+              <ChevronRight size={15} aria-hidden />
+            </Link>
+            <Ayuda titulo="¿Qué contratos se leen?">
+              Los contratos se leen por antigüedad dentro de la zona; no se puede elegir una entidad concreta.
+            </Ayuda>
+          </span>
+        ) : enCola > 0 ? (
+          <span className="inline-flex items-center gap-1 text-[13px] text-mute">
+            No se puede financiar su lectura desde aquí
+            <Ayuda titulo="¿Por qué no se puede financiar?">
+              Todavía no sabemos a qué zona pertenece esta entidad. La lectura se financia por zona, y un aporte sobre una
+              zona equivocada iría a otro lugar.
+            </Ayuda>
+          </span>
+        ) : null}
       </div>
-    </div>
+
+      <Seccion
+        id="contratos-leidos"
+        titulo="Contratos con dictamen publicado"
+        descripcion={titulosLeidos}
+        ayuda={
+          <Ayuda titulo="¿Qué abre cada contrato?">
+            Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o sin señales.
+          </Ayuda>
+        }
+      >
+        {publicadas.length === 0 ? (
+          // Sin llamita: esta sección habla de una entidad, y la llamita no acompaña a nadie señalado.
+          <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-4 text-sm text-mute">
+            Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {/* El peso del riesgo como chips con su conteo, encima de la tabla que lo detalla. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-inkSoft">
+              <span className="inline-flex items-center gap-0.5">
+                {ETIQUETA_PESO}
+                <Ayuda titulo="¿Qué es el peso del riesgo?">
+                  Cómo pesan las señales de sus contratos con dictamen publicado. Sale del puntaje de cada contrato; no es
+                  una probabilidad de delito.
+                  {truncada
+                    ? ` Cuenta los ${numero(publicadas.length)} contratos de mayor puntaje, de ${numero(nAlertas)} con dictamen.`
+                    : ""}
+                </Ayuda>
+              </span>
+              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5" aria-label={ETIQUETA_PESO}>
+                {TRAMOS.map((t) => (
+                  <li key={t.clave} className="inline-flex items-center gap-1.5">
+                    <Severidad score={t.muestra} formato="pastilla" />
+                    <span className="font-mono font-semibold tabular-nums text-ink">{numero(porTramo[t.clave] ?? 0)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+              <table className="w-full table-fixed border-collapse text-left text-[13px]">
+                <caption className="sr-only">Contratos de {nombre} con dictamen publicado, por peso del riesgo</caption>
+                <thead className="border-b border-line bg-paperSoft text-[12px] text-mute">
+                  <tr>
+                    <th scope="col" className="w-[9.5rem] px-4 py-2.5 font-semibold sm:w-40">
+                      {ETIQUETA_PESO}
+                    </th>
+                    <th scope="col" className="px-3 py-2.5 font-semibold">
+                      Contrato
+                    </th>
+                    <th scope="col" className="hidden w-32 px-3 py-2.5 font-semibold md:table-cell">
+                      Buena pro
+                    </th>
+                    <th scope="col" className="hidden w-36 px-4 py-2.5 text-right font-semibold md:table-cell">
+                      Adjudicado
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {publicadas.map((a) => {
+                    const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
+                    const dia = diaDe(a.fecha_buena_pro);
+                    const objeto = a.objeto || "Contrato sin objeto registrado";
+                    return (
+                      <tr key={a.id} className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
+                        <td className="px-4 py-2.5">
+                          <Severidad score={Number(a.score) || 0} formato="pastilla" />
+                        </td>
+                        <td className="min-w-0 px-3 py-2.5">
+                          {/* Una línea en escritorio (el objeto completo en `title`), dos en el celular (§10.7). */}
+                          <Link
+                            href={`/app/convocatoria/${encodeURIComponent(codigo)}`}
+                            title={objeto}
+                            className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline md:line-clamp-none md:block md:truncate"
+                          >
+                            {objeto}
+                          </Link>
+                          <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-mute">
+                            <span className="font-mono" translate="no">
+                              {codigo}
+                            </span>
+                            {dia && <span className="md:hidden">Buena pro: {fechaCorta(dia)}</span>}
+                            <span className="md:hidden">
+                              {a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : "Sin monto adjudicado"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="hidden px-3 py-2.5 tabular-nums text-inkSoft md:table-cell">
+                          {dia ? fechaCorta(dia) : <span className="text-[12px] text-mute">Sin dato</span>}
+                        </td>
+                        <td className="hidden px-4 py-2.5 text-right font-mono tabular-nums text-ink md:table-cell">
+                          {a.monto_adjudicado != null ? (
+                            soles(Number(a.monto_adjudicado))
+                          ) : (
+                            <span className="font-sans text-[12px] text-mute">Sin dato</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Seccion>
+
+      {/* Ejecución presupuestal MEF (real): plegada, es la sección más densa y no
+          lo primero que busca quien vino a ver los contratos leídos. */}
+      <details className="group rounded-2xl border border-line bg-paper">
+        <summary className="flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl px-4 py-3 transition-colors duration-150 hover:bg-paperSoft">
+          <Coins size={15} className="shrink-0 text-granate" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</span>
+            <span className="block text-[12px] text-mute">Gasto real frente al presupuesto asignado</span>
+          </span>
+          <ChevronRight size={15} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90" aria-hidden />
+        </summary>
+        <div className="border-t border-line">
+          <Suspense fallback={<CargandoMef />}>
+            <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
+          </Suspense>
+        </div>
+      </details>
+    </Pagina>
   );
 }
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-          <ArrowLeft size={15} aria-hidden /> Volver a entidades
-        </Link>
-        <EncabezadoPagina titulo={`Entidad con RUC ${ruc}`} />
-        <EstadoError
-          titulo="No pudimos leer la ficha de esta entidad"
-          accion={
-            <Link href={`/entidad/${encodeURIComponent(ruc)}`} className={BOTON_PRIMARIO}>
-              Reintentar
-            </Link>
-          }
-        >
-          El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-        </EstadoError>
-      </div>
-    </div>
+    <Pagina>
+      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
+        <ArrowLeft size={15} aria-hidden /> Volver a entidades
+      </Link>
+      <EncabezadoPagina titulo={`Entidad con RUC ${ruc}`} />
+      <EstadoError
+        titulo="No pudimos leer la ficha de esta entidad"
+        accion={
+          <Link href={`/entidad/${encodeURIComponent(ruc)}`} className={BOTON_PRIMARIO}>
+            Reintentar
+          </Link>
+        }
+      >
+        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+      </EstadoError>
+    </Pagina>
   );
 }
 
@@ -384,15 +399,14 @@ function NoSePudoLeer({ ruc }: { ruc: string }) {
  */
 function CargandoMef() {
   return (
-    <div role="status" aria-live="polite" className="space-y-3 p-2">
+    <div role="status" aria-live="polite" className="space-y-3 p-4">
       <p className="text-sm text-mute">Consultando los datos abiertos del MEF…</p>
-      <div className="grid gap-2 sm:grid-cols-4" aria-hidden>
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-16 rounded-xl" />
+      <Skeleton className="h-3.5 w-1/2" />
+      <div className="space-y-2" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-3.5 w-full" />
         ))}
       </div>
-      <Skeleton className="h-3.5 w-full" />
-      <Skeleton className="h-3.5 w-2/3" />
     </div>
   );
 }

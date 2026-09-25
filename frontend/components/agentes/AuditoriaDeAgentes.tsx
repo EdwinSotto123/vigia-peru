@@ -19,13 +19,15 @@ import { ChevronDown, FilterX } from "lucide-react";
 import type { EstadoProc, FasesMap } from "@/lib/auditoria";
 import { severidadDeBandera } from "@/lib/severidad";
 import { Severidad } from "@/components/ui/Severidad";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import type { NombreConocido } from "@/components/Redact";
 import { cn } from "@/lib/utils";
 import { PASOS, pasoDeClave, pasosDelPerfil, TOTAL_PASOS, type PasoPipeline } from "./catalogo";
 import { CarrilesAgentes } from "./CarrilesAgentes";
 import { EjeAgentes, rangoDelAnalisis, ventanaDe } from "./EjeAgentes";
 import { ListaSenales } from "./ListaSenales";
 import { MatrizReglas } from "./MatrizReglas";
-import { AvisoSinCotejo } from "./SelloVerificada";
+import { LeyendaCotejo } from "./SelloVerificada";
 import { agruparPorAgente, contar, ORDEN_SEVERIDAD, SIN_AGENTE, type SenalAgente, type Severidad as Sev } from "./senales";
 import { useReglasPerfil } from "./useReglasPerfil";
 
@@ -47,6 +49,8 @@ interface Props {
    * Sin esto, el tablero de hallazgos sigue mostrando los carriles arriba, como antes.
    */
   carrilesPlegados?: boolean;
+  /** Personas privadas del dossier: su apellido va tapado también en la línea de evidencia de cada fila. */
+  nombresPrivados?: NombreConocido[];
 }
 
 const SEVERIDADES: Sev[] = ["alta", "media", "baja"];
@@ -73,6 +77,7 @@ export function AuditoriaDeAgentes({
   titulo = "Quién encontró qué",
   nota,
   carrilesPlegados = false,
+  nombresPrivados,
 }: Props) {
   const [agente, setAgente] = useState<string | null>(null);
   const [sev, setSev] = useState<Sev | null>(null);
@@ -135,8 +140,7 @@ export function AuditoriaDeAgentes({
               onSeleccion={setAgente}
             />
             <p className="mt-2 border-t border-line pt-2 text-[11px] leading-snug text-mute">
-              Este análisis no guardó las marcas de tiempo por agente, así que no se dibuja su
-              duración: lo que se sabe con certeza es qué hace cada uno y qué encontró.
+              Sin marcas de tiempo por agente: se ve qué hace cada uno y qué encontró, no cuánto tardó.
             </p>
           </>
         )}
@@ -164,47 +168,34 @@ export function AuditoriaDeAgentes({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-paper">
-      <header className="border-b border-line bg-paperSoft px-4 py-4 sm:px-5">
-        <h2 className="font-display text-xl font-bold leading-tight text-ink">{titulo}</h2>
-        {carrilesPlegados ? (
-          <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-inkSoft">
-            {conteo.total === 0
-              ? "No hay señales: lo que se evaluó y se descartó está abajo."
-              : "Cada señal trae el patrón que se encontró, la norma que lo sostiene y su evidencia. Toca una para ver el detalle y la fuente."}
-          </p>
-        ) : (
-        <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
-          {hayEje ? (
-            <>
-              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong>{" "}
-              {formaCarriles(carriles)}
-              {omitidos > 0 && <> ({omitidos} de los {pasos.length} pasos no aplicaban y se saltaron)</>}.
-            </>
-          ) : (
-            <>
-              A este contrato le aplican <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> de los{" "}
-              {TOTAL_PASOS} pasos del análisis, {formaCarriles(carriles)}.
-            </>
-          )}{" "}
-          {conteo.total === 0 ? (
-            <>Ninguno emitió señales: lo que se evaluó y se descartó está abajo.</>
-          ) : (
-            <>
-              Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
-              {conteo.total === 1 ? "señal" : "señales"}
-              {agentesConSenales > 0 ? (
-                <>
-                  {" "}entre {agentesConSenales} {agentesConSenales === 1 ? "agente" : "agentes"}
-                  {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca uno para
-                  ver solo lo suyo.
-                </>
-              ) : (
-                <>, sin declarar de qué agente salió cada una.</>
-              )}
-            </>
+      {/* Dato primero (DESIGN_SYSTEM.md §10.7): título, su ⓘ y la cifra del cotejo en una
+          línea. Lo que antes era un párrafo abierto encima de la lista está en la ⓘ. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-line bg-paperSoft px-4 py-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h2 className="font-display text-xl font-bold leading-tight text-ink">{titulo}</h2>
+          <Ayuda titulo={carrilesPlegados ? "¿Qué trae cada señal?" : "¿Qué agentes corrieron?"}>
+            {carrilesPlegados ? (
+              "El patrón que se encontró, la norma que lo sostiene y su evidencia. Toca una para ver el detalle y la fuente; las reglas que se evaluaron y no dispararon están al final."
+            ) : (
+              <>
+                {hayEje
+                  ? `Sobre este contrato corrieron ${nAgentes} agentes de IA ${formaCarriles(carriles)}${omitidos > 0 ? ` (${omitidos} de los ${pasos.length} pasos no aplicaban y se saltaron)` : ""}.`
+                  : `A este contrato le aplican ${nAgentes} agentes de IA de los ${TOTAL_PASOS} pasos del análisis, ${formaCarriles(carriles)}.`}{" "}
+                Toca un agente para ver sólo lo suyo.
+              </>
+            )}
+          </Ayuda>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+          {!carrilesPlegados && (
+            <span>
+              <strong className="font-semibold text-ink">{conteo.total}</strong> {conteo.total === 1 ? "señal" : "señales"}
+              {agentesConSenales > 0 && <> de {agentesConSenales} {agentesConSenales === 1 ? "agente" : "agentes"}</>}
+              {sinAgente > 0 && <> · {sinAgente} sin agente declarado</>}
+            </span>
           )}
-        </p>
-        )}
+          {conteo.total > 0 && <LeyendaCotejo verificadas={conteo.verificadas} conCotejo={conteo.conCotejo} total={conteo.total} />}
+        </div>
       </header>
 
       {carrilesPlegados ? (
@@ -213,7 +204,7 @@ export function AuditoriaDeAgentes({
             <span>
               Quién encontró cada señal{" "}
               <span className="font-normal text-mute">
-                ({nAgentes} agentes de IA{agentesConSenales > 0 ? `, ${agentesConSenales} con señales` : ""}; toca uno para filtrar)
+                ({nAgentes} agentes{agentesConSenales > 0 ? `, ${agentesConSenales} con señales` : ""})
               </span>
             </span>
             <ChevronDown size={14} className="shrink-0 text-mute transition-transform duration-rapido group-open:rotate-180" aria-hidden />
@@ -278,17 +269,9 @@ export function AuditoriaDeAgentes({
       </div>
 
       {filtradas.length > 0 ? (
-        <ListaSenales senales={filtradas} reglas={reglas} mostrarSello={conteo.conCotejo > 0} />
+        <ListaSenales senales={filtradas} reglas={reglas} mostrarSello={conteo.conCotejo > 0} nombres={nombresPrivados} />
       ) : (
         <VacioSenales total={conteo.total} filtroActivo={filtroActivo} agente={pasoSel} />
-      )}
-
-      {conteo.total > 0 && conteo.conCotejo === 0 && <AvisoSinCotejo n={conteo.total} />}
-      {conteo.conCotejo > 0 && (
-        <p className="border-t border-line bg-paperSoft px-4 py-2 text-[12px] text-mute sm:px-5">
-          {conteo.verificadas} de las {conteo.total} señales quedaron cotejadas contra su fuente
-          oficial por el propio análisis; el resto sigue siendo una pista que hay que comprobar.
-        </p>
       )}
 
       <div className="border-t border-line bg-paperSoft">
@@ -312,10 +295,7 @@ function VacioSenales({ total, filtroActivo, agente }: { total: number; filtroAc
     return (
       <div className="px-4 py-6 text-[13px] leading-relaxed text-mute sm:px-5">
         <p className="text-ink">Ningún agente emitió señales sobre este contrato.</p>
-        <p className="mt-1 max-w-[65ch]">
-          No es que falte información: los agentes corrieron, las reglas del perfil se evaluaron y
-          ninguna disparó. El detalle de lo que se comprobó y se descartó está abajo.
-        </p>
+        <p className="mt-1">Las reglas del perfil se evaluaron y ninguna disparó: el detalle está abajo.</p>
       </div>
     );
   }

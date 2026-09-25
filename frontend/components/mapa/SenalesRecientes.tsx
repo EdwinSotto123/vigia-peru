@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ArrowUpRight, WifiOff } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { recortar } from "@/components/contratos/recortar";
 import { plural } from "@/lib/formato";
 import { formatoSoles } from "./escala";
 import { alertaHref, esSenal } from "./senales";
@@ -53,9 +55,11 @@ export function SenalesRecientes({
 
   if (senales.length === 0) {
     return (
-      <p className="text-[12px] leading-relaxed text-mute">
-        Todavía no hay contratos leídos con peso del riesgo medio o alto. Aparecen acá cuando un contrato termina de
-        leerse y su dictamen pasa la autoevaluación.
+      <p className="flex items-center gap-1 text-[12px] text-mute">
+        Todavía no hay contratos leídos con peso del riesgo medio o alto.
+        <Ayuda titulo="¿Cuándo aparecen?">
+          Cuando un contrato termina de leerse y su dictamen pasa la autoevaluación.
+        </Ayuda>
       </p>
     );
   }
@@ -85,7 +89,10 @@ export function SenalesRecientes({
                 {a.codigoconvocatoria ?? a.codigo}
               </span>
               <span className="shrink-0 text-mute">{a.region}</span>
-              <span className="min-w-0 flex-1 truncate sm:max-w-[40ch] sm:flex-none">{a.objeto}</span>
+              {/* Se ven ≤ 40 caracteres: al DOM va el comienzo, el objeto entero en `title`. */}
+              <span className="min-w-0 flex-1 truncate sm:max-w-[40ch] sm:flex-none" title={a.objeto ?? undefined}>
+                {typeof a.objeto === "string" ? recortar(a.objeto, 80) : a.objeto}
+              </span>
               {typeof a.montoSoles === "number" && a.montoSoles > 0 && (
                 <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-mute sm:inline">
                   {formatoSoles(a.montoSoles)}

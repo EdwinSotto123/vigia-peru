@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
-import { Cargando, EncabezadoPagina, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { soles, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -127,18 +127,24 @@ export function GeneradorNoticia() {
   };
 
   return (
-    <div className="container-page max-w-5xl space-y-6 py-8 sm:py-10">
+    <Pagina>
       <Link href="/app/mapa" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
         <ArrowLeft size={14} aria-hidden /> Volver al mapa
       </Link>
 
       <EncabezadoPagina
         titulo="Genera un borrador de nota"
-        bajada={
-          <>
-            Parte del dictamen del análisis del caso. Tú verificas, editas y publicas. La herramienta{" "}
-            <strong className="font-semibold text-ink">no decide</strong>: decides tú.
-          </>
+        bajada="Un borrador hecho a partir del dictamen del caso: tú lo verificas, lo editas y lo publicas."
+        ayuda={
+          <Ayuda titulo="¿Quién decide qué se publica?">
+            <span className="block">
+              Tú. La herramienta no decide: sólo trabaja sobre dictámenes reales y adapta su texto al tono y al largo que
+              elijas.
+            </span>
+            <span className="mt-2 block">
+              Donde haría falta contexto, deja un hueco marcado para que lo llene quien edita, con su fuente.
+            </span>
+          </Ayuda>
         }
       />
 
@@ -278,7 +284,8 @@ export function GeneradorNoticia() {
                   <FileText size={12} aria-hidden />
                   Hecho a partir del dictamen del análisis
                 </p>
-                <article className="prose prose-sm max-w-none text-ink prose-headings:font-display prose-headings:text-ink prose-strong:text-ink prose-a:text-granate">
+                {/* Prosa: aquí sí, medida de lectura (§10.7). */}
+                <article className="prose prose-sm max-w-[70ch] text-ink prose-headings:font-display prose-headings:text-ink prose-strong:text-ink prose-a:text-granate">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{resultado}</ReactMarkdown>
                 </article>
               </div>
@@ -286,7 +293,7 @@ export function GeneradorNoticia() {
           </div>
         </div>
       </section>
-    </div>
+    </Pagina>
   );
 }
 

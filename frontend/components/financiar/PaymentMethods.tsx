@@ -66,9 +66,9 @@ export function PaymentMethods({ pago, monto, concepto, metodoPreferido, grande 
   if (!pago.configurado) {
     return (
       <div className="rounded-2xl border border-dashed border-line bg-paperSoft p-4 text-sm leading-relaxed text-inkSoft">
-        Los medios de pago todavía no están configurados, así que este aporte no se puede pagar por ahora.
-        Guarda el código <span className="font-mono text-ink">{concepto}</span>: con él ves su estado en su comprobante público.
-        {pago.contactoEmail && <> Si tienes dudas, escribe a <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="text-granate underline underline-offset-2">{pago.contactoEmail}</a>.</>}
+        Este aporte todavía no se puede pagar: no hay medios de pago configurados. Guarda el código{" "}
+        <span className="font-mono text-ink">{concepto}</span> para ver su estado.
+        {pago.contactoEmail && <> Dudas: <a href={`mailto:${pago.contactoEmail}?subject=${encodeURIComponent(`Aporte ${concepto}`)}`} className="text-granate underline underline-offset-2">{pago.contactoEmail}</a>.</>}
       </div>
     );
   }

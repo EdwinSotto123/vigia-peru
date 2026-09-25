@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { PersonName, Ruc } from "@/components/Redact";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { plural } from "@/lib/formato";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/contratos";
 import { EstadoLecturaCelda, PuntoLectura, estadoLecturaDe } from "./estadoLectura";
 import { PesoRiesgo } from "./PesoRiesgo";
+import { recortar } from "./recortar";
 import { cn } from "@/lib/utils";
 
 // ─── Rejilla compartida ──────────────────────────────────────────────────────
@@ -154,7 +156,7 @@ export function FilaContrato({
                   c.enRevision ? null : riesgo.etiqueta,
                 ].filter(Boolean).join(". ")}
                 className={cn(
-                  "min-w-0 truncate text-[13px] font-medium leading-tight text-ink",
+                  "min-w-0 text-[13px] font-medium leading-tight text-ink",
                   // El ::after cubre la fila completa (la fila es `relative`): toda la fila
                   // sigue abriendo el panel, y el foco dibuja su anillo sobre la fila entera.
                   "after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-granate",
@@ -172,7 +174,11 @@ export function FilaContrato({
                   </div>
                 }
               >
-                {titulo}
+                {/* Una línea en escritorio, dos en el celular (§10.7). El objeto entero va en
+                    `title`, en el nombre accesible del botón y en el panel. */}
+                <span className="line-clamp-2 md:truncate" title={titulo}>
+                  {recortar(titulo, 120)}
+                </span>
               </Revelar>
               {nSenales > 0 && (
                 <span className="shrink-0 text-[11px] tabular-nums text-mute">{plural(nSenales, "señal", "señales")}</span>
@@ -253,47 +259,53 @@ function DetalleContrato({ c }: { c: ContratoResumen }) {
         <div className="mt-1.5 flex items-center gap-2 text-[13px] font-medium text-ink">
           <PuntoLectura estado={lectura.estado} />
           {lectura.label}
+          <Ayuda titulo={`¿Qué quiere decir «${lectura.label}»?`}>{lectura.detalle}</Ayuda>
         </div>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-mute">{lectura.detalle}</p>
       </section>
 
       <section>
         <Rotulo>Peso del riesgo y señales</Rotulo>
         {c.enRevision ? (
           // §10.4: una alerta en revisión dice "En revisión" y nada más — sin puntaje ni señales.
-          <div className="mt-1.5 space-y-1.5">
+          <div className="mt-1.5 flex items-center gap-1.5">
             <PesoRiesgo score={null} enRevision formato="pastilla" />
-            <p className="text-[12.5px] leading-relaxed text-mute">
+            <Ayuda titulo="¿Por qué en revisión?">
               Los agentes ya lo leyeron. Antes de publicar el dictamen, una persona lo está revisando: hasta entonces no
               se muestran puntaje ni señales.
-            </p>
+            </Ayuda>
           </div>
         ) : leido ? (
-          <div className="mt-1.5 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <PesoRiesgo score={c.score} banderas={c.banderas} formato="pastilla" />
-              {nSenales > 0 && (
-                <span className="text-[12px] tabular-nums text-inkSoft">
-                  puntaje {c.score} de 100, por {plural(nSenales, "señal publicada", "señales publicadas")}
-                </span>
-              )}
-            </div>
-            <p className="text-[12.5px] leading-relaxed text-mute">
-              {nSenales > 0
-                ? "Cada señal lleva su norma citada y la página del documento donde se apoya: eso está en el dossier."
-                : "El análisis terminó sin señales. Que no haya señales no certifica que el contrato esté limpio: el dossier dice qué se revisó."}
-            </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <PesoRiesgo score={c.score} banderas={c.banderas} formato="pastilla" />
+            {nSenales > 0 && (
+              <span className="text-[12px] tabular-nums text-inkSoft">
+                puntaje {c.score} de 100, por {plural(nSenales, "señal publicada", "señales publicadas")}
+              </span>
+            )}
+            {nSenales > 0 ? (
+              <Ayuda titulo="¿Dónde está cada señal?">
+                Cada señal lleva su norma citada y la página del documento donde se apoya: eso está en el dossier.
+              </Ayuda>
+            ) : (
+              <Ayuda titulo="¿Sin señales quiere decir limpio?">
+                No. El análisis terminó sin señales, pero eso no certifica que el contrato esté limpio: el dossier dice
+                qué se revisó.
+              </Ayuda>
+            )}
           </div>
         ) : (
           // Estado vacío que enseña el mecanismo, no un guion. Ninguna cifra
           // inventada: de un contrato sin leer no se sabe nada todavía.
           <div className="mt-1.5 rounded-xl border border-dashed border-line bg-paperSoft px-3 py-2.5">
-            {/* El número de agentes sale del catálogo (el DAG real del backend), no se escribe a
-                mano. Lo que no tiene fuente, no se dice. */}
-            <p className="text-[12.5px] leading-relaxed text-mute">
-              Todavía no hay dictamen: nadie ha leído este expediente. Cuando su lectura se financia, {TOTAL_AGENTES}{" "}
-              agentes leen el expediente, lo cruzan con registros públicos del Estado y publican las señales que
-              encuentren con su norma citada. El resultado es público, lo señale a quien lo señale.
+            <p className="flex items-center gap-1 text-[12.5px] text-mute">
+              Todavía sin dictamen: nadie ha leído este expediente.
+              {/* El número de agentes sale del catálogo (el DAG real del backend), no se escribe a
+                  mano. Lo que no tiene fuente, no se dice. */}
+              <Ayuda titulo="¿Cómo se lee un contrato?">
+                Cuando su lectura se financia, {TOTAL_AGENTES} agentes leen el expediente, lo cruzan con registros
+                públicos del Estado y publican las señales que encuentren con su norma citada. El resultado es público,
+                lo señale a quien lo señale.
+              </Ayuda>
             </p>
             <Link
               href={c.ubigeo ? `/app/financiar/${c.ubigeo}` : "/app/financiar"}

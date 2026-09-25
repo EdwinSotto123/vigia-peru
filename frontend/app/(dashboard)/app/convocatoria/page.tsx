@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ConvocatoriaSearch } from "@/components/convocatoria/ConvocatoriaSearch";
-import { Cargando } from "@/components/patrones";
+import { Cargando, Pagina } from "@/components/patrones";
 
 // El público busca análisis publicados; el equipo, además, despacha uno nuevo.
 // El título sirve para los dos (el layout raíz agrega "| Vigía Perú").
@@ -14,12 +14,13 @@ export const metadata: Metadata = {
 // Render dinámico: la lista y la sesión de equipo se resuelven en el cliente en cada visita.
 export const dynamic = "force-dynamic";
 
+/** Plantilla "Listado" (DESIGN_SYSTEM.md §14): encabezado → filtros con conteo → tabla → paginación. */
 export default function ConvocatoriaPage() {
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-10">
-      <Suspense fallback={<Cargando texto="Cargando el buscador…" />}>
+    <Pagina>
+      <Suspense fallback={<Cargando texto="Cargando los análisis publicados…" />}>
         <ConvocatoriaSearch />
       </Suspense>
-    </div>
+    </Pagina>
   );
 }

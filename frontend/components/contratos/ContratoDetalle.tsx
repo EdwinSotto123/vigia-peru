@@ -16,11 +16,12 @@ import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { PersonName, Ruc } from "@/components/Redact";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
-import { FuenteDato } from "@/components/patrones";
+import { Ayuda, FuenteDato } from "@/components/patrones";
 import { EstadoContratoPill } from "./ContratosLista";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
 import { TextoRedactado } from "./TextoRedactado";
+import { recortar } from "./recortar";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
@@ -152,7 +153,9 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
               {c.descripcion && c.descripcion !== c.titulo && (
                 <div className="col-span-2 sm:col-span-4">
                   <dt className="text-[12px] text-mute">Descripción</dt>
-                  <dd className="mt-0.5 max-w-[68ch] text-[13px] leading-relaxed text-ink">{c.descripcion}</dd>
+                  <dd className="mt-0.5 max-w-[68ch] text-[13px] leading-relaxed text-ink">
+                    <Descripcion texto={c.descripcion} />
+                  </dd>
                 </div>
               )}
             </dl>
@@ -178,8 +181,11 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
                     <tr key={it.id} className="transition-colors hover:bg-paperSoft">
                       <td className="px-3 py-2 font-mono text-mute">{it.posicion}</td>
                       <td className="px-3 py-2 text-ink">
-                        {it.descripcion ?? <span className="text-mute">Sin descripción</span>}
-                        {it.cubso && <span className="ml-2 font-mono text-[11px] text-mute">CUBSO {it.cubso}</span>}
+                        {/* Dos líneas, como en la tabla de precios: el texto entero va en `title`. */}
+                        <span className="line-clamp-2" title={it.descripcion ?? undefined}>
+                          {it.descripcion ?? <span className="text-mute">Sin descripción</span>}
+                        </span>
+                        {it.cubso && <span className="block font-mono text-[11px] text-mute">CUBSO {it.cubso}</span>}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
                         {it.cantidad != null ? numero(it.cantidad) : <span className="text-mute">Sin dato</span>}
@@ -244,13 +250,15 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
                   })}
                 </tbody>
               </Tabla>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
+              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-mute">
                 Ofertas leídas de las actas y cuadros comparativos del expediente.
-                {hayReferencia &&
-                  (c.items.length > 1
-                    ? " “vs. referencia” compara cada oferta con el valor referencial del ítem al que se presentó."
-                    : " “vs. referencia” compara con el valor referencial del proceso.")}{" "}
-                Toca la fuente para abrir la página citada del PDF.
+                <Ayuda titulo="¿Cómo leer esta tabla?">
+                  {hayReferencia &&
+                    (c.items.length > 1
+                      ? "“vs. referencia” compara cada oferta con el valor referencial del ítem al que se presentó. "
+                      : "“vs. referencia” compara con el valor referencial del proceso. ")}
+                  Toca la fuente para abrir la página citada del PDF.
+                </Ayuda>
               </p>
             </Plegable>
           )}
@@ -297,8 +305,12 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
                   })}
                 </tbody>
               </Tabla>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
-                Referencia unitaria = valor referencial del ítem en el registro OCDS ÷ cantidad. El contratado sale del contrato u orden de compra leída en el expediente.
+              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-mute">
+                Referencia unitaria = valor referencial del ítem ÷ cantidad.
+                <Ayuda titulo="¿De dónde sale cada precio?">
+                  La referencia sale del registro OCDS del OECE. El contratado, del contrato u orden de compra leída en el
+                  expediente; si no la hay, se usa lo ofertado y se marca así.
+                </Ayuda>
               </p>
             </Plegable>
           )}
@@ -368,14 +380,20 @@ function alcanceTexto(a: AlcanceActivo | null): string | null {
   return partes.length ? partes.join(" ") : null;
 }
 
-/** Tarjeta de estado de la lectura, en palabras: un título, qué pasa y qué hacer. */
-function TarjetaEstado({ icono, titulo, children }: { icono: ReactNode; titulo: string; children: ReactNode }) {
+/**
+ * Tarjeta de estado de la lectura: un título, una línea de qué pasa y qué hacer.
+ * El porqué y el cuándo van en `ayuda` (ⓘ junto al título, §10.7).
+ */
+function TarjetaEstado({ icono, titulo, ayuda, children }: { icono: ReactNode; titulo: string; ayuda?: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-2xl border border-line bg-paper p-4">
-      <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
-        {icono}
-        {titulo}
-      </h2>
+      <div className="flex items-center gap-1">
+        <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+          {icono}
+          {titulo}
+        </h2>
+        {ayuda}
+      </div>
       {children}
     </section>
   );
@@ -392,16 +410,24 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
     return (
       <div className="space-y-2">
         <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} compacto sharePath={`/app/contratos/${encodeURIComponent(c.ocid)}`} />
-        {c.alerta.analizadoEn && <p className="text-center text-[12px] text-mute">Leído el {fecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
+        {c.alerta.analizadoEn && <p className="text-[12px] text-mute">Leído el {fecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
       </div>
     );
   }
 
   if (estado === "esperando_documentos") {
     return (
-      <TarjetaEstado icono={<Clock size={15} className="text-mute" aria-hidden />} titulo="Esperando documentos">
-        <p className="mt-2 text-sm leading-relaxed text-ink">
-          Este contrato ya fue financiado. Sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}: el lote nocturno los baja desde el SEACE y la lectura arranca al día siguiente.
+      <TarjetaEstado
+        icono={<Clock size={15} className="text-mute" aria-hidden />}
+        titulo="Esperando documentos"
+        ayuda={
+          <Ayuda titulo="¿Cuándo se lee?">
+            El lote nocturno baja los documentos desde el SEACE y la lectura arranca al día siguiente.
+          </Ayuda>
+        }
+      >
+        <p className="mt-2 text-sm text-ink">
+          Ya financiado; sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}.
         </p>
         {c.pedidoDescarga && (
           <p className="mt-2 text-[12px] text-mute">
@@ -418,12 +444,18 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
 
   if (estado === "pendiente_de_procesamiento" || c.procesable === false) {
     return (
-      <TarjetaEstado icono={<Clock size={15} className="text-mute" aria-hidden />} titulo="Pendiente de procesamiento">
+      <TarjetaEstado
+        icono={<Clock size={15} className="text-mute" aria-hidden />}
+        titulo="Pendiente de procesamiento"
+        ayuda={
+          <Ayuda titulo="¿Qué pasa después?">
+            Cuando el proceso avance de etapa o se pueda leer este tipo de contrato, entrará a la cola de su zona. No se
+            cobra por lo que no se puede leer.
+          </Ayuda>
+        }
+      >
         <p className="mt-2 text-sm text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />
-        <p className="mt-3 text-[12px] leading-relaxed text-mute">
-          Cuando el proceso avance de etapa o se pueda leer este tipo de contrato, entrará a la cola de su zona. No se cobra por lo que no se puede leer.
-        </p>
       </TarjetaEstado>
     );
   }
@@ -431,18 +463,27 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
   // Migración 19: tipo/etapa fuera del alcance activo → decir qué hay, sin CTA de financiar.
   if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
     const listo = c.estadoOperativo === "documentos_listos";
+    const tipo = tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación";
+    // El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano.
+    const hoy = alcanceTexto(alcance);
     return (
       <TarjetaEstado
         icono={<Clock size={15} className={listo ? "text-mossTexto" : "text-mute"} aria-hidden />}
         titulo={listo ? "Documentos listos para leerse" : "Lectura en preparación"}
+        ayuda={
+          <Ayuda titulo="¿Qué se analiza hoy?">
+            {listo && (
+              <span className="block">
+                Sus documentos ya están descargados y clasificados: cuando se active la lectura de {tipo} en esta etapa,
+                entrará a la cola de su zona en orden de llegada.
+              </span>
+            )}
+            {hoy && <span className={cn("block", listo && "mt-2")}>{hoy}</span>}
+            {!listo && !hoy && <span className="block">Cuando se active, entrará a la cola de su zona en orden de llegada.</span>}
+          </Ayuda>
+        }
       >
-        <p className="mt-2 text-sm leading-relaxed text-ink">
-          {listo
-            ? `Los documentos de este contrato ya están descargados y clasificados. La lectura de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activa; cuando se active, entrará a la cola de su zona en orden de llegada.`
-            : `La lectura de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activa.`}
-        </p>
-        {/* El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano. */}
-        {alcanceTexto(alcance) && <p className="mt-2 text-[12px] leading-relaxed text-mute">{alcanceTexto(alcance)}</p>}
+        <p className="mt-2 text-sm text-ink">La lectura de {tipo} en esta etapa todavía no está activa.</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />
       </TarjetaEstado>
     );
@@ -451,10 +492,16 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
   // sin_analizar (o procesado sin alerta legible). Tinta neutra: "sin leer" es el estado
   // mayoritario (así se pinta en la píldora de la lista y en la leyenda del mapa), no una advertencia.
   return (
-    <TarjetaEstado icono={<ShieldAlert size={15} className="text-mute" aria-hidden />} titulo="Todavía sin leer">
-      <p className="mt-2 text-sm leading-relaxed text-ink">
-        Este contrato espera en la cola{c.zona ? ` de ${c.zona}` : ""}. Vigía lo leerá cuando alguien financie la lectura de su zona; el orden es por llegada, nadie elige cuál.
-      </p>
+    <TarjetaEstado
+      icono={<ShieldAlert size={15} className="text-mute" aria-hidden />}
+      titulo="Todavía sin leer"
+      ayuda={
+        <Ayuda titulo="¿Cuándo se lee?">
+          Vigía lo leerá cuando alguien financie la lectura de su zona. El orden es por llegada: nadie elige cuál.
+        </Ayuda>
+      }
+    >
+      <p className="mt-2 text-sm text-ink">Espera en la cola{c.zona ? ` de ${c.zona}` : ""}.</p>
       <Pendientes v={c.clasificacion.validacionesPendientes} />
       {c.ubigeo && (
         <Link
@@ -473,7 +520,12 @@ function ClasificacionCard({ c }: { c: Detalle }) {
   if (!agentes?.length && !c.clasificacion.clasificadoAt) return null;
   return (
     <section className="rounded-2xl border border-line bg-paperSoft p-4">
-      <h2 className="text-[13px] font-semibold text-ink">Qué partes del análisis aplican</h2>
+      <div className="flex items-center gap-1">
+        <h2 className="text-[13px] font-semibold text-ink">Qué partes del análisis aplican</h2>
+        <Ayuda titulo="¿Por qué estas partes?">
+          Dependen del tipo de contrato y de su etapa. Las que no aparecen no aplican a este contrato.
+        </Ayuda>
+      </div>
       {agentes?.length ? (
         <ul className="mt-2 flex flex-wrap gap-1">
           {FASES.filter((f) => agentes.includes(f.key)).map((f) => (
@@ -483,7 +535,6 @@ function ClasificacionCard({ c }: { c: Detalle }) {
       ) : (
         <p className="mt-2 text-[12px] text-mute">Ninguna para esta combinación de tipo y etapa.</p>
       )}
-      <p className="mt-2 text-[11px] text-mute">Según el tipo de contrato y su etapa. Las que no aparecen no aplican a este contrato.</p>
     </section>
   );
 }
@@ -517,6 +568,28 @@ function Plegable({ titulo, n, abierto, nota, children }: { titulo: string; n: n
         {nota && <span className="text-[12px] text-mute">{nota}</span>}
       </summary>
       <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
+/**
+ * La descripción del registro, que a veces es un párrafo entero. Hasta ~2 líneas
+ * se muestra tal cual; más larga, el comienzo y "Ver completa" (§10.7): el dato
+ * sigue ahí, a un clic, sin empujar las tablas hacia abajo.
+ */
+function Descripcion({ texto }: { texto: string }) {
+  if (texto.length <= 180) return <>{texto}</>;
+  return (
+    // Grupo con nombre: un `group` sin nombre reaccionaría al [open] de cualquier ancestro.
+    <details className="group/desc">
+      <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="group-open/desc:hidden">{recortar(texto, 150)} </span>
+        <span className="text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+          <span className="group-open/desc:hidden">Ver completa</span>
+          <span className="hidden group-open/desc:inline">Ocultar</span>
+        </span>
+      </summary>
+      <span className="mt-1 block">{texto}</span>
     </details>
   );
 }

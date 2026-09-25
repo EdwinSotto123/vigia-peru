@@ -18,9 +18,13 @@ export interface PreguntaFAQ {
  * atado al hash de la URL: la pregunta a la que llegabas por un enlace
  * (/preguntas#cuentas) no se podía cerrar, porque el hash seguía ahí. Ahora el
  * hash sólo ABRE (al montar y en cada `hashchange`) y después manda el usuario.
+ *
+ * Todas empiezan cerradas: la página se lee de un vistazo como una lista de
+ * preguntas, y cada respuesta está a un clic (DESIGN_SYSTEM.md §10.7). Antes la
+ * primera venía abierta y era el bloque de texto más largo de la vista.
  */
 export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
-  const [abiertas, setAbiertas] = useState<Set<string>>(() => new Set(items.length ? [items[0].slug] : []));
+  const [abiertas, setAbiertas] = useState<Set<string>>(() => new Set());
   const slugs = items.map((i) => i.slug).join("|");
 
   useEffect(() => {
@@ -58,9 +62,9 @@ export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
                 onClick={() => alternar(item.slug)}
                 aria-expanded={abierta}
                 aria-controls={panelId}
-                className="flex min-h-[56px] w-full items-center justify-between gap-4 px-4 py-4 text-left transition-colors duration-rapido hover:bg-paperSoft sm:px-6 sm:py-5"
+                className="flex min-h-[48px] w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft sm:px-5"
               >
-                <span className="font-display text-[17px] font-semibold text-ink text-balance">{item.q}</span>
+                <span className="font-display text-[16px] font-semibold text-ink text-balance">{item.q}</span>
                 <ChevronDown
                   size={20}
                   aria-hidden
@@ -68,7 +72,7 @@ export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
                 />
               </button>
             </h2>
-            <div id={panelId} hidden={!abierta} className="max-w-[68ch] px-4 pb-5 text-[15px] leading-relaxed text-inkSoft text-pretty sm:px-6">
+            <div id={panelId} hidden={!abierta} className="max-w-[68ch] px-4 pb-4 text-[15px] leading-relaxed text-inkSoft text-pretty sm:px-5">
               {item.a}
             </div>
           </div>

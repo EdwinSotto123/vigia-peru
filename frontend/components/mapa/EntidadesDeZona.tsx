@@ -183,7 +183,7 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
         </ul>
       )}
 
-      <Link href="/app/entidades" className="block text-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+      <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
         Ver el ranking nacional de entidades
       </Link>
     </div>

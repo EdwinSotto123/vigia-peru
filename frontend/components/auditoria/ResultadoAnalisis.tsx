@@ -4,6 +4,10 @@
  * (DESIGN_SYSTEM.md §10.4); mercado (mediana vs ofertado), documentos leídos,
  * recortes/validaciones pendientes y UN botón al dictamen completo.
  *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): cada señal es una fila —regla, severidad, norma y
+ * una línea de evidencia— y su evidencia completa se abre en el panel lateral (Revelar). Lo
+ * que explica qué es una señal o por qué algo está en revisión, a un clic (Ayuda).
+ *
  * Sin hooks: sirve en server components (/app/contratos/[ocid]) y dentro de
  * ContratoEnVivo (client).
  *
@@ -19,11 +23,13 @@
  */
 
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CheckCircle2, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
-import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado } from "@/lib/auditoria";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
+import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado, type SenalRiesgo } from "@/lib/auditoria";
 import { validacionLabel } from "@/lib/contratos";
 import { plural, porcentaje, soles } from "@/lib/formato";
 import { Severidad } from "@/components/ui/Severidad";
+import { Revelar } from "@/components/ui/Revelar";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { ConteoSenales } from "@/components/convocatoria/sections/ConteoSenales";
 import { CompartirButton } from "./CompartirButton";
 import { EvidenciaRedactada } from "./EvidenciaRedactada";
@@ -85,18 +91,26 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         {conSenales && <ScoreGauge score={scoreVisible} size={compacto ? 112 : 132} className="shrink-0" />}
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
-          <h2 className={`mt-0.5 inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
-            {conSenales ? <AlertTriangle size={18} className="text-inkSoft" aria-hidden /> : <CheckCircle2 size={18} className="text-mossTexto" aria-hidden />}
-            {titulo}
-          </h2>
+          <div className="mt-0.5 flex items-center gap-1">
+            <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+              {conSenales ? <AlertTriangle size={18} className="text-inkSoft" aria-hidden /> : <CheckCircle2 size={18} className="text-mossTexto" aria-hidden />}
+              {titulo}
+            </h2>
+            {conSenales && (
+              <Ayuda titulo="¿Qué es una señal?">
+                Un patrón que cita norma y evidencia oficial y merece revisión. No es una acusación: es un indicio para volver
+                a la fuente.
+              </Ayuda>
+            )}
+          </div>
           {/* El mismo conteo por severidad (color, ícono y palabra) que la cabecera del dossier. */}
           {conSenales && <ConteoSenales conteo={{ total: senales.length, ...porSev }} className="mt-1.5" />}
-          <p className="mt-1.5 text-[12px] leading-snug text-mute">
-            {conSenales
-              ? "Una señal no es una acusación: es un patrón que cita norma y evidencia oficial y merece revisión."
-              : "Ningún patrón de riesgo en lo revisado. El dictamen explica qué se cotejó."}
-            {duracionMs != null && duracionMs > 0 && <> Análisis en <span className="font-mono">{duracion(duracionMs)}</span>.</>}
-          </p>
+          {(!conSenales || (duracionMs != null && duracionMs > 0)) && (
+            <p className="mt-1.5 text-[12px] leading-snug text-mute">
+              {!conSenales && "Ningún patrón de riesgo en lo revisado. El dictamen explica qué se cotejó. "}
+              {duracionMs != null && duracionMs > 0 && <>Análisis en <span className="font-mono">{duracion(duracionMs)}</span>.</>}
+            </p>
+          )}
         </div>
       </div>
 
@@ -110,30 +124,38 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
       {/* señales */}
       {senales.length > 0 && (
         <ol className="mt-4 divide-y divide-line border-t border-line" aria-label="Señales de riesgo">
-          {senales.slice(0, compacto ? 4 : 8).map((s, i) => {
-            return (
-              <li key={`${s.regla}-${i}`} className="py-2.5">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="text-[13px] font-semibold text-ink">{reglaLabel(s.regla)}</span>
-                  <Severidad bandera={s.severidad} formato="linea" className="text-[12px]" />
-                  {s.verificada === true && (
-                    // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada).
-                    <span className="inline-flex items-center gap-0.5 text-[11px] text-mossTexto">
-                      <ShieldCheck size={12} aria-hidden /> cotejada
-                    </span>
+          {senales.slice(0, compacto ? 4 : 8).map((s, i) => (
+            <li key={`${s.regla}-${i}`} className="py-2">
+              {compacto ? (
+                <LineaSenal s={s} />
+              ) : (
+                <>
+                  <Revelar
+                    titulo={reglaLabel(s.regla)}
+                    descripcion={s.norma ?? undefined}
+                    etiqueta={`Ver la evidencia de la señal: ${reglaLabel(s.regla)}`}
+                    ancho="md"
+                    className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
+                    detalle={<DetalleSenal s={s} />}
+                    pie={
+                      <Link href={dossierHref} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
+                        Leer el dictamen completo <ArrowRight size={13} aria-hidden />
+                      </Link>
+                    }
+                  >
+                    <LineaSenal s={s} conFlecha />
+                  </Revelar>
+                  {/* Una línea de evidencia, fuera del botón: los DNI van tras vidrio y el vidrio
+                      es su propio control. Entera, en el panel. */}
+                  {s.evidencia && (
+                    <p className="mt-0.5 line-clamp-1 border-l-2 border-line pl-2 text-[12px] leading-snug text-inkSoft">
+                      <EvidenciaRedactada texto={s.evidencia} />
+                    </p>
                   )}
-                </div>
-                {s.norma && (
-                  <p className="mt-0.5 inline-flex items-start gap-1 text-[12px] text-mute">
-                    <Scale size={11} className="mt-[2px] shrink-0" aria-hidden /> <span>{s.norma}</span>
-                  </p>
-                )}
-                {s.evidencia && !compacto && (
-                  <blockquote className="mt-1 border-l-2 border-line pl-2 text-[12px] leading-snug text-inkSoft"><EvidenciaRedactada texto={s.evidencia} /></blockquote>
-                )}
-              </li>
-            );
-          })}
+                </>
+              )}
+            </li>
+          ))}
           {senales.length > (compacto ? 4 : 8) && (
             <li className="py-2 text-[12px] text-mute">y {plural(senales.length - (compacto ? 4 : 8), "señal más", "señales más")} en el dictamen</li>
           )}
@@ -241,7 +263,70 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
   );
 }
 
-/** Lo único que se muestra de un análisis en revisión humana: que lo está, y por qué. */
+/** Regla, severidad, cotejo y norma en una fila. Sólo `span`: puede ir dentro del botón de Revelar. */
+function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: boolean }) {
+  return (
+    <span className="flex items-start gap-2">
+      <span className="block min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="text-[13px] font-semibold text-ink">{reglaLabel(s.regla)}</span>
+          <Severidad bandera={s.severidad} formato="linea" className="text-[12px]" />
+          {s.verificada === true && (
+            // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada).
+            <span className="inline-flex items-center gap-0.5 text-[11px] text-mossTexto">
+              <ShieldCheck size={12} aria-hidden /> cotejada
+            </span>
+          )}
+        </span>
+        {s.norma && (
+          <span className="mt-0.5 flex items-start gap-1 text-[12px] text-mute">
+            <Scale size={11} className="mt-[2px] shrink-0" aria-hidden /> <span className="min-w-0 truncate" title={s.norma}>{s.norma}</span>
+          </span>
+        )}
+      </span>
+      {conFlecha && <ChevronRight size={15} className="mt-0.5 shrink-0 text-mute group-hover:text-granate" aria-hidden />}
+    </span>
+  );
+}
+
+/** El panel de una señal: severidad, norma entera y la evidencia completa (DNI tras vidrio). */
+function DetalleSenal({ s }: { s: SenalRiesgo }) {
+  return (
+    <div className="space-y-4 text-[13px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <Severidad bandera={s.severidad} formato="pastilla" />
+        {s.verificada === true && (
+          <span className="pill border-moss/40 bg-moss/10 text-mossTexto">
+            <ShieldCheck size={12} aria-hidden /> Cotejada
+          </span>
+        )}
+      </div>
+      {s.norma && (
+        <section>
+          <h3 className="text-[12px] font-semibold text-mute">Norma que cita</h3>
+          <p className="mt-1 leading-relaxed text-ink">{s.norma}</p>
+        </section>
+      )}
+      <section>
+        <h3 className="text-[12px] font-semibold text-mute">Evidencia</h3>
+        {s.evidencia ? (
+          <blockquote className="mt-1 border-l-2 border-line pl-3 leading-relaxed text-inkSoft">
+            <EvidenciaRedactada texto={s.evidencia} />
+          </blockquote>
+        ) : (
+          <p className="mt-1 text-mute">Sin evidencia guardada en este resumen: el dictamen la cita completa.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const pctMotivo = (x: number | null) => (x == null ? null : porcentaje(x * 100));
+
+/**
+ * Lo único que se muestra de un análisis en revisión humana: que lo está, y por qué. Los
+ * motivos como chips (con su medida dentro); qué significa cada uno, a un clic.
+ */
 function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
   r: Resultado | null;
   ocid: string;
@@ -254,24 +339,43 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
   return (
     <section className={`rounded-2xl border border-clay/40 bg-paper ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
       <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
-      <h2 className={`mt-0.5 inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
-        <Eye size={18} className="text-clayTexto" aria-hidden />
-        En revisión
-      </h2>
-      <p className="mt-1.5 text-[13px] leading-snug text-inkSoft">
-        Una persona del equipo lo revisa antes de publicarlo. Mientras tanto no se muestran su puntaje ni sus
-        señales: no cuentan como hallazgos.
+      <div className="mt-0.5 flex items-center gap-1">
+        <h2 className={`inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+          <Eye size={18} className="text-clayTexto" aria-hidden />
+          En revisión
+        </h2>
+        <Ayuda titulo="¿Qué significa «en revisión»?">
+          Una persona del equipo lo revisa y decide publicarlo o descartarlo. Mientras tanto no se muestran su puntaje ni
+          sus señales: no cuentan como hallazgos.
+        </Ayuda>
+      </div>
+      <p className="mt-1 text-[13px] text-inkSoft">
+        Una persona lo revisa antes de publicarlo.
         {duracionMs != null && duracionMs > 0 && <> El análisis tardó <span className="font-mono">{duracion(duracionMs)}</span>.</>}
       </p>
       {motivos.length > 0 ? (
         // Los motivos públicos, sin los nombres de las señales afectadas: nombrar en público una
         // señal que la autoevaluación marcó como sin respaldo sería publicarla por la puerta de atrás.
-        <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft" aria-label="Por qué está en revisión humana">
-          <div className="font-semibold text-clayTexto">Por qué no se publicó todavía</div>
-          <ul className="mt-1 space-y-1.5">
+        <div className="mt-3" aria-label="Por qué está en revisión humana">
+          <div className="flex items-center gap-1 text-[12px] font-semibold text-clayTexto">
+            Por qué no se publicó todavía
+            <Ayuda titulo="Por qué no se publicó todavía">
+              {motivos.map((m, i) => (
+                <span key={m.clave} className={i > 0 ? "mt-1.5 block" : "block"}>
+                  <span className="font-semibold text-ink">{m.titulo}</span>
+                  {m.valor != null && m.umbral != null && (
+                    <span className="tabular-nums text-mute"> ({pctMotivo(m.valor)} · mínimo {pctMotivo(m.umbral)})</span>
+                  )}
+                  . {m.detalle}
+                </span>
+              ))}
+            </Ayuda>
+          </div>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
             {motivos.map((m) => (
-              <li key={m.clave}>
-                <span className="font-medium text-ink">{m.titulo}.</span> {m.detalle}
+              <li key={m.clave} className="pill border-line bg-paperSoft text-inkSoft">
+                {m.titulo}
+                {m.valor != null && <span className="font-semibold tabular-nums text-ink">{pctMotivo(m.valor)}</span>}
               </li>
             ))}
           </ul>
@@ -279,7 +383,6 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
       ) : (
         <p className="mt-3 text-[12px] leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
       )}
-      <p className="mt-2 text-[12px] text-mute">Esa persona decide publicarlo o descartarlo.</p>
       <div className="mt-4">
         <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
       </div>

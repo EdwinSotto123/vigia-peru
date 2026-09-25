@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * /app/convocatoria (y /admin/analisis): buscar un análisis publicado o, sólo
- * para el equipo, despachar uno nuevo.
+ * /app/convocatoria (y /admin/analisis): los análisis publicados y, sólo para el equipo,
+ * despachar uno nuevo.
  *
  * Antes cualquier visitante podía disparar una corrida pagada de los agentes:
  * con el botón "Despachar agentes", con "Sortear nueva del SEACE" o con sólo
@@ -11,42 +11,42 @@
  *  - despachar y sortear aparecen sólo con sesión de equipo (`useEsAdmin`), y
  *    las rutas /api/agent/analyze*, /upload-doc y /random exigen la cookie de
  *    admin verificada contra el API (401 si no);
- *  - el público busca entre lo ya analizado y, si el contrato no está, se le
- *    explica que Vigía lee los contratos en orden de cola cuando alguien
- *    financia la auditoría de su zona.
+ *  - el público busca en la lista de lo ya analizado (un solo campo, el de la
+ *    tabla) y, si el contrato no está, la lista le dice cómo se lee uno.
+ *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): encabezado con una línea y su ⓘ, y la
+ * tabla. Lo que antes eran dos párrafos, un desplegable y una columna lateral con
+ * un recuento que repetía los chips quedó en la ⓘ, en "Cómo se lee un contrato"
+ * (panel lateral) y en las acciones del encabezado.
  *
  * `enPanel` (sólo /admin/analisis): el modo equipo se pinta desde el primer
  * render, sin esperar a que el ping de sesión responda (el middleware ya exigió
  * la sesión para entrar al panel, y las rutas de análisis la vuelven a
- * verificar), y el título baja a h2 porque la página ya tiene su h1.
+ * verificar), y no lleva el encabezado de página: el panel ya tiene su h1.
  */
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, CircleDashed, Info, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertTriangle, ArrowRight, ChevronRight, Info, Search } from "lucide-react";
 import { getAnalyzedList } from "@/lib/dossier-cache";
 import { getResumenVivo } from "@/lib/contratos";
 import { useEsAdmin } from "@/lib/useEsAdmin";
+import { Ayuda, EncabezadoPagina } from "@/components/patrones";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { resolveOcid, fetchOcdsFromBrowserDetailed, fetchAllDocsFromOcds } from "@/lib/oece-bridge";
 import { STEPS } from "./constants";
-import { oeceProcesoUrl, humanizeError } from "./utils";
+import { codigoCorto, oeceProcesoUrl, humanizeError } from "./utils";
 import { AgentsPipeline } from "./sections/AgentsPipeline";
-import { QuickAccessPanel } from "./sections/QuickAccessPanel";
-import { AnalizadasRecientes, esAnalisisPublicado } from "./sections/AnalizadasRecientes";
-import { FRANJA_NIVEL, NIVEL_ANALISIS, nivelDeAnalisis } from "./sections/conteoRiesgo";
+import { SortearSeace } from "./sections/SortearSeace";
+import { AnalizadasRecientes, ChipNivel, esAnalisisPublicado } from "./sections/AnalizadasRecientes";
+import { duracionEnPalabras } from "./sections/conteoRiesgo";
 import { LoadingView } from "./sections/LoadingView";
 
 /** El API respondió 401: la sesión de equipo no está o venció. */
 class SesionVencida extends Error {}
 
 const MSG_SESION = "Tu sesión de equipo venció o no está activa. Vuelve a entrar desde /admin/login y reintenta.";
-
-/** "ocds-dgv273-seacev3-1212841" / "OECE-1212841" / " 1212841 " → "1212841". */
-const codigoCorto = (raw: string) =>
-  raw.trim().replace(/^ocds-[a-z0-9]+-seacev3-/i, "").replace(/^OECE-/i, "");
 
 /** ¿El análisis coincide con lo que se escribió? (código, OCID, objeto, entidad o RUC). */
 const coincide = (it: any, qLower: string) =>
@@ -56,39 +56,27 @@ const coincide = (it: any, qLower: string) =>
     .toLowerCase()
     .includes(qLower);
 
-type Aviso = { tipo: "sin_analisis"; codigo: string } | { tipo: "varias"; n: number };
-
 export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = {}) {
   const sesionAdmin = useEsAdmin();
   const esAdmin = enPanel || sesionAdmin;
-  const Titulo = enPanel ? "h2" : "h1";
-  const claseTitulo = enPanel ? "font-display text-xl font-bold leading-tight text-ink sm:text-2xl" : "font-display text-2xl font-bold leading-tight text-ink sm:text-3xl";
   const [id, setId] = useState("");
   const [loading, setLoading] = useState(false);
   const [stepIdx, setStepIdx] = useState(-1);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [cached, setCached] = useState<any[] | null>(null);
-  const [listaOk, setListaOk] = useState(false);
   const [showSugg, setShowSugg] = useState(false);
   const [liveEvents, setLiveEvents] = useState<any[]>([]);
   const [mediana, setMediana] = useState<{ seg: number | null; n: number | null }>({ seg: null, n: null });
   const startTime = useRef(0);
   const router = useRouter();
 
-  // Lista de análisis publicados para el autocompletado y la búsqueda del público.
-  // getAnalyzedList deduplica con la lista de abajo → 1 sola request (mismo límite, 500).
+  // Lista de análisis publicados para el autocompletado del equipo (abrir uno ya
+  // analizado en vez de volver a pagarlo). getAnalyzedList deduplica con la tabla
+  // de abajo → 1 sola request (mismo límite, 500).
   useEffect(() => {
     getAnalyzedList(500)
-      .then((d) => {
-        if (d?.error || !Array.isArray(d?.items)) {
-          setCached([]);
-          return;
-        }
-        setCached(d.items.filter(esAnalisisPublicado));
-        setListaOk(true);
-      })
+      .then((d) => setCached(!d?.error && Array.isArray(d?.items) ? d.items.filter(esAnalisisPublicado) : []))
       .catch(() => setCached([]));
   }, []);
 
@@ -149,39 +137,6 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
     return cached.filter((it) => coincide(it, qLower));
   };
 
-  /** Público: abrir un análisis ya publicado. Nunca dispara agentes. */
-  const buscar = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = id.trim();
-    if (!q) return;
-    setAviso(null);
-    const codigo = codigoCorto(q);
-    // Sin la lista (no cargó), no podemos saber si existe: que decida el dossier.
-    if (!listaOk || !cached) {
-      loadFromCache(codigo);
-      return;
-    }
-    const cLower = codigo.toLowerCase();
-    const exacta = cached.find((it) =>
-      [it.codigo_convocatoria, it.ocid].some((v) => v && String(v).toLowerCase() === cLower),
-    );
-    if (exacta) {
-      loadFromCache(exacta.codigo_convocatoria || exacta.ocid);
-      return;
-    }
-    const parciales = matchesDe(q);
-    if (parciales.length === 1) {
-      loadFromCache(parciales[0].codigo_convocatoria || parciales[0].ocid);
-      return;
-    }
-    if (parciales.length > 1) {
-      setShowSugg(true);
-      setAviso({ tipo: "varias", n: parciales.length });
-      return;
-    }
-    setAviso({ tipo: "sin_analisis", codigo });
-  };
-
   /** Equipo: despachar los agentes (corrida pagada). Las rutas exigen la cookie de admin. */
   const despachar = async (e: React.FormEvent | null, overrideCode?: string) => {
     if (e) e.preventDefault();
@@ -194,7 +149,6 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
     if (!clean) return;
     setLoading(true);
     setError(null);
-    setAviso(null);
     setStepIdx(0);
     setLiveEvents([]);
     startTime.current = Date.now();
@@ -329,199 +283,141 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
 
   if (loading) return <LoadingView stepIdx={stepIdx} elapsed={elapsed} codigo={id} liveEvents={liveEvents} />;
 
-  const sugerencias = showSugg ? matchesDe(id).slice(0, 6) : [];
+  const sugerencias = esAdmin && showSugg ? matchesDe(id).slice(0, 6) : [];
+  const duracion = duracionEnPalabras(mediana.seg);
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),360px]">
-        {/* ─── COLUMNA IZQUIERDA: BUSCADOR ─── */}
-        <div className="relative rounded-2xl border border-line bg-paper p-5 sm:p-6">
-
-          {esAdmin ? (
+    <div className="space-y-6">
+      {!enPanel && (
+        <EncabezadoPagina
+          titulo="Análisis publicados"
+          bajada="Contratos que Vigía ya leyó, con su peso de riesgo, sus señales y el dictamen."
+          ayuda={
+            <Ayuda titulo="¿Cómo llega un contrato aquí?">
+              Vigía no analiza contratos a pedido: los lee en orden de cola, zona por zona, cuando alguien financia la
+              lectura de esa zona. {TOTAL_AGENTES} agentes revisan cada expediente
+              {duracion ? ` y una lectura tarda ${duracion}${mediana.n ? ` (mediana de ${mediana.n} lecturas recientes)` : ""}` : ""}.
+            </Ayuda>
+          }
+          acciones={
             <>
-              <Titulo className={claseTitulo}>Analiza un contrato del SEACE</Titulo>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-inkSoft">
-                Pega el código de la convocatoria o su OCID. Los {TOTAL_AGENTES} agentes leen el expediente y el
-                dossier queda público al terminar. Si el contrato ya está analizado, elígelo en la lista que
-                aparece al escribir y se abre sin volver a procesarlo.
-              </p>
-              {/* En el panel, el aviso de costo ya está arriba de la página. */}
-              {!enPanel && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[12px] font-medium text-amberTexto">
-                  <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado.
-                </p>
-              )}
+              <AgentsPipeline medianaSeg={mediana.seg} nLecturas={mediana.n} />
+              <EnlaceAccion href="/app/auditoria" variante="secundario">
+                Ver la cola en vivo
+              </EnlaceAccion>
+              <EnlaceAccion href="/app/financiar" flecha>
+                Financiar la lectura de tu zona
+              </EnlaceAccion>
             </>
-          ) : (
-            <>
-              <Titulo className={claseTitulo}>Busca un contrato analizado</Titulo>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-inkSoft">
-                Escribe el código de la convocatoria del SEACE, su OCID o el RUC de la entidad o del proveedor.
-                Si Vigía ya lo leyó, abres su dossier con las señales, la evidencia y el dictamen.
-              </p>
-            </>
-          )}
+          }
+        />
+      )}
 
-          <form onSubmit={esAdmin ? (e) => despachar(e) : buscar} className="mt-4" role="search">
-            <div className="relative">
-              <label htmlFor="buscar-convocatoria" className="sr-only">
-                {esAdmin ? "Código u OCID de la convocatoria" : "Código, OCID o RUC"}
+      {/* ─── EQUIPO: despachar un análisis (corrida pagada) ─── */}
+      {esAdmin && (
+        <section aria-labelledby="despacho-titulo" className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <h2 id="despacho-titulo" className="font-display text-[20px] font-bold leading-tight text-ink">
+                Analiza un contrato del SEACE
+              </h2>
+              <Ayuda titulo="¿Qué hace despachar?">
+                Pega el código de la convocatoria o su OCID: los {TOTAL_AGENTES} agentes leen el expediente y el dossier
+                queda público al terminar. Si ya está analizado, elígelo en la lista que aparece al escribir y se abre sin
+                volver a procesarlo.
+              </Ayuda>
+            </div>
+            {/* En el panel, el aviso de costo ya está arriba de la página. */}
+            {!enPanel && (
+              <span className="pill border-amber/40 bg-amber-soft text-amberTexto">
+                <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado
+              </span>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-start gap-3">
+            <form onSubmit={(e) => despachar(e)} className="relative min-w-0 flex-1 basis-[420px]" role="search">
+              <label htmlFor="despachar-convocatoria" className="sr-only">
+                Código u OCID de la convocatoria
               </label>
-              <Search size={18} aria-hidden className="absolute left-4 top-1/2 -translate-y-1/2 text-mute" />
+              <Search size={17} aria-hidden className="absolute left-4 top-1/2 -translate-y-1/2 text-mute" />
               <input
-                id="buscar-convocatoria"
+                id="despachar-convocatoria"
                 type="text"
                 value={id}
                 onChange={(e) => {
                   setId(e.target.value);
                   setShowSugg(true);
-                  setAviso(null);
                 }}
                 onFocus={() => setShowSugg(true)}
                 onBlur={() => setTimeout(() => setShowSugg(false), 180)}
-                placeholder={esAdmin ? "Código de convocatoria u OCID" : "Código de convocatoria, OCID o RUC"}
+                placeholder="Código de convocatoria u OCID"
                 autoComplete="off"
                 inputMode="search"
-                className="w-full rounded-xl border border-line bg-paperSoft py-4 pl-12 pr-32 font-mono text-base placeholder:font-sans placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20 sm:pr-44"
+                className="h-12 w-full rounded-xl border border-line bg-paperSoft pl-11 pr-44 font-mono text-[15px] placeholder:font-sans placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20"
               />
               <button
                 type="submit"
                 disabled={!id.trim()}
-                className="absolute right-2 top-1/2 inline-flex min-h-[40px] -translate-y-1/2 items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50 sm:px-5"
+                className="absolute right-1.5 top-1/2 inline-flex min-h-[40px] -translate-y-1/2 items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50"
               >
-                {esAdmin ? "Despachar agentes" : "Buscar"} <ArrowRight size={15} aria-hidden />
+                Despachar agentes <ArrowRight size={15} aria-hidden />
               </button>
 
-              {/* Autocompletado con los análisis ya publicados */}
+              {/* Autocompletado con los análisis ya publicados: abrir en vez de volver a pagar. */}
               {sugerencias.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-dialog">
-                  <div className="border-b border-line bg-paperSoft px-4 py-2 text-[12px] font-semibold text-inkSoft">
+                  <p className="border-b border-line bg-paperSoft px-4 py-2 text-[12px] font-semibold text-inkSoft">
                     {sugerencias.length === 1
-                      ? "1 contrato ya analizado: elígelo para abrir su dossier"
-                      : `${sugerencias.length} contratos ya analizados: elige uno para abrir su dossier`}
-                  </div>
+                      ? "1 ya analizado: ábrelo sin volver a procesarlo"
+                      : `${sugerencias.length} ya analizados: ábrelos sin volver a procesarlos`}
+                  </p>
                   <ul className="max-h-72 divide-y divide-line overflow-y-auto">
-                    {sugerencias.map((it: any) => {
-                      const nivel = nivelDeAnalisis(it);
-                      return (
-                        <li key={it.codigo_convocatoria || it.ocid}>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              loadFromCache(it.codigo_convocatoria || it.ocid);
-                            }}
-                            className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paperDeep"
-                          >
-                            <div
-                              className={cn(
-                                "flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-xl",
-                                FRANJA_NIVEL[nivel ?? "sin"],
-                              )}
-                              title={nivel ? NIVEL_ANALISIS[nivel].etiqueta : undefined}
-                            >
-                              {/* Sin señales: el check, no un "0" suelto; con señales, el puntaje que pesa. */}
-                              {nivel === "sin_senales" ? (
-                                <CheckCircle2 size={15} aria-hidden />
-                              ) : typeof it.score === "number" ? (
-                                <span className="font-mono text-[12px] font-semibold leading-none tabular-nums">{Math.round(it.score)}</span>
-                              ) : (
-                                <>
-                                  <CircleDashed size={15} aria-hidden />
-                                  <span className="sr-only">Sin dato</span>
-                                </>
-                              )}
-                              {nivel && <span className="sr-only">{NIVEL_ANALISIS[nivel].etiqueta}</span>}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-baseline gap-1.5">
-                                <span className="font-mono text-[12px] font-semibold text-ink">{it.codigo_convocatoria}</span>
-                                {it.region && <span className="text-[11px] text-mute">{it.region}</span>}
-                                {(it.n_alta || 0) > 0 && (
-                                  <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-rust">
-                                    <AlertTriangle size={11} aria-hidden />
-                                    {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="line-clamp-1 text-[13px] font-medium text-ink">{it.objeto}</div>
-                              <div className="line-clamp-1 text-[12px] text-mute">{it.entidad || "Entidad sin dato"}</div>
-                            </div>
-                            <ChevronRight size={12} aria-hidden className="mt-2 shrink-0 text-mute" />
-                          </button>
-                        </li>
-                      );
-                    })}
+                    {sugerencias.map((it: any) => (
+                      <li key={it.codigo_convocatoria || it.ocid}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            loadFromCache(it.codigo_convocatoria || it.ocid);
+                          }}
+                          className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-paperDeep"
+                        >
+                          <ChipNivel it={it} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[13px] font-medium text-ink">{it.objeto}</span>
+                            <span className="block truncate text-[12px] text-mute">
+                              <span className="font-mono">{it.codigo_convocatoria}</span> {it.entidad || "Entidad sin dato"}
+                            </span>
+                          </span>
+                          <ChevronRight size={13} aria-hidden className="text-mute" />
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               )}
-            </div>
+            </form>
 
-            {error && (
-              <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[13px] text-crimsonTexto">
-                <AlertTriangle size={14} aria-hidden className="mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {aviso?.tipo === "varias" && (
-              <p role="status" className="mt-3 text-[13px] text-inkSoft">
-                Hay {aviso.n} análisis que coinciden. Elige uno de la lista o escribe el código completo.
-              </p>
-            )}
-
-            {aviso?.tipo === "sin_analisis" && (
-              <div role="status" className="mt-3 rounded-2xl border border-line bg-paperSoft p-4 text-sm">
-                <p className="font-semibold text-ink">
-                  Vigía todavía no publicó un análisis de <span className="font-mono">{aviso.codigo}</span>.
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
-                  No analizamos contratos a pedido: los leemos en orden de cola, zona por zona, cuando alguien
-                  financia la auditoría de esa zona.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link
-                    href={`/app/contratos?q=${encodeURIComponent(aviso.codigo)}`}
-                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-paperDeep"
-                  >
-                    Buscarlo entre los contratos del SEACE
-                  </Link>
-                  <Link
-                    href="/app/financiar"
-                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full bg-granate px-3.5 py-1.5 text-[13px] font-semibold text-paper transition-colors hover:bg-granate-deep"
-                  >
-                    Financiar la lectura de su zona <ArrowRight size={14} aria-hidden />
-                  </Link>
-                </div>
-              </div>
-            )}
-          </form>
-
-          {/* Cómo se lee un contrato: compacto y colapsable */}
-          <div className="mt-4">
-            <AgentsPipeline medianaSeg={mediana.seg} nLecturas={mediana.n} />
+            <SortearSeace
+              onRunNew={(codigo) => {
+                setId(codigo);
+                despachar(null, codigo);
+              }}
+            />
           </div>
-        </div>
 
-        {/* ─── COLUMNA DERECHA: cómo llega un contrato (público) o acción de equipo ─── */}
-        <QuickAccessPanel
-          cached={cached}
-          esAdmin={esAdmin}
-          medianaSeg={mediana.seg}
-          nLecturas={mediana.n}
-          onRunNew={
-            esAdmin
-              ? (codigo) => {
-                  setId(codigo);
-                  despachar(null, codigo);
-                }
-              : undefined
-          }
-        />
-      </div>
+          {error && (
+            <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[13px] text-crimsonTexto">
+              <AlertTriangle size={14} aria-hidden className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </section>
+      )}
 
-      {/* ANÁLISIS PUBLICADOS */}
-      <AnalizadasRecientes onSelect={loadFromCache} />
+      {/* ANÁLISIS PUBLICADOS: la tabla, con el único campo de búsqueda de la página. */}
+      <AnalizadasRecientes onSelect={loadFromCache} conTitulo={enPanel} />
     </div>
   );
 }

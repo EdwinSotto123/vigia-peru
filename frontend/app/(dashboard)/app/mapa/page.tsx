@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MapaWrapper } from "@/components/MapaWrapper";
+import { Pagina } from "@/components/patrones";
 import type { ZonaTab } from "@/components/mapa/ZonaHubPanel";
 
 /** Sólo la parte de la página: el layout raíz le agrega " | Vigía Perú". */
@@ -26,9 +27,12 @@ export default function MapaPage({
 
   // Suelo apenas teñido (paperSoft) y el bloque del mapa blanco con borde: la
   // jerarquía la carga la superficie, sin sombra en reposo (DESIGN_SYSTEM.md §5).
+  // El suelo ocupa todo el ancho; el contenido, el contenedor común (`Pagina`, §10.7).
   return (
-    <div className="min-h-screen space-y-6 bg-paperSoft px-4 py-5 sm:px-6 sm:py-8 lg:px-10">
-      <MapaWrapper initialRegionId={region} initialTab={tab} />
+    <div className="min-h-screen bg-paperSoft">
+      <Pagina>
+        <MapaWrapper initialRegionId={region} initialTab={tab} />
+      </Pagina>
     </div>
   );
 }

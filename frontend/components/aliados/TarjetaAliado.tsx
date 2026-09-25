@@ -40,6 +40,11 @@ import { IdentidadAliado, Insignias, insigniasDe, mesesDesde, type DatoIdentidad
  *
  * Toda cifra viaja con su denominador: "33 de 45 financiados", nunca un 33
  * suelto en una caja.
+ *
+ * Densidad (DESIGN_SYSTEM.md §10.7): la ficha del muro es identidad + una línea
+ * de cifras + una barra (su peso en el muro). Las tres barras con su leyenda
+ * larga que había acá repetían, en el muro, lo que el panel "Resumen" ya
+ * muestra completo a un clic.
  */
 
 const TIPO_LABEL: Record<RankingRow["tipo"], string> = {
@@ -183,26 +188,7 @@ export function TarjetaAliado({
 }) {
   const enRevision = row.enRevision ?? 0;
   const regiones = regionesAlcanzadas ?? row.zonas;
-  const zonas = (
-    <Cifras
-      className="mt-3"
-      items={[
-        {
-          n: regiones,
-          de: regionesConCola,
-          texto: "regiones con cola abierta alcanzadas",
-          titulo: "Eligió las zonas, no los contratos: se cuentan las regiones donde cayeron los que pagó.",
-        },
-        {
-          n: enRevision,
-          texto: `${enRevision === 1 ? "contrato leído espera" : "contratos leídos esperan"} revisión humana`,
-          titulo:
-            "Su dictamen ya está escrito pero todavía no cuenta como señal: una persona tiene que revisarlo antes de publicarlo.",
-          ocultarEnCero: true,
-        },
-      ]}
-    />
-  );
+  const pesoMuro = financiadosMuro > 0 ? (row.contratosFinanciados / financiadosMuro) * 100 : 0;
 
   return (
     <article
@@ -219,7 +205,7 @@ export function TarjetaAliado({
           (DESIGN_SYSTEM.md §6). Un aliado de maqueta no la lleva: no es Vigía
           reconociendo a nadie, es un borrador que tiene que verse como tal. */}
       {!plano && !esMaqueta && <FranjaTextil alto={8} />}
-      <div className={cn("flex flex-1 flex-col", !plano && "p-5 sm:p-6")}>
+      <div className={cn("flex flex-1 flex-col", !plano && "p-5")}>
         <div className="flex items-start gap-4">
           {href ? (
             // Duplicado deliberado del link del nombre: el logo es la afordancia que
@@ -247,12 +233,13 @@ export function TarjetaAliado({
             <IdentidadAliado datos={datosIdentidad(row)} className="mt-1" />
             {/* Las insignias también acá, no sólo en la ficha: el muro es donde
                 de verdad mira la gente, y esta página existe para enaltecer a
-                quien financia. Se topan en tres para no tapar las barras, que son
-                las que dicen cuánto pesó cada uno. Todas se derivan de sus propias
-                cifras: ninguna se otorga a dedo. */}
+                quien financia. Sólo las propias de este aliado: "Sin conflicto de
+                interés" la tienen TODOS los del muro (estar acá es el chequeo), así
+                que se dice una vez, en el ⓘ del muro, y en la ficha completa. Se
+                topan en dos; todas se derivan de sus cifras, ninguna a dedo. */}
             <Insignias
               className="mt-2"
-              limite={3}
+              limite={2}
               insignias={insigniasDe({
                 esFundador: esFundador(row),
                 financiados: row.contratosFinanciados,
@@ -260,40 +247,41 @@ export function TarjetaAliado({
                 regiones,
                 regionesConCola,
                 mesesAportando: mesesDesde(row.desde),
-              })}
+              }).filter((i) => i.clave !== "limpio")}
             />
           </div>
         </div>
 
-        <div className={cn("mt-5 space-y-3 border-t pt-4", esMaqueta ? "border-amber/40" : "border-line")}>
-          <Proporcion
-            parte={row.contratosFinanciados}
-            total={financiadosMuro}
-            leyenda={`de los ${num(financiadosMuro)} contratos financiados en el muro`}
-            tono="financiado"
+        {/* Lo que hizo leer, en una línea de cifras con su denominador, y su peso en el muro
+            como barra a escala real (granate: alguien pagó). */}
+        <div className={cn("mb-4 mt-4 space-y-2 border-t pt-3", esMaqueta ? "border-amber/40" : "border-line")}>
+          <Cifras
+            className="gap-x-4"
+            items={[
+              // Sin `titulo` acá: el panel "Resumen" explica cada cifra con su frase completa.
+              { n: row.contratosFinanciados, de: financiadosMuro, texto: "financiados" },
+              { n: row.contratosProcesados, de: row.contratosFinanciados, texto: "leídos" },
+              { n: row.senalesHalladas, de: row.contratosProcesados, texto: "con señales" },
+              { n: regiones, de: regionesConCola, texto: "regiones" },
+              { n: enRevision, texto: "en revisión", ocultarEnCero: true },
+            ]}
           />
-          <Proporcion
-            parte={row.contratosProcesados}
-            total={row.contratosFinanciados}
-            leyenda={`de sus ${num(row.contratosFinanciados)} financiados ya leídos`}
-            tono="leido"
-          />
-          <Proporcion
-            parte={row.senalesHalladas}
-            total={row.contratosProcesados}
-            leyenda={`de sus ${num(row.contratosProcesados)} financiados leídos tienen señales`}
-            tono="neutro"
-          />
+          <div
+            className="h-1.5 w-full overflow-hidden rounded-full bg-paperDeep"
+            role="img"
+            aria-label={`${num(row.contratosFinanciados)} de ${num(financiadosMuro)} contratos financiados del muro`}
+          >
+            <div className="h-1.5 min-w-[2px] rounded-full bg-granate" style={{ width: `${pesoMuro}%` }} />
+          </div>
         </div>
-        {zonas}
 
         {(resumen || href) && (
           <div
             className={cn(
-              "mt-auto flex flex-wrap items-center gap-2",
+              "mt-auto flex flex-wrap items-center gap-2 pt-3",
               // En la landing la tarjeta ya vive entre divisores del padre: un borde
               // propio acá sería una raya de más cada dos filas.
-              !plano && "border-t pt-3",
+              !plano && "border-t",
               !plano && (esMaqueta ? "border-amber/40" : "border-line"),
               plano && "mt-3",
             )}
@@ -319,7 +307,7 @@ export function TarjetaAliado({
             )}
             {href && (
               <Link href={href} className={cn(ACCION_TARJETA, "hover:bg-paperDeep", ANILLO)}>
-                Su ficha y sus contratos <ArrowUpRight size={13} aria-hidden />
+                Su ficha <ArrowUpRight size={13} aria-hidden />
               </Link>
             )}
           </div>

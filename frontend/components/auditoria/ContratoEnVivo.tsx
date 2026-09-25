@@ -5,8 +5,11 @@
  *   · cabecera (título, entidad, zona, monto, gracias a {financiador}, {código})
  *   · progreso global (fases hechas / aplicables), tiempo transcurrido y estimado
  *   · los tres carriles del DAG con cada agente (DagCarriles)
- *   · bitácora (últimos 12 eventos humanizados)
+ *   · bitácora (últimos 12 eventos humanizados): abierta en vivo, plegada al terminar
  *   · al terminar → Resultados (ResultadoAnalisis) en la misma página
+ *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): los porqués (independencia de quien paga, por qué
+ * faltan documentos, cuándo le toca) van en un ⓘ junto a lo que explican, no en párrafos.
  *
  * Cada estado tiene su propia cadencia de consulta: encolado/procesando cada `pollMs` (3 s),
  * esperando documentos o con error cada minuto (nada cambia en segundos), terminado nunca.
@@ -31,6 +34,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Clock, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
 import { solesCompacto } from "@/lib/formato";
 import { EstadoError } from "@/components/patrones";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import {
   AGENTES_PROGRESO, ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, fechaLima,
   getReglasPerfil, motivoHumano, nodoActivoYHechos, progresoFases, relojEdad, tipoContratoHumano,
@@ -217,8 +221,13 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
     <section className={`rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`} aria-label="Cómo se ejecuta el análisis">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-mute">
+          <div className="flex items-center gap-1 text-[12px] font-semibold text-mute">
             {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
+            {p.estado === "encolado" && (
+              <Ayuda titulo="¿Cuándo le toca?">
+                Está asignado a un aporte confirmado. El sistema lo toma por orden de llegada: nadie elige cuál va primero.
+              </Ayuda>
+            )}
           </div>
           <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} suppressHydrationWarning>
             {p.estado === "procesando"
@@ -256,29 +265,26 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         <div className={`h-full rounded-full transition-all duration-700 ease-out ${terminado ? "bg-moss" : "bg-amber"}`} style={{ width: `${Math.max(p.estado === "procesando" ? 3 : 0, prog.pct)}%` }} />
       </div>
 
-      {p.estado === "encolado" && (
+      {p.estado === "encolado" && p.intentos > 0 && (
         <p className="mt-3 text-[12px] text-mute">
-          Asignado a un aporte confirmado; el sistema lo toma en orden de llegada.
-          {p.intentos > 0 && <> Intentos previos: <span className="font-mono">{p.intentos}</span>; se reintenta automáticamente.</>}
+          Intentos previos: <span className="font-mono">{p.intentos}</span>; se reintenta automáticamente.
         </p>
       )}
       {p.estado === "error" && (
         <p className="mt-3 text-[12px] text-crimsonTexto">
           {p.intentos < 3
             ? "El intento anterior falló; el análisis vuelve a tomar el contrato desde el inicio."
-            : "Tras 3 intentos automáticos quedó en revisión manual. El equipo lo volverá a poner en la cola y el aporte no pierde su contrato."}
+            : "Tras 3 intentos quedó en revisión manual: el equipo lo vuelve a poner en la cola y el aporte no pierde su contrato."}
         </p>
       )}
       {sinEventos && (
-        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis (puede tardar un minuto si hay varios en cola).</p>
+        <p className="mt-3 text-[12px] text-mute">Los agentes todavía no reportan nada: el contrato está entrando al análisis.</p>
       )}
 
       <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+        {/* Terminado: se puede repetir cómo ocurrió, agente por agente. El botón lo dice solo. */}
         {puedeRepetir && (
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-mute">
-              {verReplay ? "Repitiendo la bitácora real de este análisis." : "Este análisis ya terminó: puedes repetir cómo ocurrió, agente por agente."}
-            </span>
+          <div className="mb-3 flex justify-end">
             <button
               type="button"
               onClick={() => setVerReplay((v) => !v)}
@@ -300,13 +306,30 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
             {/* En revisión, los carriles no cuentan señales por agente: serían señales publicadas. */}
             <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={enRevision ? null : p.resultado?.banderas ?? null} />
             {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
-            <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-              <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-mute">
-                <span>Bitácora</span>
-                <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
+            {/* En vivo, la bitácora es lo que se mira y va abierta. Terminado, es el registro:
+                queda plegada debajo de la ficha técnica, a un clic. */}
+            {!terminado ? (
+              <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+                <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-mute">
+                  <span>Bitácora</span>
+                  <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
+                </div>
+                <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={vivoAhora} compacto={compacto} />
               </div>
-              <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={vivoAhora} compacto={compacto} />
-            </div>
+            ) : (
+              <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
+                {/* `display` por defecto: conserva el triángulo del <summary>, que es lo que dice "se abre". */}
+                <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
+                  <span className="inline-flex items-baseline gap-x-3">
+                    <span>Bitácora</span>
+                    <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
+                  </span>
+                </summary>
+                <div className="mt-2">
+                  <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={false} compacto={compacto} />
+                </div>
+              </details>
+            )}
           </>
         )}
       </div>
@@ -330,7 +353,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
   }
 
   return (
-    <div>
+    <div className="space-y-5">
       {regionViva}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-mute">
         {/* Vuelve a /app/auditoria tal como estaba (con sus filtros) si de ahí se vino; si no,
@@ -353,52 +376,52 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         {enVivoBadge}
       </div>
 
-      {/* cabecera */}
-      <header className="mt-3 rounded-2xl border border-line bg-paper p-5 sm:p-8">
+      {/* Cabecera: el objeto entero (es su propia página), y debajo una línea de datos por
+          renglón: quién compra y cuánto; los códigos y quién pagó. */}
+      <header className="border-b border-line pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {/* basis-full en móvil: si no, la píldora de estado le robaba el ancho
               al título y un objeto largo quedaba en una columna de una palabra por renglón. */}
-          <div className="min-w-0 flex-1 basis-full sm:basis-0">
-            <h1 className="break-words font-display text-[24px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
-              <span className="inline-flex items-center gap-1"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
-              <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
-              {p.montoPen != null && p.montoPen > 0 && <span className="tabular-nums text-ink">valor referencial {solesCompacto(p.montoPen)}</span>}
-            </div>
-            {/* Los códigos van debajo del título, no encima (sin kicker, DESIGN_SYSTEM.md §4). */}
-            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-mute">
-              <span>OCID <span className="font-mono">{p.ocid}</span></span>
-              {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
-            </p>
-          </div>
+          <h1 className="min-w-0 max-w-5xl flex-1 basis-full break-words font-display text-[22px] font-bold leading-snug tracking-tight text-ink text-balance sm:basis-0 sm:text-[26px]">
+            {p.titulo ?? "Contrato sin título registrado"}
+          </h1>
           <div className="order-first sm:order-none">
             <EstadoPill estado={estado} size="md" intentos={p.intentos} />
           </div>
         </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-sm text-mute">
-          <p className="flex flex-wrap items-center gap-x-1">
-            <ShieldCheck size={14} className="text-mossTexto" aria-hidden />
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
+          <span className="inline-flex items-center gap-1"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
+          <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
+          {p.montoPen != null && p.montoPen > 0 && <span className="tabular-nums text-ink">valor referencial {solesCompacto(p.montoPen)}</span>}
+        </p>
+        {/* Los códigos van debajo del título, no encima (sin kicker, DESIGN_SYSTEM.md §4). */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
+          <span>OCID <span className="font-mono">{p.ocid}</span></span>
+          {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
+          <span className="inline-flex flex-wrap items-center gap-x-1">
+            <ShieldCheck size={13} className="text-mossTexto" aria-hidden />
             gracias a <span className="font-semibold text-ink">{p.financiador}</span>
-            <Link href={`/impacto/${p.contribucionCodigo}`} className="ml-2 font-mono hover:underline">
+            <Link href={`/impacto/${p.contribucionCodigo}`} className="ml-1 font-mono hover:underline">
               {p.contribucionCodigo}
             </Link>
-          </p>
-          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="rounded-full" />}
+            <Ayuda titulo="¿Quién pagó influye en el resultado?">
+              Los agentes no saben quién pagó este análisis, y los resultados se publican aunque señalen a quien lo
+              financió.{" "}
+              <Link href="/app/financiar#independencia" className="font-medium text-granate underline">
+                Reglas de independencia
+              </Link>
+              .
+            </Ayuda>
+          </span>
+          {!terminado && <CompartirButton titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`} texto="Mira cómo se ejecuta el análisis de este contrato." path={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="ml-auto rounded-full" />}
         </div>
       </header>
 
-      <div className={`mt-6 grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
+      <div className={`grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
         {terminado && (
           <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} className="lg:sticky lg:top-24 lg:self-start" />
         )}
-        <div className="space-y-4">
-          {ejecucion}
-          <div className="flex items-start gap-2 rounded-2xl bg-paperSoft p-4 text-[13px] text-inkSoft">
-            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
-            <span>Los agentes no saben quién pagó este análisis. Los resultados se publican aunque señalen a quien lo financió. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
-          </div>
-        </div>
+        <div className="min-w-0">{ejecucion}</div>
       </div>
     </div>
   );
@@ -406,7 +429,8 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
 /**
  * Esperando documentos (o sin análisis aplicable): no hay nada que ejecutar todavía, así que
- * no se dibujan doce pasos "pendiente" ni una bitácora vacía. Se dice qué falta y desde cuándo.
+ * no se dibujan doce pasos "pendiente" ni una bitácora vacía. Se dice qué falta y desde cuándo,
+ * en una línea; el porqué, a un clic.
  */
 function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: number; compacto: boolean }) {
   const desde = p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
@@ -415,11 +439,14 @@ function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: 
     return (
       <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
         <div className="text-[12px] font-semibold text-mute">Sin análisis aplicable</div>
-        <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no hay análisis para este tipo de contrato</div>
-        <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
-          Este contrato ya está pagado, pero es de un tipo o de una etapa que los agentes todavía no leen. Queda
-          reservado: cuando ese análisis exista, entra a la cola sin que nadie tenga que volver a pagarlo.
-        </p>
+        <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
+          Todavía no hay análisis para este tipo de contrato
+          <Ayuda titulo="¿Qué pasa con lo que se pagó?">
+            Es de un tipo o de una etapa que los agentes todavía no leen. Queda reservado: cuando ese análisis exista, entra
+            a la cola sin que nadie tenga que volver a pagarlo.
+          </Ayuda>
+        </div>
+        <p className="mt-1 text-[13px] text-inkSoft">Ya está pagado y queda reservado.</p>
       </section>
     );
   }
@@ -428,25 +455,26 @@ function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: 
       <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-clayTexto">
         <Clock size={13} aria-hidden /> Esperando documentos
       </div>
-      <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no se puede leer: faltan sus documentos</div>
-      <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
-        Este contrato ya está pagado. El análisis empieza cuando se descargan sus documentos publicados en el SEACE.
-        Esa descarga se hace desde una conexión en Perú, porque el SEACE bloquea los servidores en la nube. Cuando
-        termine, el contrato pasa a la cola y aquí verás a los agentes trabajar.
-      </p>
+      <div className={`mt-0.5 flex items-center gap-1 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>
+        Todavía no se puede leer: faltan sus documentos
+        <Ayuda titulo="¿Por qué faltan?">
+          <span className="block">
+            Ya está pagado. El análisis empieza cuando se descargan sus documentos del SEACE, desde una conexión en Perú: el
+            SEACE bloquea los servidores en la nube. Después pasa a la cola y aquí se ve a los agentes trabajar.
+          </span>
+          <span className="mt-2 block text-mute">Esta página vuelve a consultar el estado cada minuto.</span>
+        </Ayuda>
+      </div>
       {conFecha && (
-        <dl className="mt-3 grid gap-3 rounded-xl bg-paperSoft p-3 text-[12px] sm:grid-cols-2">
-          <div>
-            <dt className="text-[12px] font-semibold text-mute">Espera desde</dt>
-            <dd className="mt-0.5 text-ink"><time dateTime={p.iniciadoAt!}>{fechaLima(desde, { larga: true, hora: true })}</time></dd>
-          </div>
-          <div>
-            <dt className="text-[12px] font-semibold text-mute">Lleva esperando</dt>
-            <dd className="mt-0.5 font-mono tabular-nums text-ink" suppressHydrationWarning>{ahora > 0 ? relojEdad(ahora - desde) : "…"}</dd>
-          </div>
-        </dl>
+        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-mute">
+          <span>
+            Espera desde <time dateTime={p.iniciadoAt!} className="text-ink">{fechaLima(desde, { larga: true, hora: true })}</time>
+          </span>
+          <span>
+            lleva <span className="font-mono tabular-nums text-ink" suppressHydrationWarning>{ahora > 0 ? relojEdad(ahora - desde) : "…"}</span>
+          </span>
+        </p>
       )}
-      <p className="mt-3 text-[11px] text-mute">Esta página vuelve a consultar el estado cada minuto.</p>
     </section>
   );
 }

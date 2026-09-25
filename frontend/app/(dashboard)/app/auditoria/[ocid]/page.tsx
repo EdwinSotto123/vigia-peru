@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Pagina } from "@/components/patrones";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ESTADO_PROC, estadoVisible, getProcesamiento } from "@/lib/auditoria";
 
@@ -20,11 +21,11 @@ export default async function ContratoEnVivoPage({ params }: { params: { ocid: s
   const ocid = decodeURIComponent(params.ocid);
   const data = await getProcesamiento(ocid);
   if (!data) notFound();
+  // Ancho completo, alineado a la izquierda (DESIGN_SYSTEM.md §10.7): resultado y ejecución van
+  // lado a lado desde `lg`; centrado en 5xl dejaba dos columnas vacías a los costados.
   return (
-    <div className="container-page py-8">
-      <div className="mx-auto max-w-5xl">
-        <ContratoEnVivo ocid={ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} />
-      </div>
-    </div>
+    <Pagina>
+      <ContratoEnVivo ocid={ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} />
+    </Pagina>
   );
 }

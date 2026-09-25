@@ -1,6 +1,7 @@
 import { ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
+import { Ayuda } from "@/components/patrones/Ayuda";
 
 /**
  * El cotejo de una señal contra fuentes oficiales — el sello que separa "esto se
@@ -42,19 +43,24 @@ export function SelloCotejo({ verificada, className }: { verificada: boolean | n
   );
 }
 
-/** La misma distinción, explicada una vez arriba de la tabla en vez de en un tooltip por fila. */
+/**
+ * La cifra del cotejo, con su explicación a un clic (§10.7): "104 de 226 cotejadas ⓘ".
+ * Antes era un párrafo de tres líneas encima de la tabla que nadie leía dos veces.
+ */
 export function LeyendaCotejo({ cotejadas, total }: { cotejadas: number; total: number }) {
   return (
-    <p className="text-[12.5px] leading-relaxed text-mute">
-      <ShieldCheck size={12} className="mr-1 inline align-[-1px] text-mossTexto" aria-hidden />
-      <strong className="font-semibold text-mossTexto">Cotejada</strong> significa que el cotejo automático no encontró
-      contradicciones entre el monto, el RUC, la fecha o el enlace que cita la señal y el registro de contrataciones del
-      OECE, SUNAT o el propio expediente (revisa los datos, no la conclusión):{" "}
-      <span className="font-semibold tabular-nums text-ink">{numero(cotejadas)}</span> de{" "}
-      <span className="font-semibold tabular-nums text-ink">{numero(total)}</span> señales.{" "}
-      <ShieldQuestion size={12} className="mr-1 inline align-[-1px]" aria-hidden />
-      <strong className="font-semibold text-inkSoft">Sin cotejo</strong> no quiere decir que sea falsa: quiere decir que
-      ese análisis es anterior a que el cotejo se guardara, y que nadie lo comprobó por segunda vez.
-    </p>
+    <span className="inline-flex items-center gap-1 text-[13px] text-inkSoft">
+      <ShieldCheck size={13} className="text-mossTexto" aria-hidden />
+      <span className="tabular-nums">
+        <strong className="font-semibold text-ink">{numero(cotejadas)}</strong> de {numero(total)} cotejadas
+      </span>
+      <Ayuda titulo="¿Qué es una señal cotejada?">
+        <span className="block">
+          El cotejo automático no encontró contradicciones entre el monto, el RUC, la fecha o el enlace que cita la señal
+          y el registro oficial (OECE, SUNAT o el expediente). Revisa los datos, no la conclusión.
+        </span>
+        <span className="block mt-2 text-mute">&ldquo;Sin cotejo&rdquo; no quiere decir falsa: ese análisis es anterior a que el cotejo se guardara.</span>
+      </Ayuda>
+    </span>
   );
 }

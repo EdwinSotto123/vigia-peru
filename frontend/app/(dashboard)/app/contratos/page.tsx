@@ -1,4 +1,4 @@
-import { EncabezadoPagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
 import { ContratosLista } from "@/components/contratos/ContratosLista";
 import { FiltrosContratos } from "@/components/contratos/FiltrosContratos";
 import { getEntidad } from "@/lib/api-client";
@@ -37,7 +37,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   ]);
   const regiones = (zonas ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
-  // Toda cifra con su denominador en la misma línea, con las palabras de §10.1:
+  // Toda cifra con su denominador, en UNA línea de datos (§10.2 y §10.7), con las palabras de §10.1:
   //   · leídos = el análisis terminó por cualquier vía (publicado, en revisión o descartado);
   //   · con dictamen publicado = leídos cuya alerta está publicada (alto + medio + bajo).
   const universo = (resumenGlobal ?? resumen)?.total ?? null;
@@ -46,38 +46,57 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   const conDictamen = r ? (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) : null;
   const leidos = r && conDictamen != null ? conDictamen + (r.en_revision ?? 0) + (r.descartado ?? 0) : null;
 
-  const contexto =
-    universo == null || filtrados == null ? (
-      <span className="text-mute">No pudimos contar los contratos en este momento.</span>
-    ) : hayFiltros ? (
-      <span>
-        <strong className="font-semibold text-ink">{numero(filtrados)}</strong> de {numero(universo)} contratos publicados
-        cumplen estos filtros
-        {leidos != null && <>; de ellos, {numero(leidos)} leídos</>}.
-      </span>
-    ) : (
-      <span>
-        {leidos != null && (
-          <>
-            <strong className="font-semibold text-ink">{numero(leidos)}</strong> leídos de{" "}
-          </>
-        )}
-        {numero(universo)} contratos publicados en el SEACE
-        {conDictamen != null && <> · {numero(conDictamen)} con dictamen publicado</>}.
-      </span>
-    );
-
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+    <Pagina className="space-y-5">
       <EncabezadoPagina
         titulo="Todos los contratos"
-        bajada="Cada convocatoria del SEACE que Vigía tiene en su base, con su tipo, etapa y estado de lectura. Las que aún no tienen dictamen esperan que alguien financie su lectura."
+        bajada="Convocatorias del SEACE en la base de Vigía, con su tipo, etapa y estado de lectura."
+        ayuda={
+          <Ayuda titulo="¿Qué contratos hay aquí?">
+            Cada convocatoria del SEACE que Vigía tiene en su base. Las que aún no tienen dictamen esperan que alguien
+            financie su lectura; se leen por orden de llegada y nadie elige cuál.
+          </Ayuda>
+        }
       />
-      <p className="text-[13px] tabular-nums text-inkSoft" aria-live="polite">
-        {contexto}
-      </p>
+      {universo == null || filtrados == null ? (
+        <p className="text-[13px] text-mute" aria-live="polite">No pudimos contar los contratos en este momento.</p>
+      ) : (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft" aria-live="polite">
+          {hayFiltros ? (
+            <span>
+              <strong className="font-semibold text-ink">{numero(filtrados)}</strong> de {numero(universo)} contratos
+              publicados
+            </span>
+          ) : (
+            <span>
+              {leidos != null && (
+                <>
+                  <strong className="font-semibold text-ink">{numero(leidos)}</strong> leídos de{" "}
+                </>
+              )}
+              {numero(universo)} contratos publicados
+            </span>
+          )}
+          {hayFiltros && leidos != null && (
+            <span>
+              <strong className="font-semibold text-ink">{numero(leidos)}</strong> de {numero(filtrados)} leídos
+            </span>
+          )}
+          {conDictamen != null && (
+            <span className="inline-flex items-center gap-1">
+              <span>
+                <strong className="font-semibold text-ink">{numero(conDictamen)}</strong> con dictamen publicado
+              </span>
+              <Ayuda titulo="¿Leído o con dictamen?">
+                Leído: el análisis terminó, por cualquier vía. Con dictamen publicado: leídos cuyo resultado ya es público;
+                el resto está en revisión humana o se descartó.
+              </Ayuda>
+            </span>
+          )}
+        </p>
+      )}
       <FiltrosContratos query={query} regiones={regiones} entidadNombre={entidad?.entidad?.nombre ?? null} resumen={resumen} />
       <ContratosLista query={{ ...query, size: SIZE }} initial={pagina} size={SIZE} navegacion="url" />
-    </div>
+    </Pagina>
   );
 }

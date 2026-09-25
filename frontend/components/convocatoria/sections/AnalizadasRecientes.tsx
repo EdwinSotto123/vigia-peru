@@ -1,34 +1,75 @@
 "use client";
 
+/**
+ * Los análisis publicados, como tabla densa (DESIGN_SYSTEM.md §10.7 y §14 "Listado"): una fila
+ * por contrato —peso del riesgo, qué se contrató y quién compra, tipo, zona, monto, señales y
+ * cuándo se leyó— y el dossier a un clic. Antes cada contrato era una tarjeta con el puntaje
+ * gigante centrado en una franja de color y el objeto en dos líneas: se leía como un blog.
+ *
+ * El campo de búsqueda es el único de la página: filtra la tabla mientras se escribe y, con
+ * Enter, abre el análisis si el código coincide exacto o si queda uno solo. Si la lista no
+ * cargó, Enter abre el dossier por su código y que el dossier diga si existe.
+ *
+ * Conteos: la cifra de cabecera, los chips y las filas salen del mismo arreglo y de la misma
+ * función de nivel (conteoRiesgo), así que siempre suman lo mismo. El tipo también: los que no
+ * se pudieron clasificar tienen su chip ("Sin tipo") y no se pierden de la suma.
+ */
+
 import { useEffect, useState } from "react";
-import { AlertTriangle, Building2, CheckCircle2, ChevronRight, CircleAlert, Search, Shuffle } from "lucide-react";
+import Link from "next/link";
+import { Search, Shuffle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAnalyzedList } from "@/lib/dossier-cache";
 import { esAlertaDemo } from "@/lib/semillas";
-import { numero, relativo, solesCompacto } from "@/lib/formato";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { CORTE_ALTA, CORTE_MEDIA } from "@/lib/severidad";
+import { numero, relativo, soles } from "@/lib/formato";
+import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { ICONO_SEVERIDAD, Severidad } from "@/components/ui/Severidad";
+import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { inferCategoria } from "../utils";
+import { claseAccion } from "@/components/ui/EnlaceAccion";
+import { codigoCorto, inferCategoria } from "../utils";
 import type { CatFilter, SortKey } from "../types";
 import { CAT_LABEL, CAT_TONE } from "../constants";
-import { contarPorNivel, FRANJA_NIVEL, NIVEL_ANALISIS, NIVELES, nivelDeAnalisis, TONO_NIVEL, type NivelAnalisis } from "./conteoRiesgo";
+import { contarPorNivel, NIVEL_ANALISIS, NIVELES, nivelDeAnalisis, UI_NIVEL, type NivelAnalisis } from "./conteoRiesgo";
 
 type FiltroNivel = "todos" | NivelAnalisis;
+/** `todas` = cualquier tipo; `sin_tipo` = el objeto no dejó deducir uno (inferCategoria → "todas"). */
+type FiltroTipo = CatFilter | "sin_tipo";
+
+const TAM = 24;
+const TIPOS: CatFilter[] = ["bienes", "servicios", "obras", "consultoria"];
+const ORDEN: { valor: SortKey; etiqueta: string }[] = [
+  { valor: "reciente", etiqueta: "Más recientes" },
+  { valor: "score", etiqueta: "Mayor puntaje" },
+  { valor: "monto", etiqueta: "Mayor monto" },
+];
+
+/** Columnas de la tabla: 5 desde lg, 7 desde xl (tipo y zona salen de la línea de datos a su columna). */
+const COLUMNAS =
+  "lg:grid-cols-[132px_minmax(0,1fr)_100px_92px_68px] xl:grid-cols-[132px_minmax(0,1fr)_88px_104px_100px_92px_68px]";
 
 /** Solo análisis reales: nunca las alertas de demo sembradas ni filas sin OCID o sin fecha de análisis. */
 export const esAnalisisPublicado = (it: any) => !!it && !esAlertaDemo(it) && !!it.ocid && !!it.analizado_en;
 
-export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: string) => void }) {
+const hrefDe = (it: any) => `/app/convocatoria/${encodeURIComponent(codigoCorto(it.codigo_convocatoria || it.ocid))}`;
+
+export function AnalizadasRecientes({
+  onSelect,
+  conTitulo = false,
+}: {
+  onSelect: (ocidOrCodigo: string) => void;
+  /** h2 propio: sólo donde la página no se llama ya "Análisis publicados" (panel del equipo). */
+  conTitulo?: boolean;
+}) {
   const [items, setItems] = useState<any[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [sev, setSev] = useState<FiltroNivel>("todos");
   const [region, setRegion] = useState<string>("todas");
-  const [cat, setCat] = useState<CatFilter>("todas");
+  const [cat, setCat] = useState<FiltroTipo>("todas");
   const [sort, setSort] = useState<SortKey>("reciente");
-  const [shuffleKey, setShuffleKey] = useState(0);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 24; // 12 filas en el grid de 2 columnas → poco scroll por página
 
   useEffect(() => {
     getAnalyzedList(500)
@@ -39,386 +80,526 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
       .catch((e) => setErr(e.message));
   }, []);
   // Volver a la página 1 cuando cambian filtros/orden/búsqueda (no quedar en una página vacía).
-  useEffect(() => { setPage(1); }, [q, sev, region, cat, sort]);
+  useEffect(() => {
+    setPage(1);
+  }, [q, sev, region, cat, sort]);
 
-  // Tarjetas: montos compactos, un solo formato (lib/formato). Sin monto se dice.
-  const fmtMoney = (n: number) => (n ? solesCompacto(n) : "Sin monto");
-
-  if (err) {
-    return (
-      <EstadoError titulo="No pudimos cargar los análisis publicados" detalle={err}>
-        Suele ser momentáneo. Recarga la página en unos segundos.
-      </EstadoError>
-    );
-  }
-  if (!items) {
-    return (
-      <section aria-busy="true" aria-label="Cargando los análisis publicados…">
-        <Skeleton className="mb-3 h-5 w-64" />
-        <div className="divide-y divide-line rounded-2xl border border-line bg-paper">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-              <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  // Filtrado en cliente — todos los datos ya vinieron en una sola query SQL
-  const regionesUnicas = Array.from(new Set(items.map((it: any) => it.region).filter(Boolean))).sort() as string[];
+  // Filtrado en cliente: todos los datos ya vinieron en una sola query SQL.
+  const todos = (items ?? []).map((it: any) => ({ ...it, _cat: inferCategoria(it.objeto) as CatFilter }));
   const qLower = q.trim().toLowerCase();
-
-  // Anotar cada item con su categoría inferida (heurística por keywords)
-  const itemsWithCat = items.map((it: any) => ({ ...it, _cat: inferCategoria(it.objeto) }));
-
-  const filtered = itemsWithCat.filter((it: any) => {
+  const filtrados = todos.filter((it: any) => {
     if (qLower) {
-      const haystack = [
-        it.codigo_convocatoria, it.ocid, it.objeto, it.entidad,
-        it.entidad_ruc, it.proveedor_ruc,
-      ].filter(Boolean).join(" ").toLowerCase();
-      if (!haystack.includes(qLower)) return false;
+      const texto = [it.codigo_convocatoria, it.ocid, it.objeto, it.entidad, it.entidad_ruc, it.proveedor_ruc]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!texto.includes(qLower)) return false;
     }
     if (region !== "todas" && it.region !== region) return false;
-    if (cat    !== "todas" && it._cat !== cat) return false;
+    if (cat === "sin_tipo" ? it._cat !== "todas" : cat !== "todas" && it._cat !== cat) return false;
     // Mismo criterio que los contadores (conteoRiesgo): el nivel sale del puntaje.
     if (sev !== "todos" && nivelDeAnalisis(it) !== sev) return false;
     return true;
   });
-
-  const sorted = [...filtered].sort((a, b) => {
+  const ordenados = [...filtrados].sort((a, b) => {
     if (sort === "score") return (b.score || 0) - (a.score || 0);
     if (sort === "monto") return (b.monto || 0) - (a.monto || 0);
     return String(b.analizado_en || "").localeCompare(String(a.analizado_en || ""));
   });
 
-  // Paginación en cliente: se renderiza SOLO una página (PAGE_SIZE) a la vez — evita
-  // saturar el DOM con todos los análisis y reduce el scroll. Los filtros/orden ya
-  // corrieron sobre el total, así que paginar es puramente de presentación.
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageItems = sorted.slice(pageStart, pageStart + PAGE_SIZE);
-
-  const handleShuffle = () => {
-    if (sorted.length === 0) return;
-    const pick = sorted[Math.floor(Math.random() * sorted.length)];
-    setShuffleKey(k => k + 1);
-    onSelect(pick.codigo_convocatoria || pick.ocid);
+  const paginas = Math.max(1, Math.ceil(ordenados.length / TAM));
+  const actual = Math.min(Math.max(1, page), paginas);
+  const visibles = ordenados.slice((actual - 1) * TAM, actual * TAM);
+  const hayFiltros = !!qLower || sev !== "todos" || region !== "todas" || cat !== "todas";
+  const limpiar = () => {
+    setQ("");
+    setSev("todos");
+    setRegion("todas");
+    setCat("todas");
   };
 
-  if (items.length === 0) {
-    return (
-      <section aria-labelledby="publicados-titulo">
-        <h2 id="publicados-titulo" className="mb-3 font-display text-[22px] font-bold text-ink">Análisis publicados</h2>
-        <EstadoVacio titulo="Todavía no hay análisis publicados">
-          Vigía lee los contratos en orden de cola, a medida que alguien financia la lectura de su zona.
-        </EstadoVacio>
-      </section>
-    );
-  }
+  /** Enter: abre el análisis si el código coincide exacto o si el filtro dejó uno solo. */
+  const abrir = (e: React.FormEvent) => {
+    e.preventDefault();
+    const texto = q.trim();
+    if (!texto) return;
+    // Sin la lista (cargando o caída) no se sabe si existe: que lo diga el dossier.
+    if (!items) {
+      onSelect(codigoCorto(texto));
+      return;
+    }
+    const c = codigoCorto(texto).toLowerCase();
+    const exacto = items.find((it) => [it.codigo_convocatoria, it.ocid].some((v) => v && String(v).toLowerCase() === c));
+    if (exacto) onSelect(exacto.codigo_convocatoria || exacto.ocid);
+    else if (ordenados.length === 1) onSelect(ordenados[0].codigo_convocatoria || ordenados[0].ocid);
+  };
 
-  // Conteo por nivel de riesgo: la MISMA función que usa el panel lateral.
-  const conteo = contarPorNivel(items);
+  const sortear = () => {
+    if (ordenados.length === 0) return;
+    const it = ordenados[Math.floor(Math.random() * ordenados.length)];
+    onSelect(it.codigo_convocatoria || it.ocid);
+  };
 
-  const sevChip = (key: FiltroNivel, label: string, count: number, punto: string | null, title?: string) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setSev(key)}
-      aria-pressed={sev === key}
-      title={title}
-      className={cn(
-        "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
-        sev === key
-          ? "border-transparent bg-ink text-paper shadow-sm"
-          : "border-line bg-paper text-ink hover:bg-paperDeep",
-      )}
-    >
-      {punto && <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", punto)} />}
-      <span>{label}</span>
-      <span className={cn(
-        "rounded-full px-1.5 py-0 text-[10px] tabular-nums",
-        sev === key ? "bg-paper/20 text-paper" : "bg-paperDeep text-mute",
-      )}>{numero(count)}</span>
-    </button>
-  );
+  const conteo = contarPorNivel(todos);
+  const ultima = todos.reduce<string | null>((max, it: any) => (!max || String(it.analizado_en) > max ? String(it.analizado_en) : max), null);
+  const regiones = Array.from(new Set(todos.map((it: any) => it.region).filter(Boolean))).sort() as string[];
+  const nSinTipo = todos.filter((it: any) => it._cat === "todas").length;
 
   return (
-    <section aria-labelledby="publicados-titulo">
-      {/* HEADER + BARRA DE FILTROS · todo en una sola hilera compacta */}
-      <div className="mb-3 space-y-2 rounded-2xl border border-line bg-paper p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <h2 id="publicados-titulo" className="font-display text-lg font-bold text-ink">Análisis publicados</h2>
-              <span className="rounded-full bg-paperDeep px-2 py-0 font-mono text-[12px] font-semibold tabular-nums text-ink">{numero(items.length)}</span>
-            </div>
-          </div>
+    <section
+      aria-labelledby={conTitulo ? "publicados-titulo" : undefined}
+      aria-label={conTitulo ? undefined : "Análisis publicados"}
+      className="space-y-3"
+    >
+      {conTitulo && (
+        <h2 id="publicados-titulo" className="font-display text-[20px] font-bold leading-tight text-ink">
+          Análisis publicados
+        </h2>
+      )}
 
-          {/* Search inline */}
-          <div className="relative ml-auto flex-1 sm:min-w-[260px] sm:max-w-[360px]">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-            <input
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="Filtrar los análisis publicados"
-              placeholder="Filtrar por código, objeto o RUC…"
-              className="w-full rounded-xl border border-line bg-paper py-2 pl-8 pr-8 text-[13px] placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/20"
-            />
-            {q && (
-              <button
-                type="button"
-                onClick={() => setQ("")}
-                aria-label="Borrar el filtro"
-                className="absolute right-1 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[14px] text-mute hover:bg-paperDeep"
-              ><span aria-hidden>×</span></button>
-            )}
-          </div>
-
-          {/* Botón sortear inline a la derecha */}
-          <button
-            type="button"
-            onClick={handleShuffle}
-            disabled={sorted.length === 0}
-            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-            title={`Abrir uno al azar de los ${sorted.length} filtrados`}
-            aria-label={`Abrir uno al azar de los ${sorted.length} filtrados`}
-          >
-            <Shuffle size={12} aria-hidden />
-            <span className="hidden sm:inline">Sortear</span>
-          </button>
-        </div>
-
-        {/* Chips: severidad · categoría · sort · región — UNA SOLA FILA scrolleable */}
-        <div className="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
-          {/* Sin señales · peso del riesgo (por puntaje, cortes de lib/severidad), §10.1 */}
-          {sevChip("todos", "Todos", conteo.total, null)}
-          {NIVELES.map((k) => sevChip(k, NIVEL_ANALISIS[k].etiqueta, conteo[k], TONO_NIVEL[k].punto, NIVEL_ANALISIS[k].rango))}
-
-          <span className="mx-1 h-4 w-px shrink-0 bg-line" />
-
-          {/* Categoría */}
-          {(["todas", "bienes", "servicios", "obras", "consultoria"] as CatFilter[]).map(k => {
-            const n = k === "todas" ? items.length : itemsWithCat.filter((it: any) => it._cat === k).length;
-            if (k !== "todas" && n === 0) return null;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setCat(k)}
-                className={cn(
-                  "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold transition-colors",
-                  cat === k
-                    ? "border-transparent bg-ink text-paper shadow-sm"
-                    : "border-line bg-paper text-ink hover:bg-paperDeep",
-                )}
-              >
-                {k !== "todas" && (
-                  <span className={cn("inline-block h-1.5 w-1.5 rounded-full", CAT_TONE[k])} />
-                )}
-                <span>{CAT_LABEL[k]}</span>
-                <span className={cn(
-                  "rounded-full px-1.5 text-[11px] tabular-nums",
-                  cat === k ? "bg-paper/20 text-paper" : "bg-paperDeep text-mute",
-                )}>{n}</span>
-              </button>
-            );
-          })}
-
-          <span className="mx-1 h-4 w-px shrink-0 bg-line" />
-
-          {/* Sort */}
-          {(["reciente", "score", "monto"] as SortKey[]).map(k => (
+      {/* Barra: búsqueda, la cifra en una línea (§10.7) y orden/zona/sortear. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <form role="search" onSubmit={abrir} className="relative w-full sm:w-[340px]">
+          <label htmlFor="buscar-analisis" className="sr-only">
+            Buscar por código, OCID, objeto, entidad o RUC
+          </label>
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+          <input
+            id="buscar-analisis"
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Código, objeto, entidad o RUC"
+            autoComplete="off"
+            inputMode="search"
+            enterKeyHint="search"
+            className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-10 text-[13.5px] placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/20"
+          />
+          {q && (
             <button
-              key={k}
               type="button"
-              onClick={() => setSort(k)}
-              className={cn(
-                "min-h-[28px] shrink-0 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold transition-colors",
-                sort === k
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line bg-paper text-ink hover:bg-paperDeep",
-              )}
+              onClick={() => setQ("")}
+              aria-label="Borrar la búsqueda"
+              className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-mute hover:bg-paperDeep hover:text-ink"
             >
-              {k === "reciente" ? "Más recientes" : k === "score" ? "Mayor puntaje" : "Mayor monto"}
+              <X size={14} aria-hidden />
             </button>
-          ))}
-
-          {/* Región */}
-          {regionesUnicas.length > 0 && (
-            <select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className="ml-1 min-h-[28px] shrink-0 rounded-full border border-line bg-paper px-2.5 py-0.5 text-[12px] font-semibold text-ink focus:border-granate focus:outline-none"
-              aria-label="Filtrar por región"
-            >
-              <option value="todas">Todas las regiones</option>
-              {regionesUnicas.map(r => {
-                const n = items.filter((it: any) => it.region === r).length;
-                return <option key={r} value={r}>{r} ({n})</option>;
-              })}
-            </select>
           )}
-        </div>
+        </form>
 
-        {sorted.length !== items.length && (
-          <div className="text-[12px] text-mute" aria-live="polite">
-            <strong className="text-ink">{numero(sorted.length)}</strong> de {numero(items.length)} coinciden con los filtros.
-            {(q || sev !== "todos" || region !== "todas" || cat !== "todas") && (
-              <button
-                onClick={() => { setQ(""); setSev("todos"); setRegion("todas"); setCat("todas"); }}
-                type="button"
-                className="ml-2 underline hover:text-granate"
-              >Limpiar filtros</button>
+        {items && items.length > 0 && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] tabular-nums text-inkSoft" aria-live="polite">
+            <span>
+              <strong className="font-semibold text-ink">{numero(ordenados.length)}</strong>
+              {hayFiltros ? ` de ${numero(items.length)}` : ""} análisis publicados
+            </span>
+            {!hayFiltros && ultima && (
+              <span>
+                última lectura <time dateTime={ultima}>{relativo(ultima)}</time>
+              </span>
             )}
+            {hayFiltros && (
+              <button type="button" onClick={limpiar} className="inline-flex min-h-[24px] items-center gap-1 text-granate hover:underline">
+                <X size={12} aria-hidden /> Quitar filtros
+              </button>
+            )}
+          </p>
+        )}
+
+        {items && items.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <label className="sr-only" htmlFor="orden-analisis">
+              Ordenar
+            </label>
+            <select id="orden-analisis" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className={SELECT}>
+              {ORDEN.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.etiqueta}
+                </option>
+              ))}
+            </select>
+            {regiones.length > 0 && (
+              <>
+                <label className="sr-only" htmlFor="zona-analisis">
+                  Zona
+                </label>
+                <select id="zona-analisis" value={region} onChange={(e) => setRegion(e.target.value)} className={SELECT}>
+                  <option value="todas">Toda zona</option>
+                  {regiones.map((r) => (
+                    <option key={r} value={r}>
+                      {r} ({todos.filter((it: any) => it.region === r).length})
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={sortear}
+              disabled={ordenados.length === 0}
+              aria-label={`Sortear: abrir uno al azar de los ${ordenados.length} de la lista`}
+              title={`Sortear: abrir uno al azar de los ${ordenados.length} de la lista`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[12.5px] font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Shuffle size={13} aria-hidden />
+              <span className="hidden sm:inline">Sortear</span>
+            </button>
           </div>
         )}
       </div>
 
-      {sorted.length === 0 ? (
-        <EstadoVacio compacto titulo="Ningún análisis coincide con los filtros">
-          Quita alguno de los filtros de arriba para ver más.
-        </EstadoVacio>
-      ) : (
-        <ul className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
-          {pageItems.map((it: any, i: number) => (
-            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="group relative overflow-hidden rounded-2xl border border-line bg-paper transition-shadow duration-rapido hover:shadow-card">
-              <button
-                type="button"
-                onClick={() => onSelect(it.codigo_convocatoria || it.ocid)}
-                className="flex w-full items-stretch text-left"
-              >
-                {/* FRANJA DE NIVEL: "sin señales" con su check; con señales, el puntaje que pesa. */}
-                <FranjaNivel it={it} />
+      {/* Filtros: chips con su conteo, en dos grupos. El número del chip es lo que queda al elegirlo. */}
+      {items && items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por peso del riesgo">
+            <Chip activo={sev === "todos"} onClick={() => setSev("todos")}>
+              Todos <Cuenta n={conteo.total} />
+            </Chip>
+            {NIVELES.map((k) => {
+              const ui = UI_NIVEL[k];
+              const Icono = ICONO_SEVERIDAD[ui.icono];
+              const activo = sev === k;
+              return (
+                <Chip key={k} activo={activo} onClick={() => setSev(k)} titulo={NIVEL_ANALISIS[k].rango}>
+                  <Icono size={13} className={activo ? "text-paper" : ui.texto} aria-hidden />
+                  {ui.etiqueta} <Cuenta n={conteo[k]} />
+                </Chip>
+              );
+            })}
+            <Ayuda titulo="¿Qué es el peso del riesgo?">
+              El tramo del puntaje (0 a 100), que suma el peso de cada señal publicada: alto desde {CORTE_ALTA}, medio desde{" "}
+              {CORTE_MEDIA}, bajo por debajo. &ldquo;Sin señales&rdquo; son los leídos y publicados sin ninguna.
+            </Ayuda>
+          </div>
 
-                {/* MAIN BODY */}
-                <div className="min-w-0 flex-1 px-3 py-2.5">
-                  {/* Top: código + categoría + región + fecha */}
-                  <div className="flex flex-wrap items-baseline gap-1.5">
-                    <span className="font-mono text-[12px] font-semibold text-ink">{it.codigo_convocatoria}</span>
-                    {it._cat !== "todas" && CAT_LABEL[it._cat as CatFilter] && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-mute">
-                        <span aria-hidden className={cn("inline-block h-1.5 w-1.5 rounded-full", CAT_TONE[it._cat as CatFilter])} />
-                        {CAT_LABEL[it._cat as CatFilter]}
-                      </span>
-                    )}
-                    {it.region && (
-                      <span className="text-[11px] text-mute">{it.region}</span>
-                    )}
-                    <span className="ml-auto text-[11px] text-mute">{it.analizado_en ? `leído ${relativo(it.analizado_en)}` : "Sin fecha"}</span>
-                  </div>
-
-                  {/* Objeto */}
-                  <div className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug text-ink">{it.objeto}</div>
-
-                  {/* Bottom: entidad + monto + banderas */}
-                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                    <div className="flex min-w-0 items-center gap-1.5 text-mute">
-                      <Building2 size={12} className="shrink-0" aria-hidden />
-                      <span className="line-clamp-1">{it.entidad || "Entidad sin dato"}</span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      {it.n_alta > 0 && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold text-rust">
-                          <AlertTriangle size={11} aria-hidden />
-                          {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
-                        </span>
-                      )}
-                      {it.n_media > 0 && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold text-amberTexto">
-                          <CircleAlert size={11} aria-hidden />
-                          {it.n_media} {it.n_media === 1 ? "señal media" : "señales medias"}
-                        </span>
-                      )}
-                      <span className="font-mono text-[12px] font-semibold tabular-nums text-ink">{fmtMoney(it.monto)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <ChevronRight size={14} aria-hidden className="mr-2 mt-3 shrink-0 self-start text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* PAGINACIÓN — solo se renderiza una página a la vez (PAGE_SIZE). Si hay ≤9
-          páginas mostramos todos los números; si hay más, prev/next + indicador. */}
-      {sorted.length > 0 && totalPages > 1 && (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-          <button
-            type="button"
-            disabled={safePage <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="min-h-[32px] rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-          >Anterior</button>
-          {totalPages <= 9 ? (
-            Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPage(p)}
-                className={cn(
-                  "min-h-[32px] min-w-[32px] rounded-full border px-2 py-1 font-mono text-[12px] font-semibold transition-colors",
-                  p === safePage ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink hover:bg-paperDeep",
-                )}
-              >{p}</button>
-            ))
-          ) : (
-            <span className="px-2 text-[12px] font-semibold text-ink">Página {safePage} de {totalPages}</span>
-          )}
-          <button
-            type="button"
-            disabled={safePage >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="min-h-[32px] rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-          >Siguiente</button>
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por tipo de contrato">
+            <Chip activo={cat === "todas"} onClick={() => setCat("todas")}>
+              Todo tipo <Cuenta n={todos.length} />
+            </Chip>
+            {TIPOS.map((k) => {
+              const n = todos.filter((it: any) => it._cat === k).length;
+              if (n === 0) return null;
+              return (
+                <Chip key={k} activo={cat === k} onClick={() => setCat(k)}>
+                  <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", CAT_TONE[k])} />
+                  {CAT_LABEL[k]} <Cuenta n={n} />
+                </Chip>
+              );
+            })}
+            {nSinTipo > 0 && (
+              <Chip activo={cat === "sin_tipo"} onClick={() => setCat("sin_tipo")}>
+                Sin tipo <Cuenta n={nSinTipo} />
+              </Chip>
+            )}
+            <Ayuda titulo="¿De dónde sale el tipo?">
+              Se deduce de las palabras con que el SEACE describe el objeto (adquisición, servicio, obra, consultoría). Es
+              aproximado: una compra &ldquo;para la obra&rdquo; puede quedar como obra.
+            </Ayuda>
+          </div>
         </div>
       )}
-      {sorted.length > 0 && (
-        <div className="mt-2 text-center text-[12px] text-mute">
-          Mostrando <strong className="text-ink">{numero(pageStart + 1)}–{numero(Math.min(pageStart + PAGE_SIZE, sorted.length))}</strong> de {numero(sorted.length)}
-          {sorted.length !== items.length && ` (filtrados de ${numero(items.length)})`}
-        </div>
+
+      <Cuerpo
+        err={err}
+        items={items}
+        visibles={visibles}
+        total={ordenados.length}
+        q={q.trim()}
+        hayFiltros={hayFiltros}
+        limpiar={limpiar}
+      />
+
+      {ordenados.length > TAM && (
+        <Paginacion
+          actual={actual}
+          paginas={paginas}
+          total={ordenados.length}
+          tam={TAM}
+          navegacion="interna"
+          onChange={setPage}
+          cargando={false}
+          nombre="análisis"
+        />
       )}
     </section>
   );
 }
 
+function Cuerpo({
+  err,
+  items,
+  visibles,
+  total,
+  q,
+  hayFiltros,
+  limpiar,
+}: {
+  err: string | null;
+  items: any[] | null;
+  visibles: any[];
+  total: number;
+  q: string;
+  hayFiltros: boolean;
+  limpiar: () => void;
+}) {
+  if (err) {
+    return (
+      <EstadoError titulo="No pudimos cargar los análisis publicados" detalle={err}>
+        Suele ser momentáneo: recarga en unos segundos. Si tienes el código, escríbelo arriba y pulsa Enter.
+      </EstadoError>
+    );
+  }
+  if (!items) return <EsqueletoTabla />;
+  if (items.length === 0) {
+    return (
+      <EstadoVacio titulo="Todavía no hay análisis publicados">
+        Vigía lee los contratos en orden de cola, cuando alguien financia la lectura de su zona.
+      </EstadoVacio>
+    );
+  }
+  if (total === 0) {
+    // Con texto escrito, lo más probable es que ese contrato todavía no se haya leído: se dice y se da la salida.
+    return q ? (
+      <EstadoVacio
+        compacto
+        titulo={`Ningún análisis publicado coincide con «${q}»`}
+        accion={
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link href={`/app/contratos?q=${encodeURIComponent(codigoCorto(q))}`} className={claseAccion("secundario")}>
+              Buscarlo entre los contratos del SEACE
+            </Link>
+            <Link href="/app/financiar" className={claseAccion("primario")}>
+              Financiar la lectura de su zona
+            </Link>
+          </div>
+        }
+      >
+        Vigía no analiza a pedido: lee los contratos en orden de cola, cuando alguien financia la lectura de su zona.
+      </EstadoVacio>
+    ) : (
+      <EstadoVacio
+        compacto
+        titulo="Ningún análisis coincide con los filtros"
+        accion={
+          hayFiltros ? (
+            <button type="button" onClick={limpiar} className={claseAccion("secundario")}>
+              Quitar los filtros
+            </button>
+          ) : undefined
+        }
+      />
+    );
+  }
+  return (
+    <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div
+        className={cn(
+          "hidden items-center gap-x-3 border-b border-line bg-paperSoft px-4 py-2 text-[11px] font-semibold text-mute lg:grid",
+          COLUMNAS,
+        )}
+        aria-hidden
+      >
+        <span>Riesgo</span>
+        <span>Contrato</span>
+        <span className="hidden xl:block">Tipo</span>
+        <span className="hidden xl:block">Zona</span>
+        <span className="text-right">Adjudicado</span>
+        <span>Señales</span>
+        <span>Leído</span>
+      </div>
+      <ul>
+        {visibles.map((it: any) => (
+          <li key={it.codigo_convocatoria || it.ocid} className="border-b border-line/70 last:border-b-0">
+            <Fila it={it} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
- * La franja izquierda de cada tarjeta. Con señales: el puntaje que pesa (0–100) en el tono de su
- * tramo. Sin señales: el check verde, sin un "0/100" suelto (el puntaje nunca va sin las señales
- * que lo explican, §10.4). Sin dato: se dice.
+ * Una fila: el título es el enlace al dossier y su `::after` cubre la fila entera (toda la fila
+ * se toca, y el nombre accesible es el objeto del contrato, no una ristra de celdas). En el
+ * escritorio el objeto va en una línea con el texto completo en `title`; en el celular, dos.
  */
-function FranjaNivel({ it }: { it: any }) {
-  const nivel: NivelAnalisis | null = nivelDeAnalisis(it);
+function Fila({ it }: { it: any }) {
+  const titulo = String(it.objeto || "").trim() || "Contrato sin objeto registrado";
+  const codigo = codigoCorto(it.codigo_convocatoria || it.ocid);
+  const tipo = it._cat !== "todas" ? CAT_LABEL[it._cat as CatFilter] : null;
+  const zona: string | null = it.region || null;
   return (
     <div
-      className={cn("flex w-14 shrink-0 flex-col items-center justify-center px-1 py-3 text-center", FRANJA_NIVEL[nivel ?? "sin"])}
-      title={nivel ? `${NIVEL_ANALISIS[nivel].etiqueta}: ${NIVEL_ANALISIS[nivel].rango}` : undefined}
-    >
-      {nivel === "sin_senales" ? (
-        <>
-          <CheckCircle2 size={18} aria-hidden />
-          <span className="mt-1 text-[11px] font-medium leading-tight">Sin señales</span>
-        </>
-      ) : typeof it.score === "number" ? (
-        <>
-          <span className="font-mono text-lg font-semibold leading-none tabular-nums">{Math.round(it.score)}</span>
-          <span className="mt-0.5 text-[11px] leading-none">/100</span>
-          {nivel && <span className="sr-only">{NIVEL_ANALISIS[nivel].etiqueta}</span>}
-        </>
-      ) : (
-        <span className="text-[11px] leading-tight">Sin dato</span>
+      className={cn(
+        "relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-4 py-2.5 transition-colors duration-rapido focus-within:bg-paperSoft hover:bg-paperSoft lg:items-center",
+        COLUMNAS,
       )}
+    >
+      <div className="min-w-0">
+        <ChipNivel it={it} conPuntaje />
+      </div>
+
+      <div className="col-span-2 min-w-0 lg:col-span-1">
+        <Link
+          href={hrefDe(it)}
+          prefetch={false}
+          title={titulo}
+          className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink outline-none after:absolute after:inset-0 hover:text-granate focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-granate lg:truncate"
+        >
+          {titulo}
+        </Link>
+        <p className="mt-0.5 flex min-w-0 items-baseline gap-x-2.5 text-[12px] text-mute">
+          <span className="shrink-0 font-mono tabular-nums text-inkSoft">{codigo}</span>
+          {zona && <span className="shrink-0 xl:hidden">{zona}</span>}
+          {tipo && <span className="shrink-0 xl:hidden">{tipo}</span>}
+          <span className="min-w-0 truncate">{it.entidad || "Entidad sin dato"}</span>
+        </p>
+      </div>
+
+      <span className="hidden text-[12.5px] text-inkSoft xl:inline-flex xl:items-center xl:gap-1.5">
+        {tipo ? (
+          <>
+            <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", CAT_TONE[it._cat as CatFilter])} />
+            {tipo}
+          </>
+        ) : (
+          <span className="text-mute">Sin tipo</span>
+        )}
+      </span>
+      <span className="hidden truncate text-[12.5px] text-inkSoft xl:block" title={zona ?? undefined}>
+        {zona ?? <span className="text-mute">Sin dato</span>}
+      </span>
+
+      <span className="font-mono text-[12.5px] tabular-nums text-inkSoft lg:text-right">
+        {it.monto > 0 ? (
+          <>
+            <span className="sr-only">Adjudicado </span>
+            {soles(it.monto)}
+          </>
+        ) : (
+          <span className="font-sans text-mute">
+            <span className="lg:hidden">Monto </span>
+            <span className="lg:hidden">sin dato</span>
+            <span className="hidden lg:inline">Sin dato</span>
+          </span>
+        )}
+      </span>
+
+      <ConteoFila it={it} />
+
+      <span className="col-start-2 row-start-1 justify-self-end text-[12px] tabular-nums text-mute lg:col-start-auto lg:row-start-auto lg:justify-self-auto">
+        <span className="lg:hidden">leído </span>
+        <time dateTime={it.analizado_en}>{relativo(it.analizado_en)}</time>
+      </span>
+    </div>
+  );
+}
+
+/** Señales publicadas del contrato: el total y, al lado, cuántas de cada severidad (ícono + número). */
+function ConteoFila({ it }: { it: any }) {
+  const n = Number(it.n_banderas) || 0;
+  const partes = (["alta", "media", "baja"] as const).filter((k) => Number(it[`n_${k}`]) > 0);
+  return (
+    <span className="inline-flex items-center gap-2 justify-self-end text-[12.5px] tabular-nums lg:justify-self-auto">
+      <span className={n > 0 ? "font-semibold text-ink" : "text-mute"}>
+        {numero(n)}
+        <span className="lg:sr-only"> {n === 1 ? "señal" : "señales"}</span>
+      </span>
+      {partes.map((k) => (
+        <span key={k} className="inline-flex items-center gap-0.5 text-inkSoft">
+          <Severidad bandera={k} formato="punto" />
+          {numero(Number(it[`n_${k}`]))}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * El peso del riesgo de un análisis, con la palabra de lib/severidad. Con señales puede llevar
+ * el puntaje al lado (nunca sin señales, §10.4). Lo usa también el autocompletado del equipo.
+ */
+export function ChipNivel({ it, conPuntaje = false }: { it: any; conPuntaje?: boolean }) {
+  const nivel = nivelDeAnalisis(it);
+  if (!nivel) return <span className="pill border-line bg-paperDeep text-mute">Sin dato</span>;
+  const ui = UI_NIVEL[nivel];
+  const Icono = ICONO_SEVERIDAD[ui.icono];
+  const puntaje = conPuntaje && nivel !== "sin_senales" && typeof it.score === "number" ? Math.round(it.score) : null;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={cn("pill whitespace-nowrap", ui.fondo, ui.texto, ui.borde)} title={NIVEL_ANALISIS[nivel].rango}>
+        <Icono size={11} aria-hidden />
+        {ui.etiqueta}
+      </span>
+      {puntaje != null && (
+        <span className="font-mono text-[12px] tabular-nums text-inkSoft">
+          <span className="sr-only">puntaje </span>
+          {puntaje}
+          <span className="sr-only"> de 100</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+const SELECT =
+  "h-9 rounded-full border border-line bg-paper px-3 text-[12.5px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 focus:border-granate focus:outline-none";
+
+/** Chip de filtro: granate = elegido (la marca), como en /app/hallazgos; nunca un nivel de riesgo. */
+function Chip({
+  activo,
+  onClick,
+  titulo,
+  children,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  titulo?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      title={titulo}
+      className={cn(
+        "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-medium transition-colors duration-rapido",
+        activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Cuenta({ n }: { n: number }) {
+  return <span className="font-semibold tabular-nums">{numero(n)}</span>;
+}
+
+/** La forma de la tabla que va a llegar, sin cifras provisionales. */
+function EsqueletoTabla({ filas = 8 }: { filas?: number }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-line bg-paper" aria-busy="true" aria-label="Cargando los análisis publicados…">
+      <div className="border-b border-line bg-paperSoft px-4 py-2.5">
+        <Skeleton className="h-3 w-48" />
+      </div>
+      <ul>
+        {Array.from({ length: filas }).map((_, i) => (
+          <li key={i} className={cn("grid grid-cols-1 items-center gap-3 border-b border-line/70 px-4 py-3 last:border-b-0", COLUMNAS)}>
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-3.5 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="hidden h-3 w-14 xl:block" />
+            <Skeleton className="hidden h-3 w-16 xl:block" />
+            <Skeleton className="hidden h-3 w-16 lg:block" />
+            <Skeleton className="hidden h-3 w-12 lg:block" />
+            <Skeleton className="hidden h-3 w-10 lg:block" />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

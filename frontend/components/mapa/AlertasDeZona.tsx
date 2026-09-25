@@ -6,7 +6,7 @@ import { ArrowUpRight } from "lucide-react";
 import { getAlertas } from "@/lib/api-client";
 import { formatSoles, plural } from "@/lib/formato";
 import { nivelDeScore, type NivelSeveridad } from "@/lib/severidad";
-import { EstadoVacio } from "@/components/patrones";
+import { Ayuda, EstadoVacio } from "@/components/patrones";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { cn } from "@/lib/utils";
@@ -88,15 +88,19 @@ export function AlertasDeZona({
     <div className="space-y-3">
       {rows.length === 0 ? (
         <EstadoVacio compacto titulo={`Todavía no hay contratos de riesgo medio o alto en ${nombre}`}>
-          Aparecen cuando un contrato de la zona termina de leerse y las señales de su dictamen suman un peso del riesgo
-          medio o alto, cada una con su norma citada.
+          Aparecen cuando un contrato de la zona termina de leerse y sus señales suman ese peso.
         </EstadoVacio>
       ) : (
         <>
-          <p className="text-[12px] tabular-nums text-inkSoft">
-            <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio o
-            alto en {nombre}
-            {total > rows.length ? `; se muestran los ${rows.length} de mayor peso` : ""}.
+          <p className="flex flex-wrap items-center gap-x-1 text-[12px] tabular-nums text-inkSoft">
+            <span>
+              <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio
+              o alto{total > rows.length ? `; los ${rows.length} de mayor peso` : ""}
+            </span>
+            {/* Lo que antes era una nota al pie abierta, a un clic (§10.7). */}
+            <Ayuda titulo="¿Qué es una señal de riesgo?">
+              Un indicio, no una acusación. Cada una cita la norma y enlaza a la fuente oficial.
+            </Ayuda>
           </p>
           <ul className="space-y-1.5">
             {rows.map((a) => (
@@ -122,10 +126,7 @@ export function AlertasDeZona({
         </details>
       )}
 
-      <p className="text-[11px] leading-relaxed text-mute">
-        Señales de riesgo, no acusaciones. Cada una cita la norma y enlaza a la fuente oficial.
-      </p>
-      <Link href="/app/hallazgos" className="block text-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+      <Link href="/app/hallazgos" className="inline-flex min-h-[24px] items-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
         Ver todas las señales del país
       </Link>
     </div>

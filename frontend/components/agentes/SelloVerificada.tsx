@@ -14,6 +14,7 @@
 
 import { ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 
 const SELLO = {
@@ -72,17 +73,34 @@ export function SelloVerificada({ verificada, className }: { verificada: boolean
 }
 
 /**
- * Cuando NINGUNA señal del análisis trae registro de cotejo, veinte sellos grises idénticos no
- * informan: informa una línea. Se declara la ausencia en vez de dejar el vacío sin explicar.
+ * La cifra del cotejo del análisis, en una línea con su explicación a un clic (DESIGN_SYSTEM.md
+ * §10.7): "1 de 3 cotejadas ⓘ" o "Sin cotejo registrado ⓘ". Antes eran tres líneas al pie de la
+ * lista. Cuando NINGUNA señal trae registro de cotejo, veinte sellos grises idénticos no
+ * informan: informa esta línea, que declara la ausencia en vez de dejar el vacío sin explicar.
  */
-export function AvisoSinCotejo({ n }: { n: number }) {
-  return (
-    <p className="flex items-start gap-2 border-t border-line bg-paperSoft px-5 py-2.5 text-[12px] leading-snug text-mute">
-      <ShieldQuestion size={13} className="mt-0.5 shrink-0" aria-hidden />
-      <span>
-        Ninguna de las {n} señales trae el cotejo automático contra la fuente oficial: este análisis
-        no guardó ese campo. Cada señal conserva su norma y su enlace a la fuente para comprobarla a mano.
+export function LeyendaCotejo({ verificadas, conCotejo, total }: { verificadas: number; conCotejo: number; total: number }) {
+  if (conCotejo === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[13px] text-mute">
+        <ShieldQuestion size={13} className="shrink-0" aria-hidden />
+        Sin cotejo registrado
+        <Ayuda titulo="¿Por qué sin cotejo?">
+          Ninguna de las {total} señales trae el cotejo automático contra la fuente oficial: este análisis no guardó ese
+          campo. Cada señal conserva su norma y su enlace a la fuente para comprobarla a mano.
+        </Ayuda>
       </span>
-    </p>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[13px] text-inkSoft">
+      <ShieldCheck size={13} className="shrink-0 text-mossTexto" aria-hidden />
+      <span className="tabular-nums">
+        <strong className="font-semibold text-ink">{verificadas}</strong> de {total} cotejadas
+      </span>
+      <Ayuda titulo="¿Qué es una señal cotejada?">
+        El propio análisis la volvió a comprobar contra su fuente oficial (el registro del proceso, la SUNAT o el
+        documento del expediente). Las demás siguen siendo una pista que hay que comprobar.
+      </Ayuda>
+    </span>
   );
 }

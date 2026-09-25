@@ -3,13 +3,13 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo, LeyendaCotejo } from "@/components/alertas/SelloCotejo";
 import { SenalDetalle } from "@/components/alertas/SenalDetalle";
 import { TextoProtegido } from "@/components/alertas/Protegido";
 import { TOTAL_FASES } from "@/lib/auditoria";
-import { soles } from "@/lib/formato";
+import { plural, soles } from "@/lib/formato";
 import { senalesQueryParams, type Senal, type SenalesQuery } from "@/lib/revision";
 
 /**
@@ -104,19 +104,22 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
 
   return (
     <div className="space-y-3">
-      <LeyendaCotejo cotejadas={cotejadas} total={total} />
-
-      {contratosSinDetalle > 0 && (
-        <p className="rounded-xl border border-dashed border-line bg-paperSoft px-3 py-2 text-[12.5px] leading-relaxed text-mute">
-          En todo el índice hay {contratosSinDetalle}{" "}
-          {contratosSinDetalle === 1 ? "contrato cuya ficha ya no aparece" : "contratos cuyas fichas ya no aparecen"} en el
-          portal de contrataciones abiertas del OECE. Sus señales se listan igual, con la norma y la evidencia que se
-          guardaron, pero sin saber qué agente las encontró ni si se volvieron a comprobar: aparecen como “agente no
-          registrado”, no con un agente supuesto.
-        </p>
-      )}
-
-      {pag}
+      {/* Una sola barra: la cifra del cotejo, el aviso (una línea + ⓘ) y la paginación. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <LeyendaCotejo cotejadas={cotejadas} total={total} />
+          {contratosSinDetalle > 0 && (
+            <span className="inline-flex items-center gap-1 text-[13px] text-mute">
+              {plural(contratosSinDetalle, "contrato ya no figura", "contratos ya no figuran")} en el OECE
+              <Ayuda titulo="¿Qué pasa con esas señales?">
+                Se listan igual, con la norma y la evidencia que se guardaron, pero sin saber qué agente las encontró:
+                aparecen como &ldquo;agente no registrado&rdquo;, no con un agente supuesto.
+              </Ayuda>
+            </span>
+          )}
+        </div>
+        {pag}
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <div

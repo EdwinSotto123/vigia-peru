@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { solesCompacto } from "@/lib/formato";
+import { maskDnis } from "@/lib/privacidad";
 import { getReporte, getReportes, getConvergencias, getAlerta, type ApiConvergencia, type ApiReporte } from "@/lib/api-client";
 import { CATEGORIA_META, estaConfirmada, tieneUbicacion, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { REGIONES } from "@/lib/peru-data";
@@ -22,7 +23,7 @@ import { CompartirDenuncia } from "@/components/denuncias/CompartirDenuncia";
 import { fechaDeDenuncia, haceCuantoSeReporto } from "@/components/denuncias/fechaDenuncia";
 import { TextoProtegido } from "@/components/alertas/Protegido";
 import { Severidad } from "@/components/ui/Severidad";
-import { EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
 
 export function generateMetadata({ params }: { params: { id: string } }): Metadata {
   return { title: `Denuncia ${decodeURIComponent(params.id)}` };
@@ -76,7 +77,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
   const codigoAlerta = alerta?.codigo_convocatoria ?? null;
 
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
         <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
       </Link>
@@ -136,13 +137,6 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
             )}
           </div>
 
-          {meta && (
-            <section className={`${TARJETA} p-5`}>
-              <h2 className="font-display text-lg font-bold text-ink">Sobre esta categoría: {meta.label.toLowerCase()}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-inkSoft">{meta.descripcion}</p>
-            </section>
-          )}
-
           {convergencia && (
             // Sección de dato sobre tinta: acento maíz y `sobre-oscuro` para que el foco se vea.
             <section className="sobre-oscuro rounded-2xl bg-ink p-6 text-paper">
@@ -201,36 +195,29 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
         </article>
 
         <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-          <div className={`${TARJETA} p-5`}>
+          {/* El estado como chip + una línea; cuándo se confirma, a un clic (§10.7). */}
+          <div className={`${TARJETA} p-4`}>
             <h2 className="text-xs font-semibold text-mute">Estado de la denuncia</h2>
-            <div className="mt-2 flex items-center gap-3">
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
               {confirmada ? (
-                <>
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-moss/10 text-mossTexto">
-                    <CheckCircle2 size={22} aria-hidden />
-                  </span>
-                  <div>
-                    <div className="font-display text-lg font-bold text-mossTexto">Confirmada</div>
-                    <div className="text-[12px] text-mute">
-                      La respaldan {rep.confirmaciones} reportes independientes del mismo lugar.
-                    </div>
-                  </div>
-                </>
+                <span className="pill border-moss/30 bg-moss/10 font-semibold text-mossTexto">
+                  <CheckCircle2 size={12} aria-hidden /> Confirmada
+                </span>
               ) : (
-                <>
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-paperDeep text-mute">
-                    <Clock size={22} aria-hidden />
-                  </span>
-                  <div>
-                    <div className="font-display text-lg font-bold text-ink">Sin confirmar</div>
-                    <div className="text-[12px] text-mute">
-                      La respalda un solo reporte. Figura como confirmada cuando la respaldan dos o más reportes
-                      independientes del mismo lugar.
-                    </div>
-                  </div>
-                </>
+                <span className="pill border-line bg-paperDeep text-inkSoft">
+                  <Clock size={12} aria-hidden /> Sin confirmar
+                </span>
               )}
-            </div>
+              <span className="text-[13px] text-inkSoft">
+                {confirmada
+                  ? `La respaldan ${rep.confirmaciones} reportes independientes del mismo lugar.`
+                  : "La respalda un solo reporte."}
+              </span>
+              <Ayuda titulo="¿Cuándo se confirma una denuncia?">
+                Figura como confirmada cuando la respaldan dos o más reportes independientes del mismo lugar. Nadie la
+                edita antes de publicarla.
+              </Ayuda>
+            </p>
           </div>
 
           <div className={`${TARJETA} overflow-hidden`}>
@@ -247,7 +234,16 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                   sub={cuando && cuando !== fecha ? cuando : undefined}
                 />
               )}
-              <Row icon={<ShieldAlert size={13} />} label="Categoría" value={meta?.label ?? "Sin categoría"} />
+              <Row
+                icon={<ShieldAlert size={13} />}
+                label="Categoría"
+                value={meta?.label ?? "Sin categoría"}
+                ayuda={
+                  meta ? (
+                    <Ayuda titulo={`¿Qué es «${meta.label.toLowerCase()}»?`}>{meta.descripcion}</Ayuda>
+                  ) : undefined
+                }
+              />
               <Row icon={<Camera size={13} />} label="Foto" value={rep.fotoUrl ? "Con foto" : "Sin foto"} />
               <Row
                 icon={conUbicacion ? <MapPin size={13} /> : <MapPinOff size={13} />}
@@ -285,9 +281,8 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                           <CIcon size={13} aria-hidden />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="line-clamp-1 text-xs font-medium text-ink">
-                            <TextoProtegido texto={c.descripcion ?? ""} nombres={[]} />
-                          </div>
+                          {/* Dentro de un enlace no cabe el vidrio revelable (sería un botón dentro de un <a>): DNI tapado sin más. */}
+                          <div className="line-clamp-1 text-xs font-medium text-ink">{maskDnis(c.descripcion)}</div>
                           <div className="font-mono text-[11px] text-mute" translate="no">{c.id}</div>
                         </div>
                         <ChevronRight size={12} className="shrink-0 text-mute" aria-hidden />
@@ -300,13 +295,13 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
           )}
         </aside>
       </div>
-    </div>
+    </Pagina>
   );
 }
 
 function NoSePudoLeer({ id }: { id: string }) {
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
         <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
       </Link>
@@ -321,7 +316,7 @@ function NoSePudoLeer({ id }: { id: string }) {
       >
         El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
       </EstadoError>
-    </div>
+    </Pagina>
   );
 }
 
@@ -330,18 +325,24 @@ function Row({
   label,
   value,
   sub,
+  ayuda,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   sub?: string;
+  /** `<Ayuda>` ya armado, junto al valor. */
+  ayuda?: React.ReactNode;
 }) {
   return (
     <div className="flex gap-2.5 px-4 py-2.5">
       <div className="mt-0.5 text-mute" aria-hidden>{icon}</div>
       <div className="min-w-0 flex-1">
         <dt className="text-xs text-mute">{label}</dt>
-        <dd className="text-sm font-medium text-ink">{value}</dd>
+        <dd className="flex items-center gap-1 text-sm font-medium text-ink">
+          {value}
+          {ayuda}
+        </dd>
         {sub && <div className="text-[11px] text-mute">{sub}</div>}
       </div>
     </div>

@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, ChevronRight, ShieldCheck } from "lucide-react";
+import { Activity, ChevronRight, Radio, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { Avatar } from "@/components/financiar/RankingTable";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Revelar } from "@/components/ui/Revelar";
+import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
-import { ESTADO_LABEL, ESTADO_PUNTO, alcanceCorto, alcanceLargo, getPago, getZona } from "@/lib/financiamiento";
-import { numero, porcentaje, soles } from "@/lib/formato";
-import { getProcesamientos } from "@/lib/auditoria";
+import { EstadoPill } from "@/components/auditoria/EstadoPill";
+import { ESTADO_LABEL, ESTADO_PUNTO, alcanceLargo, getPago, getZona } from "@/lib/financiamiento";
+import { numero, plural, porcentaje, soles } from "@/lib/formato";
+import { estadoVisible, getProcesamientos, type EstadoProc, type Procesamiento } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -23,11 +26,29 @@ const NIVEL: Record<string, string> = { departamento: "Región", provincia: "Pro
 /** Porcentaje legible: con un decimal bajo 10 %, entero arriba ("0.3 %", "42 %"). */
 const pctTxt = (v: number) => porcentaje(v, { decimales: v > 0 && v < 10 ? 1 : 0 });
 
+/** Filas del "en vivo" visibles en la página; el tablero completo se abre en el panel. */
+const FILAS_VIVO = 6;
+
+/** Orden de la vista previa: lo que se mueve primero, luego lo que espera, al final lo ya leído. */
+const PRIORIDAD: Record<EstadoProc, number> = {
+  procesando: 0,
+  encolado: 1,
+  esperando_documentos: 2,
+  error: 3,
+  pendiente_de_procesamiento: 4,
+  procesado: 5,
+  revision: 5,
+};
+
+/** Clase de una cifra dentro de una línea de datos (§10.7). */
+const CIFRA = "font-semibold text-ink";
+
 /**
  * Ficha de una zona para financiar su lectura. Una sola pregunta: ¿cuántos contratos de
  * esta zona quieres que se lean? La respuesta (el formulario, o por qué hoy no se puede)
  * va primero en el celular y pegada a la derecha en escritorio; a la izquierda, lo que
- * hace falta para decidir: cuánto hay en cola, cuánto ya se financió y leyó, y quién.
+ * hace falta para decidir, en líneas de datos (§10.7): cuánto hay en cola, cuánto ya se
+ * financió y leyó, qué se está leyendo y quién financió. Las explicaciones, a un clic.
  */
 export default async function ZonaPage({ params }: { params: { ubigeo: string } }) {
   const [d, pago] = await Promise.all([getZona(params.ubigeo), getPago()]);
@@ -45,7 +66,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
   const enRevision = zona.enRevision ?? 0;
 
   return (
-    <div className="container-page py-8 sm:py-10">
+    <Pagina className="space-y-5">
       <nav aria-label="Ubicación" className="flex flex-wrap items-center gap-1 text-sm text-inkSoft">
         <Link href="/app/financiar" className="inline-flex min-h-[24px] items-center underline-offset-2 hover:text-ink hover:underline">Perú</Link>
         {breadcrumb.map((b) => (
@@ -60,108 +81,141 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
         ))}
       </nav>
 
-      <div className="mt-4 grid gap-8 lg:grid-cols-[1.1fr_1fr]">
-        <div className="min-w-0 space-y-6">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">
+        <div className="min-w-0 space-y-7">
           {/* Identidad de la zona: nombre, qué es y en qué estado está. Sin kicker encima del título. */}
-          <header>
-            <h1 className="font-display text-[32px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[40px]">{zona.nombre}</h1>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-inkSoft">
-              <span>{NIVEL[zona.nivel] ?? zona.nivel}</span>
-              <span className="pill border-line bg-paper text-inkSoft">
-                <span className={cn("h-2 w-2 rounded-full", ESTADO_PUNTO[zona.estado])} aria-hidden />
-                {ESTADO_LABEL[zona.estado]}
+          <EncabezadoPagina
+            titulo={zona.nombre}
+            bajada={
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span>{NIVEL[zona.nivel] ?? zona.nivel}</span>
+                <span className="pill border-line bg-paper text-inkSoft">
+                  <span className={cn("h-2 w-2 rounded-full", ESTADO_PUNTO[zona.estado])} aria-hidden />
+                  {ESTADO_LABEL[zona.estado]}
+                </span>
               </span>
-            </p>
-          </header>
+            }
+          />
 
-          {/* Progreso: cifras reales desde el servidor, cada una con su contexto. */}
-          <section aria-labelledby="progreso-titulo" className="rounded-2xl border border-line bg-paper p-5">
+          {/* Progreso en UNA línea de datos, cada cifra con su denominador (§10.2), y la barra. */}
+          <section aria-labelledby="progreso-titulo" className="space-y-2">
             <h2 id="progreso-titulo" className="sr-only">Cuánto se financió y se leyó en {zona.nombre}</h2>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-              <Dato etiqueta="En cola" valor={numero(enCola)} contexto={`esperan financiamiento (${alcanceCorto(d.alcance)})`} />
-              <Dato etiqueta="Costo de leerlos" valor={soles(enCola * zona.precioPen)} contexto={`${soles(zona.precioPen)} por contrato`} />
-              <Dato etiqueta="Financiados" valor={numero(zona.financiados)} contexto={`de ${numero(zona.totalCola)} que entraron a la cola`} />
-              <Dato
-                etiqueta="Financiados leídos"
-                valor={numero(zona.procesados)}
-                contexto={
-                  zona.financiados > 0 ? (
-                    <>
-                      de {numero(zona.financiados)}; {numero(zona.senales)} con señales
-                      {enRevision > 0 && <>, {numero(enRevision)} en revisión</>}
-                    </>
-                  ) : (
-                    "ningún contrato financiado todavía"
-                  )
-                }
-              />
-            </dl>
-            <div className="mt-5">
-              <div
-                className="relative h-2.5 overflow-hidden rounded-full bg-paperDeep"
-                role="img"
-                aria-label={`${pctTxt(pFin)} financiado y ${pctTxt(pProc)} leído de ${numero(zona.totalCola)} contratos`}
-              >
-                <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300" style={{ width: `${pFin > 0 ? Math.max(1, pFin) : 0}%` }} />
-                <div className="absolute inset-y-0 left-0 rounded-full bg-moss" style={{ width: `${pProc > 0 ? Math.max(1, pProc) : 0}%` }} />
-              </div>
-              <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-inkSoft">
-                <li className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-granate-300" aria-hidden /> Financiado: <span className="font-mono tabular-nums text-ink">{pctTxt(pFin)}</span>
+            <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+              <li className="inline-flex items-center gap-1">
+                <span>
+                  <strong className={CIFRA}>{numero(enCola)}</strong> en cola
+                </span>
+                <Ayuda titulo="¿Qué entra a la cola?">
+                  <span className="block">{alcanceLargo(d.alcance)}</span>
+                  <span className="mt-2 block text-mute">La zona es la sede de la entidad que contrata.</span>
+                </Ayuda>
+              </li>
+              <li>
+                <strong className={CIFRA}>{soles(enCola * zona.precioPen)}</strong> leerlos, a {soles(zona.precioPen)} cada uno
+              </li>
+              <li>
+                <strong className={CIFRA}>{numero(zona.financiados)}</strong> de {numero(zona.totalCola)} financiados
+              </li>
+              {zona.financiados > 0 ? (
+                <li>
+                  <strong className={CIFRA}>{numero(zona.procesados)}</strong> de {numero(zona.financiados)} leídos,{" "}
+                  {numero(zona.senales)} con señales
+                  {enRevision > 0 && <>, {numero(enRevision)} en revisión</>}
                 </li>
-                <li className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-moss" aria-hidden /> Leído: <span className="font-mono tabular-nums text-ink">{pctTxt(pProc)}</span>
-                </li>
-              </ul>
+              ) : (
+                <li className="text-mute">Ningún contrato financiado todavía</li>
+              )}
+            </ul>
+            <div
+              className="relative h-2 overflow-hidden rounded-full bg-paperDeep"
+              role="img"
+              aria-label={`${pctTxt(pFin)} financiado y ${pctTxt(pProc)} leído de ${numero(zona.totalCola)} contratos`}
+            >
+              <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300" style={{ width: `${pFin > 0 ? Math.max(1, pFin) : 0}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-full bg-moss" style={{ width: `${pProc > 0 ? Math.max(1, pProc) : 0}%` }} />
             </div>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-inkSoft">
+              <li className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-granate-300" aria-hidden /> Financiado: <span className="font-mono tabular-nums text-ink">{pctTxt(pFin)}</span>
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-moss" aria-hidden /> Leído: <span className="font-mono tabular-nums text-ink">{pctTxt(pProc)}</span>
+              </li>
+            </ul>
           </section>
 
-          {/* Qué hay en la cola */}
-          <section aria-labelledby="cola-titulo" className="rounded-2xl border border-line bg-paper p-5">
+          {/* Qué hay en la cola: una línea de datos; el porqué del orden, a un clic. */}
+          <section aria-labelledby="cola-titulo">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="cola-titulo" className="font-display text-lg font-bold text-ink">Qué hay en la cola</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 id="cola-titulo" className="font-display text-lg font-bold text-ink">Qué hay en la cola</h2>
+                <Ayuda titulo="¿Quién elige qué se lee?">
+                  Los contratos son públicos y puedes verlos, pero se leen en orden de llegada: quien financia no elige
+                  cuáles.
+                </Ayuda>
+              </div>
               <Link href={`/app/contratos?ubigeo=${zona.ubigeo}`} className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
                 Ver los contratos <ChevronRight size={13} aria-hidden />
               </Link>
             </div>
-            <p className="mt-1 text-sm leading-relaxed text-inkSoft">
-              Los contratos son públicos y puedes verlos, pero se leen en orden de llegada: quien financia no elige cuáles.
-            </p>
-            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
-              <DatoCola etiqueta="Contratos en cola" valor={numero(cola.contratos)} nota={alcanceCorto(d.alcance)} />
-              <DatoCola etiqueta="Valor referencial" valor={soles(cola.montoReferencial)} nota="lo convocado, no lo pagado" />
-              <DatoCola etiqueta="Entidades" valor={numero(cola.entidades)} />
-              <DatoCola etiqueta="Documentos listos" valor={numero(cola.documentosListos)} nota="de tipos que aún no entran a la cola" />
-            </dl>
-            <details className="mt-3 text-[13px] text-inkSoft">
-              <summary className="inline-flex min-h-[24px] cursor-pointer select-none items-center font-medium text-granate underline decoration-dotted underline-offset-2">
-                ¿Qué se lee hoy?
-              </summary>
-              <p className="mt-1 leading-relaxed">{alcanceLargo(d.alcance)}</p>
-            </details>
+            <ul className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+              {/* Todo lo que entró a la cola, financiado o no: "en cola" (§10.1) es sólo lo que
+                  espera financiamiento, y ya está arriba. */}
+              <li>
+                <strong className={CIFRA}>{numero(cola.contratos)}</strong> entraron a la cola
+              </li>
+              <li className="inline-flex items-center gap-1">
+                <span>
+                  <strong className={CIFRA}>{soles(cola.montoReferencial)}</strong> valor referencial
+                </span>
+                <Ayuda titulo="¿Qué es el valor referencial?">Lo que la entidad convocó, no lo que terminó pagando.</Ayuda>
+              </li>
+              <li>
+                <strong className={CIFRA}>{numero(cola.entidades)}</strong> entidades
+              </li>
+              <li className="inline-flex items-center gap-1">
+                <span>
+                  <strong className={CIFRA}>{numero(cola.documentosListos)}</strong> documentos listos
+                </span>
+                <Ayuda titulo="¿Qué son los documentos listos?">
+                  Contratos de tipos que todavía no entran a la cola, con sus documentos ya descargados. Entran cuando su
+                  análisis se active.
+                </Ayuda>
+              </li>
+            </ul>
           </section>
 
-          {/* En vivo ahora */}
-          <section aria-labelledby="vivo-titulo" className="rounded-2xl border border-line bg-paper p-5">
+          {/* En vivo: una vista previa de una línea por contrato; el tablero que se refresca solo, en el panel. */}
+          <section aria-labelledby="vivo-titulo">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="vivo-titulo" className="inline-flex items-center gap-2 font-display text-lg font-bold text-ink">
                 <Activity size={16} className={zona.financiados > 0 ? "text-moss" : "text-mute"} aria-hidden />
                 En vivo en {zona.nombre}
               </h2>
+              {/* Un solo disparador: el panel trae el tablero que se refresca solo y, al pie, el
+                  enlace al tablero completo de la región. */}
               {zona.financiados > 0 && (
-                <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
-                  Ver el tablero completo <ChevronRight size={13} aria-hidden />
-                </Link>
+                <Revelar
+                  titulo={`En vivo en ${zona.nombre}`}
+                  descripcion="Cada contrato financiado, de la cola a la lectura. Se actualiza solo."
+                  etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
+                  ancho="lg"
+                  className="inline-flex min-h-[24px] w-auto items-center gap-1 text-[13px] font-medium text-granate hover:underline"
+                  detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />}
+                  pie={
+                    <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
+                      Ver el tablero completo <ChevronRight size={13} aria-hidden />
+                    </Link>
+                  }
+                >
+                  <Radio size={13} aria-hidden /> Ver en vivo
+                </Revelar>
               )}
             </div>
             {zona.financiados > 0 ? (
-              <div className="mt-3">
-                <TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />
-              </div>
+              <VistaPreviaVivo items={enVivo} />
             ) : (
-              <p className="mt-1 text-sm leading-relaxed text-inkSoft">
-                Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola a la lectura.
-              </p>
+              <p className="mt-1 text-sm text-inkSoft">Cuando alguien financie esta zona, verás aquí cada contrato pasar a la lectura.</p>
             )}
           </section>
 
@@ -172,7 +226,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
                 <h2 id="hijas-titulo" className="font-display text-lg font-bold text-ink">{zona.nivel === "departamento" ? "Provincias" : "Distritos"}</h2>
                 <span className="text-[12px] text-mute">financiados / en cola</span>
               </div>
-              <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+              <ul className="mt-2 grid overflow-hidden rounded-2xl border border-line bg-paper sm:grid-cols-2 [&>li+li]:border-t [&>li]:border-line sm:[&>li:nth-child(2)]:border-t-0 sm:[&>li:nth-child(even)]:border-l">
                 {hijas.map((h) => (
                   <li key={h.ubigeo}>
                     <Link href={`/app/financiar/${h.ubigeo}`} className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-paperSoft">
@@ -200,7 +254,7 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
           <section aria-labelledby="aliados-titulo">
             <h2 id="aliados-titulo" className="font-display text-lg font-bold text-ink">Quién financió la lectura aquí</h2>
             {aliados.length ? (
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {aliados.map((a) => (
                   <li key={a.nombre + a.contratos} className="flex items-center gap-3 rounded-2xl border border-line bg-paper px-3 py-2.5">
                     <Avatar tipo={a.tipo} logoUrl={a.logoUrl} nombre={a.nombre} />
@@ -216,24 +270,23 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 rounded-2xl border border-dashed border-line px-4 py-4 text-sm text-inkSoft">
-                Nadie ha financiado la lectura de {zona.nombre} todavía. El primer aporte abre esta lista.
-              </p>
+              <p className="mt-1 text-sm text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
             )}
           </section>
 
-          <p className="flex items-start gap-2.5 rounded-2xl bg-paperSoft p-4 text-[13px] leading-relaxed text-inkSoft">
-            <ShieldCheck size={16} className="mt-0.5 shrink-0 text-granate" aria-hidden />
-            <span>
-              Financias capacidad de lectura. Los contratos se asignan por antigüedad y los resultados se publican aunque
-              señalen a quien financió.{" "}
-              <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>.
-            </span>
+          {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+            <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
+            <span>Financias capacidad de lectura, no resultados.</span>
+            <Ayuda titulo="¿Qué garantiza la independencia?">
+              Los contratos se asignan por antigüedad y los resultados se publican aunque señalen a quien financió.
+            </Ayuda>
+            <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
         </div>
 
         {/* En móvil la respuesta va PRIMERO (se llega desde "Financiar esta zona"); en escritorio, columna derecha pegajosa. */}
-        <div className="order-first lg:order-last lg:sticky lg:top-24 lg:self-start" id="aportar">
+        <section aria-label={`Financiar la lectura de ${zona.nombre}`} className="order-first lg:order-last lg:sticky lg:top-6 lg:self-start" id="aportar">
           {zona.totalCola > 0 ? (
             <ContribuirForm
               ubigeo={zona.ubigeo}
@@ -244,7 +297,6 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
               pagoConfigurado={!!pago?.configurado}
               padre={padre ? { ubigeo: padre.ubigeo, nombre: padre.nombre } : null}
               financiados={zona.financiados}
-              procesados={zona.procesados}
             />
           ) : (
             <TarjetaConfirmacion
@@ -257,34 +309,73 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
                 )
               }
             >
-              Cuando el OECE publique contratos de esta zona que entren a la cola, podrás financiar su lectura aquí.
-              Mientras tanto, mira una zona vecina.
+              Podrás financiar su lectura cuando el OECE publique contratos de esta zona que entren a la cola.
             </TarjetaConfirmacion>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </Pagina>
   );
 }
 
-/** Una cifra de la ficha con su contexto. Valor ya formateado en el servidor: se ve igual antes y después de hidratar. */
-function Dato({ etiqueta, valor, contexto }: { etiqueta: string; valor: string; contexto: React.ReactNode }) {
+/**
+ * Vista previa del "en vivo": una fila por contrato —estado, objeto en una línea, entidad
+ * y valor— para lo que se está moviendo ahora. Antes el tablero entero (hasta 60 tarjetas
+ * de cinco renglones) vivía abierto en la página; ahora vive en el panel "Ver en vivo".
+ * Server component: `items` ya viene resuelto del servidor.
+ */
+function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
+  if (!items) {
+    return <p className="mt-1 text-sm text-mute">No se pudo leer el avance ahora mismo. El tablero en vivo lo reintenta solo.</p>;
+  }
+  if (items.length === 0) {
+    return <p className="mt-1 text-sm text-inkSoft">Todavía no hay contratos asignados en esta zona.</p>;
+  }
+  // Sin denominador inventado: la consulta trae hasta 60 filas y no dice cuántas hay en total
+  // (los leídos y financiados de la zona ya están, contados, en la línea de progreso). Sólo se
+  // cuenta lo que en esa muestra es seguro: el API ordena lo que está en análisis primero.
+  const enAnalisis = items.filter((p) => p.estado === "procesando").length;
+  const visibles = [...items].sort((a, b) => PRIORIDAD[estadoVisible(a)] - PRIORIDAD[estadoVisible(b)]).slice(0, FILAS_VIVO);
   return (
-    <div className="min-w-0">
-      <dt className="text-[13px] font-semibold text-ink">{etiqueta}</dt>
-      <dd className="mt-1 font-display text-xl font-extrabold leading-none tabular-nums text-ink sm:text-2xl">{valor}</dd>
-      <dd className="mt-1 text-[12px] leading-snug text-mute">{contexto}</dd>
-    </div>
-  );
-}
-
-/** Dato de la cola: etiqueta, valor en mono y, si hace falta, qué significa. */
-function DatoCola({ etiqueta, valor, nota }: { etiqueta: string; valor: string; nota?: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[12px] text-mute">{etiqueta}</dt>
-      <dd className={cn("font-mono tabular-nums", valor === "Sin dato" ? "text-mute" : "text-ink")}>{valor}</dd>
-      {nota && <dd className="text-[11px] leading-snug text-mute">{nota}</dd>}
+    <div className="mt-2 space-y-2">
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] tabular-nums text-inkSoft">
+        {enAnalisis > 0 && (
+          <span>
+            <strong className={CIFRA}>{numero(enAnalisis)}</strong> en análisis ahora
+          </span>
+        )}
+        <span className="text-mute">
+          {items.length > visibles.length
+            ? `Los ${numero(visibles.length)} que se mueven primero; el resto, en «Ver en vivo».`
+            : plural(visibles.length, "contrato asignado", "contratos asignados")}
+        </span>
+      </p>
+      <ul className="overflow-hidden rounded-2xl border border-line bg-paper">
+        {visibles.map((p) => {
+          const titulo = p.titulo ?? p.ocid;
+          return (
+            <li key={p.ocid} className="border-b border-line/70 last:border-b-0">
+              <Link
+                href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+                className="grid grid-cols-1 gap-x-4 gap-y-1 px-4 py-2.5 transition-colors duration-rapido hover:bg-paperSoft md:grid-cols-[132px_minmax(0,1fr)_112px] md:items-center"
+              >
+                <span className="flex">
+                  <EstadoPill estado={estadoVisible(p)} intentos={p.intentos} />
+                </span>
+                <span className="min-w-0">
+                  <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink md:truncate" title={titulo}>
+                    {titulo}
+                  </span>
+                  <span className="block truncate text-[12px] text-mute">{p.entidad ?? "Entidad no identificada"}</span>
+                </span>
+                <span className="font-mono text-[12px] tabular-nums text-inkSoft md:text-right">
+                  {p.montoPen != null && p.montoPen > 0 ? soles(p.montoPen) : "Sin dato"}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

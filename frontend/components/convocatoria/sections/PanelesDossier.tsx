@@ -35,7 +35,7 @@ import { FirmantesYAdjudicacionSection } from "./FirmantesYAdjudicacionSection";
 import { PersonNetworkSection } from "./PersonNetworkSection";
 import { SeccionSegura } from "./SeccionSegura";
 import { DictamenSection } from "./DictamenSection";
-import type { NombreConocido } from "../../Redact";
+import { redactDnis, type NombreConocido } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
 
 export type TabKey = "resumen" | "dictamen" | "items" | "proveedor" | "documentos" | "prensa" | "trace";
@@ -83,7 +83,7 @@ export function PanelDossier(p: PanelDossierProps) {
 
 // ─── Señales: TODAS las señales con su evidencia; después, el resumen del dictamen ───
 
-function PanelResumen({ result, resumenEjecutivo, banderasArr, noVerificables, corrida, onLeerDictamen }: PanelDossierProps) {
+function PanelResumen({ result, resumenEjecutivo, banderasArr, noVerificables, corrida, nombresPrivados, onLeerDictamen }: PanelDossierProps) {
   const compl = result.compliance || {};
   const causal = (result as any).causal_directa_invocada;
   return (
@@ -99,13 +99,12 @@ function PanelResumen({ result, resumenEjecutivo, banderasArr, noVerificables, c
               perfil={compl.perfil ?? null}
               reglasDisparadas={compl.reglas_disparadas ?? compl.reglasDisparadas ?? null}
               noVerificables={noVerificables}
+              nombresPrivados={nombresPrivados}
             />
           </SeccionSegura>
         ) : corrida.completa ? (
-          <AvisoSeccion titulo="El análisis terminó sin señales">
-            Se evaluaron las reglas de contratación y se escribió el dictamen. Ninguna regla disparó una señal. No es un
-            certificado: es lo que permitieron ver los datos públicos de este proceso.
-          </AvisoSeccion>
+          // El veredicto de arriba ya lo explica (con su ⓘ): aquí sólo el hecho.
+          <AvisoSeccion titulo="El análisis terminó sin señales">Ninguna regla de contratación disparó una señal.</AvisoSeccion>
         ) : (
           <AvisoSeccion titulo="Análisis incompleto: sin señales registradas">
             {corrida.faltan.length > 0 && `Faltó ${corrida.faltan.join(" y ")}. `}
@@ -114,20 +113,24 @@ function PanelResumen({ result, resumenEjecutivo, banderasArr, noVerificables, c
         )}
       </div>
 
+      {/* Anticipo del dictamen (≤ 180 caracteres, ver ResultadoView); el texto entero, en su pestaña. */}
       {resumenEjecutivo && (
         <SeccionSegura nombre="el resumen ejecutivo">
-          <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-            <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
-              <Pen size={14} className="text-mute" aria-hidden /> Resumen del dictamen
-            </h2>
-            <p className="mt-1.5 line-clamp-4 max-w-[68ch] text-sm leading-relaxed text-inkSoft">{resumenEjecutivo}</p>
-            <button
-              type="button"
-              onClick={onLeerDictamen}
-              className="mt-3 inline-flex min-h-[32px] items-center gap-1.5 rounded-full bg-granate px-3.5 py-1.5 text-[13px] font-semibold text-paper transition-colors hover:bg-granate-deep"
-            >
-              Leer el dictamen completo <ChevronRight size={14} aria-hidden />
-            </button>
+          <div className="rounded-2xl border border-line bg-paperSoft px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+                <Pen size={14} className="text-mute" aria-hidden /> Resumen del dictamen
+              </h2>
+              <button
+                type="button"
+                onClick={onLeerDictamen}
+                className="inline-flex min-h-[32px] items-center gap-1 rounded-full text-[13px] font-semibold text-granate hover:underline"
+              >
+                Leer el dictamen completo <ChevronRight size={14} aria-hidden />
+              </button>
+            </div>
+            {/* Pasa por la redacción como el dictamen: un apellido privado no puede quedar en claro aquí. */}
+            <p className="mt-1 line-clamp-2 max-w-[68ch] text-sm leading-relaxed text-inkSoft">{redactDnis(resumenEjecutivo)}</p>
           </div>
         </SeccionSegura>
       )}

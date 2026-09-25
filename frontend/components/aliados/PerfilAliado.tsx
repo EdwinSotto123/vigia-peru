@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Cifras } from "@/components/ui/Cifras";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { IdentidadAliado } from "./IdentidadAliado";
@@ -124,7 +125,13 @@ export function SenalesDeAliado({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-        <h2 className="font-display text-lg font-bold text-ink">Qué se encontró en sus contratos</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="font-display text-lg font-bold text-ink">Qué se encontró en sus contratos</h2>
+          <Ayuda titulo="¿Una señal es una acusación?">
+            No: cada señal se publica con la norma citada y el documento oficial que la sostiene, y se publicó igual sin
+            consultar a {nombre}.
+          </Ayuda>
+        </div>
         <p className="text-[12px] text-mute">
           {visibles.length < senales.length ? (
             <>Mostrando <span className="font-mono tabular-nums">{num(visibles.length)}</span> de{" "}
@@ -134,10 +141,6 @@ export function SenalesDeAliado({
           )}
         </p>
       </div>
-      <p className="max-w-[72ch] text-[13px] leading-relaxed text-mute">
-        Son señales, no acusaciones: cada una se publica con la norma citada y el documento oficial que la
-        sostiene, y se publicó igual sin consultar a {nombre}.
-      </p>
       <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
         {visibles.map((s) => (
           <li key={`${s.codigoAporte}-${s.ocid}`} className="px-4 py-3">
@@ -154,7 +157,11 @@ export function SenalesDeAliado({
               )}
               <Severidad bandera={s.severidad as "alta" | "media" | "baja"} formato="pastilla" />
             </div>
-            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-ink">
+            {/* El objeto en una línea en escritorio (dos en el celular); entero en el `title` (§10.7). */}
+            <p
+              className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-ink md:truncate"
+              title={s.titulo ?? undefined}
+            >
               {s.titulo ?? "Sin objeto declarado en el expediente"}
             </p>
             {/* Cinco datos de naturaleza distinta —entidad, zona, cuántas señales,

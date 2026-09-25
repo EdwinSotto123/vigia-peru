@@ -150,17 +150,18 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
 /** Leyenda compacta de la capa Contratos (para el cuadro de leyenda del mapa): los 5 estados operativos. */
 export function ContratoPinLeyenda() {
   const orden: EstadoOperativoZona[] = ["sin_analizar", "documentos_listos", "en_cola", "procesado", "en_revision"];
+  // Sólo <span>: vive dentro del flotante (un <span>), donde una <ul> es HTML inválido.
   return (
-    <ul className="space-y-1 text-[12px] text-mute">
+    <span className="block space-y-1 text-[12px] text-mute">
       {orden.map((e) => (
-        <li key={e} className="flex items-start gap-1.5">
-          <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[e] }} />
+        <span key={e} className="flex items-start gap-1.5">
+          <span aria-hidden className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[e] }} />
           <span>{ESTADO_OPERATIVO_LABEL[e]}</span>
-        </li>
+        </span>
       ))}
-      <li className="border-t border-line pt-1.5 text-[11px]">
+      <span className="block border-t border-line pt-1.5 text-[11px]">
         Tamaño del punto = cantidad de contratos de la zona. Color = estado predominante.
-      </li>
-    </ul>
+      </span>
+    </span>
   );
 }

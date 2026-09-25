@@ -15,6 +15,7 @@
 import { AlertTriangle, Check } from "lucide-react";
 import { reglaLabel, tipoContratoHumano, type ReglasPerfil } from "@/lib/auditoria";
 import { Popover } from "@/components/ui/Flotante";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { Severidad } from "@/components/ui/Severidad";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
@@ -58,10 +59,16 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
     const m = disparadas.size;
     return (
       <div className="px-5 py-4 text-[12px] leading-relaxed text-mute">
-        <p className="text-ink">
+        <p className="flex flex-wrap items-center gap-1 text-ink">
           {n != null
             ? `Se evaluaron ${n} reglas sobre este contrato y dispararon ${m}.`
             : `Dispararon ${m} ${m === 1 ? "regla" : "reglas"} sobre este contrato.`}
+          {/* Lo que falta se declara, a un clic: no se rellena con el catálogo de otro tipo. */}
+          <Ayuda titulo="¿Y las que no dispararon?">
+            El catálogo de las reglas que no dispararon no llega en esta respuesta: sin el tipo de contrato del análisis
+            (bienes, servicios, obras u otros) no se puede decir cuáles se descartaron, y mostrar el de otro tipo sería
+            inventarlo.
+          </Ayuda>
         </p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {[...disparadas].sort().map((id) => {
@@ -75,11 +82,6 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
             );
           })}
         </ul>
-        <p className="mt-2">
-          El catálogo de las reglas que <em>no</em> dispararon no llega en esta respuesta: sin el
-          tipo de contrato del análisis (bienes, servicios, obras u otros) no se puede decir cuáles se
-          descartaron, y mostrar el de otro tipo sería inventarlo.
-        </p>
       </div>
     );
   }
@@ -150,9 +152,12 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
 
       {otras.length > 0 && (
         <div className="mt-3 border-t border-line pt-2">
-          <p className="text-[12px] text-ink">
-            Otras {otras.length} {otras.length === 1 ? "señal" : "señales"} no salen de estas reglas
-            deterministas sino de lo que leyeron los agentes (expediente, mercado, prensa):
+          <p className="flex flex-wrap items-center gap-1 text-[12px] text-ink">
+            Otras {otras.length} {otras.length === 1 ? "señal sale" : "señales salen"} de lo que leyeron los agentes
+            <Ayuda titulo="¿Por qué no están en la lista de reglas?">
+              No salen de estas reglas deterministas sino de lo que leyeron los agentes: el expediente, los precios de
+              mercado y la prensa.
+            </Ayuda>
           </p>
           <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
             {otras.map((s, i) => (

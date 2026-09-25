@@ -1,5 +1,6 @@
 import { ListOrdered, Scale, ShieldCheck } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
+import { Ayuda } from "@/components/patrones/Ayuda";
 
 /**
  * Las tres reglas que hacen que este muro no sea publicidad, cada una en UNA
@@ -68,18 +69,20 @@ export function ReglasIndependencia() {
 /**
  * La prueba de independencia donde de verdad importa: pegada a la lista de
  * contratos de un aliado concreto, no como letra chica al pie de la página.
- * Es la diferencia entre declarar la independencia y mostrarla.
+ * Es la diferencia entre declarar la independencia y mostrarla. Una línea a la
+ * vista; el mecanismo, en el ⓘ (DESIGN_SYSTEM.md §10.7).
  */
 export function PruebaIndependencia({ nombre }: { nombre: string }) {
   return (
-    <aside className="flex gap-3 rounded-2xl border border-granate/20 bg-granate-50 px-4 py-3.5 sm:px-5">
-      <Scale size={16} className="mt-0.5 shrink-0 text-granate" aria-hidden />
-      <p className="max-w-[72ch] text-[13px] leading-relaxed text-inkSoft">
-        <strong className="font-semibold text-ink">{nombre} no eligió estos contratos.</strong> Al pagar se
-        elige una región y una cantidad; los contratos concretos salen de la cola por antigüedad, en una
-        consulta SQL que corre antes de que arranque la lectura. Quien los lee no recibe el nombre de
-        quien financió, y el dictamen se publica igual si termina señalando a {nombre}.
-      </p>
-    </aside>
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-2xl border border-granate/20 bg-granate-50 px-4 py-2.5 text-[13px] text-inkSoft sm:px-5">
+      <Scale size={15} className="shrink-0 text-granate" aria-hidden />
+      <strong className="font-semibold text-ink">{nombre} no eligió estos contratos.</strong>
+      <span>Salen de la cola por antigüedad.</span>
+      <Ayuda titulo="¿Cómo se asignan?">
+        Al pagar se elige una región y una cantidad; los contratos concretos salen de la cola por antigüedad, en una
+        consulta SQL que corre antes de que arranque la lectura. Quien los lee no recibe el nombre de quien financió,
+        y el dictamen se publica igual si termina señalando a {nombre}.
+      </Ayuda>
+    </p>
   );
 }

@@ -39,7 +39,7 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
                 <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"} en{" "}
                 <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold text-granate underline-offset-2 hover:underline">{c.zona}</Link>
               </p>
-              {mensaje && <p className="mt-0.5 text-[13px] italic text-inkSoft">“{mensaje}”</p>}
+              {mensaje && <p className="mt-0.5 line-clamp-2 text-[13px] italic text-inkSoft" title={mensaje}>“{mensaje}”</p>}
               <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-mute">
                 <span>{relativo(c.pagadaAt)}</span>
                 <Link href={`/impacto/${c.codigo}`} className="font-mono underline-offset-2 hover:text-ink hover:underline">

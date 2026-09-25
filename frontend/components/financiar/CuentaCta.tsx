@@ -25,7 +25,8 @@ export function CuentaCta({ codigo }: { codigo: string }) {
     <div className="flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] leading-relaxed text-inkSoft">
       <UserPlus size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
       <span>
-        <strong className="text-ink">¿Financiaste este aporte? Crea una cuenta para seguirlo</strong>: progreso, señales halladas y tus zonas en un solo lugar. No es obligatorio: con el código <span className="font-mono">{codigo}</span> siempre puedes volver a este comprobante.{" "}
+        <strong className="text-ink">¿Es tuyo? Crea una cuenta para seguirlo.</strong> No es obligatorio: con el código{" "}
+        <span className="font-mono">{codigo}</span> vuelves a este comprobante.{" "}
         <Link href={`/signup?next=${encodeURIComponent(miImpacto)}`} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
         <Link href={`/login?next=${encodeURIComponent(miImpacto)}`} className="ml-3 text-granate underline underline-offset-2">Ya tengo una</Link>
       </span>

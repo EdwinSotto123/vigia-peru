@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
 import { Cifras } from "@/components/ui/Cifras";
 import { CapacidadColectiva } from "@/components/aliados/CapacidadColectiva";
 import { MuroAliados, parseOrden } from "@/components/aliados/MuroAliados";
@@ -34,6 +34,9 @@ export const revalidate = 300;
  * después la capacidad colectiva (cuánto de lo publicado se financió y cuánto de
  * eso ya se leyó) y al final las reglas que hacen que ese dinero no compre nada,
  * cerrando con la única invitación a financiar, en granate profundo.
+ *
+ * Dato primero (DESIGN_SYSTEM.md §10.7): la bajada es una oración y lo que explica
+ * por qué el dinero no compra nada vive en el ⓘ del título y en las reglas del pie.
  *
  * En DESARROLLO la página mezcla tres aliados INVENTADOS (lib/maqueta-aliados.ts)
  * para poder mirar el diseño con volumen, y lo avisa arriba, en la barra pegajosa
@@ -85,10 +88,16 @@ export default async function AliadosPage({
   const salirMaqueta = hrefSinMaqueta(ubigeo ? `/app/aliados?ubigeo=${ubigeo}` : "/app/aliados");
 
   return (
-    <div className="container-page space-y-10 py-8">
+    <Pagina className="space-y-8">
       <EncabezadoPagina
         titulo="Aliados de transparencia"
-        bajada="Quién financia que estos contratos se lean de verdad. Nadie compra un resultado ni una región: los contratos se asignan por antigüedad, en código, y lo que salga se publica igual."
+        bajada="Quién financia que estos contratos se lean. Se cuenta en contratos, nunca en soles."
+        ayuda={
+          <Ayuda titulo="¿Qué compra un aliado?">
+            Nada: ni un resultado ni una región. Los contratos se asignan por antigüedad, en código, y lo que salga se
+            publica igual, aunque señale a quien pagó.
+          </Ayuda>
+        }
         acciones={
           estado ? (
             <Cifras
@@ -109,19 +118,20 @@ export default async function AliadosPage({
       {/* Filtro pegajoso: el libro mayor pagina hasta 24 filas, cambiar de región no debería
           obligar a volver arriba. top-0 porque esta ruta cuelga de (dashboard)/layout.tsx, que
           no renderiza Header público — solo la barra LATERAL. */}
-      <div className="sticky top-0 z-barra -mx-4 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-0 z-barra -mx-4 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-inkSoft" aria-live="polite">
+          <p className="text-sm tabular-nums text-inkSoft" aria-live="polite">
             {zona
-              ? <>Mirando {zona.nombre}: <span className="font-mono tabular-nums text-ink">{numero(zona.pendientes)}</span> contratos esperan que alguien pague su lectura.</>
-              : "Mirando todo el Perú. Filtra por región para ver su déficit y quién lo cubre."}
+              ? <>{zona.nombre}: <strong className="font-semibold text-ink">{numero(zona.pendientes)}</strong> contratos sin financiar</>
+              : "Todo el Perú"}
           </p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* `role="search"`: es el filtro de la vista, y así se anuncia como tal. */}
+          <form role="search" aria-label="Filtrar aliados por región" className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {/* El recordatorio de maqueta viaja con la barra: mientras se recorre el muro,
                 no se va de la pantalla. */}
             {maqueta && <MarcaMaquetaBarra volverHref={salirMaqueta} />}
             <FiltroRegion opciones={opciones} valor={ubigeo} />
-          </div>
+          </form>
         </div>
       </div>
 
@@ -151,9 +161,7 @@ export default async function AliadosPage({
           alcance={estado.alcance ?? null}
         />
       ) : (
-        <EstadoError titulo="No pudimos leer el estado de la cola">
-          Preferimos decirlo antes que mostrar cifras en cero que parezcan un dato. Vuelve a intentarlo en un momento.
-        </EstadoError>
+        <EstadoError titulo="No pudimos leer el estado de la cola" />
       )}
 
       <ReglasIndependencia />
@@ -173,9 +181,9 @@ export default async function AliadosPage({
           >
             Ver esta página con aliados de maqueta
           </Link>
-          : sólo en desarrollo, para mirar el diseño con varios financiadores.
+          : sólo en desarrollo.
         </p>
       )}
-    </div>
+    </Pagina>
   );
 }

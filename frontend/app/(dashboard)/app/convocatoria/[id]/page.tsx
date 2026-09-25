@@ -17,7 +17,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { ResultadoView } from "@/components/convocatoria/ResultadoView";
-import { Cargando, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Cargando, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { DossierError, getDossier, peekDossier } from "@/lib/dossier-cache";
 import { esAlertaDemo } from "@/lib/semillas";
 import { useEsAdmin } from "@/lib/useEsAdmin";
@@ -76,11 +76,12 @@ export default function ConvocatoriaSharePage() {
   if (fallo) {
     const noExiste = fallo.tipo === "not_found";
     const esDemo = fallo.mensaje === "demo";
+    // No encontrado / error: estados de sistema, los únicos que van centrados (§10.7).
     return (
-      <div className="px-4 py-10 sm:px-6 lg:px-10">
+      <Pagina>
         <div className="mx-auto max-w-2xl">
           <Link href="/app/convocatoria" className="mb-4 inline-flex min-h-[32px] items-center gap-1.5 text-sm text-mute hover:text-ink">
-            <ArrowLeft size={16} aria-hidden /> Volver al buscador
+            <ArrowLeft size={16} aria-hidden /> Volver a los análisis publicados
           </Link>
           {noExiste ? (
             <>
@@ -110,11 +111,11 @@ export default function ConvocatoriaSharePage() {
                   </div>
                 }
               >
+                {/* Las dos salidas ya las dicen los botones: aquí sólo el porqué. */}
                 <p>
                   No hay un análisis publicado para <code className="font-mono text-ink">{id}</code>. Vigía lee los contratos en
                   el orden de la cola, a medida que alguien financia su lectura.
                 </p>
-                <p className="mt-2">Mientras tanto puedes ver los datos públicos del contrato, o financiar la lectura de los contratos de tu zona.</p>
               </EstadoVacio>
             </>
           ) : (
@@ -135,23 +136,21 @@ export default function ConvocatoriaSharePage() {
             </>
           )}
         </div>
-      </div>
+      </Pagina>
     );
   }
 
   if (!result) {
     return (
-      <div className="px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-3xl">
-          <Cargando texto={`Cargando el análisis de ${id}…`} lineas={5} />
-        </div>
-      </div>
+      <Pagina>
+        <Cargando texto={`Cargando el análisis de ${id}…`} lineas={5} />
+      </Pagina>
     );
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+    <Pagina>
       <ResultadoView result={result} onReset={() => router.push("/app/convocatoria")} />
-    </div>
+    </Pagina>
   );
 }

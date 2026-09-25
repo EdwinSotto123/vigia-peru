@@ -8,23 +8,72 @@ import { fechaCorta } from "@/lib/formato";
  * compone estas piezas y no define tipografías, colores ni espaciados propios.
  */
 
-/** Título de página (el único h1), bajada y acciones. Sin kicker encima del título. */
+/**
+ * El contenedor de toda página de la app (§10.7): usa el ancho que deja la barra
+ * lateral, alineado a la izquierda, con el mismo padding en todas. Nada de
+ * `mx-auto max-w-*` por página: centrar una vista de datos deja columnas vacías.
+ * `lectura` es para prosa (preguntas, noticia): ahí sí conviene una medida de línea.
+ */
+export function Pagina({
+  children,
+  ancho = "datos",
+  className,
+}: {
+  children: ReactNode;
+  ancho?: "datos" | "lectura";
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "w-full space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-10",
+        ancho === "datos" ? "max-w-[1600px]" : "max-w-3xl",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Título de página (el único h1), bajada y acciones. Sin kicker encima del título.
+ * La bajada es UNA oración (≤ 140 caracteres); lo que explique más va en `ayuda`,
+ * un ⓘ junto al título que abre la explicación al clic (§10.7).
+ */
 export function EncabezadoPagina({
   titulo,
   bajada,
+  ayuda,
   acciones,
   className,
 }: {
   titulo: ReactNode;
   bajada?: ReactNode;
+  /** `<Ayuda titulo="¿Qué es…?">…</Ayuda>` ya armado. */
+  ayuda?: ReactNode;
   acciones?: ReactNode;
   className?: string;
 }) {
   return (
     <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", className)}>
       <div className="min-w-0 max-w-3xl">
-        <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[34px]">{titulo}</h1>
-        {bajada && <p className="mt-2 text-[15px] leading-relaxed text-inkSoft text-pretty">{bajada}</p>}
+        {/* El ⓘ va al final de la bajada (lo que amplía), no junto al h1: un título que
+            parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */}
+        {bajada ? (
+          <>
+            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[32px]">{titulo}</h1>
+            <p className="mt-1.5 text-[15px] leading-snug text-inkSoft text-pretty">
+              {bajada}
+              {ayuda && <span className="ml-1 inline-flex align-middle">{ayuda}</span>}
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[32px]">{titulo}</h1>
+            {ayuda}
+          </div>
+        )}
       </div>
       {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
     </header>
@@ -35,13 +84,16 @@ export function EncabezadoPagina({
 export function Seccion({
   titulo,
   descripcion,
+  ayuda,
   acciones,
   id,
   children,
   className,
 }: {
   titulo: ReactNode;
+  /** Una línea, o nada. Lo demás, en `ayuda`. */
   descripcion?: ReactNode;
+  ayuda?: ReactNode;
   acciones?: ReactNode;
   id?: string;
   children: ReactNode;
@@ -49,12 +101,15 @@ export function Seccion({
 }) {
   return (
     <section id={id} aria-labelledby={id ? `${id}-titulo` : undefined} className={cn("scroll-mt-24", className)}>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-[22px] font-bold leading-tight text-ink text-balance">
-            {titulo}
-          </h2>
-          {descripcion && <p className="mt-1 max-w-2xl text-sm leading-relaxed text-inkSoft text-pretty">{descripcion}</p>}
+          <div className="flex items-center gap-1.5">
+            <h2 id={id ? `${id}-titulo` : undefined} className="font-display text-[20px] font-bold leading-tight text-ink text-balance">
+              {titulo}
+            </h2>
+            {ayuda}
+          </div>
+          {descripcion && <p className="mt-0.5 text-sm leading-snug text-inkSoft text-pretty">{descripcion}</p>}
         </div>
         {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>

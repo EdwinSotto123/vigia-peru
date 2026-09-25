@@ -196,10 +196,16 @@ export function FiltrosContratos({ query, regiones, entidadNombre, resumen }: Pr
       {/* 3. filtros avanzados — siempre montado para poder animar su alto con CSS puro
           (grid-template-rows 0fr→1fr + overflow-hidden en el div interno). Plegado queda
           `inert`: si no, el Tab recorría nueve controles invisibles antes de llegar a la
-          lista. React 18 no tipa `inert`; se pasa como atributo string. */}
+          lista. React 18 no tipa `inert`; se pasa como atributo string.
+          `invisible` además: recortado a alto 0 seguía existiendo como texto (las 25
+          regiones del desplegable contaban como un párrafo de mil caracteres). La
+          visibilidad entra en la transición, así que al plegar se oculta al final. */}
       <div
         id="filtros-avanzados"
-        className={cn("grid transition-[grid-template-rows] duration-300 ease-out", avanzados ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}
+        className={cn(
+          "grid transition-[grid-template-rows,visibility] duration-300 ease-out",
+          avanzados ? "visible grid-rows-[1fr]" : "invisible grid-rows-[0fr]",
+        )}
         {...({ inert: avanzados ? undefined : "" } as Record<string, string | undefined>)}
         aria-hidden={avanzados ? undefined : true}
       >

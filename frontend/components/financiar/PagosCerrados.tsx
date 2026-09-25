@@ -9,29 +9,27 @@
  *
  * Es la tarjeta de marca de la pantalla (franja textil + llamita): la pregunta de esta página
  * ("¿cuántos contratos quieres financiar?") todavía no se puede contestar, y se dice con calma.
+ * Las cifras de la zona (financiados, leídos, en cola) no se repiten acá: la página ya las
+ * muestra en su línea de datos, a la izquierda (DESIGN_SYSTEM.md §10.7).
  */
 
 import Link from "next/link";
 import { ArrowRight, Bell } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SeguirZonaBoton } from "@/components/mapa/SeguirZonaBoton";
-import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TarjetaConfirmacion } from "./TarjetaConfirmacion";
 
 export function PagosCerrados({
   ubigeo,
   zonaNombre,
-  restantes,
   financiados,
-  procesados,
   codigoPrevio = null,
 }: {
   ubigeo: string;
   zonaNombre: string;
-  restantes: number;
+  /** Contratos de la zona que ya tienen financiamiento: decide a dónde lleva la acción principal. */
   financiados: number;
-  procesados: number;
   /** Aporte que este navegador registró antes (borrador local), para no perderle el rastro. */
   codigoPrevio?: string | null;
 }) {
@@ -77,29 +75,7 @@ export function PagosCerrados({
         </>
       }
     >
-      <p>
-        Aún no hay un medio de pago conectado. Mientras tanto, la lectura de contratos la paga Vigía Perú con su
-        propio capital semilla.
-      </p>
-      <p className="mt-2">
-        {financiados > 0 ? (
-          <>
-            En {zonaNombre},{" "}
-            <strong className="font-mono font-semibold tabular-nums text-ink">{numero(financiados)}</strong>{" "}
-            {financiados === 1 ? "contrato ya tiene" : "contratos ya tienen"} financiamiento y{" "}
-            <strong className="font-mono font-semibold tabular-nums text-ink">{numero(procesados)}</strong> de{" "}
-            {financiados === 1 ? "ese" : `esos ${numero(financiados)}`} ya {procesados === 1 ? "se leyó" : "se leyeron"}.
-            {restantes === 1 && <> Otro contrato espera financiamiento en la cola.</>}
-            {restantes > 1 && <> Otros {numero(restantes)} esperan financiamiento en la cola.</>}
-          </>
-        ) : (
-          <>
-            En {zonaNombre} ningún contrato tiene financiamiento todavía:{" "}
-            <strong className="font-mono font-semibold tabular-nums text-ink">{numero(restantes)}</strong>{" "}
-            {restantes === 1 ? "espera" : "esperan"} en la cola.
-          </>
-        )}
-      </p>
+      Aún no hay un medio de pago conectado. Mientras tanto, la lectura la paga Vigía Perú con su capital semilla.
     </TarjetaConfirmacion>
   );
 }

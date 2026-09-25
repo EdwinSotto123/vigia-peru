@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { EncabezadoPagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
 import { FiltrosSenales, SelectorVista } from "@/components/alertas/FiltrosSenales";
 import { ListaSenales, ListaSenalesSkeleton } from "@/components/alertas/ListaSenales";
-import { EnRevision, EnRevisionSkeleton } from "@/components/alertas/EnRevision";
+import { EnRevision, EnRevisionSkeleton, ResumenRevision } from "@/components/alertas/EnRevision";
 import { getResumenProcesamientos } from "@/lib/auditoria";
 import { numero, plural, relativo } from "@/lib/formato";
 import {
@@ -53,10 +53,17 @@ export default async function HallazgosPage({
   const query = parseSenalesQuery(searchParams);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+    <Pagina className="space-y-5">
       <EncabezadoPagina
-        titulo="Señales con norma y evidencia"
-        bajada="Una señal es una regla que disparó sobre un contrato que los agentes leyeron: trae la norma que cita, el texto del expediente que la sostiene y el agente que la encontró. Es un indicio para volver a la fuente, nunca una acusación."
+        titulo="Señales"
+        bajada="Reglas que dispararon en contratos leídos, con su norma y su evidencia."
+        ayuda={
+          <Ayuda titulo="¿Qué es una señal?">
+            Una regla que disparó sobre un contrato que los agentes leyeron. Trae la norma que cita, el texto del
+            expediente que la sostiene y el agente que la encontró. Es un indicio para volver a la fuente, nunca una
+            acusación.
+          </Ayuda>
+        }
       />
 
       {query.vista === "revision" ? (
@@ -68,7 +75,7 @@ export default async function HallazgosPage({
           <VistaPublicadas query={query} />
         </Suspense>
       )}
-    </div>
+    </Pagina>
   );
 }
 
@@ -103,35 +110,34 @@ async function VistaPublicadas({ query }: { query: SenalesQuery }) {
           publicadas={universo.senales.length}
           enRevision={resumen?.porEstado.revision ?? null}
         />
-        {/* Toda cifra con su denominador (§10.2): señales filtradas de las publicadas, y en
-            cuántos contratos con señales, de los que tienen dictamen publicado. */}
+        {/* Toda cifra con su denominador (§10.2), en UNA línea de datos (§10.7). */}
         {!universo.fallo && (
-          <p className="text-[13px] tabular-nums text-inkSoft" aria-live="polite">
-            <strong className="font-semibold text-ink">{numero(filtradas.length)}</strong> de{" "}
-            {plural(universo.senales.length, "señal publicada", "señales publicadas")}, en{" "}
-            {plural(publicados.size, "contrato con señales", "contratos con señales")} de {numero(universo.contratos)} con
-            dictamen publicado
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft" aria-live="polite">
+            <span>
+              <strong className="font-semibold text-ink">{numero(filtradas.length)}</strong> de{" "}
+              {plural(universo.senales.length, "señal", "señales")}
+            </span>
+            <span>
+              <strong className="font-semibold text-ink">{numero(publicados.size)}</strong> de {numero(universo.contratos)}{" "}
+              contratos con dictamen
+            </span>
+            {ultimo && (
+              <span>
+                última lectura{" "}
+                {ultimo.ocid ? (
+                  <Link href={`/app/convocatoria/${ultimo.ocid}`} className="font-medium text-granate hover:underline" title={ultimo.entidad ?? undefined}>
+                    <time dateTime={ultimo.analizadoEn}>{relativo(ultimo.analizadoEn)}</time>
+                  </Link>
+                ) : (
+                  <time dateTime={ultimo.analizadoEn} className="font-medium text-ink">
+                    {relativo(ultimo.analizadoEn)}
+                  </time>
+                )}
+              </span>
+            )}
           </p>
         )}
       </div>
-
-      {ultimo && (
-        <p className="text-[13px] leading-relaxed text-inkSoft">
-          El último contrato con señales publicadas se leyó{" "}
-          <time dateTime={ultimo.analizadoEn} className="font-medium text-ink">
-            {relativo(ultimo.analizadoEn)}
-          </time>
-          :{" "}
-          {ultimo.ocid ? (
-            <Link href={`/app/convocatoria/${ultimo.ocid}`} className="font-medium text-granate underline-offset-2 hover:underline">
-              {ultimo.entidad}
-            </Link>
-          ) : (
-            <span className="font-medium text-ink">{ultimo.entidad}</span>
-          )}
-          .
-        </p>
-      )}
 
       <FiltrosSenales query={query} facetas={facetas} />
 
@@ -161,8 +167,11 @@ async function VistaRevision() {
   const leidosFinanciados = resumen?.porEstado.procesado ?? null;
   return (
     <div className="space-y-4">
-      <SelectorVista vista="revision" publicadas={publicadas} enRevision={items.length} />
-      <EnRevision items={items} procesados={leidosFinanciados} publicadas={publicadas} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SelectorVista vista="revision" publicadas={publicadas} enRevision={items.length} />
+        <ResumenRevision n={items.length} procesados={leidosFinanciados} publicadas={publicadas} />
+      </div>
+      <EnRevision items={items} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/financiamiento";
 import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import type { ContratoZona } from "@/lib/contratos";
 import { CATEGORIA_META, estaConfirmada, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { cn } from "@/lib/utils";
@@ -282,7 +283,7 @@ function ResumenTab({
     return (
       <Vacio
         titulo="No pudimos cargar el estado de la zona"
-        texto="El servicio de financiamiento no respondió. Las cifras de esta zona aparecen apenas vuelva; no te mostramos cifras de reemplazo."
+        texto="El servicio de financiamiento no respondió; las cifras aparecen apenas vuelva."
       />
     );
   }
@@ -359,7 +360,7 @@ function ResumenTab({
           <>
             <Vacio
               titulo={`Todavía no hay contratos de ${nombre} en la cola`}
-              texto={`Vigía descarga del OECE los expedientes nuevos y los clasifica. Un contrato entra a la cola cuando su tipo y etapa ya se analizan: hoy, ${alcanceCorto(detalle?.alcance)}.`}
+              texto={`Hoy entran a la cola ${alcanceCorto(detalle?.alcance)}.`}
             />
             <dl className="mt-3 divide-y divide-line border-y border-line">{lecturas}</dl>
           </>
@@ -368,7 +369,15 @@ function ResumenTab({
       </section>
 
       <section className="border-t border-line pt-4">
-        <Rotulo>Qué puedes hacer</Rotulo>
+        <Rotulo
+          ayuda={
+            <Ayuda titulo="¿Quién elige qué se lee?">
+              El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
+            </Ayuda>
+          }
+        >
+          Qué puedes hacer
+        </Rotulo>
         <div className="space-y-2">
           <Link
             href={financiarHref}
@@ -394,14 +403,8 @@ function ResumenTab({
               <ArrowUpRight size={12} aria-hidden />
             </Link>
           ) : (
-            <p className="px-1 text-[12px] leading-relaxed text-mute">
-              Nadie financió esta zona todavía. Cuando alguien lo haga, acá se ve cada contrato pasar de la cola al
-              análisis, agente por agente.
-            </p>
+            <p className="px-1 text-[12px] text-mute">Nadie financió esta zona todavía.</p>
           )}
-          <p className="px-1 text-[12px] leading-relaxed text-mute">
-            El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
-          </p>
         </div>
       </section>
 
@@ -454,7 +457,16 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
   return (
     <div className="space-y-5">
       <section>
-        <Rotulo>Qué hay en la cola</Rotulo>
+        <Rotulo
+          ayuda={
+            <Ayuda titulo="¿Qué entra en la cola?">
+              <span className="block">{alcanceLargo(detalle.alcance)}</span>
+              <span className="mt-2 block">Se procesan en orden de llegada; quien financia no elige cuáles.</span>
+            </Ayuda>
+          }
+        >
+          Qué hay en la cola
+        </Rotulo>
         {zona.totalCola > 0 ? (
           <dl className="divide-y divide-line border-y border-line">
             <Cifra
@@ -487,14 +499,9 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
         ) : (
           <Vacio
             titulo={`Todavía no hay contratos de ${nombre} en la base`}
-            texto="Vigía descarga del OECE los expedientes nuevos: primero se clasifican, y entran a la cola cuando su tipo y etapa ya se analizan."
+            texto="Los expedientes nuevos del OECE entran a la cola cuando su tipo y etapa ya se analizan."
           />
         )}
-        <DetalleAlcance alcance={detalle.alcance} />
-        <p className="mt-3 text-[12px] leading-relaxed text-mute">
-          Se procesan en orden de llegada; quien financia no elige cuáles.
-          {zona.pendientes > 0 ? ` Quedan ${enteros(zona.pendientes)} sin financiar.` : " Toda la cola está financiada."}
-        </p>
       </section>
 
       {ubigeo && (
@@ -587,7 +594,7 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
       {rows.length === 0 ? (
         <Vacio
           titulo={`Todavía no hay denuncias en ${nombre}`}
-          texto={`Una denuncia necesita foto y ubicación. Cuando ${MIN_CONFIRMACIONES} personas distintas reportan el mismo punto en 30 días, queda confirmada y aparece en el mapa.`}
+          texto={`Con foto y ubicación; se confirma cuando ${MIN_CONFIRMACIONES} personas reportan el mismo punto en 30 días.`}
         />
       ) : (
         <ul className="divide-y divide-line border-y border-line">
@@ -642,9 +649,13 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
 
 // ─── Piezas ──────────────────────────────────────────────────────────────
 
-function Rotulo({ children, sinMargen }: { children: React.ReactNode; sinMargen?: boolean }) {
+/** Rótulo de sección del panel; `ayuda` es el ⓘ con el porqué (§10.7), nunca un párrafo abajo. */
+function Rotulo({ children, sinMargen, ayuda }: { children: React.ReactNode; sinMargen?: boolean; ayuda?: React.ReactNode }) {
   return (
-    <h3 className={cn("text-[12px] font-semibold text-mute", sinMargen ? "" : "mb-2")}>{children}</h3>
+    <div className={cn("flex items-center gap-0.5", sinMargen ? "" : "mb-2")}>
+      <h3 className="text-[12px] font-semibold text-mute">{children}</h3>
+      {ayuda}
+    </div>
   );
 }
 
@@ -688,6 +699,10 @@ function Salto({ etiqueta, valor, detalle, onClick }: { etiqueta: string; valor?
   );
 }
 
+/**
+ * Qué cuenta la cola, en una línea de datos; qué se analiza hoy y qué es "en
+ * revisión", en el ⓘ. Antes era un párrafo de tres líneas más un <details>.
+ */
 function NotaAlcance({
   alcance,
   documentosListos,
@@ -698,36 +713,30 @@ function NotaAlcance({
   enRevision: number;
 }) {
   return (
-    <div className="mt-3 space-y-1 text-[12px] leading-relaxed text-mute">
-      <p>
-        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>.
-        {documentosListos > 0 && (
-          <>
-            {" "}Además, <strong className="text-ink">{enteros(documentosListos)}</strong> contrato
-            {documentosListos === 1 ? "" : "s"} de otros tipos ya {documentosListos === 1 ? "tiene" : "tienen"} su
-            expediente descargado y el análisis en preparación.
-          </>
-        )}
+    <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-mute">
+      <span>
+        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>
+      </span>
+      {documentosListos > 0 && (
+        <span>
+          <strong className="text-ink">{enteros(documentosListos)}</strong> de otros tipos con documentos listos
+        </span>
+      )}
+      {enRevision > 0 && (
+        <span>
+          <strong className="text-inkSoft">{enteros(enRevision)}</strong>{" "}
+          {enRevision === 1 ? "financiado en revisión" : "financiados en revisión"}
+        </span>
+      )}
+      <Ayuda titulo="¿Qué se analiza hoy?">
+        <span className="block">{alcanceLargo(alcance)}</span>
         {enRevision > 0 && (
-          <>
-            {" "}<strong className="text-inkSoft">{enteros(enRevision)}</strong> financiado{enRevision === 1 ? "" : "s"}{" "}
-            {enRevision === 1 ? "está" : "están"} en revisión: {enRevision === 1 ? "no cuenta" : "no cuentan"} como señal.
-          </>
+          <span className="mt-2 block">
+            Los financiados en revisión ya se leyeron, pero su publicación está en pausa: no cuentan como señal.
+          </span>
         )}
-      </p>
-      <DetalleAlcance alcance={alcance} />
-    </div>
-  );
-}
-
-function DetalleAlcance({ alcance }: { alcance: ZonaDetalle["alcance"] | undefined }) {
-  return (
-    <details className="mt-1 text-[12px] text-mute">
-      <summary className="min-h-[24px] cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
-        ¿Qué se analiza hoy?
-      </summary>
-      <p className="mt-1 leading-relaxed">{alcanceLargo(alcance)}</p>
-    </details>
+      </Ayuda>
+    </p>
   );
 }
 

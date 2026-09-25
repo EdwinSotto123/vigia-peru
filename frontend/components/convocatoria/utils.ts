@@ -89,6 +89,10 @@ export function humanizeError(raw: string, errClass?: string): string {
   return `No se pudo procesar el contrato: ${cleaned || "error desconocido"}`;
 }
 
+/** "ocds-dgv273-seacev3-1212841" / "OECE-1212841" / " 1212841 " → "1212841": la dirección del dossier. */
+export const codigoCorto = (raw: string | null | undefined): string =>
+  String(raw ?? "").trim().replace(/^ocds-[a-z0-9]+-seacev3-/i, "").replace(/^OECE-/i, "");
+
 export function inferCategoria(objeto: string | null | undefined): CatFilter {
   const o = (objeto || "").toLowerCase();
   if (/\b(obra|construcc|edif|carrete|pavimen|puente|infraestruc|reparaci[oó]n de|mejoramient)/i.test(o)) return "obras";

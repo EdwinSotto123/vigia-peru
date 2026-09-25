@@ -522,42 +522,49 @@ export function MapaWrapper({
   const hoy = estado && (estado.ingresadosHoy > 0 || estado.procesadosHoy > 0) ? estado : null;
 
   const contextoHeader = cargandoPais ? (
-    <span className="block space-y-1" role="status" aria-busy>
-      <span className="block h-4 w-48 animate-pulse rounded bg-paperEdge" />
-      <span className="block h-4 w-40 animate-pulse rounded bg-paperEdge" />
+    // Mismo alto que la línea de datos que reemplaza: el encabezado no salta al cargar.
+    <span className="block" role="status" aria-busy>
+      <span className="block h-4 w-72 max-w-full animate-pulse rounded bg-paperEdge" />
       <span className="sr-only">Cargando las cifras…</span>
     </span>
   ) : region ? (
-    <span className="block tabular-nums sm:text-right">
-      <span className="block">
-        {!mes && fPais ? (
-          <>
-            <NumeroVivo valor={fPais.financiados} className="font-semibold text-ink" /> financiados,{" "}
+    // Una línea de datos (§10.7): cada cifra con su contexto, separadas por espacio y no por comas.
+    <span className="flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums sm:justify-end">
+      {!mes && fPais ? (
+        <>
+          <span>
+            <NumeroVivo valor={fPais.financiados} className="font-semibold text-ink" /> financiados
+          </span>
+          <span>
             <NumeroVivo valor={fPais.pendientes} className="font-semibold text-ink" /> esperando lectura
-          </>
-        ) : (
-          <>
-            <NumeroVivo valor={esperandoDe(zPais, fPais) ?? 0} className="font-semibold text-ink" /> esperando lectura
-          </>
-        )}
-      </span>
-      <span className="block">
+          </span>
+        </>
+      ) : (
+        <span>
+          <NumeroVivo valor={esperandoDe(zPais, fPais) ?? 0} className="font-semibold text-ink" /> esperando lectura
+        </span>
+      )}
+      <span>
         <NumeroVivo valor={zPais?.conSenales ?? 0} className="font-semibold text-ink" /> de riesgo medio o alto, de{" "}
         <NumeroVivo valor={zPais?.procesados ?? 0} className="font-semibold text-ink" /> leídos
         {mes ? ` en ${mes.etiqueta}` : ""}
       </span>
     </span>
   ) : (
-    <span className="block tabular-nums sm:text-right">
-      <span className="block">
+    <span className="flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums sm:justify-end">
+      <span>
         <NumeroVivo valor={totalPais.leidos} className="font-semibold text-ink" /> leídos de{" "}
         <NumeroVivo valor={totalPais.total} className="font-semibold text-ink" /> contratos publicados
         {mes ? ` en ${mes.etiqueta}` : ""}
       </span>
-      <span className="block">
+      <span>
         <NumeroVivo valor={totalPais.conSenales} className="font-semibold text-ink" /> de riesgo medio o alto
-        {hoy && !mes ? `; hoy, ${enteros(hoy.ingresadosHoy)} nuevos en la base y ${enteros(hoy.procesadosHoy)} leídos` : ""}
       </span>
+      {hoy && !mes && (
+        <span>
+          hoy: {enteros(hoy.ingresadosHoy)} nuevos, {enteros(hoy.procesadosHoy)} leídos
+        </span>
+      )}
     </span>
   );
 

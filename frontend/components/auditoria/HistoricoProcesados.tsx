@@ -6,6 +6,9 @@
  * necesita refrescarse cada 5 s, así que se pagina por URL (?pagina=) en vez de pelear con
  * el polling. `pagina` ya viene resuelta por el server component (/app/auditoria/page.tsx).
  *
+ * Una tabla, no una rejilla de tarjetas: las mismas filas que el tablero (FilaProcesamiento),
+ * más la columna de quién pagó cada lectura, que es por lo que también se filtra.
+ *
  * "use client": recibe solo datos serializables (nunca una función); `href` se arma ACÁ
  * mismo a partir de los filtros primitivos, porque una función no puede cruzar de un server
  * component a un client component (Paginacion es "use client"; React no puede serializarla).
@@ -18,7 +21,8 @@
 import Link from "next/link";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { plural } from "@/lib/formato";
-import { AvisoSinLlamita, Tarjeta } from "./TableroAuditoria";
+import { AvisoSinLlamita } from "./TableroAuditoria";
+import { CabeceraFilas, FilaProcesamiento } from "./FilaProcesamiento";
 import type { ProcesamientosPagina } from "@/lib/auditoria";
 
 const TAM = 24;
@@ -92,17 +96,18 @@ export function HistoricoProcesados({ pagina, paginaActual, pathname, ubigeo, de
           </AvisoSinLlamita>
         )
       ) : (
-        // `grid-cols-1` explícito: la pista implícita `auto` se dimensiona al max-content, y
-        // las tarjetas llevan `truncate` (= white-space: nowrap), cuyo min-content es el texto
-        // entero. En 390 px eso hacía scrollear la página en horizontal. `grid-cols-N` es
-        // `minmax(0, 1fr)`, que es lo que corta la cadena.
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((p) => (
-            <li key={p.ocid}>
-              <Tarjeta p={p} ahora={0} />
-            </li>
-          ))}
-        </ul>
+        // Las pistas de la fila son `minmax(0, 1fr)`: el objeto con `truncate` no estira la
+        // tabla (en 390 px la rejilla vieja scrolleaba en horizontal por eso).
+        <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <CabeceraFilas estado="Resultado" tiempo="Leído" conFinanciador />
+          <ul>
+            {items.map((p) => (
+              <li key={p.ocid} className="border-b border-line/70 last:border-b-0">
+                <FilaProcesamiento p={p} ahora={0} conFinanciador />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {items.length > 8 && paginador}
     </div>

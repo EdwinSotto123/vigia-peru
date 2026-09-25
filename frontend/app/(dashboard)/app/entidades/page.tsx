@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Flag } from "lucide-react";
 import { EntidadesPanel } from "@/components/EntidadesPanel";
-import { EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
 import {
   API_BASE,
   getEntidadesPagina,
@@ -113,38 +113,42 @@ export default async function EntidadesPage({
   // publicado" y no "con señales" (DESIGN_SYSTEM.md §10.1): con la palabra vieja decía 80
   // entidades mientras /app/hallazgos, que sí cuenta señales, decía 61.
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <EncabezadoPagina
-          titulo="Entidades del Estado"
-          bajada="Ordenadas por cuántos de sus contratos ya tienen dictamen publicado. Abre una para ver esos contratos, lo que se encontró en cada uno y su ejecución presupuestal según el MEF."
-          acciones={
+    <Pagina className="space-y-5">
+      <EncabezadoPagina
+        titulo="Entidades del Estado"
+        bajada="Ordenadas por cuántos de sus contratos ya tienen dictamen publicado."
+        ayuda={
+          <Ayuda titulo="¿Qué muestra la ficha de una entidad?">
+            Sus contratos con dictamen publicado, lo que se encontró en cada uno y su ejecución presupuestal según el
+            MEF. &ldquo;Con dictamen publicado&rdquo; cuenta los contratos leídos y publicados, tengan o no señales.
+          </Ayuda>
+        }
+        acciones={
+          <Link
+            href="/reporte/nuevo?modo=entidad"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+          >
+            <Flag size={14} aria-hidden /> Denunciar una entidad
+          </Link>
+        }
+      />
+      {pagina && resumen ? (
+        <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
+      ) : (
+        <EstadoError
+          titulo="No pudimos leer las entidades"
+          accion={
             <Link
-              href="/reporte/nuevo?modo=entidad"
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+              href={qs ? `/app/entidades?${qs}` : "/app/entidades"}
+              className="inline-flex min-h-[40px] items-center rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep"
             >
-              <Flag size={14} aria-hidden /> Denunciar una entidad
+              Reintentar
             </Link>
           }
-        />
-        {pagina && resumen ? (
-          <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
-        ) : (
-          <EstadoError
-            titulo="No pudimos leer las entidades"
-            accion={
-              <Link
-                href={qs ? `/app/entidades?${qs}` : "/app/entidades"}
-                className="inline-flex min-h-[40px] items-center rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep"
-              >
-                Reintentar
-              </Link>
-            }
-          >
-            El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-          </EstadoError>
-        )}
-      </div>
-    </div>
+        >
+          El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+        </EstadoError>
+      )}
+    </Pagina>
   );
 }

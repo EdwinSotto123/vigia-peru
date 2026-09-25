@@ -53,30 +53,29 @@ export function RegionDetailPanel({
   );
 }
 
+/** Qué trae el panel de una zona: una línea por pestaña, sin párrafos (§10.7). */
+const QUE_TRAE: { titulo: string; detalle: string }[] = [
+  { titulo: "Cola de auditoría", detalle: "qué espera lectura y cuánto cuesta leerlo" },
+  { titulo: "Lo ya encontrado", detalle: "señales con su norma y denuncias vecinales" },
+  { titulo: "Quién contrata", detalle: "entidades y presupuesto MEF" },
+];
+
 function PanelVacio() {
   // Arriba, no centrado: centrado en 680 px dejaba 200 px en blanco sobre el texto.
   return (
-    <div className="flex h-full flex-col justify-start gap-4 bg-paperSoft px-7 py-8">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-paperEdge bg-paperDeep text-granate">
-        <MapPin size={20} aria-hidden />
-      </div>
-      <h2 className="font-display text-xl font-bold leading-tight text-ink">Ningún departamento abierto</h2>
-      <p className="max-w-[42ch] text-sm leading-relaxed text-mute">
-        Toca un departamento del mapa, o llega a uno con Tab y Enter, y acá aparece lo que hay de esa zona.
-      </p>
-      <ul className="space-y-2 border-t border-line pt-4 text-[13px] leading-snug text-mute">
-        <li>
-          <strong className="font-semibold text-ink">Su cola de auditoría</strong>: cuántos contratos esperan lectura,
-          cuánto suman y cuánto cuesta leerlos.
-        </li>
-        <li>
-          <strong className="font-semibold text-ink">Lo que ya se encontró</strong>: contratos con señales y su norma
-          citada, y las denuncias que dejaron los vecinos.
-        </li>
-        <li>
-          <strong className="font-semibold text-ink">Quién contrata</strong>: las entidades de la zona y su presupuesto
-          MEF.
-        </li>
+    <div className="flex h-full flex-col justify-start gap-3 bg-paperSoft px-6 py-6">
+      <h2 className="flex items-center gap-2 font-display text-lg font-bold leading-tight text-ink">
+        <MapPin size={18} className="shrink-0 text-granate" aria-hidden />
+        Ningún departamento abierto
+      </h2>
+      <p className="text-[13px] text-mute">Toca uno en el mapa (o Tab y Enter) para ver:</p>
+      <ul className="divide-y divide-line border-y border-line text-[13px]">
+        {QUE_TRAE.map((q) => (
+          <li key={q.titulo} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
+            <span className="font-semibold text-ink">{q.titulo}</span>
+            <span className="text-[12px] text-mute">{q.detalle}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );

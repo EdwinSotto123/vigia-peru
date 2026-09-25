@@ -9,6 +9,7 @@ import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { CompartirButton } from "@/components/auditoria/CompartirButton";
 import { Severidad } from "@/components/ui/Severidad";
 import { FranjaTextil } from "@/components/marca";
+import { Ayuda } from "@/components/patrones";
 import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
 import {
   TIPO_FINANCIADOR_LABEL,
@@ -106,6 +107,10 @@ const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
  * La franja textil de 8 px en el tope es la firma de marca del recibo (una por
  * pantalla); la llamita no aparece acá, porque esta página nombra a quien financió
  * y muestra señales, y la llamita nunca va al lado de una persona ni de una señal.
+ *
+ * Contenedor: el `container-page` de la cabecera pública, sin la columna angosta
+ * centrada de antes (el tablero de contratos necesita el ancho). Avisos y notas, en
+ * una línea con su ⓘ (DESIGN_SYSTEM.md §10.7).
  */
 export default async function ImpactoPage({ params }: { params: { codigo: string } }) {
   const c = await getComprobante(params.codigo);
@@ -138,7 +143,7 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
 
   return (
     <div className="container-page py-8 sm:py-10">
-      <article className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-paper">
+      <article className="overflow-hidden rounded-2xl border border-line bg-paper">
         <FranjaTextil alto={8} />
         <div className="p-5 sm:p-8">
           {/* Identidad del recibo: su código, qué es y en qué estado está. Quien financió, al costado. */}
@@ -233,9 +238,14 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
             />
           </dl>
           {enRevision > 0 && (
-            <p className="mt-2 text-[12px] leading-relaxed text-inkSoft">
-              <strong className="font-mono text-ink">{numero(enRevision)}</strong> {enRevision === 1 ? "contrato leído espera" : "contratos leídos esperan"} revisión humana:
-              la autoevaluación no alcanzó el umbral para publicar y una persona decide. No cuentan como señal.
+            <p className="mt-2 inline-flex flex-wrap items-center gap-1 text-[12px] text-inkSoft">
+              <span>
+                <strong className="font-mono text-ink">{numero(enRevision)}</strong>{" "}
+                {enRevision === 1 ? "contrato leído espera" : "contratos leídos esperan"} revisión humana
+              </span>
+              <Ayuda titulo="¿Por qué en revisión?">
+                La autoevaluación no alcanzó el umbral para publicar y una persona decide. No cuentan como señal.
+              </Ayuda>
             </p>
           )}
           <div
@@ -273,22 +283,23 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           {/* Contratos en vivo */}
           <section aria-labelledby="contratos-aporte" className="mt-8">
             <h2 id="contratos-aporte" className="font-display text-lg font-bold text-ink">Contratos de este aporte</h2>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-inkSoft">
+            <p className="mt-0.5 text-[13px] text-inkSoft">
               {c.estado === "pendiente_pago"
-                ? "Los contratos se asignan al validar el pago. Desde ese momento verás aquí cada uno avanzar en vivo."
-                : "Cada contrato pasa de la cola a la lectura y al dictamen. Toca uno para verlo paso por paso."}
+                ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
+                : "Toca uno para ver su lectura paso por paso."}
             </p>
             <div className="mt-4">
               <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
             </div>
           </section>
 
-          <p className="mt-8 flex items-start gap-2.5 rounded-2xl bg-paperSoft p-4 text-[13px] leading-relaxed text-inkSoft">
-            <ShieldCheck size={16} className="mt-0.5 shrink-0 text-granate" aria-hidden />
-            <span>
-              {institucional ? "Este lote" : "Este aporte"} financió capacidad de lectura. Los contratos se asignaron por
-              antigüedad y los dictámenes se escribieron sin conocer el nombre de quien financió.
-            </span>
+          <p className="mt-8 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
+            <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
+            <span>{institucional ? "Este lote" : "Este aporte"} financió capacidad de lectura, no resultados.</span>
+            <Ayuda titulo="¿Qué garantiza la independencia?">
+              Los contratos se asignaron por antigüedad y los dictámenes se escribieron sin conocer el nombre de quien
+              financió.
+            </Ayuda>
           </p>
 
           {!institucional && <div className="mt-6"><CuentaCta codigo={c.codigo} /></div>}

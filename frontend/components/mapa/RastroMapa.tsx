@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ChevronRight, X } from "lucide-react";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { numero } from "@/lib/formato";
 import { nombreDepartamento } from "./region-match";
 import { fraseEnCurso, type EnCurso } from "./useEnCurso";
 
@@ -10,6 +12,11 @@ import { fraseEnCurso, type EnCurso } from "./useEnCurso";
  * Debajo de la barra del mapa: dónde estoy y cómo vuelvo (Perú › región › zona),
  * y, sólo si hay algo en curso, dónde se está leyendo AHORA. El punto que late es
  * `moss` (en vivo = positivo), no el acento de marca.
+ *
+ * "Ahora" es una fila de chips (departamento + cuántos), no una oración por
+ * departamento: con cuatro zonas en curso la frase ocupaba dos renglones. El
+ * desglose de cada una (leyéndose, en turno, esperando documentos) va en su
+ * `title` y en su nombre accesible; qué cuenta, en el ⓘ.
  */
 export function RastroMapa({
   region,
@@ -74,21 +81,30 @@ export function RastroMapa({
 
       {/* Lo que se está leyendo AHORA. Sólo aparece si hay algo en curso. */}
       {deptos.length > 0 && (
-        <p className="flex min-w-0 items-start gap-1.5 text-[12px] leading-snug text-inkSoft" role="status">
-          <PulseDot color="moss" size={7} className="mt-1" />
-          <span>
-            <span className="font-semibold text-ink">Ahora: </span>
-            {deptos.map((ub, i) => (
-              <span key={ub}>
-                {i > 0 ? "; " : ""}
-                <Link href={`/app/auditoria?ubigeo=${ub}`} className="font-medium text-granate underline-offset-2 hover:underline">
-                  {nombreDepartamento(ub)}
-                </Link>
-                , {fraseEnCurso(enCurso[ub]).replace(/^[^:]+: /, "")}
-              </span>
-            ))}
-          </span>
-        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-inkSoft" role="status">
+          <PulseDot color="moss" size={7} />
+          <span className="font-semibold text-ink">Ahora</span>
+          {deptos.map((ub) => {
+            const e = enCurso[ub];
+            const frase = `${nombreDepartamento(ub)}, ${fraseEnCurso(e)}`;
+            return (
+              <Link
+                key={ub}
+                href={`/app/auditoria?ubigeo=${ub}`}
+                title={frase}
+                aria-label={`${frase}. Ver en vivo`}
+                className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 font-medium text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
+              >
+                {nombreDepartamento(ub)}
+                <span className="font-semibold tabular-nums text-ink">{numero(e.leyendo + e.enCola + e.esperandoDocs)}</span>
+              </Link>
+            );
+          })}
+          <Ayuda titulo="¿Qué se está leyendo ahora?">
+            Contratos financiados que se están leyendo, esperan su turno o esperan que bajen sus documentos, por
+            departamento. Cada chip abre esa zona en vivo.
+          </Ayuda>
+        </div>
       )}
     </div>
   );

@@ -679,6 +679,9 @@ export function PeruChoropleth({
               const fFinal = f;
               return (
                 <g key={`lb-${p.ubigeo}`} transform={`translate(${cx},${cy})`}>
+                  {/* Un solo <text>: con `paint-order: stroke` el halo queda debajo del
+                      relleno. La copia de sólo relleno que iba encima no cambiaba el dibujo
+                      y hacía que cada nombre se leyera dos veces ("Amazonas Amazonas"). */}
                   <text
                     textAnchor="middle"
                     dy="0.35em"
@@ -690,9 +693,6 @@ export function PeruChoropleth({
                     strokeOpacity="0.9"
                     style={{ paintOrder: "stroke" }}
                   >
-                    {p.name}
-                  </text>
-                  <text textAnchor="middle" dy="0.35em" fontSize={fFinal} fontWeight={peso} fill={tinta.texto}>
                     {p.name}
                   </text>
                 </g>
@@ -720,9 +720,6 @@ export function PeruChoropleth({
                       strokeOpacity="0.95"
                       style={{ paintOrder: "stroke" }}
                     >
-                      {p.name}
-                    </text>
-                    <text textAnchor="middle" dy="0.35em" fontSize={fs.prov} fontWeight="600" fill={COLOR.ink}>
                       {p.name}
                     </text>
                   </g>

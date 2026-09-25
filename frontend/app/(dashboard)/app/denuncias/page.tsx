@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessageSquareWarning, Shield } from "lucide-react";
-import { EncabezadoPagina, EstadoError, EstadoVacio, Cifra } from "@/components/patrones";
+import { MessageSquareWarning } from "lucide-react";
+import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { DenunciasGrid } from "@/components/denuncias/DenunciasGrid";
-import { FiltrosDenuncias } from "@/components/denuncias/FiltrosDenuncias";
 import { getReportesPagina, type ApiReporte, type ReportesPagina } from "@/lib/api-client";
 import { estaConfirmada, tieneUbicacion } from "@/lib/denuncias-meta";
 import { parseDenunciasQuery, confirmadosDe, denunciasQueryString } from "@/lib/denuncias-query";
@@ -62,10 +61,24 @@ export default async function DenunciasPage({
   const sinNinguna = !!muestra && muestra.total === 0 && muestra.data.length === 0;
 
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina className="space-y-5">
       <EncabezadoPagina
         titulo="Denuncias ciudadanas"
-        bajada="Vecinos, comerciantes y trabajadores reportan obras paralizadas, obras fantasma e irregularidades. Son públicas: cualquiera puede verlas."
+        bajada="Testimonios de vecinos, no hallazgos de Vigía: obras paralizadas, obras fantasma e irregularidades, con foto y lugar."
+        ayuda={
+          <Ayuda titulo="¿Qué pasa con cada denuncia?">
+            <span className="block">
+              Se publica al instante, tal como llegó: en esta lista y en el mapa de Vigía, con su foto y el lugar que se
+              marcó. Nadie la revisa antes.
+            </span>
+            <span className="mt-2 block">
+              Figura como confirmada sólo cuando la respaldan dos o más reportes independientes del mismo lugar.
+            </span>
+            <span className="mt-2 block">
+              Es el testimonio de un vecino, no un hallazgo de Vigía: los agentes que leen contratos no la analizan.
+            </span>
+          </Ayuda>
+        }
         acciones={
           !pagina || !sinNinguna ? (
             <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
@@ -89,6 +102,7 @@ export default async function DenunciasPage({
         </EstadoError>
       ) : sinNinguna ? (
         <EstadoVacio
+          compacto
           titulo="Todavía no hay denuncias de vecinos publicadas"
           accion={
             <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
@@ -97,38 +111,11 @@ export default async function DenunciasPage({
             </Link>
           }
         >
-          Cuando alguien reporte una obra paralizada, una obra fantasma o una irregularidad, va a aparecer aquí con su
-          foto y el lugar donde la vio.
+          Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio.
         </EstadoVacio>
       ) : (
         <>
           <Cifras muestra={muestra} />
-
-          <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-line bg-paper p-4">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-granate-soft text-granate" aria-hidden>
-              <Shield size={14} />
-            </span>
-            <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-inkSoft">
-              <h2 className="font-display text-[15px] font-bold text-ink">Qué pasa con cada denuncia</h2>
-              <ul className="mt-1 list-outside list-disc space-y-0.5 pl-4">
-                <li>
-                  Se publica al instante, tal como llegó: en esta lista y en el mapa de Vigía, con su foto y el lugar
-                  que se marcó. Nadie la revisa antes.
-                </li>
-                <li>
-                  Figura como <strong className="font-semibold text-mossTexto">confirmada</strong> sólo cuando la
-                  respaldan dos o más reportes independientes del mismo lugar.
-                </li>
-                <li>
-                  Es el testimonio de un vecino, no un hallazgo de Vigía: los agentes que leen contratos no la
-                  analizan.
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <FiltrosDenuncias query={query} />
-
           <DenunciasGrid
             reportes={pagina.data}
             query={query}
@@ -138,41 +125,49 @@ export default async function DenunciasPage({
           />
         </>
       )}
-    </div>
+    </Pagina>
   );
 }
 
 /**
- * Las cuatro cifras de arriba. Son un resumen del sitio: no reaccionan a los
- * filtros de abajo. `total` es el conteo del backend; las otras tres se cuentan
- * sobre la muestra de las 200 más recientes, y cuando hay más que eso lo dicen:
- * cada cifra lleva su denominador (DESIGN_SYSTEM.md §10.2).
+ * Las cifras de arriba, en UNA línea de datos (DESIGN_SYSTEM.md §10.7). Son un
+ * resumen del sitio: no reaccionan a los filtros de abajo. `total` es el conteo del
+ * backend; las otras tres se cuentan sobre la muestra de las 200 más recientes, y
+ * cuando hay más que eso lo dicen: cada cifra lleva su denominador (§10.2).
  */
 function Cifras({ muestra }: { muestra: ReportesPagina }) {
   const filas: ApiReporte[] = muestra.data;
   const total = Math.max(muestra.total, filas.length);
   const sobre = filas.length;
-  const base = total > sobre ? `de las ${numero(sobre)} más recientes` : `de ${numero(sobre)}`;
+  const recortada = total > sobre;
   const confirmadas = filas.filter(estaConfirmada).length;
   const conFoto = filas.filter((r) => r.fotoUrl).length;
   const conUbicacion = filas.filter(tieneUbicacion).length;
   const pct = (n: number) => (sobre ? ` (${porcentaje((n / sobre) * 100)})` : "");
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <CifraDenuncias valor={numero(total)} etiqueta="Denuncias publicadas" contexto="desde el inicio" />
-      <CifraDenuncias valor={numero(confirmadas)} etiqueta="Confirmadas" contexto={`${base}; por dos o más reportes`} />
-      <CifraDenuncias valor={numero(conFoto)} etiqueta="Con foto" contexto={`${base}${pct(conFoto)}`} />
-      <CifraDenuncias valor={numero(conUbicacion)} etiqueta="Con punto en el mapa" contexto={`${base}${pct(conUbicacion)}`} />
-    </div>
-  );
-}
-
-/** `Cifra` del sistema dentro de su tarjeta (borde, sin sombra: una tarjeta en reposo no flota). */
-function CifraDenuncias({ valor, etiqueta, contexto }: { valor: string; etiqueta: string; contexto: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-paper p-4">
-      <Cifra valor={valor} etiqueta={etiqueta} contexto={contexto} />
-    </div>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+      <span>
+        <strong className="font-semibold text-ink">{numero(total)}</strong> publicadas desde el inicio
+      </span>
+      <span>
+        <strong className="font-semibold text-ink">{numero(confirmadas)}</strong> de {numero(sobre)} confirmadas
+      </span>
+      <span>
+        <strong className="font-semibold text-ink">{numero(conFoto)}</strong> de {numero(sobre)} con foto{pct(conFoto)}
+      </span>
+      <span>
+        <strong className="font-semibold text-ink">{numero(conUbicacion)}</strong> de {numero(sobre)} con punto en el mapa
+        {pct(conUbicacion)}
+      </span>
+      {recortada && <span className="text-mute">sobre las {numero(sobre)} más recientes</span>}
+      <Ayuda titulo="¿Qué cuentan estas cifras?">
+        <span className="block">
+          El total cuenta todas las denuncias publicadas; las otras tres, las {numero(sobre)} más recientes. Son del sitio
+          entero: no cambian con los filtros de abajo.
+        </span>
+        <span className="mt-2 block">Confirmada: la respaldan dos o más reportes independientes del mismo lugar.</span>
+      </Ayuda>
+    </p>
   );
 }

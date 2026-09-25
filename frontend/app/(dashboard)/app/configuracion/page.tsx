@@ -35,7 +35,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Download, Trash2, Loader2, Check, Upload, LogIn, ShieldAlert, RefreshCw, ChevronRight } from "lucide-react";
-import { Cargando, EncabezadoPagina, EstadoError, EstadoVacio } from "@/components/patrones";
+import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { fechaCorta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -72,10 +72,16 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
+    <Pagina>
       <EncabezadoPagina
         titulo="Configuración"
-        bajada="Cómo apareces en el muro de aliados, qué avisos quieres y qué guardamos de ti. Todo es opcional: sin cuenta el sitio funciona igual."
+        bajada="Cómo apareces en el muro de aliados, qué avisos quieres y qué guardamos de ti."
+        ayuda={
+          <Ayuda titulo="¿Necesito una cuenta?">
+            No. Todo es opcional: sin cuenta el sitio funciona igual. Puedes financiar como invitado y denunciar sin tu
+            nombre.
+          </Ayuda>
+        }
       />
       {loading || (user && cargando && !perfil) ? (
         <Cargando texto="Cargando tu cuenta…" />
@@ -88,8 +94,8 @@ export default function ConfiguracionPage() {
             </Link>
           }
         >
-          La configuración guarda tu perfil de aliado, visibilidad y preferencias. Sin cuenta no hay nada que configurar:
-          puedes financiar como invitado y denunciar sin tu nombre.
+          Aquí se guardan tu perfil de aliado y tus avisos. Sin cuenta puedes financiar como invitado y denunciar sin tu
+          nombre.
         </EstadoVacio>
       ) : perfil ? (
         <Formulario perfil={perfil} />
@@ -105,7 +111,7 @@ export default function ConfiguracionPage() {
           Puede ser una falla momentánea de red o de sesión. Reintenta en unos segundos.
         </EstadoError>
       )}
-    </div>
+    </Pagina>
   );
 }
 
@@ -226,7 +232,15 @@ function Formulario({ perfil }: { perfil: Perfil }) {
               </span>
             }
           >
-            <p className="text-sm text-inkSoft">Solo importa si quieres aparecer en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">muro de aliados</Link> y en los comprobantes de tus aportes. Si no, tus aportes figuran como “Anónimo”.</p>
+            <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+              <span>
+                Cómo figuras en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">muro de aliados</Link>.
+              </span>
+              <Ayuda titulo="¿Para qué sirve el perfil público?">
+                Sólo importa si quieres aparecer en el muro de aliados y en los comprobantes de tus aportes. Si no, tus
+                aportes figuran como “Anónimo”.
+              </Ayuda>
+            </p>
 
             <div className="mt-4 flex gap-2" role="radiogroup" aria-label="Visibilidad">
               <button type="button" role="radio" aria-checked={!visible} onClick={() => setVisible(false)} className={cn(opcion(!visible), "flex-1")}>
@@ -324,7 +338,12 @@ function Formulario({ perfil }: { perfil: Perfil }) {
             defaultOpen
             hint={<span className="shrink-0 text-xs font-medium tabular-nums text-mute">{notifsActivos} de {NOTIFS.length} activos</span>}
           >
-            <p className="text-sm text-inkSoft">Tu cuenta no necesita correo. Si dejas uno, es privado y solo sirve para los avisos que actives. <strong className="font-semibold text-ink">Por ahora sólo guardamos tu preferencia: todavía no enviamos correos.</strong></p>
+            <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+              <strong className="font-semibold text-ink">Todavía no enviamos correos:</strong> sólo guardamos tu preferencia.
+              <Ayuda titulo="¿Para qué es el correo?">
+                Tu cuenta no necesita correo. Si dejas uno, es privado y solo sirve para los avisos que actives.
+              </Ayuda>
+            </p>
             <label className="mt-3 block text-sm">
               <span className="font-semibold text-inkSoft">Correo (opcional)</span>
               <input type="email" inputMode="email" value={correo} onChange={(e) => setCorreo(e.target.value)} autoComplete="email" className={CAMPO} placeholder="tu@correo.pe" />

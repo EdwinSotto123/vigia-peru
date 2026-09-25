@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Bell, MessageSquareWarning, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { FiltroMes, type RangoMes } from "./FiltroMes";
 import { LeyendaEscala } from "./LeyendaEscala";
 import { FILTROS, MEDIDAS, type Escala, type FiltroZona, type Medida, type MedidaId } from "./escala";
@@ -146,10 +147,16 @@ export function BarraMapa({
         )}
       </div>
 
+      {/* Aviso inevitable = una línea + ⓘ (§10.7): qué se acota por mes y qué no. */}
       {mes && (
-        <p className="text-[12px] leading-snug text-inkSoft" role="status">
-          Mostrando contratos de <strong className="font-semibold text-ink">{mes.etiqueta}</strong> en el color del mapa,
-          el encabezado y la ficha. El panel de la zona y los puntos de riesgo siguen mostrando todo el histórico.
+        <p className="flex items-center gap-1 text-[12px] text-inkSoft" role="status">
+          <span>
+            Mostrando <strong className="font-semibold text-ink">{mes.etiqueta}</strong>
+          </span>
+          <Ayuda titulo="¿Qué cambia con el mes?">
+            El color del mapa, el encabezado y la ficha de cada zona cuentan sólo los contratos de {mes.etiqueta}. El
+            panel de la zona y los puntos de riesgo siguen mostrando todo el histórico.
+          </Ayuda>
         </p>
       )}
 

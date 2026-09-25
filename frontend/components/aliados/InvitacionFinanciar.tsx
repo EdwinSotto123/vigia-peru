@@ -22,8 +22,8 @@ export function InvitacionFinanciar({ className = "" }: { className?: string }) 
           Financia la lectura de los contratos de tu zona
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-paper/80 text-pretty">
-          Desde <span className="font-semibold text-maiz">{MIN_CONTRATOS} contratos</span>. Con tu nombre, como
-          colectivo o sin nombre: se cuenta en contratos leídos, nunca en soles, y pesa exactamente igual.
+          Desde <span className="font-semibold text-maiz">{MIN_CONTRATOS} contratos</span>, con tu nombre o sin él. Se
+          cuenta en contratos leídos, nunca en soles.
         </p>
       </div>
       <EnlaceAccion variante="oscuro" href="/app/financiar" className="shrink-0">

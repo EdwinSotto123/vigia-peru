@@ -13,6 +13,7 @@ import { ChevronDown, Check, AlertTriangle, ListChecks } from "lucide-react";
 import { getReglasPerfil, reglaLabel, tipoContratoHumano, type ReglasPerfil, type SenalRiesgo } from "@/lib/auditoria";
 import { nombreDeAgente } from "@/components/agentes/catalogo";
 import { Severidad } from "@/components/ui/Severidad";
+import { Ayuda } from "@/components/patrones/Ayuda";
 
 const ORDEN = { alta: 0, media: 1, baja: 2 } as const;
 
@@ -75,8 +76,15 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
       </button>
       {abierto && (
         <div id="reglas-evaluadas" className="border-t border-line px-3 py-2">
-          <p className="mb-2 text-[11px] text-mute">
-            Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil} (versión <span className="font-mono">{data.version}</span>). Cada una se comprobó contra el registro público del proceso, el expediente y las fuentes oficiales; las que no dispararon también cuentan: dicen qué se descartó.
+          {/* Una línea de datos; cómo se comprobó cada regla, a un clic (DESIGN_SYSTEM.md §10.7). */}
+          <p className="mb-2 flex items-center gap-1 text-[11px] text-mute">
+            <span>
+              Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil} · versión <span className="font-mono">{data.version}</span>
+            </span>
+            <Ayuda titulo="¿Cómo se comprobaron?">
+              Cada regla se comprobó contra el registro público del proceso, el expediente y las fuentes oficiales. Las que
+              no dispararon también cuentan: dicen qué se descartó.
+            </Ayuda>
           </p>
           <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2" aria-label="Reglas evaluadas">
             {[...reglas].sort((a, b) => Number(disparadas.has(b.id)) - Number(disparadas.has(a.id)) || a.etiqueta.localeCompare(b.etiqueta)).map((r) => {

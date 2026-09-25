@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Estado del pipeline: UNA barra con el ciclo completo de los contratos financiados, el RITMO
- * REAL de los últimos 14 días y UNA fila "ahora mismo". Poll cada `pollMs` (5 s) solo con la
- * pestaña visible.
+ * Estado del pipeline: UNA línea de datos (publicados de financiados, leídos hoy, ritmo de 14
+ * días, último análisis), UNA barra con el ciclo completo y UNA fila "ahora mismo". Lo que
+ * significa cada estado y cómo se cuenta está a un clic (Ayuda), no en párrafos encima de la
+ * cifra (DESIGN_SYSTEM.md §10.7). Poll cada `pollMs` (5 s) solo con la pestaña visible.
  *
  * Esta barra es la ÚNICA fuente de conteos de la pantalla. Antes había dos, y los mismos doce
  * contratos aparecían como "esperan documentos" arriba y "en cola" abajo, y los doce en
@@ -51,6 +52,7 @@ import {
 } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { Ayuda } from "@/components/patrones/Ayuda";
 import { numero, porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -174,26 +176,50 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
     return Number.isFinite(max) ? max : null;
   }, [finalizados]);
   const hoy = ritmo?.[ritmo.length - 1]?.n ?? data?.procesadosHoy ?? 0;
+  const totalRitmo = ritmo ? ritmo.reduce((s, d) => s + d.n, 0) : 0;
   const tipos = (data?.procesamientoActivo?.tipos_activos ?? []).map((t) => tipoContratoHumano(t)).filter((t): t is string => !!t);
 
   return (
     <div className="rounded-2xl border border-line bg-paper">
-      <div className="px-3 py-3 sm:px-4">
+      <div className="space-y-2 px-3 py-3 sm:px-4">
         {financiados === 0 ? (
-          <p className="text-[13px] text-mute">
-            Todavía no hay ningún contrato financiado {alcance}. Cuando se confirme un aporte, sus contratos
-            aparecen acá y se los ve pasar de la cola al dictamen.
-          </p>
+          <p className="text-[13px] text-mute">Todavía no hay ningún contrato financiado {alcance}.</p>
         ) : (
           <>
-            <p className="text-[13px] leading-snug tabular-nums text-inkSoft">
-              <span className="font-semibold text-ink">{numero(publicados)}</span> de{" "}
-              <span className="font-semibold text-ink">{numero(financiados)}</span> contratos financiados {alcance} ya
-              tienen dictamen publicado
-              {hoy > 0 && <>; {numero(hoy)} de ellos se leyeron hoy</>}.
-            </p>
+            {/* UNA línea de datos (§10.7): el ciclo, el día y el ritmo, cada cifra con su contexto.
+                A la derecha, las barras por día: es lo que impide que la pantalla parezca viva
+                cuando lleva días quieta. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+                <span>
+                  <strong className="font-semibold text-ink">{numero(publicados)}</strong> de{" "}
+                  <strong className="font-semibold text-ink">{numero(financiados)}</strong> financiados {alcance} con dictamen publicado
+                </span>
+                <span>
+                  <strong className="font-semibold text-ink">{numero(hoy)}</strong> {hoy === 1 ? "leído" : "leídos"} hoy
+                </span>
+                {ritmo && (
+                  <span>
+                    <strong className="font-semibold text-ink">{numero(totalRitmo)}</strong> en {ritmo.length} días
+                  </span>
+                )}
+                <UltimoTerminado ultimoFin={ultimoFin} ahora={ahora} />
+                <Ayuda titulo="¿Cómo se cuenta?">
+                  <span className="block">
+                    Todos los contratos financiados {alcance}, aunque filtres el tablero de abajo por región. Los días se
+                    cuentan en hora de Lima.
+                  </span>
+                  <span className="mt-2 block text-mute">
+                    Un contrato en revisión ya se leyó, pero su dictamen no está publicado: cuenta como leído, no como
+                    señal.
+                  </span>
+                </Ayuda>
+              </p>
+              {ritmo && <BarrasRitmo ritmo={ritmo} />}
+            </div>
+
             <div
-              className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
+              className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
               role="img"
               aria-label={`${tramos.map((t) => `${t.value} ${t.label}`).join(", ")}; ${financiados} en total`}
             >
@@ -202,61 +228,43 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
                   key={t.clave}
                   className={cn(t.color, "h-full")}
                   style={{ width: `${pct(t.value)}%`, minWidth: PISO_PX }}
-                  title={`${t.value} ${t.label}. ${t.titulo}`}
+                  title={`${t.value} ${t.label}`}
                 />
               ))}
             </div>
-            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-              {tramos.map((t) => (
-                <li key={t.clave} className="inline-flex items-baseline gap-1.5 text-[12px] text-inkSoft" title={t.titulo}>
-                  <span className={cn("relative top-[1px] h-2 w-2 shrink-0 rounded-full", t.color)} aria-hidden />
-                  <span className="font-semibold tabular-nums text-ink">{numero(t.value)}</span>
-                  {t.label}
-                  <span className="text-[11px] tabular-nums text-mute">{porcentaje(pct(t.value))}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                {tramos.map((t) => (
+                  <li key={t.clave} className="inline-flex items-baseline gap-1.5 text-[12px] text-inkSoft">
+                    <span className={cn("relative top-[1px] h-2 w-2 shrink-0 rounded-full", t.color)} aria-hidden />
+                    <span className="font-semibold tabular-nums text-ink">{numero(t.value)}</span>
+                    {t.label}
+                    <span className="text-[11px] tabular-nums text-mute">{porcentaje(pct(t.value))}</span>
+                  </li>
+                ))}
+              </ul>
+              <Ayuda titulo="¿Qué es cada estado?" ancho="w-[22rem]">
+                {tramos.map((t, i) => (
+                  <span key={t.clave} className={cn("block", i > 0 && "mt-1.5")}>
+                    <span className="font-semibold text-ink">{t.label.charAt(0).toUpperCase() + t.label.slice(1)}:</span> {t.titulo}
+                  </span>
+                ))}
+              </Ayuda>
+            </div>
           </>
-        )}
-        {data?.documentosDescargados7d && data.documentosDescargados7d.n > 0 && (
-          // Esto es ingesta, no auditoría: no pertenece a la barra de estados del pipeline,
-          // donde competía por atención con cifras de otra naturaleza.
-          <p className="mt-2.5 border-t border-line pt-2 text-[12px] text-mute">
-            Aparte, en los últimos 7 días se descargaron{" "}
-            <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.n)}</span>{" "}
-            documentos del SEACE de {numero(data.documentosDescargados7d.contratos)} contratos del catálogo general.
-            No son contratos financiados: es material para lecturas futuras.
-          </p>
         )}
       </div>
 
-      {ritmo && <RitmoReal ritmo={ritmo} ultimoFin={ultimoFin} ahora={ahora} />}
-
       {/* Ahora mismo. Nada de lo que ya cuenta la barra se repite acá. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line bg-paperSoft px-3 py-2 text-[12px] sm:px-4">
-        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-inkSoft">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-paperSoft px-3 py-2 text-[12px] sm:px-4">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-inkSoft">
           {procesando > 0 ? <PulseDot color="amber" size={6} /> : <Cpu size={12} aria-hidden />}
           Ahora mismo
         </span>
         {fallo && (
           <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} aria-hidden /> Sin conexión con el servicio; reintentando…</span>
         )}
-        {activos.length === 0 && !fallo && <span className="text-inkSoft">Ningún contrato en análisis.</span>}
-        {pedidos && pedidos.pendientes + pedidos.descargando > 0 && (
-          // Los números del pedido de descarga, tal cual: si nadie los toma, se ve.
-          <span className="text-mute">
-            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.pendientes)}</span>{" "}
-            {pedidos.pendientes === 1 ? "pedido de descarga de documentos pendiente" : "pedidos de descarga de documentos pendientes"}:{" "}
-            {pedidos.descargando > 0 ? <>{pedidos.descargando} descargándose ahora</> : "ninguno se está descargando ahora"},{" "}
-            {pedidos.listos24h > 0 ? <>{pedidos.listos24h} {pedidos.listos24h === 1 ? "quedó listo" : "quedaron listos"} en las últimas 24 h</> : "ninguno quedó listo en las últimas 24 h"}
-            {pedidos.fallidos > 0 && <>, <span className="text-crimsonTexto">{pedidos.fallidos} {pedidos.fallidos === 1 ? "falló" : "fallaron"}</span></>}.
-          </span>
-        )}
-        {tipos.length > 0 && (
-          <span className="text-mute" title={data?.procesamientoActivo?.nota ?? undefined}>
-            Por ahora se analizan contratos de {tipos.length === 1 ? tipos[0] : `${tipos.slice(0, -1).join(", ")} y ${tipos[tipos.length - 1]}`}.
-          </span>
-        )}
+        {activos.length === 0 && !fallo && <span className="text-inkSoft">Ningún contrato en análisis</span>}
         {activos.map((a) => {
           const seg = a.desdeSeg + drift;
           // iniciadoAt en el epoch + "ahora" = segundos transcurridos: faseHumana mide la espera sin tocar Date.now() en el render.
@@ -270,13 +278,27 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
               className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber/40 bg-amber-soft px-2 py-0.5 text-[11px] text-ink hover:border-amber"
               title={a.titulo ?? a.ocid}
             >
-              <span className="font-mono">{a.ocid}</span>
+              <span className="max-w-[14rem] truncate font-medium">{a.titulo ?? a.ocid}</span>
               <span className="font-mono tabular-nums text-mute">{prog.hechas}/{prog.aplicables} pasos</span>
               <span className="truncate text-amberTexto">{faseHumana(p, seg * 1000, fases)}</span>
               <span className="font-mono tabular-nums text-mute">{duracion(seg * 1000)}</span>
             </Link>
           );
         })}
+        {pedidos && pedidos.pendientes + pedidos.descargando > 0 && (
+          // Los números del pedido de descarga, tal cual (ceros incluidos): si nadie los toma, se ve.
+          <span className="text-mute">
+            Descargas de documentos:{" "}
+            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.pendientes)}</span> {pedidos.pendientes === 1 ? "pendiente" : "pendientes"} ·{" "}
+            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.descargando)}</span> en curso ·{" "}
+            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.listos24h)}</span> {pedidos.listos24h === 1 ? "lista" : "listas"} en 24 h
+            {pedidos.fallidos > 0 && (
+              <>
+                {" "}· <span className="text-crimsonTexto"><span className="font-semibold tabular-nums">{numero(pedidos.fallidos)}</span> {pedidos.fallidos === 1 ? "fallida" : "fallidas"}</span>
+              </>
+            )}
+          </span>
+        )}
         {lote && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2 py-0.5 text-[11px] text-mute" title={`Lote ${lote.id}${lote.tipo ? ` de tipo ${lote.tipo}` : ""}`}>
             <Download size={11} aria-hidden />
@@ -289,8 +311,41 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
             {(lote.fallidos ?? 0) > 0 && <span className="text-crimsonTexto">{lote.fallidos} fallidos</span>}
           </span>
         )}
+        {tipos.length > 0 && (
+          <span className="inline-flex items-center gap-1 text-mute">
+            Se analizan contratos de {tipos.length === 1 ? tipos[0] : `${tipos.slice(0, -1).join(", ")} y ${tipos[tipos.length - 1]}`}
+            {data?.procesamientoActivo?.nota && <Ayuda titulo="¿Qué contratos se analizan?">{data.procesamientoActivo.nota}</Ayuda>}
+          </span>
+        )}
+        {data?.documentosDescargados7d && data.documentosDescargados7d.n > 0 && (
+          // Ingesta, no auditoría: va al final, en voz baja, con su explicación a un clic.
+          <span className="inline-flex items-center gap-1 text-mute">
+            <span>
+              Catálogo: <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.n)}</span> documentos de{" "}
+              <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.contratos)}</span> contratos en 7 días
+            </span>
+            <Ayuda titulo="¿Qué son esos documentos?">
+              Documentos del SEACE descargados en los últimos 7 días para contratos del catálogo general. No son contratos
+              financiados: es material para lecturas futuras.
+            </Ayuda>
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+/** "último análisis hace 21 h" (la fecha exacta, en `title`). Antes de montar, la fecha: sin cronómetro en el HTML del servidor. */
+function UltimoTerminado({ ultimoFin, ahora }: { ultimoFin: number | null; ahora: number }) {
+  if (ultimoFin == null) return <span>ningún análisis terminado todavía</span>;
+  const exacta = fechaLima(ultimoFin, { hora: true });
+  return (
+    <span title={`${exacta}, hora de Lima`}>
+      último análisis{" "}
+      <strong className="font-semibold text-ink" suppressHydrationWarning>
+        {ahora > 0 ? haceCuanto(ahora - ultimoFin) : `el ${exacta}`}
+      </strong>
+    </span>
   );
 }
 
@@ -299,7 +354,7 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
  * se ven como un trazo en la base: son la parte más importante del dato cuando la cola se
  * detiene. La barra de hoy lleva borde para ubicarse.
  */
-function RitmoReal({ ritmo, ultimoFin, ahora }: { ritmo: { dia: string; n: number }[]; ultimoFin: number | null; ahora: number }) {
+function BarrasRitmo({ ritmo }: { ritmo: { dia: string; n: number }[] }) {
   const max = Math.max(1, ...ritmo.map((d) => d.n));
   const total = ritmo.reduce((s, d) => s + d.n, 0);
   const conAnalisis = ritmo.filter((d) => d.n > 0);
@@ -307,51 +362,28 @@ function RitmoReal({ ritmo, ultimoFin, ahora }: { ritmo: { dia: string; n: numbe
     ? `En los últimos ${ritmo.length} días terminaron ${total} análisis: ${conAnalisis.map((d) => `${d.n} el ${diaCorto(d.dia)}`).join(", ")}. Ningún otro día.`
     : `Ningún análisis terminó en los últimos ${ritmo.length} días.`;
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-t border-line px-3 py-2.5 sm:px-4">
-      <div className="min-w-0">
-        <div className="text-[12px] font-semibold text-inkSoft">Ritmo real</div>
-        <p className="mt-0.5 text-[13px] leading-snug text-inkSoft">
-          {ultimoFin != null ? (
-            ahora > 0 ? (
-              <>
-                Último análisis terminado{" "}
-                <span className="font-semibold text-ink" suppressHydrationWarning>{haceCuanto(ahora - ultimoFin)}</span>{" "}
-                <span className="text-mute">({fechaLima(ultimoFin, { hora: true })})</span>
-              </>
-            ) : (
-              <>Último análisis terminado el {fechaLima(ultimoFin, { hora: true })}</>
-            )
-          ) : (
-            "Todavía no terminó ningún análisis."
-          )}
-        </p>
-        <p className="mt-0.5 text-[11px] text-mute">
-          {numero(total)} {total === 1 ? "análisis terminado" : "análisis terminados"} en {ritmo.length} días, contados en hora de Lima.
-        </p>
+    <figure className="m-0 w-full max-w-[16rem] sm:w-56">
+      <div className="flex h-7 items-end gap-[3px]" role="img" aria-label={resumen}>
+        {ritmo.map((d, i) => {
+          const esHoy = i === ritmo.length - 1;
+          return (
+            <span
+              key={d.dia}
+              title={`${diaCorto(d.dia)}${esHoy ? " (hoy)" : ""}: ${d.n} análisis`}
+              className={cn(
+                "block flex-1 rounded-sm transition-[height] duration-700 ease-out",
+                d.n > 0 ? "bg-moss" : "bg-line",
+                esHoy && "outline outline-1 outline-offset-1 outline-paperEdge",
+              )}
+              style={{ height: d.n > 0 ? `${Math.max(12, (d.n / max) * 100)}%` : 2 }}
+            />
+          );
+        })}
       </div>
-      <figure className="m-0 w-full max-w-[22rem] sm:w-auto sm:min-w-[16rem]">
-        <div className="flex h-10 items-end gap-[3px]" role="img" aria-label={resumen}>
-          {ritmo.map((d, i) => {
-            const esHoy = i === ritmo.length - 1;
-            return (
-              <span
-                key={d.dia}
-                title={`${diaCorto(d.dia)}${esHoy ? " (hoy)" : ""}: ${d.n} análisis`}
-                className={cn(
-                  "block flex-1 rounded-sm transition-[height] duration-700 ease-out",
-                  d.n > 0 ? "bg-moss" : "bg-line",
-                  esHoy && "outline outline-1 outline-offset-1 outline-paperEdge",
-                )}
-                style={{ height: d.n > 0 ? `${Math.max(12, (d.n / max) * 100)}%` : 2 }}
-              />
-            );
-          })}
-        </div>
-        <figcaption className="mt-1 flex justify-between font-mono text-[10px] text-mute" aria-hidden>
-          <span>{diaCorto(ritmo[0].dia)}</span>
-          <span>hoy</span>
-        </figcaption>
-      </figure>
-    </div>
+      <figcaption className="mt-0.5 flex justify-between font-mono text-[10px] text-mute" aria-hidden>
+        <span>{diaCorto(ritmo[0].dia)}</span>
+        <span>hoy</span>
+      </figcaption>
+    </figure>
   );
 }

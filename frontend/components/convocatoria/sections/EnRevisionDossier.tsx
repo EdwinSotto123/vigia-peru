@@ -23,17 +23,17 @@ export function EnRevisionDossier({ conv, ganador, nGanadores, onReset }: { conv
   // Mismo tono y palabra que en las listas (lib/severidad EN_REVISION): una espera, no un veredicto.
   const Icono = ICONO_SEVERIDAD[EN_REVISION.icono];
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    // Ancho de página y a la izquierda, como el dossier publicado (§10.7): antes iba centrado a 4xl.
+    <div className="space-y-4">
       <ShareableHeader conv={conv} codigo={conv.codigo} onReset={onReset} compartible={false} />
       <FichaContrato conv={conv} ganador={ganador} nGanadores={nGanadores} />
-      <section aria-labelledby="en-revision-titulo" className="rounded-2xl border border-line bg-paperSoft p-5">
+      <section aria-labelledby="en-revision-titulo" className="rounded-2xl border border-line bg-paperSoft px-4 py-3 sm:px-5">
         <h2 id="en-revision-titulo" className="inline-flex items-center gap-2 font-display text-[20px] font-bold text-ink">
           <Icono size={18} className={cn("shrink-0", EN_REVISION.texto)} aria-hidden />
           {EN_REVISION.etiqueta}
         </h2>
-        <p className="mt-2 max-w-[68ch] text-sm leading-relaxed text-inkSoft text-pretty">
-          El análisis de este contrato terminó, y una persona del equipo lo está revisando antes de publicarlo. Mientras
-          tanto no se muestra lo que encontró.
+        <p className="mt-1 text-sm leading-snug text-inkSoft">
+          El análisis terminó y una persona del equipo lo revisa antes de publicarlo. Hasta entonces no se muestra lo que encontró.
         </p>
         {ocid && (
           <Link

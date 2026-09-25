@@ -71,7 +71,7 @@ export function Podio({
         Quienes más contratos hicieron leer
       </h3>
       <p className="mx-auto mt-1 max-w-[52ch] text-center text-[13px] leading-relaxed text-paper/80 text-pretty">
-        Se cuenta en contratos, nunca en soles. Nadie elige cuáles: salen de la cola por antigüedad.
+        Se cuenta en contratos, nunca en soles.
       </p>
 
       <ol className="mt-7 grid grid-cols-3 items-end gap-2 sm:gap-4">

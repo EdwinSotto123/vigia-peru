@@ -426,6 +426,30 @@ DNI y el último apellido de personas **privadas** van en vidrio esmerilado,
 revelables sólo con clic o teclado (nunca con hover). Empresas y funcionarios
 públicos no se tapan. Nunca se muestra el DNI en claro en un listado.
 
+### 10.7 Densidad: el dato primero, la explicación a un clic
+
+Vigía es una herramienta de datos, no un blog. Cada vista muestra **resultado y
+estado**; el "qué significa", el "por qué" y el "cómo se calcula" están a un clic.
+
+| Pieza | Regla |
+|---|---|
+| Página | `Pagina` (ancho completo, alineada a la izquierda). Nada de `mx-auto max-w-*` por página |
+| Bajada del título | **Una** oración, ≤ 140 caracteres. Lo demás va en `ayuda` (ⓘ al final de la bajada; sin bajada, junto al título) |
+| Descripción de sección | Una línea o nada; lo demás en `ayuda` de `Seccion` |
+| Explicaciones, metodología, avisos | `Ayuda` (ⓘ → flotante) junto a la cifra, la columna o el título que explican. Nunca un párrafo abierto encima del dato |
+| Aviso inevitable | Una línea + ⓘ ("1 contrato ya no figura en el OECE ⓘ") |
+| Fila o tarjeta de lista | Identidad corta + cifra + estado (chip). Título del contrato en **1 línea** en escritorio (`truncate`, texto completo en `title`) y 2 en celular (`line-clamp-2`). Evidencia o descripción: 1 línea |
+| Detalle de un ítem | `Revelar` (panel lateral) o su página. Nunca todo desplegado en la lista |
+| Cifras de cabecera | Una línea de datos: "226 de 226 señales · 73 de 97 contratos · última lectura hace 21 h" |
+| Motivos, razones, categorías | Chips, con el valor dentro ("Evidencia insuficiente 50 %"); la frase completa en el detalle |
+| Centrado | Sólo estados vacíos, 404 y confirmaciones. Una vista de datos se alinea a la izquierda y usa el ancho (tabla o grid) |
+| Medida de línea (`max-w-[70ch]`) | Sólo en prosa: dictamen, preguntas frecuentes, noticia |
+
+**Cómo se mide:** en una vista de datos, ningún bloque de texto visible por defecto
+supera ~2 líneas (≈ 180 caracteres), salvo el título del objeto en su propia página
+y la prosa del dictamen. `Ayuda` lleva texto o `<span className="block">`, nunca
+`<p>`/`<div>` (puede ir dentro de una oración).
+
 ---
 
 ## 11. Catálogo de componentes
@@ -464,8 +488,10 @@ error en línea, `autocomplete`/`inputMode`), `Pestanas` (`role="tablist"`, flec
 
 | Patrón | Qué resuelve |
 |---|---|
-| `EncabezadoPagina` | título (h1) + bajada + acciones; sin kicker |
-| `Seccion` | h2 + descripción opcional + contenido, espaciado vertical fijo |
+| `Pagina` | contenedor de toda página de la app: ancho completo, alineado a la izquierda (`ancho="lectura"` sólo para prosa) |
+| `EncabezadoPagina` | título (h1) + bajada de una oración + `ayuda` (ⓘ) + acciones; sin kicker |
+| `Ayuda` | ⓘ que abre la explicación en un flotante (§10.7); texto o `<span className="block">` |
+| `Seccion` | h2 + una línea opcional + `ayuda` + contenido, espaciado vertical fijo |
 | `Cifra` | número + etiqueta + contexto obligatorio (denominador o fuente) |
 | `EstadoVacio` | llamita + título + texto + acción |
 | `EstadoError` | mensaje en palabras + reintentar + detalle plegado |

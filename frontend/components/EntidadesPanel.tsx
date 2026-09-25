@@ -13,7 +13,7 @@ import {
   type EntidadesResumen,
 } from "@/lib/api-client";
 import { numero, plural, soles, solesCompacto } from "@/lib/formato";
-import { Cifra, EstadoVacio } from "@/components/patrones";
+import { Ayuda, EstadoVacio } from "@/components/patrones";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { cn } from "@/lib/utils";
 
@@ -106,33 +106,35 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
   const qRuc = /^\d{11}$/.test((query.q ?? "").trim()) ? (query.q ?? "").trim() : null;
 
   return (
-    <div className="space-y-5">
-      {/* Resumen: cada cifra con su denominador o su contexto. Sin resumen, "Sin dato", nunca un cero. */}
-      <section aria-label="Resumen de entidades" className="grid gap-5 rounded-2xl border border-line bg-paper p-5 sm:grid-cols-3">
-        <Cifra
-          valor={resumen ? numero(resumen.totalEntidades) : "Sin dato"}
-          etiqueta="Entidades en la base"
-          contexto="Compradoras del Estado que Vigía tiene registradas"
-        />
-        <Cifra
-          valor={resumen ? numero(resumen.conAlertas) : "Sin dato"}
-          etiqueta="Con dictamen publicado"
-          contexto={
-            resumen
-              ? `de ${numero(resumen.totalEntidades)} tienen al menos un contrato leído y publicado, con o sin señales`
-              : "Entidades con al menos un contrato leído y publicado"
-          }
-        />
-        <Cifra
-          valor={resumen ? solesCompacto(resumen.monto) : "Sin dato"}
-          etiqueta="Adjudicado en esos contratos"
-          contexto="Suma de lo adjudicado en los contratos con dictamen publicado"
-        />
-      </section>
+    <div className="space-y-4">
+      {/* Cifras de cabecera en UNA línea de datos (§10.7), cada una con su denominador (§10.2).
+          Sin resumen, "Sin dato", nunca un cero. Son de toda la base: no siguen a la búsqueda. */}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] tabular-nums text-inkSoft">
+        {resumen ? (
+          <>
+            <span>
+              <strong className="font-semibold text-ink">{numero(resumen.conAlertas)}</strong> de{" "}
+              {plural(resumen.totalEntidades, "entidad", "entidades")} con dictamen publicado
+            </span>
+            <span>
+              <strong className="font-semibold text-ink">{solesCompacto(resumen.monto)}</strong> adjudicado en esos contratos
+            </span>
+          </>
+        ) : (
+          <span>Resumen de entidades: Sin dato</span>
+        )}
+        <Ayuda titulo="¿Qué cuentan estas cifras?">
+          <span className="block">
+            Las entidades con al menos un contrato leído y publicado, con o sin señales, sobre todas las compradoras del
+            Estado que Vigía tiene registradas. El monto suma lo adjudicado en esos contratos.
+          </span>
+          <span className="mt-2 block text-mute">Son cifras de toda la base: no cambian con la búsqueda.</span>
+        </Ayuda>
+      </p>
 
-      {/* Búsqueda y orden */}
-      <div className="space-y-3">
-        <div className="relative">
+      {/* Una sola barra: búsqueda, orden y cuántas entidades cumplen la búsqueda. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="relative w-full sm:w-80 lg:w-96">
           <label htmlFor="buscar-entidad" className="sr-only">
             Buscar una entidad por su nombre
           </label>
@@ -144,7 +146,7 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
             onChange={(e) => onQ(e.target.value)}
             placeholder="Buscar por nombre de la entidad…"
             autoComplete="off"
-            className="h-11 w-full rounded-xl border border-line bg-paper pl-9 pr-16 text-sm text-ink placeholder:text-mute hover:border-paperEdge focus:border-granate focus:outline-none"
+            className="h-10 w-full rounded-xl border border-line bg-paper pl-9 pr-16 text-sm text-ink placeholder:text-mute hover:border-paperEdge focus:border-granate focus:outline-none"
           />
           <span className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1.5">
             {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Buscando…" />}
@@ -161,7 +163,7 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-1">
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Ordenar esta página">
             <span className="text-[12px] text-mute">Ordenar esta página por</span>
             {(
@@ -186,6 +188,8 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
                 {s.label}
               </button>
             ))}
+            {/* En el celular la columna del puntaje no se ve: su explicación queda junto a su orden. */}
+            <AyudaPuntaje className="sm:hidden" />
           </div>
           {/* El único anuncio de la lista: cuántas entidades cumplen la búsqueda. */}
           <p className="text-[12px] text-mute sm:ml-auto" aria-live="polite">
@@ -193,12 +197,6 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
             {query.q ? ` con «${query.q}»` : ""}
           </p>
         </div>
-
-        <p className="max-w-[68ch] text-[12px] leading-relaxed text-mute text-pretty">
-          <strong className="font-semibold text-inkSoft">Puntaje promedio:</strong> el promedio, de 0 a 100, del puntaje
-          de sus contratos con dictamen publicado; un contrato sin señales puntúa 0. No es una probabilidad de delito: la
-          ficha de cada entidad muestra las señales que lo explican.
-        </p>
       </div>
 
       {sorted.length === 0 ? (
@@ -261,9 +259,12 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
                 <th
                   scope="col"
                   aria-sort={sort === "score" ? "descending" : undefined}
-                  className="hidden w-28 px-3 py-2.5 text-right font-semibold sm:table-cell sm:pr-4"
+                  className="hidden w-36 px-3 py-2.5 text-right font-semibold sm:table-cell sm:pr-4"
                 >
-                  Puntaje prom.
+                  <span className="inline-flex items-center justify-end gap-0.5">
+                    Puntaje prom.
+                    <AyudaPuntaje />
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -291,6 +292,16 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
   );
 }
 
+/** Qué es el puntaje promedio: junto a su columna (y a su orden en el celular), no en un párrafo encima. */
+function AyudaPuntaje({ className }: { className?: string }) {
+  return (
+    <Ayuda titulo="¿Qué es el puntaje promedio?" className={className}>
+      El promedio, de 0 a 100, del puntaje de sus contratos con dictamen publicado; un contrato sin señales puntúa 0.
+      No es una probabilidad de delito: la ficha de cada entidad muestra las señales que lo explican.
+    </Ayuda>
+  );
+}
+
 function FilaEntidad({ ent, puesto, orden }: { ent: ApiEntidad; puesto: number; orden: SortKey }) {
   // Un chip neutro para todos los tipos: el tipo de entidad no es un nivel de
   // riesgo. Se infiere del nombre oficial cuando el backend no lo declara, y si
@@ -308,9 +319,11 @@ function FilaEntidad({ ent, puesto, orden }: { ent: ApiEntidad; puesto: number; 
     <tr className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
       <td className="px-3 py-3 font-mono text-[12px] tabular-nums text-mute sm:px-4">{numero(puesto)}</td>
       <td className="min-w-0 px-3 py-3">
+        {/* Una línea en escritorio (el nombre completo en `title`), dos en el celular (§10.7). */}
         <Link
           href={`/entidad/${ent.ruc}`}
-          className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline"
+          title={ent.nombre}
+          className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline md:line-clamp-none md:block md:truncate"
         >
           {ent.nombre}
         </Link>

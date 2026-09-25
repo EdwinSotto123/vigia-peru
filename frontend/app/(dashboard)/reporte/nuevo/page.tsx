@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Cargando } from "@/components/patrones";
+import { Cargando, Pagina } from "@/components/patrones";
 import { ReporteNuevo } from "./ReporteNuevo";
 
 export const metadata: Metadata = {
@@ -13,9 +13,9 @@ export default function ReporteNuevoPage() {
   return (
     <Suspense
       fallback={
-        <div className="container-page max-w-3xl py-10">
-          <Cargando texto="Cargando el formulario…" />
-        </div>
+        <Pagina>
+          <Cargando texto="Cargando el formulario…" className="max-w-3xl" />
+        </Pagina>
       }
     >
       <ReporteNuevo />

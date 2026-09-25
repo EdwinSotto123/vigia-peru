@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
-import { CANTIDAD_MAQUETA, NOMBRES_MAQUETA } from "@/lib/maqueta-aliados";
+import { NOMBRES_MAQUETA } from "@/lib/maqueta-aliados";
 import { numero } from "@/lib/formato";
+import { Ayuda } from "@/components/patrones/Ayuda";
 
 /**
  * El aviso de que lo que se está mirando no es real.
  *
  * No es una nota al pie ni un `title=""`: en un producto que acusa
  * públicamente de falta de transparencia, un dato inventado que se vea como
- * real lo destruye. Así que el aviso va arriba de todo, dice los nombres
- * exactos de lo que es falso, dice que las cifras de la página los incluyen, y
- * ofrece la salida en un clic.
+ * real lo destruye. Así que el aviso va arriba de todo, dice en UNA línea los
+ * nombres exactos de lo que es falso y que las cifras de la página los incluyen,
+ * y ofrece la salida en un clic. El cuánto y los prefijos de código, en el ⓘ
+ * (DESIGN_SYSTEM.md §10.7).
  *
  * La versión `compacta` viaja en la barra pegajosa: mientras el usuario
  * recorre el muro, el recordatorio no se va de la pantalla.
@@ -33,27 +35,28 @@ export function AvisoMaqueta({
   return (
     <aside
       aria-label="Aviso: datos de maqueta"
-      className="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-2xl border border-amber/50 bg-amber-soft px-5 py-4"
+      className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-amber/50 bg-amber-soft px-5 py-3"
     >
-      <TriangleAlert size={18} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">
-          Estás viendo una maqueta: {CANTIDAD_MAQUETA} de los aliados de esta página no existen.
-        </p>
-        <p className="mt-1 max-w-[78ch] text-[13px] leading-relaxed text-inkSoft">
-          {NOMBRES_MAQUETA} son financiadores inventados, puestos acá para ver cómo se comporta el muro
-          con varios nombres.
-          {financiados != null && leidos != null && (
-            <>
-              {" "}Sus <span className="font-mono">{num(financiados)}</span> contratos y sus{" "}
-              <span className="font-mono">{num(leidos)}</span> lecturas también son inventados, y están
-              sumados en todas las cifras de esta página.
-            </>
-          )}{" "}
-          Sus aportes llevan código <span className="font-mono">MAQ-</span> y sus contratos{" "}
-          <span className="font-mono">MAQUETA-</span>, no un OCID real.
-        </p>
-      </div>
+      <TriangleAlert size={18} className="shrink-0 text-amberTexto" aria-hidden />
+      <p className="inline-flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink">
+        <strong className="font-semibold">Maqueta: {NOMBRES_MAQUETA} no existen</strong>
+        <span className="text-inkSoft">y sus cifras están sumadas en esta página.</span>
+        <Ayuda titulo="¿Qué es inventado?" className="text-amberTexto hover:bg-paper">
+          <span className="block">
+            Son financiadores inventados, puestos acá para ver cómo se comporta el muro con varios nombres.
+            {financiados != null && leidos != null && (
+              <>
+                {" "}Sus <span className="font-mono">{num(financiados)}</span> contratos y sus{" "}
+                <span className="font-mono">{num(leidos)}</span> lecturas también son inventados.
+              </>
+            )}
+          </span>
+          <span className="mt-2 block text-mute">
+            Sus aportes llevan código <span className="font-mono">MAQ-</span> y sus contratos{" "}
+            <span className="font-mono">MAQUETA-</span>, no un OCID real.
+          </span>
+        </Ayuda>
+      </p>
       <Link
         href={volverHref}
         // En móvil baja a línea propia y ocupa el ancho: con el texto a la izquierda
