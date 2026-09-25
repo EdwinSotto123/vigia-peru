@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
+import { BloqueDetalle, ChipsDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { useEsAdmin } from "@/lib/useEsAdmin";
 import { SortearSeace } from "./sections/SortearSeace";
@@ -55,12 +56,21 @@ export function DespachoEquipo() {
         ancho="xl"
       >
         {d.error ? (
-          <p role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[13px] text-crimsonTexto">
-            <AlertTriangle size={14} aria-hidden className="mt-0.5 shrink-0" />
-            <span>{d.error}</span>
-          </p>
+          // Formato de panel (§14.4): el estado en un chip y lo que pasó en su bloque.
+          <CuerpoDetalle>
+            <ChipsDetalle>
+              <span className="pill border-crimson/25 bg-crimson-soft/60 font-semibold text-crimsonTexto">
+                <AlertTriangle size={12} aria-hidden /> Sin terminar
+              </span>
+            </ChipsDetalle>
+            <BloqueDetalle titulo="Qué pasó">
+              <p role="alert" className="text-crimsonTexto">
+                {d.error}
+              </p>
+            </BloqueDetalle>
+          </CuerpoDetalle>
         ) : (
-          <LoadingView stepIdx={d.stepIdx} elapsed={d.elapsed} codigo={d.codigo} liveEvents={d.liveEvents} />
+          <LoadingView stepIdx={d.stepIdx} elapsed={d.elapsed} codigo={d.codigo} liveEvents={d.liveEvents} enPanel />
         )}
       </Panel>
     </>

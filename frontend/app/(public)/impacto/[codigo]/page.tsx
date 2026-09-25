@@ -6,10 +6,9 @@ import { EstadoAporte, haceDias } from "@/components/financiar/EstadoAporte";
 import { CuentaCta } from "@/components/financiar/CuentaCta";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
-import { CompartirButton } from "@/components/auditoria/CompartirButton";
 import { Severidad } from "@/components/ui/Severidad";
 import { FranjaTextil } from "@/components/marca";
-import { Ayuda, Seccion } from "@/components/patrones";
+import { Ayuda, BarraCompartir, Pestanas } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
 import { esSenalPublicada, indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import { fecha, numero, plural, solesCompacto } from "@/lib/formato";
@@ -105,14 +104,23 @@ const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
  * y muestra señales, y la llamita nunca va al lado de una persona ni de una señal.
  *
  * Orden de ficha (DESIGN_SYSTEM.md §14.2): identidad → `Indicadores` (las cifras del
- * aporte, las mismas del panel del aporte en la ficha del aliado) → el aporte en una
- * frase → su estado en cuatro pasos → los contratos, en vivo.
+ * aporte, las mismas del panel del aporte en la ficha del aliado) → pestañas (§14.3):
+ * Resumen (el aporte en una frase, su estado en cuatro pasos, el primer contrato leído) |
+ * Contratos (el tablero en vivo, que con cientos de filas empujaba todo lo demás abajo)
+ * → la independencia, la cuenta y compartir (§14.5).
  *
  * Contenedor: el `container-page` de la cabecera pública, sin la columna angosta
  * centrada de antes (el tablero de contratos necesita el ancho). Avisos y notas, en
  * una línea con su ⓘ (§10.7).
  */
-export default async function ImpactoPage({ params }: { params: { codigo: string } }) {
+export default async function ImpactoPage({
+  params,
+  searchParams,
+}: {
+  params: { codigo: string };
+  /** `?seccion=contratos` abre la pestaña del tablero. */
+  searchParams?: { seccion?: string | string[] };
+}) {
   const c = await getComprobante(params.codigo);
   if (!c) notFound();
   const institucional = c.pasarela === "institucional";
@@ -177,58 +185,75 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
           {/* Cada cifra con su denominador (§10.2), número → qué es → contexto. */}
           <Indicadores className="mt-6" items={indicadoresAporte(c, esperandoDocumentos)} />
 
-          {/* El aporte en una frase, armada con el detalle real del comprobante. */}
-          <EnUnaFrase c={c} leidos={leidos} valorAsignado={valorAsignado} esperandoDocumentos={esperandoDocumentos} />
+          {/* Resumen | Contratos: el tablero (hasta 300 filas) va en su pestaña, a un clic. */}
+          <Pestanas
+            className="mt-6"
+            etiqueta="Secciones del comprobante"
+            activa={typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined}
+            pestanas={[
+              {
+                clave: "resumen",
+                etiqueta: "Resumen",
+                contenido: (
+                  <div className="space-y-6">
+                    {/* El aporte en una frase, armada con el detalle real del comprobante. */}
+                    <EnUnaFrase c={c} leidos={leidos} valorAsignado={valorAsignado} esperandoDocumentos={esperandoDocumentos} />
 
-          {/* Estado del aporte en 4 pasos */}
-          <div className="mt-6">
-            <EstadoAporte
-              estado={c.estado}
-              procesados={c.resumen.procesados}
-              contratos={c.contratos}
-              institucional={institucional}
-              registrado={c.createdAt}
-              espera={c.resumen.asignados > 0 ? { asignadoHace: haceDias(asignadaAt), esperandoDocumentos, asignados: c.resumen.asignados } : null}
-            />
-          </div>
+                    {/* Estado del aporte en 4 pasos */}
+                    <EstadoAporte
+                      estado={c.estado}
+                      procesados={c.resumen.procesados}
+                      contratos={c.contratos}
+                      institucional={institucional}
+                      registrado={c.createdAt}
+                      espera={c.resumen.asignados > 0 ? { asignadoHace: haceDias(asignadaAt), esperandoDocumentos, asignados: c.resumen.asignados } : null}
+                    />
 
-          {/* Primer contrato leído. Tarjeta neutra: puede traer señales, y un verde de "logro" las taparía. */}
-          {primero && (
-            <Link
-              href={`/app/auditoria/${encodeURIComponent(primero.ocid)}`}
-              className="group mt-6 flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
-            >
-              <span className="min-w-0">
-                <span className="block text-[12px] font-semibold text-mute">Primer contrato leído con este aporte</span>
-                <span className="mt-0.5 block truncate font-medium">{primero.titulo ?? primero.ocid}</span>
-                <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[12px] text-inkSoft">
-                  <span className="truncate">{primero.entidad ?? "Entidad no identificada"}</span>
-                  <span className="shrink-0">
-                    {primero.alertaEstado === "revision"
-                      ? "En revisión"
-                      : primero.banderas > 0
-                        ? `Con ${plural(primero.banderas, "señal", "señales")}`
-                        : "Sin señales"}
-                  </span>
-                </span>
-              </span>
-              <ArrowRight size={16} className="shrink-0 text-granate transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
-            </Link>
-          )}
-
-          {/* Contratos en vivo */}
-          <Seccion
-            id="contratos-aporte"
-            className="mt-8"
-            titulo="Contratos de este aporte"
-            descripcion={
-              c.estado === "pendiente_pago"
-                ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
-                : "Toca uno para ver su lectura paso por paso."
-            }
-          >
-            <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
-          </Seccion>
+                    {/* Primer contrato leído. Tarjeta neutra: puede traer señales, y un verde de "logro" las taparía. */}
+                    {primero && (
+                      <Link
+                        href={`/app/auditoria/${encodeURIComponent(primero.ocid)}`}
+                        className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-[12px] font-semibold text-mute">Primer contrato leído con este aporte</span>
+                          <span className="mt-0.5 block truncate font-medium">{primero.titulo ?? primero.ocid}</span>
+                          <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-[12px] text-inkSoft">
+                            <span className="truncate">{primero.entidad ?? "Entidad no identificada"}</span>
+                            <span className="shrink-0">
+                              {primero.alertaEstado === "revision"
+                                ? "En revisión"
+                                : primero.banderas > 0
+                                  ? `Con ${plural(primero.banderas, "señal", "señales")}`
+                                  : "Sin señales"}
+                            </span>
+                          </span>
+                        </span>
+                        <ArrowRight size={16} className="shrink-0 text-granate transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
+                      </Link>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                // El conteo son los asignados: los que el tablero puede mostrar (los pagados sin
+                // asignar ya se cuentan en "por leer").
+                clave: "contratos",
+                etiqueta: "Contratos",
+                conteo: c.resumen.asignados,
+                contenido: (
+                  <>
+                    <p className="mb-3 text-sm text-inkSoft">
+                      {c.estado === "pendiente_pago"
+                        ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
+                        : "Toca uno para ver su lectura paso por paso."}
+                    </p>
+                    <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
+                  </>
+                ),
+              },
+            ]}
+          />
 
           <p className="mt-8 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
@@ -241,12 +266,12 @@ export default async function ImpactoPage({ params }: { params: { codigo: string
 
           {!institucional && <div className="mt-6"><CuentaCta codigo={c.codigo} /></div>}
 
+          {/* Compartir (§14.5): una barra, junto a lo que se comparte; la acción siguiente, a la derecha. */}
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line pt-5">
-            <CompartirButton
-              path={`/impacto/${c.codigo}`}
+            <BarraCompartir
+              ruta={`/impacto/${c.codigo}`}
               titulo={`Lectura financiada por ${c.financiador}`}
               texto={`${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} en ${c.zona}. ${numero(nConSenal)} con al menos una señal.`}
-              className="min-h-[40px] rounded-full px-4 py-2 font-medium"
             />
             <EnlaceAccion href="/app/financiar" className="sm:ml-auto">
               Elegir otra zona <ArrowRight size={14} aria-hidden />
@@ -290,7 +315,7 @@ function EnUnaFrase({ c, leidos, valorAsignado, esperandoDocumentos }: {
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
+    <div className="rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
       <p className="font-display text-lg leading-snug text-ink text-pretty sm:text-xl">
         {n === 1 ? "El contrato" : <>Los <strong className="font-mono">{numero(n)}</strong> contratos</>} de {c.zona}{" "}
         {n === 1 ? "vale" : "suman"} <strong className="whitespace-nowrap">{solesCompacto(valorAsignado)}</strong> de valor referencial

@@ -16,6 +16,8 @@ import {
 import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { Indicadores } from "@/components/listado/Indicadores";
 import type { ContratoZona } from "@/lib/contratos";
 import { CATEGORIA_META, estaConfirmada, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { cn } from "@/lib/utils";
@@ -292,92 +294,65 @@ function ResumenTab({
    * "Leídos" y "riesgo medio o alto" vienen de /contratos/geo: mientras no llega, se dice.
    * `conSenales` de geo es score ≥ 40, no "con señales" (§10.1): se nombra por lo que mide.
    */
-  const lecturas =
-    geo === undefined ? (
-      <div className="flex items-baseline justify-between gap-3 py-2" aria-busy>
-        <dt className="text-[12px] text-mute">Leídos</dt>
-        <dd><Skeleton className="h-4 w-24" /></dd>
-      </div>
-    ) : geo === null ? (
-      <Cifra etiqueta="Leídos por los agentes" valor="Sin dato" detalle="el servicio de contratos no respondió" />
-    ) : (
-      <>
-        <Cifra etiqueta="Leídos por los agentes" valor={enteros(geo.procesados)} detalle={`de ${enteros(geo.total)} publicados`} />
-        <Cifra etiqueta="De riesgo medio o alto" valor={enteros(geo.conSenales)} detalle={`de ${enteros(geo.procesados)} leídos`} />
-      </>
-    );
+  const deGeo = (f: (g: ContratoZona) => React.ReactNode) =>
+    geo === undefined ? <Skeleton className="h-4 w-24" /> : geo === null ? <span className="text-mute">Sin dato, el servicio de contratos no respondió</span> : f(geo);
+  const datos: DatoClave[] = [
+    { etiqueta: "Leídos por los agentes", valor: deGeo((g) => <DeTotal n={enteros(g.procesados)} de={`de ${enteros(g.total)} publicados`} />) },
+    { etiqueta: "De riesgo medio o alto", valor: deGeo((g) => <DeTotal n={enteros(g.conSenales)} de={`de ${enteros(g.procesados)} leídos`} />) },
+    ...datosAlcance(detalle?.alcance, zona.documentosListos ?? 0, zona.enRevision ?? 0),
+  ];
 
+  // Formato de panel (§14.4): cifras → la barra de la cola → datos en filas → bloques.
   return (
-    <div className="space-y-5">
-      <section>
-        <Rotulo>Auditoría de {nombre}</Rotulo>
-        {zona.totalCola > 0 ? (
-          <>
-            <dl className="divide-y divide-line border-y border-line">
-              <Cifra
-                etiqueta="Esperando lectura"
-                valor={enteros(esperando)}
-                detalle={geo ? `de ${enteros(geo.total)} publicados` : undefined}
-              />
-              <Cifra
-                etiqueta="Financiados"
-                valor={enteros(zona.financiados)}
-                detalle={zona.financiados > 0 ? "con la lectura ya pagada" : undefined}
-              />
-              {zona.financiados > 0 && (
-                <Cifra
-                  etiqueta="Leídos con financiamiento"
-                  valor={enteros(zona.procesados)}
-                  detalle={`de ${enteros(zona.financiados)} financiados`}
-                />
-              )}
-              {lecturas}
-            </dl>
-
-            <div className="mt-3">
-              <div
-                className="relative h-2 overflow-hidden rounded-full bg-paperDeep"
-                role="img"
-                aria-label={`${financiadoPct}% de la cola financiada, ${leidoFinPct}% ya leída con financiamiento`}
-              >
-                <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300 transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
-                <div className="absolute inset-y-0 left-0 rounded-full bg-moss transition-[width] duration-normal ease-salida" style={{ width: `${leidoFinPct}%` }} />
-              </div>
-              <p className="mt-2 text-[12px] leading-relaxed text-mute">
-                {esperando > 0 ? (
-                  <>
-                    <strong className="font-semibold text-ink">{enteros(esperando)}</strong>{" "}
-                    {esperando === 1 ? "contrato" : "contratos"} de {nombre} {esperando === 1 ? "espera" : "esperan"} que
-                    alguien financie su lectura.
-                  </>
-                ) : (
-                  <>Toda la cola de {nombre} está financiada. Se procesan en orden de llegada.</>
-                )}
-              </p>
+    <CuerpoDetalle>
+      {zona.totalCola > 0 ? (
+        <>
+          <Indicadores
+            items={[
+              { valor: enteros(esperando), etiqueta: "esperando lectura", contexto: geo ? `de ${enteros(geo.total)} publicados` : undefined },
+              {
+                valor: enteros(zona.financiados),
+                etiqueta: "financiados",
+                contexto: zona.financiados > 0 ? `${enteros(zona.procesados)} ya leídos` : "con la lectura ya pagada",
+              },
+            ]}
+          />
+          <div>
+            <div
+              className="relative h-2 overflow-hidden rounded-full bg-paperDeep"
+              role="img"
+              aria-label={`${financiadoPct}% de la cola financiada, ${leidoFinPct}% ya leída con financiamiento`}
+            >
+              <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300 transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-full bg-moss transition-[width] duration-normal ease-salida" style={{ width: `${leidoFinPct}%` }} />
             </div>
-          </>
-        ) : (
-          <>
-            <Vacio
-              titulo={`Todavía no hay contratos de ${nombre} en la cola`}
-              texto={`Hoy entran a la cola ${alcanceCorto(detalle?.alcance)}.`}
-            />
-            <dl className="mt-3 divide-y divide-line border-y border-line">{lecturas}</dl>
-          </>
-        )}
-        <NotaAlcance alcance={detalle?.alcance} documentosListos={zona.documentosListos ?? 0} enRevision={zona.enRevision ?? 0} />
-      </section>
+            <p className="mt-2 text-[12px] leading-relaxed text-mute">
+              {esperando > 0 ? (
+                <>
+                  <strong className="font-semibold text-ink">{enteros(esperando)}</strong>{" "}
+                  {esperando === 1 ? "contrato" : "contratos"} de {nombre} {esperando === 1 ? "espera" : "esperan"} que
+                  alguien financie su lectura.
+                </>
+              ) : (
+                <>Toda la cola de {nombre} está financiada. Se procesan en orden de llegada.</>
+              )}
+            </p>
+          </div>
+        </>
+      ) : (
+        <Vacio titulo={`Todavía no hay contratos de ${nombre} en la cola`} texto={`Hoy entran a la cola ${alcanceCorto(detalle?.alcance)}.`} />
+      )}
 
-      <section className="border-t border-line pt-4">
-        <Rotulo
-          ayuda={
-            <Ayuda titulo="¿Quién elige qué se lee?">
-              El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
-            </Ayuda>
-          }
-        >
-          Qué puedes hacer
-        </Rotulo>
+      <DatosClave items={datos} />
+
+      <BloqueDetalle
+        titulo="Qué puedes hacer"
+        ayuda={
+          <Ayuda titulo="¿Quién elige qué se lee?">
+            El que paga no elige: la asignación es por antigüedad, en la base. Los resultados se publican igual.
+          </Ayuda>
+        }
+      >
         <div className="space-y-2">
           <Link
             href={financiarHref}
@@ -406,10 +381,9 @@ function ResumenTab({
             <p className="px-1 text-[12px] text-mute">Nadie financió esta zona todavía.</p>
           )}
         </div>
-      </section>
+      </BloqueDetalle>
 
-      <section className="border-t border-line pt-4">
-        <Rotulo>Lo que ya se sabe de {nombre}</Rotulo>
+      <BloqueDetalle titulo={`Lo que ya se sabe de ${nombre}`}>
         <ul className="divide-y divide-line border-y border-line">
           <Salto
             etiqueta="Contratos con señales"
@@ -425,8 +399,8 @@ function ResumenTab({
           />
           <Salto etiqueta="Presupuesto MEF" detalle="PIA, PIM y ejecución por año" onClick={() => goTo("presupuesto")} />
         </ul>
-      </section>
-    </div>
+      </BloqueDetalle>
+    </CuerpoDetalle>
   );
 }
 
@@ -454,66 +428,65 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
   const provinciasConCola = hijas.filter((h) => h.totalCola > 0).sort((a, b) => b.totalCola - a.totalCola);
   const costoEsperando = zona.pendientes * zona.precioPen;
 
+  // Formato de panel (§14.4): las dos cifras de la cola → el resto en filas → bloques.
   return (
-    <div className="space-y-5">
-      <section>
-        <Rotulo
-          ayuda={
-            <Ayuda titulo="¿Qué entra en la cola?">
-              <span className="block">{alcanceLargo(detalle.alcance)}</span>
-              <span className="mt-2 block">Se procesan en orden de llegada; quien financia no elige cuáles.</span>
-            </Ayuda>
-          }
-        >
-          Qué hay en la cola
-        </Rotulo>
-        {zona.totalCola > 0 ? (
-          <dl className="divide-y divide-line border-y border-line">
-            <Cifra
-              etiqueta={`En cola (${alcanceCorto(detalle.alcance)})`}
-              valor={enteros(cola.contratos)}
-              detalle={`en ${enteros(cola.entidades)} ${cola.entidades === 1 ? "entidad" : "entidades"}`}
-            />
-            <Cifra
-              etiqueta="Esperando financiamiento"
-              valor={enteros(zona.pendientes)}
-              detalle={`y ${enteros(zona.financiados)} ${zona.financiados === 1 ? "financiado" : "financiados"}`}
-            />
-            <Cifra
-              etiqueta="Valor referencial"
-              valor={cola.montoReferencial > 0 ? solesCompacto(cola.montoReferencial) : "Sin dato"}
-              detalle={`en ${enteros(cola.contratos)} contratos`}
-            />
-            <Cifra
-              etiqueta="Costo de leer lo que espera"
-              valor={soles(Math.max(0, costoEsperando))}
-              detalle={`a ${soles(zona.precioPen)} por contrato`}
-            />
-            <Cifra
-              etiqueta="Documentos listos"
-              valor={enteros(cola.documentosListos ?? 0)}
-              detalle="de otros tipos, con el análisis en preparación"
-            />
-            <Cifra etiqueta="Financiados en revisión" valor={enteros(zona.enRevision ?? 0)} detalle="leídos con la publicación en pausa" />
-          </dl>
-        ) : (
-          <Vacio
-            titulo={`Todavía no hay contratos de ${nombre} en la base`}
-            texto="Los expedientes nuevos del OECE entran a la cola cuando su tipo y etapa ya se analizan."
+    <CuerpoDetalle>
+      {zona.totalCola > 0 ? (
+        <>
+          <Indicadores
+            items={[
+              {
+                valor: enteros(cola.contratos),
+                etiqueta: "en cola",
+                contexto: `en ${enteros(cola.entidades)} ${cola.entidades === 1 ? "entidad" : "entidades"}`,
+                ayuda: (
+                  <Ayuda titulo="¿Qué entra en la cola?">
+                    <span className="block">{alcanceLargo(detalle.alcance)}</span>
+                    <span className="mt-2 block">Se procesan en orden de llegada; quien financia no elige cuáles.</span>
+                  </Ayuda>
+                ),
+              },
+              {
+                valor: enteros(zona.pendientes),
+                etiqueta: "esperando financiamiento",
+                contexto: `y ${enteros(zona.financiados)} ${zona.financiados === 1 ? "financiado" : "financiados"}`,
+              },
+            ]}
           />
-        )}
-      </section>
+          <DatosClave
+            items={[
+              { etiqueta: "Qué entra en la cola", valor: alcanceCorto(detalle.alcance) },
+              {
+                etiqueta: "Valor referencial",
+                valor: cola.montoReferencial > 0 ? <DeTotal n={solesCompacto(cola.montoReferencial)} de={`en ${enteros(cola.contratos)} contratos`} /> : null,
+              },
+              {
+                etiqueta: "Costo de leer lo que espera",
+                valor: <DeTotal n={soles(Math.max(0, costoEsperando))} de={`a ${soles(zona.precioPen)} por contrato`} />,
+              },
+              { etiqueta: "Documentos listos", valor: <DeTotal n={enteros(cola.documentosListos ?? 0)} de="de otros tipos, con el análisis en preparación" /> },
+              { etiqueta: "Financiados en revisión", valor: <DeTotal n={enteros(zona.enRevision ?? 0)} de="leídos con la publicación en pausa" /> },
+            ]}
+          />
+        </>
+      ) : (
+        <Vacio
+          titulo={`Todavía no hay contratos de ${nombre} en la base`}
+          texto="Los expedientes nuevos del OECE entran a la cola cuando su tipo y etapa ya se analizan."
+        />
+      )}
 
       {ubigeo && (
-        <section className="border-t border-line pt-4">
-          <div className="mb-1.5 flex items-baseline justify-between gap-2">
-            <Rotulo sinMargen>Contratos de {zonaNombre}</Rotulo>
-            {zonaUb && mapa && (
+        <BloqueDetalle
+          titulo={`Contratos de ${zonaNombre}`}
+          acciones={
+            zonaUb && mapa ? (
               <button type="button" onClick={mapa.limpiarDistrito} className="min-h-[24px] shrink-0 text-[12px] font-medium text-granate underline-offset-2 hover:underline">
                 Ver todo {nombre}
               </button>
-            )}
-          </div>
+            ) : undefined
+          }
+        >
           {!zonaUb && mapa?.activa && (
             <p className="mb-2 text-[12px] text-mute">Toca una provincia del mapa, o un punto, para acotar esta lista.</p>
           )}
@@ -530,14 +503,14 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               if (zonaUb && p.total === 1 && p.data[0]) mapa?.seleccionar(p.data[0]);
             }}
           />
-        </section>
+        </BloqueDetalle>
       )}
 
       {provinciasConCola.length > 0 && (
-        <section className="border-t border-line pt-4">
-          <Rotulo>
-            Provincias con cola: {provinciasConCola.length} de {hijas.length}
-          </Rotulo>
+        <BloqueDetalle
+          titulo="Provincias con cola"
+          acciones={<span className="shrink-0 text-[12px] tabular-nums text-mute">{provinciasConCola.length} de {hijas.length}</span>}
+        >
           <ul className="divide-y divide-line border-y border-line">
             {provinciasConCola.slice(0, 8).map((h) => (
               <li key={h.ubigeo}>
@@ -551,12 +524,11 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               </li>
             ))}
           </ul>
-        </section>
+        </BloqueDetalle>
       )}
 
       {aliados.length > 0 && (
-        <section className="border-t border-line pt-4">
-          <Rotulo>Quién pagó estas lecturas</Rotulo>
+        <BloqueDetalle titulo="Quién pagó estas lecturas">
           <ul className="divide-y divide-line border-y border-line">
             {aliados.slice(0, 6).map((a, i) => (
               <li key={`${a.nombre}-${i}`} className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
@@ -571,9 +543,9 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               </li>
             ))}
           </ul>
-        </section>
+        </BloqueDetalle>
       )}
-    </div>
+    </CuerpoDetalle>
   );
 }
 
@@ -649,34 +621,13 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
 
 // ─── Piezas ──────────────────────────────────────────────────────────────
 
-/** Rótulo de sección del panel; `ayuda` es el ⓘ con el porqué (§10.7), nunca un párrafo abajo. */
-function Rotulo({ children, sinMargen, ayuda }: { children: React.ReactNode; sinMargen?: boolean; ayuda?: React.ReactNode }) {
+/** Una cifra con su contexto: la frase completa ("de 4.704 publicados") la escribe quien arma la fila. */
+function DeTotal({ n, de }: { n: React.ReactNode; de: string }) {
   return (
-    <div className={cn("flex items-center gap-0.5", sinMargen ? "" : "mb-2")}>
-      <h3 className="text-[12px] font-semibold text-mute">{children}</h3>
-      {ayuda}
-    </div>
-  );
-}
-
-/**
- * Una cifra con su contexto en la misma línea. `detalle` es la frase completa
- * ("de 4.704 ingresados", "en 203 entidades"): antes el componente anteponía
- * "de" siempre y salían cosas como "892 de 203 entidades" o "S/ 2.676 de S/ 3
- * por contrato".
- */
-/* `tono` sólo acepta clases que pasen 4,5:1 sobre `paperSoft`: text-ink, text-rust o
-   text-mossTexto. Las cifras de este panel van en tinta: el peso del riesgo lo dicen las
-   filas de la pestaña Señales, con ícono y palabra. */
-function Cifra({ etiqueta, valor, detalle, tono }: { etiqueta: string; valor: string; detalle?: string; tono?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-2">
-      <dt className="min-w-0 text-[12px] text-mute">{etiqueta}</dt>
-      <dd className="shrink-0 text-right">
-        <span className={cn("font-mono text-[15px] font-semibold tabular-nums", tono ?? "text-ink")}>{valor}</span>
-        {detalle && <span className="ml-1.5 text-[11px] text-mute">{detalle}</span>}
-      </dd>
-    </div>
+    <span className="tabular-nums">
+      <span className="font-mono font-semibold text-ink">{n}</span>
+      <span className="ml-1.5 text-[12px] text-mute">{de}</span>
+    </span>
   );
 }
 
@@ -700,44 +651,28 @@ function Salto({ etiqueta, valor, detalle, onClick }: { etiqueta: string; valor?
 }
 
 /**
- * Qué cuenta la cola, en una línea de datos; qué se analiza hoy y qué es "en
- * revisión", en el ⓘ. Antes era un párrafo de tres líneas más un <details>.
+ * Qué cuenta la cola, en filas (§14.4); qué se analiza hoy y qué es "en revisión", en
+ * el ⓘ. Antes era "Cola = …" dentro de una línea de texto.
  */
-function NotaAlcance({
-  alcance,
-  documentosListos,
-  enRevision,
-}: {
-  alcance: ZonaDetalle["alcance"] | undefined;
-  documentosListos: number;
-  enRevision: number;
-}) {
-  return (
-    <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-mute">
-      <span>
-        Cola = <strong className="text-ink">{alcanceCorto(alcance)}</strong>
-      </span>
-      {documentosListos > 0 && (
-        <span>
-          <strong className="text-ink">{enteros(documentosListos)}</strong> de otros tipos con documentos listos
-        </span>
-      )}
-      {enRevision > 0 && (
-        <span>
-          <strong className="text-inkSoft">{enteros(enRevision)}</strong>{" "}
-          {enRevision === 1 ? "financiado en revisión" : "financiados en revisión"}
-        </span>
-      )}
-      <Ayuda titulo="¿Qué se analiza hoy?">
-        <span className="block">{alcanceLargo(alcance)}</span>
-        {enRevision > 0 && (
-          <span className="mt-2 block">
-            Los financiados en revisión ya se leyeron, pero su publicación está en pausa: no cuentan como señal.
-          </span>
-        )}
-      </Ayuda>
-    </p>
-  );
+function datosAlcance(alcance: ZonaDetalle["alcance"] | undefined, documentosListos: number, enRevision: number): DatoClave[] {
+  return [
+    {
+      etiqueta: "Qué entra en la cola",
+      valor: alcanceCorto(alcance),
+      ayuda: (
+        <Ayuda titulo="¿Qué se analiza hoy?">
+          <span className="block">{alcanceLargo(alcance)}</span>
+          {enRevision > 0 && (
+            <span className="mt-2 block">
+              Los financiados en revisión ya se leyeron, pero su publicación está en pausa: no cuentan como señal.
+            </span>
+          )}
+        </Ayuda>
+      ),
+    },
+    ...(documentosListos > 0 ? [{ etiqueta: "Documentos listos", valor: <DeTotal n={enteros(documentosListos)} de="de otros tipos" /> }] : []),
+    ...(enRevision > 0 ? [{ etiqueta: "Financiados en revisión", valor: <DeTotal n={enteros(enRevision)} de="con la publicación en pausa" /> }] : []),
+  ];
 }
 
 function Vacio({ titulo, texto }: { titulo: string; texto: string }) {

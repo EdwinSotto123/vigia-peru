@@ -10,33 +10,34 @@
  * contratos con al menos una señal publicada (así cuenta el API: `EXISTS banderas`), no señales
  * sueltas.
  *
- * Estructura (§14): las cifras de la cuenta en `Indicadores` y cada lista —aportes, denuncias,
- * zonas y entidades que sigo— en la `Tabla` de todo listado, con su detalle en el panel lateral.
- * Antes cada lista era una pila de tarjetas distinta, con sus enlaces y botones sueltos.
+ * Estructura (§14): las cifras de la cuenta en `Indicadores` y, debajo, una pestaña por lista
+ * (§14.3) —Aportes | Denuncias | Zonas seguidas | Entidades seguidas, cada una con su conteo—
+ * en la `Tabla` de todo listado, con su detalle en el panel lateral armado con las piezas de
+ * §14.4. Antes las cuatro listas se apilaban y había que bajar hasta la que uno buscaba.
  */
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, type LucideIcon } from "lucide-react";
-import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina, Seccion } from "@/components/patrones";
+import { CabeceraPestana,
+  Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio,
+  Pagina, Pestanas, type DatoClave,
+} from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { ChipAporte, EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { SubirComprobante } from "@/components/financiar/SubirComprobante";
-import { PulseDot } from "@/components/ui/PulseDot";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { dejarDeSeguir, getImpacto, reclamarAporte, type AporteMio, type DenunciaMia, type Impacto } from "@/lib/cuentas";
-import { ESTADO_LABEL, ESTADO_PUNTO, pct, type ZonaEstado } from "@/lib/financiamiento";
+import { ESTADO_LABEL, ESTADO_PUNTO, type ZonaEstado } from "@/lib/financiamiento";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { cn } from "@/lib/utils";
 
-/** Enlace de acción secundaria junto al título de una sección. */
+/** Enlace de acción secundaria de una pestaña (arriba a la derecha) o de un vacío. */
 const ENLACE_SECCION = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
-/** Acciones dentro del panel de una fila: la misma píldora de todo el producto. */
-const ACCION_PANEL =
-  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-1.5 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 /** Categorías de las denuncias a una ENTIDAD: nunca se publican (backend/api/src/lib/publicacion.ts, regla 3). */
 const CATEGORIAS_ENTIDAD = new Set(["malversacion", "conflicto_interes", "favoritismo", "obstruccion", "patron_corrupcion", "otra_entidad"]);
@@ -130,64 +131,93 @@ function Contenido() {
   const cifras = indicadoresCuenta(aportes.length, resumen, denuncias);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {aporteParam && !yaTiene && <Reclamar codigo={aporteParam.toUpperCase()} onOk={cargar} />}
 
       {/* Sólo con lo que el usuario realmente tiene: nada de ceros decorativos. */}
       {cifras.length >= 2 && <Indicadores items={cifras} />}
 
-      <Seccion
-        titulo="Mis aportes"
-        acciones={<Link href="/app/financiar" className={ENLACE_SECCION}>Financiar otra zona <ArrowRight size={13} aria-hidden /></Link>}
-      >
-        {aportes.length === 0 ? (
-          <VacioSeccion icon={Building2}>
-            <p>Todavía no tienes aportes. Si financiaste como invitado, asócialo desde tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span>.</p>
-            <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Elegir una zona en el mapa <ArrowRight size={14} aria-hidden /></Link>
-          </VacioSeccion>
-        ) : (
-          <Tabla columnas={COLUMNAS_APORTES} filas={aportes.map((a) => filaAporte(a, cargar))} etiqueta="Mis aportes" />
-        )}
-      </Seccion>
-
-      <Seccion
-        titulo="Mis denuncias"
-        acciones={<Link href="/reporte/nuevo" className={ENLACE_SECCION}>Denunciar <ArrowRight size={13} aria-hidden /></Link>}
-      >
-        {denuncias.length === 0 ? (
-          <VacioSeccion icon={Camera}>
-            <p>Las denuncias que envías con sesión aparecen aquí con su estado; en público, sin tu nombre.</p>
-            <Link href="/reporte/nuevo" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Enviar tu primera denuncia <ArrowRight size={14} aria-hidden /></Link>
-          </VacioSeccion>
-        ) : (
-          <Tabla columnas={COLUMNAS_DENUNCIAS} filas={denuncias.map(filaDenuncia)} etiqueta="Mis denuncias" />
-        )}
-      </Seccion>
-
-      <Seccion
-        titulo="Zonas que sigo"
-        acciones={<Link href="/app/mapa" className={ENLACE_SECCION}>Seguir otra desde el mapa <ArrowRight size={13} aria-hidden /></Link>}
-      >
-        {zonasSeguidas.length === 0 ? (
-          <VacioSeccion icon={MapPin}>
-            <p>Sigue una zona desde el panel del mapa para verla aquí y resaltarla con el chip «Mis zonas».</p>
-            <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Abrir el mapa <ArrowRight size={14} aria-hidden /></Link>
-          </VacioSeccion>
-        ) : (
-          <Tabla columnas={COLUMNAS_ZONAS} filas={zonasSeguidas.map((z) => filaZona(z, cargar))} etiqueta="Zonas que sigo" />
-        )}
-      </Seccion>
-
-      <Seccion titulo="Entidades que sigo">
-        {entidadesSeguidas.length === 0 ? (
-          <VacioSeccion icon={Building2}>
-            <p>Puedes seguir una entidad desde su ficha para verla aquí.</p>
-            <Link href="/app/entidades" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Ver entidades <ArrowRight size={14} aria-hidden /></Link>
-          </VacioSeccion>
-        ) : (
-          <Tabla columnas={COLUMNAS_ENTIDADES} filas={entidadesSeguidas.map((e) => filaEntidad(e, cargar))} etiqueta="Entidades que sigo" />
-        )}
-      </Seccion>
+      {/* Una pestaña por lista (§14.3). La inicial sale de `?seccion=`, como en las fichas del servidor. */}
+      <Pestanas
+        etiqueta="Secciones de mi impacto"
+        activa={search.get("seccion") ?? undefined}
+        pestanas={[
+          {
+            clave: "aportes",
+            etiqueta: "Aportes",
+            conteo: aportes.length,
+            contenido: (
+              <>
+                <CabeceraPestana acciones={<>
+                  <Link href="/app/financiar" className={ENLACE_SECCION}>Financiar otra zona <ArrowRight size={13} aria-hidden /></Link>
+                </>} />
+                {aportes.length === 0 ? (
+                  <VacioSeccion icon={Building2}>
+                    <p>Todavía no tienes aportes. Si financiaste como invitado, asócialo desde tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span>.</p>
+                    <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Elegir una zona en el mapa <ArrowRight size={14} aria-hidden /></Link>
+                  </VacioSeccion>
+                ) : (
+                  <Tabla columnas={COLUMNAS_APORTES} filas={aportes.map((a) => filaAporte(a, cargar))} etiqueta="Mis aportes" />
+                )}
+              </>
+            ),
+          },
+          {
+            clave: "denuncias",
+            etiqueta: "Denuncias",
+            conteo: denuncias.length,
+            contenido: (
+              <>
+                <CabeceraPestana acciones={<>
+                  <Link href="/reporte/nuevo" className={ENLACE_SECCION}>Denunciar <ArrowRight size={13} aria-hidden /></Link>
+                </>} />
+                {denuncias.length === 0 ? (
+                  <VacioSeccion icon={Camera}>
+                    <p>Las denuncias que envías con sesión aparecen aquí con su estado; en público, sin tu nombre.</p>
+                    <Link href="/reporte/nuevo" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Enviar tu primera denuncia <ArrowRight size={14} aria-hidden /></Link>
+                  </VacioSeccion>
+                ) : (
+                  <Tabla columnas={COLUMNAS_DENUNCIAS} filas={denuncias.map(filaDenuncia)} etiqueta="Mis denuncias" />
+                )}
+              </>
+            ),
+          },
+          {
+            clave: "zonas",
+            etiqueta: "Zonas seguidas",
+            conteo: zonasSeguidas.length,
+            contenido: (
+              <>
+                <CabeceraPestana acciones={<>
+                  <Link href="/app/mapa" className={ENLACE_SECCION}>Seguir otra desde el mapa <ArrowRight size={13} aria-hidden /></Link>
+                </>} />
+                {zonasSeguidas.length === 0 ? (
+                  <VacioSeccion icon={MapPin}>
+                    <p>Sigue una zona desde el panel del mapa para verla aquí y resaltarla con el chip «Mis zonas».</p>
+                    <Link href="/app/mapa" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Abrir el mapa <ArrowRight size={14} aria-hidden /></Link>
+                  </VacioSeccion>
+                ) : (
+                  <Tabla columnas={COLUMNAS_ZONAS} filas={zonasSeguidas.map((z) => filaZona(z, cargar))} etiqueta="Zonas que sigo" />
+                )}
+              </>
+            ),
+          },
+          {
+            clave: "entidades",
+            etiqueta: "Entidades seguidas",
+            conteo: entidadesSeguidas.length,
+            contenido:
+              entidadesSeguidas.length === 0 ? (
+                <VacioSeccion icon={Building2}>
+                  <p>Puedes seguir una entidad desde su ficha para verla aquí.</p>
+                  <Link href="/app/entidades" className={cn(ENLACE_SECCION, "mt-2 font-semibold")}>Ver entidades <ArrowRight size={14} aria-hidden /></Link>
+                </VacioSeccion>
+              ) : (
+                <Tabla columnas={COLUMNAS_ENTIDADES} filas={entidadesSeguidas.map((e) => filaEntidad(e, cargar))} etiqueta="Entidades que sigo" />
+              ),
+          },
+        ]}
+      />
 
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
         <Bell size={15} className="shrink-0 text-mute" aria-hidden />
@@ -275,9 +305,8 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
       titulo: a.zona,
       etiqueta: `Ver el aporte ${a.codigo} a ${a.zona}`,
       descripcion: (
-        <span className="flex flex-wrap gap-x-3">
-          <span className="font-mono" translate="no">{a.codigo}</span>
-          <span>{cantidad}</span>
+        <span className="font-mono" translate="no">
+          {a.codigo}
         </span>
       ),
       contenido: <DetalleAporte a={a} recargar={recargar} />,
@@ -292,40 +321,50 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
   };
 }
 
-/** El panel de un aporte: su estado en cuatro pasos, cuánto se leyó y, si falta, el comprobante de pago. */
+/**
+ * El panel de un aporte (§14.4): su chip → cuánto se leyó (Indicadores) → sus datos en filas →
+ * el estado en cuatro pasos → si falta, el comprobante de pago. Antes era una pila de frases
+ * ("Registrado el…, validado el…") con una barra de progreso suelta.
+ */
 function DetalleAporte({ a, recargar }: { a: AporteMio; recargar: () => void }) {
   const paso = indicePaso(a.estado, a.procesados, a.contratos);
-  const p = pct(a.procesados, a.contratos);
+  // La zona es el título del panel y el código su bajada: aquí, el resto.
+  const datos: DatoClave[] = [
+    { etiqueta: "Contratos financiados", valor: numero(a.contratos), mono: true },
+    { etiqueta: "Monto", valor: soles(a.montoPen), mono: true },
+    { etiqueta: "Registrado", valor: fechaCorta(a.createdAt), mono: true },
+    ...(a.pagadaAt ? [{ etiqueta: "Validado", valor: fechaCorta(a.pagadaAt), mono: true }] : []),
+  ];
   return (
-    <div className="space-y-4">
-      <EstadoAporte estado={a.estado} procesados={a.procesados} contratos={a.contratos} registrado={a.createdAt} />
-      <p className="text-[13px] tabular-nums text-inkSoft">
-        Registrado el {fechaCorta(a.createdAt)}
-        {a.pagadaAt && <>, validado el {fechaCorta(a.pagadaAt)}</>}.
-      </p>
+    <CuerpoDetalle>
+      <ChipsDetalle>
+        <ChipAporte estado={a.estado} />
+      </ChipsDetalle>
+      {/* Las cifras, recién cuando hay contratos asignados: antes todo sería un cero. */}
       {paso >= 1 && (
-        <div>
-          <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-inkSoft">
-            <span className="inline-flex items-center gap-1.5">
-              {paso === 2 && <PulseDot color="moss" size={6} />}
-              {numero(a.procesados)} de {plural(a.contratos, "leído", "leídos")}
-              {a.enRevision > 0 ? `, ${numero(a.enRevision)} en revisión` : ""}
-            </span>
-            <span>{plural(a.senales, "contrato con señales", "contratos con señales")}</span>
-          </div>
-          <div className="mt-1 h-2 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100} aria-label={`Contratos leídos del aporte ${a.codigo}`}>
-            <div className="h-full rounded-full bg-moss" style={{ width: `${p}%` }} />
-          </div>
-        </div>
+        <Indicadores
+          items={[
+            {
+              valor: numero(a.procesados),
+              etiqueta: a.procesados === 1 ? "leído" : "leídos",
+              contexto: `de ${numero(a.contratos)}${a.enRevision > 0 ? ` · ${numero(a.enRevision)} en revisión` : ""}`,
+            },
+            { valor: numero(a.senales), etiqueta: "con señales", contexto: `de ${numero(a.procesados)} leídos` },
+          ]}
+        />
       )}
+      <DatosClave items={datos} />
+      <BloqueDetalle titulo="Estado del aporte">
+        <EstadoAporte estado={a.estado} procesados={a.procesados} contratos={a.contratos} registrado={a.createdAt} />
+      </BloqueDetalle>
       {/* Pendiente y sin comprobante: se sube acá mismo (antes el enlace llevaba a un formulario nuevo, en blanco). */}
       {a.estado === "pendiente_pago" && !a.tieneComprobante && (
-        <div className="border-t border-line pt-4">
+        <BloqueDetalle titulo="Tu comprobante de pago">
           <p className="mb-2 text-[13px] text-inkSoft">Envía la captura o constancia de tu pago para que podamos validarlo.</p>
           <SubirComprobante codigo={a.codigo} onSubido={recargar} compacto />
-        </div>
+        </BloqueDetalle>
       )}
-    </div>
+    </CuerpoDetalle>
   );
 }
 
@@ -370,16 +409,32 @@ function filaDenuncia(d: DenunciaMia): Fila {
       ? {
           titulo,
           etiqueta: `Ver por qué la denuncia «${titulo}» no se publica`,
-          descripcion: `${meta?.label ?? d.categoria} · ${fechaCorta(d.createdAt)}`,
+          descripcion: `Enviada el ${fechaCorta(d.createdAt)}`,
+          // §14.4: chip → datos en filas → por qué no se publica → lo que escribiste, citado.
           contenido: (
-            <div className="space-y-3 text-[13px] leading-relaxed text-inkSoft">
-              <ChipDenuncia e={e} />
-              <p>
-                Las denuncias a una entidad no se publican: quedan en reserva y no tienen ficha pública. Tu denuncia está
-                registrada con tu cuenta.
-              </p>
-              {titulo.length > 70 && <p className="text-ink">{titulo}</p>}
-            </div>
+            <CuerpoDetalle>
+              <ChipsDetalle>
+                <ChipDenuncia e={e} />
+              </ChipsDetalle>
+              <DatosClave
+                items={[
+                  { etiqueta: "Categoría", valor: meta?.label ?? d.categoria },
+                  { etiqueta: "Zona", valor: zona === "Sin zona" ? null : zona },
+                  { etiqueta: "Código", valor: d.id, mono: true },
+                ]}
+              />
+              <BloqueDetalle titulo="Por qué no se publica">
+                <p className="text-inkSoft">
+                  Las denuncias a una entidad quedan en reserva y no tienen ficha pública. La tuya está registrada con tu
+                  cuenta.
+                </p>
+              </BloqueDetalle>
+              {titulo.length > 70 && (
+                <BloqueDetalle titulo="Lo que escribiste">
+                  <CitaDetalle>{titulo}</CitaDetalle>
+                </BloqueDetalle>
+              )}
+            </CuerpoDetalle>
           ),
         }
       : undefined,
@@ -448,23 +503,42 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
     detalle: {
       titulo: z.nombre,
       etiqueta: `Ver ${z.nombre}`,
-      descripcion: lugar,
+      descripcion: NIVEL[z.nivel] ?? z.nivel,
+      // §14.4: chip de estado → cifras; ir a la zona y dejar de seguirla, al pie.
       contenido: (
-        <div className="space-y-4">
+        <CuerpoDetalle>
+          <ChipsDetalle>
+            <span className="pill border-line bg-paper text-inkSoft">
+              <span className={cn("h-2 w-2 rounded-full", ESTADO_PUNTO[estado] ?? ESTADO_PUNTO.sin_datos)} aria-hidden />
+              {etiquetaEstado}
+            </span>
+          </ChipsDetalle>
           <Indicadores
             items={[
               { valor: numero(z.pendientes), etiqueta: "en cola", contexto: "esperan financiamiento" },
               { valor: numero(z.financiados), etiqueta: "financiados", contexto: `${numero(z.procesados)} ya leídos` },
-              { valor: numero(z.senales), etiqueta: "con señales", contexto: `de ${numero(z.procesados)} leídos` },
+              {
+                valor: numero(z.senales),
+                etiqueta: "con señales",
+                contexto: `de ${numero(z.procesados)} leídos${z.enRevision > 0 ? ` · ${numero(z.enRevision)} en revisión` : ""}`,
+              },
             ]}
           />
-          <div className="flex flex-wrap gap-2">
-            {regionId && <Link href={`/app/mapa?region=${regionId}`} className={ACCION_PANEL}><MapPin size={14} aria-hidden /> Verla en el mapa</Link>}
-            <Link href={`/app/financiar/${z.ubigeo}`} className={ACCION_PANEL}>Financiar su lectura <ArrowRight size={14} aria-hidden /></Link>
-          </div>
-        </div>
+        </CuerpoDetalle>
       ),
-      pie: <DejarDeSeguir onClick={() => dejarDeSeguir("zona", z.ubigeo).then(recargar)} />,
+      pie: (
+        <PiePanel>
+          <EnlaceAccion href={`/app/financiar/${z.ubigeo}`} flecha>
+            Financiar su lectura
+          </EnlaceAccion>
+          {regionId && (
+            <EnlaceAccion href={`/app/mapa?region=${regionId}`} variante="secundario">
+              <MapPin size={14} aria-hidden /> Verla en el mapa
+            </EnlaceAccion>
+          )}
+          <DejarDeSeguir onClick={() => dejarDeSeguir("zona", z.ubigeo).then(recargar)} />
+        </PiePanel>
+      ),
     },
   };
 }
@@ -478,13 +552,21 @@ function filaEntidad(e: Impacto["entidadesSeguidas"][number], recargar: () => vo
     detalle: {
       titulo: e.nombre,
       etiqueta: `Ver ${e.nombre}`,
-      descripcion: `RUC ${e.ruc}`,
+      descripcion: "Entidad que sigues",
+      // §14.4: sus datos en filas (el nombre ya es el título); abrir la ficha y dejar de seguirla, al pie.
       contenido: (
-        <Link href={`/entidad/${e.ruc}`} className={ACCION_PANEL}>
-          <Building2 size={14} aria-hidden /> Abrir su ficha
-        </Link>
+        <CuerpoDetalle>
+          <DatosClave items={[{ etiqueta: "RUC", valor: e.ruc, mono: true }]} />
+        </CuerpoDetalle>
       ),
-      pie: <DejarDeSeguir onClick={() => dejarDeSeguir("entidad", e.ruc).then(recargar)} />,
+      pie: (
+        <PiePanel>
+          <EnlaceAccion href={`/entidad/${e.ruc}`} flecha>
+            <Building2 size={14} aria-hidden /> Abrir su ficha
+          </EnlaceAccion>
+          <DejarDeSeguir onClick={() => dejarDeSeguir("entidad", e.ruc).then(recargar)} />
+        </PiePanel>
+      ),
     },
   };
 }
@@ -509,6 +591,11 @@ function DejarDeSeguir({ onClick }: { onClick: () => Promise<unknown> }) {
 }
 
 // ─── piezas ──────────────────────────────────────────────────────────────────
+
+/** El pie de un panel (§14.4): la acción principal primero y "Dejar de seguir" al final, a la derecha. */
+function PiePanel({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-2 [&>*:last-child]:ml-auto">{children}</div>;
+}
 
 function Reclamar({ codigo, onOk }: { codigo: string; onOk: () => void }) {
   const [email, setEmail] = useState("");

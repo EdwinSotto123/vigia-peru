@@ -40,7 +40,7 @@ export function AvisoMaqueta({
         <span className="text-inkSoft">y sus cifras están sumadas en esta página.</span>
         <Ayuda titulo="¿Qué es inventado?" className="text-amberTexto hover:bg-paper">
           <span className="block">
-            Son financiadores inventados, puestos acá para ver cómo se comporta el muro con varios nombres.
+            Son financiadores inventados, puestos acá para ver cómo se comporta el ranking con varios nombres.
             {financiados != null && leidos != null && (
               <>
                 {" "}Sus <span className="font-mono">{num(financiados)}</span> contratos y sus{" "}

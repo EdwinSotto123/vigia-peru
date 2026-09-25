@@ -28,6 +28,7 @@ import { CARRILES } from "@/lib/auditoria";
 import { PASOS } from "@/components/agentes/catalogo";
 import { AGENT_IDS, G_COLOR, G_DONE, G_FLOW, VERB_HEX } from "../constants";
 import { buildTrace, extractFindings } from "../utils";
+import { maskApellido, maskDnis, pareceEmpresa } from "@/components/Redact";
 
 type TipoNodo = "orch" | "agent" | "paso";
 
@@ -417,7 +418,7 @@ export function FlowGraph({ liveEvents = [], override }: {
               <p className="mt-2 text-[12px] leading-relaxed text-ink/75">{selNode.desc}</p>
               {selNode.fuentes.length > 0 && (
                 <div className="mt-2.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-mute">Coteja contra</div>
+                  <div className="text-[11px] font-semibold text-mute">Coteja contra</div>
                   <ul className="mt-1 flex flex-wrap gap-1.5">
                     {selNode.fuentes.map((c) => <li key={c} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-[10px] text-mute">{c}</li>)}
                   </ul>
@@ -435,26 +436,27 @@ export function FlowGraph({ liveEvents = [], override }: {
           <div className="mb-2 text-[12px] font-semibold text-ink">Hallazgos en vivo</div>
           {(findings.empresa || findings.entidad || findings.socios.length > 0 || findings.senales.length > 0) ? (
             <div className="flex flex-col gap-2 text-[12px]">
-              {findings.entidad && <div><span className="text-[10px] uppercase tracking-wide text-mute">entidad</span> <span className="font-semibold text-ink">{findings.entidad}</span></div>}
+              {findings.entidad && <div><span className="block text-[11px] text-mute">Entidad</span><span className="font-semibold text-ink">{findings.entidad}</span></div>}
               {findings.empresa && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-mute">empresa</span>
+                  <span className="w-full text-[11px] text-mute">Empresa</span>
                   <span className="font-semibold text-ink">{findings.empresa}</span>
-                  {findings.ruc && <span className="rounded-full border border-line bg-paperDeep/60 px-2 py-0.5 font-mono text-[9px] text-mute">RUC {findings.ruc}</span>}
+                  {findings.ruc && <span className="rounded-full border border-line bg-paperDeep/60 px-2 py-0.5 font-mono text-[9px] text-mute">RUC {maskDnis(findings.ruc)}</span>}
                   {findings.estado && <span className="rounded-full bg-moss/10 px-2 py-0.5 text-[9px] font-bold text-mossTexto">{findings.estado}</span>}
-                  {findings.apto === false && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-[9px] font-bold text-rust">NO APTO</span>}
+                  {findings.apto === false && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-[9px] font-bold text-rust">No apto</span>}
                   {typeof findings.n_sanciones === "number" && findings.n_sanciones > 0 && <span className="rounded-full bg-crimson-soft px-2 py-0.5 text-[9px] font-bold text-rust">{findings.n_sanciones} sanciones</span>}
                 </div>
               )}
               {findings.socios.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-mute">socios</span>
-                  {findings.socios.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-[11px] text-ink">{s}</span>)}
+                  <span className="w-full text-[11px] text-mute">Socios</span>
+                  {/* Socios: personas privadas salvo que sean empresas — apellido tapado (§10.6); un RUC 10 lleva un DNI. */}
+                  {findings.socios.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-md border border-line bg-paperDeep/60 px-2 py-0.5 text-[11px] text-ink">{pareceEmpresa(s) ? s : maskApellido(s)}</span>)}
                 </div>
               )}
               {findings.senales.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-mute">señales</span>
+                  <span className="w-full text-[11px] text-mute">Señales</span>
                   {findings.senales.slice(0, 6).map((s: string, i: number) => <span key={i} className="rounded-full bg-crimson-soft px-2 py-0.5 text-[10px] font-bold text-rust">{s.replace(/_/g, " ")}</span>)}
                 </div>
               )}
@@ -466,7 +468,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         {/* Traza de invocaciones (compacta: verbo + acción): ídem, requiere el trace fino */}
         {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3 shadow-lg backdrop-blur">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-mute">Últimos pasos</div>
+          <div className="mb-1.5 text-[12px] font-semibold text-ink">Últimos pasos</div>
           {recent.length ? (
             <div className="flex flex-col gap-1">
               {recent.slice(-6).map((s, i) => (
@@ -482,7 +484,7 @@ export function FlowGraph({ liveEvents = [], override }: {
 
         {/* Leyenda */}
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-mute">Leyenda</div>
+          <div className="mb-2 text-[12px] font-semibold text-ink">Leyenda</div>
           <ul className="flex flex-col gap-1.5 text-[12px] text-mute">
             <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: G_COLOR.agent.stroke }} aria-hidden />Agente de IA</li>
             <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: G_COLOR.src.stroke, background: G_COLOR.src.stroke + "40" }} aria-hidden />Paso de datos o control (no es IA)</li>

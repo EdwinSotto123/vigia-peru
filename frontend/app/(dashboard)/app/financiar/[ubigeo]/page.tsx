@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Activity, ChevronRight, Radio, ShieldCheck } from "lucide-react";
@@ -6,7 +7,7 @@ import { Avatar } from "@/components/financiar/RankingTable";
 import { ListaZonas } from "@/components/financiar/ListaZonas";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Revelar } from "@/components/ui/Revelar";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Seccion } from "@/components/patrones";
+import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, type Pestana } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
@@ -48,16 +49,26 @@ const PRIORIDAD: Record<EstadoProc, number> = {
  *
  *   identidad · Indicadores (en cola y su costo, financiados, leídos, con señales)
  *   [ lo que hace falta para decidir ]   [ el formulario, a la derecha ]
- *     qué hay en la cola · en vivo · provincias · quién financió
+ *     pestañas (§14.3): Qué hay en la cola | En vivo | Provincias | Quién financió
+ *
+ * Esos cuatro bloques antes se apilaban y el último quedaba a varias pantallas del
+ * formulario: ahora se pasa de uno a otro con un clic, sin salir de la zona.
  *
  * El formulario va primero en el celular (se llega desde "Financiar esta zona") y pegado
  * a la derecha desde `xl`: entre 1024 y 1280 px, con la barra lateral, la columna de
  * datos quedaba en ~220 px y las tablas no cabían.
  */
-export default async function ZonaPage({ params }: { params: { ubigeo: string } }) {
+export default async function ZonaPage({
+  params,
+  searchParams,
+}: {
+  params: { ubigeo: string };
+  /** `?seccion=` abre esa pestaña: vivo, zonas o aliados. */
+  searchParams?: { seccion?: string | string[] };
+}) {
   const [d, pago] = await Promise.all([getZona(params.ubigeo), getPago()]);
   if (!d) notFound();
-  const { zona, breadcrumb, hijas, aliados, cola } = d;
+  const { zona, breadcrumb } = d;
   const enVivo = zona.financiados > 0 ? await getProcesamientos({ ubigeo: zona.ubigeo, limit: 60 }) : null;
   const metodos = pago ? [pago.yape && "yape", pago.plin && "plin", ...pago.cuentas.map((c) => c.banco)].filter(Boolean) as string[] : [];
   // Una sola base para "en cola" en toda la página: lo que nadie financió todavía (`pendientes`).
@@ -100,104 +111,12 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">
-        <div className="min-w-0 space-y-8">
-          <Seccion
-            titulo="Qué hay en la cola"
-            ayuda={
-              <Ayuda titulo="¿Quién elige qué se lee?">
-                Los contratos son públicos y puedes verlos, pero se leen en orden de llegada: quien financia no elige
-                cuáles.
-              </Ayuda>
-            }
-            acciones={
-              <Link href={`/app/contratos?ubigeo=${zona.ubigeo}`} className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
-                Ver los contratos <ChevronRight size={13} aria-hidden />
-              </Link>
-            }
-          >
-            {/* Todo lo que entró a la cola, financiado o no: "en cola" (§10.1) es sólo lo que
-                espera financiamiento, y ya está arriba. */}
-            <Indicadores
-              items={[
-                {
-                  valor: solesCompacto(cola.montoReferencial),
-                  etiqueta: "valor referencial",
-                  contexto: `de ${plural(cola.contratos, "contrato", "contratos")} que entraron a la cola`,
-                  ayuda: <Ayuda titulo="¿Qué es el valor referencial?">Lo que la entidad convocó, no lo que terminó pagando.</Ayuda>,
-                },
-                { valor: numero(cola.entidades), etiqueta: "entidades", contexto: "convocaron esos contratos" },
-                {
-                  valor: cola.documentosListos != null ? numero(cola.documentosListos) : null,
-                  etiqueta: "documentos listos",
-                  contexto: "todavía fuera de la cola",
-                  ayuda: (
-                    <Ayuda titulo="¿Qué son los documentos listos?">
-                      Contratos de tipos que todavía no entran a la cola, con sus documentos ya descargados. Entran cuando su
-                      análisis se active.
-                    </Ayuda>
-                  ),
-                },
-              ]}
-            />
-          </Seccion>
-
-          {/* En vivo: una vista previa de una fila por contrato; el tablero que se refresca solo, en el panel. */}
-          <Seccion
-            titulo={
-              <span className="inline-flex items-center gap-2">
-                <Activity size={16} className={zona.financiados > 0 ? "text-moss" : "text-mute"} aria-hidden />
-                En vivo en {zona.nombre}
-              </span>
-            }
-            descripcion={
-              zona.financiados > 0
-                ? resumenVivo(enVivo)
-                : "Cuando alguien financie esta zona, verás aquí cada contrato pasar a la lectura."
-            }
-            acciones={
-              // Un solo disparador: el panel trae el tablero que se refresca solo y, al pie, el
-              // enlace al tablero completo de la región.
-              zona.financiados > 0 ? (
-                <Revelar
-                  titulo={`En vivo en ${zona.nombre}`}
-                  descripcion="Cada contrato financiado, de la cola a la lectura. Se actualiza solo."
-                  etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
-                  ancho="lg"
-                  className="inline-flex min-h-[24px] w-auto items-center gap-1 text-[13px] font-medium text-granate hover:underline"
-                  detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />}
-                  pie={
-                    <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
-                      Ver el tablero completo <ChevronRight size={13} aria-hidden />
-                    </Link>
-                  }
-                >
-                  <Radio size={13} aria-hidden /> Ver en vivo
-                </Revelar>
-              ) : undefined
-            }
-          >
-            {zona.financiados > 0 ? <VistaPreviaVivo items={enVivo} /> : null}
-          </Seccion>
-
-          {/* Zonas hijas: la misma tabla que la lista de /app/financiar. */}
-          {hijas.length > 0 && (
-            <Seccion titulo={zona.nivel === "departamento" ? "Provincias" : "Distritos"}>
-              <ListaZonas
-                zonas={hijas}
-                precioPen={zona.precioPen}
-                etiqueta={`${zona.nivel === "departamento" ? "Provincias" : "Distritos"} de ${zona.nombre}`}
-              />
-            </Seccion>
-          )}
-
-          {/* Aliados: reconocimiento en contratos, nunca en soles */}
-          <Seccion titulo="Quién financió la lectura aquí">
-            {aliados.length ? (
-              <Tabla columnas={COLUMNAS_ALIADOS} filas={filasAliados(aliados)} etiqueta={`Quién financió la lectura en ${zona.nombre}`} />
-            ) : (
-              <p className="text-sm text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
-            )}
-          </Seccion>
+        <div className="min-w-0 space-y-6">
+          <Pestanas
+            etiqueta={`Secciones de ${zona.nombre}`}
+            activa={typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined}
+            pestanas={pestanasZona(d, enVivo)}
+          />
 
           {/* La independencia en una línea; el detalle, en el ⓘ y en las reglas de /app/financiar. */}
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-inkSoft">
@@ -245,6 +164,128 @@ export default async function ZonaPage({ params }: { params: { ubigeo: string } 
       </div>
     </Pagina>
   );
+}
+
+const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
+
+/**
+ * Lo que hace falta para decidir, en pestañas: la cola (el resumen), el avance en vivo, las
+ * zonas hijas y quién ya financió. Cada una con su conteo, salvo la primera (lo que espera ya
+ * tiene su cifra arriba, en los Indicadores). Provincias o distritos, sólo si la zona los tiene.
+ */
+function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[] {
+  const { zona, hijas, aliados, cola } = d;
+  const nombreHijas = zona.nivel === "departamento" ? "Provincias" : "Distritos";
+  // "En vivo" cuenta lo que se está leyendo ahora; sin avance que leer, no hay número que mostrar.
+  const enAnalisis = zona.financiados > 0 && enVivo ? enVivo.filter((p) => p.estado === "procesando").length : null;
+  const pestanas: Pestana[] = [
+    {
+      clave: "cola",
+      etiqueta: "Qué hay en la cola",
+      contenido: (
+        <>
+          <CabeceraPestana
+            acciones={
+              <Link href={`/app/contratos?ubigeo=${zona.ubigeo}`} className={ENLACE_PESTANA}>
+                Ver los contratos <ChevronRight size={13} aria-hidden />
+              </Link>
+            }
+          >
+            Se leen en orden de llegada.
+            <Ayuda titulo="¿Quién elige qué se lee?">
+              Los contratos son públicos y puedes verlos, pero se leen en orden de llegada: quien financia no elige cuáles.
+            </Ayuda>
+          </CabeceraPestana>
+          {/* Todo lo que entró a la cola, financiado o no: "en cola" (§10.1) es sólo lo que
+              espera financiamiento, y ya está arriba. */}
+          <Indicadores
+            items={[
+              {
+                valor: solesCompacto(cola.montoReferencial),
+                etiqueta: "valor referencial",
+                contexto: `de ${plural(cola.contratos, "contrato", "contratos")} que entraron a la cola`,
+                ayuda: <Ayuda titulo="¿Qué es el valor referencial?">Lo que la entidad convocó, no lo que terminó pagando.</Ayuda>,
+              },
+              { valor: numero(cola.entidades), etiqueta: "entidades", contexto: "convocaron esos contratos" },
+              {
+                valor: cola.documentosListos != null ? numero(cola.documentosListos) : null,
+                etiqueta: "documentos listos",
+                contexto: "todavía fuera de la cola",
+                ayuda: (
+                  <Ayuda titulo="¿Qué son los documentos listos?">
+                    Contratos de tipos que todavía no entran a la cola, con sus documentos ya descargados. Entran cuando su
+                    análisis se active.
+                  </Ayuda>
+                ),
+              },
+            ]}
+          />
+        </>
+      ),
+    },
+    {
+      // Una vista previa de una fila por contrato; el tablero que se refresca solo, en el panel.
+      clave: "vivo",
+      etiqueta: "En vivo",
+      conteo: enAnalisis,
+      contenido:
+        zona.financiados > 0 ? (
+          <>
+            <CabeceraPestana
+              acciones={
+                // Un solo disparador: el panel trae el tablero que se refresca solo y, al pie, el
+                // enlace al tablero completo de la región.
+                <Revelar
+                  titulo={`En vivo en ${zona.nombre}`}
+                  descripcion="Cada contrato financiado, de la cola a la lectura. Se actualiza solo."
+                  etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
+                  ancho="lg"
+                  className="inline-flex min-h-[24px] w-auto items-center gap-1 text-[13px] font-medium text-granate hover:underline"
+                  detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />}
+                  pie={
+                    <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className={ENLACE_PESTANA}>
+                      Ver el tablero completo <ChevronRight size={13} aria-hidden />
+                    </Link>
+                  }
+                >
+                  <Radio size={13} aria-hidden /> Ver en vivo
+                </Revelar>
+              }
+            >
+              <Activity size={15} className="shrink-0 text-moss" aria-hidden />
+              {resumenVivo(enVivo) ?? "Cada contrato financiado, de la cola a la lectura."}
+            </CabeceraPestana>
+            <VistaPreviaVivo items={enVivo} />
+          </>
+        ) : (
+          <p className="flex items-center gap-1.5 text-sm text-inkSoft">
+            <Activity size={15} className="shrink-0 text-mute" aria-hidden />
+            Cuando alguien financie esta zona, verás aquí cada contrato pasar a la lectura.
+          </p>
+        ),
+    },
+  ];
+  // Zonas hijas: la misma tabla que la lista de /app/financiar.
+  if (hijas.length > 0) {
+    pestanas.push({
+      clave: "zonas",
+      etiqueta: nombreHijas,
+      conteo: hijas.length,
+      contenido: <ListaZonas zonas={hijas} precioPen={zona.precioPen} etiqueta={`${nombreHijas} de ${zona.nombre}`} />,
+    });
+  }
+  // Aliados: reconocimiento en contratos, nunca en soles.
+  pestanas.push({
+    clave: "aliados",
+    etiqueta: "Quién financió",
+    conteo: aliados.length,
+    contenido: aliados.length ? (
+      <Tabla columnas={COLUMNAS_ALIADOS} filas={filasAliados(aliados)} etiqueta={`Quién financió la lectura en ${zona.nombre}`} />
+    ) : (
+      <p className="text-sm text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
+    ),
+  });
+  return pestanas;
 }
 
 /**

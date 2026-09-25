@@ -13,9 +13,13 @@
 
 import { Workflow } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
+import { Indicadores } from "@/components/listado/Indicadores";
 import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { CarrilesAgentes } from "@/components/agentes/CarrilesAgentes";
 import { TOTAL_AGENTES, TOTAL_CARRILES, TOTAL_PASOS } from "@/components/agentes/catalogo";
+import { numero, plural } from "@/lib/formato";
 import { duracionEnPalabras } from "./conteoRiesgo";
 
 export function AgentsPipeline({
@@ -38,21 +42,37 @@ export function AgentsPipeline({
       ancho="lg"
       className={claseAccion("fantasma", "w-auto")}
       detalle={
-        <div className="space-y-4">
-          <CarrilesAgentes />
-          <p className="border-t border-line pt-3 text-[12px] leading-snug text-mute">
-            Son {TOTAL_PASOS} pasos
-            {nPasosExtra > 0 ? `: ${TOTAL_AGENTES} agentes y ${nPasosExtra} de consulta o verificación` : ""}. Los carriles
-            avanzan a la vez y la síntesis espera a que terminen todos
-            {duracion ? (
-              <>
-                ; una lectura completa tarda {duracion}
-                {nLecturas ? ` (mediana de ${nLecturas} lecturas recientes)` : ""}
-              </>
-            ) : null}
-            . Cada señal queda con el agente que la encontró, su norma y su fuente oficial.
-          </p>
-        </div>
+        // Formato de panel (§14.4): las cifras del proceso arriba, los carriles en su bloque y
+        // el "cómo" a un clic, en vez de un párrafo al pie.
+        <CuerpoDetalle>
+          <Indicadores
+            items={[
+              { valor: numero(TOTAL_AGENTES), etiqueta: "agentes", contexto: `en ${plural(TOTAL_CARRILES, "carril", "carriles")}` },
+              {
+                valor: numero(TOTAL_PASOS),
+                etiqueta: "pasos",
+                contexto: nPasosExtra > 0 ? `${numero(nPasosExtra)} de consulta o verificación` : undefined,
+              },
+              {
+                valor: duracion,
+                etiqueta: "tarda una lectura",
+                // Sin mediana medida no se promete un tiempo: "Sin dato", sin contexto inventado.
+                contexto: duracion ? (nLecturas ? `mediana de ${numero(nLecturas)} lecturas recientes` : "mediana medida en producción") : undefined,
+              },
+            ]}
+          />
+          <BloqueDetalle
+            titulo="Quién lee qué"
+            ayuda={
+              <Ayuda titulo="¿En qué orden trabajan?">
+                Los carriles avanzan a la vez y la síntesis espera a que terminen todos. Cada señal queda con el agente que
+                la encontró, su norma y su fuente oficial.
+              </Ayuda>
+            }
+          >
+            <CarrilesAgentes />
+          </BloqueDetalle>
+        </CuerpoDetalle>
       }
     >
       <Workflow size={15} aria-hidden />

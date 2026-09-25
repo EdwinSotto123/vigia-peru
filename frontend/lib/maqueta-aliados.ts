@@ -3,7 +3,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Por qué existe: con un solo aliado real —que además es la propia
- * plataforma— no se puede evaluar cómo se comporta el muro de /app/aliados
+ * plataforma— no se puede evaluar cómo se comporta el ranking de /app/aliados
  * cuando hay varios financiadores. VIGÍA 2, VIGÍA 3 y VIGÍA 4 existen para
  * mirar el diseño con volumen, y para nada más.
  *
@@ -24,14 +24,16 @@
  *     contratos` y `senales + enRevision ≤ procesados`; los totales del aliado
  *     son la suma exacta de sus aportes, y sus `zonas` son los ubigeos
  *     distintos que tocó. El objetivo es evaluar el diseño con volumen
- *     realista, y un muro que no cuadra no sirve ni para eso.
+ *     realista, y un ranking que no cuadra no sirve ni para eso.
  *
  * Para borrarlo: `rm lib/maqueta-aliados.ts` y `npx tsc --noEmit` marca los
  * pocos sitios que lo importan. Ninguna cifra real depende de este archivo.
  */
 
-import type { Comprobante, ComprobanteContrato, RankingRow } from "./financiamiento";
+import type { Comprobante, ComprobanteContrato, RankingQuery, RankingRow } from "./financiamiento";
 import type { ContribucionAliado } from "@/components/aliados/CadenaAliado";
+import type { AliadoPerfil } from "@/components/aliados/perfil";
+import { hoyLima } from "./formato";
 
 /** Interruptor de URL. Una sola grafía, en un solo lugar. */
 export const PARAM_MAQUETA = "maqueta";
@@ -82,14 +84,14 @@ interface SemillaAliado {
   tipo: RankingRow["tipo"];
   aportes: AporteMaqueta[];
   /**
-   * Perfil público del aliado. El API real NO devuelve estos campos todavía:
-   * existen acá para poder mirar cómo se ve una ficha con presentación, sitio
-   * y contacto. Para que sean reales hace falta columna en `financiadores` y
-   * campo en GET /financiamiento/aliados/:slug.
+   * Presentación pública del aliado (los campos opcionales de `AliadoPerfil`):
+   * existen acá para poder mirar cómo se ve un perfil completo —descripción,
+   * sitio, correo de contacto y redes— y uno mínimo, sin nada de eso.
    */
   descripcion?: string;
   web?: string;
   email?: string;
+  redes?: AliadoPerfil["redes"];
 }
 
 /**
@@ -106,9 +108,16 @@ const SEMILLAS: SemillaAliado[] = [
     slug: "vigia-2",
     nombre: "VIGÍA 2",
     descripcion:
-      "Organización de maqueta. Existe para poder mirar cómo se ve una ficha de aliado con varios aportes y varias regiones.",
+      "Empresa de maqueta: no existe. Su presentación está para ver cómo se lee un perfil completo, con descripción, sitio, correo de contacto y redes.",
     web: "https://ejemplo-maqueta.org",
     email: "contacto@ejemplo-maqueta.org",
+    // Hosts de maqueta, no perfiles reales de ninguna red: sólo importa la clave (el ícono).
+    redes: {
+      facebook: "https://ejemplo-maqueta.org/redes/facebook",
+      instagram: "https://ejemplo-maqueta.org/redes/instagram",
+      linkedin: "https://ejemplo-maqueta.org/redes/linkedin",
+      x: "https://ejemplo-maqueta.org/redes/x",
+    },
     tipo: "empresa",
     aportes: [
       { codigo: "MAQ-2026-00034", contratos: 10, estado: "pagada", pagadaAt: "2026-09-19T14:10:00.000Z", ubigeo: "02", zona: "Áncash", procesados: 0, senales: 0, enRevision: 0 },
@@ -124,8 +133,9 @@ const SEMILLAS: SemillaAliado[] = [
     id: -3,
     slug: "vigia-3",
     nombre: "VIGÍA 3",
-    descripcion: "Organización de maqueta, con toda su cola ya leída.",
+    descripcion: "Organización de maqueta, con toda su cola ya leída. Publicó sólo su sitio y una red.",
     web: "https://ejemplo-maqueta.pe",
+    redes: { linkedin: "https://ejemplo-maqueta.pe/redes/linkedin" },
     tipo: "organizacion",
     aportes: [
       { codigo: "MAQ-2026-00020", contratos: 14, estado: "procesada", pagadaAt: "2026-08-05T12:20:00.000Z", ubigeo: "18", zona: "Moquegua", procesados: 14, senales: 4, enRevision: 1 },
@@ -145,10 +155,7 @@ const SEMILLAS: SemillaAliado[] = [
   },
 ];
 
-export const SLUGS_MAQUETA: readonly string[] = SEMILLAS.map((s) => s.slug);
-
-/** Cuántos aliados inventados hay, para que el aviso no escriba "tres" a mano. */
-export const CANTIDAD_MAQUETA = SEMILLAS.length;
+const SLUGS_MAQUETA: readonly string[] = SEMILLAS.map((s) => s.slug);
 
 /** Nombres en prosa: "VIGÍA 2, VIGÍA 3 y VIGÍA 4". */
 export const NOMBRES_MAQUETA = SEMILLAS.map((s) => s.nombre).reduce(
@@ -166,21 +173,31 @@ export const esSlugMaqueta = (slug: string | null | undefined): boolean =>
  */
 const enAmbito = (ubigeo: string, region?: string) => !region || region.slice(0, 2) === ubigeo;
 
-function aportesDe(semilla: SemillaAliado, region?: string): AporteMaqueta[] {
-  return semilla.aportes.filter((a) => enAmbito(a.ubigeo, region));
+type Periodo = NonNullable<RankingQuery["periodo"]>;
+
+/** Desde cuándo cuenta un periodo del ranking: el 1 del mes o del año, en Lima (como el API). */
+function inicioPeriodo(periodo: Periodo | undefined): number {
+  if (!periodo || periodo === "todo") return Number.NEGATIVE_INFINITY;
+  const [y, m] = hoyLima().split("-");
+  return Date.parse(periodo === "mes" ? `${y}-${m}-01T00:00:00-05:00` : `${y}-01-01T00:00:00-05:00`);
+}
+
+function aportesDe(semilla: SemillaAliado, region?: string, periodo?: Periodo): AporteMaqueta[] {
+  const desde = inicioPeriodo(periodo);
+  return semilla.aportes.filter((a) => enAmbito(a.ubigeo, region) && Date.parse(a.pagadaAt) >= desde);
 }
 
 const suma = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((n, x) => n + f(x), 0);
 
 /**
  * Filas de ranking de los aliados de maqueta, con la misma forma exacta que
- * devuelve `/financiamiento/ranking`. Ordenadas por contratos financiados,
- * igual que el backend; `posicion` se recalcula en el muro al mezclarlas con
- * las reales, así que acá va 0.
+ * devuelve `/financiamiento/ranking` (también por periodo). Ordenadas por
+ * contratos financiados, igual que el backend; el puesto se recalcula al
+ * mezclarlas con las reales (components/aliados/ranking.ts), así que acá va 0.
  */
-export function rankingMaqueta(region?: string): RankingRow[] {
+export function rankingMaqueta(region?: string, periodo?: Periodo): RankingRow[] {
   return SEMILLAS.map((s): RankingRow | null => {
-    const aportes = aportesDe(s, region);
+    const aportes = aportesDe(s, region, periodo);
     if (aportes.length === 0) return null;
     return {
       posicion: 0,
@@ -203,12 +220,12 @@ export function rankingMaqueta(region?: string): RankingRow[] {
 
 /**
  * Lo que hay que sumarle a la cascada colectiva para que siga cuadrando con el
- * muro. Sin esto, la página diría "45 financiados" arriba y listaría 247 abajo.
+ * ranking. Sin esto, la página diría "45 financiados" arriba y listaría 247 abajo.
  */
-export function totalesMaqueta(region?: string) {
-  const aportes = SEMILLAS.flatMap((s) => aportesDe(s, region));
+export function totalesMaqueta(region?: string, periodo?: Periodo) {
+  const aportes = SEMILLAS.flatMap((s) => aportesDe(s, region, periodo));
   return {
-    aliados: SEMILLAS.filter((s) => aportesDe(s, region).length > 0).length,
+    aliados: SEMILLAS.filter((s) => aportesDe(s, region, periodo).length > 0).length,
     financiados: suma(aportes, (a) => a.contratos),
     leidos: suma(aportes, (a) => a.procesados),
     conSenal: suma(aportes, (a) => a.senales),
@@ -217,10 +234,7 @@ export function totalesMaqueta(region?: string) {
 }
 
 /** Perfil completo, con la misma forma que `/financiamiento/aliados/:slug`. */
-export function perfilMaqueta(slug: string): {
-  aliado: { id: number; tipo: RankingRow["tipo"]; nombre: string; slug: string; logoUrl: string | null; desde: string; descripcion?: string; web?: string; email?: string };
-  contribuciones: ContribucionAliado[];
-} | null {
+export function perfilMaqueta(slug: string): { aliado: AliadoPerfil; contribuciones: ContribucionAliado[] } | null {
   const s = SEMILLAS.find((x) => x.slug === slug);
   if (!s) return null;
   return {
@@ -234,6 +248,7 @@ export function perfilMaqueta(slug: string): {
       descripcion: s.descripcion,
       web: s.web,
       email: s.email,
+      redes: s.redes,
     },
     contribuciones: s.aportes.map((a) => ({
       codigo: a.codigo,

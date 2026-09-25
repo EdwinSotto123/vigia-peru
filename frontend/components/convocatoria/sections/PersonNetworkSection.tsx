@@ -255,7 +255,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     <div className="flex items-baseline gap-2">
                       {e.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={e.ruc} /></span>}
                       {e.rol_del_gerente && (
-                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-amberTexto">
+                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[11px] text-amberTexto">
                           {legible(e.rol_del_gerente)}
                         </span>
                       )}

@@ -4,6 +4,10 @@
  * El contenido de cada pestaña del dossier. Salió de ResultadoView, que rozaba las 800 líneas:
  * allá queda la estructura (identidad → veredicto → pestañas) y acá lo que se lee en cada una.
  *
+ * Las siete se montan a la vez dentro de las `Pestanas` del kit (§14.3) y sólo se muestra una:
+ * cambiar es instantáneo. Por eso ningún panel pide datos ni mide su tamaño al montarse (estaría
+ * oculto); los ids (`#senales`) no se repiten entre paneles.
+ *
  * Dentro del informe los avisos de "no hay nada acá" van con <AvisoSeccion>, sin la llamita:
  * el informe es evidencia (DESIGN_SYSTEM.md §6).
  */

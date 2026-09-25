@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setRedactNames } from "../Redact";
 import { nombresPrivadosDe } from "./nombresPrivados";
-import { ArrowRight, Building2, ChevronRight, FileText, Info, Newspaper, Package, Pen, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fechaCorta, numero } from "@/lib/formato";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { Pestanas, irAPestana } from "@/components/patrones/Pestanas";
 import { Indicadores } from "@/components/listado";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import type { ApiResult } from "./types";
@@ -19,26 +20,31 @@ import { SeccionSegura } from "./sections/SeccionSegura";
 import { EnRevisionDossier } from "./sections/EnRevisionDossier";
 import { PanelDossier, type TabKey } from "./sections/PanelesDossier";
 
-const TAB_KEYS: TabKey[] = ["resumen", "dictamen", "items", "proveedor", "documentos", "prensa", "trace"];
-const esTab = (v: string | null | undefined): v is TabKey => !!v && (TAB_KEYS as string[]).includes(v);
+/** Las pestañas del informe, en orden. La primera ("resumen", la de las señales) no va a la URL. */
+
+/** El parámetro de la pestaña en la URL: `?tab=`, el de siempre, para que los enlaces viejos sigan abriendo la suya. */
+const PARAM_TAB = "tab";
 
 /**
  * El informe de un contrato, tal como lo ve el público: la plantilla Ficha (DESIGN_SYSTEM.md §14.2).
  *   1. identidad: volver, qué se contrató (h1), código, quién compra, quién ganó y chips de estado;
  *   2. `Indicadores`: valor referencial, adjudicado, señales por severidad y la fecha del proceso;
  *   3. el veredicto, una tarjeta en palabras;
- *   4. la evidencia, en pestañas (señales, dictamen, ítems, proveedor, documentos, prensa) y,
- *      desde xl, la columna de datos del proceso;
+ *   4. la evidencia, en las `Pestanas` del kit (§14.3: señales, dictamen, ítems, proveedor,
+ *      documentos, prensa) y, desde xl, la columna de datos del proceso;
  *   5. "Cómo se hizo", la última pestaña: ahí sí va el vocabulario técnico.
+ *
+ * La pestaña va a la URL como `?tab=` (el parámetro de antes), así los enlaces ya compartidos
+ * siguen abriendo la misma pestaña. Antes la barra era propia de esta vista; ahora es la de toda
+ * ficha, con su conteo en cada pestaña y el mismo teclado.
  *
  * El informe es evidencia: sin franja textil ni llamita en su cuerpo. La llamita vive en los
  * estados de la página (cargando, no encontrado, error), que arma la página y no este componente.
  *
  * `vistaPrevia` es para el panel admin, que muestra el informe de una alerta en revisión antes de
  * publicarla: mismo contenido, sin las acciones que no tienen sentido ahí (volver al listado,
- * compartir un enlace que todavía no es público) y sin pestañas pegajosas que se montarían sobre
- * la cabecera del panel. Por eso la vista previa NUNCA cae en el aviso "En revisión": el equipo
- * tiene que ver el informe entero para decidir.
+ * compartir un enlace que todavía no es público). Por eso la vista previa NUNCA cae en el aviso
+ * "En revisión": el equipo tiene que ver el informe entero para decidir.
  */
 export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResult; vistaPrevia?: boolean }) {
   const conv = result.convocatoria || {};
@@ -50,46 +56,42 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
   const convIdentidad = entidadRuc && !conv.buyer_ruc ? { ...conv, buyer_ruc: entidadRuc } : conv;
   const enRevision = !vistaPrevia && dossierEnRevision(result);
 
-  // ─── Pestaña activa, reflejada en la URL (?tab=) para poder compartirla ───
-  const [activeTab, setActiveTab] = useState<TabKey>("resumen");
-  useEffect(() => {
-    const leer = () => {
-      const t = new URLSearchParams(window.location.search).get("tab");
-      setActiveTab(esTab(t) ? t : "resumen");
-    };
-    leer();
-    window.addEventListener("popstate", leer);
-    return () => window.removeEventListener("popstate", leer);
-  }, []);
-  const irATab = useCallback((t: TabKey) => {
-    setActiveTab(t);
-    try {
-      const url = new URL(window.location.href);
-      if (t === "resumen") url.searchParams.delete("tab");
-      else url.searchParams.set("tab", t);
-      window.history.replaceState(window.history.state, "", url.toString());
-    } catch {
-      /* sin URL no hay nada que sincronizar */
-    }
-  }, []);
+  // ─── Pestaña inicial: la de `?tab=` (se lee una vez; después la lleva `Pestanas`) ───
+  // Este informe se pinta sólo en el cliente (la página espera los datos; el panel admin lo
+  // carga con ssr:false), así que leer la URL al montar no desfasa la hidratación.
+  const [tabInicial] = useState<string | undefined>(() =>
+    typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get(PARAM_TAB) ?? undefined,
+  );
 
-  // "Ver las señales": va a la pestaña Resumen y baja hasta la lista.
-  // Un contador, no un booleano: si ya estás en Resumen, igual tiene que bajar.
-  const [pedidoScroll, setPedidoScroll] = useState(0);
-  const scrollPendiente = useRef(false);
+  // Los botones del veredicto y de la barra lateral cambian de pestaña con `irAPestana` (kit):
+  // el estado y la URL quedan igual que si la hubiera tocado quien lee.
+  const pestanas = useRef<HTMLDivElement>(null);
+  const irATab = useCallback((t: TabKey) => irAPestana(t, PARAM_TAB), []);
+  /** Si la barra de pestañas quedó fuera de la pantalla (arriba, o tan abajo que no se vería el panel), se va a ella. */
+  const mostrarPestanas = useCallback(() => {
+    const el = pestanas.current;
+    const top = el?.getBoundingClientRect().top;
+    if (!el || top == null || (top >= 0 && top < window.innerHeight - 160)) return;
+    const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "start" });
+  }, []);
+  const abrirTab = useCallback(
+    (t: TabKey) => {
+      irATab(t);
+      requestAnimationFrame(mostrarPestanas);
+    },
+    [irATab, mostrarPestanas],
+  );
+
+  // "Ver las señales": va a la pestaña de las señales y baja hasta la lista. El panel ya está
+  // montado (oculto): tras el clic, el cuadro siguiente ya lo muestra y se puede bajar a él.
   const verEvidencia = useCallback(() => {
-    scrollPendiente.current = true;
     irATab("resumen");
-    setPedidoScroll((n) => n + 1);
-  }, [irATab]);
-  useEffect(() => {
-    if (!scrollPendiente.current || activeTab !== "resumen") return;
-    scrollPendiente.current = false;
     const reducido = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     requestAnimationFrame(() =>
       document.getElementById("senales")?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "start" }),
     );
-  }, [activeTab, pedidoScroll]);
+  }, [irATab]);
 
   // ─── Qué corrió, qué señales se sostienen, qué nivel tiene ───
   const corrida = useMemo(() => estadoCorrida(result), [result]);
@@ -147,31 +149,17 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
     return (finPalabra > 0 ? corte.slice(0, finPalabra) : corte) + "…";
   })();
 
-  // Insignias de las pestañas: conteos en tinta neutra. La de Resumen contaba las señales en
-  // rojo aunque fueran todas bajas; el color de severidad sólo va donde se dice la severidad.
-  const TABS: { key: TabKey; label: string; icon: React.ReactNode; badge: number | null }[] = [
-    { key: "resumen", label: "Señales", icon: <ShieldAlert size={14} aria-hidden />, badge: banderasArr.length || null },
-    { key: "dictamen", label: "Dictamen", icon: <Pen size={14} aria-hidden />, badge: null },
-    { key: "items", label: "Ítems y mercado", icon: <Package size={14} aria-hidden />, badge: nItems || null },
-    { key: "proveedor", label: "Proveedor y red", icon: <Building2 size={14} aria-hidden />, badge: nRed || null },
-    { key: "documentos", label: "Documentos", icon: <FileText size={14} aria-hidden />, badge: nDocs || null },
-    { key: "prensa", label: "Prensa", icon: <Newspaper size={14} aria-hidden />, badge: nNoticias || null },
-    { key: "trace", label: "Cómo se hizo", icon: <Sparkles size={14} aria-hidden />, badge: null },
+  // Conteos de las pestañas, en tinta neutra (los pinta `Pestanas`). Un cero no se muestra: aquí
+  // suele querer decir "esa parte no corrió", no "no hay nada" (§10.2: sin dato no es cero).
+  const TABS: { key: TabKey; label: string; badge: number | null }[] = [
+    { key: "resumen", label: "Señales", badge: banderasArr.length || null },
+    { key: "dictamen", label: "Dictamen", badge: null },
+    { key: "items", label: "Ítems y mercado", badge: nItems || null },
+    { key: "proveedor", label: "Proveedor y red", badge: nRed || null },
+    { key: "documentos", label: "Documentos", badge: nDocs || null },
+    { key: "prensa", label: "Prensa", badge: nNoticias || null },
+    { key: "trace", label: "Cómo se hizo", badge: null },
   ];
-  const tabActual = TABS.find((t) => t.key === activeTab) ?? TABS[0];
-
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const onTabKey = (e: React.KeyboardEvent<HTMLButtonElement>, i: number) => {
-    let j: number | null = null;
-    if (e.key === "ArrowRight") j = (i + 1) % TABS.length;
-    else if (e.key === "ArrowLeft") j = (i - 1 + TABS.length) % TABS.length;
-    else if (e.key === "Home") j = 0;
-    else if (e.key === "End") j = TABS.length - 1;
-    if (j === null) return;
-    e.preventDefault();
-    irATab(TABS[j].key);
-    tabRefs.current[TABS[j].key]?.focus();
-  };
 
   // ─── Alerta frenada para revisión humana: "En revisión" y nada más (§10.4) ───
   if (enRevision) {
@@ -219,7 +207,7 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
               corrida={corrida}
               resumenEjecutivo={resumenEjecutivo}
               onVerEvidencia={verEvidencia}
-              onLeerDictamen={() => irATab("dictamen")}
+              onLeerDictamen={() => abrirTab("dictamen")}
             />
           </SeccionSegura>
 
@@ -230,73 +218,41 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
             </SeccionSegura>
           )}
 
-          {/* 4. La evidencia, en pestañas */}
-          <div
-            role="tablist"
-            aria-label="Secciones del informe"
-            className={cn(
-              "-mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-line bg-paper/95 px-1 py-1.5 backdrop-blur",
-              !vistaPrevia && "sticky top-2 z-30",
-            )}
-          >
-            {TABS.map((t, i) => {
-              const isActive = activeTab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  ref={(el) => {
-                    tabRefs.current[t.key] = el;
-                  }}
-                  id={`tab-${t.key}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`panel-${t.key}`}
-                  tabIndex={isActive ? 0 : -1}
-                  onClick={() => irATab(t.key)}
-                  onKeyDown={(e) => onTabKey(e, i)}
-                  className={cn(
-                    "inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors duration-rapido",
-                    isActive ? "bg-granate text-paper" : "text-inkSoft hover:bg-paperDeep hover:text-ink",
-                  )}
-                >
-                  {t.icon}
-                  <span>{t.label}</span>
-                  {t.badge != null && (
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-snug",
-                        isActive ? "bg-paper/20 text-paper" : "bg-paperDeep text-inkSoft",
-                      )}
-                    >
-                      {numero(t.badge)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} tabIndex={0} className="rounded-2xl focus-visible:outline-none">
-            <SeccionSegura key={activeTab} nombre={`la pestaña ${tabActual.label}`}>
-              <PanelDossier
-                tab={activeTab}
-                result={result}
-                conv={conv}
-                dict={dict}
-                corrida={corrida}
-                banderasArr={banderasArr}
-                noVerificables={noVerificables}
-                nombresPrivados={nombresPrivados}
-                nombresSunat={nombresSunat}
-                ganador={ganador}
-                ganadores={ganadores}
-                ocidContrato={ocidContrato}
-                nItems={nItems}
-                nDocs={nDocs}
-                nEvents={nEvents}
-              />
-            </SeccionSegura>
+          {/* 4. La evidencia, en pestañas. Cada panel con su propio límite de error: si uno no se
+              puede dibujar, las demás pestañas se siguen leyendo. */}
+          <div ref={pestanas} className="scroll-mt-24">
+            <Pestanas
+              etiqueta="Secciones del informe"
+              fija
+              param={PARAM_TAB}
+              activa={tabInicial}
+              pestanas={TABS.map((t) => ({
+                clave: t.key,
+                etiqueta: t.label,
+                conteo: t.badge,
+                contenido: (
+                  <SeccionSegura nombre={`la pestaña ${t.label}`}>
+                    <PanelDossier
+                      tab={t.key}
+                      result={result}
+                      conv={conv}
+                      dict={dict}
+                      corrida={corrida}
+                      banderasArr={banderasArr}
+                      noVerificables={noVerificables}
+                      nombresPrivados={nombresPrivados}
+                      nombresSunat={nombresSunat}
+                      ganador={ganador}
+                      ganadores={ganadores}
+                      ocidContrato={ocidContrato}
+                      nItems={nItems}
+                      nDocs={nDocs}
+                      nEvents={nEvents}
+                    />
+                  </SeccionSegura>
+                ),
+              }))}
+            />
           </div>
 
           {/* Una línea + ⓘ (§10.7). Es la única vez que el informe lo dice: antes lo repetían el
@@ -335,7 +291,7 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
           {/* 5. Cómo se hizo: plegado detrás de su pestaña. Aquí sólo el acceso. */}
           <button
             type="button"
-            onClick={() => irATab("trace")}
+            onClick={() => abrirTab("trace")}
             className="w-full rounded-2xl border border-line bg-paperSoft p-4 text-left transition-colors duration-rapido hover:bg-paperDeep"
           >
             <span className="flex items-center justify-between gap-2 text-[13px] font-semibold text-ink">

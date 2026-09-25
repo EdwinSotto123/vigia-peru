@@ -2,3 +2,6 @@
 export { EstadoVacio, EstadoError, Cargando } from "./Estados";
 export { Pagina, EncabezadoPagina, Seccion, Cifra, FuenteDato, Volver } from "./Estructura";
 export { Ayuda } from "./Ayuda";
+export { Pestanas, CabeceraPestana, irAPestana, type Pestana } from "./Pestanas";
+export { CuerpoDetalle, ChipsDetalle, DatosClave, BloqueDetalle, CitaDetalle, PieDetalle, type DatoClave } from "./Detalle";
+export { BarraCompartir } from "./Compartir";

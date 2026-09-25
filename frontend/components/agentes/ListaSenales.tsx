@@ -9,8 +9,11 @@
  */
 
 import { ExternalLink, FileText } from "lucide-react";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Severidad } from "@/components/ui/Severidad";
 import { maskDnis, pareceEmpresa, redactDnis, type NombreConocido } from "@/components/Redact";
+import { plural } from "@/lib/formato";
 import { nombreDeAgente, pasoDeClave } from "./catalogo";
 import { SelloVerificada } from "./SelloVerificada";
 import type { SenalAgente } from "./senales";
@@ -62,112 +65,115 @@ export function ResumenEvidencia({ texto, nombres }: { texto: string; nombres?: 
   return <>{resumenSinDatosPersonales(texto, nombres)}</>;
 }
 
+/**
+ * El panel de una señal del informe, con el formato de todo panel (DESIGN_SYSTEM.md §14.4):
+ * chips → quién la encontró, en filas → qué mira la regla, qué se encontró, la norma y las
+ * páginas del expediente. La fuente oficial va como fila: el pie del panel lo arma
+ * AuditoriaDeAgentes.
+ */
 export function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; etiqueta: string; descripcion: string | null }) {
   const agente = pasoDeClave(senal.agente);
+  const datos: DatoClave[] = [
+    {
+      etiqueta: "La encontró",
+      valor: <strong className="font-semibold">{nombreDeAgente(senal.agenteBruto ?? senal.agente)}</strong>,
+      ayuda: agente ? <Ayuda titulo="¿Qué hace este agente?">{agente.que}</Ayuda> : undefined,
+    },
+    ...(agente ? [{ etiqueta: "Carril", valor: agente.carrilLabel }] : []),
+    ...(agente && agente.fuentes.length > 0 ? [{ etiqueta: "Coteja contra", valor: agente.fuentes.join(", ") }] : []),
+    ...(!agente && senal.agenteBruto ? [{ etiqueta: "Identificador del agente", valor: senal.agenteBruto, mono: true }] : []),
+    ...(senal.fuenteUrl
+      ? [
+          {
+            etiqueta: "Fuente oficial",
+            valor: (
+              <a href={senal.fuenteUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                Ver la fuente oficial <ExternalLink size={12} aria-hidden />
+              </a>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <div className="space-y-4 text-[13px] leading-relaxed text-ink">
-      <div className="flex flex-wrap items-center gap-2">
+    <CuerpoDetalle>
+      <ChipsDetalle>
         <Severidad bandera={senal.severidad} />
         <SelloVerificada verificada={senal.verificada} />
-      </div>
+      </ChipsDetalle>
 
-      {descripcion && <p className="text-mute">{descripcion}</p>}
+      <DatosClave items={datos} />
 
-      <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Qué se encontró</h3>
-        <p className="mt-1">{senal.evidencia ? redactDnis(senal.evidencia) : "El análisis no guardó el texto de esta señal."}</p>
-      </section>
-
-      {senal.evidenciaTextual && (
-        <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Texto del documento</h3>
-          <blockquote className="mt-1 border-l-2 border-granate/40 pl-3 italic text-inkSoft">
-            {redactDnis(senal.evidenciaTextual)}
-          </blockquote>
-        </section>
+      {descripcion && (
+        <BloqueDetalle titulo="Qué mira esta regla">
+          <p>{descripcion}</p>
+        </BloqueDetalle>
       )}
 
-      <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Quién la produjo</h3>
-        <p className="mt-1">
-          <strong className="font-semibold">{nombreDeAgente(senal.agenteBruto ?? senal.agente)}</strong>
-          {agente ? <span className="text-mute"> en el carril {agente.carrilLabel}</span> : null}
-        </p>
-        {agente && <p className="mt-0.5 text-mute">{agente.que}</p>}
-        {agente && agente.fuentes.length > 0 && (
-          <p className="mt-0.5 text-mute">Coteja contra: {agente.fuentes.join(", ")}.</p>
+      <BloqueDetalle titulo="Qué se encontró">
+        {senal.evidencia ? <p>{redactDnis(senal.evidencia)}</p> : <p className="text-mute">El análisis no guardó el texto de esta señal.</p>}
+        {senal.evidenciaTextual && (
+          <div className="mt-2">
+            <CitaDetalle fuente="Texto del documento">{redactDnis(senal.evidenciaTextual)}</CitaDetalle>
+          </div>
         )}
-        {!agente && senal.agenteBruto && <p className="mt-0.5 font-mono text-[11px] text-mute">{senal.agenteBruto}</p>}
-      </section>
+      </BloqueDetalle>
 
-      <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Norma citada</h3>
-        <p className="mt-1">{senal.norma || "Esta señal no cita una norma: se sostiene solo en la evidencia de arriba."}</p>
-      </section>
-
-      {senal.opinion?.num && (
-        <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Opinión OECE</h3>
-          <p className="mt-1 font-mono text-[12px]">{senal.opinion.num}</p>
-          {senal.opinion.snippet && <p className="mt-1 italic text-inkSoft">{senal.opinion.snippet}</p>}
-          {senal.opinion.url && (
-            <a
-              href={senal.opinion.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-granate hover:underline"
-            >
-              Abrir la opinión <ExternalLink size={12} aria-hidden />
-            </a>
-          )}
-        </section>
-      )}
+      <BloqueDetalle titulo="La norma que cita">
+        {senal.norma ? <p>{senal.norma}</p> : <p className="text-mute">Esta señal no cita una norma: se sostiene solo en la evidencia de arriba.</p>}
+        {senal.opinion?.num && <OpinionOece opinion={senal.opinion} />}
+      </BloqueDetalle>
 
       {senal.citas.length > 0 && (
-        <section>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">
-            Páginas del expediente que la respaldan ({senal.citas.length})
-          </h3>
-          <ul className="mt-1 space-y-1.5">
-            {senal.citas.map((c, i) => (
-              <li key={i} className="border-l-2 border-line pl-3">
-                <p className="flex flex-wrap items-baseline gap-x-2 text-[12px] text-mute">
+        <BloqueDetalle
+          titulo="Evidencia en el expediente"
+          acciones={<span className="shrink-0 text-[12px] tabular-nums text-mute">{plural(senal.citas.length, "página", "páginas")}</span>}
+        >
+          <ul className="space-y-2">
+            {senal.citas.map((c, i) => {
+              const fuente = (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
                   <FileText size={12} aria-hidden />
-                  <span className="text-ink">{c.documentoTitulo ?? "Documento del expediente"}</span>
-                  {c.pagina != null && <span className="font-mono">pág. {c.pagina}</span>}
-                </p>
-                {c.cita && <p className="mt-0.5 italic text-inkSoft">{redactDnis(c.cita)}</p>}
-                {c.documentoUrl && (
-                  <a
-                    href={c.documentoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-granate hover:underline"
-                  >
-                    Abrir el documento <ExternalLink size={11} aria-hidden />
-                  </a>
-                )}
-              </li>
-            ))}
+                  <span className="font-medium text-inkSoft">{c.documentoTitulo ?? "Documento del expediente"}</span>
+                  {c.pagina != null && <span className="font-mono tabular-nums text-ink">pág. {c.pagina}</span>}
+                  {c.documentoUrl && (
+                    <a href={c.documentoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                      Abrir el documento <ExternalLink size={11} aria-hidden />
+                    </a>
+                  )}
+                </span>
+              );
+              // Sin texto de la página no hay cita que mostrar: sólo el documento y su enlace.
+              return <li key={i}>{c.cita ? <CitaDetalle fuente={fuente}>{redactDnis(c.cita)}</CitaDetalle> : fuente}</li>;
+            })}
           </ul>
-        </section>
+        </BloqueDetalle>
       )}
 
-      {senal.fuenteUrl && (
-        <a
-          href={senal.fuenteUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-granate hover:underline"
-        >
-          Ver la fuente oficial <ExternalLink size={12} aria-hidden />
+      <BloqueDetalle titulo="Qué no prueba esto">
+        <p className="text-inkSoft">
+          Es una señal de riesgo, no una acusación: {etiqueta.toLowerCase()} es un indicio que hay que verificar contra la
+          fuente oficial antes de publicarlo o denunciarlo.
+        </p>
+      </BloqueDetalle>
+    </CuerpoDetalle>
+  );
+}
+
+/** La opinión del OECE que respalda la norma: el extracto como cita, si se guardó; si no, sólo su número y enlace. */
+function OpinionOece({ opinion }: { opinion: NonNullable<SenalAgente["opinion"]> }) {
+  const fuente = (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
+      <span>
+        Opinión del OECE <span className="font-mono">{opinion.num}</span>
+      </span>
+      {opinion.url && (
+        <a href={opinion.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+          Abrir la opinión <ExternalLink size={11} aria-hidden />
         </a>
       )}
-
-      <p className="border-t border-line pt-3 text-[12px] text-mute">
-        Señal de riesgo, no acusación: {etiqueta.toLowerCase()} es un indicio que hay que verificar
-        contra la fuente oficial antes de publicarlo o denunciarlo.
-      </p>
-    </div>
+    </span>
   );
+  return <div className="mt-2">{opinion.snippet ? <CitaDetalle fuente={fuente}>{opinion.snippet}</CitaDetalle> : fuente}</div>;
 }

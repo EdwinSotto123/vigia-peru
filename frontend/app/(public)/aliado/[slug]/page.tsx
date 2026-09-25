@@ -1,60 +1,45 @@
 import { notFound } from "next/navigation";
-import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
-import { CadenaAliado } from "@/components/aliados/CadenaAliado";
-import { PruebaIndependencia } from "@/components/aliados/ReglasIndependencia";
-import { RegionesDeAliado, SenalesDeAliado, indicadoresAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
-import { AvisoMaqueta, SelloMaqueta } from "@/components/aliados/AvisoMaqueta";
-import {
-  ContactoAliado,
-  IdentidadAliado,
-  Insignias,
-  insigniasDe,
-  mesesDesde,
-} from "@/components/aliados/IdentidadAliado";
-import { InvitacionFinanciar } from "@/components/aliados/InvitacionFinanciar";
-import { Seccion, Volver } from "@/components/patrones";
+import { Ayuda, EstadoVacio, Pestanas, Volver } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
-import { FranjaTextil } from "@/components/marca";
+import { AvisoMaqueta } from "@/components/aliados/AvisoMaqueta";
+import { CadenaAliado } from "@/components/aliados/CadenaAliado";
+import { insigniasDe, mesesDesde } from "@/components/aliados/IdentidadAliado";
+import { RegionesDeAliado, TablaSenales, indicadoresAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
+import { PortadaAliado } from "@/components/aliados/PortadaAliado";
+import { PruebaIndependencia } from "@/components/aliados/ReglasIndependencia";
+import { ResumenDelPerfil } from "@/components/aliados/ResumenPerfil";
+import { esFundador } from "@/components/aliados/TarjetaAliado";
 import { getComprobanteDe, getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
+import { puestoDe } from "@/components/aliados/ranking";
 import { getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
-import { fecha, numero, plural } from "@/lib/formato";
-import { cn } from "@/lib/utils";
+import { numero, plural } from "@/lib/formato";
 import { hrefSinMaqueta, maquetaActiva, queryMaqueta } from "@/lib/maqueta-aliados";
 
 export const revalidate = 30;
 
 /**
- * Ficha pública de un aliado. Es la única superficie del producto donde quien
- * financia tiene página propia, y se gana el lugar por una razón concreta: acá
- * sí se puede construir la cadena entera —aporte → contratos asignados →
- * entidad → señal— que es trazabilidad, no agradecimiento.
+ * Perfil público de un aliado (DESIGN_SYSTEM.md §14.6): la página que quien financia
+ * quiere mostrar y compartir, como un perfil social. Portada con su logo, su puesto en
+ * el ranking y lo que publicó de sí; compartir y financiar; sus cifras; y todo lo demás
+ * en pestañas (§14.3) en vez de cuatro secciones apiladas: Resumen | Señales | Zonas |
+ * Aportes. El Resumen se entiende en una pantalla; cada pestaña va a la URL.
  *
- * Orden de ficha (DESIGN_SYSTEM.md §14.2): identidad → `Indicadores` (lo que hizo
- * leer y qué salió, cada cifra con su denominador) → secciones con la `Tabla` de todo
- * listado: las señales concretas (ordenadas por score), las zonas donde cayó lo que
- * pagó y sus aportes, uno por uno. La prueba de independencia sigue pegada a la lista
- * de aportes: la asignación es FIFO por antigüedad en SQL y el pipeline no sabe quién
- * financió. Mostrarlo donde el lector mira los contratos es demostrarlo, no declararlo.
+ * Sigue siendo trazabilidad, no agradecimiento: aporte → contratos asignados → señal,
+ * con la prueba de independencia junto a los contratos. Sin montos en soles.
  *
- * Son ~1 + N fetches (perfil + comprobante por aporte). Con N acotado es
- * aceptable; pasado el tope, la fila enlaza al comprobante en vez de traerlo.
- *
- * Contenedor: el `container-page` de la cabecera pública (esta ruta no tiene barra
- * lateral), sin la columna angosta centrada de antes: la ficha usa el ancho y queda
- * alineada con el logo de la cabecera. Las explicaciones, a un clic (§10.7).
+ * Son ~1 + N fetches (perfil + comprobante por aporte). Pasado el tope, la fila del
+ * aporte enlaza a su comprobante en vez de traerlo.
  */
 
-/** Aportes cuyo detalle por contrato se trae para abrir en el panel. Más allá, se enlaza. */
+/** Aportes cuyo comprobante se trae para abrir en el panel. Más allá, se enlaza. */
 const MAX_DETALLE = 12;
+/** Filas de la pestaña Señales. */
+const MAX_SENALES = 60;
+const SECCIONES = ["resumen", "senales", "zonas", "aportes"] as const;
+type Seccion = (typeof SECCIONES)[number];
 
-const TIPO_LABEL: Record<"empresa" | "organizacion" | "persona", string> = {
-  empresa: "Empresa",
-  organizacion: "Organización",
-  persona: "Persona",
-};
-
-const num = numero;
+const esSeccion = (v: string | undefined): v is Seccion => !!v && (SECCIONES as readonly string[]).includes(v);
 
 export async function generateMetadata({
   params,
@@ -63,9 +48,9 @@ export async function generateMetadata({
   params: { slug: string };
   searchParams?: { maqueta?: string };
 }) {
-  const data = await getPerfilAliado(params.slug, maquetaActiva(searchParams?.maqueta));
+  const maqueta = maquetaActiva(searchParams?.maqueta);
+  const [data, puesto] = await Promise.all([getPerfilAliado(params.slug, maqueta), puestoDe(params.slug, maqueta)]);
   if (!data) return { title: "Aliado no encontrado" };
-  const r = resumirContribuciones(data.contribuciones);
   if (data.esMaqueta) {
     return {
       title: `${data.aliado.nombre} (maqueta)`,
@@ -73,12 +58,21 @@ export async function generateMetadata({
       robots: { index: false, follow: false },
     };
   }
-  const description = `${data.aliado.nombre} financió la lectura de ${plural(r.financiados, "contrato público", "contratos públicos")}; ${numero(r.leidos)} ya se leyeron. No eligió cuáles: se asignan por antigüedad.`;
+  const r = resumirContribuciones(data.contribuciones);
+  const title = `${data.aliado.nombre}, aliado de transparencia`;
+  const description = [
+    `${data.aliado.nombre} financió la lectura de ${plural(r.financiados, "contrato público", "contratos públicos")}; ${numero(r.leidos)} ya se leyeron.`,
+    puesto ? `Puesto ${puesto.puesto} de ${numero(puesto.de)} en el ranking de aliados de Vigía Perú.` : null,
+    "No eligió cuáles: se asignan por antigüedad.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  // La imagen la pone opengraph-image.tsx (cifras y puesto, con la marca de Vigía).
   return {
-    title: `${data.aliado.nombre}, aliado de transparencia`,
+    title,
     description,
-    openGraph: { title: `${data.aliado.nombre}, aliado de transparencia`, description },
-    twitter: { card: "summary" },
+    openGraph: { type: "profile", title, description },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
@@ -87,134 +81,177 @@ export default async function AliadoPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams?: { maqueta?: string };
+  searchParams?: { maqueta?: string; seccion?: string };
 }) {
   const maqueta = maquetaActiva(searchParams?.maqueta);
-  // Sin el interruptor, un slug de maqueta es un 404 igual que cualquier slug
-  // inexistente: los aliados inventados no existen por defecto.
+  // Sin el interruptor, un slug de maqueta es un 404 igual que cualquier slug inexistente.
   const data = await getPerfilAliado(params.slug, maqueta);
   if (!data) notFound();
   const { aliado, contribuciones, esMaqueta } = data;
 
   const r = resumirContribuciones(contribuciones);
   const conDetalle = contribuciones.slice(0, MAX_DETALLE);
-  const [estado, resumen, comprobantes] = await Promise.all([
+  const [estado, resumen, puesto, comprobantes] = await Promise.all([
     getEstadoGlobal(),
     getResumenContratos(),
+    puestoDe(aliado.slug, maqueta),
     Promise.all(conDetalle.map((c) => getComprobanteDe(c.codigo, esMaqueta))),
   ]);
   const porCodigo = new Map<string, Comprobante | null>(conDetalle.map((c, i) => [c.codigo, comprobantes[i] ?? null]));
-  const items = contribuciones.map((contribucion) => ({
-    contribucion,
-    comprobante: porCodigo.get(contribucion.codigo) ?? null,
-  }));
+  const items = contribuciones.map((contribucion) => ({ contribucion, comprobante: porCodigo.get(contribucion.codigo) ?? null }));
   const senales = senalesDeComprobantes(items);
+  // Parcial (§10.5): sólo se leyó el detalle de los aportes más recientes.
+  const parcial = contribuciones.length > MAX_DETALLE || comprobantes.some((c) => c == null);
+  const entidades = parcial
+    ? null
+    : new Set(comprobantes.flatMap((c) => (c?.detalle ?? []).filter((d) => d.procesadaAt && d.entidad).map((d) => d.entidad))).size;
 
   const publicados = resumen?.total ?? 0;
   const regionesConCola = estado?.regionesConCola ?? 0;
-  const esPlataforma = aliado.slug === "vigia-peru";
-  const mesesAportando = mesesDesde(aliado.desde);
-  const volver = `/app/aliados${queryMaqueta(esMaqueta)}`;
+
+  // Las pestañas van a la URL; el interruptor de maqueta viaja con ellas.
+  const ruta = `/aliado/${aliado.slug}`;
+  const mq = searchParams?.maqueta;
+  const conMaqueta = mq === "0" || mq === "1" ? `&maqueta=${mq}` : esMaqueta ? "&maqueta=1" : "";
+  const hrefSeccion = (s: Seccion) => `${ruta}?seccion=${s}${conMaqueta}`;
+  const pedida = searchParams?.seccion;
+  const seccion: Seccion = esSeccion(pedida) ? pedida : "resumen";
+
+  const insignias = insigniasDe({
+    esFundador: esFundador(aliado),
+    financiados: r.financiados,
+    leidos: r.leidos,
+    regiones: r.regionesDistintas,
+    regionesConCola,
+    mesesAportando: mesesDesde(aliado.desde),
+  });
+
+  const sinComprobante = comprobantes.filter((c) => c == null).length;
+  const avisoParcial = parcial ? (
+    <p className="text-[12.5px] text-mute">
+      {contribuciones.length > MAX_DETALLE
+        ? `Señales de sus ${numero(MAX_DETALLE)} aportes más recientes; las de los anteriores están en el comprobante de cada aporte (pestaña Aportes).`
+        : `Faltan las señales de ${plural(sinComprobante, "aporte cuyo comprobante no respondió", "aportes cuyos comprobantes no respondieron")}; vuelve a intentarlo en unos minutos.`}
+    </p>
+  ) : null;
 
   return (
-    <div className="container-page space-y-8 py-8 sm:py-10">
-      <Volver href={volver}>Aliados de transparencia</Volver>
+    <div className="container-page space-y-6 py-6 sm:py-8">
+      <Volver href={`/app/aliados${queryMaqueta(esMaqueta)}`}>Ranking de aliados</Volver>
 
       {esMaqueta && <AvisoMaqueta volverHref={hrefSinMaqueta("/app/aliados")} />}
 
-      {/* Identidad, en su tarjeta de marca: la franja textil de 8 px es el
-          reconocimiento de Vigía (DESIGN_SYSTEM.md §6). Un aliado de maqueta no la
-          lleva: es un borrador y tiene que verse como tal. Sin kicker sobre el
-          título: el contexto va debajo, donde informa en vez de competir con el nombre. */}
-      <section
-        aria-label={`Quién es ${aliado.nombre}`}
-        className={cn(
-          "overflow-hidden rounded-2xl border bg-paper",
-          esMaqueta ? "border-dashed border-amber/60" : "border-line",
-        )}
-      >
-        {!esMaqueta && <FranjaTextil alto={8} />}
-        <div className="space-y-5 p-5 sm:p-7">
-          <header className="flex items-center gap-4 sm:gap-5">
-            <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="xl" maqueta={esMaqueta} />
-            <div className="min-w-0">
-              <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
-                {aliado.nombre}
-                {esMaqueta && <SelloMaqueta />}
-              </h1>
-              {/* Antes acá había una cadena de texto plano unida por puntos
-                  medios: "Organización · aporta desde junio de 2026 · 3 aportes ·
-                  3 de las 25 regiones con cola abierta". Cuatro datos de
-                  naturaleza distinta pegados con un separador que no es ni una
-                  coma ni una lista, y que obliga a parsear el renglón entero para
-                  sacar uno solo. Cada dato es ahora su propio elemento con su
-                  ícono. */}
-              <IdentidadAliado
-                className="mt-1.5"
-                datos={[
-                  {
-                    icono: aliado.tipo === "empresa" ? "tipo-empresa" : aliado.tipo === "persona" ? "tipo-persona" : "tipo-organizacion",
-                    texto: esPlataforma ? "La propia plataforma, con capital semilla" : TIPO_LABEL[aliado.tipo],
-                  },
-                  ...(aliado.desde
-                    ? [{
-                        icono: "fecha" as const,
-                        texto: `Aporta desde el ${fecha(aliado.desde)}`,
-                      }]
-                    : []),
-                  { icono: "aportes", texto: plural(r.aportes, "aporte", "aportes") },
-                ]}
-              />
-            </div>
-          </header>
-
-          {/* Insignias: todas derivadas de sus propias cifras, ninguna a dedo. */}
-          <Insignias
-            insignias={insigniasDe({
-              esFundador: esPlataforma,
-              financiados: r.financiados,
-              leidos: r.leidos,
-              regiones: r.regionesDistintas,
-              regionesConCola,
-              mesesAportando,
-            })}
-          />
-
-          {aliado.descripcion && (
-            <p className="max-w-[70ch] text-[15px] leading-relaxed text-inkSoft">{aliado.descripcion}</p>
-          )}
-
-          <ContactoAliado web={aliado.web} email={aliado.email} />
-        </div>
-      </section>
-
-      {/* Lo que hizo leer: cada cifra con su denominador. La primera compara contra el país
-          entero: es el único contexto que vuelve legible un "45" entre 18 mil contratos. */}
-      <Indicadores
-        items={indicadoresAliado(r, publicados > 0 ? { total: publicados, texto: "publicados" } : null, regionesConCola)}
+      <PortadaAliado
+        aliado={aliado}
+        puesto={puesto}
+        insignias={insignias}
+        aportes={r.aportes}
+        ruta={ruta}
+        hrefRanking={`/app/aliados${queryMaqueta(esMaqueta)}`}
+        esMaqueta={esMaqueta}
       />
 
-      <SenalesDeAliado senales={senales} nombre={aliado.nombre} esMaqueta={esMaqueta} />
+      {/* Lo que hizo leer, cada cifra con su denominador. */}
+      <Indicadores items={indicadoresAliado(r, publicados > 0 ? { total: publicados, texto: "publicados" } : null, regionesConCola)} />
 
-      {r.regiones.length > 0 && (
-        <Seccion titulo="En qué zonas cayeron sus contratos">
-          <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} />
-        </Seccion>
-      )}
-
-      <Seccion titulo="Aporte por aporte, contrato por contrato">
-        <div className="space-y-3">
-          <PruebaIndependencia nombre={aliado.nombre} />
-          <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />
-          {contribuciones.length > MAX_DETALLE && (
-            <p className="text-[12.5px] text-mute">
-              Desde el aporte {num(MAX_DETALLE + 1)}, la fila abre su comprobante público en vez del panel.
-            </p>
-          )}
-        </div>
-      </Seccion>
-
-      <InvitacionFinanciar />
+      {/* `key`: un enlace del Resumen a otra pestaña (?seccion=) vuelve a montar la barra en esa pestaña. */}
+      <Pestanas
+        key={seccion}
+        etiqueta={`Secciones del perfil de ${aliado.nombre}`}
+        activa={seccion}
+        pestanas={[
+          {
+            clave: "resumen",
+            etiqueta: "Resumen",
+            contenido: (
+              <ResumenDelPerfil
+                nombre={aliado.nombre}
+                r={r}
+                senales={senales}
+                contribuciones={contribuciones}
+                entidades={entidades}
+                hrefs={{ senales: hrefSeccion("senales"), zonas: hrefSeccion("zonas"), aportes: hrefSeccion("aportes") }}
+                esMaqueta={esMaqueta}
+              />
+            ),
+          },
+          {
+            clave: "senales",
+            etiqueta: "Señales encontradas",
+            conteo: r.conSenal,
+            contenido: (
+              <div className="space-y-3">
+                <p className="flex flex-wrap items-center gap-1 text-[13px] text-mute">
+                  Ordenadas por puntaje: la más fuerte primero.
+                  <Ayuda titulo="¿Una señal es una acusación?">
+                    No: cada señal se publica con la norma citada y el documento oficial que la sostiene, y se publicó sin
+                    consultar a {aliado.nombre}.
+                  </Ayuda>
+                </p>
+                {senales.length > 0 ? (
+                  <TablaSenales senales={senales.slice(0, MAX_SENALES)} nombre={aliado.nombre} esMaqueta={esMaqueta} />
+                ) : (
+                  <EstadoVacio compacto conLlamita={false} titulo={r.leidos > 0 ? "Sin señales publicadas" : "Todavía sin contratos leídos"}>
+                    {r.leidos > 0
+                      ? `Ninguno de sus ${numero(r.leidos)} contratos leídos tiene una señal publicada.`
+                      : "Cada contrato aparece aquí en cuanto su dictamen se publica."}
+                  </EstadoVacio>
+                )}
+                {senales.length > MAX_SENALES && (
+                  <p className="text-[12.5px] text-mute">
+                    Mostrando {numero(MAX_SENALES)} de {numero(senales.length)}: el resto, dentro del aporte que pagó cada una.
+                  </p>
+                )}
+                {avisoParcial}
+              </div>
+            ),
+          },
+          {
+            clave: "zonas",
+            etiqueta: "Zonas",
+            conteo: r.regiones.length,
+            contenido: (
+              <div className="space-y-3">
+                <p className="flex flex-wrap items-center gap-1 text-[13px] text-mute">
+                  Cada zona abre su cola, donde se puede financiar.
+                  <Ayuda titulo="¿La zona se elige?">
+                    Sí: al aportar se elige la zona y la cantidad. Los contratos concretos, no: salen de la cola por
+                    antigüedad. La zona es la sede de la entidad que contrata.
+                  </Ayuda>
+                </p>
+                {r.regiones.length > 0 ? (
+                  <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} />
+                ) : (
+                  <EstadoVacio compacto conLlamita={false} titulo="Todavía sin zonas">
+                    Aparecen con su primer aporte confirmado.
+                  </EstadoVacio>
+                )}
+              </div>
+            ),
+          },
+          {
+            clave: "aportes",
+            etiqueta: "Aportes",
+            conteo: r.aportes,
+            contenido:
+              contribuciones.length > 0 ? (
+                <div className="space-y-3">
+                  <PruebaIndependencia nombre={aliado.nombre} />
+                  <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />
+                  {contribuciones.length > MAX_DETALLE && (
+                    <p className="text-[12.5px] text-mute">
+                      Desde el aporte {numero(MAX_DETALLE + 1)}, la fila abre su comprobante público en vez del panel.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <EstadoVacio compacto conLlamita={false} titulo="Todavía sin aportes confirmados">
+                  Cuando el primero se confirme, cada contrato que haga leer aparece aquí con su entidad y su dictamen.
+                </EstadoVacio>
+              ),
+          },
+        ]}
+      />
     </div>
   );
 }

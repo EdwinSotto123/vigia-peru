@@ -23,13 +23,14 @@
  */
 
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, ExternalLink, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
 import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado, type SenalRiesgo } from "@/lib/auditoria";
 import { validacionLabel } from "@/lib/contratos";
 import { plural, porcentaje, soles } from "@/lib/formato";
 import { Severidad } from "@/components/ui/Severidad";
 import { Revelar } from "@/components/ui/Revelar";
 import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, ChipsDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { ConteoSenales } from "@/components/convocatoria/sections/ConteoSenales";
 import { CompartirButton } from "./CompartirButton";
 import { EvidenciaRedactada } from "./EvidenciaRedactada";
@@ -138,9 +139,16 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                     className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
                     detalle={<DetalleSenal s={s} />}
                     pie={
-                      <Link href={dossierHref} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
-                        Leer el dictamen completo <ArrowRight size={13} aria-hidden />
-                      </Link>
+                      <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+                        <Link href={dossierHref} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                          Leer el dictamen completo <ArrowRight size={13} aria-hidden />
+                        </Link>
+                        {s.fuenteUrl && (
+                          <a href={s.fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">
+                            Fuente oficial <ExternalLink size={11} aria-hidden />
+                          </a>
+                        )}
+                      </span>
                     }
                   >
                     <LineaSenal s={s} conFlecha />
@@ -289,35 +297,33 @@ function LineaSenal({ s, conFlecha = false }: { s: SenalRiesgo; conFlecha?: bool
   );
 }
 
-/** El panel de una señal: severidad, norma entera y la evidencia completa (DNI tras vidrio). */
+/** El panel de una señal (§14.4): chips, qué se encontró (DNI tras vidrio) y la norma entera. */
 function DetalleSenal({ s }: { s: SenalRiesgo }) {
   return (
-    <div className="space-y-4 text-[13px]">
-      <div className="flex flex-wrap items-center gap-2">
+    <CuerpoDetalle>
+      <ChipsDetalle>
         <Severidad bandera={s.severidad} formato="pastilla" />
         {s.verificada === true && (
           <span className="pill border-moss/40 bg-moss/10 text-mossTexto">
             <ShieldCheck size={12} aria-hidden /> Cotejada
           </span>
         )}
-      </div>
-      {s.norma && (
-        <section>
-          <h3 className="text-[12px] font-semibold text-mute">Norma que cita</h3>
-          <p className="mt-1 leading-relaxed text-ink">{s.norma}</p>
-        </section>
-      )}
-      <section>
-        <h3 className="text-[12px] font-semibold text-mute">Evidencia</h3>
+      </ChipsDetalle>
+      <BloqueDetalle titulo="Qué se encontró">
         {s.evidencia ? (
-          <blockquote className="mt-1 border-l-2 border-line pl-3 leading-relaxed text-inkSoft">
+          <p className="text-inkSoft">
             <EvidenciaRedactada texto={s.evidencia} />
-          </blockquote>
+          </p>
         ) : (
-          <p className="mt-1 text-mute">Sin evidencia guardada en este resumen: el dictamen la cita completa.</p>
+          <p className="text-mute">Sin evidencia guardada en este resumen: el dictamen la cita completa.</p>
         )}
-      </section>
-    </div>
+      </BloqueDetalle>
+      {s.norma && (
+        <BloqueDetalle titulo="La norma que cita">
+          <p>{s.norma}</p>
+        </BloqueDetalle>
+      )}
+    </CuerpoDetalle>
   );
 }
 

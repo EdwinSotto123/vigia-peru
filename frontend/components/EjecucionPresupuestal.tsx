@@ -13,8 +13,8 @@ const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos
  * Server component. Recibe un keyword (parte del nombre del pliego o ejecutora)
  * y muestra el presupuesto real consultado a MEF — Datos Abiertos.
  *
- * Vive plegado dentro de la ficha de una entidad, que ya le pone título ("Ejecución
- * presupuestal"): aquí va el dato, sin repetir el encabezado. Plantilla Ficha (§14.2):
+ * Vive en la pestaña "Presupuesto MEF" de la ficha de una entidad (§14.3), que ya le pone
+ * nombre y bajada: aquí va el dato, sin repetir el encabezado. Plantilla Ficha (§14.2):
  * el último año como `Indicadores` (número → qué es → contexto), los avisos en una línea
  * + ⓘ, y cada año en la `Tabla` del kit, con la ejecución como chip. Sus estados (lento,
  * caído, sin registros) van alineados a la izquierda y sin la llamita: la llamita no

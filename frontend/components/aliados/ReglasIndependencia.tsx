@@ -3,7 +3,7 @@ import { Popover } from "@/components/ui/Flotante";
 import { Ayuda } from "@/components/patrones/Ayuda";
 
 /**
- * Las tres reglas que hacen que este muro no sea publicidad, cada una en UNA
+ * Las tres reglas que hacen que este ranking no sea publicidad, cada una en UNA
  * frase y con el detalle detrás de un popover.
  *
  * Antes cada una traía un párrafo de tres renglones: nueve renglones de letra
@@ -17,7 +17,7 @@ const REGLAS = [
     titulo: "Nadie elige qué se audita",
     resumen: "Ni quien paga, ni nosotros.",
     detalle:
-      "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. La lectura de cada contrato se hace sin conocer el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
+      "Los contratos se asignan solos, por antigüedad en la cola. La lectura de cada contrato se hace sin conocer el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
   },
   {
     Icono: ListOrdered,
@@ -31,7 +31,7 @@ const REGLAS = [
     titulo: "Conflicto de interés, automático",
     resumen: "Con sanción vigente se puede aportar, pero no aparecer.",
     detalle:
-      "Una empresa con sanción vigente del OECE, o con alertas activas como proveedora, puede aportar: su aporte entra a la cola igual. Lo que no hace es aparecer en este muro. El reconocimiento público se pierde; la lectura del contrato, no.",
+      "Una empresa con sanción vigente del OECE, o con alertas activas como proveedora, puede aportar: su aporte entra a la cola igual. Lo que no hace es aparecer en este ranking. El reconocimiento público se pierde; la lectura del contrato, no.",
   },
 ];
 
@@ -79,9 +79,9 @@ export function PruebaIndependencia({ nombre }: { nombre: string }) {
       <strong className="font-semibold text-ink">{nombre} no eligió estos contratos.</strong>
       <span>Salen de la cola por antigüedad.</span>
       <Ayuda titulo="¿Cómo se asignan?">
-        Al pagar se elige una región y una cantidad; los contratos concretos salen de la cola por antigüedad, en una
-        consulta SQL que corre antes de que arranque la lectura. Quien los lee no recibe el nombre de quien financió,
-        y el dictamen se publica igual si termina señalando a {nombre}.
+        Al pagar se elige una región y una cantidad; los contratos concretos salen solos de la cola, por antigüedad,
+        antes de que arranque la lectura. Quien los lee no recibe el nombre de quien financió, y el dictamen se
+        publica igual si termina señalando a {nombre}.
       </Ayuda>
     </p>
   );

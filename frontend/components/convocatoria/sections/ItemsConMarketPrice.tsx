@@ -5,6 +5,8 @@ import { DetallePrecioItem, TablaPrecios } from "@/components/charts/DetallePrec
 import { RangoPrecios } from "@/components/charts/RangoPrecios";
 import { construirFilas, maximoEscala, ordenarPorDiferencia } from "@/components/charts/mercado";
 import { Revelar } from "@/components/ui/Revelar";
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { numero, plural } from "@/lib/formato";
 
 /**
@@ -135,31 +137,37 @@ export function ItemsConMarketPrice({
             titulo={`${plural(fuera.length, "ítem", "ítems")} sin comparación de mercado`}
             descripcion="Qué falta en cada uno para poder compararlo"
             detalle={
-              <div className="text-[13px] text-ink">
-                <p className="mb-3 text-[12px] text-mute">
-                  El agente de precios necesita dos cosas para comparar un ítem: la cantidad del requerimiento y al
-                  menos tres precios de mercado con fuente verificable. Estos no las tienen. Se listan igual:
-                  desaparecerlos haría ver una cobertura que no existe.
-                </p>
-                <ul className="divide-y divide-line/60">
-                  {fuera.map((f) => (
-                    <li key={f.key} className="py-2">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[11px] font-semibold text-inkSoft">{f.numero}</span>
-                        <span className="font-medium">{f.descripcion}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-3 text-[11px] text-mute">
-                        <span>
-                          {f.cantidad !== null
-                            ? `${numero(f.cantidad)} ${f.unidad}`
-                            : "sin cantidad en el expediente"}
-                        </span>
-                        <span>{f.motivo ?? f.veredicto.etiqueta.toLowerCase()}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              // Formato de panel (§14.4): la regla del agente a un clic, la lista en su bloque.
+              // Sin chips ni datos arriba, el bloque abre el panel sin su borde superior.
+              <CuerpoDetalle>
+                <BloqueDetalle
+                  titulo="Qué le falta a cada uno"
+                  className="border-t-0 pt-0"
+                  ayuda={
+                    <Ayuda titulo="¿Qué necesita un ítem para compararse?">
+                      La cantidad del requerimiento y al menos tres precios de mercado con fuente verificable. Estos no
+                      las tienen. Se listan igual: desaparecerlos haría ver una cobertura que no existe.
+                    </Ayuda>
+                  }
+                >
+                  <ul className="divide-y divide-line/60 rounded-xl border border-line">
+                    {fuera.map((f) => (
+                      <li key={f.key} className="px-3.5 py-2.5">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-mono text-[12px] font-semibold text-inkSoft">{f.numero}</span>
+                          <span className="font-medium">{f.descripcion}</span>
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-mute">
+                          <span>
+                            {f.cantidad !== null ? `${numero(f.cantidad)} ${f.unidad}` : "sin cantidad en el expediente"}
+                          </span>
+                          <span>{f.motivo ?? f.veredicto.etiqueta.toLowerCase()}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </BloqueDetalle>
+              </CuerpoDetalle>
             }
             ancho="lg"
             className="w-auto"

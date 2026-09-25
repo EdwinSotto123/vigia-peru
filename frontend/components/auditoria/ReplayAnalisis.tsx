@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { faseHumana, nodoActivoYHechos, reducirFases, type EstadoProc, type EventoFase } from "@/lib/auditoria";
 import { FlowGraph } from "@/components/convocatoria/sections/FlowGraph";
+import { BloqueDetalle } from "@/components/patrones/Detalle";
 import { Bitacora } from "./Bitacora";
 import { DagCarriles } from "./DagCarriles";
 
@@ -117,13 +118,17 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
       )}
       <DagCarriles fases={fases} estado={estadoVirtual} ahora={ahoraVirtual} compacto={compacto} />
 
-      <div>
-        <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-mute">
-          <span>Bitácora (repetida)</span>
-          <span className="font-mono normal-case tracking-normal">{visibles.length}/{ordenados.length} eventos</span>
-        </div>
+      {/* Bloque de panel (§14.4) y no rótulo en mayúsculas: esto se lee dentro de un Revelar. */}
+      <BloqueDetalle
+        titulo="Bitácora repetida"
+        acciones={
+          <span className="shrink-0 font-mono text-[11px] tabular-nums text-mute">
+            {visibles.length}/{ordenados.length} eventos
+          </span>
+        }
+      >
         <Bitacora eventos={visibles} ahora={ahoraVirtual} max={compacto ? 6 : 14} activo={!terminoReplay} compacto={compacto} />
-      </div>
+      </BloqueDetalle>
     </div>
   );
 }

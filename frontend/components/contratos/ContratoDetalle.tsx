@@ -1,14 +1,15 @@
 /**
  * Ficha de un contrato (DESIGN_SYSTEM.md §14.2), en el orden de la plantilla:
  *   volver → identidad (el objeto; código, entidad y zona en una línea; chips de estado)
- *   → Indicadores (cuánto y cuándo) → el estado de su lectura (una tarjeta), con los datos
- *   del proceso al costado → secciones con la evidencia oficial (ítems, ofertas, precios,
- *   dónde dice cada señal, documentos), cada una con su fuente al pie.
+ *   → Indicadores (cuánto y cuándo) → pestañas (§14.3): Resumen (el estado de su lectura,
+ *   con los datos del proceso al costado) | Ítems | Postores y ofertas | Precio contratado |
+ *   Dónde dice cada señal | Documentos oficiales, cada una con su conteo y su fuente al pie.
+ *   Antes esas cinco tablas se apilaban debajo del estado y había que bajar y bajar.
  *
  * Antes las cifras vivían en una grilla de formulario ("Valor referencial / Monto adjudicado /
  * Convocatoria / Buena pro / Postores / Quién ganó") y cada tabla tenía su propio estilo. Ahora
  * las cifras son `Indicadores`, quién ganó y los códigos van en "Datos del proceso" (columna
- * lateral) y las secciones (`EvidenciaContrato`) usan la `Tabla` del kit (§14.1).
+ * lateral) y las pestañas de evidencia (`EvidenciaContrato.tsx`) usan la `Tabla` del kit (§14.1).
  *
  * Server component; `ContratoEnVivo` y `Redact` son islas de cliente. Cifras de cabecera
  * compactas con el monto exacto como contexto; en tablas, soles completos (lib/formato, §10.3).
@@ -21,11 +22,11 @@ import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
-import { Ayuda, EncabezadoPagina, FuenteDato, Volver } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, FuenteDato, Pestanas, Volver } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
-import { EvidenciaContrato, OCDS, dia, monto } from "./EvidenciaContrato";
+import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
 import { recortar } from "./recortar";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
@@ -57,7 +58,18 @@ function exacto(n: number, moneda: string | null): string | null {
 
 // ─── Ficha ───────────────────────────────────────────────────────────────────
 
-export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detalle; alcance?: AlcanceActivo | null; catalogo?: CatalogoReglas }) {
+export function ContratoDetalle({
+  c,
+  alcance = null,
+  catalogo = {},
+  seccion,
+}: {
+  c: Detalle;
+  alcance?: AlcanceActivo | null;
+  catalogo?: CatalogoReglas;
+  /** La pestaña abierta al cargar (`?seccion=` de la URL). */
+  seccion?: string;
+}) {
   const regionId = c.ubigeo ? UBIGEO_REGION[c.ubigeo.slice(0, 2)] : undefined;
   const mapaHref = regionId ? `/app/mapa?region=${regionId}&tab=cola${c.ubigeo && c.ubigeo.length === 6 ? `&ubigeo=${c.ubigeo}` : ""}` : "/app/mapa";
   // En revisión humana se dice "En revisión" y nada más (DESIGN_SYSTEM.md §10.4): ni señales ni
@@ -65,6 +77,22 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
   const enRevision = c.alerta?.estado === "revision";
   // Lo adjudicado es la suma de las adjudicaciones del registro; el referencial, lo presupuestado.
   const adjudicado = (c.adjudicaciones ?? []).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
+
+  // El estado de la lectura va en el Resumen (la pestaña con que abre la ficha) y no encima de
+  // las pestañas: con el análisis en vivo la tarjeta trae carriles y bitácora, y empujaría hacia
+  // abajo cada tabla que se abre. El estado igual se ve siempre: es el chip de la identidad.
+  const resumen = (
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0">
+        <AnalisisCard c={c} alcance={alcance} />
+      </div>
+      <aside className="space-y-4" aria-labelledby="datos-proceso">
+        <DatosProceso c={c} />
+        {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
+        {!c.procesamiento && <ClasificacionCard c={c} />}
+      </aside>
+    </div>
+  );
 
   return (
     <>
@@ -84,20 +112,12 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
       {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
       <Indicadores items={indicadoresDe(c, adjudicado)} />
 
-      {/* 3. El estado de su lectura; al costado (debajo, en el celular), los datos del proceso. */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0">
-          <AnalisisCard c={c} alcance={alcance} />
-        </div>
-        <aside className="space-y-4" aria-labelledby="datos-proceso">
-          <DatosProceso c={c} />
-          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
-          {!c.procesamiento && <ClasificacionCard c={c} />}
-        </aside>
-      </div>
-
-      {/* 4. La evidencia oficial, sección por sección, cada una con su fuente al pie. */}
-      <EvidenciaContrato c={c} enRevision={enRevision} catalogo={catalogo} />
+      {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
+      <Pestanas
+        etiqueta="Secciones del contrato"
+        activa={seccion}
+        pestanas={[{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })]}
+      />
     </>
   );
 }

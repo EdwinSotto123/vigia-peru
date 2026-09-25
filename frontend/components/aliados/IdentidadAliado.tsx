@@ -1,26 +1,26 @@
-import Link from "next/link";
 import {
+  AtSign,
   Award,
   Building2,
   CalendarDays,
   CheckCheck,
-  Coins,
-  Flag,
+  Facebook,
   Globe,
-  Hash,
-  Landmark,
+  Instagram,
+  Linkedin,
   Mail,
-  MapPin,
   MapPinned,
   Receipt,
   Sprout,
   ShieldCheck,
   User,
   Users,
+  Youtube,
 } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import { cn } from "@/lib/utils";
 import { numero } from "@/lib/formato";
+import type { RedSocial } from "./perfil";
 
 /**
  * La identidad de un aliado, en piezas.
@@ -42,12 +42,6 @@ const ICONO = {
   "tipo-organizacion": Users,
   fecha: CalendarDays,
   aportes: Receipt,
-  regiones: MapPinned,
-  zona: MapPin,
-  entidad: Landmark,
-  monto: Coins,
-  codigo: Hash,
-  senal: Flag,
 } as const;
 
 export interface DatoIdentidad {
@@ -70,7 +64,6 @@ export function IdentidadAliado({
   className,
   tam = "md",
   tono = "claro",
-  as: Tag = "ul",
 }: {
   datos: DatoIdentidad[];
   className?: string;
@@ -80,21 +73,15 @@ export function IdentidadAliado({
    * calibrado para papel y sobre oscuro cae por debajo del mínimo AA.
    */
   tono?: "claro" | "oscuro";
-  /**
-   * `div`/`span` cuando el padre ya es una lista, o cuando está dentro de un
-   * elemento en línea y un `ul` anidado sería HTML inválido.
-   */
-  as?: "ul" | "div" | "span";
 }) {
   const t = TAM_DATO[tam];
-  const Item = Tag === "ul" ? "li" : "span";
   const oscuro = tono === "oscuro";
   return (
-    <Tag className={cn("flex flex-wrap items-center gap-x-3.5 gap-y-1.5", t.texto, className)}>
+    <ul className={cn("flex flex-wrap items-center gap-x-3.5 gap-y-1.5", t.texto, className)}>
       {datos.map((d, i) => {
         const Icono = ICONO[d.icono];
         return (
-          <Item
+          <li
             key={i}
             className={cn("inline-flex min-w-0 items-center gap-1.5", oscuro ? "text-paper/75" : "text-mute")}
           >
@@ -111,10 +98,10 @@ export function IdentidadAliado({
             ) : (
               <span className="truncate">{d.texto}</span>
             )}
-          </Item>
+          </li>
         );
       })}
-    </Tag>
+    </ul>
   );
 }
 
@@ -174,14 +161,14 @@ export function insigniasDe({
   mesesAportando: number | null;
 }): Insignia[] {
   // Va primera porque es la única que aplica a todos y la única que dice algo
-  // sobre el producto y no sobre el aliado: estar en el muro ES el chequeo.
+  // sobre el producto y no sobre el aliado: estar en el ranking ES el chequeo.
   // Una empresa con sanción vigente puede aportar, pero no aparece acá.
   const out: Insignia[] = [
     {
       clave: "limpio",
       etiqueta: "Sin conflicto de interés",
       detalle:
-        "Aparecer en este muro exige no tener sanción vigente del OECE ni alertas activas como proveedor. Quien no pasa ese chequeo puede aportar igual, pero no figura.",
+        "Aparecer en este ranking exige no tener sanción vigente del OECE ni alertas activas como proveedor. Quien no pasa ese chequeo puede aportar igual, pero no figura.",
       icono: "limpio",
       tono: "positivo",
     },
@@ -246,18 +233,16 @@ export function Insignias({
   insignias,
   className,
   limite,
-  tam = "md",
 }: {
   insignias: Insignia[];
   className?: string;
-  /** Cuántas caben acá. El muro muestra tres; la ficha, todas. */
+  /** Cuántas caben acá. La portada muestra tres; el perfil, todas. */
   limite?: number;
-  tam?: "sm" | "md";
 }) {
   const visibles = limite ? insignias.slice(0, limite) : insignias;
   if (!visibles.length) return null;
   return (
-    <ul className={cn("flex flex-wrap gap-1.5", tam === "sm" && "text-[11px]", className)}>
+    <ul className={cn("flex flex-wrap gap-1.5", className)}>
       {visibles.map((i) => {
         const Icono = ICONO_INSIGNIA[i.icono];
         // El detalle se abre al tocar la insignia (antes era un `title=""`: invisible en
@@ -279,41 +264,80 @@ export function Insignias({
   );
 }
 
-/* ── Contacto ──────────────────────────────────────────────────────────────
-   Le da al aliado lo que un reconocimiento público debería darle: un enlace a
-   su propia página. Sólo se dibuja lo que existe; sin dato, no hay hueco. */
+/* ── Presentación: sitio, correo y redes ─────────────────────────────────
+   Le da al aliado lo que un reconocimiento público debería darle: enlaces a su
+   propia página y a sus redes. Sólo se dibuja lo que el aliado publicó; sin dato,
+   no hay hueco. Los enlaces los escribe el aliado: sólo http(s) y mailto válidos
+   (un `javascript:` en un href sería código ejecutándose en Vigía). */
+
+const esUrl = (v: string | null | undefined): v is string => !!v && /^https?:\/\/[^\s"'<>]+$/i.test(v);
+const esCorreo = (v: string | null | undefined): v is string => !!v && /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(v);
+
+const RED: Record<RedSocial, { nombre: string; Icono?: typeof Globe; letra?: string }> = {
+  facebook: { nombre: "Facebook", Icono: Facebook },
+  instagram: { nombre: "Instagram", Icono: Instagram },
+  linkedin: { nombre: "LinkedIn", Icono: Linkedin },
+  x: { nombre: "X", letra: "X" },
+  tiktok: { nombre: "TikTok", Icono: AtSign },
+  youtube: { nombre: "YouTube", Icono: Youtube },
+};
+const ORDEN_REDES: RedSocial[] = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"];
+
+const ENLACE =
+  "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 export function ContactoAliado({
   web,
   email,
+  redes,
   className,
 }: {
   web?: string | null;
+  /** El correo de CONTACTO que el aliado publicó (`email_publico`), nunca el del pago. */
   email?: string | null;
+  redes?: Partial<Record<RedSocial, string>> | null;
   className?: string;
 }) {
-  if (!web && !email) return null;
-  const host = web ? web.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
+  const sitio = esUrl(web) ? web : null;
+  const correo = esCorreo(email) ? email : null;
+  const susRedes = ORDEN_REDES.filter((r) => esUrl(redes?.[r]));
+  if (!sitio && !correo && susRedes.length === 0) return null;
+  const host = sitio ? sitio.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]", className)}>
-      {web && (
-        <Link
-          href={web}
-          target="_blank"
-          rel="noreferrer nofollow"
-          className="inline-flex min-h-[24px] items-center gap-1.5 font-medium text-granate underline-offset-2 hover:underline"
-        >
-          <Globe size={13} aria-hidden /> {host}
-        </Link>
+    <ul aria-label="Sitio, contacto y redes" className={cn("flex flex-wrap items-center gap-2", className)}>
+      {sitio && (
+        <li>
+          <a href={sitio} target="_blank" rel="noopener noreferrer nofollow" className={ENLACE}>
+            <Globe size={14} className="text-granate" aria-hidden /> {host}
+            <span className="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+        </li>
       )}
-      {email && (
-        <a
-          href={`mailto:${email}`}
-          className="inline-flex min-h-[24px] items-center gap-1.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline"
-        >
-          <Mail size={13} aria-hidden /> {email}
-        </a>
+      {correo && (
+        <li>
+          <a href={`mailto:${correo}`} className={ENLACE}>
+            <Mail size={14} className="text-granate" aria-hidden /> {correo}
+          </a>
+        </li>
       )}
-    </div>
+      {susRedes.map((r) => {
+        const { nombre, Icono, letra } = RED[r];
+        return (
+          <li key={r}>
+            <a href={redes![r]} target="_blank" rel="noopener noreferrer nofollow" className={ENLACE}>
+              {Icono ? (
+                <Icono size={14} className="text-granate" aria-hidden />
+              ) : (
+                <span aria-hidden className="font-display text-[12px] font-extrabold text-granate">
+                  {letra}
+                </span>
+              )}
+              {nombre}
+              <span className="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

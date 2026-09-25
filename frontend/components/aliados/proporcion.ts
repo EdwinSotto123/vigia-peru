@@ -1,7 +1,6 @@
 /**
- * Proporciones y colores de las partes de una lectura, compartidos por las fichas del
- * muro y el panel de resumen de un aliado. Vivían en `CapacidadColectiva`, que se fue:
- * la cascada de /app/aliados pasó a `Indicadores` (DESIGN_SYSTEM.md §14.1).
+ * Proporciones y colores de las partes de una lectura, compartidos por el ranking y el
+ * perfil de un aliado (DESIGN_SYSTEM.md §14.1 y §14.6).
  */
 
 /**

@@ -5,7 +5,9 @@ import { countFindings, inferStepFromEvents } from "../utils";
 import { FlowGraph } from "./FlowGraph";
 import { LiveTracePanel } from "./LiveTracePanel";
 import { ObservabilidadPanel } from "./ObservabilidadPanel";
-import { plural } from "@/lib/formato";
+import { numero, plural, porcentaje } from "@/lib/formato";
+import { ChipsDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
+import { Indicadores } from "@/components/listado/Indicadores";
 
 /**
  * Lo que ve el equipo mientras corre un análisis despachado desde el buscador: progreso,
@@ -13,7 +15,20 @@ import { plural } from "@/lib/formato";
  * en el granate de la marca (es progreso, no severidad) y el conteo de señales en tinta
  * neutra, porque todavía nadie las verificó.
  */
-export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { stepIdx: number; elapsed: number; codigo: string; liveEvents?: any[] }) {
+export function LoadingView({
+  stepIdx,
+  elapsed,
+  codigo,
+  liveEvents = [],
+  enPanel = false,
+}: {
+  stepIdx: number;
+  elapsed: number;
+  codigo: string;
+  liveEvents?: any[];
+  /** Dentro de un `Panel` (DespachoEquipo): el panel ya trae título y código, así que va en formato §14.4. */
+  enPanel?: boolean;
+}) {
   // Progreso global basado en elapsed vs total estimado
   const totalEta = STEPS.reduce((s, x) => s + x.eta_s, 0);
   // Inferir step real desde el stream; si no hay eventos, usar el del ETA.
@@ -24,6 +39,42 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
   const elapsedProgressPct = Math.round((elapsed / totalEta) * 100);
   const progressPct = Math.min(99, Math.max(stepProgressPct, elapsedProgressPct));
   const findings = countFindings(liveEvents);
+  const barra = (
+    <div
+      className="h-1.5 overflow-hidden rounded-full bg-paperDeep"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={progressPct}
+      aria-label="Progreso estimado del análisis"
+    >
+      <div className="h-full rounded-full bg-granate transition-[width] duration-500" style={{ width: `${progressPct}%` }} />
+    </div>
+  );
+
+  // En el panel: chips → cifras → la pieza viva. Sin otra tarjeta ni otro título encima.
+  if (enPanel) {
+    return (
+      <CuerpoDetalle>
+        <ChipsDetalle>
+          <span className="pill border-amber/40 bg-amber-soft font-semibold text-amberTexto" role="status" aria-live="polite">
+            <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber" />
+            Procesando, {elapsed} s
+          </span>
+        </ChipsDetalle>
+        <Indicadores
+          items={[
+            { valor: porcentaje(progressPct), etiqueta: "progreso estimado", contexto: "por pasos cumplidos y tiempo" },
+            { valor: numero(findings), etiqueta: "señales registradas", contexto: "se verifican antes de publicarse" },
+          ]}
+        />
+        {barra}
+        <FlowGraph liveEvents={liveEvents} />
+        <ObservabilidadPanel liveEvents={liveEvents} />
+        {liveEvents.length > 0 && <LiveTracePanel events={liveEvents} />}
+      </CuerpoDetalle>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -51,16 +102,7 @@ export function LoadingView({ stepIdx, elapsed, codigo, liveEvents = [] }: { ste
         </div>
 
         {/* PROGRESS BAR GLOBAL */}
-        <div
-          className="mt-4 h-1.5 overflow-hidden rounded-full bg-paperDeep"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progressPct}
-          aria-label="Progreso estimado del análisis"
-        >
-          <div className="h-full rounded-full bg-granate transition-[width] duration-500" style={{ width: `${progressPct}%` }} />
-        </div>
+        <div className="mt-4">{barra}</div>
 
         {/* CONTADOR DE SEÑALES EN VIVO: todavía sin verificar, en tinta neutra */}
         {findings > 0 && (

@@ -4,12 +4,9 @@ import { comprobanteMaqueta, esSlugMaqueta, perfilMaqueta } from "@/lib/maqueta-
 import type { ContribucionAliado } from "./CadenaAliado";
 
 /**
- * Lectura del perfil de un aliado, compartida por el muro y por la ficha.
- *
- * Antes este fetch vivía suelto dentro de `app/(public)/aliado/[slug]/page.tsx`
- * y el muro no lo llamaba nunca — por eso cada tarjeta tenía que enviarte a
- * otra página para contarte algo. Ahora el resumen del panel lateral y la
- * ficha se alimentan del mismo lugar, así que no se pueden contradecir.
+ * Lectura del perfil de un aliado, compartida por su página y por su imagen para
+ * compartir (Open Graph): las dos se alimentan del mismo lugar, así que no se pueden
+ * contradecir.
  *
  * `maqueta` no es un fallback: si está en false, un slug de maqueta devuelve
  * `null` (o sea 404). Los aliados inventados no existen sin el interruptor.
@@ -33,8 +30,18 @@ export interface AliadoPerfil {
    */
   descripcion?: string | null;
   web?: string | null;
+  /**
+   * Correo de CONTACTO público, que el aliado decide mostrar (columna `email_publico`,
+   * migración 30). Nunca `financiadores.email`, que es privado y sólo sirve para el pago.
+   */
   email?: string | null;
+  /** Sus redes, como enlaces completos. Sólo las que el aliado pidió publicar. */
+  redes?: Partial<Record<RedSocial, string>> | null;
+  /** Imagen de portada del perfil (opcional). Sin ella, la portada es la franja textil. */
+  portadaUrl?: string | null;
 }
+
+export type RedSocial = "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube";
 
 export interface PerfilAliado {
   aliado: AliadoPerfil;
@@ -43,10 +50,8 @@ export interface PerfilAliado {
 }
 
 /**
- * `revalidate` se pasa a mano porque en Next 14 el TTL de una ruta es el MÍNIMO
- * de todos sus fetches: si el muro pidiera doce perfiles a 30 s, toda
- * /app/aliados pasaría de regenerarse cada 300 s a cada 30 s sin que nadie lo
- * hubiera pedido. La ficha sí quiere 30; el muro, 300.
+ * `revalidate` se pasa a mano porque en Next 14 el TTL de una ruta es el MÍNIMO de
+ * todos sus fetches: el perfil quiere 30 s; su imagen para compartir, 300.
  */
 export async function getPerfilAliado(slug: string, maqueta = false, revalidate = 30): Promise<PerfilAliado | null> {
   if (esSlugMaqueta(slug)) {
@@ -104,7 +109,7 @@ export interface ResumenPerfil {
 
 /**
  * Agrega la línea de aportes en las cifras que la ficha y el panel muestran.
- * Una sola función para que el muro no sume de una manera y la ficha de otra.
+ * Una sola función para que el perfil, su resumen y su imagen sumen igual.
  */
 export function resumirContribuciones(contribuciones: ContribucionAliado[]): ResumenPerfil {
   const porZona = new Map<string, RegionAlcanzada>();

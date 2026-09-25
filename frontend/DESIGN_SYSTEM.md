@@ -596,6 +596,57 @@ Pagina
    └─ columna lateral (lg)   datos de proceso, enlaces, "cómo se hizo"
 ```
 
+### 14.3 Pestañas dentro de una página
+
+Cuando una página junta 3 o más secciones largas (el perfil de un aliado, una ficha de
+contrato, "Mi impacto"), **no se apilan**: van en `Pestanas` (`@/components/patrones`).
+
+- Cada pestaña con su conteo ("Señales 31"). La primera es el **Resumen**: lo que se
+  entiende en una pantalla (Indicadores + lo más importante).
+- La pestaña va a la URL (`?seccion=`) sin recargar: el enlace comparte esa vista.
+- El contenido de todas llega del servidor; cambiar es instantáneo.
+- En el celular la barra es una sola fila que se desliza.
+
+### 14.4 Contenido de un panel lateral
+
+Todo `detalle` de una fila (y todo `Panel`) se arma igual, con las piezas de
+`components/patrones/Detalle.tsx`:
+
+```
+CuerpoDetalle
+├─ ChipsDetalle      estado, severidad, cotejo
+├─ Indicadores       2–3 cifras (si las hay)
+├─ DatosClave        etiqueta → valor, en filas (entidad, RUC, fechas, montos)
+├─ BloqueDetalle     h3 + contenido  (× n: qué se encontró, la norma, la evidencia…)
+│   └─ CitaDetalle   el texto citado, con su fuente al pie
+└─ pie del panel     acciones: abrir la ficha, fuente oficial
+```
+
+Nada de rótulos en mayúsculas, párrafos sueltos ni "Etiqueta: valor" dentro de una frase.
+
+### 14.5 Compartir
+
+`BarraCompartir` (`@/components/patrones`): WhatsApp, Facebook, LinkedIn, X, copiar
+enlace, y la hoja nativa en el celular. Una por página, junto a lo que se comparte.
+
+### 14.6 Perfil público de un aliado
+
+La página que un aliado quiere mostrar (y compartir) de su aporte a la transparencia:
+
+```
+Portada        franja textil / imagen de portada · logo grande superpuesto
+Identidad      nombre (h1) · tipo · "Aliado desde…" · puesto en el ranking (#3 de 12)
+               descripción · web · redes · correo de contacto   (sólo lo que el aliado publicó)
+Acciones       BarraCompartir · "Financiar como este aliado"
+Indicadores    contratos financiados · leídos · con señales · regiones
+Pestanas       Resumen | Señales encontradas | Zonas | Aportes
+```
+
+El perfil nunca muestra montos en soles (se cuenta en contratos) ni datos privados: el
+correo público es el que el aliado eligió publicar (`email_publico`), nunca el del pago.
+El ranking (`/app/aliados`) ordena por contratos financiados y muestra el puesto (#1, #2…)
+con los tres primeros destacados.
+
 ---
 
 ## 15. Plan de migración (esta iteración)

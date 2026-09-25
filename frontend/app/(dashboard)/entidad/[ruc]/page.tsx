@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Suspense } from "react";
 import { Building2, Flag, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
@@ -11,7 +10,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Seccion, Volver } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
@@ -19,9 +18,10 @@ import { Severidad } from "@/components/ui/Severidad";
 /**
  * /entidad/[ruc] — la plantilla Ficha (DESIGN_SYSTEM.md §14.2):
  *   volver → identidad (nombre; tipo, RUC y zona en una línea; acciones) → Indicadores
- *   (con dictamen, con señales, adjudicado, en cola) → sus contratos con dictamen en la
- *   `Tabla` del kit (la misma fila que el listado de contratos: chip · objeto · monto · fecha · ›)
- *   → la ejecución presupuestal del MEF, plegada, con sus cifras como Indicadores.
+ *   (con dictamen, con señales, adjudicado, en cola) → pestañas (§14.3): sus contratos con
+ *   dictamen en la `Tabla` del kit (la misma fila que el listado de contratos: chip · objeto ·
+ *   monto · fecha · ›) | la ejecución presupuestal del MEF, con sus cifras como Indicadores.
+ *   El MEF antes iba plegado al pie: ahora es una pestaña, a un clic y sin bajar.
  *
  * Antes las cuatro cifras iban en una frase gris y el peso del riesgo en una fila de chips
  * con conteo encima de una <table> propia; ahora cada cifra tiene su número, su nombre y su
@@ -97,7 +97,14 @@ export async function generateMetadata({ params }: { params: { ruc: string } }):
   return { title: nombre ?? `Entidad ${params.ruc}` };
 }
 
-export default async function EntidadProfile({ params }: { params: { ruc: string } }) {
+export default async function EntidadProfile({
+  params,
+  searchParams,
+}: {
+  params: { ruc: string };
+  /** `?seccion=presupuesto` abre la pestaña del MEF. */
+  searchParams?: { seccion?: string | string[] };
+}) {
   // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con
   // lib/mock-entities y ALERTAS_MOCK: una entidad inventada con alertas
   // inventadas. Ahora: sin respuesta, se dice; RUC desconocido, 404.
@@ -268,47 +275,66 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
       {/* 2. Lo que Vigía sabe de ella, cifra por cifra. */}
       <Indicadores items={indicadores} />
 
-      {/* 3. Sus contratos con dictamen, con la fila del listado de contratos. */}
-      <Seccion
-        id="contratos-leidos"
-        titulo="Contratos con dictamen publicado"
-        descripcion={
-          truncada && publicadas.length > 0
-            ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
-            : undefined
-        }
-        ayuda={
-          <Ayuda titulo="¿Qué abre cada contrato?">
-            Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o sin señales,
-            del mayor peso del riesgo al menor.
-          </Ayuda>
-        }
-        acciones={
-          contratos > 0 ? (
-            <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
-              Ver sus {plural(contratos, "contrato", "contratos")}
-            </EnlaceAccion>
-          ) : undefined
-        }
-      >
-        <DisclaimerBanner className="mb-3" />
-        {publicadas.length === 0 ? (
-          // Sin llamita: esta sección habla de una entidad, y la llamita no acompaña a nadie señalado.
-          <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-sm text-mute">
-            Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
-          </p>
-        ) : (
-          <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Contratos de ${nombre} con dictamen publicado`} />
-        )}
-      </Seccion>
-
-      {/* 4. Ejecución presupuestal del MEF: plegada, es contexto y no lo primero que busca quien
-          vino a ver los contratos leídos. */}
-      <Seccion titulo="Ejecución presupuestal" descripcion="Gasto real frente al presupuesto asignado, según el MEF" plegable>
-        <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
-          <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
-        </Suspense>
-      </Seccion>
+      {/* 3. Sus contratos con dictamen | el presupuesto del MEF, cada uno en su pestaña. */}
+      <Pestanas
+        etiqueta="Secciones de la entidad"
+        activa={typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined}
+        pestanas={[
+          {
+            clave: "contratos",
+            etiqueta: "Contratos con dictamen",
+            conteo: nAlertas,
+            contenido: (
+              <>
+                {/* La bajada de la pestaña (una línea + ⓘ) y su acción: el h2 de antes ya lo dice la pestaña. */}
+                {(publicadas.length > 0 || contratos > 0) && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    {publicadas.length > 0 && (
+                      <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+                        {truncada
+                          ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
+                          : "Del mayor peso del riesgo al menor; cada uno abre su dictamen."}
+                        <Ayuda titulo="¿Qué abre cada contrato?">
+                          Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o
+                          sin señales.
+                        </Ayuda>
+                      </p>
+                    )}
+                    {contratos > 0 && (
+                      <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
+                        Ver sus {plural(contratos, "contrato", "contratos")}
+                      </EnlaceAccion>
+                    )}
+                  </div>
+                )}
+                <DisclaimerBanner className="mb-3" />
+                {publicadas.length === 0 ? (
+                  // Sin llamita: esta pestaña habla de una entidad, y la llamita no acompaña a nadie señalado.
+                  <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-sm text-mute">
+                    Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
+                  </p>
+                ) : (
+                  <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Contratos de ${nombre} con dictamen publicado`} />
+                )}
+              </>
+            ),
+          },
+          {
+            // Sin conteo: los años del MEF se saben recién cuando responde (puede tardar más de 20 s).
+            clave: "presupuesto",
+            etiqueta: "Presupuesto MEF",
+            contenido: (
+              <>
+                <p className="mb-3 text-sm text-inkSoft">Gasto real frente al presupuesto asignado, según el MEF.</p>
+                {/* El MEF llega por streaming: la pestaña muestra su esqueleto hasta que responde. */}
+                <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
+                  <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
+                </Suspense>
+              </>
+            ),
+          },
+        ]}
+      />
     </Pagina>
   );
 }

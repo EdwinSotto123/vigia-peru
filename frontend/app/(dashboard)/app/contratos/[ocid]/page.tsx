@@ -31,19 +31,28 @@ export async function generateMetadata({ params }: { params: { ocid: string } })
 /**
  * /app/contratos/[ocid]: acepta el OCID (2026-425-9, 1249514), el OCID largo
  * (ocds-dgv273-seacev3-1249514) o el código SEACE (1235259), que redirige a su OCID.
+ * `?seccion=` abre esa pestaña de la ficha (items, postores, precios, citas, documentos).
  */
-export default async function ContratoPage({ params }: { params: { ocid: string } }) {
+export default async function ContratoPage({
+  params,
+  searchParams,
+}: {
+  params: { ocid: string };
+  searchParams?: { seccion?: string | string[] };
+}) {
   const param = decodeURIComponent(params.ocid);
+  const seccion = typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined;
   const [{ contrato: c, redirigirA }, vivo, catalogo] = await Promise.all([
     resolverContrato(param),
     getResumenVivo(),
     getCatalogoReglas().catch(() => ({}) as CatalogoReglas),
   ]);
-  if (redirigirA) redirect(`/app/contratos/${encodeURIComponent(redirigirA)}`);
+  // La pestaña pedida sobrevive a la redirección del código SEACE a su OCID.
+  if (redirigirA) redirect(`/app/contratos/${encodeURIComponent(redirigirA)}${seccion ? `?seccion=${encodeURIComponent(seccion)}` : ""}`);
   if (!c) notFound();
   return (
     <Pagina>
-      <ContratoDetalle c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} />
+      <ContratoDetalle c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} />
     </Pagina>
   );
 }

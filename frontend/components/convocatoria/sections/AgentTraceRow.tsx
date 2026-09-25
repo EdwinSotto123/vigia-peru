@@ -149,7 +149,7 @@ export function AgentTraceRow({
       )}
       <span
         className={cn(
-          "mt-0.5 w-14 shrink-0 font-mono text-[11px] uppercase tracking-wide",
+          "mt-0.5 w-14 shrink-0 font-mono text-[11px]",
           ev.kind === "error" ? "font-semibold text-crimsonTexto" : "text-mute",
         )}
       >
@@ -193,7 +193,7 @@ export function AgentTraceRow({
       {expandido && payload && (
         <div className="ml-8 mt-2 rounded-xl border border-line bg-paperSoft p-3">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-mute">
+            <span className="text-[12px] font-semibold text-mute">
               {ev.kind === "tool_call"
                 ? "Lo que se le pidió"
                 : ev.kind === "tool_result"

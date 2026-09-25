@@ -46,7 +46,7 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
     <div className="space-y-2" aria-label="Agentes del análisis por carril">
       {CARRILES.map((c) => (
         <div key={c.key} className="flex flex-col gap-1">
-          <div className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-mute">{c.label}</div>
+          <div className="shrink-0 text-[12px] font-semibold text-mute">{c.label}</div>
           <ol className="flex min-w-0 flex-wrap items-center gap-y-1.5">
             {c.pasos.map((grupo, gi) => (
               <li key={gi} className="flex items-center">

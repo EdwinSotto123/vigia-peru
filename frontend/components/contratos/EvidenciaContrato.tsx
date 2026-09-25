@@ -1,19 +1,20 @@
 /**
  * La evidencia oficial de la ficha de un contrato (DESIGN_SYSTEM.md §14.2, "Secciones"):
  * ítems, postores y ofertas, precio contratado frente a la referencia, dónde dice cada
- * señal y documentos. Cada sección es un `Seccion` con su conteo, su tabla del kit
- * (`Tabla`, §14.1: misma cabecera, misma fila, columnas que entran por breakpoint), lo
- * largo plegado y la fuente al pie.
+ * señal y documentos. Cada sección es una pestaña (§14.3) con su conteo, su tabla del kit
+ * (`Tabla`, §14.1: misma cabecera, misma fila, columnas que entran por breakpoint) y la
+ * fuente al pie. Antes se apilaban una tras otra y lo largo iba plegado detrás de "Ver
+ * los 73 ítems": ahora cada tabla ocupa su pestaña entera y se ve de un clic.
  *
  * Vive aparte de `ContratoDetalle` (identidad, cifras y estado de la lectura) para que
- * ninguno de los dos pase de 800 líneas. Server component; `Redact`, `CitaPagina`,
- * `DocumentosContrato`, `Revelar` y `TextoRedactado` son islas de cliente.
+ * ninguno de los dos pase de 800 líneas. Server component: `pestanasEvidencia` es una
+ * función de servidor que arma ReactNode; `Redact`, `CitaPagina`, `DocumentosContrato`,
+ * `Revelar` y `TextoRedactado` son islas de cliente.
  */
 
 import { Fragment, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
 import { PersonName, Ruc } from "@/components/Redact";
-import { Ayuda, FuenteDato, Seccion } from "@/components/patrones";
+import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
@@ -25,9 +26,6 @@ import {
   type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
-
-/** Con más filas que esto, la tabla de una sección queda plegada (§14.2: "lo largo, plegado"). */
-const LIMITE = { items: 10, postores: 8, precios: 10, citas: 6, documentos: 10 } as const;
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -80,19 +78,48 @@ function referenciaDe(p: PostorContrato, c: Detalle): number | null {
   return null;
 }
 
-/** Las secciones, en el orden de la ficha. En revisión humana no van precios ni citas (§10.4). */
-export function EvidenciaContrato({ c, enRevision, catalogo }: { c: Detalle; enRevision: boolean; catalogo: CatalogoReglas }) {
-  return (
-    <>
-      <SeccionItems c={c} />
-      <SeccionPostores c={c} enRevision={enRevision} />
-      {!enRevision && <SeccionPrecios c={c} />}
-      {/* En revisión humana no se muestra: sería publicar las señales por la puerta de atrás. */}
-      {!enRevision && <SeccionCitas c={c} catalogo={catalogo} />}
-      <SeccionDocumentos c={c} />
-    </>
-  );
+/**
+ * Las pestañas de evidencia, en el orden de la ficha, cada una con su conteo. Una sección
+ * sin filas que antes no se mostraba (postores, precios, citas) tampoco es pestaña: una
+ * pestaña vacía es un clic que no lleva a nada. Ítems y documentos siempre están (su vacío
+ * dice qué falta). En revisión humana no van precios ni citas (§10.4): serían publicar las
+ * señales por la puerta de atrás.
+ */
+export function pestanasEvidencia({ c, enRevision, catalogo }: { c: Detalle; enRevision: boolean; catalogo: CatalogoReglas }): Pestana[] {
+  const postores = c.postoresDetalle ?? [];
+  const precios = itemsConPrecio(c);
+  const senales = senalesConCita(c);
+  const pestanas: (Pestana | false)[] = [
+    { clave: "items", etiqueta: "Ítems", conteo: c.items.length, contenido: <SeccionItems c={c} /> },
+    postores.length > 0 && {
+      clave: "postores",
+      etiqueta: "Postores y ofertas",
+      conteo: postores.length,
+      contenido: <SeccionPostores c={c} enRevision={enRevision} />,
+    },
+    !enRevision && precios.length > 0 && {
+      clave: "precios",
+      etiqueta: "Precio contratado",
+      conteo: precios.length,
+      contenido: <SeccionPrecios c={c} items={precios} />,
+    },
+    !enRevision && senales.length > 0 && {
+      clave: "citas",
+      etiqueta: "Dónde dice cada señal",
+      conteo: senales.length,
+      contenido: <SeccionCitas c={c} senales={senales} catalogo={catalogo} />,
+    },
+    { clave: "documentos", etiqueta: "Documentos oficiales", conteo: c.documentos.length, contenido: <SeccionDocumentos c={c} /> },
+  ];
+  return pestanas.filter((p): p is Pestana => !!p);
 }
+
+/** Ítems con precio unitario leído del expediente (contratado u ofertado). */
+const itemsConPrecio = (c: Detalle) =>
+  (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
+
+/** Señales del dictamen con al menos una cita a una página del expediente. */
+const senalesConCita = (c: Detalle) => (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
 
 // ─── Secciones de evidencia ──────────────────────────────────────────────────
 
@@ -128,23 +155,20 @@ function SeccionItems({ c }: { c: Detalle }) {
     };
   });
   return (
-    <Seccion id="items" titulo={<TituloConteo texto="Ítems" n={c.items.length} />}>
+    <>
       {c.items.length ? (
-        <Plegado n={c.items.length} limite={LIMITE.items} nombre="ítems">
-          <Tabla columnas={columnas} filas={filas} etiqueta="Ítems del proceso según el registro OCDS" />
-        </Plegado>
+        <Tabla columnas={columnas} filas={filas} etiqueta="Ítems del proceso según el registro OCDS" />
       ) : (
         <Vacio>El registro OCDS no trae ítems para este proceso.</Vacio>
       )}
       <FuenteDato fuente={OCDS} className="mt-2" />
-    </Seccion>
+    </>
   );
 }
 
 /** Postores y ofertas, leídos de las actas del expediente. El ganador va primero y resaltado. */
 function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean }) {
   const postores = c.postoresDetalle ?? [];
-  if (!postores.length) return null;
   const conItem = c.items.length > 1;
   // La comparación con la referencia solo existe si al menos un postor tiene contra qué compararse.
   const hayReferencia = !enRevision && postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
@@ -217,19 +241,15 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
     };
   });
   return (
-    <Seccion id="postores" titulo={<TituloConteo texto="Postores y ofertas" n={postores.length} />}>
-      <Plegado n={postores.length} limite={LIMITE.postores} nombre="postores">
-        <Tabla columnas={columnas} filas={filas} etiqueta="Postores con su oferta económica, leídos de las actas del expediente" />
-      </Plegado>
+    <>
+      <Tabla columnas={columnas} filas={filas} etiqueta="Postores con su oferta económica, leídos de las actas del expediente" />
       <FuenteDato fuente="actas y cuadros comparativos del expediente" className="mt-2" />
-    </Seccion>
+    </>
   );
 }
 
 /** Precio unitario contratado (u ofertado) de cada ítem frente a su referencia. */
-function SeccionPrecios({ c }: { c: Detalle }) {
-  const items = (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
-  if (!items.length) return null;
+function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof itemsConPrecio> }) {
   const columnas: Columna[] = [
     { clave: "item", titulo: "Ítem", ancho: "minmax(0,1fr)" },
     {
@@ -291,40 +311,35 @@ function SeccionPrecios({ c }: { c: Detalle }) {
     };
   });
   return (
-    <Seccion id="precios" titulo={<TituloConteo texto="Precio contratado frente a la referencia" n={items.length} />}>
-      <Plegado n={items.length} limite={LIMITE.precios} nombre="ítems">
-        <Tabla columnas={columnas} filas={filas} etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial" />
-      </Plegado>
+    <>
+      <Tabla columnas={columnas} filas={filas} etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial" />
       <FuenteDato fuente="registro OCDS (referencia) y contrato leído del expediente" className="mt-2" />
-    </Seccion>
+    </>
   );
 }
 
 /** Dónde dice cada señal en el expediente: evidencia de profundización, no la primera lectura. */
-function SeccionCitas({ c, catalogo }: { c: Detalle; catalogo: CatalogoReglas }) {
-  const senales = (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
-  if (!senales.length) return null;
+function SeccionCitas({ c, senales, catalogo }: { c: Detalle; senales: ReturnType<typeof senalesConCita>; catalogo: CatalogoReglas }) {
   const personas = personasNaturalesDe(c);
   return (
-    <Seccion id="citas" titulo={<TituloConteo texto="Dónde dice cada señal en el expediente" n={senales.length} />}>
-      <Plegado n={senales.length} limite={LIMITE.citas} nombre="señales">
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-paper">
-          {senales.map((b, i) => (
-            <li key={`${b.regla}-${i}`} className="px-4 py-3 text-sm">
-              <div className="text-[14px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
-              {b.evidencia && (
-                <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
-                  <TextoRedactado texto={b.evidencia} personas={personas} />
-                </p>
-              )}
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Plegado>
-    </Seccion>
+    <>
+      <ul className="divide-y divide-line rounded-2xl border border-line bg-paper" aria-label="Señales con la página del expediente que las respalda">
+        {senales.map((b, i) => (
+          <li key={`${b.regla}-${i}`} className="px-4 py-3 text-sm">
+            <div className="text-[14px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
+            {b.evidencia && (
+              <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
+                <TextoRedactado texto={b.evidencia} personas={personas} />
+              </p>
+            )}
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {(b.citas ?? []).slice(0, 4).map((ct, j) => <CitaPagina key={j} ocid={c.ocid} cita={ct} />)}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <FuenteDato fuente="documentos del expediente, página por página" className="mt-2" />
+    </>
   );
 }
 
@@ -365,63 +380,54 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
       detalle: {
         titulo,
         etiqueta: `Abrir ${titulo}`,
-        descripcion: <Puntos partes={[tipoDocLabel(d.tipo), d.fecha && `publicado el ${fecha(dia(d.fecha))}`]} />,
-        contenido: (
-          <>
-            <p className="mb-3 text-[13px] leading-snug text-inkSoft">
-              {d.enVigia
-                ? "Vigía guarda una copia: se abre aquí mismo. El original está en el SEACE."
-                : "El original está en el SEACE; Vigía no tiene una copia vigente de este documento."}
-            </p>
-            <DocumentosContrato ocid={c.ocid} documentos={[d]} />
-          </>
-        ),
+        descripcion: tipoDocLabel(d.tipo),
+        contenido: <DetalleDocumento c={c} d={d} parte={seccion} />,
       },
     };
   });
   return (
-    <Seccion id="documentos" titulo={<TituloConteo texto="Documentos oficiales" n={docs.length} />} descripcion={nota}>
+    <>
+      {nota && <p className="mb-3 text-sm text-inkSoft">{nota}</p>}
       {docs.length ? (
-        <Plegado n={docs.length} limite={LIMITE.documentos} nombre="documentos">
-          <Tabla columnas={columnas} filas={filas} etiqueta="Documentos oficiales del proceso" />
-        </Plegado>
+        <Tabla columnas={columnas} filas={filas} etiqueta="Documentos oficiales del proceso" />
       ) : (
         <Vacio>El registro no publica documentos para este proceso.</Vacio>
       )}
       <FuenteDato fuente="SEACE (OECE)" className="mt-2" />
-    </Seccion>
-  );
-}
-
-// ─── Piezas ──────────────────────────────────────────────────────────────────
-
-/** Título de sección con su conteo, en segundo plano: "Ítems 12". */
-function TituloConteo({ texto, n }: { texto: string; n: number }) {
-  return (
-    <>
-      {texto} <span className="font-sans text-[15px] font-medium tabular-nums text-mute">{numero(n)}</span>
     </>
   );
 }
 
 /**
- * Lo largo, plegado (§14.2): con pocas filas la tabla va abierta; con muchas (hasta 73
- * ítems en casos reales), a un clic, para no empujar el resto de la ficha.
+ * El panel de un documento (§14.4): chips (tipo, si hay copia) → sus datos en filas → cómo
+ * abrirlo. Antes era un párrafo suelto encima del botón.
  */
-function Plegado({ n, limite, nombre, children }: { n: number; limite: number; nombre: string; children: ReactNode }) {
-  if (n <= limite) return <>{children}</>;
+function DetalleDocumento({ c, d, parte }: { c: Detalle; d: ContratoDocumento; parte: string | undefined }) {
+  const formato = formatoDoc(d.formato)?.toUpperCase();
+  const datos: DatoClave[] = [
+    { etiqueta: "Publicado", valor: d.fecha ? fecha(dia(d.fecha)) : null },
+    ...(parte ? [{ etiqueta: "Parte del expediente", valor: parte }] : []),
+    { etiqueta: "Formato", valor: formato ?? null, mono: true },
+    {
+      etiqueta: "Dónde se abre",
+      valor: d.enVigia ? "Aquí mismo, con la copia de Vigía; el original está en el SEACE" : "En el SEACE: Vigía no tiene una copia vigente",
+    },
+  ];
   return (
-    // Grupo con nombre: un `group` sin nombre reaccionaría al [open] de cualquier ancestro.
-    <details className="group/plegado">
-      <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperSoft [&::-webkit-details-marker]:hidden">
-        <span className="group-open/plegado:hidden">Ver los {numero(n)} {nombre}</span>
-        <span className="hidden group-open/plegado:inline">Ocultar los {nombre}</span>
-        <ChevronDown size={15} className="text-mute transition-transform duration-rapido group-open/plegado:rotate-180" aria-hidden />
-      </summary>
-      <div className="mt-3">{children}</div>
-    </details>
+    <CuerpoDetalle>
+      <ChipsDetalle>
+        <Chip>{tipoDocLabel(d.tipo)}</Chip>
+        {d.enVigia && <Chip>Copia en Vigía</Chip>}
+      </ChipsDetalle>
+      <DatosClave items={datos} />
+      <BloqueDetalle titulo="Abrir el documento">
+        <DocumentosContrato ocid={c.ocid} documentos={[d]} />
+      </BloqueDetalle>
+    </CuerpoDetalle>
   );
 }
+
+// ─── Piezas ──────────────────────────────────────────────────────────────────
 
 /** Chip de estado o categoría de una fila (§14.1: la columna de estado siempre es un chip). */
 function Chip({ children, ganador = false }: { children: ReactNode; ganador?: boolean }) {

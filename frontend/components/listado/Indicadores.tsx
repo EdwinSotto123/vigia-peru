@@ -37,7 +37,8 @@ const TONO: Record<NonNullable<Indicador["tono"]>, string> = {
 const COLUMNAS: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
-  3: "grid-cols-2 sm:grid-cols-3",
+  // Con 3 en dos columnas (celular) la tercera ocupa la fila entera: sin celda vacía.
+  3: "grid-cols-2 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1",
   4: "grid-cols-2 lg:grid-cols-4",
 };
 
