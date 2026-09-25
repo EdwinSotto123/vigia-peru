@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { CANTIDAD_MAQUETA, NOMBRES_MAQUETA } from "@/lib/maqueta-aliados";
+import { numero } from "@/lib/formato";
 
 /**
  * El aviso de que lo que se está mirando no es real.
@@ -15,7 +16,7 @@ import { CANTIDAD_MAQUETA, NOMBRES_MAQUETA } from "@/lib/maqueta-aliados";
  * recorre el muro, el recordatorio no se va de la pantalla.
  */
 
-const num = (n: number) => n.toLocaleString("es-PE");
+const num = numero;
 
 export function AvisoMaqueta({
   volverHref,
@@ -57,7 +58,7 @@ export function AvisoMaqueta({
         href={volverHref}
         // En móvil baja a línea propia y ocupa el ancho: con el texto a la izquierda
         // el botón dejaba la advertencia en una columna de seis palabras.
-        className="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-amber/60 bg-paper px-3.5 py-2 text-[13px] font-semibold text-amberTexto transition-colors duration-rapido hover:bg-amber-soft sm:w-auto"
+        className="inline-flex min-h-[40px] w-full shrink-0 items-center justify-center rounded-full border border-amber/60 bg-paper px-4 py-2 text-[13px] font-semibold text-amberTexto transition-colors duration-rapido hover:bg-amber-soft sm:w-auto"
       >
         Volver a la vista real
       </Link>
@@ -71,7 +72,7 @@ export function MarcaMaquetaBarra({ volverHref }: { volverHref: string }) {
     <span className="inline-flex items-center gap-2 text-[12px] text-amberTexto">
       <TriangleAlert size={13} aria-hidden />
       <span className="font-semibold">Maqueta activa</span>
-      <Link href={volverHref} className="underline underline-offset-2 hover:text-ink">
+      <Link href={volverHref} className="inline-flex min-h-[24px] items-center underline underline-offset-2 hover:text-ink">
         salir
       </Link>
     </span>

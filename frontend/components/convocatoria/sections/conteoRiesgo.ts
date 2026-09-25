@@ -1,24 +1,34 @@
 /**
- * Cómo se cuentan los análisis publicados por nivel de riesgo, en UN solo lugar.
+ * Cómo se cuentan los análisis publicados por nivel, en UN solo lugar.
  *
  * /app/convocatoria mostraba dos recuentos del mismo listado que no cuadraban:
  * el panel lateral contaba "media" como "tiene al menos una señal media" (52)
  * y la lista de abajo como "tiene alguna señal media o alta" (70). Ninguno de
- * los dos era el nivel de riesgo del contrato, que es lo que pinta la franja
- * de color de cada tarjeta.
+ * los dos era el nivel del contrato, que es lo que pinta la franja de color de
+ * cada tarjeta. Ahora las dos vistas cuentan lo mismo, y el filtro por nivel usa
+ * esta misma función: el número del chip es exactamente lo que queda al filtrar.
  *
- * Ahora las dos vistas cuentan lo mismo: el nivel que sale del puntaje del
- * contrato con los cortes únicos de lib/severidad (alto ≥ 70, medio 40 a 69,
- * bajo < 40). El filtro por nivel usa esta misma función, así que el número
- * del chip es exactamente lo que queda al filtrar.
+ * Las palabras son las de DESIGN_SYSTEM.md §10.1:
+ *  · "Sin señales": leído y publicado sin ninguna señal (verde, el único "positivo");
+ *  · peso del riesgo "Riesgo alto · medio · bajo": el tramo del puntaje (cortes únicos
+ *    de lib/severidad), y SÓLO si hay señales. Un contrato con señales y puntaje bajo
+ *    ya no sale con el verde de "sin señal relevante" (auditoría de coherencia, P1).
+ * Palabras y tonos salen de lib/severidad, los mismos que usan las listas de contratos.
  */
 
-import { CORTE_ALTA, CORTE_MEDIA, nivelDeScore, type NivelSeveridad } from "@/lib/severidad";
+import { CORTE_ALTA, CORTE_MEDIA, nivelDeScore, SEVERIDAD, SIN_SENALES } from "@/lib/severidad";
 
-export type NivelAnalisis = Exclude<NivelSeveridad, "sin_analizar">;
+export type NivelAnalisis = "alta" | "media" | "baja" | "sin_senales";
 
-/** Nivel de riesgo de un análisis de la lista, por su puntaje. `null` si no trae puntaje. */
-export function nivelDeAnalisis(it: { score?: number | null }): NivelAnalisis | null {
+/**
+ * Nivel de un análisis de la lista. Sin señales publicadas (`n_banderas === 0`) es
+ * "sin_senales" aunque traiga un puntaje; con señales, el tramo de su puntaje.
+ * `null` si no trae ni conteo de señales ni puntaje.
+ */
+export function nivelDeAnalisis(it: { score?: number | null; n_banderas?: number | null }): NivelAnalisis | null {
+  // Como severidadDeContrato (lib/severidad): 0 señales publicadas, o puntaje 0, es "sin señales".
+  if (typeof it?.n_banderas === "number" && it.n_banderas === 0) return "sin_senales";
+  if (it?.score === 0) return "sin_senales";
   const n = nivelDeScore(it?.score ?? null);
   return n === "sin_analizar" ? null : n;
 }
@@ -28,10 +38,11 @@ export interface ConteoRiesgo {
   alta: number;
   media: number;
   baja: number;
+  sin_senales: number;
 }
 
-export function contarPorNivel(items: Array<{ score?: number | null }>): ConteoRiesgo {
-  const c: ConteoRiesgo = { total: items.length, alta: 0, media: 0, baja: 0 };
+export function contarPorNivel(items: Array<{ score?: number | null; n_banderas?: number | null }>): ConteoRiesgo {
+  const c: ConteoRiesgo = { total: items.length, alta: 0, media: 0, baja: 0, sin_senales: 0 };
   for (const it of items) {
     const n = nivelDeAnalisis(it);
     if (n) c[n]++;
@@ -39,18 +50,34 @@ export function contarPorNivel(items: Array<{ score?: number | null }>): ConteoR
   return c;
 }
 
-/** Rótulos de los tres niveles, con el rango de puntaje que cubre cada uno. */
+/** Orden en que se muestran los niveles (chips, panel lateral). */
+export const NIVELES: NivelAnalisis[] = ["alta", "media", "baja", "sin_senales"];
+
+/** Rótulos de cada nivel, con lo que cubre cada uno. */
 export const NIVEL_ANALISIS: Record<NivelAnalisis, { etiqueta: string; rango: string }> = {
-  alta: { etiqueta: "Riesgo alto", rango: `puntaje ${CORTE_ALTA} o más` },
-  media: { etiqueta: "Riesgo medio", rango: `puntaje ${CORTE_MEDIA} a ${CORTE_ALTA - 1}` },
-  baja: { etiqueta: "Riesgo bajo", rango: `puntaje menor a ${CORTE_MEDIA}` },
+  alta: { etiqueta: "Riesgo alto", rango: `con señales y puntaje ${CORTE_ALTA} o más` },
+  media: { etiqueta: "Riesgo medio", rango: `con señales y puntaje ${CORTE_MEDIA} a ${CORTE_ALTA - 1}` },
+  baja: { etiqueta: "Riesgo bajo", rango: `con señales y puntaje menor a ${CORTE_MEDIA}` },
+  sin_senales: { etiqueta: SIN_SENALES.etiqueta, rango: "leídos y publicados sin ninguna señal" },
 };
 
-/** Clases de la franja de puntaje: tokens de lib/severidad, texto oscuro sobre fondo suave. */
+/**
+ * Tokens de cada nivel. Severidad con sus tonos de texto (AA en los tres fondos); el bajo va
+ * en tinta neutra, como una señal baja; "sin señales" es el único verde.
+ */
+export const TONO_NIVEL: Record<NivelAnalisis, { fondo: string; texto: string; punto: string }> = {
+  alta: SEVERIDAD.alta,
+  media: SEVERIDAD.media,
+  baja: SEVERIDAD.baja,
+  sin_senales: SIN_SENALES,
+};
+
+/** Clases de la franja de puntaje: tokens de nivel, texto oscuro sobre fondo suave. */
 export const FRANJA_NIVEL: Record<NivelAnalisis | "sin", string> = {
-  alta: "bg-crimson-soft text-crimsonTexto",
-  media: "bg-amber-soft text-amberTexto",
-  baja: "bg-moss/10 text-mossTexto",
+  alta: `${TONO_NIVEL.alta.fondo} ${TONO_NIVEL.alta.texto}`,
+  media: `${TONO_NIVEL.media.fondo} ${TONO_NIVEL.media.texto}`,
+  baja: `${TONO_NIVEL.baja.fondo} ${TONO_NIVEL.baja.texto}`,
+  sin_senales: `${TONO_NIVEL.sin_senales.fondo} ${TONO_NIVEL.sin_senales.texto}`,
   sin: "bg-paperDeep text-mute",
 };
 

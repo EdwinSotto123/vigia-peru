@@ -20,10 +20,10 @@
  */
 
 import Link from "next/link";
-import { ArrowUpRight, Eye } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Eye } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
-import { formatPEN } from "@/lib/financiamiento";
+import { plural, solesCompacto } from "@/lib/formato";
 import {
   duracion,
   estadoVisible,
@@ -39,9 +39,9 @@ import { ReplayAnalisis } from "./ReplayAnalisis";
 export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDetalle | null; hayFiltros?: boolean }) {
   if (!p) {
     return (
-      <div className="rounded-2xl border border-dashed border-line p-5">
+      <div className="rounded-2xl border border-dashed border-line bg-paperSoft p-5">
         <h3 className="text-sm font-semibold text-ink">Todavía no hay ninguna lectura terminada acá</h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-mute">
+        <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
           {hayFiltros
             ? "Con los filtros puestos no hay ningún análisis terminado que mostrar. Quita uno arriba y vuelve a mirar."
             : "Todavía no terminó ningún análisis. Cuando termine el primero, aparece acá con lo que encontró."}
@@ -61,10 +61,10 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
   const conSenales = senales.length > 0 || p.banderas > 0;
   const nSenales = senales.length || p.banderas;
   // La pastilla de severidad tiene que hablar de lo mismo que la cifra que está a su lado.
-  // `severidadDeScore(18)` devuelve "Sin señal relevante", y ponerla junto a "1 señal de
-  // riesgo" es exactamente la contradicción que más daño hace en esta pantalla: la pastilla
-  // describe el RIESGO DEL CONTRATO y la cifra cuenta SEÑALES. Con señales encontradas, la
-  // pastilla pasa a describir la peor de ellas; sin señales, sigue describiendo el contrato.
+  // La pastilla describe la peor SEÑAL, porque la cifra de al lado cuenta señales: el tramo
+  // del puntaje ("Riesgo bajo" con score 18) habla del contrato, no de sus señales, y
+  // mezclarlos es la contradicción que más daño hace en esta pantalla. Sin señales, la
+  // pastilla es la de "Sin señales" (el único check verde).
   const ORDEN_SEV = { alta: 3, media: 2, baja: 1 } as const;
   const peorSenal = senales.reduce<"alta" | "media" | "baja" | null>(
     (peor, s) => (!peor || ORDEN_SEV[s.severidad] > ORDEN_SEV[peor] ? s.severidad : peor),
@@ -90,15 +90,15 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
         href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
         className="mt-3 block rounded-xl border border-line bg-paperSoft p-3 transition-colors hover:border-paperEdge hover:bg-paperDeep"
       >
-        <p className="truncate text-[11px] font-medium uppercase tracking-wide text-mute">
+        <p className="truncate text-[12px] font-medium text-mute">
           {p.entidad ?? "Entidad no identificada"}
         </p>
         <p className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">{p.titulo ?? p.ocid}</p>
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] text-mute">
           <span>{p.zona}</span>
-          {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{formatPEN(p.montoPen)}</span>}
-          <span className="inline-flex items-center gap-0.5">
-            {enRevision ? "ver su estado" : "ver dictamen"} <ArrowUpRight size={11} aria-hidden />
+          {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{solesCompacto(p.montoPen)}</span>}
+          <span className="inline-flex items-center gap-0.5 font-medium text-granate">
+            {enRevision ? "Ver su estado" : "Ver el dictamen"} <ArrowUpRight size={12} aria-hidden />
           </span>
         </p>
       </Link>
@@ -107,7 +107,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
         <div className="mt-3 rounded-xl border border-clay/30 bg-paperSoft px-3 py-2 text-[12px] leading-snug text-inkSoft">
           <p className="flex items-start gap-1.5 font-semibold text-clayTexto">
             <Eye size={13} className="mt-0.5 shrink-0" aria-hidden />
-            En revisión humana: no se publica hasta que una persona lo revise.
+            En revisión: una persona lo revisa antes de publicarlo.
           </p>
           {motivos.length > 0 && (
             <ul className="mt-1 space-y-1 pl-5">
@@ -126,19 +126,20 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
             {peorSenal ? (
               <Severidad bandera={peorSenal} formato="pastilla" />
             ) : conSenales ? null : (
-              <Severidad score={p.score} formato="pastilla" />
+              // Sin señales: el verde de "sin señales" (§10.1), no la severidad del puntaje.
+              <span className="pill border-moss/40 bg-moss/10 text-mossTexto">
+                <CheckCircle2 size={11} aria-hidden /> Sin señales
+              </span>
             )}
             <span className="text-[13px] text-mute">
               {conSenales ? (
-                <>
-                  <span className="font-mono font-semibold text-ink">{nSenales}</span>{" "}
-                  {nSenales === 1 ? "señal de riesgo" : "señales de riesgo"}
-                </>
+                <span className="font-semibold text-ink">{plural(nSenales, "señal de riesgo", "señales de riesgo")}</span>
               ) : (
-                "ninguna señal de riesgo"
+                "sin señales"
               )}
-              {p.score != null && (
-                <span className="ml-2">riesgo <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span>/100</span>
+              {/* El puntaje sólo junto a las señales que lo explican (§10.4). */}
+              {conSenales && p.score != null && (
+                <span className="ml-2">puntaje <span className="font-mono tabular-nums text-ink">{Math.round(p.score)}</span> de 100</span>
               )}
             </span>
           </div>
@@ -158,7 +159,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
               ))}
               {senales.length > 3 && (
                 <li className="pl-5 text-[12px] text-mute">
-                  y {senales.length - 3} {senales.length - 3 === 1 ? "señal más" : "señales más"} en el dictamen
+                  y {plural(senales.length - 3, "señal más", "señales más")} en el dictamen
                 </li>
               )}
             </ul>
@@ -188,7 +189,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
             etiqueta="Repetir el análisis de este contrato, paso por paso"
             detalle={<ReplayAnalisis eventos={eventos} estadoFinal={estado} compacto />}
           >
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 py-1 text-[12px] font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
+            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-[12px] font-medium text-ink transition-colors group-hover:border-paperEdge group-hover:bg-paperDeep">
               Repetir el análisis paso por paso
             </span>
           </Revelar>

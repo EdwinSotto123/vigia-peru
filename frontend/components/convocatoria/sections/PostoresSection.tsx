@@ -2,6 +2,7 @@
 
 import { Award, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 
 /** Roles OCDS → castellano. "tenderer + supplier" no le dice nada a nadie. */
@@ -22,13 +23,13 @@ function rolesLegibles(roles: unknown): string | null {
 export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMoney: (n: any) => string }) {
   const ganadores = postores.filter(p => p.es_ganador);
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <h2 className="font-serif text-xl font-bold text-ink">
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="border-b border-line bg-paperSoft px-5 py-3">
+        <h2 className="font-display text-xl font-bold text-ink">
           Quién ofertó y quién ganó
         </h2>
         <p className="mt-0.5 text-[12px] text-mute">
-          {postores.length} postor{postores.length === 1 ? "" : "es"}, {ganadores.length} ganador{ganadores.length === 1 ? "" : "es"}
+          {plural(postores.length, "postor", "postores")}, {plural(ganadores.length, "ganador", "ganadores")}. Fuente: registro OCDS del OECE
         </p>
       </div>
       <ul className="divide-y divide-line">
@@ -39,8 +40,8 @@ export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMo
             <li key={i} className="px-5 py-3">
               <div className="flex items-center gap-3">
                 <div className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                  p.es_ganador ? "bg-heroViolet text-paper" : "bg-paperDeep text-mute",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                  p.es_ganador ? "bg-granate-soft text-granate" : "bg-paperDeep text-mute",
                 )}>
                   {p.es_ganador ? <Award size={15} aria-hidden /> : <Building2 size={15} aria-hidden />}
                 </div>
@@ -52,24 +53,24 @@ export function PostoresSection({ postores, fmtMoney }: { postores: any[]; fmtMo
                       {natural ? <PersonName name={p.nombre} orden="sunat" /> : p.nombre}
                     </span>
                     {p.es_ganador && (
-                      <span className="rounded-full bg-heroViolet px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-paper">Ganador</span>
+                      <span className="rounded-full bg-granate-soft px-2 py-0 text-[11px] font-semibold text-granate">Ganador</span>
                     )}
                     {p.es_consorcio && (
-                      <span className="rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">Consorcio</span>
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-semibold text-inkSoft">Consorcio</span>
                     )}
                     {natural && (
-                      <span className="rounded-full bg-paperDeep px-1.5 py-0 text-[9px] font-medium text-mute">persona natural</span>
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-medium text-inkSoft">persona natural</span>
                     )}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-mute">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
                     {p.ruc && <span className="font-mono">RUC <Ruc value={p.ruc} /></span>}
                     {roles && <span>{roles}</span>}
                   </div>
                 </div>
                 {p.monto_ganado != null && p.monto_ganado > 0 && (
                   <div className="text-right">
-                    <div className="font-mono text-sm font-bold text-heroViolet">{fmtMoney(p.monto_ganado)}</div>
-                    <div className="text-[9px] uppercase tracking-wider text-mute">adjudicado</div>
+                    <div className="font-mono text-sm font-semibold tabular-nums text-ink">{fmtMoney(p.monto_ganado)}</div>
+                    <div className="text-[11px] text-mute">adjudicado</div>
                   </div>
                 )}
               </div>

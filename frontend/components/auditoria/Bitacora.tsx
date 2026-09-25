@@ -53,7 +53,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
   return (
     <ol className={compacto ? "space-y-1" : "space-y-1.5"} aria-label="Bitácora del análisis">
       {ultimos.map(({ ev, key }, i) => {
-        const tono = ev.kind === "error" ? "text-rust" : ev.kind === "warn" ? "text-amberTexto" : ev.kind === "final" ? "text-mossTexto" : "text-inkSoft";
+        const tono = ev.kind === "error" ? "text-crimsonTexto" : ev.kind === "warn" ? "text-amberTexto" : ev.kind === "final" ? "text-mossTexto" : "text-inkSoft";
         const t = new Date(ev.ts).getTime();
         const tiempo = !Number.isFinite(t)
           ? ""
@@ -72,7 +72,7 @@ export function Bitacora({ eventos, ahora, max = 12, activo = false, compacto = 
             <time
               dateTime={ev.ts}
               title={`${horaLima(ev.ts)}, hora de Lima`}
-              className="shrink-0 font-mono text-[10px] tabular-nums text-mute"
+              className="shrink-0 font-mono text-[11px] tabular-nums text-mute"
               suppressHydrationWarning
             >
               {tiempo}

@@ -41,10 +41,12 @@ export function DenunciasMap({
 
   if (!tieneUbicacion(reporte)) return null;
   const pt = projection ? projection([Number(reporte.lon), Number(reporte.lat)]) : null;
-  const color = CATEGORIA_META[reporte.categoria as CategoriaDenuncia]?.color ?? "#8B2A1E";
+  // El color de la categoría viene de lib/denuncias-meta (el mismo que usa el mapa). Sin
+  // categoría conocida el punto va en tinta: nunca en el rojo de la severidad.
+  const color = CATEGORIA_META[reporte.categoria as CategoriaDenuncia]?.color;
 
   return (
-    <figure className="surface overflow-hidden p-0">
+    <figure className="overflow-hidden rounded-2xl border border-line bg-paper">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -52,12 +54,12 @@ export function DenunciasMap({
         aria-label={`Ubicación de la denuncia${reporte.region ? ` en ${reporte.region}` : ""}`}
       >
         {paths.map((d, i) => (
-          <path key={i} d={d} fill="#FAF6E9" stroke="#D9CFB7" strokeWidth={0.6} />
+          <path key={i} d={d} className="fill-paperSoft stroke-paperEdge" strokeWidth={0.6} />
         ))}
         {pt && (
           <g transform={`translate(${pt[0]}, ${pt[1]})`}>
-            <circle r={14} fill={color} fillOpacity={0.18} />
-            <circle r={7} fill={color} stroke="#FAF6E9" strokeWidth={2} />
+            <circle r={14} fill={color} className={color ? undefined : "fill-ink"} fillOpacity={0.18} />
+            <circle r={7} fill={color} className={color ? "stroke-paper" : "fill-ink stroke-paper"} strokeWidth={2} />
           </g>
         )}
       </svg>

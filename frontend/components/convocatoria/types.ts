@@ -50,6 +50,14 @@ export interface ApiResult {
   self_evals?: any;
   timing?: Record<string, number>;
   _bridge_meta?: Record<string, any>;
+  /**
+   * Estado de publicación de la alerta (GET /alertas/:id/full). Una alerta frenada para
+   * revisión humana llega sin score, señales ni dictamen: el dossier muestra "En revisión" y
+   * nada más (ver dossierEnRevision en ./dossier).
+   */
+  estado?: string | null;
+  enRevision?: boolean;
+  publicada?: boolean;
   error?: string;
   hint?: string;
 }

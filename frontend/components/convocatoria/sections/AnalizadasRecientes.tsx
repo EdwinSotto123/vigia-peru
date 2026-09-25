@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, ChevronRight, Search, Shuffle } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, ChevronRight, CircleAlert, Search, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAnalyzedList } from "@/lib/dossier-cache";
 import { esAlertaDemo } from "@/lib/semillas";
-import { SEVERIDAD } from "@/lib/severidad";
-import { formatSoles } from "@/lib/formato";
+import { numero, relativo, solesCompacto } from "@/lib/formato";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { inferCategoria } from "../utils";
 import type { CatFilter, SortKey } from "../types";
 import { CAT_LABEL, CAT_TONE } from "../constants";
-import { contarPorNivel, FRANJA_NIVEL, NIVEL_ANALISIS, nivelDeAnalisis, type NivelAnalisis } from "./conteoRiesgo";
+import { contarPorNivel, FRANJA_NIVEL, NIVEL_ANALISIS, NIVELES, nivelDeAnalisis, TONO_NIVEL, type NivelAnalisis } from "./conteoRiesgo";
 
 type FiltroNivel = "todos" | NivelAnalisis;
 
@@ -40,30 +41,27 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
   // Volver a la página 1 cuando cambian filtros/orden/búsqueda (no quedar en una página vacía).
   useEffect(() => { setPage(1); }, [q, sev, region, cat, sort]);
 
-  const fmtMoney = (n: number) => (n ? formatSoles(n) : "—");
-  const fmtFecha = (iso: string | null) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    const diff = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (diff < 1) return "hace instantes";
-    if (diff < 60) return `hace ${diff}m`;
-    if (diff < 1440) return `hace ${Math.floor(diff/60)}h`;
-    return d.toLocaleDateString("es-PE");
-  };
+  // Tarjetas: montos compactos, un solo formato (lib/formato). Sin monto se dice.
+  const fmtMoney = (n: number) => (n ? solesCompacto(n) : "Sin monto");
 
-  // Skeleton loader
-  if (err) return null;
+  if (err) {
+    return (
+      <EstadoError titulo="No pudimos cargar los análisis publicados" detalle={err}>
+        Suele ser momentáneo. Recarga la página en unos segundos.
+      </EstadoError>
+    );
+  }
   if (!items) {
     return (
-      <section>
-        <div className="mb-3 h-5 w-64 animate-pulse rounded bg-paperDeep" />
-        <div className="surface space-y-0 divide-y divide-line p-0">
-          {[1,2,3,4,5].map(i => (
-            <div key={i} className="flex animate-pulse items-center gap-3 px-5 py-3.5">
-              <div className="h-11 w-11 shrink-0 rounded-lg bg-paperDeep" />
+      <section aria-busy="true" aria-label="Cargando los análisis publicados…">
+        <Skeleton className="mb-3 h-5 w-64" />
+        <div className="divide-y divide-line rounded-2xl border border-line bg-paper">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-5 py-3.5">
+              <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-3/4 rounded bg-paperDeep" />
-                <div className="h-3 w-1/2 rounded bg-paperDeep" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
           ))}
@@ -117,12 +115,12 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
 
   if (items.length === 0) {
     return (
-      <div className="surface p-6 text-center">
-        <h2 className="font-serif text-base font-bold text-ink">Análisis publicados</h2>
-        <p className="mt-2 text-sm text-mute">
-          Todavía no hay contratos analizados publicados.
-        </p>
-      </div>
+      <section aria-labelledby="publicados-titulo">
+        <h2 id="publicados-titulo" className="mb-3 font-display text-[22px] font-bold text-ink">Análisis publicados</h2>
+        <EstadoVacio titulo="Todavía no hay análisis publicados">
+          Vigía lee los contratos en orden de cola, a medida que alguien financia la lectura de su zona.
+        </EstadoVacio>
+      </section>
     );
   }
 
@@ -137,51 +135,51 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
       aria-pressed={sev === key}
       title={title}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+        "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
         sev === key
           ? "border-transparent bg-ink text-paper shadow-sm"
           : "border-line bg-paper text-ink hover:bg-paperDeep",
       )}
     >
-      {punto && <span aria-hidden className={cn("inline-block h-1.5 w-1.5 rounded-full", punto)} />}
+      {punto && <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", punto)} />}
       <span>{label}</span>
       <span className={cn(
         "rounded-full px-1.5 py-0 text-[10px] tabular-nums",
         sev === key ? "bg-paper/20 text-paper" : "bg-paperDeep text-mute",
-      )}>{count}</span>
+      )}>{numero(count)}</span>
     </button>
   );
 
   return (
-    <section>
+    <section aria-labelledby="publicados-titulo">
       {/* HEADER + BARRA DE FILTROS · todo en una sola hilera compacta */}
-      <div className="surface mb-3 space-y-2 p-3">
+      <div className="mb-3 space-y-2 rounded-2xl border border-line bg-paper p-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <h2 className="font-serif text-base font-bold text-ink">Análisis publicados</h2>
-              <span className="rounded-full bg-paperDeep px-1.5 py-0 font-mono text-[10px] font-bold text-ink">{items.length}</span>
+              <h2 id="publicados-titulo" className="font-display text-lg font-bold text-ink">Análisis publicados</h2>
+              <span className="rounded-full bg-paperDeep px-2 py-0 font-mono text-[12px] font-semibold tabular-nums text-ink">{numero(items.length)}</span>
             </div>
           </div>
 
           {/* Search inline */}
           <div className="relative ml-auto flex-1 sm:min-w-[260px] sm:max-w-[360px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
             <input
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               aria-label="Filtrar los análisis publicados"
               placeholder="Filtrar por código, objeto o RUC…"
-              className="w-full rounded-lg border border-line bg-paper py-1.5 pl-7 pr-7 text-xs placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-1 focus:ring-heroViolet/30"
+              className="w-full rounded-xl border border-line bg-paper py-2 pl-8 pr-8 text-[13px] placeholder:text-mute focus:border-granate focus:outline-none focus:ring-2 focus:ring-granate/20"
             />
             {q && (
               <button
                 type="button"
                 onClick={() => setQ("")}
                 aria-label="Borrar el filtro"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md px-1 py-0 text-[10px] text-mute hover:bg-paperDeep"
-              >×</button>
+                className="absolute right-1 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[14px] text-mute hover:bg-paperDeep"
+              ><span aria-hidden>×</span></button>
             )}
           </div>
 
@@ -190,7 +188,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             type="button"
             onClick={handleShuffle}
             disabled={sorted.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1.5 text-[11px] font-semibold text-ink shadow-sm transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
             title={`Abrir uno al azar de los ${sorted.length} filtrados`}
             aria-label={`Abrir uno al azar de los ${sorted.length} filtrados`}
           >
@@ -201,11 +199,9 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
 
         {/* Chips: severidad · categoría · sort · región — UNA SOLA FILA scrolleable */}
         <div className="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
-          {/* Nivel de riesgo (por puntaje, cortes de lib/severidad) */}
+          {/* Sin señales · peso del riesgo (por puntaje, cortes de lib/severidad), §10.1 */}
           {sevChip("todos", "Todos", conteo.total, null)}
-          {(["alta", "media", "baja"] as NivelAnalisis[]).map((k) =>
-            sevChip(k, NIVEL_ANALISIS[k].etiqueta, conteo[k], SEVERIDAD[k].punto, NIVEL_ANALISIS[k].rango),
-          )}
+          {NIVELES.map((k) => sevChip(k, NIVEL_ANALISIS[k].etiqueta, conteo[k], TONO_NIVEL[k].punto, NIVEL_ANALISIS[k].rango))}
 
           <span className="mx-1 h-4 w-px shrink-0 bg-line" />
 
@@ -219,7 +215,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                 type="button"
                 onClick={() => setCat(k)}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                  "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold transition-colors",
                   cat === k
                     ? "border-transparent bg-ink text-paper shadow-sm"
                     : "border-line bg-paper text-ink hover:bg-paperDeep",
@@ -230,7 +226,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                 )}
                 <span>{CAT_LABEL[k]}</span>
                 <span className={cn(
-                  "rounded-full px-1 text-[9px] tabular-nums",
+                  "rounded-full px-1.5 text-[11px] tabular-nums",
                   cat === k ? "bg-paper/20 text-paper" : "bg-paperDeep text-mute",
                 )}>{n}</span>
               </button>
@@ -246,7 +242,7 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
               type="button"
               onClick={() => setSort(k)}
               className={cn(
-                "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                "min-h-[28px] shrink-0 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold transition-colors",
                 sort === k
                   ? "border-ink bg-ink text-paper"
                   : "border-line bg-paper text-ink hover:bg-paperDeep",
@@ -261,8 +257,8 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             <select
               value={region}
               onChange={(e) => setRegion(e.target.value)}
-              className="ml-1 shrink-0 rounded-full border border-line bg-paper px-2 py-0.5 text-[10px] font-semibold text-ink focus:border-heroViolet focus:outline-none"
-              title="Filtrar por región"
+              className="ml-1 min-h-[28px] shrink-0 rounded-full border border-line bg-paper px-2.5 py-0.5 text-[12px] font-semibold text-ink focus:border-granate focus:outline-none"
+              aria-label="Filtrar por región"
             >
               <option value="todas">Todas las regiones</option>
               {regionesUnicas.map(r => {
@@ -274,89 +270,80 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
         </div>
 
         {sorted.length !== items.length && (
-          <div className="text-[11px] text-mute">
-            <strong className="text-ink">{sorted.length}</strong> de {items.length} coinciden con los filtros.
+          <div className="text-[12px] text-mute" aria-live="polite">
+            <strong className="text-ink">{numero(sorted.length)}</strong> de {numero(items.length)} coinciden con los filtros.
             {(q || sev !== "todos" || region !== "todas" || cat !== "todas") && (
               <button
                 onClick={() => { setQ(""); setSev("todos"); setRegion("todas"); setCat("todas"); }}
-                className="ml-2 underline hover:text-heroViolet"
-              >limpiar filtros</button>
+                type="button"
+                className="ml-2 underline hover:text-granate"
+              >Limpiar filtros</button>
             )}
           </div>
         )}
       </div>
 
       {sorted.length === 0 ? (
-        <div className="surface p-6 text-center text-sm text-mute">
-          Ningún análisis coincide con los filtros.
-        </div>
+        <EstadoVacio compacto titulo="Ningún análisis coincide con los filtros">
+          Quita alguno de los filtros de arriba para ver más.
+        </EstadoVacio>
       ) : (
         <ul className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
           {pageItems.map((it: any, i: number) => (
-            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="surface group relative overflow-hidden p-0 transition-all hover:shadow-md hover:border-heroViolet/40">
+            <li key={it.codigo_convocatoria || it.ocid || `${pageStart}-${i}`} className="group relative overflow-hidden rounded-2xl border border-line bg-paper transition-shadow duration-rapido hover:shadow-card">
               <button
                 type="button"
                 onClick={() => onSelect(it.codigo_convocatoria || it.ocid)}
                 className="flex w-full items-stretch text-left"
               >
-                {/* FRANJA DE PUNTAJE: nivel por lib/severidad, texto oscuro sobre fondo suave */}
-                <div
-                  className={cn(
-                    "flex w-12 shrink-0 flex-col items-center justify-center px-1 py-3",
-                    FRANJA_NIVEL[nivelDeAnalisis(it) ?? "sin"],
-                  )}
-                  title={nivelDeAnalisis(it) ? NIVEL_ANALISIS[nivelDeAnalisis(it)!].etiqueta : undefined}
-                >
-                  <span className="font-mono text-lg font-bold leading-none">{it.score ?? "—"}</span>
-                  <span className="mt-0.5 text-[8px] uppercase tracking-wider">/100</span>
-                </div>
+                {/* FRANJA DE NIVEL: "sin señales" con su check; con señales, el puntaje que pesa. */}
+                <FranjaNivel it={it} />
 
                 {/* MAIN BODY */}
                 <div className="min-w-0 flex-1 px-3 py-2.5">
                   {/* Top: código + categoría + región + fecha */}
                   <div className="flex flex-wrap items-baseline gap-1.5">
-                    <span className="font-mono text-[11px] font-bold text-ink">#{it.codigo_convocatoria}</span>
+                    <span className="font-mono text-[12px] font-semibold text-ink">{it.codigo_convocatoria}</span>
                     {it._cat !== "todas" && CAT_LABEL[it._cat as CatFilter] && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-mute">
-                        <span className={cn("inline-block h-1.5 w-1.5 rounded-full", CAT_TONE[it._cat as CatFilter])} />
+                      <span className="inline-flex items-center gap-1 text-[11px] text-mute">
+                        <span aria-hidden className={cn("inline-block h-1.5 w-1.5 rounded-full", CAT_TONE[it._cat as CatFilter])} />
                         {CAT_LABEL[it._cat as CatFilter]}
                       </span>
                     )}
                     {it.region && (
-                      <span className="text-[10px] text-mute">{it.region}</span>
+                      <span className="text-[11px] text-mute">{it.region}</span>
                     )}
-                    <span className="ml-auto text-[10px] text-mute">{fmtFecha(it.analizado_en)}</span>
+                    <span className="ml-auto text-[11px] text-mute">{it.analizado_en ? `leído ${relativo(it.analizado_en)}` : "Sin fecha"}</span>
                   </div>
 
                   {/* Objeto */}
                   <div className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug text-ink">{it.objeto}</div>
 
                   {/* Bottom: entidad + monto + banderas */}
-                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                     <div className="flex min-w-0 items-center gap-1.5 text-mute">
-                      <Building2 size={10} className="shrink-0" />
-                      <span className="line-clamp-1">{it.entidad || "—"}</span>
+                      <Building2 size={12} className="shrink-0" aria-hidden />
+                      <span className="line-clamp-1">{it.entidad || "Entidad sin dato"}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {it.n_alta > 0 && (
-                        <span className="rounded bg-crimson-soft px-1 py-0 text-[10px] font-bold text-crimsonTexto">
+                        <span className="inline-flex items-center gap-0.5 font-semibold text-rust">
+                          <AlertTriangle size={11} aria-hidden />
                           {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
                         </span>
                       )}
                       {it.n_media > 0 && (
-                        <span className="rounded bg-amber-soft px-1 py-0 text-[10px] font-bold text-amberTexto">
-                          {it.n_media} {it.n_media === 1 ? "media" : "medias"}
+                        <span className="inline-flex items-center gap-0.5 font-semibold text-amberTexto">
+                          <CircleAlert size={11} aria-hidden />
+                          {it.n_media} {it.n_media === 1 ? "señal media" : "señales medias"}
                         </span>
                       )}
-                      {it.n_banderas === 0 && (
-                        <span className="rounded bg-paperDeep px-1 py-0 text-[10px] font-semibold text-mute">sin señales</span>
-                      )}
-                      <span className="font-mono text-[11px] font-bold text-ink">{fmtMoney(it.monto)}</span>
+                      <span className="font-mono text-[12px] font-semibold tabular-nums text-ink">{fmtMoney(it.monto)}</span>
                     </div>
                   </div>
                 </div>
 
-                <ChevronRight size={14} className="mr-2 mt-3 shrink-0 self-start text-mute transition-transform group-hover:translate-x-1 group-hover:text-heroViolet" />
+                <ChevronRight size={14} aria-hidden className="mr-2 mt-3 shrink-0 self-start text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" />
               </button>
             </li>
           ))}
@@ -371,8 +358,8 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
             type="button"
             disabled={safePage <= 1}
             onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-          >← Anterior</button>
+            className="min-h-[32px] rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+          >Anterior</button>
           {totalPages <= 9 ? (
             Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
               <button
@@ -380,28 +367,58 @@ export function AnalizadasRecientes({ onSelect }: { onSelect: (ocidOrCodigo: str
                 type="button"
                 onClick={() => setPage(p)}
                 className={cn(
-                  "min-w-[30px] rounded-full border px-2 py-1 text-[11px] font-mono font-semibold transition-colors",
+                  "min-h-[32px] min-w-[32px] rounded-full border px-2 py-1 font-mono text-[12px] font-semibold transition-colors",
                   p === safePage ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink hover:bg-paperDeep",
                 )}
               >{p}</button>
             ))
           ) : (
-            <span className="px-2 font-mono text-[11px] font-bold text-ink">página {safePage} de {totalPages}</span>
+            <span className="px-2 text-[12px] font-semibold text-ink">Página {safePage} de {totalPages}</span>
           )}
           <button
             type="button"
             disabled={safePage >= totalPages}
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
-          >Siguiente →</button>
+            className="min-h-[32px] rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep disabled:cursor-not-allowed disabled:opacity-40"
+          >Siguiente</button>
         </div>
       )}
       {sorted.length > 0 && (
-        <div className="mt-2 text-center text-[11px] text-mute">
-          Mostrando <strong className="text-ink">{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, sorted.length)}</strong> de {sorted.length}
-          {sorted.length !== items.length && ` (filtrados de ${items.length})`}
+        <div className="mt-2 text-center text-[12px] text-mute">
+          Mostrando <strong className="text-ink">{numero(pageStart + 1)}–{numero(Math.min(pageStart + PAGE_SIZE, sorted.length))}</strong> de {numero(sorted.length)}
+          {sorted.length !== items.length && ` (filtrados de ${numero(items.length)})`}
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * La franja izquierda de cada tarjeta. Con señales: el puntaje que pesa (0–100) en el tono de su
+ * tramo. Sin señales: el check verde, sin un "0/100" suelto (el puntaje nunca va sin las señales
+ * que lo explican, §10.4). Sin dato: se dice.
+ */
+function FranjaNivel({ it }: { it: any }) {
+  const nivel: NivelAnalisis | null = nivelDeAnalisis(it);
+  return (
+    <div
+      className={cn("flex w-14 shrink-0 flex-col items-center justify-center px-1 py-3 text-center", FRANJA_NIVEL[nivel ?? "sin"])}
+      title={nivel ? `${NIVEL_ANALISIS[nivel].etiqueta}: ${NIVEL_ANALISIS[nivel].rango}` : undefined}
+    >
+      {nivel === "sin_senales" ? (
+        <>
+          <CheckCircle2 size={18} aria-hidden />
+          <span className="mt-1 text-[11px] font-medium leading-tight">Sin señales</span>
+        </>
+      ) : typeof it.score === "number" ? (
+        <>
+          <span className="font-mono text-lg font-semibold leading-none tabular-nums">{Math.round(it.score)}</span>
+          <span className="mt-0.5 text-[11px] leading-none">/100</span>
+          {nivel && <span className="sr-only">{NIVEL_ANALISIS[nivel].etiqueta}</span>}
+        </>
+      ) : (
+        <span className="text-[11px] leading-tight">Sin dato</span>
+      )}
+    </div>
   );
 }

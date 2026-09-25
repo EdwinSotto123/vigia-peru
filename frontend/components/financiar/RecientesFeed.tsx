@@ -1,42 +1,53 @@
 import Link from "next/link";
+import { EstadoVacio } from "@/components/patrones";
+import { numero, relativo } from "@/lib/formato";
 import { mensajePublicoVisible, type ContribucionReciente } from "@/lib/financiamiento";
 import { Avatar } from "./RankingTable";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 
-function timeAgo(iso: string): string {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 3600) return `hace ${Math.max(1, Math.round(s / 60))} min`;
-  if (s < 86400) return `hace ${Math.round(s / 3600)} h`;
-  return `hace ${Math.round(s / 86400)} d`;
-}
-
+/**
+ * Los últimos aportes confirmados. Cada uno se cuenta en contratos, nunca en soles
+ * (PRODUCT.md: el reconocimiento se mide en contratos leídos), y enlaza a su
+ * comprobante público, que es donde se ve en qué terminó.
+ */
 export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
   if (!items.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-mute">
-        Sin aportes confirmados todavía.
-      </div>
+      <EstadoVacio
+        compacto
+        titulo="Todavía no hay aportes confirmados"
+        accion={
+          <EnlaceAccion variante="secundario" href="#zonas">
+            Elegir una zona
+          </EnlaceAccion>
+        }
+      >
+        Cuando se confirme el primero, aparece acá con su zona y su comprobante público.
+      </EstadoVacio>
     );
   }
   return (
-    <ul className="space-y-2">
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
       {items.map((c) => {
         const mensaje = mensajePublicoVisible(c.mensajePublico, c.pasarela);
         return (
-        <li key={c.codigo} className="flex items-start gap-3 rounded-xl border border-line bg-paper px-4 py-3">
-          <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
-          <div className="min-w-0 flex-1 text-sm">
-            <div className="text-ink">
-              <span className="font-semibold">{c.financiador}</span> financió la auditoría de{" "}
-              <span className="font-mono">{c.contratos}</span> contratos en{" "}
-              <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold hover:underline">{c.zona}</Link>
+          <li key={c.codigo} className="flex items-start gap-3 px-4 py-3">
+            <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="text-ink">
+                <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
+                <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"} en{" "}
+                <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold text-granate underline-offset-2 hover:underline">{c.zona}</Link>
+              </p>
+              {mensaje && <p className="mt-0.5 text-[13px] italic text-inkSoft">“{mensaje}”</p>}
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-mute">
+                <span>{relativo(c.pagadaAt)}</span>
+                <Link href={`/impacto/${c.codigo}`} className="font-mono underline-offset-2 hover:text-ink hover:underline">
+                  {c.codigo}
+                </Link>
+              </p>
             </div>
-            {mensaje && <div className="mt-0.5 text-[13px] italic text-mute">“{mensaje}”</div>}
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[11px] text-mute">
-              <span>{timeAgo(c.pagadaAt)}</span>
-              <Link href={`/impacto/${c.codigo}`} className="font-mono hover:underline">{c.codigo}</Link>
-            </div>
-          </div>
-        </li>
+          </li>
         );
       })}
     </ul>

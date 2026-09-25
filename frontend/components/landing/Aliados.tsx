@@ -5,6 +5,8 @@ import { IdentidadAliado, Insignias, insigniasDe, mesesDesde } from "@/component
 import { SelloMaqueta } from "@/components/aliados/AvisoMaqueta";
 import { esSlugMaqueta, maquetaActiva, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 import { getEstadoGlobal, getRankingPaginado, type RankingRow } from "@/lib/financiamiento";
+import { numero } from "@/lib/formato";
+import { EstadoError } from "@/components/patrones";
 import { EscenaAliados } from "./EscenaAliados";
 import { CalculadoraAporte, type ParteTarifa } from "./CalculadoraAporte";
 
@@ -24,12 +26,13 @@ import { CalculadoraAporte, type ParteTarifa } from "./CalculadoraAporte";
  *    el podio para poder mirarlo, con su sello a la vista.
  *  - Con un solo aliado no hay podio que dibujar: el segundo lugar es una
  *    invitación, no una losa vacía que finja que hay alguien.
+ *
+ * Las placas de papel (el foco, la calculadora) llevan su propio foco granate:
+ * dentro de `.sobre-oscuro` el anillo es maíz, que sobre blanco no se ve.
  */
 
 /** Cuántos aliados caben en la portada: el foco, dos en el podio y el muro. */
 const TOPE = 12;
-
-const num = (n: number) => n.toLocaleString("es-PE");
 
 /** "S/1 procesamiento · S/1 infraestructura y datos · …" → partes con monto. */
 function partesDeTarifa(nota: string | null | undefined): ParteTarifa[] {
@@ -60,28 +63,38 @@ export async function Aliados() {
   const partes = partesDeTarifa(estado?.tarifa.nota);
 
   return (
-    <section id="aliados" data-tema="oscuro" aria-labelledby="aliados-titulo" className="relative scroll-mt-16 overflow-hidden bg-ink text-paper">
+    <section
+      id="aliados"
+      data-tema="oscuro"
+      aria-labelledby="aliados-titulo"
+      className="sobre-oscuro relative scroll-mt-16 overflow-hidden bg-ink text-paper"
+    >
       <EscenaAliados>
-        <div className="container-page relative max-w-[1400px] py-20 sm:py-24">
+        <div className="container-page relative py-20 sm:py-24">
           <div className="max-w-3xl">
-            <h2 id="aliados-titulo" className="text-balance font-serif text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+            <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
               Cada contrato que Vigía lee, lo financia alguien.
             </h2>
-            <p className="mt-5 max-w-[60ch] text-lg leading-relaxed text-paper/75">
+            <p className="mt-5 max-w-[60ch] text-pretty text-lg leading-relaxed text-paper/75">
               Personas, colectivos y empresas pagan la lectura. No eligen qué contratos se leen ni pueden cambiar
               lo que se encuentra. A cambio, su nombre queda acá, contado en contratos y nunca en soles.
             </p>
           </div>
 
           {/* ── El foco ── */}
+          {/* Sin ranking hay dos casos distintos: el registro no respondió (una
+              falla, con su EstadoError sobre papel) o todavía nadie financió
+              (una invitación, no un error). */}
           {foco ? (
             <Foco row={foco} regionesConCola={estado?.regionesConCola ?? 0} />
-          ) : (
-            <p className="mt-12 rounded-3xl border border-dashed border-paper/25 px-6 py-8 text-paper/75">
-              No se pudo leer el registro de aportes ahora mismo. Es una falla de esta página, no un muro vacío:
-              los aportes siguen registrados.
-            </p>
-          )}
+          ) : rankingRaw == null ? (
+            <div className="mt-12 rounded-2xl bg-paper [&_:focus-visible]:outline-granate">
+              <EstadoError titulo="No pudimos leer el registro de aportes">
+                Es una falla de esta página, no un muro vacío: los aportes siguen registrados. Vuelve a intentarlo en
+                unos minutos.
+              </EstadoError>
+            </div>
+          ) : null}
 
           {/* ── El podio y el muro ── */}
           <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -98,7 +111,10 @@ export async function Aliados() {
                   <EnlaceAliado row={r} className="flex items-center gap-2.5 rounded-full border border-paper/15 bg-paper/[0.05] py-1.5 pl-1.5 pr-4 text-[14px] transition-colors duration-rapido hover:bg-paper/10">
                     <AvatarAliado tipo={r.tipo} logoUrl={r.logoUrl} nombre={r.nombre} maqueta={esSlugMaqueta(r.slug)} />
                     <span className="font-medium">{r.nombre}</span>
-                    <span className="font-mono text-paper/70">{num(r.contratosFinanciados)}</span>
+                    <span className="font-mono text-paper/75">
+                      {numero(r.contratosFinanciados)}
+                      <span className="sr-only"> contratos financiados</span>
+                    </span>
                   </EnlaceAliado>
                 </li>
               ))}
@@ -117,8 +133,8 @@ export async function Aliados() {
             )}
 
             <div>
-              <h3 className="flex items-start gap-2.5 font-serif text-2xl font-bold">
-                <ShieldCheck size={20} className="mt-1.5 shrink-0 text-heroGreen" aria-hidden />
+              <h3 className="flex items-start gap-2.5 font-display text-2xl font-bold">
+                <ShieldCheck size={20} className="mt-1.5 shrink-0 text-maiz" aria-hidden />
                 Financias la lectura, no el resultado.
               </h3>
               <ul className="mt-5 divide-y divide-paper/10 border-y border-paper/10">
@@ -134,7 +150,7 @@ export async function Aliados() {
               </ul>
               <Link
                 href="/app/financiar#independencia"
-                className="mt-4 inline-flex items-center gap-1.5 text-[14px] font-semibold text-heroGreen-soft underline-offset-4 hover:underline"
+                className="mt-4 inline-flex min-h-[32px] items-center gap-1.5 text-[14px] font-semibold text-maiz underline-offset-4 hover:underline"
               >
                 Todas las reglas de independencia <ArrowUpRight size={14} aria-hidden />
               </Link>
@@ -166,30 +182,26 @@ function Foco({ row, regionesConCola }: { row: RankingRow; regionesConCola: numb
 
   return (
     <div className="foco relative mt-14">
-      {/* La luz que se enciende detrás de la placa. Es sólo luz, no contenido:
-          va por detrás y no toca el texto de arriba. */}
-      <div
-        aria-hidden
-        className="foco-luz pointer-events-none absolute -inset-x-10 -inset-y-16 rounded-[4rem]"
-        style={{
-          background:
-            "radial-gradient(ellipse 55% 60% at 30% 40%, rgba(79,61,150,0.55), transparent 70%), radial-gradient(ellipse 45% 55% at 80% 70%, rgba(47,168,76,0.22), transparent 70%)",
-          filter: "blur(24px)",
-        }}
-      />
+      {/* La luz que se enciende detrás de la placa: el granate de la marca y un
+          poco de maíz, como un foco de escenario. Es sólo luz, no contenido: va
+          por detrás y no toca el texto de arriba. */}
+      <div aria-hidden className="foco-luz pointer-events-none absolute -inset-x-10 -inset-y-16">
+        <span className="absolute left-[8%] top-[10%] h-3/4 w-1/2 rounded-full bg-granate/50 blur-3xl" />
+        <span className="absolute bottom-[5%] right-[5%] h-1/2 w-2/5 rounded-full bg-maiz/15 blur-3xl" />
+      </div>
 
-      <article className="relative rounded-[2rem] bg-paper p-6 text-ink shadow-dialog sm:p-10">
+      <article className="relative rounded-2xl bg-paper p-6 text-ink shadow-dialog sm:p-10 [&_:focus-visible]:outline-granate">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
           <div className="foco-logo relative shrink-0 self-start">
-            <span aria-hidden className="absolute -inset-3 rounded-[1.75rem] bg-heroGreen/15 blur-md" />
+            <span aria-hidden className="absolute -inset-3 rounded-2xl bg-granate-50" />
             <EnlaceAliado row={row} tabIndex={-1} ariaHidden className="relative block">
               <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="xl" maqueta={maqueta} />
             </EnlaceAliado>
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-heroGreenTexto">Quien más contratos financió</p>
-            <h3 className="foco-nombre mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-serif text-4xl font-bold leading-tight sm:text-5xl">
-              <EnlaceAliado row={row} className="rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50">
+            <p className="text-[13px] font-semibold text-granate">Quien más contratos financió</p>
+            <h3 className="foco-nombre mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-4xl font-bold leading-tight sm:text-5xl">
+              <EnlaceAliado row={row} className="rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate">
                 {row.nombre}
               </EnlaceAliado>
               {maqueta && <SelloMaqueta className="shrink-0" />}
@@ -201,16 +213,17 @@ function Foco({ row, regionesConCola }: { row: RankingRow; regionesConCola: numb
 
         {/* Lo que el aporte hizo posible, en cadena: cada eslabón sale del
             anterior. Una línea con cuatro nodos que se dibuja con el scroll; las
-            cifras cuentan hasta su valor cuando llega la línea. */}
+            cifras cuentan hasta su valor cuando llega la línea. Sobre el papel
+            la línea es granate: el maíz no llega a 3:1 contra el blanco. */}
         <div className="cadena relative mt-10 border-t border-line pt-9">
           <span aria-hidden className="absolute left-0 right-0 top-[2.55rem] hidden h-0.5 rounded-full bg-paperDeep sm:block" />
-          <span aria-hidden className="cadena-linea absolute left-0 right-0 top-[2.55rem] hidden h-0.5 origin-left rounded-full bg-heroGreen sm:block" />
+          <span aria-hidden className="cadena-linea absolute left-0 right-0 top-[2.55rem] hidden h-0.5 origin-left rounded-full bg-granate sm:block" />
           <ol className="relative grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
             {cadena.map((c) => (
               <li key={c.t}>
-                <span aria-hidden className="cadena-nodo block h-3.5 w-3.5 rounded-full border-[3px] border-paper bg-heroGreen shadow-[0_0_0_1px_rgba(47,168,76,0.4)]" />
-                <span className="cadena-cifra mt-4 block font-mono text-4xl font-bold leading-none text-ink sm:text-5xl" data-valor={c.v}>
-                  {num(c.v)}
+                <span aria-hidden className="cadena-nodo block h-3.5 w-3.5 rounded-full border-[3px] border-paper bg-granate ring-1 ring-granate/30" />
+                <span className="cadena-cifra mt-4 block font-display text-4xl font-extrabold leading-none tabular-nums text-ink sm:text-5xl" data-valor={c.v}>
+                  {numero(c.v)}
                 </span>
                 <span className="mt-2 block text-[14px] leading-snug text-inkSoft">{c.t}</span>
               </li>
@@ -226,13 +239,13 @@ function Foco({ row, regionesConCola }: { row: RankingRow; regionesConCola: numb
 function Placa({ row, puesto }: { row: RankingRow; puesto: number }) {
   const maqueta = esSlugMaqueta(row.slug);
   return (
-    <article className="placa flex items-center gap-4 rounded-3xl border border-paper/15 bg-paper/[0.06] p-5">
+    <article className="placa flex items-center gap-4 rounded-2xl border border-paper/15 bg-paper/[0.06] p-5">
       <EnlaceAliado row={row} tabIndex={-1} ariaHidden className="shrink-0">
         <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={maqueta} />
       </EnlaceAliado>
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] text-paper/70">{puesto === 2 ? "Segundo lugar" : "Tercer lugar"}</p>
-        <h3 className="flex flex-wrap items-center gap-2 font-serif text-xl font-bold leading-tight sm:text-2xl">
+        <p className="text-[12px] text-paper/75">{puesto === 2 ? "Segundo lugar" : "Tercer lugar"}</p>
+        <h3 className="flex flex-wrap items-center gap-2 font-display text-xl font-bold leading-tight sm:text-2xl">
           <EnlaceAliado row={row} className="rounded hover:underline">
             {row.nombre}
           </EnlaceAliado>
@@ -241,8 +254,8 @@ function Placa({ row, puesto }: { row: RankingRow; puesto: number }) {
         <IdentidadAliado datos={datosIdentidad(row)} tam="sm" tono="oscuro" className="mt-1" />
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono text-3xl font-bold leading-none">{num(row.contratosFinanciados)}</div>
-        <div className="mt-1 text-[12px] text-paper/70">contratos</div>
+        <div className="font-display text-3xl font-extrabold leading-none tabular-nums text-maiz">{numero(row.contratosFinanciados)}</div>
+        <div className="mt-1 text-[12px] text-paper/75">{row.contratosFinanciados === 1 ? "contrato financiado" : "contratos financiados"}</div>
       </div>
     </article>
   );
@@ -255,9 +268,9 @@ function Placa({ row, puesto }: { row: RankingRow; puesto: number }) {
  */
 function LugarLibre({ anchoCompleto }: { anchoCompleto: boolean }) {
   return (
-    <div className={`placa flex items-center gap-4 rounded-3xl border border-dashed border-paper/30 p-5 ${anchoCompleto ? "md:col-span-2" : ""}`}>
+    <div className={`placa flex items-center gap-4 rounded-2xl border border-dashed border-paper/30 p-5 ${anchoCompleto ? "md:col-span-2" : ""}`}>
       <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-dashed border-paper/30">
-        <Heart size={20} className="text-heroGreen" aria-hidden />
+        <Heart size={20} className="text-maiz" aria-hidden />
       </span>
       <p className="text-[15px] leading-relaxed text-paper/80">
         El próximo nombre en este muro puede ser el tuyo, el de tu colectivo o el de tu empresa.
@@ -270,7 +283,7 @@ function Regla({ t, children }: { t: string; children: React.ReactNode }) {
   return (
     <li className="py-3.5">
       <span className="font-semibold text-paper">{t}</span>{" "}
-      <span className="text-paper/70">{children}</span>
+      <span className="text-paper/75">{children}</span>
     </li>
   );
 }

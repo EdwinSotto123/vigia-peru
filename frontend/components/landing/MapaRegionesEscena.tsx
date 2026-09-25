@@ -2,17 +2,20 @@
 
 import { useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
+import { numero, plural } from "@/lib/formato";
+import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
  * La escena del mapa: tres cosas que el país ya dice, y una pregunta.
  *
  *  1. El dinero llega a todas las regiones (el mapa, pintado por monto).
- *  2. Vigía ya leyó contratos en muchas de ellas (se apaga el monto, se
- *     encienden en verde las que tienen al menos un contrato leído, de norte a
- *     sur).
- *  3. En varias encontró señales (aparecen los círculos, a escala).
+ *  2. Vigía ya leyó contratos en muchas de ellas (se apaga el monto, quedan en
+ *     añil oscuro las que tienen al menos un contrato leído, de norte a sur).
+ *  3. En varias encontró señales (aparecen los círculos, a escala). El círculo
+ *     cuenta `conSenales` del API, que son los contratos con puntaje ≥ 40 y
+ *     alerta publicada: riesgo medio o alto. Por eso la leyenda dice eso y no
+ *     "con señales", que en DESIGN_SYSTEM.md §10.1 es otra cuenta.
  *  4. ¿Y en la tuya? El mapa pasa a ser un control: se elige una región y se
  *     leen sus números.
  *
@@ -21,7 +24,7 @@ import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
  * qué mirar.
  *
  * Sin movimiento (o en pantalla angosta) no hay pin: el mapa queda en su estado
- * final —leídas en verde, señales a la vista— y los cuatro textos se leen en
+ * final —leídas en añil, señales a la vista— y los cuatro textos se leen en
  * fila. El estado inicial de la animación lo pone GSAP, nunca el CSS: con JS
  * roto, la sección está completa.
  *
@@ -34,7 +37,8 @@ import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
 export interface CifrasZona {
   nombre: string;
   contratos: number;
-  montoMillones: string;
+  /** Ya formateado con `solesCompacto` en el servidor. */
+  monto: string;
   leidos: number;
   conSenales: number;
   enCola: number;
@@ -53,15 +57,13 @@ export interface RegionMapa extends CifrasZona {
 
 interface Resumen {
   totalRegiones: number;
-  mayor: { nombre: string; millones: string } | null;
-  menor: { nombre: string; millones: string } | null;
+  mayor: { nombre: string; monto: string } | null;
+  menor: { nombre: string; monto: string } | null;
   conLectura: number;
   leidosTotal: number;
   conSenal: number;
   masSenales: { nombre: string; n: number }[];
 }
-
-const n = (v: number) => v.toLocaleString("es-PE");
 
 /** "Cusco tiene 7, Lima 6 y Puno 5". */
 function enumerar(xs: { nombre: string; n: number }[]): string {
@@ -79,8 +81,8 @@ export function MapaRegionesEscena({
   pais,
   resumen,
   coloresMonto,
-  verdeLeido,
-  grisSinLeer,
+  colorLeido,
+  colorSinLeer,
 }: {
   ancho: number;
   alto: number;
@@ -88,8 +90,8 @@ export function MapaRegionesEscena({
   pais: CifrasZona;
   resumen: Resumen;
   coloresMonto: string[];
-  verdeLeido: string;
-  grisSinLeer: string;
+  colorLeido: string;
+  colorSinLeer: string;
 }) {
   const raiz = useRef<HTMLElement>(null);
   const idSelector = useId();
@@ -150,8 +152,8 @@ export function MapaRegionesEscena({
 
   return (
     <section ref={raiz} id="regiones" aria-labelledby="regiones-titulo" className="relative scroll-mt-16 bg-paper">
-      <div className="mapa-escena container-page max-w-[1400px] py-16 lg:flex lg:min-h-[calc(100dvh-4rem)] lg:flex-col lg:justify-center lg:py-8">
-        <h2 id="regiones-titulo" className="max-w-[24ch] font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">
+      <div className="mapa-escena container-page py-16 lg:flex lg:min-h-[calc(100dvh-4rem)] lg:flex-col lg:justify-center lg:py-8">
+        <h2 id="regiones-titulo" className="max-w-[24ch] font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
           Del país entero a tu región.
         </h2>
 
@@ -160,7 +162,7 @@ export function MapaRegionesEscena({
           {/* `group`: lo que sólo tiene sentido mientras el mapa está pintado por
               monto (la frase del color y su leyenda) se muestra con
               `group-[.apilado]:`. Sin animación el mapa queda en su estado final
-              —leídas en verde— y hablar de "más oscuro" no describiría nada. */}
+              —leídas en añil— y hablar de "más oscuro" no describiría nada. */}
           <div className="pasos-mapa group flex flex-col gap-12 [&.apilado>*]:col-start-1 [&.apilado>*]:row-start-1 [&.apilado]:grid [&.apilado]:content-center">
             <Paso
               titulo={`El dinero público se reparte en las ${resumen.totalRegiones} regiones.`}
@@ -168,7 +170,7 @@ export function MapaRegionesEscena({
                 <>
                   <span className="hidden group-[.apilado]:inline">Cuanto más oscuro, más plata en contratos. </span>
                   {resumen.mayor && resumen.menor
-                    ? `${resumen.mayor.nombre} suma S/ ${resumen.mayor.millones} millones; ${resumen.menor.nombre}, S/ ${resumen.menor.millones} millones.`
+                    ? `${resumen.mayor.nombre} suma ${resumen.mayor.monto}; ${resumen.menor.nombre}, ${resumen.menor.monto}.`
                     : null}
                 </>
               }
@@ -186,15 +188,15 @@ export function MapaRegionesEscena({
 
             <Paso
               titulo={`Vigía ya leyó contratos en ${resumen.conLectura} de ellas.`}
-              texto={`Son ${n(resumen.leidosTotal)} contratos leídos a fondo, uno por uno. En verde, las regiones donde ya hay al menos uno.`}
+              texto={`Son ${plural(resumen.leidosTotal, "contrato leído", "contratos leídos")}, uno por uno. En azul oscuro, las regiones donde ya hay al menos uno.`}
             >
-              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-mute">
+              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-inkSoft">
                 <li className="flex items-center gap-2">
-                  <span aria-hidden className="h-3 w-3 rounded-sm ring-1 ring-heroGreen/40" style={{ background: verdeLeido }} />
+                  <span aria-hidden className="h-3 w-3 rounded-sm" style={{ background: colorLeido }} />
                   con contratos leídos
                 </li>
                 <li className="flex items-center gap-2">
-                  <span aria-hidden className="h-3 w-3 rounded-sm ring-1 ring-line" style={{ background: grisSinLeer }} />
+                  <span aria-hidden className="h-3 w-3 rounded-sm ring-1 ring-paperEdge" style={{ background: colorSinLeer }} />
                   todavía ninguno
                 </li>
               </ul>
@@ -204,18 +206,18 @@ export function MapaRegionesEscena({
               titulo={`En ${resumen.conSenal} encontró señales que merecen una segunda mirada.`}
               texto={
                 resumen.masSenales.length > 0
-                  ? `Contratos con señales, por región: ${enumerar(resumen.masSenales)}. Cuanto más grande el círculo, más contratos con señales.`
-                  : "Cuanto más grande el círculo, más contratos con señales."
+                  ? `Contratos con riesgo medio o alto, por región: ${enumerar(resumen.masSenales)}. Cuanto más grande el círculo, más contratos así.`
+                  : "Cuanto más grande el círculo, más contratos con riesgo medio o alto."
               }
             >
-              <p className="flex items-center gap-2 text-[13px] text-mute">
-                <span aria-hidden className="h-3 w-3 rounded-full bg-crimson ring-2 ring-paper" />
-                contratos con al menos una señal
+              <p className="flex items-center gap-2 text-[13px] text-inkSoft">
+                <span aria-hidden className="h-3 w-3 rounded-full bg-rust ring-2 ring-paper" />
+                contratos con riesgo medio o alto
               </p>
             </Paso>
 
             <div className="paso-mapa">
-              <h3 className="font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">¿Y en tu región?</h3>
+              <h3 className="text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">¿Y en tu región?</h3>
               <p className="mt-3 max-w-[44ch] text-base leading-relaxed text-inkSoft">
                 Elige una para ver cuánto se contrata, cuánto se leyó y cuánto espera todavía.
               </p>
@@ -227,7 +229,7 @@ export function MapaRegionesEscena({
                 id={idSelector}
                 value={elegida ?? ""}
                 onChange={(e) => setElegida(e.target.value || null)}
-                className="mt-1.5 w-full max-w-xs rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[15px] text-ink shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+                className="mt-1.5 min-h-[44px] w-full max-w-xs rounded-xl border border-line bg-paperDeep px-3.5 py-2.5 text-[15px] text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-granate"
               >
                 <option value="">Todo el Perú</option>
                 {[...regiones]
@@ -241,35 +243,29 @@ export function MapaRegionesEscena({
 
               <div aria-live="polite" className="mt-4">
                 <div className="max-w-md rounded-2xl border border-line bg-paperSoft p-4 text-[13px]">
-                  <p className="font-serif text-lg font-bold text-ink">{ficha.nombre}</p>
+                  <p className="font-display text-lg font-bold text-ink">{ficha.nombre}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
-                    <Cifra t="Contratos publicados" v={n(ficha.contratos)} />
-                    <Cifra t="Monto" v={`S/ ${ficha.montoMillones} millones`} />
-                    <Cifra t="Leídos a fondo" v={n(ficha.leidos)} />
-                    <Cifra t="Con señales" v={n(ficha.conSenales)} fuerte={ficha.conSenales > 0} />
+                    <Cifra t="Contratos publicados" v={numero(ficha.contratos)} />
+                    <Cifra t="Monto contratado" v={ficha.monto} />
+                    <Cifra t="Leídos" v={`${numero(ficha.leidos)} de ${numero(ficha.contratos)}`} />
+                    <Cifra t="Riesgo medio o alto" v={numero(ficha.conSenales)} fuerte={ficha.conSenales > 0} />
                   </dl>
                   <p className="mt-3 border-t border-line pt-3 text-inkSoft">
-                    <span className="font-mono font-semibold text-ink">{n(ficha.enCola)}</span>{" "}
-                    {ficha.enCola === 1 ? "contrato ya puede leerse" : "contratos ya pueden leerse"} si alguien
-                    financia su lectura.
+                    <span className="font-mono font-semibold text-ink">{numero(ficha.enCola)}</span> en cola:{" "}
+                    {ficha.enCola === 1 ? "espera" : "esperan"} que alguien financie su lectura.
                   </p>
+                  <p className="mt-2 text-[12px] text-mute">Fuente: convocatorias del SEACE en la base de Vigía.</p>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Link
-                  href={hrefRegion}
-                  className="group inline-flex items-center gap-2 rounded-full bg-heroViolet px-6 py-3.5 text-[15px] font-semibold text-paper shadow-card transition-transform duration-rapido hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Ver mi región
-                  <ArrowRight size={16} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
-                </Link>
+                <EnlaceAccion href={hrefRegion}>{region ? `Ver ${region.nombre}` : "Ver mi región"}</EnlaceAccion>
                 {region && region.enCola > 0 && (
                   <Link
                     href={`/app/financiar/${region.codigo}`}
-                    className="inline-flex items-center rounded-full px-4 py-3.5 text-[15px] font-semibold text-heroViolet underline-offset-4 hover:underline"
+                    className="inline-flex min-h-[48px] items-center rounded-full px-4 py-3 text-[15px] font-semibold text-granate underline-offset-4 hover:underline"
                   >
-                    Financiar una auditoría
+                    Financiar la lectura de {region.nombre}
                   </Link>
                 )}
               </div>
@@ -294,12 +290,11 @@ export function MapaRegionesEscena({
                 {regiones.map((r) => (
                   <path
                     key={r.codigo}
-                    className="zona cursor-pointer"
+                    className="zona cursor-pointer stroke-paper"
                     d={r.d}
                     data-monto={r.colorMonto}
                     data-leido={r.colorLeido}
                     fill={r.colorLeido}
-                    stroke="#FFFFFF"
                     strokeWidth={0.9}
                     strokeLinejoin="round"
                     onMouseEnter={() => setEncima(r.codigo)}
@@ -307,18 +302,18 @@ export function MapaRegionesEscena({
                   />
                 ))}
               </g>
-              {region && (
-                <path d={region.d} fill="#4F3D96" stroke="#FFFFFF" strokeWidth={1.4} pointerEvents="none" />
-              )}
+              {/* La región elegida, en granate: es "la tuya", la marca, no un riesgo. */}
+              {region && <path d={region.d} className="fill-granate stroke-paper" strokeWidth={1.4} pointerEvents="none" />}
               {resaltada && resaltada !== region && (
-                <path d={resaltada.d} fill="none" stroke="#14171A" strokeWidth={1.8} pointerEvents="none" />
+                <path d={resaltada.d} className="fill-none stroke-ink" strokeWidth={1.8} pointerEvents="none" />
               )}
               <g pointerEvents="none">
                 {regiones
                   .filter((r) => r.conSenales > 0)
                   .map((r) => (
                     <g key={r.codigo} className="senal">
-                      <circle cx={r.cx} cy={r.cy} r={radio(r.conSenales)} fill="#CF3A2C" fillOpacity={0.92} stroke="#FFFFFF" strokeWidth={1.6} />
+                      {/* rust y no crimson: el número blanco adentro llega a 7.3:1 (en crimson, 4.0). */}
+                      <circle cx={r.cx} cy={r.cy} r={radio(r.conSenales)} className="fill-rust stroke-paper" strokeWidth={1.6} />
                       <text
                         x={r.cx}
                         y={r.cy}
@@ -335,9 +330,8 @@ export function MapaRegionesEscena({
             <figcaption className="mt-2 min-h-[1.5rem] text-center text-[13px] text-inkSoft">
               {resaltada ? (
                 <>
-                  <span className="font-semibold text-ink">{resaltada.nombre}</span>: S/ {resaltada.montoMillones} millones
-                  en {n(resaltada.contratos)} contratos, {n(resaltada.leidos)}{" "}
-                  {resaltada.leidos === 1 ? "leído" : "leídos"}.
+                  <span className="font-semibold text-ink">{resaltada.nombre}</span>: {resaltada.monto} en{" "}
+                  {plural(resaltada.contratos, "contrato", "contratos")}, {plural(resaltada.leidos, "leído", "leídos")}.
                 </>
               ) : (
                 <span className="text-mute">Pasa el cursor o toca una región.</span>
@@ -353,7 +347,7 @@ export function MapaRegionesEscena({
 function Paso({ titulo, texto, children }: { titulo: string; texto: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="paso-mapa">
-      <h3 className="max-w-[20ch] text-balance font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
+      <h3 className="max-w-[22ch] text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
         {titulo}
       </h3>
       <p className="mt-3 max-w-[46ch] text-base leading-relaxed text-inkSoft">{texto}</p>
@@ -366,7 +360,7 @@ function Cifra({ t, v, fuerte = false }: { t: string; v: string; fuerte?: boolea
   return (
     <div>
       <dt className="text-mute">{t}</dt>
-      <dd className={`mt-0.5 font-mono text-[15px] font-semibold ${fuerte ? "text-crimsonTexto" : "text-ink"}`}>{v}</dd>
+      <dd className={`mt-0.5 font-mono text-[15px] font-semibold ${fuerte ? "text-rust" : "text-ink"}`}>{v}</dd>
     </div>
   );
 }

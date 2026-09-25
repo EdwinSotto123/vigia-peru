@@ -38,14 +38,14 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
     <div className="min-w-0">
       {porCarril(pasos).map((c) => (
         <section key={c.key} className="mt-3 first:mt-0">
-          <h4 className="border-b border-line pb-1 text-[11px] font-semibold text-inkSoft">
+          <p className="border-b border-line pb-1 text-[11px] font-semibold text-inkSoft">
             Carril {c.label}
             <span className="ml-1.5 font-normal text-mute">
               {c.pasos.length} {c.pasos.length === 1 ? "paso" : "pasos"}
               {c.pasos.length > 1 && c.pasos[0].paso !== c.pasos[c.pasos.length - 1].paso ? ", en orden" : ""}
             </span>
-          </h4>
-          <ul className="divide-y divide-line/60">
+          </p>
+          <ul className="divide-y divide-line/60" aria-label={`Carril ${c.label}`}>
             {c.pasos.map((p) => {
               const senales = senalesPorAgente?.[p.clave];
               const n = senales?.length ?? 0;
@@ -59,13 +59,13 @@ export function CarrilesAgentes({ pasos = PASOS, senalesPorAgente, totalSenales,
                     aria-pressed={seleccionado}
                     className={cn(
                       "flex w-full items-start gap-2 px-1 py-1.5 text-left transition-colors duration-rapido",
-                      "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
-                      seleccionado && "bg-heroViolet-soft hover:bg-heroViolet-soft",
+                      "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
+                      seleccionado && "bg-granate-soft hover:bg-granate-soft",
                     )}
                   >
                     <span className="w-[6.5rem] shrink-0 sm:w-40">
                       <span className={cn("block text-[12.5px] leading-tight text-ink sm:truncate", seleccionado && "font-semibold")}>{p.nombre}</span>
-                      {p.tipo === "paso" && <span className="block text-[10px] text-mute">no es un agente</span>}
+                      {p.tipo === "paso" && <span className="block text-[11px] text-mute">no es un agente</span>}
                     </span>
                     <span className="min-w-0 flex-1 text-[12px] leading-snug text-mute">
                       {p.que}

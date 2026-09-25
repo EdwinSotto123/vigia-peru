@@ -32,10 +32,13 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
 
   // Categorizar cada key como titular / socio / firmante / comité
   const categoryFor = (key: string): { rol: string; color: string } => {
-    if (key === ganadorRazon || key === ganadorDni) return { rol: "Titular del proveedor", color: "bg-crimson-soft text-crimsonTexto" };
-    if (firmantes.some((f) => (f.nombre_completo === key) || (f.dni === key))) return { rol: "Firmante del acta", color: "bg-amber-soft text-amberTexto" };
-    if (comite.some((m) => (m.nombre_completo === key) || (m.nombre === key) || (m.dni === key))) return { rol: "Comité de selección", color: "bg-heroViolet/15 text-heroViolet" };
-    return { rol: "Socio o vínculo del proveedor", color: "bg-moss/15 text-mossTexto" };
+    // El rol es un dato, no una severidad: tinta neutra para todos (antes el titular iba en el
+    // rojo de error y el comité en granate, el color de la marca).
+    const color = "bg-paperDeep text-inkSoft";
+    if (key === ganadorRazon || key === ganadorDni) return { rol: "Titular del proveedor", color };
+    if (firmantes.some((f) => (f.nombre_completo === key) || (f.dni === key))) return { rol: "Firmante del acta", color };
+    if (comite.some((m) => (m.nombre_completo === key) || (m.nombre === key) || (m.dni === key))) return { rol: "Comité de selección", color };
+    return { rol: "Socio o vínculo del proveedor", color };
   };
 
   // Solo mostrar personas con AL MENOS un hallazgo
@@ -53,7 +56,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
   if (personasConHallazgo.length === 0) {
     return (
       <div className="border-t border-line bg-paperSoft px-5 py-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+        <h3 className="text-[12px] font-semibold text-inkSoft">
           Vinculaciones por persona
         </h3>
         <p className="mt-1 text-[11px] italic text-mute">
@@ -67,10 +70,10 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
 
   return (
     <div className="border-t border-line bg-paperSoft px-5 py-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+      <h3 className="text-[12px] font-semibold text-ink">
         Vinculaciones por persona
       </h3>
-      <p className="mt-0.5 text-[10px] italic text-mute">
+      <p className="mt-0.5 text-[11px] italic text-mute">
         {personasConHallazgo.length} con hallazgos de {consultas} consulta{consultas === 1 ? "" : "s"} por nombre o DNI.
         Cruces de ONPE, JNE, PEPs y visitas para titular, socios, firmantes del acta y comité de selección.
       </p>
@@ -84,7 +87,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
           return (
             <li key={i} className="rounded-md border border-line bg-paper px-3 py-2">
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest", cat.color)}>
+                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", cat.color)}>
                   {cat.rol}
                 </span>
                 <strong className="text-[12px] text-ink">
@@ -94,7 +97,7 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
               <div className="mt-1 grid gap-1 sm:grid-cols-2">
                 {onpe.n_aportes > 0 && (
                   <div className="text-[11px]">
-                    <span className="font-bold text-crimsonTexto">ONPE:</span>{" "}
+                    <span className="font-semibold text-ink">ONPE:</span>{" "}
                     {onpe.n_aportes} aporte{onpe.n_aportes !== 1 ? "s" : ""} a partido
                     {onpe.aportes?.[0]?.partido && <span className="text-inkSoft"> ({onpe.aportes[0].partido}{onpe.aportes[0].año ? `, ${onpe.aportes[0].año}` : ""})</span>}
                   </div>
@@ -110,13 +113,13 @@ export function PersonaVinculacionesPanel({ ctx }: { ctx: any }) {
                 )}
                 {pep.found && (
                   <div className="text-[11px]">
-                    <span className="font-bold text-heroViolet">PEP:</span>{" "}
+                    <span className="font-semibold text-ink">PEP:</span>{" "}
                     Persona expuesta políticamente activa
                   </div>
                 )}
                 {visitas.n_visitas > 0 && (
                   <div className="text-[11px]">
-                    <span className="font-bold text-mossTexto">Visitas (Ley 28024):</span>{" "}
+                    <span className="font-semibold text-ink">Visitas (Ley 28024):</span>{" "}
                     {visitas.n_visitas} a entidades públicas
                   </div>
                 )}

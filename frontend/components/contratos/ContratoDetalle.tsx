@@ -1,17 +1,22 @@
 /**
- * Detalle de un contrato: cabecera, clasificación, ítems, documentos oficiales y el
- * estado de su análisis (dictamen, en vivo, financiar capacidad o pendiente).
- * Server component; solo `ContratoEnVivo`, `Redact` y `TextoRedactado` son islas de cliente.
+ * Detalle de un contrato (DESIGN_SYSTEM.md §14, "Detalle"): primero su identidad (qué, quién
+ * compra, quién ganó, cuánto y cuándo), después el estado de su lectura (resultado, en vivo,
+ * financiar o pendiente) y, debajo, la evidencia oficial: ítems, ofertas, precios, dónde dice
+ * cada señal en el expediente y los documentos.
+ *
+ * Server component; sólo `ContratoEnVivo`, `Redact` y `TextoRedactado` son islas de cliente.
+ * Montos con `soles` (tablas: completos, sin compactar) y fechas con `fecha`/`fechaCorta`, de
+ * lib/formato: un solo formato por columna.
  */
 
 import Link from "next/link";
-import {
-  ArrowLeft, Building2, ChevronDown, Clock, Heart, MapPin, ShieldAlert,
-} from "lucide-react";
+import type { ReactNode } from "react";
+import { ArrowLeft, Building2, ChevronDown, Clock, MapPin, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { PersonName, Ruc } from "@/components/Redact";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
+import { FuenteDato } from "@/components/patrones";
 import { EstadoContratoPill } from "./ContratosLista";
 import { DocumentosContrato } from "./DocumentosContrato";
 import { CitaPagina } from "./CitaPagina";
@@ -19,8 +24,9 @@ import { TextoRedactado } from "./TextoRedactado";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
+import { fecha, fechaCorta, numero, porcentaje, soles } from "@/lib/formato";
 import {
-  esPersonaNatural, etapaLabel, formatFecha, formatMonto, humanizarCodigo, motivoLabel, ordenNombrePostor,
+  esPersonaNatural, etapaLabel, humanizarCodigo, motivoLabel, ordenNombrePostor,
   personasNaturalesDe, tipoLabel, validacionLabel, type ContratoDetalle as Detalle, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -30,6 +36,18 @@ export interface AlcanceActivo {
   tipos_activos?: string[];
   etapas_activas?: string[];
   nota?: string;
+}
+
+/** Monto en tabla: soles completos (lib/formato). Si el registro trae otra moneda, se dice cuál. */
+function monto(n: number | null | undefined, moneda: string | null): string {
+  if (n == null) return "Sin dato";
+  return moneda && moneda !== "PEN" ? `${moneda} ${numero(n)}` : soles(n);
+}
+
+/** "+12.3 %" · "−4 %": diferencia con signo, en tinta neutra (un número no es una señal). */
+function diferencia(pct: number): string {
+  const signo = pct > 0 ? "+" : pct < 0 ? "−" : "";
+  return `${signo}${porcentaje(Math.abs(pct), { decimales: 1 })}`;
 }
 
 /**
@@ -57,179 +75,176 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
   const itemsAnalizados = (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
   const senalesConCita = (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
   const personas = personasNaturalesDe(c);
+  // En revisión humana se dice "En revisión" y nada más (DESIGN_SYSTEM.md §10.4): ni señales ni
+  // comparaciones de precio del análisis, que son los montos que la lectura cuestionaría.
+  const enRevision = c.alerta?.estado === "revision";
   // La columna "vs. referencia" solo existe si al menos un postor tiene contra qué compararse.
-  const hayReferencia = postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
+  const hayReferencia = !enRevision && postores.some((p) => p.montoOferta != null && referenciaDe(p, c) != null);
+  // Lo adjudicado es la suma de las adjudicaciones del registro; el referencial, lo presupuestado.
+  const adjudicado = (c.adjudicaciones ?? []).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
 
   return (
     <div className="space-y-6">
-      <Link href="/app/contratos" className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-ink">
-        <ArrowLeft size={13} /> Contratos
+      <Link href="/app/contratos" className="inline-flex min-h-[32px] items-center gap-1.5 text-sm text-mute hover:text-ink">
+        <ArrowLeft size={14} aria-hidden /> Contratos
       </Link>
 
-      {/* Cabecera */}
+      {/* 1. Identidad: qué se contrató y quién compra */}
       <header className="border-b border-line pb-5">
-        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-[11px] text-mute">
-          <span className="text-ink">{c.codigo}</span>
-          {c.nomenclatura && <span>{c.nomenclatura}</span>}
-          {c.ocid !== c.codigo && <span>{c.ocid}</span>}
-        </div>
-        <h1 className="mt-1.5 max-w-4xl font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl">{c.titulo ?? "(sin objeto)"}</h1>
+        <h1 className="max-w-4xl font-display text-[26px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[32px]">
+          {c.titulo ?? "Contrato sin objeto registrado"}
+        </h1>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
           {c.entidadRuc ? (
             <Link href={`/entidad/${c.entidadRuc}`} className="inline-flex items-center gap-1.5 text-ink hover:underline">
-              <Building2 size={14} className="text-mute" /> {c.entidad ?? c.entidadRuc}
+              <Building2 size={14} className="text-mute" aria-hidden /> {c.entidad ?? c.entidadRuc}
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-mute"><Building2 size={14} /> {c.entidad ?? "Entidad no identificada"}</span>
+            <span className="inline-flex items-center gap-1.5 text-mute"><Building2 size={14} aria-hidden /> {c.entidad ?? "Entidad no identificada"}</span>
           )}
           {c.zona && (
             <Link href={mapaHref} className="inline-flex items-center gap-1.5 text-ink hover:underline">
-              <MapPin size={14} className="text-mute" /> {c.zona}
+              <MapPin size={14} className="text-mute" aria-hidden /> {c.zona}
             </Link>
           )}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <Badge tone="ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</Badge>
-          <Badge>{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</Badge>
-          {c.modalidad && <Badge>{c.modalidad}</Badge>}
-          {c.alerta?.estado === "revision" ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}
+          <Etiqueta fuerte>{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</Etiqueta>
+          <Etiqueta>{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</Etiqueta>
+          {c.modalidad && <Etiqueta>{c.modalidad}</Etiqueta>}
+          {enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}
         </div>
+        <p className="mt-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-mute">
+          <span>Código SEACE <span className="font-mono text-inkSoft">{c.codigo}</span></span>
+          {c.nomenclatura && <span className="font-mono">{c.nomenclatura}</span>}
+          {c.ocid !== c.codigo && <span>OCID <span className="font-mono">{c.ocid}</span></span>}
+        </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          {/* Datos */}
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-line bg-paper p-4 text-sm shadow-card sm:grid-cols-4">
-            <Dato k="Valor referencial" v={formatMonto(c.montoPen, c.moneda)} mono />
-            <Dato k="Convocatoria" v={formatFecha(c.fecha)} mono />
-            <Dato k="Buena pro" v={formatFecha(c.fechaBuenaPro)} mono />
-            <Dato k="Postores" v={c.postores != null ? String(c.postores) : "—"} mono />
-            <div className="col-span-2 sm:col-span-4">
-              <dt className="text-[10px] uppercase tracking-wide text-mute">Proveedor adjudicado</dt>
-              <dd className="mt-0.5 text-ink">
-                {c.proveedor ? (
-                  <>
-                    {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
-                    {natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
-                    {c.proveedorRuc && (
-                      <span className="ml-2 font-mono text-[11px] text-mute">
-                        RUC <Ruc value={c.proveedorRuc} />
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-mute">Sin adjudicar todavía</span>
-                )}
-              </dd>
-            </div>
-            {c.descripcion && c.descripcion !== c.titulo && (
-              <div className="col-span-2 sm:col-span-4">
-                <dt className="text-[10px] uppercase tracking-wide text-mute">Descripción</dt>
-                <dd className="mt-0.5 text-[13px] leading-relaxed text-ink">{c.descripcion}</dd>
+        <div className="min-w-0 space-y-6">
+          {/* Quién ganó, cuánto y cuándo */}
+          <section aria-label="Ficha del contrato" className="rounded-2xl border border-line bg-paper">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 text-sm sm:grid-cols-4">
+              <Dato k="Valor referencial" v={c.montoPen ? monto(c.montoPen, c.moneda) : "Sin dato"} mono vacio={!c.montoPen} />
+              <Dato k="Monto adjudicado" v={adjudicado ? monto(adjudicado, c.moneda) : "Sin adjudicar"} mono vacio={!adjudicado} />
+              <Dato k="Convocatoria" v={c.fecha ? fecha(c.fecha) : "Sin fecha"} vacio={!c.fecha} />
+              <Dato k="Buena pro" v={c.fechaBuenaPro ? fecha(c.fechaBuenaPro) : "Sin fecha"} vacio={!c.fechaBuenaPro} />
+              <Dato k="Postores" v={c.postores != null ? numero(c.postores) : "Sin dato"} mono vacio={c.postores == null} />
+              <div className="col-span-2 sm:col-span-3">
+                <dt className="text-[12px] text-mute">Quién ganó</dt>
+                <dd className="mt-0.5 text-ink">
+                  {c.proveedor ? (
+                    <>
+                      {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
+                      <span className="font-semibold">{natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}</span>
+                      {c.proveedorRuc && (
+                        <span className="ml-2 font-mono text-[12px] text-mute">
+                          RUC <Ruc value={c.proveedorRuc} />
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-mute">Sin adjudicar todavía</span>
+                  )}
+                </dd>
               </div>
-            )}
-          </dl>
+              {c.descripcion && c.descripcion !== c.titulo && (
+                <div className="col-span-2 sm:col-span-4">
+                  <dt className="text-[12px] text-mute">Descripción</dt>
+                  <dd className="mt-0.5 max-w-[68ch] text-[13px] leading-relaxed text-ink">{c.descripcion}</dd>
+                </div>
+              )}
+            </dl>
+            <FuenteDato fuente="registro OCDS del OECE (SEACE)" className="border-t border-line px-4 py-2" />
+          </section>
 
-          {/* Ítems — colapsable: procesos con muchos ítems (hasta 73 en casos reales) ya no
-              fuerzan todo ese scroll de entrada; con pocos (el caso típico) queda abierto igual
-              que antes, sin ningún cambio visible. */}
-          <details className="group" open={c.items.length <= 10}>
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-              Ítems ({c.items.length})
-              <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
-            </summary>
+          {/* Ítems — plegable: procesos con muchos ítems (hasta 73 en casos reales) no fuerzan
+              todo ese scroll de entrada; con pocos (el caso típico) queda abierto. */}
+          <Plegable titulo="Ítems" n={c.items.length} abierto={c.items.length <= 10}>
             {c.items.length ? (
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
-                <table className="w-full min-w-[560px] text-left text-xs">
-                  <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
-                    <tr>
-                      <th className="w-10 px-3 py-2 font-semibold">#</th>
-                      <th className="px-3 py-2 font-semibold">Descripción</th>
-                      <th className="w-28 px-3 py-2 text-right font-semibold">Cantidad</th>
-                      <th className="w-28 px-3 py-2 text-right font-semibold">Monto</th>
-                      <th className="w-28 px-3 py-2 font-semibold">Estado</th>
+              <Tabla minimo="min-w-[560px]" leyenda="Ítems del proceso según el registro OCDS">
+                <thead className="bg-paperSoft text-[12px] text-inkSoft">
+                  <tr>
+                    <th scope="col" className="w-10 px-3 py-2 font-semibold">#</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Descripción</th>
+                    <th scope="col" className="w-28 px-3 py-2 text-right font-semibold">Cantidad</th>
+                    <th scope="col" className="w-32 px-3 py-2 text-right font-semibold">Monto referencial</th>
+                    <th scope="col" className="w-28 px-3 py-2 font-semibold">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {c.items.map((it) => (
+                    <tr key={it.id} className="transition-colors hover:bg-paperSoft">
+                      <td className="px-3 py-2 font-mono text-mute">{it.posicion}</td>
+                      <td className="px-3 py-2 text-ink">
+                        {it.descripcion ?? <span className="text-mute">Sin descripción</span>}
+                        {it.cubso && <span className="ml-2 font-mono text-[11px] text-mute">CUBSO {it.cubso}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
+                        {it.cantidad != null ? numero(it.cantidad) : <span className="text-mute">Sin dato</span>}
+                        {it.unidad ? <span className="ml-1 text-[11px] text-mute">{it.unidad}</span> : null}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{it.montoPen ? monto(it.montoPen, c.moneda) : <span className="text-mute">Sin dato</span>}</td>
+                      <td className="px-3 py-2 text-mute">{humanizarCodigo(it.estado) ?? "Sin dato"}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {c.items.map((it) => (
-                      <tr key={it.id} className="transition-colors hover:bg-paperSoft">
-                        <td className="px-3 py-2 font-mono text-mute">{it.posicion}</td>
-                        <td className="px-3 py-2 text-ink">
-                          {it.descripcion ?? "—"}
-                          {it.cubso && <span className="ml-2 font-mono text-[10px] text-mute">CUBSO {it.cubso}</span>}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
-                          {it.cantidad != null ? it.cantidad.toLocaleString("es-PE") : "—"}{it.unidad ? <span className="ml-1 text-[10px] text-mute">{it.unidad}</span> : null}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{formatMonto(it.montoPen, c.moneda)}</td>
-                        <td className="px-3 py-2 text-mute">{humanizarCodigo(it.estado) ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             ) : (
-              <p className="mt-2 rounded-2xl border border-dashed border-line bg-paper px-4 py-6 text-center text-sm text-mute">El registro OCDS no trae ítems para este proceso.</p>
+              <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-6 text-center text-sm text-mute">El registro OCDS no trae ítems para este proceso.</p>
             )}
-          </details>
+          </Plegable>
 
-          {/* Postores y ofertas (leídos del expediente) — colapsable cuando hay muchos postores;
-              con pocos (el caso típico) queda abierto igual que antes. */}
+          {/* Postores y ofertas (leídos del expediente) */}
           {postores.length > 0 && (
-            <details className="group" open={postores.length <= 8}>
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-                Postores y ofertas ({postores.length})
-                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
-              </summary>
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
-                <table className="w-full min-w-[560px] text-left text-xs">
-                  <caption className="sr-only">Postores con su oferta económica, leídos de las actas del expediente</caption>
-                  <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
-                    <tr>
-                      <th className="w-8 px-3 py-2 font-semibold">#</th>
-                      <th className="px-3 py-2 font-semibold">Postor</th>
-                      <th className="w-28 px-3 py-2 font-semibold">Estado</th>
-                      {c.items.length > 1 && <th className="w-14 px-3 py-2 font-semibold">Ítem</th>}
-                      <th className="w-32 px-3 py-2 text-right font-semibold">Oferta</th>
-                      {hayReferencia && <th className="w-24 px-3 py-2 text-right font-semibold">vs. referencia</th>}
-                      <th className="w-24 px-3 py-2 font-semibold">Fuente</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {[...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99)).map((p, i) => {
-                      const nat = esPersonaNatural(p.ruc);
-                      const ref = referenciaDe(p, c);
-                      const dif = p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
-                      const estado = humanizarCodigo(p.estado);
-                      return (
-                        <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={cn("transition-colors hover:bg-paperSoft", p.esGanador && "bg-moss/5")}>
-                          <td className="px-3 py-2 font-mono text-mute">{p.ordenPrelacion ?? i + 1}</td>
-                          <td className="px-3 py-2 text-ink">
-                            {p.razonSocial
-                              ? nat
-                                ? <PersonName name={p.razonSocial} orden={ordenNombrePostor(p.razonSocial, p.ruc, c.proveedor, c.proveedorRuc)} />
-                                : p.razonSocial
-                              : "—"}
-                            {p.ruc && <span className="ml-2 font-mono text-[10px] text-mute">RUC <Ruc value={p.ruc} /></span>}
-                            {p.esGanador && <span className="ml-2 rounded-full bg-moss px-1.5 py-0.5 text-[9px] font-semibold uppercase text-paper">ganador</span>}
-                          </td>
-                          <td className="px-3 py-2 text-mute">
-                            {estado ?? "—"}
-                            {p.motivoEstado && <span className="block text-[10px] leading-snug">{humanizarCodigo(p.motivoEstado)}</span>}
-                          </td>
-                          {c.items.length > 1 && <td className="px-3 py-2 font-mono text-mute">{p.item ?? "—"}</td>}
-                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{p.montoOferta != null ? formatMonto(p.montoOferta, c.moneda) : "—"}</td>
-                          {hayReferencia && (
-                            <td className={cn("px-3 py-2 text-right font-mono tabular-nums", dif == null ? "text-mute" : dif > 0 ? "text-rust" : "text-mossTexto")}>{dif == null ? "—" : `${dif > 0 ? "+" : ""}${dif.toFixed(1)} %`}</td>
-                          )}
-                          <td className="px-3 py-2">{p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-1 text-[10px] text-mute">
+            <Plegable titulo="Postores y ofertas" n={postores.length} abierto={postores.length <= 8}>
+              <Tabla minimo="min-w-[560px]" leyenda="Postores con su oferta económica, leídos de las actas del expediente">
+                <thead className="bg-paperSoft text-[12px] text-inkSoft">
+                  <tr>
+                    <th scope="col" className="w-8 px-3 py-2 font-semibold">#</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Postor</th>
+                    <th scope="col" className="w-28 px-3 py-2 font-semibold">Estado</th>
+                    {c.items.length > 1 && <th scope="col" className="w-14 px-3 py-2 font-semibold">Ítem</th>}
+                    <th scope="col" className="w-32 px-3 py-2 text-right font-semibold">Oferta</th>
+                    {hayReferencia && <th scope="col" className="w-24 px-3 py-2 text-right font-semibold">vs. referencia</th>}
+                    <th scope="col" className="w-24 px-3 py-2 font-semibold">Fuente</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {[...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99)).map((p, i) => {
+                    const nat = esPersonaNatural(p.ruc);
+                    const ref = referenciaDe(p, c);
+                    const dif = p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
+                    const estado = humanizarCodigo(p.estado);
+                    return (
+                      <tr key={`${p.ruc ?? p.razonSocial}-${i}`} className={cn("transition-colors hover:bg-paperSoft", p.esGanador && "bg-paperSoft")}>
+                        <td className="px-3 py-2 font-mono text-mute">{p.ordenPrelacion ?? i + 1}</td>
+                        <td className="px-3 py-2 text-ink">
+                          {p.razonSocial
+                            ? nat
+                              ? <PersonName name={p.razonSocial} orden={ordenNombrePostor(p.razonSocial, p.ruc, c.proveedor, c.proveedorRuc)} />
+                              : p.razonSocial
+                            : <span className="text-mute">Sin razón social</span>}
+                          {p.ruc && <span className="ml-2 font-mono text-[11px] text-mute">RUC <Ruc value={p.ruc} /></span>}
+                          {p.esGanador && <span className="ml-2 rounded-full bg-granate-soft px-2 py-0.5 text-[11px] font-semibold text-granate">Ganador</span>}
+                        </td>
+                        <td className="px-3 py-2 text-mute">
+                          {estado ?? "Sin dato"}
+                          {p.motivoEstado && <span className="block text-[11px] leading-snug">{humanizarCodigo(p.motivoEstado)}</span>}
+                        </td>
+                        {c.items.length > 1 && <td className="px-3 py-2 font-mono text-mute">{p.item ?? "Sin dato"}</td>}
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{p.montoOferta != null ? monto(p.montoOferta, c.moneda) : <span className="text-mute">Sin dato</span>}</td>
+                        {hayReferencia && (
+                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", dif == null ? "text-mute" : "text-ink")}>{dif == null ? "Sin dato" : diferencia(dif)}</td>
+                        )}
+                        <td className="px-3 py-2">{p.citas[0] ? <CitaPagina ocid={c.ocid} cita={p.citas[0]} corto /> : <span className="text-[11px] text-mute">Sin cita</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
                 Ofertas leídas de las actas y cuadros comparativos del expediente.
                 {hayReferencia &&
                   (c.items.length > 1
@@ -237,71 +252,67 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
                     : " “vs. referencia” compara con el valor referencial del proceso.")}{" "}
                 Toca la fuente para abrir la página citada del PDF.
               </p>
-            </details>
+            </Plegable>
           )}
 
-          {/* Precio contratado vs. referencia — colapsable cuando hay muchos ítems analizados
-              (mismo caso de contratos con decenas de ítems); con pocos queda abierto igual que antes. */}
-          {itemsAnalizados.length > 0 && (
-            <details className="group" open={itemsAnalizados.length <= 10}>
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-                Precio contratado vs. referencia ({itemsAnalizados.length})
-                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
-              </summary>
-              <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-paper shadow-card">
-                <table className="w-full min-w-[620px] text-left text-xs">
-                  <caption className="sr-only">Ítems con su precio unitario ofertado o contratado frente al valor referencial</caption>
-                  <thead className="bg-paperDeep text-[10px] uppercase tracking-wider text-mute">
-                    <tr>
-                      <th className="w-8 px-3 py-2 font-semibold">#</th>
-                      <th className="px-3 py-2 font-semibold">Ítem</th>
-                      <th className="w-20 px-3 py-2 text-right font-semibold">Cant.</th>
-                      <th className="w-28 px-3 py-2 text-right font-semibold">Ref. unit.</th>
-                      <th className="w-28 px-3 py-2 text-right font-semibold">Contratado unit.</th>
-                      <th className="w-20 px-3 py-2 text-right font-semibold">Δ</th>
-                      <th className="w-24 px-3 py-2 font-semibold">Fuente</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {itemsAnalizados.map((it) => {
-                      const unit = it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
-                      const d = unit != null && it.referenciaUnitaria ? ((unit - it.referenciaUnitaria) / it.referenciaUnitaria) * 100 : null;
-                      return (
-                        <tr key={it.numero} className="transition-colors hover:bg-paperSoft">
-                          <td className="px-3 py-2 font-mono text-mute">{it.numero}</td>
-                          <td className="px-3 py-2 text-ink">
-                            <span className="line-clamp-2" title={it.descripcion ?? undefined}>{it.descripcion ?? "—"}</span>
-                            {it.marca && <span className="block text-[10px] text-mute">marca ofertada: {it.marca}</span>}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{it.cantidad != null ? it.cantidad.toLocaleString("es-PE") : "—"}{it.unidad ? <span className="ml-1 text-[10px] text-mute">{it.unidad}</span> : null}</td>
-                          <td className="px-3 py-2 text-right font-mono tabular-nums text-mute">{it.referenciaUnitaria != null ? formatMonto(it.referenciaUnitaria, c.moneda) : "—"}</td>
-                          <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{unit != null ? formatMonto(unit, c.moneda) : "—"}{it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null && <span className="block text-[9px] text-mute">ofertado</span>}</td>
-                          <td className={cn("px-3 py-2 text-right font-mono tabular-nums", d == null ? "text-mute" : d > 0 ? "text-rust" : "text-mossTexto")}>{d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)} %`}</td>
-                          <td className="px-3 py-2">{it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[10px] text-mute">—</span>}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-1 text-[10px] text-mute">Referencia unitaria = valor referencial del ítem en el registro OCDS ÷ cantidad. El contratado sale del contrato u orden de compra leída por los agentes.</p>
-            </details>
+          {/* Precio contratado vs. referencia */}
+          {!enRevision && itemsAnalizados.length > 0 && (
+            <Plegable titulo="Precio contratado frente a la referencia" n={itemsAnalizados.length} abierto={itemsAnalizados.length <= 10}>
+              <Tabla minimo="min-w-[620px]" leyenda="Ítems con su precio unitario ofertado o contratado frente al valor referencial">
+                <thead className="bg-paperSoft text-[12px] text-inkSoft">
+                  <tr>
+                    <th scope="col" className="w-8 px-3 py-2 font-semibold">#</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Ítem</th>
+                    <th scope="col" className="w-20 px-3 py-2 text-right font-semibold">Cantidad</th>
+                    <th scope="col" className="w-28 px-3 py-2 text-right font-semibold">Referencia unitaria</th>
+                    <th scope="col" className="w-28 px-3 py-2 text-right font-semibold">Contratado unitario</th>
+                    <th scope="col" className="w-20 px-3 py-2 text-right font-semibold">Diferencia</th>
+                    <th scope="col" className="w-24 px-3 py-2 font-semibold">Fuente</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {itemsAnalizados.map((it) => {
+                    const unit = it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
+                    const d = unit != null && it.referenciaUnitaria ? ((unit - it.referenciaUnitaria) / it.referenciaUnitaria) * 100 : null;
+                    return (
+                      <tr key={it.numero} className="transition-colors hover:bg-paperSoft">
+                        <td className="px-3 py-2 font-mono text-mute">{it.numero}</td>
+                        <td className="px-3 py-2 text-ink">
+                          <span className="line-clamp-2" title={it.descripcion ?? undefined}>{it.descripcion ?? <span className="text-mute">Sin descripción</span>}</span>
+                          {it.marca && <span className="block text-[11px] text-mute">marca ofertada: {it.marca}</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
+                          {it.cantidad != null ? numero(it.cantidad) : <span className="text-mute">Sin dato</span>}
+                          {it.unidad ? <span className="ml-1 text-[11px] text-mute">{it.unidad}</span> : null}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft">{it.referenciaUnitaria != null ? monto(it.referenciaUnitaria, c.moneda) : <span className="text-mute">Sin dato</span>}</td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
+                          {unit != null ? monto(unit, c.moneda) : <span className="text-mute">Sin dato</span>}
+                          {it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null && <span className="block text-[11px] text-mute">ofertado</span>}
+                        </td>
+                        <td className={cn("px-3 py-2 text-right font-mono tabular-nums", d == null ? "text-mute" : "text-ink")}>{d == null ? "Sin dato" : diferencia(d)}</td>
+                        <td className="px-3 py-2">{it.citas[0] ? <CitaPagina ocid={c.ocid} cita={it.citas[0]} corto /> : <span className="text-[11px] text-mute">Sin cita</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
+                Referencia unitaria = valor referencial del ítem en el registro OCDS ÷ cantidad. El contratado sale del contrato u orden de compra leída en el expediente.
+              </p>
+            </Plegable>
           )}
 
-          {/* Señales con página citada — colapsable: es evidencia de profundización, no la
-              primera lectura; con pocas señales (el caso típico) queda abierto igual que antes. */}
-          {senalesConCita.length > 0 && (
-            <details className="group" open={senalesConCita.length <= 6}>
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-                Dónde dice cada señal en el expediente ({senalesConCita.length})
-                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
-              </summary>
-              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-paper shadow-card">
+          {/* Dónde dice cada señal: es evidencia de profundización, no la primera lectura. En
+              revisión humana no se muestra: sería publicar las señales por la puerta de atrás. */}
+          {!enRevision && senalesConCita.length > 0 && (
+            <Plegable titulo="Dónde dice cada señal en el expediente" n={senalesConCita.length} abierto={senalesConCita.length <= 6}>
+              <ul className="divide-y divide-line rounded-2xl border border-line bg-paper">
                 {senalesConCita.map((b, i) => (
-                  <li key={`${b.regla}-${i}`} className="px-4 py-2.5 text-sm">
+                  <li key={`${b.regla}-${i}`} className="px-4 py-3 text-sm">
                     <div className="text-[13px] font-semibold text-ink">{etiquetaRegla(b.regla, catalogo)}</div>
                     {b.evidencia && (
-                      <p className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft">
+                      <p className="mt-0.5 line-clamp-2 text-[13px] text-inkSoft">
                         <TextoRedactado texto={b.evidencia} personas={personas} />
                       </p>
                     )}
@@ -311,34 +322,28 @@ export function ContratoDetalle({ c, alcance = null, catalogo = {} }: { c: Detal
                   </li>
                 ))}
               </ul>
-            </details>
+            </Plegable>
           )}
 
-          {/* Documentos — colapsable: los expedientes reales suelen traer muchos archivos (bases,
-              addendas, actas, contrato…); con pocos (el caso típico) queda abierto igual que antes.
-              El <summary> tiene que ser hijo directo de <details>, así que el título y el estado del
-              almacén (antes en un <div> aparte junto al <h2>) se juntan en un único <summary>. */}
-          <details className="group" open={c.documentos.length <= 10}>
-            <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute transition-colors hover:text-ink">
-                Documentos oficiales ({c.documentos.length})
-                <ChevronDown size={12} className="text-mute/60 transition-transform duration-200 group-open:rotate-180" />
-              </span>
-              {c.documentosEnVigia && c.documentos.length > 0 && (
-                <span className="text-[10px] text-mute" title="Los documentos se conservan 90 días en el almacén de Vigía; después se vuelven a descargar solo si alguien financia el análisis.">
-                  {c.documentosEnVigia.n > 0 && c.documentosEnVigia.expiraAt
-                    ? `${c.documentosEnVigia.n} en el almacén de Vigía hasta el ${formatFecha(c.documentosEnVigia.expiraAt.slice(0, 10))}`
-                    : "no descargados: se bajan al financiar"}
-                </span>
-              )}
-            </summary>
+          {/* Documentos oficiales: los expedientes reales suelen traer muchos archivos. */}
+          <Plegable
+            titulo="Documentos oficiales"
+            n={c.documentos.length}
+            abierto={c.documentos.length <= 10}
+            nota={
+              c.documentosEnVigia && c.documentos.length > 0
+                ? c.documentosEnVigia.n > 0 && c.documentosEnVigia.expiraAt
+                  ? `${numero(c.documentosEnVigia.n)} guardados en Vigía hasta el ${fecha(c.documentosEnVigia.expiraAt.slice(0, 10))}`
+                  : "Sin copia en Vigía: se descargan al financiar la lectura"
+                : null
+            }
+          >
             <DocumentosContrato ocid={c.ocid} documentos={c.documentos} />
-          </details>
+          </Plegable>
         </div>
 
-        {/* Análisis */}
-        {/* En móvil el resultado del análisis va antes de ítems/postores/documentos; en escritorio, columna derecha pegajosa. */}
-        <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-6 lg:self-start">
+        {/* 2. La lectura: en el celular va antes de la evidencia; en escritorio, columna derecha. */}
+        <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-6 lg:self-start" aria-label="Lectura del contrato">
           <AnalisisCard c={c} alcance={alcance} />
           {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
           {!c.procesamiento && <ClasificacionCard c={c} />}
@@ -363,6 +368,19 @@ function alcanceTexto(a: AlcanceActivo | null): string | null {
   return partes.length ? partes.join(" ") : null;
 }
 
+/** Tarjeta de estado de la lectura, en palabras: un título, qué pasa y qué hacer. */
+function TarjetaEstado({ icono, titulo, children }: { icono: ReactNode; titulo: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-line bg-paper p-4">
+      <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        {icono}
+        {titulo}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
 function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | null }) {
   const estado = c.estadoProcesamiento;
 
@@ -374,26 +392,23 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
     return (
       <div className="space-y-2">
         <ResultadoAnalisis resultado={c.alerta} ocid={c.ocid} compacto sharePath={`/app/contratos/${encodeURIComponent(c.ocid)}`} />
-        {c.alerta.analizadoEn && <p className="text-center text-[10px] text-mute">Analizado el {formatFecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
+        {c.alerta.analizadoEn && <p className="text-center text-[12px] text-mute">Leído el {fecha(c.alerta.analizadoEn.slice(0, 10))}</p>}
       </div>
     );
   }
 
   if (estado === "esperando_documentos") {
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
-        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <Clock size={12} className="text-clayTexto" /> Esperando documentos
-        </h2>
+      <TarjetaEstado icono={<Clock size={15} className="text-mute" aria-hidden />} titulo="Esperando documentos">
         <p className="mt-2 text-sm leading-relaxed text-ink">
-          Este contrato ya fue financiado. Sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}: el lote nocturno los baja desde el SEACE y el análisis arranca al día siguiente.
+          Este contrato ya fue financiado. Sus documentos {c.documentosEnVigia?.n ? "expiraron en el almacén de Vigía" : "todavía no se descargaron"}: el lote nocturno los baja desde el SEACE y la lectura arranca al día siguiente.
         </p>
         {c.pedidoDescarga && (
-          <p className="mt-2 text-[11px] text-mute">
-            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el {formatFecha(c.pedidoDescarga.solicitadoAt.slice(0, 10))}
+          <p className="mt-2 text-[12px] text-mute">
+            Pedido {c.pedidoDescarga.estado === "descargando" ? "en descarga" : "en cola para esta noche"}, solicitado el {fechaCorta(c.pedidoDescarga.solicitadoAt.slice(0, 10))}.
           </p>
         )}
-      </section>
+      </TarjetaEstado>
     );
   }
 
@@ -403,16 +418,13 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
 
   if (estado === "pendiente_de_procesamiento" || c.procesable === false) {
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
-        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <Clock size={12} className="text-clayTexto" /> Pendiente de procesamiento
-        </h2>
+      <TarjetaEstado icono={<Clock size={15} className="text-mute" aria-hidden />} titulo="Pendiente de procesamiento">
         <p className="mt-2 text-sm text-ink">{motivoLabel(c.clasificacion.motivoNoProcesable)}</p>
         <Pendientes v={c.clasificacion.validacionesPendientes} />
-        <p className="mt-3 text-[11px] leading-relaxed text-mute">
-          Cuando el proceso avance de etapa o los agentes soporten este tipo, entrará a la cola de su zona. No se cobra por lo que no se puede analizar.
+        <p className="mt-3 text-[12px] leading-relaxed text-mute">
+          Cuando el proceso avance de etapa o se pueda leer este tipo de contrato, entrará a la cola de su zona. No se cobra por lo que no se puede leer.
         </p>
-      </section>
+      </TarjetaEstado>
     );
   }
 
@@ -420,43 +432,39 @@ function AnalisisCard({ c, alcance }: { c: Detalle; alcance: AlcanceActivo | nul
   if (c.estadoOperativo && c.estadoOperativo !== "en_cola") {
     const listo = c.estadoOperativo === "documentos_listos";
     return (
-      <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
-        <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-          <Clock size={12} className={listo ? "text-moss" : "text-mute"} /> {listo ? "Documentos listos para procesarse" : "Análisis en preparación"}
-        </h2>
+      <TarjetaEstado
+        icono={<Clock size={15} className={listo ? "text-mossTexto" : "text-mute"} aria-hidden />}
+        titulo={listo ? "Documentos listos para leerse" : "Lectura en preparación"}
+      >
         <p className="mt-2 text-sm leading-relaxed text-ink">
           {listo
-            ? `Los documentos de este contrato ya están descargados y clasificados. El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo; cuando se active, entrará a la cola de su zona en orden de llegada.`
-            : `El análisis de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activo.`}
+            ? `Los documentos de este contrato ya están descargados y clasificados. La lectura de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activa; cuando se active, entrará a la cola de su zona en orden de llegada.`
+            : `La lectura de ${tipoLabel(c.tipo)?.toLowerCase() ?? "este tipo de contratación"} en esta etapa todavía no está activa.`}
         </p>
-        {/* El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano:
-            antes decía "hoy se procesan bienes con adjudicación o contrato" aunque el backend cambiara. */}
+        {/* El alcance de hoy sale de la API (`procesamientoActivo`), no de una frase escrita a mano. */}
         {alcanceTexto(alcance) && <p className="mt-2 text-[12px] leading-relaxed text-mute">{alcanceTexto(alcance)}</p>}
         <Pendientes v={c.clasificacion.validacionesPendientes} />
-      </section>
+      </TarjetaEstado>
     );
   }
 
-  // sin_analizar (o procesado sin alerta legible)
+  // sin_analizar (o procesado sin alerta legible). Tinta neutra: "sin leer" es el estado
+  // mayoritario (así se pinta en la píldora de la lista y en la leyenda del mapa), no una advertencia.
   return (
-    <section className="rounded-2xl border border-line bg-paper p-4 shadow-card">
-      <h2 className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-mute">
-        {/* mute, no amber: "sin analizar" es el estado neutral/mayoritario (así se pinta en
-            la píldora de la lista y en la leyenda del mapa), no una advertencia real. */}
-        <ShieldAlert size={12} className="text-mute" /> Sin analizar
-      </h2>
+    <TarjetaEstado icono={<ShieldAlert size={15} className="text-mute" aria-hidden />} titulo="Todavía sin leer">
       <p className="mt-2 text-sm leading-relaxed text-ink">
-        Este contrato espera en la cola{c.zona ? ` de ${c.zona}` : ""}. Los agentes lo leerán cuando alguien financie capacidad de auditoría para su zona; el orden es por llegada, nadie elige cuál.
+        Este contrato espera en la cola{c.zona ? ` de ${c.zona}` : ""}. Vigía lo leerá cuando alguien financie la lectura de su zona; el orden es por llegada, nadie elige cuál.
       </p>
       <Pendientes v={c.clasificacion.validacionesPendientes} />
-      {/* Mismo tratamiento que el CTA "Financiar una auditoría" de Header/Footer:
-          heroViolet es el CTA principal de la marca — bg-ink era el color equivocado. */}
       {c.ubigeo && (
-        <Link href={`/app/financiar/${c.ubigeo}`} className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-all hover:-translate-y-0.5 hover:shadow-paper">
-          <Heart size={14} className="fill-paper text-paper" /> Financiar la auditoría de {c.zona ?? "esta zona"}
+        <Link
+          href={`/app/financiar/${c.ubigeo}`}
+          className="mt-4 flex min-h-[44px] items-center justify-center gap-1.5 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep"
+        >
+          Financiar la lectura de {c.zona ?? "esta zona"}
         </Link>
       )}
-    </section>
+    </TarjetaEstado>
   );
 }
 
@@ -465,17 +473,17 @@ function ClasificacionCard({ c }: { c: Detalle }) {
   if (!agentes?.length && !c.clasificacion.clasificadoAt) return null;
   return (
     <section className="rounded-2xl border border-line bg-paperSoft p-4">
-      <h2 className="text-[10px] font-bold uppercase tracking-widest text-mute">Agentes que aplican</h2>
+      <h2 className="text-[13px] font-semibold text-ink">Qué partes del análisis aplican</h2>
       {agentes?.length ? (
         <ul className="mt-2 flex flex-wrap gap-1">
           {FASES.filter((f) => agentes.includes(f.key)).map((f) => (
-            <li key={f.key} className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-[10px] text-ink">{f.label}</li>
+            <li key={f.key} className="rounded-full border border-line bg-paper px-2 py-0.5 text-[11px] text-ink">{f.label}</li>
           ))}
         </ul>
       ) : (
-        <p className="mt-2 text-[11px] text-mute">Ninguno para esta combinación de tipo y etapa.</p>
+        <p className="mt-2 text-[12px] text-mute">Ninguna para esta combinación de tipo y etapa.</p>
       )}
-      <p className="mt-2 text-[10px] text-mute">Según la matriz tipo × etapa. Los omitidos no aplican a este contrato.</p>
+      <p className="mt-2 text-[11px] text-mute">Según el tipo de contrato y su etapa. Las que no aparecen no aplican a este contrato.</p>
     </section>
   );
 }
@@ -484,9 +492,9 @@ function Pendientes({ v }: { v: string[] | null }) {
   if (!v?.length) return null;
   return (
     <div className="mt-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-mute">Validaciones pendientes</div>
-      <ul className="mt-1 space-y-0.5 text-[12px] text-ink">
-        {v.map((x) => <li key={x} className="flex items-start gap-1.5"><span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-clay" />{validacionLabel(x)}</li>)}
+      <div className="text-[12px] font-semibold text-inkSoft">Validaciones pendientes</div>
+      <ul className="mt-1 space-y-0.5 text-[13px] text-ink">
+        {v.map((x) => <li key={x} className="flex items-start gap-1.5"><span aria-hidden className="mt-2 inline-block h-1 w-1 shrink-0 rounded-full bg-mute" />{validacionLabel(x)}</li>)}
       </ul>
     </div>
   );
@@ -494,19 +502,49 @@ function Pendientes({ v }: { v: string[] | null }) {
 
 // ─── Piezas ──────────────────────────────────────────────────────────────────
 
-function Badge({ children, tone }: { children: React.ReactNode; tone?: "ink" }) {
+/**
+ * Bloque plegable con su título como h2 dentro del <summary> (un título por bloque, sin saltos).
+ * Con pocos elementos queda abierto; con muchos, plegado.
+ */
+function Plegable({ titulo, n, abierto, nota, children }: { titulo: string; n: number; abierto: boolean; nota?: string | null; children: ReactNode }) {
   return (
-    <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", tone === "ink" ? "bg-paperDeep text-ink" : "border border-line text-mute")}>
+    <details className="group" open={abierto}>
+      <summary className="flex min-h-[40px] cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-3 gap-y-1 [&::-webkit-details-marker]:hidden">
+        <h2 className="inline-flex items-center gap-1.5 font-display text-[18px] font-bold text-ink">
+          {titulo} <span className="font-sans text-[14px] font-medium tabular-nums text-mute">({numero(n)})</span>
+          <ChevronDown size={16} className="text-mute transition-transform duration-rapido group-open:rotate-180" aria-hidden />
+        </h2>
+        {nota && <span className="text-[12px] text-mute">{nota}</span>}
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
+function Tabla({ minimo, leyenda, children }: { minimo: string; leyenda: string; children: ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+      <table className={cn("w-full text-left text-[13px]", minimo)}>
+        <caption className="sr-only">{leyenda}</caption>
+        {children}
+      </table>
+    </div>
+  );
+}
+
+function Etiqueta({ children, fuerte }: { children: ReactNode; fuerte?: boolean }) {
+  return (
+    <span className={cn("rounded-full px-2.5 py-0.5 text-[12px] font-medium", fuerte ? "bg-paperDeep text-ink" : "border border-line text-inkSoft")}>
       {children}
     </span>
   );
 }
 
-function Dato({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+function Dato({ k, v, mono, vacio }: { k: string; v: string; mono?: boolean; vacio?: boolean }) {
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-wide text-mute">{k}</dt>
-      <dd className={cn("mt-0.5 text-ink", mono && "font-mono tabular-nums")}>{v}</dd>
+      <dt className="text-[12px] text-mute">{k}</dt>
+      <dd className={cn("mt-0.5", vacio ? "text-mute" : "font-semibold text-ink", mono && !vacio && "font-mono tabular-nums")}>{v}</dd>
     </div>
   );
 }

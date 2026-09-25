@@ -9,7 +9,8 @@
 
 import { claveDePaso, pasoDeClave, TOTAL_AGENTES } from "@/components/agentes/catalogo";
 import { faseLabelCorto } from "@/lib/auditoria";
-import { nivelDeScore, SEVERIDAD, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
+import { nivelDeScore, SEVERIDAD, SIN_SENALES, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
+import { fecha, fechaCorta, soles } from "@/lib/formato";
 import type { ApiResult, Bandera } from "./types";
 
 // ─── Qué corrió ───────────────────────────────────────────────────────────
@@ -83,25 +84,65 @@ export function estadoCorrida(result: ApiResult): EstadoCorrida {
   };
 }
 
-// ─── Nivel de riesgo: UNA escala (lib/severidad) ─────────────────────────
+// ─── Severidad de cada señal: UNA lectura para la cabecera, los chips y la lista ──
+
+export type SeveridadSenal = "alta" | "media" | "baja";
+
+/**
+ * La severidad de una señal del payload, venga como venga ("ALTA", " media ", vacía).
+ * La cabecera contaba con `toLowerCase()` y la lista con una comparación exacta, así
+ * que una "ALTA" salía como alta arriba y como baja abajo, y una sin severidad no
+ * contaba en la cabecera pero sí en la lista: los totales no cuadraban. Lo que no es
+ * alta ni media es baja, igual en todas partes.
+ */
+export function severidadDe(b: { severidad?: unknown } | null | undefined): SeveridadSenal {
+  const s = String(b?.severidad ?? "").trim().toLowerCase();
+  return s === "alta" || s === "media" ? s : "baja";
+}
+
+export interface ConteoSeveridad {
+  total: number;
+  alta: number;
+  media: number;
+  baja: number;
+}
+
+export function contarSeveridades(banderas: ReadonlyArray<{ severidad?: unknown }>): ConteoSeveridad {
+  const c: ConteoSeveridad = { total: 0, alta: 0, media: 0, baja: 0 };
+  for (const b of banderas) {
+    c.total++;
+    c[severidadDe(b)]++;
+  }
+  return c;
+}
+
+// ─── Nivel del dossier: UNA escala (lib/severidad) y las palabras de §10.1 ───
 
 export interface NivelDossier {
+  /** `alta|media|baja` = peso del riesgo (sólo con señales); `limpio` = sin señales; `incompleto` = no se puede afirmar. */
   nivel: NivelSeveridad | "incompleto" | "limpio";
   etiqueta: string;
   detalle: string;
   ui: SeveridadUI;
 }
 
-const ETIQUETA_SCORE: Record<"alta" | "media" | "baja", { etiqueta: string; detalle: string }> = {
+/** Tramos del peso del riesgo con las MISMAS palabras que las listas (lib/severidad: "Riesgo alto"…). */
+const TRAMO: Record<SeveridadSenal, { etiqueta: string; detalle: string }> = {
   alta: { etiqueta: "Riesgo alto", detalle: "Varias señales pesan juntas" },
   media: { etiqueta: "Riesgo medio", detalle: "Señales que conviene revisar" },
-  baja: { etiqueta: "Riesgo bajo", detalle: "Pocas señales, de poco peso" },
+  baja: { etiqueta: "Riesgo bajo", detalle: "Señales de poco peso, igual se muestran" },
 };
 
 /**
- * El nivel que se muestra en la cabecera Y en la barra lateral. Sale del score
- * con los cortes de `lib/severidad` (70/40). Un análisis sin señales solo se
- * llama limpio si terminó; si se cortó, se dice que está incompleto.
+ * El nivel que se muestra en la cabecera del dossier. Con señales, es el "peso del
+ * riesgo": el tramo del puntaje con los cortes de `lib/severidad` (70/40), con las
+ * palabras de las listas ("Riesgo alto · medio · bajo"). Sin señales, "Sin señales"
+ * (`SIN_SENALES`, el único check verde) sólo si el análisis terminó; si se cortó,
+ * incompleto.
+ *
+ * Un contrato con señales y puntaje bajo NO lleva el check verde: ponerlo junto a una
+ * señal publicada es la contradicción que la auditoría de coherencia marcó como P1.
+ * Lleva el tono neutro de una señal baja (`SEVERIDAD.baja`, ícono Info).
  */
 export function nivelDelDossier(score: number | null | undefined, nSenales: number, corrida: EstadoCorrida): NivelDossier {
   if (nSenales === 0) {
@@ -109,19 +150,63 @@ export function nivelDelDossier(score: number | null | undefined, nSenales: numb
       return {
         nivel: "incompleto",
         etiqueta: "Análisis incompleto",
-        detalle: "No se puede afirmar que esté limpio",
+        detalle: "No se puede afirmar que no haya señales",
         ui: SEVERIDAD.sin_analizar,
       };
     }
     return {
       nivel: "limpio",
-      etiqueta: "Sin señales",
+      etiqueta: SIN_SENALES.etiqueta,
       detalle: "El análisis terminó sin señales de riesgo",
-      ui: { ...SEVERIDAD.baja, etiqueta: "Sin señales" },
+      ui: SIN_SENALES,
     };
   }
-  const nivel = nivelDeScore(score ?? 0) as "alta" | "media" | "baja";
-  return { nivel, ...ETIQUETA_SCORE[nivel], ui: SEVERIDAD[nivel] };
+  const nivel = nivelDeScore(score ?? 0) as SeveridadSenal;
+  return { nivel, ...TRAMO[nivel], ui: { ...SEVERIDAD[nivel], etiqueta: TRAMO[nivel].etiqueta } };
+}
+
+// ─── Estado de publicación ───────────────────────────────────────────────
+
+/**
+ * ¿El dossier es de una alerta frenada para revisión humana? GET /alertas/:id/full la
+ * devuelve sin score, señales ni dictamen (`enRevision`, `estado: "revision"`,
+ * `publicada: false`). Se lee de las tres formas porque la adaptación del dossier
+ * (lib/dossier-adaptar) puede traer cualquiera de ellas.
+ */
+export function dossierEnRevision(result: ApiResult): boolean {
+  return (
+    result.enRevision === true ||
+    result.estado === "revision" ||
+    result._bridge_meta?.enRevision === true ||
+    result._bridge_meta?.estado === "revision"
+  );
+}
+
+// ─── Dinero: un solo formato en todo el dossier ───────────────────────────
+
+/**
+ * El dossier es evidencia y tiene tablas (ítems, postores, precios unitarios): todos sus
+ * montos van completos con `soles` de lib/formato ("S/ 84,172", "S/ 12.50"), nunca
+ * compactados. Antes convivían "S/ 1.23 M", "S/ 885 K" y "S/ 262,389" en el mismo informe.
+ * Acepta lo que venga del payload (número o texto); lo que no es un número es "Sin dato".
+ */
+export function montoDossier(n: unknown): string {
+  if (n == null || n === "") return soles(null);
+  const v = typeof n === "number" ? n : Number(String(n).replace(/[^\d.-]/g, ""));
+  return soles(Number.isFinite(v) ? v : null);
+}
+
+/**
+ * Fechas del payload con `fecha`/`fechaCorta` de lib/formato ("24 de setiembre de 2026",
+ * "24 set. 2026"). Los agentes a veces devuelven otro formato ("15/03/2020", "marzo 2024"):
+ * ese se deja tal cual, porque pasarlo por `new Date` lo convertía en "Sin fecha" o, peor,
+ * en otro día.
+ */
+export function fechaDossier(v: unknown, corta = false): string {
+  const t = typeof v === "string" ? v.trim() : "";
+  if (!t) return "Sin fecha";
+  if (!/^\d{4}-\d{2}-\d{2}/.test(t)) return t;
+  return corta ? fechaCorta(t.slice(0, 10)) : fecha(t.slice(0, 10));
 }
 
 // ─── Señales de sobreprecio que el mercado no sostiene ────────────────────

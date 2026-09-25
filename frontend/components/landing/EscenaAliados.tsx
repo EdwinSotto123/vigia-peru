@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { gsap, SIN_REDUCIR, useGSAP } from "@/lib/gsap";
+import { numero } from "@/lib/formato";
 
 /**
  * El movimiento de la sección de aliados, y nada más: el contenido lo arma el
@@ -61,7 +62,7 @@ export function EscenaAliados({ children }: { children: React.ReactNode }) {
                 el.textContent = "0";
               },
               onUpdate: () => {
-                el.textContent = Math.round(valor.v).toLocaleString("es-PE");
+                el.textContent = numero(valor.v);
               },
             });
           });

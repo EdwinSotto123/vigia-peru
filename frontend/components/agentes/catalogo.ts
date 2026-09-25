@@ -67,7 +67,7 @@ const QUE: Record<string, string> = {
   report_writer:
     "Redacta el dictamen con la evidencia consolidada y las citas normativas.",
   self_eval:
-    "Ocho evaluadores revisan el análisis antes de publicarlo; si alguno falla, la alerta queda en revisión humana.",
+    "Antes de publicar, jueces de IA y comprobaciones en código revisan el análisis; si una de las que pueden frenarlo falla, la alerta queda en revisión humana.",
 };
 
 const FUENTE: Record<string, string[]> = {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { Llamita } from "@/components/marca";
+import { numero } from "@/lib/formato";
+import { EnlaceAccion } from "@/components/landing/EnlaceAccion";
 import { HeroLupa } from "@/components/landing/HeroLupa";
 import { EscalaDinero } from "@/components/landing/EscalaDinero";
 import { CasoLeido } from "@/components/landing/CasoLeido";
@@ -58,8 +58,8 @@ export default async function LandingPage() {
   const montoTotal = (regiones ?? []).reduce((s, r) => s + (r.montoPen ?? 0), 0);
 
   // "Leído" es "tiene score": la misma definición que usa /app/contratos para
-  // decir "98 leídos de 18 394". Las tres cifras salen del mismo resumen, o sea
-  // del mismo universo.
+  // decir "118 leídos de 18,393". Las tres cifras salen del mismo resumen, o sea
+  // del mismo universo (y coinciden con la suma de `procesados` del mapa).
   const publicados = resumen?.total ?? 0;
   // Un análisis en revisión o descartado también se leyó: suma a "leídos",
   // aunque no a las señales.
@@ -139,46 +139,43 @@ function tiposConResto(total: number, porTipo: Partial<Record<string, number>>):
   return [...top, { etiqueta, n: resto, resto: true }];
 }
 
-/** El cierre: una cifra real y las dos acciones que importan. */
+/**
+ * El cierre: una cifra real y las dos acciones que importan. Es el momento de
+ * marca de la portada (DESIGN_SYSTEM.md §3.8 y §14): granate profundo, y la
+ * llamita en maíz, de pie sobre el borde de la placa y mirando hacia el texto
+ * —hacia adelante, como manda §2.4—. Acá la llama no acompaña ninguna señal ni
+ * ningún nombre: acompaña la invitación.
+ *
+ * Sin franja textil propia: el pie abre con la suya ochenta píxeles más abajo,
+ * y son una por pantalla (§6).
+ */
 function CierreLanding({ enCola }: { enCola: number | null }) {
   return (
-    <section aria-labelledby="cierre-titulo" className="container-page max-w-[1400px] pt-16">
-      <div className="relative isolate overflow-hidden rounded-[2rem] bg-heroViolet-deep px-7 py-12 text-paper sm:px-14 sm:py-16">
-        <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 -z-10 h-80 w-80 rounded-full bg-heroViolet/60 blur-3xl" />
-        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <div>
-            <h2 id="cierre-titulo" className="max-w-[20ch] text-balance font-serif text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+    <section aria-labelledby="cierre-titulo" className="container-page pt-16">
+      <div className="sobre-oscuro relative isolate overflow-hidden rounded-2xl bg-granate-deep text-paper">
+        <div className="grid items-end gap-8 px-6 pb-10 pt-12 sm:px-12 sm:pt-16 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-14 lg:px-14">
+          {/* La llama, decorativa: en el celular va chica arriba del titular;
+              desde lg, grande a la izquierda, con las patas en el borde de la
+              placa (baja exactamente el pb-10 de la grilla). */}
+          <Llamita className="w-14 text-maiz sm:w-16 lg:w-40 lg:translate-y-10" />
+          <div className="lg:pb-6">
+            <h2 id="cierre-titulo" className="max-w-[20ch] text-balance font-display text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
               {enCola != null && enCola > 0
-                ? `Hay ${enCola.toLocaleString("es-PE")} contratos esperando que alguien los lea.`
+                ? `Hay ${numero(enCola)} contratos esperando que alguien los lea.`
                 : "Empieza por los contratos de tu región."}
             </h2>
-            <p className="mt-5 max-w-[48ch] text-lg leading-relaxed text-paper/80">
+            <p className="mt-5 max-w-[48ch] text-pretty text-lg leading-relaxed text-paper/80">
               Mira qué se contrata donde vives, financia la lectura de algunos o denuncia la obra que tienes enfrente.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="/app/financiar"
-                className="group inline-flex items-center gap-2 rounded-full bg-heroGreen px-7 py-4 text-base font-semibold text-ink shadow-card transition-transform duration-rapido hover:-translate-y-0.5 active:translate-y-0"
-              >
+              <EnlaceAccion href="/app/financiar" variante="oscuro" tamano="lg">
                 Financiar una auditoría
-                <ArrowRight size={18} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
-              </Link>
-              <Link
-                href="/app/mapa"
-                className="inline-flex items-center rounded-full border border-paper/30 px-7 py-4 text-base font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
-              >
+              </EnlaceAccion>
+              <EnlaceAccion href="/app/mapa" variante="contornoOscuro" tamano="lg" flecha={false}>
                 Ver mi región
-              </Link>
+              </EnlaceAccion>
             </div>
           </div>
-          <Image
-            src="/assets/logo/lupa-llama.webp"
-            alt=""
-            width={720}
-            height={725}
-            sizes="16rem"
-            className="hidden h-auto w-64 select-none opacity-95 drop-shadow-[0_24px_48px_rgba(0,0,0,0.35)] lg:block"
-          />
         </div>
       </div>
     </section>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
 import { cn } from "@/lib/utils";
+import { numero } from "@/lib/formato";
 
 /**
  * La identidad de un aliado, en piezas.
@@ -75,8 +76,8 @@ export function IdentidadAliado({
   className?: string;
   tam?: keyof typeof TAM_DATO;
   /**
-   * `oscuro` para el muro de honor de la portada: `text-mute` está calibrado
-   * para papel y sobre violeta profundo cae por debajo del mínimo AA.
+   * `oscuro` para superficies de marca (granate profundo, ink): `text-mute` está
+   * calibrado para papel y sobre oscuro cae por debajo del mínimo AA.
    */
   tono?: "claro" | "oscuro";
   /**
@@ -127,7 +128,11 @@ export interface Insignia {
   etiqueta: string;
   detalle: string;
   icono: "fundador" | "completo" | "alcance" | "limpio" | "veterano";
-  tono: "marca" | "verde" | "neutro";
+  /**
+   * `marca` = granate (algo que dice quién es: capital semilla); `positivo` = moss
+   * (un chequeo que pasó o un trabajo terminado); `neutro` = alcance y constancia.
+   */
+  tono: "marca" | "positivo" | "neutro";
 }
 
 const ICONO_INSIGNIA = {
@@ -138,9 +143,12 @@ const ICONO_INSIGNIA = {
   veterano: Award,
 } as const;
 
+// Antes el tono positivo pintaba el chequeo de conflicto de interés con el maíz del
+// renombre (maíz sobre claro no se lee, y el maíz es acento de marca, no "positivo"):
+// lo que dice "pasó el chequeo" o "todo leído" es positivo, y positivo es moss (§3.7).
 const TONO_INSIGNIA = {
-  marca: "border-heroViolet/30 bg-heroViolet-soft text-heroViolet",
-  verde: "border-heroGreen/30 bg-heroGreen-soft text-heroGreenTexto",
+  marca: "border-granate/30 bg-granate-soft text-granate",
+  positivo: "border-moss/30 bg-moss/10 text-mossTexto",
   neutro: "border-line bg-paperSoft text-inkSoft",
 } as const;
 
@@ -175,7 +183,7 @@ export function insigniasDe({
       detalle:
         "Aparecer en este muro exige no tener sanción vigente del OECE ni alertas activas como proveedor. Quien no pasa ese chequeo puede aportar igual, pero no figura.",
       icono: "limpio",
-      tono: "verde",
+      tono: "positivo",
     },
   ];
 
@@ -193,9 +201,9 @@ export function insigniasDe({
     out.push({
       clave: "completo",
       etiqueta: "Todo leído",
-      detalle: `Los ${financiados.toLocaleString("es-PE")} contratos que financió ya fueron leídos por los agentes: no queda ninguno esperando.`,
+      detalle: `Los ${numero(financiados)} contratos que financió ya se leyeron: no queda ninguno esperando.`,
       icono: "completo",
-      tono: "verde",
+      tono: "positivo",
     });
   }
 
@@ -203,7 +211,7 @@ export function insigniasDe({
     out.push({
       clave: "alcance",
       etiqueta: `${regiones} regiones`,
-      detalle: `Sus aportes cayeron en ${regiones} de las ${regionesConCola} regiones con cola abierta. Ninguna la eligió: las zonas sí, los contratos no.`,
+      detalle: `Sus aportes cayeron en ${regiones} de las ${regionesConCola} regiones con cola abierta. Eligió las zonas, no los contratos: esos salen de la cola por antigüedad.`,
       icono: "alcance",
       tono: "neutro",
     });
@@ -293,7 +301,7 @@ export function ContactoAliado({
           href={web}
           target="_blank"
           rel="noreferrer nofollow"
-          className="inline-flex items-center gap-1.5 font-medium text-heroViolet underline-offset-2 hover:underline"
+          className="inline-flex min-h-[24px] items-center gap-1.5 font-medium text-granate underline-offset-2 hover:underline"
         >
           <Globe size={13} aria-hidden /> {host}
         </Link>
@@ -301,7 +309,7 @@ export function ContactoAliado({
       {email && (
         <a
           href={`mailto:${email}`}
-          className="inline-flex items-center gap-1.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline"
+          className="inline-flex min-h-[24px] items-center gap-1.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline"
         >
           <Mail size={13} aria-hidden /> {email}
         </a>

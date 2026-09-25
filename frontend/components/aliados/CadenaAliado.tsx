@@ -3,7 +3,8 @@ import { ChevronRight, FileText } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Cifras } from "@/components/ui/Cifras";
 import { Severidad } from "@/components/ui/Severidad";
-import { formatPEN, type Comprobante, type ComprobanteContrato } from "@/lib/financiamiento";
+import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
+import { fecha as fechaLarga, numero, soles } from "@/lib/formato";
 
 /**
  * La cadena completa de un aliado: aporte → contratos asignados → señal.
@@ -32,19 +33,22 @@ export interface ContribucionAliado {
   enRevision?: number;
 }
 
-/** Mismo vocabulario que el panel de contribuciones del admin; sin movimiento en loop. */
+/**
+ * Mismo vocabulario que el panel de contribuciones del admin; sin movimiento en loop.
+ * Financiada y en proceso = granate (la marca acompañando el trámite); leída = moss
+ * (positivo: el trabajo terminó); pendiente = neutro. Nunca ámbar: es "Señal media".
+ */
 const ESTADO_CONTRIB: Record<string, { label: string; cls: string }> = {
-  pendiente_pago: { label: "Pendiente de pago", cls: "bg-amber-soft text-amberTexto border-amber/30" },
-  pagada: { label: "Financiada", cls: "bg-moss/10 text-moss border-moss/30" },
-  en_proceso: { label: "En proceso", cls: "bg-moss/10 text-moss border-moss/30" },
-  procesada: { label: "Leída y publicada", cls: "bg-moss text-paper border-moss" },
+  pendiente_pago: { label: "Pendiente de pago", cls: "bg-paperDeep text-inkSoft border-line" },
+  pagada: { label: "Financiada", cls: "bg-granate-soft text-granate border-granate/20" },
+  en_proceso: { label: "En proceso", cls: "bg-granate-soft text-granate border-granate/20" },
+  procesada: { label: "Leída y publicada", cls: "bg-moss/10 text-mossTexto border-moss/30" },
   rechazada: { label: "Rechazada", cls: "bg-crimson-soft text-crimsonTexto border-crimson/30" },
-  reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-mute border-line" },
+  reembolsada: { label: "Reembolsada", cls: "bg-paperDeep text-inkSoft border-line" },
 };
 
-const num = (n: number) => n.toLocaleString("es-PE");
-const fecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+const num = numero;
+const fecha = (iso: string) => fechaLarga(iso);
 
 const bandera = (s: string | null): "alta" | "media" | "baja" | null =>
   s === "alta" || s === "media" || s === "baja" ? s : null;
@@ -71,7 +75,7 @@ export function CadenaAliado({
 }) {
   if (items.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm leading-relaxed text-mute">
+      <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-6 text-sm leading-relaxed text-inkSoft">
         {nombre} todavía no tiene aportes confirmados. Cuando el primero se confirme, cada contrato que
         haga leer aparece acá con su entidad y su dictamen.
       </p>
@@ -148,12 +152,12 @@ function ResumenContribucion({ c, interactivo }: { c: ContribucionAliado; intera
         as="div"
         items={[
           { n: c.procesados, de: c.contratos, texto: "financiados ya leídos" },
-          { n: c.senales, texto: "con señal" },
+          { n: c.senales, texto: "con señales" },
           { n: c.enRevision ?? 0, texto: "en revisión humana", ocultarEnCero: true },
         ]}
       />
       {interactivo && (
-        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-mute group-hover:text-ink">
+        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-granate group-hover:underline">
           Ver los contratos <ChevronRight size={13} aria-hidden />
         </span>
       )}
@@ -187,7 +191,7 @@ function DetalleContribucion({
           llevan prefijo <span className="font-mono">MAQUETA-</span> y no enlazan a ningún expediente.
         </p>
       )}
-      <p className="rounded-xl border border-heroViolet/25 bg-heroViolet-soft/60 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
+      <p className="rounded-xl border border-granate/20 bg-granate-50 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
         {r.asignados === 0 ? (
           <>
             Este aporte está financiado y todavía no tiene contratos asignados: la cola de {contribucion.zona}{" "}
@@ -197,8 +201,8 @@ function DetalleContribucion({
         ) : (
           <>
             Estos {num(r.asignados)} contratos salieron de la cola de {contribucion.zona} por antigüedad el{" "}
-            {fecha(contribucion.pagadaAt)}. Ni {nombre} ni Vigía Perú los eligieron, y los agentes que los
-            leyeron no reciben el nombre de quien financió.
+            {fecha(contribucion.pagadaAt)}. Ni {nombre} ni Vigía Perú los eligieron, y su lectura se hizo sin
+            conocer el nombre de quien financió.
           </>
         )}
       </p>
@@ -226,14 +230,14 @@ function DetalleContribucion({
           siguen en la cola, y un contrato sin leer no es dinero mirado. */}
       <p className="border-t border-line pt-3 text-[12px] text-inkSoft">
         Valor referencial de los contratos ya leídos:{" "}
-        <span className="font-mono text-[13px] font-semibold text-ink">{formatPEN(valorLeido)}</span>
-        {valorAsignado > valorLeido && <> de {formatPEN(valorAsignado)} asignados</>}
+        <span className="font-mono text-[13px] font-semibold tabular-nums text-ink">{soles(valorLeido)}</span>
+        {valorAsignado > valorLeido && <> de {soles(valorAsignado)} asignados</>}
       </p>
 
       {comprobante.detalle.length > 0 && (
         <div>
-          <h3 className="text-[11px] uppercase tracking-wide text-mute">
-            Los {num(comprobante.detalle.length)} contratos, uno por uno
+          <h3 className="text-[13px] font-semibold text-ink">
+            {comprobante.detalle.length === 1 ? "El contrato" : `Los ${num(comprobante.detalle.length)} contratos, uno por uno`}
           </h3>
           <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
             {comprobante.detalle.map((d) => (
@@ -263,7 +267,7 @@ function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; es
           </Link>
         )}
         {d.valorReferencial != null && (
-          <span className="font-mono text-[12px] text-inkSoft">{formatPEN(d.valorReferencial)}</span>
+          <span className="font-mono text-[12px] tabular-nums text-inkSoft">{soles(d.valorReferencial)}</span>
         )}
       </div>
       <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-ink">
@@ -274,8 +278,8 @@ function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; es
         {d.procesadaAt == null ? (
           <span>Sigue en la cola, todavía sin leer</span>
         ) : enRevision ? (
-          <span>Leído: el dictamen espera revisión humana y todavía no cuenta como señal</span>
-        ) : sev ? (
+          <span>En revisión: el dictamen espera revisión humana y todavía no cuenta como señal</span>
+        ) : sev && d.banderas > 0 ? (
           <>
             <Severidad bandera={sev} formato="linea" />
             <span>
@@ -283,7 +287,7 @@ function ContratoDeAporte({ d, esMaqueta = false }: { d: ComprobanteContrato; es
             </span>
           </>
         ) : (
-          <span>Leído, salió sin señal</span>
+          <span>Leído, sin señales</span>
         )}
       </div>
     </li>

@@ -13,15 +13,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Paleta principal: papel kraft / periodístico ──
-        paper: "#FFFFFF",        // bg principal (blanco)
-        paperSoft: "#F5F6F8",    // surfaces (gris muy claro)
-        paperDeep: "#EBEEF2",    // recessed
-        paperEdge: "#DCE1E7",    // border sutil
-        ink: "#14171A",          // texto primario (casi negro frío)
-        inkSoft: "#3A4048",      // texto secundario
-        mute: "#687180",         // texto muted (cool gray)
-        line: "#E4E7EB",         // border default
+        // ── Neutros: papel blanco y tinta apenas cálida (DESIGN_SYSTEM.md §3.6) ──
+        // Grises tierra con 2–4 % de rojo, no beige: el negro frío azulado peleaba con
+        // el granate del logo. Contraste de texto medido sobre paper / paperSoft / paperDeep.
+        paper: "#FFFFFF",        // fondo principal
+        paperSoft: "#F8F5F3",    // superficies
+        paperDeep: "#F0EBE8",    // hundidos (inputs, barras de filtros)
+        paperEdge: "#E3DCD8",    // borde sutil
+        ink: "#1E191B",          // texto principal · 17.35 / 15.99 / 14.67
+        inkSoft: "#463D41",      // texto secundario · 10.48 / 9.65 / 8.86
+        mute: "#6B6166",         // texto terciario · 5.95 / 5.49 / 5.03
+        line: "#E9E3DF",         // borde por defecto
 
         // ── Escala secuencial cálida (para el choropleth) ──
         warm0: "#E8DFC7",        // sin data
@@ -48,11 +50,8 @@ const config: Config = {
         amberTexto: "#8A5A15",   // 5.91 / 5.46 / 5.08
         mossTexto: "#2F6B36",    // 6.41 / 5.93 / 5.51
         clayTexto: "#8A4F1E",    // 6.53 / 6.04 / 5.61
-        // heroGreen #2FA84C da 3.08 sobre papel: sirve como TEXTO GRANDE (piso
-        // 3:1, titulares de 24 px o más) y como marca, pero no para una línea
-        // de 12 px. crimson #CF3A2C cae a 3.99 sobre su propio crimson-soft,
-        // que es justo el par del Badge de error.
-        heroGreenTexto: "#16702C", // 6.20 / 5.73 / 5.33 · 5.49 sobre heroGreen-soft
+        // crimson #CF3A2C cae a 3.99 sobre su propio crimson-soft, que es justo
+        // el par del Badge de error: el texto va en crimsonTexto.
         crimsonTexto: "#8F2318",   // 8.67 / 8.02 / 7.45 · 7.08 sobre crimson-soft
         clay: "#B26A2E",         // CTA secundario (terracota cálido)
         // rust era #CF3A2C. Contra amber #BE7B26 daba ΔE 13.6, por debajo del
@@ -64,15 +63,47 @@ const config: Config = {
         moss: "#3F7D43",         // verificado / positivo
         amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
         crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
-        // ── Identidad de marca (referencia del usuario, sept 2026): morado + verde —
-        // color de acento del sitio ENTERO (chrome: header, footer, sidebar, CTAs), no
-        // solo del hero. El isotipo (vigia_peru_512.png) sigue siendo vino/textil andino
-        // — un logo raster no se recolorea — pero eso es normal: el mark queda fijo,
-        // el sistema de acento de UI evoluciona. `amber`/`clay`/`moss`/`rust` arriba NO
-        // se tocan: son semántica de estado (advertencia/positivo/error), no de marca —
-        // ver EstadoPill.tsx y Bitacora.tsx, que dependen de esa escala tipo semáforo.
-        heroViolet: { DEFAULT: "#4F3D96", deep: "#332463", soft: "#EFEBFA" },
-        heroGreen: { DEFAULT: "#2FA84C", soft: "#E3F6E7" },
+        // ── Identidad (DESIGN_SYSTEM.md §3, decisión del 2026-09-25) ─────────
+        // La del logo: VIGIA en granate, la G como lupa tejida en manta andina y
+        // la llama blanca. Reemplaza al violeta/verde de sept 2026 (heroViolet /
+        // heroGreen), que se renombraron en todo el código: un alias que miente
+        // sobre su color es una trampa.
+        //
+        // granate: muestreado de las letras del logotipo (#711C30). Marca, acción
+        // primaria, enlaces y foco. Como texto: 10.99 / 10.12 / 9.29 (paper /
+        // paperSoft / paperDeep); paper sobre granate 10.99, sobre deep 15.15.
+        // 400 sólo para texto grande o UI (3.75 sobre paperDeep).
+        granate: {
+          50: "#FBF3F5",
+          soft: "#F6E4E8",         // 100 · granate sobre él: 8.99
+          200: "#EBC3CC",          // texto sobre oscuro: 6.91 sobre granate, 10.92 sobre ink
+          300: "#D896A5",
+          400: "#B85A71",
+          500: "#8E2A45",          // hover sobre claro · 8.18
+          DEFAULT: "#711C30",      // 600
+          700: "#5E1628",
+          deep: "#4A1020",         // 800 · hover de botón y secciones de marca
+          900: "#340B16",
+        },
+        // maíz: el oro andino. SÓLO sobre fondos oscuros (≈ 1.9:1 sobre blanco):
+        // 6.08 sobre granate, 8.39 sobre granate-deep, 9.61 sobre ink. Sobre claro
+        // el acento es granate. maiz-soft es fondo con texto granate (9.96) o ink.
+        maiz: { DEFAULT: "#F0B83C", soft: "#FDF3DC" },
+        // Paleta del tejido del isotipo (k-means del anillo de la lupa). SÓLO
+        // decoración: franja textil, ilustración y series categóricas de gráficos.
+        // Nunca significa estado.
+        textil: {
+          ladrillo: "#843022",
+          achiote: "#B7462A",
+          ocre: "#C47F3E",
+          maiz: "#E2A460",
+          tierra: "#95612C",
+          anil: "#2D3E6F",
+          verde: "#3E7B4F",
+        },
+        // Rojo de la bandera: SÓLO la franja bicolor del pie. En este producto el
+        // rojo significa riesgo; la marca no puede parecer una alarma.
+        rojoPeru: "#D91023",
 
         // El bloque "legacy" (bone/ash/coal/void/abyss/slate*/chalk/cyan/
         // fuchsia/navy/violet/emerald) se eliminó: 0 usos reales en app/ y
@@ -83,6 +114,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        // Títulos: Montserrat, la geométrica del logotipo (DESIGN_SYSTEM.md §4).
+        display: ["var(--font-display)", "Montserrat", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)", "'Source Serif Pro'", "Georgia", "serif"],
         mono: ["var(--font-mono)", "'JetBrains Mono'", "ui-monospace", "monospace"],
       },
@@ -120,6 +153,13 @@ const config: Config = {
         overlay: "50",
       },
       keyframes: {
+        // La llamita "camina" en su lugar mientras algo carga: un paso arriba y abajo.
+        caminar: {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "25%": { transform: "translateY(-2px) rotate(-1.5deg)" },
+          "75%": { transform: "translateY(-1px) rotate(1deg)" },
+        },
+
         fadeIn: { from: { opacity: "0" }, to: { opacity: "1" } },
         slideIn: {
           from: { opacity: "0", transform: "translateX(20px)" },
@@ -192,10 +232,10 @@ const config: Config = {
            queda es el del CSS base (opacidad 1, todos encendidos). Por eso el
            estado legible vive en la clase y no en el keyframe. */
         pasoCorriendo: {
-          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(47,168,76,0)" },
-          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(47,168,76,0.65), 0 0 26px -4px rgba(47,168,76,0.75)" },
-          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(47,168,76,0.65), 0 0 26px -4px rgba(47,168,76,0.75)" },
-          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(47,168,76,0)" },
+          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(240, 184, 60,0)" },
+          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(240, 184, 60,0.65), 0 0 26px -4px rgba(240, 184, 60,0.75)" },
+          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(240, 184, 60,0.65), 0 0 26px -4px rgba(240, 184, 60,0.75)" },
+          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(240, 184, 60,0)" },
         },
         /* Los datos corriendo por un cable del diagrama de orquestación. El
            desplazamiento es -32 con un patrón de período 16: dos períodos
@@ -212,8 +252,8 @@ const config: Config = {
         /* El destello que marca dónde está la astilla de lo leído en la barra a
            escala real: 98 de 18 394 son 7 px y sin esto no se encuentran. */
         astillaViva: {
-          "0%, 100%": { boxShadow: "0 0 0 0 rgba(47,168,76,0.55)" },
-          "50%": { boxShadow: "0 0 18px 3px rgba(47,168,76,0.85)" },
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(240, 184, 60,0.55)" },
+          "50%": { boxShadow: "0 0 18px 3px rgba(240, 184, 60,0.85)" },
         },
         /* El corazón del botón de financiar: dos golpes, como un latido, y
            quieto. Sólo al pasar el cursor; nunca en bucle. */
@@ -232,6 +272,8 @@ const config: Config = {
         },
       },
       animation: {
+        caminar: "caminar 0.9s ease-in-out infinite",
+
         fadeIn: "fadeIn 200ms ease-out",
         slideIn: "slideIn 240ms ease-out",
         slideUp: "slideUp 280ms ease-out",

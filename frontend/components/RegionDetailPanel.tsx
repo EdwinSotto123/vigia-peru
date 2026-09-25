@@ -57,10 +57,10 @@ function PanelVacio() {
   // Arriba, no centrado: centrado en 680 px dejaba 200 px en blanco sobre el texto.
   return (
     <div className="flex h-full flex-col justify-start gap-4 bg-paperSoft px-7 py-8">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-paperEdge bg-paperDeep text-heroViolet">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-paperEdge bg-paperDeep text-granate">
         <MapPin size={20} aria-hidden />
       </div>
-      <h3 className="font-serif text-xl font-bold leading-tight text-ink">Ningún departamento abierto</h3>
+      <h2 className="font-display text-xl font-bold leading-tight text-ink">Ningún departamento abierto</h2>
       <p className="max-w-[42ch] text-sm leading-relaxed text-mute">
         Toca un departamento del mapa, o llega a uno con Tab y Enter, y acá aparece lo que hay de esa zona.
       </p>
@@ -70,7 +70,7 @@ function PanelVacio() {
           cuánto suman y cuánto cuesta leerlos.
         </li>
         <li>
-          <strong className="font-semibold text-ink">Lo que ya se encontró</strong>: contratos con señal y su norma
+          <strong className="font-semibold text-ink">Lo que ya se encontró</strong>: contratos con señales y su norma
           citada, y las denuncias que dejaron los vecinos.
         </li>
         <li>

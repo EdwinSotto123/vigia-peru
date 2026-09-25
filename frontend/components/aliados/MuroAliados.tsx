@@ -1,14 +1,17 @@
 import { EyeOff } from "lucide-react";
-import { formatPEN, frasePartesTarifa, getEstadoGlobal, getRankingPaginado, partesTarifa, type RankingRow } from "@/lib/financiamiento";
+import { frasePartesTarifa, getEstadoGlobal, getRankingPaginado, partesTarifa, type RankingRow } from "@/lib/financiamiento";
 import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
+import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Cifras } from "@/components/ui/Cifras";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { cn } from "@/lib/utils";
 import { FilaAliado, TarjetaAliado } from "./TarjetaAliado";
 import { Podio } from "./Podio";
 import { OrdenMuro, type OpcionOrden } from "./OrdenMuro";
 import { ResumenAliado } from "./ResumenAliado";
-import { getPerfilAliado } from "./perfil";
+import { getPerfilAliado, resumirContribuciones } from "./perfil";
 
 /** Tamaño de página del libro mayor (tope del backend también es 60). */
 const TAM = 24;
@@ -36,7 +39,7 @@ export type ClaveOrden = "financiados" | "senales" | "regiones";
 
 const ORDEN_LABEL: Record<ClaveOrden, string> = {
   financiados: "Contratos financiados",
-  senales: "Señales halladas",
+  senales: "Contratos con señales",
   regiones: "Regiones alcanzadas",
 };
 
@@ -63,7 +66,7 @@ function ordenar(rows: RankingRow[], orden: ClaveOrden): RankingRow[] {
 }
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
-const num = (n: number) => n.toLocaleString("es-PE");
+const num = numero;
 
 /**
  * El muro de aliados: libro mayor, nunca podio.
@@ -118,10 +121,16 @@ export async function MuroAliados({
   // El API cayó: se dice, no se dibuja un muro vacío que parezca "todavía no hay nadie".
   if (!resumenRaw) {
     return (
-      <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm text-mute">
-        No se pudo leer el registro de aportes ahora mismo. Es una falla de esta página, no un muro
-        vacío: los aportes siguen registrados. Vuelve a intentarlo en un momento.
-      </p>
+      <EstadoError
+        titulo="No pudimos leer el registro de aportes"
+        accion={
+          <EnlaceAccion variante="secundario" href={region ? `/app/aliados?ubigeo=${region}` : "/app/aliados"}>
+            Volver a intentarlo
+          </EnlaceAccion>
+        }
+      >
+        Es una falla de esta página, no un muro vacío: los aportes siguen registrados.
+      </EstadoError>
     );
   }
 
@@ -137,7 +146,7 @@ export async function MuroAliados({
   const partes = partesTarifa(estado?.tarifa.nota);
 
   if (totalVisible === 0) {
-    return <MuroVacio nombreRegion={nombreRegion} precio={precio} />;
+    return <MuroVacio nombreRegion={nombreRegion} region={region} precio={precio} />;
   }
 
   const enFichas = totalVisible <= UMBRAL_FICHA;
@@ -197,6 +206,7 @@ export async function MuroAliados({
             row={r}
             financiadosMuro={financiadosMuro}
             regionesConCola={regionesConCola}
+            regionesAlcanzadas={perfil ? resumirContribuciones(perfil.contribuciones).regionesDistintas : undefined}
             href={href(r)}
             esMaqueta={esSlugMaqueta(r.slug)}
             resumen={
@@ -227,7 +237,7 @@ export async function MuroAliados({
             <th scope="col" className="px-4 py-2.5 font-medium">Aliado</th>
             <th scope="col" className="py-2.5 pl-3 text-right font-medium">Financiados</th>
             <th scope="col" className="py-2.5 pl-3 text-right font-medium">Leídos</th>
-            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Con señal</th>
+            <th scope="col" className="py-2.5 pl-3 text-right font-medium">Con señales</th>
             <th scope="col" className="hidden py-2.5 pl-3 text-right font-medium sm:table-cell">Regiones</th>
             <th scope="col" className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Ficha</span></th>
           </tr>
@@ -258,7 +268,7 @@ export async function MuroAliados({
   return (
     <section aria-labelledby="muro-titulo" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-        <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
+        <h2 id="muro-titulo" className="font-display text-lg font-bold text-ink">
           Quién financió la lectura
         </h2>
         <Cifras
@@ -340,17 +350,17 @@ function Invitacion({ totalVisible, nombreRegion, precio, desglose }: {
   desglose: string;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-line px-5 py-5">
-      <h3 className="text-sm font-semibold text-ink">
+    <div className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-5">
+      <h3 className="font-display text-base font-bold text-ink">
         {totalVisible === 1
           ? `Hay un solo nombre en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`
           : `Hay ${num(totalVisible)} nombres en este muro${nombreRegion ? ` para ${nombreRegion}` : ""}`}
       </h3>
-      <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-mute">
+      <ol className="mt-3 max-w-[72ch] space-y-2 text-[13px] leading-relaxed text-inkSoft">
         <li>
           <span className="font-mono text-inkSoft">1.</span> Eliges una región y cuántos contratos quieres que
           se lean.
-          {precio != null && <> {formatPEN(precio)} cada uno{desglose ? `: ${desglose}` : ""}.</>}
+          {precio != null && <> {soles(precio)} cada uno{desglose ? `: ${desglose}` : ""}.</>}
         </li>
         <li>
           <span className="font-mono text-inkSoft">2.</span> Los contratos concretos los saca la cola por
@@ -366,20 +376,31 @@ function Invitacion({ totalVisible, nombreRegion, precio, desglose }: {
   );
 }
 
-/** Nadie ha aportado todavía en este ámbito: se dice qué falta, no se finge una grilla. */
-function MuroVacio({ nombreRegion, precio }: { nombreRegion?: string; precio: number | null }) {
+/**
+ * Nadie ha aportado todavía en este ámbito: se dice qué falta y qué hacer, no se finge
+ * una grilla. Con una región filtrada la acción lleva a financiar ESA zona (un destino
+ * distinto de la invitación general del pie de /app/aliados).
+ */
+function MuroVacio({ nombreRegion, region, precio }: { nombreRegion?: string; region?: string; precio: number | null }) {
   return (
-    <section aria-labelledby="muro-titulo" className="rounded-2xl border border-dashed border-line px-5 py-6">
-      <h2 id="muro-titulo" className="font-serif text-lg font-bold text-ink">
-        {nombreRegion
-          ? `Todavía nadie financió la lectura de un contrato de ${nombreRegion}`
-          : "Todavía nadie financió la lectura de un contrato"}
-      </h2>
-      <p className="mt-2 max-w-[72ch] text-[13px] leading-relaxed text-mute">
+    <section aria-labelledby="muro-titulo">
+      <h2 id="muro-titulo" className="sr-only">Quién financió la lectura</h2>
+      <EstadoVacio
+        titulo={
+          nombreRegion
+            ? `Todavía nadie financió la lectura de un contrato de ${nombreRegion}`
+            : "Todavía nadie financió la lectura de un contrato"
+        }
+        accion={
+          <EnlaceAccion href={region ? `/app/financiar/${region}` : "/app/financiar"}>
+            {nombreRegion ? `Financiar la lectura de ${nombreRegion}` : "Financiar una auditoría"}
+          </EnlaceAccion>
+        }
+      >
         Los contratos {nombreRegion ? `de ${nombreRegion} ` : ""}ya están descargados y clasificados: lo que
-        falta es capacidad para leerlos.{precio != null && <> Cuesta {formatPEN(precio)} por contrato.</>} Los
-        contratos se asignan por antigüedad y el primer nombre que aporte abre este muro.
-      </p>
+        falta es capacidad para leerlos.{precio != null && <> Cuesta {soles(precio)} por contrato.</>} Se asignan
+        por antigüedad, y el primer nombre que aporte abre este muro.
+      </EstadoVacio>
     </section>
   );
 }
@@ -396,8 +417,8 @@ function Anonimos({ cantidad, contratos }: { cantidad: number; contratos: number
         <span className="font-mono text-inkSoft">{num(cantidad)}</span>{" "}
         {cantidad === 1 ? "persona aportó" : "personas aportaron"} sin nombre y{" "}
         {cantidad === 1 ? "financió" : "financiaron"}{" "}
-        <span className="font-mono text-inkSoft">{num(contratos)}</span> contratos. Cuentan exactamente
-        igual; solo no figuran en la lista.
+        <span className="font-mono text-inkSoft">{num(contratos)}</span> {contratos === 1 ? "contrato" : "contratos"}. Cuentan
+        exactamente igual; solo no figuran en la lista.
       </span>
     </p>
   );

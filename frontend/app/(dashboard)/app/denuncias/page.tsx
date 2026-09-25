@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessageSquareWarning, CheckCircle2, Camera, Shield, MapPin, WifiOff, Inbox } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { MessageSquareWarning, Shield } from "lucide-react";
+import { EncabezadoPagina, EstadoError, EstadoVacio, Cifra } from "@/components/patrones";
 import { DenunciasGrid } from "@/components/denuncias/DenunciasGrid";
 import { FiltrosDenuncias } from "@/components/denuncias/FiltrosDenuncias";
 import { getReportesPagina, type ApiReporte, type ReportesPagina } from "@/lib/api-client";
 import { estaConfirmada, tieneUbicacion } from "@/lib/denuncias-meta";
 import { parseDenunciasQuery, confirmadosDe, denunciasQueryString } from "@/lib/denuncias-query";
+import { numero, porcentaje } from "@/lib/formato";
 
 export const metadata: Metadata = {
   title: "Denuncias ciudadanas",
@@ -19,6 +19,10 @@ export const metadata: Metadata = {
 const SIZE = 24;
 // Muestra para las cifras de arriba: las 200 más recientes, sin filtros.
 const MUESTRA = 200;
+
+/** El único llamado a denunciar de la página: en el estado vacío lo lleva el propio mensaje. */
+const BOTON_DENUNCIAR =
+  "inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep";
 
 /**
  * /app/denuncias: lo que reportan los vecinos.
@@ -59,18 +63,13 @@ export default async function DenunciasPage({
 
   return (
     <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
-      <PageHeader
-        title="Denuncias ciudadanas"
-        subtitle="Vecinos, comerciantes y trabajadores reportan obras paralizadas, obras fantasma e irregularidades. Son públicas: cualquiera puede verlas."
-        actions={
-          // Un solo llamado a denunciar en toda la página. En el estado vacío lo
-          // lleva el propio mensaje, así que acá se omite para no duplicarlo.
+      <EncabezadoPagina
+        titulo="Denuncias ciudadanas"
+        bajada="Vecinos, comerciantes y trabajadores reportan obras paralizadas, obras fantasma e irregularidades. Son públicas: cualquiera puede verlas."
+        acciones={
           !pagina || !sinNinguna ? (
-            <Link
-              href="/reporte/nuevo"
-              className="inline-flex items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-medium text-paper shadow-card transition-colors hover:bg-heroViolet-deep"
-            >
-              <MessageSquareWarning size={14} aria-hidden />
+            <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
+              <MessageSquareWarning size={16} aria-hidden />
               Denunciar una obra
             </Link>
           ) : undefined
@@ -78,49 +77,47 @@ export default async function DenunciasPage({
       />
 
       {!pagina || !muestra ? (
-        <Aviso
-          icono={<WifiOff size={18} />}
+        <EstadoError
           titulo="No pudimos leer las denuncias"
-          cuerpo="El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento."
           accion={
-            <Link href={aqui} className="font-medium text-heroViolet hover:underline">
+            <Link href={aqui} className="text-sm font-semibold text-granate underline-offset-2 hover:underline">
               Reintentar
             </Link>
           }
-        />
+        >
+          El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+        </EstadoError>
       ) : sinNinguna ? (
-        <Aviso
-          icono={<Inbox size={18} />}
+        <EstadoVacio
           titulo="Todavía no hay denuncias de vecinos publicadas"
-          cuerpo="Cuando alguien reporte una obra paralizada, una obra fantasma o una irregularidad, va a aparecer aquí con su foto y el lugar donde la vio."
           accion={
-            <Link
-              href="/reporte/nuevo"
-              className="inline-flex items-center gap-1.5 rounded-full bg-heroViolet px-4 py-2 text-sm font-medium text-paper shadow-card transition-colors hover:bg-heroViolet-deep"
-            >
-              <MessageSquareWarning size={14} aria-hidden />
+            <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
+              <MessageSquareWarning size={16} aria-hidden />
               Denunciar una obra
             </Link>
           }
-        />
+        >
+          Cuando alguien reporte una obra paralizada, una obra fantasma o una irregularidad, va a aparecer aquí con su
+          foto y el lugar donde la vio.
+        </EstadoVacio>
       ) : (
         <>
           <Cifras muestra={muestra} />
 
-          <div className="surface flex flex-wrap items-start gap-3 p-4">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-heroGreen-soft text-heroGreenTexto">
-              <Shield size={14} aria-hidden />
-            </div>
-            <div className="min-w-0 flex-1 text-xs leading-relaxed text-mute">
-              <p className="font-medium text-ink">Qué pasa con cada denuncia</p>
+          <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-line bg-paper p-4">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-granate-soft text-granate" aria-hidden>
+              <Shield size={14} />
+            </span>
+            <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-inkSoft">
+              <h2 className="font-display text-[15px] font-bold text-ink">Qué pasa con cada denuncia</h2>
               <ul className="mt-1 list-outside list-disc space-y-0.5 pl-4">
                 <li>
                   Se publica al instante, tal como llegó: en esta lista y en el mapa de Vigía, con su foto y el lugar
                   que se marcó. Nadie la revisa antes.
                 </li>
                 <li>
-                  Figura como <strong className="text-mossTexto">confirmada</strong> sólo cuando la respaldan dos o
-                  más reportes independientes del mismo lugar.
+                  Figura como <strong className="font-semibold text-mossTexto">confirmada</strong> sólo cuando la
+                  respaldan dos o más reportes independientes del mismo lugar.
                 </li>
                 <li>
                   Es el testimonio de un vecino, no un hallazgo de Vigía: los agentes que leen contratos no la
@@ -148,58 +145,34 @@ export default async function DenunciasPage({
 /**
  * Las cuatro cifras de arriba. Son un resumen del sitio: no reaccionan a los
  * filtros de abajo. `total` es el conteo del backend; las otras tres se cuentan
- * sobre la muestra de las 200 más recientes, y cuando hay más que eso lo dicen.
+ * sobre la muestra de las 200 más recientes, y cuando hay más que eso lo dicen:
+ * cada cifra lleva su denominador (DESIGN_SYSTEM.md §10.2).
  */
 function Cifras({ muestra }: { muestra: ReportesPagina }) {
   const filas: ApiReporte[] = muestra.data;
   const total = Math.max(muestra.total, filas.length);
   const sobre = filas.length;
-  const recorte = total > sobre ? ` de las ${sobre.toLocaleString("es-PE")} más recientes` : "";
+  const base = total > sobre ? `de las ${numero(sobre)} más recientes` : `de ${numero(sobre)}`;
   const confirmadas = filas.filter(estaConfirmada).length;
   const conFoto = filas.filter((r) => r.fotoUrl).length;
   const conUbicacion = filas.filter(tieneUbicacion).length;
-  const pct = (n: number) => (sobre ? `${Math.round((n / sobre) * 100)} %` : "");
+  const pct = (n: number) => (sobre ? ` (${porcentaje((n / sobre) * 100)})` : "");
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Kpi icon={<MessageSquareWarning size={14} />} label="Denuncias" value={total} sub="desde el inicio" />
-      <Kpi icon={<CheckCircle2 size={14} />} label="Confirmadas" value={confirmadas} sub={`por 2 o más reportes${recorte}`} />
-      <Kpi icon={<Camera size={14} />} label="Con foto" value={conFoto} sub={`${pct(conFoto)}${recorte}`} />
-      <Kpi icon={<MapPin size={14} />} label="Con ubicación" value={conUbicacion} sub={`punto marcado en el mapa${recorte}`} />
+      <CifraDenuncias valor={numero(total)} etiqueta="Denuncias publicadas" contexto="desde el inicio" />
+      <CifraDenuncias valor={numero(confirmadas)} etiqueta="Confirmadas" contexto={`${base}; por dos o más reportes`} />
+      <CifraDenuncias valor={numero(conFoto)} etiqueta="Con foto" contexto={`${base}${pct(conFoto)}`} />
+      <CifraDenuncias valor={numero(conUbicacion)} etiqueta="Con punto en el mapa" contexto={`${base}${pct(conUbicacion)}`} />
     </div>
   );
 }
 
-function Kpi({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: number; sub?: string }) {
+/** `Cifra` del sistema dentro de su tarjeta (borde, sin sombra: una tarjeta en reposo no flota). */
+function CifraDenuncias({ valor, etiqueta, contexto }: { valor: string; etiqueta: string; contexto: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-paperSoft p-3 text-ink shadow-card">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-mute">{label}</span>
-        <span className="text-mute" aria-hidden>{icon}</span>
-      </div>
-      <NumberTicker value={value} className="mt-1 block font-mono text-2xl font-bold" />
-      {sub && <div className="mt-0.5 text-[11px] leading-snug text-mute">{sub}</div>}
-    </div>
-  );
-}
-
-function Aviso({
-  icono,
-  titulo,
-  cuerpo,
-  accion,
-}: {
-  icono: React.ReactNode;
-  titulo: string;
-  cuerpo: string;
-  accion?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
-      <span className="inline-flex text-mute" aria-hidden>{icono}</span>
-      <h2 className="mt-2 font-serif text-lg font-bold text-ink">{titulo}</h2>
-      <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">{cuerpo}</p>
-      {accion && <div className="mt-4 text-sm">{accion}</div>}
+    <div className="rounded-2xl border border-line bg-paper p-4">
+      <Cifra valor={valor} etiqueta={etiqueta} contexto={contexto} />
     </div>
   );
 }

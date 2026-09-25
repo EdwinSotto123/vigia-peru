@@ -22,15 +22,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { numero } from "@/lib/formato";
 import { senalesQueryString, type FacetasSenales, type NivelBandera, type SenalesQuery } from "@/lib/revision";
+import { NivelSenal } from "./NivelSenal";
 
 const campo =
-  "h-9 max-w-[16rem] rounded-xl border border-line bg-paper px-2.5 text-[13px] text-ink outline-none transition-colors duration-rapido hover:border-paperEdge focus:border-heroViolet disabled:cursor-not-allowed disabled:bg-paperSoft disabled:text-mute";
+  "h-9 max-w-[16rem] rounded-xl border border-line bg-paper px-2.5 text-[13px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate disabled:cursor-not-allowed disabled:bg-paperSoft disabled:text-mute";
 
 /**
- * Publicadas ↔ en revisión humana. Es un cambio de modo, no un filtro más: son dos
+ * Publicadas ↔ en revisión. Es un cambio de modo, no un filtro más: son dos
  * poblaciones distintas (la segunda ni siquiera sale de `GET /alertas`). Van como
  * enlaces, así que funcionan sin JS y se pueden abrir en otra pestaña.
+ *
+ * La segunda sale de los procesamientos, que sólo conocen lo FINANCIADO: por eso
+ * dice "Financiados en revisión" (DESIGN_SYSTEM.md §10.1), no "En revisión", que
+ * es el total de alertas frenadas (incluye los análisis a demanda).
  */
 export function SelectorVista({
   vista,
@@ -47,19 +53,20 @@ export function SelectorVista({
 }) {
   const tab = (activa: boolean) =>
     cn(
-      "inline-flex items-baseline gap-1.5 rounded-xl px-3 py-1.5 text-[13.5px] font-medium transition-colors duration-rapido",
-      activa ? "bg-ink text-paper" : "text-inkSoft hover:bg-paperDeep hover:text-ink",
+      "inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-medium transition-colors duration-rapido",
+      // Granate = la vista elegida (la marca), nunca un nivel de riesgo.
+      activa ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
       inerte && "pointer-events-none",
     );
   const conteo = (n: number | null) =>
     n == null ? (
       <span className="inline-block h-2.5 w-5 animate-shimmerSweep rounded bg-gradient-to-r from-paperDeep via-paper to-paperDeep bg-[length:200%_100%]" aria-hidden />
     ) : (
-      <span className="font-mono text-[12px] tabular-nums opacity-70">{n.toLocaleString("es-PE")}</span>
+      <span className="text-[12px] font-semibold tabular-nums">{numero(n)}</span>
     );
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-2xl border border-line bg-paper p-1"
+      className="inline-flex flex-wrap items-center gap-1 rounded-full border border-line bg-paper p-1"
       role="group"
       aria-label="Qué señales ver"
       aria-busy={publicadas == null || undefined}
@@ -73,7 +80,7 @@ export function SelectorVista({
         className={tab(vista === "revision")}
         aria-current={vista === "revision" ? "page" : undefined}
       >
-        En revisión humana
+        Financiados en revisión
         {conteo(enRevision)}
       </Link>
     </div>
@@ -99,24 +106,21 @@ export function FiltrosSenales({ query, facetas }: { query: SenalesQuery; faceta
     // renglones (~195 px) y, fija arriba, se comía un cuarto de la pantalla mientras
     // se leía la lista. Ahí se queda en su sitio y se vuelve a ella subiendo.
     <div className="z-barra flex flex-wrap items-center gap-2 border-b border-line/70 bg-paper/95 py-2.5 backdrop-blur md:sticky md:top-0">
-      <span
-        className="inline-flex items-center gap-0.5 rounded-xl border border-line bg-paper p-1"
-        role="group"
-        aria-label="Filtrar por severidad"
-      >
+      {/* Chips con conteo. La severidad la dicen el ícono y la palabra de cada chip
+          (NivelSenal); el chip elegido se marca con granate, el color de "elegido". */}
+      <span className="inline-flex flex-wrap items-center gap-1" role="group" aria-label="Filtrar por severidad">
         <BotonSeveridad activo={!query.severidad} onClick={() => navegar({ severidad: undefined })}>
           Toda severidad
         </BotonSeveridad>
-        {facetas.severidad.map((f) => (
-          <BotonSeveridad
-            key={f.valor}
-            activo={query.severidad === f.valor}
-            onClick={() => navegar({ severidad: f.valor as NivelBandera })}
-          >
-            {ETIQUETA_SEV[f.valor as NivelBandera]}
-            <span className="ml-1 font-mono text-[11.5px] tabular-nums opacity-70">{f.n}</span>
-          </BotonSeveridad>
-        ))}
+        {facetas.severidad.map((f) => {
+          const activo = query.severidad === f.valor;
+          return (
+            <BotonSeveridad key={f.valor} activo={activo} onClick={() => navegar({ severidad: f.valor as NivelBandera })}>
+              <NivelSenal nivel={f.valor as NivelBandera} className={cn("text-[13px]", activo && "text-paper")} />
+              <span className="font-semibold tabular-nums">{numero(f.n)}</span>
+            </BotonSeveridad>
+          );
+        })}
       </span>
 
       <Desplegable
@@ -147,17 +151,20 @@ export function FiltrosSenales({ query, facetas }: { query: SenalesQuery; faceta
         <button
           type="button"
           onClick={() => start(() => router.push(pathname, { scroll: false }))}
-          className="inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-2.5 py-2 text-[12px] text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
+          className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line px-3 py-1.5 text-[12px] text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
         >
-          <X size={12} aria-hidden /> Limpiar
+          <X size={12} aria-hidden /> Quitar filtros
         </button>
       )}
-      {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Aplicando filtros" />}
+      {pendiente && (
+        <span role="status" className="inline-flex items-center">
+          <Loader2 size={14} className="animate-spin text-mute" aria-hidden />
+          <span className="sr-only">Aplicando filtros…</span>
+        </span>
+      )}
     </div>
   );
 }
-
-const ETIQUETA_SEV: Record<NivelBandera, string> = { alta: "Alta", media: "Media", baja: "Baja" };
 
 function BotonSeveridad({
   activo,
@@ -174,8 +181,8 @@ function BotonSeveridad({
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido",
-        activo ? "bg-ink text-paper" : "text-ink hover:bg-paperDeep",
+        "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] font-medium transition-colors duration-rapido",
+        activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
       )}
     >
       {children}
@@ -205,12 +212,12 @@ function Desplegable({
       onChange={(e) => onChange(e.target.value)}
       aria-label={etiqueta}
       disabled={opciones.length === 0}
-      className={cn(campo, valor && "border-heroViolet/60 font-medium")}
+      className={cn(campo, valor && "border-granate/60 font-medium")}
     >
       <option value="">{placeholder}</option>
       {lista.map((o) => (
         <option key={o.valor} value={o.valor}>
-          {o.etiqueta} ({o.n})
+          {o.etiqueta} ({numero(o.n)})
         </option>
       ))}
     </select>

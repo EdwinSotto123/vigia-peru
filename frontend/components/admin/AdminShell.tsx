@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock } from "lucide-react";
-import { Marca } from "@/components/Marca";
+import { Marca } from "@/components/marca";
 import { precargarAdmin } from "@/lib/useAdmin";
 import { useSesionEquipo } from "@/lib/useEquipo";
 import { puedeVerSeccion, ROLES } from "@/lib/permisos";
@@ -119,7 +119,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
                         className={cn(
                           "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-rapido",
                           active
-                            ? "bg-paper/10 font-medium text-paper before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-heroGreen"
+                            ? "bg-paper/10 font-medium text-paper before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-maiz"
                             : "text-paper/70 hover:bg-paper/5 hover:text-paper",
                         )}
                       >
@@ -156,7 +156,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
         <header className="border-b border-line bg-paper/95 backdrop-blur lg:sticky lg:top-0 lg:z-barra">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
             <div className="min-w-0">
-              <h1 className="font-serif text-xl font-bold text-ink">{title}</h1>
+              <h1 className="font-display text-xl font-bold text-ink">{title}</h1>
               {subtitle && <p className="text-xs text-mute">{subtitle}</p>}
             </div>
             {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

@@ -2,6 +2,7 @@
 
 import { ExternalLink, ShieldAlert } from "lucide-react";
 import { redactDnis } from "../../Redact";
+import { montoDossier } from "../dossier";
 import { PersonaVinculacionesPanel } from "./PersonaVinculacionesPanel";
 
 export function AportesPoliticosSection({ web, person, ctx }: { web: any; person: any; ctx?: any }) {
@@ -20,10 +21,10 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
   if (!hayActividad && hallazgos.length === 0) return null;
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <h2 className="font-serif text-xl font-bold text-ink">
-          <ShieldAlert size={16} className="mr-1.5 inline text-heroViolet" aria-hidden />
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="border-b border-line bg-paperSoft px-5 py-3">
+        <h2 className="font-display text-xl font-bold text-ink">
+          <ShieldAlert size={16} className="mr-1.5 inline text-mute" aria-hidden />
           Vinculaciones políticas
         </h2>
         <p className="mt-1 text-xs text-mute">
@@ -36,8 +37,8 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* APORTES */}
-        <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+        <article className="rounded-xl border border-line bg-paperSoft p-4">
+          <h3 className="text-[12px] font-semibold text-ink">
             Aportes ONPE Claridad ({aportes.length})
           </h3>
           {aportes.length === 0 ? (
@@ -52,15 +53,15 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                     <span className="font-mono text-[11px] font-bold text-ink">{a.año}</span>
                     <strong className="text-sm text-ink">{a.partido}</strong>
                     {a.monto != null && (
-                      <span className="ml-auto font-mono text-xs font-bold text-heroViolet">
-                        S/ {Number(a.monto).toLocaleString("es-PE")}
+                      <span className="ml-auto font-mono text-xs font-semibold tabular-nums text-ink">
+                        {montoDossier(a.monto)}
                       </span>
                     )}
                   </div>
                   {a.fuente_url && (
                     <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
-                      Fuente <ExternalLink size={9} />
+                       className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-granate hover:underline">
+                      Fuente <ExternalLink size={11} aria-hidden />
                     </a>
                   )}
                 </li>
@@ -70,8 +71,8 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
         </article>
 
         {/* CANDIDATURAS */}
-        <article className="rounded-md border border-line bg-paperSoft p-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+        <article className="rounded-xl border border-line bg-paperSoft p-4">
+          <h3 className="text-[12px] font-semibold text-ink">
             Candidaturas JNE ({candidaturas.length})
           </h3>
           {candidaturas.length === 0 ? (
@@ -86,7 +87,7 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                     <span className="font-mono text-[11px] font-bold text-ink">{c.año}</span>
                     <strong className="text-sm text-ink">{c.cargo}</strong>
                     {c.resultado && (
-                      <span className="ml-auto rounded-full bg-paperDeep px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-mute">
+                      <span className="ml-auto rounded-full bg-paperDeep px-1.5 py-0.5 text-[11px] text-mute">
                         {c.resultado}
                       </span>
                     )}
@@ -94,8 +95,8 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
                   <div className="text-[11px] text-inkSoft">{c.partido}</div>
                   {c.fuente_url && (
                     <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                       className="mt-1 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
-                      Fuente <ExternalLink size={9} />
+                       className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-granate hover:underline">
+                      Fuente <ExternalLink size={11} aria-hidden />
                     </a>
                   )}
                 </li>
@@ -108,21 +109,21 @@ export function AportesPoliticosSection({ web, person, ctx }: { web: any; person
       {/* HALLAZGOS de las fuentes ONPE/JNE */}
       {hallazgos.length > 0 && (
         <div className="border-t border-line bg-paperSoft px-5 py-3">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+          <h3 className="text-[12px] font-semibold text-inkSoft">
             Hallazgos en las fuentes consultadas
           </h3>
           <ul className="mt-1 space-y-1">
             {hallazgos.map((h: any, i: number) => (
               <li key={i} className="text-[11px] text-ink">
                 <strong>{h.fuente}:</strong>{" "}
-                <span className={h.estado === "alerta" ? "text-crimsonTexto" : h.estado === "ok" ? "text-mossTexto" : "text-mute"}>
+                <span className={h.estado === "alerta" || h.estado === "ok" ? "text-ink" : "text-mute"}>
                   {redactDnis(h.mensaje)}
                 </span>
                 {h.url && (
                   <a href={h.url} target="_blank" rel="noreferrer"
-                     className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                     className="ml-1 inline-flex min-h-[24px] min-w-[24px] items-center justify-center text-granate hover:underline"
                      aria-label={`Abrir la fuente: ${h.fuente}`}>
-                    <ExternalLink size={9} aria-hidden />
+                    <ExternalLink size={11} aria-hidden />
                   </a>
                 )}
               </li>

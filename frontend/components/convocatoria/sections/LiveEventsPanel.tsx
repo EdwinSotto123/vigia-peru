@@ -18,7 +18,7 @@ function ExpandableThought({ text }: { text: string }) {
     >
       {text}
       {truncated && (
-        <span className="ml-1 not-italic font-semibold text-heroViolet">
+        <span className="ml-1 not-italic font-semibold text-granate">
           {open ? "(cerrar)" : ""}
         </span>
       )}
@@ -43,13 +43,13 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
   for (const e of events) byKind[e.kind || "?"] = (byKind[e.kind || "?"] || 0) + 1;
 
   const kindIcon = (k: string) => {
-    if (k === "tool_call")    return <Sparkles size={11} className="text-heroViolet" />;
-    if (k === "tool_result")  return <CheckCircle2 size={11} className="text-moss" />;
+    if (k === "tool_call")    return <Sparkles size={11} className="text-granate" />;
+    if (k === "tool_result")  return <CheckCircle2 size={11} className="text-mossTexto" />;
     if (k === "transfer")     return <ArrowRight size={11} className="text-amberTexto" />;
     if (k === "thought")      return <Brain size={11} className="text-mute" />;
-    if (k === "phase")        return <Sparkles size={11} className="text-rust" />;
+    if (k === "phase")        return <Sparkles size={11} className="text-mute" />;
     if (k === "session")      return <Sparkles size={11} className="text-ink" />;
-    if (k === "error")        return <AlertTriangle size={11} className="text-rust" />;
+    if (k === "error")        return <AlertTriangle size={11} className="text-crimsonTexto" />;
     return <span className="inline-block h-2 w-2 rounded-full bg-mute" />;
   };
 
@@ -57,11 +57,11 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
 
   const totalEvents = events.length;
   return (
-    <div className="surface overflow-hidden p-0">
+    <div className="rounded-2xl border border-line bg-paperSoft overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperDeep px-5 py-3">
         <div className="flex items-baseline gap-2">
-          <h3 className="font-serif text-sm font-bold text-ink">Actividad del análisis</h3>
-          <span className="font-mono text-[10px] text-mute">{totalEvents} eventos</span>
+          <h3 className="font-display text-sm font-bold text-ink">Actividad del análisis</h3>
+          <span className="font-mono text-[11px] text-mute">{totalEvents} eventos</span>
         </div>
       </div>
       <div className="max-h-[280px] overflow-y-auto bg-paper px-3 py-2 font-mono text-[11px]">
@@ -69,7 +69,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
           <div key={i} className="flex items-start gap-2 border-b border-line/40 py-1.5 last:border-0">
             <span className="mt-0.5 shrink-0">{kindIcon(ev.kind)}</span>
             {ev.agent && (
-              <span className="shrink-0 rounded bg-paperDeep px-1 py-0 text-[9px] font-bold text-heroViolet">
+              <span className="shrink-0 rounded bg-paperDeep px-1 py-0 text-[11px] font-bold text-granate">
                 {fmtAgent(ev.agent)}
               </span>
             )}
@@ -101,7 +101,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
               )}
               {ev.kind === "phase" && (
                 <div className="truncate">
-                  <span className="font-bold uppercase tracking-wider text-rust">[{ev.name}]</span>
+                  <span className="font-bold uppercase tracking-wider text-crimsonTexto">[{ev.name}]</span>
                   <span className="ml-1 text-ink">{ev.msg}</span>
                 </div>
               )}
@@ -109,7 +109,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
                 <div className="truncate text-mute">iniciando análisis…</div>
               )}
               {ev.kind === "error" && (
-                <div className="line-clamp-2 text-rust">{ev.detail}</div>
+                <div className="line-clamp-2 text-crimsonTexto">{ev.detail}</div>
               )}
             </div>
           </div>
@@ -117,7 +117,7 @@ export function LiveEventsPanel({ events }: { events: any[] }) {
         <div ref={tail} />
       </div>
       {events.length > 30 && (
-        <div className="border-t border-line bg-paperSoft px-5 py-1 text-center text-[10px] text-mute">
+        <div className="border-t border-line bg-paperSoft px-5 py-1 text-center text-[11px] text-mute">
           mostrando últimos 30 de {events.length} eventos
         </div>
       )}

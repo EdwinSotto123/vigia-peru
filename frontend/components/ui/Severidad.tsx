@@ -1,10 +1,12 @@
-import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed } from "lucide-react";
+import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed, Info } from "lucide-react";
 import { severidadDeScore, severidadDeBandera, type SeveridadUI } from "@/lib/severidad";
 import { cn } from "@/lib/utils";
 
-const ICONO = {
+/** Un ícono por clave de `SeveridadUI.icono` (§7). Es el único mapa: quien pinte severidad lo importa de aquí. */
+export const ICONO_SEVERIDAD = {
   alerta: AlertTriangle,
   atencion: CircleAlert,
+  info: Info,
   ok: CircleCheck,
   vacio: CircleDashed,
 } as const;
@@ -32,7 +34,7 @@ export function Severidad({
   className?: string;
 }) {
   const s: SeveridadUI = bandera ? severidadDeBandera(bandera) : severidadDeScore(score);
-  const Icono = ICONO[s.icono];
+  const Icono = ICONO_SEVERIDAD[s.icono];
 
   if (formato === "punto") {
     return (

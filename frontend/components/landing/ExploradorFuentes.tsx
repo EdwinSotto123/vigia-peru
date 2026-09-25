@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/formato";
 import { FUENTES_FLUJO, RESULTADOS, type FuenteFlujo, type Resultado, type ResultadoClave } from "./fuentesFlujo";
 import { Visual } from "./ExploradorVisual";
 
@@ -214,7 +215,7 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
     abierto ? "abierto" : encendido ? (sel ? "encendido" : "reposo") : sel ? "apagado" : "reposo";
 
   return (
-    <div className="mt-8 overflow-hidden rounded-2xl bg-ink text-paper shadow-paper">
+    <div className="sobre-oscuro mt-8 overflow-hidden rounded-2xl bg-ink text-paper shadow-paper">
       <div
         ref={lienzo}
         className="relative grid gap-4 p-5 sm:p-7 lg:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)_minmax(0,17.5rem)] lg:gap-0 lg:px-10 lg:py-9 xl:grid-cols-[minmax(0,19rem)_minmax(0,1fr)_minmax(0,19rem)]"
@@ -223,7 +224,7 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
 
         {/* ── Fuentes ── */}
         <div className="relative">
-          <p className="mb-3 text-[12px] font-medium text-paper/50">Fuentes públicas</p>
+          <p className="mb-3 text-[12px] font-semibold text-paper/75">Fuentes públicas</p>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col">
             {FUENTES.map((f) => {
               const abierto = sel?.tipo === "fuente" && sel.clave === f.clave;
@@ -252,15 +253,15 @@ export function ExploradorFuentes({ cifras }: { cifras: CifrasFlujo | null }) {
             hacia abajo, y centrado, Vigía y los resultados bajaban con ella.
             9,5 rem ≈ lo que lo centra contra las fuentes cerradas (medido). */}
         <div className="relative flex flex-col items-center justify-center gap-3 py-2 lg:justify-start lg:py-0 lg:pt-[9.5rem]">
-          <ArrowDown size={18} className="text-paper/30 lg:hidden" aria-hidden />
+          <ArrowDown size={18} className="text-paper/40 lg:hidden" aria-hidden />
           <NodoVigia refNodo={vigia} elegido={sel?.tipo === "vigia"} onClick={() => alternar({ tipo: "vigia" })} />
-          <p className="max-w-[15rem] text-center text-[12px] leading-snug text-paper/45">Toca una fuente o un resultado para ver qué hay detrás.</p>
-          <ArrowDown size={18} className="text-paper/30 lg:hidden" aria-hidden />
+          <p className="max-w-[15rem] text-center text-[12px] leading-snug text-paper/75">Toca una fuente o un resultado para ver qué hay detrás.</p>
+          <ArrowDown size={18} className="text-paper/40 lg:hidden" aria-hidden />
         </div>
 
         {/* ── Resultados ── */}
         <div className="relative lg:pt-[3.25rem]">
-          <p className="mb-3 text-[12px] font-medium text-paper/50">Lo que obtiene</p>
+          <p className="mb-3 text-[12px] font-semibold text-paper/75">Lo que obtiene</p>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col lg:gap-2.5">
             {RESULTADOS.map((r) => {
               const abierto = sel?.tipo === "resultado" && sel.clave === r.clave;
@@ -310,12 +311,12 @@ function Trazos({ geo, on }: { geo: Geometria; on: ReturnType<typeof encendidos>
           d={curva(geo.fuentes[f.clave], geo.entradas[f.clave])}
           encendido={on.fuentes.has(f.clave)}
           fuerte={on.fuerte}
-          tono={f.estado === "caida" ? "ambar" : "verde"}
+          tono={f.estado === "caida" ? "ambar" : "maiz"}
           punteado={f.alimenta.length === 0}
         />
       ))}
       {RESULTADOS.map((r) => (
-        <Trazo key={r.clave} d={curva(geo.salidas[r.clave], geo.resultados[r.clave])} encendido={on.resultados.has(r.clave)} fuerte={on.fuerte} tono="verde" />
+        <Trazo key={r.clave} d={curva(geo.salidas[r.clave], geo.resultados[r.clave])} encendido={on.resultados.has(r.clave)} fuerte={on.fuerte} tono="maiz" />
       ))}
     </svg>
   );
@@ -327,8 +328,8 @@ function Trazos({ geo, on }: { geo: Geometria; on: ReturnType<typeof encendidos>
  * todo lo que funciona fluye tenue; al elegir, lo elegido fluye fuerte y el
  * resto se apaga. Las fuentes que nadie usa son punteadas y nunca fluyen.
  */
-function Trazo({ d, encendido, fuerte, tono, punteado }: { d: string; encendido: boolean; fuerte: boolean; tono: "verde" | "ambar"; punteado?: boolean }) {
-  const color = tono === "ambar" ? "stroke-amber" : "stroke-heroGreen";
+function Trazo({ d, encendido, fuerte, tono, punteado }: { d: string; encendido: boolean; fuerte: boolean; tono: "maiz" | "ambar"; punteado?: boolean }) {
+  const color = tono === "ambar" ? "stroke-amber" : "stroke-maiz";
   return (
     <g>
       <path d={d} fill="none" strokeWidth={1.2} strokeDasharray={punteado ? "2 5" : undefined} className="stroke-paper/[0.12]" />
@@ -377,9 +378,10 @@ function Nodo({
   return (
     <div
       className={cn(
-        "h-full overflow-hidden rounded-xl border bg-[#191D21] transition-[border-color,opacity,box-shadow] duration-normal",
+        // Fondo opaco: las curvas pasan por detrás de los nodos y no deben verse a través.
+        "h-full overflow-hidden rounded-xl border bg-ink transition-[border-color,opacity,box-shadow] duration-normal",
         punteado && "border-dashed",
-        abierto && "border-heroGreen bg-[#15201A] shadow-[0_0_0_3px_rgba(47,168,76,0.14)]",
+        abierto && "border-maiz bg-granate-900 ring-[3px] ring-maiz/15",
         estado === "encendido" && "border-paper/30",
         estado === "reposo" && "border-paper/15",
         estado === "apagado" && "border-paper/10 opacity-50 hover:opacity-90",
@@ -390,18 +392,18 @@ function Nodo({
         type="button"
         onClick={onClick}
         aria-expanded={abierto}
-        className="flex w-full items-center gap-2 px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-heroGreen sm:gap-2.5"
+        className="flex min-h-[44px] w-full items-center gap-2 px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-maiz sm:gap-2.5"
       >
         <span
           className={cn(
             "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors duration-normal",
-            abierto ? "bg-heroGreen/20 text-heroGreen" : estado === "apagado" ? "bg-paper/[0.06] text-paper/60" : "bg-paper/10 text-paper",
+            abierto ? "bg-maiz/20 text-maiz" : estado === "apagado" ? "bg-paper/[0.06] text-paper/75" : "bg-paper/10 text-paper",
           )}
         >
           <Icono size={15} aria-hidden />
         </span>
         <span className="min-w-0 flex-1 text-[13.5px] font-semibold leading-tight">{titulo}</span>
-        <ChevronDown size={15} className={cn("shrink-0 text-paper/40 transition-transform duration-normal", abierto && "rotate-180 text-heroGreen")} aria-hidden />
+        <ChevronDown size={15} className={cn("shrink-0 text-paper/60 transition-transform duration-normal", abierto && "rotate-180 text-maiz")} aria-hidden />
       </button>
       {abierto && <div className="border-t border-paper/10 px-3.5 pb-4 pt-3 motion-safe:animate-fadeIn">{children}</div>}
     </div>
@@ -416,15 +418,16 @@ function NodoVigia({ refNodo, elegido, onClick }: { refNodo: React.RefObject<HTM
       onClick={onClick}
       aria-expanded={elegido}
       className={cn(
-        "relative grid h-44 w-44 shrink-0 place-items-center rounded-full border-2 bg-[radial-gradient(circle_at_50%_30%,#3a2a74_0%,#231a45_55%,#15131f_100%)] transition-[border-color,box-shadow] duration-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen focus-visible:ring-offset-4 focus-visible:ring-offset-ink lg:h-48 lg:w-48",
-        elegido ? "border-heroGreen shadow-[0_0_0_6px_rgba(47,168,76,0.16)]" : "border-heroGreen/45 hover:border-heroGreen/80",
+        // El nodo de Vigía es el único en granate: la marca en el centro del mapa.
+        "relative grid h-44 w-44 shrink-0 place-items-center rounded-full border-2 bg-granate-deep transition-[border-color,box-shadow] duration-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz focus-visible:ring-offset-4 focus-visible:ring-offset-ink lg:h-48 lg:w-48",
+        elegido ? "border-maiz ring-[6px] ring-maiz/15" : "border-maiz/45 hover:border-maiz/80",
       )}
     >
-      <span aria-hidden className="absolute inset-0 rounded-full border border-heroGreen/40 motion-safe:animate-latidoNodo" />
+      <span aria-hidden className="absolute inset-0 rounded-full border border-maiz/40 motion-safe:animate-latidoNodo" />
       <span aria-hidden className="absolute -inset-3 rounded-full border border-dashed border-paper/15 motion-safe:animate-[spin_48s_linear_infinite]" />
       <span className="relative px-6 text-center">
-        <span className="block font-serif text-3xl font-bold leading-none">Vigía</span>
-        <span className="mt-2 block text-[11.5px] leading-snug text-paper/70">Integra, procesa y relaciona información pública</span>
+        <span className="block font-display text-3xl font-extrabold leading-none">Vigía</span>
+        <span className="mt-2 block text-[12px] leading-snug text-paper/75">Integra, procesa y relaciona información pública</span>
       </span>
     </button>
   );
@@ -452,10 +455,10 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
               href={f.url}
               target="_blank"
               rel="noreferrer"
-              className="group inline-flex items-center gap-1 break-all rounded-sm font-medium text-paper underline decoration-paper/30 underline-offset-4 hover:decoration-heroGreen focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen"
+              className="group inline-flex items-center gap-1 break-all rounded-sm font-medium text-paper underline decoration-paper/30 underline-offset-4 hover:decoration-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
             >
               {sitio}
-              <ArrowUpRight size={13} className="shrink-0 text-paper/50 group-hover:text-heroGreen" aria-hidden />
+              <ArrowUpRight size={13} className="shrink-0 text-paper/60 group-hover:text-maiz" aria-hidden />
               <span className="sr-only">(se abre en una pestaña nueva)</span>
             </a>
           ) : (
@@ -468,16 +471,16 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
         <Dato Icono={RefreshCw} etiqueta="Se actualiza">
           <span className="text-paper/85">
             {f.frecuencia}
-            {proxima && <span className="block text-[12px] text-paper/50">Próxima vez: {proxima}</span>}
+            {proxima && <span className="block text-[12px] text-paper/75">Próxima vez: {proxima}</span>}
           </span>
         </Dato>
       </dl>
 
       <div>
-        <p className="text-[12px] font-medium text-paper/55">Lo que tomamos de ahí</p>
+        <p className="text-[12px] font-semibold text-paper/75">Lo que tomamos de ahí</p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {f.tomamos.map((t) => (
-            <li key={t} className="rounded-full bg-heroGreen/15 px-2.5 py-1 text-[12px] text-[#9BE3AC]">
+            <li key={t} className="rounded-full bg-maiz/15 px-2.5 py-1 text-[12px] text-maiz">
               {t}
             </li>
           ))}
@@ -492,7 +495,7 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
 
       {f.alimenta.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-paper/10 pt-3">
-          <span className="text-[12px] text-paper/50">Llega a</span>
+          <span className="text-[12px] text-paper/75">Llega a</span>
           {f.alimenta.map((k) => (
             <Ficha key={k} Icono={ICONO_RESULTADO[k]} onClick={() => ir({ tipo: "resultado", clave: k })}>
               {RESULTADOS.find((r) => r.clave === k)!.nombre}
@@ -507,9 +510,9 @@ function DetalleFuente({ f, ir }: { f: FuenteFlujo; ir: (s: Eleccion) => void })
 function Dato({ Icono, etiqueta, children }: { Icono: LucideIcon; etiqueta: string; children: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
-      <Icono size={15} className="mt-0.5 shrink-0 text-heroGreen" aria-hidden />
+      <Icono size={15} className="mt-0.5 shrink-0 text-maiz" aria-hidden />
       <div className="min-w-0">
-        <dt className="text-[11.5px] text-paper/50">{etiqueta}</dt>
+        <dt className="text-[12px] text-paper/75">{etiqueta}</dt>
         <dd className="leading-snug">{children}</dd>
       </div>
     </div>
@@ -527,9 +530,7 @@ function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo
       <Visual clave={r.clave} cifras={cifras} />
 
       <div>
-        <p className="text-[12px] font-medium text-paper/55">
-          Sale de {fuentes.length} {fuentes.length === 1 ? "fuente" : "fuentes"}
-        </p>
+        <p className="text-[12px] font-semibold text-paper/75">Sale de {plural(fuentes.length, "fuente", "fuentes")}</p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {fuentes.map((f) => {
             const F = ICONO_FORMATO[f.formato];
@@ -537,7 +538,7 @@ function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo
               <li key={f.clave}>
                 <Ficha Icono={ICONO_FUENTE[f.clave] ?? FileText} onClick={() => ir({ tipo: "fuente", clave: f.clave })}>
                   {f.corto}
-                  <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-paper/10 px-1 text-[10.5px] text-paper/60">
+                  <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-paper/10 px-1 text-[11px] text-paper/75">
                     <F size={10} aria-hidden />
                     {f.formato}
                   </span>
@@ -550,7 +551,7 @@ function DetalleResultado({ r, cifras, ir }: { r: Resultado; cifras: CifrasFlujo
 
       <Link
         href={r.donde.href}
-        className="group inline-flex items-center gap-2 rounded-full border border-paper/20 px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido hover:border-heroGreen hover:text-heroGreen focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen"
+        className="group inline-flex min-h-[36px] items-center gap-2 rounded-full border border-paper/20 px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido hover:border-maiz hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
       >
         {r.donde.texto}
         <ArrowRight size={14} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
@@ -575,19 +576,19 @@ const PASOS_VIGIA: { Icono: LucideIcon; verbo: string; que: string }[] = [
 function QueHaceVigia() {
   return (
     <div>
-      <p className="font-serif text-2xl font-bold leading-tight">Qué hace Vigía con los datos</p>
+      <p className="font-display text-2xl font-bold leading-tight">Qué hace Vigía con los datos</p>
       <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-paper/75">
         Cada fuente escribe las cosas a su manera. Vigía las junta en un solo lugar y las pone a conversar.
       </p>
       <ol className="relative mt-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <span aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-gradient-to-r from-heroGreen/50 via-paper/15 to-heroGreen/50 lg:block" />
+        <span aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-gradient-to-r from-maiz/50 via-paper/15 to-maiz/50 lg:block" />
         {PASOS_VIGIA.map(({ Icono, verbo, que }) => (
           <li key={verbo} className="relative">
-            <span className="grid h-10 w-10 place-items-center rounded-full border border-heroGreen/50 bg-ink text-heroGreen">
+            <span className="grid h-10 w-10 place-items-center rounded-full border border-maiz/50 bg-ink text-maiz">
               <Icono size={18} aria-hidden />
             </span>
             <p className="mt-3 text-[15px] font-semibold">{verbo}</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-paper/65">{que}</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-paper/75">{que}</p>
           </li>
         ))}
       </ol>
@@ -600,7 +601,7 @@ function Ficha({ Icono, onClick, children }: { Icono: LucideIcon; onClick: () =>
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-full border border-paper/15 bg-paper/[0.04] px-2.5 py-1 text-[12px] text-paper/85 transition-colors duration-rapido hover:border-heroGreen/60 hover:text-heroGreen focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen"
+      className="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-paper/15 bg-paper/[0.04] px-2.5 py-1 text-[12px] text-paper/85 transition-colors duration-rapido hover:border-maiz/60 hover:text-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz"
     >
       <Icono size={13} aria-hidden />
       {children}

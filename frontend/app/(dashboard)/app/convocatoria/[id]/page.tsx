@@ -5,6 +5,9 @@
  * /api/agent/history/[id] y renderiza el ResultadoView completo. Soporta código
  * corto (1203694), OCID completo (ocds-...-1203694) o código de alerta
  * (OECE-1203694). El <title> lo pone layout.tsx (servidor).
+ *
+ * Los estados de la PÁGINA (cargando, no encontrado, error) son los patrones con la
+ * llamita (DESIGN_SYSTEM.md §10.5). Dentro del informe no hay llamita: es evidencia.
  */
 
 "use client";
@@ -12,13 +15,19 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, AlertTriangle, RotateCcw, FileSearch } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 import { ResultadoView } from "@/components/convocatoria/ResultadoView";
+import { Cargando, EstadoError, EstadoVacio } from "@/components/patrones";
 import { DossierError, getDossier, peekDossier } from "@/lib/dossier-cache";
 import { esAlertaDemo } from "@/lib/semillas";
 import { useEsAdmin } from "@/lib/useEsAdmin";
 
 type Fallo = { tipo: "not_found" | "error"; mensaje: string };
+
+const BOTON_PRIMARIO =
+  "inline-flex min-h-[40px] items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep";
+const BOTON_SECUNDARIO =
+  "inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paperDeep";
 
 export default function ConvocatoriaSharePage() {
   const params = useParams<{ id: string }>();
@@ -66,76 +75,65 @@ export default function ConvocatoriaSharePage() {
 
   if (fallo) {
     const noExiste = fallo.tipo === "not_found";
+    const esDemo = fallo.mensaje === "demo";
     return (
-      <div className="px-4 py-12 sm:px-6 lg:px-10">
+      <div className="px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-2xl">
-          <button
-            type="button"
-            onClick={() => router.push("/app/convocatoria")}
-            className="mb-4 inline-flex items-center gap-2 text-sm text-mute hover:text-ink"
-          >
+          <Link href="/app/convocatoria" className="mb-4 inline-flex min-h-[32px] items-center gap-1.5 text-sm text-mute hover:text-ink">
             <ArrowLeft size={16} aria-hidden /> Volver al buscador
-          </button>
-          <div className="surface p-6 text-center sm:p-8">
-            {noExiste ? (
-              <FileSearch size={32} className="mx-auto text-mute" aria-hidden />
-            ) : (
-              <AlertTriangle size={32} className="mx-auto text-amberTexto" aria-hidden />
-            )}
-            <h1 className="mt-3 font-serif text-xl font-bold text-ink">
-              {noExiste ? "Este contrato todavía no tiene un análisis publicado" : "No pudimos cargar este análisis"}
-            </h1>
-            {noExiste ? (
-              <div className="mx-auto mt-2 max-w-prose space-y-2 text-sm text-inkSoft">
+          </Link>
+          {noExiste ? (
+            <>
+              {/* Página sin informe: el título es el h1 de la página. */}
+              <h1 className="sr-only">Contrato {id} sin análisis publicado</h1>
+              <EstadoVacio
+                titulo="Este contrato todavía no tiene un análisis publicado"
+                accion={
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {!esDemo && (
+                      <Link href={`/app/contratos/${encodeURIComponent(id.replace(/^OECE-/i, ""))}`} className={BOTON_SECUNDARIO}>
+                        Ver los datos del contrato
+                      </Link>
+                    )}
+                    <Link href="/app/financiar" className={BOTON_PRIMARIO}>
+                      Financiar la lectura de tu zona
+                    </Link>
+                    {/* Procesar a demanda cuesta dinero: solo lo ve el equipo (cookie de admin). */}
+                    {esAdmin && !esDemo && (
+                      <Link
+                        href={`/admin/analisis?ocid=${encodeURIComponent(id)}`}
+                        className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-granate/30 bg-granate-soft px-4 py-2 text-sm font-semibold text-granate hover:bg-granate/15"
+                      >
+                        Procesar {id} ahora (equipo)
+                      </Link>
+                    )}
+                  </div>
+                }
+              >
                 <p>
-                  No hay un dossier para <code className="font-mono text-ink">{id}</code>. Vigía lee los contratos en el orden de la
-                  cola, a medida que alguien financia su lectura.
+                  No hay un análisis publicado para <code className="font-mono text-ink">{id}</code>. Vigía lee los contratos en
+                  el orden de la cola, a medida que alguien financia su lectura.
                 </p>
-                <p>Puedes ver los datos públicos del contrato mientras tanto, o financiar la lectura de los contratos de tu zona.</p>
-              </div>
-            ) : (
-              <p className="mx-auto mt-2 max-w-prose text-sm text-inkSoft">
-                La conexión con el servidor falló antes de traer el análisis de <code className="font-mono text-ink">{id}</code>. Suele ser
-                momentáneo: vuelve a intentarlo en unos segundos.
-              </p>
-            )}
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {!noExiste && (
-                <button
-                  type="button"
-                  onClick={reintentar}
-                  className="inline-flex items-center gap-2 rounded-lg bg-heroViolet px-4 py-2 text-sm font-bold text-paper hover:bg-heroViolet/90"
-                >
-                  <RotateCcw size={14} aria-hidden /> Reintentar
-                </button>
-              )}
-              {noExiste && fallo.mensaje !== "demo" && (
-                <Link
-                  href={`/app/contratos/${encodeURIComponent(id.replace(/^OECE-/i, ""))}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink hover:bg-paperDeep"
-                >
-                  Ver los datos del contrato
-                </Link>
-              )}
-              {noExiste && (
-                <Link
-                  href="/app/financiar"
-                  className="inline-flex items-center gap-2 rounded-lg bg-heroViolet px-4 py-2 text-sm font-bold text-paper hover:bg-heroViolet/90"
-                >
-                  Financiar una auditoría
-                </Link>
-              )}
-              {/* Procesar a demanda cuesta dinero: solo lo ve el equipo (cookie de admin). */}
-              {noExiste && esAdmin && fallo.mensaje !== "demo" && (
-                <Link
-                  href={`/admin/analisis?ocid=${encodeURIComponent(id)}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-heroViolet/40 bg-heroViolet-soft px-4 py-2 text-sm font-semibold text-heroViolet hover:bg-heroViolet/15"
-                >
-                  Procesar {id} ahora (equipo)
-                </Link>
-              )}
-            </div>
-          </div>
+                <p className="mt-2">Mientras tanto puedes ver los datos públicos del contrato, o financiar la lectura de los contratos de tu zona.</p>
+              </EstadoVacio>
+            </>
+          ) : (
+            <>
+              <h1 className="sr-only">No pudimos cargar el análisis de {id}</h1>
+              <EstadoError
+                titulo="No pudimos cargar este análisis"
+                detalle={fallo.mensaje}
+                accion={
+                  <button type="button" onClick={reintentar} className={BOTON_PRIMARIO}>
+                    <RotateCcw size={14} aria-hidden /> Reintentar
+                  </button>
+                }
+              >
+                La conexión con el servidor falló antes de traer el análisis de <code className="font-mono text-ink">{id}</code>. Suele
+                ser momentáneo: vuelve a intentarlo en unos segundos.
+              </EstadoError>
+            </>
+          )}
         </div>
       </div>
     );
@@ -143,12 +141,9 @@ export default function ConvocatoriaSharePage() {
 
   if (!result) {
     return (
-      <div className="px-4 py-20 sm:px-6 lg:px-10">
-        <div className="mx-auto flex max-w-md flex-col items-center text-center" role="status" aria-live="polite">
-          <Loader2 size={32} className="animate-spin text-heroViolet motion-reduce:animate-none" aria-hidden />
-          <p className="mt-3 text-sm text-mute">
-            Cargando el análisis de <span className="font-mono text-ink">{id}</span>…
-          </p>
+      <div className="px-4 py-10 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-3xl">
+          <Cargando texto={`Cargando el análisis de ${id}…`} lineas={5} />
         </div>
       </div>
     );

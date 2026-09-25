@@ -84,6 +84,11 @@ export function adaptLoadedToUi(loaded: any) {
 
   return {
     ocid: loaded.ocid,
+    // Estado de publicación (GET /alertas/:id/full). Una alerta en revisión llega sin score,
+    // señales ni dictamen: sin estos campos el informe la leía como "análisis incompleto".
+    estado: loaded.estado ?? null,
+    enRevision: loaded.enRevision === true || loaded.estado === "revision",
+    publicada: loaded.publicada !== false,
     convocatoria: {
       codigo: (loaded.ocid || "").split("-").pop(),
       ocid: loaded.ocid,

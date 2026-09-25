@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { plural } from "@/lib/formato";
 
 /**
  * Punto agregado de contratos por zona sobre el mapa (PeruChoropleth).
@@ -10,6 +11,8 @@ import { useState } from "react";
  * Estados (mismo vocabulario que EstadoPill / lib/auditoria): sin analizar · documentos listos ·
  * en cola · procesado · en revisión. Los colores salen de los tokens del tema (tailwind.config):
  * mute / inkSoft / amber / moss / clay. Las señales se ven en la capa de alertas, no acá.
+ * Son hex porque el SVG del mapa pinta con `fill`: los valores son los de tailwind.config.ts
+ * (neutros cálidos desde el 2026-09-25; el gris azulado viejo peleaba con el granate).
  */
 
 import type { ContratoZona } from "@/lib/contratos";
@@ -17,20 +20,21 @@ import type { ContratoZona } from "@/lib/contratos";
 export type EstadoOperativoZona = "sin_analizar" | "documentos_listos" | "en_cola" | "procesado" | "en_revision";
 
 export const COLOR_ESTADO: Record<EstadoOperativoZona, string> = {
-  sin_analizar: "#9AA3AE",        // mute claro: nada descargado ni analizable aún
-  documentos_listos: "#3A4048",   // inkSoft: expediente en el almacén, análisis en preparación
+  sin_analizar: "#A79DA1",        // gris tierra claro (entre mute y paperEdge): nada descargado ni analizable aún
+  documentos_listos: "#463D41",   // inkSoft: expediente en el almacén, análisis en preparación
   en_cola: "#BE7B26",             // amber: financiable hoy (bienes con adjudicación)
   procesado: "#3F7D43",           // moss: dictamen publicado
   en_revision: "#B26A2E",         // clay: procesado, espera revisión humana
 };
 export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
-  sin_analizar: "Sin analizar",
-  documentos_listos: "Documentos listos, análisis en preparación",
-  en_cola: "En cola, financiable hoy",
-  procesado: "Procesado",
-  en_revision: "En revisión humana",
+  // Las palabras de la leyenda de la lista (estadoLectura.tsx, §10.1), con un poco más de aire.
+  sin_analizar: "Sin leer",
+  documentos_listos: "Expediente descargado, lectura en preparación",
+  en_cola: "En cola, se puede financiar hoy",
+  procesado: "Leído",
+  en_revision: "En revisión",
 };
-export const COLOR_SELECCION = "#1B1611";
+export const COLOR_SELECCION = "#1E191B"; // ink
 
 /**
  * Estado operativo dominante de una zona. Prioridad: lo ya hecho (procesado / en revisión) →
@@ -85,7 +89,7 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
   const rr = r / zoom;
   const sw = 0.7 / zoom;
   const rToque = Math.max(rr, RADIO_TOQUE_PX / ((escalaPantalla || 1) * zoom));
-  const etiqueta = `${nombre}: ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"} ingresado${total === 1 ? "" : "s"}. Acota la lista a este distrito`;
+  const etiqueta = `${nombre}: ${plural(total, "contrato ingresado", "contratos ingresados")}. Acota la lista a este distrito`;
   return (
     <g
       transform={`translate(${px},${py})`}
@@ -121,7 +125,7 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           seleccionado se retiró: era movimiento perpetuo sobre un dato y sobre
           la selección, justo donde el usuario necesita leer una cifra quieta.
           La selección ya se distingue por grosor y opacidad del anillo. */}
-      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#4F3D96" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
+      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#711C30" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
       {(selected || hovered) && (
         <circle
           r={rr + 2.4 / zoom}
@@ -131,11 +135,11 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           strokeOpacity={selected ? 0.9 : 0.5}
         />
       )}
-      <circle r={rr} fill={color} fillOpacity={0.78} stroke="#F4EEDD" strokeWidth={sw}>
-        <title>{`${nombre}: ${total.toLocaleString("es-PE")} contrato${total === 1 ? "" : "s"}`}</title>
+      <circle r={rr} fill={color} fillOpacity={0.78} stroke="#FFFFFF" strokeWidth={sw}>
+        <title>{`${nombre}: ${plural(total, "contrato", "contratos")}`}</title>
       </circle>
       {rr >= 6 / zoom && (
-        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#F4EEDD" pointerEvents="none">
+        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#FFFFFF" pointerEvents="none">
           {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total}
         </text>
       )}

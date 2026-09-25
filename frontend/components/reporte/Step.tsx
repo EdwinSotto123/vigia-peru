@@ -19,10 +19,13 @@ export function Step({
     <div>
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-xs font-bold text-paper">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-granate text-xs font-bold tabular-nums text-paper" aria-hidden>
             {n}
           </span>
-          <h3 className="text-sm font-semibold text-ink">{title}</h3>
+          <h2 className="font-display text-[15px] font-bold text-ink">
+            <span className="sr-only">Paso {n}: </span>
+            {title}
+          </h2>
         </div>
         {children}
       </div>

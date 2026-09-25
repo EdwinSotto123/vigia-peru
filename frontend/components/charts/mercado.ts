@@ -20,20 +20,14 @@
  *     y el nivel trae sus tokens. Ningún umbral escrito a mano.
  */
 
-import { AlertTriangle, CircleAlert, CircleCheck, CircleDashed } from "lucide-react";
-import { SEVERIDAD, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
+import { POSITIVO, SEVERIDAD, type NivelSeveridad, type SeveridadUI } from "@/lib/severidad";
 
 /**
- * El ícono dibujado que acompaña a cada nivel de severidad. Es el canal
- * redundante del color: la severidad de este producto nunca viaja sola en
- * color. Mismo juego que usa `components/ui/Severidad.tsx`.
+ * El ícono dibujado que acompaña a cada nivel de severidad: el canal redundante
+ * del color. Es el mapa de `components/ui/Severidad.tsx`, reexportado para los
+ * que ya lo importaban de acá.
  */
-export const ICONO_SEVERIDAD = {
-  alerta: AlertTriangle,
-  atencion: CircleAlert,
-  ok: CircleCheck,
-  vacio: CircleDashed,
-} as const;
+export { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 
 /** Número real o null. El backend manda números, strings, nulls y vacíos. */
 function num(x: any): number | null {
@@ -57,13 +51,15 @@ export type VeredictoMercado = {
   medido: boolean;
 };
 
-const VOCABULARIO: Record<string, { etiqueta: string; nivel: NivelSeveridad; medido: boolean }> = {
+// "positivo": precio alineado o bajo el mercado — el verde con check de lo que está en orden,
+// que en `lib/severidad` ya no es la señal baja (la señal baja es neutra: existe, pesa poco).
+const VOCABULARIO: Record<string, { etiqueta: string; nivel: NivelSeveridad | "positivo"; medido: boolean }> = {
   muy_elevado:            { etiqueta: "Muy elevado",            nivel: "alta",         medido: true },
   elevado:                { etiqueta: "Elevado",                nivel: "media",        medido: true },
   estimado_sobre_mercado: { etiqueta: "Cuantía sobre mercado",  nivel: "media",        medido: true },
-  alineado:               { etiqueta: "Alineado",               nivel: "baja",         medido: true },
-  alineado_regional:      { etiqueta: "Alineado (región)",      nivel: "baja",         medido: true },
-  barato:                 { etiqueta: "Bajo el mercado",        nivel: "baja",         medido: true },
+  alineado:               { etiqueta: "Alineado",               nivel: "positivo",     medido: true },
+  alineado_regional:      { etiqueta: "Alineado (región)",      nivel: "positivo",     medido: true },
+  barato:                 { etiqueta: "Bajo el mercado",        nivel: "positivo",     medido: true },
   cobertura_parcial:      { etiqueta: "Cobertura parcial",      nivel: "sin_analizar", medido: false },
   no_verificable:         { etiqueta: "No verificable",         nivel: "sin_analizar", medido: false },
   sin_dato:               { etiqueta: "Sin precio de mercado",  nivel: "sin_analizar", medido: false },
@@ -75,7 +71,7 @@ const VOCABULARIO: Record<string, { etiqueta: string; nivel: NivelSeveridad; med
 export function veredictoMercado(clave?: string | null): VeredictoMercado {
   const k = String(clave || "").trim();
   const v = VOCABULARIO[k] || VOCABULARIO.sin_dato;
-  return { clave: k || "sin_dato", etiqueta: v.etiqueta, ui: SEVERIDAD[v.nivel], medido: v.medido };
+  return { clave: k || "sin_dato", etiqueta: v.etiqueta, ui: v.nivel === "positivo" ? POSITIVO : SEVERIDAD[v.nivel], medido: v.medido };
 }
 
 /** Por qué un ítem no tiene medición, en castellano. Nada de claves internas en pantalla. */

@@ -36,8 +36,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Cpu, Eye, Inbox, WifiOff } from "lucide-react";
-import { formatPEN } from "@/lib/financiamiento";
+import { ArrowUpRight, CheckCircle2, Clock, Cpu, Eye, WifiOff } from "lucide-react";
+import { numero, plural, soles } from "@/lib/formato";
 import {
   ESTADO_PROC,
   PUBLIC_API_BASE,
@@ -57,6 +57,8 @@ import {
 } from "@/lib/auditoria";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { MiniCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
 
@@ -65,7 +67,7 @@ type Columna = "encolado" | "procesando" | "procesado";
 const COLUMNAS: { key: Columna; label: string; icon: React.ReactNode; vacio: string }[] = [
   { key: "encolado", label: "En espera", icon: <Clock size={14} aria-hidden />, vacio: "Nada en espera con estos filtros." },
   { key: "procesando", label: "En análisis", icon: <Cpu size={14} aria-hidden />, vacio: "Ningún contrato en análisis ahora mismo." },
-  { key: "procesado", label: "Procesado", icon: <CheckCircle2 size={14} aria-hidden />, vacio: "Todavía no se publicó ningún resultado." },
+  { key: "procesado", label: "Leídos", icon: <CheckCircle2 size={14} aria-hidden />, vacio: "Todavía no se publicó ningún resultado." },
 ];
 
 // error y pendiente_de_procesamiento se muestran en la columna "En espera" con su propia píldora.
@@ -81,13 +83,19 @@ const VERBO: Record<EstadoProc, [string, string]> = {
   encolado: ["entró a la cola", "entraron a la cola"],
   procesando: ["empezó su análisis", "empezaron su análisis"],
   procesado: ["terminó su análisis", "terminaron su análisis"],
-  revision: ["terminó su análisis y quedó en revisión humana", "terminaron su análisis y quedaron en revisión humana"],
+  revision: ["terminó su análisis y quedó en revisión", "terminaron su análisis y quedaron en revisión"],
   error: ["falló y se va a reintentar", "fallaron y se van a reintentar"],
   esperando_documentos: ["quedó esperando sus documentos", "quedaron esperando sus documentos"],
   pendiente_de_procesamiento: ["quedó sin análisis aplicable", "quedaron sin análisis aplicable"],
 };
 
 interface Cambio { ocid: string; titulo: string; de: EstadoProc | null; a: EstadoProc; columnaDe: Columna | null; columnaA: Columna }
+
+/** La palabra del estado dentro de una frase, concordada: "1 leído", "3 leídos", "todos en cola". */
+const etiquetaEstado = (e: EstadoProc, n: number) => {
+  const t = ESTADO_PROC[e].label.toLowerCase();
+  return n !== 1 && t === "leído" ? "leídos" : t;
+};
 
 const recortar = (t: string, n = 70) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t);
 const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
@@ -154,6 +162,12 @@ interface Props {
    * component); jamás una función: eso compila y rompe sólo en producción.
    */
   panelSecundario?: React.ReactNode;
+  /**
+   * El vacío y el error del tablero llevan la llamita (patrones EstadoVacio/EstadoError).
+   * Apagado por defecto: el tablero vive también dentro de /app/financiar/[ubigeo] e
+   * /impacto/[codigo], que ya tienen la suya, y va una sola por pantalla (DESIGN_SYSTEM.md §2.4).
+   */
+  conLlamita?: boolean;
 }
 
 export function TableroAuditoria({
@@ -170,6 +184,7 @@ export function TableroAuditoria({
   verMasHref,
   conteosExternos = false,
   panelSecundario,
+  conLlamita = false,
 }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<Procesamiento[]>(initial ?? []);
@@ -393,38 +408,42 @@ export function TableroAuditoria({
       {/* encabezado */}
       <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
-          {titulo && <h2 className="font-serif text-2xl font-bold text-ink">{titulo}</h2>}
+          {titulo && <h2 className="font-display text-2xl font-bold text-ink">{titulo}</h2>}
           {/* Los conteos van una sola vez por página. Si otra superficie ya los publica, acá no. */}
           {!conteosExternos && (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-mute">
               {COLUMNAS.map((c) => (
                 <span key={c.key} className="inline-flex items-center gap-1">
                   <span className={c.key === "procesando" && porColumna.procesando.length ? "text-amberTexto" : ""}>{c.icon}</span>
-                  <span className="font-mono text-ink transition-all">{porColumna[c.key].length}</span> {c.label.toLowerCase()}
+                  <span className="font-semibold tabular-nums text-ink">{numero(porColumna[c.key].length)}</span> {c.label.toLowerCase()}
                 </span>
               ))}
               {enRevision > 0 && (
-                <span className="inline-flex items-center gap-1 text-clayTexto" title="Procesados cuya autoevaluación bloqueó la publicación; una persona los revisa. Son parte de los procesados, no se suman.">
+                <span className="inline-flex items-center gap-1 text-clayTexto" title="Leídos cuya autoevaluación frenó la publicación; una persona los revisa. Son parte de los leídos, no se suman.">
                   <Eye size={14} aria-hidden />
-                  <span className="font-mono">{enRevision}</span> de ellos en revisión humana
+                  <span className="font-semibold tabular-nums">{numero(enRevision)}</span> de ellos en revisión
                 </span>
               )}
             </div>
           )}
           {verMasHref && porColumna.procesado.length > 0 && (
-            <a href={verMasHref} className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-mute underline-offset-2 hover:text-ink hover:underline">
-              Ver todo lo ya leído en el histórico ↓
+            <a href={verMasHref} className="mt-1 inline-flex min-h-[24px] items-center gap-1 text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+              Ver todo lo ya leído en el histórico <span aria-hidden>↓</span>
             </a>
           )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[11px] text-mute">
-          {truncado && <span title={`El API devuelve como mucho ${limit} filas por consulta.`}>mostrando {items.length} de {total}</span>}
+          {truncado && (
+            <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
+              Mostrando {numero(items.length)} de {numero(total)}
+            </span>
+          )}
           {fallo ? (
-            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> sin conexión, reintentando</span>
+            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
           ) : nAnalisis > 0 ? (
             <span className="inline-flex items-center gap-1.5 font-medium text-amberTexto">
               <PulseDot color="amber" size={6} />
-              en vivo: {nAnalisis} {nAnalisis === 1 ? "contrato en análisis" : "contratos en análisis"}
+              En vivo: {plural(nAnalisis, "contrato en análisis", "contratos en análisis")}
             </span>
           ) : movido != null ? (
             <span className="inline-flex items-center gap-1.5" title="Último contrato que empezó o terminó su análisis en este tablero. Se vuelve a consultar cada pocos segundos.">
@@ -437,17 +456,17 @@ export function TableroAuditoria({
           ) : cargado ? (
             <span>Sin movimientos todavía</span>
           ) : (
-            <span>conectando…</span>
+            <span>Conectando…</span>
           )}
         </div>
       </div>
 
       {/* Lo último que se movió mientras esta página estuvo abierta. */}
       {ultimoCambio && (
-        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-heroViolet-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink">
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink">
           <span className="font-semibold">Recién:</span>
           <span className="min-w-0">{ultimoCambio.texto}</span>
-          {ahora > 0 && <span className="font-mono text-[11px] text-mute" suppressHydrationWarning>{haceCuanto(Math.max(0, ahora - ultimoCambio.at))}</span>}
+          {ahora > 0 && <span className="text-[11px] tabular-nums text-inkSoft" suppressHydrationWarning>{haceCuanto(Math.max(0, ahora - ultimoCambio.at))}</span>}
         </p>
       )}
 
@@ -467,9 +486,9 @@ export function TableroAuditoria({
                 role="tab"
                 aria-selected={activa}
                 onClick={() => { tabElegida.current = true; setTab(c.key); }}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${activa ? "bg-paper text-ink shadow-sm" : "text-mute"}`}
+                className={`flex min-h-[32px] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-rapido ${activa ? "bg-paper text-granate shadow-sm" : "text-inkSoft hover:text-ink"}`}
               >
-                {c.icon} {c.label} <span className="font-mono text-[11px]">{porColumna[c.key].length}</span>
+                {c.icon} {c.label} <span className="text-[11px] font-semibold tabular-nums">{numero(porColumna[c.key].length)}</span>
               </button>
             );
           })}
@@ -478,7 +497,7 @@ export function TableroAuditoria({
 
       {/* cuerpo */}
       {vacio ? (
-        <EstadoVacio fallo={fallo} codigo={codigo} ubigeo={ubigeo} filtrado={!!(desde || hasta || financiador)} />
+        <VacioTablero fallo={fallo} codigo={codigo} ubigeo={ubigeo} filtrado={!!(desde || hasta || financiador)} compacto={compacto} conLlamita={conLlamita} />
       ) : (
         // `grid-cols-1` explícito, no `grid` a secas: sin él la pista implícita es `auto` y
         // se dimensiona al max-content de las tarjetas, así que en 390 px la columna medía
@@ -500,23 +519,23 @@ export function TableroAuditoria({
                 className={`${conTabs && tab !== c.key ? "hidden" : "block"} ${compacto || !conTabs ? "" : "md:block"} rounded-2xl border border-line bg-paperDeep/60 p-2`}
               >
                 <div className={`${conTabs && !compacto ? "hidden md:block" : "block"} px-2 pb-1 pt-1.5`}>
-                  <div className="flex items-baseline justify-between gap-2 text-[11px] uppercase tracking-wide text-mute">
+                  <div className="flex items-baseline justify-between gap-2 text-[12px] font-semibold text-inkSoft">
                     <span className="inline-flex items-center gap-1.5">{c.icon} {c.label}</span>
-                    <span className="font-mono">{listaCol.length}</span>
+                    <span className="tabular-nums">{numero(listaCol.length)}</span>
                   </div>
                   {/* De qué está hecha la columna, contado sobre estas mismas tarjetas. Con un
                       solo estado no se repite la cifra del encabezado: se nombra y basta. */}
                   {partes.length === 1 && (
                     <p className="mt-0.5 text-[11px] leading-snug text-mute">
                       {listaCol.length === 1 ? "" : "todos "}
-                      {ESTADO_PROC[partes[0][0]].label.toLowerCase()}
+                      {etiquetaEstado(partes[0][0], listaCol.length)}
                     </p>
                   )}
                   {partes.length > 1 && (
                     <ul className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] leading-snug text-mute">
                       {partes.map(([estado, n]) => (
                         <li key={estado}>
-                          <span className="font-mono text-inkSoft">{n}</span> {ESTADO_PROC[estado].label.toLowerCase()}
+                          <span className="font-semibold tabular-nums text-inkSoft">{numero(n)}</span> {etiquetaEstado(estado, n)}
                         </li>
                       ))}
                     </ul>
@@ -556,7 +575,7 @@ export function TableroAuditoria({
 /** Exportada: la reusa HistoricoProcesados.tsx (mismo diseño de tarjeta en el buscador histórico). */
 export function Tarjeta({ p, ahora, recien = false }: { p: Procesamiento; ahora: number; recien?: boolean }) {
   const estado = estadoVisible(p);
-  const conSenales = p.banderas > 0;
+  const nSenales = p.banderas ?? 0;
   const transcurrido = ahora > 0 && p.estado === "procesando" && p.iniciadoAt ? ahora - new Date(p.iniciadoAt).getTime() : null;
   const fases = p.estado === "procesando" ? fasesEfectivas(p) : null;
   const prog = fases ? progresoFases(fases, estado) : null;
@@ -564,20 +583,20 @@ export function Tarjeta({ p, ahora, recien = false }: { p: Procesamiento; ahora:
   return (
     <Link
       href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
-      className={`block rounded-xl border bg-paper p-3 transition-all hover:-translate-y-0.5 hover:shadow-card ${
+      className={`block rounded-xl border bg-paper p-3 transition-[transform,box-shadow,border-color] duration-rapido hover:-translate-y-0.5 hover:shadow-card ${
         recien
-          ? "border-heroViolet/50 ring-2 ring-heroViolet/40"
+          ? "border-granate/50 ring-2 ring-granate/40"
           : p.estado === "procesando" ? "border-amber/50 ring-1 ring-amber/20" : "border-line"
       }`}
     >
       {/* La entidad primero y en chico: es lo que ubica al lector antes de leer el objeto,
           que es largo y en mayúsculas. La píldora de estado baja al pie y deja de robarle
           dos líneas de ancho al título. */}
-      <p className="truncate text-[11px] font-medium uppercase tracking-wide text-mute">{p.entidad ?? "Entidad no identificada"}</p>
+      <p className="truncate text-[11.5px] font-medium text-mute">{p.entidad ?? "Entidad no identificada"}</p>
       <p className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">{p.titulo ?? p.ocid}</p>
       <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
         <span>{p.zona}</span>
-        {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{formatPEN(p.montoPen)}</span>}
+        {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{soles(p.montoPen)}</span>}
       </p>
 
       {p.estado === "procesando" && fases && prog && (
@@ -620,24 +639,25 @@ export function Tarjeta({ p, ahora, recien = false }: { p: Procesamiento; ahora:
       )}
 
       {estado === "revision" && (
-        <p className="mt-2 text-[11px] text-clayTexto">En revisión humana: no se publica hasta que una persona lo revise.</p>
+        <p className="mt-2 text-[11px] text-clayTexto">En revisión: una persona lo revisa antes de publicarlo.</p>
       )}
 
+      {/* Leído y publicado: el peso del riesgo con color + ícono + palabra y las señales que
+          lo explican. Nunca el check verde si hay señales (§10.1): sólo "Sin señales" lo lleva. */}
       {estado === "procesado" && (
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[12px]">
-          <span className={`inline-flex flex-wrap items-center gap-1 font-medium ${conSenales ? "text-rust" : "text-mossTexto"}`}>
-            {conSenales ? <AlertTriangle size={13} aria-hidden /> : <CheckCircle2 size={13} aria-hidden />}
-            {conSenales ? `${p.banderas} ${p.banderas === 1 ? "señal de riesgo" : "señales de riesgo"}` : "sin señales"}
-            {p.score != null && <span className="ml-2 font-mono text-[11px] tabular-nums text-mute">riesgo {Math.round(p.score)}/100</span>}
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <PesoRiesgo score={p.score} banderas={nSenales} />
+            {nSenales > 0 && <span className="tabular-nums text-inkSoft">{plural(nSenales, "señal", "señales")}</span>}
           </span>
-          <span className="inline-flex items-center gap-0.5 text-mute">ver dictamen <ArrowUpRight size={12} aria-hidden /></span>
+          <span className="inline-flex items-center gap-0.5 text-granate">Ver dictamen <ArrowUpRight size={12} aria-hidden /></span>
         </div>
       )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line pt-2 text-[11px] text-mute">
         <span className="flex min-w-0 items-baseline gap-x-2.5">
           <span className="truncate">
-            lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+            Lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
           </span>
           <span className="shrink-0 font-mono">{p.contribucionCodigo}</span>
         </span>
@@ -658,16 +678,13 @@ function SkeletonCard() {
   );
 }
 
-function EstadoVacio({ fallo, codigo, ubigeo, filtrado }: { fallo: boolean; codigo?: string; ubigeo?: string; filtrado: boolean }) {
+function VacioTablero({ fallo, codigo, ubigeo, filtrado, compacto, conLlamita }: { fallo: boolean; codigo?: string; ubigeo?: string; filtrado: boolean; compacto: boolean; conLlamita: boolean }) {
   if (fallo) {
-    return (
-      <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-        <WifiOff size={18} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-        <div>
-          <div className="font-medium text-ink">El servicio de auditoría en vivo no respondió.</div>
-          <div className="mt-0.5">Reintentamos automáticamente cada pocos segundos. Los resultados ya publicados siguen disponibles en el mapa.</div>
-        </div>
-      </div>
+    const texto = "Se vuelve a intentar solo, cada pocos segundos. Lo ya publicado sigue disponible en el mapa.";
+    return conLlamita ? (
+      <EstadoError titulo="El tablero en vivo no respondió" className="mt-4">{texto}</EstadoError>
+    ) : (
+      <AvisoSinLlamita tono="error" titulo="El tablero en vivo no respondió" className="mt-4">{texto}</AvisoSinLlamita>
     );
   }
   const copy = filtrado
@@ -677,13 +694,41 @@ function EstadoVacio({ fallo, codigo, ubigeo, filtrado }: { fallo: boolean; codi
       : ubigeo
         ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
         : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
+  const titulo = filtrado ? "Nada coincide con estos filtros" : "Nada en proceso todavía";
+  return conLlamita ? (
+    <EstadoVacio compacto={compacto} titulo={titulo} className="mt-4">{copy}</EstadoVacio>
+  ) : (
+    <AvisoSinLlamita titulo={titulo} className="mt-4">{copy}</AvisoSinLlamita>
+  );
+}
+
+/**
+ * Vacío o error SIN llamita, con la misma forma que los patrones: para cuando la
+ * pantalla ya tiene la suya (máximo una por pantalla). Lo reusa el histórico, que
+ * vive en la misma página que el tablero.
+ */
+export function AvisoSinLlamita({
+  titulo,
+  children,
+  accion,
+  tono = "vacio",
+  className = "",
+}: {
+  titulo: string;
+  children?: React.ReactNode;
+  accion?: React.ReactNode;
+  tono?: "vacio" | "error";
+  className?: string;
+}) {
+  const error = tono === "error";
   return (
-    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-      <Inbox size={18} className="mt-0.5 shrink-0" aria-hidden />
-      <div>
-        <div className="font-medium text-ink">{filtrado ? "Nada coincide con estos filtros." : "Nada en proceso todavía."}</div>
-        <div className="mt-0.5">{copy}</div>
-      </div>
+    <div
+      role={error ? "alert" : undefined}
+      className={`rounded-2xl border px-5 py-6 text-center ${error ? "border-crimson/25 bg-crimson-soft/60" : "border-dashed border-line bg-paperSoft"} ${className}`}
+    >
+      <p className={`font-display text-[15px] font-bold text-balance ${error ? "text-crimsonTexto" : "text-ink"}`}>{titulo}</p>
+      {children && <div className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-inkSoft text-pretty">{children}</div>}
+      {accion && <div className="mt-3">{accion}</div>}
     </div>
   );
 }

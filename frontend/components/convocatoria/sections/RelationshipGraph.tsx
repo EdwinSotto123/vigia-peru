@@ -1,5 +1,6 @@
 "use client";
 
+import { Severidad } from "@/components/ui/Severidad";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Network, RotateCcw } from "lucide-react";
@@ -46,62 +47,62 @@ export function RelationshipGraph({
   // Estilos por tipo
   const styleNode = (kind: GraphNode["kind"]) => {
     switch (kind) {
-      case "person":              return { fill: "#7a3b2e", stroke: "#7a3b2e", text: "#fff", r: 38 };
-      case "pareja":              return { fill: "#faf5ff", stroke: "#7c3aed", text: "#4c1d95", r: 24 };
-      case "company_main":        return { fill: "#fff", stroke: "#c2410c", text: "#1a1a1a", r: 30 };
-      case "company_titular":     return { fill: "#fff7ed", stroke: "#d97706", text: "#92400e", r: 24 };
-      case "company_domicilio":   return { fill: "#fef2f2", stroke: "#b91c1c", text: "#7f1d1d", r: 22 };
-      case "party":               return { fill: "#fef2f2", stroke: "#991b1b", text: "#7f1d1d", r: 22 };
-      case "cargo_pasado":        return { fill: "#f5f5f4", stroke: "#525252", text: "#262626", r: 20 };
-      case "autoridad":           return { fill: "#fefce8", stroke: "#ca8a04", text: "#713f12", r: 22 };
-      case "firmante_conflicto":  return { fill: "#fee2e2", stroke: "#dc2626", text: "#7f1d1d", r: 22 };
-      case "contract":            return { fill: "#fffbeb", stroke: "#a16207", text: "#713f12", r: 18 };
+      case "person":              return { fill: "#843022", stroke: "#843022", text: "#FFFFFF", r: 38 };
+      case "pareja":              return { fill: "#FBF3F5", stroke: "#8E2A45", text: "#4A1020", r: 24 };
+      case "company_main":        return { fill: "#FFFFFF", stroke: "#B7462A", text: "#1E191B", r: 30 };
+      case "company_titular":     return { fill: "#FDF3DC", stroke: "#BE7B26", text: "#8A5A15", r: 24 };
+      case "company_domicilio":   return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 22 };
+      case "party":               return { fill: "#FBE3DF", stroke: "#8F2318", text: "#8F2318", r: 22 };
+      case "cargo_pasado":        return { fill: "#F8F5F3", stroke: "#6B6166", text: "#1E191B", r: 20 };
+      case "autoridad":           return { fill: "#FDF3DC", stroke: "#C47F3E", text: "#95612C", r: 22 };
+      case "firmante_conflicto":  return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 22 };
+      case "contract":            return { fill: "#FDF3DC", stroke: "#95612C", text: "#95612C", r: 18 };
       // Nuevos: cluster entidad contratante
-      case "entidad":             return { fill: "#1e3a8a", stroke: "#1e3a8a", text: "#fff",    r: 34 };
-      case "alcalde":             return { fill: "#dbeafe", stroke: "#1e3a8a", text: "#1e3a8a", r: 26 };
-      case "funcionario_designado":return { fill: "#eff6ff", stroke: "#3b82f6", text: "#1e40af", r: 22 };
+      case "entidad":             return { fill: "#2D3E6F", stroke: "#2D3E6F", text: "#FFFFFF",    r: 34 };
+      case "alcalde":             return { fill: "#E4E9F4", stroke: "#2D3E6F", text: "#2D3E6F", r: 26 };
+      case "funcionario_designado":return { fill: "#EEF1F8", stroke: "#4360B0", text: "#2D3E6F", r: 22 };
       // Cargo público de un familiar → municipio donde trabaja
-      case "municipio_familiar":  return { fill: "#f3e8ff", stroke: "#6b21a8", text: "#581c87", r: 24 };
+      case "municipio_familiar":  return { fill: "#F6E4E8", stroke: "#711C30", text: "#4A1020", r: 24 };
       // Partido político derivado (del municipio del familiar)
-      case "partido_compartido":  return { fill: "#fef2f2", stroke: "#991b1b", text: "#7f1d1d", r: 20 };
+      case "partido_compartido":  return { fill: "#FBE3DF", stroke: "#8F2318", text: "#8F2318", r: 20 };
       // Postor rival (no ganador)
-      case "postor_rival":        return { fill: "#fff7ed", stroke: "#9a3412", text: "#7c2d12", r: 24 };
+      case "postor_rival":        return { fill: "#FDF3DC", stroke: "#843022", text: "#843022", r: 24 };
       // Socio del postor rival que es funcionario público — bandera ALTA
-      case "socio_postor_conflicto": return { fill: "#fee2e2", stroke: "#dc2626", text: "#7f1d1d", r: 26 };
+      case "socio_postor_conflicto": return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 26 };
       // Entidad secundaria por doble vinculación de un funcionario
-      case "entidad_secundaria":  return { fill: "#ecfeff", stroke: "#0e7490", text: "#155e75", r: 22 };
+      case "entidad_secundaria":  return { fill: "#EEF4EE", stroke: "#3E7B4F", text: "#2F6B36", r: 22 };
     }
   };
   const styleEdge = (kind: GraphEdge["kind"]) => {
     switch (kind) {
-      case "titular":              return { color: "#d97706", width: 2,   dash: "" };
-      case "domicilio":            return { color: "#b91c1c", width: 2,   dash: "4 4" };
-      case "candidato":            return { color: "#991b1b", width: 1.5, dash: "6 3" };
-      case "aporte":               return { color: "#dc2626", width: 2,   dash: "" };
-      case "cargo":                return { color: "#525252", width: 1.5, dash: "2 3" };
-      case "contrato":             return { color: "#a16207", width: 1.2, dash: "" };
-      case "pareja":               return { color: "#7c3aed", width: 2.5, dash: "" };
-      case "autoridad":            return { color: "#ca8a04", width: 2,   dash: "5 2" };
-      case "firma_conflicto":      return { color: "#dc2626", width: 3,   dash: "" };
+      case "titular":              return { color: "#BE7B26", width: 2,   dash: "" };
+      case "domicilio":            return { color: "#A81E12", width: 2,   dash: "4 4" };
+      case "candidato":            return { color: "#8F2318", width: 1.5, dash: "6 3" };
+      case "aporte":               return { color: "#A81E12", width: 2,   dash: "" };
+      case "cargo":                return { color: "#6B6166", width: 1.5, dash: "2 3" };
+      case "contrato":             return { color: "#95612C", width: 1.2, dash: "" };
+      case "pareja":               return { color: "#8E2A45", width: 2.5, dash: "" };
+      case "autoridad":            return { color: "#C47F3E", width: 2,   dash: "5 2" };
+      case "firma_conflicto":      return { color: "#A81E12", width: 3,   dash: "" };
       // Nuevos
-      case "adjudicacion":         return { color: "#1e3a8a", width: 3,   dash: "" };
-      case "preside_entidad":      return { color: "#1e3a8a", width: 2,   dash: "" };
-      case "designado_por":        return { color: "#3b82f6", width: 1.5, dash: "3 3" };
-      case "conflicto_funcionario":return { color: "#dc2626", width: 3,   dash: "" };
+      case "adjudicacion":         return { color: "#2D3E6F", width: 3,   dash: "" };
+      case "preside_entidad":      return { color: "#2D3E6F", width: 2,   dash: "" };
+      case "designado_por":        return { color: "#4360B0", width: 1.5, dash: "3 3" };
+      case "conflicto_funcionario":return { color: "#A81E12", width: 3,   dash: "" };
       // Familiar trabaja en municipio
-      case "trabaja_en":           return { color: "#6b21a8", width: 1.5, dash: "" };
+      case "trabaja_en":           return { color: "#711C30", width: 1.5, dash: "" };
       // Partido del municipio (cuando NO coincide con el contratante)
-      case "partido_de":           return { color: "#991b1b", width: 1.2, dash: "4 4" };
+      case "partido_de":           return { color: "#8F2318", width: 1.2, dash: "4 4" };
       // ⚠ MISMO PARTIDO que el municipio que contrata — alerta cruzada
-      case "mismo_partido_que":    return { color: "#dc2626", width: 3.5, dash: "2 4" };
+      case "mismo_partido_que":    return { color: "#A81E12", width: 3.5, dash: "2 4" };
       // Postor rival compitió por el contrato
-      case "compitio":             return { color: "#9a3412", width: 1.2, dash: "5 3" };
+      case "compitio":             return { color: "#843022", width: 1.2, dash: "5 3" };
       // Socio de postor rival
-      case "socio_de":             return { color: "#9a3412", width: 1.5, dash: "" };
+      case "socio_de":             return { color: "#843022", width: 1.5, dash: "" };
       // Funcionario visitó otra entidad
-      case "visito":               return { color: "#0e7490", width: 1.2, dash: "3 3" };
+      case "visito":               return { color: "#3E7B4F", width: 1.2, dash: "3 3" };
       // Doble vinculación inter-municipal
-      case "doble_vinculacion":    return { color: "#0e7490", width: 2,   dash: "5 2" };
+      case "doble_vinculacion":    return { color: "#3E7B4F", width: 2,   dash: "5 2" };
     }
   };
 
@@ -237,30 +238,30 @@ export function RelationshipGraph({
       count: (nodesByKind.person || 0) + (nodesByKind.pareja || 0) + (nodesByKind.autoridad || 0)
            + (nodesByKind.alcalde || 0) + (nodesByKind.funcionario_designado || 0),
       hint: "proveedor + autoridades + designados",
-      color: "bg-heroViolet/10 text-heroViolet border-heroViolet/30",
+      color: "",
     },
     {
       key: "empresas",
       label: "Empresas vinculadas",
       count: (nodesByKind.company_main || 0) + (nodesByKind.company_titular || 0) + (nodesByKind.company_domicilio || 0),
       hint: "con mismo titular o domicilio",
-      color: "bg-amber/10 text-amberTexto border-amber/30",
+      color: "",
     },
     {
       key: "vinculos",
       label: "Vínculos detectados",
       count: edges.length,
       hint: edgesByKind.titular ? `${edgesByKind.titular} de titularidad` : "relaciones formales",
-      color: "bg-moss/10 text-mossTexto border-moss/30",
+      color: "",
     },
     {
       key: "banderas_red",
-      label: "Banderas de red",
+      label: "Señales en la red",
       count: banderasRed.length,
       hint: banderasAlta.length > 0
         ? `${banderasAlta.length} alta${banderasAlta.length === 1 ? "" : "s"}, ${banderasMedia.length} media${banderasMedia.length === 1 ? "" : "s"}`
-        : "sin riesgo detectado",
-      color: banderasAlta.length > 0 ? "bg-rust/15 text-rust border-rust/40" : "bg-paperSoft text-mute border-line",
+        : banderasRed.length > 0 ? "ninguna alta" : "ninguna en la red",
+      color: "",
     },
   ];
 
@@ -271,10 +272,10 @@ export function RelationshipGraph({
       {/* PANEL RESUMEN — primero, antes del grafo */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {summaryCards.map((c) => (
-          <div key={c.key} className={cn("rounded-lg border px-3 py-2", c.color)}>
-            <div className="text-[9px] font-bold uppercase tracking-widest opacity-80">{c.label}</div>
-            <div className="mt-0.5 font-mono text-2xl font-bold leading-none">{c.count}</div>
-            <div className="mt-1 text-[10px] italic opacity-70">{c.hint}</div>
+          <div key={c.key} className={cn("rounded-xl border border-line bg-paper px-3 py-2", c.color)}>
+            <div className="font-mono text-xl font-semibold leading-none tabular-nums text-ink">{c.count}</div>
+            <div className="mt-1 text-[12px] font-medium text-ink">{c.label}</div>
+            <div className="mt-0.5 text-[11px] text-mute">{c.hint}</div>
           </div>
         ))}
       </div>
@@ -282,24 +283,21 @@ export function RelationshipGraph({
       {/* HALLAZGOS DE RED — bullets clave */}
       {banderasRed.length > 0 && (
         <div className="mb-4 rounded-lg border border-line bg-paper px-3 py-2.5">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-            Hallazgos clave de la red empresarial
-          </div>
+          <h3 className="mb-1.5 text-[13px] font-semibold text-ink">Lo que más pesa en la red empresarial</h3>
           <ul className="space-y-1">
             {banderasRed.slice(0, 6).map((b, i) => (
               <li key={i} className="flex items-start gap-2 text-[12px]">
-                <span className={cn(
-                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest",
-                  b.severidad === "alta" ? "bg-rust text-paper" :
-                  b.severidad === "media" ? "bg-amber-soft text-amberTexto" :
-                  "bg-paperDeep text-inkSoft",
-                )}>
-                  {b.severidad || "info"}
+                <span className="mt-0.5 shrink-0">
+                  {b.severidad === "alta" || b.severidad === "media" || b.severidad === "baja" ? (
+                    <Severidad bandera={b.severidad} formato="punto" />
+                  ) : (
+                    <span className="text-[11px] text-mute">info</span>
+                  )}
                 </span>
                 <div>
                   <span className="font-semibold text-ink">{redactDnis(String(b.titulo || b.tipo || "Hallazgo"))}</span>
                   {b.requiere_verificacion && (
-                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amberTexto">requiere verificación</span>
+                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-paperDeep px-2 py-0 text-[11px] font-medium text-inkSoft">requiere verificación</span>
                   )}
                   {b.descripcion && (
                     <div className="text-inkSoft">{redactDnis(String(b.descripcion).slice(0, 220))}{String(b.descripcion).length > 220 ? "…" : ""}</div>
@@ -313,53 +311,52 @@ export function RelationshipGraph({
 
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
-            <Network size={11} className="mr-1 inline" aria-hidden />
+          <h3 className="text-[13px] font-semibold text-ink">
+            <Network size={13} className="mr-1 inline text-mute" aria-hidden />
             Grafo de relaciones
           </h3>
-          <p className="text-[10px] text-mute">Arrastra los nodos para reorganizarlos.</p>
+          <p className="text-[12px] text-mute">Arrastra los nodos para reorganizarlos.</p>
         </div>
         {Object.keys(posOverride).length > 0 && (
           <button
             type="button"
             onClick={() => setPosOverride({})}
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-0.5 text-[10px] font-semibold text-ink hover:bg-paperDeep"
-            title="Volver al layout automático"
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink hover:bg-paperDeep"
           >
-            <RotateCcw size={10} /> Resetear posiciones
+            <RotateCcw size={12} aria-hidden /> Volver al orden automático
           </button>
         )}
         <div className="flex flex-wrap gap-2 text-[9px] text-mute">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#d97706" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#BE7B26" }} />
             titular
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#b91c1c", backgroundImage: "repeating-linear-gradient(90deg,#b91c1c 0 2px,transparent 2px 4px)" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12", backgroundImage: "repeating-linear-gradient(90deg,#A81E12 0 2px,transparent 2px 4px)" }} />
             mismo domicilio
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#dc2626" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12" }} />
             aporte ONPE
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#525252", backgroundImage: "repeating-linear-gradient(90deg,#525252 0 1px,transparent 1px 3px)" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#6B6166", backgroundImage: "repeating-linear-gradient(90deg,#6B6166 0 1px,transparent 1px 3px)" }} />
             cargo público
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#a16207" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#95612C" }} />
             contrato
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#7c3aed" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#8E2A45" }} />
             pareja / familia
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#ca8a04", backgroundImage: "repeating-linear-gradient(90deg,#ca8a04 0 3px,transparent 3px 5px)" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#C47F3E", backgroundImage: "repeating-linear-gradient(90deg,#C47F3E 0 3px,transparent 3px 5px)" }} />
             autoridad pública
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#dc2626", height: 4 }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#A81E12", height: 4 }} />
             firmante en conflicto
           </span>
         </div>
@@ -435,7 +432,7 @@ export function RelationshipGraph({
                       opacity={0.7} />
                 {e.label && (
                   <text x={mx} y={my - 4} fontSize="9" fill={st.color}
-                        textAnchor="middle" style={{ paintOrder: "stroke", stroke: "#fafafa", strokeWidth: 3 }}>
+                        textAnchor="middle" style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3 }}>
                     {e.label}
                   </text>
                 )}
@@ -474,15 +471,15 @@ export function RelationshipGraph({
                     {initials || "?"}
                   </text>
                   {/* Label multilinea */}
-                  <text x={pos.x} y={pos.y + s.r + 13} fontSize="11" fontWeight="700" fill="#1a1a1a" textAnchor="middle"
-                        style={{ paintOrder: "stroke", stroke: "#fafafa", strokeWidth: 3, pointerEvents: "none" }}>
+                  <text x={pos.x} y={pos.y + s.r + 13} fontSize="11" fontWeight="700" fill="#1E191B" textAnchor="middle"
+                        style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3, pointerEvents: "none" }}>
                     {lines.map((l, idx) => (
                       <tspan key={idx} x={pos.x} dy={idx === 0 ? 0 : 13}>{l}</tspan>
                     ))}
                   </text>
                   {n.sublabel && (
-                    <text x={pos.x} y={pos.y + s.r + 13 + lines.length * 13 + 2} fontSize="9" fill="#525252" textAnchor="middle"
-                          style={{ paintOrder: "stroke", stroke: "#fafafa", strokeWidth: 3, pointerEvents: "none" }}>
+                    <text x={pos.x} y={pos.y + s.r + 13 + lines.length * 13 + 2} fontSize="9" fill="#6B6166" textAnchor="middle"
+                          style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3, pointerEvents: "none" }}>
                       {n.sublabel}
                     </text>
                   )}

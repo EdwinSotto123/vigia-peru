@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock, Cpu, Info } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { EncabezadoPagina, Seccion } from "@/components/patrones";
 import { Popover } from "@/components/ui/Flotante";
 import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril } from "@/components/agentes/catalogo";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/auditoria";
 import { getResumenVivo } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
+import { numero } from "@/lib/formato";
 
 export const metadata = {
   title: "Auditoría en vivo",
@@ -80,27 +81,25 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
   const opciones = (zonas ?? [])
     .filter((z) => z.totalCola > 0 || z.financiados > 0)
     .sort((a, b) => b.financiados - a.financiados || a.nombre.localeCompare(b.nombre, "es"))
-    .map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre, hint: z.financiados > 0 ? `${z.financiados.toLocaleString("es-PE")} financiados` : undefined }));
+    .map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre, hint: z.financiados > 0 ? `${numero(z.financiados)} financiados` : undefined }));
   const zonaActual = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo)?.nombre : undefined;
 
   return (
-    <div className="space-y-6 px-6 py-8 lg:px-10">
-      {/* El encabezado era un hero de ~200 px (título de 48 px + párrafo de cuatro líneas)
-          antes de que empezara el estado del pipeline. Esta pantalla es un tablero: se
-          entra a MIRAR, no a leer una introducción. La explicación sigue disponible, a un
-          clic, y el estado quedó arriba del pliegue. */}
-      <PageHeader
-        title="Auditoría en vivo"
-        subtitle="Cada contrato financiado pasa de la cola al análisis y al dictamen. Nadie elige cuál se lee: entran por antigüedad."
-        actions={
+    <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+      {/* Esta pantalla es un tablero: se entra a MIRAR, no a leer una introducción. La
+          explicación sigue disponible, a un clic, y el estado queda arriba del pliegue. */}
+      <EncabezadoPagina
+        titulo="Auditoría en vivo"
+        bajada="Cada contrato financiado pasa de la cola al análisis y al dictamen. Nadie elige cuál se lee: entran por antigüedad."
+        acciones={
           <Popover
             titulo="Qué pasa acá adentro"
             anchoClase="w-[22rem]"
-            className="rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-medium text-inkSoft transition-colors hover:border-paperEdge hover:bg-paperSoft"
+            className="inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-3.5 py-1.5 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
             trigger={<span className="inline-flex items-center gap-1.5"><Info size={13} aria-hidden /> Cómo se lee un contrato</span>}
           >
             <p className="text-mute">
-              <span className="font-semibold text-ink">{TOTAL_AGENTES} agentes de IA</span> leen cada contrato en{" "}
+              <span className="font-semibold text-ink">{TOTAL_AGENTES} agentes</span> leen cada contrato en{" "}
               <span className="font-semibold text-ink">{TOTAL_PASOS} pasos</span>. Dos ramas corren a la vez y una
               síntesis junta todo al final:
             </p>
@@ -117,7 +116,8 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
                 Asignado a un aporte confirmado. Espera sus documentos del SEACE, o su turno por antigüedad de la convocatoria.
               </Paso>
               <Paso icon={<Cpu size={14} />} titulo="En análisis">
-                Los agentes leen el expediente y cruzan fuentes oficiales. Entre 3 y 10 minutos por contrato.
+                Los agentes leen el expediente y cruzan fuentes oficiales. Toma unos minutos por contrato: el ritmo real
+                está en el panel de arriba.
               </Paso>
               <Paso icon={<CheckCircle2 size={14} />} titulo="Con dictamen publicado">
                 Cada señal cita su norma y su evidencia. Se publica aunque señale a quien lo pagó.
@@ -130,22 +130,20 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
       {/* Única fuente de conteos de la página. */}
       <PanelProcesamiento initial={resumen} pollMs={5000} finalizados={finalizados} />
 
-      <section>
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0">
-            <h2 className="font-serif text-xl font-bold text-ink">{zonaActual ? `En vivo en ${zonaActual}` : "En vivo en todo el Perú"}</h2>
-            <p className="mt-0.5 text-[13px] text-mute">Los contratos entran por orden de llegada. Los filtros acotan este tablero y el histórico.</p>
-          </div>
-          {/* Un solo lugar para los tres filtros (región, fecha, quién lo pagó). Antes ocupaban
-              una fila entera de tres columnas anchas; ahora van al costado del título y el
-              rango de fechas dejó de ser dos inputs nativos crudos. */}
+      {/* Un solo lugar para los tres filtros (región, fecha, quién lo pagó), al costado del título. */}
+      <Seccion
+        id="en-vivo"
+        titulo={zonaActual ? `En vivo en ${zonaActual}` : "En vivo en todo el Perú"}
+        descripcion="Los contratos entran por orden de llegada. Los filtros acotan este tablero y el histórico."
+        acciones={
           <FiltrosPlegables activos={nActivos} columnas={conPatrocinador ? 3 : 2}>
             <FiltroRegion opciones={opciones} valor={ubigeo} />
             <FiltroFechas desde={desde} hasta={hasta} />
             {conPatrocinador && <FiltroPatrocinador financiador={financiador} financiadores={financiadores} />}
           </FiltrosPlegables>
-        </div>
-        <div className="mt-3 empty:mt-0">
+        }
+      >
+        <div className="empty:hidden">
           <FiltrosActivos zona={zonaActual} ubigeo={ubigeo} desde={desde} hasta={hasta} financiador={financiador} />
         </div>
         <div className="mt-4">
@@ -159,36 +157,34 @@ export default async function AuditoriaPage({ searchParams }: { searchParams?: {
             autoRefreshMs={5000}
             verMasHref="#historico"
             conteosExternos
+            conLlamita
             panelSecundario={<UltimoAnalisis p={ultimo} hayFiltros={hayFiltros} />}
           />
         </div>
-      </section>
+      </Seccion>
 
       {/* ─── HISTÓRICO (todo lo ya leído; los filtros están arriba, junto con región) ─── */}
-      <section id="historico" className="scroll-mt-6 border-t border-line pt-6">
-        <h2 className="font-serif text-xl font-bold text-ink">Todo lo que ya se leyó</h2>
-        <p className="mt-0.5 max-w-[80ch] text-[13px] text-mute">
-          Cada contrato leído, con las señales que encontró y quién pagó esa lectura. Incluye los que están en
-          revisión humana: se leyeron enteros, pero su dictamen todavía no se publica. Los filtros de arriba también lo acotan.
-        </p>
-        <div className="mt-4">
-          <HistoricoProcesados
-            pagina={historico}
-            paginaActual={paginaActual}
-            pathname="/app/auditoria"
-            ubigeo={ubigeo}
-            desde={desde}
-            hasta={hasta}
-            financiador={financiador}
-          />
-        </div>
-      </section>
+      <Seccion
+        id="historico"
+        className="border-t border-line pt-6"
+        titulo="Todo lo que ya se leyó"
+        descripcion="Cada contrato financiado leído, con las señales que encontró y quién pagó esa lectura. Incluye los que están en revisión: se leyeron enteros, pero su dictamen todavía no se publica. Los filtros de arriba también lo acotan."
+      >
+        <HistoricoProcesados
+          pagina={historico}
+          paginaActual={paginaActual}
+          pathname="/app/auditoria"
+          ubigeo={ubigeo}
+          desde={desde}
+          hasta={hasta}
+          financiador={financiador}
+        />
+      </Seccion>
 
-      {/* Una sola invitación a financiar, en una línea. Antes eran cuatro cajas al pie:
-          tres repetían la explicación que ahora vive en el popover del encabezado. */}
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-5 text-[13px] text-mute">
+      {/* Una sola invitación a financiar, en una línea. */}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-5 text-[13px] text-inkSoft">
         <span>¿Tu zona no aparece? Sus contratos entran acá en cuanto alguien financia su auditoría.</span>
-        <Link href="/app/financiar" className="inline-flex items-center gap-1 font-semibold text-ink underline-offset-2 hover:underline">
+        <Link href="/app/financiar" className="inline-flex items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline">
           Financiar una auditoría <ArrowRight size={13} aria-hidden />
         </Link>
       </p>

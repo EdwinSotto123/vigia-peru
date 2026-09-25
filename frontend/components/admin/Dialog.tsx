@@ -141,7 +141,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         {spec && (
           <div className="p-5">
             <div className="flex items-start justify-between gap-3">
-              <h3 id={idTitulo} className="font-serif text-lg font-bold text-ink">{spec.title}</h3>
+              <h3 id={idTitulo} className="font-display text-lg font-bold text-ink">{spec.title}</h3>
               <button type="button" onClick={() => !busy && cerrar()} className="text-mute hover:text-ink" aria-label="Cerrar"><X size={16} aria-hidden /></button>
             </div>
             {spec.body && <div id={idCuerpo} className="mt-2 text-sm text-mute">{spec.body}</div>}

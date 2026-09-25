@@ -5,8 +5,9 @@
 // daba esta señal de avance; FormEntidad no tenía ningún feedback de cuánto
 // faltaba hasta apretar enviar.
 
-import { Check, Eye, Sparkles } from "lucide-react";
+import { Check, CheckCircle2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { porcentaje } from "@/lib/formato";
 
 export interface Milestone {
   label: string;
@@ -22,21 +23,21 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
       <div className="mb-2.5 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
           {ready ? (
-            <Sparkles size={13} className="text-mossTexto" aria-hidden />
+            <CheckCircle2 size={14} className="text-mossTexto" aria-hidden />
           ) : (
-            <Eye size={13} className="text-heroViolet" aria-hidden />
+            <Eye size={14} className="text-granate" aria-hidden />
           )}
           {ready
             ? "Denuncia completa: lista para enviar"
             : `Tu denuncia: ${doneCount} de ${milestones.length}`}
         </span>
-        <span className="font-mono text-[11px] text-mute">{Math.round(pct)}%</span>
+        <span className="font-mono text-[11px] tabular-nums text-mute">{porcentaje(pct)}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-paperDeep">
+      <div className="h-1.5 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de la denuncia">
         <div
           className={cn(
-            "h-full rounded-full transition-all duration-500",
-            ready ? "bg-moss" : "bg-heroViolet",
+            "h-full rounded-full transition-[width] duration-300 ease-out",
+            ready ? "bg-moss" : "bg-granate",
           )}
           style={{ width: `${pct}%` }}
         />
@@ -46,14 +47,14 @@ export function ProgressTracker({ milestones }: { milestones: Milestone[] }) {
           <div
             key={m.label}
             className={cn(
-              "flex items-center justify-center gap-1 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors",
-              m.done ? "bg-moss/10 text-mossTexto" : "bg-paperDeep/60 text-mute",
+              "flex items-center justify-center gap-1 rounded-full px-1 py-1 text-[11px] font-medium transition-colors duration-rapido",
+              m.done ? "bg-moss/10 text-mossTexto" : "bg-paperDeep text-inkSoft",
             )}
           >
             {m.done ? (
-              <Check size={11} />
+              <Check size={11} aria-hidden />
             ) : (
-              <span className="h-1.5 w-1.5 rounded-full bg-mute/40" />
+              <span className="h-1.5 w-1.5 rounded-full bg-mute/60" aria-hidden />
             )}
             {m.label}
           </div>

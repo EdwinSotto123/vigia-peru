@@ -29,7 +29,7 @@ function linkify(text: string): React.ReactNode {
         href={p}
         target="_blank"
         rel="noreferrer"
-        className="break-all text-heroViolet underline decoration-heroViolet/40 hover:text-heroViolet-deep"
+        className="break-all text-granate underline decoration-granate/40 hover:text-granate-deep"
         onClick={(e) => e.stopPropagation()}
       >
         {p}
@@ -126,7 +126,7 @@ export function AgentTraceRow({
     payload = ev.detail || "";
     hayMas = (ev.detail || "").length > 200;
     preview = (
-      <span className="text-[12px] text-rust">
+      <span className="text-[12px] text-crimsonTexto">
         {(ev.detail || "").slice(0, 200)}
         {hayMas ? "…" : ""}
       </span>
@@ -139,7 +139,7 @@ export function AgentTraceRow({
 
   const fila = (
     <>
-      <span className="mt-0.5 w-6 shrink-0 text-right font-mono text-[10px] tabular-nums text-mute">
+      <span className="mt-0.5 w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-mute">
         {String(idx).padStart(2, "0")}
       </span>
       {mostrarAgente && (
@@ -149,8 +149,8 @@ export function AgentTraceRow({
       )}
       <span
         className={cn(
-          "mt-0.5 w-14 shrink-0 font-mono text-[10px] uppercase tracking-wide",
-          ev.kind === "error" ? "font-semibold text-rust" : "text-mute",
+          "mt-0.5 w-14 shrink-0 font-mono text-[11px] uppercase tracking-wide",
+          ev.kind === "error" ? "font-semibold text-crimsonTexto" : "text-mute",
         )}
       >
         {KIND_LABEL[ev.kind ?? ""] ?? ev.kind}
@@ -167,13 +167,13 @@ export function AgentTraceRow({
             type="button"
             onClick={() => setExpandido((v) => !v)}
             aria-expanded={expandido}
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
           >
             {fila}
             {expandido ? (
-              <ChevronDown size={13} aria-hidden className="mt-0.5 shrink-0 text-heroViolet" />
+              <ChevronDown size={13} aria-hidden className="mt-0.5 shrink-0 text-granate" />
             ) : (
-              <ChevronRight size={13} aria-hidden className="mt-0.5 shrink-0 text-heroViolet" />
+              <ChevronRight size={13} aria-hidden className="mt-0.5 shrink-0 text-granate" />
             )}
           </button>
         ) : (
@@ -183,7 +183,7 @@ export function AgentTraceRow({
           <Popover
             titulo={infoKey ?? "Herramienta"}
             anchoClase="w-72"
-            className="mt-0.5 shrink-0 rounded-full p-0.5 text-mute transition-colors duration-rapido hover:text-heroViolet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+            className="mt-0.5 shrink-0 rounded-full p-0.5 text-mute transition-colors duration-rapido hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
             trigger={<Info size={13} aria-hidden />}
           >
             {info}
@@ -193,7 +193,7 @@ export function AgentTraceRow({
       {expandido && payload && (
         <div className="ml-8 mt-2 rounded-xl border border-line bg-paperSoft p-3">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-mute">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-mute">
               {ev.kind === "tool_call"
                 ? "Lo que se le pidió"
                 : ev.kind === "tool_result"
@@ -206,7 +206,7 @@ export function AgentTraceRow({
             </span>
             <button
               type="button"
-              className="rounded text-[10px] font-medium text-heroViolet transition-colors duration-rapido hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+              className="rounded text-[11px] font-medium text-granate transition-colors duration-rapido hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
               onClick={() => navigator.clipboard?.writeText(payload || "")}
             >
               copiar

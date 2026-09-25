@@ -2,7 +2,8 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Cifras } from "@/components/ui/Cifras";
-import { formatPEN, type Comprobante, type ComprobanteContrato } from "@/lib/financiamiento";
+import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
+import { numero, soles } from "@/lib/formato";
 import { IdentidadAliado } from "./IdentidadAliado";
 import type { RegionAlcanzada } from "./perfil";
 
@@ -19,7 +20,7 @@ import type { RegionAlcanzada } from "./perfil";
  * público que cualquiera puede consultar por código.
  */
 
-const num = (n: number) => n.toLocaleString("es-PE");
+const num = numero;
 
 /** Cuántas señales se listan antes de mandar al resto a la cadena de aportes. */
 const MAX_SENALES = 12;
@@ -27,7 +28,7 @@ const MAX_SENALES = 12;
 export function RegionesDeAliado({
   regiones,
   financiados,
-  titulo = "En qué regiones cayeron sus contratos",
+  titulo = "En qué zonas cayeron sus contratos",
 }: {
   regiones: RegionAlcanzada[];
   /** Total de contratos financiados por el aliado: denominador de cada barra. */
@@ -37,8 +38,8 @@ export function RegionesDeAliado({
   if (regiones.length === 0) return null;
   return (
     <section>
-      <h3 className="text-[11px] uppercase tracking-wide text-mute">{titulo}</h3>
-      <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
+      <h3 className="text-[13px] font-semibold text-ink">{titulo}</h3>
+      <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper">
         {regiones.map((r) => (
           <li key={r.ubigeo} className="px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-3">
@@ -47,13 +48,13 @@ export function RegionesDeAliado({
                 <span className="truncate">{r.zona}</span>
               </span>
               <span className="shrink-0 text-[12px] text-inkSoft">
-                <span className="font-mono font-semibold text-ink">{num(r.contratos)}</span> de{" "}
-                <span className="font-mono">{num(financiados)}</span> financiados
+                <span className="font-mono font-semibold tabular-nums text-ink">{num(r.contratos)}</span> de{" "}
+                <span className="font-mono tabular-nums">{num(financiados)}</span> financiados
               </span>
             </div>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
               <div
-                className="h-1.5 min-w-[2px] rounded-full bg-heroViolet"
+                className="h-1.5 min-w-[2px] rounded-full bg-granate"
                 style={{ width: `${financiados > 0 ? (r.contratos / financiados) * 100 : 0}%` }}
               />
             </div>
@@ -63,7 +64,7 @@ export function RegionesDeAliado({
               className="mt-1.5"
               items={[
                 { n: r.procesados, texto: "leídos" },
-                { n: r.senales, texto: "con señal" },
+                { n: r.senales, texto: "con señales" },
                 { n: r.aportes, texto: r.aportes === 1 ? "aporte" : "aportes" },
               ]}
             />
@@ -123,9 +124,14 @@ export function SenalesDeAliado({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-line pb-2">
-        <h2 className="font-serif text-lg font-bold text-ink">Qué se encontró en sus contratos</h2>
-        <p className="font-mono text-[12px] text-mute">
-          {num(visibles.length)} de {num(senales.length)} con señal
+        <h2 className="font-display text-lg font-bold text-ink">Qué se encontró en sus contratos</h2>
+        <p className="text-[12px] text-mute">
+          {visibles.length < senales.length ? (
+            <>Mostrando <span className="font-mono tabular-nums">{num(visibles.length)}</span> de{" "}
+              <span className="font-mono tabular-nums">{num(senales.length)}</span> contratos con señales</>
+          ) : (
+            <><span className="font-mono tabular-nums">{num(senales.length)}</span> {senales.length === 1 ? "contrato con señales" : "contratos con señales"}</>
+          )}
         </p>
       </div>
       <p className="max-w-[72ch] text-[13px] leading-relaxed text-mute">
@@ -170,7 +176,7 @@ export function SenalesDeAliado({
                   ? [
                       {
                         icono: "monto" as const,
-                        texto: formatPEN(s.valorReferencial),
+                        texto: soles(s.valorReferencial),
                         titulo: "Valor referencial del contrato",
                       },
                     ]

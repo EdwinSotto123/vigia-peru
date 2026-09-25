@@ -1,31 +1,26 @@
 import Link from "next/link";
-import { ArrowRight, Inbox, ShieldQuestion } from "lucide-react";
+import { ArrowRight, ShieldQuestion } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { soles, type AnalisisEnRevision, type RevisionMotivo } from "@/lib/revision";
+import { EstadoVacio } from "@/components/patrones";
+import { fechaCorta, numero, porcentaje, soles } from "@/lib/formato";
+import type { AnalisisEnRevision, RevisionMotivo } from "@/lib/revision";
 
 /**
- * "En revisión humana": los análisis que terminaron y NO se publicaron.
+ * "Financiados en revisión": los análisis financiados que terminaron y NO se
+ * publicaron (la lista sale de los procesamientos, que sólo conocen lo financiado;
+ * DESIGN_SYSTEM.md §10.1).
  *
  * Es la superficie de credibilidad del producto, y por eso está a un clic del
- * índice y no escondida. La autoevaluación —4 jueces independientes más 4
- * comprobaciones en código— bloquea el 36 % de los análisis que corren, y esa
- * fracción, dicha en voz alta junto a las señales que sí se publicaron, vale más
- * que cualquier promesa de rigor: prueba que el filtro existe y que muerde.
+ * índice y no escondida: la fracción que la autoevaluación frena, dicha en voz
+ * alta junto a las señales que sí se publicaron, prueba que el filtro existe.
  *
- * Todo lo que se lee aquí sale de `GET /alertas/:codigo/revision`, un endpoint que
- * el backend tenía implementado y que el frontend nunca había llamado. Ni un solo
- * texto de esta pantalla está escrito a mano sobre datos que no existen: los
- * motivos, los porcentajes, los umbrales y las reglas sin respaldo vienen del API.
+ * §10.4: de una alerta en revisión se dice "En revisión" y el motivo, nada más —
+ * ni puntaje, ni señales, ni cuántas se detectaron—. Todo lo que se lee aquí sale
+ * de `GET /alertas/:codigo/revision`: los motivos, los porcentajes, los umbrales y
+ * las reglas sin respaldo vienen del API.
  */
 
-const fechaHora = (iso: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "2-digit" });
-};
-
-const pct = (x: number | null) => (x == null ? null : `${Math.round(x * 100)} %`);
+const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
 
 export function EnRevision({
   items,
@@ -48,31 +43,26 @@ export function EnRevision({
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-paperEdge bg-paperDeep p-5">
-        <h2 className="font-serif text-lg font-bold leading-tight text-ink">
+        <h2 className="font-display text-lg font-bold leading-tight text-ink tabular-nums">
           {conDenominador
-            ? `${items.length} de ${procesados} análisis terminados no llegaron a publicarse`
-            : `${items.length} ${items.length === 1 ? "análisis terminado no llegó" : "análisis terminados no llegaron"} a publicarse`}
+            ? `${numero(items.length)} de ${numero(procesados)} contratos financiados ya leídos están en revisión`
+            : `${numero(items.length)} ${items.length === 1 ? "contrato financiado está" : "contratos financiados están"} en revisión`}
         </h2>
         <p className="mt-2 max-w-[70ch] text-[14px] leading-relaxed text-inkSoft">
           {queSignifica ??
-            "El análisis terminó, pero la autoevaluación (4 jueces independientes + 4 comprobaciones en código) no alcanzó el umbral para publicarlo. Una persona lo revisa y decide publicar o descartar. Mientras tanto no cuenta como señal hallada."}
+            "El análisis terminó, pero la autoevaluación (jueces independientes y comprobaciones en código) no alcanzó el umbral para publicarlo. Una persona lo revisa y decide publicar o descartar. Mientras tanto no cuenta como señal hallada."}
         </p>
         <p className="mt-2 max-w-[70ch] text-[13.5px] leading-relaxed text-mute">
-          Están a la vista a propósito. Las {publicadas.toLocaleString("es-PE")} señales publicadas sólo significan algo
-          si se sabe qué se quedó fuera y por qué: un motor que publica todo lo que encuentra no tiene control de
-          calidad, tiene volumen.
+          Están a la vista a propósito. Las {numero(publicadas)} señales publicadas sólo significan algo si se sabe qué se
+          quedó fuera y por qué: un motor que publica todo lo que encuentra no tiene control de calidad, tiene volumen.
         </p>
       </section>
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
-          <span className="inline-flex text-mute" aria-hidden><Inbox size={18} /></span>
-          <h3 className="mt-2 font-serif text-lg font-bold text-ink">Ningún análisis está en revisión ahora mismo</h3>
-          <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">
-            Cada análisis que termina pasa por ocho evaluadores antes de publicarse. Cuando alguno queda por debajo del
-            umbral, el contrato aparece en esta lista con el motivo exacto hasta que una persona decide.
-          </p>
-        </div>
+        <EstadoVacio titulo="Ningún contrato financiado está en revisión ahora mismo">
+          Cada análisis que termina pasa por la autoevaluación antes de publicarse. Cuando no alcanza el umbral, el
+          contrato aparece en esta lista con el motivo exacto hasta que una persona decide.
+        </EstadoVacio>
       ) : (
         <ul className="space-y-3">
           {items.map(({ procesamiento: p, revision }) => (
@@ -89,15 +79,13 @@ export function EnRevision({
               <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11.5px] text-mute">
                 <span className="font-medium text-inkSoft">{p.entidad ?? "Entidad no registrada"}</span>
                 <span>{p.zona}</span>
-                {p.montoPen != null && <span className="font-mono tabular-nums">{soles(p.montoPen)}</span>}
-                {/* La API deja de devolver el conteo de lo que está en revisión:
-                    ni siquiera el número se publica antes de que lo mire una persona. */}
-                {p.banderas != null && (
-                  <span>
-                    {p.banderas} {p.banderas === 1 ? "señal detectada" : "señales detectadas"}, ninguna publicada
-                  </span>
+                {p.montoPen != null && p.montoPen > 0 && (
+                  <span className="font-mono tabular-nums">valor referencial {soles(p.montoPen)}</span>
                 )}
-                <span>analizado el {fechaHora(revision?.analizadoEn ?? p.finalizadoAt)}</span>
+                {/* §10.4: ni el número de señales se publica antes de que lo mire una persona. */}
+                {(revision?.analizadoEn ?? p.finalizadoAt) && (
+                  <span className="tabular-nums">leído el {fechaCorta(revision?.analizadoEn ?? p.finalizadoAt)}</span>
+                )}
               </p>
 
               <div className="mt-3 space-y-2.5 border-t border-line pt-3">
@@ -113,7 +101,7 @@ export function EnRevision({
 
               <Link
                 href={`/app/auditoria/${p.ocid}`}
-                className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-heroViolet hover:underline"
+                className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline"
               >
                 Ver el análisis completo, fase por fase <ArrowRight size={13} aria-hidden />
               </Link>
@@ -138,8 +126,8 @@ function Motivo({ m }: { m: RevisionMotivo }) {
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <h4 className="text-[13.5px] font-semibold text-ink">{m.titulo}</h4>
         {tieneMedida && (
-          <span className="font-mono text-[12px] tabular-nums text-mute">
-            <span className="text-ink">{pct(m.valor)}</span> contra un mínimo de {pct(m.umbral)}
+          <span className="text-[12px] tabular-nums text-mute">
+            <span className="font-semibold text-ink">{pct(m.valor)}</span> contra un mínimo de {pct(m.umbral)}
           </span>
         )}
       </div>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Download, ExternalLink, FileText, Scale } from "lucide-react";
 import { tipoDocLabel } from "@/lib/contratos";
+import { plural } from "@/lib/formato";
+import { fechaDossier } from "../dossier";
 
 /** "APPLICATION/PDF", "pdf", ".PDF" → "pdf". El formato viene en cualquier caja. */
 export function formatoNormalizado(f: unknown): string {
@@ -41,17 +43,17 @@ export function DocumentosSection({
   const parserByUrl = new Map(parserDocs.map((d: any) => [d.url, d]));
   const normas = (fundamento || []).filter((f) => typeof f === "string" && f.trim());
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <h2 className="font-serif text-xl font-bold text-ink">Expediente del proceso</h2>
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="border-b border-line bg-paperSoft px-5 py-3">
+        <h2 className="font-display text-xl font-bold text-ink">Expediente del proceso</h2>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-mute">
           <span className="inline-flex items-center gap-1">
-            <FileText size={11} aria-hidden /> {documentos.length} {documentos.length === 1 ? "documento publicado" : "documentos publicados"}
+            <FileText size={12} aria-hidden /> {plural(documentos.length, "documento publicado", "documentos publicados")} en el SEACE
           </span>
           {ocid && (
             <Link
               href={`/app/contratos/${encodeURIComponent(ocid)}`}
-              className="inline-flex items-center gap-1 font-medium text-heroViolet hover:underline"
+              className="inline-flex items-center gap-1 font-medium text-granate hover:underline"
             >
               Ver el contrato con las citas por página <ArrowRight size={11} aria-hidden />
             </Link>
@@ -64,7 +66,7 @@ export function DocumentosSection({
             )}
             {(normasOpen ? normas : normas.slice(0, 3)).map((f, i) => (
               <span key={i} className="rounded-full bg-paperSoft px-2 py-0.5 text-[11px] font-medium text-ink">
-                <Scale size={9} className="mr-0.5 inline text-heroViolet" aria-hidden />
+                <Scale size={11} className="mr-1 inline text-mute" aria-hidden />
                 {f}
               </span>
             ))}
@@ -73,7 +75,7 @@ export function DocumentosSection({
                 type="button"
                 onClick={() => setNormasOpen((p) => !p)}
                 aria-expanded={normasOpen}
-                className="rounded-full bg-heroViolet/10 px-2 py-0.5 text-[11px] font-semibold text-heroViolet hover:bg-heroViolet/20"
+                className="min-h-[24px] rounded-full bg-granate-soft px-2.5 py-0.5 text-[11px] font-semibold text-granate hover:bg-granate/15"
               >
                 {normasOpen ? "Ocultar normas" : `Ver ${normas.length - 3} normas más`}
               </button>
@@ -89,7 +91,7 @@ export function DocumentosSection({
           return (
             <li key={d.id ?? i} className="px-5 py-3">
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-heroViolet">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-paperDeep text-inkSoft" aria-hidden>
                   <FileText size={14} aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -97,16 +99,16 @@ export function DocumentosSection({
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
                     {d.tipo_ocds && <span>{tipoDocLabel(d.tipo_ocds)}</span>}
                     {formato && <span>{ETIQUETA_FORMATO[formato] ?? formato.toUpperCase()}</span>}
-                    {d.fecha && <span>{d.fecha}</span>}
+                    {d.fecha && <span>{fechaDossier(d.fecha, true)}</span>}
                     {parsed?.n_pdfs_internos && parsed.n_pdfs_internos > 1 && (
-                      <span className="rounded-full bg-heroViolet/10 px-1.5 py-0 text-[10px] font-semibold text-heroViolet">
+                      <span className="rounded-full bg-paperDeep px-2 py-0 text-[11px] font-semibold text-inkSoft">
                         {parsed.n_pdfs_internos} PDF adentro
                       </span>
                     )}
                   </div>
                   {parsed?.resumen && !parsed?.error && (
                     <p className="mt-1.5 text-[12px] leading-relaxed text-inkSoft">
-                      <span className="font-medium text-ink">Lo que leyó el agente: </span>
+                      <span className="font-medium text-ink">Lo que se leyó: </span>
                       {parsed.resumen}
                     </p>
                   )}
@@ -121,7 +123,7 @@ export function DocumentosSection({
                     href={d.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-paperSoft px-2.5 py-1 text-[11px] font-medium text-heroViolet hover:bg-paperDeep"
+                    className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-granate hover:bg-paperDeep"
                     title={esPdf ? "Abrir el PDF en el SEACE" : "Descargar el archivo del SEACE"}
                   >
                     {esPdf ? <ExternalLink size={11} aria-hidden /> : <Download size={11} aria-hidden />}

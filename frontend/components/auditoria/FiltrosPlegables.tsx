@@ -22,13 +22,13 @@ export function FiltrosPlegables({ activos, columnas, children }: { activos: num
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
         aria-controls={id}
-        className="flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink sm:hidden"
+        className="flex min-h-[40px] w-full items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink sm:hidden"
       >
         <span className="inline-flex items-center gap-2">
           <SlidersHorizontal size={14} className="text-mute" aria-hidden />
           Filtrar{activos > 0 ? ` (${activos} ${activos === 1 ? "puesto" : "puestos"})` : ""}
         </span>
-        <ChevronDown size={14} className={`text-mute transition-transform ${abierto ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown size={14} className={`text-mute transition-transform duration-rapido ${abierto ? "rotate-180" : ""}`} aria-hidden />
       </button>
       <div
         id={id}

@@ -1,7 +1,7 @@
 "use client";
 
 // Constantes visuales compartidas por los componentes de convocatoria/ (extraído de
-// ConvocatoriaSearch.tsx): mapas de color/emoji/label por estado, ids de agentes, etc.
+// ConvocatoriaSearch.tsx): colores del grafo, rótulos por agente, pasos del análisis, etc.
 import {
   Sparkles, ScanSearch, FileText, Receipt, Globe2, Search, Download, AlertTriangle,
   Scale, Building2, Globe, Newspaper, Network, ListChecks, Pen,
@@ -16,48 +16,32 @@ export const CAT_LABEL: Record<CatFilter, string> = {
   consultoria: "Consultoría",
 };
 
-// Color de acento por categoría (tipo etiqueta sólida, no emoji)
+// Punto de color por categoría: paleta textil, que es la de las series categóricas
+// (DESIGN_SYSTEM.md §3.4). Antes eran los tonos de severidad: "obras" salía rojo de señal alta.
 export const CAT_TONE: Record<CatFilter, string> = {
   todas:       "bg-ink",
-  bienes:      "bg-heroViolet",
-  servicios:   "bg-amber",
-  obras:       "bg-rust",
-  consultoria: "bg-moss",
-};
-
-// Metadata por nodo del grafo: etiqueta corta, emoji, frase pública en vivo y fase.
-export const NODE_META: Record<string, { short: string; emoji: string; phrase: string }> = {
-  fetch:      { short: "OCDS",       emoji: "🏷️", phrase: "Consultando Contrataciones Abiertas del OECE…" },
-  pdfs:       { short: "Expediente", emoji: "⬇️", phrase: "Descargando el expediente publicado en el SEACE…" },
-  db:         { short: "Registro",   emoji: "🗄️", phrase: "Estructurando el proceso en la base de datos…" },
-  compliance: { short: "Compliance", emoji: "⚖️", phrase: "Aplicando las reglas de la Ley de Contrataciones del Estado…" },
-  parser:     { short: "Parser",     emoji: "📑", phrase: "Leyendo las bases administrativas y el acta de buena pro…" },
-  legal:      { short: "Legal",      emoji: "📜", phrase: "Cruzando contra las opiniones normativas del OECE…" },
-  market:     { short: "Mercado",    emoji: "💰", phrase: "Tasando los precios ofertados contra el mercado real…" },
-  sunat:      { short: "SUNAT",      emoji: "🪪", phrase: "Verificando RUC, sanciones e inhabilitaciones del proveedor…" },
-  web:        { short: "Empresa",    emoji: "🏢", phrase: "Investigando a la empresa adjudicataria…" },
-  news:       { short: "Prensa",     emoji: "📰", phrase: "Buscando prensa peruana relacionada…" },
-  rnp:        { short: "Red",        emoji: "🕸️", phrase: "Cruzando la red de socios y la base pública de visitas a funcionarios…" },
-  extended:   { short: "Patrones",   emoji: "🔁", phrase: "Detectando puerta giratoria y aportes de campaña…" },
-  writer:     { short: "Dictamen",   emoji: "✍️", phrase: "Redactando el dictamen final con la evidencia…" },
-};
-
-export const PHASE_HEX: Record<string, string> = {
-  "ingesta": "#b9770c", "auditoría": "#a8442a", "investigación": "#8a6d3b", "dictamen": "#4f7d3a",
+  bienes:      "bg-textil-anil",
+  servicios:   "bg-textil-achiote",
+  obras:       "bg-textil-verde",
+  consultoria: "bg-textil-ocre",
 };
 
 export const AGENT_IDS = ["compliance", "parser", "legal", "market", "web", "news", "person", "entity", "extended", "writer"];
 
+// Colores del grafo en <canvas> (FlowGraph), que no puede leer clases de Tailwind: por eso son
+// hex, y son EXACTAMENTE los de tailwind.config.ts. El tipo de nodo se distingue con la paleta
+// textil (decoración, DESIGN_SYSTEM.md §3.4): núcleo granate, agente añil, fuente ocre,
+// persistencia tierra. El violeta y los verdes vivos del grafo viejo se fueron con la marca vieja.
 export const G_COLOR: Record<string, { fill: string; stroke: string; text: string }> = {
-  orch:  { fill: "#fffdf7", stroke: "#6d4ec9", text: "#4a3a8c" },
-  agent: { fill: "#fffdf7", stroke: "#3f7a3a", text: "#2f5e2c" },
-  src:   { fill: "#fffdf7", stroke: "#b07a12", text: "#7a530b" },
-  store: { fill: "#fffdf7", stroke: "#b03b6e", text: "#7e2a4d" },
+  orch:  { fill: "#FFFFFF", stroke: "#711C30", text: "#4A1020" }, // granate · granate-deep
+  agent: { fill: "#FFFFFF", stroke: "#2D3E6F", text: "#2D3E6F" }, // textil-anil
+  src:   { fill: "#FFFFFF", stroke: "#C47F3E", text: "#95612C" }, // textil-ocre · textil-tierra
+  store: { fill: "#FFFFFF", stroke: "#95612C", text: "#843022" }, // textil-tierra · textil-ladrillo
 };
 
-export const G_DONE = { fill: "#e9f3e6", stroke: "#3f7a3a", text: "#2f5e2c" }; // verde "completado"
+export const G_DONE = { fill: "#EEF4EE", stroke: "#3F7D43", text: "#2F6B36" }; // moss · mossTexto: "completado"
 
-export const G_FLOW = "#16b85a"; // verde vivo: arista con intercambio de info ACTIVO
+export const G_FLOW = "#3F7D43"; // moss: arista con intercambio de info ACTIVO
 
 export const TYPE_LABEL: Record<string, string> = { orch: "Núcleo", agent: "Agente", src: "Fuente", store: "Persistencia" };
 
@@ -74,25 +58,25 @@ export const TRACE_ROLE: Record<string, string> = {
   writer: "redactar el dictamen con la evidencia",
 };
 
-export const VERB_HEX: Record<string, string> = { delega: "#5b51c9", invoca: "#2f8f86", consulta: "#3b8bd4", persiste: "#ba7517" };
+export const VERB_HEX: Record<string, string> = { delega: "#711C30", invoca: "#2D3E6F", consulta: "#95612C", persiste: "#843022" };
 
 // Mapeo visual de cada agente. Rótulos en castellano (los de FASES en lib/auditoria), no el
-// nombre interno en inglés. Texto blanco sólo sobre fondos que pasan 4.5:1 (ink, heroViolet,
-// rust, moss); ámbar y clay no llegan, así que van en su versión suave con el token de texto.
+// nombre interno en inglés. Todos en tinta neutra: los tokens de severidad (rust, amber, moss)
+// y el granate de la marca no identifican agentes; el agente se reconoce por su nombre.
 export const AGENT_VISUAL: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
-  vigia_orchestrator:    { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  pipeline:              { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  orquestador:           { color: "bg-ink text-paper",          icon: <Sparkles size={11} />,      label: "Orquestador" },
-  compliance_agent:      { color: "bg-amber-soft text-amberTexto",   icon: <ScanSearch size={11} />,    label: "Reglas de contratación" },
-  document_parser_agent: { color: "bg-heroViolet text-paper",         icon: <FileText size={11} />,      label: "Lectura del expediente" },
-  document_legal_analyst_agent: { color: "bg-heroViolet text-paper",  icon: <ScanSearch size={11} />,    label: "Análisis legal" },
-  market_price_agent:    { color: "bg-rust text-paper",         icon: <Receipt size={11} />,       label: "Precios de mercado" },
-  web_research_agent:    { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Investigación de la empresa" },
-  news_research_agent:   { color: "bg-amber-soft text-amberTexto",   icon: <Globe2 size={11} />,        label: "Prensa" },
-  entity_personnel_agent:{ color: "bg-amber-soft text-amberTexto",   icon: <ScanSearch size={11} />,    label: "Funcionarios de la entidad" },
-  person_network_agent:  { color: "bg-heroViolet text-paper",         icon: <ScanSearch size={11} />,    label: "Red de personas" },
-  compliance_extended_agent: { color: "bg-amber-soft text-amberTexto", icon: <ScanSearch size={11} />,  label: "Cumplimiento extendido" },
-  report_writer_agent:   { color: "bg-moss text-paper",         icon: <FileText size={11} />,      label: "Dictamen" },
+  vigia_orchestrator:    { color: "bg-paperDeep text-inkSoft",          icon: <Sparkles size={11} />,      label: "Orquestador" },
+  pipeline:              { color: "bg-paperDeep text-inkSoft",          icon: <Sparkles size={11} />,      label: "Orquestador" },
+  orquestador:           { color: "bg-paperDeep text-inkSoft",          icon: <Sparkles size={11} />,      label: "Orquestador" },
+  compliance_agent:      { color: "bg-paperDeep text-inkSoft",   icon: <ScanSearch size={11} />,    label: "Reglas de contratación" },
+  document_parser_agent: { color: "bg-paperDeep text-inkSoft",         icon: <FileText size={11} />,      label: "Lectura del expediente" },
+  document_legal_analyst_agent: { color: "bg-paperDeep text-inkSoft",  icon: <ScanSearch size={11} />,    label: "Análisis legal" },
+  market_price_agent:    { color: "bg-paperDeep text-inkSoft",         icon: <Receipt size={11} />,       label: "Precios de mercado" },
+  web_research_agent:    { color: "bg-paperDeep text-inkSoft",   icon: <Globe2 size={11} />,        label: "Investigación de la empresa" },
+  news_research_agent:   { color: "bg-paperDeep text-inkSoft",   icon: <Globe2 size={11} />,        label: "Prensa" },
+  entity_personnel_agent:{ color: "bg-paperDeep text-inkSoft",   icon: <ScanSearch size={11} />,    label: "Funcionarios de la entidad" },
+  person_network_agent:  { color: "bg-paperDeep text-inkSoft",         icon: <ScanSearch size={11} />,    label: "Red de personas" },
+  compliance_extended_agent: { color: "bg-paperDeep text-inkSoft", icon: <ScanSearch size={11} />,  label: "Cumplimiento extendido" },
+  report_writer_agent:   { color: "bg-paperDeep text-inkSoft",         icon: <FileText size={11} />,      label: "Dictamen" },
 };
 
 // Qué hace cada tool / regla / agente — alimenta el botón de info (ⓘ) del tracking.
@@ -178,29 +162,16 @@ export const TOOL_INFO: Record<string, string> = {
   report_writer_agent: "Redacta el dictamen final con el análisis consolidado y las citas normativas del OECE.",
 };
 
-export const VEREDICTO_VISUAL: Record<string, { color: string; bg: string; emoji: string; label: string }> = {
-  alineado:      { color: "text-mossTexto", bg: "bg-moss/10 border-moss/30", emoji: "🟢", label: "ALINEADO" },
-  elevado:       { color: "text-amberTexto", bg: "bg-amber-soft border-amber/40", emoji: "🟠", label: "ELEVADO" },
-  muy_elevado:   { color: "text-rust",  bg: "bg-crimson-soft border-rust/40", emoji: "🔴", label: "MUY ELEVADO" },
-  barato:        { color: "text-clayTexto",  bg: "bg-paperSoft border-line",     emoji: "🔵", label: "BARATO" },
-  estimacion:    { color: "text-mute",  bg: "bg-paperDeep border-line",     emoji: "⚪", label: "ESTIMACIÓN" },
-  sin_ofertado:  { color: "text-mute",  bg: "bg-paperSoft border-line",     emoji: "🔍", label: "SIN PRECIO OFERTADO" },
-  // El backend ya corrió el juez de plausibilidad y decidió que el lote NO es comparable
-  // (cobertura insuficiente frente al total de ítems reales, o una comparación implausible);
-  // antes caía en el "⚪ ESTIMACIÓN" genérico y se perdía esa distinción.
-  no_verificable: { color: "text-clayTexto", bg: "bg-paperSoft border-clay/30", emoji: "🚫", label: "NO VERIFICABLE" },
-};
-
 export const AGENTE_VISUAL: Record<string, { label: string; chipClass: string; iconClass: string }> = {
-  compliance_agent:               { label: "Reglas de contratación", chipClass: "bg-rust/15 text-rust",      iconClass: "text-rust" },
-  compliance_extended_agent:      { label: "Cumplimiento extendido", chipClass: "bg-rust/10 text-rust",      iconClass: "text-rust" },
-  document_legal_analyst_agent:   { label: "Análisis legal",         chipClass: "bg-heroViolet/15 text-heroViolet",      iconClass: "text-heroViolet" },
-  document_parser_agent:          { label: "Lectura del expediente", chipClass: "bg-amber/15 text-amberTexto",    iconClass: "text-amberTexto" },
-  market_price_agent:             { label: "Precios de mercado",     chipClass: "bg-moss/15 text-mossTexto",  iconClass: "text-mossTexto" },
+  compliance_agent:               { label: "Reglas de contratación", chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  compliance_extended_agent:      { label: "Cumplimiento extendido", chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  document_legal_analyst_agent:   { label: "Análisis legal",         chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  document_parser_agent:          { label: "Lectura del expediente", chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
+  market_price_agent:             { label: "Precios de mercado",     chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
   person_network_agent:           { label: "Red de personas",        chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
   news_research_agent:            { label: "Prensa",                 chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
   web_research_agent:             { label: "Investigación de la empresa", chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
-  "?":                            { label: "Sistema",           chipClass: "bg-line text-ink",          iconClass: "text-mute" },
+  "?":                            { label: "Sistema",           chipClass: "bg-paperDeep text-inkSoft", iconClass: "text-inkSoft" },
 };
 
 export const FUENTE_GROUPS = [

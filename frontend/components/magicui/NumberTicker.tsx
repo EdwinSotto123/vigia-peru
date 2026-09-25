@@ -2,17 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { formatSoles } from "@/lib/formato";
+import { numero, soles, solesCompacto } from "@/lib/formato";
 
+/**
+ * Los formatos salen de lib/formato (DESIGN_SYSTEM.md §10.3), el único lugar
+ * que decide cómo se escribe un número o un monto. Mientras cuenta, el valor
+ * intermedio se redondea: un "S/ 523.47" de paso no es un monto de nadie.
+ */
 const FORMATOS: Record<string, (n: number) => string> = {
-  entero: (n) => Math.round(n).toLocaleString("es-PE"),
-  pen: (n) => `S/ ${Math.round(n).toLocaleString("es-PE")}`,
-  // Mismos cortes que formatSoles() de lib/formato: un monto grande (los de
-  // contratos públicos suelen ser de 6 a 9 cifras) se abrevia ("S/ 45.20 M",
-  // "S/ 1.54 mil M") en vez de imprimir el número completo, que en una
-  // stat-tile angosta se ve desproporcionado. "mil M" y no "B": en español un
-  // billón es un millón de millones.
-  pen_compacto: (n) => (n >= 1_000 ? formatSoles(n) : `S/ ${Math.round(n).toLocaleString("es-PE")}`),
+  entero: (n) => numero(n),
+  pen: (n) => soles(Math.round(n)),
+  // Un monto grande (los de contratos públicos suelen ser de 6 a 9 cifras) se
+  // abrevia ("S/ 45.2 M", "S/ 1.5 mil M") en una tarjeta angosta.
+  pen_compacto: (n) => solesCompacto(Math.round(n)),
 };
 
 /** Desde qué fracción del valor arranca el conteo. No desde 0: un salto corto se lee como "se actualizó", no como "cargando". */

@@ -83,8 +83,9 @@ export function BarraMapa({
               aria-pressed={medida === m.id}
               title={m.ayuda}
               className={cn(
-                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
-                medida === m.id ? "bg-ink text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
+                "min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                // Granate = elegido (la marca), el mismo idioma en los dos grupos y en las capas.
+                medida === m.id ? "bg-granate text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
               )}
             >
               {m.label}
@@ -109,8 +110,8 @@ export function BarraMapa({
               aria-pressed={filtro === f.id}
               title={f.ayuda}
               className={cn(
-                "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
-                filtro === f.id ? "bg-heroViolet text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
+                "min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                filtro === f.id ? "bg-granate text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
               )}
             >
               {f.label}
@@ -122,8 +123,10 @@ export function BarraMapa({
 
         {/* Capas de puntos */}
         <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Capas del mapa">
-          <BotonCapa activa={alertas} onClick={onAlertas} n={nAlertas} icono={<AlertTriangle size={13} />} vacio="No hay contratos con señal para dibujar">
-            Señales
+          {/* Los puntos son los contratos de peso del riesgo medio o alto (lib/severidad ≥ 40):
+              la capa se nombra por lo que dibuja, no "Señales" (§10.1). */}
+          <BotonCapa activa={alertas} onClick={onAlertas} n={nAlertas} icono={<AlertTriangle size={13} />} vacio="No hay contratos de riesgo medio o alto para dibujar">
+            Riesgo medio o alto
           </BotonCapa>
           <BotonCapa activa={denuncias} onClick={onDenuncias} n={nDenuncias} icono={<MessageSquareWarning size={13} />} vacio="Todavía no hay denuncias ciudadanas">
             Denuncias
@@ -138,7 +141,7 @@ export function BarraMapa({
         {sinConexion.length > 0 && (
           <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-inkSoft" role="status" aria-live="polite">
             <WifiOff size={13} className="text-clayTexto" aria-hidden />
-            sin conexión con {sinConexion.join(" y ")}, reintentando
+            Sin conexión con {sinConexion.join(" y ")}; reintentando…
           </span>
         )}
       </div>
@@ -146,7 +149,7 @@ export function BarraMapa({
       {mes && (
         <p className="text-[12px] leading-snug text-inkSoft" role="status">
           Mostrando contratos de <strong className="font-semibold text-ink">{mes.etiqueta}</strong> en el color del mapa,
-          el encabezado y la ficha. El panel de la zona y los puntos de señal siguen mostrando todo el histórico.
+          el encabezado y la ficha. El panel de la zona y los puntos de riesgo siguen mostrando todo el histórico.
         </p>
       )}
 
@@ -190,10 +193,10 @@ function BotonCapa({
       disabled={vacia}
       aria-busy={cargando || undefined}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+        "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
         "disabled:cursor-not-allowed disabled:border-line disabled:bg-paperDeep disabled:text-mute",
         activa && !vacia && !cargando
-          ? "border-ink bg-ink text-paper"
+          ? "border-granate bg-granate-soft text-granate"
           : "border-line bg-paperDeep text-inkSoft hover:bg-paper hover:text-ink",
       )}
       title={vacia ? vacio : undefined}
@@ -204,7 +207,7 @@ function BotonCapa({
       {cargando ? (
         <span className="inline-block h-2.5 w-4 animate-pulse rounded bg-paperEdge" aria-hidden />
       ) : (
-        <span className="font-mono text-[10px] tabular-nums opacity-80">{n.toLocaleString("es-PE")}</span>
+        <span className="text-[11px] font-semibold tabular-nums">{n.toLocaleString("es-PE")}</span>
       )}
       {cargando && <span className="sr-only">, cargando</span>}
     </button>

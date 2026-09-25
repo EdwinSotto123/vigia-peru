@@ -19,14 +19,13 @@ import {
   FileSearch,
   Users,
   Heart,
-  Shield,
   HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { BuscarGlobal } from "@/components/BuscarGlobal";
-import { Marca } from "@/components/Marca";
+import { FranjaTextil, Marca } from "@/components/marca";
 import { FLAGS } from "@/lib/flags";
 
 type Item = {
@@ -36,7 +35,7 @@ type Item = {
   hint?: string;
   /** Si está true: requiere sesión. Si no, también es público. */
   requiresAuth?: boolean;
-  /** Destaca el item como acción núcleo (rojo + pulso). */
+  /** Destaca el item como acción núcleo (borde granate y flecha). */
   featured?: boolean;
   match?: (path: string) => boolean;
 };
@@ -238,27 +237,32 @@ export function DashboardSidebar() {
     <>
       {/* Barra superior móvil. Reemplaza a la píldora flotante "Navegación", que
           tapaba contenido real en varias páginas (el botón de ubicación de
-          /reporte/nuevo, las pistas del mapa, las pestañas del dossier). */}
+          /reporte/nuevo, las pistas del mapa, las pestañas del dossier).
+          Franja textil de 4 px + fila de 44 px = los 3 rem que el layout del
+          dashboard descuenta a los `sticky` de cada página. */}
       <div
         id="barra-movil"
-        className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-line bg-paper/90 px-3 backdrop-blur md:hidden"
+        className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur md:hidden"
       >
-        <button
-          ref={toggleRef}
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-expanded={open}
-          aria-controls="menu-lateral"
-          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 text-xs font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
-        >
-          <Menu size={15} aria-hidden /> Menú
-        </button>
-        <Link href="/" aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
-          <Marca tamano="sm" />
-        </Link>
-        <div className="ml-auto">
-          {/* La barra lateral ya escucha Ctrl+K: esta instancia sólo pone el botón. */}
-          <BuscarGlobal variant="boton" atajo={false} />
+        <FranjaTextil alto={4} />
+        <div className="flex h-11 items-center gap-2 px-3">
+          <button
+            ref={toggleRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-expanded={open}
+            aria-controls="menu-lateral"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 text-[13px] font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep"
+          >
+            <Menu size={15} aria-hidden /> Menú
+          </button>
+          <Link href="/" aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
+            <Marca tamano="sm" />
+          </Link>
+          <div className="ml-auto">
+            {/* La barra lateral ya escucha Ctrl+K: esta instancia sólo pone el botón. */}
+            <BuscarGlobal variant="boton" atajo={false} />
+          </div>
         </div>
       </div>
 
@@ -275,36 +279,35 @@ export function DashboardSidebar() {
         id="menu-lateral"
         aria-label="Navegación del sitio"
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 -translate-x-full border-r border-line bg-paperSoft transition-transform duration-panel ease-salida",
+          "fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col border-r border-line bg-paperSoft transition-transform duration-panel ease-salida",
           "md:sticky md:top-0 md:z-10 md:h-screen md:translate-x-0",
           open && "translate-x-0 shadow-drawer",
         )}
       >
+        {/* La firma del sitio, como en la cabecera pública (DESIGN_SYSTEM.md §6). */}
+        <FranjaTextil alto={4} className="shrink-0" />
         {/* Un clic en cualquier link del drawer lo cierra, incluso si lleva a la
             página en la que ya estás (ahí la ruta no cambia). */}
         <div
-          className="flex h-full flex-col overflow-y-auto p-4"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4"
           onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}
         >
-          {/* La marca lleva al inicio: "Mapa" ya tiene su propia entrada abajo. */}
-          <div className="mb-4 flex items-start gap-2">
+          {/* La marca lleva al inicio: "Mapa" ya tiene su propia entrada abajo.
+              La misma firma que la cabecera, el pie y el panel de admin; antes
+              iba dentro de una tarjeta y al lado de un escudo que no es de Vigía. */}
+          <div className="mb-5 flex items-center justify-between gap-2">
             <Link
               href="/"
               aria-label="Vigía Perú, ir al inicio"
-              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border border-line bg-paper p-3 transition-colors hover:bg-paperDeep"
+              className="rounded-lg py-1 transition-opacity duration-rapido hover:opacity-80"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink text-paper">
-                <Shield size={16} strokeWidth={2.5} aria-hidden />
-              </span>
-              {/* El mismo componente que usan el header, el pie y el panel de
-                  admin: un solo lugar donde puede cambiar. */}
-              <Marca tamano="sm" nota="Mapa de auditoría" />
+              <Marca />
             </Link>
             <button
               ref={cerrarRef}
               type="button"
               onClick={() => cerrar()}
-              className="rounded-full p-1.5 text-mute transition-colors hover:bg-paperDeep hover:text-ink md:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink md:hidden"
               aria-label="Cerrar menú"
             >
               <X size={16} aria-hidden />
@@ -312,56 +315,64 @@ export function DashboardSidebar() {
           </div>
 
           {/* Búsqueda global (Ctrl+K) */}
-          <div className="mb-4">
+          <div className="mb-5">
             <BuscarGlobal />
           </div>
 
           {/* Nav agrupado */}
           <nav aria-label="Secciones" className="flex flex-col gap-5">
-            {SECTIONS.map((section, i) => (
-              <div key={i} className="flex flex-col gap-1">
-                {section.title && (
-                  <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-mute">
-                    {section.title}
-                  </div>
-                )}
-                {section.items.map((item) => {
-                  const active = item.match
-                    ? item.match(pathname)
-                    : pathname === item.href.split("#")[0];
-                  const locked = item.requiresAuth && !user;
-                  return (
-                    <SidebarLink
-                      key={item.href}
-                      href={item.href}
-                      active={active}
-                      locked={locked}
-                      featured={item.featured}
-                      icon={item.icon}
-                      hint={item.hint}
-                    >
-                      {item.label}
-                    </SidebarLink>
-                  );
-                })}
-              </div>
-            ))}
+            {SECTIONS.map((section, i) => {
+              const idTitulo = `menu-lateral-seccion-${i}`;
+              return (
+                <div
+                  key={i}
+                  role="group"
+                  aria-labelledby={section.title ? idTitulo : undefined}
+                  className="flex flex-col gap-0.5"
+                >
+                  {section.title && (
+                    <p id={idTitulo} className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-mute">
+                      {section.title}
+                    </p>
+                  )}
+                  {section.items.map((item) => {
+                    const active = item.match
+                      ? item.match(pathname)
+                      : pathname === item.href.split("#")[0];
+                    const locked = item.requiresAuth && !user;
+                    return (
+                      <SidebarLink
+                        key={item.href}
+                        href={item.href}
+                        active={active}
+                        locked={locked}
+                        featured={item.featured}
+                        icon={item.icon}
+                        hint={item.hint}
+                      >
+                        {item.label}
+                      </SidebarLink>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </nav>
 
-          {/* Footer */}
+          {/* Pie de la barra */}
           <div className="mt-auto space-y-2 pt-6">
             {FLAGS.editorial && !loading && !user && (
               <div className="rounded-2xl border border-amber/40 bg-amber-soft/50 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-clayTexto">
-                  <Lock size={11} aria-hidden /> Acceso limitado
-                </div>
-                <p className="mt-1 text-[11px] leading-relaxed text-ink">
-                  Algunas secciones (como el generador IA) requieren cuenta para
-                  evitar abuso de APIs.
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amberTexto">
+                  <Lock size={12} aria-hidden /> Acceso limitado
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-ink">
+                  Algunas secciones (como el generador con IA) requieren cuenta para
+                  evitar abusos.
                 </p>
                 <Link
                   href="/signup"
-                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper transition-colors hover:bg-ink/90"
+                  className="mt-2 inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-1.5 text-xs font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
                 >
                   Crear cuenta gratis
                 </Link>
@@ -374,17 +385,17 @@ export function DashboardSidebar() {
                 href="/preguntas"
                 aria-current={faqActiva ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition-colors",
-                  faqActiva ? "bg-paper font-medium text-ink shadow-inset" : "text-mute hover:bg-paperDeep hover:text-ink",
+                  "flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] transition-colors duration-rapido",
+                  faqActiva ? "bg-granate-50 font-semibold text-granate" : "text-mute hover:bg-paper hover:text-ink",
                 )}
               >
-                <HelpCircle size={13} aria-hidden /> Preguntas frecuentes
+                <HelpCircle size={14} aria-hidden /> Preguntas frecuentes
               </Link>
               <Link
                 href="/"
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-mute transition-colors hover:bg-paperDeep hover:text-ink"
+                className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
               >
-                <Home size={13} aria-hidden /> Inicio
+                <Home size={14} aria-hidden /> Inicio
               </Link>
             </div>
           </div>
@@ -394,6 +405,13 @@ export function DashboardSidebar() {
   );
 }
 
+/**
+ * Un ítem de la barra. Un solo código visual para "estás aquí": fondo granate
+ * suave, texto granate y el ícono en su caja granate llena. Ningún otro ítem
+ * tiene la caja llena, así que el lugar actual se encuentra de un vistazo.
+ * "Financiar" (featured) se destaca con borde y flecha, no con relleno: el
+ * relleno completo lo gana sólo cuando es la página activa.
+ */
 function SidebarLink({
   href,
   active,
@@ -416,40 +434,41 @@ function SidebarLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition-colors",
+        "group flex min-h-11 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-sm transition-colors duration-rapido",
         featured
           ? active
-            ? "border-heroViolet bg-heroViolet text-paper shadow-card"
-            : "border-heroViolet/40 bg-heroViolet-soft text-ink hover:bg-heroViolet/15"
+            ? "border-granate bg-granate text-paper"
+            : "border-granate/30 bg-paper text-granate hover:border-granate/50 hover:bg-granate-50"
           : active
-          ? "border-line bg-paper text-ink shadow-inset"
-          : "border-transparent text-ink/80 hover:bg-paper hover:text-ink",
+          ? "border-granate/15 bg-granate-50 text-granate"
+          : "border-transparent text-inkSoft hover:bg-paper hover:text-ink",
       )}
     >
-      <span className="flex items-center gap-2.5">
+      <span className="flex min-w-0 items-center gap-2.5">
         <span
+          aria-hidden
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-lg",
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-rapido",
             featured
               ? active
-                ? "bg-paper/20 text-paper"
-                : "bg-heroViolet text-paper"
+                ? "bg-paper/15 text-paper"
+                : "bg-granate-soft text-granate"
               : active
-              ? "bg-ink text-paper"
-              : "bg-paperDeep text-heroViolet group-hover:bg-paper",
+              ? "bg-granate text-paper"
+              : "bg-paperDeep text-mute group-hover:bg-granate-50 group-hover:text-granate",
           )}
         >
           {icon}
         </span>
-        <span className="flex flex-col leading-tight">
-          <span className={cn("font-medium", featured && "font-semibold")}>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className={cn("truncate", active || featured ? "font-semibold" : "font-medium")}>
             {children}
           </span>
           {hint && (
             <span
               className={cn(
-                "text-[10px]",
-                featured ? (active ? "text-paper/80" : "text-heroViolet/80") : "text-mute",
+                "truncate text-[11px]",
+                featured && active ? "text-paper/80" : active || featured ? "text-granate/80" : "text-mute",
               )}
             >
               {hint}
@@ -458,13 +477,16 @@ function SidebarLink({
         </span>
       </span>
       {locked ? (
-        <Lock size={11} className="shrink-0 text-mute" />
+        <>
+          <Lock size={12} className="shrink-0 text-mute" aria-hidden />
+          <span className="sr-only">(requiere cuenta)</span>
+        </>
       ) : featured ? (
         // Antes esto era un punto con animate-ping permanente. Un pulso que no
         // para no comunica nada: no hay ningún estado que esté cambiando, sólo
         // un item de navegación pidiendo atención para siempre. El destaque de
-        // "Financiar" ya lo cargan el fondo violeta y el peso del texto.
-        <ArrowRight size={13} className="shrink-0 opacity-60" aria-hidden />
+        // "Financiar" ya lo cargan el borde granate y el peso del texto.
+        <ArrowRight size={14} className="shrink-0 opacity-70" aria-hidden />
       ) : null}
     </Link>
   );

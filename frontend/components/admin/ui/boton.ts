@@ -16,7 +16,7 @@ const VARIANTE: Record<VarianteBoton, string> = {
   secundario: "border border-line bg-paper text-ink hover:bg-paperDeep",
   exito: "bg-moss font-semibold text-paper hover:bg-moss/90",
   peligro: "border border-rust/40 bg-paper text-rust hover:bg-crimson-soft",
-  marca: "bg-heroViolet font-semibold text-paper hover:bg-heroViolet-deep",
+  marca: "bg-granate font-semibold text-paper hover:bg-granate-deep",
   fantasma: "text-inkSoft hover:bg-paperDeep hover:text-ink",
 };
 

@@ -46,7 +46,7 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
     <div className="space-y-2" aria-label="Agentes del análisis por carril">
       {CARRILES.map((c) => (
         <div key={c.key} className="flex flex-col gap-1">
-          <div className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-mute">{c.label}</div>
+          <div className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-mute">{c.label}</div>
           <ol className="flex min-w-0 flex-wrap items-center gap-y-1.5">
             {c.pasos.map((grupo, gi) => (
               <li key={gi} className="flex items-center">
@@ -64,10 +64,10 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
                               : `${faseLabel(key)}: pendiente`;
                     return (
                       <span key={key} className="flex items-center">
-                        {ki > 0 && <span aria-hidden className="mx-1 text-[10px] text-mute/70">∥</span>}
+                        {ki > 0 && <span aria-hidden className="mx-1 text-[11px] text-mute/70">∥</span>}
                         <span
                           title={title}
-                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition-colors duration-normal ${e.borde} ${e.fondo} ${
+                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-colors duration-normal ${e.borde} ${e.fondo} ${
                             v.estado === "omitido" ? "text-mute/70 line-through decoration-mute/50" : "text-ink"
                           }`}
                         >
@@ -75,7 +75,7 @@ export function DagCarriles({ fases, estado, ahora, compacto = false, senales }:
                           {faseLabelCorto(key)}
                           <span className="sr-only">{` (${e.label})`}</span>
                           {t != null && v.estado === "corriendo" && (
-                            <span className="font-mono text-[9px] tabular-nums text-amberTexto" suppressHydrationWarning>
+                            <span className="font-mono text-[11px] tabular-nums text-amberTexto" suppressHydrationWarning>
                               {duracion(t)}
                             </span>
                           )}

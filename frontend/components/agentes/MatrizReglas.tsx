@@ -64,12 +64,16 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
             : `Dispararon ${m} ${m === 1 ? "regla" : "reglas"} sobre este contrato.`}
         </p>
         <ul className="mt-2 flex flex-wrap gap-1.5">
-          {[...disparadas].sort().map((id) => (
-            <li key={id} className="pill border-rust/40 bg-crimson-soft text-rust">
-              <AlertTriangle size={11} aria-hidden />
-              {etiquetaDe(id, data)}
-            </li>
-          ))}
+          {[...disparadas].sort().map((id) => {
+            // La severidad es la de la señal que produjo la regla; sin señal asociada, neutra.
+            const s = peorDe(porRegla.get(id));
+            return (
+              <li key={id} className="pill border-line bg-paper text-ink">
+                {s ? <Severidad bandera={s} formato="punto" /> : <AlertTriangle size={11} className="text-inkSoft" aria-hidden />}
+                {etiquetaDe(id, data)}
+              </li>
+            );
+          })}
         </ul>
         <p className="mt-2">
           El catálogo de las reglas que <em>no</em> dispararon no llega en esta respuesta: sin el
@@ -107,9 +111,15 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                 trigger={
                   <span className="flex w-full min-w-0 items-start gap-1.5 text-[12px] leading-snug">
                     {on ? (
-                      <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden />
+                      // El ícono de una regla que disparó lleva la severidad de SU señal: antes era
+                      // siempre el triángulo rojo de "alta", aunque la señal fuera baja.
+                      s ? (
+                        <Severidad bandera={s.severidad} formato="punto" className="mt-0.5 shrink-0" />
+                      ) : (
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
+                      )
                     ) : (
-                      <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+                      <Check size={12} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
                     )}
                     <span className={cn("min-w-0 flex-1 truncate", on ? "font-medium text-ink" : "text-mute")}>
                       {r.etiqueta}
@@ -126,7 +136,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
                       <span className="text-[12px] text-ink">Disparó en este contrato.</span>
                     </>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-[12px] text-moss">
+                    <span className="inline-flex items-center gap-1.5 text-[12px] text-mossTexto">
                       <Check size={12} aria-hidden /> Se evaluó y no disparó.
                     </span>
                   )}
@@ -147,7 +157,7 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
           <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
             {otras.map((s, i) => (
               <li key={`${s.regla}-${i}`} className="flex min-w-0 items-start gap-1.5 text-[12px] leading-snug">
-                <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden />
+                <Severidad bandera={s.severidad} formato="punto" className="mt-0.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-ink">
                   {data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}
                 </span>
@@ -159,6 +169,12 @@ export function MatrizReglas({ reglas: data, cargando = false, reglasDisparadas,
       )}
     </div>
   );
+}
+
+/** La severidad más alta entre las señales de una regla, o null si la regla no dejó señal. */
+function peorDe(senales: SenalAgente[] | undefined): SenalAgente["severidad"] | null {
+  if (!senales?.length) return null;
+  return [...senales].sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad])[0].severidad;
 }
 
 function etiquetaDe(id: string, data: ReglasPerfil | null): string {

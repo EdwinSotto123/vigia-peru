@@ -18,15 +18,15 @@ export const ESTADO_PASO: Record<EstadoFase, { label: string; texto: string; bar
   corriendo: { label: "en curso", texto: "text-amberTexto", barra: "bg-amber", borde: "border-amber/50", fondo: "bg-amber-soft" },
   hecho: { label: "completado", texto: "text-inkSoft", barra: "bg-moss", borde: "border-moss/40", fondo: "bg-moss/10" },
   omitido: { label: "omitido", texto: "text-mute", barra: "bg-paperDeep", borde: "border-line", fondo: "bg-paperSoft" },
-  error: { label: "falló", texto: "text-rust", barra: "bg-rust", borde: "border-rust/40", fondo: "bg-crimson-soft" },
+  error: { label: "falló", texto: "text-crimsonTexto", barra: "bg-crimson", borde: "border-crimson/40", fondo: "bg-crimson-soft" },
 };
 
 export function IconoEstado({ estado, size = 12, className }: { estado: EstadoFase; size?: number; className?: string }) {
   if (estado === "corriendo") return <PulseDot color="amber" size={size - 4} className={className} />;
   const props = { size, "aria-hidden": true as const, className: cn("shrink-0", className) };
-  if (estado === "hecho") return <Check {...props} strokeWidth={3} className={cn(props.className, "text-moss")} />;
+  if (estado === "hecho") return <Check {...props} strokeWidth={3} className={cn(props.className, "text-mossTexto")} />;
   if (estado === "omitido") return <MinusCircle {...props} className={cn(props.className, "text-mute")} />;
-  if (estado === "error") return <AlertCircle {...props} className={cn(props.className, "text-rust")} />;
+  if (estado === "error") return <AlertCircle {...props} className={cn(props.className, "text-crimsonTexto")} />;
   return <Circle {...props} className={cn(props.className, "text-line")} />;
 }
 

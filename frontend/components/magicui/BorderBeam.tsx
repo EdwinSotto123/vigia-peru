@@ -6,21 +6,25 @@ import { cn } from "@/lib/utils";
  * `relative` (o `position` no-static) y tener `overflow-hidden` + `rounded-*` — este
  * componente es un `<span>` absoluto, así que no cruza ningún límite server/client
  * (no recibe funciones, es puro CSS) y puede usarse desde cualquier server component.
+ *
+ * El color es un gradiente de Tailwind (`degradado`), no un hex: el de antes era
+ * el ámbar de "señal media", y un brillo decorativo no puede hablar en el color
+ * de la severidad. Por defecto, maíz: el acento que brilla sobre lo oscuro.
+ * Hoy no lo usa nadie (se retiró del puesto 1 de aliados, ver TarjetaAliado).
  */
 export function BorderBeam({
   className,
   size = 90,
   duration = 8,
   delay = 0,
-  colorFrom = "#BE7B26",
-  colorTo = "transparent",
+  degradado = "from-maiz to-transparent",
 }: {
   className?: string;
   size?: number;
   duration?: number;
   delay?: number;
-  colorFrom?: string;
-  colorTo?: string;
+  /** Clases `from-* to-*` del gradiente que recorre el borde. */
+  degradado?: string;
 }) {
   return (
     <div
@@ -30,10 +34,9 @@ export function BorderBeam({
       )}
     >
       <span
-        className={cn("absolute aspect-square", className)}
+        className={cn("absolute aspect-square bg-gradient-to-l", degradado, className)}
         style={{
           width: size,
-          background: `linear-gradient(to left, ${colorFrom}, ${colorTo})`,
           offsetPath: `rect(0 auto auto 0 round ${size}px)`,
           offsetAnchor: "90% 50%",
           // La utility `animate-border-beam` de tailwind.config depende de la custom

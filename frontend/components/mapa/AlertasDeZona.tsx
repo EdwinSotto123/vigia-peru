@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ListFilter } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { getAlertas } from "@/lib/api-client";
-import { formatSoles } from "@/lib/formato";
-import { nivelDeScore, SEVERIDAD, type NivelSeveridad } from "@/lib/severidad";
+import { formatSoles, plural } from "@/lib/formato";
+import { nivelDeScore, type NivelSeveridad } from "@/lib/severidad";
+import { EstadoVacio } from "@/components/patrones";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { cn } from "@/lib/utils";
 import { alertaHref, departamentoDeAlerta, esSenal, esSenalDeBajoPeso } from "./senales";
 
@@ -25,13 +28,14 @@ const CAJA: Record<NivelSeveridad, string> = {
 };
 
 /**
- * Contratos con señal de un departamento. Si el padre ya trajo las alertas
- * (el mapa las usa para los puntos) las reutiliza; `null` es "cargando" y sólo
- * `undefined` hace que las pida.
+ * Contratos de riesgo medio o alto de un departamento. Si el padre ya trajo las
+ * alertas (el mapa las usa para los puntos) las reutiliza; `null` es "cargando"
+ * y sólo `undefined` hace que las pida.
  *
- * Cuenta y lista sólo contratos con señal (`esSenal`). Los leídos con banderas
- * de bajo peso van aparte y plegados, con su nombre; los leídos sin ninguna
- * bandera no son señales y no aparecen.
+ * Lista primero los de peso del riesgo medio o alto (`esSenal`, ≥ 40). Los que
+ * tienen señales de riesgo bajo van aparte y plegados, con su nombre; los leídos
+ * sin ninguna señal no aparecen. Cada fila dice su peso con color + ícono +
+ * palabra y cuántas señales lo explican (DESIGN_SYSTEM.md §10.4).
  */
 export function AlertasDeZona({
   ubigeo,
@@ -71,32 +75,28 @@ export function AlertasDeZona({
 
   if (rows === null) {
     return (
-      <ul className="space-y-2" aria-busy>
+      <div className="space-y-2" role="status" aria-busy>
         {[0, 1, 2].map((i) => (
-          <li key={i} className="h-16 animate-pulse rounded-xl bg-paperDeep" />
+          <Skeleton key={i} className="h-16 rounded-xl" />
         ))}
-        <li className="sr-only">Cargando las señales de {nombre}</li>
-      </ul>
+        <span className="sr-only">Cargando las señales de {nombre}…</span>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-paper p-5 text-center">
-          <ListFilter size={18} className="mx-auto text-mute" aria-hidden />
-          <p className="mt-2 text-sm font-medium text-ink">Todavía no hay contratos con señal en {nombre}</p>
-          <p className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-mute">
-            Una señal aparece cuando un contrato de la zona termina de leerse y su dictamen trae un riesgo medio o alto,
-            con la norma citada.
-          </p>
-        </div>
+        <EstadoVacio compacto titulo={`Todavía no hay contratos de riesgo medio o alto en ${nombre}`}>
+          Aparecen cuando un contrato de la zona termina de leerse y las señales de su dictamen suman un peso del riesgo
+          medio o alto, cada una con su norma citada.
+        </EstadoVacio>
       ) : (
         <>
-          <p className="text-[12px] text-mute">
-            <strong className="font-semibold text-ink">{total.toLocaleString("es-PE")}</strong>{" "}
-            {total === 1 ? "contrato con señal" : "contratos con señal"} en {nombre}
-            {total > rows.length ? `; se muestran los ${rows.length} de puntaje más alto` : ""}.
+          <p className="text-[12px] tabular-nums text-inkSoft">
+            <strong className="font-semibold text-ink">{plural(total, "contrato", "contratos")}</strong> de riesgo medio o
+            alto en {nombre}
+            {total > rows.length ? `; se muestran los ${rows.length} de mayor peso` : ""}.
           </p>
           <ul className="space-y-1.5">
             {rows.map((a) => (
@@ -108,12 +108,11 @@ export function AlertasDeZona({
 
       {bajas.length > 0 && (
         <details className="rounded-xl border border-line bg-paper px-3 py-2 text-[12px] text-mute">
-          <summary className="cursor-pointer select-none font-medium text-inkSoft hover:text-ink">
-            {bajas.length.toLocaleString("es-PE")} {bajas.length === 1 ? "contrato leído" : "contratos leídos"} con
-            señales de bajo peso
+          <summary className="min-h-[24px] cursor-pointer select-none font-medium text-inkSoft hover:text-ink">
+            {plural(bajas.length, "contrato", "contratos")} con señales de riesgo bajo
           </summary>
           <p className="mt-1.5 leading-relaxed">
-            Tienen alguna bandera, pero su puntaje queda por debajo de 40 y no cuentan como contrato con señal.
+            Tienen señales publicadas, pero su peso del riesgo suma menos de 40.
           </p>
           <ul className="mt-2 space-y-1.5">
             {bajas.slice(0, limit).map((a) => (
@@ -126,7 +125,7 @@ export function AlertasDeZona({
       <p className="text-[11px] leading-relaxed text-mute">
         Señales de riesgo, no acusaciones. Cada una cita la norma y enlaza a la fuente oficial.
       </p>
-      <Link href="/app/hallazgos" className="block text-center text-[12px] text-inkSoft hover:text-heroViolet hover:underline">
+      <Link href="/app/hallazgos" className="block text-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
         Ver todas las señales del país
       </Link>
     </div>
@@ -136,13 +135,12 @@ export function AlertasDeZona({
 function FilaSenal({ a }: { a: any }) {
   const score: number = a.score ?? 0;
   const nivel = nivelDeScore(score);
-  const sev = SEVERIDAD[nivel];
   const nBanderas = Array.isArray(a.banderas) ? a.banderas.length : 0;
   return (
     <li>
       <Link
         href={alertaHref(a)}
-        className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors hover:border-heroViolet/60 hover:bg-paperDeep"
+        className="group flex items-start gap-2.5 rounded-xl border border-line bg-paper p-2.5 transition-colors duration-rapido hover:border-granate/40 hover:bg-paperSoft"
       >
         <span
           className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg", CAJA[nivel])}
@@ -154,18 +152,14 @@ function FilaSenal({ a }: { a: any }) {
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
-            <span className={cn("font-medium", sev.texto)}>{nivel === "baja" ? "Bajo peso" : sev.etiqueta}</span>
+            <PesoRiesgo score={score} banderas={nBanderas} className="text-[11px]" />
+            {nBanderas > 0 && <span className="tabular-nums text-inkSoft">{plural(nBanderas, "señal", "señales")}</span>}
             {a.region && <span>{a.region}</span>}
             {a.entidad && a.entidad !== "—" && <span className="line-clamp-1 max-w-[180px]">{a.entidad}</span>}
-            {a.montoSoles > 0 && <span className="font-mono text-inkSoft">{formatSoles(a.montoSoles)}</span>}
-            {nBanderas > 0 && (
-              <span className="text-crimsonTexto">
-                {nBanderas} bandera{nBanderas === 1 ? "" : "s"}
-              </span>
-            )}
+            {a.montoSoles > 0 && <span className="font-mono tabular-nums text-inkSoft">{formatSoles(a.montoSoles)}</span>}
           </span>
         </span>
-        <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+        <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
       </Link>
     </li>
   );

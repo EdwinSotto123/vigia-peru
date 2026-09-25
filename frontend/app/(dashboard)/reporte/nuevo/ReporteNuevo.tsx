@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Camera, ArrowLeft, Building2, HardHat, UserX, MapPin, Eye } from "lucide-react";
+import { ArrowLeft, Building2, HardHat, UserX, MapPin, Eye, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { REGIONES } from "@/lib/peru-data";
+import { EncabezadoPagina } from "@/components/patrones";
 import { Confirmacion } from "@/components/reporte/Confirmacion";
 import { FormObra } from "@/components/reporte/FormObra";
 import { FormEntidad } from "@/components/reporte/FormEntidad";
@@ -17,9 +18,25 @@ import type { Modo } from "@/components/reporte/types";
  *
  * En un teléfono de 390 px, el encabezado oscuro con su titular de dos líneas,
  * el párrafo y tres píldoras empujaba el botón "Tomar foto" a 1.300 px del borde
- * superior: había que bajar tres pantallas para empezar. Ahora, debajo de `sm`,
- * el encabezado es una línea de título y una de contexto.
+ * superior: había que bajar tres pantallas para empezar. Ahora el encabezado es
+ * el del sistema (título, una línea de contexto) sobre papel, y lo que promete la
+ * denuncia cambia según qué se denuncia: una obra se publica, una entidad no.
  */
+
+/** Tres cosas que el código sí hace, por tipo de denuncia. */
+const PROMESAS: Record<Modo, { icono: React.ReactNode; texto: string }[]> = {
+  obra: [
+    { icono: <UserX size={14} />, texto: "Sin cuenta ni nombre" },
+    { icono: <MapPin size={14} />, texto: "Con tu foto y el lugar" },
+    { icono: <Eye size={14} />, texto: "Pública desde que la envías" },
+  ],
+  entidad: [
+    { icono: <UserX size={14} />, texto: "Sin cuenta ni nombre" },
+    { icono: <Building2 size={14} />, texto: "A nombre de una entidad del Estado" },
+    { icono: <Lock size={14} />, texto: "Queda en reserva: no se publica" },
+  ],
+};
+
 export function ReporteNuevo() {
   const search = useSearchParams();
   const initialModo: Modo = search.get("modo") === "entidad" ? "entidad" : "obra";
@@ -42,45 +59,30 @@ export function ReporteNuevo() {
 
   return (
     <div className="container-page max-w-3xl space-y-5 py-6 sm:space-y-8 sm:py-10">
-      <Link href="/app/denuncias" className="inline-flex items-center gap-2 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={16} aria-hidden /> Volver a las denuncias
+      <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
+        <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
       </Link>
 
-      <header className="overflow-hidden rounded-3xl border border-line bg-ink text-paper">
-        <div className="relative px-5 py-5 sm:px-10 sm:py-10">
-          <div className="pointer-events-none absolute -right-16 -top-16 hidden h-56 w-56 rounded-full bg-heroGreen/20 blur-3xl sm:block" aria-hidden />
-          <div className="relative space-y-2 sm:space-y-4">
-            <span className="hidden items-center gap-1.5 rounded-full border border-paper/20 bg-paper/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-heroGreen sm:inline-flex">
-              <Camera size={12} aria-hidden /> Vigilancia ciudadana
+      <EncabezadoPagina
+        titulo="Denuncia lo que viste"
+        bajada={
+          modo === "obra"
+            ? "Sube una foto, marca el lugar y cuenta qué pasa. Se publica para que cualquiera la vea."
+            : "Elige la entidad y cuenta el patrón que viste. Tu denuncia queda en reserva: no se publica."
+        }
+      />
+      <ul className="-mt-2 flex flex-wrap gap-2 sm:-mt-4" aria-label="Qué pasa con tu denuncia">
+        {PROMESAS[modo].map((p) => (
+          <li key={p.texto} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft">
+            <span className="text-granate" aria-hidden>
+              {p.icono}
             </span>
-            <h1 className="font-serif text-2xl font-bold leading-tight sm:text-5xl sm:leading-[1.05]">
-              Denuncia lo que viste
-            </h1>
-            <p className="max-w-xl text-sm leading-relaxed text-paper/80 sm:text-lg">
-              Sube una foto, marca el lugar y cuenta qué pasa. Se publica para que cualquiera la vea.
-            </p>
-            {/* Tres cosas que el código sí hace. Antes decía "100% anónimo",
-                "cruzado con datos del Estado" y "si coincide, caso público":
-                ninguna era cierta. */}
-            <ul className="hidden flex-wrap gap-2 pt-1 sm:flex">
-              {[
-                { icon: <UserX size={13} />, text: "Sin cuenta ni nombre" },
-                { icon: <MapPin size={13} />, text: "Con tu foto y el lugar" },
-                { icon: <Eye size={13} />, text: "Pública desde que la envías" },
-              ].map((p) => (
-                <li key={p.text} className="inline-flex items-center gap-1.5 rounded-full bg-paper/10 px-3 py-1.5 text-xs font-medium text-paper/90">
-                  <span className="text-heroGreen" aria-hidden>
-                    {p.icon}
-                  </span>{" "}
-                  {p.text}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </header>
+            {p.texto}
+          </li>
+        ))}
+      </ul>
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-paperSoft p-1.5" role="group" aria-label="Qué quieres denunciar">
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-paperDeep p-1.5" role="group" aria-label="Qué quieres denunciar">
         <TabBig
           active={modo === "obra"}
           onClick={() => setModo("obra")}
@@ -146,8 +148,9 @@ function TabBig({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors sm:px-4 sm:py-3",
-        active ? "bg-ink text-paper shadow-card" : "bg-transparent text-inkSoft hover:bg-paper hover:text-ink",
+        "flex min-h-[48px] items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-rapido sm:px-4 sm:py-3",
+        // Granate = la opción elegida (selección de marca), no una advertencia.
+        active ? "bg-granate text-paper" : "bg-transparent text-inkSoft hover:bg-paper hover:text-ink",
       )}
     >
       <span

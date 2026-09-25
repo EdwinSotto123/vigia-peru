@@ -8,13 +8,16 @@
 // final lo opcional.
 
 import { useState } from "react";
-import { Camera, MapPin, Lock, Check, Upload, Loader2, HeartHandshake, AlertTriangle, ChevronDown, X } from "lucide-react";
+import { Camera, MapPin, Lock, Check, Upload, Loader2, Send, AlertTriangle, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
 import { REGIONES } from "@/lib/peru-data";
+import { numero, porcentaje } from "@/lib/formato";
+import type { CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { Step } from "./Step";
+import { CAMPO as campo, ETIQUETA as etiqueta, ErrorCampo, ErrorEnvio, OpcionesCategoria } from "./Campos";
 import { ProgressTracker } from "./ProgressTracker";
 import {
   ACEPTA_ARCHIVO,
@@ -31,15 +34,12 @@ import {
   type MediaSubido,
 } from "./envio";
 
-const CATEGORIAS_OBRA = [
-  { id: "obra_paralizada", label: "Obra paralizada", emoji: "🚧" },
-  { id: "obra_fantasma", label: "Obra fantasma o inaugurada de mentira", emoji: "🏚️" },
-  { id: "funcionario_sospechoso", label: "Funcionario con bienes no declarados", emoji: "🕴️" },
-  { id: "irregularidad_general", label: "Otra irregularidad", emoji: "❓" },
+const CATEGORIAS_OBRA: { id: CategoriaDenuncia; label: string }[] = [
+  { id: "obra_paralizada", label: "Obra paralizada" },
+  { id: "obra_fantasma", label: "Obra fantasma o inaugurada de mentira" },
+  { id: "funcionario_sospechoso", label: "Funcionario con bienes no declarados" },
+  { id: "irregularidad_general", label: "Otra irregularidad" },
 ];
-
-const campo = "w-full rounded-xl border border-line bg-paperSoft px-4 py-2.5 text-sm";
-const etiqueta = "mb-1 block text-[12px] font-semibold text-inkSoft";
 
 type Errores = Partial<Record<"foto" | "lugar" | "descripcion" | "enlaces" | "correo", string>>;
 
@@ -199,7 +199,7 @@ export function FormObra({
   const ready = doneCount === milestones.length;
 
   return (
-    <form onSubmit={submit} noValidate className="surface space-y-6 p-4 sm:p-6">
+    <form onSubmit={submit} noValidate className="space-y-6 rounded-2xl border border-line bg-paper p-4 sm:p-6">
       {/* En el teléfono, la barra de avance empujaba la foto hacia abajo: ahí el
           aviso "Faltan…" junto al botón de enviar cumple el mismo papel. */}
       <div className="hidden sm:block">
@@ -209,12 +209,12 @@ export function FormObra({
       <Step n={1} title="Foto de lo que viste">
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
           {/* Cámara directa en el teléfono (capture) */}
-          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-heroViolet/40 bg-heroViolet-soft px-4 py-5 text-center transition-colors focus-within:border-heroViolet hover:border-heroViolet sm:hidden">
-            <Camera size={22} className="text-heroViolet" aria-hidden />
+          <label className="flex min-h-[64px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-granate/40 bg-granate-soft px-4 py-5 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate sm:hidden">
+            <Camera size={22} className="text-granate" aria-hidden />
             <span className="text-sm">
               <span className="font-semibold text-ink">Tomar foto ahora</span>
               <br />
-              <span className="text-xs text-mute">abre la cámara del teléfono</span>
+              <span className="text-xs text-inkSoft">Abre la cámara del teléfono</span>
             </span>
             <input
               type="file"
@@ -229,7 +229,7 @@ export function FormObra({
               }}
             />
           </label>
-          <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperDeep px-4 py-5 text-center focus-within:border-heroViolet hover:bg-paperEdge/50 sm:col-span-2">
+          <label className="flex min-h-[64px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperSoft px-4 py-5 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate/40 sm:col-span-2">
             <Upload size={20} className="text-mute" aria-hidden />
             <span className="text-sm">
               <span className="font-medium text-ink">Elegir fotos o documentos</span>
@@ -256,7 +256,7 @@ export function FormObra({
               <span className="inline-flex items-center gap-1.5 truncate">
                 <Loader2 size={11} className="animate-spin" aria-hidden /> Subiendo {nombre}
               </span>
-              <span className="font-mono">{pct}%</span>
+              <span className="font-mono tabular-nums">{porcentaje(pct)}</span>
             </div>
             <div
               className="mt-1 h-1.5 overflow-hidden rounded-full bg-paperDeep"
@@ -266,7 +266,7 @@ export function FormObra({
               aria-valuemax={100}
               aria-label={`Subida de ${nombre}`}
             >
-              <div className="h-full rounded-full bg-heroViolet transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-granate transition-[width] duration-normal" style={{ width: `${pct}%` }} />
             </div>
           </div>
         ))}
@@ -284,17 +284,17 @@ export function FormObra({
           <ul className="mt-3 space-y-1.5">
             {subidos.map((s, i) => (
               <li key={s.url} className="flex items-center gap-2 rounded-lg border border-line bg-paperSoft px-3 py-2 text-xs">
-                <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-inkSoft">
-                  {s.tipo}
+                <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] font-semibold text-inkSoft">
+                  {s.tipo === "foto" ? "Foto" : "Documento"}
                 </span>
                 <a href={s.url} target="_blank" rel="noreferrer" className="flex-1 truncate text-ink hover:underline">
                   {s.filename}
                 </a>
-                <span className="font-mono text-[10px] text-mute">{(s.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                <span className="font-mono text-[11px] tabular-nums text-mute">{(s.size_bytes / 1024 / 1024).toLocaleString("es-PE", { maximumFractionDigits: 1 })} MB</span>
                 <button
                   type="button"
                   onClick={() => removeSubido(i)}
-                  className="rounded p-1 text-mute transition-colors hover:text-crimsonTexto"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
                   aria-label={`Quitar ${s.filename}`}
                 >
                   <X size={13} aria-hidden />
@@ -316,7 +316,7 @@ export function FormObra({
             {geoEstado === "buscando" ? "Buscando tu ubicación…" : ubicacion ? "Actualizar mi ubicación" : "Usar mi ubicación actual"}
           </Button>
           {ubicacion && (
-            <span className="pill border-heroGreen/30 bg-heroGreen-soft text-heroGreenTexto">
+            <span className="pill border-moss/30 bg-moss/10 text-mossTexto">
               <Check size={12} aria-hidden /> {ubicacion.lat.toFixed(4)}, {ubicacion.lon.toFixed(4)}
             </span>
           )}
@@ -399,40 +399,22 @@ export function FormObra({
         <p id="obra-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
           <span>Mínimo {DESCRIPCION_MIN} caracteres.</span>
           <span className="font-mono tabular-nums">
-            {descripcion.length.toLocaleString("es-PE")} / {DESCRIPCION_MAX.toLocaleString("es-PE")}
+            {numero(descripcion.length)} / {numero(DESCRIPCION_MAX)}
           </span>
         </p>
         {errores.descripcion && <ErrorCampo>{errores.descripcion}</ErrorCampo>}
       </Step>
 
       <Step n={4} title="¿Qué tipo de problema es? (opcional)">
-        <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Tipo de problema">
-          {CATEGORIAS_OBRA.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={categoria === c.id}
-              onClick={() => setCategoria(categoria === c.id ? "" : c.id)}
-              className={cn(
-                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
-                categoria === c.id ? "border-ink bg-ink text-paper" : "border-line bg-paperSoft text-ink hover:border-mute hover:bg-paperDeep",
-              )}
-            >
-              <span className="text-xl" aria-hidden>
-                {c.emoji}
-              </span>
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <OpcionesCategoria opciones={CATEGORIAS_OBRA} elegida={categoria} onElegir={setCategoria} etiqueta="Tipo de problema" permiteQuitar />
       </Step>
 
       <Step n={5} title="Datos adicionales (opcional)">
         {/* Colapsado por defecto: la mayoría de denuncias rápidas no los llena, y
             foto + lugar + relato ya alcanzan para enviar. */}
-        <details className="group rounded-xl border border-dashed border-line bg-paperDeep/40 open:border-line open:bg-transparent" open={!!errores.enlaces || undefined}>
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-3 text-sm font-medium text-heroViolet marker:hidden [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={15} className="transition-transform duration-200 group-open:rotate-180" aria-hidden />
+        <details className="group rounded-xl border border-dashed border-line bg-paperSoft open:border-line open:bg-transparent" open={!!errores.enlaces || undefined}>
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-4 py-3 text-sm font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={16} className="transition-transform duration-normal group-open:rotate-180" aria-hidden />
             Agregar monto, fechas, personas o enlaces
           </summary>
           <div className="space-y-3 px-4 pb-4 pt-1">
@@ -510,7 +492,7 @@ export function FormObra({
             type="checkbox"
             checked={anonimo}
             onChange={(e) => setAnonimo(e.target.checked)}
-            className="h-4 w-4 rounded border-line accent-heroViolet"
+            className="h-4 w-4 rounded border-line accent-granate"
           />
           <label htmlFor="obra-anonimo" className="cursor-pointer text-ink">
             Enviar sin mi nombre
@@ -559,11 +541,7 @@ export function FormObra({
       <DisclaimerBanner />
 
       <div className="space-y-2">
-        {errorEnvio && (
-          <p className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2.5 text-sm text-crimsonTexto" role="alert">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden /> {errorEnvio}
-          </p>
-        )}
+        {errorEnvio && <ErrorEnvio>{errorEnvio}</ErrorEnvio>}
         <Button type="submit" disabled={submitting || subiendo} full variant="primary">
           {submitting ? (
             <>
@@ -575,13 +553,13 @@ export function FormObra({
             </>
           ) : (
             <>
-              <HeartHandshake size={16} aria-hidden /> Enviar mi denuncia
+              <Send size={16} aria-hidden /> Enviar mi denuncia
             </>
           )}
         </Button>
         <p className="text-center text-xs text-mute" aria-live="polite">
           {ready
-            ? "Todo listo. Gracias por dar la cara por tu comunidad."
+            ? "Todo listo para enviar."
             : `Faltan ${milestones.length - doneCount} de ${milestones.length}: ${milestones
                 .filter((m) => !m.done)
                 .map((m) => m.label.toLowerCase())
@@ -592,11 +570,3 @@ export function FormObra({
   );
 }
 
-function ErrorCampo({ children, id }: { children: React.ReactNode; id?: string }) {
-  return (
-    <p id={id} className="mt-1.5 flex items-start gap-1.5 text-xs text-crimsonTexto">
-      <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden />
-      {children}
-    </p>
-  );
-}

@@ -35,10 +35,10 @@ export function CompartirButton({ titulo, texto, path, className = "" }: Props) 
     <button
       type="button"
       onClick={compartir}
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink transition-all hover:bg-paperDeep ${className}`}
+      className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-paperDeep ${className}`}
       aria-live="polite"
     >
-      {hecho ? <Check size={14} className="text-moss" aria-hidden /> : <Share2 size={14} aria-hidden />}
+      {hecho ? <Check size={14} className="text-mossTexto" aria-hidden /> : <Share2 size={14} aria-hidden />}
       {hecho === "copiado" ? "Enlace copiado" : hecho === "compartido" ? "Compartido" : "Compartir"}
     </button>
   );

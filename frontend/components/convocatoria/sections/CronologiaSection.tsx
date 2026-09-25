@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, Award, Calendar, FilePen, FileText } from "lucide-react";
+import { Award, Calendar, FilePen, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { reglaLabel } from "@/lib/auditoria";
+import { Severidad } from "@/components/ui/Severidad";
+import { fechaDossier, severidadDe } from "../dossier";
 import { redactDnis } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
 
@@ -49,9 +51,9 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
   if (steps.length === 0 && !senalPlazo) return null;
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <h2 className="font-serif text-xl font-bold text-ink">Línea de tiempo del proceso</h2>
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="border-b border-line bg-paperSoft px-5 py-3">
+        <h2 className="font-display text-xl font-bold text-ink">Línea de tiempo del proceso</h2>
         <p className="mt-0.5 text-[12px] text-mute">
           Fechas del registro OCDS publicado por el OECE
           {c.tipo_proceso && (
@@ -74,14 +76,14 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
                     <div
                       className={cn(
                         "grid h-10 w-10 place-items-center rounded-full ring-4 ring-paper",
-                        i === steps.length - 1 ? "bg-heroViolet text-paper" : "bg-paperDeep text-inkSoft",
+                        i === steps.length - 1 ? "bg-ink text-paper" : "bg-paperDeep text-inkSoft",
                       )}
                       aria-hidden
                     >
                       {s.icon}
                     </div>
                     <div className="mt-2 text-[12px] font-semibold text-ink">{s.label}</div>
-                    <div className="mt-0.5 font-mono text-xs text-inkSoft">{s.fecha}</div>
+                    <div className="mt-0.5 text-xs tabular-nums text-inkSoft">{fechaDossier(s.fecha, true)}</div>
                   </div>
                   {siguiente && (
                     <div className="mt-5 flex w-20 flex-col items-center">
@@ -100,9 +102,10 @@ export function CronologiaSection({ convocatoria, banderas = [] }: { convocatori
         </div>
       )}
       {senalPlazo && (
-        <div className="border-t border-line bg-crimson-soft/60 px-5 py-3 text-[12px] leading-relaxed text-inkSoft">
-          <p className="flex items-center gap-1.5 font-semibold text-crimsonTexto">
-            <AlertTriangle size={12} aria-hidden /> {reglaLabel(String(senalPlazo.regla))}
+        <div className="border-t border-line bg-paperSoft px-5 py-3 text-[12px] leading-relaxed text-inkSoft">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <Severidad bandera={severidadDe(senalPlazo)} formato="linea" />
+            <span className="font-semibold text-ink">{reglaLabel(String(senalPlazo.regla))}</span>
           </p>
           {evidenciaComoTexto(senalPlazo.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(senalPlazo.evidencia))}</p>}
           {senalPlazo.norma && <p className="mt-0.5 text-[11px] text-mute">Norma: {senalPlazo.norma}</p>}

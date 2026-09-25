@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowLeft, Building2, Coins, Activity, AlertTriangle, ChevronRight, Flag, FileText, MapPin, WifiOff } from "lucide-react";
+import { ArrowLeft, Building2, ChevronRight, Coins, Flag, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
-import { formatSoles } from "@/lib/formato";
+import { fechaCorta, numero, plural, soles, solesCompacto } from "@/lib/formato";
 import { esAlertaReal } from "@/lib/semillas";
+import { severidadDeScore, ETIQUETA_PESO } from "@/lib/severidad";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { Cifra, EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Severidad } from "@/components/ui/Severidad";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Lo que devuelve `GET /entidades/:ruc` en `alertas[]` (snake_case, máximo 20, por score). */
 interface AlertaEntidad {
@@ -51,16 +54,30 @@ function ubigeoCoincide(ubigeo: string | null, region: string | null): boolean {
   return r === d || r.startsWith(d) || d.startsWith(r);
 }
 
-/** DATE/TIMESTAMP a medianoche UTC → se fija al mediodía de Lima para no caer en el día anterior. */
-function fechaLima(v: string | null | undefined): string | null {
+/** DATE/TIMESTAMP a medianoche UTC → sólo el día (AAAA-MM-DD), que `fechaCorta` toma como día de Lima. */
+const diaDe = (v: string | null | undefined): string | null => {
   const ymd = String(v ?? "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
-  return new Date(`${ymd}T12:00:00-05:00`).toLocaleDateString("es-PE", {
-    timeZone: "America/Lima",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
+};
+
+/** Enlace con forma de botón (píldora, §5). Primario = granate; secundario = borde. */
+const BOTON_PRIMARIO =
+  "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep";
+const BOTON_SECUNDARIO =
+  "inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50";
+
+/** Los tramos del peso del riesgo, con un score de muestra para pintarlos con el mismo componente que las filas. */
+const TRAMOS = [
+  { clave: "alta", muestra: 85 },
+  { clave: "media", muestra: 55 },
+  { clave: "baja", muestra: 10 },
+  { clave: "sin", muestra: 0 },
+] as const;
+
+function tramoDe(score: number): (typeof TRAMOS)[number]["clave"] {
+  const n = severidadDeScore(score);
+  if (score === 0) return "sin";
+  return n.nivel === "alta" ? "alta" : n.nivel === "media" ? "media" : "baja";
 }
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
@@ -96,262 +113,286 @@ export default async function EntidadProfile({ params }: { params: { ruc: string
   // quedaron en revisión humana (no publicadas) y las de demo `ALT-…`.
   const crudas = (apiResp.alertas ?? []) as AlertaEntidad[];
   const publicadas = crudas.filter((a) => esAlertaReal({ codigo: a.codigo }) && (a.estado ?? "activa") === "activa");
-  const truncada = crudas.length >= 20; // el backend corta en 20
+  const truncada = crudas.length >= 20; // el backend corta en 20, ordenadas por score de mayor a menor
   const demo = crudas.filter((a) => !esAlertaReal({ codigo: a.codigo }) && (a.estado ?? "activa") === "activa");
   const nAlertas = truncada ? Math.max(0, Number(e.alertas || 0) - demo.length) : publicadas.length;
   const monto = truncada
     ? Math.max(0, Number(e.monto || 0) - demo.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0))
     : publicadas.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0);
-  const puntaje = publicadas.length
-    ? Math.round(publicadas.reduce((s, a) => s + (Number(a.score) || 0), 0) / publicadas.length)
-    : 0;
   const financiable = enCola > 0 && ubigeoCoincide(ubigeo, region);
+  const zonaFinanciar = ubigeo ? zonaNombre ?? DEPARTAMENTO[ubigeo.slice(0, 2)] : null;
+
+  // "Con señales" = contratos con al menos una señal publicada (DESIGN_SYSTEM.md §10.1).
+  // El score es la suma de los pesos de las señales (todo peso ≥ 5), así que score > 0 ⇔ hay señales.
+  // Con la lista cortada en 20 (por score, de mayor a menor): si la última listada ya tiene
+  // score 0, las que no vinieron tampoco tienen señales y el conteo es exacto; si no, es un piso.
+  const scores = publicadas.map((a) => Number(a.score) || 0);
+  const conSenales = scores.filter((x) => x > 0).length;
+  const conSenalesEsPiso = truncada && scores.length > 0 && scores[scores.length - 1] > 0;
+  const porTramo = scores.reduce<Record<string, number>>((acc, x) => {
+    const k = tramoDe(x);
+    acc[k] = (acc[k] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
-    <div className="container-page space-y-8 py-10">
-      <Link href="/app/entidades" className="inline-flex items-center gap-2 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={16} aria-hidden /> Volver al ranking
-      </Link>
+    <div className="px-4 py-8 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
+          <ArrowLeft size={15} aria-hidden /> Volver a entidades
+        </Link>
 
-      <header className="surface p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">{nombre}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-mute">
-              <span className="flex items-center gap-1">
-                <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
+        <EncabezadoPagina
+          titulo={nombre}
+          bajada={
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute">
+              <span className="inline-flex items-center gap-1">
+                <Building2 size={13} aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
               </span>
-              <span className="font-mono">RUC {e.ruc}</span>
-              <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
+              <span className="font-mono" translate="no">
+                RUC {e.ruc}
+              </span>
               {region && (
-                <span className="flex items-center gap-1">
-                  <MapPin size={11} aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
+                <span className="inline-flex items-center gap-1">
+                  <MapPin size={13} aria-hidden /> {[region, e.provincia, e.distrito].filter(Boolean).join(", ")}
                 </span>
               )}
-            </div>
-          </div>
-          <Link
-            href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`}
-            className="inline-flex items-center gap-2 rounded-full bg-rust px-4 py-2.5 text-sm font-medium text-paper shadow-card hover:bg-rust/90"
-          >
-            <Flag size={15} aria-hidden /> Denunciar a esta entidad
-          </Link>
-        </div>
-      </header>
-
-      <DisclaimerBanner />
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        <KPI
-          icon={<AlertTriangle size={16} />}
-          label={nAlertas === 1 ? "Contrato con señales" : "Contratos con señales"}
-          value={<NumberTicker value={nAlertas} format="entero" />}
-          hint="publicados por Vigía"
-          tone={nAlertas > 0 ? "amber" : "ink"}
-        />
-        <KPI
-          icon={<FileText size={16} />}
-          label="Contratos registrados"
-          value={<NumberTicker value={contratos} format="entero" />}
-          hint="convocatorias suyas que Vigía tiene del OECE"
-          tone="ink"
-        />
-        <KPI
-          icon={<Coins size={16} />}
-          label="Monto con señales"
-          value={<NumberTicker value={monto} format="pen_compacto" />}
-          hint="suma de los contratos con señales"
-          tone="heroViolet"
-        />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="surface p-5 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-serif text-lg font-bold text-ink">Contratos de esta entidad sin leer</h2>
-              <p className="text-xs text-mute">Convocatorias de los últimos 90 días (OECE) que Vigía todavía no analizó.</p>
-            </div>
-            <Activity size={18} className="text-heroViolet" aria-hidden />
-          </div>
-          <div className="mt-4 flex flex-wrap items-end gap-6">
-            <div>
-              <div className="font-mono text-5xl font-bold text-ink">
-                <NumberTicker value={enCola} format="entero" />
-              </div>
-              <div className="text-xs text-mute">en cola de auditoría, de {contratos.toLocaleString("es-PE")} registradas</div>
-            </div>
-            {financiable && ubigeo ? (
-              <Link
-                href={`/app/financiar/${ubigeo}`}
-                className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform hover:scale-[1.02]"
-              >
-                Financiar la auditoría de {zonaNombre ?? DEPARTAMENTO[ubigeo.slice(0, 2)]}
-                <ChevronRight size={15} aria-hidden />
-              </Link>
-            ) : (
-              <p className="text-sm text-mute">
-                {enCola === 0
-                  ? "Sin contratos pendientes de esta entidad en la cola."
-                  : "Todavía no sabemos a qué zona pertenece esta entidad, así que no se puede financiar su auditoría desde aquí."}
-              </p>
-            )}
-          </div>
-          <p className="mt-3 text-[11px] text-mute">Los contratos se asignan por antigüedad dentro de la zona; no se puede elegir una entidad concreta.</p>
-        </div>
-        <div className="surface p-5">
-          <h2 className="font-serif text-lg font-bold text-ink">Puntaje de riesgo</h2>
-          <p className="text-xs text-mute">
-            Promedio, de 0 a 100, del puntaje de sus contratos con señales. Cada contrato suma el peso de sus señales según
-            su severidad. No es una probabilidad de delito.
-          </p>
-          {publicadas.length ? (
-            <>
-              <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-mono text-6xl font-bold text-ink">
-                  <NumberTicker value={puntaje} format="entero" />
-                </span>
-                <span className="text-mute">de 100</span>
-              </div>
-              <ScoreBar value={puntaje} />
-            </>
-          ) : (
-            <p className="mt-4 text-sm text-mute">Sin contratos con señales publicadas: no hay puntaje que promediar.</p>
-          )}
-        </div>
-      </section>
-
-      {/* Ejecución presupuestal MEF (real): colapsada, es la sección más densa y no
-          lo primero que busca quien vino a ver los contratos con señales. */}
-      <details className="group">
-        <summary className="surface flex cursor-pointer items-center gap-2.5 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-paper">
-          <Coins size={15} className="shrink-0 text-heroViolet" aria-hidden />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</div>
-            <div className="text-[11px] text-mute">Gasto real frente al presupuesto asignado de {nombre}</div>
-          </div>
-          <ChevronRight size={15} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90" aria-hidden />
-        </summary>
-        <div className="mt-3">
-          <Suspense fallback={<div className="surface flex h-40 items-center justify-center text-sm text-mute">Consultando los datos abiertos del MEF…</div>}>
-            <EjecucionPresupuestal
-              query={mefSearchKeywordFor(nombre)}
-              ruc={e.ruc}
-              title="Ejecución presupuestal"
-              subtitle={`${nombre}, datos del MEF`}
-            />
-          </Suspense>
-        </div>
-      </details>
-
-      <section className="surface overflow-hidden p-0">
-        <div className="border-b border-line bg-paperDeep px-6 py-4">
-          <h2 className="font-serif text-xl font-bold text-ink">
-            Contratos con señales ({publicadas.length}
-            {truncada ? ` de ${nAlertas}` : ""})
-          </h2>
-          <p className="text-sm text-mute">
-            Contratos de esta entidad que Vigía leyó y en los que encontró señales de riesgo. Para que lea otros, se
-            financia la auditoría de su zona.
-          </p>
-        </div>
-        {publicadas.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-paperDeep text-mute" aria-hidden>
-              <FileText size={18} />
             </span>
-            <p className="max-w-sm text-sm text-mute">
-              Todavía no hay contratos de esta entidad con señales publicadas. Aparecen aquí cuando Vigía lee uno y
-              encuentra algo.
+          }
+          acciones={
+            <>
+              <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
+              <Link href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} className={BOTON_SECUNDARIO}>
+                <Flag size={14} aria-hidden /> Denunciar a esta entidad
+              </Link>
+            </>
+          }
+        />
+
+        <DisclaimerBanner />
+
+        {/* Lo leído de esta entidad: cada cifra con su denominador. */}
+        <section aria-label="Contratos leídos de esta entidad" className="grid gap-5 rounded-2xl border border-line bg-paper p-5 sm:grid-cols-3">
+          <Cifra
+            valor={numero(nAlertas)}
+            etiqueta="Con dictamen publicado"
+            contexto={`de ${plural(contratos, "contrato registrado", "contratos registrados")} de esta entidad en el SEACE`}
+          />
+          <Cifra
+            valor={nAlertas === 0 ? "Sin dato" : `${conSenalesEsPiso ? "Al menos " : ""}${numero(conSenales)}`}
+            etiqueta="Con señales"
+            contexto={
+              nAlertas === 0
+                ? "Todavía no hay contratos leídos y publicados"
+                : `de ${numero(nAlertas)} con dictamen publicado tienen al menos una señal`
+            }
+          />
+          <Cifra
+            valor={nAlertas === 0 ? "Sin dato" : solesCompacto(monto)}
+            etiqueta="Adjudicado en esos contratos"
+            contexto="Suma de lo adjudicado en los contratos con dictamen publicado"
+          />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-line bg-paper p-5 lg:col-span-2">
+            <h2 className="font-display text-lg font-bold text-ink">Contratos que esperan su lectura</h2>
+            <p className="mt-1 text-[13px] text-mute">Convocatorias de esta entidad que Vigía todavía no leyó.</p>
+            <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-4">
+              <Cifra
+                valor={numero(enCola)}
+                etiqueta="En cola"
+                contexto={`de ${plural(contratos, "contrato registrado", "contratos registrados")} esperan financiamiento para leerse`}
+              />
+              {financiable && ubigeo ? (
+                <Link href={`/app/financiar/${ubigeo}`} className={BOTON_PRIMARIO}>
+                  Financiar la lectura de {zonaFinanciar}
+                  <ChevronRight size={15} aria-hidden />
+                </Link>
+              ) : (
+                <p className="max-w-[44ch] text-sm text-mute">
+                  {enCola === 0
+                    ? "No hay contratos de esta entidad esperando en la cola."
+                    : "Todavía no sabemos a qué zona pertenece esta entidad, así que no se puede financiar su lectura desde aquí."}
+                </p>
+              )}
+            </div>
+            <p className="mt-4 text-[12px] text-mute">
+              Los contratos se leen por antigüedad dentro de la zona; no se puede elegir una entidad concreta.
             </p>
           </div>
-        ) : (
-          <ul className="divide-y divide-line">
-            {publicadas.map((a) => {
-              const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
-              const fecha = fechaLima(a.fecha_buena_pro);
-              return (
-                <li key={a.id}>
-                  <Link href={`/app/convocatoria/${encodeURIComponent(codigo)}`} className="group flex items-center gap-4 px-6 py-4 transition-colors hover:bg-paperDeep">
-                    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-ink text-paper">
-                      <span className="text-xl font-bold leading-none">{Number(a.score) || 0}</span>
-                      <span className="text-[9px] uppercase tracking-wider text-paper/80">puntaje</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-3 text-xs text-mute">
-                        <span className="font-mono">{codigo}</span>
-                        {fecha && <span>buena pro: {fecha}</span>}
-                      </div>
-                      <div className="line-clamp-2 text-sm font-semibold text-ink md:truncate">{a.objeto || "Contrato sin objeto registrado"}</div>
-                    </div>
-                    {a.monto_adjudicado != null && (
-                      <div className="hidden text-right md:block">
-                        <div className="font-mono text-sm font-semibold text-ink">{formatSoles(Number(a.monto_adjudicado) || 0)}</div>
-                        <div className="text-xs text-mute">adjudicado</div>
-                      </div>
-                    )}
-                    <ChevronRight size={16} className="shrink-0 text-mute transition-colors group-hover:text-heroViolet" aria-hidden />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+
+          <div className="rounded-2xl border border-line bg-paper p-5">
+            <h2 className="font-display text-lg font-bold text-ink">{ETIQUETA_PESO}</h2>
+            <p className="mt-1 text-[13px] text-mute">
+              Cómo pesan las señales de sus contratos con dictamen publicado. El peso sale del puntaje de cada contrato; no
+              es una probabilidad de delito.
+            </p>
+            {publicadas.length ? (
+              <>
+                <ul className="mt-4 space-y-2">
+                  {TRAMOS.map((t) => (
+                    <li key={t.clave} className="flex items-center justify-between gap-3">
+                      <Severidad score={t.muestra} formato="pastilla" />
+                      <span className="font-mono text-sm font-semibold tabular-nums text-ink">
+                        {numero(porTramo[t.clave] ?? 0)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {truncada && (
+                  <p className="mt-3 text-[12px] text-mute">
+                    Cuenta los {numero(publicadas.length)} contratos de mayor puntaje, de {numero(nAlertas)} con dictamen.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-mute">Sin contratos con dictamen publicado: todavía no hay nada que pesar.</p>
+            )}
+          </div>
+        </section>
+
+        {/* Ejecución presupuestal MEF (real): plegada, es la sección más densa y no
+            lo primero que busca quien vino a ver los contratos leídos. */}
+        <details className="group rounded-2xl border border-line bg-paper">
+          <summary className="flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl px-5 py-3.5 transition-colors duration-150 hover:bg-paperSoft">
+            <Coins size={15} className="shrink-0 text-granate" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-ink">Ejecución presupuestal (MEF)</span>
+              <span className="block text-[12px] text-mute">Gasto real frente al presupuesto asignado</span>
+            </span>
+            <ChevronRight size={15} className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-90" aria-hidden />
+          </summary>
+          <div className="border-t border-line p-3 sm:p-4">
+            <Suspense fallback={<CargandoMef />}>
+              <EjecucionPresupuestal
+                query={mefSearchKeywordFor(nombre)}
+                ruc={e.ruc}
+                title="Ejecución presupuestal"
+                subtitle={`${nombre}, según el MEF`}
+              />
+            </Suspense>
+          </div>
+        </details>
+
+        <section aria-labelledby="contratos-leidos-titulo" className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <div className="border-b border-line bg-paperSoft px-5 py-4">
+            <h2 id="contratos-leidos-titulo" className="font-display text-xl font-bold text-ink">
+              Contratos con dictamen publicado
+            </h2>
+            <p className="mt-1 text-[13px] text-mute">
+              {publicadas.length === 0
+                ? "Contratos de esta entidad que Vigía leyó y publicó, con o sin señales."
+                : truncada
+                  ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado. Cada uno abre su dictamen con las señales y la norma que las respalda.`
+                  : `${plural(publicadas.length, "contrato leído y publicado", "contratos leídos y publicados")}. Cada uno abre su dictamen con las señales y la norma que las respalda.`}
+            </p>
+          </div>
+          {publicadas.length === 0 ? (
+            // Sin llamita: esta sección habla de una entidad, y la llamita no acompaña a nadie señalado.
+            <p className="px-5 py-10 text-center text-sm text-mute">
+              Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
+            </p>
+          ) : (
+            <table className="w-full table-fixed border-collapse text-left text-[13px]">
+              <caption className="sr-only">Contratos de {nombre} con dictamen publicado, por peso del riesgo</caption>
+              <thead className="border-b border-line text-[12px] text-mute">
+                <tr>
+                  <th scope="col" className="w-[9.5rem] px-4 py-2.5 font-semibold sm:w-44 sm:px-5">
+                    {ETIQUETA_PESO}
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">
+                    Contrato
+                  </th>
+                  <th scope="col" className="hidden w-36 px-5 py-2.5 text-right font-semibold md:table-cell">
+                    Adjudicado
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {publicadas.map((a) => {
+                  const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
+                  const dia = diaDe(a.fecha_buena_pro);
+                  return (
+                    <tr key={a.id} className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
+                      <td className="px-4 py-3 sm:px-5">
+                        <Severidad score={Number(a.score) || 0} formato="pastilla" />
+                      </td>
+                      <td className="min-w-0 px-3 py-3">
+                        <Link
+                          href={`/app/convocatoria/${encodeURIComponent(codigo)}`}
+                          className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline"
+                        >
+                          {a.objeto || "Contrato sin objeto registrado"}
+                        </Link>
+                        <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-mute">
+                          <span className="font-mono" translate="no">
+                            {codigo}
+                          </span>
+                          {dia && <span>Buena pro: {fechaCorta(dia)}</span>}
+                          <span className="md:hidden">
+                            {a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : "Sin monto adjudicado"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="hidden px-5 py-3 text-right font-mono tabular-nums text-ink md:table-cell">
+                        {a.monto_adjudicado != null ? (
+                          soles(Number(a.monto_adjudicado))
+                        ) : (
+                          <span className="font-sans text-[12px] text-mute">Sin dato</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {
   return (
-    <div className="container-page space-y-6 py-10">
-      <Link href="/app/entidades" className="inline-flex items-center gap-2 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={16} aria-hidden /> Volver al ranking
-      </Link>
-      <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
-        <span className="inline-flex text-mute" aria-hidden>
-          <WifiOff size={18} />
-        </span>
-        <h1 className="mt-2 font-serif text-lg font-bold text-ink">No pudimos leer la ficha de esta entidad</h1>
-        <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">
+    <div className="px-4 py-8 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <Link href="/app/entidades" className="inline-flex min-h-[24px] items-center gap-1.5 text-sm text-mute hover:text-ink">
+          <ArrowLeft size={15} aria-hidden /> Volver a entidades
+        </Link>
+        <EncabezadoPagina titulo={`Entidad con RUC ${ruc}`} />
+        <EstadoError
+          titulo="No pudimos leer la ficha de esta entidad"
+          accion={
+            <Link href={`/entidad/${encodeURIComponent(ruc)}`} className={BOTON_PRIMARIO}>
+              Reintentar
+            </Link>
+          }
+        >
           El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-        </p>
-        <div className="mt-4 text-sm">
-          <Link href={`/entidad/${encodeURIComponent(ruc)}`} className="font-medium text-heroViolet hover:underline">
-            Reintentar
-          </Link>
-        </div>
+        </EstadoError>
       </div>
     </div>
   );
 }
 
-function KPI({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  hint: string;
-  tone: "amber" | "ink" | "heroViolet";
-}) {
-  const styles = {
-    amber: "bg-amber-soft text-amberTexto",
-    ink: "bg-paperDeep text-ink",
-    heroViolet: "bg-heroViolet-soft text-heroViolet",
-  }[tone];
+/**
+ * Mientras responde el MEF: esqueleto con la forma de la tabla. Sin la llamita a
+ * propósito: esta sección es la ficha de una entidad, y la llamita no acompaña a
+ * nadie señalado (DESIGN_SYSTEM.md §2.3).
+ */
+function CargandoMef() {
   return (
-    <div className="surface p-5">
-      <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${styles}`} aria-hidden>
-        {icon}
-      </span>
-      <div className="mt-3 font-mono text-2xl font-bold text-ink">{value}</div>
-      <div className="text-sm font-medium text-ink">{label}</div>
-      <div className="text-xs text-mute">{hint}</div>
+    <div role="status" aria-live="polite" className="space-y-3 p-2">
+      <p className="text-sm text-mute">Consultando los datos abiertos del MEF…</p>
+      <div className="grid gap-2 sm:grid-cols-4" aria-hidden>
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-16 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-3.5 w-full" />
+      <Skeleton className="h-3.5 w-2/3" />
     </div>
   );
 }
@@ -375,15 +416,4 @@ function mefSearchKeywordFor(nombre: string): string {
   }
   // Ministerios: dejar tal cual en mayúsculas
   return n;
-}
-
-function ScoreBar({ value }: { value: number }) {
-  // Mismos tokens que el resto de la ficha: rust/amber/clay para los tres
-  // niveles, moss para un puntaje bajo.
-  const tono = value >= 80 ? "bg-rust" : value >= 60 ? "bg-amber" : value >= 30 ? "bg-clay" : "bg-moss";
-  return (
-    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-paperDeep" role="img" aria-label={`Puntaje ${value} de 100`}>
-      <div className={`h-full transition-[width] duration-700 ease-out ${tono}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
-    </div>
-  );
 }

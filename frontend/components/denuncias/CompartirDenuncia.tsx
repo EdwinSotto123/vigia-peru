@@ -46,9 +46,9 @@ export function CompartirDenuncia({ id, titulo }: { id: string; titulo: string }
       <button
         type="button"
         onClick={compartir}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-line bg-paperSoft px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-paperDeep"
+        className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
       >
-        {estado === "copiado" ? <Check size={14} aria-hidden /> : <Share2 size={14} aria-hidden />}
+        {estado === "copiado" ? <Check size={16} className="text-mossTexto" aria-hidden /> : <Share2 size={16} aria-hidden />}
         {estado === "copiado" ? "Enlace copiado" : "Compartir esta denuncia"}
       </button>
       <p className="mt-1 min-h-[1rem] text-center text-[11px] text-mute" role="status" aria-live="polite">

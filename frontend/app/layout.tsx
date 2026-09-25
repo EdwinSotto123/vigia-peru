@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
+import { Inter, JetBrains_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 
 // Fuentes autoalojadas por next/font: sin CSS bloqueante de fonts.googleapis (Lighthouse móvil).
 // Chakra Petch (font-techno) no se usa en ningún componente: se retiró.
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-sans" });
-const serif = Source_Serif_4({ subsets: ["latin"], weight: ["600", "700"], display: "swap", variable: "--font-serif", preload: false });
+// Títulos en Montserrat: la geométrica del logotipo (DESIGN_SYSTEM.md §4). Reemplaza al serif.
+const display = Montserrat({ subsets: ["latin"], weight: ["600", "700", "800"], display: "swap", variable: "--font-display" });
 // `font-mono` (códigos de contrato, RUC, cifras) nombraba JetBrains Mono pero nunca
 // se cargaba: cada sistema caía en su propia monoespaciada. Sin preload: es
 // secundaria y no debe competir con la fuente del texto.
@@ -30,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${inter.variable} ${serif.variable} ${mono.variable}`}>
+    <html lang="es-PE" className={`${inter.variable} ${display.variable} ${mono.variable}`}>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

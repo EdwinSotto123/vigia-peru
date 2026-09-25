@@ -1,6 +1,7 @@
 /**
- * Tarjeta de resultados de un análisis terminado: score (gauge), señales de riesgo con
- * severidad, norma y evidencia, mercado (mediana vs ofertado), documentos leídos,
+ * Tarjeta de resultados de un análisis terminado: señales de riesgo con severidad (color,
+ * ícono y palabra), norma y evidencia; el puntaje (gauge) SÓLO si hay señales que lo expliquen
+ * (DESIGN_SYSTEM.md §10.4); mercado (mediana vs ofertado), documentos leídos,
  * recortes/validaciones pendientes y UN botón al dictamen completo.
  *
  * Sin hooks: sirve en server components (/app/contratos/[ocid]) y dentro de
@@ -19,8 +20,11 @@
 
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
-import { duracion, reglaLabel, severidadCls, type MercadoItem, type ResultadoAnalisis as Resultado } from "@/lib/auditoria";
+import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado } from "@/lib/auditoria";
 import { validacionLabel } from "@/lib/contratos";
+import { plural, porcentaje, soles } from "@/lib/formato";
+import { Severidad } from "@/components/ui/Severidad";
+import { ConteoSenales } from "@/components/convocatoria/sections/ConteoSenales";
 import { CompartirButton } from "./CompartirButton";
 import { EvidenciaRedactada } from "./EvidenciaRedactada";
 import { ScoreGauge } from "./ScoreGauge";
@@ -48,17 +52,12 @@ interface Props {
 /** Veredictos con los que el backend dice que la comparación NO vale. */
 const SIN_COMPARACION = new Set(["no_verificable", "sin_dato"]);
 
-/** Precios unitarios con decimales; totales redondeados. */
-const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDigits: n < 1000 ? 2 : 0 })}`;
-
-/** "36 % sobre la mediana" · "25 % bajo la mediana" · "igual a la mediana" */
+/** "36 % sobre la mediana" · "25 % bajo la mediana" · "igual a la mediana". En tinta neutra: una diferencia no es una señal. */
 function diferencia(pct: number): string {
   const r = Math.round(pct);
   if (r === 0) return "igual a la mediana";
-  return `${Math.abs(r)} % ${r > 0 ? "sobre" : "bajo"} la mediana`;
+  return `${porcentaje(Math.abs(r))} ${r > 0 ? "sobre" : "bajo"} la mediana`;
 }
-
-const tonoDiferencia = (pct: number) => (pct >= 30 ? "text-rust" : pct >= 10 ? "text-amberTexto" : "text-mossTexto");
 
 export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracionMs, sharePath, compacto = false, className = "", revision = false }: Props) {
   const dossierId = r?.codigo?.replace(/^OECE-/, "") ?? ocid;
@@ -74,27 +73,24 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
   const porSev = { alta: 0, media: 0, baja: 0 };
   for (const s of senales) porSev[s.severidad] += 1;
   const conSenales = n > 0;
-  const titulo = conSenales ? `${n} ${n === 1 ? "señal de riesgo" : "señales de riesgo"}` : "Sin señales de riesgo";
+  const titulo = conSenales ? plural(n, "señal de riesgo", "señales de riesgo") : "Sin señales de riesgo";
+  // El puntaje nunca aparece sin las señales que lo explican (§10.4).
+  const scoreVisible = conSenales ? r?.score ?? score ?? null : null;
   const mercado = r?.mercado && ((r.mercado.nItems ?? 0) > 0 || (r.mercado.nConMediana ?? 0) > 0) ? r.mercado : null;
 
   return (
-    <section className={`rounded-2xl border bg-paper ${conSenales ? "border-rust/30" : "border-moss/30"} ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
-      {/* score + resumen */}
+    <section className={`rounded-2xl border bg-paper ${conSenales ? "border-line" : "border-moss/30"} ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
+      {/* resumen (+ puntaje sólo con señales) */}
       <div className={`flex ${compacto ? "flex-col items-start gap-3" : "flex-wrap items-center gap-4"}`}>
-        <ScoreGauge score={r?.score ?? score ?? null} size={compacto ? 112 : 132} className="shrink-0" />
+        {conSenales && <ScoreGauge score={scoreVisible} size={compacto ? 112 : 132} className="shrink-0" />}
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Resultado</div>
-          <h2 className={`mt-0.5 inline-flex items-center gap-2 font-serif font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
-            {conSenales ? <AlertTriangle size={18} className="text-rust" aria-hidden /> : <CheckCircle2 size={18} className="text-moss" aria-hidden />}
+          <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
+          <h2 className={`mt-0.5 inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+            {conSenales ? <AlertTriangle size={18} className="text-inkSoft" aria-hidden /> : <CheckCircle2 size={18} className="text-mossTexto" aria-hidden />}
             {titulo}
           </h2>
-          {conSenales && (
-            <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-mute">
-              {porSev.alta > 0 && <span className="text-rust">{porSev.alta} alta{porSev.alta === 1 ? "" : "s"}</span>}
-              {porSev.media > 0 && <span className="text-amberTexto">{porSev.media} media{porSev.media === 1 ? "" : "s"}</span>}
-              {porSev.baja > 0 && <span>{porSev.baja} baja{porSev.baja === 1 ? "" : "s"}</span>}
-            </p>
-          )}
+          {/* El mismo conteo por severidad (color, ícono y palabra) que la cabecera del dossier. */}
+          {conSenales && <ConteoSenales conteo={{ total: senales.length, ...porSev }} className="mt-1.5" />}
           <p className="mt-1.5 text-[12px] leading-snug text-mute">
             {conSenales
               ? "Una señal no es una acusación: es un patrón que cita norma y evidencia oficial y merece revisión."
@@ -115,22 +111,20 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
       {senales.length > 0 && (
         <ol className="mt-4 divide-y divide-line border-t border-line" aria-label="Señales de riesgo">
           {senales.slice(0, compacto ? 4 : 8).map((s, i) => {
-            const sev = severidadCls(s.severidad);
             return (
               <li key={`${s.regla}-${i}`} className="py-2.5">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${sev.dot}`} aria-hidden />
                   <span className="text-[13px] font-semibold text-ink">{reglaLabel(s.regla)}</span>
-                  <span className={`text-[10px] font-semibold uppercase tracking-wide ${sev.text}`}>{sev.label}</span>
+                  <Severidad bandera={s.severidad} formato="linea" className="text-[12px]" />
                   {s.verificada === true && (
                     // Una sola palabra para lo mismo en todo el producto: "cotejada" (SelloVerificada).
-                    <span className="inline-flex items-center gap-0.5 text-[10px] text-mossTexto" title="Cotejada contra fuentes oficiales: el registro público del proceso, la SUNAT y los documentos del expediente">
-                      <ShieldCheck size={11} aria-hidden /> cotejada
+                    <span className="inline-flex items-center gap-0.5 text-[11px] text-mossTexto">
+                      <ShieldCheck size={12} aria-hidden /> cotejada
                     </span>
                   )}
                 </div>
                 {s.norma && (
-                  <p className="mt-0.5 inline-flex items-start gap-1 text-[11px] text-mute">
+                  <p className="mt-0.5 inline-flex items-start gap-1 text-[12px] text-mute">
                     <Scale size={11} className="mt-[2px] shrink-0" aria-hidden /> <span>{s.norma}</span>
                   </p>
                 )}
@@ -141,7 +135,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
             );
           })}
           {senales.length > (compacto ? 4 : 8) && (
-            <li className="py-2 text-[11px] text-mute">y {senales.length - (compacto ? 4 : 8)} más en el dictamen</li>
+            <li className="py-2 text-[12px] text-mute">y {plural(senales.length - (compacto ? 4 : 8), "señal más", "señales más")} en el dictamen</li>
           )}
         </ol>
       )}
@@ -152,7 +146,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
           {mercado && <Mercado mercado={mercado} compacto={compacto} />}
           {(r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
             <div className="rounded-xl bg-paperSoft p-3">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Expediente</dt>
+              <dt className="text-[12px] font-semibold text-inkSoft">Expediente</dt>
               <dd className="mt-1 space-y-1 text-ink">
                 {r?.documentos && (
                   <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5" title={r.documentos.titulos.join(", ")}>
@@ -161,7 +155,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                       <span className="font-mono tabular-nums">{r.documentos.n}</span> documento{r.documentos.n === 1 ? "" : "s"} leído{r.documentos.n === 1 ? "" : "s"}
                     </span>
                     {r.documentos.paginas > 0 && <span><span className="font-mono tabular-nums">{r.documentos.paginas}</span> páginas</span>}
-                    {r.documentos.conError > 0 && <span className="text-amberTexto">{r.documentos.conError} con error</span>}
+                    {r.documentos.conError > 0 && <span className="text-inkSoft">{r.documentos.conError} que no se pudieron leer</span>}
                   </div>
                 )}
                 {(r?.recortes ?? 0) > 0 && (
@@ -170,7 +164,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
                   </div>
                 )}
                 {(r?.validacionesPendientes?.length ?? 0) > 0 && (
-                  <ul className="list-inside list-disc text-[11px] text-clayTexto">
+                  <ul className="list-inside list-disc text-[12px] text-inkSoft">
                     {r!.validacionesPendientes.map((v) => <li key={v}>pendiente: {validacionLabel(v)}</li>)}
                   </ul>
                 )}
@@ -182,12 +176,12 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
 
       {/* acciones: un botón por destino */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Link href={dossierHref} className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper shadow-card transition-transform hover:scale-[1.01]">
+        <Link href={dossierHref} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep">
           Leer el dictamen completo <ArrowRight size={15} aria-hidden />
         </Link>
         <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
       </div>
-      {r && !r.dictamenListo && <p className="mt-2 text-[11px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
+      {r && !r.dictamenListo && <p className="mt-2 text-[12px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
     </section>
   );
 }
@@ -208,7 +202,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
 
   return (
     <div className="rounded-xl bg-paperSoft p-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Mercado</dt>
+      <dt className="text-[12px] font-semibold text-inkSoft">Mercado</dt>
       <dd className="mt-1 space-y-1 text-ink">
         {comparables.length === 0 && !loteComparable ? (
           <p className="text-[12px] leading-snug text-inkSoft">
@@ -218,25 +212,25 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
           <>
             {comparables.slice(0, compacto ? 1 : 3).map((it, i) => (
               <div key={i} className="leading-snug">
-                <div className="line-clamp-1 text-[11px] text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
+                <div className="line-clamp-1 text-[12px] text-mute" title={it.item ?? ""}>{it.item ?? "Ítem"}</div>
                 <div className="text-[12px]">
                   <span className="font-mono tabular-nums">{soles(it.ofertado)}</span> ofertado, mediana de mercado{" "}
                   <span className="font-mono tabular-nums">{soles(it.mediana)}</span>
                   {it.unidad ? <span className="text-mute"> por {it.unidad.toLowerCase()}</span> : null}
-                  <span className={`ml-1 font-semibold ${tonoDiferencia(it.diffPct)}`}>({diferencia(it.diffPct)})</span>
+                  <span className="ml-1 font-semibold text-ink">({diferencia(it.diffPct)})</span>
                 </div>
               </div>
             ))}
             {loteComparable ? (
-              <div className="text-[11px] text-mute">
+              <div className="text-[12px] text-mute">
                 Todo el lote: <span className="font-mono tabular-nums">{soles(mercado.totalOfertado!)}</span> ofertado frente a{" "}
                 <span className="font-mono tabular-nums">{soles(mercado.totalMercado!)}</span> de mercado
-                <span className={`ml-1 font-semibold ${mercado.sobreprecioPct! >= 30 ? "text-rust" : "text-ink"}`}>
-                  ({Math.round(mercado.sobreprecioPct!) === 0 ? "sin diferencia" : `${Math.abs(Math.round(mercado.sobreprecioPct!))} % ${mercado.sobreprecioPct! > 0 ? "más caro" : "más barato"}`})
+                <span className="ml-1 font-semibold text-ink">
+                  ({Math.round(mercado.sobreprecioPct!) === 0 ? "sin diferencia" : `${porcentaje(Math.abs(Math.round(mercado.sobreprecioPct!)))} ${mercado.sobreprecioPct! > 0 ? "más caro" : "más barato"}`})
                 </span>
               </div>
             ) : (
-              <div className="text-[11px] text-mute">
+              <div className="text-[12px] text-mute">
                 {comparables.length} de {itemsLeidos} se pudo comparar; el total del lote no.
               </div>
             )}
@@ -259,13 +253,13 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
   const motivos = r?.revisionMotivos ?? [];
   return (
     <section className={`rounded-2xl border border-clay/40 bg-paper ${compacto ? "p-4" : "p-5"} ${className}`} aria-label="Resultado del análisis">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Resultado</div>
-      <h2 className={`mt-0.5 inline-flex items-center gap-2 font-serif font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
+      <p className="text-[12px] font-medium text-mute">Resultado de la lectura</p>
+      <h2 className={`mt-0.5 inline-flex items-center gap-2 font-display font-bold leading-tight text-ink ${compacto ? "text-lg" : "text-xl"}`}>
         <Eye size={18} className="text-clayTexto" aria-hidden />
-        En revisión humana
+        En revisión
       </h2>
       <p className="mt-1.5 text-[13px] leading-snug text-inkSoft">
-        No se publica hasta que una persona lo revise. Mientras tanto no se muestran su puntaje de riesgo ni sus
+        Una persona del equipo lo revisa antes de publicarlo. Mientras tanto no se muestran su puntaje ni sus
         señales: no cuentan como hallazgos.
         {duracionMs != null && duracionMs > 0 && <> El análisis tardó <span className="font-mono">{duracion(duracionMs)}</span>.</>}
       </p>
@@ -285,9 +279,9 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
       ) : (
         <p className="mt-3 text-[12px] leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
       )}
-      <p className="mt-2 text-[11px] text-mute">Una persona revisa el análisis y decide publicarlo o descartarlo.</p>
+      <p className="mt-2 text-[12px] text-mute">Esa persona decide publicarlo o descartarlo.</p>
       <div className="mt-4">
-        <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión humana" path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
+        <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
       </div>
     </section>
   );

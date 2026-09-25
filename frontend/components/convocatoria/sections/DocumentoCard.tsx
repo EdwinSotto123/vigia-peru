@@ -16,16 +16,16 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
   const hasError = !!doc.error;
 
   return (
-    <article className={cn("surface overflow-hidden p-0", hasError && "border-rust/30")}>
+    <article className={cn("rounded-2xl border border-line bg-paperSoft overflow-hidden p-0", hasError && "border-rust/30")}>
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-4 py-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+          <div className="text-[12px] font-semibold text-ink">
             {doc.tipo || meta.documentType || "documento"}
           </div>
           <div className="truncate text-sm font-semibold text-ink">
             {meta.titulo || "(sin título)"}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-mute">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-mute">
             {meta.format && <span className="font-mono">{formatoNormalizado(meta.format).toUpperCase()}</span>}
             {doc.size_bytes && <span>{(doc.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
             {meta.datePublished && <span>{meta.datePublished.slice(0, 10)}</span>}
@@ -33,7 +33,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
           </div>
         </div>
         {meta.url_oece && (
-          <a href={meta.url_oece} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-paperSoft px-2 py-1 text-[10px] font-medium text-heroViolet hover:bg-paper">
+          <a href={meta.url_oece} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-paperSoft px-2 py-1 text-[11px] font-medium text-granate hover:bg-paper">
             <ExternalLink size={10} /> PDF
           </a>
         )}
@@ -49,11 +49,11 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
 
         {ext.cuantia_total != null && ext.cuantia_total > 0 && (
           <div className="flex items-center gap-2 rounded-lg bg-paperSoft px-2.5 py-1.5 text-xs">
-            <Coins size={13} className="text-heroViolet" />
+            <Coins size={13} className="text-granate" />
             <span className="text-mute">Cuantía total:</span>
             <span className="font-mono font-bold text-ink">{fmtMoney(ext.cuantia_total)}</span>
             {ext.fuente_financiamiento && (
-              <span className="ml-auto rounded-full bg-paperDeep px-1.5 py-0 text-[10px] font-medium text-mute">
+              <span className="ml-auto rounded-full bg-paperDeep px-1.5 py-0 text-[11px] font-medium text-mute">
                 {ext.fuente_financiamiento}
               </span>
             )}
@@ -62,7 +62,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
 
         {items.length > 0 && (
           <div>
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-mute">
+            <div className="mb-1 flex items-center gap-1 text-[12px] font-semibold text-inkSoft">
               <Package size={11} /> Items extraídos ({items.length})
             </div>
             <ul className="space-y-1">
@@ -75,7 +75,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
                     <span className="font-mono text-mute">{it.cantidad ?? "—"} {it.unidad ?? ""}</span>
                   </div>
                   {it.precio_unitario_referencial != null && (
-                    <div className="mt-0.5 font-mono text-[10px] text-heroViolet">
+                    <div className="mt-0.5 font-mono text-[11px] text-granate">
                       unit. {fmtMoney(it.precio_unitario_referencial)}
                     </div>
                   )}
@@ -87,7 +87,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
 
         {(postores.length > 0 || ganadores.length > 0) && (
           <div>
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-mute">
+            <div className="mb-1 flex items-center gap-1 text-[12px] font-semibold text-inkSoft">
               <Users size={11} /> Postores y ganadores
             </div>
             <ul className="space-y-1">
@@ -107,7 +107,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
                     )}
                   </div>
                   {p.ruc && (
-                    <div className="ml-4 font-mono text-[10px] text-mute">
+                    <div className="ml-4 font-mono text-[11px] text-mute">
                       RUC <Ruc value={p.ruc} />
                     </div>
                   )}
@@ -119,7 +119,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
 
         {redFlags.length > 0 && (
           <div>
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rust">
+            <div className="mb-1 flex items-center gap-1 text-[12px] font-semibold text-rust">
               <AlertTriangle size={11} /> Red flags observados por el agente
             </div>
             <ul className="space-y-0.5">
@@ -134,7 +134,7 @@ export function DocumentoCard({ doc, fmtMoney }: { doc: any; fmtMoney: (n: any) 
         )}
 
         {fundamento.length > 0 && (
-          <div className="text-[10px] text-mute">
+          <div className="text-[11px] text-mute">
             <Scale size={10} className="mr-1 inline" />
             Fundamento: {fundamento.slice(0, 2).join("; ")}
           </div>

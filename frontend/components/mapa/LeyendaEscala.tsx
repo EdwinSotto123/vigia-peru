@@ -44,7 +44,7 @@ export function LeyendaEscala({
             <span className="inline-block h-3 w-40 animate-pulse rounded bg-paperEdge" aria-hidden />
           ) : escala.tramos.length > 1 ? (
             <span>
-              {escala.tramos.length} tonos, de menos a más, sobre {ambito}
+              {escala.tramos.length} tonos de añil, de menos a más, sobre {ambito}
             </span>
           ) : null}
         </div>
@@ -87,7 +87,7 @@ export function LeyendaEscala({
             {/* "Sin dato" nombrado y rayado: no es el escalón más bajo. */}
             <li className="inline-flex items-center gap-1.5 text-[11px] text-mute">
               <span className="inline-block h-3 w-5 shrink-0 rounded-sm border border-paperEdge" style={{ background: RAYADO }} />
-              sin dato
+              Sin dato
             </li>
           </ul>
         )}
@@ -97,7 +97,7 @@ export function LeyendaEscala({
         <Popover
           titulo={medida.titulo}
           anchoClase="w-80"
-          className="rounded-full p-1 text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-ink"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-granate"
           trigger={
             <>
               <HelpCircle size={15} aria-hidden />
@@ -108,7 +108,7 @@ export function LeyendaEscala({
           <p>{medida.ayuda}</p>
           <p className="mt-2 text-mute">
             Los cortes reparten {ambito} en grupos de tamaño parecido: cada tono junta más o menos la misma cantidad de
-            zonas. Con cortes parejos, Lima, que sola concentra casi un tercio de lo contratado, dejaba a 21 de los 25
+            zonas. Con cortes parejos, Lima, que sola concentra casi un tercio del valor convocado, dejaba a 21 de los 25
             departamentos en el mismo tono y el mapa se veía de un solo color.
           </p>
           <p className="mt-2 text-mute">

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { ArrowUpRight, WifiOff } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { plural } from "@/lib/formato";
 import { formatoSoles } from "./escala";
 import { alertaHref, esSenal } from "./senales";
 
 /**
- * Los contratos con señal de puntaje más alto, en una tira estática debajo del
- * mapa.
+ * Los contratos de mayor peso del riesgo, en una tira estática debajo del mapa.
  *
  * Reemplaza al marquee "EN VIVO" que había acá. Dos motivos, los dos de
  * fondo: (1) cuando la API no respondía, el marquee caía a `ALERTAS_MOCK` y
@@ -17,8 +18,9 @@ import { alertaHref, esSenal } from "./senales";
  * infinita corriendo sobre datos, que además obligaba a esperar a que el
  * texto pasara para poder leerlo.
  *
- * Cuenta sólo contratos CON SEÑAL (`esSenal`): `/alertas` también trae los
- * leídos sin nada que señalar, y antes esos entraban al "94 señales".
+ * Cuenta sólo los de peso del riesgo medio o alto (`esSenal`, ≥ 40): `/alertas`
+ * también trae los leídos sin nada que señalar, y antes esos entraban al "94
+ * señales". Se nombran por lo que son, no "con señal" (DESIGN_SYSTEM.md §10.1).
  */
 export function SenalesRecientes({
   alertas,
@@ -32,17 +34,17 @@ export function SenalesRecientes({
     return (
       <p className="flex items-center gap-1.5 text-[12px] text-inkSoft" role="status" aria-live="polite">
         <WifiOff size={13} className="text-clayTexto" aria-hidden />
-        No se pudieron cargar las señales publicadas, reintentando
+        No pudimos cargar las señales publicadas; reintentando…
       </p>
     );
   }
 
   if (alertas === null) {
     return (
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2" aria-busy>
-        <span className="inline-block h-4 w-64 animate-pulse rounded bg-paperEdge" />
-        <span className="inline-block h-4 w-80 max-w-full animate-pulse rounded bg-paperEdge" />
-        <span className="sr-only">Cargando las señales publicadas</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2" role="status" aria-busy>
+        <Skeleton className="h-4 w-64 max-w-full" />
+        <Skeleton className="h-4 w-80 max-w-full" />
+        <span className="sr-only">Cargando las señales publicadas…</span>
       </div>
     );
   }
@@ -52,8 +54,8 @@ export function SenalesRecientes({
   if (senales.length === 0) {
     return (
       <p className="text-[12px] leading-relaxed text-mute">
-        Todavía no hay ningún contrato con señal publicada. Aparecen acá cuando un contrato termina de leerse y su
-        dictamen pasa la autoevaluación.
+        Todavía no hay contratos leídos con peso del riesgo medio o alto. Aparecen acá cuando un contrato termina de
+        leerse y su dictamen pasa la autoevaluación.
       </p>
     );
   }
@@ -61,10 +63,10 @@ export function SenalesRecientes({
   const top = [...senales].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 3);
 
   return (
-    <section aria-label="Contratos con señal de puntaje más alto" className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <span className="text-[12px] text-mute">
-        <strong className="font-semibold text-ink">{senales.length.toLocaleString("es-PE")}</strong>{" "}
-        {senales.length === 1 ? "contrato con señal publicada" : "contratos con señal publicada"}. Los de puntaje más alto:
+    <section aria-label="Contratos de mayor peso del riesgo" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span className="text-[12px] tabular-nums text-inkSoft">
+        <strong className="font-semibold text-ink">{plural(senales.length, "contrato", "contratos")}</strong> con peso del
+        riesgo medio o alto. Los de mayor peso:
       </span>
       {/* En móvil cada señal ocupa su propia línea completa y el objeto se
           queda con el ancho sobrante (flex-1 + min-w-0), porque la suma de las
@@ -75,7 +77,7 @@ export function SenalesRecientes({
       <ul className="flex w-full min-w-0 flex-col gap-y-1.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
         {top.map((a) => (
           <li key={a.id ?? a.codigo} className="min-w-0">
-            <Link href={alertaHref(a)} className="group flex min-w-0 items-center gap-2 text-[12px] text-ink hover:text-heroViolet">
+            <Link href={alertaHref(a)} className="group flex min-w-0 items-center gap-2 text-[12px] text-ink hover:text-granate">
               <span className="shrink-0">
                 <Severidad score={a.score} formato="linea" />
               </span>
@@ -89,7 +91,7 @@ export function SenalesRecientes({
                   {formatoSoles(a.montoSoles)}
                 </span>
               )}
-              <ArrowUpRight size={12} className="shrink-0 text-mute transition-colors group-hover:text-heroViolet" aria-hidden />
+              <ArrowUpRight size={12} className="shrink-0 text-mute transition-colors group-hover:text-granate" aria-hidden />
             </Link>
           </li>
         ))}

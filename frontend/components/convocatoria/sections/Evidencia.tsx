@@ -108,7 +108,7 @@ export function Evidencia({
           <li key={i} className="leading-relaxed">
             <q className={cn("italic", citaClassName)}>{redactDnis(c.cita)}</q>
             {(f || c.pagina != null) && (
-              <span className="ml-1.5 inline-flex flex-wrap items-center gap-1 align-baseline text-[10px] not-italic text-mute">
+              <span className="ml-1.5 inline-flex flex-wrap items-center gap-1 align-baseline text-[11px] not-italic text-mute">
                 {c.pagina != null && (
                   <span className="inline-flex items-center gap-0.5">
                     <FileText size={9} aria-hidden /> pág. {c.pagina}
@@ -120,7 +120,7 @@ export function Evidencia({
                       href={f.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                      className="inline-flex items-center gap-0.5 text-granate hover:underline"
                     >
                       {f.texto} <ExternalLink size={9} aria-hidden />
                     </a>

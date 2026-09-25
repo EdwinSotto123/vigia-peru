@@ -24,11 +24,11 @@ const PAISES = [
 export function ExpansionSection() {
   return (
     <section className="border-t border-line bg-paper py-8">
-      <div className="container-page flex max-w-[1400px] flex-wrap items-center justify-between gap-x-10 gap-y-5">
+      <div className="container-page flex flex-wrap items-center justify-between gap-x-10 gap-y-5">
         <div className="min-w-0 max-w-[58ch]">
-          <h2 className="font-serif text-xl font-bold leading-tight text-ink sm:text-2xl">
-            <Globe2 size={17} className="mr-2 inline-block -translate-y-0.5 text-heroViolet" aria-hidden />
-            Perú es el primero, <span className="text-heroViolet">no el único</span>.
+          <h2 className="font-display text-xl font-bold leading-tight text-ink sm:text-2xl">
+            <Globe2 size={17} className="mr-2 inline-block -translate-y-0.5 text-granate" aria-hidden />
+            Perú es el primero, <span className="text-granate">no el único</span>.
           </h2>
           <p className="mt-1.5 text-[14px] leading-relaxed text-inkSoft">
             El Perú publica sus contratos en un formato abierto (OCDS) que también usan otros gobiernos de la
@@ -42,9 +42,9 @@ export function ExpansionSection() {
               <li key={nombre} className="group flex flex-col items-center gap-1" title={`${nombre}, próximamente`}>
                 <Flag
                   size={26}
-                  className="rounded shadow-sm ring-1 ring-black/10 grayscale transition-all duration-300 group-hover:grayscale-0"
+                  className="rounded ring-1 ring-ink/10 grayscale transition-[filter] duration-normal group-hover:grayscale-0"
                 />
-                <span className="text-[10px] font-medium text-mute">{nombre}</span>
+                <span className="text-[11px] font-medium text-mute">{nombre}</span>
               </li>
             ))}
           </ul>
@@ -53,7 +53,7 @@ export function ExpansionSection() {
             href="https://github.com/EdwinSotto123/vigia-peru/issues"
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperDeep"
+            className="group inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             ¿Tu país publica contrataciones abiertas?
             <ArrowRight size={14} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />

@@ -118,7 +118,7 @@ export function ReplayAnalisis({ eventos, estadoFinal, compacto = false }: Props
       <DagCarriles fases={fases} estado={estadoVirtual} ahora={ahoraVirtual} compacto={compacto} />
 
       <div>
-        <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
+        <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-mute">
           <span>Bitácora (repetida)</span>
           <span className="font-mono normal-case tracking-normal">{visibles.length}/{ordenados.length} eventos</span>
         </div>

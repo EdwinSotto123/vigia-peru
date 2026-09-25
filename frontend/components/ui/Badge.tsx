@@ -17,7 +17,7 @@ export function Badge({
     // Antes "navy": apuntaba a un token legacy (#1B1611, un marrón casi
     // negro) que no era de la marca ni de la semántica de severidad.
     // Sin ningún call site, así que pasa a ser el badge de marca.
-    marca: "bg-heroViolet-soft text-heroViolet border-heroViolet/20",
+    marca: "bg-granate-soft text-granate border-granate/20",
     ink: "bg-ink text-paper border-ink",
   }[variant];
   return <span className={clsx("pill", styles, className)}>{children}</span>;

@@ -282,7 +282,7 @@ function Procesamientos() {
           {lote && (
             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${TONO.brand.badge}`}>
               Lote {lote}
-              <button onClick={() => filtrar({ lote: null })} aria-label="Quitar filtro de lote" className="rounded-full p-0.5 hover:bg-heroViolet/10">
+              <button onClick={() => filtrar({ lote: null })} aria-label="Quitar filtro de lote" className="rounded-full p-0.5 hover:bg-granate/10">
                 <X size={11} aria-hidden />
               </button>
             </span>

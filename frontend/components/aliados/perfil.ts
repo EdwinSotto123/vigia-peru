@@ -92,7 +92,14 @@ export interface ResumenPerfil {
   enRevision: number;
   /** Leídos que salieron limpios: ni señal publicada ni revisión pendiente. */
   sinSenal: number;
+  /** Zonas (región, provincia o distrito) donde cayeron sus aportes, tal como se financiaron. */
   regiones: RegionAlcanzada[];
+  /**
+   * Regiones (departamentos) distintas que alcanzó: los dos primeros dígitos del ubigeo.
+   * Contar zonas como regiones decía "7 regiones" cuando Huaral (1506) y Lima (15) son
+   * la misma región; /app/financiar, que cuenta departamentos, decía 6.
+   */
+  regionesDistintas: number;
 }
 
 /**
@@ -137,5 +144,6 @@ export function resumirContribuciones(contribuciones: ContribucionAliado[]): Res
     enRevision,
     sinSenal: Math.max(0, leidos - conSenal - enRevision),
     regiones: [...porZona.values()].sort((a, b) => b.contratos - a.contratos || a.zona.localeCompare(b.zona, "es")),
+    regionesDistintas: new Set(contribuciones.map((c) => c.ubigeo.slice(0, 2))).size,
   };
 }

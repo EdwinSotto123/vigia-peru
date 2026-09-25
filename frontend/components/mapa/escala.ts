@@ -15,6 +15,7 @@
  */
 
 import type { ContratoZona } from "@/lib/contratos";
+import { numero, solesCompacto } from "@/lib/formato";
 
 export type MedidaId = "monto" | "contratos" | "cola" | "leidos" | "senales";
 
@@ -33,40 +34,43 @@ export interface Medida {
   sustantivo: (n: number) => string;
 }
 
-const enteros = (n: number) => n.toLocaleString("es-PE");
+const enteros = (n: number) => numero(n);
 
-/** S/ 5 723 M · S/ 196 M · S/ 840 mil — los montos del mapa van redondeados. */
+/**
+ * Montos del mapa, compactos: "S/ 5.7 mil M" · "S/ 196.0 M" · "S/ 840 mil". Es el
+ * formato compacto ÚNICO de `lib/formato` (DESIGN_SYSTEM.md §10.3); el nombre queda
+ * por compatibilidad con los importadores.
+ */
 export function formatoSoles(n: number): string {
-  if (n >= 1_000_000_000) return `S/ ${(n / 1_000_000_000).toLocaleString("es-PE", { maximumFractionDigits: 1 })} mil M`;
-  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toLocaleString("es-PE", { maximumFractionDigits: 0 })} M`;
-  if (n >= 1_000) return `S/ ${(n / 1_000).toLocaleString("es-PE", { maximumFractionDigits: 0 })} mil`;
-  return `S/ ${enteros(Math.round(n))}`;
+  return solesCompacto(n);
 }
 
 export const MEDIDAS: Medida[] = [
   {
     id: "monto",
     label: "Monto",
-    titulo: "Monto contratado",
-    ayuda: "Suma de lo contratado en los expedientes del SEACE ingresados, por zona.",
+    // Es la suma del valor REFERENCIAL de las convocatorias, no lo pagado ni lo adjudicado
+    // (auditoría de coherencia 2026-09-24, punto 11), y la zona es la sede de la entidad.
+    titulo: "Valor referencial convocado",
+    ayuda: "Suma del valor referencial de las convocatorias publicadas en el SEACE, por la sede de la entidad que compra. No es lo pagado.",
     valor: (z) => z.montoPen ?? 0,
     formato: formatoSoles,
-    sustantivo: (n) => `${formatoSoles(n)} contratados`,
+    sustantivo: (n) => `${formatoSoles(n)} en valor referencial`,
   },
   {
     id: "contratos",
     label: "Contratos",
-    titulo: "Contratos ingresados",
-    ayuda: "Expedientes descargados de la plataforma de contrataciones abiertas del OECE, sin importar su estado.",
+    titulo: "Contratos publicados",
+    ayuda: "Convocatorias publicadas en el SEACE (datos abiertos del OECE) que Vigía tiene en su base, sin importar su estado.",
     valor: (z) => z.total ?? 0,
     formato: enteros,
-    sustantivo: (n) => `${enteros(n)} contrato${n === 1 ? "" : "s"} ingresados`,
+    sustantivo: (n) => `${enteros(n)} ${n === 1 ? "contrato publicado" : "contratos publicados"}`,
   },
   {
     id: "cola",
     label: "En cola",
     titulo: "Contratos en cola de lectura",
-    ayuda: "Contratos cuyo tipo y etapa ya tienen análisis activo: se pueden financiar hoy.",
+    ayuda: "Contratos que esperan financiamiento para leerse: su tipo y etapa ya se pueden analizar hoy.",
     valor: (z) => z.enCola ?? 0,
     formato: enteros,
     sustantivo: (n) => `${enteros(n)} en cola`,
@@ -75,48 +79,53 @@ export const MEDIDAS: Medida[] = [
     id: "leidos",
     label: "Leídos",
     titulo: "Contratos leídos por los agentes",
-    ayuda: "Contratos que los agentes ya leyeron completos, con su dictamen guardado.",
+    ayuda: "Contratos cuyo análisis terminó, por cualquier vía: publicados, en revisión o descartados.",
     valor: (z) => z.procesados ?? 0,
     formato: enteros,
     sustantivo: (n) => `${enteros(n)} leído${n === 1 ? "" : "s"}`,
   },
   {
     id: "senales",
-    label: "Con señal",
-    titulo: "Contratos con señal publicada",
-    ayuda: "Leídos cuyo dictamen publicado trae al menos una señal de riesgo media o alta, con la norma citada.",
+    // No es "con señales" (DESIGN_SYSTEM.md §10.1: al menos una señal publicada, de
+    // cualquier peso): `conSenales` de /contratos/geo cuenta score ≥ 40, o sea el peso
+    // del riesgo medio o alto. Se nombra por lo que mide.
+    label: "Riesgo medio o alto",
+    titulo: "Contratos con peso del riesgo medio o alto",
+    ayuda: "Leídos cuyo dictamen publicado suma un peso del riesgo de 40 o más, con la norma citada en cada señal.",
     valor: (z) => z.conSenales ?? 0,
     formato: enteros,
-    sustantivo: (n) => `${enteros(n)} con señal`,
+    sustantivo: (n) => `${enteros(n)} de riesgo medio o alto`,
   },
 ];
 
 export const medidaPorId = (id: MedidaId): Medida => MEDIDAS.find((m) => m.id === id) ?? MEDIDAS[0];
 
 /**
- * Rampa del coropleto, en el violeta de la marca.
+ * Rampa del coropleto, en añil (el azul del tejido del isotipo).
  *
  * La anterior era cálida (#D9B97A → #4A150C) y tenía tres problemas medidos:
  *
  * 1. No pertenecía a ningún lado. El hub del producto estaba pintado con una
- *    paleta que no existe en el resto del sitio; ni heroViolet ni heroGreen
- *    aparecían en todo el mapa.
+ *    paleta que no existe en el resto del sitio; ni el color de marca de
+ *    entonces aparecía en todo el mapa.
  * 2. Chocaba de TONO con la severidad. Los puntos de señal son rojos (rust
  *    #A81E12) y caían sobre marrones rojizos: mismo tono, apenas distinta
  *    luminancia (1,28:1 sobre el cuarto escalón). Un punto de alarma rojo
  *    sobre un fondo rojizo es exactamente lo que un mapa no debe hacer.
  * 3. Su escalón más claro daba 1,88:1 contra el lienzo blanco.
  *
- * Esta rampa termina en heroViolet-deep #332463 y pasa por #4A3A96, a un paso
- * de heroViolet #4F3D96: los departamentos más altos quedan en el violeta de
- * Vigía. Y como el violeta y el rojo son tonos distintos, el punto de señal se
- * separa por matiz y no sólo por brillo, que es la separación que sobrevive a
- * una pantalla barata y al sol de la calle.
+ * Esta rampa es AÑIL, el azul del tejido del isotipo (textil-anil #2D3E6F,
+ * DESIGN_SYSTEM.md §3.9). No es granate a propósito: el punto de señal es rojo
+ * (rust) y un rojo sobre granate volvería al problema 2. Añil y rojo son tonos
+ * opuestos, así que el punto se separa por matiz y no sólo por brillo, que es
+ * la separación que sobrevive a una pantalla barata y al sol de la calle.
+ * (Hasta sept 2026 era violeta, el color de marca de entonces.)
  *
- * Medido: claro 2,50:1 contra blanco (antes 1,88), oscuro 13,35:1, y la
- * separación mínima entre escalones adyacentes sube de 1,45 a 1,49.
+ * Mismas luminancias que la rampa violeta anterior (el umbral de tinta de
+ * abajo no cambia): claro 2,51:1 contra blanco, oscuro 13,42:1, separación
+ * mínima entre escalones adyacentes 1,50.
  */
-export const RAMPA = ["#A49AEB", "#8474D9", "#6553BE", "#4A3A96", "#332463"] as const;
+export const RAMPA = ["#8DA2DE", "#6480CB", "#4360B0", "#314781", "#202D54"] as const;
 
 /**
  * "Sin dato" es neutro, no un sexto escalón. Antes era un crema (#E8DFC7) que
@@ -189,7 +198,7 @@ export function construirEscala(valores: number[]): Escala {
 }
 
 /* ── Tinta sobre el relleno ────────────────────────────────────────────────
-   Las 25 etiquetas se pintaban todas con una sola tinta (#14171A) sobre una
+   Las 25 etiquetas se pintaban todas con una sola tinta (ink) sobre una
    rampa que recorre todo el rango de luminancia. El contraste medido escalón
    por escalón daba 9,57 / 5,90 / 3,41 / 1,91 / 1,20: quince de veinticinco
    nombres por debajo del piso de 4,5:1, y el más oscuro en 1,20, o sea
@@ -220,8 +229,8 @@ const UMBRAL_TINTA = 0.22;
 export function tintaSobre(fill: string): { texto: string; halo: string } {
   const claro = !fill.startsWith("#") || luminancia(fill) >= UMBRAL_TINTA;
   return claro
-    ? { texto: "#14171A", halo: "#FFFFFF" }
-    : { texto: "#FFFFFF", halo: "rgba(20,23,26,0.55)" };
+    ? { texto: "#1E191B", halo: "#FFFFFF" }
+    : { texto: "#FFFFFF", halo: "rgba(30,25,27,0.55)" };
 }
 
 /**
@@ -252,7 +261,7 @@ export type FiltroZona = "todas" | "senal" | "financiadas" | "sinleer";
 
 export const FILTROS: { id: FiltroZona; label: string; ayuda: string }[] = [
   { id: "todas", label: "Todas", ayuda: "Los 25 departamentos, sin acotar." },
-  { id: "senal", label: "Con señal", ayuda: "Sólo donde ya se publicó al menos una señal de riesgo." },
+  { id: "senal", label: "Riesgo medio o alto", ayuda: "Sólo donde hay contratos leídos con peso del riesgo medio o alto." },
   { id: "financiadas", label: "Financiadas", ayuda: "Sólo donde alguien pagó para que se leyeran contratos." },
   { id: "sinleer", label: "Sin financiar", ayuda: "Sólo donde hay contratos esperando lectura y todavía nadie financió ninguno." },
 ];

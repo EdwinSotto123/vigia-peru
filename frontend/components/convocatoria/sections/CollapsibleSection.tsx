@@ -20,19 +20,20 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <details
-      className="surface overflow-hidden p-0"
+      className="overflow-hidden rounded-2xl border border-line bg-paper"
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
-      <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 hover:bg-paperDeep">
-        {icon && <span className="shrink-0 text-heroViolet">{icon}</span>}
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-4 py-2.5 hover:bg-paperSoft [&::-webkit-details-marker]:hidden">
+        {icon && <span className="shrink-0 text-mute">{icon}</span>}
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-ink">{title}</div>
-          {subtitle && <div className="text-[11px] text-mute">{subtitle}</div>}
+          {subtitle && <div className="text-[12px] text-mute">{subtitle}</div>}
         </div>
         <ChevronRight
           size={14}
-          className={cn("shrink-0 text-mute transition-transform", open && "rotate-90")}
+          aria-hidden
+          className={cn("shrink-0 text-mute transition-transform duration-rapido", open && "rotate-90")}
         />
       </summary>
       <div className="border-t border-line">

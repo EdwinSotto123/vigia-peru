@@ -12,6 +12,9 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Check, AlertTriangle, ListChecks } from "lucide-react";
 import { getReglasPerfil, reglaLabel, tipoContratoHumano, type ReglasPerfil, type SenalRiesgo } from "@/lib/auditoria";
 import { nombreDeAgente } from "@/components/agentes/catalogo";
+import { Severidad } from "@/components/ui/Severidad";
+
+const ORDEN = { alta: 0, media: 1, baja: 2 } as const;
 
 interface Props {
   perfil: string | null | undefined;
@@ -47,6 +50,9 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
   const nSenales = reglas.filter((r) => disparadas.has(r.id)).length;
   const otras = senales.filter((s) => !reglas.some((r) => r.id === s.regla));
   const total = reglas.length;
+  // El ícono de una regla que disparó lleva la severidad de SU señal (antes, siempre el rojo de "alta").
+  const peorDe = (id: string) =>
+    senales.filter((s) => s.regla === id).sort((a, b) => ORDEN[a.severidad] - ORDEN[b.severidad])[0]?.severidad ?? null;
 
   return (
     <div className={`rounded-xl border border-line bg-paperSoft ${compacto ? "text-[11px]" : "text-[12px]"}`}>
@@ -55,11 +61,11 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
         aria-controls="reglas-evaluadas"
-        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+        className="flex min-h-[40px] w-full items-center justify-between gap-2 px-3 py-2 text-left"
       >
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 font-semibold text-ink">
           <span className="inline-flex items-center gap-1.5">
-            <ListChecks size={13} className="text-heroViolet" aria-hidden />
+            <ListChecks size={13} className="text-mute" aria-hidden />
             {total} reglas evaluadas
           </span>
           <span>{enRevision ? `${nSenales} en revisión` : `${nSenales} señal${nSenales === 1 ? "" : "es"}`}</span>
@@ -77,7 +83,15 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
               const on = disparadas.has(r.id);
               return (
                 <li key={r.id} className="flex items-start gap-1.5 py-0.5" title={r.descripcion}>
-                  {on ? <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden /> : <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden />}
+                  {on ? (
+                    peorDe(r.id) ? (
+                      <Severidad bandera={peorDe(r.id)!} formato="punto" className="mt-0.5 shrink-0" />
+                    ) : (
+                      <AlertTriangle size={12} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
+                    )
+                  ) : (
+                    <Check size={12} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
+                  )}
                   <span className={on ? "font-medium text-ink" : "text-mute"}>
                     {r.etiqueta}
                     <span className="sr-only">{on ? " (señal)" : " (sin señal)"}</span>
@@ -88,13 +102,13 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
           </ul>
           {otras.length > 0 && (
             <div className="mt-2 border-t border-line pt-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-mute">Otras señales (agentes de lectura, prensa y mercado)</div>
+              <div className="text-[12px] font-semibold text-inkSoft">Otras señales (lectura del expediente, prensa y mercado)</div>
               <ul className="mt-1 space-y-0.5">
                 {otras.map((s, i) => (
                   <li key={`${s.regla}-${i}`} className="flex items-start gap-1.5" title={data.otrasSenales[s.regla]?.descripcion}>
-                    <AlertTriangle size={12} className="mt-0.5 shrink-0 text-rust" aria-hidden />
+                    <Severidad bandera={s.severidad} formato="punto" className="mt-0.5 shrink-0" />
                     <span className="text-ink">{data.otrasSenales[s.regla]?.etiqueta ?? reglaLabel(s.regla)}</span>
-                    {s.agente && <span className="ml-1 text-[10px] text-mute">{nombreDeAgente(s.agente)}</span>}
+                    {s.agente && <span className="ml-1 text-[11px] text-mute">{nombreDeAgente(s.agente)}</span>}
                   </li>
                 ))}
               </ul>

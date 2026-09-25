@@ -1,6 +1,7 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Info } from "lucide-react";
+import { numero, porcentaje } from "@/lib/formato";
 import { ICONO_SEVERIDAD, resumenLote } from "@/components/charts/mercado";
 import { cn } from "@/lib/utils";
 import { observacionesLegibles } from "../dossier";
@@ -45,7 +46,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
   const observaciones = observacionesLegibles(market?.observaciones_clave);
 
   return (
-    <section className="rounded-2xl border border-line bg-paper p-5 shadow-card">
+    <section className="rounded-2xl border border-line bg-paper p-5">
       {/* El veredicto se distinguía con una banda de color de 4px al costado:
           el tell más reconocible de interfaz generada, y prohibido por el craft
           floor. La jerarquía la carga el propio veredicto, que ya tiene su
@@ -53,7 +54,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       <div className={cn("border-l pl-4", r.veredicto.ui.borde)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[12px] font-medium text-mute">Precio ofertado contra el mercado</span>
-          <span className={cn("pill px-2 py-0 text-[10px]", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
+          <span className={cn("pill px-2 py-0 text-[11px]", r.veredicto.ui.fondo, r.veredicto.ui.texto, r.veredicto.ui.borde)}>
             <Icono size={11} aria-hidden />
             {r.veredicto.etiqueta}
           </span>
@@ -61,11 +62,11 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
 
         {r.comparable && r.pct !== null ? (
           <>
-            <h2 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink">
+            <h2 className="mt-1 font-display text-2xl font-bold leading-tight text-ink">
               El contrato está{" "}
               <span className={r.veredicto.ui.texto}>
                 {r.pct > 0 ? "+" : "−"}
-                {Math.abs(r.pct).toFixed(1)} %
+                {porcentaje(Math.abs(r.pct), { decimales: 1 })}
               </span>{" "}
               {r.pct >= 0 ? "sobre" : "bajo"} la mediana de mercado
             </h2>
@@ -88,20 +89,20 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
               {conteo && (
                 <>
                   Medido en {conteo}
-                  {cobertura !== null && ` (${cobertura} % del valor del contrato)`}.
+                  {cobertura !== null && ` (${porcentaje(cobertura)} del valor del contrato)`}.
                 </>
               )}
             </p>
           </>
         ) : (
           <>
-            <h2 className="mt-1 font-serif text-2xl font-bold leading-tight text-ink">
+            <h2 className="mt-1 font-display text-2xl font-bold leading-tight text-ink">
               No se pudo determinar el sobreprecio de este contrato
             </h2>
             <p className="mt-1 text-[13px] leading-snug text-inkSoft">
               {r.motivo ? `${r.motivo.charAt(0).toUpperCase()}${r.motivo.slice(1)}. ` : ""}
               {conteo}
-              {cobertura !== null && ` (${cobertura} % del valor)`}
+              {cobertura !== null && ` (${porcentaje(cobertura)} del valor)`}
               {conteo || cobertura !== null ? ". " : ""}
               Se deja sin veredicto de sobreprecio en vez de publicar una señal que no se sostiene.
             </p>
@@ -143,14 +144,14 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         {cobertura !== null && (
           <Cifra
             etiqueta="Cobertura de la comparación"
-            valor={`${cobertura} % del valor`}
+            valor={`${porcentaje(cobertura)} del valor`}
             nota={conteo ?? undefined}
           />
         )}
         {r.nEstimadosIA > 0 && (
           <Cifra
             etiqueta="Ítems estimados por el modelo"
-            valor={String(r.nEstimadosIA)}
+            valor={numero(r.nEstimadosIA)}
             nota="sin búsqueda: no cuentan en el sobreprecio"
           />
         )}
@@ -161,8 +162,8 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         <p className="mt-3 border-l-2 border-line pl-3 text-[12px] text-mute">
           La cuantía que estimó la entidad está{" "}
           <strong className="font-semibold text-ink">
-            {r.estimadoVsMercadoPct > 0 ? "+" : ""}
-            {r.estimadoVsMercadoPct.toFixed(1)} %
+            {r.estimadoVsMercadoPct > 0 ? "+" : r.estimadoVsMercadoPct < 0 ? "−" : ""}
+            {porcentaje(Math.abs(r.estimadoVsMercadoPct), { decimales: 1 })}
           </strong>{" "}
           respecto de la mediana de mercado. Es una señal sobre el estudio de mercado de la entidad, no sobre un precio
           ofertado: por eso no se publica como sobreprecio del contrato.
@@ -173,7 +174,7 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
         <ul className="mt-3 space-y-1 text-[13px] text-ink">
           {observaciones.map((o: string, i: number) => (
             <li key={i} className="flex items-start gap-2">
-              <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-heroViolet" aria-hidden />
+              <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-mute" aria-hidden />
               <span>{o}</span>
             </li>
           ))}
@@ -181,8 +182,8 @@ export function MarketVerdictCard({ market, fmtMoney }: { market: any; fmtMoney:
       )}
 
       {market?.recomendacion && (
-        <p className="mt-3 flex items-start gap-1.5 border-t border-line pt-3 text-[12px] italic text-inkSoft">
-          <Sparkles size={12} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+        <p className="mt-3 flex items-start gap-1.5 border-t border-line pt-3 text-[12px] text-inkSoft">
+          <Info size={13} className="mt-0.5 shrink-0 text-mute" aria-hidden />
           <span>{market.recomendacion}</span>
         </p>
       )}

@@ -2,9 +2,9 @@
 
 import { useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
+import { FranjaTextil } from "@/components/marca";
+import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
  * La portada: qué es Vigía, en cinco segundos, y la lupa que se abre.
@@ -28,6 +28,18 @@ import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
  * La prueba de los cinco segundos (qué es, para quién, por qué, qué hacer) la
  * pasa el texto solo. El usuario ya rechazó portadas cinematográficas que no
  * decían qué es el producto: acá lo cinematográfico viene DESPUÉS del mensaje.
+ *
+ * La lupa es el logo de verdad —la manta tejida, la llama blanca—, no el
+ * `Isotipo` en SVG. El isotipo es para la cabecera, el pie y todo lo que mide
+ * menos de ~100 px; a tamaño de portada, sus dieciséis tramos de color plano se
+ * leen como una rueda de colores y se pierde lo que hace reconocible a la
+ * marca: el tejido. Se sirve `unoptimized` (el WebP ya pesa 93 KB): el
+ * optimizador de Next con la caché fría de cada deploy era el problema que
+ * DESIGN_SYSTEM.md le atribuye al PNG, y así no pasa por él.
+ *
+ * Detrás, un disco de papel granate muy claro, centrado en el lente, le da
+ * peso sin halo difuso (nada de brillo "IA"). Abajo, la franja textil cierra la
+ * escena como el borde de una manta.
  */
 
 /** Centro del lente dentro de la imagen recortada, en fracción del ancho y alto. */
@@ -66,6 +78,9 @@ export function HeroLupa() {
         // de la llama: una mancha, no una apertura. Así, primero la llama se
         // funde en oscuro y recién después el lente se abre.
         const interior = () => (ancla.getBoundingClientRect().width * EN_CENTRO * INTERIOR) / ABERTURA;
+        // La lupa escala desde el centro del LENTE: así, al agrandarse, el disco
+        // con la llama queda exactamente donde nace la abertura.
+        gsap.set(".lupa", { transformOrigin: `${LENTE.x * 100}% ${LENTE.y * 100}%` });
 
         const tl = gsap.timeline({
           defaults: { ease: "none" },
@@ -114,58 +129,55 @@ export function HeroLupa() {
     <section id="inicio" aria-labelledby="hero-titulo" className="relative">
       <div
         ref={escena}
-        className="relative isolate flex min-h-[calc(100dvh-4rem)] items-center overflow-hidden bg-paper"
+        className="relative isolate flex min-h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-paper"
       >
-        {/* Halo detrás de la lupa: le da profundidad al blanco sin competir con ella. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-[10%] top-1/2 -z-10 h-[46rem] w-[46rem] -translate-y-1/2 rounded-full bg-heroViolet-soft/70 blur-3xl"
-        />
-
-        <div className="container-page grid w-full max-w-[1400px] items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:py-16">
+        <div className="container-page grid w-full max-w-7xl flex-1 items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:py-16">
           <div className="hero-texto relative z-10">
             <h1
               id="hero-titulo"
-              className="max-w-[20ch] text-balance font-serif text-[2.6rem] font-bold leading-[1.04] tracking-tight text-ink sm:text-6xl xl:text-[4.25rem]"
+              className="max-w-[18ch] text-balance font-display text-[2.5rem] font-extrabold leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[3.5rem]"
             >
               ¿En qué se gasta el dinero de tu región?
             </h1>
-            <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-inkSoft sm:text-xl">
+            <p className="mt-6 max-w-[46ch] text-pretty text-lg leading-relaxed text-inkSoft sm:text-xl">
               Vigía lee los contratos del Estado, los cruza con registros oficiales y te muestra cuáles merecen una
               segunda mirada.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link
-                href="/app/mapa"
-                className="group inline-flex items-center gap-2 rounded-full bg-heroViolet px-7 py-4 text-base font-semibold text-paper shadow-card transition-transform duration-rapido hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50 focus-visible:ring-offset-2"
-              >
+              <EnlaceAccion href="/app/mapa" tamano="lg">
                 Ver mi región
-                <ArrowRight size={18} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
-              </Link>
-              <a
-                href="#como"
-                className="inline-flex items-center rounded-full px-5 py-4 text-base font-semibold text-ink underline-offset-4 transition-colors duration-rapido hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
-              >
+              </EnlaceAccion>
+              <EnlaceAccion href="#como" variante="secundario" tamano="lg" flecha={false}>
                 Cómo funciona
-              </a>
+              </EnlaceAccion>
             </div>
           </div>
 
           {/* El ancla no se transforma nunca: es la referencia para medir. */}
-          <div className="lupa-ancla relative z-20 mx-auto w-[min(78vw,26rem)] lg:w-[min(40vw,32rem)]">
-            <div className="lupa will-change-transform">
+          <div className="lupa-ancla relative z-20 mx-auto w-[min(64vw,17rem)] sm:w-[min(52vw,22rem)] lg:w-[min(38vw,30rem)]">
+            <div className="lupa relative will-change-transform">
+              {/* El disco de fondo, centrado en el lente (46.5 %, 45.5 %) y no en
+                  el cuadro: la lupa parece apoyada sobre su propia luz. */}
+              <div
+                aria-hidden
+                className="absolute -left-[8.5%] -top-[9.5%] -z-10 aspect-square w-[110%] rounded-full bg-granate-50 ring-1 ring-granate/10"
+              />
               <Image
                 src="/assets/logo/lupa-llama.webp"
-                alt="El símbolo de Vigía: una lupa con una llama adentro, sobre tejido andino"
+                alt="El símbolo de Vigía: una lupa tejida en manta andina, con una llama adentro"
                 width={720}
                 height={725}
                 priority
-                sizes="(min-width: 1024px) 40vw, 78vw"
-                className="h-auto w-full select-none drop-shadow-[0_24px_48px_rgba(51,36,99,0.22)]"
+                unoptimized
+                className="h-auto w-full select-none"
               />
             </div>
           </div>
         </div>
+
+        {/* La franja textil, como el borde de una manta: cierra la portada y da
+            paso a lo oscuro. Con la animación, la abertura la cubre. */}
+        <FranjaTextil alto={12} />
 
         {/* El círculo que nace del lente y cubre la escena. Escala con transform
             (compuesto en GPU), nunca con width/height. Invisible sin JS y en
@@ -180,7 +192,7 @@ export function HeroLupa() {
             hace falta el puente. */}
         <p
           aria-hidden
-          className="puente pointer-events-none invisible absolute inset-0 z-40 hidden items-center justify-center text-center font-serif text-3xl text-paper/85 lg:flex"
+          className="puente pointer-events-none invisible absolute inset-0 z-40 hidden items-center justify-center text-center font-display text-3xl font-bold text-paper/85 lg:flex"
         >
           Esto es lo que Vigía mira.
         </p>

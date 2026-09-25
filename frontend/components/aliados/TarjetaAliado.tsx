@@ -4,9 +4,12 @@ import Image from "next/image";
 import { ArrowUpRight, Building2, PanelRightOpen, User, Users } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Cifras } from "@/components/ui/Cifras";
+import { FranjaTextil } from "@/components/marca";
 import { cn } from "@/lib/utils";
+import { fechaCorta, numero } from "@/lib/formato";
 import type { RankingRow } from "@/lib/financiamiento";
 import { SelloMaqueta } from "./AvisoMaqueta";
+import { pctProporcion } from "./CapacidadColectiva";
 import { IdentidadAliado, Insignias, insigniasDe, mesesDesde, type DatoIdentidad } from "./IdentidadAliado";
 
 /**
@@ -54,21 +57,10 @@ const TIPO_ICONO: Record<RankingRow["tipo"], DatoIdentidad["icono"]> = {
 /** Vigía Perú se autofinancia con capital semilla: aparece en su propio muro y se dice tal cual. */
 export const esFundador = (row: { slug: string | null }) => row.slug === "vigia-peru";
 
-const num = (n: number) => n.toLocaleString("es-PE");
+const num = numero;
 
-const desdeTxt = (desde: string | null) =>
-  desde ? new Date(desde).toLocaleDateString("es-PE", { month: "short", year: "numeric" }) : null;
-
-function pctTxt(v: number, total: number): string {
-  if (!total) return "—";
-  const p = (v / total) * 100;
-  const dec = p >= 10 ? 0 : p >= 1 ? 1 : 2;
-  // Sin .replace(".", ","): es-PE usa COMA para miles y PUNTO para decimales.
-  // Forzar la coma hacía que en la misma línea conviviera "18,394" (coma =
-  // miles) con "0,18 %" (coma = decimal), o sea el mismo carácter con dos
-  // significados en un producto que habla de plata. El locale decide, no nosotros.
-  return `${p.toLocaleString("es-PE", { minimumFractionDigits: dec, maximumFractionDigits: dec })} %`;
-}
+/** "14 jun." o "14 jun. 2025": la fecha corta única del producto (lib/formato). */
+const desdeTxt = (desde: string | null) => (desde ? fechaCorta(desde) : null);
 
 /**
  * Identidad del aliado, en piezas con ícono — no en una cadena de puntos medios.
@@ -101,13 +93,21 @@ export function identidadTexto(row: RankingRow): string {
 }
 
 const ANILLO =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2 focus-visible:ring-offset-paper";
+
+/** Acción secundaria dentro de la tarjeta: píldora (el gesto de acción del sitio). */
+const ACCION_TARJETA =
+  "inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors duration-rapido";
 
 /**
  * Una comparación con su barra a escala: "33 leídos de 45 financiados".
  * Nunca un número solo en una caja — esa plantilla es justo la que la
  * dirección rechaza, y aquí además borraría la única historia que importa,
  * que es la proporción.
+ *
+ * Tonos (DESIGN_SYSTEM.md §3): financiado = granate (la marca: alguien pagó);
+ * leído = moss (positivo: el trabajo se hizo); neutro = tinta suave. El maíz del
+ * renombre no va acá: sobre papel no llega ni a 2:1.
  */
 export function Proporcion({
   parte,
@@ -120,14 +120,15 @@ export function Proporcion({
   leyenda: string;
   tono: "financiado" | "leido" | "neutro";
 }) {
-  const barra = tono === "financiado" ? "bg-heroViolet" : tono === "leido" ? "bg-heroGreen" : "bg-inkSoft/40";
+  const barra = tono === "financiado" ? "bg-granate" : tono === "leido" ? "bg-moss" : "bg-inkSoft/40";
+  const p = pctProporcion(parte, total);
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[13px] leading-snug text-inkSoft">
-          <span className="font-mono text-sm font-semibold text-ink">{num(parte)}</span> {leyenda}
+          <span className="font-mono text-sm font-semibold tabular-nums text-ink">{num(parte)}</span> {leyenda}
         </span>
-        <span className="shrink-0 font-mono text-[11px] text-mute">{pctTxt(parte, total)}</span>
+        {p && <span className="shrink-0 font-mono text-[12px] tabular-nums text-mute">{p}</span>}
       </div>
       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-paperDeep">
         <div
@@ -151,6 +152,7 @@ export function TarjetaAliado({
   href,
   resumen,
   esMaqueta = false,
+  regionesAlcanzadas,
 }: {
   row: RankingRow;
   /** Contratos financiados por TODO el muro: es el denominador de "de lo financiado". */
@@ -172,17 +174,24 @@ export function TarjetaAliado({
    */
   resumen?: ReactNode;
   esMaqueta?: boolean;
+  /**
+   * Regiones (departamentos) distintas que alcanzó, contadas desde su perfil. El ranking
+   * trae `zonas` = ubigeos distintos, y Huaral y Lima contaban como dos regiones.
+   * Sin perfil (tabla, o el API no respondió) se usa `row.zonas`.
+   */
+  regionesAlcanzadas?: number;
 }) {
   const enRevision = row.enRevision ?? 0;
+  const regiones = regionesAlcanzadas ?? row.zonas;
   const zonas = (
     <Cifras
       className="mt-3"
       items={[
         {
-          n: row.zonas,
+          n: regiones,
           de: regionesConCola,
           texto: "regiones con cola abierta alcanzadas",
-          titulo: "No eligió ninguna: se cuentan las regiones donde cayeron los contratos que pagó.",
+          titulo: "Eligió las zonas, no los contratos: se cuentan las regiones donde cayeron los que pagó.",
         },
         {
           n: enRevision,
@@ -202,125 +211,120 @@ export function TarjetaAliado({
         plano
           ? "py-4 first:pt-0 last:pb-0"
           : esMaqueta
-            ? "rounded-2xl border border-dashed border-amber/60 bg-amber-soft/30 p-5 sm:p-6"
-            : "rounded-2xl border border-line bg-paper p-5 sm:p-6",
+            ? "rounded-2xl border border-dashed border-amber/60 bg-amber-soft/30"
+            : "overflow-hidden rounded-2xl border border-line bg-paper",
       )}
     >
-      <div className="flex items-start gap-4">
-        {href ? (
-          // Duplicado deliberado del link del nombre: el logo es la afordancia que
-          // el ojo busca, pero un segundo tab-stop al mismo destino sólo hace ruido
-          // en teclado y lector de pantalla.
-          <Link href={href} tabIndex={-1} aria-hidden className="shrink-0">
+      {/* La franja textil de 8 px es la firma de marca de una tarjeta de aliado
+          (DESIGN_SYSTEM.md §6). Un aliado de maqueta no la lleva: no es Vigía
+          reconociendo a nadie, es un borrador que tiene que verse como tal. */}
+      {!plano && !esMaqueta && <FranjaTextil alto={8} />}
+      <div className={cn("flex flex-1 flex-col", !plano && "p-5 sm:p-6")}>
+        <div className="flex items-start gap-4">
+          {href ? (
+            // Duplicado deliberado del link del nombre: el logo es la afordancia que
+            // el ojo busca, pero un segundo tab-stop al mismo destino sólo hace ruido
+            // en teclado y lector de pantalla.
+            <Link href={href} tabIndex={-1} aria-hidden className="shrink-0">
+              <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
+            </Link>
+          ) : (
             <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
-          </Link>
-        ) : (
-          <AvatarAliado tipo={row.tipo} logoUrl={row.logoUrl} nombre={row.nombre} size="lg" maqueta={esMaqueta} />
-        )}
-        <div className="min-w-0 flex-1">
-          {/* El sello de maqueta va en la línea del nombre y baja de renglón si no cabe:
-              como columna aparte empujaba la tarjeta a 399 px en un teléfono de 390. */}
-          <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 font-serif text-xl font-bold leading-tight text-ink">
-            {href ? (
-              <Link href={href} className={cn("min-w-0 break-words rounded hover:underline", ANILLO)}>
-                {row.nombre}
-              </Link>
-            ) : (
-              <span className="min-w-0 break-words">{row.nombre}</span>
-            )}
-            {esMaqueta && <SelloMaqueta className="shrink-0 font-sans" />}
-          </h3>
-          <IdentidadAliado datos={datosIdentidad(row)} className="mt-1" />
-          {/* Las insignias también acá, no sólo en la ficha: el muro es donde
-              de verdad mira la gente, y esta página existe para enaltecer a
-              quien financia. Se topan en tres para no tapar las barras, que son
-              las que dicen cuánto pesó cada uno. Todas se derivan de sus propias
-              cifras: ninguna se otorga a dedo. */}
-          <Insignias
-            className="mt-2"
-            limite={3}
-            insignias={insigniasDe({
-              esFundador: esFundador(row),
-              financiados: row.contratosFinanciados,
-              leidos: row.contratosProcesados,
-              regiones: row.zonas,
-              regionesConCola,
-              mesesAportando: mesesDesde(row.desde),
-            })}
+          )}
+          <div className="min-w-0 flex-1">
+            {/* El sello de maqueta va en la línea del nombre y baja de renglón si no cabe:
+                como columna aparte empujaba la tarjeta a 399 px en un teléfono de 390. */}
+            <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 font-display text-xl font-bold leading-tight text-ink">
+              {href ? (
+                <Link href={href} className={cn("min-w-0 break-words rounded hover:underline", ANILLO)}>
+                  {row.nombre}
+                </Link>
+              ) : (
+                <span className="min-w-0 break-words">{row.nombre}</span>
+              )}
+              {esMaqueta && <SelloMaqueta className="shrink-0 font-sans" />}
+            </h3>
+            <IdentidadAliado datos={datosIdentidad(row)} className="mt-1" />
+            {/* Las insignias también acá, no sólo en la ficha: el muro es donde
+                de verdad mira la gente, y esta página existe para enaltecer a
+                quien financia. Se topan en tres para no tapar las barras, que son
+                las que dicen cuánto pesó cada uno. Todas se derivan de sus propias
+                cifras: ninguna se otorga a dedo. */}
+            <Insignias
+              className="mt-2"
+              limite={3}
+              insignias={insigniasDe({
+                esFundador: esFundador(row),
+                financiados: row.contratosFinanciados,
+                leidos: row.contratosProcesados,
+                regiones,
+                regionesConCola,
+                mesesAportando: mesesDesde(row.desde),
+              })}
+            />
+          </div>
+        </div>
+
+        <div className={cn("mt-5 space-y-3 border-t pt-4", esMaqueta ? "border-amber/40" : "border-line")}>
+          <Proporcion
+            parte={row.contratosFinanciados}
+            total={financiadosMuro}
+            leyenda={`de los ${num(financiadosMuro)} contratos financiados en el muro`}
+            tono="financiado"
+          />
+          <Proporcion
+            parte={row.contratosProcesados}
+            total={row.contratosFinanciados}
+            leyenda={`de sus ${num(row.contratosFinanciados)} financiados ya leídos`}
+            tono="leido"
+          />
+          <Proporcion
+            parte={row.senalesHalladas}
+            total={row.contratosProcesados}
+            leyenda={`de sus ${num(row.contratosProcesados)} financiados leídos tienen señales`}
+            tono="neutro"
           />
         </div>
-      </div>
+        {zonas}
 
-      <div className={cn("mt-5 space-y-3 border-t pt-4", esMaqueta ? "border-amber/40" : "border-line")}>
-        <Proporcion
-          parte={row.contratosFinanciados}
-          total={financiadosMuro}
-          leyenda={`de los ${num(financiadosMuro)} contratos financiados en el muro`}
-          tono="financiado"
-        />
-        <Proporcion
-          parte={row.contratosProcesados}
-          total={row.contratosFinanciados}
-          leyenda={`de sus ${num(row.contratosFinanciados)} contratos ya leídos`}
-          tono="leido"
-        />
-        <Proporcion
-          parte={row.senalesHalladas}
-          total={row.contratosProcesados}
-          leyenda="de los leídos traían al menos una señal"
-          tono="neutro"
-        />
+        {(resumen || href) && (
+          <div
+            className={cn(
+              "mt-auto flex flex-wrap items-center gap-2",
+              // En la landing la tarjeta ya vive entre divisores del padre: un borde
+              // propio acá sería una raya de más cada dos filas.
+              !plano && "border-t pt-3",
+              !plano && (esMaqueta ? "border-amber/40" : "border-line"),
+              plano && "mt-3",
+            )}
+          >
+            {resumen && (
+              <Revelar
+                titulo={row.nombre}
+                descripcion={<IdentidadAliado datos={datosIdentidad(row)} />}
+                ancho="lg"
+                etiqueta={`Ver el resumen de ${row.nombre} sin salir del muro`}
+                className={cn(ACCION_TARJETA, "w-auto border border-line bg-paper hover:border-granate/40 hover:bg-granate-50", ANILLO)}
+                pie={
+                  href ? (
+                    <Link href={href} className="inline-flex min-h-[24px] items-center gap-1.5 text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+                      Ver la ficha completa de {row.nombre} <ArrowUpRight size={13} aria-hidden />
+                    </Link>
+                  ) : undefined
+                }
+                detalle={resumen}
+              >
+                <PanelRightOpen size={13} aria-hidden /> Resumen
+              </Revelar>
+            )}
+            {href && (
+              <Link href={href} className={cn(ACCION_TARJETA, "hover:bg-paperDeep", ANILLO)}>
+                Su ficha y sus contratos <ArrowUpRight size={13} aria-hidden />
+              </Link>
+            )}
+          </div>
+        )}
       </div>
-      {zonas}
-
-      {(resumen || href) && (
-        <div
-          className={cn(
-            "mt-auto flex flex-wrap items-center gap-2",
-            // En la landing la tarjeta ya vive entre divisores del padre: un borde
-            // propio acá sería una raya de más cada dos filas.
-            !plano && "border-t pt-3",
-            !plano && (esMaqueta ? "border-amber/40" : "border-line"),
-            plano && "mt-3",
-          )}
-        >
-          {resumen && (
-            <Revelar
-              titulo={row.nombre}
-              descripcion={<IdentidadAliado datos={datosIdentidad(row)} />}
-              ancho="lg"
-              etiqueta={`Ver el resumen de ${row.nombre} sin salir del muro`}
-              className={cn(
-                "w-auto inline-flex items-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-1.5 text-[13px] font-medium text-ink",
-                "transition-colors duration-rapido hover:bg-paperDeep",
-                ANILLO,
-              )}
-              pie={
-                href ? (
-                  <Link href={href} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:underline">
-                    Ver la ficha completa de {row.nombre} <ArrowUpRight size={13} aria-hidden />
-                  </Link>
-                ) : undefined
-              }
-              detalle={resumen}
-            >
-              <PanelRightOpen size={13} aria-hidden /> Resumen
-            </Revelar>
-          )}
-          {href && (
-            <Link
-              href={href}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-medium text-ink",
-                "transition-colors duration-rapido hover:bg-paperDeep",
-                ANILLO,
-              )}
-            >
-              Su ficha y sus contratos <ArrowUpRight size={13} aria-hidden />
-            </Link>
-          )}
-        </div>
-      )}
     </article>
   );
 }
@@ -368,27 +372,27 @@ export function FilaAliado({
                 el punto medio quedaba cortado a la mitad. */}
             <span className="flex min-w-0 items-baseline gap-x-2.5 text-[11px] text-mute">
               <span className="truncate">{esFundador(row) ? "La propia plataforma" : TIPO_LABEL[row.tipo]}</span>
-              {d && <span className="shrink-0 text-mute/80">desde {d}</span>}
+              {d && <span className="shrink-0">desde {d}</span>}
             </span>
           </span>
         </div>
       </th>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm text-ink">{num(row.contratosFinanciados)}</td>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm text-ink">
+      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">{num(row.contratosFinanciados)}</td>
+      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">
         {num(row.contratosProcesados)}
         <span className="text-mute"> / {num(row.contratosFinanciados)}</span>
       </td>
-      <td className="py-2.5 pl-3 text-right font-mono text-sm text-ink">
+      <td className="py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink">
         {num(row.senalesHalladas)}
         <span className="text-mute"> / {num(row.contratosProcesados)}</span>
       </td>
-      <td className="hidden py-2.5 pl-3 text-right font-mono text-sm text-ink sm:table-cell">
+      <td className="hidden py-2.5 pl-3 text-right font-mono text-sm tabular-nums text-ink sm:table-cell">
         {num(row.zonas)}
         <span className="text-mute"> / {num(regionesConCola)}</span>
       </td>
       <td className="py-2.5 pl-3 text-right">
         {href && (
-          <Link href={href} className={cn("inline-flex items-center gap-1 rounded text-[13px] font-medium text-ink hover:underline", ANILLO)}>
+          <Link href={href} className={cn("inline-flex min-h-[24px] min-w-[24px] items-center justify-end gap-1 rounded text-[13px] font-medium text-granate underline-offset-2 hover:underline", ANILLO)}>
             <span className="hidden sm:inline">Ver</span>
             <ArrowUpRight size={13} aria-hidden />
             <span className="sr-only">los contratos de {row.nombre}</span>
@@ -413,7 +417,7 @@ export function AvatarAliado({
   /** Marca el avatar de un aliado inventado: borde punteado, para distinguirlo de un vistazo. */
   maqueta?: boolean;
 }) {
-  const dims = size === "xl" ? "h-20 w-20 rounded-3xl" : size === "lg" ? "h-14 w-14 rounded-2xl" : "h-8 w-8 rounded-lg";
+  const dims = size === "xl" ? "h-20 w-20 rounded-2xl" : size === "lg" ? "h-14 w-14 rounded-xl" : "h-8 w-8 rounded-lg";
   const marco = maqueta ? "border-dashed border-amber/70 bg-amber-soft/50" : "border-line bg-paper";
   if (logoUrl) {
     const px = size === "xl" ? 80 : size === "lg" ? 56 : 32;

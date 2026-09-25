@@ -57,7 +57,7 @@ export function ListaSenales({
                 <Severidad bandera={s.severidad} formato="punto" />
                 <span className="text-[13px] font-medium leading-snug text-ink">{etiqueta}</span>
                 <span className="text-[11px] text-mute">{nombreDeAgente(s.agenteBruto ?? s.agente)}</span>
-                {s.item && <span className="font-mono text-[10px] text-mute">ítem {s.item}</span>}
+                {s.item && <span className="font-mono text-[11px] text-mute">ítem {s.item}</span>}
               </span>
               {/* En el resumen el DNI va enmascarado y no revelable: dentro de un botón, un clic
                   cerca del dato personal sería ambiguo. Se revela en el panel, deliberadamente. */}
@@ -92,7 +92,7 @@ function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; et
       {senal.evidenciaTextual && (
         <section>
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Texto del documento</h3>
-          <blockquote className="mt-1 border-l-2 border-heroViolet/40 pl-3 italic text-inkSoft">
+          <blockquote className="mt-1 border-l-2 border-granate/40 pl-3 italic text-inkSoft">
             {redactDnis(senal.evidenciaTextual)}
           </blockquote>
         </section>
@@ -126,7 +126,7 @@ function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; et
               href={senal.opinion.url}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-heroViolet hover:underline"
+              className="mt-1 inline-flex items-center gap-1 text-granate hover:underline"
             >
               Abrir la opinión <ExternalLink size={12} aria-hidden />
             </a>
@@ -153,7 +153,7 @@ function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; et
                     href={c.documentoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-heroViolet hover:underline"
+                    className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-granate hover:underline"
                   >
                     Abrir el documento <ExternalLink size={11} aria-hidden />
                   </a>
@@ -169,7 +169,7 @@ function DetalleSenal({ senal, etiqueta, descripcion }: { senal: SenalAgente; et
           href={senal.fuenteUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-heroViolet hover:underline"
+          className="inline-flex items-center gap-1 font-medium text-granate hover:underline"
         >
           Ver la fuente oficial <ExternalLink size={12} aria-hidden />
         </a>

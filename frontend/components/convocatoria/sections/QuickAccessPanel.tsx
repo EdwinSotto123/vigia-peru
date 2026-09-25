@@ -19,9 +19,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SEVERIDAD } from "@/lib/severidad";
 import { TOTAL_AGENTES } from "@/components/agentes/catalogo";
-import { contarPorNivel, duracionEnPalabras, NIVEL_ANALISIS, type NivelAnalisis } from "./conteoRiesgo";
+import { numero } from "@/lib/formato";
+import { contarPorNivel, duracionEnPalabras, NIVEL_ANALISIS, NIVELES, TONO_NIVEL } from "./conteoRiesgo";
 
 export function QuickAccessPanel({
   cached,
@@ -69,10 +69,10 @@ export function QuickAccessPanel({
   };
 
   return (
-    <aside className="surface flex flex-col gap-3 p-4">
+    <aside className="rounded-2xl border border-line bg-paperSoft flex flex-col gap-3 p-4">
       {esAdmin ? (
         <div className="space-y-2">
-          <h2 className="font-serif text-base font-bold text-ink">Acción de equipo</h2>
+          <h2 className="font-display text-base font-bold text-ink">Acción de equipo</h2>
           <p className="text-[12px] leading-relaxed text-mute">
             Elige al azar un contrato del SEACE que Vigía todavía no leyó y despacha los agentes.
             La corrida no se acredita a ningún aporte.
@@ -82,24 +82,24 @@ export function QuickAccessPanel({
               type="button"
               onClick={handleShuffleSeace}
               disabled={randomLoading}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-heroViolet px-2 py-2 text-[12px] font-bold text-paper transition-colors hover:bg-heroViolet/90 disabled:opacity-50"
+              className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2 text-[13px] font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50"
             >
               <Shuffle size={12} className={randomLoading ? "animate-spin" : ""} aria-hidden />
               <span>{randomLoading ? "Buscando…" : "Sortear nueva del SEACE"}</span>
             </button>
           )}
           {randomError && (
-            <p role="alert" className="rounded-md bg-crimson-soft px-2 py-1.5 text-[11px] text-crimsonTexto">
+            <p role="alert" className="rounded-xl bg-crimson-soft px-3 py-2 text-[12px] text-crimsonTexto">
               {randomError}
             </p>
           )}
         </div>
       ) : (
         <div className="space-y-2">
-          <h2 className="font-serif text-base font-bold text-ink">Cómo llega un contrato a Vigía</h2>
+          <h2 className="font-display text-base font-bold text-ink">Cómo llega un contrato a Vigía</h2>
           <p className="text-[12px] leading-relaxed text-inkSoft">
             Vigía no analiza contratos a pedido. Los lee en orden de cola, zona por zona, cuando
-            alguien financia la auditoría de esa zona.
+            alguien financia la lectura de esa zona.
           </p>
           <p className="text-[12px] leading-relaxed text-inkSoft">
             {TOTAL_AGENTES} agentes revisan cada expediente
@@ -115,13 +115,13 @@ export function QuickAccessPanel({
           <div className="flex flex-col gap-1.5 pt-1">
             <Link
               href="/app/financiar"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-paper transition-colors hover:bg-ink/90"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2 text-[13px] font-semibold text-paper transition-colors hover:bg-granate-deep"
             >
-              Financiar la auditoría de tu zona <ArrowRight size={13} aria-hidden />
+              Financiar la lectura de tu zona <ArrowRight size={14} aria-hidden />
             </Link>
             <Link
               href="/app/auditoria"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-paperDeep"
             >
               Ver la cola en vivo
             </Link>
@@ -133,9 +133,9 @@ export function QuickAccessPanel({
       <div className="border-t border-line pt-3">
         <h3 className="text-[12px] font-semibold text-ink">Lo publicado hasta hoy</h3>
         {loading ? (
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-md bg-paperDeep" />
+          <div className="mt-2 grid grid-cols-2 gap-1.5" aria-hidden>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-12 rounded-xl bg-paperDeep" />
             ))}
           </div>
         ) : conteo.total === 0 ? (
@@ -143,14 +143,14 @@ export function QuickAccessPanel({
         ) : (
           <>
             <p className="mt-0.5 text-[11px] text-mute">
-              {conteo.total} {conteo.total === 1 ? "análisis publicado" : "análisis publicados"}, por nivel de riesgo según
-              su puntaje:
+              {numero(conteo.total)} {conteo.total === 1 ? "análisis publicado" : "análisis publicados"}: con señales, por el
+              peso de su riesgo; y los que no tienen ninguna.
             </p>
-            <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
-              {(["alta", "media", "baja"] as NivelAnalisis[]).map((k) => (
-                <div key={k} className={cn("flex flex-col rounded-md px-1 py-1.5", SEVERIDAD[k].fondo)} title={NIVEL_ANALISIS[k].rango}>
-                  <dt className={cn("order-2 text-[10px] font-medium", SEVERIDAD[k].texto)}>{NIVEL_ANALISIS[k].etiqueta}</dt>
-                  <dd className={cn("order-1 font-mono text-lg font-bold tabular-nums", SEVERIDAD[k].texto)}>{conteo[k]}</dd>
+            <dl className="mt-2 grid grid-cols-2 gap-1.5 text-center">
+              {NIVELES.map((k) => (
+                <div key={k} className={cn("flex flex-col rounded-xl px-1 py-1.5", TONO_NIVEL[k].fondo)} title={NIVEL_ANALISIS[k].rango}>
+                  <dt className={cn("order-2 text-[11px] font-medium", TONO_NIVEL[k].texto)}>{NIVEL_ANALISIS[k].etiqueta}</dt>
+                  <dd className={cn("order-1 font-mono text-lg font-semibold tabular-nums", TONO_NIVEL[k].texto)}>{numero(conteo[k])}</dd>
                 </div>
               ))}
             </dl>

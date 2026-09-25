@@ -11,13 +11,14 @@
  * component a un client component (Paginacion es "use client"; React no puede serializarla).
  *
  * El vacío dice la verdad sobre su causa: sin filtros puestos no se culpa a los filtros, y
- * una página que no existe (?pagina=99) se nombra como tal, con un enlace a la primera.
+ * una página que no existe (?pagina=99) se nombra como tal, con un enlace a la primera. Va
+ * sin llamita: la página ya la muestra en el tablero de arriba (una por pantalla).
  */
 
 import Link from "next/link";
-import { Inbox } from "lucide-react";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { Tarjeta } from "./TableroAuditoria";
+import { plural } from "@/lib/formato";
+import { AvisoSinLlamita, Tarjeta } from "./TableroAuditoria";
 import type { ProcesamientosPagina } from "@/lib/auditoria";
 
 const TAM = 24;
@@ -66,35 +67,30 @@ export function HistoricoProcesados({ pagina, paginaActual, pathname, ubigeo, de
     <div className="space-y-3">
       {!fueraDeRango && paginador}
       {items.length === 0 ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-          <Inbox size={18} className="mt-0.5 shrink-0" aria-hidden />
-          <div>
-            {pagina == null ? (
-              <>
-                <div className="font-medium text-ink">No pudimos cargar el histórico.</div>
-                <div className="mt-0.5">El servicio no respondió. Vuelve a cargar la página en un momento.</div>
-              </>
-            ) : fueraDeRango ? (
-              <>
-                <div className="font-medium text-ink">La página {paginaActual} no existe.</div>
-                <div className="mt-0.5">
-                  El histórico tiene {paginas} {paginas === 1 ? "página" : "páginas"}.{" "}
-                  <Link href={href(1)} className="font-medium text-ink underline underline-offset-2">Ir a la primera</Link>.
-                </div>
-              </>
-            ) : hayFiltros ? (
-              <>
-                <div className="font-medium text-ink">Nada coincide con estos filtros.</div>
-                <div className="mt-0.5">Los filtros puestos están arriba, cada uno con su propia X: quita uno y vuelve a mirar.</div>
-              </>
-            ) : (
-              <>
-                <div className="font-medium text-ink">Todavía no se leyó ningún contrato.</div>
-                <div className="mt-0.5">Cuando termine el primer análisis, aparece acá con lo que encontró y quién lo pagó.</div>
-              </>
-            )}
-          </div>
-        </div>
+        pagina == null ? (
+          <AvisoSinLlamita tono="error" titulo="No pudimos cargar el histórico">
+            El servicio no respondió. Vuelve a cargar la página en un momento.
+          </AvisoSinLlamita>
+        ) : fueraDeRango ? (
+          <AvisoSinLlamita
+            titulo={`La página ${paginaActual} no existe`}
+            accion={
+              <Link href={href(1)} className="text-[13px] font-semibold text-granate underline-offset-2 hover:underline">
+                Ir a la primera
+              </Link>
+            }
+          >
+            El histórico tiene {plural(paginas, "página", "páginas")}.
+          </AvisoSinLlamita>
+        ) : hayFiltros ? (
+          <AvisoSinLlamita titulo="Nada coincide con estos filtros">
+            Los filtros puestos están arriba, cada uno con su propia X: quita uno y vuelve a mirar.
+          </AvisoSinLlamita>
+        ) : (
+          <AvisoSinLlamita titulo="Todavía no se leyó ningún contrato financiado">
+            Cuando termine el primer análisis, aparece acá con lo que encontró y quién lo pagó.
+          </AvisoSinLlamita>
+        )
       ) : (
         // `grid-cols-1` explícito: la pista implícita `auto` se dimensiona al max-content, y
         // las tarjetas llevan `truncate` (= white-space: nowrap), cuyo min-content es el texto

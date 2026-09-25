@@ -46,7 +46,7 @@ export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
     });
 
   return (
-    <div className="surface divide-y divide-line p-0">
+    <div className="divide-y divide-line rounded-2xl border border-line bg-paper">
       {items.map((item) => {
         const abierta = abiertas.has(item.slug);
         const panelId = `respuesta-${item.slug}`;
@@ -58,9 +58,9 @@ export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
                 onClick={() => alternar(item.slug)}
                 aria-expanded={abierta}
                 aria-controls={panelId}
-                className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors duration-rapido hover:bg-paperSoft"
+                className="flex min-h-[56px] w-full items-center justify-between gap-4 px-4 py-4 text-left transition-colors duration-rapido hover:bg-paperSoft sm:px-6 sm:py-5"
               >
-                <span className="font-serif text-lg font-semibold text-ink">{item.q}</span>
+                <span className="font-display text-[17px] font-semibold text-ink text-balance">{item.q}</span>
                 <ChevronDown
                   size={20}
                   aria-hidden
@@ -68,7 +68,7 @@ export function Acordeon({ items }: { items: PreguntaFAQ[] }) {
                 />
               </button>
             </h2>
-            <div id={panelId} hidden={!abierta} className="px-6 pb-5 text-[15px] leading-relaxed text-inkSoft">
+            <div id={panelId} hidden={!abierta} className="max-w-[68ch] px-4 pb-5 text-[15px] leading-relaxed text-inkSoft text-pretty sm:px-6">
               {item.a}
             </div>
           </div>

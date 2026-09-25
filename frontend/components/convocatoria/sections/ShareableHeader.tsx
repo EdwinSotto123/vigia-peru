@@ -6,17 +6,24 @@ import { cn } from "@/lib/utils";
 import { oeceProcesoUrl } from "../utils";
 import { NivelTituloDossier } from "./nivelTitulo";
 
+/**
+ * Cabecera del dossier: QUÉ se contrató (el título, único h1 de la página), su código y las
+ * acciones (otro contrato, ver en el OECE, compartir). Quién compra, quién ganó, cuánto y
+ * cuándo van justo debajo, en la ficha (./FichaContrato).
+ *
+ * El texto que se comparte no lleva conteos de severidad: el enlace es el informe, y el
+ * informe los dice con su evidencia.
+ */
 export function ShareableHeader({
   conv,
   codigo,
-  nAlta,
   onReset,
   compartible = true,
 }: {
   conv: any;
   codigo: string;
-  nAlta: number;
   /** Ya no se muestran: se aceptan para no romper a quien todavía los pase. */
+  nAlta?: number;
   totalSec?: number;
   eventsADK?: number;
   /** Sin él no se muestra "Otro contrato" (la vista previa del panel admin no navega a otro). */
@@ -34,7 +41,7 @@ export function ShareableHeader({
       if (navigator.share) {
         await navigator.share({
           title: `Vigía Perú: ${conv.objeto?.slice(0, 80) || "análisis de un contrato"}`,
-          text: `Análisis automático de la convocatoria ${codigo}: ${nAlta} ${nAlta === 1 ? "señal" : "señales"} de severidad alta. Revísalo tú mismo:`,
+          text: `Análisis del contrato ${codigo}, con cada señal, su norma y su evidencia. Revísalo tú:`,
           url,
         });
       } else {
@@ -48,36 +55,24 @@ export function ShareableHeader({
   };
 
   const oeceUrl = oeceProcesoUrl(conv.ocid || codigo);
-  const buenaPro = conv.fecha_buena_pro ?? null;
+  const accion =
+    "inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep";
 
   return (
-    <header className="surface px-4 py-3">
-      {/* Fila superior: código y fecha a la izquierda (se apilan si falta ancho), acciones a la derecha. */}
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        {/* min-w: sin piso, esta columna se encogía a cero en móvil y el código
-            y la fecha quedaban debajo de los botones en vez de envolver. */}
-        <div className="min-w-[9.5rem] flex-1">
-          <div className="font-mono text-[12px] font-bold text-mute">#{codigo}</div>
-          {buenaPro && <div className="whitespace-nowrap text-[12px] text-mute">Buena pro: {buenaPro}</div>}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1">
+    <header>
+      {/* Fila superior: código a la izquierda (envuelve si falta ancho), acciones a la derecha. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="min-w-0 text-[13px] text-mute">
+          Convocatoria <span className="font-mono font-semibold text-inkSoft">{codigo}</span>
+        </p>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           {onReset && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
-            >
-              <ArrowLeft size={11} aria-hidden /> Otro contrato
+            <button type="button" onClick={onReset} className={accion}>
+              <ArrowLeft size={13} aria-hidden /> Otro contrato
             </button>
           )}
-          <a
-            href={oeceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold text-ink hover:bg-paperDeep"
-            title="Ver este proceso en el portal oficial del OECE"
-          >
-            <ExternalLink size={11} aria-hidden /> OECE
+          <a href={oeceUrl} target="_blank" rel="noreferrer" className={accion}>
+            <ExternalLink size={13} aria-hidden /> Ver en el OECE
           </a>
           {compartible && (
             <button
@@ -85,18 +80,17 @@ export function ShareableHeader({
               onClick={handleShare}
               aria-live="polite"
               className={cn(
-                "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-paper transition-colors",
-                copied ? "bg-mossTexto" : "bg-heroViolet hover:bg-heroViolet/90",
+                "inline-flex min-h-[32px] items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-paper transition-colors",
+                copied ? "bg-mossTexto" : "bg-granate hover:bg-granate-deep",
               )}
-              title={copied ? "Enlace copiado" : "Copiar el enlace para compartir"}
             >
               {copied ? (
                 <>
-                  <CheckCircle2 size={11} aria-hidden /> Copiado
+                  <CheckCircle2 size={13} aria-hidden /> Enlace copiado
                 </>
               ) : (
                 <>
-                  <Share2 size={11} aria-hidden /> Compartir
+                  <Share2 size={13} aria-hidden /> Compartir
                 </>
               )}
             </button>
@@ -104,7 +98,9 @@ export function ShareableHeader({
         </div>
       </div>
 
-      <Titulo className="mt-2 break-words font-serif text-lg font-bold leading-snug text-ink sm:text-xl">{objetoCompleto(conv.objeto)}</Titulo>
+      <Titulo className="mt-2 max-w-4xl break-words font-display text-[24px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[30px]">
+        {objetoCompleto(conv.objeto) || "Contrato sin objeto registrado"}
+      </Titulo>
     </header>
   );
 }

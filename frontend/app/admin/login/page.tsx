@@ -14,7 +14,7 @@ import {
   type User,
 } from "firebase/auth";
 import { ArrowLeft, Loader2, Mail, MailCheck, ShieldCheck } from "lucide-react";
-import { Marca } from "@/components/Marca";
+import { Marca } from "@/components/marca";
 import { auth } from "@/lib/firebase";
 import { destinoSeguro } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -211,7 +211,7 @@ function LoginForm() {
 
       {paso.tipo === "formulario" && (
         <>
-          <h1 className="mt-6 font-serif text-2xl font-bold text-ink">{modo === "entrar" ? "Acceso al panel" : "Crear cuenta"}</h1>
+          <h1 className="mt-6 font-display text-2xl font-bold text-ink">{modo === "entrar" ? "Acceso al panel" : "Crear cuenta"}</h1>
           <p className="mt-1 text-sm text-mute">Aportes, revisión humana y monitoreo del sistema.</p>
 
           <button
@@ -300,8 +300,8 @@ function LoginForm() {
 
       {paso.tipo === "verificar" && (
         <div className="mt-6">
-          <MailCheck size={28} className="text-heroGreenTexto" aria-hidden />
-          <h1 className="mt-3 font-serif text-2xl font-bold text-ink">Verifica tu correo</h1>
+          <MailCheck size={28} className="text-granate" aria-hidden />
+          <h1 className="mt-3 font-display text-2xl font-bold text-ink">Verifica tu correo</h1>
           <p className="mt-2 text-sm leading-relaxed text-inkSoft">
             Te enviamos un enlace a <strong className="font-semibold text-ink">{paso.correo}</strong>. Ábrelo y vuelve acá para entrar.
           </p>
@@ -333,7 +333,7 @@ function LoginForm() {
 
       {paso.tipo === "recuperar" && (
         <form onSubmit={recuperar} className="mt-6 space-y-3">
-          <h1 className="font-serif text-2xl font-bold text-ink">Recuperar contraseña</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">Recuperar contraseña</h1>
           <p className="text-sm text-mute">Te enviamos un enlace para crear una nueva.</p>
           <Campo etiqueta="Correo" tipo="email" valor={correo} onCambio={setCorreo} autocompletar="email" />
           {error && (
@@ -357,8 +357,8 @@ function LoginForm() {
 
       {paso.tipo === "recuperacion_enviada" && (
         <div className="mt-6">
-          <Mail size={28} className="text-heroGreenTexto" aria-hidden />
-          <h1 className="mt-3 font-serif text-2xl font-bold text-ink">Revisa tu correo</h1>
+          <Mail size={28} className="text-granate" aria-hidden />
+          <h1 className="mt-3 font-display text-2xl font-bold text-ink">Revisa tu correo</h1>
           <p className="mt-2 text-sm leading-relaxed text-inkSoft">
             Si <strong className="font-semibold text-ink">{paso.correo}</strong> tiene cuenta, te llegó un enlace para crear una contraseña nueva.
           </p>
@@ -395,7 +395,7 @@ function Campo({
         value={valor}
         onChange={(e) => onCambio(e.target.value)}
         autoComplete={autocompletar}
-        className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink outline-none transition-shadow duration-rapido focus:border-heroViolet/50 focus:ring-2 focus:ring-heroViolet/20"
+        className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink outline-none transition-shadow duration-rapido focus:border-granate/50 focus:ring-2 focus:ring-granate/20"
       />
       {ayuda && <span className="mt-1 block text-[12px] text-mute">{ayuda}</span>}
     </label>

@@ -60,11 +60,11 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
   const pasosVisibles = visibles.reduce((n, g) => n + g.events.length, 0);
 
   return (
-    <section className="surface overflow-hidden p-0">
+    <section className="rounded-2xl border border-line bg-paperSoft overflow-hidden p-0">
       <header className="border-b border-line bg-paperDeep px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="font-serif text-xl font-bold leading-tight text-ink">Qué hizo cada agente</h2>
+            <h2 className="font-display text-xl font-bold leading-tight text-ink">Qué hizo cada agente</h2>
             <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
               La traza técnica completa, en el orden real en que ocurrió:{" "}
               <strong className="font-semibold text-ink">{trace.length} pasos</strong> de{" "}
@@ -72,7 +72,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
               herramientas
               {nErr > 0 && (
                 <>
-                  {" "}y <span className="font-semibold text-rust">{nErr}</span>{" "}
+                  {" "}y <span className="font-semibold text-crimsonTexto">{nErr}</span>{" "}
                   {nErr === 1 ? "error" : "errores"}
                 </>
               )}
@@ -82,7 +82,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
           <button
             type="button"
             onClick={() => setTodoAbierto((o) => !o)}
-            className="shrink-0 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium text-mute transition-colors duration-rapido hover:border-heroViolet/40 hover:text-heroViolet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+            className="shrink-0 rounded-full border border-line bg-paper px-3 py-1 text-[11px] font-medium text-mute transition-colors duration-rapido hover:border-granate/40 hover:text-granate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
           >
             {todoAbierto ? "Colapsar todo" : "Expandir todo"}
           </button>
@@ -101,8 +101,8 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
                 aria-pressed={on}
                 className={cn(
                   "flex w-full items-baseline gap-2 px-4 py-1.5 text-left transition-colors duration-rapido sm:px-5",
-                  "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
-                  on && "bg-heroViolet-soft hover:bg-heroViolet-soft",
+                  "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
+                  on && "bg-granate-soft hover:bg-granate-soft",
                 )}
               >
                 <span className={cn("w-[7.5rem] shrink-0 truncate text-[12.5px] text-ink sm:w-44", on && "font-semibold")}>
@@ -118,7 +118,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
                   {a.tramos > 1 && <span>retomó {a.tramos} veces</span>}
                 </span>
                 {a.errores > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-rust">
+                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-crimsonTexto">
                     <AlertCircle size={11} aria-hidden /> {a.errores}
                   </span>
                 )}
@@ -143,7 +143,7 @@ export function AgentTraceSection({ trace }: { trace: AgentTraceEvent[] }) {
           <button
             type="button"
             onClick={() => setAgente(null)}
-            className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+            className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
           >
             <FilterX size={11} aria-hidden /> Ver la traza completa
           </button>

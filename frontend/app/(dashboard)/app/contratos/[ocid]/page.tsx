@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ContratoDetalle } from "@/components/contratos/ContratoDetalle";
 import { getResumenVivo, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
+import { soles } from "@/lib/formato";
 
 export const revalidate = 60;
 
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: { params: { ocid: string } })
   const desc = [
     c.entidad,
     c.zona,
-    c.montoPen ? `S/ ${Math.round(c.montoPen).toLocaleString("es-PE")}` : null,
+    c.montoPen ? `valor referencial ${soles(c.montoPen)}` : null,
     `código SEACE ${c.codigo}`,
   ].filter(Boolean).join(", ");
   return {
@@ -48,7 +49,7 @@ export default async function ContratoPage({ params }: { params: { ocid: string 
   if (redirigirA) redirect(`/app/contratos/${encodeURIComponent(redirigirA)}`);
   if (!c) notFound();
   return (
-    <div className="px-6 py-8 lg:px-10">
+    <div className="px-4 py-8 sm:px-6 lg:px-10">
       <ContratoDetalle c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} />
     </div>
   );

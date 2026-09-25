@@ -89,10 +89,10 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
   }
 
   return (
-    <section className="mb-5 rounded-2xl border border-heroViolet/30 bg-paper p-5">
+    <section className="mb-5 rounded-2xl border border-granate/30 bg-paper p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-serif text-lg font-bold text-ink">Procesar a nombre de Vigía Perú</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Procesar a nombre de Vigía Perú</h2>
           <p className="mt-0.5 text-[13px] text-inkSoft">Se leen los contratos más antiguos de la región que elijas. Nadie elige cuáles.</p>
         </div>
         <button onClick={onCerrar} aria-label="Cerrar" className={claseBoton("fantasma", "xs", "p-1")}>

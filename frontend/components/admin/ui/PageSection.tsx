@@ -40,7 +40,7 @@ export function PageSection({
 
   const cabecera = (
     <>
-      <span className="font-serif text-lg font-bold text-ink">{titulo}</span>
+      <span className="font-display text-lg font-bold text-ink">{titulo}</span>
       {meta != null && <span className="text-[12px] font-medium text-inkSoft">{meta}</span>}
       {plegable && <ChevronDown size={16} className={cn("shrink-0 self-center text-inkSoft transition-transform duration-rapido", abierto && "rotate-180")} aria-hidden />}
     </>

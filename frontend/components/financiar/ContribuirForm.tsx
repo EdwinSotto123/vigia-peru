@@ -18,20 +18,31 @@
  * redirige a un visitante normal): el MISMO paso de cantidad, pero en vez de "¿quién financia? /
  * ¿cómo pagas?" hay un solo botón, "Procesar N contratos a nombre de Vigía Perú", que llama a
  * POST /admin/procesar-lote (sin pasarela, resultado inmediato) en vez de POST /contribuciones.
+ *
+ * Presentación (DESIGN_SYSTEM.md §14, conversión): la pregunta de la pantalla es UNA —¿cuántos
+ * contratos?—, y va de título; quién financia y cómo paga son pasos del mismo trámite. Los
+ * momentos finales (aporte recibido, lote procesado, zona sin cupo) usan `TarjetaConfirmacion`:
+ * franja textil arriba y la llamita, una sola por pantalla.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, EyeOff, Loader2, ShieldAlert, ShieldCheck, User, UserPlus, Users, Zap } from "lucide-react";
-import { MIN_CONTRATOS, formatPEN } from "@/lib/financiamiento";
+import { MIN_CONTRATOS } from "@/lib/financiamiento";
+import { numero, soles } from "@/lib/formato";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { borrarBorrador, guardarBorrador, idToken, leerBorrador, useCuenta } from "@/lib/cuentas";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useEsAdmin } from "@/lib/useEsAdmin";
 import { procesarLote, type LoteProcesado } from "@/lib/admin";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { cn } from "@/lib/utils";
 import { BrandBadge, PaymentMethods, type PagoPublico } from "./PaymentMethods";
 import { PagosCerrados } from "./PagosCerrados";
 import { SubirComprobante } from "./SubirComprobante";
+import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { TarjetaConfirmacion } from "./TarjetaConfirmacion";
 
 type Tipo = "empresa" | "organizacion" | "persona" | "anonimo";
 type Metodo = "yape" | "plin" | "transferencia";
@@ -64,6 +75,13 @@ const PRESETS = [10, 20, 50, 100];
 /** Mismo tope que valida POST /admin/procesar-lote. */
 const MAX_LOTE_ADMIN = 500;
 
+/** Tarjeta del formulario en reposo: borde, sin sombra (DESIGN_SYSTEM.md §5). */
+const TARJETA = "rounded-2xl border border-line bg-paper p-5 sm:p-6";
+/** Campo de texto del sistema: radio de input, foco granate del CSS global. */
+const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-mute";
+/** Etiqueta de un grupo de campos: 1–3 palabras, así que va en versalitas (§4). */
+const ETIQUETA_GRUPO = "text-[11px] font-semibold uppercase tracking-wide text-mute";
+
 /** Códigos de error del API → castellano. Nunca se muestra un "invalid_body" crudo. */
 const ERRORES_API: Record<string, string> = {
   ruc_required: "Empresas y organizaciones deben indicar su RUC.",
@@ -94,7 +112,7 @@ function mensajeDeError(j: { error?: string; issues?: { path?: (string | number)
 function errorCantidad(n: number, restantes: number, zona: string): string | null {
   if (!Number.isFinite(n)) return "Escribe cuántos contratos quieres financiar.";
   if (n < MIN_CONTRATOS) return `El mínimo son ${MIN_CONTRATOS} contratos por aporte.`;
-  if (n > restantes) return `En ${zona} quedan ${restantes.toLocaleString("es-PE")} contratos sin financiar: no se puede pedir más.`;
+  if (n > restantes) return `En ${zona} quedan ${numero(restantes)} contratos sin financiar: no se puede pedir más.`;
   return null;
 }
 
@@ -234,64 +252,71 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
   if (esAdmin) {
     if (procesado) {
       return (
-        <div className="rounded-2xl border border-amber/40 bg-paper p-5 sm:p-6" aria-live="polite">
-          <div className="flex items-center gap-2 text-moss"><CheckCircle2 size={18} aria-hidden /><span className="text-sm font-semibold">Procesado a nombre de Vigía Perú</span></div>
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3">
-            <h3 className="font-mono text-2xl font-bold text-ink">{procesado.codigo}</h3>
-            <span className="text-sm text-mute">{procesado.asignados} de {procesado.solicitados} contratos asignados en {zonaNombre}</span>
-          </div>
-          <ul className="mt-4 list-inside list-disc space-y-1.5 text-[13px] text-ink">
-            <li>{procesado.listosParaProcesar} ya tenían documentos {procesado.dispatcherDisparado ? "y el dispatcher se disparó ahora mismo" : "(el dispatcher los toma en su próximo ciclo, ≤ 5 min)"}.</li>
-            <li>{procesado.pedidosAbiertos} esperan sus documentos: se procesan cuando el lote nocturno los baje.</li>
+        <TarjetaConfirmacion
+          titulo="Lote procesado a nombre de Vigía Perú"
+          acciones={
+            // El admin sigue su lote en el panel, no en la vista pública: antes los dos
+            // botones llevaban a /impacto y /app/auditoria y el lote no se veía en el admin.
+            <>
+              <EnlaceAccion href={`/admin/procesamientos?lote=${encodeURIComponent(procesado.codigo)}`}>
+                Seguir el lote en el panel <ArrowRight size={14} aria-hidden />
+              </EnlaceAccion>
+              <EnlaceAccion variante="secundario" href={`/impacto/${procesado.codigo}`}>
+                Ver el comprobante público
+              </EnlaceAccion>
+            </>
+          }
+          pie={
+            <button type="button" onClick={() => setProcesado(null)} className="min-h-[24px] underline underline-offset-2 hover:text-ink">
+              Procesar otro lote en {zonaNombre}
+            </button>
+          }
+        >
+          <p>
+            <span className="font-mono font-semibold text-ink">{procesado.codigo}</span>:{" "}
+            <strong className="font-mono tabular-nums text-ink">{numero(procesado.asignados)}</strong> de{" "}
+            {numero(procesado.solicitados)} contratos asignados en {zonaNombre}.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-[13px]">
+            <li>
+              {numero(procesado.listosParaProcesar)} ya tenían documentos{" "}
+              {procesado.dispatcherDisparado ? "y su lectura empezó ahora mismo." : "y se leen en el próximo ciclo (hasta 5 min)."}
+            </li>
+            <li>{numero(procesado.pedidosAbiertos)} esperan sus documentos: se leen cuando el lote nocturno los descargue.</li>
           </ul>
-          {/* El admin sigue su lote en el panel, no en la vista pública: antes los
-              dos botones llevaban a /impacto y /app/auditoria y el lote no se
-              veía en ningún lado del admin. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Link href={`/admin/procesamientos?lote=${encodeURIComponent(procesado.codigo)}`} className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper">
-              Seguir el lote en el panel <ArrowRight size={14} aria-hidden />
-            </Link>
-            <Link href={`/impacto/${procesado.codigo}`} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-paperDeep">
-              Ver comprobante público
-            </Link>
-          </div>
-          <button type="button" onClick={() => setProcesado(null)} className="mt-4 text-[11px] text-mute underline hover:text-ink">
-            Procesar otro lote en {zonaNombre}
-          </button>
-        </div>
+        </TarjetaConfirmacion>
       );
     }
     return (
-      <div className="rounded-2xl border border-amber/40 bg-paper p-5 sm:p-6">
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-clayTexto">
-          <ShieldAlert size={11} aria-hidden /> Modo administrador: a nombre de Vigía Perú, sin pasarela
-        </div>
-        <h3 className="font-serif text-xl font-bold text-ink">Procesar auditoría en {zonaNombre}</h3>
-        <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato (referencial). Quedan {restantes.toLocaleString("es-PE")} sin financiar.</p>
+      <div className={TARJETA}>
+        <Badge variant="amber">
+          <ShieldAlert size={12} aria-hidden /> Modo administrador: a nombre de Vigía Perú, sin pasarela
+        </Badge>
+        <h2 className="mt-4 font-display text-xl font-bold leading-snug text-ink text-balance">
+          ¿Cuántos contratos de {zonaNombre} quieres procesar?
+        </h2>
+        <p className="mt-1 text-sm text-inkSoft">
+          {soles(precioPen)} por contrato (referencial). Quedan {numero(restantes)} sin financiar.
+        </p>
         {restantes >= MIN_CONTRATOS ? (
           <>
             {picker}
-            {errorAdmin && <p className="mt-4 text-sm text-rust" role="alert">{errorAdmin}</p>}
-            <button
-              type="button"
-              onClick={procesarAhora}
-              disabled={loadingAdmin || !!errCantidad}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-clay px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60"
-            >
+            {errorAdmin && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{errorAdmin}</p>}
+            <Button type="button" full onClick={procesarAhora} disabled={loadingAdmin || !!errCantidad} className="mt-5 py-3">
               {loadingAdmin ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Zap size={14} aria-hidden />}
-              {errCantidad ? "Procesar a nombre de Vigía Perú" : `Procesar ${contratos} contratos a nombre de Vigía Perú`}
-            </button>
+              {errCantidad ? "Procesar a nombre de Vigía Perú" : `Procesar ${numero(contratos)} contratos a nombre de Vigía Perú`}
+            </Button>
           </>
         ) : (
           <p className="mt-4 rounded-xl bg-paperDeep px-3 py-2 text-[13px] text-inkSoft">
             {restantes === 0
               ? "No quedan contratos sin financiar en esta zona."
-              : `Quedan ${restantes}, menos que el mínimo de ${MIN_CONTRATOS} por lote.`}
-            {padre && <> Procesa <Link href={`/app/financiar/${padre.ubigeo}`} className="font-semibold underline">{padre.nombre}</Link> en su lugar.</>}
+              : `Quedan ${numero(restantes)}, menos que el mínimo de ${MIN_CONTRATOS} por lote.`}
+            {padre && <> Procesa <Link href={`/app/financiar/${padre.ubigeo}`} className="font-semibold text-granate underline underline-offset-2">{padre.nombre}</Link> en su lugar.</>}
           </p>
         )}
-        <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-inkSoft">
-          Se asignan por antigüedad: nadie elige contratos, ni el admin. Con documentos ya listos, se procesan ahora; sin ellos, cuando el lote nocturno los baje.
+        <p className="mt-3 text-[12px] leading-relaxed text-mute">
+          Se asignan por antigüedad: nadie elige contratos, ni el admin. Con documentos ya listos se leen ahora; sin ellos, cuando el lote nocturno los descargue.
         </p>
       </div>
     );
@@ -311,61 +336,79 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
     );
   }
 
+  // Crear cuenta para seguir el aporte: sólo sin sesión y sólo cuando el aporte ya existe.
+  const invitarCuenta = creada && !conCuenta && !authLoading && (
+    <div className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] leading-relaxed text-inkSoft">
+      <UserPlus size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
+      <span>
+        <strong className="text-ink">Crea una cuenta para seguir tu aporte</strong>: verás su progreso, las señales halladas y tus zonas en un solo lugar. Guarda tu código <span className="font-mono">{creada.codigo}</span>: con él siempre puedes ver el comprobante.{" "}
+        <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
+      </span>
+    </div>
+  );
+  const otroAporte = (
+    <button type="button" onClick={() => { borrarBorrador(ubigeo); setCreada(null); setSubido(false); }} className="min-h-[24px] underline underline-offset-2 hover:text-ink">
+      Hacer otro aporte en {zonaNombre}
+    </button>
+  );
+
+  // Comprobante enviado: el trámite terminó de este lado. Es el momento de la llamita.
+  if (creada && subido) {
+    return (
+      <TarjetaConfirmacion
+        titulo="Comprobante recibido. ¡Gracias!"
+        acciones={
+          <EnlaceAccion href={`/impacto/${creada.codigo}`}>
+            Ver mi comprobante de impacto <ArrowRight size={14} aria-hidden />
+          </EnlaceAccion>
+        }
+        pie={<>{invitarCuenta}{error && <p className="mt-3 text-sm text-crimsonTexto" role="alert">{error}</p>}<div className="mt-3">{otroAporte}</div></>}
+      >
+        <p>
+          Tu aporte <span className="font-mono font-semibold text-ink">{creada.codigo}</span> financia la lectura de{" "}
+          {numero(creada.contratos)} contratos de {zonaNombre}. Esto sigue:
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px]">
+          <li>Validamos el pago en menos de 48 h; el estado cambia en tu comprobante público{conCuenta ? " y en Mi impacto" : ""}.</li>
+          <li>Al confirmarse, se asignan {numero(creada.contratos)} contratos de {zonaNombre} por antigüedad.</li>
+          <li>Tu comprobante se va llenando con cada contrato leído, salga con señales o sin ellas.</li>
+        </ol>
+      </TarjetaConfirmacion>
+    );
+  }
+
   if (creada) {
     return (
-      <div className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6" aria-live="polite">
-        <Stepper step={subido ? 4 : 3} />
-        <div className="mt-5 flex items-center gap-2 text-moss"><CheckCircle2 size={18} aria-hidden /><span className="text-sm font-semibold">Aporte registrado</span></div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3">
-          <h3 className="font-mono text-2xl font-bold text-ink">{creada.codigo}</h3>
-          <span className="text-sm text-mute">{creada.contratos} contratos en {zonaNombre}</span>
-        </div>
+      <div className={TARJETA}>
+        <Stepper step={3} />
+        <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-mossTexto">
+          <CheckCircle2 size={16} aria-hidden /> Aporte registrado
+        </p>
+        <h2 className="mt-1 font-display text-xl font-bold leading-snug text-ink text-balance">
+          Paga {soles(creada.montoPen)} para financiar {numero(creada.contratos)} contratos de {zonaNombre}
+        </h2>
+        <p className="mt-1 text-sm text-inkSoft">
+          Tu código es <span className="font-mono font-semibold text-ink">{creada.codigo}</span>: ponlo como concepto del pago.
+        </p>
 
-        {!subido ? (
-          <>
-            <div className="mt-5">
-              <div className="text-[11px] uppercase tracking-wide text-mute">Paso 3: paga {formatPEN(creada.montoPen)}</div>
-              <div className="mt-2">
-                <PaymentMethods pago={creada.pago} monto={formatPEN(creada.montoPen)} concepto={creada.codigo} metodoPreferido={creada.pago.metodo} grande />
-              </div>
-              <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-inkSoft">
-                <strong className="text-ink">¿Qué pasa después?</strong> Validamos el pago (≤ 48 h), se asignan {creada.contratos} contratos de {zonaNombre} por antigüedad y cada uno se analiza; su resultado aparece en tu comprobante público.
-              </p>
-            </div>
-            <div className="mt-5">
-              <SubirComprobante codigo={creada.codigo} email={email.trim() || null} onSubido={() => { setSubido(true); borrarBorrador(ubigeo); }} />
-              <p className="mt-2 text-[12px] text-inkSoft">
-                Si lo envías después: desde <Link href="/app/mi-impacto" className="underline">Mi impacto</Link> con una cuenta, o volviendo a esta página en este mismo navegador.
-              </p>
-            </div>
-            <Link href={`/impacto/${creada.codigo}`} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-ink hover:underline">
-              Ver mi comprobante de impacto <ArrowRight size={14} aria-hidden />
-            </Link>
-          </>
-        ) : (
-          <div className="mt-5 rounded-xl border border-moss/30 bg-moss/5 p-4 text-sm text-ink">
-            <div className="font-semibold">Comprobante recibido. ¡Gracias!</div>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] text-inkSoft">
-              <li>Validamos el pago en menos de 48 h; el estado cambia en tu comprobante público{conCuenta ? " y en Mi impacto" : ""}.</li>
-              <li>Al confirmarse, se asignan {creada.contratos} contratos de {zonaNombre} por antigüedad.</li>
-              <li>Tu comprobante de impacto se va llenando con cada contrato procesado.</li>
-            </ol>
-            <Link href={`/impacto/${creada.codigo}`} className="mt-3 inline-flex items-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper">Ver mi comprobante de impacto <ArrowRight size={12} aria-hidden /></Link>
-          </div>
-        )}
-        {!conCuenta && !authLoading && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] text-inkSoft">
-            <UserPlus size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
-            <span>
-              <strong className="text-ink">Crea una cuenta para seguir tu aporte</strong>: verás su progreso, las señales halladas y tus zonas en un solo lugar. Guarda tu código <span className="font-mono">{creada.codigo}</span>: con él siempre puedes ver el comprobante.{" "}
-              <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="underline transition-colors hover:text-ink">Crear cuenta</Link>
-            </span>
-          </div>
-        )}
-        {error && <p className="mt-3 text-sm text-rust" role="alert">{error}</p>}
-        <button type="button" onClick={() => { borrarBorrador(ubigeo); setCreada(null); setSubido(false); }} className="mt-4 text-[11px] text-mute underline hover:text-ink">
-          Hacer otro aporte en {zonaNombre}
-        </button>
+        <div className="mt-5">
+          <PaymentMethods pago={creada.pago} monto={soles(creada.montoPen)} concepto={creada.codigo} metodoPreferido={creada.pago.metodo} grande />
+          <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-inkSoft">
+            <strong className="text-ink">¿Qué pasa después?</strong> Validamos el pago (en menos de 48 h), se asignan {numero(creada.contratos)} contratos de {zonaNombre} por antigüedad y cada uno se lee; su resultado aparece en tu comprobante público.
+          </p>
+        </div>
+        <div className="mt-5">
+          <SubirComprobante codigo={creada.codigo} email={email.trim() || null} onSubido={() => { setSubido(true); borrarBorrador(ubigeo); }} />
+          <p className="mt-2 text-[12px] leading-relaxed text-inkSoft">
+            Si lo envías después: desde <Link href="/app/mi-impacto" className="text-granate underline underline-offset-2">Mi impacto</Link> con una cuenta, o volviendo a esta página en este mismo navegador.
+          </p>
+        </div>
+        <Link href={`/impacto/${creada.codigo}`} className="mt-4 inline-flex min-h-[24px] items-center gap-1 text-sm font-semibold text-granate hover:underline">
+          Ver mi comprobante de impacto <ArrowRight size={14} aria-hidden />
+        </Link>
+        {invitarCuenta}
+        {error && <p className="mt-3 text-sm text-crimsonTexto" role="alert">{error}</p>}
+        <div className="mt-4 text-[12px] text-mute">{otroAporte}</div>
       </div>
     );
   }
@@ -373,129 +416,146 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
   // Zona cubierta, o con menos contratos que el mínimo: se dice, no se ofrece un paquete que no cabe.
   if (restantes < MIN_CONTRATOS) {
     return (
-      <div className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6">
-        <h3 className="font-serif text-xl font-bold text-ink">
-          {restantes === 0 ? `${zonaNombre} ya está financiada` : `Quedan ${restantes} contratos sin financiar en ${zonaNombre}`}
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-inkSoft">
-          {restantes === 0
-            ? "Todos los contratos de su cola ya tienen quien pague su lectura. Puedes seguir cómo avanza."
-            : `Es menos que el mínimo de ${MIN_CONTRATOS} contratos por aporte.`}
-          {restantes > 0 && padre && <> Si financias {padre.nombre}, sus contratos (incluidos estos) salen de la misma cola por antigüedad.</>}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {restantes > 0 && padre && (
-            <Link href={`/app/financiar/${padre.ubigeo}`} className="inline-flex items-center gap-1.5 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper">
-              Financiar {padre.nombre} <ArrowRight size={14} aria-hidden />
-            </Link>
-          )}
-          <Link href={`/app/auditoria?ubigeo=${ubigeo}`} className="inline-flex items-center gap-1.5 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-paperDeep">
-            Ver cómo avanza la lectura
-          </Link>
-        </div>
-      </div>
+      <TarjetaConfirmacion
+        titulo={restantes === 0 ? `${zonaNombre} ya está financiada` : `Quedan ${numero(restantes)} contratos sin financiar en ${zonaNombre}`}
+        acciones={
+          <>
+            {restantes > 0 && padre && (
+              <EnlaceAccion href={`/app/financiar/${padre.ubigeo}`}>
+                Financiar la lectura de {padre.nombre} <ArrowRight size={14} aria-hidden />
+              </EnlaceAccion>
+            )}
+            <EnlaceAccion variante={restantes > 0 && padre ? "secundario" : "primario"} href={`/app/auditoria?ubigeo=${ubigeo}`}>
+              Ver cómo avanza la lectura
+            </EnlaceAccion>
+          </>
+        }
+      >
+        {restantes === 0
+          ? "Todos los contratos de su cola ya tienen quien pague su lectura. Puedes seguir cómo avanza."
+          : `Es menos que el mínimo de ${MIN_CONTRATOS} contratos por aporte.`}
+        {restantes > 0 && padre && <> Si financias {padre.nombre}, sus contratos (incluidos estos) salen de la misma cola por antigüedad.</>}
+      </TarjetaConfirmacion>
     );
   }
 
   return (
-    <form onSubmit={crear} noValidate className="rounded-2xl border border-line bg-paper p-5 shadow-card sm:p-6" aria-label="Financiar auditoría">
+    <form onSubmit={crear} noValidate className={TARJETA} aria-labelledby={`titulo-aporte-${ubigeo}`}>
       <Stepper step={2} />
-      <h3 className="mt-5 font-serif text-xl font-bold text-ink">Financiar auditoría en {zonaNombre}</h3>
-      <p className="mt-1 text-sm text-mute">{formatPEN(precioPen)} por contrato. Quedan {restantes.toLocaleString("es-PE")} sin financiar.</p>
+      <h2 id={`titulo-aporte-${ubigeo}`} className="mt-5 font-display text-xl font-bold leading-snug text-ink text-balance">
+        ¿Cuántos contratos de {zonaNombre} quieres que se lean?
+      </h2>
+      <p className="mt-1 text-sm text-inkSoft">
+        {soles(precioPen)} por contrato. Quedan {numero(restantes)} sin financiar.
+      </p>
 
       {picker}
 
       {/* Identidad */}
-      <div className="mt-5" role="group" aria-labelledby="lbl-quien">
-        <div id="lbl-quien" className="text-[11px] uppercase tracking-wide text-mute">¿Quién financia?</div>
-        {identidadDesdeCuenta && !masDatos ? (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm">
-            <span className="inline-flex items-center gap-2 text-ink">
-              {tipo === "anonimo" ? <EyeOff size={14} className="text-mute" aria-hidden /> : <User size={14} className="text-mute" aria-hidden />}
-              {tipo === "anonimo" ? "Anónimo (tu cuenta no aparece en el muro)" : <>Como <strong>{nombre}</strong></>}
-            </span>
-            <button type="button" onClick={() => setMasDatos(true)} className="text-[12px] text-mute underline hover:text-ink">cambiar</button>
-          </div>
-        ) : (
-          <>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Tipo de financiador">
-              {([["persona", "Persona", User], ["empresa", "Empresa", Building2], ["organizacion", "Organización", Users], ["anonimo", "Anónimo", EyeOff]] as const).map(([k, label, Icon]) => (
-                <OpcionRadio key={k} name={`tipo-${ubigeo}`} checked={tipo === k} onChange={() => setTipo(k)} className="justify-center">
-                  <Icon size={14} aria-hidden /> {label}
-                </OpcionRadio>
-              ))}
+      <div className="mt-6 border-t border-line pt-5">
+        <fieldset>
+          <legend className={ETIQUETA_GRUPO}>¿Quién financia?</legend>
+          {identidadDesdeCuenta && !masDatos ? (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2 text-sm">
+              <span className="inline-flex items-center gap-2 text-ink">
+                {tipo === "anonimo" ? <EyeOff size={14} className="text-mute" aria-hidden /> : <User size={14} className="text-mute" aria-hidden />}
+                {tipo === "anonimo" ? "Anónimo (tu cuenta no aparece en el muro)" : <>Como <strong>{nombre}</strong></>}
+              </span>
+              <button type="button" onClick={() => setMasDatos(true)} className="min-h-[24px] text-[12px] text-granate underline underline-offset-2">cambiar</button>
             </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {tipo !== "anonimo" && (
-                <label className="text-sm">
-                  <span className="text-mute">{tipo === "persona" ? "Nombre a mostrar" : "Razón social o nombre público"}</span>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete={tipo === "persona" ? "name" : "organization"} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder={tipo === "persona" ? "Ej. María Q." : "Ej. Empresa X S.A.C."} />
-                </label>
-              )}
-              {necesitaRuc && (
-                <label className="text-sm">
-                  <span className="text-mute">RUC (11 dígitos; se cruza con sanciones vigentes del OECE y alertas activas)</span>
-                  <input value={ruc} inputMode="numeric" onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))} className="mt-1 w-full rounded-lg border border-line px-3 py-2 font-mono" placeholder="20XXXXXXXXX" />
-                </label>
-              )}
-              {!conCuenta && (
-                <label className="text-sm">
-                  <span className="text-mute">Correo (privado; solo sirve para asociar el aporte a una cuenta)</span>
-                  <input type="email" required value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder="tu@correo.pe" />
-                </label>
-              )}
-            </div>
-          </>
-        )}
-        <label className="mt-3 block text-sm">
-          <span className="text-mute">Mensaje público (opcional, 140 caracteres)</span>
-          <input maxLength={140} value={mensaje} onChange={(e) => setMensaje(e.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder={`Por un ${zonaNombre} sin sobrecostos`} />
-        </label>
+          ) : (
+            <>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Tipo de financiador">
+                {([["persona", "Persona", User], ["empresa", "Empresa", Building2], ["organizacion", "Organización", Users], ["anonimo", "Anónimo", EyeOff]] as const).map(([k, label, Icon]) => (
+                  <OpcionRadio key={k} name={`tipo-${ubigeo}`} checked={tipo === k} onChange={() => setTipo(k)} className="justify-center">
+                    <Icon size={14} aria-hidden /> {label}
+                  </OpcionRadio>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {tipo !== "anonimo" && (
+                  <label className="text-sm">
+                    <span className="font-medium text-ink">{tipo === "persona" ? "Nombre a mostrar" : "Razón social o nombre público"}</span>
+                    <input value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete={tipo === "persona" ? "name" : "organization"} className={CAMPO} placeholder={tipo === "persona" ? "Ej. María Q." : "Ej. Empresa X S.A.C."} />
+                  </label>
+                )}
+                {necesitaRuc && (
+                  <label className="text-sm">
+                    <span className="font-medium text-ink">RUC</span>
+                    <input value={ruc} inputMode="numeric" autoComplete="off" onChange={(e) => setRuc(e.target.value.replace(/\D/g, "").slice(0, 11))} className={cn(CAMPO, "font-mono")} placeholder="20XXXXXXXXX" />
+                    <span className="mt-1 block text-[12px] leading-snug text-mute">11 dígitos. Se cruza con sanciones vigentes del OECE y alertas activas.</span>
+                  </label>
+                )}
+                {!conCuenta && (
+                  <label className="text-sm">
+                    <span className="font-medium text-ink">Correo</span>
+                    <input type="email" required value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} className={CAMPO} placeholder="tu@correo.pe" />
+                    <span className="mt-1 block text-[12px] leading-snug text-mute">Privado: sólo sirve para asociar el aporte a una cuenta.</span>
+                  </label>
+                )}
+              </div>
+            </>
+          )}
+          <label className="mt-3 block text-sm">
+            <span className="font-medium text-ink">Mensaje público</span> <span className="text-mute">(opcional, hasta 140 caracteres)</span>
+            <input maxLength={140} value={mensaje} onChange={(e) => setMensaje(e.target.value)} className={CAMPO} placeholder={`Por un ${zonaNombre} sin sobrecostos`} />
+          </label>
+        </fieldset>
       </div>
 
       {/* Método */}
-      <div className="mt-5" role="group" aria-labelledby="lbl-pago">
-        <div id="lbl-pago" className="text-[11px] uppercase tracking-wide text-mute">¿Cómo pagas?</div>
-        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Método de pago">
-          {(["yape", "plin", "transferencia"] as const).map((m) => (
-            <OpcionRadio key={m} name={`metodo-${ubigeo}`} checked={metodo === m} onChange={() => setMetodo(m)} className="capitalize">
-              {m}
-            </OpcionRadio>
-          ))}
-        </div>
-        {metodos.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
-        )}
+      <div className="mt-6 border-t border-line pt-5">
+        <fieldset>
+          <legend className={ETIQUETA_GRUPO}>¿Cómo pagas?</legend>
+          <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Método de pago">
+            {(["yape", "plin", "transferencia"] as const).map((m) => (
+              <OpcionRadio key={m} name={`metodo-${ubigeo}`} checked={metodo === m} onChange={() => setMetodo(m)} className="capitalize">
+                {m}
+              </OpcionRadio>
+            ))}
+          </div>
+          {metodos.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
+          )}
+        </fieldset>
       </div>
 
-      {error && <p className="mt-4 text-sm text-rust" role="alert">{error}</p>}
+      {error && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{error}</p>}
 
-      <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-heroViolet px-4 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.01] disabled:opacity-60">
+      <Button type="submit" full disabled={loading} className="mt-6 py-3">
         {loading && <Loader2 size={14} className="animate-spin" aria-hidden />}
-        {monto != null ? <>Continuar al pago de {contratos} contratos <span className="font-mono">{formatPEN(monto)}</span></> : "Continuar al pago"}
-      </button>
+        {monto != null
+          ? <>Financiar {numero(contratos)} contratos por <span className="font-mono">{soles(monto)}</span></>
+          : `Financiar la lectura de ${zonaNombre}`}
+      </Button>
       <p className="mt-3 rounded-xl bg-paperDeep px-3 py-2 text-[12px] leading-snug text-inkSoft">
-        <strong className="text-ink">¿Qué pasa después?</strong> Recibes tu código y los datos de pago, validamos (≤ 48 h), se asignan los contratos de {zonaNombre} por antigüedad y los resultados son públicos.
+        <strong className="text-ink">¿Qué pasa después?</strong> Recibes tu código y los datos de pago, validamos (en menos de 48 h), se asignan los contratos de {zonaNombre} por antigüedad y los resultados son públicos.
       </p>
-      <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-mute">
-        <ShieldCheck size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden />
-        <span>Financias capacidad de análisis, no resultados. Los agentes no saben quién aportó. Si tu empresa tiene sanción vigente o alertas activas, el aporte se acepta pero no hay reconocimiento público.</span>
+      <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-mute">
+        <ShieldCheck size={13} className="mt-0.5 shrink-0 text-granate" aria-hidden />
+        <span>Financias capacidad de lectura, no resultados. Quien lee no sabe quién aportó. Si tu empresa tiene sanción vigente o alertas activas, el aporte se acepta pero no hay reconocimiento público.</span>
       </p>
     </form>
   );
 }
 
 /**
- * Opción de un grupo de radio con apariencia de botón. Es un <input type="radio"> nativo
+ * Opción de un grupo de radio con apariencia de píldora. Es un <input type="radio"> nativo
  * (flechas del teclado, lector de pantalla y foco gratis) escondido dentro de su etiqueta;
- * el anillo de foco se dibuja en la etiqueta con `has-[:focus-visible]`.
+ * el anillo de foco se dibuja en la etiqueta con `has-[:focus-visible]`. La elegida va en
+ * granate suave: es la marca diciendo "esto elegiste", no una segunda acción primaria.
  */
 function OpcionRadio({ name, checked, onChange, children, className = "" }: {
   name: string; checked: boolean; onChange: () => void; children: React.ReactNode; className?: string;
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-heroViolet/60 has-[:focus-visible]:ring-offset-1 ${checked ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperDeep"} ${className}`}
+      className={cn(
+        "flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition-colors duration-150",
+        "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-granate has-[:focus-visible]:ring-offset-2",
+        checked ? "border-granate bg-granate-soft font-semibold text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
+        className,
+      )}
     >
       <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
       {children}
@@ -526,17 +586,17 @@ function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, presets, top
   const opciones = presets.includes(tope) ? presets : [...presets, tope];
   return (
     <div className="mt-5" role="group" aria-labelledby={`${nombreGrupo}-lbl`}>
-      <div id={`${nombreGrupo}-lbl`} className="text-[11px] uppercase tracking-wide text-mute">¿Cuántos contratos?</div>
+      <div id={`${nombreGrupo}-lbl`} className={ETIQUETA_GRUPO}>Contratos</div>
       <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Cantidad de contratos">
         {opciones.map((n) => (
           <OpcionRadio key={n} name={nombreGrupo} checked={cantidadTxt === String(n)} onChange={() => setCantidadTxt(String(n))}>
-            {n === tope && esTodos && !presets.includes(n) ? `Todos (${n.toLocaleString("es-PE")})` : n.toLocaleString("es-PE")}
-            <span className="ml-1 font-mono text-[13px] opacity-75">{formatPEN(n * precioPen)}</span>
+            <span className="tabular-nums">{n === tope && esTodos && !presets.includes(n) ? `Todos (${numero(n)})` : numero(n)}</span>
+            <span className="ml-1 font-mono text-[12px] font-normal tabular-nums opacity-80">{soles(n * precioPen)}</span>
           </OpcionRadio>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-        <label htmlFor={`${nombreGrupo}-otro`} className="text-mute">Otro:</label>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <label htmlFor={`${nombreGrupo}-otro`} className="text-inkSoft">Otra cantidad</label>
         <input
           id={`${nombreGrupo}-otro`}
           type="text"
@@ -547,25 +607,32 @@ function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, presets, top
           onBlur={onBlur}
           aria-invalid={!!error}
           aria-describedby={error ? idError : undefined}
-          className={`w-24 rounded-lg border px-2 py-1 font-mono ${error ? "border-rust" : "border-line"}`}
+          className={cn("w-24 rounded-xl border bg-paper px-3 py-1.5 font-mono tabular-nums", error ? "border-crimson" : "border-line")}
         />
-        {monto != null && <span className="font-mono text-ink">= {formatPEN(monto)}</span>}
+        {monto != null && <span className="font-mono tabular-nums text-ink">= {soles(monto)}</span>}
       </div>
-      {error && <p id={idError} className="mt-1.5 text-[12px] text-rust" role="alert">{error}</p>}
+      {error && <p id={idError} className="mt-1.5 text-[12px] text-crimsonTexto" role="alert">{error}</p>}
     </div>
   );
 }
 
+/** Los tres pasos del trámite. Hecho = moss (positivo); en curso = granate (la marca). */
 function Stepper({ step }: { step: 1 | 2 | 3 | 4 }) {
   const steps = ["Zona", "Cantidad", "Pago"];
   return (
-    <ol className="flex items-center gap-2 text-[11px]" aria-label="Pasos">
+    <ol className="flex flex-wrap items-center gap-2 text-[12px]" aria-label="Pasos">
       {steps.map((s, i) => {
         const n = (i + 1) as 1 | 2 | 3;
         const done = n < step, active = n === step;
         return (
           <li key={s} className="flex items-center gap-2" aria-current={active ? "step" : undefined}>
-            <span className={`flex h-5 w-5 items-center justify-center rounded-full font-mono ${done ? "bg-moss text-paper" : active ? "bg-ink text-paper" : "bg-paperDeep text-mute"}`}>{done ? "✓" : n}</span>
+            <span className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full font-mono text-[11px]",
+              done ? "bg-moss text-paper" : active ? "bg-granate text-paper" : "bg-paperDeep text-mute",
+            )}>
+              {done ? <span aria-hidden>✓</span> : n}
+              {done && <span className="sr-only">hecho:</span>}
+            </span>
             <span className={active ? "font-semibold text-ink" : "text-mute"}>{s}</span>
             {i < steps.length - 1 && <span className="mx-1 h-px w-6 bg-line" aria-hidden />}
           </li>

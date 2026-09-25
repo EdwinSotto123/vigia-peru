@@ -34,11 +34,11 @@ export function OrdenMuro({ opciones, valor }: { opciones: OpcionOrden[]; valor:
               href={o.href}
               aria-current={activa ? "true" : undefined}
               className={cn(
-                "rounded-xl border px-3 py-1.5 text-[13px] font-medium transition-colors duration-rapido",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
+                "inline-flex min-h-[32px] items-center rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate focus-visible:ring-offset-2",
                 activa
-                  ? "border-heroViolet bg-heroViolet-soft text-heroViolet"
-                  : "border-line bg-paper text-inkSoft hover:bg-paperDeep hover:text-ink",
+                  ? "border-granate bg-granate-soft text-granate"
+                  : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:bg-granate-50 hover:text-ink",
               )}
             >
               {o.etiqueta}

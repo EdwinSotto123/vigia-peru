@@ -10,18 +10,18 @@ import {
   LogIn,
   AlertCircle,
   CheckCircle2,
-  Shield,
   Eye,
   EyeOff,
 } from "lucide-react";
 import { destinoSeguro, signInWithUserId } from "@/lib/auth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
+import { Cargando } from "@/components/patrones";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="container-page py-20">Cargando…</div>}>
+    <Suspense fallback={<div className="container-page flex justify-center py-16"><Cargando className="w-full max-w-md" /></div>}>
       <LoginInner />
     </Suspense>
   );
@@ -66,8 +66,8 @@ function LoginInner() {
   };
 
   const campo =
-    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:outline-none";
-  const etiqueta = "text-[10px] font-semibold uppercase tracking-wider text-mute";
+    "w-full rounded-xl border bg-paperSoft px-9 py-2.5 text-base text-ink placeholder:text-mute transition-colors duration-rapido focus:bg-paper focus:outline-none focus:ring-1";
+  const etiqueta = "text-sm font-medium text-ink";
 
   return (
     <div className="container-page flex min-h-[calc(100vh-200px)] items-center justify-center py-12">
@@ -88,19 +88,18 @@ function LoginInner() {
           </div>
         )}
 
+        {/* Sin ícono encima: la firma ya está en la cabecera, y el escudo que
+            había acá no es de Vigía (DESIGN_SYSTEM.md §1: nada de íconos de policía). */}
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-ink text-paper">
-            <Shield size={22} strokeWidth={2.2} aria-hidden />
-          </div>
-          <h1 className="font-serif text-3xl font-bold text-ink">
+          <h1 className="text-balance font-display text-[30px] font-bold leading-tight tracking-tight text-ink">
             Inicia sesión
           </h1>
-          <p className="mt-1 text-sm text-mute">
+          <p className="mt-2 text-pretty text-[15px] leading-relaxed text-inkSoft">
             Ingresa con tu nombre de usuario y contraseña. La cuenta es opcional: sirve para seguir tus denuncias y aportes.
           </p>
         </div>
 
-        <form onSubmit={submit} className="surface space-y-4 p-6" noValidate>
+        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-line bg-paper p-5 sm:p-6" noValidate>
           {/* Nombre de usuario */}
           <div>
             <label htmlFor="login-usuario" className={cn("mb-1 block", etiqueta)}>
@@ -125,7 +124,7 @@ function LoginInner() {
                 required
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? "login-error" : undefined}
-                className={cn(campo, error ? "border-rust focus:border-rust" : "border-line focus:border-heroViolet")}
+                className={cn(campo, error ? "border-crimson focus:border-crimson focus:ring-crimson" : "border-line focus:border-granate focus:ring-granate")}
               />
             </div>
           </div>
@@ -142,9 +141,9 @@ function LoginInner() {
                 onClick={() => setShowPw((v) => !v)}
                 aria-controls="login-password"
                 aria-pressed={showPw}
-                className="inline-flex items-center gap-1 rounded text-[10px] font-semibold uppercase tracking-wider text-heroViolet hover:underline"
+                className="inline-flex min-h-6 items-center gap-1 rounded-full px-1.5 text-xs font-medium text-granate hover:underline"
               >
-                {showPw ? <EyeOff size={11} aria-hidden /> : <Eye size={11} aria-hidden />}
+                {showPw ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
                 {showPw ? "Ocultar" : "Mostrar"}
               </button>
             </div>
@@ -165,16 +164,16 @@ function LoginInner() {
                 required
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? "login-error login-sin-recuperacion" : "login-sin-recuperacion"}
-                className={cn(campo, error ? "border-rust focus:border-rust" : "border-line focus:border-heroViolet")}
+                className={cn(campo, error ? "border-crimson focus:border-crimson focus:ring-crimson" : "border-line focus:border-granate focus:ring-granate")}
               />
             </div>
-            <p id="login-sin-recuperacion" className="mt-1 text-[11px] text-mute">
+            <p id="login-sin-recuperacion" className="mt-1 text-xs text-mute">
               No pedimos correo, así que una contraseña olvidada no se puede recuperar.
             </p>
           </div>
 
           {error && (
-            <div id="login-error" role="alert" className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2 text-xs text-crimsonTexto">
+            <div id="login-error" role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/30 bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
               <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden />
               <span>{error}</span>
             </div>
@@ -184,7 +183,7 @@ function LoginInner() {
             type="submit"
             disabled={submitting}
             full
-            variant="ink"
+            variant="primary"
             className="!py-3"
           >
             {submitting ? (
@@ -198,15 +197,15 @@ function LoginInner() {
             )}
           </Button>
 
-          <p className="text-center text-xs text-mute">
+          <p className="text-center text-[13px] text-mute">
             ¿Sin cuenta?{" "}
-            <Link href={signupHref} className="font-medium text-heroViolet hover:underline">
+            <Link href={signupHref} className="font-semibold text-granate hover:underline">
               Crear una →
             </Link>
           </p>
         </form>
 
-        <p className="mt-4 text-center text-[11px] text-mute">
+        <p className="mt-4 text-center text-xs text-mute">
           Tu nombre de usuario es único y privado. No pedimos correo electrónico.
         </p>
       </div>

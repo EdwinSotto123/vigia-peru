@@ -115,7 +115,7 @@ export function EjeAgentes({
     <div className="min-w-0">
       {/* Cabecera del eje: qué mide cada columna. Es lo que le da denominador a cada cifra de abajo. */}
       <div className={cn(
-        "grid items-end gap-x-2 border-b border-line pb-1 text-[10px] uppercase tracking-wide text-mute",
+        "grid items-end gap-x-2 border-b border-line pb-1 text-[11px] uppercase tracking-wide text-mute",
         conSenales ? "grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]" : "grid-cols-[minmax(0,1fr)_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem]",
       )}>
         <span>Agente</span>
@@ -132,7 +132,7 @@ export function EjeAgentes({
       </div>
       {/* En móvil el total del eje va aparte: la columna de la pista no tiene encabezado propio. */}
       {rango && (
-        <p className="mt-1 font-mono text-[10px] text-mute sm:hidden" suppressHydrationWarning>
+        <p className="mt-1 font-mono text-[11px] text-mute sm:hidden" suppressHydrationWarning>
           Ejecución real: {duracion(rango.span)} en total
         </p>
       )}
@@ -143,7 +143,7 @@ export function EjeAgentes({
         const listos = ventanas.filter((v) => v.estado === "hecho" || v.estado === "omitido").length;
         return (
           <section key={c.key} className="mt-2 first:mt-1">
-            <h4 className="flex items-baseline justify-between gap-2 px-1 text-[11px] font-semibold text-inkSoft">
+            <p className="flex items-baseline justify-between gap-2 px-1 text-[11px] font-semibold text-inkSoft">
               <span>
                 Carril {c.label}
                 <span className="ml-1.5 font-normal text-mute">
@@ -151,8 +151,8 @@ export function EjeAgentes({
                   {corriendo > 0 && `, ${corriendo} en curso`}
                 </span>
               </span>
-            </h4>
-            <ul className="mt-0.5">
+            </p>
+            <ul className="mt-0.5" aria-label={`Carril ${c.label}`}>
               {c.pasos.map((p, i) => (
                 <FilaAgente
                   key={p.clave}
@@ -233,8 +233,8 @@ function FilaAgente({
         className={cn(
           "grid w-full items-center gap-x-2 gap-y-0.5 rounded-lg px-1 py-1 text-left transition-colors duration-rapido",
           conSenales ? "grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem_3.5rem]" : "grid-cols-[minmax(0,1fr)_3.5rem] sm:grid-cols-[11rem_minmax(0,1fr)_4rem]",
-          "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
-          seleccionado && "bg-heroViolet-soft hover:bg-heroViolet-soft",
+          "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
+          seleccionado && "bg-granate-soft hover:bg-granate-soft",
         )}
       >
         <span className="flex min-w-0 items-center gap-1.5">
@@ -268,7 +268,7 @@ function FilaAgente({
           )}
         </span>
 
-        <span className={cn("text-right font-mono text-[10px] tabular-nums", v.estado === "corriendo" ? "text-amberTexto" : "text-mute")} suppressHydrationWarning>
+        <span className={cn("text-right font-mono text-[11px] tabular-nums", v.estado === "corriendo" ? "text-amberTexto" : "text-mute")} suppressHydrationWarning>
           {dur ?? "—"}
         </span>
 
@@ -287,7 +287,7 @@ function FilaAgente({
       </button>
 
       {seleccionado && (
-        <div className="mb-1 ml-1 mt-0.5 border-l-2 border-heroViolet/40 pl-3 text-[12px] leading-relaxed text-inkSoft">
+        <div className="mb-1 ml-1 mt-0.5 border-l-2 border-granate/40 pl-3 text-[12px] leading-relaxed text-inkSoft">
           <p>{paso.que}</p>
           {paso.fuentes.length > 0 && (
             <p className="mt-0.5 text-mute">
@@ -297,7 +297,7 @@ function FilaAgente({
           {v.estado === "omitido" && (
             <p className="mt-0.5 text-mute">No corrió en este contrato: {motivoHumano(v.motivo)}.</p>
           )}
-          {v.estado === "error" && <p className="mt-0.5 text-rust">{humanizar({ kind: "error", name: paso.clave, msg: v.motivo ?? "" })}.</p>}
+          {v.estado === "error" && <p className="mt-0.5 text-crimsonTexto">{humanizar({ kind: "error", name: paso.clave, msg: v.motivo ?? "" })}.</p>}
           {v.estado === "corriendo" && v.msg && <p className="mt-0.5 text-amberTexto">Ahora: {humanizar({ kind: "phase", name: paso.clave, msg: v.msg })}</p>}
           {conSenales && (
             <p className="mt-0.5 text-mute">

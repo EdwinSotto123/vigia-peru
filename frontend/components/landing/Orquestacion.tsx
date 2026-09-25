@@ -85,10 +85,10 @@ export function Orquestacion({
             {ENTRADA.map(({ Icono, t, d }) => (
               <li key={t} className="rounded-2xl border border-paper/12 bg-paper/[0.04] px-3.5 py-2.5">
                 <span className="flex items-center gap-2 text-[13px] font-semibold text-paper">
-                  <Icono size={13} className="shrink-0 text-paper/50" aria-hidden />
+                  <Icono size={13} className="shrink-0 text-maiz" aria-hidden />
                   {t}
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-paper/70">{d}</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-paper/75">{d}</span>
               </li>
             ))}
           </ul>
@@ -98,13 +98,11 @@ export function Orquestacion({
 
         <div className="flex w-[15rem] shrink-0 flex-col justify-center">
           <div className="relative">
-            <span aria-hidden className="animate-latidoNodo absolute inset-0 rounded-3xl border border-heroGreen" />
-            <div className="relative rounded-3xl border border-heroGreen/50 bg-heroGreen/[0.09] px-4 py-4 text-center">
-              <span className="block font-serif text-lg font-bold text-paper">El coordinador</span>
-              <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-wide text-heroGreen">
-                siempre la misma lista
-              </span>
-              <p className="mt-2.5 text-[11px] leading-relaxed text-paper/70">
+            <span aria-hidden className="animate-latidoNodo absolute inset-0 rounded-2xl border border-maiz" />
+            <div className="relative rounded-2xl border border-maiz/50 bg-maiz/[0.09] px-4 py-4 text-center">
+              <span className="block font-display text-lg font-bold text-paper">El coordinador</span>
+              <span className="mt-0.5 block text-[12px] font-semibold text-maiz">Siempre la misma lista</span>
+              <p className="mt-2.5 text-[11px] leading-relaxed text-paper/75">
                 Toma los contratos por orden de llegada, lanza las {totalPasos} revisiones en el mismo orden y no
                 da el análisis por terminado hasta que todas corrieron.
               </p>
@@ -125,10 +123,10 @@ export function Orquestacion({
         <Cable modo="converge" />
 
         <div className="flex w-[13rem] shrink-0 flex-col justify-center">
-          <div className="rounded-3xl border border-paper/15 bg-paper/[0.06] px-4 py-4 text-center">
-            <Scale size={18} className="mx-auto text-paper/60" aria-hidden />
-            <span className="mt-2 block font-serif text-lg font-bold text-paper">Informe público</span>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-paper/70">
+          <div className="rounded-2xl border border-paper/15 bg-paper/[0.06] px-4 py-4 text-center">
+            <Scale size={18} className="mx-auto text-maiz" aria-hidden />
+            <span className="mt-2 block font-display text-lg font-bold text-paper">Informe público</span>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-paper/75">
               Cada señal con la ley que cita y la página exacta del documento que la sostiene.
             </p>
           </div>
@@ -160,7 +158,7 @@ export function Orquestacion({
         {activo ? (
           <DetalleCarril key={activo.clave} carril={activo} />
         ) : (
-          <p className="rounded-2xl border border-dashed border-paper/15 px-4 py-5 text-center text-[13px] text-paper/70">
+          <p className="rounded-2xl border border-dashed border-paper/15 px-4 py-5 text-center text-[13px] text-paper/75">
             Elige un frente para ver qué revisa, en qué orden y contra qué fuente lo compara.
           </p>
         )}
@@ -208,13 +206,13 @@ function BotonCarril({
       aria-controls={controla}
       className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left transition-colors duration-rapido ${
         abierto
-          ? "border-heroGreen/60 bg-heroGreen/[0.12]"
+          ? "border-maiz/60 bg-maiz/[0.12]"
           : "border-paper/12 bg-paper/[0.04] hover:border-paper/25 hover:bg-paper/[0.07]"
       }`}
     >
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-semibold text-paper">Carril {carril.label}</span>
-        <span className="mt-0.5 block text-[11px] text-paper/70">
+        <span className="mt-0.5 block text-[11px] text-paper/75">
           {QUE_REVISA[carril.clave] ?? ""}
         </span>
       </span>
@@ -230,7 +228,7 @@ function BotonCarril({
 /** El carril abierto: sus etapas en orden, con la ola encendiendo el que corre. */
 function DetalleCarril({ carril }: { carril: CarrilDatos }) {
   return (
-    <div className="animate-slideUp rounded-3xl border border-paper/10 bg-paper/[0.04] p-4">
+    <div className="motion-safe:animate-slideUp rounded-2xl border border-paper/10 bg-paper/[0.04] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
         <h3 className="text-[15px] font-semibold text-paper">Carril {carril.label}</h3>
       </div>
@@ -239,7 +237,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
           Síntesis esperan a que el expediente esté leído. */}
       <div className="relative mt-3 h-1 overflow-hidden rounded-full bg-paper/10" aria-hidden>
         <span
-          className="animate-rielPulso absolute top-0 h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-heroGreen to-transparent"
+          className="animate-rielPulso absolute top-0 h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-maiz to-transparent"
           style={{ animationDelay: `${carril.arranque * TURNO}s` }}
         />
       </div>
@@ -251,12 +249,12 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
         {carril.grupos.map((grupo, gi) => (
           <li key={gi} className="flex min-w-0 flex-1 flex-col gap-1.5 lg:flex-row lg:gap-2.5">
             {gi > 0 && (
-              <span className="flex shrink-0 items-center justify-center text-paper/25" aria-hidden>
+              <span className="flex shrink-0 items-center justify-center text-paper/40" aria-hidden>
                 <ChevronDown size={15} className="lg:-rotate-90" />
               </span>
             )}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <span className="flex items-baseline gap-2 font-mono text-[10px] uppercase tracking-wide text-paper/60">
+              <span className="flex items-baseline gap-2 text-[11px] font-semibold text-paper/75">
                 Etapa {gi + 1}
               </span>
               <div className="flex flex-1 flex-col justify-center gap-2">
@@ -273,7 +271,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
 }
 
 const TONO_TIPO = {
-  agente: { caja: "border-heroGreen/25 bg-paper/[0.07]", punto: "bg-heroGreen", etiqueta: "Agente de IA" },
+  agente: { caja: "border-maiz/25 bg-paper/[0.07]", punto: "bg-maiz", etiqueta: "Agente de IA" },
   paso: { caja: "border-paper/12 bg-paper/[0.03]", punto: "bg-paper/45", etiqueta: "Verificación automática" },
 } as const;
 
@@ -302,7 +300,7 @@ function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {
       }
     >
       <span className="block">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-heroViolet">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-granate">
           <Cpu size={12} aria-hidden /> {t.etiqueta}
         </span>
         <span className="mt-2 block text-[13px] leading-relaxed text-inkSoft">{p.que}</span>
@@ -342,13 +340,13 @@ function EslabonMovil({
     <li>
       <div
         className={`rounded-2xl border px-4 py-3 ${
-          destacado ? "border-heroGreen/50 bg-heroGreen/[0.09]" : "border-paper/12 bg-paper/[0.04]"
+          destacado ? "border-maiz/50 bg-maiz/[0.09]" : "border-paper/12 bg-paper/[0.04]"
         }`}
       >
-        <span className={`block text-[14px] font-semibold text-paper ${destacado ? "font-serif text-[16px]" : ""}`}>
+        <span className={`block text-[14px] font-semibold text-paper ${destacado ? "font-display text-[16px]" : ""}`}>
           {titulo}
         </span>
-        <span className="mt-0.5 block text-[12px] leading-relaxed text-paper/70">{cuerpo}</span>
+        <span className="mt-0.5 block text-[12px] leading-relaxed text-paper/75">{cuerpo}</span>
         {children}
       </div>
       {!ultimo && (
@@ -356,13 +354,11 @@ function EslabonMovil({
           <path
             d="M1,0 L1,28"
             fill="none"
-            stroke="#2FA84C"
             strokeWidth={1.25}
             strokeLinecap="round"
             strokeDasharray="5 11"
             vectorEffect="non-scaling-stroke"
-            className="animate-fluirDatos"
-            style={{ opacity: 0.75 }}
+            className="stroke-maiz opacity-75 motion-safe:animate-fluirDatos"
           />
         </svg>
       )}
@@ -373,7 +369,7 @@ function EslabonMovil({
 function Columna({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <span className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-paper/60">{titulo}</span>
+      <span className="mb-2 text-[12px] font-semibold text-paper/75">{titulo}</span>
       <div className="flex flex-1 flex-col justify-center">{children}</div>
     </div>
   );
@@ -396,13 +392,12 @@ function Cable({ modo }: { modo: "converge" | "diverge" }) {
           key={y}
           d={d(y)}
           fill="none"
-          stroke="#2FA84C"
           strokeWidth={1.25}
           strokeLinecap="round"
           strokeDasharray="5 11"
           vectorEffect="non-scaling-stroke"
-          className="animate-fluirDatos"
-          style={{ animationDelay: `${i * 0.18}s`, opacity: 0.75 }}
+          className="stroke-maiz opacity-75 motion-safe:animate-fluirDatos"
+          style={{ animationDelay: `${i * 0.18}s` }}
         />
       ))}
     </svg>

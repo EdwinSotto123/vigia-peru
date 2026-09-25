@@ -42,7 +42,7 @@ export function AgentsPipeline({
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft [&::-webkit-details-marker]:hidden">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-ink">
-            {TOTAL_AGENTES} agentes de IA leen el contrato, en {TOTAL_CARRILES} carriles paralelos
+            {TOTAL_AGENTES} agentes de IA leen el contrato: {TOTAL_CARRILES > 2 ? "dos ramas en paralelo y una síntesis al final" : `${TOTAL_CARRILES} carriles`}
           </div>
           <div className="mt-0.5 text-[12px] leading-snug text-mute">
             {abierto

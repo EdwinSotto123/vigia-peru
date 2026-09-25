@@ -77,7 +77,7 @@ export function Lotes({
               aria-pressed={sel}
               className={cn(
                 "rounded-2xl border bg-paper p-4 text-left transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-                sel ? "border-heroViolet shadow-[0_0_0_3px_rgba(79,61,150,0.12)]" : "border-line",
+                sel ? "border-granate shadow-[0_0_0_3px_rgba(113,28,48,0.12)]" : "border-line",
               )}
             >
               <div className="flex items-baseline justify-between gap-2">

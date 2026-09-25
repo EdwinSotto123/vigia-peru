@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { WifiOff } from "lucide-react";
+import { Flag } from "lucide-react";
 import { EntidadesPanel } from "@/components/EntidadesPanel";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { EncabezadoPagina, EstadoError } from "@/components/patrones";
 import {
   API_BASE,
   getEntidadesPagina,
@@ -19,7 +19,7 @@ import { esAlertaDemo } from "@/lib/semillas";
 export const metadata: Metadata = {
   title: "Entidades del Estado",
   description:
-    "Municipalidades, gobiernos regionales, ministerios y empresas públicas, ordenados por cuántos de sus contratos tienen señales de riesgo.",
+    "Municipalidades, gobiernos regionales, ministerios y empresas públicas, ordenados por cuántos de sus contratos ya tienen dictamen publicado.",
 };
 
 /**
@@ -108,30 +108,43 @@ export default async function EntidadesPage({
 
   const qs = entidadesQueryString(query);
 
+  // El conteo por entidad (`alertas` del API) es de contratos con dictamen PUBLICADO, tengan
+  // o no señales: un dictamen de score 0 también suma. Por eso esta página dice "con dictamen
+  // publicado" y no "con señales" (DESIGN_SYSTEM.md §10.1): con la palabra vieja decía 80
+  // entidades mientras /app/hallazgos, que sí cuenta señales, decía 61.
   return (
-    <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-10">
-      <PageHeader
-        title="Entidades del Estado"
-        subtitle="Ordenadas por cuántos de sus contratos tienen señales de riesgo. Toca una entidad para ver su ficha, con su ejecución presupuestal según el MEF."
-      />
-      {pagina && resumen ? (
-        <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
-      ) : (
-        <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
-          <span className="inline-flex text-mute" aria-hidden>
-            <WifiOff size={18} />
-          </span>
-          <h2 className="mt-2 font-serif text-lg font-bold text-ink">No pudimos leer las entidades</h2>
-          <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">
-            El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
-          </p>
-          <div className="mt-4 text-sm">
-            <Link href={qs ? `/app/entidades?${qs}` : "/app/entidades"} className="font-medium text-heroViolet hover:underline">
-              Reintentar
+    <div className="px-4 py-8 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <EncabezadoPagina
+          titulo="Entidades del Estado"
+          bajada="Ordenadas por cuántos de sus contratos ya tienen dictamen publicado. Abre una para ver esos contratos, lo que se encontró en cada uno y su ejecución presupuestal según el MEF."
+          acciones={
+            <Link
+              href="/reporte/nuevo?modo=entidad"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
+            >
+              <Flag size={14} aria-hidden /> Denunciar una entidad
             </Link>
-          </div>
-        </div>
-      )}
+          }
+        />
+        {pagina && resumen ? (
+          <EntidadesPanel query={query} initial={pagina} resumen={resumen} />
+        ) : (
+          <EstadoError
+            titulo="No pudimos leer las entidades"
+            accion={
+              <Link
+                href={qs ? `/app/entidades?${qs}` : "/app/entidades"}
+                className="inline-flex min-h-[40px] items-center rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep"
+              >
+                Reintentar
+              </Link>
+            }
+          >
+            El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+          </EstadoError>
+        )}
+      </div>
     </div>
   );
 }

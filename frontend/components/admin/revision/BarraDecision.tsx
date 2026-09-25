@@ -40,7 +40,7 @@ export function BarraDecision({ d, onDecidir }: { d: RevisionDetalle; onDecidir:
               {d.contribucionCodigo ? `, con el aporte ${d.contribucionCodigo}${d.financiador ? ` de ${d.financiador}` : ""}` : ""}
             </span>
           </div>
-          {d.objeto && <p className="mt-2 line-clamp-2 break-words font-serif text-base font-bold leading-snug text-ink">{d.objeto}</p>}
+          {d.objeto && <p className="mt-2 line-clamp-2 break-words font-display text-base font-bold leading-snug text-ink">{d.objeto}</p>}
           <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] text-ink">
             <Dato icon={<Building2 size={13} />} k="Entidad">{d.entidad ?? d.entidadRuc ?? "sin dato"}</Dato>
             <Dato icon={<MapPin size={13} />} k="Zona">{zona ?? "sin dato"}</Dato>

@@ -10,10 +10,13 @@
  * Dos presentaciones, la misma fuente de datos:
  *  - TABLA densa (default, /app/contratos): columnas alineadas, una fila por
  *    contrato, ~40 px de alto. Antes eran tarjetas de ~135 px: en un viewport de
- *    900 px entraban TRES contratos, y recorrer los 50 de una página costaba
- *    ~6 750 px de scroll para leer tres veces el mismo título.
+ *    900 px entraban TRES contratos.
  *  - COMPACTA (`compacto`), para la columna angosta del panel del mapa, donde la
  *    fila está atada a la selección del punto en el mapa.
+ *
+ * Los cinco estados de DESIGN_SYSTEM.md §10.5: cargando (esqueleto con la forma de
+ * la fila), vacío y error (patrones con la llamita), parcial (el paginador dice
+ * "1–50 de 18,393") y lleno.
  *
  * Conexión con el mapa: `MapaContratosContext` (lo provee MapaWrapper) trae el
  * distrito elegido, el contrato seleccionado y los handlers de hover/selección.
@@ -21,11 +24,12 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Inbox, WifiOff } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { Paginacion } from "@/components/ui/Paginacion";
-import { Severidad } from "@/components/ui/Severidad";
-import type { NivelSeveridad } from "@/lib/severidad";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { numero, plural } from "@/lib/formato";
 import {
   contratosQueryString,
   etapaLabel,
@@ -36,12 +40,12 @@ import {
   type ContratosPagina,
   type ContratosQuery,
 } from "@/lib/contratos";
-import { Skeleton } from "@/components/ui/Skeleton";
 import {
   ALTO_FILA,
   ANCHO_IR,
   CELDA_MD,
   CELDA_XL,
+  FILA_SELECCIONADA,
   FilaContrato,
   PAD_FILA,
   REJILLA,
@@ -52,6 +56,7 @@ import {
   LeyendaLectura,
   estadoLecturaDe,
 } from "./estadoLectura";
+import { LeyendaPeso, PesoRiesgo } from "./PesoRiesgo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -181,46 +186,47 @@ export function ContratosLista({
 
   return (
     <div className="space-y-2">
-      {!fueraDeRango && pag}
+      {!fueraDeRango && !(fallo && !rows.length) && pag}
       {fallo && !rows.length ? (
-        <Aviso
-          icon={<WifiOff size={18} />}
-          text="El API de Vigía no respondió: la lista de contratos no se pudo cargar."
-          ayuda="No se muestra una copia vieja ni datos de relleno. Si la lista no carga, no hay lista."
-          action={
+        <EstadoError
+          titulo="No pudimos cargar la lista de contratos"
+          accion={
             navegacion === "interna" ? (
               <button type="button" onClick={() => setRetry((n) => n + 1)} className={ACCION_CLS}>Reintentar</button>
             ) : (
               <a href={hrefActual} className={ACCION_CLS}>Reintentar</a>
             )
           }
-        />
+        >
+          Suele ser momentáneo. No te mostramos una copia vieja ni datos de relleno: vuelve a intentarlo en unos segundos.
+        </EstadoError>
       ) : fueraDeRango ? (
         // Página fuera de rango (?page=999): hay contratos, solo que no tantos. Decir
         // "no hay contratos" acá era falso: se ofrece volver a la última página real.
-        <Aviso
-          icon={<Inbox size={18} />}
-          text={`Esta página no existe: la lista llega hasta la página ${paginas.toLocaleString("es-PE")}.`}
-          ayuda={`Hay ${total.toLocaleString("es-PE")} contratos${hayFiltros ? " con estos filtros" : ""}, ${tam} por página.`}
-          action={
+        <EstadoVacio
+          compacto={compacto}
+          titulo={`Esta página no existe: la lista llega hasta la página ${numero(paginas)}`}
+          accion={
             navegacion === "url" ? (
               <Link href={hrefPagina(paginas)} className={ACCION_CLS}>Ir a la última página</Link>
             ) : (
               <button type="button" onClick={() => setPage(paginas)} className={ACCION_CLS}>Ir a la última página</button>
             )
           }
-        />
+        >
+          Hay {plural(total, "contrato", "contratos")}
+          {hayFiltros ? " con estos filtros" : ""}, {tam} por página.
+        </EstadoVacio>
       ) : !rows.length && !cargando ? (
-        <Aviso
-          icon={<Inbox size={18} />}
-          text={hayFiltros ? "Ningún contrato cumple todos los filtros a la vez." : "Esta consulta no devolvió ningún contrato."}
-          ayuda={
-            hayFiltros
-              ? "Los filtros se combinan con «y», no con «o». Quita arriba el más restrictivo (cada uno se quita por separado) y la lista se vuelve a llenar."
-              : "La cola de Vigía se rearma cada noche con lo que publica la API OCDS del OECE. Si acá no hay nada, es que esa zona no tiene convocatorias en el rango pedido."
-          }
-          action={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
-        />
+        <EstadoVacio
+          compacto={compacto}
+          titulo={hayFiltros ? "Ningún contrato cumple todos los filtros a la vez" : "No hay contratos para esta consulta"}
+          accion={navegacion === "url" && hayFiltros ? <Link href={pathname} className={ACCION_CLS}>Quitar todos los filtros</Link> : undefined}
+        >
+          {hayFiltros
+            ? "Los filtros se suman: cada uno recorta más la lista. Quita el más restrictivo (arriba, cada uno se quita por separado) y la lista se vuelve a llenar."
+            : "Esta zona no tiene convocatorias publicadas en el SEACE para el rango pedido."}
+        </EstadoVacio>
       ) : compacto ? (
         <ListaCompacta rows={rows} selectedOcid={selectedOcid} onSelect={onSelect} onHover={onHover} cargando={cargando} />
       ) : (
@@ -268,9 +274,13 @@ function TablaContratos({ rows, selectedOcid, onHover, cargando }: FilasProps) {
 function Cabecera() {
   return (
     <div role="rowgroup">
-      <div role="row" className="flex items-stretch border-b border-line bg-paperSoft text-[11px] leading-tight text-mute">
+      <div role="row" className="flex items-stretch border-b border-line bg-paperSoft text-[11px] font-semibold leading-tight text-mute">
         <div className={cn(REJILLA, PAD_FILA, "min-w-0 flex-1")}>
-          <span role="columnheader" className="truncate">Señal</span>
+          <span role="columnheader" className="truncate" title="Peso del riesgo">
+            {/* Debajo de xl la columna es sólo el ícono (16–40 px): cualquier rótulo quedaba en "R…". */}
+            <span aria-hidden className="hidden xl:inline">Peso del riesgo</span>
+            <span className="sr-only">Peso del riesgo</span>
+          </span>
           <span role="columnheader" className="truncate">
             {/* En móvil la columna mide ~110 px: el rótulo largo se cortaría a la mitad. */}
             <span className="md:hidden">Contrato</span>
@@ -279,7 +289,7 @@ function Cabecera() {
           <span role="columnheader" className={cn(CELDA_MD, "truncate")}>Entidad y zona</span>
           <span role="columnheader" className={cn(CELDA_XL, "truncate")}>Tipo y etapa</span>
           <span role="columnheader" className={cn(CELDA_MD, "truncate")}>Estado de lectura</span>
-          <span role="columnheader" className="truncate text-right">Valor ref.</span>
+          <span role="columnheader" className="truncate text-right">Valor referencial</span>
           <span role="columnheader" className={cn(CELDA_MD, "truncate text-right")}>Convocada</span>
         </div>
         <div role="columnheader" className={cn(ANCHO_IR, "shrink-0 border-l border-line")}>
@@ -311,37 +321,19 @@ function SkeletonFilaTabla() {
 }
 
 /**
- * Pie: las dos escalas de la tabla, dichas con palabras. La columna "Señal" es un
- * ícono (formato punto) porque 16 px es lo que cuesta una columna de escaneo; acá
- * abajo se explica una vez qué significa cada uno, y el estado de lectura repite
- * su catálogo canónico de cinco. Son ejes distintos y se leen como distintos.
+ * Pie: las dos escalas de la tabla, dichas con palabras. La columna de riesgo es
+ * un ícono en pantallas medianas; acá abajo se explica una vez qué significa cada
+ * uno, y el estado de lectura repite su catálogo de cinco. Son ejes distintos y
+ * se leen como distintos.
  */
 function PieDeTabla() {
   return (
     <div className="mt-2 flex flex-col gap-1.5 text-[11px] leading-tight text-mute lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-5">
-      <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span>Señal:</span>
-        {(Object.keys(PUNTAJE_MUESTRA) as NivelSeveridad[]).map((n) => (
-          <Severidad key={n} score={PUNTAJE_MUESTRA[n]} formato="linea" className="text-[11px]" />
-        ))}
-      </span>
+      <LeyendaPeso />
       <LeyendaLectura className="hidden lg:inline-flex" />
     </div>
   );
 }
-
-/**
- * Un score de muestra por nivel, para rotular la leyenda con el MISMO componente
- * que usan las filas (nada de reimplementar los colores acá). Tipado como Record
- * completo a propósito: si algún día `lib/severidad` agrega un nivel, este archivo
- * deja de compilar en vez de omitirlo en silencio.
- */
-const PUNTAJE_MUESTRA: Record<NivelSeveridad, number | null> = {
-  alta: 85,
-  media: 55,
-  baja: 10,
-  sin_analizar: null,
-};
 
 // ─── Lista compacta (panel del mapa) ─────────────────────────────────────────
 
@@ -384,13 +376,15 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
   const lectura = estadoLecturaDe(c);
   const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(", ") || "Sin clasificar";
+  // El puntaje nunca va sin las señales que lo explican (§10.4): la fila dice cuántas hay.
+  const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
   return (
     <li
       ref={ref}
       className={cn(
         "group transition-colors duration-rapido",
         ALTO_COMPACTA,
-        selected ? "bg-heroViolet/5 shadow-[inset_3px_0_0_0_#4F3D96]" : "hover:bg-paperSoft",
+        selected ? FILA_SELECCIONADA : "hover:bg-paperSoft",
       )}
       onMouseEnter={() => onHover?.(c)}
       onMouseLeave={() => onHover?.(null)}
@@ -403,20 +397,22 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
           className="min-w-0 flex-1 px-2.5 py-2 text-left"
         >
           <div className="flex min-w-0 items-center gap-1.5">
-            <Severidad score={c.score} formato="punto" />
+            <PesoRiesgo score={c.score} banderas={c.banderas} enRevision={c.enRevision} formato="punto" />
             <span className="truncate text-[12px] font-medium leading-tight text-ink" title={c.titulo ?? undefined}>
-              {c.titulo ?? "(sin objeto)"}
+              {c.titulo ?? "(sin objeto registrado)"}
             </span>
-            {c.score != null && <span className="shrink-0 font-mono text-[10.5px] text-mute">{c.score}/100</span>}
+            {nSenales > 0 && (
+              <span className="shrink-0 text-[10.5px] tabular-nums text-mute">{plural(nSenales, "señal", "señales")}</span>
+            )}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center justify-between gap-2 text-[10.5px] leading-tight text-mute">
             <span className="flex min-w-0 items-baseline gap-x-2">
-              <span className="truncate">{c.entidad ?? "—"}</span>
-              {c.zona && <span className="shrink-0 text-mute/80">{c.zona}</span>}
+              <span className="truncate">{c.entidad ?? "Entidad no identificada"}</span>
+              {c.zona && <span className="shrink-0">{c.zona}</span>}
             </span>
-            <span className="flex shrink-0 items-baseline gap-x-2.5 font-mono">
-              <span>{formatMonto(c.montoPen, c.moneda)}</span>
-              <span className="text-mute/80">{formatFecha(c.fecha)}</span>
+            <span className="flex shrink-0 items-baseline gap-x-2.5 tabular-nums">
+              <span className={c.montoPen ? "font-mono text-inkSoft" : undefined}>{formatMonto(c.montoPen, c.moneda)}</span>
+              <span>{formatFecha(c.fecha)}</span>
             </span>
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] leading-tight">
@@ -427,7 +423,7 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
         </button>
         <Link
           href={`/app/contratos/${encodeURIComponent(c.ocid)}`}
-          className="flex w-8 shrink-0 items-center justify-center border-l border-line text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-ink"
+          className="flex w-8 shrink-0 items-center justify-center border-l border-line text-mute transition-colors duration-rapido hover:bg-paperSoft hover:text-granate"
           aria-label={`Abrir el dossier completo de ${c.codigo}`}
         >
           <ArrowUpRight size={13} aria-hidden />
@@ -440,19 +436,5 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
 // ─── Piezas ──────────────────────────────────────────────────────────────────
 
 /** Estilo compartido de la acción de un estado vacío ("Reintentar" · "Quitar todos los filtros"). */
-const ACCION_CLS = "inline-flex items-center gap-1 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-medium text-ink transition-colors duration-rapido hover:border-heroViolet/40 hover:bg-paperSoft";
-
-/**
- * Estado vacío / de error: dice qué pasó, enseña por qué y ofrece la siguiente
- * acción. Nunca un hueco en blanco y nunca un dato de relleno para taparlo.
- */
-function Aviso({ icon, text, ayuda, action }: { icon: React.ReactNode; text: string; ayuda?: string; action?: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-line bg-paper px-5 py-8 text-center">
-      <span className="inline-flex text-mute">{icon}</span>
-      <p className="mt-2 text-sm font-medium text-ink">{text}</p>
-      {ayuda && <p className="mx-auto mt-1 max-w-[52ch] text-[12.5px] leading-relaxed text-mute">{ayuda}</p>}
-      {action && <div className="mt-3">{action}</div>}
-    </div>
-  );
-}
+const ACCION_CLS =
+  "inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[12px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";

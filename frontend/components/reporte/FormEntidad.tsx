@@ -8,13 +8,16 @@
 // podía denunciarla.
 
 import { useEffect, useRef, useState } from "react";
-import { Building2, Search, Upload, Check, Loader2, Flag, AlertTriangle, X } from "lucide-react";
+import { Building2, Search, Upload, Check, Loader2, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { cn } from "@/lib/utils";
 import { createReporte, getEntidad, getEntidades } from "@/lib/api-client";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
+import { numero } from "@/lib/formato";
+import type { CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { Step } from "./Step";
+import { CAMPO as campo, ETIQUETA as etiqueta, ErrorCampo, ErrorEnvio, OpcionesCategoria } from "./Campos";
 import { ProgressTracker } from "./ProgressTracker";
 import {
   ACEPTA_ARCHIVO,
@@ -29,17 +32,14 @@ import {
   validarArchivo,
 } from "./envio";
 
-const CATEGORIAS_ENTIDAD = [
-  { id: "malversacion", label: "Malversación de fondos", emoji: "💰" },
-  { id: "conflicto_interes", label: "Conflicto de interés sistemático", emoji: "♻️" },
-  { id: "favoritismo", label: "Favoritismo recurrente a un proveedor", emoji: "🎁" },
-  { id: "obstruccion", label: "Obstrucción a control o transparencia", emoji: "🚪" },
-  { id: "patron_corrupcion", label: "Patrón de corrupción documentable", emoji: "🔁" },
-  { id: "otra_entidad", label: "Otra irregularidad institucional", emoji: "❓" },
+const CATEGORIAS_ENTIDAD: { id: CategoriaDenuncia; label: string }[] = [
+  { id: "malversacion", label: "Malversación de fondos" },
+  { id: "conflicto_interes", label: "Conflicto de interés sistemático" },
+  { id: "favoritismo", label: "Favoritismo recurrente a un proveedor" },
+  { id: "obstruccion", label: "Obstrucción a control o transparencia" },
+  { id: "patron_corrupcion", label: "Patrón de corrupción documentable" },
+  { id: "otra_entidad", label: "Otra irregularidad institucional" },
 ];
-
-const campo = "w-full rounded-xl border border-line bg-paperSoft px-4 py-2.5 text-sm";
-const etiqueta = "mb-1 block text-[12px] font-semibold text-inkSoft";
 
 interface EntidadElegida {
   ruc: string;
@@ -204,7 +204,7 @@ export function FormEntidad({
   };
 
   return (
-    <form onSubmit={submit} noValidate className="surface space-y-6 p-4 sm:p-6">
+    <form onSubmit={submit} noValidate className="space-y-6 rounded-2xl border border-line bg-paper p-4 sm:p-6">
       <div className="hidden sm:block">
         <ProgressTracker milestones={milestones} />
       </div>
@@ -217,14 +217,14 @@ export function FormEntidad({
                 <span className="inline-flex items-center gap-1">
                   <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(ent.tipo, ent.nombre, "corto")}
                 </span>
-                <span className="font-mono">RUC {ent.ruc}</span>
+                <span className="font-mono tabular-nums">RUC {ent.ruc}</span>
               </div>
-              <div className="mt-0.5 font-serif text-base font-bold text-ink">{ent.nombre}</div>
+              <div className="mt-0.5 font-display text-base font-bold text-ink">{ent.nombre}</div>
               {(ent.region || ent.provincia) && (
                 <div className="text-xs text-mute">{[ent.region, ent.provincia].filter(Boolean).join(", ")}</div>
               )}
             </div>
-            <button type="button" onClick={() => setEnt(null)} className="text-xs text-mute hover:text-ink hover:underline">
+            <button type="button" onClick={() => setEnt(null)} className="min-h-[24px] shrink-0 rounded-full px-2 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
               Cambiar
             </button>
           </div>
@@ -247,13 +247,13 @@ export function FormEntidad({
                 placeholder="Ej: Municipalidad de Independencia, 20131369981"
                 aria-invalid={!!errores.entidad}
                 aria-describedby="entidad-estado"
-                className="w-full rounded-xl border border-line bg-paperSoft px-9 py-2.5 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
+                className={cn(campo, "px-9")}
               />
               {buscando && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-mute" aria-hidden />}
             </div>
             <div id="entidad-estado" aria-live="polite">
               {resultados.length > 0 && (
-                <ul className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-paperSoft shadow-card">
+                <ul className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-paper shadow-pop">
                   {resultados.map((r) => (
                     <li key={r.ruc} className="border-b border-line last:border-b-0">
                       <button
@@ -263,11 +263,11 @@ export function FormEntidad({
                           setQuery("");
                           setErrores((x) => ({ ...x, entidad: undefined }));
                         }}
-                        className="block w-full px-3 py-2 text-left transition-colors hover:bg-paperDeep"
+                        className="block min-h-[44px] w-full px-3 py-2 text-left transition-colors duration-rapido hover:bg-granate-50"
                       >
                         <span className="block text-sm font-medium text-ink">{r.nombre}</span>
                         <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-mute">
-                          <span className="font-mono">RUC {r.ruc}</span>
+                          <span className="font-mono tabular-nums">RUC {r.ruc}</span>
                           <span>{etiquetaTipoEntidad(r.tipo, r.nombre, "corto")}</span>
                           {r.region && <span>{r.region}</span>}
                         </span>
@@ -277,7 +277,7 @@ export function FormEntidad({
                 </ul>
               )}
               {!buscando && query.trim().length >= 2 && resultados.length === 0 && (
-                <p className="mt-2 rounded-xl border border-dashed border-line bg-paperDeep p-3 text-xs text-mute">
+                <p className="mt-2 rounded-xl border border-dashed border-line bg-paperSoft p-3 text-xs text-inkSoft">
                   {errorBusqueda
                     ? "No pudimos buscar ahora mismo: el servidor de Vigía no respondió. Inténtalo otra vez en un momento."
                     : "No encontramos una entidad con ese nombre. Prueba con otra palabra del nombre oficial o con su RUC de 11 dígitos."}
@@ -290,28 +290,15 @@ export function FormEntidad({
       </Step>
 
       <Step n={2} title="¿Qué patrón estás denunciando?">
-        <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Patrón que denuncias">
-          {CATEGORIAS_ENTIDAD.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={categoria === c.id}
-              onClick={() => {
-                setCategoria(c.id);
-                setErrores((x) => ({ ...x, categoria: undefined }));
-              }}
-              className={cn(
-                "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
-                categoria === c.id ? "border-ink bg-ink text-paper" : "border-line bg-paperSoft text-ink hover:border-mute hover:bg-paperDeep",
-              )}
-            >
-              <span className="text-xl" aria-hidden>
-                {c.emoji}
-              </span>
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <OpcionesCategoria
+          opciones={CATEGORIAS_ENTIDAD}
+          elegida={categoria}
+          onElegir={(id) => {
+            setCategoria(id);
+            setErrores((x) => ({ ...x, categoria: undefined }));
+          }}
+          etiqueta="Patrón que denuncias"
+        />
         {errores.categoria && <ErrorCampo>{errores.categoria}</ErrorCampo>}
       </Step>
 
@@ -336,14 +323,14 @@ export function FormEntidad({
         <p id="entidad-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
           <span>Cargos, fechas, números de contrato y enlaces hacen que tu denuncia se pueda comprobar.</span>
           <span className="shrink-0 font-mono tabular-nums">
-            {descripcion.length.toLocaleString("es-PE")} / {DESCRIPCION_MAX.toLocaleString("es-PE")}
+            {numero(descripcion.length)} / {numero(DESCRIPCION_MAX)}
           </span>
         </p>
         {errores.descripcion && <ErrorCampo>{errores.descripcion}</ErrorCampo>}
       </Step>
 
       <Step n={4} title="Adjunta evidencia (opcional)">
-        <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperDeep px-6 py-6 text-center focus-within:border-heroViolet hover:bg-paperEdge/50">
+        <label className="flex min-h-[64px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperSoft px-6 py-6 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate/40">
           <Upload size={18} className="text-mute" aria-hidden />
           <span className="text-sm">
             {evidencia ? (
@@ -370,7 +357,7 @@ export function FormEntidad({
           />
         </label>
         {evidencia && (
-          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-2 inline-flex items-center gap-1 text-xs text-mute hover:text-ink hover:underline">
+          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-2 inline-flex min-h-[24px] items-center gap-1 text-xs text-inkSoft hover:text-ink hover:underline">
             <X size={12} aria-hidden /> Quitar el archivo
           </button>
         )}
@@ -397,17 +384,13 @@ export function FormEntidad({
           className={campo}
         />
         {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
-        <p className="mt-2 text-[11px] text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado junto a la denuncia.</p>
+        <p className="mt-2 text-[12px] text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado en reserva junto a la denuncia: no se publica.</p>
       </Step>
 
       <DisclaimerBanner />
 
       <div className="space-y-2">
-        {errorEnvio && (
-          <p className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2.5 text-sm text-crimsonTexto" role="alert">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden /> {errorEnvio}
-          </p>
-        )}
+        {errorEnvio && <ErrorEnvio>{errorEnvio}</ErrorEnvio>}
         <Button type="submit" disabled={submitting} full variant="primary">
           {submitting ? (
             <>
@@ -415,7 +398,7 @@ export function FormEntidad({
             </>
           ) : (
             <>
-              <Flag size={16} aria-hidden /> Denunciar a la entidad
+              <Send size={16} aria-hidden /> Enviar la denuncia
             </>
           )}
         </Button>
@@ -432,11 +415,3 @@ export function FormEntidad({
   );
 }
 
-function ErrorCampo({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mt-1.5 flex items-start gap-1.5 text-xs text-crimsonTexto">
-      <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden />
-      {children}
-    </p>
-  );
-}

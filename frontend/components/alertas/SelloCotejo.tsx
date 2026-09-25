@@ -1,5 +1,6 @@
 import { ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { numero } from "@/lib/formato";
 
 /**
  * El cotejo de una señal contra fuentes oficiales — el sello que separa "esto se
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 export function SelloCotejo({ verificada, className }: { verificada: boolean | null; className?: string }) {
   if (verificada === true) {
     return (
-      <span className={cn("pill border-moss/40 bg-moss/12 font-semibold text-mossTexto", className)}>
+      <span className={cn("pill border-moss/40 bg-moss/10 font-semibold text-mossTexto", className)}>
         <ShieldCheck size={12} aria-hidden />
         Cotejada
       </span>
@@ -46,11 +47,11 @@ export function LeyendaCotejo({ cotejadas, total }: { cotejadas: number; total: 
   return (
     <p className="text-[12.5px] leading-relaxed text-mute">
       <ShieldCheck size={12} className="mr-1 inline align-[-1px] text-mossTexto" aria-hidden />
-      <strong className="font-semibold text-mossTexto">Cotejada</strong> significa que el monto, el RUC, la fecha o el enlace
-      que cita la señal se volvieron a comprobar contra el registro de contrataciones del OECE, SUNAT o el propio
-      expediente:{" "}
-      <span className="font-mono tabular-nums text-ink">{cotejadas.toLocaleString("es-PE")}</span> de{" "}
-      <span className="font-mono tabular-nums text-ink">{total.toLocaleString("es-PE")}</span> señales.{" "}
+      <strong className="font-semibold text-mossTexto">Cotejada</strong> significa que el cotejo automático no encontró
+      contradicciones entre el monto, el RUC, la fecha o el enlace que cita la señal y el registro de contrataciones del
+      OECE, SUNAT o el propio expediente (revisa los datos, no la conclusión):{" "}
+      <span className="font-semibold tabular-nums text-ink">{numero(cotejadas)}</span> de{" "}
+      <span className="font-semibold tabular-nums text-ink">{numero(total)}</span> señales.{" "}
       <ShieldQuestion size={12} className="mr-1 inline align-[-1px]" aria-hidden />
       <strong className="font-semibold text-inkSoft">Sin cotejo</strong> no quiere decir que sea falsa: quiere decir que
       ese análisis es anterior a que el cotejo se guardara, y que nadie lo comprobó por segunda vez.

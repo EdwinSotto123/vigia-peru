@@ -20,10 +20,10 @@ const SELLO = {
   si: {
     Icono: ShieldCheck,
     label: "cotejada",
-    clase: "border-moss/40 bg-moss/10 text-moss",
+    clase: "border-moss/40 bg-moss/10 text-mossTexto",
     titulo: "Señal cotejada",
     texto:
-      "Antes de publicarla, el análisis volvió a comprobar el dato que sostiene esta señal contra la fuente oficial: el registro público del proceso, la SUNAT o el documento del expediente.",
+      "El análisis marcó esta señal como cotejada contra la fuente oficial (el registro público del proceso, la SUNAT o el documento del expediente). Igual compruébala tú: la señal trae su norma y el enlace a su fuente.",
   },
   no: {
     Icono: ShieldAlert,

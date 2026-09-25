@@ -45,28 +45,37 @@ const PROSA = cn(
   // Medida de lectura: el dictamen es prosa larga; 68ch se lee sin esfuerzo.
   "mx-auto max-w-[68ch] px-4 py-8 sm:px-6",
   "prose prose-sm lg:prose-base",
-  "prose-headings:font-serif prose-headings:text-ink prose-headings:font-bold prose-headings:tracking-tight",
-  "prose-h1:text-2xl prose-h1:mt-0 prose-h1:mb-3 prose-h1:pb-2 prose-h1:border-b prose-h1:border-heroViolet",
-  "prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-line",
-  "prose-h3:text-base prose-h3:mt-7 prose-h3:mb-2 prose-h3:text-heroViolet prose-h3:font-bold",
-  "prose-h4:text-sm prose-h4:mt-5 prose-h4:mb-1.5 prose-h4:font-bold prose-h4:text-ink",
+  // Los títulos del markdown bajan dos niveles (ver COMPONENTES): "#" → h3, "##" → h4, "###" → h5,
+  // "####" → h6. Así el dictamen no trae un segundo h1 a la página ni salta niveles bajo el h2
+  // "Dictamen". Se estilan por etiqueta real, con el mismo aspecto que tenían antes.
+  "[&_h3]:font-display [&_h4]:font-display [&_h5]:font-display [&_h6]:font-display",
+  "[&_h3]:font-bold [&_h4]:font-bold [&_h5]:font-bold [&_h6]:font-bold [&_h3]:tracking-tight [&_h4]:tracking-tight",
+  "[&_h3]:text-ink [&_h4]:text-ink [&_h5]:text-ink [&_h6]:text-ink",
+  "[&_h3]:text-2xl [&_h3]:mt-0 [&_h3]:mb-3 [&_h3]:pb-2 [&_h3]:border-b [&_h3]:border-line",
+  "[&_h4]:text-xl [&_h4]:mt-10 [&_h4]:mb-3 [&_h4]:pb-1.5 [&_h4]:border-b [&_h4]:border-line",
+  "[&_h5]:text-base [&_h5]:mt-7 [&_h5]:mb-2",
+  "[&_h6]:text-sm [&_h6]:mt-5 [&_h6]:mb-1.5",
   "prose-p:text-ink prose-p:leading-[1.7] prose-p:my-3.5",
   "prose-strong:text-ink prose-strong:font-bold",
   "prose-em:text-inkSoft prose-em:italic",
   "prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-1.5",
   "prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-1.5",
-  "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-heroViolet",
-  "prose-a:text-heroViolet prose-a:font-medium prose-a:underline prose-a:decoration-heroViolet/40 hover:prose-a:decoration-heroViolet",
+  "prose-li:text-ink prose-li:leading-relaxed prose-li:marker:text-mute",
+  "prose-a:text-granate prose-a:font-medium prose-a:underline prose-a:decoration-granate/40 hover:prose-a:decoration-granate",
   "prose-a:break-words",
-  "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-heroViolet prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
-  "prose-blockquote:border-l prose-blockquote:border-heroViolet/50 prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r prose-blockquote:text-inkSoft prose-blockquote:not-italic",
+  "prose-code:bg-paperDeep prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-ink prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none",
+  "prose-blockquote:border-l-2 prose-blockquote:border-line prose-blockquote:bg-paperSoft prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:my-4 prose-blockquote:rounded-r-xl prose-blockquote:text-inkSoft prose-blockquote:not-italic",
   "prose-table:text-xs prose-table:w-full prose-table:border-collapse",
-  "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-bold prose-th:uppercase prose-th:tracking-wider prose-th:text-[10px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
+  "prose-th:bg-paperDeep prose-th:text-ink prose-th:font-semibold prose-th:text-[12px] prose-th:px-3 prose-th:py-2 prose-th:border prose-th:border-line",
   "prose-td:text-ink prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-line prose-td:align-top",
   "prose-hr:my-6 prose-hr:border-line",
 );
 
 const COMPONENTES: Components = {
+  h1: ({ node, ...props }) => <h3 {...props} />,
+  h2: ({ node, ...props }) => <h4 {...props} />,
+  h3: ({ node, ...props }) => <h5 {...props} />,
+  h4: ({ node, ...props }) => <h6 {...props} />,
   // Censura DNI, RUC de persona natural y apellidos conocidos en la prosa (vidrio revelable).
   p: ({ node, children, ...props }) => <p {...props}>{redactChildren(children)}</p>,
   li: ({ node, children, ...props }) => <li {...props}>{redactChildren(children)}</li>,
@@ -90,14 +99,14 @@ const COMPONENTES: Components = {
         rel="noreferrer"
         {...props}
         className={cn(
-          "text-heroViolet font-medium hover:text-heroViolet-deep transition-colors",
-          isLongUrl ? "inline-flex items-center gap-1 max-w-full" : "underline decoration-heroViolet/40 hover:decoration-heroViolet",
+          "text-granate font-medium hover:text-granate-deep transition-colors",
+          isLongUrl ? "inline-flex items-center gap-1 max-w-full" : "underline decoration-granate/40 hover:decoration-granate",
         )}
         title={typeof href === "string" ? href : undefined}
       >
         {isLongUrl ? (
           <>
-            <span className="truncate max-w-[36ch] underline decoration-heroViolet/40">{String(children)}</span>
+            <span className="truncate max-w-[36ch] underline decoration-granate/40">{String(children)}</span>
             <ExternalLink size={10} className="shrink-0" aria-hidden />
           </>
         ) : (
@@ -142,13 +151,13 @@ export function DictamenSection({
   };
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperDeep px-5 py-3">
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paperSoft px-5 py-3">
         <div>
-          <h2 className="font-serif text-xl font-bold text-ink">Dictamen periodístico</h2>
+          <h2 className="font-display text-xl font-bold text-ink">Dictamen</h2>
           <div className="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-mute">
-            <FileText size={11} aria-hidden />
-            Redactado por el agente de dictamen{modelo ? ` con ${modelo}` : ""}, con la evidencia de los demás agentes
+            <FileText size={12} aria-hidden />
+            Redactado automáticamente{modelo ? ` (${modelo})` : ""} con la evidencia del análisis. Los datos personales van tapados.
           </div>
         </div>
         <button
@@ -157,7 +166,7 @@ export function DictamenSection({
           aria-live="polite"
           title="Copia el texto con los datos personales ya ocultos"
           className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+            "inline-flex min-h-[32px] items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
             copiado === "ok"
               ? "border-moss/40 bg-moss/10 text-mossTexto"
               : copiado === "error"
@@ -176,14 +185,14 @@ export function DictamenSection({
             <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-3 [&::-webkit-details-marker]:hidden">
               <ScanSearch size={16} className="mt-0.5 shrink-0 text-mute" aria-hidden />
               <span className="min-w-0 flex-1">
-                <span className="block font-serif text-base font-bold text-ink">{TITULO_LLANO_LIMITES}</span>
+                <span className="block font-display text-base font-bold text-ink">{TITULO_LLANO_LIMITES}</span>
                 <span className="block text-[12px] leading-snug text-mute">
                   Lo que no se pudo comprobar y lo que quedó fuera de la lectura de los documentos.
                 </span>
               </span>
               <ChevronDown size={16} className="mt-1 shrink-0 text-mute transition-transform group-open:rotate-180" aria-hidden />
             </summary>
-            <div className="border-t border-line px-4 pb-2 [&>h3:first-child]:mt-4">
+            <div className="border-t border-line px-4 pb-2 [&>:first-child]:mt-4">
               <Md texto={partes.limites} />
             </div>
           </details>

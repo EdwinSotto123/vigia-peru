@@ -35,11 +35,13 @@ export function FiltrosDenuncias({ query }: Props) {
   };
 
   const hayFiltros = !!(query.region || query.categoria || query.estado);
-  const sel = "bg-transparent pr-1 text-sm outline-none";
+  const sel = "min-w-0 bg-transparent pr-1 text-sm text-ink";
+  const caja =
+    "inline-flex min-h-[40px] max-w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-1.5 text-sm text-ink transition-colors duration-rapido focus-within:border-granate hover:border-paperEdge";
 
   return (
-    <div className="surface flex flex-wrap items-center gap-2 p-3">
-      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paperSoft p-3" role="group" aria-label="Filtrar denuncias">
+      <label className={caja}>
         <MapPin size={14} className="text-mute" aria-hidden />
         <span className="sr-only">Filtrar por región</span>
         <select value={query.region ?? ""} onChange={(e) => navegar({ region: e.target.value || undefined })} className={sel}>
@@ -50,7 +52,7 @@ export function FiltrosDenuncias({ query }: Props) {
         </select>
       </label>
 
-      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+      <label className={caja}>
         <Tag size={14} className="text-mute" aria-hidden />
         <span className="sr-only">Filtrar por categoría</span>
         <select
@@ -65,7 +67,7 @@ export function FiltrosDenuncias({ query }: Props) {
         </select>
       </label>
 
-      <label className="inline-flex items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink">
+      <label className={caja}>
         <ShieldCheck size={14} className="text-mute" aria-hidden />
         <span className="sr-only">Filtrar por estado</span>
         <select
@@ -83,12 +85,12 @@ export function FiltrosDenuncias({ query }: Props) {
         <button
           type="button"
           onClick={() => start(() => router.push(pathname, { scroll: false }))}
-          className="inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-2.5 py-2 text-[12px] text-mute hover:text-ink"
+          className="inline-flex min-h-[40px] items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-medium text-inkSoft underline-offset-2 transition-colors duration-rapido hover:bg-paperDeep hover:text-ink hover:underline"
         >
-          <X size={12} aria-hidden /> Limpiar
+          <X size={13} aria-hidden /> Quitar filtros
         </button>
       )}
-      {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Cargando" />}
+      {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Cargando…" />}
     </div>
   );
 }

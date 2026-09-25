@@ -37,12 +37,12 @@ export function FichaRegion({
   contexto?: string;
   /**
    * Las cifras que deciden. `detalle` va en la misma línea y es la frase
-   * completa ("de 1.586 ingresados"): el conector lo escribe quien arma la
+   * completa ("de 1,586 publicados"): el conector lo escribe quien arma la
    * fila, porque no toda cifra tiene un denominador.
    */
   filas: { etiqueta: string; valor: string; detalle?: string; tono?: string }[];
-  /* `tono` sólo acepta clases que pasen 4,5:1 sobre `paper`: text-ink, text-rust
-     (7,34) o text-moss (4,97). `text-amberTexto` da 3,47 y `text-clayTexto` 4,20: no. */
+  /* `tono` sólo acepta clases que pasen 4,5:1 sobre `paper`: text-ink, text-rust (7,34)
+     o text-mossTexto (6,41). `text-amber` da 3,47 y `text-clay` 4,20: no. */
   pie?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -109,7 +109,7 @@ export function FichaRegion({
       )}
     >
       <div className="border-b border-line bg-paperSoft px-3 py-2">
-        <div className="font-serif text-[15px] font-bold leading-tight text-ink">{titulo}</div>
+        <div className="font-display text-[15px] font-bold leading-tight text-ink">{titulo}</div>
         {contexto && <div className="mt-0.5 text-[11px] leading-snug text-mute">{contexto}</div>}
       </div>
       <dl className="divide-y divide-line">

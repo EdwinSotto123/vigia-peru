@@ -47,7 +47,7 @@ export function StatCard({
     "group relative flex min-w-0 flex-col rounded-2xl border p-3 text-left sm:p-4",
     destacado ? TONO[tono].caja : "border-line bg-paper",
     interactivo && "transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-    activo && "border-ink shadow-[0_0_0_3px_rgba(20,23,26,0.08)]",
+    activo && "border-ink shadow-[0_0_0_3px_rgba(30,25,27,0.08)]",
     className,
   );
   const cuerpo = (

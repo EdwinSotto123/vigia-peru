@@ -29,7 +29,7 @@ export class SeccionSegura extends React.Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div role="alert" className="surface flex items-start gap-3 p-4 text-[13px] text-inkSoft">
+      <div role="alert" className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 text-[13px] text-inkSoft">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink">No pudimos mostrar {this.props.nombre}.</p>
@@ -41,7 +41,7 @@ export class SeccionSegura extends React.Component<Props, State> {
         <button
           type="button"
           onClick={() => this.setState({ error: null })}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-line bg-paper px-2.5 py-1 text-[12px] font-medium text-ink hover:bg-paperDeep"
+          className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-medium text-ink hover:bg-paperDeep"
         >
           <RotateCcw size={12} aria-hidden /> Reintentar
         </button>

@@ -1,8 +1,9 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import type { FilaPrecio } from "./mercado";
+import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
 
 /**
  * El detalle de un ítem del gráfico de precios, y la tabla completa que le
@@ -17,20 +18,24 @@ import type { FilaPrecio } from "./mercado";
  *
  * Nada de tarjeta dentro de tarjeta: acá las secciones se separan con reglas
  * y encabezados, no con cajas anidadas.
+ *
+ * Montos: `fmtMoney` lo pasa quien arma el gráfico, para que el panel y el
+ * gráfico escriban la plata igual. Lo que falta se dice ("Sin dato"), no se
+ * deja un guion mudo.
  */
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line/60 py-1.5">
       <dt className="shrink-0 text-[11px] text-mute">{etiqueta}</dt>
-      <dd className="text-right font-mono text-[12px] font-semibold text-ink">{children}</dd>
+      <dd className="text-right font-mono text-[12px] font-semibold tabular-nums text-ink">{children}</dd>
     </div>
   );
 }
 
 function Titulo({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-1.5 mt-4 text-[10px] font-bold uppercase tracking-widest text-mute">{children}</h3>
+    <h3 className="mb-1.5 mt-4 text-[12px] font-semibold text-inkSoft">{children}</h3>
   );
 }
 
@@ -44,7 +49,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
     : [];
   const proveedores: any[] = Array.isArray(f.proveedores_potenciales) ? f.proveedores_potenciales : [];
   const queries: string[] = Array.isArray(f.queries_realizadas) ? f.queries_realizadas : [];
-  const porUnidad = fila.cantidad !== null ? `${fila.cantidad.toLocaleString("es-PE")} ${fila.unidad}` : null;
+  const porUnidad = fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : null;
 
   return (
     <div className="text-[13px] leading-relaxed text-ink">
@@ -135,8 +140,9 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
           <Titulo>Características exigidas en el requerimiento</Titulo>
           <ul className="grid gap-1 sm:grid-cols-2">
             {caracs.map((c, j) => (
+              // Es lo que PIDE el requerimiento, no algo verificado: viñeta neutra, nunca el check verde.
               <li key={j} className="flex items-start gap-1.5 text-[12px]">
-                <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-mute" aria-hidden />
                 <span>{c}</span>
               </li>
             ))}
@@ -153,9 +159,9 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
             <table className="w-full border-collapse text-[11px]">
               <thead>
                 <tr className="border-b border-line text-left text-mute">
-                  <th className="py-1.5 pr-2 font-semibold">Producto / proveedor</th>
-                  <th className="py-1.5 pr-2 text-right font-semibold">Precio</th>
-                  <th className="py-1.5 font-semibold">Cumple lo pedido</th>
+                  <th scope="col" className="py-1.5 pr-2 font-semibold">Producto y proveedor</th>
+                  <th scope="col" className="py-1.5 pr-2 text-right font-semibold">Precio</th>
+                  <th scope="col" className="py-1.5 font-semibold">Cumple lo pedido</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,13 +170,13 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                     <td className="py-1.5 pr-2">
                       <div className="font-medium text-ink">{p.producto || p.producto_titulo || "Producto sin nombre"}</div>
                       <div className="text-mute">
-                        {p.proveedor || p.dominio || "—"}
+                        {p.proveedor || p.dominio || "Proveedor sin nombre"}
                         {p.url && (
                           <a
                             href={p.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="ml-2 inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                            className="ml-2 inline-flex items-center gap-0.5 text-granate hover:underline"
                           >
                             ver fuente <ExternalLink size={9} aria-hidden />
                           </a>
@@ -182,22 +188,22 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                         </div>
                       )}
                     </td>
-                    <td className="py-1.5 pr-2 text-right font-mono font-semibold text-ink">
-                      {typeof (p.precio ?? p.valor) === "number" ? fmtMoney(p.precio ?? p.valor) : "—"}
+                    <td className="py-1.5 pr-2 text-right font-mono font-semibold tabular-nums text-ink">
+                      {typeof (p.precio ?? p.valor) === "number" ? fmtMoney(p.precio ?? p.valor) : <span className="font-sans font-normal text-mute">Sin dato</span>}
                       {p.moneda_origen === "USD" && <div className="text-[9px] font-normal text-mute">convertido de USD</div>}
                     </td>
                     <td className="py-1.5">
                       {p.cumple_caracteristicas === true && (
-                        <span className="inline-flex items-center gap-0.5 text-moss">
-                          <CheckCircle2 size={11} aria-hidden /> sí
+                        <span className="inline-flex items-center gap-0.5 text-mossTexto">
+                          <CheckCircle2 size={11} aria-hidden /> Sí
                         </span>
                       )}
                       {p.cumple_caracteristicas === false && (
                         <span className="inline-flex items-center gap-0.5 text-rust">
-                          <AlertTriangle size={11} aria-hidden /> no
+                          <AlertTriangle size={11} aria-hidden /> No
                         </span>
                       )}
-                      {p.cumple_caracteristicas == null && <span className="text-mute">sin evaluar</span>}
+                      {p.cumple_caracteristicas == null && <span className="text-mute">Sin evaluar</span>}
                     </td>
                   </tr>
                 ))}
@@ -228,16 +234,16 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
                       href={r.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="ml-1.5 inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                      className="ml-1.5 inline-flex items-center gap-0.5 text-granate hover:underline"
                     >
                       {r.ocid || "ver"} <ExternalLink size={9} aria-hidden />
                     </a>
                   )}
                 </span>
-                <span className="shrink-0 font-mono font-semibold text-ink">
+                <span className="shrink-0 font-mono font-semibold tabular-nums text-ink">
                   {typeof (r.precio_unitario ?? r.precio_unitario_adjudicado ?? r.precio_unitario_referencial) === "number"
                     ? fmtMoney(r.precio_unitario ?? r.precio_unitario_adjudicado ?? r.precio_unitario_referencial)
-                    : "—"}
+                    : <span className="font-sans font-normal text-mute">Sin dato</span>}
                 </span>
               </li>
             ))}
@@ -251,14 +257,14 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
           <ul className="space-y-0.5 text-[12px]">
             {proveedores.map((p, j) => (
               <li key={j}>
-                <span className="font-medium">{p.nombre || "—"}</span>
+                <span className="font-medium">{p.nombre || "Proveedor sin nombre"}</span>
                 {p.linea && <span className="text-mute">, línea {p.linea}</span>}
                 {p.url && (
                   <a
                     href={p.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="ml-1.5 inline-flex items-center gap-0.5 text-heroViolet hover:underline"
+                    className="ml-1.5 inline-flex items-center gap-0.5 text-granate hover:underline"
                   >
                     ver <ExternalLink size={9} aria-hidden />
                   </a>
@@ -271,7 +277,7 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
 
       {queries.length > 0 && (
         <details className="mt-4 text-[11px] text-mute">
-          <summary className="cursor-pointer font-semibold uppercase tracking-widest hover:text-ink">
+          <summary className="min-h-[24px] cursor-pointer font-semibold hover:text-ink">
             Qué buscó el agente: {queries.length} consulta{queries.length === 1 ? "" : "s"}
           </summary>
           <ul className="mt-1 space-y-0.5">
@@ -293,67 +299,75 @@ export function DetallePrecioItem({ fila, fmtMoney }: { fila: FilaPrecio; fmtMon
  * y el auditor la quieren así — y vive en un panel, no en la página.
  */
 export function TablaPrecios({ filas, fmtMoney }: { filas: FilaPrecio[]; fmtMoney: (n: any) => string }) {
+  const sinDato = <span className="font-sans font-normal text-mute">Sin dato</span>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[11px]">
-        <caption className="pb-2 text-left text-[11px] text-mute">
-          Los {filas.length} ítems desglosados del requerimiento con sus precios. Mismos datos del gráfico, en texto.
+        <caption className="pb-2 text-left text-[12px] text-mute">
+          Los {numero(filas.length)} ítems desglosados del requerimiento con sus precios. Mismos datos del gráfico, en texto.
         </caption>
         <thead>
           <tr className="border-b border-line text-left align-bottom text-mute">
-            <th className="px-2 py-1.5 font-semibold">#</th>
-            <th className="px-2 py-1.5 font-semibold">Producto</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Cantidad</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Ofertado c/u</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Mercado c/u</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Rango observado</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Línea ofertada</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Línea a mercado</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Δ %</th>
-            <th className="px-2 py-1.5 font-semibold">Veredicto</th>
+            <th scope="col" className="px-2 py-1.5 font-semibold">#</th>
+            <th scope="col" className="px-2 py-1.5 font-semibold">Producto</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Cantidad</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Ofertado c/u</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Mercado c/u</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Rango observado</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Línea ofertada</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Línea a mercado</th>
+            <th scope="col" className="px-2 py-1.5 text-right font-semibold">Diferencia</th>
+            <th scope="col" className="px-2 py-1.5 font-semibold">Veredicto</th>
           </tr>
         </thead>
         <tbody>
-          {filas.map((fila) => (
-            <tr key={fila.key} className="border-b border-line/50 align-top">
-              <td className="px-2 py-1.5 font-mono font-bold text-heroViolet">{fila.numero}</td>
-              <td className="px-2 py-1.5 text-ink">{fila.descripcion.slice(0, 80)}</td>
-              <td className="px-2 py-1.5 text-right font-mono text-ink">
-                {fila.cantidad !== null ? fila.cantidad.toLocaleString("es-PE") : "—"}
-                <div className="text-[9px] text-mute">{fila.unidad}</div>
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-ink">
-                {fila.ofertadoUnit !== null ? fmtMoney(fila.ofertadoUnit) : "—"}
-                {fila.baseOfertado === "referencial" && <div className="text-[9px] text-mute">referencial</div>}
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-ink">
-                {fila.referenciaUnit !== null
-                  ? `${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)}`
-                  : "—"}
-                {fila.tipoReferencia === "estimacion_ia" && fila.referenciaUnit !== null && (
-                  <div className="text-[9px] text-mute">estimado, sin medir</div>
-                )}
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-mute">
-                {fila.rangoMinUnit !== null && fila.rangoMaxUnit !== null
-                  ? `${fmtMoney(fila.rangoMinUnit)} – ${fmtMoney(fila.rangoMaxUnit)}`
-                  : "—"}
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-ink">
-                {fila.ofertado !== null ? fmtMoney(fila.ofertado) : "—"}
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-ink">
-                {fila.referencia !== null ? fmtMoney(fila.referencia) : "—"}
-              </td>
-              <td className={cn("px-2 py-1.5 text-right font-mono font-bold", fila.sobreElRango ? "text-rust" : "text-ink")}>
-                {fila.diffPct !== null ? `${fila.diffPct > 0 ? "+" : ""}${fila.diffPct.toFixed(1)} %` : "—"}
-              </td>
-              <td className={cn("px-2 py-1.5", fila.veredicto.ui.texto)}>
-                {fila.veredicto.etiqueta}
-                {!fila.medido && fila.motivo && <div className="text-[9px] text-mute">{fila.motivo}</div>}
-              </td>
-            </tr>
-          ))}
+          {filas.map((fila) => {
+            const Icono = ICONO_SEVERIDAD[fila.veredicto.ui.icono];
+            return (
+              <tr key={fila.key} className="border-b border-line/50 align-top">
+                <th scope="row" className="px-2 py-1.5 text-left font-mono font-semibold text-inkSoft">{fila.numero}</th>
+                <td className="px-2 py-1.5 text-ink">{fila.descripcion.slice(0, 80)}</td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
+                  {fila.cantidad !== null ? numero(fila.cantidad) : sinDato}
+                  <div className="text-[10px] text-mute">{fila.unidad}</div>
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
+                  {fila.ofertadoUnit !== null ? fmtMoney(fila.ofertadoUnit) : sinDato}
+                  {fila.baseOfertado === "referencial" && <div className="text-[10px] text-mute">referencial</div>}
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
+                  {fila.referenciaUnit !== null
+                    ? `${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)}`
+                    : sinDato}
+                  {fila.tipoReferencia === "estimacion_ia" && fila.referenciaUnit !== null && (
+                    <div className="text-[10px] text-mute">estimado, sin medir</div>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-inkSoft">
+                  {fila.rangoMinUnit !== null && fila.rangoMaxUnit !== null
+                    ? `${fmtMoney(fila.rangoMinUnit)} – ${fmtMoney(fila.rangoMaxUnit)}`
+                    : sinDato}
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
+                  {fila.ofertado !== null ? fmtMoney(fila.ofertado) : sinDato}
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums text-ink">
+                  {fila.referencia !== null ? fmtMoney(fila.referencia) : sinDato}
+                </td>
+                <td className={cn("px-2 py-1.5 text-right font-mono font-bold tabular-nums", fila.sobreElRango ? "text-rust" : "text-ink")}>
+                  {fila.diffPct !== null ? `${fila.diffPct > 0 ? "+" : ""}${fila.diffPct.toFixed(1)} %` : sinDato}
+                </td>
+                {/* Tres canales: color + ícono + palabra. */}
+                <td className={cn("px-2 py-1.5", fila.veredicto.ui.texto)}>
+                  <span className="inline-flex items-center gap-1 font-medium">
+                    <Icono size={11} aria-hidden />
+                    {fila.veredicto.etiqueta}
+                  </span>
+                  {!fila.medido && fila.motivo && <div className="text-[10px] text-mute">{fila.motivo}</div>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

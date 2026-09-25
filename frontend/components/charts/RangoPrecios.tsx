@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
+import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
 
@@ -37,7 +38,8 @@ import { ICONO_SEVERIDAD, type FilaPrecio } from "./mercado";
  *
  * Movimiento: la primera vez que el gráfico entra en pantalla, cada segmento
  * crece desde la mediana de mercado hasta lo ofertado, así el ojo recorre la
- * distancia que el renglón está midiendo. Lo que se pinta de entrada es SIEMPRE
+ * distancia que el renglón está midiendo. Todos a la vez: sin cascada de
+ * entrada, que en las páginas de producto no va (DESIGN_SYSTEM.md §8). Lo que se pinta de entrada es SIEMPRE
  * el estado final; la animación es un `<animate>` SVG que solo existe mientras
  * corre, y no corre nunca con `prefers-reduced-motion: reduce`.
  */
@@ -49,7 +51,7 @@ const VISIBLES = 12;
 
 /** Crecimiento mediana → ofertado. Corto: es un gesto de lectura, no un espectáculo. */
 const CRECER_SEG = 0.7;
-const ESCALON_SEG = 0.04;
+const ESCALON_SEG = 0;
 const CURVA = "0.22 1 0.36 1";
 
 /** useLayoutEffect en el cliente, useEffect en el servidor (evita el aviso de SSR). */
@@ -114,7 +116,7 @@ function PastillaVeredicto({ fila }: { fila: FilaPrecio }) {
   return (
     <span
       className={cn(
-        "pill justify-self-end whitespace-nowrap px-2 py-0 text-[10px]",
+        "pill justify-self-end whitespace-nowrap px-2 py-0 text-[11px]",
         fila.veredicto.ui.fondo,
         fila.veredicto.ui.texto,
         fila.veredicto.ui.borde,
@@ -357,11 +359,11 @@ function Renglon({
     <div className={cn(REJILLA, "rounded-lg px-2 py-1.5 transition-colors duration-rapido group-hover:bg-paperSoft")}>
       <div className="min-w-0">
         <div className="flex items-baseline gap-1.5">
-          <span className="shrink-0 font-mono text-[10px] font-bold text-heroViolet">{fila.numero}</span>
+          <span className="shrink-0 font-mono text-[11px] font-semibold text-inkSoft">{fila.numero}</span>
           <span className="truncate text-[12px] font-medium leading-tight text-ink">{fila.descripcion}</span>
         </div>
-        <div className="truncate text-[10px] text-mute">
-          {fila.cantidad !== null ? `${fila.cantidad.toLocaleString("es-PE")} ${fila.unidad}` : "sin cantidad"}
+        <div className="truncate text-[11px] tabular-nums text-mute">
+          {fila.cantidad !== null ? `${numero(fila.cantidad)} ${fila.unidad}` : "Sin cantidad"}
           {fila.ofertadoUnit !== null && `, ${fmtMoney(fila.ofertadoUnit)} c/u`}
           {fila.referenciaUnit !== null &&
             `, mercado ${fila.tipoReferencia === "mediana" ? "" : "≈ "}${fmtMoney(fila.referenciaUnit)} c/u`}
@@ -465,13 +467,13 @@ export function RangoPrecios({
 
       {/* Eje. Este bloque además mide el ancho del área de dibujo de todos los renglones. */}
       <div className={cn(REJILLA, "px-2 pb-1")}>
-        <div className="text-[10px] uppercase tracking-wider text-mute">Ítem</div>
+        <div className="text-[11px] font-semibold text-mute">Ítem</div>
         <div ref={ref} className="order-last col-span-2 sm:order-none sm:col-span-1">
           {/* El padding replica el del trazo, para que las marcas del eje caigan
               exactamente sobre el 0 y el techo que dibuja cada renglón. */}
           <div className="px-[5px]">
-            <div className="grid grid-cols-3 font-mono text-[10px] text-mute">
-              <span className="text-left">S/. 0</span>
+            <div className="grid grid-cols-3 font-mono text-[10px] tabular-nums text-mute">
+              <span className="text-left">S/ 0</span>
               <span className="text-center">{fmtMoney(maximo / 2)}</span>
               <span className="text-right">{fmtMoney(maximo)}</span>
             </div>
@@ -483,7 +485,7 @@ export function RangoPrecios({
           </div>
           <div className="mt-0.5 text-center text-[9px] text-mute">soles de la línea (precio unitario × cantidad)</div>
         </div>
-        <div className="justify-self-end text-[10px] uppercase tracking-wider text-mute">Veredicto</div>
+        <div className="justify-self-end text-[11px] font-semibold text-mute">Veredicto</div>
       </div>
 
       <div
@@ -511,16 +513,17 @@ export function RangoPrecios({
         <button
           type="button"
           onClick={() => setTodas((v) => !v)}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:bg-paperSoft"
+          aria-expanded={todas}
+          className="mt-2 inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:bg-paperSoft focus-visible:bg-paperSoft"
         >
-          <ChevronDown size={12} className={cn("transition-transform duration-rapido", todas && "rotate-180")} />
+          <ChevronDown size={12} className={cn("transition-transform duration-rapido", todas && "rotate-180")} aria-hidden />
           {todas
             ? `Ver solo los ${VISIBLES} de mayor diferencia`
             : `Ver los ${ocultas} ítems restantes (${filas.length} en total)`}
         </button>
       )}
 
-      <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-mute">
+      <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-mute">
         <span className="inline-flex items-center gap-1.5">
           <svg width="26" height="10" aria-hidden className="shrink-0">
             <rect x="0" y="1" width="26" height="8" className="fill-paperDeep stroke-line" strokeWidth="1" />

@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from "./api-client";
+import { fechaCorta, soles } from "./formato";
 import { nivelDeScore } from "./severidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 export type { CitaDocumento };
@@ -16,6 +17,11 @@ export type TipoContrato = "bienes" | "servicios" | "consultoria" | "obras" | "c
 export type EtapaContrato =
   | "planificacion" | "convocada" | "adjudicada" | "contratada" | "en_ejecucion"
   | "finalizada" | "desierta" | "cancelada" | "nula" | "desconocida";
+/**
+ * Tramos del filtro "Peso del riesgo" (DESIGN_SYSTEM.md §10.1). OJO con `bajo`: el backend
+ * lo arma como score < 40 entre las alertas publicadas, así que incluye también a las de
+ * score 0, que no tienen ninguna señal. Por eso su etiqueta dice "bajo o sin señales".
+ */
 export type RiesgoContrato = "alto" | "medio" | "bajo" | "sin_analizar";
 
 /**
@@ -48,7 +54,10 @@ export interface ContratoResumen {
   /** Migración 19: en_cola (tipo/etapa con análisis activo) · documentos_listos (docs en GCS, análisis aún no activo) · sin_documentos. */
   estadoOperativo?: EstadoOperativo | null;
   score: number | null;
+  /** Señales publicadas. El API manda `null` si la alerta no está publicada (en revisión o descartada). */
   banderas: number;
+  /** La alerta está en revisión humana: leído, sin score ni señales públicas (§10.4: se dice "En revisión" y nada más). */
+  enRevision?: boolean;
   proveedor: string | null;
   proveedorRuc: string | null;
 }
@@ -159,6 +168,11 @@ export interface ContratoZona {
   pendientes: number;
   enProceso: number;
   procesados: number;
+  /**
+   * OJO: publicados con score ≥ 40 (peso del riesgo medio o alto), NO "con señales"
+   * (§10.1: con señales = al menos una señal publicada, de cualquier peso). En pantalla
+   * se rotula "de riesgo medio o alto".
+   */
   conSenales: number;
   /** Estado operativo (migración 19) sobre lo aún sin analizar: financiable hoy vs. documentos listos (análisis en preparación). */
   enCola: number;
@@ -224,17 +238,21 @@ export const ETAPAS: { value: EtapaContrato; label: string }[] = [
   { value: "desconocida", label: "Desconocida" },
 ];
 
+/**
+ * Filtro por peso del riesgo (el tramo del score). "Riesgo", no "Señal": "Señal alta" es la
+ * severidad de UNA señal, y un contrato de riesgo bajo puede traer una señal alta.
+ */
 export const RIESGOS: { value: RiesgoContrato; label: string }[] = [
-  { value: "alto", label: "Señal alta (≥ 70)" },
-  { value: "medio", label: "Señal media (40–69)" },
-  { value: "bajo", label: "Señal baja (< 40)" },
-  { value: "sin_analizar", label: "Sin analizar" },
+  { value: "alto", label: "Riesgo alto (70 o más)" },
+  { value: "medio", label: "Riesgo medio (40 a 69)" },
+  { value: "bajo", label: "Riesgo bajo o sin señales (menos de 40)" },
+  { value: "sin_analizar", label: "Sin leer" },
 ];
 
 export const ORDENES: { value: OrdenContratos; label: string }[] = [
   { value: "fecha", label: "Más recientes" },
   { value: "monto", label: "Mayor monto" },
-  { value: "score", label: "Mayor señal de riesgo" },
+  { value: "score", label: "Mayor peso del riesgo" },
 ];
 
 export const tipoLabel = (t: string | null | undefined) => TIPOS.find((x) => x.value === t)?.label ?? null;
@@ -244,8 +262,9 @@ export const operativoLabel = (o: string | null | undefined) => OPERATIVOS.find(
 
 /** Estados que lib/auditoria no conoce (el resto usa `EstadoPill`). */
 export const ESTADO_CONTRATO_EXTRA: Record<"sin_analizar" | "pendiente_de_procesamiento", { label: string; cls: string }> = {
-  sin_analizar: { label: "Sin analizar", cls: "bg-paperDeep text-mute" },
-  pendiente_de_procesamiento: { label: "Pendiente de procesamiento", cls: "bg-amber-soft/60 text-clay" },
+  sin_analizar: { label: "Sin leer", cls: "bg-paperDeep text-mute" },
+  // `text-clay` daba 4.20:1 sobre papel (bajo el piso de 4.5): el texto va en clayTexto.
+  pendiente_de_procesamiento: { label: "No procesable todavía", cls: "bg-amber-soft/60 text-clayTexto" },
 };
 
 // Los cortes viven en lib/severidad.ts, que es la fuente única. Acá sólo se
@@ -256,10 +275,11 @@ export function riesgoDe(score: number | null | undefined): RiesgoContrato {
   return n === "alta" ? "alto" : n === "media" ? "medio" : n === "baja" ? "bajo" : "sin_analizar";
 }
 
+/** Texto por tramo. `bajo` es neutro, nunca el verde de lo positivo: puede traer señales. */
 export const RIESGO_CLS: Record<RiesgoContrato, string> = {
   alto: "text-rust",
   medio: "text-amberTexto",
-  bajo: "text-mossTexto",
+  bajo: "text-inkSoft",
   sin_analizar: "text-mute",
 };
 
@@ -506,19 +526,20 @@ export const getResumenVivo = () =>
 
 // ─── Presentación ────────────────────────────────────────────────────────────
 
+/**
+ * Monto completo para tablas y fichas (DESIGN_SYSTEM.md §10.3: en tabla, sin compactar).
+ * Antes compactaba desde el millón ("S/ 1.3 M") en la misma columna que "S/ 262,389": dos
+ * formatos en una columna. Ahora delega en `lib/formato`. 0 o nulo = "Sin dato": el OCDS
+ * publica 0 cuando no hay valor referencial, y un "S/ 0" sería un cero inventado.
+ */
 export const formatMonto = (n: number | null | undefined, moneda: string | null = "PEN") => {
-  if (n == null) return "—";
-  if (n === 0) return "—";
-  const pre = moneda && moneda !== "PEN" ? `${moneda} ` : "S/ ";
-  if (n >= 1_000_000) return `${pre}${(n / 1_000_000).toLocaleString("es-PE", { maximumFractionDigits: 1 })} M`;
-  return `${pre}${n.toLocaleString("es-PE", { maximumFractionDigits: 0 })}`;
+  if (n == null || n === 0) return "Sin dato";
+  const texto = soles(n);
+  return moneda && moneda !== "PEN" ? texto.replace(/^S\/ /, `${moneda} `) : texto;
 };
 
-export const formatFecha = (iso: string | null | undefined) => {
-  if (!iso) return "—";
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return d && m && y ? `${d}/${m}/${y.slice(2)}` : iso;
-};
+/** Fecha de tabla: "24 set." (o "24 set. 2025" si no es del año en curso). Delegado en `lib/formato`. */
+export const formatFecha = (iso: string | null | undefined) => fechaCorta(iso ? iso.slice(0, 10) : null);
 
 const TIPO_DOC: Record<string, string> = {
   biddingDocuments: "Bases",

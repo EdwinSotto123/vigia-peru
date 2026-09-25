@@ -247,7 +247,7 @@ export function FlowGraph({ liveEvents = [], override }: {
     function draw() {
       ctx!.clearRect(0, 0, CW, CH);
       // grid sutil
-      ctx!.save(); ctx!.strokeStyle = "rgba(70,56,30,0.04)"; ctx!.lineWidth = 1;
+      ctx!.save(); ctx!.strokeStyle = "rgba(30,25,27,0.05)"; ctx!.lineWidth = 1;
       for (let x = 0; x < CW; x += 36) { ctx!.beginPath(); ctx!.moveTo(x, 0); ctx!.lineTo(x, CH); ctx!.stroke(); }
       for (let y = 0; y < CH; y += 36) { ctx!.beginPath(); ctx!.moveTo(0, y); ctx!.lineTo(CW, y); ctx!.stroke(); }
       ctx!.restore();
@@ -318,7 +318,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         ctx!.save(); ctx!.globalAlpha = dimmed ? 0.18 : 1;
         if (isActive || isSel) { ctx!.shadowColor = c.stroke; ctx!.shadowBlur = isSel ? 26 : 18; }
         ctx!.beginPath(); ctx!.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx!.fillStyle = isDone ? G_DONE.fill : "#fffdf7";
+        ctx!.fillStyle = isDone ? G_DONE.fill : "#FFFFFF";
         ctx!.fill(); ctx!.shadowBlur = 0;
         ctx!.strokeStyle = isDone ? G_DONE.stroke : (isActive || isSel) ? c.stroke : c.stroke + "66";
         ctx!.lineWidth = (isActive || isSel) ? 2.4 : 1.2;
@@ -336,7 +336,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         const lines = [n.label]; if (sub) lines.push(sub);
         const fs = n.type === "orch" ? 12 : 11;
         ctx!.textAlign = "center"; ctx!.textBaseline = "middle";
-        ctx!.fillStyle = dimmed ? "#bcb3a0" : isDone ? G_DONE.text : (isActive || isSel) ? c.stroke : "#3a3324";
+        ctx!.fillStyle = dimmed ? "#A79DA1" : isDone ? G_DONE.text : (isActive || isSel) ? c.stroke : "#1E191B"; // ink
         ctx!.font = `${n.type === "orch" ? "800" : "700"} ${fs}px ${FONT}`;
         lines.forEach((line, i) => { const lh = fs + 2; const yOff = (i - (lines.length - 1) / 2) * lh; ctx!.fillText(line, n.x, n.y + yOff); });
         if (isDone) { ctx!.fillStyle = G_DONE.stroke; ctx!.font = `${Math.max(r * 0.5, 10)}px sans-serif`; ctx!.fillText("✓", n.x + r * 0.62, n.y - r * 0.62); }
@@ -388,10 +388,9 @@ export function FlowGraph({ liveEvents = [], override }: {
       onClick={fullscreen ? (e) => { if (e.target === e.currentTarget) setFullscreen(false); } : undefined}
     >
     <div ref={wrapRef} className={cn(
-        "relative overflow-hidden rounded-2xl border border-line",
+        "relative overflow-hidden rounded-2xl border border-line bg-paperSoft",
         fullscreen ? "h-full w-full max-w-[1600px]" : "h-[480px] w-full sm:h-[560px]",
-      )}
-      style={{ background: "radial-gradient(900px 500px at 78% -10%, #fbf7ee, transparent), radial-gradient(800px 500px at 10% 110%, #efe6d4, transparent), #f3ede1" }}>
+      )}>
       <canvas ref={canvasRef} className="absolute inset-0 block" aria-label="Grafo de los pasos del análisis y el orden en que corren" role="img" />
 
       {/* pantalla completa */}
@@ -410,7 +409,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
           {selNode ? (
             <>
-              <div className="font-serif text-[17px] font-bold leading-tight" style={{ color: stroke(selNode.id) }}>{selNode.name}</div>
+              <div className="font-display text-[17px] font-bold leading-tight" style={{ color: stroke(selNode.id) }}>{selNode.name}</div>
               <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 font-mono text-[9px] font-semibold tracking-wider"
                 style={{ background: stroke(selNode.id) + "1f", color: stroke(selNode.id), border: `1px solid ${stroke(selNode.id)}55` }}>
                 {TIPO_LABEL[selNode.type]}{selNode.carril ? `, carril ${selNode.carril}` : ""}
@@ -433,7 +432,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         {/* Hallazgos en vivo (necesita el trace fino del ADK: no disponible en `override`) */}
         {!override && (
         <div className="pointer-events-auto rounded-2xl border border-line bg-paperSoft/95 p-3.5 shadow-lg backdrop-blur">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-heroViolet">Hallazgos en vivo</div>
+          <div className="mb-2 text-[12px] font-semibold text-ink">Hallazgos en vivo</div>
           {(findings.empresa || findings.entidad || findings.socios.length > 0 || findings.senales.length > 0) ? (
             <div className="flex flex-col gap-2 text-[12px]">
               {findings.entidad && <div><span className="text-[10px] uppercase tracking-wide text-mute">entidad</span> <span className="font-semibold text-ink">{findings.entidad}</span></div>}
@@ -500,16 +499,16 @@ export function FlowGraph({ liveEvents = [], override }: {
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: curStep ? VERB_HEX[curStep.v] : stroke(activeId) }} />
         </span>
         {override?.narracion ? (
-          <span className="truncate font-serif text-[14px] font-semibold text-ink">
+          <span className="truncate font-display text-[14px] font-semibold text-ink">
             Ahora: <span style={{ color: stroke(activeId) }}>{override.narracion}</span>
           </span>
         ) : curStep ? (
-          <span className="truncate font-serif text-[14px] font-semibold text-ink">
+          <span className="truncate font-display text-[14px] font-semibold text-ink">
             <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: VERB_HEX[curStep.v] }}>{curStep.v}</span>
             {" "}<span style={{ color: stroke(curStep.f) }}>{nm(curStep.f)}</span> {curStep.m}
           </span>
         ) : (
-          <span className="font-serif text-[14px] font-semibold text-ink">Repartiendo el contrato entre los agentes…</span>
+          <span className="font-display text-[14px] font-semibold text-ink">Repartiendo el contrato entre los agentes…</span>
         )}
       </div>
     </div>

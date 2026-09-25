@@ -5,6 +5,7 @@ import { DetallePrecioItem, TablaPrecios } from "@/components/charts/DetallePrec
 import { RangoPrecios } from "@/components/charts/RangoPrecios";
 import { construirFilas, maximoEscala, ordenarPorDiferencia } from "@/components/charts/mercado";
 import { Revelar } from "@/components/ui/Revelar";
+import { numero, plural } from "@/lib/formato";
 
 /**
  * Ofertado contra mercado, ítem por ítem.
@@ -67,11 +68,11 @@ export function ItemsConMarketPrice({
   return (
     <div className="space-y-3 px-5 py-4">
       {padreLote && (
-        <p className="border-l-2 border-heroViolet/40 pl-3 text-[12px] text-mute">
+        <p className="border-l-2 border-line pl-3 text-[12px] text-mute">
           <strong className="font-semibold text-ink">Lote OCDS {padreLote.numero}:</strong>{" "}
-          {padreLote.cantidad !== null ? `${padreLote.cantidad.toLocaleString("es-PE")} ${padreLote.unidad}` : padreLote.unidad}{" "}
+          {padreLote.cantidad !== null ? `${numero(padreLote.cantidad)} ${padreLote.unidad}` : padreLote.unidad}{" "}
           por {padreLote.cuantia !== null ? fmtMoney(padreLote.cuantia) : "cuantía no publicada"}, desglosado acá en{" "}
-          {filas.length} sub-ítem(s). {String(padreLote.descripcion).slice(0, 120)}
+          {plural(filas.length, "sub-ítem", "sub-ítems")}. {String(padreLote.descripcion).slice(0, 120)}
         </p>
       )}
 
@@ -82,7 +83,7 @@ export function ItemsConMarketPrice({
         tienen precio de mercado medido con fuentes verificables
         {sobreRango > 0 ? (
           <>
-            , y <strong className="font-semibold text-rust">{sobreRango}</strong> de esos {conMedicion} quedan por
+            , y <strong className="font-semibold">{sobreRango}</strong> de esos {conMedicion} quedan por
             encima del techo del rango que se observó en el mercado.
           </>
         ) : conMedicion > 0 ? (
@@ -105,7 +106,7 @@ export function ItemsConMarketPrice({
           maximo={maximo}
           fmtMoney={fmtMoney}
           detalles={detalles}
-          titulo={`Comparación de precio ofertado contra el mercado en ${orden.length} ítem(s), ordenados por diferencia en soles. La tabla completa con las mismas cifras está bajo "ver la tabla completa".`}
+          titulo={`Comparación de precio ofertado contra el mercado en ${plural(orden.length, "ítem", "ítems")}, ordenados por diferencia en soles. La tabla completa con las mismas cifras está bajo "ver la tabla completa".`}
         />
       ) : (
         <p className="border-l-2 border-line pl-3 text-[12px] text-mute">
@@ -117,13 +118,13 @@ export function ItemsConMarketPrice({
       <div className="flex flex-wrap items-center gap-2">
         <Revelar
           titulo="Todos los ítems y sus precios"
-          descripcion={`${conMedicion} medido(s), ${estimados} estimado(s) y ${fuera.length} sin comparación, de ${filas.length} ítems desglosados`}
+          descripcion={`${numero(conMedicion)} con precio medido, ${numero(estimados)} estimados y ${numero(fuera.length)} sin comparación, de ${plural(filas.length, "ítem desglosado", "ítems desglosados")}`}
           detalle={<TablaPrecios filas={filas} fmtMoney={fmtMoney} />}
           ancho="xl"
           className="w-auto"
           etiqueta={`Ver la tabla completa de los ${filas.length} ítems con sus precios`}
         >
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink transition-colors duration-rapido group-hover:bg-paperSoft">
+          <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-ink transition-colors duration-rapido group-hover:bg-paperSoft">
             <Table2 size={12} aria-hidden />
             Ver la tabla completa ({filas.length} ítems)
           </span>
@@ -131,7 +132,7 @@ export function ItemsConMarketPrice({
 
         {fuera.length > 0 && (
           <Revelar
-            titulo={`${fuera.length} ítem(s) sin comparación de mercado`}
+            titulo={`${plural(fuera.length, "ítem", "ítems")} sin comparación de mercado`}
             descripcion="Qué falta en cada uno para poder compararlo"
             detalle={
               <div className="text-[13px] text-ink">
@@ -144,13 +145,13 @@ export function ItemsConMarketPrice({
                   {fuera.map((f) => (
                     <li key={f.key} className="py-2">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-heroViolet">{f.numero}</span>
+                        <span className="font-mono text-[11px] font-semibold text-inkSoft">{f.numero}</span>
                         <span className="font-medium">{f.descripcion}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 text-[11px] text-mute">
                         <span>
                           {f.cantidad !== null
-                            ? `${f.cantidad.toLocaleString("es-PE")} ${f.unidad}`
+                            ? `${numero(f.cantidad)} ${f.unidad}`
                             : "sin cantidad en el expediente"}
                         </span>
                         <span>{f.motivo ?? f.veredicto.etiqueta.toLowerCase()}</span>
@@ -164,7 +165,7 @@ export function ItemsConMarketPrice({
             className="w-auto"
             etiqueta={`Ver por qué ${fuera.length} ítems no tienen comparación de mercado`}
           >
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1 text-[11px] font-semibold text-mute transition-colors duration-rapido group-hover:bg-paperSoft group-hover:text-ink">
+            <span className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[12px] font-semibold text-inkSoft transition-colors duration-rapido group-hover:bg-paperSoft group-hover:text-ink">
               Por qué {fuera.length} {fuera.length === 1 ? "ítem no tiene" : "ítems no tienen"} comparación
             </span>
           </Revelar>

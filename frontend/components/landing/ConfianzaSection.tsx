@@ -1,4 +1,5 @@
 import { ArrowUpRight, Code2, FileSearch, ShieldCheck, UserCheck } from "lucide-react";
+import { plural } from "@/lib/formato";
 
 /**
  * Por qué creerle.
@@ -27,7 +28,7 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
       t: "Si duda, lo revisa una persona.",
       d:
         enRevision != null && enRevision > 0
-          ? `Cuando el análisis no está seguro de lo que encontró, no se publica solo: queda en revisión humana. Hoy hay ${enRevision.toLocaleString("es-PE")} ${enRevision === 1 ? "contrato" : "contratos"} en esa fila.`
+          ? `Cuando el análisis no está seguro de lo que encontró, no se publica solo: queda en revisión humana. Hoy hay ${plural(enRevision, "contrato", "contratos")} en revisión.`
           : "Cuando el análisis no está seguro de lo que encontró, no se publica solo: queda en revisión humana.",
     },
     {
@@ -45,22 +46,22 @@ export function ConfianzaSection({ enRevision }: { enRevision: number | null }) 
 
   return (
     <section id="organizacion" aria-labelledby="confianza-titulo" className="scroll-mt-16 border-t border-line bg-paperSoft py-20 sm:py-24">
-      <div className="container-page grid max-w-[1400px] gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
-        <h2 id="confianza-titulo" className="max-w-[16ch] font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
+      <div className="container-page grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
+        <h2 id="confianza-titulo" className="max-w-[16ch] text-balance font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
           Hecho para que no tengas que creerle a nadie.
         </h2>
         <ul className="grid gap-x-10 gap-y-9 sm:grid-cols-2">
           {compromisos.map(({ Icono, t, d, href }) => (
             <li key={t} className="border-t border-line pt-5">
-              <Icono size={20} className="text-heroViolet" aria-hidden />
-              <h3 className="mt-3 text-lg font-semibold text-ink">{t}</h3>
+              <Icono size={20} className="text-granate" aria-hidden />
+              <h3 className="mt-3 font-display text-lg font-bold text-ink">{t}</h3>
               <p className="mt-1.5 text-[15px] leading-relaxed text-inkSoft">{d}</p>
               {href && (
                 <a
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-[14px] font-semibold text-heroViolet underline-offset-4 hover:underline"
+                  className="mt-2 inline-flex min-h-[32px] items-center gap-1 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
                 >
                   Ver el código <ArrowUpRight size={13} aria-hidden />
                   <span className="sr-only">(se abre en una pestaña nueva)</span>

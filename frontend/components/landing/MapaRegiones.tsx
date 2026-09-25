@@ -1,8 +1,9 @@
 import { geoMercator, geoPath } from "d3-geo";
 import deptos from "@/public/peru-departments.json";
-import { construirEscala } from "@/components/mapa/escala";
+import { construirEscala, RAMPA, SIN_DATO } from "@/components/mapa/escala";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { ContratoZona } from "@/lib/contratos";
+import { solesCompacto } from "@/lib/formato";
 import { MapaRegionesEscena, type RegionMapa } from "./MapaRegionesEscena";
 
 /**
@@ -22,10 +23,15 @@ import { MapaRegionesEscena, type RegionMapa } from "./MapaRegionesEscena";
 const ANCHO = 520;
 const ALTO = 720;
 
-const VERDE_LEIDO = "#BFE6C8";
-const GRIS_SIN_LEER = "#E7EAEE";
-
-const millones = (n: number) => Math.round(n / 1e6).toLocaleString("es-PE");
+/**
+ * El segundo paso pinta dos estados: con contratos leídos, o todavía ninguno.
+ * Añil oscuro de la misma rampa del monto (DESIGN_SYSTEM.md §3.9), no el verde
+ * de antes: verde es "positivo" en este producto, y un punto rojo de señal
+ * sobre verde es el par que peor se distingue con daltonismo. Añil y rojo son
+ * tonos opuestos. "Todavía ninguno" es el gris neutro de "sin dato".
+ */
+const COLOR_LEIDO = RAMPA[3];
+const COLOR_SIN_LEER = SIN_DATO;
 
 type Feature = { properties: { code: string; name: string } };
 
@@ -55,12 +61,12 @@ export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
         cx: Math.round(cx),
         cy: Math.round(cy),
         contratos: z?.total ?? 0,
-        montoMillones: z ? millones(z.montoPen ?? 0) : "0",
+        monto: solesCompacto(z ? z.montoPen ?? 0 : 0),
         leidos: z?.procesados ?? 0,
         conSenales: z?.conSenales ?? 0,
         enCola: z?.enCola ?? 0,
         colorMonto: escala.color(z ? z.montoPen ?? 0 : null),
-        colorLeido: z && z.procesados > 0 ? VERDE_LEIDO : GRIS_SIN_LEER,
+        colorLeido: z && z.procesados > 0 ? COLOR_LEIDO : COLOR_SIN_LEER,
       };
     })
     // De norte a sur: así el barrido del segundo paso baja por el mapa.
@@ -85,23 +91,23 @@ export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
       pais={{
         nombre: "Todo el Perú",
         contratos: suma((z) => z.total),
-        montoMillones: millones(suma((z) => z.montoPen ?? 0)),
+        monto: solesCompacto(suma((z) => z.montoPen ?? 0)),
         leidos: leidosTotal,
         conSenales: suma((z) => z.conSenales),
         enCola: suma((z) => z.enCola),
       }}
       resumen={{
         totalRegiones: zonas.length,
-        mayor: mayor ? { nombre: mayor.nombre, millones: millones(mayor.montoPen ?? 0) } : null,
-        menor: menor ? { nombre: menor.nombre, millones: millones(menor.montoPen ?? 0) } : null,
+        mayor: mayor ? { nombre: mayor.nombre, monto: solesCompacto(mayor.montoPen ?? 0) } : null,
+        menor: menor ? { nombre: menor.nombre, monto: solesCompacto(menor.montoPen ?? 0) } : null,
         conLectura,
         leidosTotal,
         conSenal: conSenal.length,
         masSenales: masSenales.map((z) => ({ nombre: z.nombre, n: z.conSenales })),
       }}
       coloresMonto={escala.colores}
-      verdeLeido={VERDE_LEIDO}
-      grisSinLeer={GRIS_SIN_LEER}
+      colorLeido={COLOR_LEIDO}
+      colorSinLeer={COLOR_SIN_LEER}
     />
   );
 }

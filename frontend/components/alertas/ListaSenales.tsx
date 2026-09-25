@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Inbox, WifiOff } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo, LeyendaCotejo } from "@/components/alertas/SelloCotejo";
 import { SenalDetalle } from "@/components/alertas/SenalDetalle";
 import { TextoProtegido } from "@/components/alertas/Protegido";
 import { TOTAL_FASES } from "@/lib/auditoria";
-import { senalesQueryParams, soles, type Senal, type SenalesQuery } from "@/lib/revision";
+import { soles } from "@/lib/formato";
+import { senalesQueryParams, type Senal, type SenalesQuery } from "@/lib/revision";
 
 /**
  * El índice de señales: una tabla densa, no una rejilla de tarjetas.
@@ -59,42 +61,44 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
 
   if (fallo) {
     return (
-      <Vacio
-        icono={<WifiOff size={18} />}
-        titulo="No se pudo leer el índice de señales"
-        cuerpo="El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento."
+      <EstadoError
+        titulo="No pudimos leer el índice de señales"
         accion={
-          <Link href="/app/hallazgos" className="font-medium text-heroViolet hover:underline">
+          <Link href="/app/hallazgos" className={ACCION}>
             Reintentar
           </Link>
         }
-      />
+      >
+        El servidor de Vigía no respondió. No mostramos nada en su lugar: vuelve a intentarlo en un momento.
+      </EstadoError>
     );
   }
 
   if (total === 0) {
     return filtrado ? (
-      <Vacio
-        icono={<Inbox size={18} />}
+      <EstadoVacio
         titulo="Ninguna señal cumple estos filtros"
-        cuerpo="Los conteos que ves junto a cada opción se calculan sobre los filtros que ya están puestos, así que esta combinación quedó vacía por el filtro que acabas de sumar."
         accion={
-          <Link href="/app/hallazgos" className="font-medium text-heroViolet hover:underline">
+          <Link href="/app/hallazgos" className={ACCION}>
             Quitar todos los filtros
           </Link>
         }
-      />
+      >
+        Los conteos junto a cada opción se calculan sobre los filtros que ya están puestos: esta combinación quedó vacía
+        por el último que sumaste.
+      </EstadoVacio>
     ) : (
-      <Vacio
-        icono={<Inbox size={18} />}
+      <EstadoVacio
         titulo="Todavía no hay señales publicadas"
-        cuerpo={`Una señal aparece aquí cuando un contrato pasa por los ${TOTAL_FASES} agentes, dispara al menos una regla y la autoevaluación deja publicar el resultado. Mientras nadie financie una lectura, no hay nada que listar.`}
         accion={
-          <Link href="/app/contratos" className="font-medium text-heroViolet hover:underline">
-            Ver la cola de contratos sin leer
+          <Link href="/app/contratos" className={ACCION}>
+            Ver los contratos sin leer
           </Link>
         }
-      />
+      >
+        Una señal aparece aquí cuando un contrato pasa por los {TOTAL_FASES} agentes, dispara al menos una regla y la
+        autoevaluación deja publicar el resultado.
+      </EstadoVacio>
     );
   }
 
@@ -116,7 +120,7 @@ export function ListaSenales({ senales, total, pagina, tam, query, cotejadas, fa
 
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <div
-          className="hidden grid-cols-[112px_minmax(0,1fr)_150px_24px] items-center gap-3 border-b border-line bg-paperSoft px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-mute md:grid"
+          className="hidden grid-cols-[112px_minmax(0,1fr)_150px_24px] items-center gap-3 border-b border-line bg-paperSoft px-4 py-2 text-[11px] font-semibold text-mute md:grid"
           aria-hidden
         >
           <span>Severidad</span>
@@ -157,7 +161,7 @@ function Fila({ s }: { s: Senal }) {
       detalle={<SenalDetalle s={s} />}
       pie={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
-          <Link href={`/app/convocatoria/${s.ocid}`} className="font-medium text-heroViolet hover:underline">
+          <Link href={`/app/convocatoria/${s.ocid}`} className="font-medium text-granate hover:underline">
             Abrir el dossier completo del contrato
           </Link>
           {s.fuenteUrl && (
@@ -194,7 +198,7 @@ function Fila({ s }: { s: Senal }) {
           <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11.5px] text-mute">
             <span className="max-w-[34ch] truncate font-medium text-inkSoft">{s.entidad}</span>
             <span>{s.agenteLabel ?? "agente no registrado"}</span>
-            <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
+            <span className="font-mono tabular-nums">{s.montoSoles > 0 ? soles(s.montoSoles) : "Monto sin dato"}</span>
             <span className="font-mono tabular-nums">{s.ocid}</span>
           </p>
         </div>
@@ -209,26 +213,9 @@ function Fila({ s }: { s: Senal }) {
   );
 }
 
-function Vacio({
-  icono,
-  titulo,
-  cuerpo,
-  accion,
-}: {
-  icono: React.ReactNode;
-  titulo: string;
-  cuerpo: string;
-  accion?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-dashed border-line bg-paperSoft/60 px-6 py-10 text-center">
-      <span className="inline-flex text-mute" aria-hidden>{icono}</span>
-      <h2 className="mt-2 font-serif text-lg font-bold text-ink">{titulo}</h2>
-      <p className="mx-auto mt-1 max-w-[60ch] text-[13.5px] leading-relaxed text-mute">{cuerpo}</p>
-      {accion && <div className="mt-3 text-sm">{accion}</div>}
-    </div>
-  );
-}
+/** La acción de un estado vacío o de error: un enlace con forma de píldora secundaria. */
+const ACCION =
+  "inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[13px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
 
 /**
  * Lo que se ve mientras el servidor cruza cada señal con su contrato para saber qué

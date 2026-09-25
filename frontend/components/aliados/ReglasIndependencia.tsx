@@ -16,7 +16,7 @@ const REGLAS = [
     titulo: "Nadie elige qué se audita",
     resumen: "Ni quien paga, ni nosotros.",
     detalle:
-      "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. Los agentes que leen los contratos no reciben ni conocen el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
+      "Los contratos se asignan por antigüedad en la cola, en una consulta SQL. La lectura de cada contrato se hace sin conocer el nombre de quien financió. Los resultados se publican igual, incluso si señalan a quien pagó.",
   },
   {
     Icono: ListOrdered,
@@ -37,14 +37,14 @@ const REGLAS = [
 export function ReglasIndependencia() {
   return (
     <section aria-labelledby="reglas-titulo">
-      <h2 id="reglas-titulo" className="font-serif text-lg font-bold text-ink">
+      <h2 id="reglas-titulo" className="font-display text-lg font-bold text-ink">
         Por qué financiar esto no compra nada
       </h2>
       <dl className="mt-3 grid gap-3 sm:grid-cols-3">
         {REGLAS.map(({ Icono, titulo, resumen, detalle }) => (
           <div key={titulo} className="rounded-2xl border border-line bg-paper px-4 py-3.5">
             <dt className="flex items-start gap-2.5">
-              <Icono size={16} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+              <Icono size={16} className="mt-0.5 shrink-0 text-granate" aria-hidden />
               <span className="text-[13px] font-semibold leading-snug text-ink">{titulo}</span>
             </dt>
             <dd className="mt-1.5 text-[13px] leading-snug text-mute">
@@ -52,7 +52,7 @@ export function ReglasIndependencia() {
               <Popover
                 titulo={titulo}
                 anchoClase="w-80"
-                className="align-baseline text-[12px] font-medium text-heroViolet underline underline-offset-2 hover:text-heroViolet-deep"
+                className="min-h-[24px] align-baseline text-[12px] font-medium text-granate underline underline-offset-2 hover:text-granate-deep"
                 trigger={<>cómo</>}
               >
                 {detalle}
@@ -72,13 +72,13 @@ export function ReglasIndependencia() {
  */
 export function PruebaIndependencia({ nombre }: { nombre: string }) {
   return (
-    <aside className="flex gap-3 rounded-2xl border border-heroViolet/25 bg-heroViolet-soft/60 px-4 py-3.5 sm:px-5">
-      <Scale size={16} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+    <aside className="flex gap-3 rounded-2xl border border-granate/20 bg-granate-50 px-4 py-3.5 sm:px-5">
+      <Scale size={16} className="mt-0.5 shrink-0 text-granate" aria-hidden />
       <p className="max-w-[72ch] text-[13px] leading-relaxed text-inkSoft">
         <strong className="font-semibold text-ink">{nombre} no eligió estos contratos.</strong> Al pagar se
         elige una región y una cantidad; los contratos concretos salen de la cola por antigüedad, en una
-        consulta SQL que corre antes de que arranque el análisis. Los agentes que los leen no reciben el
-        nombre de quien financió, y el dictamen se publica igual si termina señalando a {nombre}.
+        consulta SQL que corre antes de que arranque la lectura. Quien los lee no recibe el nombre de
+        quien financió, y el dictamen se publica igual si termina señalando a {nombre}.
       </p>
     </aside>
   );

@@ -1,6 +1,4 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PulseDot } from "@/components/ui/PulseDot";
+import { EnlaceAccion } from "./EnlaceAccion";
 import { Orquestacion, type CarrilDatos } from "./Orquestacion";
 import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril, type PasoPipeline } from "@/components/agentes/catalogo";
 
@@ -52,36 +50,27 @@ export function PipelineAgentes() {
       id="agentes"
       data-tema="oscuro"
       aria-labelledby="agentes-titulo"
-      className="relative scroll-mt-20 overflow-hidden bg-ink py-16 text-paper sm:py-20"
+      className="sobre-oscuro relative scroll-mt-20 overflow-hidden border-t border-paper/10 bg-ink py-16 text-paper sm:py-20"
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="absolute left-1/4 top-0 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-heroViolet/30 blur-[130px]" />
-        <div className="absolute bottom-0 right-0 h-[22rem] w-[22rem] rounded-full bg-heroGreen/12 blur-[110px]" />
-      </div>
-
-      <div className="container-page relative max-w-[1400px]">
+      <div className="container-page relative">
         {/* El titular dice qué significa para la persona, no qué tecnología
             corre. "12 pasos y 10 agentes" era un beneficio para desarrolladores;
             para un ciudadano, lo que importa es que nada se salta y que, si hay
             duda, decide una persona. La tecnología queda al pie, como soporte. */}
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-5">
           <div className="min-w-0">
-            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-serif text-4xl font-bold leading-[1.05] sm:text-5xl">
+            <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl">
               Cada contrato pasa por las mismas revisiones.
             </h2>
-            <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-paper/70">
+            <p className="mt-4 max-w-[62ch] text-pretty text-base leading-relaxed text-paper/75">
               Siempre en el mismo orden: lee el expediente, compara los precios con el mercado, investiga a la
               empresa y a las personas detrás, y escribe un informe citando la ley. Si no está seguro de lo que
               encontró, no lo publica: lo revisa una persona.
             </p>
           </div>
-          <Link
-            href="/app/auditoria"
-            className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-paper/25 px-5 py-3 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
-          >
+          <EnlaceAccion href="/app/auditoria" variante="contornoOscuro" className="shrink-0">
             Verlo trabajar ahora
-            <ArrowRight size={15} className="transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
-          </Link>
+          </EnlaceAccion>
         </div>
 
         {/* El circuito entero —qué entra, quién reparte, qué sale— y el carril que

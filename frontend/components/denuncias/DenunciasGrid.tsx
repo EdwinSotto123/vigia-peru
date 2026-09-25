@@ -9,7 +9,9 @@ import { denunciasQueryString, type DenunciasQuery } from "@/lib/denuncias-query
 import { REGIONES } from "@/lib/peru-data";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { TextoProtegido } from "@/components/alertas/Protegido";
+import { EstadoVacio } from "@/components/patrones";
 import { cn } from "@/lib/utils";
+import { haceCuantoSeReporto } from "./fechaDenuncia";
 
 interface Props {
   /** Página actual: ya filtrada (región/categoría/estado) y paginada server-side. */
@@ -74,7 +76,7 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
 
   return (
     <div className="space-y-5">
-      <div className="surface flex flex-wrap items-center gap-2 bg-paper/95 p-4 backdrop-blur md:sticky md:top-0 md:z-10">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper/95 p-3 backdrop-blur md:sticky md:top-0 md:z-10">
         <div className="relative min-w-[200px] flex-1">
           <label htmlFor="buscar-denuncias" className="sr-only">
             Buscar en esta página por descripción, región o código
@@ -86,12 +88,12 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Buscar por descripción, región o código…"
-            className="w-full rounded-full border border-line bg-paperSoft py-2 pl-9 pr-3 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
+            className="min-h-[40px] w-full rounded-xl border border-line bg-paperDeep py-2 pl-9 pr-3 text-sm text-ink placeholder:text-mute focus:border-granate"
           />
         </div>
         <Link
           href={hrefMapa}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3.5 py-2 text-xs font-medium text-ink transition-colors hover:bg-paperDeep"
+          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
         >
           <MapIcon size={13} aria-hidden /> Verlas en el mapa
           <ArrowRight size={12} aria-hidden />
@@ -100,29 +102,37 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
 
       {paginacion}
       {filtrados.length === 0 ? (
-        <div className="surface flex flex-col items-center gap-2 p-10 text-center">
-          <Search size={20} className="text-mute" aria-hidden />
-          <p className="text-sm text-mute">
-            {total === 0
-              ? "No hay denuncias que coincidan con esos filtros."
+        // Un solo vacío por pantalla, con la llamita: dice qué pasó y ofrece la salida.
+        <EstadoVacio
+          titulo={
+            total === 0
+              ? "Ninguna denuncia coincide con esos filtros"
               : reportes.length === 0
-                ? "Esta página no tiene denuncias. Prueba con una página anterior."
-                : "Ninguna denuncia de esta página coincide con tu búsqueda."}
-          </p>
-          {total === 0 ? (
-            <Link href="/app/denuncias" className="text-xs font-medium text-heroViolet hover:underline">
-              Quitar los filtros
-            </Link>
-          ) : reportes.length === 0 ? (
-            <Link href={hrefPagina(1)} className="text-xs font-medium text-heroViolet hover:underline">
-              Ir a la página 1
-            </Link>
-          ) : (
-            <button type="button" onClick={() => setTexto("")} className="text-xs font-medium text-heroViolet hover:underline">
-              Borrar la búsqueda
-            </button>
-          )}
-        </div>
+                ? "Esta página no tiene denuncias"
+                : "Ninguna denuncia de esta página coincide con tu búsqueda"
+          }
+          accion={
+            total === 0 ? (
+              <Link href="/app/denuncias" className={ACCION_VACIO}>
+                Quitar los filtros
+              </Link>
+            ) : reportes.length === 0 ? (
+              <Link href={hrefPagina(1)} className={ACCION_VACIO}>
+                Ir a la página 1
+              </Link>
+            ) : (
+              <button type="button" onClick={() => setTexto("")} className={ACCION_VACIO}>
+                Borrar la búsqueda
+              </button>
+            )
+          }
+        >
+          {total === 0
+            ? "Prueba con otra región, otra categoría o ambos estados a la vez."
+            : reportes.length === 0
+              ? "La lista llega hasta una página anterior."
+              : "La búsqueda sólo mira las denuncias de esta página: por descripción, región o código."}
+        </EstadoVacio>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtrados.map((r) => (
@@ -135,17 +145,21 @@ export function DenunciasGrid({ reportes, query, total, paginas, size }: Props) 
   );
 }
 
+/** Acción de un estado vacío: enlace o botón con el mismo aspecto. */
+const ACCION_VACIO =
+  "inline-flex min-h-[36px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[13px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";
+
 function DenunciaCard({ reporte }: { reporte: ApiReporte }) {
   const meta = CATEGORIA_META[reporte.categoria as CategoriaDenuncia];
   const Icon = meta?.icon ?? Camera;
   const confirmada = estaConfirmada(reporte);
-  const diasDesde = Math.max(0, Math.floor((Date.now() - new Date(`${String(reporte.fecha).slice(0, 10)}T12:00:00-05:00`).getTime()) / 86_400_000));
+  const cuando = haceCuantoSeReporto(reporte.fecha);
 
   return (
     <li>
       <Link
         href={`/app/denuncias/${reporte.id}`}
-        className="surface group flex h-full flex-col overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-paper"
+        className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-paper transition-[border-color,box-shadow] duration-rapido hover:border-granate/30 hover:shadow-card"
       >
         <div className="relative h-40 w-full overflow-hidden bg-paperDeep">
           {reporte.fotoUrl ? (
@@ -155,14 +169,14 @@ function DenunciaCard({ reporte }: { reporte: ApiReporte }) {
                 src={reporte.fotoUrl}
                 alt=""
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="h-full w-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-ink/10 to-transparent" aria-hidden />
             </>
           ) : (
             <div className="flex h-full w-full items-center justify-center text-mute">
-              <Camera size={28} aria-hidden />
-              <span className="ml-2 text-[11px] uppercase tracking-wider">Sin foto</span>
+              <Camera size={24} aria-hidden />
+              <span className="ml-2 text-xs font-medium">Sin foto</span>
             </div>
           )}
 
@@ -178,7 +192,7 @@ function DenunciaCard({ reporte }: { reporte: ApiReporte }) {
             </span>
           </div>
 
-          <div className={cn("absolute bottom-2 right-3 font-mono text-[11px]", reporte.fotoUrl ? "text-paper" : "text-mute")}>
+          <div className={cn("absolute bottom-2 right-3 font-mono text-[11px]", reporte.fotoUrl ? "text-paper" : "text-mute")} translate="no">
             {reporte.id}
           </div>
         </div>
@@ -195,18 +209,20 @@ function DenunciaCard({ reporte }: { reporte: ApiReporte }) {
                 {reporte.region}
               </span>
             )}
-            <span className="inline-flex items-center gap-1">
-              <Calendar size={10} aria-hidden />
-              {diasDesde === 0 ? "hoy" : `hace ${diasDesde} día${diasDesde === 1 ? "" : "s"}`}
-            </span>
+            {cuando && (
+              <span className="inline-flex items-center gap-1">
+                <Calendar size={10} aria-hidden />
+                {cuando}
+              </span>
+            )}
             <span className="ml-auto">
               {confirmada ? (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-moss/15 px-1.5 text-[10px] font-bold uppercase tracking-wider text-mossTexto">
-                  <CheckCircle2 size={9} aria-hidden /> confirmada
+                <span className="inline-flex items-center gap-1 rounded-full border border-moss/30 bg-moss/10 px-2 py-0.5 text-[11px] font-semibold text-mossTexto">
+                  <CheckCircle2 size={11} aria-hidden /> Confirmada
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-paperDeep px-1.5 text-[10px] font-bold uppercase tracking-wider text-mute">
-                  <Clock size={9} aria-hidden /> sin confirmar
+                <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paperDeep px-2 py-0.5 text-[11px] font-medium text-inkSoft">
+                  <Clock size={11} aria-hidden /> Sin confirmar
                 </span>
               )}
             </span>

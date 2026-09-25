@@ -8,6 +8,7 @@
  */
 
 import { esAlertaReal } from "./semillas";
+import { fecha, soles } from "./formato";
 
 export interface BanderaReal {
   regla: string;
@@ -101,9 +102,6 @@ function mejorBandera(a: AlertaReal): BanderaReal | null {
   return legibles[0] ?? null;
 }
 
-const soles = (n: number) => `S/ ${Math.round(n).toLocaleString("es-PE")}`;
-const fechaLarga = (iso: string) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
 
 /**
  * El texto sale tal cual lo guardó el análisis, con arreglos de forma y
@@ -139,7 +137,7 @@ function aCaso(a: AlertaReal, b: BanderaReal): CasoPortada {
     objeto: a.objeto ? limpiar(a.objeto) : "Sin objeto declarado en el expediente",
     monto: a.montoSoles != null && a.montoSoles > 0 ? soles(a.montoSoles) : null,
     proveedor: a.proveedor,
-    fecha: a.fechaBuenaPro ? fechaLarga(a.fechaBuenaPro) : null,
+    fecha: a.fechaBuenaPro ? fecha(a.fechaBuenaPro) : null,
     region: a.region,
     fuenteUrl: a.fuenteUrl,
     hallazgo: limpiar(b.evidencia!),

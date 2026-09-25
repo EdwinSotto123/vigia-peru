@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
+import { EncabezadoPagina, EstadoError } from "@/components/patrones";
+import { Cifras } from "@/components/ui/Cifras";
 import { CapacidadColectiva } from "@/components/aliados/CapacidadColectiva";
 import { MuroAliados, parseOrden } from "@/components/aliados/MuroAliados";
 import { ReglasIndependencia } from "@/components/aliados/ReglasIndependencia";
+import { InvitacionFinanciar } from "@/components/aliados/InvitacionFinanciar";
 import { AvisoMaqueta, MarcaMaquetaBarra } from "@/components/aliados/AvisoMaqueta";
 import { FiltroRegion } from "@/components/auditoria/FiltroRegion";
 import { getEstadoGlobal, getZonas } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
+import { numero } from "@/lib/formato";
 import { hrefSinMaqueta, maquetaActiva, totalesMaqueta } from "@/lib/maqueta-aliados";
 
 export const metadata = {
@@ -27,11 +29,11 @@ export const revalidate = 300;
  * soledad, y le daba escenario a quien paga en una herramienta cuya promesa
  * central es que *el que paga no elige*.
  *
- * El orden: primero la capacidad colectiva y el déficit (33 leídos de 18.394:
- * la historia real del producto, y hasta hoy invisible porque ninguna cifra se
- * comparaba con otra), después el muro de quién aportó —una ficha por aliado,
- * con su logo clickeable y su resumen al costado— y al final las reglas que
- * hacen que ese dinero no compre nada.
+ * El orden: primero el muro de quién aportó —una ficha por aliado, con su logo
+ * clickeable, su franja textil de reconocimiento y su resumen al costado—,
+ * después la capacidad colectiva (cuánto de lo publicado se financió y cuánto de
+ * eso ya se leyó) y al final las reglas que hacen que ese dinero no compre nada,
+ * cerrando con la única invitación a financiar, en granate profundo.
  *
  * En DESARROLLO la página mezcla tres aliados INVENTADOS (lib/maqueta-aliados.ts)
  * para poder mirar el diseño con volumen, y lo avisa arriba, en la barra pegajosa
@@ -64,7 +66,7 @@ export default async function AliadosPage({
     .map((z) => ({
       ubigeo: z.ubigeo,
       nombre: z.nombre,
-      hint: `${z.pendientes.toLocaleString("es-PE")} sin financiar`,
+      hint: `${numero(z.pendientes)} sin financiar`,
     }));
   const zona = ubigeo ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
   const ambito = zona?.nombre ?? "todo el Perú";
@@ -75,6 +77,7 @@ export default async function AliadosPage({
   const extra = maqueta ? totalesMaqueta(ubigeo) : { financiados: 0, leidos: 0, conSenal: 0, enRevision: 0 };
 
   const publicados = (ubigeo ? resumenZona?.total : resumenPais?.total) ?? 0;
+  // Financiados leídos (asignaciones procesadas), no "leídos" a secas: ver CapacidadColectiva.
   const leidos = (zona ? zona.procesados : estado?.contratosProcesados ?? 0) + extra.leidos;
   const financiados = (zona ? zona.financiados : estado?.contratosFinanciados ?? 0) + extra.financiados;
 
@@ -83,18 +86,18 @@ export default async function AliadosPage({
 
   return (
     <div className="container-page space-y-10 py-8">
-      <PageHeader
-        title="Aliados de transparencia"
-        subtitle="Quién financia que estos contratos se lean de verdad. Nadie compra un resultado ni una región: los contratos se asignan por antigüedad, en código, y lo que salga se publica igual."
-        contexto={
+      <EncabezadoPagina
+        titulo="Aliados de transparencia"
+        bajada="Quién financia que estos contratos se lean de verdad. Nadie compra un resultado ni una región: los contratos se asignan por antigüedad, en código, y lo que salga se publica igual."
+        acciones={
           estado ? (
-            <span className="flex flex-wrap items-baseline gap-x-4 font-mono">
-              <span>{financiados.toLocaleString("es-PE")} financiados</span>
-              <span>
-                {leidos.toLocaleString("es-PE")} leídos
-                {publicados > 0 && <> de {publicados.toLocaleString("es-PE")}</>}
-              </span>
-            </span>
+            <Cifras
+              tam="lg"
+              items={[
+                { n: financiados, texto: financiados === 1 ? "contrato financiado" : "contratos financiados" },
+                { n: leidos, de: financiados, texto: "financiados leídos" },
+              ]}
+            />
           ) : undefined
         }
       />
@@ -108,9 +111,9 @@ export default async function AliadosPage({
           no renderiza Header público — solo la barra LATERAL. */}
       <div className="sticky top-0 z-barra -mx-4 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-mute">
+          <p className="text-sm text-inkSoft" aria-live="polite">
             {zona
-              ? `Mirando ${zona.nombre}: ${zona.pendientes.toLocaleString("es-PE")} contratos esperan que alguien pague su lectura.`
+              ? <>Mirando {zona.nombre}: <span className="font-mono tabular-nums text-ink">{numero(zona.pendientes)}</span> contratos esperan que alguien pague su lectura.</>
               : "Mirando todo el Perú. Filtra por región para ver su déficit y quién lo cubre."}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -122,9 +125,7 @@ export default async function AliadosPage({
         </div>
       </div>
 
-      {/* EL MURO VA PRIMERO. Estaba debajo de la cascada del déficit, que
-          ocupaba 785 px (el 31 % de la página) antes de que apareciera un
-          solo nombre. Esta página existe para enaltecer a quien financia: el
+      {/* EL MURO VA PRIMERO. Esta página existe para reconocer a quien financia: el
           contexto no puede ganarle la pantalla al protagonista. */}
       <MuroAliados
         region={ubigeo}
@@ -135,8 +136,7 @@ export default async function AliadosPage({
         orden={orden}
       />
 
-
-      {/* P0 de la dirección: si el API cae, se dice — no se dibujan ceros que parezcan dato. */}
+      {/* Si el API cae, se dice: no se dibujan ceros que parezcan dato. */}
       {estado ? (
         <CapacidadColectiva
           ambito={ambito}
@@ -151,27 +151,16 @@ export default async function AliadosPage({
           alcance={estado.alcance ?? null}
         />
       ) : (
-        <p className="rounded-2xl border border-dashed border-line px-5 py-6 text-sm leading-relaxed text-mute">
-          No se pudo leer el estado de la cola ahora mismo. Preferimos decirlo antes que mostrar cifras
-          en cero que parezcan un dato.
-        </p>
+        <EstadoError titulo="No pudimos leer el estado de la cola">
+          Preferimos decirlo antes que mostrar cifras en cero que parezcan un dato. Vuelve a intentarlo en un momento.
+        </EstadoError>
       )}
 
       <ReglasIndependencia />
 
       {/* La ÚNICA invitación a financiar de esta página (antes había tres: en el muro, en la
           cascada del déficit y acá). */}
-      <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-line bg-paperSoft px-5 py-4">
-        <p className="max-w-[60ch] text-sm leading-relaxed text-inkSoft">
-          Desde 5 contratos. Con tu nombre, como colectivo o sin nombre: en el conteo pesa exactamente igual.
-        </p>
-        <Link
-          href="/app/financiar"
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-heroViolet px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-heroViolet-deep"
-        >
-          Financiar una auditoría <ArrowRight size={14} aria-hidden />
-        </Link>
-      </section>
+      <InvitacionFinanciar />
 
       {/* La puerta de vuelta a la maqueta existe sólo en desarrollo (tras salir con
           ?maqueta=0). En producción la maqueta no existe: maquetaActiva() devuelve false

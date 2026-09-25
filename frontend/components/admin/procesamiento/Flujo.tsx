@@ -26,7 +26,7 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
         aria-pressed={sel}
         className={cn(
           "group flex min-w-0 flex-1 flex-col rounded-2xl border bg-paper p-3 text-left sm:p-4 transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-          sel ? "border-ink shadow-[0_0_0_3px_rgba(20,23,26,0.08)]" : "border-line",
+          sel ? "border-ink shadow-[0_0_0_3px_rgba(30,25,27,0.08)]" : "border-line",
         )}
       >
         <span className="flex items-center gap-2 text-[12px] font-medium text-inkSoft">
@@ -76,7 +76,7 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
                     title={ayuda}
                     className={cn(
                       "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors duration-rapido hover:bg-paper",
-                      sel && "bg-paper shadow-[0_0_0_2px_rgba(20,23,26,0.12)]",
+                      sel && "bg-paper shadow-[0_0_0_2px_rgba(30,25,27,0.12)]",
                     )}
                   >
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", ESTADO_UI[e].punto)} aria-hidden />

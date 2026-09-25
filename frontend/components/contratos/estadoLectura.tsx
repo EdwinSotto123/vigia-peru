@@ -14,11 +14,14 @@
  * (`estadoProcesamiento` del pipeline + `estadoOperativo` del alcance activo) a
  * esos cinco estados, con una frase que explica qué significa y qué falta.
  *
- * LÍMITE CONOCIDO DEL DATO: `GET /contratos` no devuelve el estado de la alerta
- * (`alertas.estado`), así que hoy ningún contrato puede llegar acá como
- * "en_revision" — el backend lo colapsa a "procesado" en la lista (sí lo
- * distingue el dossier, que lee `alerta.estado`). El caso está implementado y
- * empieza a funcionar solo si el API algún día manda ese estado; no se simula.
+ * En revisión: `GET /contratos` manda `enRevision: true` (con score y señales en
+ * null) cuando la autoevaluación frenó la alerta. Antes esa marca se ignoraba y la
+ * misma fila decía "Sin leer todavía" en la columna de riesgo y "Procesado" en la
+ * de lectura (auditoría de coherencia 2026-09-24, punto 9). Ahora manda sobre todo
+ * lo demás y las dos celdas dicen "En revisión" (DESIGN_SYSTEM.md §10.4).
+ *
+ * Las palabras son las de §10.1: "Leído" (el análisis terminó), "En cola" (espera
+ * financiamiento para leerse), "En revisión".
  */
 
 import { ESTADO_CONTRATO_EXTRA, type ContratoResumen, type EstadoContrato } from "@/lib/contratos";
@@ -67,14 +70,14 @@ const BASE: Record<EstadoLectura, LecturaInfo> = {
   },
   procesado: {
     estado: "procesado",
-    label: "Procesado",
+    label: "Leído",
     detalle: "Los agentes leyeron el expediente y el dictamen está publicado.",
   },
   en_revision: {
     estado: "en_revision",
     label: "En revisión",
     detalle:
-      "Los agentes lo leyeron, pero la autoevaluación bloqueó la publicación: lo está revisando una persona.",
+      "Los agentes lo leyeron, pero la autoevaluación frenó la publicación: una persona lo está revisando. Mientras tanto no se muestran puntaje ni señales.",
   },
 };
 
@@ -94,10 +97,11 @@ export const LECTURA_LABEL: Record<EstadoLectura, string> = {
  * pero conservan su palabra propia, que es información real y no se tira.
  */
 export function estadoLecturaDe(
-  c: Pick<ContratoResumen, "estadoProcesamiento" | "estadoOperativo">,
+  c: Pick<ContratoResumen, "estadoProcesamiento" | "estadoOperativo" | "enRevision">,
 ): LecturaInfo {
-  // `revision` no está en el union EstadoContrato (el API de la lista no lo
-  // manda hoy); se compara como string para que funcione solo si algún día llega.
+  // La marca de revisión manda: la fila llega con estadoProcesamiento "procesado".
+  if (c.enRevision) return BASE.en_revision;
+  // `revision` no está en el union EstadoContrato; se compara como string por si llega así.
   const proc = c.estadoProcesamiento as EstadoContrato | "revision";
 
   switch (proc) {
@@ -114,10 +118,11 @@ export function estadoLecturaDe(
         detalle: "Los agentes lo están leyendo ahora mismo. El dossier muestra en vivo en qué paso va.",
       };
     case "encolado":
+      // "En cola" es lo que espera financiamiento (§10.1); éste ya está financiado.
       return {
         estado: "en_cola",
-        label: "En cola",
-        detalle: "Su lectura ya está financiada y espera turno. Se procesa por orden de llegada.",
+        label: "Esperando turno",
+        detalle: "Su lectura ya está financiada y espera turno. Se lee por orden de llegada.",
       };
     case "esperando_documentos":
       return {
@@ -129,12 +134,12 @@ export function estadoLecturaDe(
       return {
         estado: "en_cola",
         label: "Reintentando",
-        detalle: "La última corrida falló y el pipeline la va a reintentar.",
+        detalle: "La última lectura falló y se va a intentar de nuevo.",
       };
     case "pendiente_de_procesamiento":
       return {
         estado: "sin_analizar",
-        label: "No procesable",
+        label: "No procesable todavía",
         detalle:
           "Los agentes todavía no pueden leerlo: al expediente le falta lo mínimo para analizarlo (etapa, bases o postores).",
       };

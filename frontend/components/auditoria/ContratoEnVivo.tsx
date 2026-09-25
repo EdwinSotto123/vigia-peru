@@ -29,7 +29,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Clock, Landmark, Play, ShieldCheck, WifiOff } from "lucide-react";
-import { formatPEN } from "@/lib/financiamiento";
+import { solesCompacto } from "@/lib/formato";
+import { EstadoError } from "@/components/patrones";
 import {
   AGENTES_PROGRESO, ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, faseLabel, fasesEfectivas, fechaLima,
   getReglasPerfil, motivoHumano, nodoActivoYHechos, progresoFases, relojEdad, tipoContratoHumano,
@@ -166,13 +167,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         <Skeleton className="h-3 w-1/2" />
       </div>
     ) : (
-      <div className="flex items-start gap-3 rounded-2xl border border-dashed border-line p-6 text-sm text-mute">
-        <WifiOff size={18} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-        <div>
-          <div className="font-medium text-ink">No pudimos cargar el estado de este contrato.</div>
-          <div className="mt-0.5">Reintentamos automáticamente. Código: <span className="font-mono">{ocid}</span></div>
-        </div>
-      </div>
+      <EstadoError titulo="No pudimos cargar el estado de este contrato">
+        Lo volvemos a intentar solo, en unos segundos. Código: <span className="font-mono">{ocid}</span>
+      </EstadoError>
     );
   }
 
@@ -220,7 +217,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
     <section className={`rounded-2xl border bg-paper ${p.estado === "procesando" ? "border-amber/40 ring-1 ring-amber/15" : "border-line"} ${compacto ? "p-4" : "p-5"}`} aria-label="Cómo se ejecuta el análisis">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">
+          <div className="text-[12px] font-semibold text-mute">
             {p.estado === "procesando" ? "Analizando ahora" : p.estado === "encolado" ? "En cola" : p.estado === "error" ? "Falló el análisis" : terminado ? "Cómo se ejecutó" : "Estado"}
           </div>
           <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`} suppressHydrationWarning>
@@ -285,7 +282,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
             <button
               type="button"
               onClick={() => setVerReplay((v) => !v)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-paper transition-transform hover:scale-[1.02]"
+              className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:bg-paperDeep"
             >
               <Play size={11} aria-hidden /> {verReplay ? "Ver el resultado final" : "Ver cómo se analizó"}
             </button>
@@ -304,9 +301,9 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
             <DagCarriles fases={fases} estado={estado} ahora={ahora} compacto={compacto} senales={enRevision ? null : p.resultado?.banderas ?? null} />
             {terminado && <FichaTecnica p={p} fases={fases} duro={duro} compacto={compacto} />}
             <div className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"}`}>
-              <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-mute">
+              <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-mute">
                 <span>Bitácora</span>
-                <span className="font-mono normal-case tracking-normal">{p.eventos.length} eventos</span>
+                <span className="font-mono font-normal tabular-nums">{p.eventos.length} eventos</span>
               </div>
               <Bitacora eventos={p.eventos} ahora={ahora} max={compacto ? 6 : 12} activo={vivoAhora} compacto={compacto} />
             </div>
@@ -357,21 +354,22 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
       </div>
 
       {/* cabecera */}
-      <header className="mt-3 rounded-3xl border border-line bg-paper p-6 shadow-sm sm:p-8">
+      <header className="mt-3 rounded-2xl border border-line bg-paper p-5 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {/* basis-full en móvil: si no, la píldora de estado le robaba el ancho
               al título y un objeto largo quedaba en una columna de una palabra por renglón. */}
           <div className="min-w-0 flex-1 basis-full sm:basis-0">
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] uppercase tracking-wide text-mute">
-              <span className="font-mono normal-case tracking-normal">{p.ocid}</span>
-              {p.alertaCodigo && <span className="font-mono normal-case tracking-normal">{p.alertaCodigo}</span>}
-            </div>
-            <h1 className="mt-1 break-words font-serif text-xl font-bold leading-tight text-ink sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
+            <h1 className="break-words font-display text-[24px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-3xl">{p.titulo ?? "Contrato sin título registrado"}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-mute">
-              <span className="inline-flex items-center gap-1"><Landmark size={13} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
+              <span className="inline-flex items-center gap-1"><Landmark size={14} aria-hidden /> {p.entidad ?? "Entidad no identificada"}</span>
               <Link href={`/app/financiar/${p.ubigeo}`} className="hover:underline">{p.zona}</Link>
-              {p.montoPen != null && p.montoPen > 0 && <span className="font-mono text-ink">{formatPEN(p.montoPen)}</span>}
+              {p.montoPen != null && p.montoPen > 0 && <span className="tabular-nums text-ink">valor referencial {solesCompacto(p.montoPen)}</span>}
             </div>
+            {/* Los códigos van debajo del título, no encima (sin kicker, DESIGN_SYSTEM.md §4). */}
+            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-mute">
+              <span>OCID <span className="font-mono">{p.ocid}</span></span>
+              {p.alertaCodigo && <span>Alerta <span className="font-mono">{p.alertaCodigo}</span></span>}
+            </p>
           </div>
           <div className="order-first sm:order-none">
             <EstadoPill estado={estado} size="md" intentos={p.intentos} />
@@ -380,7 +378,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-sm text-mute">
           <p className="flex flex-wrap items-center gap-x-1">
-            <ShieldCheck size={14} className="text-moss" aria-hidden />
+            <ShieldCheck size={14} className="text-mossTexto" aria-hidden />
             gracias a <span className="font-semibold text-ink">{p.financiador}</span>
             <Link href={`/impacto/${p.contribucionCodigo}`} className="ml-2 font-mono hover:underline">
               {p.contribucionCodigo}
@@ -392,12 +390,12 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
 
       <div className={`mt-6 grid gap-6 ${terminado ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
         {terminado && (
-          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} className="animate-slideUp lg:sticky lg:top-24 lg:self-start" />
+          <ResultadoAnalisis resultado={p.resultado ?? null} ocid={p.ocid} score={p.score} banderas={p.banderas} duracionMs={duro} revision={enRevision} className="lg:sticky lg:top-24 lg:self-start" />
         )}
         <div className="space-y-4">
           {ejecucion}
-          <div className="flex items-start gap-2 rounded-xl bg-paperDeep p-4 text-[12px] text-mute">
-            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+          <div className="flex items-start gap-2 rounded-2xl bg-paperSoft p-4 text-[13px] text-inkSoft">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-mossTexto" aria-hidden />
             <span>Los agentes no saben quién pagó este análisis. Los resultados se publican aunque señalen a quien lo financió. <Link href="/app/financiar#independencia" className="underline">Reglas de independencia</Link>.</span>
           </div>
         </div>
@@ -416,7 +414,7 @@ function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: 
   if (p.estado === "pendiente_de_procesamiento") {
     return (
       <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Sin análisis aplicable</div>
+        <div className="text-[12px] font-semibold text-mute">Sin análisis aplicable</div>
         <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no hay análisis para este tipo de contrato</div>
         <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
           Este contrato ya está pagado, pero es de un tipo o de una etapa que los agentes todavía no leen. Queda
@@ -427,8 +425,8 @@ function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: 
   }
   return (
     <section className={`rounded-2xl border border-line bg-paper ${compacto ? "p-4" : "p-5"}`} aria-label="Estado del contrato">
-      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-clayTexto">
-        <Clock size={12} aria-hidden /> Esperando documentos
+      <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-clayTexto">
+        <Clock size={13} aria-hidden /> Esperando documentos
       </div>
       <div className={`mt-0.5 font-semibold text-ink ${compacto ? "text-base" : "text-lg"}`}>Todavía no se puede leer: faltan sus documentos</div>
       <p className="mt-2 text-[13px] leading-relaxed text-inkSoft">
@@ -439,11 +437,11 @@ function SinEjecucion({ p, ahora, compacto }: { p: ProcesamientoDetalle; ahora: 
       {conFecha && (
         <dl className="mt-3 grid gap-3 rounded-xl bg-paperSoft p-3 text-[12px] sm:grid-cols-2">
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Espera desde</dt>
+            <dt className="text-[12px] font-semibold text-mute">Espera desde</dt>
             <dd className="mt-0.5 text-ink"><time dateTime={p.iniciadoAt!}>{fechaLima(desde, { larga: true, hora: true })}</time></dd>
           </div>
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wide text-mute">Lleva esperando</dt>
+            <dt className="text-[12px] font-semibold text-mute">Lleva esperando</dt>
             <dd className="mt-0.5 font-mono tabular-nums text-ink" suppressHydrationWarning>{ahora > 0 ? relojEdad(ahora - desde) : "…"}</dd>
           </div>
         </dl>
@@ -475,7 +473,7 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
   const costo = r?.costo ?? null;
   return (
     <details className={`${compacto ? "mt-3" : "mt-4"} border-t border-line ${compacto ? "pt-3" : "pt-4"} text-[12px]`}>
-      <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-wide text-mute hover:text-ink">
+      <summary className="min-h-[32px] cursor-pointer select-none text-[12px] font-semibold text-mute hover:text-ink">
         <span className="inline-flex flex-wrap items-baseline gap-x-3">
           <span>Ficha técnica y tiempos por agente</span>
           {costo?.costoUsd != null && <span className="font-mono normal-case">US$ {costo.costoUsd.toFixed(2)}</span>}
@@ -485,7 +483,7 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
       <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
         <table className="w-full text-left text-[11px]">
           <caption className="sr-only">Tiempo por agente</caption>
-          <thead className="text-[9px] uppercase tracking-wide text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
+          <thead className="text-[11px] text-mute"><tr><th className="py-1 pr-2 font-semibold">Agente</th><th className="py-1 pr-2 font-semibold">Estado</th><th className="py-1 text-right font-semibold">Tiempo</th></tr></thead>
           <tbody className="divide-y divide-line">
             {filas.map((f) => (
               <tr key={f.k}>
@@ -497,11 +495,11 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
           </tbody>
         </table>
         <dl className="space-y-1 text-[11px] sm:min-w-[180px]">
-          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Tipo de contrato</dt><dd className="text-ink">{tipoContratoHumano(r?.perfil) ?? "sin declarar"}</dd></div>
-          {r?.modelo && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
+          <div><dt className="text-[11px] text-mute">Tipo de contrato</dt><dd className="text-ink">{tipoContratoHumano(r?.perfil) ?? "sin declarar"}</dd></div>
+          {r?.modelo && <div><dt className="text-[11px] text-mute">Modelo</dt><dd className="font-mono text-ink">{r.modelo}</dd></div>}
           {costo && (
             <div>
-              <dt className="text-[9px] uppercase tracking-wide text-mute">Costo del análisis</dt>
+              <dt className="text-[11px] text-mute">Costo del análisis</dt>
               <dd className="flex flex-wrap items-baseline gap-x-3 font-mono text-ink">
                 <span>{costo.costoUsd != null ? `US$ ${costo.costoUsd.toFixed(3)}` : "sin dato"}</span>
                 {costo.llamadas != null && <span className="text-mute">{costo.llamadas} llamadas</span>}
@@ -509,8 +507,8 @@ function FichaTecnica({ p, fases, duro, compacto }: { p: ProcesamientoDetalle; f
               </dd>
             </div>
           )}
-          {r?.analizadoEn && <div><dt className="text-[9px] uppercase tracking-wide text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
-          <div><dt className="text-[9px] uppercase tracking-wide text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
+          {r?.analizadoEn && <div><dt className="text-[11px] text-mute">Analizado</dt><dd className="text-ink">{fechaLima(r.analizadoEn, { larga: true, hora: true, anio: true })}</dd></div>}
+          <div><dt className="text-[11px] text-mute">Versión de reglas</dt><dd className="text-ink"><VersionReglas perfil={r?.perfil} /></dd></div>
         </dl>
       </div>
     </details>

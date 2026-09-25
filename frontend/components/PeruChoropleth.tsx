@@ -2,16 +2,32 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { geoContains, geoMercator, geoPath } from "d3-geo";
+import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { AlertCircle } from "lucide-react";
 import { ContratoPin } from "./contratos/ContratoPin";
 import { nivelDeEtiqueta, tintaSobre, SIN_DATO, SIN_DATO_TRAMA } from "./mapa/escala";
 import { nombreDepartamento } from "./mapa/region-match";
+import { colocarEtiquetas, posicionesEnEspiral } from "./mapa/geometria";
 import { conAcentos } from "@/lib/financiamiento";
+import { EstadoError } from "@/components/patrones";
+import { Llamita } from "@/components/marca";
 
 const VB_W = 480;
 const VB_H = 700;
+
+/**
+ * Los colores que el SVG escribe como atributo (fill/stroke dinámicos), en UN
+ * lugar y con el nombre de su token de tailwind.config. Neutros cálidos: los
+ * grises fríos que había (#E7EAEE, #D2D7DE, #5B6B7A) eran de otra paleta.
+ */
+const COLOR = {
+  ink: "#1E191B",
+  paper: "#FFFFFF",
+  paperDeep: "#F0EBE8",
+  paperEdge: "#E3DCD8",
+  mute: "#6B6166",
+  granate: "#711C30",
+} as const;
 
 interface DepartmentProps {
   name: string;
@@ -164,15 +180,9 @@ export function PeruChoropleth({
   const [animTransform, setAnimTransform] = useState({ tx: 0, ty: 0, s: 1 });
 
   /**
-   * Cuántos píxeles de pantalla mide una unidad del viewBox.
-   *
-   * Sin esto, declarar `fontSize: 9` no significa 9 px: significa 9 unidades de
-   * un viewBox de 480×700 que el navegador escala para entrar en su caja. Medido
-   * en producción: 8,74 px en escritorio y **6,19 px en un teléfono de 390**,
-   * con la frontera de departamento cayendo a 0,41 px. El mapa era
-   * tipográficamente ilegible justo en el dispositivo donde más se usa.
-   *
-   * Con este factor, pedir 12 px da 12 px reales en 1440 y en 390.
+   * Cuántos píxeles de pantalla mide una unidad del viewBox. Sin esto, `fontSize: 9`
+   * daba 6,19 px reales en un teléfono de 390 (medido): con este factor, pedir 12 px
+   * da 12 px reales en 1440 y en 390.
    */
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -293,100 +303,19 @@ export function PeruChoropleth({
     return out;
   }, [projection, deptPaths, provData]);
 
-  /**
-   * Qué nombres de departamento se imprimen sobre el mapa.
-   *
-   * Colocación codiciosa por prioridad, que es como resuelve esto cualquier
-   * motor de rotulación: se ordenan los nombres por importancia —el escalón de
-   * la medida activa, derivado del relleno— y se van colocando; el que choca
-   * con uno ya colocado no se imprime. Sin esto había tres solapamientos
-   * medidos (Cajamarca×Lambayeque, Ayacucho×Apurímac y Callao×Lima), que es lo
-   * que hacía ver el mapa sucio en la zona norte y en la sierra sur.
-   *
-   * Lo que no se imprime no se pierde: el nombre y las cifras están en la ficha
-   * flotante al pasar por encima o al llegar con Tab.
-   */
-  const etiquetasVisibles = useMemo(() => {
-    if (!deptPaths.length) return new Set<string>();
-    const prioridad = (u: string) => {
-      const n = nivelDeEtiqueta(regiones[u]?.color ?? "#FFFFFF");
-      return n === "alto" ? 0 : n === "medio" ? 1 : 2;
-    };
-    // Tamaños nominales en unidades de viewBox (sin el factor de pantalla: acá
-    // sólo importan las proporciones entre etiquetas, no su tamaño final).
-    const tam = (u: string) => {
-      const n = nivelDeEtiqueta(regiones[u]?.color ?? "#FFFFFF");
-      return n === "alto" ? 14 : n === "medio" ? 12 : 10;
-    };
-    const candidatos = deptPaths
-      .filter((p) => p.ubigeo !== "07")
-      .sort((a, b) => prioridad(a.ubigeo) - prioridad(b.ubigeo) || a.name.localeCompare(b.name, "es"));
+  /** Qué nombres de departamento caben sobre el mapa (colocación codiciosa, ver mapa/geometria). */
+  const etiquetasVisibles = useMemo(() => colocarEtiquetas(deptPaths, regiones, fitScale), [deptPaths, regiones, fitScale]);
 
-    const colocadas: { x1: number; y1: number; x2: number; y2: number }[] = [];
-    const visibles = new Set<string>();
-    for (const p of candidatos) {
-      const f = tam(p.ubigeo) / (fitScale || 1);
-      const w = p.name.length * f * 0.52;
-      const h = f * 1.1;
-      const [cx, cy] = p.centroid;
-      const caja = { x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2 };
-      // ¿Entra en su propio departamento?
-      if (w > (p.bounds[1][0] - p.bounds[0][0]) * 1.15) continue;
-      // ¿Choca con alguna ya colocada?
-      const choca = colocadas.some((c) => caja.x1 < c.x2 && caja.x2 > c.x1 && caja.y1 < c.y2 && caja.y2 > c.y1);
-      if (choca) continue;
-      colocadas.push(caja);
-      visibles.add(p.ubigeo);
-    }
-    return visibles;
-  }, [deptPaths, regiones, fitScale]);
-
-  /**
-   * Posición de cada punto anclado a una zona. Los que comparten zona se abren
-   * en espiral (ángulo áureo) desde el centroide, a pasos de 6 px REALES, y
-   * sólo se aceptan posiciones que caen DENTRO del polígono (geoContains): a
-   * escala país la provincia de Lima mide 15 px y una espiral libre dejaba
-   * puntos en el mar. Si el polígono es tan chico que no entran todos, los que
-   * sobran se apilan sobre los ya ubicados en vez de salirse.
-   */
+  /** Dónde va cada punto anclado a una zona: espiral dentro de su polígono (ver mapa/geometria). */
   const posiciones = useMemo(() => {
-    const out = new Map<string, [number, number]>();
-    if (!projection || !deptData) return out;
-    const escala = (fitScale || 1) * (animTransform.s || 1);
-    const feats = new Map<string, Feature[]>();
-    for (const f of deptData.features as DeptFeature[]) if (f.properties.code) feats.set(f.properties.code, [f]);
+    if (!projection || !deptData) return new Map<string, [number, number]>();
+    const poligonosPorZona = new Map<string, Feature[]>();
+    for (const f of deptData.features as DeptFeature[]) if (f.properties.code) poligonosPorZona.set(f.properties.code, [f]);
     for (const f of (provData?.features ?? []) as ProvFeature[]) {
       const code = f.properties.code;
-      if (code) feats.set(code, [...(feats.get(code) ?? []), f]);
+      if (code) poligonosPorZona.set(code, [...(poligonosPorZona.get(code) ?? []), f]);
     }
-    const grupos = new Map<string, MapPoint[]>();
-    for (const pt of points) {
-      if (!pt.zona || !centroides.has(pt.zona)) continue;
-      const g = grupos.get(pt.zona) ?? [];
-      g.push(pt);
-      grupos.set(pt.zona, g);
-    }
-    for (const [zona, pts] of grupos) {
-      const c = centroides.get(zona)!;
-      const poligonos = feats.get(zona) ?? [];
-      const dentro = (x: number, y: number) => {
-        const ll = projection.invert?.([x, y]);
-        return !!ll && poligonos.some((f) => geoContains(f as any, ll as [number, number]));
-      };
-      const paso = 6 / escala;
-      const ok: [number, number][] = [];
-      for (let k = 0; ok.length < pts.length && k < 300; k++) {
-        const rad = paso * Math.sqrt(k);
-        const ang = k * 2.39996;
-        const x = c[0] + rad * Math.cos(ang);
-        const y = c[1] + rad * Math.sin(ang);
-        if (poligonos.length === 0 || dentro(x, y)) ok.push([x, y]);
-      }
-      if (ok.length === 0) ok.push(c);
-      const orden = [...pts].sort((a, b) => (a.grupo?.i ?? 0) - (b.grupo?.i ?? 0));
-      orden.forEach((p, i) => out.set(p.id, ok[i] ?? ok[i % ok.length]));
-    }
-    return out;
+    return posicionesEnEspiral({ points, projection, poligonosPorZona, centroides, escala: (fitScale || 1) * (animTransform.s || 1) });
   }, [points, projection, deptData, provData, centroides, fitScale, animTransform.s]);
 
   // Computa target transform basado en el departamento abierto
@@ -405,9 +334,6 @@ export function PeruChoropleth({
   }, [seleccion, deptPaths]);
 
   // Animación con requestAnimationFrame — cubic ease out, 240 ms (duration-panel).
-  // Antes eran 700 ms: fuera de la banda de 150-250 ms del sistema, y en un mapa
-  // que es el primer paso del producto se sentía como una espera, no como un
-  // cambio de estado.
   useEffect(() => {
     const reducido =
       typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -443,16 +369,9 @@ export function PeruChoropleth({
   const transformStr = `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${zoomScale.toFixed(4)})`;
 
   /**
-   * Tamaños pedidos en PÍXELES REALES de pantalla.
-   *
-   * Antes se dividía sólo por `zoomScale`, que compensa el zoom de región pero
-   * no la escala con la que el SVG entra en su caja. `px()` divide por las dos,
-   * así que el número que se escribe acá es el que se ve.
-   *
-   * Las tres medidas de etiqueta son la jerarquía: un departamento del escalón
-   * más alto de la medida activa se imprime más grande que uno del más bajo,
-   * porque en un mapa el tamaño del nombre ES un dato. Los ratios 14/12 = 1,17
-   * y 12/10 = 1,20 caen dentro de la banda de la escala tipográfica del sistema.
+   * Tamaños pedidos en PÍXELES REALES de pantalla: `px()` divide por el zoom de
+   * región y por la escala con que el SVG entra en su caja. Las tres medidas de
+   * etiqueta son jerarquía: en un mapa el tamaño del nombre ES un dato.
    */
   const px = (objetivo: number) => objetivo / (fitScale * zoomScale);
   const fs = {
@@ -527,23 +446,13 @@ export function PeruChoropleth({
           </pattern>
 
           <filter id="paper-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="1.5" dy="3" stdDeviation="2.5" floodColor="#1B1611" floodOpacity="0.22" />
+            <feDropShadow dx="1.5" dy="3" stdDeviation="2.5" floodColor={COLOR.ink} floodOpacity="0.22" />
           </filter>
         </defs>
 
-        {/* Acá había dos rectángulos de fondo (#FFFFFF y una trama diagonal de
-            "océano") que cubrían el viewBox y SOLO el viewBox. Como el SVG se
-            ajusta con preserveAspectRatio, el dibujo se encoge y se centra, así
-            que esos rectángulos terminaban pintando un bloque blanco de 680 px
-            de alto con 83 px de gris a cada lado en la vista país — y 323 px por
-            lado con una región abierta. Dos costuras verticales duras que nadie
-            decidió: no eran un borde, eran un artefacto de encuadre, y son
-            exactamente lo que se veía horrible.
-
-            El lienzo ahora lo pinta el contenedor. Sin una segunda superficie
-            dentro del SVG no hay costura posible, cualquiera sea el encuadre.
-            La trama diagonal se va con ellos: era textura decorativa sobre un
-            fondo, justo lo que el detector de Impeccable marca. */}
+        {/* Sin rectángulos de fondo dentro del SVG: con preserveAspectRatio pintaban
+            SOLO el viewBox y dejaban dos costuras verticales. El lienzo lo pinta el
+            contenedor, así no hay costura posible cualquiera sea el encuadre. */}
 
         <g transform={transformStr}>
           {/* Departamentos — cada uno es un control: foco, Enter/Espacio y etiqueta con cifras. */}
@@ -563,19 +472,10 @@ export function PeruChoropleth({
                   aria-pressed={isSelected}
                   aria-label={`${p.name}. ${z?.resumen ?? "sin dato"}${z?.destacada ? ". Zona que sigues" : ""}`}
                   className="foco-propio"
-                  // Atenuar con opacity 0.25 componía el color del dato contra el
-                  // lienzo y daba beiges y rosas apagados; como los 24 departamentos
-                  // no elegidos cubren casi todo, el mapa entero se teñía de rosa
-                  // polvoriento. Eso era buena parte del aspecto sucio. Ahora el
-                  // contexto es un gris plano: deja de competir y deja de ensuciar.
-                  fill={isDimmed ? "#E7EAEE" : z ? (z.sinDato ? "url(#sin-dato)" : z.color) : "url(#sin-dato)"}
-                  // La frontera era #76695A, un tono medio cuyo contraste contra los
-                  // cinco escalones daba 2,84 / 1,75 / 1,01 / 1,76 / 2,81: sobre el
-                  // escalón central es el mismo valor, así que los 15 pares de
-                  // departamentos vecinos que comparten relleno se fundían en una
-                  // sola mancha. El blanco se lee siempre, porque la rampa nunca
-                  // llega al blanco.
-                  stroke={isSelected ? "#14171A" : z?.destacada ? "#4F3D96" : isDimmed ? "#D2D7DE" : "#FFFFFF"}
+                  // Atenuado = un neutro plano (con opacidad el mapa entero se teñía de rosa).
+                  fill={isDimmed ? COLOR.paperDeep : z ? (z.sinDato ? "url(#sin-dato)" : z.color) : "url(#sin-dato)"}
+                  // Frontera blanca: se lee sobre los cinco escalones, porque la rampa nunca llega al blanco.
+                  stroke={isSelected ? COLOR.ink : z?.destacada ? COLOR.granate : isDimmed ? COLOR.paperEdge : COLOR.paper}
                   strokeWidth={isSelected ? sw.deptSelected : z?.destacada ? sw.destacada : sw.dept}
                   strokeLinejoin="round"
                   onMouseEnter={(e) =>
@@ -627,7 +527,7 @@ export function PeruChoropleth({
                     className="foco-propio"
                     fill={z ? (z.sinDato ? "url(#sin-dato)" : z.color) : "url(#sin-dato)"}
                     fillOpacity={0.92}
-                    stroke={elegida ? "#1B1611" : "#F4EEDD"}
+                    stroke={elegida ? COLOR.ink : COLOR.paper}
                     strokeWidth={elegida ? sw.provinceSel : sw.province}
                     strokeLinejoin="round"
                     onMouseEnter={(e) =>
@@ -669,14 +569,14 @@ export function PeruChoropleth({
               {deptPaths
                 .filter((p) => pulsos[p.ubigeo])
                 .map((p) => (
+                  // En vivo = moss (lo positivo), nunca el acento de marca.
                   <path
                     key={`pulso-${p.ubigeo}`}
                     d={p.d}
                     fill="none"
-                    stroke="#2FA84C"
                     strokeWidth={px(2.4)}
                     strokeLinejoin="round"
-                    className="motion-safe:animate-pulseSoft"
+                    className="stroke-moss motion-safe:animate-pulseSoft"
                   >
                     <title>{`${p.name}: ${pulsos[p.ubigeo]}`}</title>
                   </path>
@@ -697,7 +597,7 @@ export function PeruChoropleth({
                       px={px}
                       py={py}
                       r={pt.r ?? 3}
-                      color={pt.color ?? "#5B6B7A"}
+                      color={pt.color ?? COLOR.mute}
                       total={pt.total ?? 0}
                       nombre={pt.label ?? ""}
                       zoom={zoomScale}
@@ -712,12 +612,8 @@ export function PeruChoropleth({
                 // El radio lo decide el contenedor (`r`), que es quien conoce la
                 // clasificación de `lib/severidad`: acá no se compara ningún score.
                 const r = (pt.r ?? 3.4) / zoomScale;
-                // Anillo blanco de 1,6 px REALES, no 0,8 unidades de viewBox
-                // (que en móvil renderizaban medio píxel). Es lo que separa el
-                // punto de señal del relleno del departamento: entre el color
-                // del punto y el escalón de abajo la diferencia de brillo puede
-                // bajar a 1,03:1, así que la separación no puede depender del
-                // contraste entre los dos colores — la tiene que dar el anillo.
+                // Anillo blanco de 1,6 px REALES: separa el punto del relleno aunque el
+                // brillo de los dos colores casi coincida (hasta 1,03:1, medido).
                 const sw2 = 1.6 / (fitScale * zoomScale);
                 // Área que se toca: al menos 12 px reales de diámetro aunque el punto mida 6.
                 const rToque = Math.max(r, 6 / (fitScale * zoomScale));
@@ -746,9 +642,9 @@ export function PeruChoropleth({
                   >
                     <circle cx={px} cy={py} r={rToque} fill="transparent" />
                     {enfocado && (
-                      <circle cx={px} cy={py} r={r + 3.2 / (fitScale * zoomScale)} fill="none" stroke="#4F3D96" strokeWidth={2.2 / (fitScale * zoomScale)} />
+                      <circle cx={px} cy={py} r={r + 3.2 / (fitScale * zoomScale)} fill="none" stroke={COLOR.granate} strokeWidth={2.2 / (fitScale * zoomScale)} />
                     )}
-                    <circle cx={px} cy={py} r={r} className={pt.colorClase} fill={pt.color ?? "#687180"} stroke="#FFFFFF" strokeWidth={sw2}>
+                    <circle cx={px} cy={py} r={r} className={pt.colorClase} fill={pt.color ?? COLOR.mute} stroke={COLOR.paper} strokeWidth={sw2}>
                       <title>{pt.titulo ?? pt.label ?? ""}</title>
                     </circle>
                   </g>
@@ -757,28 +653,19 @@ export function PeruChoropleth({
             </g>
           )}
 
-          {/* Los rótulos van DESPUÉS de los puntos: en SVG lo que se dibuja
-              último queda encima, y con los puntos arriba seis nombres
-              —Áncash, Cusco, Lima, Piura, Tacna, Tumbes— quedaban perforados
-              por un círculo en el medio de la palabra. En cartografía el rótulo
-              va sobre todo lo demás: es lo último que se puede tapar. */}
-          {/* Etiquetas de departamento */}
+          {/* Etiquetas de departamento: DESPUÉS de los puntos (en SVG lo último queda
+              encima), así ningún círculo perfora un nombre. */}
           <g pointerEvents="none">
             {deptPaths.map((p) => {
               const isSelected = seleccion === p.ubigeo;
               const isDimmed = seleccion !== null && !isSelected;
               if (isDimmed) return null;
-              // Callao mide 16 px² de polígono y su nombre ocupa 270 px²:
-              // diecisiete veces más grande que el departamento que nombra, y
-              // encima pisa a Lima. Un mapa de prensa no lo rotula sobre el
-              // mapa; se lee al pasar por encima, donde ya está la ficha con
-              // sus cifras.
-              // El departamento abierto siempre lleva su nombre; el resto,
-              // sólo si la colocación codiciosa les dio lugar.
+              // El departamento abierto siempre lleva su nombre; el resto (Callao nunca:
+              // su nombre es 17 veces su polígono), sólo si la colocación les dio lugar.
               if (!isSelected && !etiquetasVisibles.has(p.ubigeo)) return null;
 
               const [cx, cy] = p.centroid;
-              const relleno = regiones[p.ubigeo]?.color ?? "#FFFFFF";
+              const relleno = regiones[p.ubigeo]?.color ?? COLOR.paper;
               const tinta = tintaSobre(relleno);
               const nivel = nivelDeEtiqueta(relleno);
               const f = isSelected
@@ -827,15 +714,15 @@ export function PeruChoropleth({
                       dy="0.35em"
                       fontSize={fs.prov}
                       fontWeight="600"
-                      fill="#14171A"
-                      stroke="#FFFFFF"
+                      fill={COLOR.ink}
+                      stroke={COLOR.paper}
                       strokeWidth={sw.labelHaloSm}
                       strokeOpacity="0.95"
                       style={{ paintOrder: "stroke" }}
                     >
                       {p.name}
                     </text>
-                    <text textAnchor="middle" dy="0.35em" fontSize={fs.prov} fontWeight="600" fill="#14171A">
+                    <text textAnchor="middle" dy="0.35em" fontSize={fs.prov} fontWeight="600" fill={COLOR.ink}>
                       {p.name}
                     </text>
                   </g>
@@ -850,7 +737,7 @@ export function PeruChoropleth({
             <path
               d={focoPath}
               fill="none"
-              stroke="#4F3D96"
+              stroke={COLOR.granate}
               strokeWidth={sw.foco}
               strokeLinejoin="round"
               pointerEvents="none"
@@ -862,38 +749,39 @@ export function PeruChoropleth({
   );
 }
 
+/** Mientras llega la geometría del Perú: la llamita camina y se dice qué se espera. */
 function MapaEsqueleto() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-paperDeep">
-      <div className="h-[86%] w-[52%] animate-pulse rounded-[45%_55%_48%_52%] bg-paperEdge" />
-      <span className="sr-only">Cargando la geometría del Perú</span>
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-paperSoft" role="status">
+      <Llamita caminando className="w-12 text-granate/70" />
+      <span className="text-sm text-mute">Cargando el mapa del Perú…</span>
     </div>
   );
 }
 
+/** La geometría no llegó (error de red) o falta el archivo: qué pasó, qué hacer y la salida a la lista. */
 function FetchError() {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-rust/40 bg-crimson-soft p-6 text-center">
-        <AlertCircle size={32} className="text-rust" />
-        <h3 className="font-serif text-lg font-bold text-ink">No se pudo cargar el mapa</h3>
-        <p className="text-sm text-mute">La geometría del Perú no llegó. Recarga la página para volver a intentarlo.</p>
-      </div>
-    </div>
-  );
+  return <ErrorMapa detalle="La geometría del Perú no llegó." />;
 }
 
 function MissingGeoJSON() {
+  return <ErrorMapa detalle="Falta el archivo con los límites del Perú." />;
+}
+
+function ErrorMapa({ detalle }: { detalle: string }) {
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div className="flex max-w-lg flex-col items-center gap-3 rounded-2xl border border-paperEdge bg-paperSoft p-7 text-center shadow-card">
-        <AlertCircle size={28} className="text-heroViolet" aria-hidden />
-        <h3 className="font-serif text-xl font-bold text-ink">No se pudo dibujar el mapa</h3>
-        <p className="text-sm leading-relaxed text-mute">
-          Falta el archivo con los límites del Perú. Recarga la página; si sigue igual, el problema es nuestro. Mientras
-          tanto, los contratos se pueden ver en la lista de contratos.
-        </p>
-      </div>
+      <EstadoError
+        titulo="No pudimos dibujar el mapa"
+        className="max-w-md"
+        accion={
+          <a href="/app/contratos" className="text-sm font-semibold text-granate underline-offset-2 hover:underline">
+            Ver los contratos en lista
+          </a>
+        }
+      >
+        {detalle} Recarga la página; si sigue igual, el problema es nuestro.
+      </EstadoError>
     </div>
   );
 }

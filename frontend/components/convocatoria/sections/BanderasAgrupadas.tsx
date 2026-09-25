@@ -23,6 +23,7 @@ import { AuditoriaDeAgentes } from "@/components/agentes/AuditoriaDeAgentes";
 import { claveDePaso } from "@/components/agentes/catalogo";
 import type { SenalAgente, Severidad } from "@/components/agentes/senales";
 import type { Bandera } from "../types";
+import { severidadDe } from "../dossier";
 import { inferAgente } from "../utils";
 
 /** El payload del buscador es JSON suelto: el cotejo puede venir plano o anidado, o no venir. */
@@ -31,7 +32,6 @@ type BanderaConCotejo = Bandera & {
   verificacion?: { ok?: boolean | null } | null;
 };
 
-const sev = (v: unknown): Severidad => (v === "alta" || v === "media" ? v : "baja");
 const txt = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 function desdeBandera(b: Bandera): SenalAgente {
@@ -46,7 +46,8 @@ function desdeBandera(b: Bandera): SenalAgente {
         : null;
   return {
     regla: txt(b.regla) ?? "sin_regla",
-    severidad: sev(b.severidad),
+    // La misma lectura que la cabecera del dossier (../dossier): los conteos cuadran.
+    severidad: severidadDe(b) as Severidad,
     agente: claveDePaso(bruto),
     agenteBruto: bruto,
     verificada: cotejo,
@@ -100,11 +101,13 @@ export function BanderasAgrupadas({
           perfil={perfil}
           reglasDisparadas={reglasDisparadas}
           reglasEvaluadas={reglas_evaluadas ?? undefined}
+          titulo="Las señales, una por una"
+          carrilesPlegados
           nota="Señales de riesgo, no acusaciones: cada una se publica con su norma y su fuente para que se pueda comprobar."
         />
       )}
       {noVerificables.length > 0 && (
-        <details className="surface p-4 text-[13px]">
+        <details className="rounded-2xl border border-line bg-paperSoft p-4 text-[13px]">
           <summary className="flex cursor-pointer items-start gap-2 text-ink">
             <CircleSlash size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
             <span>
@@ -121,7 +124,7 @@ export function BanderasAgrupadas({
             {noVerificables.map((b, i) => (
               <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
                 <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "sobreprecio"))}</span>
-                <span className="ml-1.5 rounded-full border border-line bg-paperSoft px-1.5 py-0 text-[11px] text-mute">no verificable</span>
+                <span className="ml-1.5 rounded-full border border-line bg-paper px-1.5 py-0 text-[11px] text-inkSoft">no verificable</span>
                 {evidenciaComoTexto(b.evidencia) && <p className="mt-0.5">{redactDnis(evidenciaComoTexto(b.evidencia))}</p>}
               </li>
             ))}

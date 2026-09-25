@@ -36,7 +36,7 @@ export const TONO: Record<Tone, ClasesTono> = {
   // Espera algo externo: documentos, revisión humana, un proceso en curso.
   pending: { badge: "bg-amber-soft/60 text-clayTexto", punto: "bg-clay", texto: "text-clayTexto", caja: "border-clay/40 bg-amber-soft/40", barra: "bg-clay/70" },
   // Acciones de Vigía (lotes propios, selección de marca). No es un estado de riesgo.
-  brand: { badge: "bg-heroViolet-soft text-heroViolet", punto: "bg-heroViolet", texto: "text-heroViolet", caja: "border-heroViolet/30 bg-heroViolet-soft/50", barra: "bg-heroViolet" },
+  brand: { badge: "bg-granate-soft text-granate", punto: "bg-granate", texto: "text-granate", caja: "border-granate/30 bg-granate-soft/50", barra: "bg-granate" },
   // Sin dato, inactivo, reembolsado.
   muted: { badge: "bg-paperDeep text-inkSoft", punto: "bg-mute/50", texto: "text-inkSoft", caja: "border-dashed border-line bg-paper/60", barra: "bg-mute/40" },
 };

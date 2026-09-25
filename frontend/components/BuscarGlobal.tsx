@@ -22,9 +22,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, FileSearch, Building2, MapPin, Heart, AlertTriangle, Loader2, CornerDownLeft, X } from "lucide-react";
+import { Search, FileSearch, Building2, MapPin, Heart, Flag, Loader2, CornerDownLeft, X } from "lucide-react";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
+import { numero, plural, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 interface Resultados {
@@ -39,7 +40,8 @@ interface Resultados {
 interface Item { key: string; href: string; titulo: string; detalle: string; grupo: string; icon: React.ReactNode }
 
 const vacio: Resultados = { q: "", contratos: [], entidades: [], zonas: [], aportes: [], alertas: [] };
-const soles = (n: number | null) => (n ? `S/ ${Math.round(n).toLocaleString("es-PE")}` : "");
+/** Separador del detalle de cada resultado. No una coma: "S/ 45,000" ya lleva una. */
+const SEP = " · ";
 
 /**
  * Tres búsquedas de ejemplo, una por tipo de objeto. Son reales: verificadas contra
@@ -71,6 +73,8 @@ export function BuscarGlobal({
   const [q, setQ] = useState("");
   const [res, setRes] = useState<Resultados>(vacio);
   const [cargando, setCargando] = useState(false);
+  /** La búsqueda falló (red o servidor). Sin esto se leía "Sin resultados", que es otra cosa. */
+  const [fallo, setFallo] = useState(false);
   const [sel, setSel] = useState(0);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +109,10 @@ export function BuscarGlobal({
   // Cerrar: limpiar y devolver el foco a quien abrió (salvo que se haya navegado).
   useEffect(() => {
     if (!open) {
-      setQ(""); setRes(vacio); setSel(0); setCargando(false);
+      // Una búsqueda pendiente o en vuelo no debe escribir resultados en un diálogo cerrado.
+      if (timer.current) window.clearTimeout(timer.current);
+      ctrl.current?.abort();
+      setQ(""); setRes(vacio); setSel(0); setCargando(false); setFallo(false);
       return;
     }
     const d = dialogRef.current;
@@ -122,34 +129,47 @@ export function BuscarGlobal({
     };
   }, [open]);
 
-  // Debounce 220 ms + cancelación.
+  // Debounce 220 ms + cancelación. Sólo la búsqueda vigente apaga el "buscando":
+  // la que se canceló por una más nueva no toca el estado.
   useEffect(() => {
     if (!open) return;
     if (timer.current) window.clearTimeout(timer.current);
     const t = q.trim();
+    setFallo(false);
     if (t.length < 2) { ctrl.current?.abort(); setRes(vacio); setCargando(false); return; }
     setCargando(true);
     timer.current = window.setTimeout(async () => {
       ctrl.current?.abort();
-      ctrl.current = new AbortController();
+      const esta = new AbortController();
+      ctrl.current = esta;
       try {
-        const r = await fetch(`${PUBLIC_API_BASE}/buscar?q=${encodeURIComponent(t)}`, { signal: ctrl.current.signal });
+        const r = await fetch(`${PUBLIC_API_BASE}/buscar?q=${encodeURIComponent(t)}`, { signal: esta.signal });
         if (r.ok) { setRes((await r.json()) as Resultados); setSel(0); }
-      } catch { /* abortado o sin red */ } finally { setCargando(false); }
+        else { setRes(vacio); setFallo(true); }
+      } catch {
+        // Abortada por una búsqueda más nueva: no es un fallo. Sin red, sí.
+        if (!esta.signal.aborted) { setRes(vacio); setFallo(true); }
+      } finally {
+        if (ctrl.current === esta) setCargando(false);
+      }
     }, 220);
   }, [q, open]);
 
+  // El detalle de cada resultado usa los formatos de lib/formato (DESIGN_SYSTEM.md
+  // §10.3). Los íconos van en tinta, no en granate: el granate es la marca y una
+  // señal nunca se pinta con él. Sin puntaje: el puntaje no se muestra sin las
+  // señales que lo explican (§10.4).
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
-    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, soles(c.montoPen)].filter(Boolean).join(", "), icon: <FileSearch size={14} aria-hidden /> });
-    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Señales publicadas", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, a.score != null ? `score ${a.score}` : null, `${a.banderas} señal${a.banderas === 1 ? "" : "es"}`].filter(Boolean).join(", "), icon: <AlertTriangle size={14} aria-hidden /> });
-    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, `${e.contratos.toLocaleString("es-PE")} contratos`].filter(Boolean).join(", "), icon: <Building2 size={14} aria-hidden /> });
+    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null].filter(Boolean).join(SEP), icon: <FileSearch size={14} aria-hidden /> });
+    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")].filter(Boolean).join(SEP), icon: <Flag size={14} aria-hidden /> });
+    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")].filter(Boolean).join(SEP), icon: <Building2 size={14} aria-hidden /> });
     for (const z of res.zonas) {
       const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
       const href = z.nivel === "departamento" && regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;
-      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${z.totalCola.toLocaleString("es-PE")} en cola` : null, z.financiados > 0 ? `${z.financiados} financiados` : null].filter(Boolean).join(", "), icon: <MapPin size={14} aria-hidden /> });
+      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${numero(z.totalCola)} en cola` : null, z.financiados > 0 ? plural(z.financiados, "financiado", "financiados") : null].filter(Boolean).join(SEP), icon: <MapPin size={14} aria-hidden /> });
     }
-    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, `${p.contratos} contratos`].filter(Boolean).join(", "), icon: <Heart size={14} aria-hidden /> });
+    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")].filter(Boolean).join(SEP), icon: <Heart size={14} aria-hidden /> });
     return out;
   }, [res]);
 
@@ -164,17 +184,19 @@ export function BuscarGlobal({
   };
 
   const corto = q.trim().length < 2;
-  const sinResultados = !corto && !cargando && items.length === 0;
+  const sinResultados = !corto && !cargando && !fallo && items.length === 0;
 
+  // El botón redondo vive en la cabecera: sobre una sección oscura se vuelve
+  // vidrio claro (group-data de la cabecera). El campo vive en la barra lateral y en el 404.
   const trigger = variant === "boton" ? (
-    <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-mute transition-colors duration-300 hover:bg-paperDeep hover:text-ink group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
+    <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-granate group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
       <Search size={15} aria-hidden />
     </button>
   ) : (
-    <button type="button" onClick={abrir} aria-haspopup="dialog" className={cn("flex w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-xs text-mute transition-colors duration-rapido hover:bg-paperDeep", className)} aria-label="Buscar (Ctrl+K)">
-      <Search size={13} aria-hidden />
+    <button type="button" onClick={abrir} aria-haspopup="dialog" className={cn("flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-paper px-3 py-2 text-left text-[13px] text-mute transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50", className)} aria-label="Buscar (Ctrl+K)">
+      <Search size={14} aria-hidden />
       <span className="flex-1 truncate">Buscar contrato, entidad, RUC, zona…</span>
-      <kbd className="hidden rounded border border-line bg-paperSoft px-1 font-mono text-[9px] text-mute sm:inline">Ctrl K</kbd>
+      <kbd className="hidden rounded border border-line bg-paperSoft px-1 font-mono text-[10px] text-mute sm:inline">Ctrl K</kbd>
     </button>
   );
 
@@ -222,18 +244,17 @@ export function BuscarGlobal({
 
           {corto && (
             <div className="px-4 pb-5 pt-4">
-              <p className="text-[12px] text-mute">Busca por código de contrato (OCID), código de aporte VIG-…, nombre de entidad, RUC o zona.</p>
-              <p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-mute">Prueba con</p>
+              <p className="text-[13px] leading-relaxed text-mute">Busca por código de contrato, código de aporte VIG-…, nombre de entidad, RUC o zona.</p>
+              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-mute">Prueba con</p>
               <ul className="mt-2 flex flex-wrap gap-2">
-                {SUGERENCIAS.map((s, i) => (
+                {SUGERENCIAS.map((s) => (
                   <li key={s.q}>
                     <button
                       type="button"
                       onClick={() => probar(s.q)}
-                      style={{ animationDelay: `${60 + i * 40}ms` }}
-                      className="group inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft py-1.5 pl-3 pr-3.5 text-[13px] text-ink transition-colors duration-rapido hover:border-heroViolet/40 hover:bg-heroViolet-soft motion-safe:animate-[fadeIn_240ms_ease-out_both]"
+                      className="group inline-flex min-h-8 items-center gap-2 rounded-full border border-line bg-paperSoft py-1.5 pl-3 pr-3.5 text-[13px] text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
                     >
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-mute group-hover:text-heroViolet">{s.tipo}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-mute group-hover:text-granate">{s.tipo}</span>
                       <span className={s.tipo === "contrato" ? "font-mono" : undefined}>{s.q}</span>
                     </button>
                   </li>
@@ -243,12 +264,19 @@ export function BuscarGlobal({
           )}
 
           <div id={listaId} role="listbox" aria-label="Resultados" className={cn("max-h-[60vh] overflow-y-auto overscroll-contain p-1.5", corto && "hidden")}>
+            {fallo && (
+              <p role="alert" className="px-3 py-6 text-center text-[13px] leading-relaxed text-crimsonTexto">
+                No pudimos buscar en este momento. Revisa tu conexión y vuelve a escribir para intentarlo otra vez.
+              </p>
+            )}
             {sinResultados && (
-              <p className="px-3 py-6 text-center text-[12px] text-mute">Sin resultados para “{q}”.</p>
+              <p className="px-3 py-6 text-center text-[13px] leading-relaxed text-mute">
+                Sin resultados para “{q}”. Prueba con otro nombre, un RUC de 11 dígitos o el código del contrato.
+              </p>
             )}
             {agrupar(items).map(([grupo, xs]) => (
               <div key={grupo} role="group" aria-label={grupo} className="mb-1">
-                <div aria-hidden className="px-3 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-widest text-mute">{grupo}</div>
+                <div aria-hidden className="px-3 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-mute">{grupo}</div>
                 {xs.map((it) => {
                   const i = items.indexOf(it);
                   return (
@@ -260,12 +288,12 @@ export function BuscarGlobal({
                       type="button"
                       onMouseEnter={() => setSel(i)}
                       onClick={() => ir(it)}
-                      className={cn("flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition-colors duration-rapido", i === sel ? "bg-paperDeep" : "hover:bg-paperSoft")}
+                      className={cn("flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition-colors duration-rapido", i === sel ? "bg-granate-50" : "hover:bg-paperSoft")}
                     >
-                      <span className="mt-0.5 shrink-0 text-heroViolet">{it.icon}</span>
+                      <span className={cn("mt-0.5 shrink-0", i === sel ? "text-ink" : "text-mute")}>{it.icon}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-ink">{it.titulo}</span>
-                        <span className="block truncate text-[11px] text-mute">{it.detalle}</span>
+                        <span className="block truncate text-xs text-mute">{it.detalle}</span>
                       </span>
                       {i === sel && <CornerDownLeft size={12} className="mt-1 shrink-0 text-mute" aria-hidden />}
                     </button>
@@ -275,7 +303,7 @@ export function BuscarGlobal({
             ))}
           </div>
           <p className="sr-only" aria-live="polite">
-            {corto ? "" : cargando ? "Buscando…" : `${items.length} ${items.length === 1 ? "resultado" : "resultados"}`}
+            {corto || fallo ? "" : cargando ? "Buscando…" : `${items.length} ${items.length === 1 ? "resultado" : "resultados"}`}
           </p>
         </dialog>,
         document.body,

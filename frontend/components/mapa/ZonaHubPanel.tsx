@@ -10,17 +10,18 @@ import {
   ESTADO_LABEL,
   alcanceCorto,
   alcanceLargo,
-  formatPEN,
   pct,
   type ZonaDetalle,
 } from "@/lib/financiamiento";
+import { fechaCorta, numero, soles, solesCompacto } from "@/lib/formato";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { ContratoZona } from "@/lib/contratos";
 import { CATEGORIA_META, estaConfirmada, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { cn } from "@/lib/utils";
 import { EntidadesDeZona } from "./EntidadesDeZona";
 import { AlertasDeZona } from "./AlertasDeZona";
 import { belongsToRegion } from "./region-match";
-import { departamentoDeAlerta, esSenal, MIN_CONFIRMACIONES } from "./senales";
+import { departamentoDeAlerta, MIN_CONFIRMACIONES, tieneSenales } from "./senales";
 import { ContratosLista, useMapaContratos } from "@/components/contratos/ContratosLista";
 import { SeguirZonaBoton } from "./SeguirZonaBoton";
 
@@ -38,7 +39,7 @@ export const TAB_LABEL: Record<ZonaTab, string> = {
   presupuesto: "Presupuesto",
 };
 
-const enteros = (n: number) => n.toLocaleString("es-PE");
+const enteros = (n: number) => numero(n);
 
 export interface ZonaHubPanelProps {
   /** Slug de `lib/peru-data` (p. ej. "ancash"). */
@@ -95,8 +96,9 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
     };
   }, [ubigeo]);
 
+  // "Con señales" = al menos una señal publicada, de cualquier peso (§10.1): es lo que lista la pestaña.
   const nSenales = useMemo(
-    () => (alertas ? alertas.filter((a) => esSenal(a) && departamentoDeAlerta(a) === ubigeo).length : null),
+    () => (alertas ? alertas.filter((a) => tieneSenales(a) && departamentoDeAlerta(a) === ubigeo).length : null),
     [alertas, ubigeo],
   );
   const reportesRegion = useMemo(() => (reportes ? reportes.filter((r) => belongsToRegion(r, regionId)) : null), [reportes, regionId]);
@@ -128,10 +130,10 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
       {/* Encabezado: sin kicker sobre el título. El estado va debajo, que es donde informa. */}
       <div className="flex items-start justify-between gap-3 border-b border-line bg-paperDeep px-5 py-4">
         <div className="min-w-0">
-          <h3 className="font-serif text-2xl font-bold leading-tight text-ink">{nombre}</h3>
+          <h2 className="font-display text-2xl font-bold leading-tight text-ink">{nombre}</h2>
           <p className="mt-0.5 text-[12px] leading-snug text-inkSoft">
             {zona ? ESTADO_LABEL[zona.estado] : detalle === null ? "Sin conexión con el estado de la zona" : "Cargando el estado de la zona…"}
-            {zona && zona.precioPen > 0 && `, a ${formatPEN(zona.precioPen)} por contrato leído`}
+            {zona && zona.precioPen > 0 && `, a ${soles(zona.precioPen)} por contrato leído`}
           </p>
           <div className="mt-2">
             <SeguirZonaBoton ubigeo={ubigeo} nombre={nombre} />
@@ -219,13 +221,14 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
         <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-line bg-paperDeep px-5 py-3">
           <Link
             href={financiarHref}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-3 py-2.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-inkSoft"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-2.5 text-[12px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             Financiar la lectura
           </Link>
+          {/* Secundario y sin rojo: en este producto el rojo dice "riesgo", no "acción". */}
           <Link
             href={denunciarHref}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rust/40 bg-crimson-soft px-3 py-2.5 text-[12px] font-semibold text-crimsonTexto transition-colors duration-rapido hover:bg-rust hover:text-paper"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full border border-line bg-paper px-3 py-2.5 text-[12px] font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             <Camera size={13} aria-hidden /> Denunciar
           </Link>
@@ -266,11 +269,11 @@ function ResumenTab({
 
   if (cargando) {
     return (
-      <div className="space-y-2" aria-busy>
+      <div className="space-y-2" role="status" aria-busy>
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-8 animate-pulse rounded bg-paperDeep" />
+          <Skeleton key={i} className="h-8" />
         ))}
-        <span className="sr-only">Cargando el estado de la auditoría</span>
+        <span className="sr-only">Cargando el estado de la auditoría…</span>
       </div>
     );
   }
@@ -278,35 +281,28 @@ function ResumenTab({
   if (!zona) {
     return (
       <Vacio
-        titulo="No se pudo cargar el estado de la zona"
-        texto="El servicio de financiamiento no respondió. Las cifras de esta zona aparecen apenas vuelva; no se muestran cifras de reemplazo."
+        titulo="No pudimos cargar el estado de la zona"
+        texto="El servicio de financiamiento no respondió. Las cifras de esta zona aparecen apenas vuelva; no te mostramos cifras de reemplazo."
       />
     );
   }
 
-  /** "Leídos" y "con señal" vienen de /contratos/geo: mientras no llega, se dice. */
+  /**
+   * "Leídos" y "riesgo medio o alto" vienen de /contratos/geo: mientras no llega, se dice.
+   * `conSenales` de geo es score ≥ 40, no "con señales" (§10.1): se nombra por lo que mide.
+   */
   const lecturas =
     geo === undefined ? (
       <div className="flex items-baseline justify-between gap-3 py-2" aria-busy>
-        <dt className="text-[12px] text-mute">Leídos y con señal</dt>
-        <dd className="h-4 w-24 animate-pulse rounded bg-paperDeep" />
+        <dt className="text-[12px] text-mute">Leídos</dt>
+        <dd><Skeleton className="h-4 w-24" /></dd>
       </div>
     ) : geo === null ? (
-      <Cifra etiqueta="Leídos por los agentes" valor="sin dato" detalle="el servicio de contratos no respondió" />
+      <Cifra etiqueta="Leídos por los agentes" valor="Sin dato" detalle="el servicio de contratos no respondió" />
     ) : (
       <>
-        <Cifra
-          etiqueta="Leídos por los agentes"
-          valor={enteros(geo.procesados)}
-          detalle={`de ${enteros(geo.total)} ingresados`}
-          tono="text-moss"
-        />
-        <Cifra
-          etiqueta="Con señal"
-          valor={enteros(geo.conSenales)}
-          detalle={`de ${enteros(geo.procesados)} leídos`}
-          tono="text-rust"
-        />
+        <Cifra etiqueta="Leídos por los agentes" valor={enteros(geo.procesados)} detalle={`de ${enteros(geo.total)} publicados`} />
+        <Cifra etiqueta="De riesgo medio o alto" valor={enteros(geo.conSenales)} detalle={`de ${enteros(geo.procesados)} leídos`} />
       </>
     );
 
@@ -320,7 +316,7 @@ function ResumenTab({
               <Cifra
                 etiqueta="Esperando lectura"
                 valor={enteros(esperando)}
-                detalle={geo ? `de ${enteros(geo.total)} ingresados` : undefined}
+                detalle={geo ? `de ${enteros(geo.total)} publicados` : undefined}
               />
               <Cifra
                 etiqueta="Financiados"
@@ -343,7 +339,7 @@ function ResumenTab({
                 role="img"
                 aria-label={`${financiadoPct}% de la cola financiada, ${leidoFinPct}% ya leída con financiamiento`}
               >
-                <div className="absolute inset-y-0 left-0 rounded-full bg-amber transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-granate-300 transition-[width] duration-normal ease-salida" style={{ width: `${financiadoPct}%` }} />
                 <div className="absolute inset-y-0 left-0 rounded-full bg-moss transition-[width] duration-normal ease-salida" style={{ width: `${leidoFinPct}%` }} />
               </div>
               <p className="mt-2 text-[12px] leading-relaxed text-mute">
@@ -363,7 +359,7 @@ function ResumenTab({
           <>
             <Vacio
               titulo={`Todavía no hay contratos de ${nombre} en la cola`}
-              texto={`Cada día descargamos del OECE los expedientes nuevos y los clasificamos. Un contrato entra a la cola cuando su tipo y etapa ya se analizan: hoy, ${alcanceCorto(detalle?.alcance)}.`}
+              texto={`Vigía descarga del OECE los expedientes nuevos y los clasifica. Un contrato entra a la cola cuando su tipo y etapa ya se analizan: hoy, ${alcanceCorto(detalle?.alcance)}.`}
             />
             <dl className="mt-3 divide-y divide-line border-y border-line">{lecturas}</dl>
           </>
@@ -376,7 +372,7 @@ function ResumenTab({
         <div className="space-y-2">
           <Link
             href={financiarHref}
-            className="group flex items-center justify-between gap-3 rounded-full bg-ink px-4 py-2.5 text-paper transition-colors duration-rapido hover:bg-inkSoft"
+            className="group flex min-h-[44px] items-center justify-between gap-3 rounded-full bg-granate px-4 py-2.5 text-paper transition-colors duration-rapido hover:bg-granate-deep"
           >
             <span className="text-sm font-semibold">
               Financiar la lectura {esperando > 0 ? `de hasta ${enteros(esperando)} contratos` : `en ${nombre}`}
@@ -385,7 +381,7 @@ function ResumenTab({
           </Link>
           <Link
             href={denunciarHref}
-            className="group flex items-center justify-between gap-3 rounded-full border border-rust/40 bg-crimson-soft px-4 py-2.5 text-crimsonTexto transition-colors duration-rapido hover:border-rust"
+            className="group flex min-h-[44px] items-center justify-between gap-3 rounded-full border border-line bg-paper px-4 py-2.5 text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
           >
             <span className="inline-flex items-center gap-2 text-sm font-semibold">
               <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
@@ -393,7 +389,7 @@ function ResumenTab({
             <ArrowRight size={16} className="shrink-0 transition-transform duration-rapido group-hover:translate-x-0.5" aria-hidden />
           </Link>
           {zona.financiados > 0 ? (
-            <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-[12px] font-medium text-heroViolet hover:underline">
+            <Link href={enVivoHref} className="inline-flex items-center gap-1 px-1 text-[12px] font-medium text-granate hover:underline">
               Ver los {enteros(zona.financiados)} financiados pasar de la cola al dictamen
               <ArrowUpRight size={12} aria-hidden />
             </Link>
@@ -413,8 +409,8 @@ function ResumenTab({
         <Rotulo>Lo que ya se sabe de {nombre}</Rotulo>
         <ul className="divide-y divide-line border-y border-line">
           <Salto
-            etiqueta="Contratos con señal"
-            valor={nSenales != null ? enteros(nSenales) : geo ? enteros(geo.conSenales) : "…"}
+            etiqueta="Contratos con señales"
+            valor={nSenales != null ? enteros(nSenales) : "…"}
             detalle={geo ? `de ${enteros(geo.procesados)} leídos` : undefined}
             onClick={() => goTo("alertas")}
           />
@@ -439,15 +435,16 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
 
   if (detalle === undefined) {
     return (
-      <div className="space-y-2" aria-busy>
+      <div className="space-y-2" role="status" aria-busy>
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-14 animate-pulse rounded-xl bg-paperDeep" />
+          <Skeleton key={i} className="h-14 rounded-xl" />
         ))}
+        <span className="sr-only">Cargando la cola…</span>
       </div>
     );
   }
   if (!detalle) {
-    return <Vacio titulo="No se pudo cargar la cola" texto="El servicio de financiamiento no respondió. No se muestran cifras de reemplazo." />;
+    return <Vacio titulo="No pudimos cargar la cola" texto="El servicio de financiamiento no respondió. No te mostramos cifras de reemplazo." />;
   }
 
   const { zona, cola, hijas, aliados } = detalle;
@@ -471,26 +468,26 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               detalle={`y ${enteros(zona.financiados)} ${zona.financiados === 1 ? "financiado" : "financiados"}`}
             />
             <Cifra
-              etiqueta="Monto contratado"
-              valor={cola.montoReferencial > 0 ? formatPEN(cola.montoReferencial) : "sin monto"}
+              etiqueta="Valor referencial"
+              valor={cola.montoReferencial > 0 ? solesCompacto(cola.montoReferencial) : "Sin dato"}
               detalle={`en ${enteros(cola.contratos)} contratos`}
             />
             <Cifra
               etiqueta="Costo de leer lo que espera"
-              valor={costoEsperando > 0 ? formatPEN(costoEsperando) : formatPEN(0)}
-              detalle={`a ${formatPEN(zona.precioPen)} por contrato`}
+              valor={soles(Math.max(0, costoEsperando))}
+              detalle={`a ${soles(zona.precioPen)} por contrato`}
             />
             <Cifra
               etiqueta="Documentos listos"
               valor={enteros(cola.documentosListos ?? 0)}
               detalle="de otros tipos, con el análisis en preparación"
             />
-            <Cifra etiqueta="En revisión humana" valor={enteros(zona.enRevision ?? 0)} detalle="leídos con la publicación en pausa" />
+            <Cifra etiqueta="Financiados en revisión" valor={enteros(zona.enRevision ?? 0)} detalle="leídos con la publicación en pausa" />
           </dl>
         ) : (
           <Vacio
-            titulo={`Todavía no ingresamos contratos de ${nombre}`}
-            texto="Cada día descargamos del OECE los expedientes nuevos: primero se clasifican, y entran a la cola cuando su tipo y etapa ya se analizan."
+            titulo={`Todavía no hay contratos de ${nombre} en la base`}
+            texto="Vigía descarga del OECE los expedientes nuevos: primero se clasifican, y entran a la cola cuando su tipo y etapa ya se analizan."
           />
         )}
         <DetalleAlcance alcance={detalle.alcance} />
@@ -505,8 +502,8 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
           <div className="mb-1.5 flex items-baseline justify-between gap-2">
             <Rotulo sinMargen>Contratos de {zonaNombre}</Rotulo>
             {zonaUb && mapa && (
-              <button type="button" onClick={mapa.limpiarDistrito} className="shrink-0 text-[12px] text-inkSoft hover:text-ink hover:underline">
-                ver todo {nombre}
+              <button type="button" onClick={mapa.limpiarDistrito} className="min-h-[24px] shrink-0 text-[12px] font-medium text-granate underline-offset-2 hover:underline">
+                Ver todo {nombre}
               </button>
             )}
           </div>
@@ -538,9 +535,9 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
             {provinciasConCola.slice(0, 8).map((h) => (
               <li key={h.ubigeo}>
                 <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-baseline justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
-                  <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-heroViolet">{h.nombre}</span>
+                  <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-granate">{h.nombre}</span>
                   <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">
-                    <span className="font-semibold text-amberTexto">{enteros(h.financiados)}</span> financiados,{" "}
+                    <span className="font-semibold text-ink">{enteros(h.financiados)}</span> financiados,{" "}
                     {enteros(h.pendientes)} esperando
                   </span>
                 </Link>
@@ -557,7 +554,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
             {aliados.slice(0, 6).map((a, i) => (
               <li key={`${a.nombre}-${i}`} className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
                 {a.slug ? (
-                  <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-heroViolet hover:underline">
+                  <Link href={`/aliado/${a.slug}`} className="min-w-0 truncate text-ink hover:text-granate hover:underline">
                     {a.nombre}
                   </Link>
                 ) : (
@@ -576,11 +573,11 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
 function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; reportes: any[] | null; denunciarHref: string }) {
   if (reportes === null) {
     return (
-      <div className="space-y-2" aria-busy>
+      <div className="space-y-2" role="status" aria-busy>
         {[0, 1].map((i) => (
-          <div key={i} className="h-14 animate-pulse rounded-xl bg-paperDeep" />
+          <Skeleton key={i} className="h-14 rounded-xl" />
         ))}
-        <span className="sr-only">Cargando las denuncias</span>
+        <span className="sr-only">Cargando las denuncias…</span>
       </div>
     );
   }
@@ -617,11 +614,11 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
                           en validación, {n} de {MIN_CONFIRMACIONES} reportes
                         </span>
                       )}
-                      {r.fecha && <span className="font-mono">{String(r.fecha).slice(0, 10)}</span>}
+                      {r.fecha && <span className="tabular-nums">{fechaCorta(String(r.fecha).slice(0, 10))}</span>}
                     </span>
                     <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{r.descripcion}</span>
                   </span>
-                  <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute opacity-0 transition-opacity duration-rapido group-hover:opacity-100" aria-hidden />
+                  <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
                 </Link>
               </li>
             );
@@ -631,11 +628,11 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
       <div className="flex flex-col gap-2">
         <Link
           href={denunciarHref}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-rust px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-rust/90"
+          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
         >
           <Camera size={14} aria-hidden /> Denunciar una obra en {nombre}
         </Link>
-        <Link href="/app/denuncias" className="text-center text-[12px] text-inkSoft hover:text-ink hover:underline">
+        <Link href="/app/denuncias" className="text-center text-[12px] font-medium text-granate underline-offset-2 hover:underline">
           Ver las denuncias de todo el país
         </Link>
       </div>
@@ -647,7 +644,7 @@ function DenunciasTab({ nombre, reportes, denunciarHref }: { nombre: string; rep
 
 function Rotulo({ children, sinMargen }: { children: React.ReactNode; sinMargen?: boolean }) {
   return (
-    <h4 className={cn("text-[11px] font-semibold uppercase tracking-wider text-mute", sinMargen ? "" : "mb-2")}>{children}</h4>
+    <h3 className={cn("text-[12px] font-semibold text-mute", sinMargen ? "" : "mb-2")}>{children}</h3>
   );
 }
 
@@ -657,9 +654,9 @@ function Rotulo({ children, sinMargen }: { children: React.ReactNode; sinMargen?
  * "de" siempre y salían cosas como "892 de 203 entidades" o "S/ 2.676 de S/ 3
  * por contrato".
  */
-/* `tono` sólo acepta clases que pasen 4,5:1 sobre `paperSoft`: text-ink,
-   text-rust (6,79) o text-moss (4,60). `text-amberTexto` da 3,21 y `text-clayTexto` 3,89:
-   como texto no pasan, y acá el número ES el texto. */
+/* `tono` sólo acepta clases que pasen 4,5:1 sobre `paperSoft`: text-ink, text-rust o
+   text-mossTexto. Las cifras de este panel van en tinta: el peso del riesgo lo dicen las
+   filas de la pestaña Señales, con ícono y palabra. */
 function Cifra({ etiqueta, valor, detalle, tono }: { etiqueta: string; valor: string; detalle?: string; tono?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-2">
@@ -684,7 +681,7 @@ function Salto({ etiqueta, valor, detalle, onClick }: { etiqueta: string; valor?
         <span className="flex shrink-0 items-baseline gap-1.5">
           {valor && <span className="font-mono text-[15px] font-semibold text-ink tabular-nums">{valor}</span>}
           {detalle && <span className="text-[11px] text-mute">{detalle}</span>}
-          <ArrowRight size={12} className="self-center text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-heroViolet" aria-hidden />
+          <ArrowRight size={12} className="self-center text-mute transition-transform duration-rapido group-hover:translate-x-0.5 group-hover:text-granate" aria-hidden />
         </span>
       </button>
     </li>
@@ -713,8 +710,8 @@ function NotaAlcance({
         )}
         {enRevision > 0 && (
           <>
-            {" "}<strong className="text-inkSoft">{enteros(enRevision)}</strong> leído{enRevision === 1 ? "" : "s"} espera
-            {enRevision === 1 ? "" : "n"} revisión humana y no cuenta{enRevision === 1 ? "" : "n"} como señal.
+            {" "}<strong className="text-inkSoft">{enteros(enRevision)}</strong> financiado{enRevision === 1 ? "" : "s"}{" "}
+            {enRevision === 1 ? "está" : "están"} en revisión: {enRevision === 1 ? "no cuenta" : "no cuentan"} como señal.
           </>
         )}
       </p>
@@ -726,7 +723,7 @@ function NotaAlcance({
 function DetalleAlcance({ alcance }: { alcance: ZonaDetalle["alcance"] | undefined }) {
   return (
     <details className="mt-1 text-[12px] text-mute">
-      <summary className="cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
+      <summary className="min-h-[24px] cursor-pointer select-none underline decoration-dotted underline-offset-2 hover:text-ink">
         ¿Qué se analiza hoy?
       </summary>
       <p className="mt-1 leading-relaxed">{alcanceLargo(alcance)}</p>
@@ -772,17 +769,17 @@ function TabBtn({
       onClick={onClick}
       className={cn(
         "relative flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-1.5 py-2.5 text-[12px] font-medium transition-colors duration-rapido sm:flex-1",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-heroViolet",
-        active ? "text-ink" : "text-inkSoft hover:text-ink",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate",
+        active ? "text-granate" : "text-inkSoft hover:text-ink",
       )}
     >
       <span>{children}</span>
       {count !== undefined && count > 0 && (
-        <span className={cn("rounded-full px-1.5 py-0 text-[10px] font-bold tabular-nums", active ? "bg-heroViolet text-paper" : "bg-paperDeep text-inkSoft")}>
+        <span className={cn("rounded-full px-1.5 py-0 text-[10px] font-bold tabular-nums", active ? "bg-granate text-paper" : "bg-paperDeep text-inkSoft")}>
           {count > 999 ? "999+" : count}
         </span>
       )}
-      {active && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-heroViolet" aria-hidden />}
+      {active && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-granate" aria-hidden />}
     </button>
   );
 }

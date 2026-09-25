@@ -9,6 +9,7 @@
  */
 
 import { API_BASE } from "./api-client";
+import { soles, solesCompacto } from "./formato";
 
 export type ZonaEstado = "sin_datos" | "pendiente" | "parcial" | "financiada" | "procesada";
 export type NivelZona = "departamento" | "provincia" | "distrito";
@@ -263,25 +264,39 @@ export const ESTADO_LABEL: Record<ZonaEstado, string> = {
   procesada: "Auditoría completada",
 };
 
-/** Colores del mapa de campaña. Ámbar = en curso, verde = logrado, gris = nada aún. */
+/**
+ * Punto de color del estado de una zona, con tokens (DESIGN_SYSTEM.md §3): gris mientras
+ * nadie financia, granate (la marca: alguien pagó la lectura) mientras se financia, y
+ * `moss` (positivo) cuando la lectura terminó. Nunca ámbar: el ámbar es "Señal media".
+ * Siempre va junto a `ESTADO_LABEL`: el color solo no dice nada.
+ */
+export const ESTADO_PUNTO: Record<ZonaEstado, string> = {
+  sin_datos: "bg-paper ring-1 ring-inset ring-paperEdge",
+  pendiente: "bg-paperEdge ring-1 ring-inset ring-mute/30",
+  parcial: "bg-granate-300",
+  financiada: "bg-granate",
+  procesada: "bg-moss",
+};
+
+/**
+ * Los mismos colores en hex, para quien los pinta con `style` (mapas, Mi impacto).
+ * Son los valores de los tokens de `ESTADO_PUNTO`; si cambia uno, cambian los dos.
+ */
 export const ESTADO_FILL: Record<ZonaEstado, string> = {
-  sin_datos: "#EEF1F4",
-  pendiente: "#D9DEE4",
-  parcial: "#F2C879",
-  financiada: "#9CCB9F",
+  sin_datos: "#F0EBE8",
+  pendiente: "#E3DCD8",
+  parcial: "#D896A5",
+  financiada: "#711C30",
   procesada: "#3F7D43",
 };
 
-export const formatPEN = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDigits: 0 })}`;
+/** Soles con el formato único del producto (lib/formato): "S/ 45,000", "S/ 3". */
+export const formatPEN = (n: number) => soles(n);
 export const formatUSD = (n: number) => `US$ ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 export const pct = (a: number, b: number) => (b > 0 ? Math.min(100, Math.round((a / b) * 100)) : 0);
 
-/** "S/ 3.2 millones", "S/ 228 mil": montos grandes dentro de una frase. */
-export function formatPENCorto(n: number): string {
-  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toLocaleString("es-PE", { maximumFractionDigits: 1 })} millones`;
-  if (n >= 10_000) return `S/ ${Math.round(n / 1_000).toLocaleString("es-PE")} mil`;
-  return formatPEN(n);
-}
+/** Montos grandes en tarjetas y frases: el compacto único del producto ("S/ 3.2 M", "S/ 228 mil"). */
+export const formatPENCorto = (n: number) => solesCompacto(n);
 
 /** Mínimo de contratos por aporte: mismo CHECK (contratos >= 5) que exige el backend. */
 export const MIN_CONTRATOS = 5;

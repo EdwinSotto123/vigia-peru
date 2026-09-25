@@ -1,8 +1,9 @@
 "use client";
 
 import { ExternalLink, Network, ShieldAlert, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Severidad } from "@/components/ui/Severidad";
 import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
+import { fechaDossier, montoDossier, severidadDe } from "../dossier";
 import { Evidencia } from "./Evidencia";
 import { RelationshipGraph } from "./RelationshipGraph";
 
@@ -38,9 +39,9 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
       : "nombres-primero";
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-5 py-3">
-        <h2 className="font-serif text-xl font-bold text-ink">
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="border-b border-line bg-paperSoft px-5 py-3">
+        <h2 className="font-display text-xl font-bold text-ink">
           Personas clave y red empresarial
         </h2>
         <p className="mt-0.5 text-[12px] text-mute">
@@ -55,16 +56,16 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
 
       <div className="grid gap-4 px-5 py-5 lg:grid-cols-2">
         {/* PERSONA PRINCIPAL */}
-        <article className="space-y-3 rounded-md border border-line bg-paperSoft p-4">
+        <article className="space-y-3 rounded-xl border border-line bg-paperSoft p-4">
           <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-heroViolet text-paper">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
               <Users size={18} />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+              <div className="text-[12px] font-semibold text-ink">
                 Persona principal
               </div>
-              <h3 className="font-serif text-base font-bold text-ink">
+              <h3 className="font-display text-base font-bold text-ink">
                 {hasGerente ? <PersonName name={p.nombre_completo} orden={ordenPersona} /> : "Gerente no identificado"}
               </h3>
               {p.cargo_actual && (
@@ -87,19 +88,19 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
 
           {/* Identificadores */}
           {(p.dni || p.linkedin || p.datosperu_url) && (
-            <div className="flex flex-wrap gap-1.5 text-[10px]">
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
               {p.dni && (
                 <span className="rounded-md bg-paperDeep px-2 py-0.5 font-mono text-mute">DNI <Dni value={p.dni} /></span>
               )}
               {p.linkedin && (
                 <a href={p.linkedin} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-heroViolet hover:underline">
+                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-granate hover:underline">
                   LinkedIn <ExternalLink size={9} />
                 </a>
               )}
               {p.datosperu_url && (
                 <a href={p.datosperu_url} target="_blank" rel="noreferrer"
-                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-heroViolet hover:underline">
+                   className="inline-flex items-center gap-1 rounded-md bg-paperDeep px-2 py-0.5 text-granate hover:underline">
                   DatosPerú <ExternalLink size={9} />
                 </a>
               )}
@@ -109,7 +110,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Otros cargos actuales */}
           {otrosCargos.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+              <h4 className="text-[12px] font-semibold text-inkSoft">
                 Otros cargos actuales
               </h4>
               <ul className="mt-1 space-y-1">
@@ -117,7 +118,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                   <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-ink">
                     <strong>{c.cargo}</strong>
                     {c.empresa && <span>en <RazonSocial ruc={c.ruc} nombre={c.empresa} /></span>}
-                    {c.ruc && <span className="font-mono text-[10px] text-mute">RUC <Ruc value={c.ruc} /></span>}
+                    {c.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={c.ruc} /></span>}
                   </li>
                 ))}
               </ul>
@@ -127,7 +128,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Cargos pasados */}
           {cargosPasados.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+              <h4 className="text-[12px] font-semibold text-inkSoft">
                 Cargos pasados (públicos)
               </h4>
               <ul className="mt-1 space-y-1.5">
@@ -140,7 +141,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     </div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -153,7 +154,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Candidaturas */}
           {candidaturas.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-rust">
+              <h4 className="text-[12px] font-semibold text-rust">
                 Candidaturas políticas
               </h4>
               <ul className="mt-1 space-y-1.5">
@@ -168,7 +169,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                     </div>
                     {c.fuente_url && (
                       <a href={c.fuente_url} target="_blank" rel="noreferrer"
-                         className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
+                         className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -181,7 +182,7 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Aportes ONPE */}
           {aportes.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-rust">
+              <h4 className="text-[12px] font-semibold text-rust">
                 Aportes a campañas (ONPE)
               </h4>
               <ul className="mt-1 space-y-1">
@@ -189,10 +190,10 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
                   <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink">
                     {a.año && <strong>{a.año}</strong>}
                     {a.partido && <span>{a.partido}</span>}
-                    {a.monto != null && <span className="font-mono">S/ {Number(a.monto).toLocaleString("es-PE")}</span>}
+                    {a.monto != null && <span className="font-mono tabular-nums">{montoDossier(a.monto)}</span>}
                     {a.fuente_url && (
                       <a href={a.fuente_url} target="_blank" rel="noreferrer"
-                         className="inline-flex items-center gap-1 text-[10px] text-heroViolet hover:underline">
+                         className="inline-flex items-center gap-1 text-[11px] text-granate hover:underline">
                         Fuente <ExternalLink size={9} />
                       </a>
                     )}
@@ -205,15 +206,15 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Menciones prensa */}
           {menciones.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+              <h4 className="text-[12px] font-semibold text-inkSoft">
                 Menciones en prensa
               </h4>
               <ul className="mt-1 space-y-1">
                 {menciones.map((m: any, i: number) => (
                   <li key={i} className="text-xs text-ink">
                     <a href={m.url} target="_blank" rel="noreferrer"
-                       className="text-heroViolet hover:underline">
-                      {m.medio}{m.fecha ? `, ${m.fecha}` : ""}
+                       className="text-granate hover:underline">
+                      {m.medio}{m.fecha ? `, ${fechaDossier(m.fecha, true)}` : ""}
                     </a>
                     {m.titulo && <div className="text-mute">{redactDnis(m.titulo)}</div>}
                   </li>
@@ -224,16 +225,16 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
         </article>
 
         {/* RED EMPRESARIAL */}
-        <article className="space-y-3 rounded-md border border-line bg-paperSoft p-4">
+        <article className="space-y-3 rounded-xl border border-line bg-paperSoft p-4">
           <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-heroGreen text-paper">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
               <Network size={18} />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-heroViolet">
+              <div className="text-[12px] font-semibold text-ink">
                 Red empresarial
               </div>
-              <h3 className="font-serif text-base font-bold text-ink">
+              <h3 className="font-display text-base font-bold text-ink">
                 Empresas vinculadas
               </h3>
               {red.observaciones && (
@@ -245,16 +246,16 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Empresas mismo titular */}
           {empresasMismoTitular.length > 0 ? (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-mute">
+              <h4 className="text-[12px] font-semibold text-inkSoft">
                 Mismo titular ({empresasMismoTitular.length})
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {empresasMismoTitular.map((e: any, i: number) => (
                   <li key={i} className="rounded-md bg-paperDeep px-2 py-1.5">
                     <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-[10px] text-mute">RUC <Ruc value={e.ruc} /></span>}
+                      {e.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={e.ruc} /></span>}
                       {e.rol_del_gerente && (
-                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amberTexto">
+                        <span className="rounded-full bg-amber-soft px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-amberTexto">
                           {legible(e.rol_del_gerente)}
                         </span>
                       )}
@@ -271,18 +272,18 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
           {/* Empresas misma dirección */}
           {empresasMismaDir.length > 0 ? (
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-rust">
+              <h4 className="text-[12px] font-semibold text-rust">
                 Mismo domicilio fiscal ({empresasMismaDir.length})
               </h4>
               <ul className="mt-1 space-y-1.5">
                 {empresasMismaDir.map((e: any, i: number) => (
                   <li key={i} className="rounded-md border border-crimson-soft bg-paper px-2 py-1.5">
                     <div className="flex items-baseline gap-2">
-                      {e.ruc && <span className="font-mono text-[10px] text-mute">RUC <Ruc value={e.ruc} /></span>}
+                      {e.ruc && <span className="font-mono text-[11px] text-mute">RUC <Ruc value={e.ruc} /></span>}
                     </div>
                     <div className="text-xs font-semibold text-ink"><RazonSocial ruc={e.ruc} nombre={e.razon_social} /></div>
-                    {e.direccion && <div className="text-[10px] text-mute">{e.direccion}</div>}
-                    {e.observacion && <div className="mt-0.5 text-[10px] italic text-rust">{redactDnis(e.observacion)}</div>}
+                    {e.direccion && <div className="text-[11px] text-mute">{e.direccion}</div>}
+                    {e.observacion && <div className="mt-0.5 text-[11px] italic text-rust">{redactDnis(e.observacion)}</div>}
                   </li>
                 ))}
               </ul>
@@ -295,21 +296,16 @@ export function PersonNetworkSection({ person, web, proveedor, ctx }: { person: 
 
       {/* BANDERAS DE RED */}
       {banderas.length > 0 && (
-        <div className="border-t border-line bg-crimson-soft px-5 py-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-rust">
-            <ShieldAlert size={11} className="mr-1 inline" />
-            Banderas detectadas en la red ({banderas.length})
+        <div className="border-t border-line bg-paperSoft px-5 py-4">
+          <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+            <ShieldAlert size={13} className="text-mute" aria-hidden />
+            Señales en la red de personas ({banderas.length})
           </h3>
           <ul className="mt-2 space-y-2">
             {banderas.map((b: any, i: number) => (
-              <li key={i} className="rounded-md bg-paper px-3 py-2">
-                <div className="flex items-baseline gap-2">
-                  <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
-                    b.severidad === "alta"  ? "bg-rust text-paper" :
-                    b.severidad === "media" ? "bg-amber-soft text-amberTexto" :
-                                              "bg-paperDeep text-inkSoft",
-                  )}>● {b.severidad || "media"}</span>
+              <li key={i} className="rounded-xl border border-line bg-paper px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Severidad bandera={severidadDe(b)} />
                   <strong className="text-sm text-ink">{redactDnis(b.titulo)}</strong>
                 </div>
                 <p className="mt-1 text-xs text-inkSoft">{redactDnis(b.descripcion)}</p>

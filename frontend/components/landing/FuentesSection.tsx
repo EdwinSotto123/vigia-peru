@@ -30,16 +30,19 @@ import { NORMA } from "./fuentesFlujo";
 export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
   return (
     <section id="fuentes" aria-labelledby="fuentes-titulo" className="scroll-mt-16 bg-paperSoft py-20 sm:py-24">
-      <div className="container-page max-w-[1400px]">
-        <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-serif text-3xl font-bold leading-tight text-ink sm:text-4xl">
+      <div className="container-page">
+        <h2 id="fuentes-titulo" className="max-w-[30ch] text-balance font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
           Vigía no inventa nada.{" "}
-          <span className="text-heroGreenTexto">Cada señal sale de un registro público que puedes revisar.</span>
+          <span className="text-granate">Cada señal sale de un registro público que puedes revisar.</span>
         </h2>
-        <p className="mt-4 max-w-[68ch] text-base leading-relaxed text-inkSoft">
+        <p className="mt-4 max-w-[68ch] text-pretty text-base leading-relaxed text-inkSoft">
           Si una señal dice que el gerente del proveedor aportó a la campaña del alcalde, hay un registro de ONPE
           detrás. Si dice que el requisito direcciona, hay un artículo de ley citado y la página exacta del documento
-          donde está. Y cuando algo es una estimación, lo dice. Toca una fuente para ver dónde está y qué tomamos de ella, o un resultado para ver qué
-          información sale de todo eso.
+          donde está. Y cuando algo es una estimación, lo dice.
+        </p>
+        <p className="mt-3 max-w-[68ch] text-[15px] leading-relaxed text-inkSoft">
+          Toca una fuente para ver dónde está y qué tomamos de ella, o un resultado para ver qué información sale de
+          todo eso.
         </p>
 
         {/* ── 1. Las que se descargan ─────────────────────────────────── */}
@@ -50,11 +53,10 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
 
         {/* ── 2 y 3. La norma, y lo que se consulta en el momento ─────────── */}
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
-          <section aria-labelledby="fuentes-norma" className="rounded-2xl bg-heroViolet-deep p-6 text-paper sm:p-8 lg:col-span-7">
-            <h3 id="fuentes-norma" className="flex items-center gap-2.5">
-              <Gavel size={17} className="shrink-0 text-heroGreen" aria-hidden />
-              <span className="font-serif text-2xl font-bold">La norma</span>
-              <span className="ml-auto font-mono text-[12px] font-normal text-paper/60">{NORMA.length}</span>
+          <section aria-labelledby="fuentes-norma" className="sobre-oscuro rounded-2xl bg-granate-deep p-6 text-paper sm:p-8 lg:col-span-7">
+            <h3 id="fuentes-norma" className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <Gavel size={17} className="shrink-0 text-maiz" aria-hidden />
+              <span className="font-display text-2xl font-bold">La norma</span>
             </h3>
             <p className="mt-2 max-w-[54ch] text-sm leading-relaxed text-paper/75">
               {/* Cifras de docs/design/RAG_NORMATIVO.md (contenido del bucket gs://vigia-peru-rag). */}
@@ -64,13 +66,13 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
             <ul className="mt-6 grid gap-x-8 gap-y-6 sm:grid-cols-2">
               {NORMA.map((n) => (
                 <li key={n.nombre} className="border-t border-paper/15 pt-4">
-                  <p className="font-serif text-3xl font-bold leading-none">{n.sigla}</p>
+                  <p className="font-display text-3xl font-bold leading-none text-maiz">{n.sigla}</p>
                   {n.url ? (
                     <a
                       href={n.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="group mt-3 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold underline decoration-paper/30 underline-offset-4 transition-colors duration-rapido hover:decoration-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroGreen focus-visible:ring-offset-2 focus-visible:ring-offset-heroViolet-deep"
+                      className="group mt-3 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold underline decoration-maiz/50 underline-offset-4 transition-colors duration-rapido hover:decoration-maiz focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maiz focus-visible:ring-offset-2 focus-visible:ring-offset-granate-deep"
                     >
                       {n.nombre}
                       <ArrowUpRight size={13} className="transition-transform duration-rapido group-hover:-translate-y-px group-hover:translate-x-px" aria-hidden />
@@ -79,17 +81,16 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
                   ) : (
                     <p className="mt-3 text-[13px] font-semibold">{n.nombre}</p>
                   )}
-                  <p className="mt-1 text-[12.5px] leading-relaxed text-paper/70">{n.aporta}</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-paper/75">{n.aporta}</p>
                 </li>
               ))}
             </ul>
           </section>
 
-          <section aria-labelledby="fuentes-momento" className="rounded-2xl border border-line bg-paper p-6 shadow-card sm:p-8 lg:col-span-5">
-            <h3 id="fuentes-momento" className="flex items-center gap-2.5">
-              <Search size={17} className="shrink-0 text-heroViolet" aria-hidden />
-              <span className="font-serif text-2xl font-bold text-ink">Al leer cada contrato</span>
-              <span className="ml-auto font-mono text-[12px] font-normal text-mute">2</span>
+          <section aria-labelledby="fuentes-momento" className="rounded-2xl border border-line bg-paper p-6 sm:p-8 lg:col-span-5">
+            <h3 id="fuentes-momento" className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <Search size={17} className="shrink-0 text-granate" aria-hidden />
+              <span className="font-display text-2xl font-bold text-ink">Al leer cada contrato</span>
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-inkSoft">
               Dos fuentes no tienen calendario: se consultan en el momento, para el contrato que se está leyendo.
@@ -97,14 +98,14 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
             <ul className="mt-6 space-y-5">
               <li className="border-t border-line pt-4">
                 <p className="text-[14px] font-semibold text-ink">Personal de entidades</p>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-mute">
+                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
                   Los designados de confianza, que no aparecen en ningún registro electoral. Se buscan en las
                   resoluciones de la propia entidad.
                 </p>
               </li>
               <li className="border-t border-line pt-4">
                 <p className="text-[14px] font-semibold text-ink">Búsqueda de precios al momento</p>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-mute">
+                <p className="mt-1 text-[13px] leading-relaxed text-inkSoft">
                   Precios reales peruanos para los ítems del contrato. Es lo único que no es un registro público, y
                   por eso cada veredicto dice de dónde salió:
                 </p>
@@ -121,7 +122,7 @@ export function FuentesSection({ cifras }: { cifras: CifrasFlujo | null }) {
 
         {/* La promesa cierra la sección: es la regla que sostiene a todas. */}
         <div className="mt-12 border-t border-line pt-8 sm:mt-14">
-          <p className="max-w-[34ch] text-balance font-serif text-2xl font-bold leading-snug text-ink sm:text-3xl">
+          <p className="max-w-[34ch] text-balance font-display text-2xl font-bold leading-snug text-ink sm:text-3xl">
             Si un dato no está, queda vacío.
           </p>
           <p className="mt-3 max-w-[65ch] text-base leading-relaxed text-inkSoft">
@@ -144,7 +145,7 @@ function Veredicto({ clave, nota }: { clave: string; nota: string }) {
         <Icono size={11} aria-hidden />
         {v.etiqueta}
       </span>
-      <p className="mt-1.5 text-[11.5px] leading-snug text-mute">{nota}</p>
+      <p className="mt-1.5 text-[12px] leading-snug text-mute">{nota}</p>
     </div>
   );
 }

@@ -16,18 +16,18 @@ export function CuentaCta({ codigo }: { codigo: string }) {
   const miImpacto = `/app/mi-impacto?aporte=${encodeURIComponent(codigo)}`;
   if (user) {
     return (
-      <Link href={miImpacto} className="inline-flex items-center gap-1 text-[12px] text-inkSoft hover:text-ink hover:underline">
+      <Link href={miImpacto} className="inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
         ¿Es tuyo? Velo o asócialo en Mi impacto <ArrowRight size={12} aria-hidden />
       </Link>
     );
   }
   return (
-    <div className="flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] text-inkSoft">
-      <UserPlus size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+    <div className="flex items-start gap-2 rounded-xl border border-dashed border-line p-3 text-[12px] leading-relaxed text-inkSoft">
+      <UserPlus size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
       <span>
         <strong className="text-ink">¿Financiaste este aporte? Crea una cuenta para seguirlo</strong>: progreso, señales halladas y tus zonas en un solo lugar. No es obligatorio: con el código <span className="font-mono">{codigo}</span> siempre puedes volver a este comprobante.{" "}
-        <Link href={`/signup?next=${encodeURIComponent(miImpacto)}`} className="underline">Crear cuenta</Link>
-        <Link href={`/login?next=${encodeURIComponent(miImpacto)}`} className="ml-3 underline">Ya tengo una</Link>
+        <Link href={`/signup?next=${encodeURIComponent(miImpacto)}`} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
+        <Link href={`/login?next=${encodeURIComponent(miImpacto)}`} className="ml-3 text-granate underline underline-offset-2">Ya tengo una</Link>
       </span>
     </div>
   );

@@ -6,6 +6,7 @@
 // frase que dice qué pasó y qué hacer.
 
 import { ApiError } from "@/lib/api-client";
+import { numero } from "@/lib/formato";
 
 /** El mismo límite que aplica /api/upload. */
 export const MAX_MB = 12;
@@ -100,7 +101,7 @@ export function subirArchivo(
 
 /** Qué campo rechazó el backend → qué decirle a quien denuncia. */
 const MENSAJE_CAMPO: Record<string, string> = {
-  descripcion: `La descripción debe tener entre ${DESCRIPCION_MIN} y ${DESCRIPCION_MAX.toLocaleString("es-PE")} caracteres.`,
+  descripcion: `La descripción debe tener entre ${DESCRIPCION_MIN} y ${numero(DESCRIPCION_MAX)} caracteres.`,
   categoria: "Elige una categoría.",
   contactoEmail: "El correo no parece válido. Revísalo o déjalo vacío.",
   enlacesExternos: "Alguno de los enlaces no es una dirección web completa (debe empezar con https://). Hasta 10 enlaces.",

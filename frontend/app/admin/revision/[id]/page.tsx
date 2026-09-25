@@ -109,7 +109,7 @@ function ErrorCarga({ error, onReintentar }: { error: AdminError; onReintentar: 
   return (
     <div role="alert" className="mx-auto max-w-xl rounded-2xl border border-line bg-paper p-6 text-center">
       <AlertTriangle size={28} className="mx-auto text-amberTexto" aria-hidden />
-      <h2 className="mt-3 font-serif text-lg font-bold text-ink">{noExiste ? "Esta alerta no existe" : "No se pudo cargar la revisión"}</h2>
+      <h2 className="mt-3 font-display text-lg font-bold text-ink">{noExiste ? "Esta alerta no existe" : "No se pudo cargar la revisión"}</h2>
       <p className="mt-1 text-sm text-inkSoft">
         {noExiste
           ? "El enlace no corresponde a ninguna alerta. Puede que se haya reprocesado con otro identificador: búscala en la cola."

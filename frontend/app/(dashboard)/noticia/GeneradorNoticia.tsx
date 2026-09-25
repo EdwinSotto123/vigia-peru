@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Sparkles, Copy, Download, Loader2, Newspaper, Wand2, ArrowLeft, Check, AlertTriangle } from "lucide-react";
+import { Copy, Download, Loader2, Newspaper, FileText, ArrowLeft, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
-import { formatSoles } from "@/lib/formato";
+import { Cargando, EncabezadoPagina, EstadoError, EstadoVacio } from "@/components/patrones";
+import { soles, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
@@ -127,32 +127,31 @@ export function GeneradorNoticia() {
   };
 
   return (
-    <div className="container-page max-w-5xl space-y-8 py-10">
-      <Link href="/app/mapa" className="inline-flex items-center gap-2 text-sm text-mute hover:text-ink">
-        <ArrowLeft size={16} aria-hidden /> Volver al mapa
+    <div className="container-page max-w-5xl space-y-6 py-8 sm:py-10">
+      <Link href="/app/mapa" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
+        <ArrowLeft size={14} aria-hidden /> Volver al mapa
       </Link>
 
-      <header className="space-y-3">
-        <Badge variant="amber">
-          <Sparkles size={12} aria-hidden /> Borrador automático
-        </Badge>
-        <h1 className="font-serif text-4xl font-bold leading-tight">Genera un borrador de nota</h1>
-        <p className="text-lg text-mute">
-          Parte del dictamen del análisis del caso. Tú verificas, editas y publicas. La herramienta <strong>no decide</strong>:
-          decides tú.
-        </p>
-      </header>
+      <EncabezadoPagina
+        titulo="Genera un borrador de nota"
+        bajada={
+          <>
+            Parte del dictamen del análisis del caso. Tú verificas, editas y publicas. La herramienta{" "}
+            <strong className="font-semibold text-ink">no decide</strong>: decides tú.
+          </>
+        }
+      />
 
       <DisclaimerBanner />
 
       <section className="grid gap-6 lg:grid-cols-[400px,1fr]">
-        <div className="surface space-y-5 p-6">
+        <div className="space-y-5 rounded-2xl border border-line bg-paper p-5 sm:p-6">
           <div>
-            <label htmlFor="noticia-caso" className="mb-1 block text-xs font-medium uppercase tracking-wider text-mute">
+            <label htmlFor="noticia-caso" className="mb-1 block text-[13px] font-semibold text-inkSoft">
               Caso
             </label>
             {analizadas === null ? (
-              <p className="inline-flex items-center gap-2 text-sm text-mute">
+              <p className="inline-flex items-center gap-2 text-sm text-mute" role="status">
                 <Loader2 size={14} className="animate-spin" aria-hidden /> Cargando los casos analizados…
               </p>
             ) : analizadas.length === 0 && !casoFromUrl ? (
@@ -166,12 +165,12 @@ export function GeneradorNoticia() {
                   setResultado(null);
                   setError(null);
                 }}
-                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
+                className="min-h-[44px] w-full rounded-xl border border-line bg-paperDeep px-3 py-2.5 text-sm text-ink focus:border-granate"
               >
                 {casoFromUrl && !analizadas.some((a) => a.codigo === casoFromUrl) && <option value={casoFromUrl}>{casoFromUrl}</option>}
                 {analizadas.map((a) => (
                   <option key={a.codigo} value={a.codigo}>
-                    {a.codigo_convocatoria ?? a.codigo}, {a.region || "sin región"}: {a.entidad?.slice(0, 40) ?? "entidad sin nombre"} (puntaje {a.score ?? "?"})
+                    {a.codigo_convocatoria ?? a.codigo}, {a.region || "sin región"}: {a.entidad?.slice(0, 40) ?? "entidad sin nombre"} (puntaje {a.score ?? "sin dato"})
                   </option>
                 ))}
               </select>
@@ -179,13 +178,13 @@ export function GeneradorNoticia() {
             {elegida && (
               <p className="mt-2 text-xs text-mute">
                 {elegida.entidad}
-                {elegida.monto != null && Number.isFinite(Number(elegida.monto)) ? `, ${formatSoles(Number(elegida.monto))}` : ""}
+                {elegida.monto != null && Number.isFinite(Number(elegida.monto)) ? `, ${solesCompacto(Number(elegida.monto))}` : ""}
               </p>
             )}
           </div>
 
           <fieldset>
-            <legend className="mb-2 block text-xs font-medium uppercase tracking-wider text-mute">Tono</legend>
+            <legend className="mb-2 block text-[13px] font-semibold text-inkSoft">Tono</legend>
             <div className="space-y-1.5">
               {TONOS.map((t) => (
                 <button
@@ -194,19 +193,19 @@ export function GeneradorNoticia() {
                   aria-pressed={tono === t.id}
                   onClick={() => setTono(t.id)}
                   className={cn(
-                    "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
-                    tono === t.id ? "border-ink bg-paperSoft" : "border-line bg-paper hover:bg-paperSoft",
+                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors duration-rapido",
+                    tono === t.id ? "border-granate bg-granate-soft text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
                   )}
                 >
-                  <div className="font-medium">{t.label}</div>
-                  <div className="text-xs text-mute">{t.hint}</div>
+                  <div className="font-semibold">{t.label}</div>
+                  <div className="text-xs text-inkSoft">{t.hint}</div>
                 </button>
               ))}
             </div>
           </fieldset>
 
           <fieldset>
-            <legend className="mb-2 block text-xs font-medium uppercase tracking-wider text-mute">Largo</legend>
+            <legend className="mb-2 block text-[13px] font-semibold text-inkSoft">Largo</legend>
             <div className="space-y-1.5">
               {LARGOS.map((l) => (
                 <button
@@ -215,8 +214,8 @@ export function GeneradorNoticia() {
                   aria-pressed={largo === l.id}
                   onClick={() => setLargo(l.id)}
                   className={cn(
-                    "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
-                    largo === l.id ? "border-ink bg-paperSoft" : "border-line bg-paper hover:bg-paperSoft",
+                    "min-h-[44px] w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors duration-rapido",
+                    largo === l.id ? "border-granate bg-granate-soft font-semibold text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
                   )}
                 >
                   {l.label}
@@ -225,24 +224,24 @@ export function GeneradorNoticia() {
             </div>
           </fieldset>
 
-          <Button onClick={generar} disabled={generando || !casoId} full variant="ink">
+          <Button onClick={generar} disabled={generando || !casoId} full variant="primary">
             {generando ? (
               <>
                 <Loader2 size={16} className="animate-spin" aria-hidden /> Generando…
               </>
             ) : (
               <>
-                <Wand2 size={16} aria-hidden /> Generar borrador
+                <FileText size={16} aria-hidden /> Generar borrador
               </>
             )}
           </Button>
         </div>
 
-        <div className="surface flex min-h-[500px] flex-col p-0">
-          <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <div className="flex min-h-[500px] flex-col rounded-2xl border border-line bg-paper">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4 sm:px-6">
             <div className="flex items-center gap-2">
               <Newspaper size={16} className="text-mute" aria-hidden />
-              <span className="text-sm font-semibold">Borrador</span>
+              <h2 className="font-display text-[15px] font-bold text-ink">Borrador</h2>
             </div>
             {resultado && (
               <div className="flex gap-2">
@@ -264,35 +263,22 @@ export function GeneradorNoticia() {
             )}
           </div>
 
-          <div className="flex-1 p-6" aria-live="polite">
+          <div className="flex-1 p-5 sm:p-6" aria-live="polite">
+            {/* Un solo estado a la vez, y una sola llamita en pantalla. */}
             {!resultado && !generando && !error && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-mute">
-                <Sparkles size={36} className="text-amberTexto" aria-hidden />
-                <p>
-                  Elige un caso, un tono y un largo.
-                  <br />
-                  El borrador sale del dictamen del análisis, con sus fuentes.
-                </p>
-              </div>
+              <EstadoVacio titulo="Todavía no hay borrador" compacto>
+                Elige un caso, un tono y un largo. El borrador sale del dictamen del análisis, con sus fuentes.
+              </EstadoVacio>
             )}
-            {error && !generando && (
-              <p className="flex items-start gap-2 rounded-xl border border-rust/30 bg-crimson-soft px-3 py-2.5 text-sm text-crimsonTexto" role="alert">
-                <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden /> {error}
-              </p>
-            )}
-            {generando && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <Loader2 size={36} className="animate-spin text-crimsonTexto" aria-hidden />
-                <p className="text-sm text-mute">Cargando el dictamen del caso…</p>
-              </div>
-            )}
+            {error && !generando && <EstadoError titulo="No hay borrador para este caso">{error}</EstadoError>}
+            {generando && <Cargando texto="Cargando el dictamen del caso…" lineas={6} />}
             {resultado && (
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full bg-paperDeep px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-clayTexto">
-                  <Sparkles size={11} aria-hidden />
+                <p className="inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft">
+                  <FileText size={12} aria-hidden />
                   Hecho a partir del dictamen del análisis
-                </div>
-                <article className="prose prose-sm max-w-none font-serif text-ink prose-headings:font-serif prose-headings:text-ink prose-strong:text-ink prose-a:text-clayTexto">
+                </p>
+                <article className="prose prose-sm max-w-none text-ink prose-headings:font-display prose-headings:text-ink prose-strong:text-ink prose-a:text-granate">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{resultado}</ReactMarkdown>
                 </article>
               </div>
@@ -309,15 +295,15 @@ function buildNoticiaFromDictamen(dictamenMd: string, data: any, tono: string, l
   const conv = data?.convocatoria || {};
   const cmpl = data?.compliance || {};
   const n = cmpl.banderas?.length || 0;
-  const monto = Number(conv.cuantia_total || 0).toLocaleString("es-PE");
+  const monto = soles(Number(conv.cuantia_total || 0));
   const senales = `${n} señal${n === 1 ? "" : "es"} de riesgo`;
 
   const intro =
     tono === "denuncia"
-      ? `**${conv.region || "Perú"}.** Un contrato de S/ ${monto} de ${conv.entidad || "una entidad pública"} activó ${senales}. Esto es lo que dicen los documentos públicos.\n\n`
+      ? `**${conv.region || "Perú"}.** Un contrato de ${monto} de ${conv.entidad || "una entidad pública"} activó ${senales}. Esto es lo que dicen los documentos públicos.\n\n`
       : tono === "explicativo"
         ? `Una contratación pública en **${conv.region || "Perú"}** activó ${senales} en el análisis de Vigía Perú. Aquí te lo explicamos paso a paso, con los datos oficiales.\n\n`
-        : `**${conv.entidad || "Una entidad pública"}** adjudicó un contrato por S/ ${monto}. El análisis de Vigía Perú encontró **${senales}** en el proceso.\n\n`;
+        : `**${conv.entidad || "Una entidad pública"}** adjudicó un contrato por ${monto}. El análisis de Vigía Perú encontró **${senales}** en el proceso.\n\n`;
 
   let body = dictamenMd;
   if (largo === "breve") {

@@ -1,26 +1,22 @@
-import {
-  ejecucionPct,
-  fechaCorta,
-  formatPEN,
-  sinAnioRepetido,
-  type MefBudgetSummary,
-} from "@/lib/mef";
+import { ejecucionPct, sinAnioRepetido, type MefBudgetSummary, type MefBudgetRow } from "@/lib/mef";
 import { getEntityBudget } from "@/lib/mef-cache";
-import {
-  Coins,
-  Activity,
-  AlertTriangle,
-  ExternalLink,
-  Database,
-  Clock,
-  WifiOff,
-  Info,
-} from "lucide-react";
+import { AlertCircle, Clock, Database, ExternalLink, Info, WifiOff } from "lucide-react";
+import { FuenteDato } from "@/components/patrones";
+import { numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+
+const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
+const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026";
 
 /**
  * Server component. Recibe un keyword (parte del nombre del pliego o ejecutora)
  * y muestra el presupuesto real consultado a MEF — Datos Abiertos.
+ *
+ * Vive en la ficha de una entidad, así que sus estados (lento, caído, sin
+ * registros) van sin la llamita: la llamita no acompaña a nadie señalado
+ * (DESIGN_SYSTEM.md §2.3). Una ejecución baja o por encima del PIM es una
+ * observación del presupuesto, no una señal de Vigía: va en ámbar con ícono y
+ * palabra, nunca en el rojo de las señales.
  */
 export async function EjecucionPresupuestal({
   query,
@@ -35,35 +31,31 @@ export async function EjecucionPresupuestal({
   subtitle?: string;
 }) {
   const result = await getEntityBudget(query, ruc);
+  const titulo = title ?? "Ejecución presupuestal";
 
   // MEF API tardó demasiado → timeout (LIKE sin índice sobre 8M filas)
   if (result.kind === "timeout") {
     return (
-      <section className="surface overflow-hidden p-0">
-        <Header
-          title={title ?? "Ejecución presupuestal MEF"}
-          subtitle="El MEF respondió lento y los datos no cargaron"
-        />
-        <div className="space-y-3 px-5 py-6">
-          <div className="flex items-start gap-3 rounded-xl border border-amber/40 bg-amber-soft px-4 py-3">
-            <Clock size={18} className="mt-0.5 shrink-0 text-amberTexto" />
-            <div className="text-sm text-ink">
-              <strong>El portal de Datos Abiertos del MEF está respondiendo lento</strong> (más de 28 segundos). Para
-              encontrar a una entidad tiene que recorrer millones de filas, y a veces no termina a tiempo.
-            </div>
+      <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <Encabezado titulo={titulo} bajada="El MEF respondió lento y los datos no cargaron" />
+        <div className="space-y-3 px-5 py-5">
+          <div className="flex items-start gap-3 rounded-xl border border-line bg-paperSoft px-4 py-3">
+            <Clock size={18} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
+            <p className="text-sm text-ink">
+              <strong className="font-semibold">El portal de Datos Abiertos del MEF está respondiendo lento</strong> (más de
+              28 segundos). Para encontrar a una entidad tiene que recorrer millones de filas, y a veces no termina a
+              tiempo. Recarga la página en un minuto: cuando la consulta termina una vez, queda guardada por una hora.
+            </p>
           </div>
           <details className="rounded-xl border border-line bg-paperSoft px-4 py-3 text-xs text-mute">
-            <summary className="cursor-pointer font-semibold text-ink">
-              ¿Por qué pasa esto?
-            </summary>
+            <summary className="cursor-pointer font-semibold text-ink">¿Por qué pasa esto?</summary>
             <ul className="mt-2 list-disc space-y-1 pl-4">
               <li>El MEF no tiene un índice por nombre de entidad: con las entidades grandes, la búsqueda recorre millones de filas.</li>
-              <li>Cuando la consulta termina una vez, la guardamos por una hora: recarga la página en un minuto y debería aparecer.</li>
               <li>El presupuesto por departamento ya está guardado y carga al instante en la pestaña Presupuesto del mapa.</li>
             </ul>
           </details>
           <p className="text-center text-xs text-mute">
-            Buscado: <code className="font-mono text-ink">"{query}"</code>
+            Buscado: <code className="font-mono text-ink">«{query}»</code>
           </p>
         </div>
       </section>
@@ -72,28 +64,22 @@ export async function EjecucionPresupuestal({
 
   if (result.kind === "error") {
     return (
-      <section className="surface overflow-hidden p-0">
-        <Header
-          title={title ?? "Ejecución presupuestal MEF"}
-          subtitle="MEF no disponible ahora"
-        />
-        <div className="px-5 py-6 text-center text-sm">
-          <WifiOff size={20} className="mx-auto mb-2 text-amberTexto" />
-          <p className="font-medium text-ink">
-            El portal de Datos Abiertos del MEF no respondió.
-          </p>
-          <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-mute">
-            El portal del MEF se satura al consultar su dataset de 8 millones de
-            filas y por momentos devuelve error. No es una falla de Vigía: vuelve
-            a intentar en unos segundos o consulta el dato directo en el MEF.
+      <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <Encabezado titulo={titulo} bajada="El MEF no está disponible ahora" />
+        <div role="alert" className="m-5 rounded-xl border border-crimson/25 bg-crimson-soft/60 px-4 py-5 text-center text-sm">
+          <WifiOff size={20} className="mx-auto mb-2 text-crimsonTexto" aria-hidden />
+          <p className="font-semibold text-crimsonTexto">El portal de Datos Abiertos del MEF no respondió.</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-inkSoft">
+            El portal del MEF se satura al consultar su conjunto de 8 millones de filas y por momentos devuelve error.
+            Vuelve a intentarlo en unos segundos o consulta el dato directo en el MEF.
           </p>
           <a
-            href="https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx"
+            href={CONSULTA_AMIGABLE}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-heroViolet hover:underline"
+            className="mt-3 inline-flex min-h-[24px] items-center gap-1 text-xs font-semibold text-granate underline-offset-2 hover:underline"
           >
-            Abrir Consulta Amigable MEF →
+            Abrir la Consulta Amigable del MEF <ExternalLink size={11} aria-hidden />
           </a>
         </div>
       </section>
@@ -102,74 +88,56 @@ export async function EjecucionPresupuestal({
 
   if (result.kind === "empty") {
     return (
-      <section className="surface overflow-hidden p-0">
-        <Header
-          title={title ?? "Ejecución presupuestal MEF"}
-          subtitle="Sin registros en el dataset MEF"
-        />
+      <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <Encabezado titulo={titulo} bajada="Sin registros en los datos del MEF" />
         <div className="px-5 py-6 text-center text-sm text-mute">
-          <Database size={20} className="mx-auto mb-2 text-mute" />
+          <Database size={20} className="mx-auto mb-2 text-mute" aria-hidden />
           <p>
-            MEF Datos Abiertos respondió pero no hay coincidencias para{" "}
-            <code className="font-mono text-ink">"{query}"</code>.
+            El MEF respondió, pero no hay coincidencias para <code className="font-mono text-ink">«{query}»</code>.
           </p>
           <p className="mt-1 text-xs">
-            El nombre puede diferir del oficial en MEF (case, abreviaturas), o
-            el pliego no tiene actividad presupuestal registrada en 2022-2026.
+            El nombre puede figurar distinto en el MEF (abreviaturas, mayúsculas), o el pliego no registra actividad
+            presupuestal entre 2022 y 2026.
           </p>
         </div>
       </section>
     );
   }
 
-  return <EjecucionView data={result.data} title={title} subtitle={subtitle} />;
+  return <EjecucionView data={result.data} titulo={titulo} subtitle={subtitle} />;
 }
 
-function EjecucionView({
-  data,
-  title,
-  subtitle,
-}: {
-  data: MefBudgetSummary;
-  title?: string;
-  subtitle?: string;
-}) {
+/** Ejecución de un año cerrado por debajo de este porcentaje del PIM: se marca como observación. */
+const EJECUCION_BAJA = 40;
+
+function EjecucionView({ data, titulo, subtitle }: { data: MefBudgetSummary; titulo: string; subtitle?: string }) {
   // El año que el MEF todavía no publica (repite al anterior al centavo) no se muestra como dato.
   const { years: last5, repetido } = sinAnioRepetido(data.byYear);
   const current = last5[last5.length - 1];
   const prevYear = last5[last5.length - 2];
   const anioActual = new Date().getFullYear();
-  const fecha = fechaCorta(data.fechaDescarga);
 
   const ejPct = ejecucionPct(current);
-  const isUnderExecuted = current.pim > 0 && ejPct < 40 && current.year < anioActual;
+  const isUnderExecuted = current.pim > 0 && ejPct < EJECUCION_BAJA && current.year < anioActual;
   const isOverExecuted = current.pim > 0 && current.devengado > current.pim;
 
-  // Crecimiento PIM vs año anterior
-  const growth =
-    prevYear && prevYear.pim > 0
-      ? ((current.pim - prevYear.pim) / prevYear.pim) * 100
-      : 0;
+  // Crecimiento del PIM frente al año anterior (null si no hay con qué comparar).
+  const growth = prevYear && prevYear.pim > 0 ? ((current.pim - prevYear.pim) / prevYear.pim) * 100 : null;
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <Header
-        title={title ?? "Ejecución presupuestal MEF"}
-        subtitle={
-          subtitle ??
-          `Pliego "${data.query}", ${data.totalRows.toLocaleString("es-PE")} registros agregados`
-        }
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <Encabezado
+        titulo={titulo}
+        bajada={subtitle ?? `Pliego «${data.query}», ${numero(data.totalRows)} registros sumados del MEF`}
       />
 
-      {/* Pliegos matched */}
+      {/* Pliegos que coincidieron con la búsqueda */}
       {data.matchedPliegos.length > 0 && (
-        <div className="border-b border-line bg-paperDeep px-5 py-3 text-xs">
-          <div className="mb-1 font-semibold uppercase tracking-wider text-mute">
-            Pliegos detectados ({data.matchedPliegos.length})
-          </div>
+        <div className="border-b border-line bg-paperSoft px-5 py-3 text-xs">
+          <p className="mb-1.5 font-semibold text-mute">Pliegos detectados: {numero(data.matchedPliegos.length)}</p>
           <div className="flex flex-wrap gap-1.5">
             {data.matchedPliegos.slice(0, 6).map((p, i) => (
-              <span key={i} className="rounded-full bg-paper px-2 py-0.5 text-[10px] text-ink">
+              <span key={i} className="rounded-full border border-line bg-paper px-2 py-0.5 text-[11px] text-ink">
                 {p}
               </span>
             ))}
@@ -179,7 +147,7 @@ function EjecucionView({
 
       {repetido && (
         <div className="flex items-start gap-2 border-b border-line bg-paperSoft px-5 py-2.5 text-xs leading-relaxed text-inkSoft">
-          <Info size={14} className="mt-0.5 shrink-0 text-heroViolet" aria-hidden />
+          <Info size={14} className="mt-0.5 shrink-0 text-inkSoft" aria-hidden />
           <span>
             Las cifras de <strong className="text-ink">{repetido}</strong> todavía no están cargadas: en la copia
             descargada, {repetido} repite al centavo los valores de {repetido - 1}, así que no se muestran.
@@ -187,192 +155,157 @@ function EjecucionView({
         </div>
       )}
 
-      {/* KPIs del último año con cifras propias */}
-      <div className="grid gap-3 px-5 py-5 sm:grid-cols-4">
-        <KPI
-          icon={<Coins size={15} />}
-          label={`PIA ${current.year}`}
-          value={formatPEN(current.pia)}
-          hint="presupuesto aprobado"
+      {/* Cifras del último año con datos propios: compactas, son tarjetas. */}
+      <dl className="grid grid-cols-2 gap-3 px-5 py-5 sm:grid-cols-4">
+        <Dato etiqueta={`PIA ${current.year}`} valor={solesCompacto(current.pia)} contexto="Presupuesto aprobado al inicio del año" />
+        <Dato
+          etiqueta={`PIM ${current.year}`}
+          valor={solesCompacto(current.pim)}
+          contexto={
+            growth != null && Math.round(growth * 10) !== 0
+              ? `${growth > 0 ? "+" : "−"}${porcentaje(Math.abs(growth), { decimales: 1 })} frente a ${current.year - 1}`
+              : "Presupuesto modificado"
+          }
         />
-        <KPI
-          icon={<Coins size={15} />}
-          label={`PIM ${current.year}`}
-          value={formatPEN(current.pim)}
-          hint={growth !== 0 ? `${growth > 0 ? "▲" : "▼"} ${Math.abs(growth).toFixed(1)}% vs ${current.year - 1}` : "modificado"}
-          tone="ink"
+        <Dato
+          etiqueta="Devengado"
+          valor={solesCompacto(current.devengado)}
+          contexto={current.pim > 0 ? `${porcentaje(ejPct, { decimales: 1 })} del PIM` : "Sin PIM con qué comparar"}
+          tono={isUnderExecuted || isOverExecuted ? "atencion" : ejPct >= 90 ? "positivo" : "neutro"}
         />
-        <KPI
-          icon={<Activity size={15} />}
-          label="Devengado"
-          value={formatPEN(current.devengado)}
-          hint={`${ejPct.toFixed(1)}% del PIM`}
-          tone={isUnderExecuted ? "rust" : isOverExecuted ? "rust" : "moss"}
+        <Dato
+          etiqueta="Girado"
+          valor={solesCompacto(current.girado)}
+          contexto={current.pim > 0 ? `${porcentaje((current.girado / current.pim) * 100, { decimales: 1 })} del PIM` : "Sin PIM con qué comparar"}
         />
-        <KPI
-          icon={<Activity size={15} />}
-          label="Girado"
-          value={formatPEN(current.girado)}
-          hint={current.pim > 0 ? `${((current.girado / current.pim) * 100).toFixed(1)}% del PIM` : "sin PIM"}
-          tone="ink"
-        />
-      </div>
+      </dl>
 
-      {/* Flags / anomalías */}
+      {/* Observaciones del presupuesto: ámbar con ícono y palabra. No son señales de Vigía. */}
       {(isUnderExecuted || isOverExecuted) && (
-        <div className="border-y border-rust/30 bg-crimson-soft px-5 py-3 text-sm">
+        <div className="space-y-2 border-y border-amber/30 bg-amber-soft px-5 py-3 text-sm text-ink">
           {isUnderExecuted && (
-            <div className="flex items-start gap-2 text-rust">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-              <div>
-                <strong>Sub-ejecución detectada.</strong> Sólo se ha devengado{" "}
-                {ejPct.toFixed(1)}% del PIM con el año ya avanzado. Patrón típico
-                de obras paralizadas o presupuestos inflados.
-              </div>
-            </div>
+            <p className="flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
+              <span>
+                <strong className="font-semibold text-amberTexto">Ejecución baja en {current.year}.</strong> Sólo se
+                devengó el {porcentaje(ejPct, { decimales: 1 })} del PIM en un año ya cerrado. Puede deberse a obras
+                paralizadas, a presupuesto que no se usó o a registros incompletos: es una pista para mirar, no una
+                conclusión.
+              </span>
+            </p>
           )}
           {isOverExecuted && (
-            <div className="flex items-start gap-2 text-rust">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-              <div>
-                <strong>Sobre-ejecución.</strong> El Devengado supera el PIM.
-                Indica modificaciones presupuestales fuera del marco aprobado.
-              </div>
-            </div>
+            <p className="flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
+              <span>
+                <strong className="font-semibold text-amberTexto">Devengado por encima del PIM.</strong> Puede reflejar
+                modificaciones presupuestales todavía no registradas o un error en la copia de datos.
+              </span>
+            </p>
           )}
         </div>
       )}
 
-      {/* Tabla 5 años */}
+      {/* Tabla por año: soles completos, una sola forma por columna (§10.3). */}
       <div className="overflow-x-auto border-t border-line">
-        <table className="w-full text-xs">
-          <thead className="bg-paperDeep text-left text-[10px] uppercase tracking-wider text-mute">
+        <table className="w-full min-w-[560px] border-collapse text-xs">
+          <caption className="sr-only">Presupuesto y ejecución por año, en soles</caption>
+          <thead className="bg-paperSoft text-left text-[12px] text-mute">
             <tr>
-              <th className="px-5 py-2.5">Año</th>
-              <th className="px-3 py-2.5 text-right">PIA</th>
-              <th className="px-3 py-2.5 text-right">PIM</th>
-              <th className="px-3 py-2.5 text-right">Devengado</th>
-              <th className="px-3 py-2.5 text-right">Girado</th>
-              <th className="px-5 py-2.5 text-right">Ejec.</th>
+              <th scope="col" className="px-5 py-2.5 font-semibold">Año</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-semibold">PIA</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-semibold">PIM</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-semibold">Devengado</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-semibold">Girado</th>
+              <th scope="col" className="px-5 py-2.5 text-right font-semibold">Ejecución</th>
             </tr>
           </thead>
           <tbody>
-            {last5.map((row) => {
-              const pct = ejecucionPct(row);
-              const isUnder = row.pim > 0 && pct < 40 && row.year < anioActual;
-              return (
-                <tr key={row.year} className="border-t border-line">
-                  <td className="px-5 py-2 font-mono font-semibold text-ink">
-                    {row.year}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-mute">
-                    {formatPEN(row.pia)}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-ink">
-                    {formatPEN(row.pim)}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-ink">
-                    {formatPEN(row.devengado)}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-mute">
-                    {formatPEN(row.girado)}
-                  </td>
-                  <td className="px-5 py-2 text-right">
-                    <EjecBadge pct={pct} flag={isUnder} />
-                  </td>
-                </tr>
-              );
-            })}
+            {last5.map((row) => (
+              <FilaAnio key={row.year} row={row} anioActual={anioActual} />
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Footer con fuente */}
-      <div className="border-t border-line bg-paperSoft px-5 py-2.5 text-[11px] text-mute">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <a
-            href="https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-heroViolet hover:underline"
-          >
-            <ExternalLink size={11} aria-hidden />
-            Fuente: MEF, Datos Abiertos, comparativo de gastos 2022-2026
-          </a>
-          <span>
-            Suma de PIA, PIM, devengado y girado.{" "}
-            {fecha ? `Descargado el ${fecha}.` : "La copia no registró su fecha de descarga."}
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-paperSoft px-5 py-2.5 text-[12px] text-mute">
+        <FuenteDato fuente="MEF, Datos Abiertos (comparativo de gastos 2022–2026)" fecha={data.fechaDescarga} href={DATASET_MEF} />
+        <span>
+          Suma de PIA, PIM, devengado y girado.
+          {data.fechaDescarga ? "" : " La copia no registró su fecha de descarga."}
+        </span>
       </div>
     </section>
   );
 }
 
-function Header({ title, subtitle }: { title: string; subtitle: string }) {
+function FilaAnio({ row, anioActual }: { row: MefBudgetRow; anioActual: number }) {
+  const pct = ejecucionPct(row);
+  const baja = row.pim > 0 && pct < EJECUCION_BAJA && row.year < anioActual;
   return (
-    <div className="flex items-start gap-3 border-b border-line bg-paperDeep px-5 py-4">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-heroViolet text-paper">
+    <tr className="border-t border-line">
+      <th scope="row" className="px-5 py-2 text-left font-mono font-semibold tabular-nums text-ink">
+        {row.year}
+      </th>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft">{soles(row.pia)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{soles(row.pim)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">{soles(row.devengado)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft">{soles(row.girado)}</td>
+      <td className="px-5 py-2 text-right">
+        <PildoraEjecucion pct={pct} sinPim={row.pim === 0} baja={baja} />
+      </td>
+    </tr>
+  );
+}
+
+function Encabezado({ titulo, bajada }: { titulo: string; bajada: string }) {
+  return (
+    <div className="flex items-start gap-3 border-b border-line bg-paperSoft px-5 py-4">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-granate text-paper" aria-hidden>
         <Database size={16} />
-      </div>
-      <div>
-        <div className="text-[11px] font-semibold text-heroViolet">
-          MEF, Datos Abiertos
-        </div>
-        <h3 className="font-serif text-lg font-bold text-ink">{title}</h3>
-        <p className="text-xs text-mute">{subtitle}</p>
+      </span>
+      <div className="min-w-0">
+        <h3 className="font-display text-lg font-bold leading-tight text-ink">{titulo}</h3>
+        <p className="mt-0.5 text-xs text-mute">{bajada}</p>
       </div>
     </div>
   );
 }
 
-function KPI({
-  icon,
-  label,
-  value,
-  hint,
-  tone = "ink",
+function Dato({
+  etiqueta,
+  valor,
+  contexto,
+  tono = "neutro",
 }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "ink" | "rust" | "moss";
+  etiqueta: string;
+  valor: string;
+  contexto: string;
+  tono?: "neutro" | "atencion" | "positivo";
 }) {
-  const valueColor =
-    tone === "rust" ? "text-rust" : tone === "moss" ? "text-moss" : "text-ink";
+  const color = tono === "atencion" ? "text-amberTexto" : tono === "positivo" ? "text-mossTexto" : "text-ink";
   return (
     <div className="rounded-xl border border-line bg-paperSoft p-3">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-mute">
-        {icon} {label}
-      </div>
-      <div className={cn("mt-1 font-mono text-xl font-bold tabular-nums", valueColor)}>
-        {value}
-      </div>
-      {hint && <div className="mt-0.5 text-[10px] text-mute">{hint}</div>}
+      <dt className="text-[12px] font-semibold text-mute">{etiqueta}</dt>
+      <dd className={cn("mt-1 font-mono text-lg font-bold tabular-nums", color)}>{valor}</dd>
+      <dd className="mt-0.5 text-[11px] leading-snug text-mute">{contexto}</dd>
     </div>
   );
 }
 
-function EjecBadge({ pct, flag }: { pct: number; flag?: boolean }) {
-  const color = flag
-    ? "bg-rust text-paper"
+/** Porcentaje de ejecución de un año. La baja lleva ícono y tono ámbar; alta, moss; sin PIM, "Sin dato". */
+function PildoraEjecucion({ pct, sinPim, baja }: { pct: number; sinPim: boolean; baja: boolean }) {
+  if (sinPim) return <span className="text-[11px] text-mute">Sin dato</span>;
+  const estilo = baja
+    ? "border-amber/40 bg-amber-soft text-amberTexto"
     : pct >= 90
-      ? "bg-moss text-paper"
-      : pct >= 60
-        ? "bg-amber text-paper"
-        : pct === 0
-          ? "bg-paperDeep text-mute"
-          : "bg-paperDeep text-ink";
+      ? "border-moss/30 bg-moss/10 text-mossTexto"
+      : "border-line bg-paperDeep text-inkSoft";
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold",
-        color,
-      )}
-    >
-      {flag && <AlertTriangle size={9} />}
-      {pct === 0 ? "sin dato" : `${pct.toFixed(0)}%`}
+    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums", estilo)}>
+      {baja && <AlertCircle size={10} aria-hidden />}
+      {porcentaje(pct)}
+      {baja && <span className="sr-only"> (ejecución baja)</span>}
     </span>
   );
 }

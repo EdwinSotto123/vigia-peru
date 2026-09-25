@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, ChevronRight, Info, Search } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, CircleDashed, Info, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAnalyzedList } from "@/lib/dossier-cache";
 import { getResumenVivo } from "@/lib/contratos";
@@ -62,7 +62,7 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
   const sesionAdmin = useEsAdmin();
   const esAdmin = enPanel || sesionAdmin;
   const Titulo = enPanel ? "h2" : "h1";
-  const claseTitulo = enPanel ? "font-serif text-xl font-bold leading-tight text-ink sm:text-2xl" : "font-serif text-2xl font-bold leading-tight text-ink sm:text-3xl";
+  const claseTitulo = enPanel ? "font-display text-xl font-bold leading-tight text-ink sm:text-2xl" : "font-display text-2xl font-bold leading-tight text-ink sm:text-3xl";
   const [id, setId] = useState("");
   const [loading, setLoading] = useState(false);
   const [stepIdx, setStepIdx] = useState(-1);
@@ -335,27 +335,19 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
     <div className="space-y-8">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),360px]">
         {/* ─── COLUMNA IZQUIERDA: BUSCADOR ─── */}
-        <div className="surface relative isolate p-5 sm:p-6">
-          <div
-            aria-hidden
-            className="absolute inset-0 -z-10 overflow-hidden rounded-[inherit] opacity-[0.04]"
-            style={{
-              backgroundImage: `radial-gradient(circle, #1B1611 1px, transparent 1px)`,
-              backgroundSize: "24px 24px",
-            }}
-          />
+        <div className="relative rounded-2xl border border-line bg-paper p-5 sm:p-6">
 
           {esAdmin ? (
             <>
               <Titulo className={claseTitulo}>Analiza un contrato del SEACE</Titulo>
-              <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-inkSoft">
                 Pega el código de la convocatoria o su OCID. Los {TOTAL_AGENTES} agentes leen el expediente y el
                 dossier queda público al terminar. Si el contrato ya está analizado, elígelo en la lista que
                 aparece al escribir y se abre sin volver a procesarlo.
               </p>
               {/* En el panel, el aviso de costo ya está arriba de la página. */}
               {!enPanel && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-soft px-2 py-1 text-[11px] font-medium text-amberTexto">
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-soft px-2.5 py-1 text-[12px] font-medium text-amberTexto">
                   <Info size={12} aria-hidden /> Modo equipo: despachar inicia un análisis pagado.
                 </p>
               )}
@@ -363,7 +355,7 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
           ) : (
             <>
               <Titulo className={claseTitulo}>Busca un contrato analizado</Titulo>
-              <p className="mt-2 max-w-xl text-xs leading-relaxed text-mute sm:text-sm">
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-inkSoft">
                 Escribe el código de la convocatoria del SEACE, su OCID o el RUC de la entidad o del proveedor.
                 Si Vigía ya lo leyó, abres su dossier con las señales, la evidencia y el dictamen.
               </p>
@@ -389,20 +381,21 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
                 onBlur={() => setTimeout(() => setShowSugg(false), 180)}
                 placeholder={esAdmin ? "Código de convocatoria u OCID" : "Código de convocatoria, OCID o RUC"}
                 autoComplete="off"
-                className="w-full rounded-2xl border border-line bg-paper py-4 pl-12 pr-36 text-base font-mono placeholder:text-mute focus:border-heroViolet focus:outline-none focus:ring-2 focus:ring-heroViolet/20 sm:pr-44"
+                inputMode="search"
+                className="w-full rounded-xl border border-line bg-paperSoft py-4 pl-12 pr-32 font-mono text-base placeholder:font-sans placeholder:text-mute focus:border-granate focus:bg-paper focus:outline-none focus:ring-2 focus:ring-granate/20 sm:pr-44"
               />
               <button
                 type="submit"
                 disabled={!id.trim()}
-                className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 disabled:opacity-50 sm:px-5"
+                className="absolute right-2 top-1/2 inline-flex min-h-[40px] -translate-y-1/2 items-center gap-2 rounded-full bg-granate px-4 py-2 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep disabled:opacity-50 sm:px-5"
               >
                 {esAdmin ? "Despachar agentes" : "Buscar"} <ArrowRight size={15} aria-hidden />
               </button>
 
               {/* Autocompletado con los análisis ya publicados */}
               {sugerencias.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-xl">
-                  <div className="border-b border-line bg-paperSoft px-4 py-2 text-[11px] font-semibold text-inkSoft">
+                <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-paper shadow-dialog">
+                  <div className="border-b border-line bg-paperSoft px-4 py-2 text-[12px] font-semibold text-inkSoft">
                     {sugerencias.length === 1
                       ? "1 contrato ya analizado: elígelo para abrir su dossier"
                       : `${sugerencias.length} contratos ya analizados: elige uno para abrir su dossier`}
@@ -422,36 +415,37 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
                           >
                             <div
                               className={cn(
-                                "flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-md",
+                                "flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-xl",
                                 FRANJA_NIVEL[nivel ?? "sin"],
                               )}
                               title={nivel ? NIVEL_ANALISIS[nivel].etiqueta : undefined}
                             >
-                              <span className="font-mono text-[11px] font-bold leading-none">{it.score ?? "—"}</span>
+                              {/* Sin señales: el check, no un "0" suelto; con señales, el puntaje que pesa. */}
+                              {nivel === "sin_senales" ? (
+                                <CheckCircle2 size={15} aria-hidden />
+                              ) : typeof it.score === "number" ? (
+                                <span className="font-mono text-[12px] font-semibold leading-none tabular-nums">{Math.round(it.score)}</span>
+                              ) : (
+                                <>
+                                  <CircleDashed size={15} aria-hidden />
+                                  <span className="sr-only">Sin dato</span>
+                                </>
+                              )}
+                              {nivel && <span className="sr-only">{NIVEL_ANALISIS[nivel].etiqueta}</span>}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-baseline gap-1.5">
-                                <span className="rounded bg-paperDeep px-1 py-0 font-mono text-[10px] font-bold text-ink">
-                                  {it.codigo_convocatoria}
-                                </span>
-                                {it.region && (
-                                  <span className="rounded-full bg-paperSoft px-1.5 py-0 text-[10px] font-medium text-heroViolet">
-                                    {it.region}
-                                  </span>
-                                )}
+                                <span className="font-mono text-[12px] font-semibold text-ink">{it.codigo_convocatoria}</span>
+                                {it.region && <span className="text-[11px] text-mute">{it.region}</span>}
                                 {(it.n_alta || 0) > 0 && (
-                                  <span className="rounded-full bg-crimson-soft px-1.5 py-0 text-[10px] font-bold text-crimsonTexto">
+                                  <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-rust">
+                                    <AlertTriangle size={11} aria-hidden />
                                     {it.n_alta} {it.n_alta === 1 ? "señal alta" : "señales altas"}
                                   </span>
                                 )}
-                                {(it.n_banderas || 0) === 0 && (
-                                  <span className="rounded-full bg-paperDeep px-1.5 py-0 text-[10px] font-semibold text-mute">
-                                    sin señales
-                                  </span>
-                                )}
                               </div>
-                              <div className="line-clamp-1 text-xs font-medium text-ink">{it.objeto}</div>
-                              <div className="line-clamp-1 text-[11px] text-mute">{it.entidad || "—"}</div>
+                              <div className="line-clamp-1 text-[13px] font-medium text-ink">{it.objeto}</div>
+                              <div className="line-clamp-1 text-[12px] text-mute">{it.entidad || "Entidad sin dato"}</div>
                             </div>
                             <ChevronRight size={12} aria-hidden className="mt-2 shrink-0 text-mute" />
                           </button>
@@ -464,20 +458,20 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
             </div>
 
             {error && (
-              <div role="alert" className="mt-3 rounded-xl border border-rust/30 bg-crimson-soft p-3 text-xs text-crimsonTexto">
-                <AlertTriangle size={12} aria-hidden className="mr-1 inline" />
-                {error}
+              <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-crimson/25 bg-crimson-soft/60 p-3 text-[13px] text-crimsonTexto">
+                <AlertTriangle size={14} aria-hidden className="mt-0.5 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
             {aviso?.tipo === "varias" && (
-              <p role="status" className="mt-3 text-xs text-mute">
+              <p role="status" className="mt-3 text-[13px] text-inkSoft">
                 Hay {aviso.n} análisis que coinciden. Elige uno de la lista o escribe el código completo.
               </p>
             )}
 
             {aviso?.tipo === "sin_analisis" && (
-              <div role="status" className="mt-3 rounded-xl border border-line bg-paperSoft p-4 text-sm">
+              <div role="status" className="mt-3 rounded-2xl border border-line bg-paperSoft p-4 text-sm">
                 <p className="font-semibold text-ink">
                   Vigía todavía no publicó un análisis de <span className="font-mono">{aviso.codigo}</span>.
                 </p>
@@ -488,15 +482,15 @@ export function ConvocatoriaSearch({ enPanel = false }: { enPanel?: boolean } = 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link
                     href={`/app/contratos?q=${encodeURIComponent(aviso.codigo)}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-paperDeep"
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-paperDeep"
                   >
                     Buscarlo entre los contratos del SEACE
                   </Link>
                   <Link
                     href="/app/financiar"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper transition-colors hover:bg-ink/90"
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full bg-granate px-3.5 py-1.5 text-[13px] font-semibold text-paper transition-colors hover:bg-granate-deep"
                   >
-                    Financiar la auditoría de su zona <ArrowRight size={12} aria-hidden />
+                    Financiar la lectura de su zona <ArrowRight size={14} aria-hidden />
                   </Link>
                 </div>
               </div>

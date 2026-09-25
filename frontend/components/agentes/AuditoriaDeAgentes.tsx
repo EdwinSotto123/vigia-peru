@@ -15,7 +15,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { FilterX } from "lucide-react";
+import { ChevronDown, FilterX } from "lucide-react";
 import type { EstadoProc, FasesMap } from "@/lib/auditoria";
 import { severidadDeBandera } from "@/lib/severidad";
 import { Severidad } from "@/components/ui/Severidad";
@@ -41,6 +41,12 @@ interface Props {
   reglasEvaluadas?: number | null;
   titulo?: string;
   nota?: React.ReactNode;
+  /**
+   * El informe del ciudadano (dossier) pone primero las señales y pliega "quién las encontró"
+   * (los carriles de agentes): el vocabulario técnico va plegado (DESIGN_SYSTEM.md §12).
+   * Sin esto, el tablero de hallazgos sigue mostrando los carriles arriba, como antes.
+   */
+  carrilesPlegados?: boolean;
 }
 
 const SEVERIDADES: Sev[] = ["alta", "media", "baja"];
@@ -66,6 +72,7 @@ export function AuditoriaDeAgentes({
   reglasEvaluadas,
   titulo = "Quién encontró qué",
   nota,
+  carrilesPlegados = false,
 }: Props) {
   const [agente, setAgente] = useState<string | null>(null);
   const [sev, setSev] = useState<Sev | null>(null);
@@ -103,43 +110,9 @@ export function AuditoriaDeAgentes({
   const pasoSel = agente ? pasoDeClave(agente) : null;
   const filtroActivo = agente != null || sev != null;
 
-  return (
-    <section className="surface overflow-hidden p-0">
-      <header className="border-b border-line bg-paperDeep px-4 py-4 sm:px-5">
-        <h2 className="font-serif text-xl font-bold leading-tight text-ink">{titulo}</h2>
-        <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
-          {hayEje ? (
-            <>
-              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong>{" "}
-              {formaCarriles(carriles)}
-              {omitidos > 0 && <> ({omitidos} de los {pasos.length} pasos no aplicaban y se saltaron)</>}.
-            </>
-          ) : (
-            <>
-              A este contrato le aplican <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> de los{" "}
-              {TOTAL_PASOS} pasos del análisis, {formaCarriles(carriles)}.
-            </>
-          )}{" "}
-          {conteo.total === 0 ? (
-            <>Ninguno emitió señales: lo que se evaluó y se descartó está abajo.</>
-          ) : (
-            <>
-              Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
-              {conteo.total === 1 ? "señal" : "señales"}
-              {agentesConSenales > 0 ? (
-                <>
-                  {" "}entre {agentesConSenales} {agentesConSenales === 1 ? "agente" : "agentes"}
-                  {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca uno para
-                  ver solo lo suyo.
-                </>
-              ) : (
-                <>, sin declarar de qué agente salió cada una.</>
-              )}
-            </>
-          )}
-        </p>
-      </header>
-
+  // Qué agente encontró qué: el eje de tiempo (o los carriles, sin marcas de tiempo). Cada
+  // agente es un filtro sobre la lista de señales.
+  const carriles_ = (
       <div className="border-b border-line bg-paper px-3 py-3 sm:px-5">
         {hayEje ? (
           <EjeAgentes
@@ -176,8 +149,8 @@ export function AuditoriaDeAgentes({
             aria-pressed={agente === SIN_AGENTE}
             className={cn(
               "mt-2 flex w-full items-baseline gap-2 rounded-lg border-t border-line px-1 pt-2 text-left text-[12px] transition-colors duration-rapido",
-              "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
-              agente === SIN_AGENTE && "bg-heroViolet-soft",
+              "hover:bg-paperDeep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
+              agente === SIN_AGENTE && "bg-granate-soft",
             )}
           >
             <span className="text-ink">Sin agente declarado</span>
@@ -187,6 +160,69 @@ export function AuditoriaDeAgentes({
           </button>
         )}
       </div>
+  );
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <header className="border-b border-line bg-paperSoft px-4 py-4 sm:px-5">
+        <h2 className="font-display text-xl font-bold leading-tight text-ink">{titulo}</h2>
+        {carrilesPlegados ? (
+          <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-inkSoft">
+            {conteo.total === 0
+              ? "No hay señales: lo que se evaluó y se descartó está abajo."
+              : "Cada señal trae el patrón que se encontró, la norma que lo sostiene y su evidencia. Toca una para ver el detalle y la fuente."}
+          </p>
+        ) : (
+        <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-mute">
+          {hayEje ? (
+            <>
+              Sobre este contrato corrieron <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong>{" "}
+              {formaCarriles(carriles)}
+              {omitidos > 0 && <> ({omitidos} de los {pasos.length} pasos no aplicaban y se saltaron)</>}.
+            </>
+          ) : (
+            <>
+              A este contrato le aplican <strong className="font-semibold text-ink">{nAgentes} agentes de IA</strong> de los{" "}
+              {TOTAL_PASOS} pasos del análisis, {formaCarriles(carriles)}.
+            </>
+          )}{" "}
+          {conteo.total === 0 ? (
+            <>Ninguno emitió señales: lo que se evaluó y se descartó está abajo.</>
+          ) : (
+            <>
+              Emitieron <strong className="font-semibold text-ink">{conteo.total}</strong>{" "}
+              {conteo.total === 1 ? "señal" : "señales"}
+              {agentesConSenales > 0 ? (
+                <>
+                  {" "}entre {agentesConSenales} {agentesConSenales === 1 ? "agente" : "agentes"}
+                  {sinAgente > 0 && <> ({sinAgente} más no declaran de qué agente salieron)</>}. Toca uno para
+                  ver solo lo suyo.
+                </>
+              ) : (
+                <>, sin declarar de qué agente salió cada una.</>
+              )}
+            </>
+          )}
+        </p>
+        )}
+      </header>
+
+      {carrilesPlegados ? (
+        <details className="group border-b border-line bg-paper">
+          <summary className="flex min-h-[40px] cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-ink hover:bg-paperSoft sm:px-5 [&::-webkit-details-marker]:hidden">
+            <span>
+              Quién encontró cada señal{" "}
+              <span className="font-normal text-mute">
+                ({nAgentes} agentes de IA{agentesConSenales > 0 ? `, ${agentesConSenales} con señales` : ""}; toca uno para filtrar)
+              </span>
+            </span>
+            <ChevronDown size={14} className="shrink-0 text-mute transition-transform duration-rapido group-open:rotate-180" aria-hidden />
+          </summary>
+          {carriles_}
+        </details>
+      ) : (
+        carriles_
+      )}
 
       {/* Barra de la evidencia: qué se está mirando y con qué recorte. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line bg-paperSoft px-4 py-2 sm:px-5">
@@ -220,7 +256,7 @@ export function AuditoriaDeAgentes({
                 onClick={() => setSev(on ? null : s)}
                 aria-pressed={on}
                 className={cn(
-                  "pill border text-[11px] transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50",
+                  "pill border text-[11px] transition-colors duration-rapido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50",
                   on ? cn(ui.fondo, ui.texto, ui.borde, "font-semibold") : "border-line bg-paper text-mute hover:text-ink",
                 )}
               >
@@ -233,7 +269,7 @@ export function AuditoriaDeAgentes({
             <button
               type="button"
               onClick={() => { setAgente(null); setSev(null); }}
-              className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heroViolet/50"
+              className="pill border-line bg-paper text-[11px] text-mute transition-colors duration-rapido hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate/50"
             >
               <FilterX size={11} aria-hidden /> Ver las {conteo.total}
             </button>

@@ -51,6 +51,7 @@ import {
 } from "@/lib/auditoria";
 import type { ResumenProcesamientoVivo } from "@/lib/contratos";
 import { PulseDot } from "@/components/ui/PulseDot";
+import { numero, porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -145,11 +146,13 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
       titulo: "Con documentos listos, esperando turno. El turno es automático, por antigüedad: nadie elige cuál va primero." },
     { clave: "procesando", label: "en análisis", value: procesando, color: "bg-amber",
       titulo: "Los agentes los están leyendo en este momento." },
-    { clave: "revision", label: "en revisión humana", value: enRevision, color: "bg-clay",
-      titulo: "El análisis terminó, pero la autoevaluación no alcanzó el mínimo: una persona lo revisa antes de publicarlo. Cuentan como leídos, no como señales." },
+    // "Financiados en revisión" (§10.1): esta barra sólo conoce lo financiado.
+    { clave: "revision", label: "en revisión", value: enRevision, color: "bg-clay",
+      titulo: "Financiados cuyo análisis terminó, pero la autoevaluación no alcanzó el mínimo: una persona lo revisa antes de publicarlo. Cuentan como leídos, no como señales." },
     { clave: "publicado", label: "con dictamen publicado", value: publicados, color: "bg-moss",
       titulo: "Dictamen público, con cada señal citando norma y evidencia." },
-    { clave: "error", label: "con error", value: e.error ?? 0, color: "bg-rust",
+    // Error de SISTEMA = crimson (DESIGN_SYSTEM.md §3.7); rust es la severidad alta de una señal.
+    { clave: "error", label: "con error", value: e.error ?? 0, color: "bg-crimson",
       titulo: "El análisis falló y se reintenta automáticamente, hasta tres veces." },
     { clave: "pendiente", label: "sin análisis aplicable", value: e.pendiente_de_procesamiento ?? 0, color: "bg-paperEdge",
       titulo: "Contratos de un tipo o una etapa que todavía no se analiza." },
@@ -183,11 +186,11 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
           </p>
         ) : (
           <>
-            <p className="text-[13px] leading-snug text-mute">
-              <span className="font-mono font-semibold text-ink">{publicados.toLocaleString("es-PE")}</span> de{" "}
-              <span className="font-mono font-semibold text-ink">{financiados.toLocaleString("es-PE")}</span>{" "}
-              contratos financiados {alcance} ya tienen dictamen publicado
-              {hoy > 0 && <>, {hoy.toLocaleString("es-PE")} de ellos leídos hoy</>}
+            <p className="text-[13px] leading-snug tabular-nums text-inkSoft">
+              <span className="font-semibold text-ink">{numero(publicados)}</span> de{" "}
+              <span className="font-semibold text-ink">{numero(financiados)}</span> contratos financiados {alcance} ya
+              tienen dictamen publicado
+              {hoy > 0 && <>; {numero(hoy)} de ellos se leyeron hoy</>}.
             </p>
             <div
               className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep"
@@ -205,11 +208,11 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
             </div>
             <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
               {tramos.map((t) => (
-                <li key={t.clave} className="inline-flex items-baseline gap-1.5 text-[12px] text-mute" title={t.titulo}>
+                <li key={t.clave} className="inline-flex items-baseline gap-1.5 text-[12px] text-inkSoft" title={t.titulo}>
                   <span className={cn("relative top-[1px] h-2 w-2 shrink-0 rounded-full", t.color)} aria-hidden />
-                  <span className="font-mono font-semibold text-ink">{t.value.toLocaleString("es-PE")}</span>
+                  <span className="font-semibold tabular-nums text-ink">{numero(t.value)}</span>
                   {t.label}
-                  <span className="font-mono text-[11px] tabular-nums text-mute">{Math.round(pct(t.value))}%</span>
+                  <span className="text-[11px] tabular-nums text-mute">{porcentaje(pct(t.value))}</span>
                 </li>
               ))}
             </ul>
@@ -220,8 +223,8 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
           // donde competía por atención con cifras de otra naturaleza.
           <p className="mt-2.5 border-t border-line pt-2 text-[12px] text-mute">
             Aparte, en los últimos 7 días se descargaron{" "}
-            <span className="font-mono font-semibold text-inkSoft">{data.documentosDescargados7d.n.toLocaleString("es-PE")}</span>{" "}
-            documentos del SEACE de {data.documentosDescargados7d.contratos.toLocaleString("es-PE")} contratos del catálogo general.
+            <span className="font-semibold tabular-nums text-inkSoft">{numero(data.documentosDescargados7d.n)}</span>{" "}
+            documentos del SEACE de {numero(data.documentosDescargados7d.contratos)} contratos del catálogo general.
             No son contratos financiados: es material para lecturas futuras.
           </p>
         )}
@@ -231,18 +234,18 @@ export function PanelProcesamiento({ initial, pollMs = 5000, alcance = "en todo 
 
       {/* Ahora mismo. Nada de lo que ya cuenta la barra se repite acá. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line bg-paperSoft px-3 py-2 text-[12px] sm:px-4">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-mute">
-          {procesando > 0 ? <PulseDot color="amber" size={6} /> : <Cpu size={11} aria-hidden />}
+        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-inkSoft">
+          {procesando > 0 ? <PulseDot color="amber" size={6} /> : <Cpu size={12} aria-hidden />}
           Ahora mismo
         </span>
         {fallo && (
-          <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} aria-hidden /> sin conexión con el servicio, reintentando</span>
+          <span className="inline-flex items-center gap-1 text-crimsonTexto"><WifiOff size={11} aria-hidden /> Sin conexión con el servicio; reintentando…</span>
         )}
         {activos.length === 0 && !fallo && <span className="text-inkSoft">Ningún contrato en análisis.</span>}
         {pedidos && pedidos.pendientes + pedidos.descargando > 0 && (
           // Los números del pedido de descarga, tal cual: si nadie los toma, se ve.
           <span className="text-mute">
-            <span className="font-mono font-semibold text-inkSoft">{pedidos.pendientes}</span>{" "}
+            <span className="font-semibold tabular-nums text-inkSoft">{numero(pedidos.pendientes)}</span>{" "}
             {pedidos.pendientes === 1 ? "pedido de descarga de documentos pendiente" : "pedidos de descarga de documentos pendientes"}:{" "}
             {pedidos.descargando > 0 ? <>{pedidos.descargando} descargándose ahora</> : "ninguno se está descargando ahora"},{" "}
             {pedidos.listos24h > 0 ? <>{pedidos.listos24h} {pedidos.listos24h === 1 ? "quedó listo" : "quedaron listos"} en las últimas 24 h</> : "ninguno quedó listo en las últimas 24 h"}
@@ -306,7 +309,7 @@ function RitmoReal({ ritmo, ultimoFin, ahora }: { ritmo: { dia: string; n: numbe
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-t border-line px-3 py-2.5 sm:px-4">
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Ritmo real</div>
+        <div className="text-[12px] font-semibold text-inkSoft">Ritmo real</div>
         <p className="mt-0.5 text-[13px] leading-snug text-inkSoft">
           {ultimoFin != null ? (
             ahora > 0 ? (
@@ -323,7 +326,7 @@ function RitmoReal({ ritmo, ultimoFin, ahora }: { ritmo: { dia: string; n: numbe
           )}
         </p>
         <p className="mt-0.5 text-[11px] text-mute">
-          {total} {total === 1 ? "análisis terminado" : "análisis terminados"} en {ritmo.length} días, contados en hora de Lima.
+          {numero(total)} {total === 1 ? "análisis terminado" : "análisis terminados"} en {ritmo.length} días, contados en hora de Lima.
         </p>
       </div>
       <figure className="m-0 w-full max-w-[22rem] sm:w-auto sm:min-w-[16rem]">

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { EncabezadoPagina } from "@/components/patrones";
 import { getEstadoGlobal } from "@/lib/financiamiento";
+import { soles } from "@/lib/formato";
 import { Acordeon, type PreguntaFAQ } from "./Acordeon";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 // TODO(contacto): reemplazar cuando exista un correo del equipo
 const CONTACTO = `${REPO}/issues`;
 
-const EXTERNO = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-heroViolet";
+const EXTERNO = "font-medium text-ink underline underline-offset-2 transition-colors hover:text-granate";
 
 /** "S/1 procesamiento · S/1 infraestructura y datos · …" → [{monto, concepto}]. Mismo formato que lee la portada. */
 function partesDeTarifa(nota: string | null | undefined): { monto: number; concepto: string }[] {
@@ -27,8 +27,6 @@ function partesDeTarifa(nota: string | null | undefined): { monto: number; conce
     // "reserva expedientes pesados" es una etiqueta de tabla; en una oración pide "para".
     .map((m) => ({ monto: Number(m[1].replace(",", ".")), concepto: m[2].replace(/^reserva (?!para |de )/, "reserva para ") }));
 }
-
-const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDigits: 2 })}`;
 
 /** "a, b y c" */
 function enumerar(xs: string[]): string {
@@ -99,13 +97,13 @@ export default async function PreguntasPage() {
     },
     {
       slug: "anonimato",
-      q: "Si reporto algo, ¿se publica mi nombre?",
-      a: "No. Los reportes son anónimos por defecto. No mostramos DNI ni nombres de personas naturales. Si dejas un correo, solo lo usamos para contactarte de vuelta y nunca se publica.",
+      q: "Si denuncio algo, ¿se publica mi nombre?",
+      a: "No. Las denuncias se envían sin tu nombre por defecto, y no mostramos DNI ni nombres de personas naturales. Si dejas un correo, queda guardado junto a la denuncia y nunca se publica.",
     },
     {
       slug: "verificacion",
-      q: "¿Cómo verifican que un reporte ciudadano es real?",
-      a: "Dos filtros. Primero: el reporte requiere foto. Segundo: para aparecer como 'verificado' en el mapa se necesitan al menos dos reportes independientes sobre el mismo punto en menos de 30 días, o la convergencia con una señal automática sobre el mismo contrato. Reportes sin foto no se publican en el mapa.",
+      q: "¿Quién revisa las denuncias de los vecinos?",
+      a: "Nadie las edita antes de publicarlas. Una denuncia de obra necesita una foto y se publica tal como llegó, en la lista y en el mapa; figura como «confirmada» sólo cuando la respaldan dos o más reportes independientes del mismo lugar. Es el testimonio de un vecino, no un hallazgo de Vigía. Las denuncias sobre una entidad no se publican: quedan en reserva.",
     },
     {
       slug: "ia",
@@ -158,30 +156,30 @@ export default async function PreguntasPage() {
   ];
 
   return (
-    <div className="container-page max-w-3xl space-y-8 py-10">
-      <header className="space-y-3">
-        <Badge>
-          <MessageSquare size={12} aria-hidden /> Preguntas frecuentes
-        </Badge>
-        <h1 className="font-serif text-4xl font-bold leading-tight">¿Cómo funciona Vigía Perú?</h1>
-        <p className="text-lg text-mute">
-          Si tu pregunta no está,{" "}
-          <a className="text-ink underline underline-offset-2 transition-colors hover:text-heroViolet" href={CONTACTO} target="_blank" rel="noreferrer">
-            escríbenos (GitHub)
-          </a>
-          .
-        </p>
-      </header>
+    <div className="container-page max-w-3xl space-y-8 py-8 sm:py-10">
+      <EncabezadoPagina
+        titulo="¿Cómo funciona Vigía Perú?"
+        bajada={
+          <>
+            Si tu pregunta no está,{" "}
+            <a className={EXTERNO} href={CONTACTO} target="_blank" rel="noreferrer">
+              escríbenos (GitHub)
+            </a>
+            .
+          </>
+        }
+      />
 
       <Acordeon items={FAQ} />
 
-      <div className="surface bg-ink p-6 text-paper">
-        <h2 className="font-serif text-xl font-bold">¿Eres periodista, fiscal o auditor?</h2>
-        <p className="mt-2 text-sm text-paper/80">
+      {/* Llamado de marca: granate profundo, con `sobre-oscuro` para que el foco pase a maíz. */}
+      <div className="sobre-oscuro rounded-2xl bg-granate-deep p-6 text-paper">
+        <h2 className="font-display text-xl font-bold text-balance">¿Eres periodista, fiscal o auditor?</h2>
+        <p className="mt-2 text-sm leading-relaxed text-paper/75">
           Cada dictamen publicado cita la norma, enlaza la fuente oficial y muestra la traza del análisis, listo para verificar.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/app/auditoria" className="inline-flex rounded-full bg-amber px-4 py-2 text-sm font-medium text-ink">
+          <Link href="/app/auditoria" className="inline-flex min-h-[44px] items-center rounded-full bg-paper px-5 py-2 text-sm font-semibold text-granate transition-colors duration-rapido hover:bg-maiz-soft">
             Ver la auditoría en vivo
           </Link>
           {/* TODO(contacto): reemplazar cuando exista un correo del equipo */}
@@ -189,7 +187,7 @@ export default async function PreguntasPage() {
             href={CONTACTO}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex rounded-full border border-paper/30 px-4 py-2 text-sm font-medium text-paper hover:bg-paper/10"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-paper/40 px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-paper/10"
           >
             Escríbenos (GitHub)
           </a>

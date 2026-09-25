@@ -5,29 +5,36 @@
  *
  * Un aporte INSTITUCIONAL (lote del capital semilla de Vigía Perú, `pasarela: "institucional"`)
  * nunca pasó por un pago: no se le dice "pago confirmado" ni "validamos el pago", se le dice qué es.
- * Y un aporte con contratos asignados que todavía no empezaron a leerse no dice "los agentes leen":
+ * Y un aporte con contratos asignados que todavía no empezaron a leerse no dice "se están leyendo":
  * dice desde cuándo espera y por qué, con el dato que da el API (`esperando_documentos`).
+ *
+ * Colores (DESIGN_SYSTEM.md §3): hecho = moss (positivo), en curso = granate (la marca
+ * acompañando el trámite), pendiente = neutro. Nunca ámbar: el ámbar es "Señal media".
  */
 
 import { Check, Clock, XCircle } from "lucide-react";
+import { relativo } from "@/lib/formato";
 
 export type EstadoContribucion = "pendiente_pago" | "pagada" | "en_proceso" | "procesada" | "rechazada" | "reembolsada" | string;
 
 interface Paso { k: string; label: string; hint: string }
 
 const PASOS: Paso[] = [
-  { k: "pendiente", label: "Pendiente de validación", hint: "Registraste el aporte; validamos el pago en ≤ 48 h." },
+  { k: "pendiente", label: "Pendiente de validación", hint: "Registraste el aporte; validamos el pago en menos de 48 h." },
   { k: "validado", label: "Validado", hint: "Pago confirmado. Se asignan contratos por antigüedad." },
-  { k: "proceso", label: "En proceso", hint: "Los agentes leen y analizan cada contrato." },
+  { k: "proceso", label: "En proceso", hint: "Se lee cada contrato, completo, contra la norma." },
   { k: "completo", label: "Completo", hint: "Todos los contratos financiados tienen resultado." },
 ];
 
 const PASOS_INSTITUCIONAL: Paso[] = [
   { k: "pendiente", label: "Aporte institucional", hint: "Capital semilla de Vigía Perú: no hay pago que validar." },
   { k: "validado", label: "Contratos asignados", hint: "Salen de la cola de la zona por antigüedad." },
-  { k: "proceso", label: "En proceso", hint: "Los agentes leen y analizan cada contrato." },
+  { k: "proceso", label: "En proceso", hint: "Se lee cada contrato, completo, contra la norma." },
   { k: "completo", label: "Completo", hint: "Todos los contratos financiados tienen resultado." },
 ];
+
+/** Pasado este plazo sin validar, "validamos en menos de 48 h" ya no es verdad y no se dice. */
+const PLAZO_VALIDACION_MS = 48 * 3_600_000;
 
 export function indicePaso(estado: EstadoContribucion, procesados = 0, contratos = 0): number {
   if (estado === "pendiente_pago") return 0;
@@ -37,13 +44,16 @@ export function indicePaso(estado: EstadoContribucion, procesados = 0, contratos
   return 0;
 }
 
-/** "hoy", "hace 1 día", "hace 6 días". */
+/**
+ * Cuándo pasó algo, listo para ir después de un verbo: "hace 3 h", "ayer", "hace 6 días",
+ * "el 14 set.". Relativo sólo para lo reciente (lib/formato `relativo`); después, la fecha.
+ */
 export function haceDias(iso: string | null | undefined, ahora = Date.now()): string | null {
   if (!iso) return null;
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
-  const d = Math.floor((ahora - t) / 86_400_000);
-  return d <= 0 ? "hoy" : d === 1 ? "hace 1 día" : `hace ${d} días`;
+  const r = relativo(iso, ahora);
+  return r.startsWith("hace") || r === "ayer" ? r : `el ${r}`;
 }
 
 export function EstadoAporte({
@@ -53,6 +63,7 @@ export function EstadoAporte({
   compacto = false,
   institucional = false,
   espera = null,
+  registrado = null,
 }: {
   estado: EstadoContribucion;
   procesados?: number;
@@ -62,20 +73,34 @@ export function EstadoAporte({
   institucional?: boolean;
   /**
    * Contratos asignados que todavía no empezaron: cuántos esperan documentos y desde cuándo.
-   * Solo se usa mientras ninguno terminó de leerse; reemplaza el "los agentes leen" genérico.
+   * Solo se usa mientras ninguno terminó de leerse; reemplaza el "se está leyendo" genérico.
    */
   espera?: { asignadoHace: string | null; esperandoDocumentos: number; asignados: number } | null;
+  /**
+   * Cuándo se registró el aporte (ISO). Si lleva más de 48 h sin validar, el paso pendiente
+   * deja de prometer el plazo y dice desde cuándo espera.
+   */
+  registrado?: string | null;
 }) {
   if (estado === "rechazada" || estado === "reembolsada") {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-full border border-rust/30 bg-crimson-soft px-3 py-1 text-[12px] font-medium text-rust">
+      <div className="inline-flex items-center gap-1.5 rounded-full border border-crimson/30 bg-crimson-soft px-3 py-1 text-[12px] font-medium text-crimsonTexto">
         <XCircle size={13} aria-hidden /> {estado === "rechazada" ? "Aporte rechazado" : "Aporte reembolsado"}
       </div>
     );
   }
   const idx = indicePaso(estado, procesados, contratos);
   const pasos = (institucional ? PASOS_INSTITUCIONAL : PASOS).map((p) => ({ ...p }));
-  // Asignados y sin ninguno leído: el paso activo dice la verdad, no "los agentes leen".
+
+  // Pendiente fuera de plazo: se dice tal cual, sin la promesa de las 48 h.
+  if (!institucional && idx === 0 && registrado) {
+    const t = new Date(registrado).getTime();
+    if (!Number.isNaN(t) && Date.now() - t > PLAZO_VALIDACION_MS) {
+      pasos[0] = { ...pasos[0], hint: `Registrado ${haceDias(registrado) ?? ""}. El pago todavía no se valida.` };
+    }
+  }
+
+  // Asignados y sin ninguno leído: el paso activo dice la verdad, no "se está leyendo".
   if (espera && procesados === 0 && (idx === 1 || idx === 2)) {
     const cuando = espera.asignadoHace ? `Asignados ${espera.asignadoHace}. ` : "";
     pasos[idx] = {
@@ -88,20 +113,25 @@ export function EstadoAporte({
     };
   }
   return (
-    <ol className={`grid gap-1 ${compacto ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`} aria-label="Estado del aporte">
+    <ol className={`grid gap-1.5 ${compacto ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`} aria-label="Estado del aporte">
       {pasos.map((p, i) => {
         // El último paso, cuando se alcanza, se marca hecho (con check), no "en curso".
         const completo = idx === pasos.length - 1;
         const done = i < idx || (completo && i === idx), active = i === idx && !completo;
         return (
-          <li key={p.k} className={`rounded-xl border px-2.5 py-2 ${active ? "border-ink bg-ink text-paper" : done ? "border-moss/30 bg-moss/5 text-ink" : "border-line text-mute"}`} aria-current={active ? "step" : undefined}>
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${done ? "bg-moss text-paper" : active ? "bg-paper text-ink" : "border border-line"}`} aria-hidden>
+          <li
+            key={p.k}
+            className={`rounded-xl border px-2.5 py-2 ${active ? "border-granate bg-granate text-paper" : done ? "border-moss/30 bg-moss/10 text-ink" : "border-line bg-paper text-mute"}`}
+            aria-current={active ? "step" : undefined}
+          >
+            <div className="flex items-center gap-1.5 text-[12px] font-semibold">
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${done ? "bg-moss text-paper" : active ? "bg-paper text-granate" : "border border-line"}`} aria-hidden>
                 {done ? <Check size={10} strokeWidth={3} /> : active ? <Clock size={10} /> : null}
               </span>
               <span className="leading-tight">{p.label}</span>
+              {done && <span className="sr-only">(hecho)</span>}
             </div>
-            {!compacto && <div className={`mt-1 text-[10px] leading-snug ${active ? "text-paper/80" : "text-mute"}`}>{p.hint}</div>}
+            {!compacto && <div className={`mt-1 text-[11px] leading-snug ${active ? "text-paper/80" : "text-mute"}`}>{p.hint}</div>}
           </li>
         );
       })}

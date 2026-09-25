@@ -2,8 +2,10 @@ import { BookOpen, Bot, ExternalLink, FileText, Quote, Scale } from "lucide-reac
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo } from "@/components/alertas/SelloCotejo";
 import { ProveedorProtegido, TextoProtegido } from "@/components/alertas/Protegido";
+import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { Ruc } from "@/components/Redact";
-import { soles, type Senal } from "@/lib/revision";
+import { plural, soles } from "@/lib/formato";
+import type { Senal } from "@/lib/revision";
 
 /**
  * El detalle de UNA señal, tal como se lee dentro del panel de <Revelar>: norma
@@ -22,7 +24,7 @@ import { soles, type Senal } from "@/lib/revision";
 function Bloque({ icono, titulo, children }: { icono: React.ReactNode; titulo: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-      <h3 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-mute">
+      <h3 className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-mute">
         <span className="text-mute" aria-hidden>{icono}</span>
         {titulo}
       </h3>
@@ -96,7 +98,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
                   {c.enVigia && <span className="font-mono">copia en Vigía</span>}
                 </div>
                 {c.cita && (
-                  <blockquote className="mt-1.5 border-l-2 border-heroViolet/40 pl-3 text-[13.5px] italic leading-relaxed text-ink">
+                  <blockquote className="mt-1.5 border-l-2 border-granate/40 pl-3 text-[13.5px] italic leading-relaxed text-ink">
                     “<TextoProtegido texto={c.cita} nombres={s.personasPrivadas} />”
                   </blockquote>
                 )}
@@ -105,7 +107,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
                     href={c.documentoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg text-[12px] font-medium text-heroViolet underline-offset-2 hover:underline focus-visible:underline"
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg text-[12px] font-medium text-granate underline-offset-2 hover:underline focus-visible:underline"
                   >
                     Abrir el documento <ExternalLink size={11} aria-hidden />
                   </a>
@@ -136,8 +138,9 @@ export function SenalDetalle({ s }: { s: Senal }) {
             )}
           </Dato>
           <Dato etiqueta="Cotejo">
+            {/* Dice lo que el cotejo hace y nada más: revisa los datos citados, no la conclusión. */}
             {s.verificada === true
-              ? "Los montos, RUC, fechas y enlaces que cita se volvieron a comprobar contra fuentes oficiales."
+              ? "El cotejo automático no encontró contradicciones entre los datos que cita (montos, RUC, fechas o enlaces) y las fuentes oficiales. Revisa los datos, no la conclusión de la señal."
               : s.verificada === false
                 ? "El cotejo automático no pudo confirmar alguno de los datos citados."
                 : "No consta que se haya cotejado por segunda vez. No es lo mismo que haber fallado."}
@@ -152,7 +155,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
 
       {/* Verdad de producto, no letra chica: la plataforma publica señales, nunca acusaciones. */}
       <section className="rounded-2xl border border-paperEdge bg-paperDeep p-4">
-        <h3 className="mb-2 font-serif text-[15px] font-bold leading-tight text-ink">Qué NO prueba esto</h3>
+        <h3 className="mb-2 font-display text-[15px] font-bold leading-tight text-ink">Qué NO prueba esto</h3>
         <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-inkSoft">
           <li>
             <strong className="font-semibold text-ink">No prueba que haya delito.</strong> Una señal es una regla que
@@ -190,12 +193,19 @@ export function SenalDetalle({ s }: { s: Senal }) {
             )}
           </Dato>
           <Dato etiqueta="Monto">
-            <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
+            {s.montoSoles > 0 ? (
+              <span className="font-mono tabular-nums">{soles(s.montoSoles)}</span>
+            ) : (
+              <span className="text-mute">Sin dato</span>
+            )}
           </Dato>
-          <Dato etiqueta="Puntaje de riesgo">
-            <span className="font-mono tabular-nums">{s.score}</span> de 100, con{" "}
-            <span className="font-mono tabular-nums">{s.senalesDelContrato}</span>{" "}
-            {s.senalesDelContrato === 1 ? "señal" : "señales"} en total.
+          <Dato etiqueta="Peso del riesgo">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <PesoRiesgo score={s.score} banderas={s.senalesDelContrato} className="text-[13px]" />
+              <span className="tabular-nums text-inkSoft">
+                puntaje {s.score} de 100, por {plural(s.senalesDelContrato, "señal", "señales")}
+              </span>
+            </span>
             <span className="mt-0.5 block text-[12px] text-mute">
               Es del contrato completo, no de esta señal: suma el peso de cada señal según su severidad, con tope en
               100. No es una probabilidad de delito.

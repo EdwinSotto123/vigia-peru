@@ -19,6 +19,7 @@ import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, Loader2, Search, X } from "lucide-react";
 import { Popover } from "@/components/ui/Flotante";
+import { fechaCorta as fechaTabla, numero } from "@/lib/formato";
 import type { FinanciadorProcesamientos } from "@/lib/auditoria";
 
 export function useNavegarFiltro() {
@@ -48,10 +49,9 @@ function haceDias(dias: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** "17/09/26" a partir de YYYY-MM-DD, sin construir un Date (no hay zona horaria que desfasar). */
+/** "17 set." a partir de YYYY-MM-DD: el formato de `lib/formato`, que toma la fecha sola como día de Lima. */
 export function fechaCorta(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return d && m && y ? `${d}/${m}/${y.slice(2)}` : iso;
+  return fechaTabla(iso);
 }
 
 export function etiquetaRango(desde?: string, hasta?: string): string {
@@ -79,13 +79,13 @@ export function FiltroFechas({ desde, hasta }: { desde?: string; hasta?: string 
       className="w-full"
       trigger={
         <span
-          className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${
-            hayRango ? "border-heroViolet/40 bg-heroViolet-soft text-ink" : "border-line bg-paper text-ink"
+          className={`flex min-h-[40px] w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${
+            hayRango ? "border-granate/40 bg-granate-soft text-ink" : "border-line bg-paper text-ink"
           }`}
         >
           <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden />
           <span className="min-w-0 flex-1 truncate">{etiquetaRango(desde, hasta)}</span>
-          {pendiente && <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-label="Cargando" />}
+          {pendiente && <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-label="Cargando…" />}
         </span>
       }
     >
@@ -109,7 +109,7 @@ export function FiltroFechas({ desde, hasta }: { desde?: string; hasta?: string 
         ))}
       </div>
       <div className="mt-2 border-t border-line pt-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Rango a medida</div>
+        <div className="text-[12px] font-semibold text-inkSoft">Rango a medida</div>
         <div className="mt-1.5 grid grid-cols-2 gap-1.5">
           <label className="flex min-w-0 flex-col gap-0.5">
             <span className="text-[11px] text-mute">Desde</span>
@@ -118,7 +118,7 @@ export function FiltroFechas({ desde, hasta }: { desde?: string; hasta?: string 
               value={desde ?? ""}
               max={hasta || undefined}
               onChange={(e) => navegar({ desde: e.target.value || undefined })}
-              className="w-full min-w-0 rounded-lg border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink outline-none focus:border-heroViolet/50 [color-scheme:light] dark:[color-scheme:dark]"
+              className="w-full min-w-0 rounded-xl border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink focus:border-granate [color-scheme:light]"
             />
           </label>
           <label className="flex min-w-0 flex-col gap-0.5">
@@ -128,7 +128,7 @@ export function FiltroFechas({ desde, hasta }: { desde?: string; hasta?: string 
               value={hasta ?? ""}
               min={desde || undefined}
               onChange={(e) => navegar({ hasta: e.target.value || undefined })}
-              className="w-full min-w-0 rounded-lg border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink outline-none focus:border-heroViolet/50 [color-scheme:light] dark:[color-scheme:dark]"
+              className="w-full min-w-0 rounded-xl border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink focus:border-granate [color-scheme:light]"
             />
           </label>
         </div>
@@ -148,8 +148,8 @@ export function FiltroPatrocinador({ financiador, financiadores }: {
   const total = financiadores.reduce((s, f) => s + f.n, 0);
   return (
     <label
-      className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm text-ink ${
-        financiador ? "border-heroViolet/40 bg-heroViolet-soft" : "border-line bg-paper"
+      className={`flex min-h-[40px] min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm text-ink focus-within:ring-2 focus-within:ring-granate focus-within:ring-offset-1 ${
+        financiador ? "border-granate/40 bg-granate-soft" : "border-line bg-paper"
       }`}
     >
       <Search size={14} className="shrink-0 text-mute" aria-hidden />
@@ -157,13 +157,13 @@ export function FiltroPatrocinador({ financiador, financiadores }: {
       <select
         value={financiador ?? ""}
         onChange={(e) => navegar({ financiador: e.target.value || undefined })}
-        className="w-full min-w-0 bg-transparent pr-1 text-sm outline-none"
+        className="w-full min-w-0 bg-transparent pr-1 text-sm focus:outline-none"
       >
         <option value="">
-          {total > 0 ? `Lo pagó cualquiera (${total.toLocaleString("es-PE")} contratos)` : "Lo pagó cualquiera"}
+          {total > 0 ? `Lo pagó cualquiera (${numero(total)} contratos)` : "Lo pagó cualquiera"}
         </option>
         {financiadores.map((f) => (
-          <option key={f.nombre} value={f.nombre}>{f.nombre} ({f.n.toLocaleString("es-PE")})</option>
+          <option key={f.nombre} value={f.nombre}>{f.nombre} ({numero(f.n)})</option>
         ))}
       </select>
       {pendiente && <Loader2 size={14} className="shrink-0 animate-spin text-mute" aria-label="Cargando" />}
@@ -198,23 +198,23 @@ export function FiltrosActivos({ zona, ubigeo, desde, hasta, financiador }: {
           key={c.clave}
           type="button"
           onClick={() => navegar(c.quitar)}
-          className="inline-flex max-w-full items-center gap-1 rounded-full border border-heroViolet/40 bg-heroViolet-soft py-0.5 pl-2.5 pr-1.5 font-medium text-ink transition-colors hover:border-heroViolet"
+          className="inline-flex min-h-[28px] max-w-full items-center gap-1 rounded-full border border-granate/40 bg-granate-soft py-0.5 pl-2.5 pr-1.5 font-medium text-ink transition-colors duration-rapido hover:border-granate"
           aria-label={`Quitar el filtro ${c.texto}`}
         >
           <span className="min-w-0 truncate">{c.texto}</span>
-          <X size={12} className="shrink-0 text-mute" aria-hidden />
+          <X size={12} className="shrink-0 text-granate" aria-hidden />
         </button>
       ))}
       {chips.length > 1 && (
         <button
           type="button"
           onClick={() => navegar({ ubigeo: undefined, desde: undefined, hasta: undefined, financiador: undefined })}
-          className="rounded-full px-2 py-0.5 text-mute underline-offset-2 hover:text-ink hover:underline"
+          className="min-h-[24px] rounded-full px-2 py-0.5 text-inkSoft underline-offset-2 hover:text-ink hover:underline"
         >
-          quitar los {chips.length}
+          Quitar los {chips.length}
         </button>
       )}
-      {pendiente && <Loader2 size={12} className="animate-spin text-mute" aria-label="Cargando" />}
+      {pendiente && <Loader2 size={12} className="animate-spin text-mute" aria-label="Cargando…" />}
     </div>
   );
 }

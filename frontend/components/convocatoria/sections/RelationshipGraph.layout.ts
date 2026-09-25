@@ -2,6 +2,7 @@
 // RelationshipGraph — sin JSX, sin hooks, sin refs: solo depende de person/web/proveedor/ctx.
 // Separado del componente (que sigue en RelationshipGraph.tsx) para que ninguno de los dos
 // archivos pase de 800 líneas.
+import { soles } from "@/lib/formato";
 import type { GraphNode, GraphEdge } from "../types";
 import { esPersonaNatural, maskApellido, maskDnis } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
@@ -172,7 +173,7 @@ export function buildRelationshipGraphData(
     nodes.push({
       id: m.id, kind: "party",
       label: key.length > 28 ? key.slice(0, 25) + "…" : key,
-      sublabel: m.monto ? `S/. ${m.monto.toLocaleString("es-PE")}` : (m.año ? `${m.año}` : undefined),
+      sublabel: m.monto ? soles(m.monto) : (m.año ? `${m.año}` : undefined),
       tooltip: m.kind === "aporte" ? "Aportante a campaña" : "Candidato/a",
       meta: { partido: key, monto: m.monto, año: m.año, rol: m.kind === "aporte" ? "Aportante ONPE" : "Candidatura" },
     });
@@ -337,7 +338,7 @@ export function buildRelationshipGraphData(
     nodes.push({
       id, kind: "contract",
       label: ent.length > 30 ? ent.slice(0, 27) + "…" : ent,
-      sublabel: monto ? `S/. ${monto.toLocaleString("es-PE")}` : (c.año || c.fecha || undefined),
+      sublabel: monto ? soles(monto) : (c.año || c.fecha || undefined),
       tooltip: `${ent}${c.objeto ? ": " + c.objeto : ""}`,
       meta: { entidad: ent, monto, año: c.año || c.fecha, objeto: c.objeto, fuente_url: c.fuente_url || c.url },
     });

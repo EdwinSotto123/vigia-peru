@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, AlertTriangle, Coins, Activity, ChevronRight, Flag, FileText, Loader2 } from "lucide-react";
+import { Search, Loader2, X } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import {
   entidadesQueryString,
@@ -12,8 +12,8 @@ import {
   type EntidadesQuery,
   type EntidadesResumen,
 } from "@/lib/api-client";
-import { formatSoles } from "@/lib/formato";
-import { NumberTicker } from "@/components/magicui/NumberTicker";
+import { numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { Cifra, EstadoVacio } from "@/components/patrones";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { cn } from "@/lib/utils";
 
@@ -33,10 +33,16 @@ interface Props {
  * component vuelve a pedir la página exacta al API. El orden (`sort`) sólo
  * reordena las filas de la página actual.
  *
- * El número de puesto (#N) es el del ranking por contratos con señales, que es
+ * QUÉ CUENTA: `alertas` (API) = contratos de la entidad con dictamen PUBLICADO,
+ * con o sin señales (un dictamen de score 0 también suma), y `monto` = lo
+ * adjudicado en esos contratos. Por eso las columnas dicen "con dictamen
+ * publicado" y nunca "con señales" (DESIGN_SYSTEM.md §10.1).
+ *
+ * El número de puesto (#N) es el del ranking por contratos con dictamen, que es
  * como ordena el backend: se calcula sobre toda la lista ((página-1)×tamaño+i+1),
  * no sobre la página (antes cada página volvía a empezar en #1).
  *
+ * Volumen = tabla (§5): una fila por entidad, columnas alineadas para comparar.
  * No hay filtro por tipo: el backend tiene el tipo en nulo para casi todas las
  * entidades, y filtrar por "Gobierno regional" escondía a la mayoría de ellos.
  * El tipo se muestra igual, inferido del nombre oficial (lib/entidad-tipo.ts).
@@ -64,12 +70,19 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
     timer.current = window.setTimeout(() => navegar({ q: v.trim() || undefined }), 350);
   };
 
+  /** Borrar la búsqueda cancela el debounce pendiente: si no, vuelve a escribir el texto viejo en la URL. */
+  const limpiarQ = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    setQ("");
+    navegar({ q: undefined });
+  };
+
   const total = initial?.total ?? 0;
   const tam = initial?.size ?? 20;
   const actual = initial?.page ?? query.page ?? 1;
   const paginas = Math.max(1, Math.ceil(total / tam));
 
-  // Puesto en el ranking: por contratos con señales (el orden del backend, con
+  // Puesto en el ranking: por contratos con dictamen (el orden del backend, con
   // el orden del servidor como desempate), contando las páginas anteriores.
   const conPuesto = useMemo(() => {
     const filas = initial?.data ?? [];
@@ -90,149 +103,195 @@ export function EntidadesPanel({ query, initial, resumen }: Props) {
     return qs ? `${pathname}?${qs}` : pathname;
   };
 
-  const totals = resumen ?? { totalEntidades: 0, conAlertas: 0, monto: 0 };
   const qRuc = /^\d{11}$/.test((query.q ?? "").trim()) ? (query.q ?? "").trim() : null;
 
   return (
-    <section className="surface overflow-hidden p-0">
-      <div className="border-b border-line bg-paperDeep px-4 py-4 sm:px-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-ink">Ranking de entidades</h2>
-            <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1.5">
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-mute">Entidades vigiladas</dt>
-                <dd className="font-mono text-lg font-bold text-ink">
-                  <NumberTicker value={totals.totalEntidades} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-mute">Con contratos con señales</dt>
-                <dd className={cn("font-mono text-lg font-bold", totals.conAlertas > 0 ? "text-amberTexto" : "text-ink")}>
-                  <NumberTicker value={totals.conAlertas} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-mute">Monto de esos contratos</dt>
-                <dd className="font-mono text-lg font-bold text-ink">{formatSoles(totals.monto)}</dd>
-              </div>
-            </dl>
-          </div>
-          <Link
-            href="/reporte/nuevo?modo=entidad"
-            className="inline-flex items-center gap-1.5 rounded-full bg-rust px-3.5 py-2 text-xs font-medium text-paper hover:bg-rust/90"
-          >
-            <Flag size={13} aria-hidden /> Denunciar una entidad
-          </Link>
-        </div>
-      </div>
+    <div className="space-y-5">
+      {/* Resumen: cada cifra con su denominador o su contexto. Sin resumen, "Sin dato", nunca un cero. */}
+      <section aria-label="Resumen de entidades" className="grid gap-5 rounded-2xl border border-line bg-paper p-5 sm:grid-cols-3">
+        <Cifra
+          valor={resumen ? numero(resumen.totalEntidades) : "Sin dato"}
+          etiqueta="Entidades en la base"
+          contexto="Compradoras del Estado que Vigía tiene registradas"
+        />
+        <Cifra
+          valor={resumen ? numero(resumen.conAlertas) : "Sin dato"}
+          etiqueta="Con dictamen publicado"
+          contexto={
+            resumen
+              ? `de ${numero(resumen.totalEntidades)} tienen al menos un contrato leído y publicado, con o sin señales`
+              : "Entidades con al menos un contrato leído y publicado"
+          }
+        />
+        <Cifra
+          valor={resumen ? solesCompacto(resumen.monto) : "Sin dato"}
+          etiqueta="Adjudicado en esos contratos"
+          contexto="Suma de lo adjudicado en los contratos con dictamen publicado"
+        />
+      </section>
 
-      <div className="space-y-3 border-b border-line bg-paperSoft px-4 py-4 sm:px-5">
+      {/* Búsqueda y orden */}
+      <div className="space-y-3">
         <div className="relative">
           <label htmlFor="buscar-entidad" className="sr-only">
             Buscar una entidad por su nombre
           </label>
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
           <input
             id="buscar-entidad"
             type="search"
             value={q}
             onChange={(e) => onQ(e.target.value)}
             placeholder="Buscar por nombre de la entidad…"
-            className="w-full rounded-full border border-line bg-paper px-9 py-2 text-sm placeholder:text-mute focus:border-heroViolet focus:outline-none"
+            autoComplete="off"
+            className="h-11 w-full rounded-xl border border-line bg-paper pl-9 pr-16 text-sm text-ink placeholder:text-mute hover:border-paperEdge focus:border-granate focus:outline-none"
           />
-          {pendiente && (
-            <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-mute" aria-label="Cargando" />
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-[60ch] text-[12px] leading-snug text-mute">
-            <strong className="font-semibold text-inkSoft">Puntaje de riesgo:</strong> el promedio, de 0 a 100, del
-            puntaje de sus contratos con señales. Cada contrato suma el peso de sus señales según su severidad.
-          </p>
-          <div className="flex items-center gap-1 rounded-full border border-line bg-paper p-0.5 text-[11px]" role="group" aria-label="Ordenar esta página">
-            <span className="px-2 text-mute">Ordenar:</span>
-            {(
-              [
-                { id: "alertas", label: "Contratos con señales", icon: AlertTriangle },
-                { id: "monto", label: "Monto", icon: Coins },
-                { id: "score", label: "Puntaje", icon: Activity },
-              ] as const
-            ).map((s) => {
-              const I = s.icon;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-pressed={sort === s.id}
-                  onClick={() => setSort(s.id)}
-                  className={cn(
-                    "flex items-center gap-1 rounded-full px-2.5 py-1 font-medium transition-colors",
-                    sort === s.id ? "bg-paperDeep text-ink" : "text-mute hover:text-ink",
-                  )}
-                >
-                  <I size={11} aria-hidden />
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="divide-y divide-line">
-        {sorted.length === 0 && (
-          <div className="flex flex-col items-center gap-3 px-5 py-14 text-center">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-paperDeep text-mute" aria-hidden>
-              <Search size={18} />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-ink">Ninguna entidad se llama así</p>
-              <p className="mt-0.5 text-xs text-mute">Prueba con otra palabra del nombre oficial.</p>
-            </div>
-            {qRuc && (
-              <Link href={`/entidad/${qRuc}`} className="text-xs font-medium text-heroViolet hover:underline">
-                Abrir la ficha del RUC {qRuc}
-              </Link>
-            )}
-            {query.q && (
+          <span className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center gap-1.5">
+            {pendiente && <Loader2 size={14} className="animate-spin text-mute" aria-label="Buscando…" />}
+            {q && (
               <button
                 type="button"
-                onClick={() => {
-                  setQ("");
-                  navegar({ q: undefined });
-                }}
-                className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-paperDeep"
+                onClick={limpiarQ}
+                aria-label="Borrar la búsqueda"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-mute transition-colors duration-150 hover:bg-paperDeep hover:text-ink"
               >
-                Borrar la búsqueda
+                <X size={13} aria-hidden />
               </button>
             )}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Ordenar esta página">
+            <span className="text-[12px] text-mute">Ordenar esta página por</span>
+            {(
+              [
+                { id: "alertas", label: "Contratos con dictamen" },
+                { id: "monto", label: "Monto adjudicado" },
+                { id: "score", label: "Puntaje promedio" },
+              ] as const
+            ).map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={sort === s.id}
+                onClick={() => setSort(s.id)}
+                className={cn(
+                  "inline-flex min-h-[28px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-150",
+                  sort === s.id
+                    ? "border-granate/40 bg-granate-soft text-granate"
+                    : "border-line bg-paper text-inkSoft hover:border-granate/30 hover:text-ink",
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
-        )}
-        {sorted.map(({ e, puesto }) => (
-          <EntidadRow key={e.ruc} ent={e} rank={puesto} sortKey={sort} />
-        ))}
+          {/* El único anuncio de la lista: cuántas entidades cumplen la búsqueda. */}
+          <p className="text-[12px] text-mute sm:ml-auto" aria-live="polite">
+            {plural(total, "entidad", "entidades")}
+            {query.q ? ` con «${query.q}»` : ""}
+          </p>
+        </div>
+
+        <p className="max-w-[68ch] text-[12px] leading-relaxed text-mute text-pretty">
+          <strong className="font-semibold text-inkSoft">Puntaje promedio:</strong> el promedio, de 0 a 100, del puntaje
+          de sus contratos con dictamen publicado; un contrato sin señales puntúa 0. No es una probabilidad de delito: la
+          ficha de cada entidad muestra las señales que lo explican.
+        </p>
       </div>
 
-      <div className="border-t border-line bg-paperSoft px-4 py-3 sm:px-5">
-        <Paginacion
-          actual={actual}
-          paginas={paginas}
-          total={total}
-          tam={tam}
-          navegacion="url"
-          href={hrefPagina}
-          onChange={() => {}}
-          cargando={false}
-          nombre="entidades"
-        />
-      </div>
-    </section>
+      {sorted.length === 0 ? (
+        <EstadoVacio
+          compacto
+          titulo={query.q ? `Ninguna entidad coincide con «${query.q}»` : "No hay entidades para mostrar"}
+          accion={
+            <span className="flex flex-wrap items-center justify-center gap-2">
+              {qRuc && (
+                <Link
+                  href={`/entidad/${qRuc}`}
+                  className="inline-flex min-h-[32px] items-center rounded-full bg-granate px-4 py-1.5 text-xs font-semibold text-paper transition-colors duration-150 hover:bg-granate-deep"
+                >
+                  Abrir la ficha del RUC {qRuc}
+                </Link>
+              )}
+              {query.q && (
+                <button
+                  type="button"
+                  onClick={limpiarQ}
+                  className="inline-flex min-h-[32px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-paperDeep"
+                >
+                  Borrar la búsqueda
+                </button>
+              )}
+            </span>
+          }
+        >
+          Prueba con otra palabra del nombre oficial, o pega el RUC de 11 dígitos.
+        </EstadoVacio>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <table className="w-full table-fixed border-collapse text-left text-[13px]">
+            <caption className="sr-only">
+              Entidades ordenadas por contratos con dictamen publicado. Página {numero(actual)} de {numero(paginas)}.
+            </caption>
+            <thead className="border-b border-line bg-paperSoft text-[12px] text-mute">
+              <tr>
+                <th scope="col" className="w-12 px-3 py-2.5 font-semibold sm:w-14 sm:px-4">
+                  Puesto
+                </th>
+                <th scope="col" className="px-3 py-2.5 font-semibold">
+                  Entidad
+                </th>
+                <th
+                  scope="col"
+                  aria-sort={sort === "alertas" ? "descending" : undefined}
+                  className="w-[5.5rem] px-3 py-2.5 text-right font-semibold sm:w-36"
+                >
+                  <span className="sm:hidden">Con dictamen</span>
+                  <span className="hidden sm:inline">Con dictamen publicado</span>
+                </th>
+                <th
+                  scope="col"
+                  aria-sort={sort === "monto" ? "descending" : undefined}
+                  className="hidden w-36 px-3 py-2.5 text-right font-semibold md:table-cell"
+                >
+                  Adjudicado
+                </th>
+                <th
+                  scope="col"
+                  aria-sort={sort === "score" ? "descending" : undefined}
+                  className="hidden w-28 px-3 py-2.5 text-right font-semibold sm:table-cell sm:pr-4"
+                >
+                  Puntaje prom.
+                </th>
+              </tr>
+            </thead>
+            <tbody className={cn(pendiente && "opacity-60")} aria-busy={pendiente}>
+              {sorted.map(({ e, puesto }) => (
+                <FilaEntidad key={e.ruc} ent={e} puesto={puesto} orden={sort} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Paginacion
+        actual={actual}
+        paginas={paginas}
+        total={total}
+        tam={tam}
+        navegacion="url"
+        href={hrefPagina}
+        onChange={() => {}}
+        cargando={pendiente}
+        nombre="entidades"
+      />
+    </div>
   );
 }
 
-function EntidadRow({ ent, rank, sortKey }: { ent: ApiEntidad; rank: number; sortKey: SortKey }) {
+function FilaEntidad({ ent, puesto, orden }: { ent: ApiEntidad; puesto: number; orden: SortKey }) {
   // Un chip neutro para todos los tipos: el tipo de entidad no es un nivel de
   // riesgo. Se infiere del nombre oficial cuando el backend no lo declara, y si
   // no se puede, dice "Sin clasificar".
@@ -242,45 +301,48 @@ function EntidadRow({ ent, rank, sortKey }: { ent: ApiEntidad; rank: number; sor
   // (se reconocen porque traen `reportes`/`serie` de la misma metadata) el total
   // de contratos no es confiable y no se muestra.
   const contratosConfiables = ent.reportes == null && ent.serie == null;
+  const leida = ent.alertas > 0;
+  const resaltar = (k: SortKey) => (orden === k ? "font-semibold text-ink" : "text-inkSoft");
+
   return (
-    <Link href={`/entidad/${ent.ruc}`} className="group flex items-center gap-3 px-4 py-4 transition-colors hover:bg-paperDeep sm:gap-4 sm:px-5">
-      <div className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg bg-paperDeep px-1.5 font-mono text-xs font-bold text-inkSoft">
-        #{rank}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-mono text-[11px] text-mute">RUC {ent.ruc}</span>
-          <span className="rounded-full bg-paperDeep px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-inkSoft">{tipoLabel}</span>
-          {ent.region && <span className="text-[11px] text-mute">{ent.region}</span>}
+    <tr className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-paperSoft">
+      <td className="px-3 py-3 font-mono text-[12px] tabular-nums text-mute sm:px-4">{numero(puesto)}</td>
+      <td className="min-w-0 px-3 py-3">
+        <Link
+          href={`/entidad/${ent.ruc}`}
+          className="line-clamp-2 font-semibold leading-snug text-ink underline-offset-2 hover:text-granate hover:underline"
+        >
+          {ent.nombre}
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-mute">
+          <span className="rounded-full bg-paperDeep px-2 py-0.5 text-[11px] font-medium text-inkSoft">{tipoLabel}</span>
+          {ent.region && <span>{ent.region}</span>}
+          <span className="font-mono" translate="no">
+            RUC {ent.ruc}
+          </span>
         </div>
-        <div className="mt-1 truncate text-sm font-semibold text-ink">{ent.nombre}</div>
-        <div className="mt-1 text-[11px] text-mute">
-          <FileText size={10} className="mr-1 inline" aria-hidden />
-          {ent.alertas.toLocaleString("es-PE")} {ent.alertas === 1 ? "contrato con señales" : "contratos con señales"}
-          {contratosConfiables && ent.contratos != null && ` de ${ent.contratos.toLocaleString("es-PE")} ${ent.contratos === 1 ? "registrado" : "registrados"}`}
-        </div>
-      </div>
-
-      <div className="hidden text-right md:block">
-        <KPIBlock label="Monto" value={formatSoles(ent.monto)} highlight={sortKey === "monto"} />
-      </div>
-      <div className="text-right">
-        <KPIBlock label="Con señales" value={ent.alertas.toString()} highlight={sortKey === "alertas"} big />
-      </div>
-      <div className="hidden text-right sm:block">
-        <KPIBlock label="Puntaje" value={ent.alertas > 0 ? ent.scorePromedio.toString() : "—"} highlight={sortKey === "score"} />
-      </div>
-      <ChevronRight size={16} className="shrink-0 text-mute transition-colors group-hover:text-heroViolet" aria-hidden />
-    </Link>
-  );
-}
-
-function KPIBlock({ label, value, highlight, big }: { label: string; value: string; highlight?: boolean; big?: boolean }) {
-  return (
-    <div>
-      <div className={cn("font-mono font-bold tabular-nums", big ? "text-lg" : "text-sm", highlight ? "text-heroViolet" : "text-ink")}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wider text-mute">{label}</div>
-    </div>
+      </td>
+      <td className={cn("px-3 py-3 text-right font-mono tabular-nums", resaltar("alertas"))}>
+        {numero(ent.alertas)}
+        {contratosConfiables && ent.contratos != null && (
+          <span className="mt-0.5 block font-sans text-[11px] font-normal text-mute">
+            de {plural(ent.contratos, "registrado", "registrados")}
+          </span>
+        )}
+      </td>
+      <td className={cn("hidden px-3 py-3 text-right font-mono tabular-nums md:table-cell", resaltar("monto"))}>
+        {leida ? soles(ent.monto) : <span className="font-sans text-[12px] text-mute">Sin dato</span>}
+      </td>
+      <td className={cn("hidden px-3 py-3 text-right font-mono tabular-nums sm:table-cell sm:pr-4", resaltar("score"))}>
+        {leida ? (
+          <>
+            {numero(ent.scorePromedio)}
+            <span className="font-sans text-[11px] font-normal text-mute"> de 100</span>
+          </>
+        ) : (
+          <span className="font-sans text-[12px] text-mute">Sin dato</span>
+        )}
+      </td>
+    </tr>
   );
 }

@@ -1,6 +1,8 @@
 import { CircleDashed, TriangleAlert } from "lucide-react";
 import { Cifras } from "@/components/ui/Cifras";
+import { fechaCorta, numero } from "@/lib/formato";
 import type { ContribucionAliado } from "./CadenaAliado";
+import { PARTES_LECTURA } from "./CapacidadColectiva";
 import { IdentidadAliado } from "./IdentidadAliado";
 import { Proporcion } from "./TarjetaAliado";
 import { resumirContribuciones } from "./perfil";
@@ -18,9 +20,7 @@ import { RegionesDeAliado } from "./PerfilAliado";
  * decidir si vale la pena ir.
  */
 
-const num = (n: number) => n.toLocaleString("es-PE");
-const mes = (iso: string) => new Date(iso).toLocaleDateString("es-PE", { month: "short", year: "numeric" });
-const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
+const num = numero;
 
 export function ResumenAliado({
   nombre,
@@ -72,7 +72,7 @@ export function ResumenAliado({
         <Proporcion
           parte={r.conSenal}
           total={r.leidos}
-          leyenda="de los leídos traían al menos una señal"
+          leyenda={`de sus ${num(r.leidos)} financiados leídos tienen señales`}
           tono="neutro"
         />
         <Proporcion
@@ -89,14 +89,14 @@ export function ResumenAliado({
           datos={[
             {
               icono: "fecha",
-              texto: `Primer aporte en ${mes(contribuciones[contribuciones.length - 1].pagadaAt)}`,
+              texto: `Primer aporte el ${fechaCorta(contribuciones[contribuciones.length - 1].pagadaAt)}`,
             },
           ]}
         />
         <Cifras
           tam="sm"
           items={[
-            { n: r.regiones.length, de: regionesConCola, texto: "regiones con cola abierta alcanzadas" },
+            { n: r.regionesDistintas, de: regionesConCola, texto: "regiones con cola abierta alcanzadas" },
             {
               n: r.enRevision,
               texto: `de sus leídos ${r.enRevision === 1 ? "espera" : "esperan"} revisión humana`,
@@ -110,11 +110,11 @@ export function ResumenAliado({
 
       <QueSalio leidos={r.leidos} conSenal={r.conSenal} enRevision={r.enRevision} sinSenal={r.sinSenal} />
 
-      <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} titulo="Dónde cayeron sus contratos" />
+      <RegionesDeAliado regiones={r.regiones} financiados={r.financiados} titulo="En qué zonas cayeron sus contratos" />
 
       <section>
-        <h3 className="text-[11px] uppercase tracking-wide text-mute">
-          Sus {num(r.aportes)} {r.aportes === 1 ? "aporte" : "aportes"}, uno por uno
+        <h3 className="text-[13px] font-semibold text-ink">
+          {r.aportes === 1 ? "Su aporte" : `Sus ${num(r.aportes)} aportes, uno por uno`}
         </h3>
         <ol className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
           {contribuciones.map((c) => (
@@ -123,14 +123,14 @@ export function ResumenAliado({
                 <span className="block truncate text-[13px] font-medium text-ink">{c.zona}</span>
                 <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 text-[11px] text-mute">
                   <span className="font-mono">{c.codigo}</span>
-                  <span>{fecha(c.pagadaAt)}</span>
+                  <span>{fechaCorta(c.pagadaAt)}</span>
                 </span>
               </span>
               <Cifras
                 as="span"
                 items={[
                   { n: c.procesados, de: c.contratos, texto: "leídos" },
-                  { n: c.senales, texto: "con señal" },
+                  { n: c.senales, texto: "con señales" },
                 ]}
               />
             </li>
@@ -138,11 +138,11 @@ export function ResumenAliado({
         </ol>
       </section>
 
-      <p className="rounded-xl border border-heroViolet/25 bg-heroViolet-soft/60 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
+      <p className="rounded-xl border border-granate/20 bg-granate-50 px-3.5 py-3 text-[12px] leading-relaxed text-inkSoft">
         <strong className="font-semibold text-ink">{nombre} no eligió ninguno de estos contratos.</strong>{" "}
         Al aportar se elige una región y una cantidad; los contratos concretos salen de la cola por
-        antigüedad, en una consulta SQL que corre antes del análisis, y los agentes que los leen no reciben
-        el nombre de quien financió.
+        antigüedad, en una consulta SQL que corre antes de la lectura, y quien los lee no recibe el
+        nombre de quien financió.
       </p>
     </div>
   );
@@ -150,8 +150,9 @@ export function ResumenAliado({
 
 /**
  * En qué terminaron las lecturas que pagó. Una barra apilada a escala, no
- * cuatro cajas con un número cada una: lo que importa es la proporción entre
- * los cuatro destinos posibles de un contrato leído.
+ * cajas con un número cada una: lo que importa es la proporción entre los
+ * destinos posibles de un contrato leído. Mismos colores que la cascada de
+ * /app/aliados (`PARTES_LECTURA`): "en revisión" en neutro, nunca en ámbar.
  */
 export function QueSalio({
   leidos,
@@ -171,21 +172,21 @@ export function QueSalio({
       <p className="flex items-start gap-2 rounded-xl border border-dashed border-line px-3.5 py-3 text-[12px] leading-relaxed text-mute">
         <CircleDashed size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span>
-          Ninguno de sus contratos terminó de leerse todavía. Cada lectura completa tarda unos diez minutos
-          de agentes, y la cola los toma por antigüedad.
+          Ninguno de sus contratos terminó de leerse todavía: la cola los toma por antigüedad y cada uno
+          aparece acá en cuanto su dictamen se publica.
         </span>
       </p>
     );
   }
   const partes = [
-    { clave: "senal", etiqueta: "con al menos una señal publicada", valor: conSenal, barra: "bg-rust" },
-    { clave: "revision", etiqueta: "esperando revisión humana", valor: enRevision, barra: "bg-amber" },
-    { clave: "limpio", etiqueta: "salieron sin ninguna señal", valor: sinSenal, barra: "bg-moss" },
+    { clave: "senal", etiqueta: "con al menos una señal publicada", valor: conSenal, barra: PARTES_LECTURA.senal },
+    { clave: "revision", etiqueta: "en revisión", valor: enRevision, barra: PARTES_LECTURA.revision },
+    { clave: "limpio", etiqueta: "sin señales", valor: sinSenal, barra: PARTES_LECTURA.limpio },
   ].filter((p) => p.valor > 0);
 
   return (
     <section>
-      <h3 className="text-[11px] uppercase tracking-wide text-mute">{titulo}</h3>
+      <h3 className="text-[13px] font-semibold text-ink">{titulo}</h3>
       <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
         {partes.map((p) => (
           <div key={p.clave} className={p.barra} style={{ width: `${(p.valor / leidos) * 100}%` }} />
@@ -196,8 +197,8 @@ export function QueSalio({
           <li key={p.clave} className="flex items-baseline gap-2">
             <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${p.barra}`} aria-hidden />
             <span>
-              <span className="font-mono font-semibold text-ink">{num(p.valor)}</span> de{" "}
-              <span className="font-mono">{num(leidos)}</span> leídos {p.etiqueta}
+              <span className="font-mono font-semibold tabular-nums text-ink">{num(p.valor)}</span> de{" "}
+              <span className="font-mono tabular-nums">{num(leidos)}</span> leídos {p.etiqueta}
             </span>
           </li>
         ))}
