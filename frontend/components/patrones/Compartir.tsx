@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
+import { Popover } from "@/components/ui/Flotante";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,12 +12,17 @@ import { cn } from "@/lib/utils";
  *
  * `ruta` es relativa ("/aliado/mi-empresa"): la URL absoluta se arma con el origen actual,
  * así sirve igual en local, en la previsualización y en producción.
+ *
+ * `compacto`: un solo botón "Compartir" que abre las mismas opciones en un flotante (para
+ * tarjetas y barras de acciones, donde la fila completa no cabe). En el celular, si existe,
+ * abre directo la hoja nativa.
  */
 export function BarraCompartir({
   ruta,
   texto,
   titulo,
   variante = "claro",
+  compacto = false,
   className,
 }: {
   ruta: string;
@@ -24,6 +30,7 @@ export function BarraCompartir({
   texto: string;
   titulo?: string;
   variante?: "claro" | "oscuro";
+  compacto?: boolean;
   className?: string;
 }) {
   const [copiado, setCopiado] = useState(false);
@@ -65,6 +72,42 @@ export function BarraCompartir({
       /* el usuario cerró la hoja: nada que hacer */
     }
   };
+
+  if (compacto) {
+    const opcion = "flex min-h-[40px] w-full items-center gap-2 rounded-lg px-2.5 text-[14px] text-ink transition-colors duration-rapido hover:bg-granate-50";
+    return nativa ? (
+      <button type="button" onClick={nativo} className={cn(boton, className)}>
+        <Share2 size={15} aria-hidden /> Compartir
+      </button>
+    ) : (
+      <Popover
+        titulo="Compartir"
+        lado="abajo"
+        anchoClase="w-60"
+        className={cn(boton, className)}
+        trigger={
+          <>
+            <Share2 size={15} aria-hidden /> Compartir
+          </>
+        }
+      >
+        <span className="block space-y-0.5">
+          {redes.map((r) => (
+            <a key={r.nombre} href={r.href()} target="_blank" rel="noopener noreferrer" className={opcion}>
+              <span aria-hidden className="w-5 font-display text-[12px] font-extrabold text-granate">
+                {r.letra}
+              </span>
+              {r.nombre}
+            </a>
+          ))}
+          <button type="button" onClick={copiar} className={opcion} aria-live="polite">
+            {copiado ? <Check size={15} aria-hidden /> : <Link2 size={15} aria-hidden />}
+            {copiado ? "Enlace copiado" : "Copiar enlace"}
+          </button>
+        </span>
+      </Popover>
+    );
+  }
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>

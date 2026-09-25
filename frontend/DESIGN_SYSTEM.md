@@ -563,7 +563,8 @@ Piezas en `components/listado/`: `Indicadores` (+ `IndicadoresSkeleton`; `valor:
 "Sin dato"), `Vistas`, `Listado` + `ZonaResultados`, `BarraFiltros` (faceta con conteos e
 íconos de estado; `nombreEnChip`; filtros secundarios en el menú **Filtros**; `orden`),
 `Tabla` (columnas con `desde`, `alinear`, `ayuda` y `apilar`; filas con `href`, `externo` o
-`detalle`; `grupos` con rótulo fijo) + `CeldaPrincipal`, `CeldaNumero`, `CeldaTexto`,
+`detalle`; `grupos` con rótulo fijo; `medida="contenedor"` dentro de un panel o una columna
+angosta: los cortes van por el ancho de la tabla, no de la pantalla) + `CeldaPrincipal`, `CeldaNumero`, `CeldaTexto`,
 `CeldaFecha`, `TablaSkeleton`. En `components/patrones/`: `Volver`, y `Seccion plegable`
 para lo largo y secundario. `Paginacion` acepta `paramPagina`. Reglas:
 
@@ -628,6 +629,8 @@ Nada de rótulos en mayúsculas, párrafos sueltos ni "Etiqueta: valor" dentro d
 
 `BarraCompartir` (`@/components/patrones`): WhatsApp, Facebook, LinkedIn, X, copiar
 enlace, y la hoja nativa en el celular. Una por página, junto a lo que se comparte.
+`compacto`: un solo botón "Compartir" que abre las mismas opciones (tarjetas, barras de
+acciones). Es la única forma de compartir del producto: no hay otros botones de compartir.
 
 ### 14.6 Perfil público de un aliado
 

@@ -28,7 +28,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, Landmark, Play, WifiOff } from "lucide-react";
 import { numero, soles, solesCompacto } from "@/lib/formato";
-import { EstadoError, Seccion, Volver } from "@/components/patrones";
+import { BarraCompartir, EstadoError, Seccion, Volver } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import {
   ESTADO_PROC, PUBLIC_API_BASE, duracion, estadoVisible, estimadoLabel, faseHumana, fasesEfectivas, fechaLima, progresoFases,
@@ -36,7 +36,6 @@ import {
 } from "@/lib/auditoria";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { CompartirButton } from "./CompartirButton";
 import { CabeceraEjecucion, CuerpoEjecucion, DatosProceso, SinEjecucion } from "./EjecucionAnalisis";
 import { EstadoPill } from "./EstadoPill";
 import { ResultadoAnalisis } from "./ResultadoAnalisis";
@@ -315,11 +314,11 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         <aside className="space-y-3 lg:sticky lg:top-24 lg:self-start">
           <DatosProceso p={p} />
           {!terminado && (
-            <CompartirButton
+            <BarraCompartir
+              compacto
               titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`}
               texto="Mira cómo se ejecuta el análisis de este contrato."
-              path={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
-              className="rounded-full"
+              ruta={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
             />
           )}
         </aside>

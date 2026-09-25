@@ -10,7 +10,7 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad } from "@/lib/api-client";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
+import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Severidad } from "@/components/ui/Severidad";
@@ -288,24 +288,28 @@ export default async function EntidadProfile({
               <>
                 {/* La bajada de la pestaña (una línea + ⓘ) y su acción: el h2 de antes ya lo dice la pestaña. */}
                 {(publicadas.length > 0 || contratos > 0) && (
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                    {publicadas.length > 0 && (
-                      <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
-                        {truncada
-                          ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
-                          : "Del mayor peso del riesgo al menor; cada uno abre su dictamen."}
+                  <CabeceraPestana
+                    ayuda={
+                      publicadas.length > 0 ? (
                         <Ayuda titulo="¿Qué abre cada contrato?">
                           Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o
                           sin señales.
                         </Ayuda>
-                      </p>
-                    )}
-                    {contratos > 0 && (
-                      <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
-                        Ver sus {plural(contratos, "contrato", "contratos")}
-                      </EnlaceAccion>
-                    )}
-                  </div>
+                      ) : undefined
+                    }
+                    acciones={
+                      contratos > 0 ? (
+                        <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
+                          Ver sus {plural(contratos, "contrato", "contratos")}
+                        </EnlaceAccion>
+                      ) : undefined
+                    }
+                  >
+                    {publicadas.length > 0 &&
+                      (truncada
+                        ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
+                        : "Del mayor peso del riesgo al menor; cada uno abre su dictamen.")}
+                  </CabeceraPestana>
                 )}
                 <DisclaimerBanner className="mb-3" />
                 {publicadas.length === 0 ? (

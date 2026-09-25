@@ -71,6 +71,36 @@ function rejilla(columnas: Columna[], conAccion: boolean): CSSProperties {
 
 const GRID = "grid grid-cols-[var(--t-base)] md:grid-cols-[var(--t-md)] lg:grid-cols-[var(--t-lg)] xl:grid-cols-[var(--t-xl)] items-center gap-x-4";
 
+/**
+ * `medida="contenedor"`: los mismos cortes, pero por el ancho de la TABLA (container
+ * queries) y no de la pantalla. Para tablas dentro de un panel lateral o de una columna
+ * angosta, donde un `lg` de pantalla dejaba entrar columnas que no caben. md = 36rem,
+ * lg = 48rem, xl = 64rem de ancho de tabla. Clases literales, como las de arriba.
+ */
+const GRID_C =
+  "grid grid-cols-[var(--t-base)] [@container(min-width:36rem)]:grid-cols-[var(--t-md)] [@container(min-width:48rem)]:grid-cols-[var(--t-lg)] [@container(min-width:64rem)]:grid-cols-[var(--t-xl)] items-center gap-x-4";
+const OCULTA_C: Record<Desde, string> = {
+  md: "hidden [@container(min-width:36rem)]:flex",
+  lg: "hidden [@container(min-width:48rem)]:flex",
+  xl: "hidden [@container(min-width:64rem)]:flex",
+};
+const OCULTA_BLOQUE_C: Record<Desde, string> = {
+  md: "hidden [@container(min-width:36rem)]:block",
+  lg: "hidden [@container(min-width:48rem)]:block",
+  xl: "hidden [@container(min-width:64rem)]:block",
+};
+const MOSTRAR_HASTA_C: Record<Desde, string> = {
+  md: "[@container(min-width:36rem)]:hidden",
+  lg: "[@container(min-width:48rem)]:hidden",
+  xl: "[@container(min-width:64rem)]:hidden",
+};
+
+type Medida = "pantalla" | "contenedor";
+const clases = (m: Medida) =>
+  m === "contenedor"
+    ? { grid: GRID_C, oculta: OCULTA_C, bloque: OCULTA_BLOQUE_C, hasta: MOSTRAR_HASTA_C }
+    : { grid: GRID, oculta: OCULTA, bloque: OCULTA_BLOQUE, hasta: MOSTRAR_HASTA };
+
 export interface GrupoFilas {
   clave: string;
   /** Rótulo del grupo con su conteo: "En espera · 47". */
@@ -83,6 +113,7 @@ export function Tabla({
   filas,
   grupos,
   etiqueta,
+  medida = "pantalla",
   className,
 }: {
   columnas: Columna[];
@@ -91,18 +122,24 @@ export function Tabla({
   grupos?: GrupoFilas[];
   /** Nombre de la lista para el lector de pantalla: "Señales publicadas". */
   etiqueta: string;
+  /** Los cortes de columnas por la pantalla (por defecto) o por el ancho de la tabla (dentro de un panel). */
+  medida?: Medida;
   className?: string;
 }) {
+  const k = clases(medida);
   const todas = grupos ? grupos.flatMap((g) => g.filas) : filas ?? [];
   const conAccion = todas.some((f) => f.href || f.detalle);
   const estilo = rejilla(columnas, conAccion);
   return (
     // `overflow-clip` y no `overflow-hidden`: recorta las esquinas igual pero no crea un
     // contenedor de scroll, así los rótulos de grupo (`sticky`) se quedan fijos al bajar.
-    <div className={cn("overflow-clip rounded-2xl border border-line bg-paper", className)} style={estilo}>
-      <div className={cn(GRID, "border-b border-line bg-paperSoft px-4 py-2.5 text-[12px] font-medium text-mute")}>
+    <div
+      className={cn("overflow-clip rounded-2xl border border-line bg-paper", medida === "contenedor" && "[container-type:inline-size]", className)}
+      style={estilo}
+    >
+      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 py-2.5 text-[12px] font-medium text-mute")}>
         {columnas.map((c) => (
-          <span key={c.clave} className={cn("min-w-0 items-center gap-1", c.desde ? OCULTA[c.desde] : "flex", c.alinear === "der" && "justify-end")}>
+          <span key={c.clave} className={cn("min-w-0 items-center gap-1", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end")}>
             <span className="truncate">{c.titulo}</span>
             {c.ayuda}
           </span>
@@ -119,7 +156,7 @@ export function Tabla({
             <ul>
               {g.filas.map((f) => (
                 <li key={f.id} className="border-b border-line/70 last:border-b-0">
-                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} />
+                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} />
                 </li>
               ))}
             </ul>
@@ -129,7 +166,7 @@ export function Tabla({
         <ul aria-label={etiqueta}>
           {todas.map((f) => (
             <li key={f.id} className="border-b border-line/70 last:border-b-0">
-              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} />
+              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} />
             </li>
           ))}
         </ul>
@@ -141,7 +178,8 @@ export function Tabla({
 const FILA =
   "min-h-[60px] px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
 
-function FilaTabla({ fila, columnas, conAccion }: { fila: Fila; columnas: Columna[]; conAccion: boolean }) {
+function FilaTabla({ fila, columnas, conAccion, medida }: { fila: Fila; columnas: Columna[]; conAccion: boolean; medida: Medida }) {
+  const k = clases(medida);
   const apiladas = columnas.filter((c) => c.apilar && c.desde);
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
   // escritorio la columna apilada vaya antes (el chip de estado a la izquierda).
@@ -151,13 +189,13 @@ function FilaTabla({ fila, columnas, conAccion }: { fila: Fila; columnas: Column
       {columnas.map((c, i) => (
         <span
           key={c.clave}
-          className={cn("min-w-0 items-center", c.desde ? OCULTA[c.desde] : "flex", c.alinear === "der" && "justify-end text-right")}
+          className={cn("min-w-0 items-center", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end text-right")}
         >
           {i === principal && apiladas.length > 0 ? (
             <span className="block w-full min-w-0">
               {fila.celdas[c.clave]}
               {apiladas.map((a) => (
-                <span key={a.clave} className={cn("mt-1.5 flex flex-wrap items-center gap-1.5", MOSTRAR_HASTA[a.desde!])}>
+                <span key={a.clave} className={cn("mt-1.5 flex flex-wrap items-center gap-1.5", k.hasta[a.desde!])}>
                   {fila.celdas[a.clave]}
                 </span>
               ))}
@@ -176,7 +214,7 @@ function FilaTabla({ fila, columnas, conAccion }: { fila: Fila; columnas: Column
         ))}
     </>
   );
-  const clase = cn(GRID, FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
+  const clase = cn(k.grid, FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
   if (fila.href && fila.externo) {
     return (
       <a href={fila.href} target="_blank" rel="noopener noreferrer" className={clase}>

@@ -162,7 +162,9 @@ function DetalleAporte({
 
       <BloqueDetalle titulo={r.asignados > 0 ? `Contratos que pagó (${num(comprobante.detalle.length)})` : "Contratos que pagó"}>
         {comprobante.detalle.length > 0 ? (
+          // Dentro del panel (~670 px): las columnas se deciden por el ancho de la tabla, no de la pantalla.
           <Tabla
+            medida="contenedor"
             columnas={COLUMNAS_CONTRATOS}
             filas={comprobante.detalle.map((d) => filaContrato(d, esMaqueta))}
             etiqueta={`Contratos del aporte ${comprobante.codigo}`}

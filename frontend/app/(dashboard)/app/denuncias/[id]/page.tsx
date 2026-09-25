@@ -19,11 +19,10 @@ import { getReporte, getReportes, getConvergencias, getAlerta, type ApiConvergen
 import { CATEGORIA_META, estaConfirmada, tieneUbicacion, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { REGIONES } from "@/lib/peru-data";
 import { DenunciasMap } from "@/components/denuncias/DenunciasMap";
-import { CompartirDenuncia } from "@/components/denuncias/CompartirDenuncia";
 import { fechaDeDenuncia, haceCuantoSeReporto } from "@/components/denuncias/fechaDenuncia";
 import { TextoProtegido } from "@/components/alertas/Protegido";
 import { Severidad } from "@/components/ui/Severidad";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
+import { BarraCompartir, Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
 
 export function generateMetadata({ params }: { params: { id: string } }): Metadata {
   return { title: `Denuncia ${decodeURIComponent(params.id)}` };
@@ -254,7 +253,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
           </div>
 
           <div className="space-y-2">
-            <CompartirDenuncia id={rep.id} titulo={`${meta?.label ?? "Denuncia ciudadana"} en Vigía Perú`} />
+            <BarraCompartir compacto ruta={`/app/denuncias/${rep.id}`} titulo={`${meta?.label ?? "Denuncia ciudadana"} en Vigía Perú`} texto={`${meta?.label ?? "Denuncia ciudadana"} en Vigía Perú`} />
             {conUbicacion && (
               <Link
                 href={`/app/mapa?${regionId ? `region=${regionId}&` : ""}tab=denuncias`}

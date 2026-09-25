@@ -22,6 +22,7 @@
  * `no_verificable`/`sin_dato` no muestra diferencia porcentual.
  */
 
+import { BarraCompartir } from "@/components/patrones";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, ExternalLink, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
 import { duracion, reglaLabel, type MercadoItem, type ResultadoAnalisis as Resultado, type SenalRiesgo } from "@/lib/auditoria";
@@ -32,7 +33,6 @@ import { Revelar } from "@/components/ui/Revelar";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CuerpoDetalle } from "@/components/patrones/Detalle";
 import { ConteoSenales } from "@/components/convocatoria/sections/ConteoSenales";
-import { CompartirButton } from "./CompartirButton";
 import { EvidenciaRedactada } from "./EvidenciaRedactada";
 import { ScoreGauge } from "./ScoreGauge";
 import { ReglasEvaluadas } from "./ReglasEvaluadas";
@@ -209,7 +209,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         <Link href={dossierHref} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep">
           Leer el dictamen completo <ArrowRight size={15} aria-hidden />
         </Link>
-        <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
+        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} ruta={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} />
       </div>
       {r && !r.dictamenListo && <p className="mt-2 text-[12px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
     </section>
@@ -390,7 +390,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
         <p className="mt-3 text-[12px] leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
       )}
       <div className="mt-4">
-        <CompartirButton titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" path={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} className="rounded-full" />
+        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" ruta={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} />
       </div>
     </section>
   );

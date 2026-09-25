@@ -20,7 +20,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, type LucideIcon } from "lucide-react";
-import { CabeceraPestana,
+import { PieDetalle, CabeceraPestana,
   Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio,
   Pagina, Pestanas, type DatoClave,
 } from "@/components/patrones";
@@ -527,17 +527,21 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
         </CuerpoDetalle>
       ),
       pie: (
-        <PiePanel>
-          <EnlaceAccion href={`/app/financiar/${z.ubigeo}`} flecha>
-            Financiar su lectura
-          </EnlaceAccion>
-          {regionId && (
-            <EnlaceAccion href={`/app/mapa?region=${regionId}`} variante="secundario">
-              <MapPin size={14} aria-hidden /> Verla en el mapa
-            </EnlaceAccion>
-          )}
-          <DejarDeSeguir onClick={() => dejarDeSeguir("zona", z.ubigeo).then(recargar)} />
-        </PiePanel>
+        <PieDetalle
+          principal={
+            <>
+              <EnlaceAccion href={`/app/financiar/${z.ubigeo}`} flecha>
+                Financiar su lectura
+              </EnlaceAccion>
+              {regionId && (
+                <EnlaceAccion href={`/app/mapa?region=${regionId}`} variante="secundario">
+                  <MapPin size={14} aria-hidden /> Verla en el mapa
+                </EnlaceAccion>
+              )}
+            </>
+          }
+          secundarias={<DejarDeSeguir onClick={() => dejarDeSeguir("zona", z.ubigeo).then(recargar)} />}
+        />
       ),
     },
   };
@@ -560,12 +564,14 @@ function filaEntidad(e: Impacto["entidadesSeguidas"][number], recargar: () => vo
         </CuerpoDetalle>
       ),
       pie: (
-        <PiePanel>
-          <EnlaceAccion href={`/entidad/${e.ruc}`} flecha>
-            <Building2 size={14} aria-hidden /> Abrir su ficha
-          </EnlaceAccion>
-          <DejarDeSeguir onClick={() => dejarDeSeguir("entidad", e.ruc).then(recargar)} />
-        </PiePanel>
+        <PieDetalle
+          principal={
+            <EnlaceAccion href={`/entidad/${e.ruc}`} flecha>
+              <Building2 size={14} aria-hidden /> Abrir su ficha
+            </EnlaceAccion>
+          }
+          secundarias={<DejarDeSeguir onClick={() => dejarDeSeguir("entidad", e.ruc).then(recargar)} />}
+        />
       ),
     },
   };
@@ -591,11 +597,6 @@ function DejarDeSeguir({ onClick }: { onClick: () => Promise<unknown> }) {
 }
 
 // ─── piezas ──────────────────────────────────────────────────────────────────
-
-/** El pie de un panel (§14.4): la acción principal primero y "Dejar de seguir" al final, a la derecha. */
-function PiePanel({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 [&>*:last-child]:ml-auto">{children}</div>;
-}
 
 function Reclamar({ codigo, onOk }: { codigo: string; onOk: () => void }) {
   const [email, setEmail] = useState("");
