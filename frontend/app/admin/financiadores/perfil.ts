@@ -1,6 +1,7 @@
 import type { DialogField } from "@/components/admin/Dialog";
 import type { CambiosPerfilAliado, FinanciadorAdmin } from "@/lib/admin";
 import type { RedSocial } from "@/components/aliados/perfil";
+import { listaY } from "@/lib/formato";
 
 /**
  * Formulario "Perfil público" de un financiador (migración 30): los campos del diálogo, la misma
@@ -99,7 +100,7 @@ export function cambiosPerfil(f: FinanciadorAdmin, v: Record<string, string>): C
   return cambios;
 }
 
-/** "descripción · web · 2 redes" para la tabla; null si no publicó nada. */
+/** "descripción, web y 2 redes" para la tabla; null si no publicó nada. */
 export function resumenPerfil(f: FinanciadorAdmin): string | null {
   const redes = Object.values(f.redes ?? {}).filter(Boolean).length;
   const partes = [
@@ -108,6 +109,6 @@ export function resumenPerfil(f: FinanciadorAdmin): string | null {
     f.emailPublico && "correo",
     redes > 0 && (redes === 1 ? "1 red" : `${redes} redes`),
     f.portadaUrl && "portada",
-  ].filter(Boolean);
-  return partes.length ? partes.join(" · ") : null;
+  ].filter((x): x is string => Boolean(x));
+  return partes.length ? listaY(partes) : null;
 }

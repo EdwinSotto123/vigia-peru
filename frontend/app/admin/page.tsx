@@ -145,7 +145,7 @@ function chequeos(op: Operacion): Chequeo[] {
         { etiqueta: "Con error", valor: fmtNum(d.errores) },
         { etiqueta: "Sin dar señal", valor: fmtNum(d.colgados), pista: "más de 20 min callados" },
       ],
-      tecnico: [`dispatcher · inicio ${cuando(d.ultimoInicio)} · último latido ${cuando(d.ultimoLatido)} · fin ${cuando(d.ultimoFin)}`],
+      tecnico: [`dispatcher: inicio ${cuando(d.ultimoInicio)}, último latido ${cuando(d.ultimoLatido)}, fin ${cuando(d.ultimoFin)}`],
       href: "/admin/procesamientos",
       enlace: "Ver procesamiento",
     },
@@ -170,7 +170,7 @@ function chequeos(op: Operacion): Chequeo[] {
         </ul>
       ),
       tecnico: [
-        ...sv.map((s) => [s.nombre, s.error ?? (s.status ? `HTTP ${s.status}` : null), s.ms != null && `${s.ms} ms`, s.detalle?.model, s.url].filter(Boolean).join(" · ")),
+        ...sv.map((s) => `${s.nombre}: ${[s.error ?? (s.status ? `HTTP ${s.status}` : null), s.ms != null && `${s.ms} ms`, s.detalle?.model, s.url].filter(Boolean).join(", ")}`),
         `Consultado ${cuando(op.servicios.consultadoAt)}${op.servicios.cacheado ? " (caché 60 s)" : ""}`,
       ],
     },
@@ -184,7 +184,7 @@ function chequeos(op: Operacion): Chequeo[] {
         </p>
       ),
       tecnico: [
-        `relay · ${r.url ?? "sin dirección configurada"}`,
+        `relay: ${r.url ?? "sin dirección configurada"}`,
         ...(r.error ? [`Respuesta: ${r.error}`] : []),
         ...(r.ms != null ? [`${r.ms} ms`] : []),
         ...(r.consultadoAt ? [`Consultado ${cuando(r.consultadoAt)}`] : []),
@@ -223,7 +223,7 @@ function chequeos(op: Operacion): Chequeo[] {
         { etiqueta: "Empezó", valor: fmtFechaHora(l.iniciadoAt) },
         { etiqueta: "Terminó", valor: fmtFechaHora(l.finalizadoAt) },
       ] : undefined,
-      tecnico: l ? [`${l.id} · estado ${l.estado}`, ...(l.error ? [`Error: ${l.error}`] : [])] : undefined,
+      tecnico: l ? [`${l.id}: estado ${l.estado}`, ...(l.error ? [`Error: ${l.error}`] : [])] : undefined,
       href: "/admin/cobertura",
       enlace: "Ver cobertura",
     },

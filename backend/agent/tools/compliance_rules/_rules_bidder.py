@@ -147,7 +147,7 @@ def check_non_competitive_process_rule(ocid: str, tool_context: ToolContext,
         if no_competitive:
             result.update({
                 "severidad": "media",
-                "evidencia": f"Tipo de proceso: {tipo} · invocó causal de excepción que limita la competencia abierta",
+                "evidencia": f"Tipo de proceso: {tipo}. Invocó una causal de excepción que limita la competencia abierta.",
                 "norma": "Art. 55.1 Ley 32069 — supuestos de selección no competitiva",
                 "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
             })

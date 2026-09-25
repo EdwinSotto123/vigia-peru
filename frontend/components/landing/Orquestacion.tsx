@@ -101,10 +101,9 @@ export function Orquestacion({
             <span aria-hidden className="animate-latidoNodo absolute inset-0 rounded-2xl border border-maiz" />
             <div className="relative rounded-2xl border border-maiz/50 bg-maiz/[0.09] px-4 py-4 text-center">
               <span className="block font-display text-lg font-bold text-paper">El coordinador</span>
-              <span className="mt-0.5 block text-[12px] font-semibold text-maiz">Siempre la misma lista</span>
+              <span className="mt-0.5 block text-[12px] font-semibold text-maiz">No se salta ninguna revisión</span>
               <p className="mt-2.5 text-[11px] leading-relaxed text-paper/75">
-                Toma los contratos por orden de llegada, lanza las {totalPasos} revisiones en el mismo orden y no
-                da el análisis por terminado hasta que todas corrieron.
+                Le hace al contrato las {totalPasos} revisiones y no lo da por leído hasta terminarlas todas.
               </p>
             </div>
           </div>
@@ -140,7 +139,7 @@ export function Orquestacion({
         <EslabonMovil titulo="Entra" cuerpo="El contrato publicado, su expediente y los registros del Estado" />
         <EslabonMovil
           titulo="El coordinador"
-          cuerpo={`Lanza las ${totalPasos} revisiones siempre en el mismo orden, sin saltarse ninguna`}
+          cuerpo={`Le hace las ${totalPasos} revisiones, sin saltarse ninguna`}
           destacado
         />
         <EslabonMovil titulo="Revisa" cuerpo="En tres frentes. Toca uno para ver qué revisa cada parte.">

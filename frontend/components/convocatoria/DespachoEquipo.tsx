@@ -50,7 +50,7 @@ export function DespachoEquipo() {
         titulo={d.error ? "No se pudo analizar el contrato" : "Análisis en curso"}
         descripcion={
           <>
-            Convocatoria <span className="font-mono">{d.codigo}</span> · corrida del equipo, no se acredita a ningún aporte
+            Convocatoria <span className="font-mono">{d.codigo}</span>, corrida del equipo: no se acredita a ningún aporte
           </>
         }
         ancho="xl"

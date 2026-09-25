@@ -69,7 +69,7 @@ export function EnRevision({ items }: { items: AnalisisEnRevision[] }) {
     return {
       id: p.ocid,
       celdas: {
-        contrato: <CeldaPrincipal titulo={titulo} meta={`${p.entidad ?? "Entidad no registrada"} · ${p.zona}`} />,
+        contrato: <CeldaPrincipal titulo={titulo} meta={[p.entidad ?? "Entidad no registrada", p.zona]} />,
         motivo: (
           <span className="flex min-w-0 flex-wrap gap-1.5">
             {motivos.length === 0 ? (
@@ -151,7 +151,7 @@ function DetalleMotivos({ item: { procesamiento: p, revision }, titulo }: { item
   );
 }
 
-/** Un motivo: la medida y su umbral junto al título ("33 % · mínimo 60 %"), la barra y lo que lo explica. */
+/** Un motivo: la medida y su umbral junto al título ("33 %, mínimo 60 %"), la barra y lo que lo explica. */
 function Motivo({ m }: { m: RevisionMotivo }) {
   const tieneMedida = m.valor != null && m.umbral != null;
   return (
@@ -160,7 +160,7 @@ function Motivo({ m }: { m: RevisionMotivo }) {
       acciones={
         tieneMedida ? (
           <span className="shrink-0 text-[12.5px] tabular-nums text-mute">
-            <span className="font-semibold text-ink">{pct(m.valor)}</span> · mínimo {pct(m.umbral)}
+            <span className="font-semibold text-ink">{pct(m.valor)}</span>, mínimo {pct(m.umbral)}
           </span>
         ) : undefined
       }

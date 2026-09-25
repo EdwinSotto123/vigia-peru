@@ -114,7 +114,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
             <option value="">{zonas === null ? "Cargando regiones…" : "Elige una región"}</option>
             {(zonas ?? []).map((z) => (
               <option key={z.ubigeo} value={z.ubigeo}>
-                {z.nombre} · {z.pendientes.toLocaleString("es-PE")} sin leer
+                {z.nombre} ({z.pendientes.toLocaleString("es-PE")} sin leer)
               </option>
             ))}
           </select>

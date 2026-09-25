@@ -27,6 +27,7 @@ import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { numero, plural, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { Partes } from "@/components/ui/Partes";
 
 interface Resultados {
   q: string;
@@ -37,11 +38,10 @@ interface Resultados {
   alertas: { codigo: string; ocid: string | null; score: number | null; objeto: string | null; region: string | null; banderas: number }[];
 }
 
-interface Item { key: string; href: string; titulo: string; detalle: string; grupo: string; icon: React.ReactNode }
+/** `detalle`: datos sueltos (código, entidad, zona, monto); se muestran separados por aire, sin comas: "S/ 45,000" ya lleva una. */
+interface Item { key: string; href: string; titulo: string; detalle: (string | null)[]; grupo: string; icon: React.ReactNode }
 
 const vacio: Resultados = { q: "", contratos: [], entidades: [], zonas: [], aportes: [], alertas: [] };
-/** Separador del detalle de cada resultado. No una coma: "S/ 45,000" ya lleva una. */
-const SEP = " · ";
 
 /**
  * Tres búsquedas de ejemplo, una por tipo de objeto. Son reales: verificadas contra
@@ -161,15 +161,15 @@ export function BuscarGlobal({
   // señales que lo explican (§10.4).
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
-    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null].filter(Boolean).join(SEP), icon: <FileSearch size={14} aria-hidden /> });
-    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")].filter(Boolean).join(SEP), icon: <Flag size={14} aria-hidden /> });
-    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")].filter(Boolean).join(SEP), icon: <Building2 size={14} aria-hidden /> });
+    for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null], icon: <FileSearch size={14} aria-hidden /> });
+    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> });
+    for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")], icon: <Building2 size={14} aria-hidden /> });
     for (const z of res.zonas) {
       const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
       const href = z.nivel === "departamento" && regionId ? `/app/mapa?region=${regionId}` : `/app/financiar/${z.ubigeo}`;
-      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${numero(z.totalCola)} en cola` : null, z.financiados > 0 ? plural(z.financiados, "financiado", "financiados") : null].filter(Boolean).join(SEP), icon: <MapPin size={14} aria-hidden /> });
+      out.push({ key: `z-${z.ubigeo}`, grupo: "Zonas", href, titulo: z.nombre, detalle: [z.nivel, z.totalCola > 0 ? `${numero(z.totalCola)} en cola` : null, z.financiados > 0 ? plural(z.financiados, "financiado", "financiados") : null], icon: <MapPin size={14} aria-hidden /> });
     }
-    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")].filter(Boolean).join(SEP), icon: <Heart size={14} aria-hidden /> });
+    for (const p of res.aportes) out.push({ key: `p-${p.codigo}`, grupo: "Aportes", href: `/impacto/${p.codigo}`, titulo: p.codigo, detalle: [p.financiador, p.zona, plural(p.contratos, "contrato", "contratos")], icon: <Heart size={14} aria-hidden /> });
     return out;
   }, [res]);
 
@@ -293,7 +293,7 @@ export function BuscarGlobal({
                       <span className={cn("mt-0.5 shrink-0", i === sel ? "text-ink" : "text-mute")}>{it.icon}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-ink">{it.titulo}</span>
-                        <span className="block truncate text-xs text-mute">{it.detalle}</span>
+                        <span className="block truncate text-xs text-mute"><Partes partes={it.detalle} /></span>
                       </span>
                       {i === sel && <CornerDownLeft size={12} className="mt-1 shrink-0 text-mute" aria-hidden />}
                     </button>

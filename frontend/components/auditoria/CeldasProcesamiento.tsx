@@ -110,13 +110,13 @@ export function EstadoProcesamiento({ p }: { p: Procesamiento }) {
 }
 
 /**
- * Qué es: el objeto (1 línea, entero en `title`) y entidad · zona. Si lo están leyendo, una
+ * Qué es: el objeto (1 línea, entero en `title`) y entidad y zona. Si lo están leyendo, una
  * línea más con el paso en curso, los pasos hechos y el avance por carril.
  * `data-fila` le permite al tablero encontrar la fila para animar su cambio de grupo.
  */
 export function CeldaContrato({ p, ahora = 0 }: { p: Procesamiento; ahora?: number }) {
   const titulo = p.titulo ?? "Contrato sin título en el registro";
-  const meta = `${p.entidad ?? "Entidad no identificada"} · ${p.zona}`;
+  const meta = [p.entidad ?? "Entidad no identificada", p.zona];
   if (p.estado !== "procesando") {
     return (
       <span data-fila={p.ocid} className="block w-full min-w-0">

@@ -1,3 +1,4 @@
+import { Building2, Coins, FileSearch, Scale, UserCheck, type LucideIcon } from "lucide-react";
 import { EnlaceAccion } from "./EnlaceAccion";
 import { Orquestacion, type CarrilDatos } from "./Orquestacion";
 import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril, type PasoPipeline } from "@/components/agentes/catalogo";
@@ -26,6 +27,18 @@ import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril, type PasoPipeline } from 
  * `globals.css` neutraliza los loops y los pasos quedan todos encendidos.
  */
 
+/**
+ * Lo que se pregunta de cada contrato, en las palabras de quien lo paga. Antes era un
+ * párrafo ("Siempre en el mismo orden: lee el expediente, compara…"): el orden no le
+ * importa a nadie; lo que importa es QUÉ se revisa y que, si hay duda, no se publica.
+ */
+const PREGUNTAS: { Icono: LucideIcon; texto: string }[] = [
+  { Icono: FileSearch, texto: "¿El expediente sigue las reglas?" },
+  { Icono: Coins, texto: "¿Se pagó de más?" },
+  { Icono: Building2, texto: "¿Quién está detrás de la empresa?" },
+  { Icono: Scale, texto: "¿Qué dice la ley?" },
+];
+
 /** Cuántos turnos espera cada carril antes de arrancar: su dependencia real. */
 const ARRANQUE: Record<string, number> = { expediente: 0, proveedor: 1, sintesis: 3 };
 
@@ -53,25 +66,34 @@ export function PipelineAgentes() {
       className="sobre-oscuro relative scroll-mt-20 overflow-hidden border-t border-paper/10 bg-ink py-16 text-paper sm:py-20"
     >
       <div className="container-page relative">
-        {/* El titular dice qué significa para la persona, no qué tecnología
-            corre. "12 pasos y 10 agentes" era un beneficio para desarrolladores;
-            para un ciudadano, lo que importa es que nada se salta y que, si hay
-            duda, decide una persona. La tecnología queda al pie, como soporte. */}
+        {/* El titular dice qué significa para la persona, no qué tecnología corre: qué se
+            revisa (cuatro preguntas) y la garantía (si hay duda, decide una persona). La
+            tecnología queda en el diagrama, como soporte. */}
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-5">
           <div className="min-w-0">
             <h2 id="agentes-titulo" className="max-w-[24ch] text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl">
-              Cada contrato pasa por las mismas revisiones.
+              Lo que Vigía revisa en cada contrato
             </h2>
-            <p className="mt-4 max-w-[62ch] text-pretty text-base leading-relaxed text-paper/75">
-              Siempre en el mismo orden: lee el expediente, compara los precios con el mercado, investiga a la
-              empresa y a las personas detrás, y escribe un informe citando la ley. Si no está seguro de lo que
-              encontró, no lo publica: lo revisa una persona.
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-maiz/30 bg-maiz/10 px-3.5 py-1.5 text-[14px] font-medium text-maiz sm:text-[15px]">
+              <UserCheck size={16} className="shrink-0" aria-hidden />
+              Si no está seguro, no lo publica: lo revisa una persona.
             </p>
           </div>
           <EnlaceAccion href="/app/auditoria" variante="contornoOscuro" className="shrink-0">
             Verlo trabajar ahora
           </EnlaceAccion>
         </div>
+
+        <ul className="mt-8 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4" aria-label="Lo que se revisa">
+          {PREGUNTAS.map(({ Icono, texto }) => (
+            <li key={texto} className="flex items-center gap-3 rounded-2xl border border-paper/12 bg-paper/[0.04] px-4 py-3.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maiz/10 text-maiz" aria-hidden>
+                <Icono size={18} />
+              </span>
+              <span className="text-[15px] font-semibold leading-snug text-paper">{texto}</span>
+            </li>
+          ))}
+        </ul>
 
         {/* El circuito entero —qué entra, quién reparte, qué sale— y el carril que
             se abra. Antes el detalle de los tres carriles vivía acá abajo siempre

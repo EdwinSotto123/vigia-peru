@@ -134,7 +134,7 @@ function Page() {
             {c.nombrePublico ?? <span className="text-mute">Anónimo</span>}
             {!c.visible && <EyeOff size={12} className="text-rust" aria-label="Sin reconocimiento público" />}
           </span>
-          <span className="block text-[11px] text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(" · ")}</span>
+          <span className="block text-[11px] text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
         </>
       ),
     },
@@ -242,7 +242,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
 
       <div className="space-y-4 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
         <div>
-          <p className="text-[12px] text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos · {c.asignados} asignados</p>
+          <p className="text-[12px] text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
           <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} className="mt-1.5" />
         </div>
 

@@ -38,7 +38,6 @@ export function ResumenDelPerfil({
   contribuciones,
   entidades,
   hrefs,
-  esMaqueta = false,
 }: {
   nombre: string;
   r: Resumen;
@@ -50,7 +49,6 @@ export function ResumenDelPerfil({
   entidades: number | null;
   /** Enlaces a las otras pestañas. */
   hrefs: { senales: string; zonas: string; aportes: string };
-  esMaqueta?: boolean;
 }) {
   const recientes = senalesRecientes(senales, VISIBLES);
   const primero = contribuciones[contribuciones.length - 1];
@@ -88,7 +86,7 @@ export function ResumenDelPerfil({
             acciones={senales.length > recientes.length ? <VerTodo href={hrefs.senales}>Ver las {num(r.conSenal)}</VerTodo> : undefined}
           >
             {recientes.length > 0 ? (
-              <TablaSenales senales={recientes} nombre={nombre} esMaqueta={esMaqueta} compacta />
+              <TablaSenales senales={recientes} nombre={nombre} compacta />
             ) : (
               // Sin la llamita: esta página nombra a una persona u organización (§2.3).
               <EstadoVacio compacto conLlamita={false} titulo={r.leidos > 0 ? "Sin señales publicadas" : "Todavía sin contratos leídos"}>

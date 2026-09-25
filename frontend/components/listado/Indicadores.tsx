@@ -25,6 +25,11 @@ export interface Indicador {
   /** Sólo severidad y lo positivo colorean el número; la marca nunca comunica riesgo. */
   tono?: "neutro" | "alta" | "media" | "positivo";
   href?: string;
+  /**
+   * Clase de relleno (token) de un punto junto a la etiqueta: la clave de color que une la
+   * cifra con su tramo en la barra del `pie`. Sólo cuando hay esa barra.
+   */
+  marca?: string;
 }
 
 const TONO: Record<NonNullable<Indicador["tono"]>, string> = {
@@ -42,10 +47,24 @@ const COLUMNAS: Record<number, string> = {
   4: "grid-cols-2 lg:grid-cols-4",
 };
 
-export function Indicadores({ items, className }: { items: Indicador[]; className?: string }) {
+export function Indicadores({
+  items,
+  pie,
+  className,
+}: {
+  items: Indicador[];
+  /**
+   * Una fila a lo ancho, dentro de la misma tarjeta y debajo de las cifras: la barra que
+   * muestra cómo se reparten (con `marca` en cada cifra). Fuera del <dl>: no es un par
+   * término-definición.
+   */
+  pie?: ReactNode;
+  className?: string;
+}) {
   const n = Math.min(4, Math.max(1, items.length));
-  return (
-    <dl className={cn("grid gap-px overflow-hidden rounded-2xl border border-line bg-line", COLUMNAS[n], className)}>
+  const marco = "overflow-hidden rounded-2xl border border-line bg-line";
+  const cifras = (
+    <dl className={cn("grid gap-px bg-line", COLUMNAS[n], pie ? undefined : [marco, className])}>
       {items.slice(0, 4).map((it) => (
         // Con `href`, el enlace va en el número y se estira sobre la celda (after:inset-0):
         // un <a> no puede envolver <dt>/<dd> dentro de un <dl>.
@@ -57,6 +76,7 @@ export function Indicadores({ items, className }: { items: Indicador[]; classNam
           )}
         >
           <dt className="order-2 mt-1.5 flex items-center gap-1 text-[13px] font-medium leading-snug text-inkSoft">
+            {it.marca && <span className={cn("mr-0.5 h-2 w-2 shrink-0 rounded-full", it.marca)} aria-hidden />}
             {it.etiqueta}
             {/* El ⓘ queda por encima del enlace estirado para poder tocarlo. */}
             {it.ayuda && <span className="relative z-[1]">{it.ayuda}</span>}
@@ -84,6 +104,13 @@ export function Indicadores({ items, className }: { items: Indicador[]; classNam
         </div>
       ))}
     </dl>
+  );
+  if (!pie) return cifras;
+  return (
+    <div className={cn(marco, className)}>
+      {cifras}
+      <div className="mt-px bg-paper px-4 py-3">{pie}</div>
+    </div>
   );
 }
 

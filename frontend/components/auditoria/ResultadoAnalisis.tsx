@@ -370,7 +370,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
                 <span key={m.clave} className={i > 0 ? "mt-1.5 block" : "block"}>
                   <span className="font-semibold text-ink">{m.titulo}</span>
                   {m.valor != null && m.umbral != null && (
-                    <span className="tabular-nums text-mute"> ({pctMotivo(m.valor)} · mínimo {pctMotivo(m.umbral)})</span>
+                    <span className="tabular-nums text-mute"> ({pctMotivo(m.valor)}, mínimo {pctMotivo(m.umbral)})</span>
                   )}
                   . {m.detalle}
                 </span>

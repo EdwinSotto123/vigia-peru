@@ -7,6 +7,7 @@ import { claseAccion } from "@/components/ui/EnlaceAccion";
 import { CORTE_ALTA, CORTE_MEDIA, ETIQUETA_PESO } from "@/lib/severidad";
 import { numero, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { Separador } from "@/components/ui/Partes";
 import {
   analisisQueryParams,
   codigoDe,
@@ -216,10 +217,21 @@ function filaDe(it: AnalisisPublicado, resaltada: boolean): Fila {
               <span className="font-mono tabular-nums text-inkSoft">{codigo}</span>
               {/* Zona y tipo tienen columna desde xl; antes, van en esta línea para no perderse. */}
               <span className="xl:hidden">
-                {zona && ` · ${zona}`}
-                {tipo !== "sin_tipo" && ` · ${ETIQUETA_TIPO[tipo]}`}
+                {zona && (
+                  <>
+                    <Separador />
+                    {zona}
+                  </>
+                )}
+                {tipo !== "sin_tipo" && (
+                  <>
+                    <Separador />
+                    {ETIQUETA_TIPO[tipo]}
+                  </>
+                )}
               </span>
-              {` · ${it.entidad || "Entidad sin dato"}`}
+              <Separador />
+              {it.entidad || "Entidad sin dato"}
             </>
           }
         />

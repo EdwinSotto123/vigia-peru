@@ -118,12 +118,10 @@ export function AuditoriaDeAgentes({
         senal: (
           <CeldaPrincipal
             titulo={etiqueta}
-            meta={
-              <>
-                {s.item && <span className="font-mono">ítem {s.item} · </span>}
-                {s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={nombresPrivados} /> : "Sin evidencia registrada"}
-              </>
-            }
+            meta={[
+              s.item && <span className="font-mono">ítem {s.item}</span>,
+              s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={nombresPrivados} /> : "Sin evidencia registrada",
+            ]}
           />
         ),
         cotejo: <SelloCotejo verificada={s.verificada} />,

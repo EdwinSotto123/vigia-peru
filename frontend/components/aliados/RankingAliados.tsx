@@ -1,21 +1,20 @@
 import { EyeOff } from "lucide-react";
 import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
-import { esSlugMaqueta } from "@/lib/maqueta-aliados";
 import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { AvatarAliado, esFundador } from "./TarjetaAliado";
-import { PodioRanking, Puesto } from "./Podio";
+import { LUGAR_LIBRE, PodioRanking, Puesto } from "./Podio";
 import { pctProporcion } from "./proporcion";
 import { ORDEN_LABEL, TAM_PAGINA, hrefPerfil, type ClaveOrden, type FilaRanking, type Periodo, type Ranking } from "./ranking";
 
 /**
  * El ranking de /app/aliados (DESIGN_SYSTEM.md §14.1 y §14.6): quién hizo leer más
- * contratos públicos, con su puesto (#1, #2…). Los tres primeros en la franja de marca
- * (`PodioRanking`); del cuarto en adelante, la `Tabla` de todo listado. Cada fila lleva
- * al perfil del aliado.
+ * contratos públicos, con su puesto (#1, #2…). Los tres primeros en el podio con sus
+ * medallas (`PodioRanking`, el mismo de la portada); del cuarto en adelante, la `Tabla`
+ * de todo listado. Cada fila lleva al perfil del aliado.
  *
  * Se cuenta en contratos, nunca en soles: trescientos vecinos que financian 300 contratos
  * pesan lo mismo que una empresa que financia 300. Va dentro de la `ZonaResultados` de la
@@ -49,7 +48,6 @@ const COLUMNAS: Columna[] = [
 ];
 
 function filaRanking(f: FilaRanking, financiadosAmbito: number): Fila {
-  const maqueta = esSlugMaqueta(f.slug);
   const tipo = esFundador(f) ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[f.tipo];
   return {
     id: String(f.id),
@@ -60,9 +58,9 @@ function filaRanking(f: FilaRanking, financiadosAmbito: number): Fila {
         <span className="flex w-full min-w-0 items-center gap-3">
           {/* El nombre ya lo dice: el logo es decorativo. En el celular se va, para dejarle ancho al nombre. */}
           <span aria-hidden className="hidden shrink-0 sm:inline-flex">
-            <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="sm" maqueta={maqueta} />
+            <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="sm" />
           </span>
-          <CeldaPrincipal titulo={f.nombre} meta={maqueta ? `Maqueta, no existe · ${tipo}` : tipo} />
+          <CeldaPrincipal titulo={f.nombre} meta={tipo} />
         </span>
       ),
       financiados: (
@@ -81,28 +79,22 @@ function filaRanking(f: FilaRanking, financiadosAmbito: number): Fila {
 export function RankingAliados({
   ranking,
   financiadosAmbito,
-  ambito,
   orden,
   paginaActual,
   periodo,
   region,
   nombreRegion,
-  queryMaqueta,
   precio,
   desglose,
 }: {
   ranking: Ranking;
   /** Contratos financiados en el ámbito (región y periodo): denominador de cada fila. */
   financiadosAmbito: number;
-  /** "Todo el Perú · desde el inicio": de qué ranking se habla. */
-  ambito: string;
   orden: ClaveOrden;
   paginaActual: number;
   periodo: Periodo;
   region?: string;
   nombreRegion?: string;
-  /** Valor de `?maqueta=` que conserva la paginación (sólo en desarrollo). */
-  queryMaqueta?: string;
   /** Precio real por contrato; sin él no se dice un monto. */
   precio: number | null;
   /** "procesamiento (S/ 1), infraestructura y datos (S/ 1)…", o vacío. */
@@ -131,7 +123,7 @@ export function RankingAliados({
         tam={TAM_PAGINA}
         navegacion="url"
         hrefBase="/app/aliados"
-        query={{ ubigeo: region, periodo: periodo !== "todo" ? periodo : undefined, maqueta: queryMaqueta }}
+        query={{ ubigeo: region, periodo: periodo !== "todo" ? periodo : undefined }}
         cargando={false}
         nombre="aliados"
       />
@@ -139,7 +131,10 @@ export function RankingAliados({
 
   return (
     <div className="space-y-4">
-      {podio.length === 3 && <PodioRanking filas={podio} financiadosAmbito={financiadosAmbito} ambito={ambito} />}
+      {/* Con uno o dos nombres, los puestos que faltan se ven libres: el podio es también la invitación. */}
+      {podio.length > 0 && (
+        <PodioRanking filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} />
+      )}
 
       {tabla.length > 0 && (
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">

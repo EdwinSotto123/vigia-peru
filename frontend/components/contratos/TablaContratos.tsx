@@ -141,7 +141,7 @@ function filaDe(c: ContratoResumen): Fila {
   const estado = c.enRevision || c.score != null ? severidadDeContrato(c).etiqueta : estadoLecturaDe(c).label;
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4): la meta dice cuántas hay.
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
-  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona].filter(Boolean).join(" · ");
+  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona];
   return {
     id: c.ocid,
     celdas: {

@@ -246,7 +246,7 @@ function EjecucionView({ data }: { data: MefBudgetSummary }) {
       {data.matchedPliegos.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
           <span>
-            {numero(data.matchedPliegos.length)} {data.matchedPliegos.length === 1 ? "pliego" : "pliegos"} ·{" "}
+            {numero(data.matchedPliegos.length)} {data.matchedPliegos.length === 1 ? "pliego" : "pliegos"},{" "}
             {numero(data.totalRows)} registros sumados:
           </span>
           {data.matchedPliegos.slice(0, 6).map((p, i) => (

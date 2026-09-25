@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Partes } from "@/components/ui/Partes";
 import { PageSection, claseBoton } from "@/components/admin/ui";
 import { type ProcAdmin, type Conteo, conteoVacio, ESTADO_UI, ORDEN_BARRA, TOPE_LISTA } from "./tipos";
 // ── Los lotes ─────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ export function Lotes({
                   <span className="font-mono text-ink">{l.c.procesado}</span> de {l.total} leídos{incompletos ? " en la lista" : ""}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-[12px] text-mute">{[l.financiador, l.zonas.slice(0, 2).join(", ")].filter(Boolean).join(" · ")}</p>
+              <p className="mt-0.5 truncate text-[12px] text-mute"><Partes partes={[l.financiador, l.zonas.slice(0, 2).join(", ")]} /></p>
               <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-paperDeep" aria-hidden>
                 {ORDEN_BARRA.map((e) => (l.c[e] > 0 ? <span key={e} className={ESTADO_UI[e].barra} style={{ width: `${(l.c[e] / l.total) * 100}%` }} /> : null))}
               </div>

@@ -38,10 +38,10 @@ function valor(v: unknown): React.ReactNode {
   return redactDnis(String(v));
 }
 
-/** El objeto de verificación del dictamen, aplanado un nivel ("sanitizacion · modificado: no"). */
+/** El objeto de verificación del dictamen, aplanado un nivel ("sanitizacion, modificado": no). */
 function aplanar(obj: Record<string, unknown>, prefijo = ""): [string, unknown][] {
   return Object.entries(obj).flatMap(([k, v]): [string, unknown][] =>
-    v && typeof v === "object" && !Array.isArray(v) && !prefijo ? aplanar(v as Record<string, unknown>, `${legible(k)} · `) : [[`${prefijo}${legible(k)}`, v]],
+    v && typeof v === "object" && !Array.isArray(v) && !prefijo ? aplanar(v as Record<string, unknown>, `${legible(k)}, `) : [[`${prefijo}${legible(k)}`, v]],
   );
 }
 

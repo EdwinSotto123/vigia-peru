@@ -13,6 +13,7 @@ import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Separador } from "@/components/ui/Partes";
 import { Severidad } from "@/components/ui/Severidad";
 
 /**
@@ -169,7 +170,7 @@ export default async function EntidadProfile({
       contexto:
         nAlertas === 0
           ? undefined
-          : `${conSenalesEsPiso ? "como mínimo, " : ""}de ${numero(nAlertas)} con dictamen${altos > 0 && altosExacto ? ` · ${numero(altos)} de riesgo alto` : ""}`,
+          : `${conSenalesEsPiso ? "como mínimo, " : ""}de ${numero(nAlertas)} con dictamen${altos > 0 && altosExacto ? `, ${numero(altos)} de riesgo alto` : ""}`,
       ayuda: (
         <Ayuda titulo="¿Qué es un contrato con señales?">
           Uno con al menos una señal publicada, de cualquier peso.
@@ -220,7 +221,12 @@ export default async function EntidadProfile({
                   {codigo || "Sin código"}
                 </span>
                 {/* En el celular la columna del monto no entra: va en la meta. */}
-                {adjudicado && <span className="md:hidden"> · {adjudicado}</span>}
+                {adjudicado && (
+                  <span className="md:hidden">
+                    <Separador />
+                    {adjudicado}
+                  </span>
+                )}
               </>
             }
           />

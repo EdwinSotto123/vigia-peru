@@ -10,6 +10,7 @@ import { maskDnis } from "@/lib/privacidad";
 import { cn } from "@/lib/utils";
 import { MiniaturaDenuncia } from "./MiniaturaDenuncia";
 import { diaDeDenuncia } from "./fechaDenuncia";
+import { Separador } from "@/components/ui/Partes";
 
 /**
  * Las denuncias sobre la plantilla Listado (§14.1): la `Tabla` compartida con la
@@ -99,10 +100,13 @@ export function ListaDenuncias({ reportes, total, pagina, tam, parametros, q, fa
               meta={
                 <>
                   {/* En el celular la categoría no tiene columna: va aquí. */}
-                  <span className="md:hidden">{etiqueta} · </span>
+                  <span className="md:hidden">
+                    {etiqueta}
+                    <Separador />
+                  </span>
                   {r.region || "Sin región"}
                   <span className="hidden md:inline">
-                    {" · "}
+                    <Separador />
                     <span className="font-mono" translate="no">
                       {r.id}
                     </span>

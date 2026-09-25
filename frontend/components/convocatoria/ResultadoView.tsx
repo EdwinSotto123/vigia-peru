@@ -341,7 +341,7 @@ function EstadoInconsistente({ er }: { er: any }) {
       <Info size={15} className="shrink-0 text-inkSoft" aria-hidden />
       <span className="font-semibold text-ink">Los documentos y el portal oficial no coinciden</span>
       <span className="text-inkSoft">
-        OECE: {legible(er.estado_ocds)} · expediente: {legible(er.estado_documentos)}
+        OECE: {legible(er.estado_ocds)}, expediente: {legible(er.estado_documentos)}
       </span>
       <Ayuda titulo="¿Por qué no coinciden?">
         <span className="block">
@@ -353,7 +353,7 @@ function EstadoInconsistente({ er }: { er: any }) {
         {docs.slice(0, 3).map((d: any, i: number) => (
           <span key={i} className="mt-1.5 block text-[12px] text-inkSoft">
             <strong className="font-semibold text-ink">{legible(d.tipo)}</strong> {d.titulo}
-            {d.fecha && <span className="text-mute"> · {fechaCorta(String(d.fecha).slice(0, 10))}</span>}
+            {d.fecha && <span className="text-mute">, del {fechaCorta(String(d.fecha).slice(0, 10))}</span>}
           </span>
         ))}
       </Ayuda>

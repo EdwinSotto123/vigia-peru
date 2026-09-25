@@ -85,7 +85,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
         titulo={`${meta?.label ?? "Denuncia ciudadana"}${rep.region ? ` en ${rep.region}` : ""}`}
         bajada={
           <>
-            {fecha ? `Reportada el ${fecha}` : "Sin fecha de reporte"} · código{" "}
+            {fecha ? `Reportada el ${fecha}` : "Sin fecha de reporte"}, código{" "}
             <span className="font-mono text-[13px]" translate="no">{rep.id}</span>. Es el testimonio de un vecino, no un
             hallazgo de Vigía.
           </>

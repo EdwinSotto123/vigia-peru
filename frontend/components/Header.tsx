@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Heart, Menu, X } from "lucide-react";
+import { Crown, Heart, Menu, X } from "lucide-react";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { UserMenu } from "./auth/UserMenu";
 import { BuscarGlobal } from "./BuscarGlobal";
@@ -32,7 +32,8 @@ const NAV = [
   { href: "/", label: "Inicio" },
   { href: "/app/mapa", label: "Mapa" },
   { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true },
-  { href: "/app/aliados", label: "Aliados" },
+  // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
+  { href: "/app/aliados", label: "Aliados", dorado: true },
   { href: "/reporte/nuevo", label: "Denunciar" },
   { href: "/preguntas", label: "FAQ" },
 ];
@@ -296,7 +297,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
             onMouseEnter={(e) => mover(e.currentTarget)}
             onFocus={(e) => mover(e.currentTarget)}
             className={cn(
-              "relative z-10 inline-flex min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors duration-rapido xl:px-3",
+              "group relative z-10 inline-flex min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors duration-rapido xl:px-3",
               "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:transition-transform after:duration-normal",
               active ? "after:scale-x-100" : "after:scale-x-0",
               oscuro
@@ -304,7 +305,15 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
                 : cn("after:bg-granate", active ? "text-granate" : "text-inkSoft hover:text-ink"),
             )}
           >
-            {n.label}
+            {"dorado" in n && n.dorado ? (
+              // Pastilla de maíz con texto tinta (legible sobre claro y sobre oscuro).
+              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-ink shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
+                <Crown size={13} aria-hidden className="text-medalla-oroOscuro" />
+                {n.label}
+              </span>
+            ) : (
+              n.label
+            )}
             {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
           </Link>
         );
@@ -378,11 +387,14 @@ function MobileNavPanel({
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-12 items-center rounded-xl px-4 text-base font-medium transition-colors duration-rapido",
-                  active
+                  "dorado" in n && n.dorado
+                    ? "gap-2 bg-maiz-soft font-semibold text-ink hover:bg-maiz/40"
+                    : active
                     ? "bg-granate-50 font-semibold text-granate"
                     : "text-inkSoft hover:bg-paperSoft hover:text-ink",
                 )}
               >
+                {"dorado" in n && n.dorado && <Crown size={16} aria-hidden className="text-medalla-oroOscuro" />}
                 {n.label}
                 {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
               </Link>

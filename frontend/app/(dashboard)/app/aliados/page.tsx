@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { RankingAliados } from "@/components/aliados/RankingAliados";
 import { ReglasIndependencia } from "@/components/aliados/ReglasIndependencia";
-import { AvisoMaqueta } from "@/components/aliados/AvisoMaqueta";
 import { pctProporcion } from "@/components/aliados/proporcion";
 import {
   MUESTRA_RANKING,
@@ -30,7 +28,6 @@ import {
 } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
 import { numero, soles } from "@/lib/formato";
-import { hrefSinMaqueta, maquetaActiva, rankingMaqueta, totalesMaqueta } from "@/lib/maqueta-aliados";
 
 export const metadata = {
   title: "Ranking de aliados",
@@ -47,18 +44,15 @@ export const revalidate = 300;
  * el resto en la `Tabla`, cada uno con su puesto (#1, #2…) y su perfil a un clic → las
  * reglas que hacen que ese dinero no compre nada.
  *
- * En DESARROLLO la página mezcla tres aliados INVENTADOS (lib/maqueta-aliados.ts) para
- * mirar el ranking con volumen, y lo avisa arriba y en cada fila; `?maqueta=0` los
- * apaga. En PRODUCCIÓN no existen nunca, ni con `?maqueta=1` escrito a mano.
+ * Sólo aliados reales, del API, en desarrollo igual que en producción.
  */
 export default async function AliadosPage({
   searchParams,
 }: {
-  searchParams?: { ubigeo?: string; pagina?: string; maqueta?: string; orden?: string; periodo?: string };
+  searchParams?: { ubigeo?: string; pagina?: string; orden?: string; periodo?: string };
 }) {
   const ubigeo = searchParams?.ubigeo && /^\d{2,6}$/.test(searchParams.ubigeo) ? searchParams.ubigeo : undefined;
   const pagina = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
-  const maqueta = maquetaActiva(searchParams?.maqueta);
   const orden = parseOrden(searchParams?.orden);
   const periodo = parsePeriodo(searchParams?.periodo);
 
@@ -75,15 +69,7 @@ export default async function AliadosPage({
       ? await getRankingPaginado({ periodo, region: ubigeo, limit: TAM_PAGINA, offset: (pagina - 1) * TAM_PAGINA })
       : null;
 
-  const ranking = muestra
-    ? armarRanking({
-        muestra,
-        pagina: paginaApi,
-        inventados: maqueta ? rankingMaqueta(ubigeo, periodo) : [],
-        orden,
-        paginaActual: pagina,
-      })
-    : null;
+  const ranking = muestra ? armarRanking({ muestra, pagina: paginaApi, orden, paginaActual: pagina }) : null;
 
   // El filtro lista toda región con cola, también las que nadie financia: una región con
   // cola y sin aliados es justo la que hay que poder mirar.
@@ -96,16 +82,10 @@ export default async function AliadosPage({
   // orden lo pone el API y un selector que no ordena sería mentira.
   const ordenable = !!ranking && ranking.completa && ranking.totalNombres > 1;
 
-  // Los aliados de maqueta también se suman a las cifras: si no, arriba dirían "45
-  // financiados" y el ranking listaría 247. Con `maqueta` apagado esto es cero.
-  const extra = maqueta ? totalesMaqueta(ubigeo) : { financiados: 0, leidos: 0, conSenal: 0, enRevision: 0 };
-  const extraAviso = maqueta && periodo !== "todo" ? totalesMaqueta(ubigeo, periodo) : extra;
-  const financiadosTodo = (zona ? zona.financiados : estado?.contratosFinanciados ?? 0) + extra.financiados;
+  const financiadosTodo = zona ? zona.financiados : estado?.contratosFinanciados ?? 0;
   // Con periodo, el ámbito es lo financiado en ese periodo: sale del propio ranking.
   const financiadosAmbito = periodo === "todo" ? financiadosTodo : ranking?.sumas.financiados ?? 0;
 
-  const ambito = `${zona?.nombre ?? "Todo el Perú"} · ${PERIODO_LABEL[periodo].toLowerCase()}`;
-  const salirMaqueta = hrefSinMaqueta(ubigeo ? `/app/aliados?ubigeo=${ubigeo}` : "/app/aliados");
   const partes = partesTarifa(estado?.tarifa?.nota);
 
   let indicadores: Indicador[] | null = null;
@@ -117,9 +97,9 @@ export default async function AliadosPage({
       zona,
       publicados: (ubigeo ? resumenZona?.total : resumenPais?.total) ?? null,
       financiados: financiadosTodo,
-      leidos: (zona ? zona.procesados : estado.contratosProcesados ?? 0) + extra.leidos,
-      conSenal: (zona ? zona.senales : estado.senalesHalladas) + extra.conSenal,
-      enRevision: ((zona ? zona.enRevision : estado.enRevision) ?? 0) + extra.enRevision,
+      leidos: zona ? zona.procesados : estado.contratosProcesados ?? 0,
+      conSenal: zona ? zona.senales : estado.senalesHalladas,
+      enRevision: (zona ? zona.enRevision : estado.enRevision) ?? 0,
     });
   }
 
@@ -151,8 +131,6 @@ export default async function AliadosPage({
         }
       />
 
-      {maqueta && <AvisoMaqueta volverHref={salirMaqueta} financiados={extraAviso.financiados} leidos={extraAviso.leidos} />}
-
       {/* Si el API cae, se dice: no se dibujan ceros que parezcan dato. */}
       {indicadores ? <Indicadores items={indicadores} /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
 
@@ -162,7 +140,6 @@ export default async function AliadosPage({
           ubigeo,
           periodo: periodo !== "todo" ? periodo : undefined,
           orden: orden !== "financiados" ? orden : undefined,
-          maqueta: searchParams?.maqueta,
         }}
       >
         <div className="space-y-4">
@@ -200,13 +177,11 @@ export default async function AliadosPage({
               <RankingAliados
                 ranking={ranking}
                 financiadosAmbito={financiadosAmbito}
-                ambito={ambito}
                 orden={orden}
                 paginaActual={pagina}
                 periodo={periodo}
                 region={ubigeo}
                 nombreRegion={zona?.nombre}
-                queryMaqueta={!maqueta && process.env.NODE_ENV !== "production" ? "0" : undefined}
                 precio={estado?.tarifa?.precioPen ?? null}
                 desglose={frasePartesTarifa(partes)}
               />
@@ -228,20 +203,6 @@ export default async function AliadosPage({
       </Listado>
 
       <ReglasIndependencia />
-
-      {/* La puerta de vuelta a la maqueta existe sólo en desarrollo (tras salir con
-          ?maqueta=0). En producción la maqueta no existe aunque alguien escriba ?maqueta=1. */}
-      {process.env.NODE_ENV !== "production" && !maqueta && (
-        <p className="text-[12px] text-mute">
-          <Link
-            href={ubigeo ? `/app/aliados?ubigeo=${ubigeo}&maqueta=1` : "/app/aliados?maqueta=1"}
-            className="underline underline-offset-2 hover:text-ink"
-          >
-            Ver esta página con aliados de maqueta
-          </Link>
-          : sólo en desarrollo.
-        </p>
-      )}
     </Pagina>
   );
 }
@@ -299,7 +260,7 @@ function indicadoresAmbito({
     {
       valor: numero(conSenal),
       etiqueta: "con señales",
-      contexto: `de ${numero(leidos)} leídos${enRevision > 0 ? ` · ${numero(enRevision)} en revisión` : ""}`,
+      contexto: `de ${numero(leidos)} leídos${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`,
       ayuda: (
         <Ayuda titulo="¿Se publica todo?">
           Sí: se publican igual, señalen a quien señalen, también a quien financió. Los que están en revisión no cuentan
@@ -338,7 +299,7 @@ function indicadoresPeriodo(ranking: Ranking, periodo: Periodo): Indicador[] {
       valor: v(sumas.conSenal),
       etiqueta: "con señales",
       contexto: completa
-        ? `de ${numero(sumas.leidos)} leídos${sumas.enRevision > 0 ? ` · ${numero(sumas.enRevision)} en revisión` : ""}`
+        ? `de ${numero(sumas.leidos)} leídos${sumas.enRevision > 0 ? `, ${numero(sumas.enRevision)} en revisión` : ""}`
         : undefined,
     },
     {

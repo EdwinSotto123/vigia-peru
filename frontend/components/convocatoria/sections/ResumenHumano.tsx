@@ -53,7 +53,7 @@ export function ResumenHumano({
   const estado = conSenales
     ? [score !== null ? `Puntaje ${Math.round(score)} de 100` : null, !corrida.completa ? `Análisis incompleto${corrida.faltan.length ? `: faltó ${corrida.faltan.join(" y ")}` : ""}` : null]
         .filter(Boolean)
-        .join(" · ")
+        .join(". ")
     : nivel.nivel === "limpio"
       ? "Ninguna regla de contratación disparó una señal."
       : `${

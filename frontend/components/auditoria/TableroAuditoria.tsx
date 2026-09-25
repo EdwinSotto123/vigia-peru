@@ -8,12 +8,16 @@
  * sólo con la pestaña visible. Si el API no responde, conserva lo último que mostró y lo
  * dice en voz baja; nunca rompe.
  *
- * Vive en tres lugares, con la misma API de props: /app/auditoria (la pieza viva del
- * Tablero), /app/financiar/[ubigeo] (`compacto`, en un panel lateral) e /impacto/[codigo].
+ * Vive en tres lugares, con la misma API de props: /app/auditoria (la pestaña En curso del
+ * Tablero, `enPestanas`), /app/financiar/[ubigeo] (`compacto`, en un panel lateral) e
+ * /impacto/[codigo].
  *
  *  · `verMasHref`: la página ya tiene su propio listado de lo leído más abajo, así que el
  *    grupo "Leídos" no se repite acá, y "En espera" se muestra de a `TOPE` filas: 47 filas
  *    empujaban ese listado tres pantallas hacia abajo. El resto, a un clic.
+ *  · `enPestanas`: lo mismo, pero lo leído está en otra pestaña y el estado en vivo ya va
+ *    arriba de la página: sin enlace ni línea de estado (quedan sus avisos: sin conexión,
+ *    parcial). Repetirlos era otra línea gris entre la barra de pestañas y la tabla.
  *  · Los filtros NO viven acá: llegan como props (en /app/auditoria, de la URL). Por eso el
  *    tablero se monta con `key` por filtro y el sondeo nunca pelea con el estado de la URL.
  *
@@ -53,8 +57,7 @@ import {
 } from "@/lib/auditoria";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { EstadoError, EstadoVacio } from "@/components/patrones";
-import { Tabla, TablaSkeleton, type Fila, type GrupoFilas } from "@/components/listado";
-import { AvisoSinLlamita } from "./AvisoSinLlamita";
+import { CuentaGrupo, Tabla, TablaSkeleton, type Fila, type GrupoFilas } from "@/components/listado";
 import {
   COLUMNAS_VIVO,
   COLUMNAS_VIVO_COMPACTO,
@@ -172,6 +175,12 @@ interface Props {
    */
   verMasHref?: string;
   /**
+   * Dentro de las pestañas de /app/auditoria: lo leído vive en su propia pestaña (como
+   * `verMasHref`, sin el grupo "Leídos" y con la espera de a `TOPE`) y el estado en vivo va
+   * arriba de la página, así que la línea de estado sólo muestra avisos.
+   */
+  enPestanas?: boolean;
+  /**
    * Qué mostrar en lugar del grupo "En análisis" cuando no hay nada en análisis, que es el
    * estado NORMAL de esta pantalla, no la excepción. ReactNode ya renderizado (puede venir de
    * un server component); jamás una función: eso compila y rompe sólo en producción.
@@ -197,6 +206,7 @@ export function TableroAuditoria({
   initial,
   compacto = false,
   verMasHref,
+  enPestanas = false,
   panelSecundario,
   conLlamita = false,
 }: Props) {
@@ -375,10 +385,11 @@ export function TableroAuditoria({
   const truncado = cargado && total > items.length;
   const nAnalisis = porGrupo.procesando.length;
   const conPanel = !!panelSecundario && nAnalisis === 0;
-  // Con verMasHref, "Leídos" ya vive (completo, filtrable) en el listado de abajo. Nada en
-  // análisis + hay algo mejor que un grupo vacío → el panel ocupa su lugar.
-  const visibles = GRUPOS.filter((g) => !(verMasHref && g.key === "procesado") && !(conPanel && g.key === "procesando"));
-  const conTope = !!verMasHref && !compacto && !todaLaEspera;
+  // Con verMasHref o en pestañas, "Leídos" ya vive (completo, filtrable) en su propio listado.
+  // Nada en análisis + hay algo mejor que un grupo vacío → el panel ocupa su lugar.
+  const leidosAparte = !!verMasHref || enPestanas;
+  const visibles = GRUPOS.filter((g) => !(leidosAparte && g.key === "procesado") && !(conPanel && g.key === "procesando"));
+  const conTope = leidosAparte && !compacto && !todaLaEspera;
   const nEspera = porGrupo.encolado.length;
 
   const fila = (p: Procesamiento): Fila => ({
@@ -404,7 +415,8 @@ export function TableroAuditoria({
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className={`inline-flex items-center gap-1.5 ${g.key === "procesando" && filas.length ? "text-amberTexto" : ""}`}>
             {g.icon}
-            {g.label} · <span className="tabular-nums text-ink">{numero(filas.length)}</span>
+            {g.label}
+            <CuentaGrupo>{numero(filas.length)}</CuentaGrupo>
           </span>
           {/* De qué está hecho el grupo, contado sobre estas mismas filas. Con un solo estado
               no se desglosa: la píldora de cada fila ya lo nombra. */}
@@ -412,7 +424,7 @@ export function TableroAuditoria({
             <span className="text-[11.5px] font-normal text-mute">
               {partes.map(([estado, n], i) => (
                 <span key={estado}>
-                  {i > 0 && " · "}
+                  {i > 0 && ", "}
                   <span className="tabular-nums">{numero(n)}</span> {etiquetaEstado(estado, n)}
                 </span>
               ))}
@@ -427,6 +439,8 @@ export function TableroAuditoria({
   const sinFilas = cargado && grupos.every((g) => g.filas.length === 0);
   const columnas = compacto ? COLUMNAS_VIVO_COMPACTO : COLUMNAS_VIVO;
   const filtrado = !!(desde || hasta || financiador);
+  // En pestañas y sin avisos, nada va arriba de la tabla: sin margen suelto bajo la barra.
+  const sinCabecera = enPestanas && !truncado && !fallo;
 
   return (
     <section aria-label={titulo ?? "Tablero de auditoría en vivo"}>
@@ -435,48 +449,64 @@ export function TableroAuditoria({
 
       {titulo && <h2 className="font-display text-2xl font-bold text-ink">{titulo}</h2>}
 
-      {/* Una línea de estado: enlace a lo ya leído y qué tan vivo está esto de verdad. Los
-          conteos van en el rótulo de cada grupo, una sola vez. */}
-      <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-mute ${titulo ? "mt-1" : ""}`}>
-        {verMasHref && porGrupo.procesado.length > 0 ? (
-          <a href={verMasHref} className="inline-flex min-h-[24px] items-center gap-1 font-medium text-granate underline-offset-2 hover:underline">
-            Ver lo ya leído <span aria-hidden>↓</span>
-          </a>
-        ) : (
-          <span />
-        )}
-        <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
-          {truncado && (
-            <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
-              Mostrando {numero(items.length)} de {numero(total)}
-            </span>
-          )}
-          {fallo ? (
-            <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
-          ) : nAnalisis > 0 ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-amberTexto">
-              <PulseDot color="amber" size={6} />
-              En vivo: {plural(nAnalisis, "contrato en análisis", "contratos en análisis")}
-            </span>
-          ) : movido != null ? (
-            <span className="inline-flex items-center gap-1.5" title="Último contrato que empezó o terminó su análisis en este tablero. Se vuelve a consultar cada pocos segundos.">
-              <Clock size={12} aria-hidden />
-              <span>
-                Sin cambios desde el <time dateTime={new Date(movido).toISOString()}>{fechaLima(movido, { hora: true })}</time>
-                {ahora > 0 && <span suppressHydrationWarning> ({haceCuanto(ahora - movido)})</span>}
+      {enPestanas ? (
+        // El estado en vivo ya está arriba de la página: acá sólo lo que avisa de un problema.
+        (truncado || fallo) && (
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-mute">
+            {truncado && (
+              <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
+                Mostrando {numero(items.length)} de {numero(total)}
               </span>
-            </span>
-          ) : cargado ? (
-            <span>Sin movimientos todavía</span>
+            )}
+            {fallo && (
+              <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
+            )}
+          </div>
+        )
+      ) : (
+        // Una línea de estado: enlace a lo ya leído y qué tan vivo está esto de verdad. Los
+        // conteos van en el rótulo de cada grupo, una sola vez.
+        <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-mute ${titulo ? "mt-1" : ""}`}>
+          {verMasHref && porGrupo.procesado.length > 0 ? (
+            <a href={verMasHref} className="inline-flex min-h-[24px] items-center gap-1 font-medium text-granate underline-offset-2 hover:underline">
+              Ver lo ya leído <span aria-hidden>↓</span>
+            </a>
           ) : (
-            <span>Conectando…</span>
+            <span />
           )}
-        </span>
-      </div>
+          <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
+            {truncado && (
+              <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
+                Mostrando {numero(items.length)} de {numero(total)}
+              </span>
+            )}
+            {fallo ? (
+              <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
+            ) : nAnalisis > 0 ? (
+              <span className="inline-flex items-center gap-1.5 font-medium text-amberTexto">
+                <PulseDot color="amber" size={6} />
+                En vivo: {plural(nAnalisis, "contrato en análisis", "contratos en análisis")}
+              </span>
+            ) : movido != null ? (
+              <span className="inline-flex items-center gap-1.5" title="Último contrato que empezó o terminó su análisis en este tablero. Se vuelve a consultar cada pocos segundos.">
+                <Clock size={12} aria-hidden />
+                <span>
+                  Sin cambios desde el <time dateTime={new Date(movido).toISOString()}>{fechaLima(movido, { hora: true })}</time>
+                  {ahora > 0 && <span suppressHydrationWarning> ({haceCuanto(ahora - movido)})</span>}
+                </span>
+              </span>
+            ) : cargado ? (
+              <span>Sin movimientos todavía</span>
+            ) : (
+              <span>Conectando…</span>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Lo último que se movió mientras esta página estuvo abierta. */}
       {ultimoCambio && (
-        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink">
+        <p className={`${sinCabecera ? "" : "mt-2"} flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink`}>
           <span className="font-semibold">Recién:</span>
           <span className="min-w-0">{ultimoCambio.texto}</span>
           {ahora > 0 && <span className="text-[11px] tabular-nums text-inkSoft" suppressHydrationWarning>{haceCuanto(Math.max(0, ahora - ultimoCambio.at))}</span>}
@@ -484,9 +514,17 @@ export function TableroAuditoria({
       )}
 
       {cargado && items.length === 0 ? (
-        <VacioTablero fallo={fallo} codigo={codigo} ubigeo={ubigeo} filtrado={filtrado} compacto={compacto} conLlamita={conLlamita} />
+        <VacioTablero
+          fallo={fallo}
+          codigo={codigo}
+          ubigeo={ubigeo}
+          filtrado={filtrado}
+          compacto={compacto}
+          conLlamita={conLlamita}
+          className={sinCabecera && !ultimoCambio ? "" : "mt-4"}
+        />
       ) : (
-        <div ref={raiz} className="mt-3 space-y-3">
+        <div ref={raiz} className={`${sinCabecera && !ultimoCambio ? "" : "mt-3"} space-y-3`}>
           {/* Nada en análisis (el estado normal): la última lectura real va primero. */}
           {conPanel && panelSecundario}
 
@@ -501,7 +539,7 @@ export function TableroAuditoria({
             <Tabla columnas={columnas} grupos={grupos} etiqueta="Contratos financiados en vivo" />
           )}
 
-          {!!verMasHref && !compacto && nEspera > TOPE && (
+          {leidosAparte && !compacto && nEspera > TOPE && (
             <button
               type="button"
               onClick={() => setTodaLaEspera((v) => !v)}
@@ -517,13 +555,29 @@ export function TableroAuditoria({
   );
 }
 
-function VacioTablero({ fallo, codigo, ubigeo, filtrado, compacto, conLlamita }: { fallo: boolean; codigo?: string; ubigeo?: string; filtrado: boolean; compacto: boolean; conLlamita: boolean }) {
+function VacioTablero({
+  fallo,
+  codigo,
+  ubigeo,
+  filtrado,
+  compacto,
+  conLlamita,
+  className,
+}: {
+  fallo: boolean;
+  codigo?: string;
+  ubigeo?: string;
+  filtrado: boolean;
+  compacto: boolean;
+  conLlamita: boolean;
+  className: string;
+}) {
   if (fallo) {
     const texto = "Se vuelve a intentar solo, cada pocos segundos. Lo ya publicado sigue disponible en el mapa.";
-    return conLlamita ? (
-      <EstadoError titulo="El tablero en vivo no respondió" className="mt-4">{texto}</EstadoError>
-    ) : (
-      <AvisoSinLlamita tono="error" titulo="El tablero en vivo no respondió" className="mt-4">{texto}</AvisoSinLlamita>
+    return (
+      <EstadoError titulo="El tablero en vivo no respondió" conLlamita={conLlamita} className={className}>
+        {texto}
+      </EstadoError>
     );
   }
   const copy = filtrado
@@ -534,9 +588,9 @@ function VacioTablero({ fallo, codigo, ubigeo, filtrado, compacto, conLlamita }:
         ? "Cuando alguien financie esta zona, verás aquí cada contrato pasar de la cola al análisis y al dictamen."
         : "Cuando se confirme un aporte, sus contratos aparecerán aquí y podrás verlos avanzar paso por paso.";
   const titulo = filtrado ? "Nada coincide con estos filtros" : "Nada en proceso todavía";
-  return conLlamita ? (
-    <EstadoVacio compacto={compacto} titulo={titulo} className="mt-4">{copy}</EstadoVacio>
-  ) : (
-    <AvisoSinLlamita titulo={titulo} className="mt-4">{copy}</AvisoSinLlamita>
+  return (
+    <EstadoVacio compacto={compacto} conLlamita={conLlamita} titulo={titulo} className={className}>
+      {copy}
+    </EstadoVacio>
   );
 }

@@ -1,7 +1,11 @@
 /**
- * "Todo lo que ya se leyó" sobre la plantilla Listado (DESIGN_SYSTEM.md §14.1): paginación
- * arriba a la derecha y abajo, la `Tabla` del kit y los estados vacío/error. Va dentro del
- * `Listado` + `ZonaResultados` de /app/auditoria, cuya `BarraFiltros` pone los filtros en la URL.
+ * "Ya leídos" sobre la plantilla Listado (DESIGN_SYSTEM.md §14.1): la primera línea de la
+ * pestaña con la paginación a la derecha (y otra abajo), la `Tabla` del kit y los estados
+ * vacío/error. Va en la pestaña Ya leídos de /app/auditoria, dentro del `Listado` +
+ * `ZonaResultados` cuya `BarraFiltros` pone los filtros en la URL.
+ *
+ * Cada enlace (páginas, reintentar, quitar filtros) lleva `?seccion=` de su pestaña: pasar de
+ * página es navegar, y sin él la página nueva abría en la primera pestaña.
  *
  * Un registro estable: no se refresca cada 5 s como el tablero en vivo, así que se pagina
  * por URL (?pagina=) y se renderiza en el servidor. Paginacion recibe `hrefBase` + `query`
@@ -15,9 +19,10 @@
  * que no existe (?pagina=99) se nombra como tal, con un enlace a la primera.
  */
 
+import type { ReactNode } from "react";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { CabeceraPestana, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaTexto, Tabla, type Fila } from "@/components/listado";
 import { numero, plural } from "@/lib/formato";
 import { estadoVisible, type Procesamiento, type ProcesamientosPagina } from "@/lib/auditoria";
@@ -44,25 +49,47 @@ export function HistoricoProcesados({
   paginaActual,
   filtros,
   conFinanciador,
+  seccion,
+  cabecera,
 }: {
   pagina: ProcesamientosPagina | null;
   paginaActual: number;
   filtros: FiltrosAuditoria;
   conFinanciador: boolean;
+  /** Clave de la pestaña en que vive: va en cada enlace (`?seccion=`). */
+  seccion?: string;
+  /** La primera línea de la pestaña (una oración + ⓘ); la paginación va a su derecha. */
+  cabecera?: { texto: ReactNode; ayuda?: ReactNode };
 }) {
   const hayFiltros = !!(filtros.ubigeo || filtros.desde || filtros.hasta || filtros.financiador);
+  // La pestaña viaja en cada enlace, con los filtros o sin ellos.
+  const query: FiltrosAuditoria & { seccion?: string } = { ...filtros, seccion };
+  const href = (q: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => !!e[1])).toString();
+    return `/app/auditoria${qs ? `?${qs}` : ""}`;
+  };
   // Primera página con los mismos filtros: para reintentar y para salir de una página que no existe.
-  const qs = new URLSearchParams(Object.entries(filtros).filter((e): e is [string, string] => !!e[1])).toString();
-  const primera = `/app/auditoria${qs ? `?${qs}` : ""}#historico`;
+  const primera = href(query);
+  const linea = (acciones?: ReactNode) =>
+    cabecera ? (
+      <CabeceraPestana ayuda={cabecera.ayuda} acciones={acciones}>
+        {cabecera.texto}
+      </CabeceraPestana>
+    ) : acciones ? (
+      <div className="mb-3 flex justify-end">{acciones}</div>
+    ) : null;
 
   if (pagina == null) {
     return (
-      <EstadoError
-        titulo="No pudimos leer lo ya leído"
-        accion={<EnlaceAccion variante="secundario" href={primera}>Reintentar</EnlaceAccion>}
-      >
-        El servicio no respondió. No mostramos nada en su lugar.
-      </EstadoError>
+      <>
+        {linea()}
+        <EstadoError
+          titulo="No pudimos leer lo ya leído"
+          accion={<EnlaceAccion variante="secundario" href={primera}>Reintentar</EnlaceAccion>}
+        >
+          El servicio no respondió. No mostramos nada en su lugar.
+        </EstadoError>
+      </>
     );
   }
 
@@ -71,30 +98,38 @@ export function HistoricoProcesados({
   const items = pagina.data ?? [];
 
   if (total === 0) {
-    return hayFiltros ? (
-      <EstadoVacio
-        compacto
-        titulo="Nada leído con estos filtros"
-        accion={<EnlaceAccion variante="secundario" href="/app/auditoria#historico">Quitar los filtros</EnlaceAccion>}
-      >
-        Prueba quitando el último filtro que agregaste.
-      </EstadoVacio>
-    ) : (
-      <EstadoVacio titulo="Todavía no se leyó ningún contrato financiado">
-        Cuando termine el primer análisis, aparece aquí con lo que encontró y quién lo pagó.
-      </EstadoVacio>
+    return (
+      <>
+        {linea()}
+        {hayFiltros ? (
+          <EstadoVacio
+            compacto
+            titulo="Nada leído con estos filtros"
+            accion={<EnlaceAccion variante="secundario" href={href({ seccion })}>Quitar los filtros</EnlaceAccion>}
+          >
+            Prueba quitando el último filtro que agregaste.
+          </EstadoVacio>
+        ) : (
+          <EstadoVacio titulo="Todavía no se leyó ningún contrato financiado">
+            Cuando termine el primer análisis, aparece aquí con lo que encontró y quién lo pagó.
+          </EstadoVacio>
+        )}
+      </>
     );
   }
 
   if (paginaActual > paginas) {
     return (
-      <EstadoVacio
-        compacto
-        titulo={`La página ${numero(paginaActual)} no existe`}
-        accion={<EnlaceAccion variante="secundario" href={primera}>Ir a la primera</EnlaceAccion>}
-      >
-        Lo ya leído tiene {plural(paginas, "página", "páginas")}.
-      </EstadoVacio>
+      <>
+        {linea()}
+        <EstadoVacio
+          compacto
+          titulo={`La página ${numero(paginaActual)} no existe`}
+          accion={<EnlaceAccion variante="secundario" href={primera}>Ir a la primera</EnlaceAccion>}
+        >
+          Lo ya leído tiene {plural(paginas, "página", "páginas")}.
+        </EstadoVacio>
+      </>
     );
   }
 
@@ -119,17 +154,17 @@ export function HistoricoProcesados({
       tam={TAM_HISTORICO}
       navegacion="url"
       hrefBase="/app/auditoria"
-      query={filtros}
+      query={query}
       cargando={false}
       nombre="contratos leídos"
     />
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">{pag}</div>
+    <div>
+      {linea(pag)}
       <Tabla columnas={columnasHistorico(conFinanciador)} filas={filas} etiqueta="Contratos financiados ya leídos" />
-      <div className="flex justify-end">{pag}</div>
+      {paginas > 1 && <div className="mt-3 flex justify-end">{pag}</div>}
     </div>
   );
 }

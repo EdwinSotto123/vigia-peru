@@ -92,7 +92,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
                     <span className="block h-full rounded-full bg-moss" style={{ width: `${Math.round((r.n / max) * 100)}%` }} />
                   </span>
                   <span className="w-32 shrink-0 text-right text-mute">
-                    <span className="font-mono text-ink">{fmtNum(r.n)}</span> docs · {fmtNum(r.contratos)} contr.
+                    <span className="font-mono text-ink">{fmtNum(r.n)}</span> docs, {fmtNum(r.contratos)} contr.
                   </span>
                 </li>
               ))}
@@ -111,7 +111,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
                   <Expandable
                     key={causa}
                     resumen={<span className="font-medium">{ERROR_ITEM[causa] ?? causa}</span>}
-                    meta={`${items.length} docs · ${contratos.size} ${contratos.size === 1 ? "contrato" : "contratos"}`}
+                    meta={`${items.length} docs de ${contratos.size} ${contratos.size === 1 ? "contrato" : "contratos"}`}
                     className="rounded-xl"
                   >
                     <ul className="max-h-48 space-y-1 overflow-y-auto text-[12px]">
@@ -121,7 +121,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
                           <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3">
                             <span className="text-ink">
                               Contrato <span className="font-mono">{ocid}</span>
-                              {doc && <span className="text-mute"> · documento <span className="font-mono">{doc}</span></span>}
+                              {doc && <span className="text-mute">, documento <span className="font-mono">{doc}</span></span>}
                             </span>
                             <span className="text-mute" title={e.loteId}>{hace(e.procesadoAt) ?? "sin fecha"}</span>
                           </li>

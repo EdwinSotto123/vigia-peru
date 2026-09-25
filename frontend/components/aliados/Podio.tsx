@@ -1,20 +1,17 @@
 import Link from "next/link";
-import { FranjaTextil } from "@/components/marca";
+import { COLUMNA_PODIO, FranjaTextil, Medalla, PodioEscena } from "@/components/marca";
 import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
-import { esSlugMaqueta } from "@/lib/maqueta-aliados";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { AvatarAliado, esFundador } from "./TarjetaAliado";
-import { SelloMaqueta } from "./AvisoMaqueta";
 import { pctProporcion } from "./proporcion";
 import { hrefPerfil, type FilaRanking } from "./ranking";
 
 /**
- * El puesto en el ranking (#1, #2…), en todas partes igual: la tabla, el podio y el
- * perfil. Los tres primeros van en granate profundo con el número en maíz (el único
- * lugar donde el maíz brilla sobre claro es dentro de su propia placa oscura, 8.39:1);
- * del cuarto en adelante, neutro. Sin trofeos ni medallas: oro y bronce se leerían
- * como severidad (§3.7), y el rango ya lo dice el número.
+ * El puesto en el ranking (#1, #2…) en la tabla y el perfil. Los tres primeros van en
+ * granate profundo con el número en maíz (el maíz sólo brilla sobre su propia placa
+ * oscura, 8.39:1); del cuarto en adelante, neutro. En el podio el puesto lo dice la
+ * medalla (§2.5), no esta pastilla.
  */
 export function Puesto({ n, tamano = "md", className }: { n: number; tamano?: "md" | "lg"; className?: string }) {
   return (
@@ -35,101 +32,197 @@ export function Puesto({ n, tamano = "md", className }: { n: number; tamano?: "m
   );
 }
 
+type Lugar = 1 | 2 | 3;
+
+/** Lo que dice un puesto libre, igual en la portada y en /app/aliados. */
+export const LUGAR_LIBRE = "Tu nombre, el de tu colectivo o el de tu empresa.";
+
+/** El escalón que sube (la clase compartida del kit de marca, server-safe). */
+const SUBE = COLUMNA_PODIO;
+
 /**
- * Los tres primeros del ranking, en una franja de marca sobre la tabla (DESIGN_SYSTEM.md
- * §3.8 y §14.6): granate profundo, texto papel y el maíz sólo en el puesto y la cifra.
- * Cada tarjeta es un enlace a su perfil. En el celular, tres renglones compactos; desde
- * `md`, tres columnas en orden de lectura (1, 2, 3), sin pedestales que obliguen a
- * adivinar el orden por la altura.
+ * Cada lugar del podio. El DOM va 1, 2, 3 (el orden de lectura); la vista, 2 · 1 · 3.
+ * Suben 3.º → 2.º → 1.º y la medalla aparece cuando su escalón ya llegó.
+ */
+const LUGAR: Record<Lugar, { orden: string; alto: string; cara: string; numeral: string; cifra: string; medalla: number; sube: number }> = {
+  1: {
+    orden: "order-2",
+    alto: "h-16 sm:h-24 lg:h-28",
+    cara: "border-maiz bg-gradient-to-b from-maiz/30 via-maiz/10 to-maiz/[0.03]",
+    numeral: "text-3xl text-maiz/70 sm:text-5xl lg:text-6xl",
+    cifra: "text-maiz",
+    medalla: 68,
+    sube: 400,
+  },
+  2: {
+    orden: "order-1",
+    alto: "h-12 sm:h-16 lg:h-20",
+    cara: "border-medalla-plata bg-gradient-to-b from-paper/[0.14] to-paper/[0.03]",
+    numeral: "text-2xl text-paper/35 sm:text-3xl lg:text-4xl",
+    cifra: "text-paper",
+    medalla: 54,
+    sube: 200,
+  },
+  3: {
+    orden: "order-3",
+    alto: "h-8 sm:h-12 lg:h-14",
+    cara: "border-medalla-bronce bg-gradient-to-b from-paper/[0.11] to-paper/[0.02]",
+    numeral: "text-xl text-paper/30 sm:text-2xl lg:text-3xl",
+    cifra: "text-paper",
+    medalla: 54,
+    sube: 0,
+  },
+};
+
+/** La medalla aparece cuando su escalón ya subió. */
+const DESPUES_DEL_ESCALON = 500;
+
+/**
+ * El podio del ranking de aliados (DESIGN_SYSTEM.md §2.5 y §14.6), el mismo en la
+ * portada y en /app/aliados: tres escalones de alto distinto (1.º al centro, el más
+ * alto; 2.º a la izquierda; 3.º a la derecha), cada uno con su medalla —oro con corona,
+ * plata, bronce—, el logo y el nombre del aliado, y cuántos contratos financió (nunca
+ * soles). Al entrar en pantalla los escalones suben (3.º, 2.º, 1.º), la medalla aparece
+ * y la corona cae; el servidor lo pinta quieto y completo, así que sin JS o con
+ * movimiento reducido se ve igual, sin animación.
  *
- * Sólo existe ordenando por contratos financiados: con otro orden, "los tres primeros"
- * significaría otra cosa.
+ * Con menos de tres nombres, los puestos que faltan se dibujan libres (`lugarLibre`):
+ * decirlo es más honesto que estirar el podio, y es la invitación a subirse. Sin
+ * `lugarLibre`, con menos de tres no se dibuja.
  */
 export function PodioRanking({
   filas,
   financiadosAmbito,
-  ambito,
+  titulo,
+  nivel = 2,
+  lugarLibre,
 }: {
-  /** Los tres primeros, ya con su puesto. */
+  /** Los primeros del ranking (hasta tres), ya con su puesto. */
   filas: FilaRanking[];
-  /** Total financiado del ámbito: el denominador de cada tarjeta. */
-  financiadosAmbito: number;
-  /** "todo el Perú · desde el inicio", para que el título diga de qué ranking habla. */
-  ambito: string;
+  /** Total financiado del ámbito: sin él no se dice qué parte es de cada uno. */
+  financiadosAmbito?: number;
+  /** Por defecto, "Los tres que…" con tres nombres y "Quienes…" con menos. */
+  titulo?: string;
+  /** Nivel del título: 2 en /app/aliados; 3 dentro de una sección de la portada. */
+  nivel?: 2 | 3;
+  /** Qué se dice en un puesto sin nombre. Sin este texto, con menos de tres no hay podio. */
+  lugarLibre?: string;
 }) {
-  if (filas.length < 3) return null;
+  const primeros = filas.slice(0, 3);
+  if (primeros.length < 3 && !lugarLibre) return null;
+  const Titulo = nivel === 3 ? "h3" : "h2";
+  const texto = titulo ?? (primeros.length === 3 ? "Los tres que más contratos hicieron leer" : "Quienes más contratos hicieron leer");
+  const lugares: Lugar[] = [1, 2, 3];
+
   return (
     <section aria-labelledby="podio-titulo" className="sobre-oscuro overflow-hidden rounded-2xl bg-granate-deep text-paper">
       <FranjaTextil alto={8} />
-      <div className="px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-          <h2 id="podio-titulo" className="font-display text-[17px] font-bold leading-tight">
-            Los tres que más contratos hicieron leer
-          </h2>
-          <p className="text-[12.5px] text-paper/75">{ambito}</p>
-        </div>
-        <ol className="mt-3.5 grid gap-2.5 md:grid-cols-3 md:gap-3">
-          {filas.slice(0, 3).map((f) => (
-            <li key={f.id} className="min-w-0">
-              <TarjetaPodio fila={f} financiadosAmbito={financiadosAmbito} />
-            </li>
-          ))}
-        </ol>
+      <div className="px-3 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+        {/* De qué ranking se habla (región, periodo) lo dicen los filtros de la página, no el podio. */}
+        <Titulo id="podio-titulo" className="px-1 font-display text-[17px] font-bold leading-tight sm:px-0">
+          {texto}
+        </Titulo>
+        <PodioEscena className="mx-auto mt-5 max-w-3xl">
+          {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
+          <ol className="grid grid-cols-3 items-end gap-1.5 border-b border-paper/20 sm:gap-3">
+            {lugares.map((lugar) => {
+              const fila = primeros.find((f) => f.puesto === lugar);
+              return fila ? (
+                <Escalon key={fila.id} lugar={lugar} fila={fila} financiadosAmbito={financiadosAmbito} />
+              ) : (
+                <EscalonLibre key={`libre-${lugar}`} lugar={lugar} texto={lugarLibre ?? ""} />
+              );
+            })}
+          </ol>
+        </PodioEscena>
       </div>
     </section>
   );
 }
 
-function TarjetaPodio({ fila: f, financiadosAmbito }: { fila: FilaRanking; financiadosAmbito: number }) {
-  const maqueta = esSlugMaqueta(f.slug);
+function Escalon({ lugar, fila: f, financiadosAmbito }: { lugar: Lugar; fila: FilaRanking; financiadosAmbito?: number }) {
+  const l = LUGAR[lugar];
   const href = hrefPerfil(f.slug);
   const tipo = esFundador(f) ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[f.tipo];
-  const pct = pctProporcion(f.contratosFinanciados, financiadosAmbito);
-  const clase = cn(
-    "group flex h-full items-center gap-3 rounded-xl bg-paper/5 p-3 ring-1 ring-inset transition-colors duration-rapido md:flex-col md:items-stretch md:gap-3 md:p-4",
-    f.puesto === 1 ? "ring-maiz/50" : "ring-paper/15",
-    href && "hover:bg-paper/10",
-  );
+  const pct = financiadosAmbito ? pctProporcion(f.contratosFinanciados, financiadosAmbito) : null;
+  const clase = "group/aliado flex h-full flex-col rounded-t-xl";
+
   const cuerpo = (
     <>
-      <span className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="w-9 shrink-0 font-display text-[24px] font-extrabold leading-none text-maiz tabular-nums md:w-auto md:text-[30px]">
-          <span className="sr-only">Puesto </span>
-          <span aria-hidden className="text-[0.7em] opacity-80">
-            #
-          </span>
-          {f.puesto}
+      <span className="relative flex flex-col items-center px-0.5 pb-3 text-center">
+        {/* El oro brilla un poco más: un halo de maíz detrás de la medalla, sólo luz. */}
+        {lugar === 1 && (
+          <span aria-hidden className="pointer-events-none absolute left-1/2 top-3 h-20 w-20 -translate-x-1/2 rounded-full bg-maiz/25 blur-2xl" />
+        )}
+        <Medalla puesto={lugar} tamano={l.medalla} animada retraso={l.sube + DESPUES_DEL_ESCALON} className="relative" />
+        <span aria-hidden className="mt-2.5 flex">
+          <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="lg" />
         </span>
-        <span aria-hidden className="shrink-0">
-          <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size="lg" maqueta={maqueta} />
+        <span
+          className={cn(
+            "mt-2 line-clamp-2 max-w-full break-words text-[13px] font-semibold leading-snug text-paper sm:text-[15px]",
+            href && "underline-offset-2 group-hover/aliado:underline",
+          )}
+          title={f.nombre}
+        >
+          {f.nombre}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-[15px] font-semibold text-paper group-hover:underline" title={f.nombre}>
-            {f.nombre}
-          </span>
-          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-paper/75">
-            {tipo}
-            {maqueta && <SelloMaqueta />}
-          </span>
-        </span>
-      </span>
-      <span className="shrink-0 text-right md:flex md:items-baseline md:gap-2 md:border-t md:border-paper/15 md:pt-3 md:text-left">
-        <span className="block font-display text-[20px] font-bold leading-none text-maiz tabular-nums md:text-[26px]">
+        <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{tipo}</span>
+        <span className={cn("mt-2 font-display text-2xl font-extrabold leading-none tabular-nums sm:text-3xl", l.cifra)}>
           {numero(f.contratosFinanciados)}
         </span>
-        <span className="mt-1 block text-[12px] leading-tight text-paper/75 md:mt-0 md:text-[13px]">
+        <span className="mt-1 text-[11.5px] leading-tight text-paper/75 sm:text-[13px]">
           {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
-          <span className="hidden md:inline"> financiados</span>
-          {pct && <span className="hidden md:inline"> · {pct}</span>}
+          <span className="hidden sm:inline">{f.contratosFinanciados === 1 ? " financiado" : " financiados"}</span>
         </span>
+        {/* Su parte de lo financiado, en línea propia: debajo de la cifra, no pegada con un separador. */}
+        {pct && <span className="mt-0.5 hidden text-[12.5px] leading-tight text-paper/75 md:block">{pct} del total</span>}
+      </span>
+      <span
+        aria-hidden
+        className={cn(SUBE, "flex w-full justify-center rounded-t-xl border-t-2 pt-1.5 sm:pt-2", l.alto, l.cara)}
+        style={{ animationDelay: `${l.sube}ms` }}
+      >
+        <span className={cn("font-display font-extrabold leading-none tabular-nums", l.numeral)}>{lugar}</span>
       </span>
     </>
   );
-  return href ? (
-    <Link href={href} className={clase}>
-      {cuerpo}
-    </Link>
-  ) : (
-    <div className={clase}>{cuerpo}</div>
+
+  return (
+    <li className={cn("min-w-0", l.orden)}>
+      {href ? (
+        <Link href={href} className={clase}>
+          {cuerpo}
+        </Link>
+      ) : (
+        <div className={clase}>{cuerpo}</div>
+      )}
+    </li>
+  );
+}
+
+/** Un puesto sin nombre: el escalón punteado y la invitación, sin fingir que hay alguien. */
+function EscalonLibre({ lugar, texto }: { lugar: Lugar; texto: string }) {
+  const l = LUGAR[lugar];
+  return (
+    <li className={cn("flex min-w-0 flex-col", l.orden)}>
+      <span className="flex flex-col items-center px-0.5 pb-3 text-center">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-paper/30 font-display text-lg font-bold text-paper/60"
+        >
+          {lugar}
+        </span>
+        <span className="mt-2 text-[13px] font-semibold leading-snug text-paper/80 sm:text-[15px]">
+          Puesto<span className="sr-only"> {lugar}</span> libre
+        </span>
+        {texto && <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{texto}</span>}
+      </span>
+      <span
+        aria-hidden
+        className={cn(SUBE, "w-full rounded-t-xl border-2 border-b-0 border-dashed border-paper/20", l.alto)}
+        style={{ animationDelay: `${l.sube}ms` }}
+      />
+    </li>
   );
 }

@@ -73,7 +73,7 @@ export function SenalesRecientes({
         celdas: {
           riesgo: <Severidad score={a.score} />,
           // Recortado en una palabra: el objeto entero va en el dossier.
-          contrato: <CeldaPrincipal titulo={recortar(objeto, 140)} meta={[plural(n, "señal", "señales"), a.entidad, a.region].filter(Boolean).join(" · ")} />,
+          contrato: <CeldaPrincipal titulo={recortar(objeto, 140)} meta={[plural(n, "señal", "señales"), a.entidad, a.region]} />,
           monto: (
             <CeldaNumero>
               {typeof a.montoSoles === "number" && a.montoSoles > 0 ? soles(a.montoSoles) : <span className="font-sans text-mute">Sin dato</span>}

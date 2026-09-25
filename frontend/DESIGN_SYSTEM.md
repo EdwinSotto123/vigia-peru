@@ -93,8 +93,23 @@ evidencia acusa (o no).**
 - Área de respeto: la mitad del ancho de la llama alrededor.
 - Siempre mirando **a la derecha** (hacia adelante, hacia el contenido). No se espeja.
 - Un solo color por silueta. Sin contornos, sombras, degradados ni accesorios.
-- Máximo **una** llamita por pantalla.
+- Máximo **una** llamita por pantalla (salvo las medallas del podio, §2.5).
 - Decorativa → `aria-hidden`. Cuando es la marca → `role="img"` + `aria-label="Vigía Perú"`.
+
+### 2.5 Medallas del podio (la única excepción)
+
+En el ranking de aliados la llamita es **el trofeo**: `Medalla` (`@/components/marca`)
+la graba en un disco de **oro** (el maíz de la marca), **plata** o **bronce**, y el
+primer puesto lleva **corona**. Es la única excepción a "una llamita por pantalla" y
+sólo existe en el podio (landing y `/app/aliados`), nunca junto a una señal, una
+entidad o una persona señalada.
+
+- El podio sube al entrar en pantalla (`PodioEscena` + `COLUMNA_PODIO`): 3.º, 2.º y
+  1.º, la medalla aparece y la corona cae. Sólo `transform`: servido quieto y completo,
+  sin animación con movimiento reducido.
+- Colores `medalla.*` sólo para el podio; en la interfaz, el oro sigue siendo el maíz.
+- "Aliados" va **dorado** en la cabecera y la barra lateral (pastilla de maíz con texto
+  tinta y corona): el reconocimiento público a quien financia es parte del producto.
 
 ---
 
@@ -381,7 +396,7 @@ Si una cifra aparece en dos páginas con la misma palabra, **es el mismo número
 ### 10.2 Cómo se muestra una cifra
 
 - **Siempre con denominador o contexto**: "53 de 100 financiados leídos", no "53".
-- **Siempre con su fuente y su fecha** cuando viene de un registro externo: "SEACE · actualizado el 14 de setiembre".
+- **Siempre con su fuente y su fecha** cuando viene de un registro externo: "SEACE, actualizado el 14 de setiembre".
 - **Cero es un dato**; **sin dato es otra cosa**: "0 señales" ≠ "Sin dato". Sin dato se escribe "Sin dato", en `mute`, nunca un guion mudo en una cifra protagonista.
 - Nada de métrica heroica (número gigante + etiqueta chica) como estructura de página.
 
@@ -496,7 +511,7 @@ error en línea, `autocomplete`/`inputMode`), `Pestanas` (`role="tablist"`, flec
 | `EstadoVacio` | llamita + título + texto + acción |
 | `EstadoError` | mensaje en palabras + reintentar + detalle plegado |
 | `Cargando` | esqueleto; a 1 s, llamita caminando |
-| `FuenteDato` | "Fuente: SEACE · 14 set. 2026" con enlace al registro |
+| `FuenteDato` | "Fuente: SEACE, 14 set. 2026" con enlace al registro |
 
 ---
 
@@ -510,6 +525,9 @@ error en línea, `autocomplete`/`inputMode`), `Pestanas` (`role="tablist"`, flec
 - Sin notas internas ("todavía no se lee", "en construcción"): si algo no funciona, no se muestra como si funcionara, y tampoco se explica la cocina.
 - Botones con verbo específico: "Financiar la lectura de Lima", no "Continuar".
 - Errores con salida: qué pasó + qué hacer.
+- **Sin "·" como separador**, nunca, en ningún texto visible (tampoco en `title`, `aria-label` ni imágenes para compartir). Dos datos seguidos se separan con layout (`flex gap-x-3`, cada uno en su `span`), con una coma o "y" si se leen como frase, o en dos líneas. Un conteo junto a su rótulo va en su pastilla ("En espera" + `47`), no "En espera · 47".
+- **Sin texto de relleno**: cada frase responde algo que quien lee se pregunta. "Siempre en el mismo orden" no le cambia nada a nadie; qué se revisa, sí. Si el dato se puede dibujar (cajitas, barra, pastilla con número), se dibuja en vez de narrarlo.
+- **El alcance de una vista va como filtro, no como texto**: si la región o el periodo se pueden elegir, se ven en su chip o selector; no se repite "Todo el Perú, desde el inicio" en plano encima del dato.
 
 ---
 

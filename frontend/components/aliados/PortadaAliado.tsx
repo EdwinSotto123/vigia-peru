@@ -4,9 +4,7 @@ import { BarraCompartir } from "@/components/patrones";
 import { FranjaTextil, Isotipo } from "@/components/marca";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { fecha, numero, plural } from "@/lib/formato";
-import { cn } from "@/lib/utils";
 import { AvatarAliado, esFundador } from "./TarjetaAliado";
-import { SelloMaqueta } from "./AvisoMaqueta";
 import { ContactoAliado, IdentidadAliado, Insignias, type DatoIdentidad, type Insignia } from "./IdentidadAliado";
 import { Puesto } from "./Podio";
 import type { AliadoPerfil } from "./perfil";
@@ -37,7 +35,6 @@ export function PortadaAliado({
   aportes,
   ruta,
   hrefRanking,
-  esMaqueta = false,
 }: {
   aliado: AliadoPerfil;
   /** "#3 de 12": su lugar en el ranking de todo el Perú, desde el inicio. */
@@ -48,7 +45,6 @@ export function PortadaAliado({
   /** La ruta relativa de este perfil, para compartirlo. */
   ruta: string;
   hrefRanking: string;
-  esMaqueta?: boolean;
 }) {
   const fundador = esFundador(aliado);
   const tipo = TIPO[aliado.tipo];
@@ -59,10 +55,7 @@ export function PortadaAliado({
   ];
 
   return (
-    <section
-      aria-label={`Perfil de ${aliado.nombre}`}
-      className={cn("overflow-hidden rounded-2xl border bg-paper", esMaqueta ? "border-dashed border-amber/60" : "border-line")}
-    >
+    <section aria-label={`Perfil de ${aliado.nombre}`} className="overflow-hidden rounded-2xl border border-line bg-paper">
       {/* Portada: su imagen si la publicó; si no, un momento de marca de Vigía (§3.8) con
           la franja textil al pie. Nada de texto sobre la franja (§6). */}
       <div className="sobre-oscuro relative h-28 bg-granate-deep sm:h-40">
@@ -84,12 +77,11 @@ export function PortadaAliado({
           {/* El logo sobre la portada, con un marco de papel que lo separa de ella. `relative z-[1]`:
               sin posición propia, la franja (absoluta) de la portada lo tapaba por arriba. */}
           <div className="relative z-[1] -mt-12 w-fit shrink-0 rounded-3xl bg-paper p-1.5 shadow-card sm:-mt-14">
-            <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="perfil" maqueta={esMaqueta} />
+            <AvatarAliado tipo={aliado.tipo} logoUrl={aliado.logoUrl} nombre={aliado.nombre} size="perfil" />
           </div>
           <div className="min-w-0 flex-1 sm:pb-1">
             <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-[28px] font-bold leading-tight tracking-tight text-ink text-balance sm:text-[34px]">
               {aliado.nombre}
-              {esMaqueta && <SelloMaqueta className="font-sans" />}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
               {puesto && (

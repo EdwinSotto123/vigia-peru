@@ -180,7 +180,7 @@ export default function ClasificacionPage() {
         <PageSection
           titulo="Contratos por tipo y etapa"
           meta={r ? `${fmtNum(r.totales.total)} contratos` : undefined}
-          descripcion={r ? `Toca una cifra para ver esos contratos · última clasificación ${fmtFechaHora(r.totales.ultimaClasificacion) ?? "sin fecha"}` : undefined}
+          descripcion={r ? `Toca una cifra para ver esos contratos. Última clasificación: ${fmtFechaHora(r.totales.ultimaClasificacion) ?? "sin fecha"}` : undefined}
         >
           {!r ? (
             isLoading && <div className="space-y-3"><SkeletonStats n={5} /><SkeletonTabla filas={6} columnas={8} /></div>
@@ -200,7 +200,7 @@ export default function ClasificacionPage() {
                   <caption className="sr-only">Contratos por tipo de contratación y etapa</caption>
                   <thead className="text-left text-[11px] text-mute">
                     <tr>
-                      <th scope="col" className="px-4 py-2.5 font-medium">Tipo · etapa</th>
+                      <th scope="col" className="px-4 py-2.5 font-medium">Tipo y etapa</th>
                       {etapas.map((e) => <th key={e} scope="col" className="px-2 py-2.5 text-right font-medium">{etapaTxt(e)}</th>)}
                       <th scope="col" className="px-4 py-2.5 text-right font-medium">Total</th>
                     </tr>
@@ -214,7 +214,7 @@ export default function ClasificacionPage() {
                           if (!v) return <td key={e} className="px-2 py-2 text-right font-mono text-xs text-mute">0</td>;
                           return (
                             <td key={e} className="px-2 py-2 text-right font-mono text-xs" style={{ background: fondo(v.n) }}>
-                              <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="text-ink hover:underline" title={`${tipoTxt(t)} · ${etapaTxt(e)}: ver contratos`}>{fmtNum(v.n)}</Link>
+                              <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="text-ink hover:underline" title={`${tipoTxt(t)}, ${etapaTxt(e)}: ver contratos`}>{fmtNum(v.n)}</Link>
                               {v.np > 0 && <span className="ml-1 text-[10px] text-amberTexto" title="no procesables">({fmtNum(v.np)})</span>}
                             </td>
                           );

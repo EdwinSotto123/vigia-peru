@@ -17,9 +17,9 @@ import {
   Home,
   Activity,
   FileSearch,
-  Users,
   Heart,
   HelpCircle,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -37,6 +37,8 @@ type Item = {
   requiresAuth?: boolean;
   /** Destaca el item como acción núcleo (borde granate y flecha). */
   featured?: boolean;
+  /** Dorado: el reconocimiento a los aliados (ícono en maíz). Sólo "Aliados". */
+  dorado?: boolean;
   match?: (path: string) => boolean;
 };
 
@@ -116,8 +118,9 @@ const SECTIONS: Section[] = [
       {
         href: "/app/aliados",
         label: "Aliados",
-        icon: <Users size={16} />,
-        hint: "Quienes financian la lectura",
+        icon: <Crown size={15} />,
+        hint: "El ranking de quienes financian",
+        dorado: true,
         match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
       },
     ],
@@ -347,6 +350,7 @@ export function DashboardSidebar() {
                         active={active}
                         locked={locked}
                         featured={item.featured}
+                        dorado={item.dorado}
                         icon={item.icon}
                         hint={item.hint}
                       >
@@ -417,6 +421,7 @@ function SidebarLink({
   active,
   locked,
   featured,
+  dorado,
   icon,
   children,
   hint,
@@ -425,6 +430,7 @@ function SidebarLink({
   active?: boolean;
   locked?: boolean;
   featured?: boolean;
+  dorado?: boolean;
   icon: React.ReactNode;
   children: React.ReactNode;
   hint?: string;
@@ -453,6 +459,8 @@ function SidebarLink({
               ? active
                 ? "bg-paper/15 text-paper"
                 : "bg-granate-soft text-granate"
+              : dorado
+              ? "bg-maiz text-ink shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
               : active
               ? "bg-granate text-paper"
               : "bg-paperDeep text-mute group-hover:bg-granate-50 group-hover:text-granate",

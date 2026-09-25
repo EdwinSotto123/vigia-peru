@@ -31,7 +31,7 @@ export function indicadoresAporte(c: Comprobante, esperandoDocumentos = 0): Indi
     {
       valor: numero(r.procesados),
       etiqueta: "leídos",
-      contexto: `de ${numero(c.contratos)} del aporte${enRevision > 0 ? ` · ${numero(enRevision)} en revisión` : ""}`,
+      contexto: `de ${numero(c.contratos)} del aporte${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`,
       ayuda:
         enRevision > 0 ? (
           <Ayuda titulo="¿Por qué en revisión?">
@@ -56,7 +56,7 @@ export function indicadoresAporte(c: Comprobante, esperandoDocumentos = 0): Indi
       etiqueta: "con señales",
       contexto:
         r.procesados > 0
-          ? `de ${numero(r.procesados)} leídos · ${plural(r.senales, "señal", "señales")} en total`
+          ? `de ${numero(r.procesados)} leídos, ${plural(r.senales, "señal", "señales")} en total`
           : "ningún contrato leído todavía",
     },
     {

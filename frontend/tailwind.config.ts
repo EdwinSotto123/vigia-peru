@@ -104,6 +104,16 @@ const config: Config = {
         // Rojo de la bandera: SÓLO la franja bicolor del pie. En este producto el
         // rojo significa riesgo; la marca no puede parecer una alarma.
         rojoPeru: "#D91023",
+        // Medallas del ranking de aliados (§14.6): el oro es el maíz de la marca; plata y
+        // bronce, metales sobrios. Sólo para el podio, nunca como color de interfaz.
+        medalla: {
+          oro: "#F0B83C",
+          oroOscuro: "#B8841C",
+          plata: "#C9CFD6",
+          plataOscura: "#7F8A96",
+          bronce: "#D08C4E",
+          bronceOscuro: "#8A5424",
+        },
 
         // El bloque "legacy" (bone/ash/coal/void/abyss/slate*/chalk/cyan/
         // fuchsia/navy/violet/emerald) se eliminó: 0 usos reales en app/ y
@@ -153,6 +163,20 @@ const config: Config = {
         overlay: "50",
       },
       keyframes: {
+        // Podio de aliados: la columna sube, la medalla aparece y la corona cae (§14.6).
+        // Sólo transform: el contenido nunca empieza oculto (nada de opacity 0 del servidor).
+        podioSube: { "0%": { transform: "scaleY(0.12)" }, "100%": { transform: "scaleY(1)" } },
+        medallaAparece: {
+          "0%": { transform: "translateY(28px) scale(0.55)" },
+          "70%": { transform: "translateY(-6px) scale(1.06)" },
+          "100%": { transform: "translateY(0) scale(1)" },
+        },
+        coronaCae: {
+          "0%": { transform: "translateY(-22px) rotate(-14deg)" },
+          "65%": { transform: "translateY(3px) rotate(5deg)" },
+          "100%": { transform: "translateY(0) rotate(0)" },
+        },
+        brilloOro: { "0%, 100%": { filter: "brightness(1)" }, "50%": { filter: "brightness(1.18)" } },
         // La llamita "camina" en su lugar mientras algo carga: un paso arriba y abajo.
         caminar: {
           "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
@@ -272,6 +296,10 @@ const config: Config = {
         },
       },
       animation: {
+        podioSube: "podioSube 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
+        medallaAparece: "medallaAparece 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+        coronaCae: "coronaCae 0.8s cubic-bezier(0.22, 1, 0.36, 1) both",
+        brilloOro: "brilloOro 2.8s ease-in-out infinite",
         caminar: "caminar 0.9s ease-in-out infinite",
 
         fadeIn: "fadeIn 200ms ease-out",

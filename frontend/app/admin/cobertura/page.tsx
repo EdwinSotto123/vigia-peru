@@ -65,7 +65,7 @@ function Almacen({ documentos, porFormato }: { documentos: Cobertura["documentos
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-sm font-semibold text-ink">
           En el almacén: {fmtNum(documentos?.vigentes) ?? "sin dato"} documentos
-          {documentos && <span className="font-normal text-mute"> · {fmtBytes(documentos.bytesVigentes) ?? "tamaño sin dato"}</span>}
+          {documentos && <span className="font-normal text-mute"> ({fmtBytes(documentos.bytesVigentes) ?? "tamaño sin dato"})</span>}
         </p>
         <p className="text-[12px] text-mute">{documentos?.proximaExpiracion ? `El primero vence el ${fmtDia(documentos.proximaExpiracion)}` : "Ninguno por vencer"}</p>
       </div>

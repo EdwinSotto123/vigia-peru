@@ -12,7 +12,7 @@
  * `Revelar` y `TextoRedactado` son islas de cliente.
  */
 
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { PersonName, Ruc } from "@/components/Redact";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, FuenteDato, type DatoClave, type Pestana } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila } from "@/components/listado";
@@ -26,6 +26,7 @@ import {
   type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
+import { Partes, Separador } from "@/components/ui/Partes";
 
 export const OCDS = "registro OCDS del OECE (SEACE)";
 
@@ -45,21 +46,6 @@ function diferencia(pct: number): string {
 
 /** Sólo el día de un DATE/TIMESTAMP (AAAA-MM-DD): una medianoche UTC no se corre al día anterior en Lima. */
 export const dia = (s: string | null | undefined): string | null => (s ? s.slice(0, 10) : null);
-
-/** Partes de una línea de contexto separadas por " · ", sin huecos. */
-function Puntos({ partes }: { partes: ReactNode[] }) {
-  const xs = partes.filter((x) => x != null && x !== false && x !== "");
-  return (
-    <>
-      {xs.map((x, i) => (
-        <Fragment key={i}>
-          {i > 0 && " · "}
-          {x}
-        </Fragment>
-      ))}
-    </>
-  );
-}
 
 /**
  * Referencia contra la que se compara la oferta de UN postor. La oferta es por ítem
@@ -142,9 +128,14 @@ function SeccionItems({ c }: { c: Detalle }) {
             titulo={it.descripcion ?? "Sin descripción"}
             meta={
               <>
-                <Puntos partes={[`Ítem ${it.posicion}`, it.cubso && `CUBSO ${it.cubso}`]} />
+                <Partes partes={[`Ítem ${it.posicion}`, it.cubso && `CUBSO ${it.cubso}`]} />
                 {/* Debajo de lg la columna Cantidad no entra: la cantidad va en la meta. */}
-                {cantidad && <span className="lg:hidden"> · {cantidad}</span>}
+                {cantidad && (
+                  <span className="lg:hidden">
+                    <Separador />
+                    {cantidad}
+                  </span>
+                )}
               </>
             }
           />
@@ -220,14 +211,19 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
           <CeldaTexto
             sub={
               <>
-                <Puntos
+                <Partes
                   partes={[
                     p.ordenPrelacion != null && `Puesto ${p.ordenPrelacion}`,
                     p.ruc && <>RUC <Ruc value={p.ruc} /></>,
                     humanizarCodigo(p.motivoEstado),
                   ]}
                 />
-                {oferta && <span className="md:hidden"> · {oferta}</span>}
+                {oferta && (
+                  <span className="md:hidden">
+                    <Separador />
+                    {oferta}
+                  </span>
+                )}
               </>
             }
           >
@@ -283,7 +279,12 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
       soloOfertado || d != null ? (
         <>
           {soloOfertado && "ofertado"}
-          {d != null && <span className="md:hidden">{soloOfertado ? " · " : ""}{diferencia(d)}</span>}
+          {d != null && (
+            <span className="md:hidden">
+              {soloOfertado && <Separador />}
+              {diferencia(d)}
+            </span>
+          )}
         </>
       ) : undefined;
     return {
@@ -293,7 +294,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
           <CeldaPrincipal
             titulo={it.descripcion ?? "Sin descripción"}
             meta={
-              <Puntos
+              <Partes
                 partes={[
                   `Ítem ${it.numero}`,
                   it.cantidad != null && `${numero(it.cantidad)}${it.unidad ? ` ${it.unidad}` : ""}`,
@@ -373,7 +374,7 @@ function SeccionDocumentos({ c }: { c: Detalle }) {
       celdas: {
         tipo: <Chip>{tipoDocLabel(d.tipo)}</Chip>,
         documento: (
-          <CeldaPrincipal titulo={titulo} meta={<Puntos partes={[seccion, formatoDoc(d.formato)?.toUpperCase(), d.enVigia && "copia en Vigía"]} />} />
+          <CeldaPrincipal titulo={titulo} meta={[seccion, formatoDoc(d.formato)?.toUpperCase(), d.enVigia && "copia en Vigía"]} />
         ),
         fecha: <CeldaFecha fecha={dia(d.fecha)} />,
       },

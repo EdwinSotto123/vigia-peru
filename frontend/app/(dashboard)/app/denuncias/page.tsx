@@ -262,7 +262,7 @@ function indicadores(muestra: ReportesPagina): Indicador[] {
   const total = Math.max(muestra.total, filas.length);
   const sobre = filas.length;
   const de = total > sobre ? `de las ${numero(sobre)} más recientes` : `de ${numero(sobre)}`;
-  const pct = (n: number) => (sobre ? ` · ${porcentaje((n / sobre) * 100)}` : "");
+  const pct = (n: number) => (sobre ? ` (${porcentaje((n / sobre) * 100)})` : "");
   const confirmadas = filas.filter(estaConfirmada).length;
   const conFoto = filas.filter((r) => r.fotoUrl).length;
   const conUbicacion = filas.filter(tieneUbicacion).length;

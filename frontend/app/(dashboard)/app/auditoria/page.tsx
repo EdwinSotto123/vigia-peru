@@ -1,11 +1,17 @@
-import { Ayuda, EncabezadoPagina, Pagina, Seccion } from "@/components/patrones";
+import { BarChart3, BookOpen, CheckCircle2, Radio } from "lucide-react";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, Pagina, Pestanas } from "@/components/patrones";
 import { BarraFiltros, Listado, ZonaResultados, type FiltroSecundario, type OpcionFaceta } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { PASOS, TOTAL_AGENTES, TOTAL_PASOS, porCarril } from "@/components/agentes/catalogo";
+import { PulseDot } from "@/components/ui/PulseDot";
+import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { HistoricoProcesados, TAM_HISTORICO, type FiltrosAuditoria } from "@/components/auditoria/HistoricoProcesados";
-import { PanelProcesamiento } from "@/components/auditoria/PanelProcesamiento";
+import { ResumenAuditoria } from "@/components/auditoria/ResumenAuditoria";
+import { EstadoAuditoria } from "@/components/auditoria/EstadoAuditoria";
+import { ActividadAuditoria } from "@/components/auditoria/ActividadAuditoria";
+import { ComoFunciona } from "@/components/auditoria/ComoFunciona";
 import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
+import { cuentasAuditoria } from "@/components/auditoria/cuentasAuditoria";
 import {
   getFinanciadoresProcesamientos,
   getProcesamiento,
@@ -27,10 +33,15 @@ export const metadata = {
 
 export const revalidate = 10;
 
-const carriles = porCarril(PASOS);
-const listaY = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
-
 const FECHA_RX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Filas del tablero en vivo por consulta (el máximo del API). */
+const LIMITE_VIVO = 300;
+
+/** Las pestañas del Tablero (§14.3). La primera no va a la URL. */
+const SECCIONES = ["curso", "leidos", "actividad", "como-funciona"] as const;
+type SeccionAuditoria = (typeof SECCIONES)[number];
+const esSeccion = (s: string | undefined): s is SeccionAuditoria => !!s && (SECCIONES as readonly string[]).includes(s);
 
 /** Los rangos que la gente pide de verdad, sobre la fecha de entrada a la cola. */
 const RANGOS: [number, string][] = [
@@ -55,20 +66,27 @@ function sinFasesInactivas(ps: Procesamiento[]): Procesamiento[] {
   return ps.map((p) => (p.estado === "procesando" || p.fases == null ? p : { ...p, fases: null }));
 }
 
+/** Lo que todavía no terminó: en análisis + en espera (el `revision` crudo no existe, pero se cubre). */
+const enCurso = (p: Procesamiento) => p.estado !== "procesado" && p.estado !== "revision";
+
 /**
- * /app/auditoria — la plantilla Tablero (DESIGN_SYSTEM.md §14): encabezado → Indicadores del
- * estado actual → la pieza viva (la cola) → el Listado de lo ya leído (§14.1).
+ * /app/auditoria — la plantilla Tablero (DESIGN_SYSTEM.md §14) en pestañas (§14.3). Antes todo
+ * iba apilado: cifras, barra del ciclo, barras por día, "ahora mismo", la cola y lo ya leído,
+ * una sección debajo de otra. Ahora:
  *
- * Los filtros (zona, fecha de entrada a la cola, quién lo pagó) viven en la URL y acotan a
- * la vez la cola y lo ya leído: los enlaces del mapa y de /app/financiar llegan con
- * `?ubigeo=` para mostrar la cola de esa zona. Por eso hay UNA `BarraFiltros`, dentro del
- * mismo `Listado` que envuelve las dos piezas, y va arriba de ambas: dos barras con los
- * mismos chips serían dos controles para lo mismo, y una barra sólo en lo leído cambiaría
- * en silencio el tablero que queda arriba de ella. Los Indicadores quedan fuera del Listado:
- * hablan de todo el Perú (el resumen no acepta filtros) y lo dicen en su ⓘ.
+ *   encabezado · Indicadores · una línea de "ahora"          (todo el Perú)
+ *   BarraFiltros (zona)                                        ← acota las pestañas
+ *   Pestanas  En curso | Ya leídos | Actividad | Cómo funciona
  *
- * El tablero hace polling en el cliente, pero no guarda filtros: los recibe como props y se
- * vuelve a montar (`key`) cuando la URL cambia, así el sondeo nunca pelea con la URL.
+ * Las cifras quedan arriba y FUERA del `Listado`: hablan de todo el Perú (el resumen no
+ * acepta filtros) y lo dicen en su ⓘ. La barra de filtros va justo encima de las pestañas y
+ * acota En curso y Ya leídos; Actividad es nacional y lo dice en su primera línea.
+ *
+ * Un solo sondeo del resumen para la página (`ResumenAuditoria`): lo leen las cifras de
+ * arriba y la pestaña Actividad. El tablero en vivo hace su propio sondeo, pero no guarda
+ * filtros: los recibe como props y se vuelve a montar (`key`) cuando la URL cambia.
+ *
+ * `?seccion=` abre una pestaña; la paginación de Ya leídos la conserva en cada enlace.
  */
 export default async function AuditoriaPage({
   searchParams,
@@ -84,6 +102,9 @@ export default async function AuditoriaPage({
   const hasta = leer("hasta") && FECHA_RX.test(leer("hasta")!) ? leer("hasta") : undefined;
   const financiador = leer("financiador")?.trim().slice(0, 120) || undefined;
   const paginaActual = Math.max(1, Number.parseInt(leer("pagina") ?? "1", 10) || 1);
+  const pedida = leer("seccion");
+  // Un enlace viejo con `?pagina=` (antes lo leído iba abajo, sin pestañas) abre en Ya leídos.
+  const seccion: SeccionAuditoria = esSeccion(pedida) ? pedida : paginaActual > 1 ? "leidos" : "curso";
   const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
@@ -91,7 +112,7 @@ export default async function AuditoriaPage({
     getResumenVivo(),
     getZonas("departamento"),
     // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó).
-    getProcesamientos({ ...filtros, limit: 300 }),
+    getProcesamientos({ ...filtros, limit: LIMITE_VIVO }),
     getProcesamientosPaginado({ ...histQuery, limit: TAM_HISTORICO, offset: (paginaActual - 1) * TAM_HISTORICO }),
     getFinanciadoresProcesamientos(),
     // El último análisis terminado CON LOS FILTROS PUESTOS: es lo que se muestra cuando no
@@ -109,6 +130,22 @@ export default async function AuditoriaPage({
   const hayFiltros = !!(ubigeo || desde || hasta || financiador);
   const departamento = ubigeo && ubigeo.length === 2 ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
   const zonaNombre = ubigeo ? departamento?.nombre ?? nombreSubzona ?? undefined : undefined;
+  const donde = zonaNombre ? `en ${zonaNombre}` : "en todo el Perú";
+
+  // ── Conteo de la pestaña En curso. Si la consulta del tablero vino entera, se cuenta sobre
+  // ella (respeta los filtros); si vino cortada, sólo el resumen sabe el total, y sólo sin
+  // filtros. Si no, sin número: mejor nada que un conteo corto.
+  const cuentas = resumen ? cuentasAuditoria(resumen) : null;
+  const conteoEnCurso =
+    initialCompleto == null
+      ? null
+      : initialCompleto.length < LIMITE_VIVO
+        ? initialCompleto.filter(enCurso).length
+        : !hayFiltros && cuentas
+          ? cuentas.procesando + cuentas.enEspera
+          : null;
+  // El punto pulsante sólo cuando hay algo en análisis de verdad (§ honestidad del "en vivo").
+  const hayAnalisis = (initialCompleto ?? []).some((p) => p.estado === "procesando");
 
   // ── Faceta principal: la zona. Sólo las que tienen financiados (las demás llevan a cero);
   // el conteo es de financiados, cola + leídos, y sólo vale sin los otros filtros puestos.
@@ -151,30 +188,18 @@ export default async function AuditoriaPage({
 
   return (
     <Pagina>
-      {/* Esta pantalla es un tablero: se entra a MIRAR, no a leer una introducción. Cómo se lee
-          un contrato está a un clic, en el ⓘ; el estado queda arriba del pliegue. */}
+      {/* Esta pantalla es un tablero: se entra a MIRAR, no a leer una introducción. El método
+          está en su pestaña; el ⓘ lo resume en dos oraciones. */}
       <EncabezadoPagina
         titulo="Auditoría en vivo"
         bajada="Cada contrato financiado, de la cola al dictamen, en orden de antigüedad: nadie elige cuál se lee."
         ayuda={
-          <Ayuda titulo="¿Cómo se lee un contrato?" ancho="w-[22rem]">
+          <Ayuda titulo="¿Cómo se lee un contrato?">
             <span className="block">
-              <span className="font-semibold text-ink">{TOTAL_AGENTES} agentes</span> lo leen en{" "}
-              <span className="font-semibold text-ink">{TOTAL_PASOS} pasos</span>. Dos ramas corren a la vez y una síntesis
-              junta todo al final:
+              {TOTAL_AGENTES} agentes lo leen en {TOTAL_PASOS} pasos y cada señal cita su norma y su evidencia. Se publica aunque
+              señale a quien pagó la lectura.
             </span>
-            {/* Derivado del catálogo: la lista y el número no pueden contradecirse. */}
-            {carriles.map((c) => (
-              <span key={c.key} className="mt-1 block text-mute">
-                <span className="font-semibold text-ink">{c.label}:</span> {listaY(c.pasos.map((p) => p.titulo.toLowerCase()))}.
-              </span>
-            ))}
-            <span className="mt-2 block border-t border-line pt-2 text-mute">
-              <span className="font-semibold text-ink">En espera:</span> asignado a un aporte confirmado, espera sus
-              documentos del SEACE o su turno. <span className="font-semibold text-ink">En análisis:</span> unos minutos por
-              contrato. <span className="font-semibold text-ink">Con dictamen publicado:</span> cada señal cita su norma y
-              su evidencia, y se publica aunque señale a quien lo pagó.
-            </span>
+            <span className="mt-2 block text-mute">Paso por paso, en la pestaña Cómo funciona.</span>
           </Ayuda>
         }
         acciones={
@@ -185,59 +210,117 @@ export default async function AuditoriaPage({
         }
       />
 
-      <PanelProcesamiento initial={resumen} pollMs={5000} finalizados={finalizados} />
+      <ResumenAuditoria initial={resumen} finalizados={finalizados} pollMs={5000}>
+        <div className="space-y-6">
+          <EstadoAuditoria />
 
-      <Listado ruta="/app/auditoria" parametros={{ ...filtros, pagina: paginaActual > 1 ? String(paginaActual) : undefined }}>
-        <BarraFiltros
-          faceta={{ param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", conteoTodas, opciones: opcionesZona }}
-          filtros={filtrosSecundarios}
-        />
+          <Listado
+            ruta="/app/auditoria"
+            parametros={{ ...filtros, seccion: seccion === "curso" ? undefined : seccion, pagina: paginaActual > 1 ? String(paginaActual) : undefined }}
+          >
+            <div className="space-y-4">
+              <BarraFiltros
+                faceta={{ param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", conteoTodas, opciones: opcionesZona }}
+                filtros={filtrosSecundarios}
+              />
 
-        <Seccion
-          id="en-vivo"
-          titulo={zonaNombre ? `En vivo en ${zonaNombre}` : "En vivo en todo el Perú"}
-          ayuda={
-            <Ayuda titulo="¿En qué orden entran?">
-              <span className="block">
-                Por orden de llegada: nadie elige cuál se lee. Una zona aparece aquí en cuanto alguien financia su auditoría.
-              </span>
-              <span className="mt-2 block text-mute">
-                Los filtros de arriba acotan esta cola y lo ya leído, más abajo. Las cifras de arriba siempre son de todo el Perú.
-              </span>
-            </Ayuda>
-          }
-        >
-          <ZonaResultados>
-            <TableroAuditoria
-              key={[ubigeo, desde, hasta, financiador].map((v) => v ?? "").join("|")}
-              ubigeo={ubigeo}
-              desde={desde}
-              hasta={hasta}
-              financiador={financiador}
-              initial={initial}
-              autoRefreshMs={5000}
-              verMasHref="#historico"
-              panelSecundario={<UltimoAnalisis p={ultimo} hayFiltros={hayFiltros} />}
-            />
-          </ZonaResultados>
-        </Seccion>
-
-        <Seccion
-          id="historico"
-          className="border-t border-line pt-6"
-          titulo={zonaNombre ? `Lo ya leído en ${zonaNombre}` : "Todo lo que ya se leyó"}
-          ayuda={
-            <Ayuda titulo="¿Qué entra aquí?">
-              Cada contrato financiado cuyo análisis terminó, con su resultado y quién pagó esa lectura. Incluye los que están
-              en revisión: se leyeron enteros, pero su dictamen todavía no se publica. Los filtros de arriba también lo acotan.
-            </Ayuda>
-          }
-        >
-          <ZonaResultados>
-            <HistoricoProcesados pagina={historico} paginaActual={paginaActual} filtros={filtros} conFinanciador={conPatrocinador} />
-          </ZonaResultados>
-        </Seccion>
-      </Listado>
+              <Pestanas
+                etiqueta="Secciones de la auditoría en vivo"
+                activa={seccion}
+                pestanas={[
+                  {
+                    clave: "curso",
+                    etiqueta: "En curso",
+                    conteo: conteoEnCurso,
+                    icono: hayAnalisis ? <PulseDot color="amber" size={7} /> : <Radio size={15} aria-hidden />,
+                    contenido: (
+                      <>
+                        <h2 className="sr-only">En curso {donde}</h2>
+                        <CabeceraPestana
+                          ayuda={
+                            <Ayuda titulo="¿Cuándo entra un contrato aquí?">
+                              En cuanto se confirma el aporte que financia su zona. Espera sus documentos del SEACE y luego su turno,
+                              por antigüedad: nadie elige cuál va primero.
+                            </Ayuda>
+                          }
+                        >
+                          Lo que se lee ahora y lo que espera turno, {donde}.
+                        </CabeceraPestana>
+                        {/* Cada pestaña se ve sola: el vacío de esta lleva su llamita (§2.4, una por pantalla). */}
+                        <ZonaResultados>
+                          <TableroAuditoria
+                            key={[ubigeo, desde, hasta, financiador].map((v) => v ?? "").join("|")}
+                            ubigeo={ubigeo}
+                            desde={desde}
+                            hasta={hasta}
+                            financiador={financiador}
+                            initial={initial}
+                            autoRefreshMs={5000}
+                            enPestanas
+                            conLlamita
+                            panelSecundario={<UltimoAnalisis p={ultimo} hayFiltros={hayFiltros} />}
+                          />
+                        </ZonaResultados>
+                      </>
+                    ),
+                  },
+                  {
+                    clave: "leidos",
+                    etiqueta: "Ya leídos",
+                    conteo: historico?.total ?? null,
+                    icono: <CheckCircle2 size={15} aria-hidden />,
+                    contenido: (
+                      <>
+                        <h2 className="sr-only">Ya leídos {donde}</h2>
+                        <ZonaResultados>
+                          <HistoricoProcesados
+                            pagina={historico}
+                            paginaActual={paginaActual}
+                            filtros={filtros}
+                            conFinanciador={conPatrocinador}
+                            seccion="leidos"
+                            cabecera={{
+                              texto: `Cada contrato financiado cuyo análisis terminó, ${donde}.`,
+                              ayuda: (
+                                <Ayuda titulo="¿Qué entra aquí?">
+                                  Con su resultado y quién pagó esa lectura. Incluye los que están en revisión: se leyeron enteros, pero su
+                                  dictamen todavía no se publica.
+                                </Ayuda>
+                              ),
+                            }}
+                          />
+                        </ZonaResultados>
+                      </>
+                    ),
+                  },
+                  {
+                    clave: "actividad",
+                    etiqueta: "Actividad",
+                    icono: <BarChart3 size={15} aria-hidden />,
+                    contenido: (
+                      <>
+                        <h2 className="sr-only">Actividad de la auditoría en todo el Perú</h2>
+                        <ActividadAuditoria />
+                      </>
+                    ),
+                  },
+                  {
+                    clave: "como-funciona",
+                    etiqueta: "Cómo funciona",
+                    icono: <BookOpen size={15} aria-hidden />,
+                    contenido: (
+                      <>
+                        <h2 className="sr-only">Cómo se lee un contrato</h2>
+                        <ComoFunciona />
+                      </>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          </Listado>
+        </div>
+      </ResumenAuditoria>
     </Pagina>
   );
 }

@@ -3,4 +3,4 @@ export { Indicadores, IndicadoresSkeleton, type Indicador } from "./Indicadores"
 export { Vistas, type Vista } from "./Vistas";
 export { Listado, ZonaResultados, useListado, type Parametros } from "./Listado";
 export { BarraFiltros, type OpcionFaceta, type FiltroSecundario, type Orden } from "./BarraFiltros";
-export { Tabla, TablaSkeleton, CeldaPrincipal, CeldaNumero, CeldaTexto, CeldaFecha, type Columna, type Fila, type GrupoFilas } from "./Tabla";
+export { Tabla, TablaSkeleton, CeldaPrincipal, CeldaNumero, CeldaTexto, CeldaFecha, CuentaGrupo, type Columna, type Fila, type GrupoFilas } from "./Tabla";

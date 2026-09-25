@@ -12,9 +12,10 @@
  * verdad. La repetición vive dentro de <Revelar>, así que no arranca sola al cargar la
  * página: se monta recién cuando alguien la pide.
  *
- * Dato primero (DESIGN_SYSTEM.md §10.7): una franja de cuatro líneas —cuándo, qué, qué
- * encontró, cuánto costó— con las señales y los motivos como chips. Lo que explica cada
- * motivo está a un clic (Ayuda); el dictamen, en la página del contrato.
+ * Dato primero (DESIGN_SYSTEM.md §10.7): una franja de cuatro líneas —cuándo y cuánto
+ * trabajo, qué fue, de quién y quién lo pagó, qué encontró— con las señales y los motivos
+ * como chips. Lo que explica cada motivo está a un clic (Ayuda); el dictamen, en la página
+ * del contrato. Es lo primero de la pestaña En curso: cuanto más corta, más se ve la cola.
  *
  * Si esa última lectura quedó EN REVISIÓN HUMANA, no se muestra nada de lo que encontró (ni
  * señales, ni severidad, ni puntaje): sólo que está en revisión y por qué. Publicar acá el
@@ -86,18 +87,20 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
       {/* "Ningún contrato en análisis" ya lo dice la franja de estado de arriba: este panel solo
           existe cuando eso es cierto, así que se presenta por lo que muestra. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <h3 className="inline-flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-ink">
-          Lo último que se leyó
-          {p.finalizadoAt && (
-            <time dateTime={p.finalizadoAt} className="text-[12px] font-normal text-mute">
-              {fechaLima(p.finalizadoAt, { larga: true, hora: true })}
-            </time>
-          )}
-        </h3>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] text-mute">
+          <h3 className="text-[13px] font-semibold text-ink">Lo último que se leyó</h3>
+          {p.finalizadoAt && <time dateTime={p.finalizadoAt}>{fechaLima(p.finalizadoAt, { larga: true, hora: true })}</time>}
+          {/* Cuánto trabajo costó, junto a cuándo terminó. */}
+          <span>
+            <span className="font-mono font-semibold text-inkSoft">{prog.hechas}</span> de{" "}
+            <span className="font-mono font-semibold text-inkSoft">{prog.aplicables}</span> pasos
+            {duro != null && duro > 0 && <> en {duracion(duro)}</>}
+          </span>
+        </div>
         {eventos.length > 0 && (
           <Revelar
             titulo="Cómo se analizó este contrato"
-            descripcion={`${plural(eventos.length, "evento", "eventos")} de bitácora tal como quedaron guardados · ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, con los tiempos reales.`}
+            descripcion={`${plural(eventos.length, "evento", "eventos")} de bitácora de ${TOTAL_AGENTES} agentes en ${TOTAL_PASOS} pasos, tal como quedaron guardados y con los tiempos reales.`}
             ancho="lg"
             etiqueta="Repetir el análisis de este contrato, paso por paso"
             className="w-auto"
@@ -110,14 +113,18 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
         )}
       </div>
 
-      {/* Qué fue: el objeto en una línea (entero en `title`), entidad · zona · valor. */}
+      {/* Qué fue: el objeto en una línea (entero en `title`), entidad, zona y valor. */}
       <Link href={href} className="group mt-1.5 block min-w-0 rounded-lg">
         <span className="text-[14px] font-semibold leading-snug text-ink line-clamp-2 group-hover:text-granate md:truncate" title={titulo}>
           {titulo}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-mute">
-          <span className="min-w-0 truncate">{p.entidad ?? "Entidad no identificada"} · {p.zona}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-mute">
+          <span className="min-w-0 truncate">{p.entidad ?? "Entidad no identificada"}</span>
+          <span>{p.zona}</span>
           {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{solesCompacto(p.montoPen)}</span>}
+          <span title={p.contribucionCodigo ? `Aporte ${p.contribucionCodigo}` : undefined}>
+            lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>
+          </span>
           <span className="inline-flex items-center gap-0.5 font-medium text-granate">
             {enRevision ? "Ver su estado" : "Ver el dictamen"} <ArrowUpRight size={12} aria-hidden />
           </span>
@@ -143,7 +150,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
                 <span key={m.clave} className="mt-1.5 block text-mute">
                   <span className="font-semibold text-ink">{m.titulo}</span>
                   {m.valor != null && m.umbral != null && (
-                    <span className="tabular-nums"> ({pct(m.valor)} · mínimo {pct(m.umbral)})</span>
+                    <span className="tabular-nums"> ({pct(m.valor)}, mínimo {pct(m.umbral)})</span>
                   )}
                   . {m.detalle}
                 </span>
@@ -184,18 +191,6 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
         )}
       </div>
 
-      {/* Cuánto trabajo costó y quién lo pagó, en una línea. */}
-      <p className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12px] text-mute">
-        <span>
-          <span className="font-mono font-semibold text-inkSoft">{prog.hechas}</span> de{" "}
-          <span className="font-mono font-semibold text-inkSoft">{prog.aplicables}</span> pasos
-          {duro != null && duro > 0 && <> en {duracion(duro)}</>}
-        </span>
-        <span>
-          lo pagó <span className="font-medium text-inkSoft">{p.financiador}</span>{" "}
-          <span className="font-mono">{p.contribucionCodigo}</span>
-        </span>
-      </p>
     </div>
   );
 }

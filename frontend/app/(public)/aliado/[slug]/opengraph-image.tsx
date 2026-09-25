@@ -3,7 +3,6 @@ import { getPerfilAliado, resumirContribuciones } from "@/components/aliados/per
 import { puestoDe } from "@/components/aliados/ranking";
 import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoImagen";
 import { numero } from "@/lib/formato";
-import { maquetaActiva } from "@/lib/maqueta-aliados";
 
 /**
  * Tarjeta compartible (Open Graph) del perfil de un aliado: lo que se ve cuando la
@@ -26,13 +25,10 @@ export const contentType = "image/png";
 const PAPER_75 = "rgba(255,255,255,0.75)";
 
 export default async function Image({ params }: { params: { slug: string } }) {
-  // La imagen no recibe la query: en desarrollo la maqueta está encendida por defecto,
-  // en producción nunca (un slug de maqueta cae en la tarjeta genérica).
-  const maqueta = maquetaActiva(undefined);
   let perfil: Awaited<ReturnType<typeof getPerfilAliado>> = null;
   let puesto: Awaited<ReturnType<typeof puestoDe>> = null;
   try {
-    [perfil, puesto] = await Promise.all([getPerfilAliado(params.slug, maqueta, 300), puestoDe(params.slug, maqueta)]);
+    [perfil, puesto] = await Promise.all([getPerfilAliado(params.slug, 300), puestoDe(params.slug)]);
   } catch {
     perfil = null;
     puesto = null;

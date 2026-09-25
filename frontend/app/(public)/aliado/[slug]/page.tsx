@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { Ayuda, EstadoVacio, Pestanas, Volver } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
-import { AvisoMaqueta } from "@/components/aliados/AvisoMaqueta";
 import { CadenaAliado } from "@/components/aliados/CadenaAliado";
 import { insigniasDe, mesesDesde } from "@/components/aliados/IdentidadAliado";
 import { RegionesDeAliado, TablaSenales, indicadoresAliado, senalesDeComprobantes } from "@/components/aliados/PerfilAliado";
@@ -9,12 +8,11 @@ import { PortadaAliado } from "@/components/aliados/PortadaAliado";
 import { PruebaIndependencia } from "@/components/aliados/ReglasIndependencia";
 import { ResumenDelPerfil } from "@/components/aliados/ResumenPerfil";
 import { esFundador } from "@/components/aliados/TarjetaAliado";
-import { getComprobanteDe, getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
+import { getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { puestoDe } from "@/components/aliados/ranking";
-import { getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
+import { getComprobante, getEstadoGlobal, type Comprobante } from "@/lib/financiamiento";
 import { getResumenContratos } from "@/lib/contratos";
 import { numero, plural } from "@/lib/formato";
-import { hrefSinMaqueta, maquetaActiva, queryMaqueta } from "@/lib/maqueta-aliados";
 
 export const revalidate = 30;
 
@@ -41,23 +39,9 @@ type Seccion = (typeof SECCIONES)[number];
 
 const esSeccion = (v: string | undefined): v is Seccion => !!v && (SECCIONES as readonly string[]).includes(v);
 
-export async function generateMetadata({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams?: { maqueta?: string };
-}) {
-  const maqueta = maquetaActiva(searchParams?.maqueta);
-  const [data, puesto] = await Promise.all([getPerfilAliado(params.slug, maqueta), puestoDe(params.slug, maqueta)]);
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  const [data, puesto] = await Promise.all([getPerfilAliado(params.slug), puestoDe(params.slug)]);
   if (!data) return { title: "Aliado no encontrado" };
-  if (data.esMaqueta) {
-    return {
-      title: `${data.aliado.nombre} (maqueta)`,
-      description: "Aliado inventado para probar el diseño. No existe y sus cifras no son reales.",
-      robots: { index: false, follow: false },
-    };
-  }
   const r = resumirContribuciones(data.contribuciones);
   const title = `${data.aliado.nombre}, aliado de transparencia`;
   const description = [
@@ -81,21 +65,19 @@ export default async function AliadoPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams?: { maqueta?: string; seccion?: string };
+  searchParams?: { seccion?: string };
 }) {
-  const maqueta = maquetaActiva(searchParams?.maqueta);
-  // Sin el interruptor, un slug de maqueta es un 404 igual que cualquier slug inexistente.
-  const data = await getPerfilAliado(params.slug, maqueta);
+  const data = await getPerfilAliado(params.slug);
   if (!data) notFound();
-  const { aliado, contribuciones, esMaqueta } = data;
+  const { aliado, contribuciones } = data;
 
   const r = resumirContribuciones(contribuciones);
   const conDetalle = contribuciones.slice(0, MAX_DETALLE);
   const [estado, resumen, puesto, comprobantes] = await Promise.all([
     getEstadoGlobal(),
     getResumenContratos(),
-    puestoDe(aliado.slug, maqueta),
-    Promise.all(conDetalle.map((c) => getComprobanteDe(c.codigo, esMaqueta))),
+    puestoDe(aliado.slug),
+    Promise.all(conDetalle.map((c) => getComprobante(c.codigo))),
   ]);
   const porCodigo = new Map<string, Comprobante | null>(conDetalle.map((c, i) => [c.codigo, comprobantes[i] ?? null]));
   const items = contribuciones.map((contribucion) => ({ contribucion, comprobante: porCodigo.get(contribucion.codigo) ?? null }));
@@ -109,11 +91,9 @@ export default async function AliadoPage({
   const publicados = resumen?.total ?? 0;
   const regionesConCola = estado?.regionesConCola ?? 0;
 
-  // Las pestañas van a la URL; el interruptor de maqueta viaja con ellas.
+  // Las pestañas van a la URL.
   const ruta = `/aliado/${aliado.slug}`;
-  const mq = searchParams?.maqueta;
-  const conMaqueta = mq === "0" || mq === "1" ? `&maqueta=${mq}` : esMaqueta ? "&maqueta=1" : "";
-  const hrefSeccion = (s: Seccion) => `${ruta}?seccion=${s}${conMaqueta}`;
+  const hrefSeccion = (s: Seccion) => `${ruta}?seccion=${s}`;
   const pedida = searchParams?.seccion;
   const seccion: Seccion = esSeccion(pedida) ? pedida : "resumen";
 
@@ -137,9 +117,7 @@ export default async function AliadoPage({
 
   return (
     <div className="container-page space-y-6 py-6 sm:py-8">
-      <Volver href={`/app/aliados${queryMaqueta(esMaqueta)}`}>Ranking de aliados</Volver>
-
-      {esMaqueta && <AvisoMaqueta volverHref={hrefSinMaqueta("/app/aliados")} />}
+      <Volver href="/app/aliados">Ranking de aliados</Volver>
 
       <PortadaAliado
         aliado={aliado}
@@ -147,8 +125,7 @@ export default async function AliadoPage({
         insignias={insignias}
         aportes={r.aportes}
         ruta={ruta}
-        hrefRanking={`/app/aliados${queryMaqueta(esMaqueta)}`}
-        esMaqueta={esMaqueta}
+        hrefRanking="/app/aliados"
       />
 
       {/* Lo que hizo leer, cada cifra con su denominador. */}
@@ -171,7 +148,6 @@ export default async function AliadoPage({
                 contribuciones={contribuciones}
                 entidades={entidades}
                 hrefs={{ senales: hrefSeccion("senales"), zonas: hrefSeccion("zonas"), aportes: hrefSeccion("aportes") }}
-                esMaqueta={esMaqueta}
               />
             ),
           },
@@ -189,7 +165,7 @@ export default async function AliadoPage({
                   </Ayuda>
                 </p>
                 {senales.length > 0 ? (
-                  <TablaSenales senales={senales.slice(0, MAX_SENALES)} nombre={aliado.nombre} esMaqueta={esMaqueta} />
+                  <TablaSenales senales={senales.slice(0, MAX_SENALES)} nombre={aliado.nombre} />
                 ) : (
                   <EstadoVacio compacto conLlamita={false} titulo={r.leidos > 0 ? "Sin señales publicadas" : "Todavía sin contratos leídos"}>
                     {r.leidos > 0
@@ -237,7 +213,7 @@ export default async function AliadoPage({
               contribuciones.length > 0 ? (
                 <div className="space-y-3">
                   <PruebaIndependencia nombre={aliado.nombre} />
-                  <CadenaAliado nombre={aliado.nombre} items={items} esMaqueta={esMaqueta} />
+                  <CadenaAliado nombre={aliado.nombre} items={items} />
                   {contribuciones.length > MAX_DETALLE && (
                     <p className="text-[12.5px] text-mute">
                       Desde el aporte {numero(MAX_DETALLE + 1)}, la fila abre su comprobante público en vez del panel.

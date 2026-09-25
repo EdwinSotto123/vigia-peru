@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, RefreshCw, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Partes } from "@/components/ui/Partes";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAdmin } from "@/lib/useAdmin";
 import { useSesionEquipo } from "@/lib/useEquipo";
@@ -184,7 +185,7 @@ function FilaBitacora({ e, a, rol }: { e: EntradaBitacora; a: AccionLegible; rol
         <div id={idDatos} hidden={!abierto} className="mt-2 sm:ml-[4.75rem]">
           <p className="mb-1 text-[11px] font-medium text-mute">Datos técnicos de la acción</p>
           <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-paperSoft px-3 py-2 font-mono text-[11px] text-ink">{JSON.stringify(e.detalle, null, 2)}</pre>
-          <p className="mt-1 font-mono text-[11px] text-mute">{e.accion} · {e.objeto}</p>
+          <p className="mt-1 font-mono text-[11px] text-mute"><Partes partes={[e.accion, e.objeto]} /></p>
         </div>
       )}
     </li>

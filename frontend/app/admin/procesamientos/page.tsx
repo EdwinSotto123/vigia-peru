@@ -26,6 +26,7 @@ import { Flujo } from "@/components/admin/procesamiento/Flujo";
 import { agruparLotes, Lotes } from "@/components/admin/procesamiento/Lotes";
 import { PedidosDescarga } from "@/components/admin/procesamiento/PedidosDescarga";
 import { ProcesarLote } from "@/components/admin/procesamiento/ProcesarLote";
+import { Partes } from "@/components/ui/Partes";
 import {
   conteoDeCola,
   conteoVacio,
@@ -364,7 +365,7 @@ function Procesamientos() {
                       <div className="font-mono text-xs text-ink">{p.ocid}</div>
                       {p.titulo && <div className="mt-0.5 line-clamp-1 max-w-[340px] text-[12px] text-inkSoft">{p.titulo}</div>}
                       <div className="text-[11px] text-mute">
-                        {[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo].filter(Boolean).join(" · ")}
+                        <Partes partes={[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo]} />
                       </div>
                     </td>
                     <td className="px-2 py-2.5">
@@ -438,7 +439,7 @@ function Avance({ p }: { p: ProcAdmin }) {
     return (
       <span className="text-[12px] text-inkSoft">
         {seg != null && seg > 0 ? `leído en ${seg < 90 ? `${Math.round(seg)} s` : `${Math.round(seg / 60)} min`}` : "terminado"}
-        {p.score != null && <span className="text-mute"> · puntaje {p.score}</span>}
+        {p.score != null && <span className="text-mute">, puntaje {p.score}</span>}
       </span>
     );
   }

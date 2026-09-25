@@ -59,7 +59,8 @@ const n = (v: unknown) => (esNum(v) ? Number(v).toLocaleString("es-PE") : null);
 /** "1 contrato asignado", "3 contratos asignados"; sin número → null. */
 const cuenta = (v: unknown, uno: string, varios: string) => (esNum(v) ? plural(v, uno, varios) : null);
 const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-const unir = (partes: (string | null | false | undefined)[]) => partes.filter(Boolean).join(" · ") || null;
+/** Las partes de un resumen, separadas por coma; si alguna ya lleva comas (una lista), por punto y coma. */
+const unir = (partes: (string | null | false | undefined)[], sep = ", ") => partes.filter(Boolean).join(sep) || null;
 
 /** "contribucion:VIG-1" → { objeto, href } según el prefijo que usa el API. */
 function objetoDe(accion: string, objeto: string, d: Record<string, unknown>): Pick<AccionLegible, "objeto" | "href" | "externo"> {
@@ -118,7 +119,7 @@ function resumenDe(accion: string, d: Record<string, unknown>): string | null {
     case "editar_procesamiento": {
       const tipos = Array.isArray(d.tipos_activos) ? (d.tipos_activos as string[]).map((t) => humanizar(t)).join(", ") : null;
       const etapas = Array.isArray(d.etapas_activas) ? (d.etapas_activas as string[]).map((t) => humanizar(t)?.toLowerCase()).join(", ") : null;
-      return unir([tipos && `tipos: ${tipos}`, etapas && `etapas: ${etapas}`]);
+      return unir([tipos && `tipos: ${tipos}`, etapas && `etapas: ${etapas}`], "; ");
     }
     default: return null;
   }

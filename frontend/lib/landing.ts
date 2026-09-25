@@ -178,3 +178,27 @@ export function elegirCasos(alertas: AlertaReal[], cuantos = 4): CasoPortada[] {
   }
   return elegidos;
 }
+
+/**
+ * "Leído" es "tiene score" (la definición de /app/contratos): un análisis en revisión o
+ * descartado también se leyó, aunque no sume a las señales.
+ */
+export function contarLeidos(r: Partial<Record<string, number>> | null | undefined): number | null {
+  if (!r) return null;
+  return (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0);
+}
+
+/** Una cajita de la escala: cuántos contratos de un tipo hay y cuántos leyó Vigía. */
+export interface TipoEscala {
+  clave: "bienes" | "servicios" | "obras" | "consultoria" | "otros";
+  etiqueta: string;
+  total: number;
+  /** `null`: su lectura falló. Se dice "Sin dato", no se inventa un 0. */
+  leidos: number | null;
+}
+
+/** El año de la escala: sólo si casi todo lo publicado se convocó ese año (el ⓘ da el número exacto). */
+export interface AnioEscala {
+  anio: number;
+  enAnio: number;
+}

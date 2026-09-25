@@ -60,10 +60,13 @@ export function EstadoError({
   accion,
   detalle,
   nivel = "p",
+  conLlamita = true,
   className,
 }: {
   titulo?: string;
   nivel?: NivelTitulo;
+  /** `false` cuando ya hay una llamita en la pantalla (máximo una, §2.4). */
+  conLlamita?: boolean;
   children?: ReactNode;
   accion?: ReactNode;
   /** Texto técnico (código, mensaje del servidor). Va plegado. */
@@ -72,7 +75,7 @@ export function EstadoError({
 }) {
   return (
     <div role="alert" className={cn("flex flex-col items-center gap-3 rounded-2xl border border-crimson/25 bg-crimson-soft/60 px-6 py-8 text-center", className)}>
-      <Llamita className="w-9 text-crimsonTexto/80" />
+      {conLlamita && <Llamita className="w-9 text-crimsonTexto/80" />}
       <Titulo nivel={nivel} className="font-display text-lg font-bold text-crimsonTexto text-balance">{titulo}</Titulo>
       <div className="max-w-md text-sm leading-relaxed text-inkSoft text-pretty">
         {children ?? "Suele ser momentáneo. Vuelve a intentarlo en unos segundos."}

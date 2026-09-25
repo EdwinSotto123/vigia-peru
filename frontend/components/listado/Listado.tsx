@@ -36,16 +36,26 @@ export function useListado(): Contexto {
   return c;
 }
 
+/** Estable entre renders (un array literal en el default rehacía `navegar` cada vez). */
+const CONSERVAR = ["seccion"];
+
 export function Listado({
   ruta,
   parametros,
   paramPagina = "pagina",
+  conservar = CONSERVAR,
   children,
 }: {
   ruta: string;
   parametros: Parametros;
   /** Nombre del parámetro de página de esta vista (`pagina`, `page`…). Se borra al filtrar. */
   paramPagina?: string;
+  /**
+   * Parámetros que se leen de la URL VIVA al filtrar: la pestaña (`seccion`) la cambia
+   * `Pestanas` sin pasar por el router, así que `parametros` (del último render del
+   * servidor) no la conoce; sin esto, filtrar devolvía a la primera pestaña.
+   */
+  conservar?: string[];
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -53,12 +63,19 @@ export function Listado({
   const navegar = useCallback(
     (cambio: Parametros) => {
       const q = new URLSearchParams();
-      const todo: Parametros = { ...parametros, ...cambio, [paramPagina]: undefined };
+      const vivos: Parametros = {};
+      try {
+        const actual = new URLSearchParams(window.location.search);
+        for (const k of conservar) vivos[k] = actual.get(k) ?? undefined;
+      } catch {
+        /* sin URL: se conserva lo que vino del servidor */
+      }
+      const todo: Parametros = { ...parametros, ...vivos, ...cambio, [paramPagina]: undefined };
       for (const [k, v] of Object.entries(todo)) if (v != null && v !== "") q.set(k, v);
       const qs = q.toString();
       empezar(() => router.push(qs ? `${ruta}?${qs}` : ruta, { scroll: false }));
     },
-    [parametros, paramPagina, ruta, router],
+    [parametros, paramPagina, ruta, router, conservar],
   );
   return <Ctx.Provider value={{ ruta, parametros, pendiente, navegar }}>{children}</Ctx.Provider>;
 }

@@ -62,9 +62,7 @@ function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
       zona: (
         <CeldaPrincipal
           titulo={z.nombre}
-          meta={[z.lugar, ESTADO_LABEL[z.estado], z.financiados > 0 ? `${numero(z.financiados)} financiados` : null]
-            .filter(Boolean)
-            .join(" · ")}
+          meta={[z.lugar, ESTADO_LABEL[z.estado], z.financiados > 0 ? `${numero(z.financiados)} financiados` : null]}
         />
       ),
       cola: <CeldaNumero>{numero(z.pendientes)}</CeldaNumero>,

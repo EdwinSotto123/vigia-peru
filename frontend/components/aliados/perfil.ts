@@ -1,19 +1,15 @@
 import { API_BASE } from "@/lib/api-client";
-import { conAcentos, getComprobante, type Comprobante } from "@/lib/financiamiento";
-import { comprobanteMaqueta, esSlugMaqueta, perfilMaqueta } from "@/lib/maqueta-aliados";
+import { conAcentos } from "@/lib/financiamiento";
 import type { ContribucionAliado } from "./CadenaAliado";
 
 /**
  * Lectura del perfil de un aliado, compartida por su página y por su imagen para
  * compartir (Open Graph): las dos se alimentan del mismo lugar, así que no se pueden
- * contradecir.
- *
- * `maqueta` no es un fallback: si está en false, un slug de maqueta devuelve
- * `null` (o sea 404). Los aliados inventados no existen sin el interruptor.
+ * contradecir. Sólo aliados reales, del API: un slug que no existe es `null` (o sea 404).
  */
 
 export interface AliadoPerfil {
-  /** El API lo devuelve como string; la maqueta usa enteros negativos. */
+  /** El API lo devuelve como string. */
   id: number | string;
   tipo: "empresa" | "persona" | "organizacion";
   nombre: string;
@@ -21,12 +17,9 @@ export interface AliadoPerfil {
   logoUrl: string | null;
   desde: string;
   /**
-   * Los tres campos que le dan cara propia al aliado en su ficha.
-   *
-   * Opcionales porque hoy sólo los trae la maqueta: `GET /financiamiento/
-   * aliados/:slug` todavía no los devuelve y la tabla `aliados` no tiene las
-   * columnas. Es el único pendiente de backend de esta superficie — cuando
-   * existan, la ficha los muestra sin tocar una línea de este archivo.
+   * Lo que le da cara propia al aliado en su ficha (migración 30). Opcionales: `GET
+   * /financiamiento/aliados/:slug` devuelve `null` en lo que el aliado no publicó, y
+   * sin la migración no los trae.
    */
   descripcion?: string | null;
   web?: string | null;
@@ -46,19 +39,13 @@ export type RedSocial = "facebook" | "instagram" | "linkedin" | "x" | "tiktok" |
 export interface PerfilAliado {
   aliado: AliadoPerfil;
   contribuciones: ContribucionAliado[];
-  esMaqueta: boolean;
 }
 
 /**
  * `revalidate` se pasa a mano porque en Next 14 el TTL de una ruta es el MÍNIMO de
  * todos sus fetches: el perfil quiere 30 s; su imagen para compartir, 300.
  */
-export async function getPerfilAliado(slug: string, maqueta = false, revalidate = 30): Promise<PerfilAliado | null> {
-  if (esSlugMaqueta(slug)) {
-    if (!maqueta) return null;
-    const p = perfilMaqueta(slug);
-    return p ? { aliado: p.aliado, contribuciones: p.contribuciones, esMaqueta: true } : null;
-  }
+export async function getPerfilAliado(slug: string, revalidate = 30): Promise<PerfilAliado | null> {
   try {
     const r = await fetch(`${API_BASE}/financiamiento/aliados/${encodeURIComponent(slug)}`, {
       next: { revalidate },
@@ -68,16 +55,10 @@ export async function getPerfilAliado(slug: string, maqueta = false, revalidate 
     return {
       aliado: data.aliado,
       contribuciones: (data.contribuciones ?? []).map((c) => ({ ...c, zona: conAcentos(c.zona) })),
-      esMaqueta: false,
     };
   } catch {
     return null;
   }
-}
-
-/** Comprobante de un aporte: del API si es real, generado si el aporte es de maqueta. */
-export function getComprobanteDe(codigo: string, esMaqueta: boolean): Promise<Comprobante | null> {
-  return esMaqueta ? Promise.resolve(comprobanteMaqueta(codigo)) : getComprobante(codigo);
 }
 
 export interface RegionAlcanzada {

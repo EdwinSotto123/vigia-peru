@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { Partes, hayDato } from "@/components/ui/Partes";
 import { Revelar } from "@/components/ui/Revelar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
@@ -103,7 +104,7 @@ const clases = (m: Medida) =>
 
 export interface GrupoFilas {
   clave: string;
-  /** Rótulo del grupo con su conteo: "En espera · 47". */
+  /** Rótulo del grupo con su conteo en pastilla: "En espera" + `<CuentaGrupo>47</CuentaGrupo>`. */
   titulo: ReactNode;
   filas: Fila[];
 }
@@ -256,17 +257,26 @@ export function CeldaPrincipal({
 }: {
   titulo: ReactNode;
   textoCompleto?: string;
+  /** La línea de contexto. Un arreglo son datos distintos (entidad, zona…): van separados por aire (`Partes`). */
   meta?: ReactNode;
   className?: string;
 }) {
   const tooltip = textoCompleto ?? (typeof titulo === "string" ? titulo : undefined);
+  const lineaMeta = Array.isArray(meta) ? (meta.some(hayDato) ? <Partes partes={meta} /> : null) : meta;
   return (
     <span className={cn("block w-full min-w-0", className)}>
       <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink lg:line-clamp-1" title={tooltip}>
         {titulo}
       </span>
-      {meta && <span className="mt-0.5 block truncate text-[12.5px] text-mute">{meta}</span>}
+      {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute">{lineaMeta}</span>}
     </span>
+  );
+}
+
+/** El conteo de un rótulo de grupo, en su propia pastilla: "En espera [47]". */
+export function CuentaGrupo({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span className={cn("rounded-full bg-paperDeep px-1.5 text-[12px] font-semibold tabular-nums text-ink", className)}>{children}</span>
   );
 }
 

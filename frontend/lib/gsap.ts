@@ -29,11 +29,5 @@ export const CON_MOVIMIENTO = "(min-width: 1024px) and (prefers-reduced-motion: 
 
 /** Revelados livianos (sin fijar): también en móvil, nunca con movimiento reducido. */
 export const SIN_REDUCIR = "(prefers-reduced-motion: no-preference)";
-/**
- * Para escenas fijadas cuyo contenido es alto (la ficha del caso real): con
- * menos de 820 px de alto, la ficha no cabe en la pantalla fijada y su última
- * capa quedaría fuera de la vista justo cuando se revela. Ahí se lee sin pin.
- */
-export const CON_MOVIMIENTO_ALTO = "(min-width: 1024px) and (min-height: 820px) and (prefers-reduced-motion: no-preference)";
 
 export { gsap, ScrollTrigger, useGSAP };

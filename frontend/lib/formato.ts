@@ -52,6 +52,11 @@ export function porcentaje(n: number | null | undefined, { decimales = 0 } = {})
   return `${f.format(decimales ? n : Math.round(n))} %`;
 }
 
+/** "a", "a y b", "a, b y c": una enumeración en palabras, en vez de datos sueltos con un separador. */
+export function listaY(xs: string[]): string {
+  return xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
+}
+
 /** "1 contrato", "2 contratos". El número va formateado. */
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return `${NUM.format(n)} ${n === 1 ? singular : pluralTexto}`;

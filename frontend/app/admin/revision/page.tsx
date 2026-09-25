@@ -11,6 +11,7 @@ import { campoMotivo, decidirAlerta } from "@/components/admin/revision/decidir"
 import { useSesionEquipo } from "@/lib/useEquipo";
 import { puede } from "@/lib/permisos";
 import { tipoLabel } from "@/lib/contratos";
+import { Partes } from "@/components/ui/Partes";
 import {
   Badge,
   claseBoton,
@@ -185,7 +186,7 @@ export default function RevisionPage() {
           <span className="font-mono text-xs font-medium text-ink">{r.codigo}</span>
           <span className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</span>
           <span className="block text-[11px] text-mute">
-            {[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? tipoLabel(r.tipo) ?? r.tipo, r.contribucionCodigo && `aporte ${r.contribucionCodigo}`].filter(Boolean).join(" · ")}
+            <Partes partes={[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? tipoLabel(r.tipo) ?? r.tipo, r.contribucionCodigo && `aporte ${r.contribucionCodigo}`]} />
           </span>
         </>
       ),

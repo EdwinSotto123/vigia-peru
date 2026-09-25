@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, TriangleAlert } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
@@ -8,7 +8,6 @@ import { ChipAporte } from "@/components/financiar/EstadoAporte";
 import { indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
 import { fecha, numero } from "@/lib/formato";
-import { SelloMaqueta } from "./AvisoMaqueta";
 
 /**
  * La cadena completa de un aliado: aporte → contratos asignados → señal. Es lo que
@@ -50,17 +49,10 @@ const COLUMNAS: Columna[] = [
 export function CadenaAliado({
   nombre,
   items,
-  esMaqueta = false,
 }: {
   nombre: string;
   /** Contribución + su comprobante ya resuelto (o `null` si no se trajo el detalle). */
   items: { contribucion: ContribucionAliado; comprobante: Comprobante | null }[];
-  /**
-   * Aliado inventado (`lib/maqueta-aliados.ts`). Cambia dos cosas que no pueden
-   * mentir: los contratos dejan de enlazar —su OCID no existe— y el aporte deja de
-   * ofrecer un comprobante público que nadie podría consultar.
-   */
-  esMaqueta?: boolean;
 }) {
   const filas: Fila[] = items.map(({ contribucion: c, comprobante }) => {
     const enRevision = c.enRevision ?? 0;
@@ -82,12 +74,8 @@ export function CadenaAliado({
         titulo: `Aporte a ${c.zona}`,
         etiqueta: `Ver los contratos que pagó el aporte ${c.codigo}`,
         descripcion: <span className="font-mono">{c.codigo}</span>,
-        contenido: <DetalleAporte nombre={nombre} contribucion={c} comprobante={comprobante} esMaqueta={esMaqueta} />,
-        pie: esMaqueta ? (
-          <span className="inline-flex items-center gap-1.5 text-[13px] text-mute">
-            <FileText size={13} aria-hidden /> Un aporte de maqueta no tiene comprobante público.
-          </span>
-        ) : (
+        contenido: <DetalleAporte nombre={nombre} contribucion={c} comprobante={comprobante} />,
+        pie: (
           <Link
             href={`/impacto/${c.codigo}`}
             className="inline-flex min-h-[24px] items-center gap-1.5 text-[13px] font-semibold text-granate underline-offset-2 hover:underline"
@@ -96,7 +84,7 @@ export function CadenaAliado({
           </Link>
         ),
       };
-    } else if (!esMaqueta) {
+    } else {
       // Sin detalle traído (pasado el tope del perfil): la fila lleva al comprobante.
       fila.href = `/impacto/${c.codigo}`;
     }
@@ -110,12 +98,10 @@ function DetalleAporte({
   nombre,
   contribucion: c,
   comprobante,
-  esMaqueta,
 }: {
   nombre: string;
   contribucion: ContribucionAliado;
   comprobante: Comprobante;
-  esMaqueta: boolean;
 }) {
   const r = comprobante.resumen;
   // Las mismas cifras que su comprobante público, sin la de soles: el perfil se cuenta en contratos.
@@ -124,19 +110,7 @@ function DetalleAporte({
     <CuerpoDetalle>
       <ChipsDetalle>
         <ChipAporte estado={c.estado} />
-        {esMaqueta && <SelloMaqueta />}
       </ChipsDetalle>
-
-      {esMaqueta && (
-        <p className="flex items-center gap-1.5 text-[13px] text-amberTexto">
-          <TriangleAlert size={14} className="shrink-0" aria-hidden />
-          Ni este aporte ni estos contratos existen.
-          <Ayuda titulo="¿Qué es inventado?">
-            Están generados para ver cómo se lee la lista con volumen. Sus códigos llevan prefijo MAQ- y MAQUETA-, y no
-            enlazan a ningún expediente.
-          </Ayuda>
-        </p>
-      )}
 
       <Indicadores items={cifras} />
 
@@ -166,7 +140,7 @@ function DetalleAporte({
           <Tabla
             medida="contenedor"
             columnas={COLUMNAS_CONTRATOS}
-            filas={comprobante.detalle.map((d) => filaContrato(d, esMaqueta))}
+            filas={comprobante.detalle.map(filaContrato)}
             etiqueta={`Contratos del aporte ${comprobante.codigo}`}
           />
         ) : (
@@ -185,9 +159,9 @@ const COLUMNAS_CONTRATOS: Columna[] = [
 
 /**
  * Un contrato del aporte. La columna de estado es siempre un chip: sin leer, en revisión,
- * sin señales o la severidad de su señal más fuerte. Uno de maqueta no enlaza.
+ * sin señales o la severidad de su señal más fuerte. Cada fila va a la ficha del contrato.
  */
-function filaContrato(d: ComprobanteContrato, esMaqueta: boolean): Fila {
+function filaContrato(d: ComprobanteContrato): Fila {
   const sev = bandera(d.severidad);
   const enRevision = d.alertaEstado === "revision";
   const leido = d.procesadaAt != null;
@@ -202,7 +176,7 @@ function filaContrato(d: ComprobanteContrato, esMaqueta: boolean): Fila {
   );
   return {
     id: d.ocid,
-    href: esMaqueta ? undefined : `/app/contratos/${encodeURIComponent(d.ocid)}`,
+    href: `/app/contratos/${encodeURIComponent(d.ocid)}`,
     celdas: {
       estado,
       contrato: <CeldaPrincipal titulo={d.titulo ?? "Sin objeto declarado en el expediente"} meta={d.entidad ?? undefined} />,

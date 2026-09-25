@@ -1,5 +1,4 @@
 import { getRankingPaginado, type RankingPagina, type RankingQuery, type RankingRow } from "@/lib/financiamiento";
-import { esSlugMaqueta, queryMaqueta, rankingMaqueta } from "@/lib/maqueta-aliados";
 
 /**
  * El ranking de aliados en un solo lugar: el puesto (#1, #2…) que muestra /app/aliados,
@@ -45,9 +44,8 @@ export function parseOrden(v: string | string[] | undefined): ClaveOrden {
   return s === "senales" || s === "regiones" ? s : "financiados";
 }
 
-/** Href del perfil; el de un aliado de maqueta conserva el interruptor. */
-export const hrefPerfil = (slug: string | null) =>
-  slug ? `/aliado/${slug}${esSlugMaqueta(slug) ? queryMaqueta(true) : ""}` : undefined;
+/** Href del perfil; un aporte sin slug no tiene perfil. */
+export const hrefPerfil = (slug: string | null) => (slug ? `/aliado/${slug}` : undefined);
 
 const esAnonimo = (r: RankingRow) => r.tipo === "persona" && (r.nombre === "Anónimo" || !r.nombre);
 
@@ -87,7 +85,10 @@ function ordenar(filas: FilaRanking[], orden: ClaveOrden): FilaRanking[] {
 }
 
 export interface Ranking {
-  /** Los tres primeros, destacados. Sólo por contratos financiados, en la primera página y con 3 o más. */
+  /**
+   * Los tres primeros, destacados. Sólo por contratos financiados y en la primera página;
+   * con uno o dos nombres también (el podio dibuja libres los puestos que faltan).
+   */
   podio: FilaRanking[];
   /** El resto, en el orden elegido. */
   tabla: FilaRanking[];
@@ -103,27 +104,23 @@ export interface Ranking {
 
 /**
  * Arma lo que se dibuja a partir de la muestra (y, pasados los 60, de la página del API).
- * `inventados` son los aliados de maqueta (sólo en desarrollo); sólo se mezclan si la
- * muestra está completa, porque su puesto se calcula acá.
  */
 export function armarRanking({
   muestra,
   pagina,
-  inventados,
   orden,
   paginaActual,
 }: {
   muestra: RankingPagina;
   pagina: RankingPagina | null;
-  inventados: RankingRow[];
   orden: ClaveOrden;
   paginaActual: number;
 }): Ranking {
   const completa = (muestra.total ?? 0) <= MUESTRA_RANKING;
-  const filas = [...(muestra.data ?? []), ...(completa ? inventados : [])];
+  const filas = muestra.data ?? [];
   const anon = filas.filter(esAnonimo);
   const clasificados = clasificar(filas);
-  const conPodio = orden === "financiados" && paginaActual === 1 && clasificados.length >= 3;
+  const conPodio = orden === "financiados" && paginaActual === 1 && clasificados.length > 0;
   const podio = conPodio ? clasificados.slice(0, 3) : [];
   const enPodio = new Set(podio.map((f) => f.id));
 
@@ -154,11 +151,11 @@ export function armarRanking({
  * El puesto de un aliado en el ranking de todo el Perú, desde el inicio: "#3 de 12".
  * `null` si no se puede saber (el API no responde, o el aliado queda fuera de la muestra).
  */
-export async function puestoDe(slug: string, maqueta: boolean): Promise<{ puesto: number; de: number } | null> {
+export async function puestoDe(slug: string): Promise<{ puesto: number; de: number } | null> {
   const muestra = await getRankingPaginado({ periodo: "todo", limit: MUESTRA_RANKING });
   if (!muestra) return null;
   const completa = muestra.total <= MUESTRA_RANKING;
-  const filas = [...(muestra.data ?? []), ...(maqueta && completa ? rankingMaqueta() : [])];
+  const filas = muestra.data ?? [];
   const clasificados = clasificar(filas);
   const fila = clasificados.find((f) => f.slug === slug);
   if (!fila) return null;

@@ -17,7 +17,8 @@ import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
-import { elegirCasos } from "@/lib/landing";
+import { contarLeidos, elegirCasos, type AlertaReal, type AnioEscala, type CasoPortada, type TipoEscala } from "@/lib/landing";
+import { reglaLabel } from "@/lib/auditoria";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
  *  5. De dónde sale lo que dice (FuentesSection).
  *  6. El país, y tu región (MapaRegiones: el único mapa de la portada).
  *  7. Lo que ya encontró (CasosReales).
- *  8. Quién lo hace posible (Aliados: foco, podio, calculadora).
+ *  8. Quién lo hace posible (Aliados: podio, calculadora).
  *  9. Cómo sumarse sin financiar (Participar).
  * 10. Por qué creerle (ConfianzaSection), adónde va (ExpansionSection), y el cierre.
  *
@@ -48,11 +49,16 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
   // Las lecturas en paralelo: son independientes, y en serie cada una le sumaba
   // su viaje de ida y vuelta al primer byte de la portada.
-  const [alertas, estado, resumen, regiones] = await Promise.all([
+  const anio = anioLima();
+  const [alertas, estado, resumen, regiones, resumenAnio, ...porTipo] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
     getResumenContratos().catch(() => null),
     getContratosGeo({ nivel: "departamento" }).catch(() => null),
+    getResumenContratos({ desde: `${anio}-01-01` }).catch(() => null),
+    // Las cajitas de la escala: cuántos leyó Vigía de cada tipo (el resumen general
+    // trae el total por tipo, pero no los leídos por tipo).
+    ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave }).catch(() => null)),
   ]);
 
   const montoTotal = (regiones ?? []).reduce((s, r) => s + (r.montoPen ?? 0), 0);
@@ -64,9 +70,7 @@ export default async function LandingPage() {
   // Un análisis en revisión o descartado también se leyó: suma a "leídos",
   // aunque no a las señales.
   const r = resumen?.porRiesgo;
-  const leidos = r
-    ? (r.alto ?? 0) + (r.medio ?? 0) + (r.bajo ?? 0) + (r.en_revision ?? 0) + (r.descartado ?? 0)
-    : 0;
+  const leidos = contarLeidos(r) ?? 0;
   const senalAlta = resumen?.porRiesgo.alto ?? 0;
 
   // Los gráficos del mapa de fuentes: las mismas cifras de arriba, nada nuevo.
@@ -85,17 +89,30 @@ export default async function LandingPage() {
       : null,
   };
 
+  const tiposEscala = resumen ? armarTiposEscala(resumen.porTipo, publicados, leidos, porTipo) : [];
+  // "2026" sólo si casi todo lo publicado se convocó este año; el ⓘ dice cuántos exactamente.
+  const anioEscala: AnioEscala | null =
+    resumenAnio && publicados > 0 && resumenAnio.total / publicados >= 0.99 ? { anio, enAnio: resumenAnio.total } : null;
+
   const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
+  const reglaCaso = casoPrincipal ? reglaDelCaso(alertas, casoPrincipal) : null;
 
   return (
     <>
       <HeroLupa />
 
       {publicados > 0 && montoTotal > 0 && (
-        <EscalaDinero montoTotal={montoTotal} publicados={publicados} leidos={leidos} senalAlta={senalAlta} />
+        <EscalaDinero
+          montoTotal={montoTotal}
+          publicados={publicados}
+          leidos={leidos}
+          senalAlta={senalAlta}
+          tipos={tiposEscala}
+          anio={anioEscala}
+        />
       )}
 
-      {casoPrincipal && <CasoLeido caso={casoPrincipal} />}
+      {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} />}
 
       <PipelineAgentes />
 
@@ -119,6 +136,61 @@ export default async function LandingPage() {
       <CierreLanding enCola={estado?.colaGlobal ?? null} />
     </>
   );
+}
+
+/**
+ * El nombre de la regla del caso de portada ("Única oferta válida"): `elegirCasos` no
+ * lo trae, así que se busca en su alerta la bandera cuya evidencia es la elegida. Se
+ * compara sólo letras y cifras porque la portada limpia la puntuación del texto. Si no
+ * aparece, la ficha dice "Lo que encontró Vigía" en vez de adivinar.
+ */
+function reglaDelCaso(alertas: AlertaReal[], caso: CasoPortada): string | null {
+  const clave = (t: string) => t.toLowerCase().replace(/[^a-z0-9áéíóúüñ]/g, "");
+  const buscada = clave(caso.hallazgo);
+  const alerta = alertas.find((a) => a.codigoconvocatoria === caso.convocatoria && (a.codigo ?? "") === caso.codigo);
+  const bandera = alerta?.banderas?.find((b) => b.evidencia && clave(b.evidencia) === buscada);
+  return bandera ? reglaLabel(bandera.regla) : null;
+}
+
+/** Los cuatro tipos con cajita propia, en palabras de persona. El resto va en "Convenios y otros". */
+const TIPOS_ESCALA: { clave: Exclude<TipoEscala["clave"], "otros">; etiqueta: string }[] = [
+  { clave: "bienes", etiqueta: "Bienes" },
+  { clave: "servicios", etiqueta: "Servicios" },
+  { clave: "obras", etiqueta: "Obras" },
+  { clave: "consultoria", etiqueta: "Consultorías" },
+];
+
+/** El año en curso, en hora de Lima. */
+function anioLima(): number {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Lima", year: "numeric" }).format(new Date()));
+}
+
+/**
+ * Las cajitas de la escala: los cuatro tipos grandes y "Convenios y otros" con lo que
+ * falta para llegar al total, así las cajitas suman el número del titular. Los leídos de
+ * "otros" sólo se calculan si se conocen los de los cuatro tipos (si no, "Sin dato").
+ */
+function armarTiposEscala(
+  porTipo: Partial<Record<string, number>>,
+  total: number,
+  leidosTotal: number,
+  resumenes: ({ porRiesgo: Partial<Record<string, number>> } | null)[],
+): TipoEscala[] {
+  const grandes: TipoEscala[] = TIPOS_ESCALA.map((t, i) => ({
+    clave: t.clave,
+    etiqueta: t.etiqueta,
+    total: porTipo[t.clave] ?? 0,
+    leidos: contarLeidos(resumenes[i]?.porRiesgo),
+  }));
+  const resto = total - grandes.reduce((s, t) => s + t.total, 0);
+  const conocidos = grandes.every((t) => t.leidos != null);
+  const otros: TipoEscala = {
+    clave: "otros",
+    etiqueta: "Convenios y otros",
+    total: resto,
+    leidos: conocidos ? Math.max(0, leidosTotal - grandes.reduce((s, t) => s + (t.leidos ?? 0), 0)) : null,
+  };
+  return [...grandes.filter((t) => t.total > 0).sort((a, b) => b.total - a.total), ...(resto > 0 ? [otros] : [])];
 }
 
 /**

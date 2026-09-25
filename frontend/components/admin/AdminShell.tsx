@@ -190,7 +190,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
           </span>
           {/* En el teléfono no hay barra lateral: la sesión y la salida viven acá. */}
           <span className="flex items-center gap-3 lg:hidden">
-            {correo && <span className="truncate">{correo}{rol ? ` · ${ROLES[rol].nombre}` : ""}</span>}
+            {correo && <span className="truncate">{correo}{rol ? ` (${ROLES[rol].nombre})` : ""}</span>}
             <button onClick={logout} className="inline-flex items-center gap-1 font-medium text-ink underline-offset-4 hover:underline">
               <LogOut size={12} aria-hidden /> Cerrar sesión
             </button>

@@ -79,7 +79,7 @@ export function ReglasEvaluadas({ perfil, senales, reglasDisparadas, enRevision 
           {/* Una línea de datos; cómo se comprobó cada regla, a un clic (DESIGN_SYSTEM.md §10.7). */}
           <p className="mb-2 flex items-center gap-1 text-[11px] text-mute">
             <span>
-              Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil} · versión <span className="font-mono">{data.version}</span>
+              Reglas fijas para contratos de {tipoContratoHumano(data.perfil) ?? data.perfil}, versión <span className="font-mono">{data.version}</span>
             </span>
             <Ayuda titulo="¿Cómo se comprobaron?">
               Cada regla se comprobó contra el registro público del proceso, el expediente y las fuentes oficiales. Las que

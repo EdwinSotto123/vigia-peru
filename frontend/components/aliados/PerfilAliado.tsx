@@ -42,7 +42,7 @@ export function indicadoresAliado(
     {
       valor: num(r.conSenal),
       etiqueta: "con señales",
-      contexto: `de ${num(r.leidos)} leídos${r.enRevision > 0 ? ` · ${num(r.enRevision)} en revisión` : ""}`,
+      contexto: `de ${num(r.leidos)} leídos${r.enRevision > 0 ? `, ${num(r.enRevision)} en revisión` : ""}`,
       ayuda: (
         <Ayuda titulo="¿Qué cuenta “con señales”?">
           Leídos con al menos una señal publicada, con la norma citada y el documento que la sostiene. Los que están en
@@ -155,29 +155,26 @@ const COLUMNAS_SENALES_COMPACTAS: Columna[] = [
 ];
 
 /**
- * Lo que salió en los contratos de este aliado. Cada fila va al contrato; uno de
- * maqueta no enlaza (su OCID no existe).
+ * Lo que salió en los contratos de este aliado. Cada fila va al contrato.
  */
 export function TablaSenales({
   senales,
   nombre,
-  esMaqueta = false,
   compacta = false,
 }: {
   senales: SenalDeAliado[];
   nombre: string;
-  esMaqueta?: boolean;
   compacta?: boolean;
 }) {
   const filas: Fila[] = senales.map((s) => ({
     id: `${s.codigoAporte}-${s.ocid}`,
-    href: esMaqueta ? undefined : `/app/contratos/${encodeURIComponent(s.ocid)}`,
+    href: `/app/contratos/${encodeURIComponent(s.ocid)}`,
     celdas: {
       severidad: <Severidad bandera={s.severidad as "alta" | "media" | "baja"} />,
       contrato: (
         <CeldaPrincipal
           titulo={s.titulo ?? "Sin objeto declarado en el expediente"}
-          meta={[s.entidad, s.zona].filter(Boolean).join(" · ")}
+          meta={[s.entidad, s.zona].filter(Boolean).join(", ")}
         />
       ),
       senales: <CeldaNumero>{num(s.banderas)}</CeldaNumero>,

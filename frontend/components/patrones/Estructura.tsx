@@ -175,7 +175,7 @@ export function Cifra({
   );
 }
 
-/** De dónde sale un dato y de cuándo es: "Fuente: SEACE · 14 set. 2026", con enlace al registro. */
+/** De dónde sale un dato y de cuándo es: "Fuente: SEACE, 14 set. 2026", con enlace al registro. */
 export function FuenteDato({
   fuente,
   fecha,
@@ -190,7 +190,7 @@ export function FuenteDato({
   const texto = (
     <>
       Fuente: {fuente}
-      {fecha ? ` · ${fechaCorta(fecha)}` : ""}
+      {fecha ? `, ${fechaCorta(fecha)}` : ""}
     </>
   );
   return (

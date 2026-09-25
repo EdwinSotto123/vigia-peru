@@ -323,7 +323,7 @@ function indicadoresZona({ zona, alcance }: ZonaDetalle): Indicador[] {
       etiqueta: "con señales",
       contexto:
         zona.procesados > 0
-          ? `de ${numero(zona.procesados)} leídos${enRevision > 0 ? ` · ${numero(enRevision)} en revisión` : ""}`
+          ? `de ${numero(zona.procesados)} leídos${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`
           : "ningún contrato leído todavía",
       ayuda: (
         <Ayuda titulo="¿Qué cuenta “con señales”?">

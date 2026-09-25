@@ -158,15 +158,13 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
       entidad: (
         <CeldaPrincipal
           titulo={e.nombre}
-          meta={
-            <>
-              {tipo}
-              {e.region ? ` · ${e.region}` : ""} ·{" "}
-              <span className="font-mono" translate="no">
-                RUC {e.ruc}
-              </span>
-            </>
-          }
+          meta={[
+            tipo,
+            e.region,
+            <span className="font-mono" translate="no">
+              RUC {e.ruc}
+            </span>,
+          ]}
         />
       ),
       dictamen: (

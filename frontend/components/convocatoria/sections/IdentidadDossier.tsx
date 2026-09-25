@@ -6,7 +6,7 @@ import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
 import { Volver } from "@/components/patrones";
 import { cn } from "@/lib/utils";
-import { numero, porcentaje, solesCompacto } from "@/lib/formato";
+import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
 import { fechaDossier, montoDossier, type ConteoSeveridad, type EstadoCorrida } from "../dossier";
 import { oeceProcesoUrl } from "../utils";
@@ -65,11 +65,10 @@ export function IdentidadDossier({
           {objetoCompleto(conv.objeto) || "Contrato sin objeto registrado"}
         </Titulo>
         {/* Quién compra, en una línea con el código. */}
-        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] text-inkSoft">
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] text-inkSoft">
           <span>
             Convocatoria <span className="font-mono font-semibold text-ink">{codigo}</span>
           </span>
-          <span aria-hidden className="text-mute">·</span>
           {conv.entidad && conv.buyer_ruc ? (
             <Link href={`/entidad/${encodeURIComponent(conv.buyer_ruc)}`} className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-granate">
               {conv.entidad}
@@ -164,13 +163,13 @@ export function indicadoresDossier({
       conteo.alta > 0 && `${numero(conteo.alta)} ${conteo.alta === 1 ? "alta" : "altas"}`,
       conteo.media > 0 && `${numero(conteo.media)} ${conteo.media === 1 ? "media" : "medias"}`,
       conteo.baja > 0 && `${numero(conteo.baja)} ${conteo.baja === 1 ? "baja" : "bajas"}`,
-    ].filter(Boolean);
+    ].filter((x): x is string => Boolean(x));
     const completa = corrida?.completa ?? true;
     items.push({
       valor: numero(conteo.total),
       etiqueta: conteo.total === 1 ? "señal" : "señales",
       tono: conteo.alta > 0 ? "alta" : conteo.media > 0 ? "media" : conteo.total === 0 && completa ? "positivo" : "neutro",
-      contexto: conteo.total > 0 ? partes.join(" · ") : completa ? "ninguna regla disparó" : "análisis incompleto",
+      contexto: conteo.total > 0 ? listaY(partes) : completa ? "ninguna regla disparó" : "análisis incompleto",
     });
   }
 

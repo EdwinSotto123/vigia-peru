@@ -203,8 +203,8 @@ export default function EquipoPage() {
                 <p className="flex items-center gap-2 font-medium text-ink">
                   {r === "admin" ? <KeyRound size={15} aria-hidden /> : <ShieldCheck size={15} aria-hidden />} {ROLES[r].nombre}
                 </p>
-                <ul className="mt-2 space-y-1 text-[13px] text-inkSoft">
-                  {PUEDE[r].map((x) => <li key={x} className="flex gap-2"><span aria-hidden>·</span>{x}</li>)}
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-[13px] text-inkSoft marker:text-mute">
+                  {PUEDE[r].map((x) => <li key={x}>{x}</li>)}
                 </ul>
                 {r === "revisor" && <p className="mt-2 text-[12px] text-mute">No ve aportes, financiadores, medios de pago, configuración ni equipo.</p>}
               </Card>

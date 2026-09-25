@@ -67,7 +67,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     cadencia: "cada noche",
     cuando: "Cada noche a la 1:30, desde una conexión peruana: el OECE bloquea a los servidores en la nube.",
     captura: {
-      formato: "API OCDS · JSON",
+      formato: "API OCDS (JSON)",
       origen: "contratacionesabiertas.oece.gob.pe/api/v1/releasesAfter",
       campos: ["ocid", "date", "parties[].roles", "additionalIdentifiers PE-RUC", "tender.value.amount", "tender.tenderPeriod", "tender.description", "documents[].url"],
     },
@@ -93,7 +93,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     cuando: "Se descarga a mano del Registro Nacional de Proveedores: no está en datos abiertos. Es una foto completa del registro.",
     nota: "Es la llave de los cruces: sin ella, una visita o un aporte de campaña no se puede atar a la empresa que se presentó al contrato.",
     captura: {
-      formato: "CSV · separado por | · 1,44 millones de filas",
+      formato: "CSV separado por |, 1,44 millones de filas",
       origen: "Registro Nacional de Proveedores (OECE)",
       campos: ["FECHA_CORTE", "TIPO_DOCUMENTO", "NUMERO_DOCUMENTO", "NOMBRE_RAZONODENOMINACIONSOCIAL", "RUC", "TIPO_CONF_JURIDICA", "FECHA_INICIO_VIGENCIA", "DE_FORMA_SOCIETARIA"],
     },
@@ -123,7 +123,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     nota:
       "El job semanal `pnda_sancionados` (domingos 8:00, Cloud Scheduler) baja los CSV de la PNDA a `osce_sancionados`, pero no escribe `estado`; la vista `osce_sancionados_vigentes` (backend/db/schemas/osce_sancionados_schema.sql) exige `estado = 'VIGENTE'`, así que esas filas nunca llegan a la regla C4/C7 (backend/agent/tools/compliance_rules/_rules_provider.py). La regla trabaja sobre la carga manual: al 23-09-2026, 3 888 filas (3 112 vigentes) contra 2 395 del job que quedan fuera. Por eso la portada la describe como carga a mano, sin fecha próxima.",
     captura: {
-      formato: "XLSX · 3 hojas (multa, definitivo, temporal)",
+      formato: "XLSX de 3 hojas (multa, definitivo, temporal)",
       origen: "apps.osce.gob.pe/perfilprov-ui",
       campos: ["TIPO", "Razon Social", "RUC", "Resolución", "Periodo", "Desde", "Hasta", "Estado"],
     },
@@ -153,7 +153,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
       "Las exportaciones del botón «Excel» del portal de la PCM se hacen a mano (Turnstile bloquea la automatización) y se cargan con `--xlsx` como fuente='portal_visitas_manual'. El dataset de la PNDA corre solo los días 1 y 15 a las 8:00, hora de Lima, en la nube.",
     nota: "El dataset abierto trae una sola entidad, el Gobierno Regional de Loreto. Las otras 345 salen de exportaciones del portal de la PCM, que se hacen a mano porque el portal bloquea la automatización. Por eso la portada no promete una próxima fecha.",
     captura: {
-      formato: "XLSX · uno por mes",
+      formato: "XLSX, uno por mes",
       origen: "datosabiertos.gob.pe",
       campos: ["Fecha de Visita", "Entidad visitada", "Visitante", "Documento del visitante", "Funcionario visitado", "Hora Ingreso", "Hora Salida", "Motivo"],
     },
@@ -178,7 +178,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     cadencia: "a mano",
     cuando: "La lanza una persona, con un navegador abierto: el portal está detrás de Cloudflare y un captcha. Una vez al mes, y cada semana en campaña.",
     captura: {
-      formato: "JSON · desde el navegador",
+      formato: "JSON, desde el navegador",
       origen: "claridad.onpe.gob.pe/claridad-backend/portal",
       campos: ["dni", "razonSocial", "apellidos", "nombres", "fechaAporte", "monto", "tipoAporte", "anioEleccion"],
     },
@@ -204,8 +204,8 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     nota:
       "Los agentes leen `jne_candidaturas` (backend/agent/tools/personas/electoral.py, red_network.py, patrones.py). El job mensual `jne_infogob` (día 5, 8:00, Cloud Scheduler) escribe `jne_autoridades`, que no lee ningún agente, ruta del API ni el MCP; a los agentes sólo les aporta el DNI que completa en `jne_candidaturas` desde `onpe_candidatos`. Además, al 24-09-2026 su slug `autoridades-vigentes-jne` redirige al buscador de la PNDA (el dataset pasó a `autoridades-vigentes-nivel-nacional-jurado-nacional-de-elecciones`), así que ese job falla.",
     captura: {
-      formato: "XLSX · uno por proceso (Candidatos / Autoridades)",
-      origen: "infogob.jne.gob.pe · Base de datos",
+      formato: "XLSX, uno por proceso (Candidatos / Autoridades)",
+      origen: "infogob.jne.gob.pe, sección Base de datos",
       campos: ["PRIMER APELLIDO", "SEGUNDO APELLIDO", "PRENOMBRES", "ORGANIZACION POLITICA", "CARGO", "REGION", "PROVINCIA", "DISTRITO"],
     },
     pasos: ["¿Electo o candidato?", "Armar el nombre", "Cargo, partido y lugar"],
@@ -236,7 +236,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     nota:
       "Se cargó completa (1 826 967 declaraciones y 2 726 382 empleos previos), pero ninguna revisión la cruza todavía. Además, al 24-09-2026 los slugs del pipeline redirigen al buscador de la PNDA: los datasets pasaron a `declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría` y `empleos-declarados-en-las-declaraciones-juradas-de-intereses-contraloría`, así que el job mensual falla y la copia no se renueva.",
     captura: {
-      formato: "CSV · 268 MB y 442 MB",
+      formato: "CSV de 268 MB y 442 MB",
       origen: "datosabiertos.gob.pe",
       campos: ["CODIGO_DDJJ", "TIPO_DOCUMENTO_FUNCIONARIO", "APELLIDO_PATERNO", "APELLIDO_MATERNO", "NOMBRES", "ENTIDAD", "CARGO", "RUC_ENTIDAD_LABORO"],
     },
@@ -256,7 +256,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
       [133, 2, "                    cur.execute(r\"UPDATE dji_empleos SET ruc_entidad = substring(ruc_entidad_raw from '\\d{11}') WHERE ruc_entidad IS NULL\")"],
     ]),
     extrae: {
-      tabla: "dji_funcionarios · dji_empleos",
+      tabla: "dji_funcionarios y dji_empleos",
       columnas: ["nombre_norm", "entidad", "cargo", "ruc_entidad"],
     },
   },
@@ -266,7 +266,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     cuando: "Agendada el día 12 de cada mes a las 8:00, hora de Lima, en la nube.",
     nota: "El 23 de setiembre de 2026 la API del MEF respondía 404 a toda consulta, y el 24, 500. Los paneles de presupuesto muestran la última copia guardada.",
     captura: {
-      formato: "API · JSON",
+      formato: "API (JSON)",
       origen: "api.datosabiertos.mef.gob.pe",
       campos: ["DEPARTAMENTO_EJECUTORA_NOMBRE", "PIA_{año}", "PIM_{año}", "DEVENGADO_{año}", "GIRADO_{año}", "SECTOR_NOMBRE", "PLIEGO_NOMBRE", "PROGRAMA_PPTO_NOMBRE"],
     },
@@ -294,7 +294,7 @@ export const FUENTES_TECNICO: Record<string, FuenteTecnica> = {
     cuando: "El día 1 de cada mes a las 9:00, hora de Lima, en la nube.",
     nota: "Se descarga y se archiva con su huella, pero todavía no se lee: ninguna revisión la usa.",
     captura: {
-      formato: "CSV, XLSX y ZIP · 7 conjuntos",
+      formato: "CSV, XLSX y ZIP en 7 conjuntos",
       origen: "datosabiertos.gob.pe",
       campos: ["ofertantes", "proveedores_consorcios", "sican", "pronunciamientos", "cuadernos_obra", "cuadernos_obra_asientos", "valorizaciones"],
     },

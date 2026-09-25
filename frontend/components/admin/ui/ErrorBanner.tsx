@@ -48,7 +48,7 @@ export function Aviso({
 export function explicarError(e: unknown): { titulo: string; detalle: string; tecnico: string | null } {
   const status = typeof e === "object" && e && "status" in e && typeof (e as { status: unknown }).status === "number" ? (e as { status: number }).status : null;
   const crudo = e instanceof Error ? e.message : typeof e === "string" ? e : null;
-  const tecnico = status ? `HTTP ${status}${crudo && crudo !== `HTTP ${status}` ? ` · ${crudo}` : ""}` : crudo;
+  const tecnico = status ? `HTTP ${status}${crudo && crudo !== `HTTP ${status}` ? `: ${crudo}` : ""}` : crudo;
   if (status === 401) return { titulo: "Tu sesión expiró", detalle: "Vuelve a entrar al panel para seguir.", tecnico };
   if (status === 403) return { titulo: "Tu cuenta no tiene permiso para esto", detalle: "Pide acceso a quien administra el panel.", tecnico };
   if (status === 404) return { titulo: "No se encontró lo que buscabas", detalle: "Puede que ya no exista o que otra persona lo haya cambiado.", tecnico };

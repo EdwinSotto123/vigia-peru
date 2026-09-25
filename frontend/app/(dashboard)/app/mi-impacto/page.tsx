@@ -28,6 +28,7 @@ import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Colum
 import { ChipAporte, EstadoAporte, indicePaso } from "@/components/financiar/EstadoAporte";
 import { SubirComprobante } from "@/components/financiar/SubirComprobante";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
+import { Partes, Separador } from "@/components/ui/Partes";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { dejarDeSeguir, getImpacto, reclamarAporte, type AporteMio, type DenunciaMia, type Impacto } from "@/lib/cuentas";
 import { ESTADO_LABEL, ESTADO_PUNTO, type ZonaEstado } from "@/lib/financiamiento";
@@ -290,11 +291,10 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
       aporte: (
         <CeldaPrincipal
           titulo={a.zona}
-          meta={
-            <>
-              <span className="font-mono" translate="no">{a.codigo}</span> · {falta ? <span className="font-medium text-granate">Falta enviar tu comprobante</span> : cantidad}
-            </>
-          }
+          meta={[
+            <span className="font-mono" translate="no">{a.codigo}</span>,
+            falta ? <span className="font-medium text-granate">Falta enviar tu comprobante</span> : cantidad,
+          ]}
         />
       ),
       leidos: <CeldaNumero sub={`de ${numero(a.contratos)}`}>{numero(a.procesados)}</CeldaNumero>,
@@ -347,7 +347,7 @@ function DetalleAporte({ a, recargar }: { a: AporteMio; recargar: () => void }) 
             {
               valor: numero(a.procesados),
               etiqueta: a.procesados === 1 ? "leído" : "leídos",
-              contexto: `de ${numero(a.contratos)}${a.enRevision > 0 ? ` · ${numero(a.enRevision)} en revisión` : ""}`,
+              contexto: `de ${numero(a.contratos)}${a.enRevision > 0 ? `, ${numero(a.enRevision)} en revisión` : ""}`,
             },
             { valor: numero(a.senales), etiqueta: "con señales", contexto: `de ${numero(a.procesados)} leídos` },
           ]}
@@ -397,8 +397,11 @@ function filaDenuncia(d: DenunciaMia): Fila {
           titulo={titulo}
           meta={
             <>
-              <span className="md:hidden">{e.label} · </span>
-              {meta?.label ?? d.categoria} · {zona}
+              <span className="md:hidden">
+                {e.label}
+                <Separador />
+              </span>
+              <Partes partes={[meta?.label ?? d.categoria, zona]} />
             </>
           }
         />
@@ -490,12 +493,11 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
   const estado = z.estado as ZonaEstado;
   const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];
   const etiquetaEstado = ESTADO_LABEL[estado] ?? z.estado;
-  const lugar = `${NIVEL[z.nivel] ?? z.nivel} · ${etiquetaEstado}`;
   return {
     id: z.ubigeo,
     celdas: {
       estado: <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", ESTADO_PUNTO[estado] ?? ESTADO_PUNTO.sin_datos)} aria-hidden />,
-      zona: <CeldaPrincipal titulo={z.nombre} meta={lugar} />,
+      zona: <CeldaPrincipal titulo={z.nombre} meta={[NIVEL[z.nivel] ?? z.nivel, etiquetaEstado]} />,
       cola: <CeldaNumero>{numero(z.pendientes)}</CeldaNumero>,
       financiados: <CeldaNumero sub={`${numero(z.procesados)} leídos`}>{numero(z.financiados)}</CeldaNumero>,
       senales: <CeldaNumero>{numero(z.senales)}</CeldaNumero>,
@@ -520,7 +522,7 @@ function filaZona(z: ZonaSeguida, recargar: () => void): Fila {
               {
                 valor: numero(z.senales),
                 etiqueta: "con señales",
-                contexto: `de ${numero(z.procesados)} leídos${z.enRevision > 0 ? ` · ${numero(z.enRevision)} en revisión` : ""}`,
+                contexto: `de ${numero(z.procesados)} leídos${z.enRevision > 0 ? `, ${numero(z.enRevision)} en revisión` : ""}`,
               },
             ]}
           />
