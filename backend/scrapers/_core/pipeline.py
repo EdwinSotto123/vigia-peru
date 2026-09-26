@@ -30,8 +30,7 @@ log = logging.getLogger("scrapers")
 SCRIPTS_DIR = REPO_ROOT / "backend" / "scripts"
 
 
-def pg_dsn() -> str:
-    """DSN libpq armado con las mismas variables que usan backend/db y backend/scripts."""
+def _password() -> str:
     pw = os.getenv("PGPASSWORD")
     if not pw:
         f = REPO_ROOT / ".cloudsql-password"
@@ -41,23 +40,43 @@ def pg_dsn() -> str:
             pw = m.group(1) if m else None
     if not pw:
         raise SystemExit("✗ Falta PGPASSWORD (o .cloudsql-password en la raíz)")
+    return pw
+
+
+def _dsn_sin_password() -> str:
     return (
         f"host={os.getenv('PGHOST', '127.0.0.1')} port={os.getenv('PGPORT', '5432')} "
         f"dbname={os.getenv('PGDATABASE', 'vigia')} user={os.getenv('PGUSER', 'postgres')} "
-        f"password={pw} sslmode={os.getenv('PGSSLMODE', 'prefer')}"
+        f"sslmode={os.getenv('PGSSLMODE', 'prefer')}"
     )
 
 
+def pg_dsn() -> str:
+    """DSN libpq armado con las mismas variables que usan backend/db y backend/scripts.
+    Solo para conectar DENTRO de este proceso: nunca va a un argv ni a un log."""
+    return f"{_dsn_sin_password()} password={_password()}"
+
+
 def run_loader(script: str, *args: str, dry_run: bool = False) -> None:
-    """Ejecuta un loader de backend/scripts/ como subproceso (misma convención --dsn/--dry-run)."""
+    """Ejecuta un loader de backend/scripts/ como subproceso (misma convención --dsn/--dry-run).
+
+    La contraseña va por la variable PGPASSWORD del subproceso (libpq la lee sola cuando el DSN no
+    la trae), NUNCA en los argumentos: `CalledProcessError` imprime el comando completo al fallar y
+    así la contraseña del superusuario terminó en Cloud Logging (auditoría 2026-09-25, C1). En un
+    Linux además se ve en `ps` mientras corre."""
     cmd = [sys.executable, str(SCRIPTS_DIR / script), *args]
+    env = dict(os.environ)
     if dry_run:
         cmd.append("--dry-run")
     else:
-        cmd += ["--dsn", pg_dsn()]
-    shown = [c if not c.startswith("host=") else "host=… (dsn oculto)" for c in cmd]
-    log.info("→ %s", " ".join(shown[1:]))
-    subprocess.run(cmd, check=True, cwd=REPO_ROOT)
+        cmd += ["--dsn", _dsn_sin_password()]
+        env["PGPASSWORD"] = _password()
+    log.info("→ %s", " ".join(cmd[1:]))
+    try:
+        subprocess.run(cmd, check=True, cwd=REPO_ROOT, env=env)
+    except subprocess.CalledProcessError as e:
+        # El mensaje por defecto incluye el comando; ya no trae secretos, pero se re-lanza corto y claro.
+        raise RuntimeError(f"el loader {script} terminó con código {e.returncode}") from None
 
 
 class Pipeline(ABC):

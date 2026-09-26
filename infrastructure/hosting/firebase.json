@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "site": "vigia-peru",
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      { "source": "/v1/**", "run": { "serviceId": "vigia-peru-api", "region": "us-central1" } },
+      { "source": "**", "run": { "serviceId": "vigia-peru-frontend", "region": "us-central1" } }
+    ]
+  }
+}

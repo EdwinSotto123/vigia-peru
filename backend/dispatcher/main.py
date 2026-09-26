@@ -19,7 +19,11 @@ SOLO para bienes y para contratos sin clasificación. Si el servicio del tipo no
 el contrato queda `pendiente_de_procesamiento` (no se manda servicios/obras al de bienes).
 
 Env: AGENT_URL / AGENT_URL_<TIPO> (ver arriba), PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD/PGSSLMODE,
-DISPATCHER_PARALLEL (default 2), DISPATCHER_MAX_MINUTES (default 55),
+DISPATCHER_PARALLEL (default 2), DISPATCHER_MAX_MINUTES (default 25: ventana de reclamo),
+DISPATCHER_TASK_TIMEOUT_S (timeout del job en Cloud Run, default 7200) y DISPATCHER_ANALISIS_MAX_S (lo más
+que puede tardar un análisis, default 3600): se deja de reclamar a tiempo para que el peor análisis, más
+la espera de gracia, termine antes de que Cloud Run mate la tarea (antes: reclamos hasta el minuto 55 de
+un job de 60, así que el análisis moría con el job, se re-encolaba y podía correr dos veces),
 DISPATCHER_STREAM_TIMEOUT (segundos sin datos del stream, default 1200),
 DISPATCHER_GRACE_MINUTES (si el stream corta sin `final`, minutos que se espera a que la alerta
 aparezca en DB antes de re-encolar: el orquestador sigue corriendo aunque el cliente se desconecte),
@@ -38,8 +42,10 @@ import time
 from typing import Any
 
 import psycopg2
+import psycopg2.errors
 import requests
 from psycopg2.extras import Json
+from psycopg2.pool import ThreadedConnectionPool
 
 from .auth import cabeceras as cabeceras_invocacion
 from .events import VISIBLES, canonico, reduce_event
@@ -54,9 +60,14 @@ PERFIL_DE_TIPO: dict[str, str] = {
 }
 PERFILES = ("bienes", "servicios", "obras", "otros")
 PARALLEL = int(os.getenv("DISPATCHER_PARALLEL", "2"))
-MAX_MIN = int(os.getenv("DISPATCHER_MAX_MINUTES", "55"))
+MAX_MIN = int(os.getenv("DISPATCHER_MAX_MINUTES", "25"))
 STREAM_TIMEOUT = int(os.getenv("DISPATCHER_STREAM_TIMEOUT", "1200"))
 GRACE_MIN = int(os.getenv("DISPATCHER_GRACE_MINUTES", "20"))
+TASK_TIMEOUT_S = int(os.getenv("DISPATCHER_TASK_TIMEOUT_S", "7200"))
+ANALISIS_MAX_S = int(os.getenv("DISPATCHER_ANALISIS_MAX_S", "3600"))
+# Tope de eventos guardados por procesamiento: `eventos || nuevo` reescribe el JSONB entero en cada
+# evento; sin tope, un análisis largo crece sin límite. Se conservan los últimos.
+MAX_EVENTOS = int(os.getenv("DISPATCHER_MAX_EVENTOS", "400"))
 PREFETCH_OCDS = os.getenv("DISPATCHER_PREFETCH_OCDS", "1") == "1"
 # Migración 15: si el contrato no tiene documentos vigentes en GCS, no se procesa: se abre un
 # pedido de descarga (lo atiende el batch nocturno desde IP peruana) y queda esperando_documentos.
@@ -68,7 +79,13 @@ BROWSER_HEADERS = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "es-PE,es;q=0.9",
 }
-WORKER = f"{socket.gethostname()}-{os.getpid()}"
+# Identidad única por ejecución: en Cloud Run el hostname es siempre "localhost" y el pid 1, así que
+# todas las ejecuciones se llamaban "localhost-1" y no se podía saber cuál tenía cada contrato.
+WORKER = "-".join(x for x in (
+    os.getenv("CLOUD_RUN_EXECUTION") or socket.gethostname(),
+    os.getenv("CLOUD_RUN_TASK_INDEX"),
+    str(os.getpid()),
+) if x)
 MAX_INTENTOS = 3
 
 
@@ -82,15 +99,32 @@ def dsn() -> str:
     )
 
 
+_pool: ThreadedConnectionPool | None = None
+
+
+def _pool_db() -> ThreadedConnectionPool:
+    """Pool chico compartido por los hilos. Antes se abría una conexión nueva por cada sentencia
+    (cada evento del stream, cada latido), con su handshake TLS y un backend nuevo en Postgres."""
+    global _pool
+    if _pool is None:
+        _pool = ThreadedConnectionPool(1, PARALLEL + 2, dsn())
+    return _pool
+
+
 def _query(sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
-    """Ejecuta y commitea en una conexión nueva (cada llamada es corta; sin pool)."""
-    conn = psycopg2.connect(dsn())
+    """Ejecuta y commitea con una conexión del pool. Una conexión rota se descarta, no se devuelve."""
+    pool = _pool_db()
+    conn = pool.getconn()
+    rota = False
     try:
         with conn, conn.cursor() as cur:
             cur.execute(sql, params)
             return cur.fetchall() if cur.description else []
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        rota = True
+        raise
     finally:
-        conn.close()
+        pool.putconn(conn, close=rota or bool(conn.closed))
 
 
 def reclamar(n: int) -> list[str]:
@@ -120,8 +154,9 @@ def actualizar(ocid: str, cambios: dict, evento: dict | None = None) -> None:
         sets.append("fases = %s::jsonb")
         vals.append(Json(cambios["fases"]))
     if evento is not None:
-        sets.append("eventos = eventos || %s::jsonb")
-        vals.append(Json([evento]))
+        # Con el tope alcanzado se descarta el más viejo antes de anexar (índice 0 del arreglo).
+        sets.append("eventos = (CASE WHEN jsonb_array_length(eventos) >= %s THEN eventos - 0 ELSE eventos END) || %s::jsonb")
+        vals.extend([MAX_EVENTOS, Json([evento])])
     _query(f"UPDATE procesamientos SET {', '.join(sets)} WHERE ocid = %s", (*vals, ocid))
 
 
@@ -131,10 +166,12 @@ OK, FAIL, ABORT, PENDIENTE, ESPERA = "ok", "fail", "abort", "pendiente", "espera
 def alerta_persistida(ocid: str, desde: dt.datetime | None = None) -> bool:
     """¿Hay alerta para el contrato (analizada desde `desde`, si se indica)?
     El orquestador guarda la alerta con el OCID corto; ocid_corto() (migración 12) iguala ambas formas."""
+    # Igualdad sobre las dos formas del OCID: usa el índice de `alertas.ocid`. `ocid_corto(ocid) = …`
+    # sobre la columna obligaba a recorrer la tabla en cada sondeo de la espera de gracia.
     return bool(_query(
-        "SELECT 1 FROM alertas WHERE ocid_corto(ocid) = ocid_corto(%s) "
+        "SELECT 1 FROM alertas WHERE ocid = ANY(ARRAY[%s, ocid_corto(%s)]) "
         "AND (%s::timestamptz IS NULL OR COALESCE(analizado_en, updated_at, created_at) >= %s::timestamptz) LIMIT 1",
-        (ocid, desde, desde),
+        (ocid, ocid, desde, desde),
     ))
 
 
@@ -157,7 +194,15 @@ def refrescar_vistas(zonas: bool = False) -> bool:
     nocturna. `ranking_impacto` tarda ~0.3 s y se refresca tras cada contrato; `zona_estado`
     (~2 s) solo al final de la corrida. Nunca tumba el procesamiento: un fallo se registra y sigue."""
     try:
-        _query("SELECT refresh_financiamiento()" if zonas else "SELECT refresh_ranking()", ())
+        if zonas:
+            # Migración 32: refresca solo si algo cambió desde el último refresco. Sin la migración,
+            # el refresco de siempre.
+            try:
+                _query("SELECT refresh_financiamiento_si_hace_falta()", ())
+            except psycopg2.errors.UndefinedFunction:
+                _query("SELECT refresh_financiamiento()", ())
+        else:
+            _query("SELECT refresh_ranking()", ())
         return True
     except Exception:  # noqa: BLE001 — la vista vieja se corrige en el siguiente refresh
         log.warning("refresh de %s falló", "zona_estado + ranking_impacto" if zonas else "ranking_impacto", exc_info=True)
@@ -419,15 +464,47 @@ def procesar(ocid: str) -> str:
     return resultado
 
 
+class _FormatoJson(logging.Formatter):
+    """Una línea JSON por registro con `severity`: Cloud Logging la indexa (filtrar por nivel, agrupar
+    errores en Error Reporting). Antes el nivel iba dentro del texto y un stack trace salía partido."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        entrada = {"severity": record.levelname, "message": record.getMessage(), "logger": record.name, "worker": WORKER}
+        if record.exc_info:
+            entrada["stack_trace"] = self.formatException(record.exc_info)
+        return json.dumps(entrada, ensure_ascii=False)
+
+
+def _configurar_logs() -> None:
+    h = logging.StreamHandler()
+    # En Cloud Run (CLOUD_RUN_JOB o K_SERVICE definidos) JSON; en una terminal, texto legible.
+    en_gcp = bool(os.getenv("CLOUD_RUN_JOB") or os.getenv("K_SERVICE"))
+    h.setFormatter(_FormatoJson() if en_gcp else logging.Formatter("%(asctime)s %(levelname).1s dispatcher %(message)s"))
+    logging.basicConfig(level=logging.INFO, handlers=[h], force=True)
+
+
+def plazo_de_reclamo(inicio: float) -> float:
+    """Hasta cuándo se puede reclamar: la ventana MAX_MIN, pero nunca tan tarde que el peor análisis
+    (ANALISIS_MAX_S) más la espera de gracia no alcance a terminar antes del timeout de la tarea."""
+    margen = 300  # arranque, cierre en DB y refresco final
+    limite_seguro = inicio + TASK_TIMEOUT_S - ANALISIS_MAX_S - GRACE_MIN * 60 - margen
+    return min(inicio + MAX_MIN * 60, limite_seguro)
+
+
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname).1s dispatcher · %(message)s")
+    _configurar_logs()
     urls = {p: (os.getenv(f"AGENT_URL_{p.upper()}") or "").rstrip("/") for p in PERFILES}
     if not AGENT_URL and not any(urls.values()):
         log.error("falta AGENT_URL (o AGENT_URL_BIENES/SERVICIOS/OBRAS/OTROS)")
         return 2
-    log.info("worker=%s parallel=%d max=%d min agent=%s · por perfil: %s", WORKER, PARALLEL, MAX_MIN,
-             AGENT_URL or "-", ", ".join(f"{p}={u or '-'}" for p, u in urls.items()))
-    deadline = time.time() + MAX_MIN * 60
+    inicio = time.time()
+    deadline = plazo_de_reclamo(inicio)
+    if deadline <= inicio:
+        log.error("el timeout de la tarea (%d s) no alcanza para un análisis de %d s más la gracia: no se reclama nada",
+                  TASK_TIMEOUT_S, ANALISIS_MAX_S)
+        return 2
+    log.info("worker=%s parallel=%d reclama durante %.0f min (tarea %d s), agent=%s, por perfil: %s", WORKER, PARALLEL,
+             (deadline - inicio) / 60, TASK_TIMEOUT_S, AGENT_URL or "-", ", ".join(f"{p}={u or '-'}" for p, u in urls.items()))
     procesados = fallidos = abortados = pendientes = esperando = 0
     fuente_caida = False  # un aborto del orquestador (OECE inaccesible) frena la corrida; el scheduler reintenta en 5 min
     with cf.ThreadPoolExecutor(max_workers=PARALLEL) as pool:

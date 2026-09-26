@@ -20,10 +20,34 @@ def test_actualizar_persiste_fases_enteras(monkeypatch):
     main.actualizar("1225030", {"fase_actual": "market", "fase_index": 4, "fases": fases, "fases_completadas": []},
                     {"ts": "t", "kind": "phase", "name": "market", "msg": "x"})
     sql, params = capturado[0]
-    assert "fase_actual = %s" in sql and "fase_index = %s" in sql and "fases = %s::jsonb" in sql and "eventos = eventos ||" in sql
+    assert "fase_actual = %s" in sql and "fase_index = %s" in sql and "fases = %s::jsonb" in sql
+    # Anexa el evento con tope: pasado MAX_EVENTOS descarta el más viejo antes de agregar.
+    assert "jsonb_array_length(eventos) >= %s THEN eventos - 0" in sql and "|| %s::jsonb" in sql
     assert params[0] == "market" and params[1] == 4
     assert params[2].adapted == fases          # psycopg2 Json
+    assert params[3] == main.MAX_EVENTOS and params[4].adapted == [{"ts": "t", "kind": "phase", "name": "market", "msg": "x"}]
     assert params[-1] == "1225030"
+
+
+def test_plazo_de_reclamo_deja_terminar_el_peor_analisis(monkeypatch):
+    # Tarea de 2 h, análisis de hasta 1 h, gracia de 20 min y margen de 5 min: se reclama hasta el minuto 25
+    # (la ventana MAX_MIN manda). Con una tarea de 1 h no alcanza: el plazo queda antes del inicio.
+    monkeypatch.setattr(main, "TASK_TIMEOUT_S", 7200)
+    monkeypatch.setattr(main, "ANALISIS_MAX_S", 3600)
+    monkeypatch.setattr(main, "GRACE_MIN", 20)
+    monkeypatch.setattr(main, "MAX_MIN", 25)
+    assert main.plazo_de_reclamo(0) == 25 * 60
+    monkeypatch.setattr(main, "MAX_MIN", 55)
+    assert main.plazo_de_reclamo(0) == 7200 - 3600 - 1200 - 300
+    monkeypatch.setattr(main, "TASK_TIMEOUT_S", 3600)
+    assert main.plazo_de_reclamo(0) < 0
+
+
+def test_refrescar_zonas_usa_el_refresco_condicional(monkeypatch):
+    capturado: list[str] = []
+    monkeypatch.setattr(main, "_query", lambda sql, params: capturado.append(sql) or [])
+    assert main.refrescar_vistas(zonas=True) is True
+    assert capturado == ["SELECT refresh_financiamiento_si_hace_falta()"]
 
 
 def test_actualizar_sin_fases_no_toca_la_columna(monkeypatch):
