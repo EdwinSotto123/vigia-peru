@@ -58,6 +58,10 @@ def _agente(nombre):
 
 @pytest.fixture
 def entorno(monkeypatch):
+    # Estas pruebas validan la ORQUESTACIÓN (dependencias, merge, eventos, fallos) con los
+    # agentes de cumplimiento como agentes ADK stub: camino REGLAS_EN_CODIGO=0 (rollback).
+    # El camino por defecto (reglas en código) se prueba en test_reglas_en_codigo.py.
+    monkeypatch.setenv("REGLAS_EN_CODIGO", "0")
     """Reemplaza agentes, tools, lote/mercado y los runners ADK por stubs deterministas."""
     log = _Log()
     ocid = "ocds-dgv273-seacev3-1245947"

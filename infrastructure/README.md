@@ -75,6 +75,7 @@ en Lima con systemd/Docker (instrucciones en su propio README).
 | Grupo | Variables |
 |---|---|
 | GCP / modelos | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`global`), `GOOGLE_GENAI_USE_VERTEXAI`, `GEMINI_MODEL`, `GEMINI_MODEL_FAST`, `GEMINI_MODEL_SMART`, `VERTEX_PROJECT`, `VERTEX_LOCATION` |
+| Costo de Gemini | `GEMINI_MODEL_JUDGE` (`gemini-3.5-flash-lite`), `GEMINI_FLEX` (`1` = Flex PayGo por llamada con salida a Standard), `GEMINI_FLEX_TIMEOUT_S` (600), `GEMINI_FLEX_CORTE_S` (1800), `GEMINI_FLEX_FALLAS`/`GEMINI_FLEX_VENTANA_S`/`GEMINI_FLEX_PAUSA_S` (3/600/900), `THINKING_<ETAPA>` (`minimal`\|`low`\|`medium`\|`high`\|`none`), `REGLAS_EN_CODIGO` (`1`), `TRACE_REDACTAR_PII` (`1`) |
 | Base de datos | `PGHOST` (socket `/cloudsql/...`), `PGUSER`, `PGDATABASE`, `PGPASSWORD` (secreto) |
 | OCR | `DOCAI_PROJECT`, `DOCAI_LOCATION`, `DOCAI_PROCESSOR_ID`, `DOCAI_LAYOUT_TEXT` |
 | RAG legal | `LEGAL_RAG_BACKEND` (`vertex` \| `pgvector`), `LEGAL_RAG_ENGINE`, `LEGAL_RAG_DATASTORE`, `PINECONE_API_KEY` (legacy, secreto) |

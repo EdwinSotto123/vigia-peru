@@ -149,6 +149,9 @@ def _worker_goods_retail(items_chunk: list, objeto: str, idx: int, contexto: str
         tools=[types.Tool(google_search=types.GoogleSearch())],
         temperature=0.2,
         max_output_tokens=8192,
+        # Buscar y transcribir precios: sin thinking_config el worker pensaba en MEDIUM y la
+        # salida la dominaba el razonamiento.
+        thinking_config=thinking_crudo("market", MARKET_WORKER_MODEL, "low"),
     )
 
     # Sin _throttle_gemini(): el semáforo global (2) serializaría los workers. La
@@ -281,7 +284,9 @@ def _worker_estimacion_llm(items_chunk: list, objeto: str, idx: int, contexto: s
         f"{_ESTIMACION_INSTRUCCIONES}"
     )
     client = _gemini_client()
-    cfg = types.GenerateContentConfig(temperature=0.3, max_output_tokens=4096)
+    cfg = types.GenerateContentConfig(
+        temperature=0.3, max_output_tokens=4096,
+        thinking_config=thinking_crudo("market_estimacion", MARKET_WORKER_MODEL, "minimal"))
 
     def _call():
         return client.models.generate_content(model=MARKET_WORKER_MODEL, contents=prompt, config=cfg)

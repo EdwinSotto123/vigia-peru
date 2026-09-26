@@ -109,10 +109,26 @@ def evaluate_normative_compliance(ocid: str, tool_context: ToolContext) -> dict:
     # Dedupe (misma fuente+título) y prioridad por severidad. Ya NO se corta a 10:
     # el tope es RAG_MAX_HALLAZGOS (default 60) y, si se supera, el recorte queda
     # registrado en state['recortes'] (auditoría 6.1-4).
+    # `descripcion`/`titulo` a TEXTO: un cruce de la red de personas trae `evidencia` como LISTA
+    # ([{url, cita}, …]); con una lista la clave de dedupe no es hasheable y la función entera caía
+    # ("unhashable type: 'list'") → se perdían el cruce normativo y las reglas del lote 1 de la
+    # corrida, en silencio (visto en 1225884 el 2026-09-26). La pregunta al RAG usa el mismo texto.
+    def _texto(v) -> str:
+        if isinstance(v, str):
+            return v
+        if isinstance(v, list):
+            return " · ".join(_texto(x) for x in v if x not in (None, "", [], {}))
+        if isinstance(v, dict):
+            partes = [str(v.get(c)) for c in ("cita", "texto", "descripcion", "url", "fuente") if v.get(c)]
+            return " — ".join(partes) if partes else json.dumps(v, ensure_ascii=False, default=str)
+        return "" if v is None else str(v)
+    for h in hallazgos:
+        h["titulo"] = _texto(h.get("titulo"))
+        h["descripcion"] = _texto(h.get("descripcion"))
     _vistos: set = set()
     _dedup: list[dict] = []
     for h in hallazgos:
-        k = (h.get("fuente"), (h.get("titulo") or "")[:80], (h.get("descripcion") or "")[:120])
+        k = (str(h.get("fuente")), h["titulo"][:80], h["descripcion"][:120])
         if k in _vistos:
             continue
         _vistos.add(k)

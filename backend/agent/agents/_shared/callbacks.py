@@ -23,9 +23,16 @@ def _log_event(**fields) -> None:
 
 
 def _truncate(s, n: int = 1200) -> str:
+    """Previsualización para Cloud Logging: recortada y sin DNI (ver agents/_shared/pii.py)."""
     if s is None:
         return ""
     txt = s if isinstance(s, str) else str(s)
+    try:
+        from agents._shared.pii import activo, redactar_texto
+        if activo():
+            txt = redactar_texto(txt)
+    except Exception:
+        pass
     return txt if len(txt) <= n else txt[:n] + f"…(+{len(txt) - n} chars)"
 
 

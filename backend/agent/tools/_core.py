@@ -67,7 +67,7 @@ _CAUSALES_DIRECTA = [
 DECOLECTA_BASE = os.getenv("DECOLECTA_BASE", "https://api.decolecta.com/v1")
 DECOLECTA_API_KEY = os.getenv("DECOLECTA_API_KEY", "")
 _MAX_RENDER_PAGES = 30
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 PINECONE_HOST = "https://rag-leyes-k8u4w2h.svc.gcp-us-central1-4a9f.pinecone.io"
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 RAG_NAMESPACE = "opiniones-oece"
@@ -277,9 +277,10 @@ def _pg():
             user=PG_USER, password=PG_PASS, database=PG_DB,
             unix_sock=f"{PG_HOST}/.s.PGSQL.5432",
         )
+    # Por TCP: TLS salvo PGSSLMODE=disable (staging local, o PgBouncer dentro de la VPC).
     return pg8000.dbapi.connect(
-        host=PG_HOST, port=5432, user=PG_USER, password=PG_PASS,
-        database=PG_DB, ssl_context=True,
+        host=PG_HOST, port=int(os.getenv("PGPORT", "5432") or 5432), user=PG_USER, password=PG_PASS,
+        database=PG_DB, ssl_context=None if os.getenv("PGSSLMODE", "").strip().lower() == "disable" else True,
     )
 
 def _normalize_name_for_search(s: str) -> str:
@@ -347,17 +348,49 @@ def _gemini_client():
     # Vertex: el endpoint `global` enruta a la región menos saturada → minimiza
     # 429 RESOURCE_EXHAUSTED (us-central1 es la más saturada). Lee tanto las env
     # custom (VERTEX_*) como las estándar de google-genai (GOOGLE_CLOUD_*).
+    # Flex NO va en el cliente: lo pone por llamada el patch de model_fallback (tools/flex.py),
+    # que puede repetir en Standard la llamada que Flex no atiende. Así los embeddings tampoco lo llevan.
     return genai.Client(
         vertexai=True,
         project=os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4"),
         location=os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION", "global"),
     )
 
+
+# ── Razonamiento de las llamadas DIRECTAS (fuera de ADK) ──────────────────────
+# Flex PayGo vive en tools/flex.py (se re-exporta aquí por compatibilidad).
+from tools.flex import FLEX_HEADERS, flex_activo  # noqa: E402,F401
+
+_NIVELES_THINKING = ("minimal", "low", "medium", "high")
+
+
+def thinking_crudo(etapa: str, model: str, default: str = "minimal"):
+    """`ThinkingConfig` explícito para una llamada directa. Sin él, Gemini 3 piensa en
+    MEDIUM por defecto: medido 2026-09-26, 294 tokens de razonamiento (cobrados como
+    salida) para extraer un monto de 14 tokens; con `minimal`, 0 y 5× más rápido.
+    Env `THINKING_<ETAPA>` (minimal|low|medium|high|none) > default. None → sin config."""
+    from google.genai import types as _gt
+    raw = os.getenv(f"THINKING_{etapa.upper()}")
+    nivel = (raw if raw is not None else default or "").strip().lower()
+    if nivel in ("", "none", "off", "0"):
+        return None
+    if nivel not in _NIVELES_THINKING:
+        nivel = default if default in _NIVELES_THINKING else "low"
+    m = str(model or "").lower()
+    if m.startswith("gemini-3") or "/gemini-3" in m:
+        # 3.7/3.8-flash rechazan `minimal` (400): lo más bajo que aceptan es `low`.
+        if nivel == "minimal" and any(v in m for v in ("gemini-3.7", "gemini-3.8")):
+            nivel = "low"
+        return _gt.ThinkingConfig(thinking_level=nivel, include_thoughts=False)
+    presupuesto = {"minimal": 0, "low": 1024, "medium": 4096, "high": 16384}[nivel]
+    return _gt.ThinkingConfig(thinking_budget=presupuesto, include_thoughts=False)
+
 def _today_iso() -> str:
     """Fecha de hoy en ISO (yyyy-mm-dd) — UTC para consistencia."""
     return _dt.date.today().isoformat()
 
-__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
+__all__ = ['BROWSER', 'DECOLECTA_API_KEY', 'DECOLECTA_BASE', 'DEFAULT_GEMINI_MODEL', 'EMBED_MODEL_RAG', 'FunctionTool',
+           'FLEX_HEADERS', 'flex_activo', 'thinking_crudo', 'OECE_BASE', 'PG_DB', 'PG_HOST', 'PG_PASS', 'PG_USER', 'PINECONE_API_KEY', 'PINECONE_HOST', 'RAG_NAMESPACE', 'ToolContext', '_CAUSALES_DIRECTA', '_GEMINI_CALL_SEM', '_GEMINI_CALL_CONCURRENCY', '_GEMINI_LAST_CALL_LOCK', '_GEMINI_LAST_CALL_T', '_GEMINI_MIN_INTERVAL_S', '_MAX_RENDER_PAGES', '_annotate_future_date', '_dt', '_gemini_call_with_retry', '_gemini_client', '_marcar_truncado', '_fallback_patch_activo', '_GEMINI_CALL_DEADLINE_S', '_normalize_name_for_search', '_normalize_persona', '_pg', '_safe_parse_json', '_short_ocid', '_table_exists', '_throttle_gemini', '_today_iso', 'annotations', 'base64', 'concurrent', 'io', 'json', 'os', 'pg8000', 'random', 're', 'requests', 'threading', 'time', 'zipfile']
 
 
 # ── Downloader local (relay residencial PE): cortacircuito ───────────────────

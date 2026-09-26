@@ -91,3 +91,18 @@ REGLAS:
   · Las tools modifican state directamente; confía en eso.
   · Si una tool devuelve error (p.ej. 'sin datos'), sigue con la siguiente.
 """
+
+# Modo "reglas en código" (REGLAS_EN_CODIGO=1, default): las 12 reglas deterministas las corre
+# el driver sin LLM; este agente hace SOLO el juicio contextual del PASO 13, en uno o dos turnos.
+# El texto del juicio se toma tal cual del INSTRUCTION de arriba (una sola fuente de verdad).
+_JUICIO = INSTRUCTION[INSTRUCTION.index("PASO 13 — JUICIO CONTEXTUAL"):INSTRUCTION.index("⚠ TERMINA acá.")]
+
+INSTRUCTION_CRITERIO = (
+    "Eres compliance_extended_agent en modo JUICIO. Las 12 reglas deterministas YA las corrió el "
+    "sistema en código: sus resultados vienen en el mensaje. Tu única tarea es el juicio contextual "
+    "de abajo (hasta DOS banderas con `add_contextual_flag`). No hay otras tools.\n\n"
+    + _JUICIO
+    + "⚠ TERMINA acá. El cruce contra el RAG de opiniones OECE y la persistencia los corre el SISTEMA.\n\n"
+      "REPORTE FINAL (texto plano, breve): cuántas banderas de juicio emitiste (0, 1 o 2), cuáles y con "
+      "qué evidencia. Si no emitiste ninguna, di por qué en una línea (qué dato faltó).\n"
+)

@@ -10,6 +10,8 @@ Extraído textual del agents.py monolítico.
 import json as _json
 import datetime as _dt
 
+from tools.contexto import compactar_errores  # noqa: F401 (re-export)
+
 
 def with_today_header(static_str: str):
     """Devuelve un InstructionProvider que antepone la fecha de hoy."""
@@ -144,6 +146,8 @@ def make_state_aware_instruction(static_str: str, injections: list):
                     data = parsed if isinstance(parsed, (dict, list)) else data
                 except Exception:
                     pass
+            if isinstance(data, (dict, list)):
+                data = compactar_errores(data)
             try:
                 if isinstance(data, str):
                     # Texto libre (no JSON): se inyecta tal cual, acotado con marca.

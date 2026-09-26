@@ -104,6 +104,43 @@ def _sin_sha(ev):
     return ev
 
 
+from tools.contexto import compactar_errores  # noqa: E402
+
+# Por hallazgo de mercado el dictamen necesita el veredicto, la mediana, el precio ofertado y
+# algunas fuentes; no los ~7 k chars de precios observados, evidencia, referencias internas y
+# consultas (medido en staging, 400 hallazgos: precios 1,9 k, evidencia 1,6 k, referencias 1 k).
+_MERCADO_TOPE_LISTA = 3
+_MERCADO_SIN_VALOR_PARA_DICTAMEN = ("requerimiento_usado", "queries_realizadas", "evidencia",
+                                    "caracteristicas_solicitadas_clave")
+
+
+def _compact_market_analysis(ma):
+    """Copia de `market_analysis` para el writer: cada hallazgo conserva sus campos de
+    veredicto y hasta 3 precios observados / referencias internas / proveedores (con el total
+    en `<campo>_total`). No muta el state."""
+    if not isinstance(ma, dict) or not isinstance(ma.get("findings"), list):
+        return ma
+    out = {k: v for k, v in ma.items() if k != "findings"}
+    findings = []
+    for f in ma["findings"]:
+        if not isinstance(f, dict):
+            findings.append(f)
+            continue
+        g = {}
+        for k, v in f.items():
+            if k in _MERCADO_SIN_VALOR_PARA_DICTAMEN:
+                continue
+            if isinstance(v, list) and len(v) > _MERCADO_TOPE_LISTA and k in (
+                    "precios_observados", "referencias_internas", "proveedores_potenciales", "fuentes"):
+                g[k] = v[:_MERCADO_TOPE_LISTA]
+                g[f"{k}_total"] = len(v)
+            else:
+                g[k] = v
+        findings.append(g)
+    out["findings"] = findings
+    return out
+
+
 def _compact_document_analysis(da):
     """Proyección de `document_analysis` para el writer SIN lo redundante (verificado en un
     contexto real: 28 k de 62 k chars eran document_analysis):
@@ -384,8 +421,11 @@ def get_dictamen_context(tool_context: ToolContext) -> dict:
     out["oece_perfil"] = _oece_perfil_para_dictamen(state)
     out["rnp_firmantes_resultados"] = _rnp_firmantes_para_dictamen(state)
     out["banderas"] = _banderas_para_dictamen(state)
-    out["reglas_evaluadas"] = [b for b in (state.get("pending_flags") or []) if isinstance(b, dict)]
+    # Sin `reglas_evaluadas` (= pending_flags): repetía las banderas, y el dictamen solo puede
+    # citar las persistidas en `banderas`.
     out["n_banderas"] = len(out["banderas"] or [])
+    out["market_analysis"] = _compact_market_analysis(out.get("market_analysis"))
+    out = compactar_errores(out)
     out["_nota"] = ("Solo se pueden citar banderas presentes en `banderas`. Las secciones con "
                     "`_truncado: true` fueron paginadas; `_omitidos` dice cuántos elementos no se "
                     "muestran. `recortes`/`descartes`/`validaciones_pendientes` deben listarse en "
@@ -442,9 +482,12 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
     raw = state.get("parser_raw_consolidated")
     if isinstance(raw, dict) and (raw.get("items_consolidados") or raw.get("firmantes")
                                   or raw.get("postores_consolidados") or raw.get("postores_extraidos")):
-        return {
+        # Una sola lista de ítems y sin alias/sha256 (`_compact_document_analysis`): antes viajaba
+        # `items` Y `items_consolidados` (la misma lista), cada ítem con `texto_literal` y su alias
+        # `requerimiento_tecnico_detallado` → 4 copias del texto, reenviadas en cada turno del
+        # agente legal (28 % de la respuesta de esta tool en las trazas de septiembre).
+        return _compact_document_analysis({
             "items": raw.get("items_consolidados", []),
-            "items_consolidados": raw.get("items_consolidados", []),
             "postores_extraidos": raw.get("postores_extraidos") or raw.get("postores_consolidados") or [],
             "firmantes": raw.get("firmantes", []),
             "comite_evaluacion": raw.get("comite_evaluacion", []),
@@ -458,7 +501,7 @@ def read_document_analysis(tool_context: ToolContext) -> dict:
             "contrato_final": state.get("contrato_final"),
             "_source": "parser_raw_consolidated",
             "_note": "Extracción determinista de la tool (autoritativa sobre el LLM del parser).",
-        }
+        })
 
     # Fallback: el output del AGENTE (solo si la tool no dejó nada extraído).
     v = state.get("document_analysis")

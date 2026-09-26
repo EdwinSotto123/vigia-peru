@@ -43,6 +43,8 @@ from google.genai import types as gtypes
 import agents as _agents
 from agents import vigia_orchestrator
 from deterministic import _kwargs_soportados, _rate_for_model, _usage_tokens
+from pipeline_runtime import _factor_trafico
+from tools import flex as _flex_mod
 
 
 APP_NAME = "vigia-peru"
@@ -97,6 +99,7 @@ async def _run_streaming(
     runner = _build_runner()
     user_id = "demo"
     session_id = str(uuid.uuid4())
+    _flex_mod.iniciar_corrida()   # corte por tiempo de Flex (tools/flex.py) cuenta desde aquí
 
     initial_state: dict[str, Any] = {}
     if ocds:
@@ -194,7 +197,7 @@ async def _run_streaming(
     # Acumulador de tokens/costo (de usage_metadata de cada respuesta del LLM) —
     # se emite como eventos `metrics` al stream para mostrar en vivo que Arize
     # está midiendo. Tarifas Gemini 2.5 Flash en Vertex (USD/1M tokens, estimado).
-    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0, "thoughts": 0}
+    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0, "thoughts": 0, "flex_calls": 0}
 
     # ── Pipeline DETERMINISTA: la secuencia de agentes/tools la corre el código
     #    (deterministic.run_deterministic) → todos los agentes corren SIEMPRE, no
@@ -303,8 +306,11 @@ async def _run_streaming(
                 _metrics["total"] += _total
                 _metrics["calls"] += 1
                 # Suma POR LLAMADA con la tarifa del modelo real (no recálculo desde totales).
+                _fx = _factor_trafico(um)
+                if _fx < 1:
+                    _metrics["flex_calls"] = int(_metrics.get("flex_calls") or 0) + 1
                 _metrics["cost"] = round(float(_metrics.get("cost") or 0.0)
-                                         + pt / 1e6 * _in_r + (ct + tt) / 1e6 * _out_r, 6)
+                                         + (pt / 1e6 * _in_r + (ct + tt) / 1e6 * _out_r) * _fx, 6)
                 yield {
                     "kind": "metrics", "agent": agent_name,
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
@@ -509,7 +515,8 @@ async def _run_streaming(
         # Resúmenes legibles para el dashboard (el front ya muestra reason/faltantes).
         def _first_fail_reason(items, ok_key):
             for it in (items or []):
-                if isinstance(it, dict) and not it.get(ok_key) and (it.get("reason") or "").strip():
+                # `is False`: un juez que no pudo evaluar deja None, que no es una falla.
+                if isinstance(it, dict) and it.get(ok_key) is False and (it.get("reason") or "").strip():
                     return f"{it.get('regla') or it.get('item') or 'ítem'}: {it['reason'].strip()}"
             return None
         _respaldo_reason = (_first_fail_reason(_evals.get("per_bandera"), "respaldada")
@@ -617,6 +624,8 @@ async def _run_streaming(
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
                     "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
                     "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
+                    "n_llm_calls_flex": _metrics.get("flex_calls", 0),
+                    "flex": _flex_mod.resumen_corrida(),
                 },
                 "perfil": PROFILE.nombre,
                 "recortes": raw_state.get("recortes") or [],
@@ -625,6 +634,12 @@ async def _run_streaming(
             }
             if _evals:
                 _extra["self_evals"] = _evals
+            # La traza técnica, recortes y descartes se guardan sin DNI (el dossier los conserva
+            # en sus propios campos, bajo vidrio en el frontend).
+            from agents._shared.pii import activo as _pii_activo, redactar as _redactar_pii
+            if _pii_activo():
+                for _k in ("agent_trace", "recortes", "descartes"):
+                    _extra[_k] = _redactar_pii(_extra[_k])
             extra_blob = json.dumps(_extra, ensure_ascii=False, default=str)
             conn = _pg()
             try:
@@ -659,6 +674,8 @@ async def _run_streaming(
         "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
         "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
         "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
+        "n_llm_calls_flex": _metrics.get("flex_calls", 0),
+        "flex": _flex_mod.resumen_corrida(),
         # trace_id de Phoenix para que el frontend ofrezca el deep-link a la traza
         # completa (orquestación ADK + cada call a Gemini, vía OpenInference).
         "phoenix_trace_id": _phoenix_trace_hex or None,

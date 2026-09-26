@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from pipeline_guardrails import _bloque_recortes, _bloque_validaciones, _dictamen_problems, _sanitize_dictamen
+from pipeline_reglas import (fase_compliance_codigo, hay_datos_para_juicio, mensaje_juicio,
+                             reglas_en_codigo, reglas_extendidas_codigo)
 from pipeline_runtime import _tool, _truncate_result
 from pipeline_state import _aplicar_delta, _backfill_document_analysis, _is_empty_output, _kwargs_soportados, _registrar_descarte, _registrar_recorte
 
@@ -166,7 +168,10 @@ def news_vacio(pc: PipelineCtx):
 # ── 2. Compliance (reglas duras + crea alerta) ──
 async def fase_compliance(pc: PipelineCtx):
     # Siempre está en la matriz (crea la alerta que persiste todo lo demás); igual se respeta la lista.
-    if pc.perm("compliance"):
+    if pc.perm("compliance") and reglas_en_codigo():
+        async for e in fase_compliance_codigo(pc):
+            yield e
+    elif pc.perm("compliance"):
         yield {"kind": "phase", "name": "compliance", "msg": "evaluando reglas duras"}
         async for e in agent_call(pc, pc.A.compliance_agent,
                               f"Evalúa la convocatoria OCID {pc.ocid} contra las 3 reglas duras y crea la alerta.",
@@ -576,7 +581,21 @@ async def fase_compliance_ext(pc: PipelineCtx):
     # Parámetros de perfil para las reglas (WS V los acepta como kwargs; hasta entonces las
     # reglas los leen de state["perfil"] o los ignoran).
     _reglas_kw = {"reglas_activas": pc.profile.reglas_activas, "topes_uit": pc.profile.topes_uit}
-    if pc.perm("compliance_extended"):
+    if reglas_en_codigo():
+        # Reglas del perfil en código (todos los perfiles) y, si el perfil tiene el agente y hay
+        # datos para juzgar, UNA llamada de juicio con solo `add_contextual_flag`.
+        async for e in reglas_extendidas_codigo(pc, _reglas_kw):
+            yield e
+        if not pc.perm("compliance_extended"):
+            yield omitido(pc, "compliance_extended")
+        elif not hay_datos_para_juicio(pc):
+            yield {"kind": "phase", "name": "compliance_extended",
+                   "msg": "sin datos de SUNAT, web ni red de personas: no hay juicio contextual que hacer"}
+        else:
+            yield {"kind": "phase", "name": "compliance_extended", "msg": "juicio contextual (2 banderas de criterio)"}
+            async for e in agent_call(pc, pc.A.compliance_criterio_agent, mensaje_juicio(pc), "compliance_extended"):
+                yield e
+    elif pc.perm("compliance_extended"):
         yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
         async for e in agent_call(pc, pc.A.compliance_extended_agent,
                               f"Corre los chequeos extendidos para el OCID {pc.ocid} y evalúa contextualmente "
@@ -589,7 +608,7 @@ async def fase_compliance_ext(pc: PipelineCtx):
         # Perfil sin el agente extendido (p. ej. `otros`): las reglas ACTIVAS del perfil
         # igual corren, en CÓDIGO (sin LLM, sin banderas de juicio). Las 3 duras ya corrieron
         # en compliance; acá van las extendidas cuyo tool `check_<regla>_rule` exista.
-        _duras = ("unique_bidder", "sanctioned_provider", "non_competitive_process")
+        _duras = ("unico_postor_alto", "proveedor_sancionado_osce", "procedimiento_no_competitivo")
 
         def _regla_fn(slug: str):
             if isinstance(pc.reglas_por_nombre, dict) and callable(pc.reglas_por_nombre.get(slug)):

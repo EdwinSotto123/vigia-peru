@@ -51,6 +51,14 @@ def init_arize_tracing() -> bool:
         _INITIALIZED = True
         return False
 
+    # Antes de registrar exportadores o instrumentar: ningún DNI debe llegar a Arize/Phoenix.
+    try:
+        from agents._shared.pii import instalar_en_opentelemetry
+        if instalar_en_opentelemetry():
+            print("[arize] redacción de DNI en spans ACTIVA", flush=True)
+    except Exception as e:
+        print(f"[arize] redacción de DNI no instalada: {type(e).__name__}: {e}", flush=True)
+
     try:
         from arize.otel import register  # type: ignore
         _TRACER_PROVIDER = register(

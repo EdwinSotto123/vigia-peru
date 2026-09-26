@@ -94,14 +94,16 @@ def sanitize_items_with_llm(raw_items, objeto: str = "", tool_context=None) -> l
             "(típicamente el título del contrato repetido). Devolvé SOLO JSON conforme "
             "al schema, sin markdown, sin fences, sin texto adicional."
         )
+        model = os.getenv("SANITIZE_ITEMS_MODEL", DEFAULT_GEMINI_MODEL)
         cfg = gtypes.GenerateContentConfig(
             temperature=0.0, top_p=0.1, response_mime_type="application/json",
             response_schema=schema, max_output_tokens=8192,
             http_options=gtypes.HttpOptions(timeout=60000),
             system_instruction=sys_inst,
+            # Decidir índices a fundir/descartar es mecánico: sin razonamiento.
+            thinking_config=thinking_crudo("sanitize", model, "minimal"),
         )
         client = _gemini_client()
-        model = os.getenv("SANITIZE_ITEMS_MODEL", DEFAULT_GEMINI_MODEL)
         with _throttle_gemini():
             resp = _gemini_call_with_retry(
                 lambda: client.models.generate_content(model=model, contents=[gtypes.Part.from_text(text=prompt)], config=cfg))

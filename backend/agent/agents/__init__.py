@@ -30,9 +30,10 @@ from agents.web_research import web_research_agent
 from agents.news_research import news_research_agent
 from agents.entity_personnel import entity_personnel_agent
 from agents.person_network import person_network_agent
-from agents.compliance_extended import compliance_extended_agent
+from agents.compliance_extended import compliance_extended_agent, compliance_criterio_agent
 
 __all__ = [
+    "compliance_criterio_agent",
     "vigia_orchestrator",
     "compliance_agent",
     "document_parser_agent",

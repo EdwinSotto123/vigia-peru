@@ -43,8 +43,10 @@ MEMORIA_PERFIL="${MEMORIA_PERFIL:-4Gi}"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.6-flash}"
 GEMINI_MODEL_SMART="${GEMINI_MODEL_SMART:-gemini-3.6-flash}"
 GEMINI_MODEL_FAST="${GEMINI_MODEL_FAST:-gemini-3.5-flash-lite}"
-GEMINI_MODEL_JUDGE="${GEMINI_MODEL_JUDGE:-gemini-3.5-flash}"
-MODEL_ENV="GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MODEL_SMART=${GEMINI_MODEL_SMART},GEMINI_MODEL_FAST=${GEMINI_MODEL_FAST},GEMINI_MODEL_JUDGE=${GEMINI_MODEL_JUDGE}"
+GEMINI_MODEL_JUDGE="${GEMINI_MODEL_JUDGE:-gemini-3.5-flash-lite}"
+# Flex PayGo (50 % menos) por llamada, con salida a Standard si Flex no atiende (backend/agent/tools/flex.py).
+GEMINI_FLEX="${GEMINI_FLEX:-1}"
+MODEL_ENV="GEMINI_MODEL=${GEMINI_MODEL},GEMINI_MODEL_SMART=${GEMINI_MODEL_SMART},GEMINI_MODEL_FAST=${GEMINI_MODEL_FAST},GEMINI_MODEL_JUDGE=${GEMINI_MODEL_JUDGE},GEMINI_FLEX=${GEMINI_FLEX}"
 
 declare -A SERVICIO=( [bienes]="$BASE_SERVICE" [servicios]="agente-servicios" [obras]="agente-obras" [otros]="agente-otros" )
 # Quién invoca a los agentes (frontend /api/agent/*, API /admin/operacion, job vigia-dispatcher): hoy

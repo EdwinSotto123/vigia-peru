@@ -3,7 +3,7 @@ reintento por rango de páginas cuando el JSON llega truncado."""
 
 from tools._core import *  # noqa: F401,F403
 from ._base import PARSE_CALL_TIMEOUT_MS, PARSE_MAX_CHARS_POR_LLAMADA, PARSE_UNIT_WORKERS
-from .schema import _parser_schema, secciones_para_documento, _schema_solo, _ULTIMOS_DESCARTES
+from .schema import _parser_schema, secciones_para_documento, _schema_solo, descartes_de_este_hilo
 
 
 # ── Extracción estructurada sobre el texto (con reintento por rango de páginas) ────────
@@ -138,6 +138,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
     """Una llamada Gemini sobre `texto`. Devuelve (data, truncado, uso)."""
     from google.genai import types as gtypes
     client = _gemini_client()
+    model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
     cfg_kwargs = dict(
         response_mime_type="application/json",
         response_schema=_parser_schema(bloque, secciones_para_documento(label, tipo_hint)),
@@ -145,6 +146,11 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
         system_instruction=_SYSTEM_LOTE,
     )
+    # Sin thinking_config el modelo pensaba en MEDIUM: 0,97 M tokens de razonamiento en
+    # septiembre, cobrados como salida y comiéndose el tope de 65 k (más cortes por MAX_TOKENS).
+    tc = thinking_crudo("extractor", model, "low")
+    if tc is not None:
+        cfg_kwargs["thinking_config"] = tc
     temp = os.getenv("PARSER_TEMPERATURE", "").strip()
     if temp:
         try:
@@ -156,8 +162,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         gtypes.Part.from_text(text="═══ TEXTO OCR DEL DOCUMENTO (marcadores ⟦p.N⟧ por página) ═══\n" + texto),
         gtypes.Part.from_text(text=_prompt_lote(label, bloque, ocds_ctx, rango, tipo_hint)),
     ]
-    descartados = list(_ULTIMOS_DESCARTES)
-    model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
+    descartados = descartes_de_este_hilo()
     t0 = time.monotonic()
     with _throttle_gemini():
         resp = _gemini_call_with_retry(lambda: client.models.generate_content(

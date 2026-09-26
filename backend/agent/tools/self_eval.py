@@ -18,6 +18,7 @@ import os
 
 from tools._core import (  # noqa: F401
     _gemini_client, _gemini_call_with_retry, _throttle_gemini, DEFAULT_GEMINI_MODEL,
+    thinking_crudo,
 )
 
 # Los jueces LLM (respaldo, precio, tono, coherencia) son llamadas independientes a Gemini:
@@ -27,16 +28,34 @@ _EVAL_CONCURRENCY = max(1, int(os.getenv("EVAL_CONCURRENCY", "4") or 4))
 
 
 def _judge_model() -> str:
-    """Modelo de los jueces: `agents._shared.models._MODEL_JUDGE` (lo define el WS P;
-    distinto del generador) → env GEMINI_MODEL_JUDGE → gemini-3.5-flash. Nunca el
-    mismo tier que escribió el dictamen (auditoría §2.4)."""
+    """Modelo de los jueces: `agents._shared.models._MODEL_JUDGE` (distinto del generador) →
+    env GEMINI_MODEL_JUDGE → gemini-3.5-flash-lite. Nunca el mismo que escribió el dictamen
+    (auditoría §2.4). Antes 3.5-flash, que cuesta el DOBLE que 3.6-flash (USD 1,50/9,00 por M)
+    para clasificar en una lista cerrada: 11 % del gasto de septiembre."""
     try:
         from agents._shared.models import _MODEL_JUDGE  # type: ignore
         if _MODEL_JUDGE:
             return str(_MODEL_JUDGE)
     except Exception:
         pass
-    return os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash")
+    return os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
+
+
+def _cfg_juez(schema):
+    """Config común de los jueces: JSON con schema, sin razonamiento (clasificar en un enum)."""
+    from google.genai import types as gt
+    return gt.GenerateContentConfig(
+        temperature=0.0, response_mime_type="application/json", response_schema=schema,
+        http_options=gt.HttpOptions(timeout=60000),
+        thinking_config=thinking_crudo("juez", _judge_model(), "minimal"),
+    )
+
+
+# Un juez que falla (timeout, 429 agotado, JSON inválido o etiqueta fuera del enum) devuelve
+# None = "no evaluado". Antes rellenaba con la ÚLTIMA etiqueta (no_respaldada, dudoso,
+# acusatorio, incoherente): un juez de precio caído borraba banderas de sobreprecio de la BD
+# y uno de tono caído mandaba la alerta a revisión, sin que nadie hubiera evaluado nada.
+NO_EVALUADO = "no evaluado"
 
 
 # Umbrales de bloqueo (env). Si la self-eval detecta respaldo bajo, tono acusatorio o
@@ -91,7 +110,7 @@ def debe_bloquear(resultado_eval: dict) -> tuple[bool, str]:
 
 def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
     """Un solo call: devuelve una lista de `n_expected` labels (∈ labels),
-    alineada por índice. Robusto a fallos (rellena con labels[-1])."""
+    alineada por índice. Si falla, None por elemento (no evaluado)."""
     from google.genai import types as gt
     client = _gemini_client()
     schema = gt.Schema(
@@ -102,10 +121,7 @@ def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
         )},
         required=["veredictos"],
     )
-    cfg = gt.GenerateContentConfig(
-        temperature=0.0, response_mime_type="application/json",
-        response_schema=schema, http_options=gt.HttpOptions(timeout=60000),
-    )
+    cfg = _cfg_juez(schema)
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
@@ -115,8 +131,8 @@ def _judge_array(prompt: str, n_expected: int, labels: list[str]) -> list[str]:
         arr = []
     out = [str(x).strip() for x in arr][:n_expected]
     while len(out) < n_expected:
-        out.append(labels[-1])
-    return [(x if x in labels else labels[-1]) for x in out]
+        out.append(None)
+    return [(x if x in labels else None) for x in out]
 
 
 def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list[dict]:
@@ -139,24 +155,24 @@ def _judge_array_reason(prompt: str, n_expected: int, labels: list[str]) -> list
         )},
         required=["veredictos"],
     )
-    cfg = gt.GenerateContentConfig(
-        temperature=0.0, response_mime_type="application/json",
-        response_schema=schema, http_options=gt.HttpOptions(timeout=60000),
-    )
+    cfg = _cfg_juez(schema)
+    error = ""
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
                 model=_judge_model(), contents=[prompt], config=cfg))
         arr = (json.loads(resp.text or "{}") or {}).get("veredictos") or []
-    except Exception:
-        arr = []
+    except Exception as e:
+        arr, error = [], str(e)[:120]
     res: list[dict] = []
     for x in arr[:n_expected]:
         lab = str((x or {}).get("label", "")).strip()
-        res.append({"label": lab if lab in labels else labels[-1],
-                    "reason": str((x or {}).get("reason", ""))[:240]})
+        if lab in labels:
+            res.append({"label": lab, "reason": str((x or {}).get("reason", ""))[:240]})
+        else:
+            res.append({"label": None, "reason": f"{NO_EVALUADO}: etiqueta inválida {lab[:40]!r}"})
     while len(res) < n_expected:
-        res.append({"label": labels[-1], "reason": ""})
+        res.append({"label": None, "reason": NO_EVALUADO + (f": {error}" if error else "")})
     return res
 
 
@@ -168,18 +184,15 @@ def _judge_one(prompt: str, labels: list[str]) -> str:
         properties={"label": gt.Schema(type=gt.Type.STRING, enum=labels)},
         required=["label"],
     )
-    cfg = gt.GenerateContentConfig(
-        temperature=0.0, response_mime_type="application/json",
-        response_schema=schema, http_options=gt.HttpOptions(timeout=60000),
-    )
+    cfg = _cfg_juez(schema)
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
                 model=_judge_model(), contents=[prompt], config=cfg))
         lab = str((json.loads(resp.text or "{}") or {}).get("label", "")).strip()
-        return lab if lab in labels else labels[-1]
+        return lab if lab in labels else None
     except Exception:
-        return labels[-1]
+        return None
 
 
 def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
@@ -194,19 +207,18 @@ def _judge_one_reason(prompt: str, labels: list[str]) -> tuple[str, str]:
         },
         required=["label", "reason"],
     )
-    cfg = gt.GenerateContentConfig(
-        temperature=0.0, response_mime_type="application/json",
-        response_schema=schema, http_options=gt.HttpOptions(timeout=60000),
-    )
+    cfg = _cfg_juez(schema)
     try:
         with _throttle_gemini():
             resp = _gemini_call_with_retry(lambda: client.models.generate_content(
                 model=_judge_model(), contents=[prompt], config=cfg))
         d = json.loads(resp.text or "{}") or {}
         lab = str(d.get("label", "")).strip()
-        return (lab if lab in labels else labels[-1], str(d.get("reason", ""))[:280])
-    except Exception:
-        return (labels[-1], "")
+        if lab not in labels:
+            return (None, f"{NO_EVALUADO}: etiqueta inválida {lab[:40]!r}")
+        return (lab, str(d.get("reason", ""))[:280])
+    except Exception as e:
+        return (None, f"{NO_EVALUADO}: {str(e)[:120]}")
 
 
 def _contexto_ocds(state: dict | None) -> dict:
@@ -529,30 +541,43 @@ def run_inline_evals(banderas: list, market_findings: list, dictamen: str,
     # ── Jueces LLM en paralelo (pool de hilos) y volcado de resultados ──
     _res = _correr_jueces(_jueces)
     out["n_judge_calls"] += len(_jueces)
+    out["no_evaluados"] = []
     if "respaldo" in _res:
         verds = _res["respaldo"]
         for i, b in enumerate(bl):
-            ok = verds[i]["label"] == "respaldada"
-            out["respaldo"]["n"] += 1
-            out["respaldo"]["ok"] += 1 if ok else 0
+            lab = verds[i]["label"]
+            ok = None if lab is None else lab == "respaldada"
+            if ok is None:
+                out["no_evaluados"].append(f"respaldo:{b.get('regla')}")
+            else:
+                out["respaldo"]["n"] += 1
+                out["respaldo"]["ok"] += 1 if ok else 0
             out["per_bandera"].append({"regla": b.get("regla"), "respaldada": ok,
                                        "reason": verds[i]["reason"]})
     if "precio" in _res:
         verds = _res["precio"]
         for i, f in enumerate(fl):
-            ok = verds[i]["label"] == "plausible"
-            out["precio"]["n"] += 1
-            out["precio"]["ok"] += 1 if ok else 0
-            out["per_precio"].append({
-                "item": f.get("item_descripcion") or f.get("descripcion_corta"),
-                "plausible": ok, "reason": verds[i]["reason"]})
-        # Un veredicto 'dudoso' tiene consecuencia: la bandera de mercado del ítem no se publica.
-        if state is not None and any(not p["plausible"] for p in out["per_precio"]):
+            lab = verds[i]["label"]
+            ok = None if lab is None else lab == "plausible"
+            item = f.get("item_descripcion") or f.get("descripcion_corta")
+            if ok is None:
+                out["no_evaluados"].append(f"precio:{item}")
+            else:
+                out["precio"]["n"] += 1
+                out["precio"]["ok"] += 1 if ok else 0
+            out["per_precio"].append({"item": item, "plausible": ok, "reason": verds[i]["reason"]})
+        # Solo un 'dudoso' EXPLÍCITO tiene consecuencia (la bandera de mercado del ítem no se
+        # publica); un ítem no evaluado no toca nada.
+        if state is not None and any(p["plausible"] is False for p in out["per_precio"]):
             out["mercado_degradado"] = degradar_mercado_implausible(out["per_precio"], state)
     if "tono" in _res:
         out["tono"], out["tono_reason"] = _res["tono"]
+        if out["tono"] is None:
+            out["no_evaluados"].append("tono")
     if "coherencia" in _res:
         out["coherencia"], out["coherencia_reason"] = _res["coherencia"]
+        if out["coherencia"] is None:
+            out["no_evaluados"].append("coherencia")
 
     # completitud_analisis (CODE, gratis): ¿corrieron todas las etapas esperadas?
     stages = stages or {}

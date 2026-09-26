@@ -21,7 +21,8 @@ locals {
     GEMINI_MODEL       = "gemini-3.6-flash"
     GEMINI_MODEL_SMART = "gemini-3.6-flash"
     GEMINI_MODEL_FAST  = "gemini-3.5-flash-lite"
-    GEMINI_MODEL_JUDGE = "gemini-3.5-flash"
+    GEMINI_MODEL_JUDGE = "gemini-3.5-flash-lite"
+    GEMINI_FLEX        = "1"
   }
   agent_common_env = merge(local.pg_env, local.agent_model_env, {
     GOOGLE_CLOUD_PROJECT      = var.project_id

@@ -40,3 +40,18 @@ if config.STATE_INJECTIONS:
     compliance_extended_agent.instruction = make_state_aware_instruction(
         compliance_extended_agent.instruction, config.STATE_INJECTIONS,
     )
+
+# Variante de solo juicio (REGLAS_EN_CODIGO=1): mismo nombre, para que el tablero y las trazas
+# sigan mostrando el mismo nodo; una sola tool y un prompt sin las 12 reglas. Antes el agente
+# gastaba ~15 turnos por análisis reenviando ~12,6 k tokens cada uno solo para llamar reglas
+# deterministas (620 llamadas en septiembre).
+compliance_criterio_agent = Agent(
+    name="compliance_extended_agent",
+    model=config.MODEL,
+    description=prompt.DESCRIPTION,
+    instruction=make_state_aware_instruction(prompt.INSTRUCTION_CRITERIO, config.STATE_INJECTIONS or []),
+    tools=config.TOOLS_CRITERIO,
+    output_key=config.OUTPUT_KEY,
+    **_kw,
+    **CALLBACKS,
+)

@@ -77,6 +77,7 @@ def _tool(fn, fname: str, state: dict, agent: str = "pipeline", **kwargs) -> tup
 # Los tokens de THINKING (`thoughts_token_count`) se cobran como salida (así los factura Vertex).
 _MODEL_RATES = {
     "gemini-3.6-flash":      (0.75, 3.75),
+    "gemini-3.8-flash":      (0.75, 3.75),   # mismo precio que 3.6 (Gemini API, 2026-09-24)
     "gemini-3.5-flash-lite": (0.30, 2.50),
     "gemini-3.5-flash":      (1.50, 9.00),
     "gemini-3-flash":        (0.50, 3.00),
@@ -110,6 +111,11 @@ def _usage_tokens(um) -> tuple[int, int, int, int]:
     tt = int(getattr(um, "thoughts_token_count", 0) or 0)
     total = int(getattr(um, "total_token_count", 0) or (pt + ct + tt))
     return pt, ct, tt, total
+
+
+def _factor_trafico(um) -> float:
+    """Flex PayGo cobra la mitad: la respuesta trae traffic_type ON_DEMAND_FLEX."""
+    return 0.5 if "FLEX" in str(getattr(um, "traffic_type", "") or "").upper() else 1.0
 
 
 def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple[list[dict], list[dict], str | None]:
@@ -167,8 +173,11 @@ def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple
             metrics["calls"] += 1
             # Costo = SUMA POR LLAMADA con la tarifa del modelo (no recálculo desde
             # totales con una tarifa única). Los tokens de thinking se cobran como salida.
+            fx = _factor_trafico(um)
+            if fx < 1:
+                metrics["flex_calls"] = int(metrics.get("flex_calls") or 0) + 1
             metrics["cost"] = round(float(metrics.get("cost") or 0.0)
-                                    + pt / 1e6 * in_r + (ct + tt) / 1e6 * out_r, 6)
+                                    + (pt / 1e6 * in_r + (ct + tt) / 1e6 * out_r) * fx, 6)
             metric_events.append({"kind": "metrics", "agent": agent_name,
                                   "tokens_total": metrics["total"], "tokens_prompt": metrics["prompt"],
                                   "tokens_output": metrics["output"], "n_llm_calls": metrics["calls"],
@@ -223,7 +232,7 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
 
 def _merge_metrics(dst: dict, src: dict) -> None:
     """Suma las métricas de un sub-run aislado al acumulador global (in-place)."""
-    for k in ("prompt", "output", "total", "calls", "thoughts"):
+    for k in ("prompt", "output", "total", "calls", "thoughts", "flex_calls"):
         dst[k] = (dst.get(k) or 0) + (src.get(k) or 0)
     dst["cost"] = round(float(dst.get("cost") or 0.0) + float(src.get("cost") or 0.0), 6)
 

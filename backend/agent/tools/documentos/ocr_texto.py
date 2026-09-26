@@ -55,7 +55,9 @@ def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
         parts.append(gtypes.Part.from_bytes(data=png, mime_type="image/png"))
     cfg = gtypes.GenerateContentConfig(response_mime_type="application/json", response_schema=schema,
                                        max_output_tokens=65535, temperature=0.0,
-                                       http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS))
+                                       http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
+                                       # Transcribir literal no necesita razonamiento.
+                                       thinking_config=thinking_crudo("ocr", DEFAULT_GEMINI_MODEL, "minimal"))
     with _throttle_gemini():
         resp = _gemini_call_with_retry(lambda: client.models.generate_content(
             model=DEFAULT_GEMINI_MODEL, contents=parts, config=cfg))

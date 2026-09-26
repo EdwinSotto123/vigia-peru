@@ -8,6 +8,9 @@ según `_FALLBACK_CHAIN`.
 
 Se aplica al IMPORTAR este módulo (idempotente, guard `_vigia_patched`).
 
+También decide Flex PayGo POR LLAMADA (tools/flex.py): pone el encabezado y, si Flex no atiende
+(429/503/504/499/timeout), repite esa misma llamada en Standard antes de cualquier backoff.
+
 Es la ÚNICA capa de reintentos del pipeline (los raw calls de tools/_core.py ya no
 apilan la suya): cada llamada tiene un techo TOTAL `GEMINI_CALL_DEADLINE_S` (default 600 s)
 que acota reintentos + saltos de modelo; superado el techo se propaga el último error.
@@ -21,15 +24,20 @@ import random as _random_mp
 import time as _time_mp
 
 
-# Verificado 2026-09-15 (Vertex global): 3.6-flash, 3.5-flash, 3.5-flash-lite y 2.5-* responden;
+# Verificado 2026-09-26 (Vertex global): 3.6-flash, 3.8-flash y 3.5-flash-lite responden.
+# Sin gemini-2.5-* en las cadenas: Vertex los retira el 2026-10-20. 3.5-flash va al final
+# porque cuesta el doble que 3.6-flash (USD 1,50/9,00 contra 0,75/3,75 por M de tokens);
+# 3.8-flash cuesta lo mismo que 3.6 pero no acepta thinking_level=minimal (ver _config_para).
 # 3.6-pro / 3.5-pro / 3.6-flash-lite NO existen (404) → nunca en las cadenas.
 _FALLBACK_CHAIN = {
-    "gemini-3.6-flash":       ["gemini-3.5-flash", "gemini-2.5-flash"],
-    "gemini-3.5-flash":       ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
-    "gemini-3.5-flash-lite":  ["gemini-2.5-flash-lite", "gemini-3.5-flash"],
-    "gemini-2.5-pro":         ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.5-flash"],
-    "gemini-2.5-flash":       ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash-lite"],
-    "gemini-2.5-flash-lite":  ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"],
+    "gemini-3.6-flash":       ["gemini-3.8-flash", "gemini-3.5-flash-lite"],
+    "gemini-3.8-flash":       ["gemini-3.6-flash", "gemini-3.5-flash-lite"],
+    "gemini-3.5-flash":       ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
+    "gemini-3.5-flash-lite":  ["gemini-3.6-flash", "gemini-3.8-flash"],
+    # Nombres viejos que algún env o script todavía pida: se reencaminan a la familia 3.
+    "gemini-2.5-pro":         ["gemini-3.6-flash", "gemini-3.8-flash"],
+    "gemini-2.5-flash":       ["gemini-3.6-flash", "gemini-3.5-flash-lite"],
+    "gemini-2.5-flash-lite":  ["gemini-3.5-flash-lite", "gemini-3.6-flash"],
 }
 
 _RETRY_DELAYS = [10, 20, 40, 80]  # segundos por attempt
@@ -85,6 +93,33 @@ def _is_503(exc) -> bool:
     )
 
 
+def _modelo_no_disponible(exc) -> bool:
+    """404/400 porque el modelo no existe o fue retirado: no tiene sentido reintentar el
+    mismo, se salta directo al siguiente de la cadena."""
+    ls = str(exc).lower()
+    return (("404" in ls or "not_found" in ls or "not found" in ls or "400" in ls)
+            and ("model" in ls or "publisher" in ls)
+            and ("not found" in ls or "was not found" in ls or "retired" in ls
+                 or "is not supported" in ls or "does not exist" in ls))
+
+
+def _config_para(model, config):
+    """3.7/3.8-flash rechazan thinking_level=minimal (400): al saltar a ellos se sube a low.
+    Devuelve el config original si no hace falta tocarlo."""
+    try:
+        m = str(model or "").lower()
+        if not any(v in m for v in ("gemini-3.7", "gemini-3.8")) or config is None:
+            return config
+        tc = getattr(config, "thinking_config", None)
+        nivel = str(getattr(tc, "thinking_level", "") or "").lower() if tc else ""
+        if not nivel.endswith("minimal"):
+            return config
+        nuevo_tc = tc.model_copy(update={"thinking_level": "low"})
+        return config.model_copy(update={"thinking_config": nuevo_tc})
+    except Exception:
+        return config
+
+
 def _strip_tool_prefixes(resp):
     """Gemini a veces emite el function_call con prefijo de namespace estilo
     código: `default_api.check_plazo_convocatoria_rule`. ADK busca la tool por
@@ -109,6 +144,59 @@ def _strip_tool_prefixes(resp):
     return resp
 
 
+
+def _flex():
+    """Módulo de política Flex (tools/flex.py); None si no se puede importar (scripts sueltos)."""
+    try:
+        from tools import flex as _f  # type: ignore
+        return _f
+    except Exception:
+        return None
+
+
+def _con_flex_o_escape(flex_estado, model, config, llamar):
+    """Una llamada: por Flex si toca y, si Flex falla por capacidad/tiempo, la MISMA llamada en
+    Standard al instante. `llamar(cfg)` hace la request; `flex_estado["on"]` pasa a False tras el
+    primer escape para que los reintentos de esta llamada ya no vuelvan a Flex."""
+    f = flex_estado.get("mod")
+    if flex_estado.get("on") and f is not None:
+        try:
+            resp = llamar(_config_para(model, f.con_flex(config)))
+            f.registrar_uso()
+            return resp
+        except Exception as e:
+            if not f.es_falla_flex(e):
+                raise
+            flex_estado["on"] = False
+            abierto = f.registrar_falla()
+            _mp_log(kind="flex_escape", model=model, tipo=type(e).__name__, error=str(e)[:200],
+                    cortacircuito=abierto)
+    return llamar(_config_para(model, config))
+
+
+async def _con_flex_o_escape_async(flex_estado, model, config, llamar):
+    """Versión async de `_con_flex_o_escape` (ADK)."""
+    f = flex_estado.get("mod")
+    if flex_estado.get("on") and f is not None:
+        try:
+            resp = await llamar(_config_para(model, f.con_flex(config)))
+            f.registrar_uso()
+            return resp
+        except Exception as e:
+            if not f.es_falla_flex(e):
+                raise
+            flex_estado["on"] = False
+            abierto = f.registrar_falla()
+            _mp_log(kind="flex_escape", model=model, tipo=type(e).__name__, error=str(e)[:200],
+                    cortacircuito=abierto)
+    return await llamar(_config_para(model, config))
+
+
+def _estado_flex(config=None):
+    f = _flex()
+    return {"mod": f, "on": bool(f and f.usar_flex_ahora(f.agente_de(config)))}
+
+
 def _apply_gemini_fallback_patch():
     """Aplica el monkey-patch. Idempotente — solo se aplica una vez."""
     try:
@@ -125,6 +213,7 @@ def _apply_gemini_fallback_patch():
         _orig_async = AsyncModels.generate_content
 
         async def _async_generate_with_fallback(self, *, model, contents, config=None, **kw):
+            flex_estado = _estado_flex(config)
             tried = []
             current = model
             last_exc = None
@@ -136,8 +225,15 @@ def _apply_gemini_fallback_patch():
                     try:
                         if hop > 0 or attempt > 0:
                             _mp_log(kind="model_call_try", model=current, hop=hop, attempt=attempt)
-                        return _strip_tool_prefixes(await _orig_async(self, model=current, contents=contents, config=config, **kw))
+                        _m = current
+                        return _strip_tool_prefixes(await _con_flex_o_escape_async(
+                            flex_estado, _m, config,
+                            lambda cfg: _orig_async(self, model=_m, contents=contents, config=cfg, **kw)))
                     except Exception as e:
+                        if _modelo_no_disponible(e):
+                            last_exc = e
+                            _mp_log(kind="model_unavailable", model=current, error=str(e)[:200])
+                            break
                         if not _is_503(e):
                             raise
                         last_exc = e
@@ -172,6 +268,7 @@ def _apply_gemini_fallback_patch():
         _orig_sync = Models.generate_content
 
         def _sync_generate_with_fallback(self, *, model, contents, config=None, **kw):
+            flex_estado = _estado_flex(config)
             tried = []
             current = model
             last_exc = None
@@ -183,8 +280,15 @@ def _apply_gemini_fallback_patch():
                     try:
                         if hop > 0 or attempt > 0:
                             _mp_log(kind="model_call_try_sync", model=current, hop=hop, attempt=attempt)
-                        return _strip_tool_prefixes(_orig_sync(self, model=current, contents=contents, config=config, **kw))
+                        _m = current
+                        return _strip_tool_prefixes(_con_flex_o_escape(
+                            flex_estado, _m, config,
+                            lambda cfg: _orig_sync(self, model=_m, contents=contents, config=cfg, **kw)))
                     except Exception as e:
+                        if _modelo_no_disponible(e):
+                            last_exc = e
+                            _mp_log(kind="model_unavailable_sync", model=current, error=str(e)[:200])
+                            break
                         if not _is_503(e):
                             raise
                         last_exc = e

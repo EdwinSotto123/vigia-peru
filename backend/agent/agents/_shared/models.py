@@ -7,7 +7,8 @@ Tiers (env → default; verificado 2026-09-15 en Vertex AI global que responden)
   · DEFAULT → tareas balanceadas con búsqueda/tools (parser, web, prensa, entidad,
               compliance, compliance_extended): gemini-3.6-flash / low
   · FAST    → mecánicas (sanitize de ítems, decisor de índices): gemini-3.5-flash-lite
-  · JUDGE   → jueces de la self-eval; DEBE ser distinto del generador: gemini-3.5-flash
+  · JUDGE   → jueces de la self-eval; DEBE ser distinto del generador: gemini-3.5-flash-lite
+              (antes 3.5-flash, el doble de caro que 3.6-flash para clasificar en un enum)
 
 NO existen en Vertex (404, 2026-09-15): gemini-3.6-pro, gemini-3.5-pro, gemini-3.6-flash-lite.
 
@@ -26,7 +27,7 @@ import os
 _MODEL_SMART = os.getenv("GEMINI_MODEL_SMART", "gemini-3.6-flash")
 _MODEL_DEFAULT = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 _MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
-_MODEL_JUDGE = os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash")
+_MODEL_JUDGE = os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
 
 THINKING = frozenset({"minimal", "low", "medium", "high"})
 
@@ -105,8 +106,9 @@ def build_planner(agente: str, model, default_level: str | None):
 
 
 def build_generate_config(agente: str, temperature=None, max_output_tokens=None):
-    """`GenerateContentConfig` con temperatura/tope de salida por agente (config + env).
-    Nunca incluye thinking_config/tools/response_schema (ADK los rechaza ahí)."""
+    """`GenerateContentConfig` con temperatura/tope de salida por agente (config + env). Nunca
+    incluye thinking_config/tools/response_schema (ADK los rechaza ahí). Flex no va aquí: lo pone
+    por llamada el patch de model_fallback (tools/flex.py)."""
     temp = _env_float(f"TEMPERATURE_{_env_key(agente)}", temperature)
     mot = _env_int(f"MAX_OUTPUT_TOKENS_{_env_key(agente)}", max_output_tokens)
     if temp is None and mot is None:

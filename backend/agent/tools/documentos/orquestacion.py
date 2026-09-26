@@ -180,16 +180,24 @@ def _procesar_doc_texto(doc, state, bloque, ocds_ctx, out, label, sha, tx, blob,
     model = os.getenv("PARSER_MODEL", DEFAULT_GEMINI_MODEL)
     clave = f"{bloque or 'base'}@{PARSER_SCHEMA_VERSION}@{model}"
     ext = None
+    # Una extracción que salió TRUNCADA no se reutiliza para siempre: se reintenta una vez cuando
+    # cambia la política de razonamiento (con menos thinking queda más tope de salida).
+    politica = os.getenv("THINKING_EXTRACTOR", "low").strip().lower() or "low"
     if PARSE_REUSE_EXTRACCION and isinstance(tx.get("extraccion"), dict) and isinstance(tx["extraccion"].get(clave), dict):
-        ext = tx["extraccion"][clave]
-        out["cache"]["extraccion"] = True
-        print(f"[lote] extracción en caché · {label[:60]} · {clave}", flush=True)
+        previa = tx["extraccion"][clave]
+        if previa.get("_truncado") and previa.get("_politica_thinking") != politica:
+            print(f"[lote] extracción en caché TRUNCADA · {label[:60]} · se reintenta con thinking={politica}", flush=True)
+        else:
+            ext = previa
+            out["cache"]["extraccion"] = True
+            print(f"[lote] extracción en caché · {label[:60]} · {clave}", flush=True)
     if ext is None:
         t2 = time.monotonic()
         ext = _extraer_documento(tx, label, bloque, ocds_ctx, doc.get("tipo"))
         out["tiempos"]["extraccion_s"] = round(time.monotonic() - t2, 1)
         out["recortes"].extend(ext.get("_recortes") or [])
         ext = _post_procesar(ext, tx, sha, doc)
+        ext["_politica_thinking"] = politica
         _extraccion_cache_put(sha, clave, ext)   # incluye _recortes/_usos: en caché también se reportan
     else:
         out["recortes"].extend(ext.get("_recortes") or [])

@@ -438,12 +438,22 @@ def _parser_schema(bloque: str | None = None, secciones: set[str] | None = None)
     if descartados:
         print(f"[lote] schema recortado por tamaño: sin {descartados} (se piden en una 2.ª llamada)", flush=True)
     _ULTIMOS_DESCARTES[:] = descartados
+    _DESCARTES_HILO.valor = list(descartados)
     return S(type=T.OBJECT, properties=props)
 
 
 # Bloques que no cupieron en la última construcción del schema (los recupera _llamar_extractor
-# con una segunda llamada solo con ellos).
+# con una segunda llamada solo con ellos). La lista global la comparten hasta 3×3 hilos de
+# extracción: leerla después de construir el schema podía traer los descartes de OTRO documento
+# (segunda pasada inútil o bloques perdidos). `descartes_de_este_hilo()` es la lectura segura.
+import threading as _threading
 _ULTIMOS_DESCARTES: list[str] = []
+_DESCARTES_HILO = _threading.local()
+
+
+def descartes_de_este_hilo() -> list[str]:
+    """Descartes del último `_parser_schema` construido en ESTE hilo."""
+    return list(getattr(_DESCARTES_HILO, "valor", []) or [])
 
 
 def _schema_solo(bloques: list[str], bloque_perfil: str | None) -> "gtypes.Schema":

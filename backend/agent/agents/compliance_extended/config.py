@@ -40,6 +40,9 @@ STATE_INJECTIONS = [
      'ganador o postores y los funcionarios firmantes de la entidad contratante'),
 ]
 
+# Modo juicio (REGLAS_EN_CODIGO=1): solo la tool de banderas de criterio.
+TOOLS_CRITERIO = [add_contextual_flag_tool]
+
 TOOLS = [
     check_plazo_convocatoria_rule_tool,
     check_tipo_proceso_vs_monto_rule_tool,
