@@ -23,6 +23,7 @@
 import { pool } from "./db.js";
 import { cabecerasInvocacion } from "./cloudrun-auth.js";
 import { Memo } from "./cache.js";
+import { enSegundoPlano } from "./plataforma.js";
 
 const TTL_MS = 60_000;
 const ESPERA_FRIO_MS = 400;
@@ -72,6 +73,8 @@ function lanzar<T>(slot: Slot<T>, sondear: () => Promise<T | null>): Promise<T |
     .finally(() => { slot.enVuelo = null; });
   p.catch(() => { /* los sondeos no rechazan; por si acaso, que no quede una promesa sin manejar */ });
   slot.enVuelo = p;
+  // Workers: el sondeo sigue después de responder (ctx.waitUntil del pedido que lo lanzó).
+  enSegundoPlano(p);
   return p;
 }
 

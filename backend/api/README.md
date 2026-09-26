@@ -56,6 +56,11 @@ Antes de deployar, crear el secret:
 gcloud secrets create cloudsql-password --data-file=.cloudsql-password
 ```
 
+## Réplica en Cloudflare Workers
+
+La misma app corre también como Worker (`vigia-api`, entrada `src/worker.ts`, Postgres por
+Hyperdrive). Variables, secretos, desarrollo local y diferencias: [CLOUDFLARE.md](CLOUDFLARE.md).
+
 ## Auth con Firebase
 
 El frontend manda en cada request:
@@ -63,5 +68,5 @@ El frontend manda en cada request:
 Authorization: Bearer <ID token de firebase>
 ```
 
-El middleware `requireAuth` lo valida vía Firebase Admin SDK contra el proyecto
-`simplia-project` (que es donde están los user-ids del login del demo).
+El middleware `requireAuth` lo valida vía Firebase Admin SDK (en Workers, con jose y los mismos
+chequeos) contra el proyecto `simplia-project` (que es donde están los user-ids del login del demo).

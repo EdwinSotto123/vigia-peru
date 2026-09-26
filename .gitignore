@@ -10,6 +10,9 @@ service-account*.json
 .cloudsql-password
 .decolecta-token
 *.key
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # ─── Node / Next ─────────────────────────────────────────────────
 node_modules/
@@ -19,6 +22,8 @@ build/
 dist/
 .turbo/
 .vercel/
+.wrangler/
+.wrangler-dist/
 *.tsbuildinfo
 npm-debug.log*
 yarn-error.log*

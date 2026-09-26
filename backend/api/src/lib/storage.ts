@@ -1,5 +1,5 @@
 /**
- * Cliente GCS + helper para firmar URLs de upload.
+ * GCS: buckets de Vigía + helpers para firmar URLs de upload/lectura y leer objetos privados.
  *
  * Flujo de upload desde el frontend:
  *  1. Cliente pide POST /upload/sign con {bucket, filename, contentType}
@@ -8,13 +8,13 @@
  *  4. Cuando termina, cliente nos manda el blobUrl y lo guardamos en Postgres
  *
  * Esto evita que la foto pase por nuestro Cloud Run (ahorra egress y memoria).
+ *
+ * El acceso a GCS depende de dónde corre (lib/plataforma.ts): en Node, @google-cloud/storage con la
+ * identidad del servicio (node/plataforma.ts); en Workers, la API REST de GCS y firma v4 con la
+ * cuenta de servicio de GCP_SA_KEY (workers/gcs.ts).
  */
 
-import { Storage } from "@google-cloud/storage";
-
-export const storage = new Storage({
-  projectId: process.env.GCS_PROJECT_ID,
-});
+import { plataforma, type MetadatosObjeto } from "./plataforma.js";
 
 export const BUCKETS = {
   documentos: process.env.GCS_BUCKET_DOCUMENTOS ?? "vigia-peru-documentos",
@@ -47,9 +47,7 @@ export async function signUploadUrl(opts: {
   expiresInMs?: number;
 }): Promise<{ uploadUrl: string; blobUrl: string }> {
   const bucketName = BUCKETS[opts.bucket];
-  const file = storage.bucket(bucketName).file(opts.filename);
-  const [uploadUrl] = await file.getSignedUrl({
-    version: "v4",
+  const uploadUrl = await plataforma().firmarUrl(bucketName, opts.filename, {
     action: "write",
     expires: Date.now() + (opts.expiresInMs ?? 15 * 60 * 1000),
     contentType: opts.contentType,
@@ -67,13 +65,20 @@ export async function signUploadUrl(opts: {
 export async function signReadUrl(gsUri: string, opts: { expiresInMs?: number; filename?: string; contentType?: string } = {}): Promise<string> {
   const m = /^gs:\/\/([^/]+)\/(.+)$/.exec(gsUri);
   if (!m) throw new Error(`gs uri inválida: ${gsUri}`);
-  const file = storage.bucket(m[1]).file(m[2]);
-  const [url] = await file.getSignedUrl({
-    version: "v4",
+  return plataforma().firmarUrl(m[1], m[2], {
     action: "read",
     expires: Date.now() + (opts.expiresInMs ?? 15 * 60 * 1000),
     ...(opts.filename ? { responseDisposition: `inline; filename="${opts.filename.replace(/["\r\n]/g, "")}"` } : {}),
     ...(opts.contentType ? { responseType: opts.contentType } : {}),
   });
-  return url;
+}
+
+/** Metadatos de un objeto (tipo y tamaño); tira si no existe o no hay acceso. */
+export function metadatosObjeto(bucket: string, ruta: string): Promise<MetadatosObjeto> {
+  return plataforma().metadatosObjeto(bucket, ruta);
+}
+
+/** Contenido completo de un objeto; tira si no existe o no hay acceso. */
+export function descargarObjeto(bucket: string, ruta: string): Promise<Uint8Array<ArrayBuffer>> {
+  return plataforma().descargarObjeto(bucket, ruta);
 }

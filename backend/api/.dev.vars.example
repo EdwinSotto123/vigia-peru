@@ -1,0 +1,5 @@
+# Secretos de `wrangler dev`: copiar a .dev.vars (no se sube). Valores de desarrollo, nunca los de producción.
+ADMIN_TOKEN=cambiar-por-un-token-local
+
+# Opcional: llave JSON de una cuenta de servicio, en una línea y entre comillas simples.
+# GCP_SA_KEY='{"type":"service_account","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}'

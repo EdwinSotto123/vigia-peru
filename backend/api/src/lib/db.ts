@@ -20,12 +20,23 @@
  *
  * Para Cloud Run + Cloud SQL: `PGHOST=/cloudsql/<connection_name>` (socket Unix) y el servicio con
  * `--add-cloudsql-instances=<connection_name>`. Local: `PGHOST=127.0.0.1 PGPORT=5432`.
+ *
+ * Cloudflare Workers (`src/worker.ts`): un socket no sobrevive al pedido que lo abrió. `pool` y
+ * `poolAdmin` son entonces delegados: cada llamada va al pool de ESE pedido (lib/plataforma.ts,
+ * `ambitoPedido`), abierto al primer uso sobre Hyperdrive (`HYPERDRIVE` → vigia_api,
+ * `HYPERDRIVE_ADMIN` → vigia_api_admin) y cerrado al terminar (workers/ambito.ts). Hyperdrive reparte
+ * como PgBouncer en modo transacción: sin `options`; los límites son los del rol y `query_timeout`.
+ * Un pedido que no consulta no abre conexiones. Las rutas no cambian.
  */
 
 import pg from "pg";
+import { ambitoPedido, EN_WORKERS, type RolDb } from "./plataforma.js";
 
 const isUnixSocket = (process.env.PGHOST ?? "").startsWith("/cloudsql/");
 const conPgBouncer = (process.env.PG_POOLER ?? "").trim().toLowerCase() === "pgbouncer";
+
+/** Límite por sentencia de cada rol (el mismo que trae el rol en la base, migración 37). */
+const LIMITE_MS: Record<RolDb, number> = { api: 10_000, admin: 120_000 };
 
 function configBase(usuario: string | undefined, clave: string | undefined, statementMs: number): pg.PoolConfig {
   return {
@@ -42,14 +53,14 @@ function configBase(usuario: string | undefined, clave: string | undefined, stat
   };
 }
 
-export const pool = new pg.Pool({
-  ...configBase(process.env.PGUSER, process.env.PGPASSWORD, 10_000),
+export const pool: pg.Pool = EN_WORKERS ? delegadoDelPedido("api") : new pg.Pool({
+  ...configBase(process.env.PGUSER, process.env.PGPASSWORD, LIMITE_MS.api),
   max: 8,
   application_name: "vigia-api",
 });
 
-export const poolAdmin = new pg.Pool({
-  ...configBase(process.env.PGUSER_ADMIN ?? process.env.PGUSER, process.env.PGPASSWORD_ADMIN ?? process.env.PGPASSWORD, 120_000),
+export const poolAdmin: pg.Pool = EN_WORKERS ? delegadoDelPedido("admin") : new pg.Pool({
+  ...configBase(process.env.PGUSER_ADMIN ?? process.env.PGUSER, process.env.PGPASSWORD_ADMIN ?? process.env.PGPASSWORD, LIMITE_MS.admin),
   max: 4,
   application_name: "vigia-api-admin",
 });
@@ -64,6 +75,49 @@ poolAdmin.on("error", (err) => {
 /** Cierra los dos pools (SIGTERM). Nunca tira. */
 export async function cerrarPools(): Promise<void> {
   await Promise.allSettled([pool.end(), poolAdmin.end()]);
+}
+
+// ─── Workers: pools por pedido sobre Hyperdrive ──────────────────────────────
+/**
+ * Config del pool de UN pedido. Workers deja 6 conexiones abiertas a la vez por pedido, contando
+ * sockets y fetch (las que pasan de 6 esperan a que se cierre otra): 3 (público) + 2 (panel) deja
+ * siempre una libre para los fetch (GCS, sondeos de salud).
+ */
+export function configPorPedido(connectionString: string, rol: RolDb): pg.PoolConfig {
+  return {
+    connectionString,
+    max: rol === "api" ? 3 : 2,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    query_timeout: LIMITE_MS[rol] + 2_000,
+    application_name: rol === "api" ? "vigia-api" : "vigia-api-admin",
+  };
+}
+
+/** `pg.Pool` que atiende cada llamada con el pool del pedido en curso (ver cabecera). */
+function delegadoDelPedido(rol: RolDb): pg.Pool {
+  const actual = (): pg.Pool => {
+    const ambito = ambitoPedido.getStore();
+    if (!ambito) throw new Error(`[db] consulta fuera de un pedido (pool ${rol}): en Workers cada pedido abre sus conexiones`);
+    return ambito.pool(rol);
+  };
+  // Como pg.Pool, un fallo llega como promesa rechazada (las rutas encadenan `.catch`).
+  const llamar = (metodo: "query" | "connect", args: unknown[]): unknown => {
+    try {
+      const p = actual();
+      return (p[metodo] as (...a: unknown[]) => unknown).apply(p, args);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
+  const delegado = {
+    query: (...args: unknown[]) => llamar("query", args),
+    connect: (...args: unknown[]) => llamar("connect", args),
+    // Cada pool de pedido lo cierra su ámbito y registra sus propios errores (workers/ambito.ts).
+    end: async () => {},
+    on: () => delegado,
+  };
+  return delegado as unknown as pg.Pool;
 }
 
 /**

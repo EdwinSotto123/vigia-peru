@@ -3,20 +3,25 @@
  *
  * Los servicios de agentes (agent-orchestrator-adk, agente-servicios/obras/otros) van a pasar a
  * IAM-only (sin `allUsers`). Cloud Run exige entonces `Authorization: Bearer <ID token>` firmado
- * por Google con audiencia = URL del servicio. El token sale del servidor de metadatos (identidad
- * de la cuenta de servicio de esta API) y se guarda ~50 min (dura 60).
+ * por Google con audiencia = URL del servicio. El token se guarda ~50 min (dura 60) y sale de
+ * (lib/plataforma.ts):
+ *   · Cloud Run: el servidor de metadatos (identidad de la cuenta de servicio de esta API).
+ *   · Workers: la cuenta de servicio de GCP_SA_KEY (JWT firmado + canje en oauth2.googleapis.com).
  *
  * Local (`npm run dev`, sin servidor de metadatos): no manda cabecera y avisa una vez. Después del
  * cambio a IAM-only se puede probar local con `AGENT_ID_TOKEN=$(gcloud auth print-identity-token)`.
  */
 
-const METADATA_IDENTITY =
-  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity";
+import { EN_WORKERS, plataforma } from "./plataforma.js";
+
 const TTL_MS = 50 * 60 * 1000;
-const METADATA_TIMEOUT_MS = 2000;
+// Metadatos: local al host. Workers: un canje con oauth2.googleapis.com (más lejos).
+const PLAZO_MS = EN_WORKERS ? 5000 : 2000;
 // K_SERVICE: servicio Cloud Run · CLOUD_RUN_JOB: job. Fuera de Cloud Run un fallo del servidor de
 // metadatos es definitivo (no se reintenta en cada request); dentro, se reintenta la próxima vez.
+// En Workers también se reintenta, salvo que falte GCP_SA_KEY (error `permanente`).
 const EN_CLOUD_RUN = Boolean(process.env.K_SERVICE || process.env.CLOUD_RUN_JOB);
+const REINTENTA = EN_CLOUD_RUN || EN_WORKERS;
 
 const cache = new Map<string, { token: string; expira: number }>();
 const enVuelo = new Map<string, Promise<string | null>>();
@@ -30,24 +35,19 @@ export function audienciaDe(url: string): string {
 
 async function pedirToken(audiencia: string): Promise<string | null> {
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), METADATA_TIMEOUT_MS);
+  const t = setTimeout(() => ctl.abort(), PLAZO_MS);
   try {
-    const r = await fetch(`${METADATA_IDENTITY}?audience=${encodeURIComponent(audiencia)}`, {
-      headers: { "Metadata-Flavor": "Google" },
-      signal: ctl.signal,
-    });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const token = (await r.text()).trim();
-    if (!token) throw new Error("respuesta vacía");
+    const token = await plataforma().idTokenGoogle(audiencia, ctl.signal);
     cache.set(audiencia, { token, expira: Date.now() + TTL_MS });
     return token;
   } catch (e) {
-    if (!EN_CLOUD_RUN) sinMetadatos = true;
-    if (!avisado || EN_CLOUD_RUN) {
+    const definitivo = !REINTENTA || (e as { permanente?: boolean }).permanente === true;
+    if (definitivo) sinMetadatos = true;
+    if (!avisado || !definitivo) {
       avisado = true;
       console.warn(
         `[cloudrun-auth] sin ID token para ${audiencia} (${(e as Error).message}): la llamada va sin Authorization. ` +
-        (EN_CLOUD_RUN ? "Revisar el servidor de metadatos." : "Normal en local; con el servicio IAM-only usar AGENT_ID_TOKEN."),
+        (EN_WORKERS ? "Revisar el secreto GCP_SA_KEY." : EN_CLOUD_RUN ? "Revisar el servidor de metadatos." : "Normal en local; con el servicio IAM-only usar AGENT_ID_TOKEN."),
       );
     }
     return null;
