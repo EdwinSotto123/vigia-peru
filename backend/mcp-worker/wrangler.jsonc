@@ -1,0 +1,21 @@
+// Vigía Perú · servidor MCP (réplica en Workers de backend/mcp, hoy en Cloud Run como vigia-mcp).
+// URL: https://vigia-mcp.vigiaperu.workers.dev/mcp
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "minify": true,
+  "upload_source_maps": true,
+  "hyperdrive": [
+    {
+      // Rol vigia_mcp, pooling en modo transacción (equivale al PgBouncer de Cloud Run).
+      // En `wrangler dev` la conexión sale de CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE.
+      "binding": "HYPERDRIVE",
+      "id": "PENDIENTE_HYPERDRIVE_MCP"
+    }
+  ]
+}
