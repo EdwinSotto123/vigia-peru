@@ -1,0 +1,22 @@
+{
+  "name": "vigia-dispatcher-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8831",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "paridad": "node scripts/paridad_eventos.ts",
+    "build": "wrangler deploy --dry-run --outdir .wrangler-dist"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260926.1",
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3",
+    "wrangler": "4.141.0"
+  }
+}

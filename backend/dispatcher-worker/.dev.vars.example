@@ -1,0 +1,14 @@
+# wrangler dev: copiar a .dev.vars (no se sube). Configuración de scripts/e2e_staging.py contra el
+# orquestador falso (scripts/agente_falso.ts); ventana de reclamo de 1 s para un solo reclamo por corrida.
+DISPATCHER_TOKEN=poner-un-valor-largo-al-azar
+AGENT_URL=http://127.0.0.1:8840
+AGENT_URL_BIENES=http://127.0.0.1:8840
+AGENT_URL_SERVICIOS=
+AGENT_URL_OBRAS=
+AGENT_URL_OTROS=
+AGENT_ID_TOKEN=token-de-prueba
+DISPATCHER_TASK_TIMEOUT_S=301
+DISPATCHER_ANALISIS_MAX_S=0
+DISPATCHER_GRACE_MINUTES=0
+DISPATCHER_PREFETCH_OCDS=0
+DISPATCHER_TRAMO_S=10
