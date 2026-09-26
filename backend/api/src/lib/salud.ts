@@ -23,7 +23,7 @@
 import { pool } from "./db.js";
 import { cabecerasInvocacion } from "./cloudrun-auth.js";
 import { Memo } from "./cache.js";
-import { enSegundoPlano } from "./plataforma.js";
+import { EN_WORKERS, enSegundoPlano } from "./plataforma.js";
 
 const TTL_MS = 60_000;
 const ESPERA_FRIO_MS = 400;
@@ -117,7 +117,14 @@ export interface SaludRelay {
 }
 interface ResultadoRelay { ok: boolean; ms: number | null; error: string | null }
 
+// Cloudflare no deja que un Worker pida una IP directa: responde él mismo 403 ("error code: 1003")
+// y, como abajo cualquier status < 500 cuenta como vivo, el relay caído aparecía "En orden".
+const IP_LITERAL = /^https?:\/\/\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/i;
+
 async function sondearRelay(relayUrl: string): Promise<ResultadoRelay | null> {
+  if (EN_WORKERS && IP_LITERAL.test(relayUrl)) {
+    return { ok: false, ms: null, error: "no se puede comprobar desde Cloudflare: el relay está en una IP sin nombre DNS" };
+  }
   const pl = plazo(4000);
   const t0 = Date.now();
   const base = relayUrl.replace(/\/$/, "");
