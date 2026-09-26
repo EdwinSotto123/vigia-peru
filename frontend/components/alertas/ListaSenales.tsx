@@ -1,6 +1,6 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { Paginacion } from "@/components/ui/Paginacion";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { Tabla, TablaSkeleton, CeldaNumero, CeldaPrincipal, CeldaTexto, type Columna, type Fila } from "@/components/listado";
@@ -9,13 +9,19 @@ import { SenalDetalle } from "@/components/alertas/SenalDetalle";
 import { ResumenEvidencia } from "@/components/agentes/ListaSenales";
 import { TOTAL_FASES } from "@/lib/auditoria";
 import { plural, soles } from "@/lib/formato";
-import { senalesQueryParams, type Senal, type SenalesQuery } from "@/lib/revision";
+import { hayFiltrosSenales, type Senal, type SenalesQuery } from "@/lib/revision";
 
 /**
  * El índice de señales sobre la plantilla Listado (§14.1): la `Tabla` compartida,
  * con la anatomía de fila de todos los listados —severidad (chip) · la señal y su
  * evidencia · el contrato · el monto · el cotejo · ›— y el detalle en el panel
  * lateral, sin perder la tabla filtrada de atrás.
+ *
+ * El panel (`SenalDetalle`) es un componente cliente: cada fila le pasa su señal como
+ * datos y el panel se arma al abrirlo, no en el servidor para las 25 filas.
+ *
+ * La paginación la arma la página (`paginador`): por cursor con `/senales`, por número
+ * de página con el respaldo de la API vieja.
  */
 
 export const COLUMNAS_SENALES: Columna[] = [
@@ -27,38 +33,37 @@ export const COLUMNAS_SENALES: Columna[] = [
 ];
 
 interface Props {
+  /** Las señales de ESTA página. */
   senales: Senal[];
+  /** Cuántas cumplen los filtros (conteo del API o del respaldo). */
   total: number;
-  pagina: number;
-  tam: number;
   query: SenalesQuery;
   /** El API de alertas no respondió: se dice, no se rellena con nada. */
   fallo: boolean;
-  /** Contratos cuyo detalle no respondió — sus señales van sin agente ni cotejo. */
+  /** Contratos cuyo detalle no respondió — sus señales van sin agente ni cotejo (sólo el respaldo). */
   contratosSinDetalle: number;
+  /** La paginación ya armada (datos y JSX, nunca una función): va arriba y abajo de la tabla. */
+  paginador: ReactNode;
+  /** Una página por cursor que ya no trae filas (el índice cambió): se ofrece volver al inicio. */
+  paginaVacia?: boolean;
 }
 
-export function ListaSenales({ senales, total, pagina, tam, query, fallo, contratosSinDetalle }: Props) {
-  const filtrado = !!(query.regla || query.severidad || query.entidad || query.agente);
-  const pag = (
-    <Paginacion
-      actual={pagina}
-      paginas={Math.max(1, Math.ceil(total / tam))}
-      total={total}
-      tam={tam}
-      navegacion="url"
-      hrefBase="/app/hallazgos"
-      query={senalesQueryParams(query)}
-      cargando={false}
-      nombre="señales"
-    />
-  );
+export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle, paginador, paginaVacia = false }: Props) {
+  const filtrado = hayFiltrosSenales(query);
+  const pag = paginador;
 
   if (fallo) {
     return (
       <EstadoError titulo="No pudimos leer el índice de señales" accion={<Link href="/app/hallazgos" className={ACCION}>Reintentar</Link>}>
         El servidor no respondió. No mostramos nada en su lugar.
       </EstadoError>
+    );
+  }
+  if (paginaVacia && total > 0) {
+    return (
+      <EstadoVacio titulo="Esta página de la lista ya no está disponible" compacto accion={<Link href="/app/hallazgos" className={ACCION} prefetch={false}>Ir al inicio de la lista</Link>}>
+        Se publicaron o retiraron señales desde que se abrió. La lista vuelve a empezar desde la primera página.
+      </EstadoVacio>
     );
   }
   if (total === 0) {

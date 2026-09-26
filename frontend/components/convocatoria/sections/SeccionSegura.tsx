@@ -27,7 +27,11 @@ export class SeccionSegura extends React.Component<Props, State> {
   }
 
   render() {
-    if (!this.state.error) return this.props.children;
+    // El informe ahora también se dibuja en el servidor, donde un límite de error no atrapa
+    // nada: sin este Suspense, una sección con un dato raro tiraba la página entera con un 500.
+    // Con él, el servidor deja la sección vacía y el navegador la vuelve a dibujar; si ahí
+    // también falla, la atrapa este límite, como siempre.
+    if (!this.state.error) return <React.Suspense fallback={null}>{this.props.children}</React.Suspense>;
     return (
       <div role="alert" className="flex items-start gap-3 rounded-2xl border border-line bg-paperSoft p-4 text-[13px] text-inkSoft">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />

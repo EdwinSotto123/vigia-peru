@@ -31,7 +31,7 @@ export function EstadoAuditoria({
   /** Alcance de las cifras, dicho en voz alta. El resumen es global. */
   alcance?: string;
 }) {
-  const { data, fallo, ahora, ritmo, ultimoFin } = useResumenAuditoria();
+  const { data, fallo, ahora, ritmo, ultimoFin, ritmoParcial } = useResumenAuditoria();
 
   if (!data) {
     return fallo ? (
@@ -76,7 +76,8 @@ export function EstadoAuditoria({
     {
       valor: numero(hoy),
       etiqueta: hoy === 1 ? "leído hoy" : "leídos hoy",
-      contexto: totalRitmo != null ? `${numero(totalRitmo)} en ${DIAS_RITMO} días` : undefined,
+      // Parcial (sólo con la API vieja: lista con tope): se dice "al menos", no un total corto.
+      contexto: totalRitmo != null ? `${ritmoParcial ? "al menos " : ""}${numero(totalRitmo)} en ${DIAS_RITMO} días` : undefined,
     },
   ];
 

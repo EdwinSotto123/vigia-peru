@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useCuenta } from "@/lib/cuentas";
 import { REGIONES } from "@/lib/peru-data";
-import { getReportes, getAlertas } from "@/lib/api-client";
+import { getAlertas, getAlertasPagina, getAlertasPuntos, getReportes } from "@/lib/api-client";
+import { apiNueva } from "@/lib/capacidades";
 import { getZonas, getEstadoGlobal, type EstadoGlobal, type Zona } from "@/lib/financiamiento";
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { numero } from "@/lib/formato";
@@ -24,7 +25,7 @@ import { SenalesRecientes } from "./mapa/SenalesRecientes";
 import { RastroMapa } from "./mapa/RastroMapa";
 import { PanelZonaMovil } from "./mapa/PanelZonaMovil";
 import { fraseEnCurso, useEnCurso } from "./mapa/useEnCurso";
-import { puntosDeDenuncias, puntosDeSenales } from "./mapa/puntos";
+import { alertaMapaDesdeLista, alertaMapaDesdePunto, puntosDeDenuncias, puntosDeSenales, type AlertasMapa } from "./mapa/puntos";
 import { construirEscala, formatoSoles, medidaPorId, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
@@ -94,7 +95,15 @@ export function MapaWrapper({
   const [zonas, setZonas] = useState<Zona[] | null>(null);
   /** `undefined` = todavía no respondió; `null` = no respondió. */
   const [estado, setEstado] = useState<EstadoGlobal | null | undefined>(undefined);
-  const [alertas, setAlertas] = useState<any[] | null>(null);
+  /** TODAS las alertas publicadas en filas mínimas: los puntos y los conteos por zona. */
+  const [senalesMapa, setSenalesMapa] = useState<AlertasMapa | null>(null);
+  /** Las de mayor puntaje, con objeto, entidad y monto: "Los de mayor peso del riesgo". */
+  const [alertasTop, setAlertasTop] = useState<any[] | null>(null);
+  /**
+   * Filas completas para la pestaña Señales del panel. `undefined` = la pestaña las pide al
+   * abrirse (con la API nueva el mapa ya no baja las 200 al entrar); `null` = cargando.
+   */
+  const [alertasZona, setAlertasZona] = useState<any[] | null | undefined>(null);
   const [reportes, setReportes] = useState<any[] | null>(null);
   const enCurso = useEnCurso();
 
@@ -143,10 +152,33 @@ export function MapaWrapper({
   // "cargando" (null) y se reintenta: un cero mientras tanto sería un dato falso.
   useEffect(() => {
     let vivo = true;
-    getAlertas({ limit: 200 })
-      .then((d) => {
+    // Los puntos salen de `/alertas/puntos`: TODAS las publicadas, en filas mínimas. "Los de
+    // mayor peso" necesita objeto, entidad y monto: las 20 de mayor puntaje de `/alertas`
+    // (la lista viene ordenada por puntaje, así que las 5 primeras son las del país).
+    // COMPAT-API-VIEJA: `/alertas/puntos` sólo si la API es la nueva (lib/capacidades); a
+    // ciegas, la API vieja respondía 404 y quedaba un error en la consola en cada visita.
+    apiNueva()
+      .then((nueva) => (nueva ? getAlertasPuntos() : null))
+      .catch(() => null)
+      .then(async (puntos) => {
         if (!vivo) return;
-        setAlertas(d as any[]);
+        if (puntos) {
+          setSenalesMapa({ alertas: puntos.map(alertaMapaDesdePunto), completo: true });
+          setAlertasZona(undefined);
+          const top = await getAlertas({ limit: 20 });
+          if (!vivo) return;
+          setAlertasTop(top as any[]);
+          setFalloSenales(false);
+          return;
+        }
+        // COMPAT-API-VIEJA: sin `/alertas/puntos` (API de prod), la lista de 200 hace de todo
+        // como antes: puntos, conteos y filas. Si el total pasa de lo que llegó, faltan puntos y
+        // los conteos se dicen parciales. Cuando la API nueva esté en prod, esta rama se borra.
+        const pag = await getAlertasPagina({ limit: 200 });
+        if (!vivo) return;
+        setSenalesMapa({ alertas: pag.data.map(alertaMapaDesdeLista), completo: pag.total <= pag.data.length });
+        setAlertasTop(pag.data as any[]);
+        setAlertasZona(pag.data as any[]);
         setFalloSenales(false);
       })
       .catch(() => {
@@ -380,7 +412,7 @@ export function MapaWrapper({
   }, [regionUb, geoDist, zonaSel, hoverUbigeo, hoverPunto]);
 
   /** `null` mientras cargan: el contador de la capa dice exactamente lo dibujado. */
-  const puntosSenal = useMemo<MapPoint[] | null>(() => (alertas ? puntosDeSenales(alertas) : null), [alertas]);
+  const puntosSenal = useMemo<MapPoint[] | null>(() => (senalesMapa ? puntosDeSenales(senalesMapa.alertas) : null), [senalesMapa]);
   const puntosDenuncia = useMemo<MapPoint[] | null>(() => (reportes ? puntosDeDenuncias(reportes) : null), [reportes]);
 
   const puntos = useMemo<MapPoint[]>(() => {
@@ -507,7 +539,7 @@ export function MapaWrapper({
     filas.push({ etiqueta: "Riesgo medio o alto", valor: enteros(z.conSenales), detalle: `de ${enteros(z.procesados)} leídos`, tono: "text-ink" });
     const ahora = activa.nivel === "departamento" ? enCurso[activa.ubigeo] : undefined;
     if (ahora) {
-      const n = ahora.leyendo + ahora.enCola + ahora.esperandoDocs;
+      const n = ahora.leyendo + ahora.enEspera;
       filas.push({ etiqueta: "Ahora", valor: enteros(n), detalle: n === 1 ? "financiado en curso" : "financiados en curso", tono: "text-mossTexto" });
     }
     return filas;
@@ -530,7 +562,8 @@ export function MapaWrapper({
     <RegionDetailPanel
       region={region}
       onClose={() => elegirRegion(null)}
-      alertasApi={alertas}
+      alertasApi={alertasZona}
+      senales={senalesMapa}
       reportes={reportes}
       geo={geoBase ? zBase : falloGeo ? null : undefined}
       tab={panelTab}
@@ -585,6 +618,7 @@ export function MapaWrapper({
               alertas={verSenales}
               onAlertas={() => setVerSenales((v) => !v)}
               nAlertas={puntosSenal ? puntosSenal.length : null}
+              alertasParcial={!!senalesMapa && !senalesMapa.completo}
               denuncias={verDenuncias}
               onDenuncias={() => setVerDenuncias((v) => !v)}
               nDenuncias={puntosDenuncia ? puntosDenuncia.length : null}
@@ -658,7 +692,7 @@ export function MapaWrapper({
         </div>
 
         {/* Debajo del mapa: arriba empujaba el lienzo fuera del primer pantallazo. */}
-        <SenalesRecientes alertas={alertas} fallo={falloSenales && alertas === null} />
+        <SenalesRecientes alertas={alertasTop} fallo={falloSenales && alertasTop === null} />
 
         {/* Ficha contextual: top layer, así el overflow-hidden del lienzo no la recorta */}
         <FichaRegion

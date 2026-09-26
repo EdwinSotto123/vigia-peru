@@ -8,6 +8,11 @@
  *     Auth por el unique-email constraint.
  *   - El `displayName` guarda el userId original (con su casing).
  *
+ * Carga diferida: NINGÚN componente del layout lo importa de forma estática. Lo piden
+ * las páginas que lo usan (entrar, crear cuenta, configuración, panel) y `AuthProvider`
+ * con `import()` cuando hay una sesión guardada (lib/sesion.ts). Así la portada y el
+ * resto del sitio no bajan Firebase para quien nunca inició sesión.
+ *
  * IMPORTANTE: en la consola de Firebase del proyecto hay que **habilitar
  * "Email/Password"** como sign-in method. Sin eso, los createUser fallan
  * con `auth/operation-not-allowed`.
@@ -15,6 +20,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from "firebase/auth";
+import { avisarFirebaseCargado } from "./sesion";
 
 // Config desde variables de entorno NEXT_PUBLIC_* (ver .env.example).
 const firebaseConfig = {
@@ -35,3 +41,8 @@ export const auth: Auth = typeof window === "undefined"
   : (() => { try { return initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); } catch { return getAuth(app); } })();
 
 export { app };
+
+// Este módulo sólo se evalúa cuando alguien lo necesita (entrar, crear cuenta, configuración,
+// panel, o una sesión guardada): `AuthProvider` escucha el aviso para seguir el estado de la
+// sesión desde ese momento, sin volver a cargar nada (lib/sesion.ts).
+avisarFirebaseCargado();

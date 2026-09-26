@@ -7,12 +7,19 @@
  * Sin sesión, nada de esto se llama: el sitio funciona igual. Con sesión, `useCuenta()`
  * carga el perfil UNA vez (caché en memoria compartida entre componentes) y expone las
  * acciones; cada mutación actualiza la caché y avisa a los suscriptores.
+ *
+ * Firebase NO se importa de forma estática (auditoría A14): este módulo lo usan el mapa y
+ * los botones de seguir, que ven todos los visitantes. `useCuenta` sigue la sesión con
+ * `useAuth()` (AuthProvider, que baja Firebase sólo si hay sesión guardada) y el token se
+ * pide con `import()` cuando de verdad hay alguien que autenticar.
  */
 
 import { useEffect, useState } from "react";
-import { auth } from "./firebase";
+import type { User } from "firebase/auth";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { PUBLIC_API_BASE } from "./auditoria";
 import { conAcentos } from "./financiamiento";
+import { firebaseYaCargado, leerPista } from "./sesion";
 
 export interface ZonaSeguida { ubigeo: string; nombre: string; nivel: "departamento" | "provincia" | "distrito" }
 export interface EntidadSeguida { ruc: string; nombre: string }
@@ -60,8 +67,25 @@ export interface Impacto {
 
 // ─── fetch autenticado ───────────────────────────────────────────────────────
 
+/**
+ * El usuario de Firebase, o null. Si la pista dice que no hay sesión y Firebase no se
+ * cargó en esta pestaña, no hay a quién autenticar: no se baja Firebase para confirmarlo.
+ */
+async function usuarioActual(): Promise<User | null> {
+  if (!firebaseYaCargado() && leerPista() === "0") return null;
+  try {
+    const { auth } = await import("./firebase");
+    // La sesión guardada se restaura de forma asíncrona: sin esperar, recién cargado
+    // `currentUser` todavía es null aunque haya sesión.
+    await auth.authStateReady();
+    return auth.currentUser;
+  } catch {
+    return null;
+  }
+}
+
 export async function idToken(): Promise<string | null> {
-  const u = auth.currentUser;
+  const u = await usuarioActual();
   if (!u) return null;
   try { return await u.getIdToken(); } catch { return null; }
 }
@@ -93,7 +117,7 @@ function setPerfil(p: Perfil | null) {
 }
 
 export async function cargarPerfil(force = false): Promise<Perfil | null> {
-  const u = auth.currentUser;
+  const u = await usuarioActual();
   if (!u) { setPerfil(null); return null; }
   if (!force && cache && cache.uid === u.uid) return cache.perfil;
   if (enCurso) return enCurso;
@@ -134,18 +158,24 @@ export function sigueZona(p: Perfil | null | undefined, ubigeo: string | null | 
 
 /** Hook: perfil de la cuenta (null sin sesión) + acciones. Se comparte la caché entre componentes. */
 export function useCuenta(): { perfil: Perfil | null; cargando: boolean; recargar: () => Promise<Perfil | null> } {
+  const { user, loading } = useAuth();
+  const uid = user?.uid ?? null;
   const [perfil, setP] = useState<Perfil | null>(cache?.perfil ?? null);
   const [cargando, setCargando] = useState(!cache);
   useEffect(() => {
     const f = () => setP(cache?.perfil ?? null);
     subs.add(f);
-    const unsub = auth.onAuthStateChanged((u) => {
-      if (!u) { setPerfil(null); setCargando(false); return; }
-      setCargando(true);
-      cargarPerfil().finally(() => setCargando(false));
-    });
-    return () => { subs.delete(f); unsub(); };
+    return () => { subs.delete(f); };
   }, []);
+  // La sesión la sigue AuthProvider: el perfil se pide cuando hay usuario, y se vacía sin él.
+  useEffect(() => {
+    if (loading) return;
+    if (!uid) { setPerfil(null); setCargando(false); return; }
+    let vivo = true;
+    setCargando(true);
+    cargarPerfil().finally(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
+  }, [uid, loading]);
   return { perfil, cargando, recargar: () => cargarPerfil(true) };
 }
 

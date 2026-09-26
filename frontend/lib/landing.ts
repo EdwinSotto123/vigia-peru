@@ -97,6 +97,14 @@ export interface OtraSenal {
 }
 
 /** La bandera más fuerte que se puede mostrar: de proceso, con evidencia legible y norma citada. */
+/**
+ * La lista `/alertas` de la API nueva recorta la evidencia a 320 caracteres (como el
+ * resumen de procesamientos). Una evidencia de ese largo exacto, o que termina en "…", llegó
+ * cortada: en la portada no se muestra una frase a medias.
+ */
+const EVIDENCIA_RECORTADA = 320;
+const recortada = (t: string) => t.length === EVIDENCIA_RECORTADA || /…\s*$/.test(t);
+
 function mejorBandera(a: AlertaReal): BanderaReal | null {
   const legibles = (a.banderas ?? []).filter(
     (b) =>
@@ -105,6 +113,7 @@ function mejorBandera(a: AlertaReal): BanderaReal | null {
       b.evidencia &&
       b.evidencia.length >= 80 &&
       b.evidencia.length <= 700 &&
+      !recortada(b.evidencia) &&
       !nombraAUnaPersona(b.evidencia),
   );
   legibles.sort((x, y) => (PESO_SEVERIDAD[y.severidad] ?? 0) - (PESO_SEVERIDAD[x.severidad] ?? 0));

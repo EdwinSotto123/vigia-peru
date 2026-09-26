@@ -206,11 +206,16 @@ export function FuenteDato({
   );
 }
 
-/** El regreso de una ficha a su listado (§14.2): "← Contratos". Uno por página, arriba del h1. */
+/**
+ * El regreso de una ficha a su listado (§14.2): "← Contratos". Uno por página, arriba del h1.
+ * Sin prefetch (auditoría A14): el listado de destino es la página más pesada de la app y
+ * casi siempre se vuelve con el botón atrás del navegador, que ya lo tiene.
+ */
 export function Volver({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
     <Link
       href={href}
+      prefetch={false}
       className={cn("inline-flex min-h-[32px] items-center gap-1.5 text-[14px] text-inkSoft transition-colors duration-rapido hover:text-granate", className)}
     >
       <ArrowLeft size={15} aria-hidden />

@@ -49,6 +49,17 @@ export interface ApiResult {
   };
   self_evals?: any;
   timing?: Record<string, number>;
+  /**
+   * La traza resumida (eventos, agentes, herramientas): el informe público llega SIN
+   * `agent_trace`, `llm_metrics` ni `self_evals`, que se piden al abrir "Cómo se hizo".
+   * Forma en `ResumenTraza` (./dossier); acá va sin tipo para no importar ese módulo.
+   */
+  traza_resumen?: { eventos: number; agentes: string[]; herramientas: string[] } | null;
+  /**
+   * El servidor dejó la traza afuera a propósito (lib/dossier-servidor.ts): "Cómo se hizo" la
+   * pide al abrirse. Sin esta marca, una traza vacía quiere decir que el análisis no la guardó.
+   */
+  traza_perezosa?: boolean;
   _bridge_meta?: Record<string, any>;
   /**
    * Estado de publicación de la alerta (GET /alertas/:id/full). Una alerta frenada para

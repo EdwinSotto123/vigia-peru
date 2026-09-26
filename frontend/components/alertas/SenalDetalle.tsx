@@ -1,9 +1,14 @@
+"use client";
+
 import { ExternalLink } from "lucide-react";
 import { NivelSenal } from "@/components/alertas/NivelSenal";
 import { SelloCotejo } from "@/components/alertas/SelloCotejo";
 import { ProveedorProtegido, TextoProtegido } from "@/components/alertas/Protegido";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
-import { Ayuda, BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones";
+// Directo de cada archivo, no del índice de patrones: este componente va al navegador y el
+// índice arrastra piezas que el panel no usa.
+import { Ayuda } from "@/components/patrones/Ayuda";
+import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones/Detalle";
 import { Ruc } from "@/components/Redact";
 import { plural, soles } from "@/lib/formato";
 import type { Senal } from "@/lib/revision";
@@ -13,9 +18,11 @@ import type { Senal } from "@/lib/revision";
  * chips (severidad y cotejo) → datos del contrato en filas → qué mira la regla, qué se
  * encontró, la norma, la evidencia del expediente y —obligatorio— qué NO prueba esto.
  *
- * Es un ReactNode que arma el server component y cruza el límite ya renderizado;
- * no viaja ninguna función. El detalle se renderiza con la fila (no al abrir), así
- * que el panel no tiene estado de carga: el dato ya estaba.
+ * Componente CLIENTE: la fila le pasa la señal como datos planos (nunca una función) y
+ * el panel se arma en el navegador recién al abrirlo (`Panel` monta su contenido en la
+ * primera apertura). Antes el servidor pre-renderizaba los 25 paneles de la página con
+ * cada fila: ~18 KB de RSC por fila que casi nadie abría. El dato ya está en la fila,
+ * así que el panel no tiene estado de carga.
  *
  * El bloque "qué no prueba" no es una nota legal al pie ni letra chica: es la
  * pieza de producto que impide que la interfaz convierta una señal en un veredicto.
@@ -32,6 +39,8 @@ function textoCotejo(v: boolean | null): string {
 }
 
 export function SenalDetalle({ s }: { s: Senal }) {
+  // Sin el conteo del contrato (el API no lo mandó) no se dice "1 de N" ni "por N señales".
+  const n = s.senalesDelContrato;
   return (
     <CuerpoDetalle>
       <ChipsDetalle>
@@ -47,6 +56,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
           { etiqueta: "Proveedor", valor: <ProveedorProtegido nombre={s.proveedor} ruc={s.rucProveedor} /> },
           ...(s.rucProveedor ? [{ etiqueta: "RUC del proveedor", valor: <Ruc value={s.rucProveedor} />, mono: true }] : []),
           { etiqueta: "Monto", valor: s.montoSoles > 0 ? soles(s.montoSoles) : null, mono: true },
+          ...(s.region ? [{ etiqueta: "Región", valor: s.region }] : []),
           {
             etiqueta: "Peso del riesgo",
             ayuda: (
@@ -57,17 +67,21 @@ export function SenalDetalle({ s }: { s: Senal }) {
             ),
             valor: (
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <PesoRiesgo score={s.score} banderas={s.senalesDelContrato} className="text-[13px]" />
+                <PesoRiesgo score={s.score} banderas={n ?? 1} className="text-[13px]" />
                 <span className="tabular-nums text-inkSoft">
-                  puntaje {s.score} de 100, por {plural(s.senalesDelContrato, "señal", "señales")}
+                  puntaje {s.score} de 100{n != null ? `, por ${plural(n, "señal", "señales")}` : ""}
                 </span>
               </span>
             ),
           },
-          {
-            etiqueta: "Señales del contrato",
-            valor: s.senalesDelContrato === 1 ? "Es la única" : `Es 1 de ${s.senalesDelContrato}`,
-          },
+          ...(n != null
+            ? [
+                {
+                  etiqueta: "Señales del contrato",
+                  valor: n === 1 ? "Es la única" : `Es 1 de ${n}`,
+                },
+              ]
+            : []),
           {
             etiqueta: "La encontró",
             valor: s.agenteLabel ?? <span className="text-mute">No consta</span>,
@@ -184,9 +198,9 @@ export function SenalDetalle({ s }: { s: Senal }) {
             y ninguno de los dos respondió aquí.
           </li>
           <li>
-            <strong className="font-semibold text-ink">No se suma con las otras.</strong> Que el contrato tenga{" "}
-            {s.senalesDelContrato} {s.senalesDelContrato === 1 ? "señal" : "señales"} no multiplica la gravedad de esta:
-            cada una se sostiene, o no, con su propia norma y su propia evidencia.
+            <strong className="font-semibold text-ink">No se suma con las otras.</strong>{" "}
+            {n != null ? `Que el contrato tenga ${n} ${n === 1 ? "señal" : "señales"} no multiplica` : "Las otras señales del contrato no multiplican"}{" "}
+            la gravedad de esta: cada una se sostiene, o no, con su propia norma y su propia evidencia.
           </li>
         </ul>
       </BloqueDetalle>

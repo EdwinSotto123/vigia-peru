@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import type { RegionGeo } from "@/lib/peru-data";
 import type { ContratoZona } from "@/lib/contratos";
 import { ZonaHubPanel, type ZonaTab } from "./mapa/ZonaHubPanel";
+import type { AlertasMapa } from "./mapa/puntos";
 import { REGION_UBIGEO } from "./mapa/region-match";
 
 /**
@@ -20,6 +21,7 @@ export function RegionDetailPanel({
   region,
   onClose,
   alertasApi,
+  senales,
   reportes,
   geo,
   tab,
@@ -27,8 +29,10 @@ export function RegionDetailPanel({
 }: {
   region: RegionGeo | null;
   onClose: () => void;
-  /** Alertas reales desde la API (el mapa ya las trae para los puntos). `null` = cargando. */
-  alertasApi: any[] | null;
+  /** Filas completas de `/alertas` para la pestaña Señales. `null` = cargando; `undefined` = la pestaña las pide. */
+  alertasApi: any[] | null | undefined;
+  /** Todas las alertas publicadas en filas mínimas (las de los puntos): de ahí salen los conteos. `null` = cargando. */
+  senales: AlertasMapa | null;
   /** Denuncias ciudadanas reales desde la API. `null` = cargando. */
   reportes: any[] | null;
   /** Cifras del departamento en `/contratos/geo`, sin filtro de mes. `undefined` = cargando. */
@@ -45,6 +49,7 @@ export function RegionDetailPanel({
       nombre={region.nombre}
       onClose={onClose}
       alertas={alertasApi}
+      senales={senales}
       reportes={reportes}
       geo={geo}
       tab={tab}

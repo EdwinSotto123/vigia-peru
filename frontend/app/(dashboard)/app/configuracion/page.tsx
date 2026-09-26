@@ -89,7 +89,7 @@ export default function ConfiguracionPage() {
         <EstadoVacio
           titulo="Necesitas una cuenta"
           accion={
-            <Link href="/login?next=/app/configuracion" className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+            <Link href="/login?next=/app/configuracion" prefetch={false} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
               <LogIn size={16} aria-hidden /> Entrar
             </Link>
           }

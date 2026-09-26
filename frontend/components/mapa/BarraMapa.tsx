@@ -31,6 +31,7 @@ export function BarraMapa({
   alertas,
   onAlertas,
   nAlertas,
+  alertasParcial = false,
   denuncias,
   onDenuncias,
   nDenuncias,
@@ -54,6 +55,8 @@ export function BarraMapa({
   onAlertas: () => void;
   /** Puntos de señal que se dibujan. `null` = cargando. */
   nAlertas: number | null;
+  /** COMPAT-API-VIEJA: la lista de alertas llegó recortada, así que faltan puntos: el número es un piso. */
+  alertasParcial?: boolean;
   denuncias: boolean;
   onDenuncias: () => void;
   /** Puntos de denuncia que se dibujan. `null` = cargando. */
@@ -126,7 +129,7 @@ export function BarraMapa({
         <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Capas del mapa">
           {/* Los puntos son los contratos de peso del riesgo medio o alto (lib/severidad ≥ 40):
               la capa se nombra por lo que dibuja, no "Señales" (§10.1). */}
-          <BotonCapa activa={alertas} onClick={onAlertas} n={nAlertas} icono={<AlertTriangle size={13} />} vacio="No hay contratos de riesgo medio o alto para dibujar">
+          <BotonCapa activa={alertas} onClick={onAlertas} n={nAlertas} parcial={alertasParcial} icono={<AlertTriangle size={13} />} vacio="No hay contratos de riesgo medio o alto para dibujar">
             Riesgo medio o alto
           </BotonCapa>
           <BotonCapa activa={denuncias} onClick={onDenuncias} n={nDenuncias} icono={<MessageSquareWarning size={13} />} vacio="Todavía no hay denuncias ciudadanas">
@@ -178,6 +181,7 @@ function BotonCapa({
   activa,
   onClick,
   n,
+  parcial = false,
   icono,
   vacio,
   children,
@@ -185,6 +189,8 @@ function BotonCapa({
   activa: boolean;
   onClick: () => void;
   n: number | null;
+  /** Faltan puntos (lista recortada): el número se lee "N o más". */
+  parcial?: boolean;
   icono: React.ReactNode;
   /** Por qué el botón está deshabilitado cuando no hay nada que mostrar. */
   vacio: string;
@@ -206,7 +212,7 @@ function BotonCapa({
           ? "border-granate bg-granate-soft text-granate"
           : "border-line bg-paperDeep text-inkSoft hover:bg-paper hover:text-ink",
       )}
-      title={vacia ? vacio : undefined}
+      title={vacia ? vacio : parcial && n !== null ? `Se dibujan ${n.toLocaleString("es-PE")}; la lista llegó incompleta y faltan otros` : undefined}
     >
       <span aria-hidden>{icono}</span>
       {/* En móvil la palabra no se ve pero se lee: con `hidden` el lector de pantalla perdía qué capa era. */}
@@ -214,7 +220,15 @@ function BotonCapa({
       {cargando ? (
         <span className="inline-block h-2.5 w-4 animate-pulse rounded bg-paperEdge" aria-hidden />
       ) : (
-        <span className="text-[11px] font-semibold tabular-nums">{n.toLocaleString("es-PE")}</span>
+        <span className="text-[11px] font-semibold tabular-nums">
+          {n.toLocaleString("es-PE")}
+          {parcial && (
+            <>
+              <span aria-hidden>+</span>
+              <span className="sr-only"> o más, lista incompleta</span>
+            </>
+          )}
+        </span>
       )}
       {cargando && <span className="sr-only">, cargando</span>}
     </button>

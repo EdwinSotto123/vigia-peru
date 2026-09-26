@@ -178,7 +178,8 @@ export function FormEntidad({
       if (evidencia) {
         setSubiendo(true);
         try {
-          fotoUrl = (await subirArchivo(evidencia)).url;
+          // Al bucket privado: una denuncia a una entidad nunca se publica.
+          fotoUrl = (await subirArchivo(evidencia, undefined, { modo: "entidad" })).url;
         } catch (err) {
           setErrores((x) => ({ ...x, evidencia: mensajeSubida(evidencia.name, codigoDeError(err)) }));
           setErrorEnvio("No pudimos subir la evidencia. Quítala o prueba con otro archivo.");

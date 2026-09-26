@@ -13,18 +13,23 @@
  * leer. El dossier queda en el pie del panel. Una sola acción por fila.
  *
  * Componente cliente porque usa `estadoLecturaDe` (módulo cliente): llamada desde un
- * server component sería una referencia, no una función. `Paginacion` recibe datos
- * (`hrefBase`, `query`, `paramPagina="page"`, el parámetro del API de contratos).
+ * server component sería una referencia, no una función.
+ *
+ * Paginación: por cursor cuando el API lo trae (`siguiente`/`anterior`, tokens opacos que
+ * van a la URL como `?cursor=` / `?antes=`), con "Anterior / Siguiente" y sin números de
+ * página inventados. COMPAT-API-VIEJA: sin la clave `siguiente` en la respuesta, pagina
+ * por número (`Paginacion` con `paramPagina="page"`), como antes.
  */
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Paginacion } from "@/components/ui/Paginacion";
+import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { numero, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
-import { etapaLabel, formatFecha, formatMonto, tipoLabel, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
+import { etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { DetalleContrato } from "./DetalleContrato";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar } from "./recortar";
@@ -60,22 +65,31 @@ export function TablaContratos({
   pagina,
   parametros,
   actual,
+  cursor,
+  antes,
   tam,
 }: {
   /** La página que trajo el servidor; `null` = el API no respondió. */
   pagina: ContratosPagina | null;
-  /** Los filtros actuales de la URL (sin página), para armar los enlaces de página. */
+  /** Los filtros actuales de la URL (sin página ni cursor), para armar los enlaces de página. */
   parametros: Parametros;
   actual: number;
+  /** El cursor con el que se pidió esta página (`?cursor=` o `?antes=`), si vino por cursor. */
+  cursor?: string;
+  antes?: string;
   tam: number;
 }) {
-  const href = (n: number) => {
+  /** Los filtros de la URL más un paso de paginación (página por número o token de cursor). */
+  const hrefCon = (paso: Record<string, string>) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(parametros)) if (v) q.set(k, v);
-    if (n > 1) q.set("page", String(n));
+    for (const [k, v] of Object.entries(paso)) q.set(k, v);
     const qs = q.toString();
     return qs ? `${RUTA}?${qs}` : RUTA;
   };
+  const href = (n: number) => hrefCon(n > 1 ? { page: String(n) } : {});
+  // Esta misma página, tal como se pidió (para reintentar sin perder el lugar).
+  const hrefActual = cursor ? hrefCon({ cursor }) : antes ? hrefCon({ antes }) : href(actual);
   // El orden no recorta la lista: sólo los demás parámetros cuentan como filtro.
   const filtrado = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
 
@@ -84,7 +98,7 @@ export function TablaContratos({
       <EstadoError
         titulo="No pudimos cargar la lista de contratos"
         // `<a>` y no `<Link>`: reintentar es pedir la página de nuevo al servidor, con los mismos filtros.
-        accion={<a href={href(actual)} className={ACCION}>Reintentar</a>}
+        accion={<a href={hrefActual} className={ACCION}>Reintentar</a>}
       >
         Suele ser momentáneo: vuelve a intentarlo en unos segundos.
       </EstadoError>
@@ -93,6 +107,8 @@ export function TablaContratos({
 
   const { total, data } = pagina;
   const paginas = Math.max(1, Math.ceil(total / tam));
+  // COMPAT-API-VIEJA: la API vieja no manda `siguiente`; entonces se pagina por número.
+  const porCursor = "siguiente" in pagina;
 
   if (total === 0) {
     return filtrado ? (
@@ -106,13 +122,23 @@ export function TablaContratos({
     );
   }
 
+  // Un cursor viejo (la lista cambió desde que se copió el enlace): hay contratos, sólo que
+  // esa página ya no existe. Se vuelve al principio, no se dice "no hay contratos".
+  if (porCursor && data.length === 0) {
+    return (
+      <EstadoVacio compacto titulo="Esta página de la lista ya no está disponible" accion={<Link href={href(1)} prefetch={false} className={ACCION}>Ir al principio de la lista</Link>}>
+        Hay {totalContratosTexto(pagina)} {total === 1 ? "contrato" : "contratos"}{filtrado ? " con estos filtros" : ""}.
+      </EstadoVacio>
+    );
+  }
+
   // ?page=999 con 368 páginas: hay contratos, sólo que no tantos. "No hay contratos" sería falso.
   if (data.length === 0) {
     return (
       <EstadoVacio
         compacto
         titulo={`Esta página no existe: la lista llega hasta la página ${numero(paginas)}`}
-        accion={<Link href={href(paginas)} className={ACCION}>Ir a la última página</Link>}
+        accion={<Link href={href(paginas)} prefetch={false} className={ACCION}>Ir a la última página</Link>}
       >
         Hay {plural(total, "contrato", "contratos")}
         {filtrado ? " con estos filtros" : ""}, {tam} por página.
@@ -120,9 +146,26 @@ export function TablaContratos({
     );
   }
 
-  const pag = (
-    <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={RUTA} query={parametros} paramPagina="page" cargando={false} nombre="contratos" />
-  );
+  let pag: React.ReactNode;
+  if (porCursor) {
+    // Primera página: se sabe el rango ("1–50 de 18,393"). Después, sólo cuántos se ven
+    // de cuántos: con un cursor no hay número de página que decir.
+    // Por la URL, no por la respuesta: con cursor el API puede no mandar `page`.
+    const primera = !cursor && !antes && actual <= 1;
+    const cuantos = numero(data.length);
+    const texto = `${primera ? `1–${cuantos}` : cuantos} de ${totalContratosTexto(pagina)}`;
+    pag = (
+      <PaginacionCursor
+        texto={texto}
+        anterior={!primera && pagina.anterior ? hrefCon({ antes: pagina.anterior }) : null}
+        siguiente={pagina.siguiente ? hrefCon({ cursor: pagina.siguiente }) : null}
+      />
+    );
+  } else {
+    pag = (
+      <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={RUTA} query={parametros} paramPagina="page" cargando={false} nombre="contratos" />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -181,6 +224,11 @@ function filaDe(c: ContratoResumen): Fila {
       ),
     },
   };
+}
+
+/** Mientras llega la primera página: la misma rejilla, sin saltos cuando entran los datos. */
+export function TablaContratosSkeleton() {
+  return <TablaSkeleton columnas={COLUMNAS} filas={10} />;
 }
 
 /** La acción de un estado vacío o de error: la píldora secundaria de los listados. */

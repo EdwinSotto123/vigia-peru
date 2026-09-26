@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { geoMercator, geoPath } from "d3-geo";
-import type { Feature, FeatureCollection, Geometry } from "geojson";
+import type { Feature } from "geojson";
 import { ContratoPin } from "./contratos/ContratoPin";
 import { nivelDeEtiqueta, tintaSobre, SIN_DATO, SIN_DATO_TRAMA } from "./mapa/escala";
 import { nombreDepartamento } from "./mapa/region-match";
 import { colocarEtiquetas, posicionesEnEspiral } from "./mapa/geometria";
+import { useGeoPeru, type DeptFeature, type ProvFeature } from "./mapa/useGeoPeru";
+import { ENCUADRE_PAIS, useZoomAnimado, type Encuadre } from "./mapa/useZoomAnimado";
+import { ErrorMapa, MapaEsqueleto } from "./mapa/EstadosMapa";
 import { conAcentos } from "@/lib/financiamiento";
-import { EstadoError } from "@/components/patrones";
-import { Llamita } from "@/components/marca";
 
 const VB_W = 480;
 const VB_H = 700;
@@ -28,25 +29,6 @@ const COLOR = {
   mute: "#6B6166",
   granate: "#711C30",
 } as const;
-
-interface DepartmentProps {
-  name: string;
-  id: string;
-  code?: string;
-}
-
-interface ProvinceProps {
-  name: string;
-  departamento: string;
-  regionId: string;
-  id: string;
-  code?: string;
-}
-
-type DeptFeature = Feature<Geometry, DepartmentProps>;
-type ProvFeature = Feature<Geometry, ProvinceProps>;
-type DeptGeo = FeatureCollection<Geometry, DepartmentProps>;
-type ProvGeo = FeatureCollection<Geometry, ProvinceProps>;
 
 export interface MapPoint {
   id: string;
@@ -172,12 +154,11 @@ export function PeruChoropleth({
     const t = window.setTimeout(() => setEscalonando(false), 700);
     return () => window.clearTimeout(t);
   }, [ola]);
-  const [deptData, setDeptData] = useState<DeptGeo | null>(null);
-  const [provData, setProvData] = useState<ProvGeo | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
+  // Las provincias (846 KB) se piden recién al abrir un departamento (ver mapa/useGeoPeru).
+  const { deptData, provData, status } = useGeoPeru(seleccion !== null);
   const [foco, setFoco] = useState<string | null>(null);
-  // Estado animado del transform — actualizado por RAF
-  const [animTransform, setAnimTransform] = useState({ tx: 0, ty: 0, s: 1 });
+  /** El grupo que se mueve con el zoom: su `transform` lo escribe `useZoomAnimado`, no React. */
+  const grupoRef = useRef<SVGGElement>(null);
 
   /**
    * Cuántos píxeles de pantalla mide una unidad del viewBox. Sin esto, `fontSize: 9`
@@ -186,7 +167,10 @@ export function PeruChoropleth({
    */
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [fitScale, setFitScale] = useState(1);
+  const svgListo = status === "ready";
   useEffect(() => {
+    // El <svg> recién existe cuando llegó la geometría: antes este efecto corría al montar,
+    // con el esqueleto en pantalla, y el factor se quedaba en 1 para siempre.
     const el = svgRef.current;
     if (!el) return;
     const medir = () => {
@@ -198,35 +182,7 @@ export function PeruChoropleth({
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    fetch("/peru-departments.json")
-      .then((r) => {
-        if (r.status === 404) throw new Error("missing");
-        if (!r.ok) throw new Error("error");
-        return r.json();
-      })
-      .then((data: DeptGeo) => {
-        if (!alive) return;
-        setDeptData(data);
-        setStatus("ready");
-      })
-      .catch((err) => {
-        if (!alive) return;
-        setStatus(err.message === "missing" ? "missing" : "error");
-      });
-    fetch("/peru-provinces.json")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: ProvGeo | null) => {
-        if (alive && data) setProvData(data);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
+  }, [svgListo]);
 
   const projection = useMemo(() => {
     if (!deptData) return null;
@@ -306,23 +262,12 @@ export function PeruChoropleth({
   /** Qué nombres de departamento caben sobre el mapa (colocación codiciosa, ver mapa/geometria). */
   const etiquetasVisibles = useMemo(() => colocarEtiquetas(deptPaths, regiones, fitScale), [deptPaths, regiones, fitScale]);
 
-  /** Dónde va cada punto anclado a una zona: espiral dentro de su polígono (ver mapa/geometria). */
-  const posiciones = useMemo(() => {
-    if (!projection || !deptData) return new Map<string, [number, number]>();
-    const poligonosPorZona = new Map<string, Feature[]>();
-    for (const f of deptData.features as DeptFeature[]) if (f.properties.code) poligonosPorZona.set(f.properties.code, [f]);
-    for (const f of (provData?.features ?? []) as ProvFeature[]) {
-      const code = f.properties.code;
-      if (code) poligonosPorZona.set(code, [...(poligonosPorZona.get(code) ?? []), f]);
-    }
-    return posicionesEnEspiral({ points, projection, poligonosPorZona, centroides, escala: (fitScale || 1) * (animTransform.s || 1) });
-  }, [points, projection, deptData, provData, centroides, fitScale, animTransform.s]);
-
-  // Computa target transform basado en el departamento abierto
-  const targetTransform = useMemo(() => {
-    if (!seleccion || !deptPaths.length) return { tx: 0, ty: 0, s: 1 };
+  // El encuadre final: el país entero o el departamento abierto. Todo lo que se dibuja a
+  // tamaño de pantalla se calcula para ESTE encuadre; el zoom sólo mueve el grupo hasta él.
+  const targetTransform = useMemo<Encuadre>(() => {
+    if (!seleccion || !deptPaths.length) return ENCUADRE_PAIS;
     const sel = deptPaths.find((p) => p.ubigeo === seleccion);
-    if (!sel || !sel.bounds) return { tx: 0, ty: 0, s: 1 };
+    if (!sel || !sel.bounds) return ENCUADRE_PAIS;
     const [[x0, y0], [x1, y1]] = sel.bounds;
     const w = x1 - x0 || 1;
     const h = y1 - y0 || 1;
@@ -333,40 +278,32 @@ export function PeruChoropleth({
     return { tx: VB_W / 2 - cx * s, ty: VB_H / 2 - cy * s, s };
   }, [seleccion, deptPaths]);
 
-  // Animación con requestAnimationFrame — cubic ease out, 240 ms (duration-panel).
-  useEffect(() => {
-    const reducido =
-      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const to = targetTransform;
-    if (reducido) {
-      setAnimTransform(to);
-      return;
+  /** Dónde va cada punto anclado a una zona: espiral dentro de su polígono (ver mapa/geometria). */
+  const posiciones = useMemo(() => {
+    if (!projection || !deptData) return new Map<string, [number, number]>();
+    const poligonosPorZona = new Map<string, Feature[]>();
+    for (const f of deptData.features as DeptFeature[]) if (f.properties.code) poligonosPorZona.set(f.properties.code, [f]);
+    for (const f of (provData?.features ?? []) as ProvFeature[]) {
+      const code = f.properties.code;
+      if (code) poligonosPorZona.set(code, [...(poligonosPorZona.get(code) ?? []), f]);
     }
-    const duration = 240;
-    const start = performance.now();
-    const from = animTransform;
-    let raf = 0;
-    const step = (now: number) => {
-      const t = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setAnimTransform({
-        tx: from.tx + (to.tx - from.tx) * eased,
-        ty: from.ty + (to.ty - from.ty) * eased,
-        s: from.s + (to.s - from.s) * eased,
-      });
-      if (t < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetTransform.tx, targetTransform.ty, targetTransform.s]);
+    // Sin las provincias todavía (se piden al abrir un departamento), el punto anclado a una
+    // provincia se abre en la espiral de su departamento en vez de quedarse sin dibujar.
+    const anclados = provData ? points : points.map((pt) => (pt.zona && pt.zona.length > 2 ? { ...pt, zona: pt.zona.slice(0, 2) } : pt));
+    return posicionesEnEspiral({ points: anclados, projection, poligonosPorZona, centroides, escala: (fitScale || 1) * (targetTransform.s || 1) });
+  }, [points, projection, deptData, provData, centroides, fitScale, targetTransform.s]);
+
+  const animando = useZoomAnimado(grupoRef, targetTransform, status === "ready");
 
   if (status === "loading") return <MapaEsqueleto />;
-  if (status === "missing") return <MissingGeoJSON />;
-  if (status === "error") return <FetchError />;
+  if (status === "missing" || status === "error") return <ErrorMapa faltaArchivo={status === "missing"} />;
 
-  const { tx, ty, s: zoomScale } = animTransform;
-  const transformStr = `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${zoomScale.toFixed(4)})`;
+  const zoomScale = targetTransform.s;
+  /** Lo que se dibuja a tamaño de pantalla (etiquetas, puntos) no se ve mientras dura el zoom. */
+  const capaPantalla = {
+    opacity: animando ? 0 : 1,
+    transition: animando || reducido ? "none" : "opacity 120ms ease-out",
+  } as const;
 
   /**
    * Tamaños pedidos en PÍXELES REALES de pantalla: `px()` divide por el zoom de
@@ -381,15 +318,21 @@ export function PeruChoropleth({
     deptSelected: px(15),
     prov: px(11),
   };
+  /**
+   * Bordes en PÍXELES REALES: van con `vector-effect: non-scaling-stroke`, así su grosor no
+   * depende del zoom ni de la escala del SVG, y se ven bien también durante el zoom (que ya
+   * no re-dibuja nada por cuadro). Los halos de las etiquetas siguen en unidades del viewBox.
+   */
   const sw = {
     // La frontera pasa de 0,6 a 0,9 px: con 0,6 (0,41 px reales en móvil) los
     // departamentos vecinos que comparten escalón se fundían en una sola mancha.
-    dept: px(0.9),
-    deptSelected: px(1.8),
-    province: px(0.7),
-    provinceSel: px(1.8),
-    foco: px(2.6),
-    destacada: px(2),
+    dept: 0.9,
+    deptSelected: 1.8,
+    province: 0.7,
+    provinceSel: 1.8,
+    foco: 2.6,
+    destacada: 2,
+    pulso: 2.4,
     // El halo baja de 2,8 a 2,2 unidades de viewBox reales: con el texto ahora
     // invirtiendo su color según el escalón, el halo deja de ser lo único que
     // sostiene la legibilidad y vuelve a ser lo que debe ser, una separación
@@ -454,7 +397,8 @@ export function PeruChoropleth({
             SOLO el viewBox y dejaban dos costuras verticales. El lienzo lo pinta el
             contenedor, así no hay costura posible cualquiera sea el encuadre. */}
 
-        <g transform={transformStr}>
+        {/* Sin `transform` en el JSX: lo escribe useZoomAnimado directo en el DOM. */}
+        <g ref={grupoRef}>
           {/* Departamentos — cada uno es un control: foco, Enter/Espacio y etiqueta con cifras. */}
           <g filter="url(#paper-shadow)">
             {deptPaths.map((p) => {
@@ -477,6 +421,7 @@ export function PeruChoropleth({
                   // Frontera blanca: se lee sobre los cinco escalones, porque la rampa nunca llega al blanco.
                   stroke={isSelected ? COLOR.ink : z?.destacada ? COLOR.granate : isDimmed ? COLOR.paperEdge : COLOR.paper}
                   strokeWidth={isSelected ? sw.deptSelected : z?.destacada ? sw.destacada : sw.dept}
+                  vectorEffect="non-scaling-stroke"
                   strokeLinejoin="round"
                   onMouseEnter={(e) =>
                     onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "departamento" }, e.currentTarget.getBoundingClientRect())
@@ -529,6 +474,7 @@ export function PeruChoropleth({
                     fillOpacity={0.92}
                     stroke={elegida ? COLOR.ink : COLOR.paper}
                     strokeWidth={elegida ? sw.provinceSel : sw.province}
+                    vectorEffect="non-scaling-stroke"
                     strokeLinejoin="round"
                     onMouseEnter={(e) =>
                       onZonaActiva({ ubigeo: p.ubigeo, nombre: p.name, nivel: "provincia" }, e.currentTarget.getBoundingClientRect())
@@ -574,7 +520,8 @@ export function PeruChoropleth({
                     key={`pulso-${p.ubigeo}`}
                     d={p.d}
                     fill="none"
-                    strokeWidth={px(2.4)}
+                    strokeWidth={sw.pulso}
+                    vectorEffect="non-scaling-stroke"
                     strokeLinejoin="round"
                     className="stroke-moss motion-safe:animate-pulseSoft"
                   >
@@ -585,7 +532,7 @@ export function PeruChoropleth({
           )}
 
           {projection && points.length > 0 && (
-            <g pointerEvents="auto">
+            <g pointerEvents={animando ? "none" : "auto"} style={capaPantalla}>
               {points.map((pt) => {
                 const pos = posicionDe(pt);
                 if (!pos) return null;
@@ -655,7 +602,7 @@ export function PeruChoropleth({
 
           {/* Etiquetas de departamento: DESPUÉS de los puntos (en SVG lo último queda
               encima), así ningún círculo perfora un nombre. */}
-          <g pointerEvents="none">
+          <g pointerEvents="none" style={capaPantalla}>
             {deptPaths.map((p) => {
               const isSelected = seleccion === p.ubigeo;
               const isDimmed = seleccion !== null && !isSelected;
@@ -702,7 +649,7 @@ export function PeruChoropleth({
 
           {/* Etiquetas de provincia (solo con departamento abierto) */}
           {seleccion && (
-            <g pointerEvents="none">
+            <g pointerEvents="none" style={capaPantalla}>
               {provincePaths.map((p) => {
                 // De una provincia partida en dos polígonos se rotula sólo el más grande.
                 if (provincePaths.some((q) => q.ubigeo === p.ubigeo && q.area > p.area)) return null;
@@ -736,49 +683,13 @@ export function PeruChoropleth({
               fill="none"
               stroke={COLOR.granate}
               strokeWidth={sw.foco}
+              vectorEffect="non-scaling-stroke"
               strokeLinejoin="round"
               pointerEvents="none"
             />
           )}
         </g>
       </svg>
-    </div>
-  );
-}
-
-/** Mientras llega la geometría del Perú: la llamita camina y se dice qué se espera. */
-function MapaEsqueleto() {
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-paperSoft" role="status">
-      <Llamita caminando className="w-12 text-granate/70" />
-      <span className="text-sm text-mute">Cargando el mapa del Perú…</span>
-    </div>
-  );
-}
-
-/** La geometría no llegó (error de red) o falta el archivo: qué pasó, qué hacer y la salida a la lista. */
-function FetchError() {
-  return <ErrorMapa detalle="La geometría del Perú no llegó." />;
-}
-
-function MissingGeoJSON() {
-  return <ErrorMapa detalle="Falta el archivo con los límites del Perú." />;
-}
-
-function ErrorMapa({ detalle }: { detalle: string }) {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <EstadoError
-        titulo="No pudimos dibujar el mapa"
-        className="max-w-md"
-        accion={
-          <a href="/app/contratos" className="text-sm font-semibold text-granate underline-offset-2 hover:underline">
-            Ver los contratos en lista
-          </a>
-        }
-      >
-        {detalle} Recarga la página; si sigue igual, el problema es nuestro.
-      </EstadoError>
     </div>
   );
 }

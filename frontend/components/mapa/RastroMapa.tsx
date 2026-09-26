@@ -15,8 +15,8 @@ import { fraseEnCurso, type EnCurso } from "./useEnCurso";
  *
  * "Ahora" es una fila de chips (departamento + cuántos), no una oración por
  * departamento: con cuatro zonas en curso la frase ocupaba dos renglones. El
- * desglose de cada una (leyéndose, en turno, esperando documentos) va en su
- * `title` y en su nombre accesible; qué cuenta, en el ⓘ.
+ * desglose de cada una (leyéndose, en espera) va en su `title` y en su nombre
+ * accesible; qué cuenta, en el ⓘ.
  */
 export function RastroMapa({
   region,
@@ -96,7 +96,7 @@ export function RastroMapa({
                 className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-line bg-paper px-2 py-0.5 font-medium text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50"
               >
                 {nombreDepartamento(ub)}
-                <span className="font-semibold tabular-nums text-ink">{numero(e.leyendo + e.enCola + e.esperandoDocs)}</span>
+                <span className="font-semibold tabular-nums text-ink">{numero(e.leyendo + e.enEspera)}</span>
               </Link>
             );
           })}

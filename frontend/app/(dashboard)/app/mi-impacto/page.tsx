@@ -650,8 +650,8 @@ function SinSesion() {
       titulo="Mi impacto necesita una cuenta"
       accion={
         <div className="flex flex-wrap justify-center gap-2">
-          <Link href="/login?next=/app/mi-impacto" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
-          <Link href="/signup?next=/app/mi-impacto" className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">Crear cuenta</Link>
+          <Link href="/login?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
+          <Link href="/signup?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">Crear cuenta</Link>
         </div>
       }
     >

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { AlertTriangle, CalendarDays, ClipboardList, FileText, HardHat, Package, Wrench, type LucideIcon } from "lucide-react";
-import { gsap, SIN_REDUCIR, useGSAP } from "@/lib/gsap";
+import { SIN_REDUCIR, useEscenaGsap } from "@/lib/gsap";
 import { numero, porcentaje } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { Ayuda } from "@/components/patrones";
@@ -73,57 +73,57 @@ export function EscalaDinero({
   const milMillones = Math.floor(montoTotal / 1e9);
   const pct = publicados > 0 ? (leidos / publicados) * 100 : 0;
 
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add(SIN_REDUCIR, () => {
-        // La matriz: se construye con el scroll y termina cuando llega al centro de la pantalla.
-        const matriz = gsap.timeline({
-          defaults: { ease: "none" },
-          scrollTrigger: { trigger: ".matriz", start: "top 88%", end: "center 58%", scrub: 0.6 },
-        });
-        matriz
-          .fromTo(".matriz-recorte", { attr: { width: 0 } }, { attr: { width: COLUMNAS }, duration: 0.72 })
-          .fromTo(
-            ".punto-leido",
-            { scale: 0, transformOrigin: "50% 50%" },
-            { scale: 1, duration: 0.18, stagger: 0.02, ease: "back.out(3)" },
-            0.74,
-          );
-
-        // Cuenta hacia arriba cada número marcado con data-valor, dentro de una línea de tiempo.
-        const contar = (tl: gsap.core.Timeline, el: HTMLElement, en: number, duracion = 1.1) => {
-          const fin = Number(el.dataset.valor ?? 0);
-          const v = { v: 0 };
-          el.textContent = "0";
-          tl.to(v, { v: fin, duration: duracion, ease: "power2.out", onUpdate: () => (el.textContent = numero(v.v)) }, en);
-        };
-
-        // Las cajitas: entran una tras otra, cuentan y llenan su barra, una sola vez.
-        // Sin cajitas (su lectura falló), el total cuenta solo, al entrar él.
-        const cajitas = gsap.utils.toArray<HTMLElement>(".cajita");
-        const total = raiz.current!.querySelector<HTMLElement>(".cuenta-total")!;
-        const tl = gsap.timeline({ scrollTrigger: { trigger: cajitas.length ? ".cajitas" : total, start: "top 82%", once: true } });
-        if (cajitas.length) {
-          gsap.set(cajitas, { opacity: 0.25, y: 18 });
-          gsap.set(".barra-tipo", { scaleX: 0, transformOrigin: "0 50%" });
-          tl.to(cajitas, { opacity: 1, y: 0, duration: 0.5, stagger: 0.09, ease: "power2.out", clearProps: "opacity,transform" }, 0).to(
-            ".barra-tipo",
-            { scaleX: 1, duration: 0.9, stagger: 0.09, ease: "power3.out" },
-            0.2,
-          );
-          gsap.utils.toArray<HTMLElement>(".cajita .cuenta").forEach((el, i) => contar(tl, el, 0.1 + i * 0.09));
-        }
-        contar(tl, total, 0, 1.4);
-
-        // La cifra de leídos: la que la matriz acaba de mostrar, dicha en número.
-        const cifra = raiz.current!.querySelector<HTMLElement>(".cifra-leidos")!;
-        const leida = gsap.timeline({ scrollTrigger: { trigger: cifra, start: "top 85%", once: true } });
-        contar(leida, cifra, 0, 1.2);
+  // Revelado liviano: GSAP llega después de `load`, en un momento ocioso, y nunca con
+  // movimiento reducido. Hasta entonces las cifras se ven en su valor final.
+  useEscenaGsap(
+    raiz,
+    SIN_REDUCIR,
+    ({ gsap }) => {
+      // La matriz: se construye con el scroll y termina cuando llega al centro de la pantalla.
+      const matriz = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: { trigger: ".matriz", start: "top 88%", end: "center 58%", scrub: 0.6 },
       });
-      return () => mm.revert();
+      matriz
+        .fromTo(".matriz-recorte", { attr: { width: 0 } }, { attr: { width: COLUMNAS }, duration: 0.72 })
+        .fromTo(
+          ".punto-leido",
+          { scale: 0, transformOrigin: "50% 50%" },
+          { scale: 1, duration: 0.18, stagger: 0.02, ease: "back.out(3)" },
+          0.74,
+        );
+
+      // Cuenta hacia arriba cada número marcado con data-valor, dentro de una línea de tiempo.
+      const contar = (tl: ReturnType<typeof gsap.timeline>, el: HTMLElement, en: number, duracion = 1.1) => {
+        const fin = Number(el.dataset.valor ?? 0);
+        const v = { v: 0 };
+        el.textContent = "0";
+        tl.to(v, { v: fin, duration: duracion, ease: "power2.out", onUpdate: () => (el.textContent = numero(v.v)) }, en);
+      };
+
+      // Las cajitas: entran una tras otra, cuentan y llenan su barra, una sola vez.
+      // Sin cajitas (su lectura falló), el total cuenta solo, al entrar él.
+      const cajitas = gsap.utils.toArray<HTMLElement>(".cajita");
+      const total = raiz.current!.querySelector<HTMLElement>(".cuenta-total")!;
+      const tl = gsap.timeline({ scrollTrigger: { trigger: cajitas.length ? ".cajitas" : total, start: "top 82%", once: true } });
+      if (cajitas.length) {
+        gsap.set(cajitas, { opacity: 0.25, y: 18 });
+        gsap.set(".barra-tipo", { scaleX: 0, transformOrigin: "0 50%" });
+        tl.to(cajitas, { opacity: 1, y: 0, duration: 0.5, stagger: 0.09, ease: "power2.out", clearProps: "opacity,transform" }, 0).to(
+          ".barra-tipo",
+          { scaleX: 1, duration: 0.9, stagger: 0.09, ease: "power3.out" },
+          0.2,
+        );
+        gsap.utils.toArray<HTMLElement>(".cajita .cuenta").forEach((el, i) => contar(tl, el, 0.1 + i * 0.09));
+      }
+      contar(tl, total, 0, 1.4);
+
+      // La cifra de leídos: la que la matriz acaba de mostrar, dicha en número.
+      const cifra = raiz.current!.querySelector<HTMLElement>(".cifra-leidos")!;
+      const leida = gsap.timeline({ scrollTrigger: { trigger: cifra, start: "top 85%", once: true } });
+      contar(leida, cifra, 0, 1.2);
     },
-    { scope: raiz },
+    { diferido: true },
   );
 
   return (

@@ -27,8 +27,8 @@ export function CuentaCta({ codigo }: { codigo: string }) {
       <span>
         <strong className="text-ink">¿Es tuyo? Crea una cuenta para seguirlo.</strong> No es obligatorio: con el código{" "}
         <span className="font-mono">{codigo}</span> vuelves a este comprobante.{" "}
-        <Link href={`/signup?next=${encodeURIComponent(miImpacto)}`} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
-        <Link href={`/login?next=${encodeURIComponent(miImpacto)}`} className="ml-3 text-granate underline underline-offset-2">Ya tengo una</Link>
+        <Link href={`/signup?next=${encodeURIComponent(miImpacto)}`} prefetch={false} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
+        <Link href={`/login?next=${encodeURIComponent(miImpacto)}`} prefetch={false} className="ml-3 text-granate underline underline-offset-2">Ya tengo una</Link>
       </span>
     </div>
   );

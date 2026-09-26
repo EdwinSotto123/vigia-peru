@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 
 /**
- * Envoltorio de servidor del dossier: la página es un client component (lee el
- * análisis en el navegador), así que el título que ve quien recibe el enlace
+ * Envoltorio de servidor del dossier: el título que ve quien recibe el enlace
  * compartido se arma acá, con la ficha liviana del contrato (/contratos/{id},
- * ~16 KB) y no con el análisis completo (~400 KB).
+ * ~16 KB), sin esperar al informe (que arma page.tsx, también en el servidor).
  */
 
 const API_BASE =

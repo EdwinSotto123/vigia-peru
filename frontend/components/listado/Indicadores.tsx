@@ -93,7 +93,8 @@ export function Indicadores({
             {it.valor == null ? (
               <span className="text-[18px] font-semibold text-mute">Sin dato</span>
             ) : it.href ? (
-              <Link href={it.href} className="after:absolute after:inset-0 focus-visible:outline-none">
+              // Sin prefetch: el enlace de una cifra filtra el listado; se pide al hacer clic.
+              <Link href={it.href} prefetch={false} className="after:absolute after:inset-0 focus-visible:outline-none">
                 {it.valor}
               </Link>
             ) : (

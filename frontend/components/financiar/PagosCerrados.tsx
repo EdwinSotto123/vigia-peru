@@ -54,7 +54,7 @@ export function PagosCerrados({
             (user ? (
               <SeguirZonaBoton ubigeo={ubigeo} nombre={zonaNombre} className="min-h-[40px] text-[13px]" />
             ) : (
-              <EnlaceAccion variante="secundario" href={`/login?next=${encodeURIComponent(volver)}`}>
+              <EnlaceAccion variante="secundario" href={`/login?next=${encodeURIComponent(volver)}`} prefetch={false}>
                 <Bell size={14} aria-hidden /> Entra para seguir {zonaNombre}
               </EnlaceAccion>
             ))}

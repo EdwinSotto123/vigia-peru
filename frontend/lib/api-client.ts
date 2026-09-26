@@ -134,6 +134,76 @@ export async function getAlerta(id: string): Promise<ApiAlerta | null> {
   }
 }
 
+/** Una alerta publicada con lo mínimo para dibujarla en el mapa (`GET /alertas/puntos`). */
+export interface ApiAlertaPunto {
+  codigo: string;
+  /** Código corto de la convocatoria (el del dossier: /app/convocatoria/{convocatoria}). */
+  convocatoria: string | null;
+  lat: number | null;
+  lon: number | null;
+  /** Ubigeo de la zona del contrato (2, 4 o 6 dígitos). */
+  ubigeo: string | null;
+  score: number;
+  severidadMax: "alta" | "media" | "baja" | null;
+  /** Señales publicadas de la alerta. */
+  nBanderas: number;
+}
+
+/** COMPAT-API-VIEJA: el endpoint respondió que no existe; vale por lo que dure la página. */
+let puntosAusente = false;
+
+const numeroONull = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * `GET /alertas/puntos`: TODAS las alertas publicadas, sin tope, en filas mínimas (el mapa
+ * pinta y cuenta sobre el universo entero, no sobre una lista recortada). Acepta la lista
+ * suelta o envuelta en `{ data }`.
+ *
+ * COMPAT-API-VIEJA: devuelve `null` si el endpoint todavía no existe (la API de prod lo
+ * resuelve como `/alertas/:id` y responde 404); quien llama cae a `/alertas?limit=200`.
+ * Cualquier otro error se lanza.
+ */
+export async function getAlertasPuntos(): Promise<ApiAlertaPunto[] | null> {
+  // Ya se sabe que no existe: no se vuelve a preguntar (cada reintento sumaba un 404).
+  if (puntosAusente) return null;
+  let body: unknown;
+  try {
+    body = await get<unknown>(`/alertas/puntos`);
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 400)) {
+      puntosAusente = true;
+      return null;
+    }
+    throw e;
+  }
+  const filas = Array.isArray(body) ? body : Array.isArray((body as { data?: unknown })?.data) ? (body as { data: unknown[] }).data : null;
+  // Una respuesta sin lista (p. ej. el detalle de una alerta) es la API vieja: mismo trato que el 404.
+  if (!filas) {
+    puntosAusente = true;
+    return null;
+  }
+  return (filas as Record<string, unknown>[])
+    .map((f): ApiAlertaPunto => {
+      // El contrato del API dice `convocatoria`; se aceptan los nombres de las otras rutas.
+      const conv = [f.convocatoria, f.codigoconvocatoria, f.ocid].find((v) => v != null && v !== "");
+      const sev = f.severidadMax;
+      return {
+        codigo: String(f.codigo ?? ""),
+        convocatoria: conv != null ? String(conv) : null,
+        lat: numeroONull(f.lat),
+        lon: numeroONull(f.lon),
+        ubigeo: typeof f.ubigeo === "string" && /^\d{2,6}$/.test(f.ubigeo) ? f.ubigeo : null,
+        score: numeroONull(f.score) ?? 0,
+        severidadMax: sev === "alta" || sev === "media" || sev === "baja" ? sev : null,
+        nBanderas: numeroONull(f.nBanderas ?? f.n_banderas) ?? 0,
+      };
+    })
+    .filter(esAlertaReal);
+}
+
 export async function getEntidades(params: {
   q?: string;
   region?: string;

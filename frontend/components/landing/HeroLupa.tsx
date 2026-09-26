@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import Image from "next/image";
-import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
+import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
 import { FranjaTextil } from "@/components/marca";
 import { EnlaceAccion } from "./EnlaceAccion";
 
@@ -33,9 +32,10 @@ import { EnlaceAccion } from "./EnlaceAccion";
  * `Isotipo` en SVG. El isotipo es para la cabecera, el pie y todo lo que mide
  * menos de ~100 px; a tamaño de portada, sus dieciséis tramos de color plano se
  * leen como una rueda de colores y se pierde lo que hace reconocible a la
- * marca: el tejido. Se sirve `unoptimized` (el WebP ya pesa 93 KB): el
- * optimizador de Next con la caché fría de cada deploy era el problema que
- * DESIGN_SYSTEM.md le atribuye al PNG, y así no pasa por él.
+ * marca: el tejido. No pasa por el optimizador de Next (con la caché fría de
+ * cada deploy era el problema que DESIGN_SYSTEM.md le atribuye al PNG): se
+ * sirven dos WebP ya recortados (544 y 720 px, generados con ffmpeg desde
+ * `lupa-llama.webp`) y el navegador elige con `srcSet` y `sizes`.
  *
  * Detrás, un disco de papel granate muy claro, centrado en el lente, le da
  * peso sin halo difuso (nada de brillo "IA"). Abajo, la franja textil cierra la
@@ -54,76 +54,71 @@ const ABERTURA = 120;
 export function HeroLupa() {
   const escena = useRef<HTMLDivElement>(null);
 
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add(CON_MOVIMIENTO, () => {
-        const raiz = escena.current!;
-        const ancla = raiz.querySelector<HTMLElement>(".lupa-ancla")!;
+  // GSAP se baja sólo si aplica CON_MOVIMIENTO (pantalla ancha, sin movimiento reducido).
+  useEscenaGsap(escena, CON_MOVIMIENTO, ({ gsap }) => {
+    const raiz = escena.current!;
+    const ancla = raiz.querySelector<HTMLElement>(".lupa-ancla")!;
 
-        // Cuánto hay que mover la lupa para que el CENTRO DEL LENTE (no el de la
-        // imagen) quede en el centro de la escena. Se mide el ancla, que nunca se
-        // transforma, para que un refresco no mida la lupa ya desplazada.
-        const hastaCentro = () => {
-          const e = raiz.getBoundingClientRect();
-          const a = ancla.getBoundingClientRect();
-          return {
-            x: e.left + e.width / 2 - (a.left + a.width * LENTE.x),
-            y: e.top + e.height / 2 - (a.top + a.height * LENTE.y),
-          };
-        };
-        const cubrir = () => (Math.hypot(raiz.clientWidth, raiz.clientHeight) / ABERTURA) * 1.08;
-        // El círculo NACE del tamaño exacto del disco interior del lente. Si
-        // arrancara en cero se vería primero como un punto negro sobre el cuerpo
-        // de la llama: una mancha, no una apertura. Así, primero la llama se
-        // funde en oscuro y recién después el lente se abre.
-        const interior = () => (ancla.getBoundingClientRect().width * EN_CENTRO * INTERIOR) / ABERTURA;
-        // La lupa escala desde el centro del LENTE: así, al agrandarse, el disco
-        // con la llama queda exactamente donde nace la abertura.
-        gsap.set(".lupa", { transformOrigin: `${LENTE.x * 100}% ${LENTE.y * 100}%` });
-
-        const tl = gsap.timeline({
-          defaults: { ease: "none" },
-          scrollTrigger: {
-            trigger: raiz,
-            start: "top 64px", // debajo del header fijo
-            end: "+=130%",
-            pin: true,
-            scrub: 0.8,
-            anticipatePin: 1,
-            invalidateOnRefresh: true,
-            // Cuando la lupa ya cubrió la escena, lo que hay bajo el header es
-            // negro: se lo dice al header (que lee `data-tema`) para que pase a
-            // vidrio oscuro junto con la página.
-            onUpdate: (self) => {
-              raiz.dataset.tema = self.progress > 0.62 ? "oscuro" : "claro";
-            },
-          },
-        });
-
-        tl.to(".hero-texto", { autoAlpha: 0, y: -56, duration: 0.3 }, 0)
-          .to(
-            ".lupa",
-            { x: () => hastaCentro().x, y: () => hastaCentro().y, scale: EN_CENTRO, duration: 0.36, ease: "power1.inOut" },
-            0,
-          )
-          // 1. El interior del lente se oscurece: la llama se funde en negro.
-          .fromTo(".abertura", { scale: interior, autoAlpha: 0 }, { scale: interior, autoAlpha: 1, duration: 0.12 }, 0.34)
-          // 2. El lente se abre y cubre la escena, mientras la lupa pasa de largo.
-          .to(".abertura", { scale: cubrir, duration: 0.4, ease: "power2.in" }, 0.46)
-          .to(".lupa", { scale: 2.6, autoAlpha: 0, duration: 0.3, ease: "power1.in" }, 0.5)
-          // 3. La frase puente: sin ella, al soltar el pin quedaba casi una
-          // pantalla de negro mudo antes de que subiera la cifra.
-          .fromTo(".puente", { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.12 }, 0.82)
-          .to({}, { duration: 0.08 });
-      });
-      return () => {
-        mm.revert();
-        delete escena.current?.dataset.tema;
+    // Cuánto hay que mover la lupa para que el CENTRO DEL LENTE (no el de la
+    // imagen) quede en el centro de la escena. Se mide el ancla, que nunca se
+    // transforma, para que un refresco no mida la lupa ya desplazada.
+    const hastaCentro = () => {
+      const e = raiz.getBoundingClientRect();
+      const a = ancla.getBoundingClientRect();
+      return {
+        x: e.left + e.width / 2 - (a.left + a.width * LENTE.x),
+        y: e.top + e.height / 2 - (a.top + a.height * LENTE.y),
       };
-    },
-    { scope: escena },
-  );
+    };
+    const cubrir = () => (Math.hypot(raiz.clientWidth, raiz.clientHeight) / ABERTURA) * 1.08;
+    // El círculo NACE del tamaño exacto del disco interior del lente. Si
+    // arrancara en cero se vería primero como un punto negro sobre el cuerpo
+    // de la llama: una mancha, no una apertura. Así, primero la llama se
+    // funde en oscuro y recién después el lente se abre.
+    const interior = () => (ancla.getBoundingClientRect().width * EN_CENTRO * INTERIOR) / ABERTURA;
+    // La lupa escala desde el centro del LENTE: así, al agrandarse, el disco
+    // con la llama queda exactamente donde nace la abertura.
+    gsap.set(".lupa", { transformOrigin: `${LENTE.x * 100}% ${LENTE.y * 100}%` });
+
+    const tl = gsap.timeline({
+      defaults: { ease: "none" },
+      scrollTrigger: {
+        trigger: raiz,
+        start: "top 64px", // debajo del header fijo
+        end: "+=130%",
+        pin: true,
+        scrub: 0.8,
+        anticipatePin: 1,
+        invalidateOnRefresh: true,
+        // Cuando la lupa ya cubrió la escena, lo que hay bajo el header es
+        // negro: se lo dice al header (que lee `data-tema`) para que pase a
+        // vidrio oscuro junto con la página.
+        onUpdate: (self) => {
+          raiz.dataset.tema = self.progress > 0.62 ? "oscuro" : "claro";
+        },
+      },
+    });
+
+    tl.to(".hero-texto", { autoAlpha: 0, y: -56, duration: 0.3 }, 0)
+      .to(
+        ".lupa",
+        { x: () => hastaCentro().x, y: () => hastaCentro().y, scale: EN_CENTRO, duration: 0.36, ease: "power1.inOut" },
+        0,
+      )
+      // 1. El interior del lente se oscurece: la llama se funde en negro.
+      .fromTo(".abertura", { scale: interior, autoAlpha: 0 }, { scale: interior, autoAlpha: 1, duration: 0.12 }, 0.34)
+      // 2. El lente se abre y cubre la escena, mientras la lupa pasa de largo.
+      .to(".abertura", { scale: cubrir, duration: 0.4, ease: "power2.in" }, 0.46)
+      .to(".lupa", { scale: 2.6, autoAlpha: 0, duration: 0.3, ease: "power1.in" }, 0.5)
+      // 3. La frase puente: sin ella, al soltar el pin quedaba casi una
+      // pantalla de negro mudo antes de que subiera la cifra.
+      .fromTo(".puente", { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.12 }, 0.82)
+      .to({}, { duration: 0.08 });
+
+    return () => {
+      delete raiz.dataset.tema;
+    };
+  });
 
   return (
     <section id="inicio" aria-labelledby="hero-titulo" className="relative">
@@ -162,13 +157,20 @@ export function HeroLupa() {
                 aria-hidden
                 className="absolute -left-[8.5%] -top-[9.5%] -z-10 aspect-square w-[110%] rounded-full bg-granate-50 ring-1 ring-granate/10"
               />
-              <Image
-                src="/assets/logo/lupa-llama.webp"
+              {/* `<img>` con dos tamaños (544 y 720 px) en vez de `next/image` sin optimizar: el
+                  celular baja la de 544 (51 KB) y no la de 720 (93 KB). Es el LCP en el celular:
+                  va en el HTML, con prioridad alta, sin esperar a ningún JS. Los `sizes` copian
+                  los anchos de `.lupa-ancla`. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/logo/lupa-llama-720.webp"
+                srcSet="/assets/logo/lupa-llama-544.webp 544w, /assets/logo/lupa-llama-720.webp 720w"
+                sizes="(min-width: 1264px) 480px, (min-width: 1024px) 38vw, (min-width: 677px) 352px, (min-width: 640px) 52vw, (min-width: 425px) 272px, 64vw"
                 alt="El símbolo de Vigía: una lupa tejida en manta andina, con una llama adentro"
                 width={720}
                 height={725}
-                priority
-                unoptimized
+                fetchPriority="high"
+                loading="eager"
                 className="h-auto w-full select-none"
               />
             </div>

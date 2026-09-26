@@ -28,7 +28,18 @@ import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 import { API_BASE } from "./api-client";
 import { esRol, type Rol } from "./permisos";
 
-export const COOKIE_ADMIN = "vigia_admin";
+/**
+ * `__session` es la ÚNICA cookie que Firebase Hosting deja pasar a Cloud Run: con el sitio detrás de
+ * Hosting (CDN), cualquier otro nombre llega vacío y el panel no reconocería la sesión.
+ */
+export const COOKIE_ADMIN = "__session";
+/** Nombre anterior: se sigue aceptando al leer para no cerrar las sesiones abiertas antes del cambio. */
+export const COOKIE_ADMIN_LEGADO = "vigia_admin";
+
+/** Valor de la cookie de sesión del panel, con el nombre nuevo o el anterior. */
+export function cookieAdmin(req: { cookies: { get(nombre: string): { value: string } | undefined } }): string | undefined {
+  return req.cookies.get(COOKIE_ADMIN)?.value || req.cookies.get(COOKIE_ADMIN_LEGADO)?.value;
+}
 const DURACION_S = 12 * 60 * 60;
 const AUDIENCIA_SESION = "vigia-admin";
 

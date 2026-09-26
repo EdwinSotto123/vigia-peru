@@ -38,15 +38,22 @@
  * Coste del enriquecimiento: 94 fetches (concurrencia 8) ≈ 6,5 s en frío, 0 en
  * caliente — cada respuesta se cachea 30 min en el data cache de Next, y la página
  * lo envuelve en <Suspense> para que el encabezado y los filtros pinten de
- * inmediato. Se paga porque "quién encontró esto y contra qué se cotejó" es
- * literalmente el producto (PRODUCT.md, principio 5), no un adorno. La salida
- * natural es que el backend agregue `b.agente_origen` y `b.verificacion->>'ok'`
- * al SELECT de `GET /alertas` — un cambio de una línea que borra los 94 fetches.
+ * inmediato.
+ *
+ * ── Fase 2: `GET /senales` (lib/senales.ts) ──
+ * El API ya pagina, filtra y cuenta las señales en SQL, con agente, cotejo y citas en
+ * cada fila: /app/hallazgos hace UNA llamada por página en vez de 1 + 94. Todo lo de
+ * `getUniversoSenales`, `facetasSenales` y `filtrarSenales` queda como respaldo
+ * (COMPAT-API-VIEJA) mientras la API de prod responda 404 en `/senales`.
+ *
+ * "En revisión": `?alerta=revision` en la lista de procesamientos y los motivos en cada
+ * fila (o por lote en `/alertas/revision?codigos=`), en vez de una llamada por alerta.
  */
 
 import { API_BASE, type ApiAlerta } from "@/lib/api-client";
-import { FASES, canonico, getProcesamientos, getReglasPerfil, type CitaDocumento, type Procesamiento, type RevisionMotivo } from "@/lib/auditoria";
+import { FASES, canonico, getReglasPerfil, type CitaDocumento } from "@/lib/auditoria";
 import { esAlertaReal } from "@/lib/semillas";
+import { enParalelo } from "@/lib/concurrencia";
 
 export type NivelBandera = "alta" | "media" | "baja";
 
@@ -100,8 +107,13 @@ export interface Senal {
   montoSoles: number;
   fechaBuenaPro: string | null;
   score: number;
-  /** Cuántas señales tiene el mismo contrato (para no leer una señal fuera de su contexto). */
-  senalesDelContrato: number;
+  /**
+   * Cuántas señales tiene el mismo contrato (para no leer una señal fuera de su contexto).
+   * `null` si el API no lo manda: no se cuenta sobre la página, que es sólo un pedazo.
+   */
+  senalesDelContrato: number | null;
+  /** Región del contrato, si el API la manda. */
+  region?: string | null;
 }
 
 // ─── Etiquetas ────────────────────────────────────────────────────────────
@@ -182,7 +194,13 @@ export function etiquetaRegla(id: string, cat: CatalogoReglas): string {
   return CATALOGO_CORREGIDO[id]?.etiqueta ?? cat[id]?.etiqueta ?? humanizarRegla(id);
 }
 
-function descripcionRegla(id: string, cat: CatalogoReglas): string | null {
+/** La etiqueta con la que llega del API (`/senales`), salvo que la corrección de arriba la reemplace. */
+export function etiquetaReglaConApi(id: string, cat: CatalogoReglas, delApi: string | null | undefined): string {
+  if (CATALOGO_CORREGIDO[id]) return CATALOGO_CORREGIDO[id].etiqueta;
+  return cat[id]?.etiqueta ?? (delApi && delApi.trim() ? delApi : humanizarRegla(id));
+}
+
+export function descripcionRegla(id: string, cat: CatalogoReglas): string | null {
   return CATALOGO_CORREGIDO[id]?.descripcion ?? cat[id]?.descripcion ?? null;
 }
 
@@ -220,7 +238,7 @@ function ordenHablado(sunat: string): string | null {
  */
 const NOMBRE_CON_DNI = /([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+(?:\s+[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ'-]+){1,4}),?\s*\(\s*DNI\s*(?:N[°º.]?\s*)?\d{8}\s*\)/g;
 
-function personasPrivadas(proveedor: string | null, rucProveedor: string | null, textos: (string | null)[]): PersonaPrivada[] {
+export function personasPrivadas(proveedor: string | null, rucProveedor: string | null, textos: (string | null)[]): PersonaPrivada[] {
   const out: PersonaPrivada[] = [];
   if (proveedor && esRucPersonaNatural(rucProveedor)) {
     out.push({ nombre: proveedor, orden: "sunat" });
@@ -271,6 +289,15 @@ export interface SenalesQuery {
   entidad?: string;
   /** `agente_origen` crudo, o el centinela SIN_AGENTE. */
   agente?: string;
+  /** Búsqueda libre (entidad, objeto, código). Sólo con `/senales`. */
+  q?: string;
+  /** Cotejo: el valor tal como lo devuelve la faceta `cotejo` del API. Sólo con `/senales`. */
+  cotejo?: string;
+  /** Página por cursor (`/senales`): el token opaco de esta página. */
+  cursor?: string;
+  /** Los cursores de las páginas anteriores, en orden (el primero es el de la página 2). */
+  atras: string[];
+  /** Página por número: sólo el respaldo (COMPAT-API-VIEJA), que pagina en memoria. */
   pagina: number;
 }
 
@@ -279,15 +306,26 @@ export const SIN_AGENTE = "sin_registro";
 
 const SEVERIDADES: NivelBandera[] = ["alta", "media", "baja"];
 
+/** Los cursores son base64url opacos: sólo se valida la forma, nunca se decodifican. */
+const CURSOR_RX = /^[A-Za-z0-9_-]{1,512}={0,2}$/;
+/** Cuántas páginas hacia atrás recuerda la URL (cada cursor pesa ~60–100 caracteres). */
+export const MAX_ATRAS = 20;
+
 export function parseSenalesQuery(sp: Record<string, string | string[] | undefined> = {}): SenalesQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   const sev = s("severidad");
+  const cursor = s("cursor");
+  const atras = (s("atras") ?? "").split(",").filter((c) => CURSOR_RX.test(c)).slice(-MAX_ATRAS);
   return {
     vista: s("vista") === "revision" ? "revision" : "publicadas",
     regla: s("regla")?.slice(0, 80) || undefined,
     severidad: sev && (SEVERIDADES as string[]).includes(sev) ? (sev as NivelBandera) : undefined,
     entidad: s("entidad")?.replace(/\D/g, "").slice(0, 11) || undefined,
     agente: s("agente")?.slice(0, 60) || undefined,
+    q: s("q")?.trim().slice(0, 120) || undefined,
+    cotejo: s("cotejo")?.slice(0, 30) || undefined,
+    cursor: cursor && CURSOR_RX.test(cursor) ? cursor : undefined,
+    atras: cursor && CURSOR_RX.test(cursor) ? atras : [],
     pagina: Math.max(1, Number.parseInt(s("pagina") ?? "1", 10) || 1),
   };
 }
@@ -300,6 +338,8 @@ export function senalesQueryParams(q: SenalesQuery): Record<string, string | und
     severidad: q.severidad,
     entidad: q.entidad,
     agente: q.agente,
+    q: q.q,
+    cotejo: q.cotejo,
   };
 }
 
@@ -310,11 +350,13 @@ export function senalesQueryString(q: Partial<SenalesQuery> & { pagina?: number 
   if (q.severidad) p.set("severidad", q.severidad);
   if (q.entidad) p.set("entidad", q.entidad);
   if (q.agente) p.set("agente", q.agente);
+  if (q.q) p.set("q", q.q);
+  if (q.cotejo) p.set("cotejo", q.cotejo);
   if (q.pagina && q.pagina > 1) p.set("pagina", String(q.pagina));
   return p.toString();
 }
 
-export const hayFiltrosSenales = (q: SenalesQuery) => !!(q.regla || q.severidad || q.entidad || q.agente);
+export const hayFiltrosSenales = (q: SenalesQuery) => !!(q.regla || q.severidad || q.entidad || q.agente || q.q || q.cotejo);
 
 // ─── Carga y enriquecimiento ──────────────────────────────────────────────
 
@@ -329,20 +371,6 @@ interface BanderaLista {
 
 /** Lo que `GET /contratos/:ocid` sí sabe y la lista no. */
 interface BanderaRica { regla: string; agente: string | null; verificada: boolean | null; citas: CitaDocumento[] }
-
-/** Pool con concurrencia acotada: 94 fetches de golpe contra Cloud Run son un pico innecesario. */
-async function enParalelo<T, R>(xs: T[], limite: number, f: (x: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(xs.length);
-  let i = 0;
-  const obrero = async () => {
-    while (i < xs.length) {
-      const k = i++;
-      out[k] = await f(xs[k]);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limite, xs.length) }, obrero));
-  return out;
-}
 
 async function banderasRicas(ocid: string): Promise<BanderaRica[]> {
   try {
@@ -505,6 +533,39 @@ export async function getUltimoAnalisisPublicado(publicados: ReadonlySet<string>
   }
 }
 
+/**
+ * Como `getUltimoAnalisisPublicado`, sin necesitar la lista de publicados: `/alertas/analizadas`
+ * ya sólo trae alertas publicadas, así que basta el más reciente que tenga alguna señal.
+ */
+export async function getUltimoAnalisisConSenales(): Promise<UltimoAnalisis | null> {
+  try {
+    const res = await fetch(`${API_BASE}/alertas/analizadas?limit=30`, { next: { revalidate: 300 } } as RequestInit);
+    if (!res.ok) return null;
+    const j = (await res.json()) as {
+      items?: { codigo?: string; ocid?: string; codigo_convocatoria?: string; entidad?: string; analizado_en?: string; n_banderas?: number | string }[];
+    };
+    const it = (j.items ?? [])
+      .filter((x) => x.codigo && esAlertaReal({ codigo: x.codigo }) && x.analizado_en && Number(x.n_banderas ?? 0) > 0)
+      .sort((x, y) => String(y.analizado_en).localeCompare(String(x.analizado_en)))[0];
+    if (!it || !it.entidad || Number.isNaN(new Date(String(it.analizado_en)).getTime())) return null;
+    return { entidad: it.entidad, ocid: String(it.codigo_convocatoria ?? it.ocid ?? ""), analizadoEn: String(it.analizado_en) };
+  } catch {
+    return null;
+  }
+}
+
+/** Cuántos contratos tienen dictamen publicado (el `total` de `/alertas`, contado en SQL). */
+export async function contarContratosConDictamen(): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_BASE}/alertas?limit=1`, { next: { revalidate: 300 } } as RequestInit);
+    if (!res.ok) return null;
+    const j = (await res.json()) as { total?: unknown };
+    return typeof j.total === "number" ? j.total : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface UniversoSenales {
   senales: Senal[];
   /** Contratos publicados de los que salen esas señales. */
@@ -622,61 +683,6 @@ export const soles = (n: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN", maximumFractionDigits: 0 }).format(n);
 
 // ─── "En revisión humana" ─────────────────────────────────────────────────
-
-export interface RevisionPublica {
-  codigo: string;
-  estado: string;
-  analizadoEn: string | null;
-  enRevision: boolean;
-  motivos: RevisionMotivo[];
-  queSignifica: string;
-}
-
-/**
- * `GET /alertas/:codigo/revision` — implementado en el backend desde la
- * autoevaluación y sin una sola llamada desde el frontend hasta ahora. Devuelve, en
- * lenguaje público y sin el texto de los jueces, por qué un análisis terminado no
- * se publicó.
- */
-export async function getRevisionPublica(codigo: string): Promise<RevisionPublica | null> {
-  try {
-    const res = await fetch(`${API_BASE}/alertas/${encodeURIComponent(codigo)}/revision`, { next: { revalidate: 120 } } as RequestInit);
-    if (!res.ok) return null;
-    const j = (await res.json()) as Partial<RevisionPublica>;
-    return {
-      codigo: j.codigo ?? codigo,
-      estado: j.estado ?? "revision",
-      analizadoEn: j.analizadoEn ?? null,
-      enRevision: !!j.enRevision,
-      motivos: Array.isArray(j.motivos) ? j.motivos : [],
-      queSignifica: j.queSignifica ?? "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-export interface AnalisisEnRevision {
-  procesamiento: Procesamiento;
-  revision: RevisionPublica | null;
-}
-
-/**
- * Los análisis que terminaron y NO se publicaron.
- *
- * No salen de `GET /alertas`: esa lista excluye `estado = 'revision'` en SQL, así
- * que el filtro "En revisión" del buscador viejo devolvía siempre cero (y además
- * comparaba contra el literal 'en_revision', que en la base no existe). La única
- * puerta pública es el tablero de procesamientos, donde la columna `alertaEstado`
- * marca cuáles quedaron bloqueados.
- */
-export async function getAnalisisEnRevision(): Promise<AnalisisEnRevision[]> {
-  const procs = await getProcesamientos({ estado: "procesado", limit: 300 }).catch(() => null);
-  const enRevision = (procs ?? []).filter((p) => p.alertaEstado === "revision");
-  const revisiones = await enParalelo(enRevision, 6, (p) =>
-    p.alertaCodigo ? getRevisionPublica(p.alertaCodigo) : Promise.resolve(null),
-  );
-  return enRevision
-    .map((procesamiento, i) => ({ procesamiento, revision: revisiones[i] }))
-    .sort((a, b) => (b.procesamiento.finalizadoAt ?? "").localeCompare(a.procesamiento.finalizadoAt ?? ""));
-}
+// Vive en lib/revision-humana.ts (este módulo pasaba las 800 líneas); se reexporta para que
+// quien lo importaba desde acá no cambie.
+export { getAnalisisEnRevision, getRevisionPublica, type AnalisisEnRevision, type RevisionPublica } from "@/lib/revision-humana";

@@ -25,16 +25,27 @@
  *
  * Los errores vuelven con un `error` en castellano estable (los formularios lo
  * traducen a un mensaje) y un `mensaje` ya legible.
+ *
+ * Dónde se guarda (fase 0 de la auditoría técnica, C3):
+ *  - Bucket PRIVADO (`GCS_BUCKET_PRIVADO`, por defecto `vigia-peru-privado`; acceso uniforme y
+ *    prevención de acceso público forzada): los comprobantes de aportes (`kind=comprobante`,
+ *    datos de pago) y la evidencia de las denuncias a entidades (`modo=entidad`, que nunca se
+ *    publican). La URL que se devuelve es sólo una REFERENCIA interna: la API y el panel la leen
+ *    con su cuenta de servicio; en un navegador no abre, y así tiene que ser.
+ *  - Bucket público (`REPORTES_BUCKET`, se lee por URL, sin listado): fotos de denuncias de
+ *    obras, QR de pago y logos de aliados, que se muestran en el sitio.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { Storage } from "@google-cloud/storage";
-import { COOKIE_ADMIN, leerSesion } from "@/lib/admin-sesion";
+import { COOKIE_ADMIN, cookieAdmin, leerSesion } from "@/lib/admin-sesion";
 import { puede } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const BUCKET = process.env.REPORTES_BUCKET || "vigia-peru-reportes";
+/** Lo que tiene datos personales y nunca se publica. Ver la cabecera. */
+const BUCKET_PRIVADO = process.env.GCS_BUCKET_PRIVADO || "vigia-peru-privado";
 
 let _storage: Storage | null = null;
 function getStorage() {
@@ -299,7 +310,7 @@ function sinMetadatos(b: Buffer, f: Formato): Buffer {
  * un hosting anónimo con la marca del sitio.
  */
 async function autorizado(req: NextRequest, kind: string): Promise<boolean> {
-  const sesion = await leerSesion(req.cookies.get(COOKIE_ADMIN)?.value);
+  const sesion = await leerSesion(cookieAdmin(req));
   // Los QR de los medios de pago son plata: sólo el perfil admin (lib/permisos.ts).
   if (kind === "pago") return !!sesion && puede(sesion.rol, "subir_medios_pago");
   if (kind === "logo") {
@@ -326,6 +337,9 @@ export async function POST(req: NextRequest) {
 
   const kindRaw = form.get("kind");
   const kind = typeof kindRaw === "string" ? kindRaw : "";
+  // `modo=entidad`: evidencia de una denuncia a una entidad (nunca pública). Sólo cuenta para
+  // los adjuntos de denuncias (sin `kind` o `kind=reporte`), no para QR ni logos.
+  const modoEntidad = form.get("modo") === "entidad" && (kind === "" || kind === "reporte");
   if (!(await autorizado(req, kind))) return fallar("no_autorizado");
 
   const original = Buffer.from(await file.arrayBuffer());
@@ -342,19 +356,29 @@ export async function POST(req: NextRequest) {
   }
 
   const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  // Comprobantes de pago (Financia una auditoría): datos personales → bucket de
-  // documentos (no público) bajo comprobantes/. Los admins los abren desde la consola.
+  // Comprobantes de pago (datos de quien aporta) y evidencia de denuncias a entidades → bucket
+  // PRIVADO. `comprobantes/` es el prefijo que valida la API (contribuciones.ts).
   const esComprobante = kind === "comprobante";
-  const bucketName = esComprobante ? (process.env.DOCS_BUCKET ?? "vigia-peru-documentos") : BUCKET;
+  const privado = esComprobante || modoEntidad;
+  const bucketName = privado ? BUCKET_PRIVADO : BUCKET;
   // pagos/ = QR de Yape/Plin (público por diseño, lo sube el admin); logos/ = logo de aliado (público en el muro)
-  const prefix = esComprobante ? "comprobantes" : kind === "pago" ? "pagos" : kind === "logo" ? "logos" : "reportes";
+  const prefix = esComprobante
+    ? "comprobantes"
+    : modoEntidad
+      ? "denuncias-entidad"
+      : kind === "pago"
+        ? "pagos"
+        : kind === "logo"
+          ? "logos"
+          : "reportes";
   const path = `${prefix}/${stamp}.${formato.ext}`;
 
   try {
     await getStorage().bucket(bucketName).file(path).save(buf, {
       contentType: formato.mime,
       resumable: false,
-      metadata: { cacheControl: "public, max-age=31536000" },
+      // Lo privado no se cachea en ningún lado; lo público es inmutable (nombre único).
+      metadata: { cacheControl: privado ? "private, no-store" : "public, max-age=31536000" },
     });
   } catch (e) {
     console.error("[upload] GCS:", (e as Error).message);
@@ -363,7 +387,9 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    // En el bucket privado es una referencia interna (la lee la API con su cuenta de servicio), no un enlace.
     url: `https://storage.googleapis.com/${bucketName}/${path}`,
+    privado,
     path,
     tipo: formato.tipo,
     filename: file.name,

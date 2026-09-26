@@ -7,7 +7,9 @@
  * Anatomía, igual que en todo listado:
  *   estado (chip) · el contrato (objeto en 1 línea + entidad · zona) · valor (derecha) · tiempo · ›
  *
- * Sin hooks ni estado: `ahora` llega del tablero, que tiene el único reloj de la página.
+ * Sin hooks ni estado: lo que avanza con el reloj (duración, antigüedad, paso en curso) son
+ * piezas cliente de `RelojVivo`, que escuchan el único reloj de la página sin volver a
+ * renderizar la tabla entera cada segundo.
  * §10.4: una alerta en revisión dice "En revisión" y nada más (ni puntaje ni señales).
  */
 
@@ -16,18 +18,16 @@ import { Ayuda } from "@/components/patrones/Ayuda";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { soles } from "@/lib/formato";
 import {
-  duracion,
   estadoVisible,
-  faseHumana,
   fasesEfectivas,
   fechaLima,
   progresoCarriles,
   progresoFases,
-  relojEdad,
   type Procesamiento,
 } from "@/lib/auditoria";
 import { MiniCarriles } from "./DagCarriles";
 import { EstadoPill } from "./EstadoPill";
+import { EdadEspera, FaseEnCurso, TiempoEnAnalisis } from "./RelojVivo";
 
 /** Qué mide la columna "Tiempo": depende del estado de cada fila. */
 const AYUDA_TIEMPO = (
@@ -114,7 +114,7 @@ export function EstadoProcesamiento({ p }: { p: Procesamiento }) {
  * línea más con el paso en curso, los pasos hechos y el avance por carril.
  * `data-fila` le permite al tablero encontrar la fila para animar su cambio de grupo.
  */
-export function CeldaContrato({ p, ahora = 0 }: { p: Procesamiento; ahora?: number }) {
+export function CeldaContrato({ p }: { p: Procesamiento }) {
   const titulo = p.titulo ?? "Contrato sin título en el registro";
   const meta = [p.entidad ?? "Entidad no identificada", p.zona];
   if (p.estado !== "procesando") {
@@ -131,9 +131,7 @@ export function CeldaContrato({ p, ahora = 0 }: { p: Procesamiento; ahora?: numb
     <span data-fila={p.ocid} className="block w-full min-w-0">
       <CeldaPrincipal titulo={titulo} meta={meta} />
       <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[11.5px]">
-        <span className="min-w-0 truncate text-amberTexto" suppressHydrationWarning>
-          {faseHumana(p, ahora || undefined, fases)}
-        </span>
+        <FaseEnCurso p={p} fases={fases} className="min-w-0 truncate text-amberTexto" />
         <span className="shrink-0 font-mono tabular-nums text-mute">
           {prog.hechas}/{prog.aplicables} pasos
         </span>
@@ -156,29 +154,20 @@ export function CeldaValor({ p }: { p: Procesamiento }) {
  * cola no hay fecha: la celda va vacía, no con un "Sin dato" que parecería una falta.
  * Fechas con `fechaLima` (meses escritos a mano): esta celda se hidrata en el cliente.
  */
-export function CeldaTiempo({ p, ahora }: { p: Procesamiento; ahora: number }) {
+export function CeldaTiempo({ p }: { p: Procesamiento }) {
   const clase = "text-[12.5px] tabular-nums";
   if (p.estado === "procesando") {
-    const t = ahora > 0 && p.iniciadoAt ? ahora - Date.parse(p.iniciadoAt) : NaN;
-    return Number.isFinite(t) && t > 0 ? (
-      <span className={`${clase} font-mono text-amberTexto`} title="Tiempo en análisis" suppressHydrationWarning>
-        {duracion(t)}
-      </span>
-    ) : (
-      <></>
-    );
+    return p.iniciadoAt ? <TiempoEnAnalisis desde={p.iniciadoAt} className={`${clase} font-mono text-amberTexto`} /> : <></>;
   }
   if (p.estado === "esperando_documentos") {
     const desde = p.iniciadoAt ? Date.parse(p.iniciadoAt) : NaN;
     if (!Number.isFinite(desde)) return <></>;
     return (
-      <span
+      <EdadEspera
+        desde={desde}
         className={`${clase} font-mono text-clayTexto`}
         title={`Espera sus documentos desde el ${fechaLima(desde, { larga: true, hora: true })}`}
-        suppressHydrationWarning
-      >
-        {ahora > 0 ? relojEdad(ahora - desde) : fechaLima(desde)}
-      </span>
+      />
     );
   }
   if (p.estado === "error") {

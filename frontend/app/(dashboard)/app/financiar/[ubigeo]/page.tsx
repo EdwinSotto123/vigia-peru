@@ -241,7 +241,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
                   etiqueta={`Abrir el tablero en vivo de ${zona.nombre}`}
                   ancho="lg"
                   className="inline-flex min-h-[24px] w-auto items-center gap-1 text-[13px] font-medium text-granate hover:underline"
-                  detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} compacto />}
+                  detalle={<TableroAuditoria ubigeo={zona.ubigeo} autoRefreshMs={8000} limit={60} initial={enVivo} pedirAlMontar compacto />}
                   pie={
                     <Link href={`/app/auditoria?ubigeo=${zona.ubigeo.slice(0, 2)}`} className={ENLACE_PESTANA}>
                       Ver el tablero completo <ChevronRight size={13} aria-hidden />

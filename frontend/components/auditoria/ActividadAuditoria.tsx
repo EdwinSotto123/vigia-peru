@@ -25,7 +25,7 @@ import { DIAS_RITMO, useResumenAuditoria } from "./ResumenAuditoria";
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function ActividadAuditoria() {
-  const { data, fallo, ahora, ritmo, ultimoFin } = useResumenAuditoria();
+  const { data, fallo, ahora, ritmo, ultimoFin, ritmoParcial } = useResumenAuditoria();
 
   const cabecera = (
     <CabeceraPestana
@@ -117,7 +117,7 @@ export function ActividadAuditoria() {
             </Ayuda>
           }
         >
-          {ritmo?.length ? <Ritmo ritmo={ritmo} ultimoFin={ultimoFin} ahora={ahora} /> : <p className="text-[13px] text-mute">Sin dato</p>}
+          {ritmo?.length ? <Ritmo ritmo={ritmo} ultimoFin={ultimoFin} ahora={ahora} parcial={ritmoParcial} /> : <p className="text-[13px] text-mute">Sin dato</p>}
         </Tarjeta>
 
         <Tarjeta
@@ -190,17 +190,29 @@ function Lote({ lote }: { lote: LoteIngesta }) {
  * rotulado. Los días en cero se ven como un trazo en la base: son la parte más importante
  * del dato cuando la cola se detiene. Rótulo directo sólo en el día más alto y en hoy.
  */
-function Ritmo({ ritmo, ultimoFin, ahora }: { ritmo: { dia: string; n: number }[]; ultimoFin: number | null; ahora: number }) {
+function Ritmo({
+  ritmo,
+  ultimoFin,
+  ahora,
+  parcial,
+}: {
+  ritmo: { dia: string; n: number }[];
+  ultimoFin: number | null;
+  ahora: number;
+  /** Contado sobre una lista con tope (API vieja): los días del principio pueden faltar. */
+  parcial: boolean;
+}) {
   const max = Math.max(1, ...ritmo.map((d) => d.n));
   const total = ritmo.reduce((s, d) => s + d.n, 0);
   const iMax = ritmo.findIndex((d) => d.n === max);
   const conAnalisis = ritmo.filter((d) => d.n > 0);
   const resumen = conAnalisis.length
-    ? `En los últimos ${ritmo.length} días terminaron ${total} análisis: ${conAnalisis.map((d) => `${d.n} el ${diaCorto(d.dia)}`).join(", ")}. Ningún otro día.`
+    ? `En los últimos ${ritmo.length} días terminaron ${parcial ? "al menos " : ""}${total} análisis: ${conAnalisis.map((d) => `${d.n} el ${diaCorto(d.dia)}`).join(", ")}.${parcial ? "" : " Ningún otro día."}`
     : `Ningún análisis terminó en los últimos ${ritmo.length} días.`;
   return (
     <figure className="m-0">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+        {parcial && <span className="text-[13px] text-inkSoft">al menos</span>}
         <span className="font-display text-[24px] font-bold leading-none tabular-nums text-ink">{numero(total)}</span>
         <span className="text-[13px] text-inkSoft">{total === 1 ? "análisis terminado" : "análisis terminados"}</span>
         <span className="text-[12px] text-mute" suppressHydrationWarning>

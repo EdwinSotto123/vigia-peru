@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { CON_MOVIMIENTO, gsap, useGSAP } from "@/lib/gsap";
+import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
 import { numero, plural } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
 
@@ -31,7 +31,71 @@ import { EnlaceAccion } from "./EnlaceAccion";
  * La región elegida se dibuja ENCIMA, en una capa aparte, en vez de recolorear
  * su recorrido: GSAP escribe `fill` en línea sobre los recorridos y un color
  * puesto por React debajo de ese estilo no se vería nunca.
+ *
+ * Los recorridos NO vienen en las props: se bajan de un JSON estático
+ * (`GEOMETRIA`, generado por scripts/generar-mapa-portada.mjs) cuando el
+ * navegador está ocioso o la escena se acerca. Antes viajaban dos veces en cada
+ * visita, en el HTML y en el payload RSC. El lienzo guarda su proporción
+ * mientras tanto, así que nada salta cuando llegan; la escena de GSAP se arma
+ * recién con el mapa dibujado.
  */
+
+/** Recorridos ya proyectados (520 × 720). Versionado en el nombre: `/assets/*` es immutable. */
+const GEOMETRIA = "/assets/mapa/portada-departamentos.v1.json";
+
+type Trazos = Record<string, string>;
+
+/**
+ * Baja los recorridos cuando el navegador está ocioso (después de `load`) o cuando la
+ * escena queda a menos de dos pantallas, lo que pase primero. Sin red, el mapa no se
+ * dibuja y el resto de la sección (textos, selector y ficha) sigue completo.
+ */
+function useTrazos(raiz: React.RefObject<HTMLElement | null>): Trazos | null {
+  const [trazos, setTrazos] = useState<Trazos | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    let pedido = false;
+    let idle: number | null = null;
+    let timer: number | null = null;
+    let io: IntersectionObserver | null = null;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const pedir = () => {
+      if (pedido || !vivo) return;
+      pedido = true;
+      io?.disconnect();
+      fetch(GEOMETRIA)
+        .then((r) => (r.ok ? (r.json() as Promise<{ zonas?: { codigo: string; d: string }[] }>) : null))
+        .then((j) => {
+          if (!vivo || !j?.zonas) return;
+          setTrazos(Object.fromEntries(j.zonas.map((z) => [z.codigo, z.d])));
+        })
+        .catch(() => {
+          /* sin geometría: la sección sigue completa sin el dibujo */
+        });
+    };
+    const ocioso = () => {
+      if (w.requestIdleCallback) idle = w.requestIdleCallback(pedir, { timeout: 3000 });
+      else timer = window.setTimeout(pedir, 1500);
+    };
+    if (document.readyState === "complete") ocioso();
+    else window.addEventListener("load", ocioso, { once: true });
+    if (raiz.current && "IntersectionObserver" in window) {
+      io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && pedir(), { rootMargin: "200% 0px" });
+      io.observe(raiz.current);
+    }
+    return () => {
+      vivo = false;
+      window.removeEventListener("load", ocioso);
+      if (idle != null) w.cancelIdleCallback?.(idle);
+      if (timer != null) window.clearTimeout(timer);
+      io?.disconnect();
+    };
+  }, [raiz]);
+  return trazos;
+}
 
 /** Las cifras que muestra la ficha: de una región, o del país entero. */
 export interface CifrasZona {
@@ -48,7 +112,6 @@ export interface RegionMapa extends CifrasZona {
   codigo: string;
   /** Slug que entiende `/app/mapa?region=`. */
   id: string;
-  d: string;
   cx: number;
   cy: number;
   colorMonto: string;
@@ -101,51 +164,52 @@ export function MapaRegionesEscena({
   const resaltada = regiones.find((r) => r.codigo === encima) ?? region;
   // Sin región elegida, la ficha muestra el país: nunca un hueco en blanco.
   const ficha: CifrasZona = region ?? pais;
+  const trazos = useTrazos(raiz);
 
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add(CON_MOVIMIENTO, () => {
-        const pila = raiz.current!.querySelector<HTMLElement>(".pasos-mapa")!;
-        const zonas = gsap.utils.toArray<SVGPathElement>(".zona");
-        const senales = gsap.utils.toArray<SVGGElement>(".senal");
-        const pasos = gsap.utils.toArray<HTMLElement>(".paso-mapa");
+  // Escena fijada: GSAP se baja sólo con CON_MOVIMIENTO, y se arma recién con el mapa
+  // dibujado (sin recorridos, `.zona` estaría vacío).
+  useEscenaGsap(
+    raiz,
+    CON_MOVIMIENTO,
+    ({ gsap }) => {
+      const pila = raiz.current!.querySelector<HTMLElement>(".pasos-mapa")!;
+      const zonas = gsap.utils.toArray<SVGPathElement>(".zona");
+      const senales = gsap.utils.toArray<SVGGElement>(".senal");
+      const pasos = gsap.utils.toArray<HTMLElement>(".paso-mapa");
 
-        // Los cuatro textos pasan a ocupar la misma celda y se relevan.
-        pila.classList.add("apilado");
-        gsap.set(zonas, { fill: (_i: number, el: SVGPathElement) => el.dataset.monto! });
-        gsap.set(senales, { scale: 0, transformOrigin: "50% 50%" });
-        gsap.set(pasos.slice(1), { autoAlpha: 0, y: 24 });
+      // Los cuatro textos pasan a ocupar la misma celda y se relevan.
+      pila.classList.add("apilado");
+      gsap.set(zonas, { fill: (_i: number, el: SVGPathElement) => el.dataset.monto! });
+      gsap.set(senales, { scale: 0, transformOrigin: "50% 50%" });
+      gsap.set(pasos.slice(1), { autoAlpha: 0, y: 24 });
 
-        const sale = { autoAlpha: 0, y: -24, duration: 0.07 };
-        const entra = { autoAlpha: 1, y: 0, duration: 0.07 };
-        const tl = gsap.timeline({
-          defaults: { ease: "power2.out" },
-          scrollTrigger: {
-            trigger: ".mapa-escena",
-            start: "top 64px",
-            end: "+=280%",
-            pin: true,
-            scrub: 0.6,
-            anticipatePin: 1,
-          },
-        });
-
-        tl.to(pasos[0], sale, 0.2)
-          .to(zonas, { fill: (_i: number, el: SVGPathElement) => el.dataset.leido!, duration: 0.1, stagger: 0.005, ease: "none" }, 0.2)
-          .to(pasos[1], entra, 0.26)
-          .to(pasos[1], sale, 0.46)
-          .to(senales, { scale: 1, duration: 0.08, stagger: 0.008, ease: "back.out(2)" }, 0.47)
-          .to(pasos[2], entra, 0.52)
-          .to(pasos[2], sale, 0.72)
-          .to(pasos[3], entra, 0.78)
-          .to({}, { duration: 0.15 });
-
-        return () => pila.classList.remove("apilado");
+      const sale = { autoAlpha: 0, y: -24, duration: 0.07 };
+      const entra = { autoAlpha: 1, y: 0, duration: 0.07 };
+      const tl = gsap.timeline({
+        defaults: { ease: "power2.out" },
+        scrollTrigger: {
+          trigger: ".mapa-escena",
+          start: "top 64px",
+          end: "+=280%",
+          pin: true,
+          scrub: 0.6,
+          anticipatePin: 1,
+        },
       });
-      return () => mm.revert();
+
+      tl.to(pasos[0], sale, 0.2)
+        .to(zonas, { fill: (_i: number, el: SVGPathElement) => el.dataset.leido!, duration: 0.1, stagger: 0.005, ease: "none" }, 0.2)
+        .to(pasos[1], entra, 0.26)
+        .to(pasos[1], sale, 0.46)
+        .to(senales, { scale: 1, duration: 0.08, stagger: 0.008, ease: "back.out(2)" }, 0.47)
+        .to(pasos[2], entra, 0.52)
+        .to(pasos[2], sale, 0.72)
+        .to(pasos[3], entra, 0.78)
+        .to({}, { duration: 0.15 });
+
+      return () => pila.classList.remove("apilado");
     },
-    { scope: raiz },
+    { listo: trazos != null },
   );
 
   const hrefRegion = region?.id ? `/app/mapa?region=${region.id}` : "/app/mapa";
@@ -287,44 +351,48 @@ export function MapaRegionesEscena({
               onMouseLeave={() => setEncima(null)}
             >
               <g>
-                {regiones.map((r) => (
-                  <path
-                    key={r.codigo}
-                    className="zona cursor-pointer stroke-paper"
-                    d={r.d}
-                    data-monto={r.colorMonto}
-                    data-leido={r.colorLeido}
-                    fill={r.colorLeido}
-                    strokeWidth={0.9}
-                    strokeLinejoin="round"
-                    onMouseEnter={() => setEncima(r.codigo)}
-                    onClick={() => setElegida(r.codigo)}
-                  />
-                ))}
+                {trazos &&
+                  regiones.map((r) => (
+                    <path
+                      key={r.codigo}
+                      className="zona cursor-pointer stroke-paper"
+                      d={trazos[r.codigo] ?? ""}
+                      data-monto={r.colorMonto}
+                      data-leido={r.colorLeido}
+                      fill={r.colorLeido}
+                      strokeWidth={0.9}
+                      strokeLinejoin="round"
+                      onMouseEnter={() => setEncima(r.codigo)}
+                      onClick={() => setElegida(r.codigo)}
+                    />
+                  ))}
               </g>
               {/* La región elegida, en granate: es "la tuya", la marca, no un riesgo. */}
-              {region && <path d={region.d} className="fill-granate stroke-paper" strokeWidth={1.4} pointerEvents="none" />}
-              {resaltada && resaltada !== region && (
-                <path d={resaltada.d} className="fill-none stroke-ink" strokeWidth={1.8} pointerEvents="none" />
+              {trazos && region && (
+                <path d={trazos[region.codigo] ?? ""} className="fill-granate stroke-paper" strokeWidth={1.4} pointerEvents="none" />
+              )}
+              {trazos && resaltada && resaltada !== region && (
+                <path d={trazos[resaltada.codigo] ?? ""} className="fill-none stroke-ink" strokeWidth={1.8} pointerEvents="none" />
               )}
               <g pointerEvents="none">
-                {regiones
-                  .filter((r) => r.conSenales > 0)
-                  .map((r) => (
-                    <g key={r.codigo} className="senal">
-                      {/* rust y no crimson: el número blanco adentro llega a 7.3:1 (en crimson, 4.0). */}
-                      <circle cx={r.cx} cy={r.cy} r={radio(r.conSenales)} className="fill-rust stroke-paper" strokeWidth={1.6} />
-                      <text
-                        x={r.cx}
-                        y={r.cy}
-                        dy="0.35em"
-                        textAnchor="middle"
-                        className="fill-paper font-sans text-[12px] font-bold"
-                      >
-                        {r.conSenales}
-                      </text>
-                    </g>
-                  ))}
+                {trazos &&
+                  regiones
+                    .filter((r) => r.conSenales > 0)
+                    .map((r) => (
+                      <g key={r.codigo} className="senal">
+                        {/* rust y no crimson: el número blanco adentro llega a 7.3:1 (en crimson, 4.0). */}
+                        <circle cx={r.cx} cy={r.cy} r={radio(r.conSenales)} className="fill-rust stroke-paper" strokeWidth={1.6} />
+                        <text
+                          x={r.cx}
+                          y={r.cy}
+                          dy="0.35em"
+                          textAnchor="middle"
+                          className="fill-paper font-sans text-[12px] font-bold"
+                        >
+                          {r.conSenales}
+                        </text>
+                      </g>
+                    ))}
               </g>
             </svg>
             <figcaption className="mt-2 min-h-[1.5rem] text-center text-[13px] text-inkSoft">

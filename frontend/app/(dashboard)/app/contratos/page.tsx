@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
 import {
   BarraFiltros,
   Indicadores,
+  IndicadoresSkeleton,
   Listado,
   ZonaResultados,
   type FiltroSecundario,
@@ -9,7 +11,7 @@ import {
   type OpcionFaceta,
   type Parametros,
 } from "@/components/listado";
-import { TablaContratos } from "@/components/contratos/TablaContratos";
+import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
 import { getEntidad } from "@/lib/api-client";
@@ -23,6 +25,8 @@ import {
   getResumenContratos,
   parseContratosQuery,
   type ContratoResumen,
+  type ContratosPagina,
+  type ContratosQuery,
   type ResumenContratos,
 } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
@@ -41,23 +45,35 @@ const RUTA = "/app/contratos";
  * /app/contratos — plantilla Listado (DESIGN_SYSTEM.md §14.1):
  *   EncabezadoPagina → Indicadores → Listado { BarraFiltros, ZonaResultados { TablaContratos } }
  *
- * Todo el estado (búsqueda, faceta, filtros, orden, página) vive en la URL; el API
- * pagina en el servidor con `?page=`. Cada fila abre el resumen del contrato en el
- * panel lateral; el dossier (/app/contratos/[ocid]) está en su pie. El mapa
+ * Todo el estado (búsqueda, faceta, filtros, orden, página) vive en la URL. El API pagina
+ * por cursor (`?cursor=` / `?antes=`, tokens opacos) y la lista dice "Anterior / Siguiente";
+ * con la API vieja, por número de página (`?page=`). Cada fila abre el resumen del contrato
+ * en el panel lateral; el dossier (/app/contratos/[ocid]) está en su pie. El mapa
  * (/app/mapa) muestra los mismos contratos por zona.
+ *
+ * Los conteos no frenan la tabla: las consultas arrancan juntas y cada pieza entra cuando
+ * llega la suya (`Suspense`). Mientras cuentan, la barra de filtros se ve igual pero sin
+ * números en los chips (sin conteo no hay número, nunca un 0 provisional) y las cifras de
+ * cabecera van en esqueleto. Al filtrar, la navegación es una transición: lo anterior
+ * queda atenuado hasta que llega lo nuevo, sin volver a los esqueletos.
  */
 export default async function ContratosPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const query = parseContratosQuery(searchParams);
   const parametros = contratosParametros(query);
   // El total del universo sólo hace falta si algo (fuera de la faceta) recorta la base.
   const recortada = Object.entries(parametros).some(([k, v]) => k !== "riesgo" && k !== "orden" && !!v);
-  const [pagina, zonas, entidad, resumen, resumenGlobal] = await Promise.all([
-    getContratos({ ...query, size: SIZE }),
+  // Arrancan ya, en paralelo; cada pieza espera sólo la suya.
+  const pagina = getContratos({ ...query, size: SIZE });
+  const resumen = getResumenContratos(query);
+  const resumenGlobal = recortada ? getResumenContratos({}) : Promise.resolve(null);
+  // Nombres de zona y de entidad para la barra: consultas cacheadas que casi nunca tardan;
+  // se esperan acá para que la barra, aun sin conteos, nombre bien lo filtrado.
+  const [zonas, entidad] = await Promise.all([
     getZonas("departamento"),
     query.entidad ? getEntidad(query.entidad).catch(() => null) : Promise.resolve(null),
-    getResumenContratos(query),
-    recortada ? getResumenContratos({}) : Promise.resolve(null),
   ]);
+  const regiones = (zonas ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre }));
+  const entidadNombre = entidad?.entidad?.nombre ?? null;
 
   return (
     <Pagina className="space-y-5">
@@ -72,33 +88,86 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
         }
       />
 
-      {resumen ? (
-        <Indicadores items={indicadores(resumen, recortada, resumenGlobal?.total ?? null, parametros)} />
-      ) : (
-        <p className="text-[13px] text-mute" role="status">
-          No pudimos contar los contratos en este momento.
-        </p>
-      )}
+      <Suspense fallback={<IndicadoresSkeleton n={4} />}>
+        <IndicadoresContratos resumen={resumen} global={resumenGlobal} recortada={recortada} parametros={parametros} />
+      </Suspense>
 
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
-        <BarraFiltros
-          busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos" }}
-          faceta={facetaEstado(resumen)}
-          filtros={filtros({
-            resumen,
-            parametros,
-            regiones: (zonas ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre })),
-            entidadNombre: entidad?.entidad?.nombre ?? null,
-            filas: pagina?.data ?? [],
-          })}
-          orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
-        />
+        <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} entidadNombre={entidadNombre} filas={[]} />}>
+          <BarraConConteos
+            resumen={resumen}
+            pagina={parametros.ubigeo?.length === 6 ? pagina : null}
+            parametros={parametros}
+            regiones={regiones}
+            entidadNombre={entidadNombre}
+          />
+        </Suspense>
         <ZonaResultados>
-          <TablaContratos pagina={pagina} parametros={parametros} actual={query.page ?? 1} tam={SIZE} />
+          <Suspense fallback={<TablaContratosSkeleton />}>
+            <Resultados pagina={pagina} parametros={parametros} query={query} />
+          </Suspense>
         </ZonaResultados>
       </Listado>
     </Pagina>
   );
+}
+
+// ─── Piezas que esperan su propia consulta ───────────────────────────────────
+
+async function IndicadoresContratos({
+  resumen,
+  global,
+  recortada,
+  parametros,
+}: {
+  resumen: Promise<ResumenContratos | null>;
+  global: Promise<ResumenContratos | null>;
+  recortada: boolean;
+  parametros: Parametros;
+}) {
+  const [r, g] = await Promise.all([resumen, global]);
+  if (!r) {
+    return (
+      <p className="text-[13px] text-mute" role="status">
+        No pudimos contar los contratos en este momento.
+      </p>
+    );
+  }
+  return <Indicadores items={indicadores(r, recortada, g?.total ?? null, parametros)} />;
+}
+
+interface DatosBarra {
+  parametros: Parametros;
+  regiones: { ubigeo: string; nombre: string }[];
+  entidadNombre: string | null;
+}
+
+/** La barra con los conteos del resumen (y, si el filtro es un distrito, su nombre desde las filas). */
+async function BarraConConteos({
+  resumen,
+  pagina,
+  ...datos
+}: DatosBarra & { resumen: Promise<ResumenContratos | null>; pagina: Promise<ContratosPagina | null> | null }) {
+  const [r, p] = await Promise.all([resumen, pagina ?? Promise.resolve(null)]);
+  return <Barra resumen={r} filas={p?.data ?? []} {...datos} />;
+}
+
+/** Con `resumen = null` es la misma barra sin números: lo que se ve mientras cuentan (o si no respondió). */
+function Barra({ resumen, parametros, regiones, entidadNombre, filas }: DatosBarra & { resumen: ResumenContratos | null; filas: ContratoResumen[] }) {
+  return (
+    <BarraFiltros
+      // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
+      busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
+      faceta={facetaEstado(resumen)}
+      filtros={filtros({ resumen, parametros, regiones, entidadNombre, filas })}
+      orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
+    />
+  );
+}
+
+async function Resultados({ pagina, parametros, query }: { pagina: Promise<ContratosPagina | null>; parametros: Parametros; query: ContratosQuery }) {
+  const p = await pagina;
+  return <TablaContratos pagina={p} parametros={parametros} actual={query.page ?? 1} cursor={query.cursor} antes={query.antes} tam={SIZE} />;
 }
 
 // ─── Indicadores ─────────────────────────────────────────────────────────────

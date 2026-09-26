@@ -34,10 +34,16 @@
  *    región viva de la página.
  *
  * Datos: GET /financiamiento/procesamientos?ubigeo=&codigo=&desde=&hasta=&financiador=&limit=
- * El backend ordena procesando → encolado → procesado → error → el resto (esperando
- * documentos incluido) y su filtro `estado` no acepta `esperando_documentos`. Si la primera
- * página no trae todo, se pide la cola del listado con un offset calculado, para que los que
- * esperan no se caigan del tablero detrás de los procesados.
+ * El backend ordena todo lo activo (en análisis, en cola, esperando documentos, con error)
+ * antes que lo procesado, así que UNA consulta basta: si hay más filas que el tope, lo que
+ * queda afuera son procesados, nunca lo que espera.
+ *
+ * Cuándo se vuelve a pedir la lista: el resumen (`/procesamientos/resumen`, que la página ya
+ * sondea cada 5 s, o este tablero por su cuenta fuera de /app/auditoria) trae una `version`
+ * que cambia con cualquier cambio público de cualquier procesamiento. La lista se pide sólo
+ * cuando esa versión cambia (y, por las dudas, una vez por minuto), con `cache: "no-cache"`:
+ * el navegador manda su ETag y un 304 no baja nada. COMPAT-API-VIEJA: si el resumen no trae
+ * `version`, la lista se sondea cada `autoRefreshMs`, como antes.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -49,12 +55,13 @@ import {
   PUBLIC_API_BASE,
   estadoVisible,
   fechaLima,
-  haceCuanto,
   procesamientosQueryString,
   type EstadoProc,
   type Procesamiento,
   type ProcesamientosQuery,
 } from "@/lib/auditoria";
+import { useResumenAuditoriaOpcional } from "./ResumenAuditoria";
+import { HaceVivo } from "./RelojVivo";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { CuentaGrupo, Tabla, TablaSkeleton, type Fila, type GrupoFilas } from "@/components/listado";
@@ -152,6 +159,78 @@ function composicion(filas: Procesamiento[]): [EstadoProc, number][] {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+/**
+ * Qué dice el resumen sobre cuándo pedir la lista:
+ *  - `espera`: todavía no llegó ningún resumen.
+ *  - `version`: la API manda `version`; la lista se pide sólo cuando cambia.
+ *  - `sondeo`: COMPAT-API-VIEJA, la API de prod no la manda todavía; la lista se sondea.
+ */
+type Senal = { modo: "espera" } | { modo: "version"; version: string } | { modo: "sondeo" };
+
+/**
+ * La versión del resumen: la de la página si el tablero vive dentro de <ResumenAuditoria>
+ * (un solo sondeo para todo /app/auditoria), o la de un sondeo propio del resumen en las
+ * demás páginas (/impacto, /financiar). Sólo con la pestaña visible, y al volver a ella.
+ */
+function useSenalResumen(pollMs: number): { senal: Senal; falloResumen: boolean } {
+  const pagina = useResumenAuditoriaOpcional();
+  const enPagina = pagina != null;
+  const [propia, setPropia] = useState<Senal>({ modo: "espera" });
+  const [falloPropio, setFalloPropio] = useState(false);
+
+  useEffect(() => {
+    if (enPagina) return;
+    let vivo = true;
+    let ctrl: AbortController | null = null;
+    let id: number | null = null;
+    const parar = () => {
+      if (id != null) window.clearInterval(id);
+      id = null;
+    };
+    const pedir = async () => {
+      if (document.visibilityState !== "visible") return;
+      ctrl?.abort();
+      ctrl = new AbortController();
+      try {
+        const res = await fetch(`${PUBLIC_API_BASE}/financiamiento/procesamientos/resumen`, { cache: "no-cache", signal: ctrl.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        const j = (await res.json()) as { version?: unknown };
+        if (!vivo) return;
+        setFalloPropio(false);
+        const v = j.version;
+        if (typeof v === "string") {
+          setPropia((s) => (s.modo === "version" && s.version === v ? s : { modo: "version", version: v }));
+        } else {
+          // COMPAT-API-VIEJA: sin `version`, este sondeo no sirve de nada y se apaga; el
+          // tablero sondea su lista como antes (si no, serían dos pedidos cada 5 s).
+          parar();
+          setPropia({ modo: "sondeo" });
+        }
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError" || !vivo) return;
+        setFalloPropio(true);
+      }
+    };
+    void pedir();
+    id = window.setInterval(pedir, Math.max(2000, pollMs));
+    const alVolver = () => {
+      if (document.visibilityState === "visible" && id != null) void pedir();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      vivo = false;
+      ctrl?.abort();
+      parar();
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [enPagina, pollMs]);
+
+  if (!pagina) return { senal: propia, falloResumen: falloPropio };
+  const d = pagina.data;
+  const senal: Senal = !d ? { modo: "espera" } : typeof d.version === "string" ? { modo: "version", version: d.version } : { modo: "sondeo" };
+  return { senal, falloResumen: pagina.fallo };
+}
+
 interface Props {
   ubigeo?: string;
   codigo?: string;
@@ -163,8 +242,18 @@ interface Props {
   autoRefreshMs?: number;
   /** Filas por consulta (el API acepta hasta 300). */
   limit?: number;
-  /** Datos ya cargados en el servidor (evita el parpadeo inicial y sirve de respaldo si el API cae). */
+  /**
+   * Datos ya cargados en el servidor (evita el parpadeo inicial y sirve de respaldo si el API
+   * cae). Son de recién: el tablero no los vuelve a pedir al montar.
+   */
   initial?: Procesamiento[] | null;
+  /** `version` del resumen con la que el servidor armó `initial`: si al montar ya es otra, se pide la lista. */
+  initialVersion?: string | null;
+  /**
+   * `initial` puede no ser de recién: salió del comprobante de un aporte, o el tablero se monta
+   * recién cuando se abre un panel, minutos después del render. Se pide la lista al montar.
+   */
+  pedirAlMontar?: boolean;
   /** Para contenedores angostos (panel lateral): menos columnas. El panel ya tiene su propio scroll. */
   compacto?: boolean;
   /**
@@ -204,6 +293,8 @@ export function TableroAuditoria({
   autoRefreshMs = 5000,
   limit = 300,
   initial,
+  initialVersion,
+  pedirAlMontar = false,
   compacto = false,
   verMasHref,
   enPestanas = false,
@@ -215,12 +306,13 @@ export function TableroAuditoria({
   const [total, setTotal] = useState<number>(initial?.length ?? 0);
   const [cargado, setCargado] = useState<boolean>(initial != null);
   const [fallo, setFallo] = useState(false);
-  const [ahora, setAhora] = useState(0);   // 0 hasta montar: el HTML del servidor no lleva cronómetros
   const [anuncio, setAnuncio] = useState("");
   const [ultimoCambio, setUltimoCambio] = useState<{ texto: string; at: number } | null>(null);
   const [recien, setRecien] = useState<Record<string, true>>({});
   const [todaLaEspera, setTodaLaEspera] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // El último cuerpo recibido: si llega igual (un 304 revalidado, o nada cambió), no se toca nada.
+  const ultimoTexto = useRef<string | null>(null);
   // Estado conocido de cada fila (crudo y visible), para detectar cambios reales entre sondeos.
   const conocido = useRef<Map<string, { crudo: EstadoProc; visible: EstadoProc }> | null>(
     initial ? new Map(initial.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p) }])) : null,
@@ -247,32 +339,24 @@ export function TableroAuditoria({
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const base = `${PUBLIC_API_BASE}/financiamiento/procesamientos`;
-    const pedir = async (q: ProcesamientosQuery) => {
-      const res = await fetch(`${base}?${procesamientosQueryString(q)}`, { cache: "no-store", signal: ctrl.signal });
-      if (!res.ok) throw new Error(String(res.status));
-      const j = (await res.json()) as { data?: Procesamiento[]; total?: number };
-      return { data: Array.isArray(j.data) ? j.data : [], total: typeof j.total === "number" ? j.total : null };
-    };
     try {
-      const primera = await pedir({ ...filtros, limit });
-      let data = primera.data;
-      const tot = primera.total ?? data.length;
-      // La primera página no trajo todo: los que esperan documentos quedaron detrás de los
-      // procesados. Se pide la cola del listado saltando procesando + encolado + procesados.
-      if (tot > data.length) {
-        const activos = data.filter((p) => p.estado === "procesando" || p.estado === "encolado").length;
-        if (activos < data.length) {
-          const procesados = await pedir({ ...filtros, estado: "procesado", limit: 1 });
-          const offset = activos + (procesados.total ?? 0);
-          if (offset < tot) {
-            const cola = await pedir({ ...filtros, limit, offset });
-            const vistos = new Set(data.map((p) => p.ocid));
-            data = [...data, ...cola.data.filter((p) => !vistos.has(p.ocid))];
-          }
-        }
-      }
+      // `no-cache`: el navegador revalida con el ETag que guardó (If-None-Match) y, si nada
+      // cambió, el API responde 304 sin cuerpo.
+      const res = await fetch(`${PUBLIC_API_BASE}/financiamiento/procesamientos?${procesamientosQueryString({ ...filtros, limit })}`, {
+        cache: "no-cache",
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const texto = await res.text();
       if (ctrl.signal.aborted) return;
+      if (texto === ultimoTexto.current) {
+        setFallo(false);
+        return;
+      }
+      ultimoTexto.current = texto;
+      const j = JSON.parse(texto) as { data?: Procesamiento[]; total?: number };
+      const data = Array.isArray(j.data) ? j.data : [];
+      const tot = typeof j.total === "number" ? j.total : data.length;
 
       // ¿Qué cambió de verdad desde el sondeo anterior?
       const prev = conocido.current;
@@ -328,28 +412,53 @@ export function TableroAuditoria({
     }
   }, [filtros, limit, router, filaDe]);
 
-  // Polling sólo con la pestaña visible; al volver, refresca de inmediato.
+  const { senal, falloResumen } = useSenalResumen(autoRefreshMs);
+  // Sin ningún resumen y con el resumen caído, no hay versión que esperar: se sondea la lista.
+  const modo = senal.modo === "espera" && falloResumen ? "sondeo" : senal.modo;
+  const version = senal.modo === "version" ? senal.version : null;
+
+  // Al montar: con datos del servidor (recientes) no se pide nada; sin ellos, o si pueden
+  // estar viejos (`pedirAlMontar`), ya.
   useEffect(() => {
+    if (!initial || pedirAlMontar) void cargar();
+    return () => abortRef.current?.abort();
+    // Sólo al montar: los filtros vuelven a montar el tablero (`key`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Modo versión: la lista se pide sólo cuando cambia la versión del resumen. La primera que
+  // se ve, si no se sabe con cuál se armó la lista inicial, queda como punto de partida.
+  const versionVista = useRef<string | null>(initialVersion ?? null);
+  useEffect(() => {
+    if (modo !== "version" || !version) return;
+    if (versionVista.current === version) return;
+    const primera = versionVista.current === null;
+    versionVista.current = version;
+    if (primera && initial && !pedirAlMontar) return;
     void cargar();
+    // `initial*` sólo cuentan para la primera versión vista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modo, version, cargar]);
+
+  // Sondeo, sólo con la pestaña visible. Modo versión: una vez por minuto, por si se perdió
+  // un cambio (con 304 no cuesta nada). COMPAT-API-VIEJA, modo sondeo: cada `autoRefreshMs`
+  // y al volver a la pestaña, como antes.
+  useEffect(() => {
+    if (modo === "espera") return;
+    const cada = modo === "version" ? 60_000 : Math.max(1500, autoRefreshMs);
     const tick = () => {
-      if (typeof document === "undefined" || document.visibilityState === "visible") void cargar();
+      if (document.visibilityState === "visible") void cargar();
     };
-    const id = window.setInterval(tick, Math.max(1500, autoRefreshMs));
-    const onVis = () => { if (document.visibilityState === "visible") void cargar(); };
-    document.addEventListener("visibilitychange", onVis);
+    const id = window.setInterval(tick, cada);
+    const alVolver = () => {
+      if (modo === "sondeo" && document.visibilityState === "visible") void cargar();
+    };
+    document.addEventListener("visibilitychange", alVolver);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-      abortRef.current?.abort();
+      document.removeEventListener("visibilitychange", alVolver);
     };
-  }, [cargar, autoRefreshMs]);
-
-  // Reloj de 1 s para los tiempos transcurridos y la antigüedad de lo que espera.
-  useEffect(() => {
-    setAhora(Date.now());
-    const id = window.setInterval(() => setAhora(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  }, [modo, cargar, autoRefreshMs]);
 
   // FLIP, segundo paso: la fila ya está en su grupo nuevo; arranca desde donde estaba.
   useLayoutEffectCliente(() => {
@@ -381,13 +490,17 @@ export function TableroAuditoria({
   }, [items]);
   const movido = useMemo(() => ultimoMovimiento(items), [items]);
 
-  // El API puede no devolverlo todo: si faltan filas, se dice cuántas se muestran de cuántas (§10.5, parcial).
-  const truncado = cargado && total > items.length;
   const nAnalisis = porGrupo.procesando.length;
   const conPanel = !!panelSecundario && nAnalisis === 0;
   // Con verMasHref o en pestañas, "Leídos" ya vive (completo, filtrable) en su propio listado.
   // Nada en análisis + hay algo mejor que un grupo vacío → el panel ocupa su lugar.
   const leidosAparte = !!verMasHref || enPestanas;
+  // El API puede no devolverlo todo: si faltan filas, se dice cuántas se muestran de cuántas
+  // (§10.5, parcial). Como lo activo va primero, con lo leído aparte el tope sólo corta algo
+  // visible si la última fila que llegó todavía está activa.
+  const ultimaActiva = items.length > 0 && grupoDe(items[items.length - 1].estado) !== "procesado";
+  const truncado = cargado && total > items.length && (!leidosAparte || ultimaActiva);
+  const sinConexion = fallo || falloResumen;
   const visibles = GRUPOS.filter((g) => !(leidosAparte && g.key === "procesado") && !(conPanel && g.key === "procesando"));
   const conTope = leidosAparte && !compacto && !todaLaEspera;
   const nEspera = porGrupo.encolado.length;
@@ -399,9 +512,9 @@ export function TableroAuditoria({
     resaltada: p.estado === "procesando" || !!recien[p.ocid],
     celdas: {
       estado: <EstadoProcesamiento p={p} />,
-      contrato: <CeldaContrato p={p} ahora={ahora} />,
+      contrato: <CeldaContrato p={p} />,
       valor: <CeldaValor p={p} />,
-      tiempo: <CeldaTiempo p={p} ahora={ahora} />,
+      tiempo: <CeldaTiempo p={p} />,
     },
   });
 
@@ -440,7 +553,7 @@ export function TableroAuditoria({
   const columnas = compacto ? COLUMNAS_VIVO_COMPACTO : COLUMNAS_VIVO;
   const filtrado = !!(desde || hasta || financiador);
   // En pestañas y sin avisos, nada va arriba de la tabla: sin margen suelto bajo la barra.
-  const sinCabecera = enPestanas && !truncado && !fallo;
+  const sinCabecera = enPestanas && !truncado && !sinConexion;
 
   return (
     <section aria-label={titulo ?? "Tablero de auditoría en vivo"}>
@@ -451,14 +564,14 @@ export function TableroAuditoria({
 
       {enPestanas ? (
         // El estado en vivo ya está arriba de la página: acá sólo lo que avisa de un problema.
-        (truncado || fallo) && (
+        (truncado || sinConexion) && (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-mute">
             {truncado && (
-              <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
+              <span className="tabular-nums" title={`Se muestran como mucho ${limit} contratos a la vez.`}>
                 Mostrando {numero(items.length)} de {numero(total)}
               </span>
             )}
-            {fallo && (
+            {sinConexion && (
               <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
             )}
           </div>
@@ -476,11 +589,11 @@ export function TableroAuditoria({
           )}
           <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
             {truncado && (
-              <span className="tabular-nums" title={`El API devuelve como mucho ${limit} filas por consulta.`}>
+              <span className="tabular-nums" title={`Se muestran como mucho ${limit} contratos a la vez.`}>
                 Mostrando {numero(items.length)} de {numero(total)}
               </span>
             )}
-            {fallo ? (
+            {sinConexion ? (
               <span className="inline-flex items-center gap-1 text-amberTexto"><WifiOff size={12} aria-hidden /> Sin conexión; reintentando…</span>
             ) : nAnalisis > 0 ? (
               <span className="inline-flex items-center gap-1.5 font-medium text-amberTexto">
@@ -492,7 +605,9 @@ export function TableroAuditoria({
                 <Clock size={12} aria-hidden />
                 <span>
                   Sin cambios desde el <time dateTime={new Date(movido).toISOString()}>{fechaLima(movido, { hora: true })}</time>
-                  {ahora > 0 && <span suppressHydrationWarning> ({haceCuanto(ahora - movido)})</span>}
+                  <span suppressHydrationWarning>
+                    <HaceVivo desde={movido} entreParentesis />
+                  </span>
                 </span>
               </span>
             ) : cargado ? (
@@ -509,13 +624,15 @@ export function TableroAuditoria({
         <p className={`${sinCabecera ? "" : "mt-2"} flex flex-wrap items-baseline gap-x-2 rounded-lg bg-granate-soft px-2.5 py-1.5 text-[12px] leading-snug text-ink`}>
           <span className="font-semibold">Recién:</span>
           <span className="min-w-0">{ultimoCambio.texto}</span>
-          {ahora > 0 && <span className="text-[11px] tabular-nums text-inkSoft" suppressHydrationWarning>{haceCuanto(Math.max(0, ahora - ultimoCambio.at))}</span>}
+          <span className="text-[11px] tabular-nums text-inkSoft" suppressHydrationWarning>
+            <HaceVivo desde={ultimoCambio.at} />
+          </span>
         </p>
       )}
 
       {cargado && items.length === 0 ? (
         <VacioTablero
-          fallo={fallo}
+          fallo={sinConexion}
           codigo={codigo}
           ubigeo={ubigeo}
           filtrado={filtrado}

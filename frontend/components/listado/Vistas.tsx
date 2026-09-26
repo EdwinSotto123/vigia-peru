@@ -24,9 +24,12 @@ export function Vistas({ vistas, etiqueta, className }: { vistas: Vista[]; etiqu
       className={cn("inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-line bg-paper p-1 [scrollbar-width:none] [&>a]:shrink-0 [&>a]:whitespace-nowrap", className)}
     >
       {vistas.map((v) => (
+        // Sin prefetch: cada vista es una consulta distinta al API (auditoría A14). Se pide al
+        // hacer clic, no por estar a la vista.
         <Link
           key={v.href}
           href={v.href}
+          prefetch={false}
           aria-current={v.activa ? "page" : undefined}
           className={cn(
             "inline-flex min-h-[36px] items-center gap-2 rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors duration-rapido",

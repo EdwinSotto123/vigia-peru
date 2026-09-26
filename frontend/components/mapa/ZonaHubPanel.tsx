@@ -24,7 +24,8 @@ import { cn } from "@/lib/utils";
 import { EntidadesDeZona } from "./EntidadesDeZona";
 import { AlertasDeZona } from "./AlertasDeZona";
 import { belongsToRegion } from "./region-match";
-import { departamentoDeAlerta, MIN_CONFIRMACIONES, tieneSenales } from "./senales";
+import { MIN_CONFIRMACIONES } from "./senales";
+import { conteosDeDepartamento, type AlertasMapa } from "./puntos";
 import { ContratosLista, useMapaContratos } from "@/components/contratos/ContratosLista";
 import { SeguirZonaBoton } from "./SeguirZonaBoton";
 
@@ -51,8 +52,13 @@ export interface ZonaHubPanelProps {
   ubigeo: string;
   nombre: string;
   onClose?: () => void;
-  /** Alertas ya cargadas por el mapa (se filtran por departamento acá). `null` = cargando. */
-  alertas: any[] | null;
+  /**
+   * Filas completas de `/alertas` para la pestaña Señales. `null` = cargando; `undefined` =
+   * la pestaña las pide al abrirse (el mapa ya no las baja al entrar).
+   */
+  alertas: any[] | null | undefined;
+  /** TODAS las alertas publicadas en filas mínimas (las del mapa): de ahí salen los conteos. `null` = cargando. */
+  senales: AlertasMapa | null;
   /** Denuncias ciudadanas ya cargadas por el mapa. `null` = cargando. */
   reportes: any[] | null;
   /**
@@ -81,7 +87,7 @@ export interface ZonaHubPanelProps {
  * frase completa ("de 4.704 ingresados", "en 203 entidades") la escribe quien
  * arma la fila, porque no toda cifra tiene un denominador.
  */
-export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, reportes, geo, tab, onTab }: ZonaHubPanelProps) {
+export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, senales, reportes, geo, tab, onTab }: ZonaHubPanelProps) {
   const [detalle, setDetalle] = useState<ZonaDetalle | null | undefined>(undefined);
   const tabRefs = useRef<Partial<Record<ZonaTab, HTMLButtonElement | null>>>({});
 
@@ -100,9 +106,14 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
   }, [ubigeo]);
 
   // "Con señales" = al menos una señal publicada, de cualquier peso (§10.1): es lo que lista la pestaña.
-  const nSenales = useMemo(
-    () => (alertas ? alertas.filter((a) => tieneSenales(a) && departamentoDeAlerta(a) === ubigeo).length : null),
-    [alertas, ubigeo],
+  // Se cuenta sobre TODAS las publicadas. Si la lista llegó recortada (COMPAT-API-VIEJA), el
+  // número es un piso y se dice así, no como total.
+  const conteosZona = useMemo(() => (senales ? conteosDeDepartamento(senales.alertas, ubigeo) : null), [senales, ubigeo]);
+  const nSenales = conteosZona?.conSenales ?? null;
+  const parcial = !!senales && !senales.completo;
+  const conteosPestana = useMemo(
+    () => (conteosZona && !parcial ? { senales: conteosZona.senales, bajas: conteosZona.bajas } : null),
+    [conteosZona, parcial],
   );
   const reportesRegion = useMemo(() => (reportes ? reportes.filter((r) => belongsToRegion(r, regionId)) : null), [reportes, regionId]);
 
@@ -121,7 +132,7 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
 
   const conteo: Partial<Record<ZonaTab, number | undefined>> = {
     cola: zona?.pendientes,
-    alertas: nSenales ?? undefined,
+    alertas: parcial ? undefined : nSenales ?? undefined,
     denuncias: reportesRegion?.length,
   };
 
@@ -205,6 +216,7 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
               detalle={detalle}
               geo={geo}
               nSenales={nSenales}
+              nSenalesParcial={parcial}
               nDenuncias={reportesRegion?.length ?? null}
               financiarHref={financiarHref}
               denunciarHref={denunciarHref}
@@ -214,7 +226,7 @@ export function ZonaHubPanel({ regionId, ubigeo, nombre, onClose, alertas, repor
           )}
           {tab === "cola" && <ColaTab nombre={nombre} ubigeo={ubigeo} detalle={detalle} />}
           {tab === "entidades" && <EntidadesDeZona ubigeo={ubigeo} nombre={nombre} />}
-          {tab === "alertas" && <AlertasDeZona ubigeo={ubigeo} nombre={nombre} alertas={alertas} />}
+          {tab === "alertas" && <AlertasDeZona ubigeo={ubigeo} nombre={nombre} alertas={alertas} conteos={conteosPestana} />}
           {tab === "denuncias" && <DenunciasTab nombre={nombre} reportes={reportesRegion} denunciarHref={denunciarHref} />}
           {tab === "presupuesto" && <PresupuestoRegional mefDept={REGION_TO_MEF_DEPT[regionId] ?? null} regionId={regionId} />}
         </div>
@@ -248,6 +260,7 @@ function ResumenTab({
   detalle,
   geo,
   nSenales,
+  nSenalesParcial = false,
   nDenuncias,
   financiarHref,
   denunciarHref,
@@ -258,6 +271,8 @@ function ResumenTab({
   detalle: ZonaDetalle | null | undefined;
   geo: ContratoZona | null | undefined;
   nSenales: number | null;
+  /** El conteo salió de una lista recortada: es un piso ("12 o más"), no un total. */
+  nSenalesParcial?: boolean;
   nDenuncias: number | null;
   financiarHref: string;
   denunciarHref: string;
@@ -387,7 +402,7 @@ function ResumenTab({
         <ul className="divide-y divide-line border-y border-line">
           <Salto
             etiqueta="Contratos con señales"
-            valor={nSenales != null ? enteros(nSenales) : "…"}
+            valor={nSenales != null ? `${enteros(nSenales)}${nSenalesParcial ? " o más" : ""}` : "…"}
             detalle={geo ? `de ${enteros(geo.procesados)} leídos` : undefined}
             onClick={() => goTo("alertas")}
           />

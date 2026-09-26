@@ -123,7 +123,9 @@ export function adaptLoadedToUi(loaded: any) {
       // El perfil del pipeline (bienes, servicios…) viaja dentro de la traza, en
       // el contexto que recibe el dictamen. Con él la UI carga el catálogo de
       // reglas y nombra cada señal con su etiqueta, no con su id.
-      perfil: perfilDeTraza(loaded.agent_trace),
+      // Sin la traza (`/full?sinTraza=1`), el perfil llega aparte: de la API si lo manda, o
+      // del servidor del frontend, que lo saca de `/alertas/:id/traza` (lib/dossier-servidor.ts).
+      perfil: (typeof loaded.perfil === "string" && loaded.perfil) || perfilDeTraza(loaded.agent_trace),
       reglas_disparadas: Array.from(
         new Set(((loaded.banderas || []) as any[]).map((b) => b?.regla).filter((r) => typeof r === "string" && r)),
       ),
@@ -153,6 +155,8 @@ export function adaptLoadedToUi(loaded: any) {
     agent_trace: loaded.agent_trace || [],
     llm_metrics: loaded.llm_metrics,
     self_evals: loaded.self_evals,
+    // Traza resumida (eventos, agentes, herramientas) cuando la traza no viene entera.
+    traza_resumen: loaded.traza_resumen ?? null,
     // Sin duración real persistida: no se manda un 0 que parezca una medición.
     timing: {},
     _bridge_meta: { cached: true, analizado_en: loaded.analizado_en },

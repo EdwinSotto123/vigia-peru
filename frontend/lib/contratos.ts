@@ -8,7 +8,7 @@
  */
 
 import { API_BASE } from "./api-client";
-import { fechaCorta, soles } from "./formato";
+import { fechaCorta, numero, soles } from "./formato";
 import { nivelDeScore } from "./severidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 export type { CitaDocumento };
@@ -187,7 +187,36 @@ export interface ContratosPagina {
   total: number;
   page: number;
   size: number;
+  /**
+   * Paginación por cursor (keyset): el token opaco para pedir la página siguiente
+   * (`?cursor=`) y la anterior (`?antes=`); `null` en el borde de la lista.
+   * COMPAT-API-VIEJA: la API de prod todavía no los manda. Sin la clave `siguiente` en la
+   * respuesta, la lista pagina como antes, por número de página (`?page=`).
+   */
+  siguiente?: string | null;
+  anterior?: string | null;
+  /**
+   * `false` = el total es un conteo acotado (la API deja de contar en 10.001): se muestra
+   * "10,000+". Sin la clave (API vieja) el total es exacto.
+   */
+  totalExacto?: boolean;
 }
+
+/**
+ * Hasta dónde cuenta la API cuando el total no sale del agregado (`totalExacto: false`):
+ * el conteo se corta en TOPE + 1. Un total por encima del tope se dice "10,000+"; uno por
+ * debajo es exacto aunque venga del conteo acotado (no llegó al corte).
+ */
+export const TOPE_CONTEO_CONTRATOS = 10_000;
+
+/** "18,393" o "10,000+" (conteo acotado que llegó al tope). Nunca un total que la API no dio. */
+export function totalContratosTexto(p: Pick<ContratosPagina, "total" | "totalExacto">): string {
+  if (p.totalExacto === false && p.total > TOPE_CONTEO_CONTRATOS) return `${numero(TOPE_CONTEO_CONTRATOS)}+`;
+  return numero(p.total);
+}
+
+/** Los tokens de cursor son base64url opacos: sólo se valida la forma, nunca se decodifican. */
+const CURSOR_RX = /^[A-Za-z0-9_-]{1,512}={0,2}$/;
 
 export type EstadoOperativo = "en_cola" | "documentos_listos" | "sin_documentos";
 export const OPERATIVOS: { value: EstadoOperativo; label: string }[] = [
@@ -199,6 +228,10 @@ export const OPERATIVOS: { value: EstadoOperativo; label: string }[] = [
 export interface ContratosQuery {
   page?: number;
   size?: number;
+  /** Token opaco de la página siguiente (paginación por cursor). Excluye a `antes` y a `page`. */
+  cursor?: string;
+  /** Token opaco para volver a la página anterior. */
+  antes?: string;
   q?: string;
   tipo?: TipoContrato | "";
   etapa?: EtapaContrato | "";
@@ -430,14 +463,22 @@ export function mesDeRango(desde: string | undefined, hasta: string | undefined)
  */
 export function parseContratosQuery(sp: Record<string, string | string[] | undefined> = {}): ContratosQuery {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const page = Math.max(1, Number(s("page") ?? 1) || 1);
+  // `?pagina=` es el nombre del parámetro en los demás listados: un enlace escrito así también abre su página.
+  const page = Math.max(1, Number(s("page") ?? s("pagina") ?? 1) || 1);
+  // Cursor o "antes", nunca los dos: con ambos manda el cursor (ir hacia adelante).
+  const token = (k: string) => { const v = s(k); return v && CURSOR_RX.test(v) ? v : undefined; };
+  const cursor = token("cursor");
+  const antes = cursor ? undefined : token("antes");
   const num = (k: string) => { const v = s(k); return v && /^\d+(\.\d+)?$/.test(v) ? Number(v) : undefined; };
   const ubigeo = s("ubigeo");
   const entidad = s("entidad");
   const fecha = (k: string) => { const v = s(k); return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
   const mes = rangoDeMes(s("mes") ?? "");
   return {
-    page,
+    // Con cursor, la página por número no aplica (el API usaría el cursor igual, pero la URL queda limpia).
+    page: cursor || antes ? undefined : page,
+    cursor,
+    antes,
     q: s("q")?.slice(0, 120) || undefined,
     tipo: TIPOS.some((t) => t.value === s("tipo")) ? (s("tipo") as TipoContrato) : undefined,
     etapa: ETAPAS.some((t) => t.value === s("etapa")) ? (s("etapa") as EtapaContrato) : undefined,
@@ -500,7 +541,10 @@ export interface ResumenContratos {
   porRiesgo: Partial<Record<GrupoResumen, number>>;
 }
 export const getResumenContratos = (q: ContratosQuery = {}) =>
-  getJson<ResumenContratos>(`/contratos/resumen?${contratosQueryString({ ...q, page: undefined, size: undefined, orden: undefined })}`, 60);
+  getJson<ResumenContratos>(
+    `/contratos/resumen?${contratosQueryString({ ...q, page: undefined, size: undefined, orden: undefined, cursor: undefined, antes: undefined })}`,
+    60,
+  );
 
 export const getContrato = (ocid: string) =>
   getJson<ContratoDetalle>(`/contratos/${encodeURIComponent(ocid)}`, 60);
@@ -567,6 +611,18 @@ export interface ResumenProcesamientoVivo {
   agentesActivos: string[];
   /** Mediana de duración de los procesados en 7 días (para el "≈ N min"). */
   estimado?: Estimado | null;
+  /**
+   * Cambia cuando cambia cualquier campo público de cualquier procesamiento (estado, fase,
+   * fases, finalizado…). Con ella el tablero pide la lista sólo cuando algo se movió.
+   * COMPAT-API-VIEJA: la API de prod todavía no la manda; sin ella se sondea la lista como antes.
+   */
+  version?: string;
+  /**
+   * Contratos activos (todo lo que no terminó bien, en análisis incluido) y en análisis, por
+   * departamento (ubigeo de 2 dígitos). Lo usa el mapa para marcar dónde se lee ahora.
+   * COMPAT-API-VIEJA: la API de prod todavía no lo manda; sin él se cuenta sobre la lista.
+   */
+  porDepartamento?: Record<string, { activos: number; procesando: number }>;
 }
 
 export const getResumenVivo = () =>

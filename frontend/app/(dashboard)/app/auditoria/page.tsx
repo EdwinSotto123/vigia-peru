@@ -13,10 +13,12 @@ import { ComoFunciona } from "@/components/auditoria/ComoFunciona";
 import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
 import { cuentasAuditoria } from "@/components/auditoria/cuentasAuditoria";
 import {
+  DIAS_RITMO,
   getFinanciadoresProcesamientos,
   getProcesamiento,
   getProcesamientos,
   getProcesamientosPaginado,
+  getRitmoProcesamientos,
   type Procesamiento,
 } from "@/lib/auditoria";
 import { getResumenVivo } from "@/lib/contratos";
@@ -108,7 +110,7 @@ export default async function AuditoriaPage({
   const filtros: FiltrosAuditoria = { ubigeo, desde, hasta, financiador };
   const histQuery = { ...filtros, estado: "procesado" as const };
 
-  const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, procesados, nombreSubzona] = await Promise.all([
+  const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, ritmo, nombreSubzona] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
     // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó).
@@ -119,14 +121,14 @@ export default async function AuditoriaPage({
     // hay nada en análisis, que es el estado normal de esta pantalla. Su detalle (con la
     // bitácora, que permite repetir la corrida) se encadena acá mismo, no en serie después.
     getProcesamientos({ ...histQuery, limit: 1 }).then((ref) => (ref?.[0]?.ocid ? getProcesamiento(ref[0].ocid) : null)),
-    // Ritmo real (todo el Perú, como los Indicadores): cuándo terminó cada análisis.
-    getProcesamientos({ estado: "procesado", limit: 300 }),
+    // Ritmo real (todo el Perú, como los Indicadores): análisis terminados por día, contados en
+    // SQL (`/ritmo`; con la API vieja, sobre la lista con tope y marcado parcial).
+    getRitmoProcesamientos(DIAS_RITMO),
     // Los enlaces del mapa pueden traer una provincia o un distrito: su nombre, para el chip y el título.
     ubigeo && ubigeo.length > 2 ? getZona(ubigeo).then((z) => z?.zona.nombre ?? null) : Promise.resolve(null),
   ]);
   const initial = initialCompleto ? sinFasesInactivas(initialCompleto) : null;
   const historico = historicoCompleto ? { ...historicoCompleto, data: sinFasesInactivas(historicoCompleto.data ?? []) } : null;
-  const finalizados = procesados ? procesados.map((p) => p.finalizadoAt).filter((f): f is string => !!f) : null;
   const hayFiltros = !!(ubigeo || desde || hasta || financiador);
   const departamento = ubigeo && ubigeo.length === 2 ? (zonas ?? []).find((z) => z.ubigeo === ubigeo) : undefined;
   const zonaNombre = ubigeo ? departamento?.nombre ?? nombreSubzona ?? undefined : undefined;
@@ -210,7 +212,7 @@ export default async function AuditoriaPage({
         }
       />
 
-      <ResumenAuditoria initial={resumen} finalizados={finalizados} pollMs={5000}>
+      <ResumenAuditoria initial={resumen} ritmoInicial={ritmo} pollMs={5000}>
         <div className="space-y-6">
           <EstadoAuditoria />
 
@@ -255,6 +257,7 @@ export default async function AuditoriaPage({
                             hasta={hasta}
                             financiador={financiador}
                             initial={initial}
+                            initialVersion={resumen?.version ?? null}
                             autoRefreshMs={5000}
                             enPestanas
                             conLlamita

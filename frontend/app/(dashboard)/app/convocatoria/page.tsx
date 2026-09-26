@@ -92,15 +92,15 @@ function Esperando() {
 }
 
 async function VistaAnalisis({ query }: { query: AnalisisQuery }) {
-  const { items, parcial, fallo } = await getAnalisisPublicados();
+  const { items, total, parcial, fallo } = await getAnalisisPublicados();
   const filtrados = ordenarAnalisis(filtrarAnalisis(items, query), query);
   return (
     <div className="space-y-5">
-      {!fallo && items.length > 0 && <Indicadores items={indicadores(items)} />}
+      {!fallo && items.length > 0 && <Indicadores items={indicadores(items, total, parcial)} />}
       <Listado ruta={RUTA} parametros={analisisQueryParams(query)}>
         {!fallo && items.length > 0 && <BarraFiltros {...barraAnalisis(items, query)} />}
         <ZonaResultados>
-          <TablaAnalisis universo={items} filtrados={filtrados} query={query} ruta={RUTA} parcial={parcial} fallo={fallo} />
+          <TablaAnalisis universo={items} filtrados={filtrados} query={query} ruta={RUTA} parcial={parcial} totalReal={total} fallo={fallo} />
         </ZonaResultados>
       </Listado>
     </div>
@@ -111,31 +111,38 @@ async function VistaAnalisis({ query }: { query: AnalisisQuery }) {
  * Las cifras de cabecera, sobre todos los análisis (no sobre el filtro): cuántos, cuántos
  * pesan alto, cuántos terminaron limpios y cuándo fue la última lectura. Los conteos salen
  * de `contarPorNivel`, la misma función que cuenta las opciones del filtro.
+ *
+ * El total sale del API (conteo en SQL). Si la lista quedó parcial (más análisis que el
+ * tope que se junta), los conteos por nivel se dicen sobre los que se listan, nunca como
+ * si fueran del total: "de los 1.000 más recientes".
  */
-function indicadores(items: AnalisisPublicado[]): Indicador[] {
+function indicadores(items: AnalisisPublicado[], totalReal: number | null, parcial: boolean): Indicador[] {
   const c = contarPorNivel(items);
   const conSenales = c.alta + c.media + c.baja;
   const ultima = items.reduce<string | null>((max, it) => (!max || it.analizado_en > max ? it.analizado_en : max), null);
   const hace7d = Date.now() - 7 * 86_400_000;
   const semana = items.filter((it) => new Date(it.analizado_en).getTime() >= hace7d).length;
+  // COMPAT-API-VIEJA: sin total del API y con el tope lleno, el total no se conoce: "100+".
+  const valorTotal = totalReal != null ? numero(totalReal) : parcial ? `${numero(c.total)}+` : numero(c.total);
+  const base = parcial ? `de los ${numero(c.total)} más recientes` : `de ${numero(c.total)} publicados`;
   return [
     {
-      valor: numero(c.total),
+      valor: valorTotal,
       etiqueta: "análisis publicados",
-      contexto: `${numero(conSenales)} con señales`,
+      contexto: parcial ? `${numero(conSenales)} con señales en los ${numero(c.total)} más recientes` : `${numero(conSenales)} con señales`,
     },
     {
       valor: numero(c.alta),
       etiqueta: "riesgo alto",
       tono: "alta",
-      contexto: `de ${numero(c.total)} publicados`,
+      contexto: base,
       href: `${RUTA}?riesgo=${RIESGO_URL.alta}`,
     },
     {
       valor: numero(c.sin_senales),
       etiqueta: "sin señales",
       tono: "positivo",
-      contexto: `de ${numero(c.total)} publicados`,
+      contexto: base,
       href: `${RUTA}?riesgo=${RIESGO_URL.sin_senales}`,
     },
     {

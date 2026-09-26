@@ -259,7 +259,8 @@ export function DashboardSidebar() {
           >
             <Menu size={15} aria-hidden /> Menú
           </button>
-          <Link href="/" aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
+          {/* Sin prefetch: la portada (GSAP, escenas) bajaba ~112 KB en cada página de la app. */}
+          <Link href="/" prefetch={false} aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
             <Marca tamano="sm" />
           </Link>
           <div className="ml-auto">
@@ -301,6 +302,7 @@ export function DashboardSidebar() {
           <div className="mb-5 flex items-center justify-between gap-2">
             <Link
               href="/"
+              prefetch={false}
               aria-label="Vigía Perú, ir al inicio"
               className="rounded-lg py-1 transition-opacity duration-rapido hover:opacity-80"
             >
@@ -376,6 +378,7 @@ export function DashboardSidebar() {
                 </p>
                 <Link
                   href="/signup"
+                  prefetch={false}
                   className="mt-2 inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full bg-granate px-3 py-1.5 text-xs font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
                 >
                   Crear cuenta gratis
@@ -397,6 +400,7 @@ export function DashboardSidebar() {
               </Link>
               <Link
                 href="/"
+                prefetch={false}
                 className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
               >
                 <Home size={14} aria-hidden /> Inicio

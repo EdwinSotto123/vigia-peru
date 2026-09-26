@@ -119,10 +119,12 @@ interface Props {
   /** Ruta de este listado (`/app/convocatoria` o `/admin/analisis`). */
   ruta: string;
   parcial: boolean;
+  /** Cuántos análisis publicados hay de verdad (conteo del API). Con él, el aviso de parcial dice cuántos faltan. */
+  totalReal?: number | null;
   fallo: string | null;
 }
 
-export function TablaAnalisis({ universo, filtrados, query, ruta, parcial, fallo }: Props) {
+export function TablaAnalisis({ universo, filtrados, query, ruta, parcial, totalReal = null, fallo }: Props) {
   const total = filtrados.length;
   const paginas = Math.max(1, Math.ceil(total / TAM_ANALISIS));
   const pagina = Math.min(query.pagina, paginas);
@@ -181,10 +183,12 @@ export function TablaAnalisis({ universo, filtrados, query, ruta, parcial, fallo
       <div className="flex flex-wrap items-center justify-between gap-3">
         {parcial ? (
           <p className="inline-flex items-center gap-1 text-[12.5px] text-mute">
-            Se listan los {numero(TOPE_API)} análisis más recientes
+            {totalReal != null && totalReal > universo.length
+              ? `Se listan los ${numero(universo.length)} análisis más recientes de ${numero(totalReal)}`
+              : `Se listan los ${numero(universo.length || TOPE_API)} análisis más recientes`}
             <Ayuda titulo="¿Y los anteriores?">
-              El índice devuelve hasta {numero(TOPE_API)} análisis, del más reciente al más antiguo. Uno anterior sigue
-              publicado: ábrelo por su código desde la búsqueda.
+              Esta lista junta los análisis del más reciente al más antiguo hasta un tope. Uno anterior sigue publicado:
+              ábrelo por su código desde la búsqueda.
             </Ayuda>
           </p>
         ) : (

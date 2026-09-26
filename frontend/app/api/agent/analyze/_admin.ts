@@ -13,7 +13,7 @@
  * que la guardia tiene que estar acá.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE_ADMIN, leerSesion } from "@/lib/admin-sesion";
+import { COOKIE_ADMIN, cookieAdmin, leerSesion } from "@/lib/admin-sesion";
 
 function noAutorizado(detail = "Solo el equipo de Vigía puede iniciar un análisis.") {
   return NextResponse.json({ error: "unauthorized", detail }, { status: 401 });
@@ -21,7 +21,7 @@ function noAutorizado(detail = "Solo el equipo de Vigía puede iniciar un análi
 
 /** `null` si la sesión de equipo es válida; si no, la respuesta que hay que devolver. */
 export async function exigirAdmin(req: NextRequest): Promise<NextResponse | null> {
-  const valor = req.cookies.get(COOKIE_ADMIN)?.value;
+  const valor = cookieAdmin(req);
   if (!valor) return noAutorizado();
   const sesion = await leerSesion(valor);
   return sesion ? null : noAutorizado("Tu sesión de equipo venció. Vuelve a entrar desde /admin/login.");

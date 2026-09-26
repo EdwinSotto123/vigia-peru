@@ -33,11 +33,18 @@ const nBanderas = (a: AlertaLike) => (Array.isArray(a.banderas) ? a.banderas.len
 /** "Con señales" (DESIGN_SYSTEM.md §10.1): al menos una señal publicada, de cualquier peso. */
 export const tieneSenales = (a: AlertaLike): boolean => nBanderas(a) > 0;
 
+/**
+ * Las mismas dos reglas sobre el CONTEO de señales, para las filas de `/alertas/puntos`
+ * (traen `nBanderas`, no la lista de banderas). Una sola definición para las dos fuentes.
+ */
+export const esSenalPorConteo = (score: number | null | undefined, n: number): boolean => n > 0 && (score ?? 0) >= CORTE_MEDIA;
+export const esBajoPesoPorConteo = (score: number | null | undefined, n: number): boolean => n > 0 && (score ?? 0) < CORTE_MEDIA;
+
 /** Contrato de peso del riesgo medio o alto: al menos una señal y puntaje ≥ 40. */
-export const esSenal = (a: AlertaLike): boolean => nBanderas(a) > 0 && (a.score ?? 0) >= CORTE_MEDIA;
+export const esSenal = (a: AlertaLike): boolean => esSenalPorConteo(a.score, nBanderas(a));
 
 /** Leído con señales de bajo peso (puntaje < 40): son señales publicadas, de riesgo bajo. */
-export const esSenalDeBajoPeso = (a: AlertaLike): boolean => nBanderas(a) > 0 && (a.score ?? 0) < CORTE_MEDIA;
+export const esSenalDeBajoPeso = (a: AlertaLike): boolean => esBajoPesoPorConteo(a.score, nBanderas(a));
 
 /** Zona de una alerta: provincia (4 díg.) si se reconoce, si no departamento (2 díg.). En `/alertas`, `region` es la provincia. */
 export const zonaDeAlerta = (a: AlertaLike): string | null => zonaDe(a, "provincia");

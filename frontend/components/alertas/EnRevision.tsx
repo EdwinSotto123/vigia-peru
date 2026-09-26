@@ -15,7 +15,8 @@ import type { AnalisisEnRevision, RevisionMotivo } from "@/lib/revision";
  * cada motivo (valor contra umbral, reglas sin respaldo) en el panel lateral.
  *
  * §10.4: de una alerta en revisión se dice "En revisión" y el motivo, nada más —ni
- * puntaje, ni señales—. Todo sale de `GET /alertas/:codigo/revision`.
+ * puntaje, ni señales—. Los motivos salen de la fila (`?alerta=revision`), del lote
+ * `/alertas/revision?codigos=` o, con la API vieja, de `/alertas/:codigo/revision`.
  */
 
 const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
@@ -27,15 +28,26 @@ const COLUMNAS: Columna[] = [
   { clave: "leido", titulo: "Leído", ancho: "80px", desde: "lg" },
 ];
 
-/** Las cifras de la vista: el total con su denominador y los motivos que más frenan. */
-export function indicadoresRevision(items: AnalisisEnRevision[], procesados: number | null, publicadas: number): Indicador[] {
+/**
+ * Las cifras de la vista: el total con su denominador y los motivos que más frenan.
+ * `total` es el conteo del resumen (SQL); si la lista trae menos filas, los motivos se
+ * cuentan sobre las que llegaron y se dice sobre cuántas.
+ */
+export function indicadoresRevision(
+  items: AnalisisEnRevision[],
+  procesados: number | null,
+  publicadas: number,
+  total: number | null = null,
+): Indicador[] {
   const porMotivo = new Map<string, number>();
   for (const it of items) for (const m of it.revision?.motivos ?? []) porMotivo.set(m.titulo, (porMotivo.get(m.titulo) ?? 0) + 1);
   const top = [...porMotivo.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-  const conDenominador = procesados != null && procesados >= items.length;
+  const n = Math.max(total ?? 0, items.length);
+  const conDenominador = procesados != null && procesados >= n;
+  const parcial = n > items.length;
   return [
     {
-      valor: numero(items.length),
+      valor: numero(n),
       etiqueta: "financiados en revisión",
       contexto: conDenominador ? `de ${numero(procesados)} financiados leídos` : undefined,
       ayuda: (
@@ -51,11 +63,15 @@ export function indicadoresRevision(items: AnalisisEnRevision[], procesados: num
         </Ayuda>
       ),
     },
-    ...top.map(([titulo, n]) => ({ valor: numero(n), etiqueta: titulo, contexto: `de ${numero(items.length)} en revisión` })),
+    ...top.map(([titulo, k]) => ({
+      valor: numero(k),
+      etiqueta: titulo,
+      contexto: parcial ? `de los ${numero(items.length)} que se listan` : `de ${numero(items.length)} en revisión`,
+    })),
   ];
 }
 
-export function EnRevision({ items }: { items: AnalisisEnRevision[] }) {
+export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[]; total?: number | null }) {
   if (items.length === 0) {
     return (
       <EstadoVacio titulo="Ningún contrato financiado está en revisión" compacto>
@@ -105,7 +121,18 @@ export function EnRevision({ items }: { items: AnalisisEnRevision[] }) {
       },
     };
   });
-  return <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Financiados en revisión" />;
+  const parcial = total != null && total > items.length;
+  return (
+    <div className="space-y-2">
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Financiados en revisión" />
+      {/* §10.5, parcial: la lista trae menos filas que el conteo del resumen. */}
+      {parcial && (
+        <p className="text-right text-[12.5px] tabular-nums text-mute">
+          Mostrando {numero(items.length)} de {numero(total)}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function EnRevisionSkeleton() {

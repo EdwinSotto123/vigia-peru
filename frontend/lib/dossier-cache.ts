@@ -9,8 +9,16 @@
  * (siempre la última corrida); la navegación in-app sigue cacheada (rápida).
  *
  * El fetch real va a /api/agent/history/[id], que pega a la API liviana
- * (no al orquestador ADK) y devuelve el análisis MÁS RECIENTE.
+ * (no al orquestador ADK) y devuelve el análisis MÁS RECIENTE. La página del informe ya
+ * llega armada del servidor (lib/dossier-servidor.ts): esto queda para reintentar en el
+ * navegador cuando el servidor no pudo, y para la traza bajo demanda (`getTraza`).
  */
+
+import { PUBLIC_API_BASE } from "./auditoria";
+import { apiNueva } from "./capacidades";
+import type { DatosTraza } from "./dossier-servidor";
+
+export type { DatosTraza };
 
 const mem = new Map<string, any>();
 
@@ -111,6 +119,73 @@ export function getAnalyzedList(limit = 500): Promise<any> {
     .then((r) => r.json())
     .finally(() => { listInflight = null; });
   return listInflight;
+}
+
+// ── Traza del análisis ("Cómo se hizo"), bajo demanda ─────────────────
+// El informe llega sin la traza (~68 % del dossier): se pide recién al abrir su pestaña.
+// Misma caché de memoria que el dossier y un solo vuelo por alerta.
+
+const trazas = new Map<string, DatosTraza>();
+const trazasEnVuelo = new Map<string, Promise<DatosTraza>>();
+
+const claveTraza = (codigo: string | null, id: string) => (codigo || keyOf(id)).toUpperCase();
+
+const aDatosTraza = (j: any): DatosTraza | null =>
+  j && Array.isArray(j.agent_trace)
+    ? { agent_trace: j.agent_trace, llm_metrics: j.llm_metrics ?? null, self_evals: j.self_evals ?? null }
+    : null;
+
+/** La traza ya bajada en esta sesión, sin tocar la red. */
+export function peekTraza(codigo: string | null, id: string): DatosTraza | null {
+  return trazas.get(claveTraza(codigo, id)) ?? null;
+}
+
+/**
+ * La traza de un análisis: `GET /alertas/:codigo/traza` directo a la API (gzip y ETag los
+ * pone la API). COMPAT-API-VIEJA: la API de prod no tiene `/traza` (404); entonces la saca
+ * la ruta del frontend de `/alertas/:id/full` (`/api/agent/history/:id?traza=1`).
+ */
+export async function getTraza(codigo: string | null, id: string): Promise<DatosTraza> {
+  const k = claveTraza(codigo, id);
+  const ya = trazas.get(k);
+  if (ya) return ya;
+  const enVuelo = trazasEnVuelo.get(k);
+  if (enVuelo) return enVuelo;
+  const run = (async () => {
+    // COMPAT-API-VIEJA: `/traza` sólo si la API es la nueva (lib/capacidades): a ciegas, la
+    // API vieja respondía 404 y dejaba un error en la consola.
+    if (codigo && (await apiNueva())) {
+      try {
+        const r = await fetch(`${PUBLIC_API_BASE}/alertas/${encodeURIComponent(codigo)}/traza`);
+        if (r.ok) {
+          const d = aDatosTraza(await r.json());
+          if (d) {
+            trazas.set(k, d);
+            return d;
+          }
+        }
+      } catch {
+        /* se intenta por la ruta del frontend */
+      }
+    }
+    const r = await fetch(`/api/agent/history/${encodeURIComponent(keyOf(id || codigo || ""))}?traza=1`);
+    let j: any = null;
+    try {
+      j = await r.json();
+    } catch {
+      /* cuerpo ilegible: se informa abajo */
+    }
+    const d = r.ok ? aDatosTraza(j) : null;
+    if (!d) throw new DossierError(r.status === 404 ? "not_found" : "error", j?.detail || j?.error || `Error ${r.status}`);
+    trazas.set(k, d);
+    return d;
+  })();
+  trazasEnVuelo.set(k, run);
+  try {
+    return await run;
+  } finally {
+    trazasEnVuelo.delete(k);
+  }
 }
 
 /** Warm-up fire-and-forget (para prefetch on hover). No lanza. */

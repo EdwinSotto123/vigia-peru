@@ -3,6 +3,7 @@ import { API_BASE } from "@/lib/api-client";
 import {
   accesoConfigurado,
   COOKIE_ADMIN,
+  COOKIE_ADMIN_LEGADO,
   esAdmin,
   firmarSesion,
   opcionesCookie,
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
   res.cookies.set(COOKIE_ADMIN, sesion, opcionesCookie);
   // La cookie del autor escrito a mano ya no se usa: el autor es el correo verificado.
   res.cookies.set("vigia_admin_actor", "", { path: "/", maxAge: 0 });
+  res.cookies.set(COOKIE_ADMIN_LEGADO, "", { path: "/", maxAge: 0 });
   return res;
 }
 
@@ -58,5 +60,6 @@ export async function DELETE() {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE_ADMIN, "", { path: "/", maxAge: 0 });
   res.cookies.set("vigia_admin_actor", "", { path: "/", maxAge: 0 });
+  res.cookies.set(COOKIE_ADMIN_LEGADO, "", { path: "/", maxAge: 0 });
   return res;
 }

@@ -8,7 +8,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
-    if (!req.cookies.get("vigia_admin")?.value) {
+    // `__session`: el nombre que deja pasar Firebase Hosting; `vigia_admin`: el anterior (sesiones abiertas).
+    if (!req.cookies.get("__session")?.value && !req.cookies.get("vigia_admin")?.value) {
       const url = req.nextUrl.clone();
       url.pathname = "/admin/login";
       url.searchParams.set("next", pathname);

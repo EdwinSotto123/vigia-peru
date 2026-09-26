@@ -197,29 +197,60 @@ export function facetasAnalisis(items: AnalisisPublicado[], query: AnalisisQuery
 
 // ─── Datos ─────────────────────────────────────────────────────────────────
 
-/** Tope de filas que devuelve el API (LIMIT de /alertas/analizadas): si llega a él, la lista es parcial. */
+/** Filas por pedido que acepta el API (zod de /alertas/analizadas: `limit` 1..100). */
 export const TOPE_API = 100;
+
+/**
+ * Cuántas páginas del API se juntan como mucho para armar el listado: 1.000 análisis. Más
+ * allá, la lista se declara parcial (con su total real). Los filtros de esta página (tipo
+ * deducido del objeto, zona, búsqueda libre) todavía no existen en el API.
+ */
+const MAX_PAGINAS = 10;
 
 export interface ListaAnalisis {
   items: AnalisisPublicado[];
-  /** El API devolvió su tope de filas: puede haber más análisis que los listados. */
+  /** Cuántos análisis publicados hay de verdad (conteo en SQL del API). `null` con la API vieja. */
+  total: number | null;
+  /** Faltan análisis en `items` (el total es mayor, o la API vieja llenó su tope). */
   parcial: boolean;
   /** El API no respondió: la página lo dice en vez de mostrar 0. */
   fallo: string | null;
 }
 
+async function pedirAnalizadas(offset: number): Promise<{ items: unknown[]; total: number | null }> {
+  const r = await fetch(`${API_BASE}/alertas/analizadas?limit=${TOPE_API}&offset=${offset}`, { next: { revalidate: 30 } } as RequestInit);
+  if (!r.ok) throw new Error(`El API respondió ${r.status}`);
+  const d = (await r.json()) as { items?: unknown[]; total?: unknown };
+  return { items: Array.isArray(d?.items) ? d.items : [], total: typeof d?.total === "number" ? d.total : null };
+}
+
 /**
- * La lista del servidor (misma fuente que /api/agent/history). Se cachea 30 s como antes
- * en el navegador: un análisis recién publicado aparece en menos de un minuto.
+ * La lista del servidor (misma fuente que /api/agent/history), cacheada 30 s: un análisis
+ * recién publicado aparece en menos de un minuto. Pagina el API con `offset` hasta tener
+ * todos (o `MAX_PAGINAS`), guiada por el `total` que el API cuenta en SQL: así los filtros,
+ * los conteos y las cifras de cabecera se calculan sobre la lista entera, no sobre un tope.
  */
 export async function getAnalisisPublicados(): Promise<ListaAnalisis> {
   try {
-    const r = await fetch(`${API_BASE}/alertas/analizadas?limit=500`, { next: { revalidate: 30 } } as RequestInit);
-    if (!r.ok) return { items: [], parcial: false, fallo: `El API respondió ${r.status}` };
-    const d = (await r.json()) as { items?: unknown[] };
-    const crudos = Array.isArray(d?.items) ? d.items : [];
-    return { items: crudos.filter(esAnalisisPublicado), parcial: crudos.length >= TOPE_API, fallo: null };
+    const primera = await pedirAnalizadas(0);
+    const crudos = [...primera.items];
+    const total = primera.total;
+    if (total == null) {
+      // COMPAT-API-VIEJA: la API de prod no manda `total` ni acepta `offset`; con el tope
+      // lleno, la lista puede estar corta y se dice.
+      return { items: crudos.filter(esAnalisisPublicado), total: null, parcial: crudos.length >= TOPE_API, fallo: null };
+    }
+    const paginas = Math.min(Math.ceil(total / TOPE_API), MAX_PAGINAS);
+    const resto = await Promise.all(
+      Array.from({ length: Math.max(0, paginas - 1) }, (_, i) => pedirAnalizadas((i + 1) * TOPE_API).catch(() => null)),
+    );
+    let falta = false;
+    for (const r of resto) {
+      if (r) crudos.push(...r.items);
+      else falta = true;
+    }
+    return { items: crudos.filter(esAnalisisPublicado), total, parcial: falta || crudos.length < total, fallo: null };
   } catch (e) {
-    return { items: [], parcial: false, fallo: (e as Error)?.message || "sin conexión" };
+    return { items: [], total: null, parcial: false, fallo: (e as Error)?.message || "sin conexión" };
   }
 }

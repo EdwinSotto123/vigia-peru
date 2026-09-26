@@ -15,6 +15,7 @@
  */
 
 import { API_BASE } from "./api-client";
+import { diaLima, ritmoDiario } from "./auditoria-fechas";
 
 /** `revision` no existe en `procesamientos.estado`: es procesado + alerta bloqueada por la autoevaluación. */
 export type EstadoProc = "encolado" | "procesando" | "procesado" | "error" | "pendiente_de_procesamiento" | "esperando_documentos" | "revision";
@@ -269,8 +270,25 @@ export const estadoVisible = (p: Pick<Procesamiento, "estado" | "alertaEstado">)
   p.estado === "procesado" && p.alertaEstado === "revision" ? "revision" : p.estado;
 
 /** URL del API utilizable desde client components (NEXT_PUBLIC_* se inyecta en build). */
-export const PUBLIC_API_BASE =
-  process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "https://vigia-peru-api-36169102688.us-central1.run.app";
+const API_DIRECTA = process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "https://vigia-peru-api-36169102688.us-central1.run.app";
+
+/**
+ * Base de la API para pedidos DESDE EL NAVEGADOR. Detrás de Firebase Hosting (*.web.app,
+ * *.firebaseapp.com o el dominio propio en NEXT_PUBLIC_DOMINIO_HOSTING) se usa el mismo dominio con
+ * `/v1`: Hosting lo reenvía a la API y su CDN cachea lo que la API marca `public, s-maxage`. En
+ * cualquier otro origen (run.app, localhost) se va directo a la API. Solo se usa dentro de efectos y
+ * handlers (nunca en el render), así que el valor distinto en servidor y navegador no descuadra la
+ * hidratación.
+ */
+function baseApiNavegador(): string {
+  if (typeof window === "undefined") return API_DIRECTA;
+  const host = window.location.hostname;
+  const propio = process.env.NEXT_PUBLIC_DOMINIO_HOSTING;
+  const detrasDeHosting = /\.(web\.app|firebaseapp\.com)$/.test(host) || (!!propio && host === propio);
+  return detrasDeHosting ? `${window.location.origin}/v1` : API_DIRECTA;
+}
+
+export const PUBLIC_API_BASE = baseApiNavegador();
 
 async function getJson<T>(path: string, revalidate = 5): Promise<T | null> {
   try {
@@ -325,6 +343,86 @@ export const getReglasPerfil = (perfil: string) =>
 
 export const getResumenProcesamientos = () =>
   getJson<ResumenProcesamientos>(`/financiamiento/procesamientos/resumen`, 10);
+
+// ─── Ritmo diario: GET /financiamiento/procesamientos/ritmo?dias=N ───────────
+
+/** Días de la ventana del ritmo (barras por día) en /app/auditoria. */
+export const DIAS_RITMO = 14;
+
+/** Tope de filas de `GET /financiamiento/procesamientos` (el `max` del zod del API). */
+export const TOPE_LISTA_PROCESAMIENTOS = 300;
+
+/** Análisis terminados por día (hora de Lima), los días en cero incluidos, hasta hoy. */
+export interface RitmoProcesamientos {
+  dias: { dia: string; n: number }[];
+  total: number;
+  /** ISO del último análisis terminado (de cualquier día), o null si no hay ninguno. */
+  ultimoFin: string | null;
+  /**
+   * Sólo en el respaldo: la lista con tope cortó la ventana, así que los días más viejos
+   * pueden estar incompletos. Con el endpoint nuevo el conteo sale de SQL y nunca es parcial.
+   */
+  parcial?: boolean;
+}
+
+/** La respuesta del API, validada. `null` si no tiene la forma del contrato. */
+export function leerRitmo(j: unknown): RitmoProcesamientos | null {
+  const o = j as Partial<RitmoProcesamientos> | null;
+  if (!o || !Array.isArray(o.dias)) return null;
+  const dias = o.dias
+    .filter((d) => d && typeof d.dia === "string")
+    .map((d) => ({ dia: d.dia.slice(0, 10), n: Number(d.n) || 0 }));
+  const total = typeof o.total === "number" ? o.total : dias.reduce((s, d) => s + d.n, 0);
+  return { dias, total, ultimoFin: typeof o.ultimoFin === "string" ? o.ultimoFin : null };
+}
+
+/**
+ * COMPAT-API-VIEJA: mientras `/ritmo` no esté en prod, el ritmo se cuenta sobre la lista de
+ * procesados (los más recientes primero, con tope). Si la lista llegó al tope y su fila más
+ * vieja cae dentro de la ventana, los días del principio pueden faltar: se marca `parcial`.
+ */
+export function ritmoDesdeLista(ps: Pick<Procesamiento, "finalizadoAt">[], ahora: number, dias: number, tope = TOPE_LISTA_PROCESAMIENTOS): RitmoProcesamientos {
+  const finalizados = ps.map((p) => p.finalizadoAt).filter((f): f is string => !!f);
+  const ventana = ritmoDiario(finalizados, ahora, dias);
+  let max = -Infinity;
+  let min = Infinity;
+  for (const f of finalizados) {
+    const t = Date.parse(f);
+    if (!Number.isFinite(t)) continue;
+    if (t > max) max = t;
+    if (t < min) min = t;
+  }
+  const inicio = ventana[0]?.dia ?? null;
+  const masViejo = Number.isFinite(min) ? diaLima(min) : null;
+  const parcial = ps.length >= tope && !!inicio && !!masViejo && masViejo >= inicio;
+  return {
+    dias: ventana,
+    total: ventana.reduce((s, d) => s + d.n, 0),
+    ultimoFin: Number.isFinite(max) ? new Date(max).toISOString() : null,
+    parcial,
+  };
+}
+
+/** Ruta del ritmo, la misma para el servidor y el navegador. */
+export const rutaRitmo = (dias: number) => `/financiamiento/procesamientos/ritmo?dias=${dias}`;
+
+/**
+ * El ritmo para el render del servidor. Endpoint nuevo primero (60 s de caché, como su Memo);
+ * si responde 404 (COMPAT-API-VIEJA: la API de prod todavía no lo tiene), la lista con tope.
+ * `null` si el API no responde: la cifra no se inventa.
+ */
+export async function getRitmoProcesamientos(dias = 14): Promise<RitmoProcesamientos | null> {
+  try {
+    const res = await fetch(`${API_BASE}${rutaRitmo(dias)}`, { next: { revalidate: 60 } } as any);
+    if (res.ok) return leerRitmo(await res.json());
+    if (res.status !== 404) return null;
+  } catch {
+    return null;
+  }
+  // COMPAT-API-VIEJA: borrar este respaldo cuando `/ritmo` esté en prod.
+  const procs = await getProcesamientos({ estado: "procesado", limit: TOPE_LISTA_PROCESAMIENTOS });
+  return procs ? ritmoDesdeLista(procs, Date.now(), dias) : null;
+}
 
 // ─── Fases: reducción de la bitácora (misma lógica que backend/dispatcher/events.py) ──
 
@@ -697,52 +795,5 @@ export function severidadCls(s: SenalRiesgo["severidad"]): { dot: string; text: 
   return { dot: "bg-mute", text: "text-inkSoft", label: "Baja" };
 }
 
-/**
- * Etiquetas del catálogo de reglas (backend/api/src/data/reglas.json, versión 7929ab6: perfiles
- * + otras señales). Copia chica para superficies que no cargan el catálogo (server components,
- * tarjetas): antes se armaban del id y salía "Firmante con empresa rnp". Si una regla nueva no
- * está acá, se cae al id legible; el catálogo cargado (useReglasPerfil) siempre tiene prioridad.
- */
-const ETIQUETA_REGLA: Record<string, string> = {
-  ampliacion_denegada_penalidad: "Ampliación denegada y penalidad",
-  ciiu_vs_objeto: "Giro del proveedor vs. objeto",
-  concentracion_entidad: "Concentración en la entidad",
-  directa_sin_fundamento: "Contratación directa sin sustento",
-  fecha_buena_pro_incoherente: "Fechas de buena pro incoherentes",
-  firmante_con_empresa_rnp: "Firmante con empresa en el RNP",
-  firmante_vinculado_ganador: "Firmante vinculado al ganador",
-  fraccionamiento: "Fraccionamiento",
-  ganador_no_invitado: "Ganador no invitado",
-  inconsistencia_doc_vs_ocds: "Documento vs. registro OCDS",
-  lobby_visits_pre_convocatoria: "Visitas previas a la convocatoria",
-  oferta_igual_valor_referencial: "Oferta igual al valor referencial",
-  oferta_mas_barata_no_gana: "La oferta más barata no ganó",
-  ofertas_agrupadas: "Ofertas agrupadas",
-  plazo_convocatoria_minimo: "Plazo de convocatoria muy corto",
-  postor_unico_mayoritario: "Postor mayoritario en la entidad",
-  postores_vinculados_rnp: "Postores vinculados entre sí",
-  procedimiento_no_competitivo: "Procedimiento no competitivo",
-  proveedor_sancionado_osce: "Proveedor con sanción OSCE/OECE",
-  ruc_ganador_muy_nuevo: "RUC del ganador muy reciente",
-  ruc_ultra_nuevo: "Postor con RUC ultra reciente",
-  testaferro_multi_ruc: "Misma persona en varios RUC",
-  tipo_proceso_vs_monto: "Procedimiento vs. monto",
-  unica_oferta_valida: "Única oferta válida",
-  unico_postor_alto: "Único postor con oferta alta",
-  personal_clave_vinculado: "Personal clave vinculado",
-  adicional_acumulado: "Adicionales acumulados",
-  directa_recurrente: "Contratación directa recurrente",
-  red_flag_documental: "Requisito dirigido en las bases",
-  objeto_no_corresponde_documento: "Objeto vs. documentos",
-  sobreprecio_elevado: "Sobreprecio frente al mercado",
-  cobertura_prensa_adversa: "Cobertura de prensa adversa",
-  antecedentes_proveedor: "Antecedentes del proveedor",
-  funcionario_con_historial_politico: "Funcionario con historial político",
-  red_personas_vinculada: "Red de personas vinculada",
-};
-
-const SIGLAS = /\b(rnp|ruc|ciiu|oece|osce|ocds|sunat|onpe|jne|mef|pep)\b/gi;
-
-export const reglaLabel = (regla: string) =>
-  ETIQUETA_REGLA[regla] ??
-  regla.replace(/_/g, " ").replace(SIGLAS, (s) => s.toUpperCase()).replace(/^\w/, (c) => c.toUpperCase());
+// ─── Etiquetas de reglas sin catálogo → lib/auditoria-reglas.ts (este módulo pasaba las 800 líneas) ──
+export * from "./auditoria-reglas";

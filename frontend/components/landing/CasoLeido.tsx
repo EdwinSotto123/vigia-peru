@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Building2, ChevronRight, ExternalLink, FileText, Info, Scale, Search, type LucideIcon } from "lucide-react";
-import { gsap, SIN_REDUCIR, useGSAP } from "@/lib/gsap";
+import { SIN_REDUCIR, useEscenaGsap } from "@/lib/gsap";
 import type { CasoPortada, OtraSenal } from "@/lib/landing";
 import { severidadDeBandera } from "@/lib/severidad";
 import { numero, plural } from "@/lib/formato";
@@ -66,40 +66,40 @@ export function CasoLeido({
 }) {
   const raiz = useRef<HTMLElement>(null);
 
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add(SIN_REDUCIR, () => {
-        const capas = gsap.utils.toArray<HTMLElement>(".capa");
-        const pasos = gsap.utils.toArray<HTMLElement>(".paso-marca");
-        // Atenuadas, nunca ocultas: un hueco en blanco se lee como "no cargó".
-        gsap.set(capas.slice(1), { opacity: 0.25, filter: "blur(3px)" });
-        gsap.set(pasos.slice(1), { opacity: 0.45 });
+  // Revelado liviano: GSAP llega después de `load`, en un momento ocioso, y nunca con
+  // movimiento reducido. Hasta entonces los pasos se ven completos.
+  useEscenaGsap(
+    raiz,
+    SIN_REDUCIR,
+    ({ gsap }) => {
+      const capas = gsap.utils.toArray<HTMLElement>(".capa");
+      const pasos = gsap.utils.toArray<HTMLElement>(".paso-marca");
+      // Atenuadas, nunca ocultas: un hueco en blanco se lee como "no cargó".
+      gsap.set(capas.slice(1), { opacity: 0.25, filter: "blur(3px)" });
+      gsap.set(pasos.slice(1), { opacity: 0.45 });
 
-        const tl = gsap.timeline({
-          defaults: { ease: "power2.out" },
-          scrollTrigger: { trigger: ".pasos-caso", start: "top 72%", once: true },
-        });
-        tl.fromTo(".pasos-linea-h", { scaleX: 0 }, { scaleX: 1, duration: 2.1, ease: "none" }, 0).fromTo(
-          ".pasos-linea-v",
-          { scaleY: 0 },
-          { scaleY: 1, duration: 2.1, ease: "none" },
-          0,
-        );
-        // El paso i se enfoca cuando la línea llega a él. Al terminar se limpia el filtro:
-        // el panel de "Ver lo que encontró" vive dentro de una de estas capas.
-        capas.slice(1).forEach((capa, i) => {
-          const en = 0.7 * (i + 1);
-          tl.to(pasos[i + 1], { opacity: 1, duration: 0.3 }, en).to(
-            capa,
-            { opacity: 1, filter: "blur(0px)", duration: 0.45, clearProps: "filter,opacity" },
-            en,
-          );
-        });
+      const tl = gsap.timeline({
+        defaults: { ease: "power2.out" },
+        scrollTrigger: { trigger: ".pasos-caso", start: "top 72%", once: true },
       });
-      return () => mm.revert();
+      tl.fromTo(".pasos-linea-h", { scaleX: 0 }, { scaleX: 1, duration: 2.1, ease: "none" }, 0).fromTo(
+        ".pasos-linea-v",
+        { scaleY: 0 },
+        { scaleY: 1, duration: 2.1, ease: "none" },
+        0,
+      );
+      // El paso i se enfoca cuando la línea llega a él. Al terminar se limpia el filtro:
+      // el panel de "Ver lo que encontró" vive dentro de una de estas capas.
+      capas.slice(1).forEach((capa, i) => {
+        const en = 0.7 * (i + 1);
+        tl.to(pasos[i + 1], { opacity: 1, duration: 0.3 }, en).to(
+          capa,
+          { opacity: 1, filter: "blur(0px)", duration: 0.45, clearProps: "filter,opacity" },
+          en,
+        );
+      });
     },
-    { scope: raiz },
+    { diferido: true },
   );
 
   const sev = severidadDeBandera(caso.severidad);

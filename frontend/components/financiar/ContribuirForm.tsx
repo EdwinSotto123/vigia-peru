@@ -352,7 +352,7 @@ export function ContribuirForm({ ubigeo, zonaNombre, precioPen, restantes, metod
       <span>
         <strong className="text-ink">Crea una cuenta para seguir tu aporte.</strong> Sin ella, tu código{" "}
         <span className="font-mono">{creada.codigo}</span> basta para ver el comprobante.{" "}
-        <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
+        <Link href={`/signup?next=${encodeURIComponent(`/app/mi-impacto?aporte=${creada.codigo}`)}`} prefetch={false} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
       </span>
     </div>
   );

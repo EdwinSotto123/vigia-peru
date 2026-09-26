@@ -74,7 +74,11 @@ export function BarraFiltros({
   orden,
   className,
 }: {
-  busqueda?: { param: string; placeholder: string; etiqueta: string };
+  /**
+   * `min`: largo mínimo del texto antes de buscar (1–2 caracteres no piden nada al servidor;
+   * vaciar el campo sí, para quitar la búsqueda). Sin `min`, busca con cualquier largo.
+   */
+  busqueda?: { param: string; placeholder: string; etiqueta: string; min?: number };
   faceta?: {
     param: string;
     etiqueta: string;
@@ -261,42 +265,52 @@ function Conteo({ n }: { n: number }) {
   return <span className="text-[12px] font-semibold tabular-nums opacity-80">{numero(n)}</span>;
 }
 
-/** Búsqueda que filtra al dejar de escribir (350 ms) o con Enter; se sincroniza si la URL cambia desde otro lado. */
+/**
+ * Búsqueda que filtra al dejar de escribir (350 ms) o con Enter; se sincroniza si la URL cambia
+ * desde otro lado. Con `min`, un texto más corto no busca: lo dice dentro del campo.
+ */
 function Buscador({
   placeholder,
   etiqueta,
   valor,
+  min = 0,
   onBuscar,
 }: {
   param: string;
   placeholder: string;
   etiqueta: string;
   valor: string;
+  min?: number;
   onBuscar: (v: string) => void;
 }) {
   const [texto, setTexto] = useState(valor);
   const ultimo = useRef(valor);
+  // Vacío sí se aplica (quita la búsqueda); 1 a `min - 1` caracteres, no.
+  const corto = (t: string) => t.length > 0 && t.length < min;
+  const faltan = corto(texto.trim());
   useEffect(() => {
     setTexto(valor);
     ultimo.current = valor;
   }, [valor]);
   useEffect(() => {
     const t = texto.trim();
-    if (t === ultimo.current) return;
+    if (t === ultimo.current || (t.length > 0 && t.length < min)) return;
     const id = window.setTimeout(() => {
       ultimo.current = t;
       onBuscar(t);
     }, 350);
     return () => window.clearTimeout(id);
-  }, [texto, onBuscar]);
+  }, [texto, onBuscar, min]);
   return (
     <form
       role="search"
       className="relative w-full sm:w-auto sm:min-w-[18rem] sm:flex-1 lg:max-w-md"
       onSubmit={(e) => {
         e.preventDefault();
-        ultimo.current = texto.trim();
-        onBuscar(texto.trim());
+        const t = texto.trim();
+        if (corto(t)) return;
+        ultimo.current = t;
+        onBuscar(t);
       }}
     >
       <label className="sr-only" htmlFor="buscar-listado">
@@ -310,8 +324,17 @@ function Buscador({
         onChange={(e) => setTexto(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
+        aria-describedby={faltan ? "buscar-listado-minimo" : undefined}
         className={cn(CAMPO, "pl-9")}
       />
+      {/* Dentro del campo, a la derecha (el texto corto nunca llega hasta acá): sin mover la barra. */}
+      <span
+        id="buscar-listado-minimo"
+        aria-live="polite"
+        className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 text-[12px] text-mute"
+      >
+        {faltan ? `Mínimo ${min} caracteres` : ""}
+      </span>
     </form>
   );
 }

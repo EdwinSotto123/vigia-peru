@@ -1,5 +1,9 @@
 /**
  * Helpers de auth con user-id (no email).
+ *
+ * Importa Firebase (lib/firebase.ts): sólo lo importan de forma estática las páginas que
+ * lo usan de verdad (entrar, crear cuenta, configuración, panel). Un componente del layout
+ * que lo necesite lo pide con `import()` (ver UserMenu).
  */
 
 import {
@@ -21,12 +25,8 @@ export function userIdToEmail(userId: string): string {
   return `${userId.trim().toLowerCase()}@${SYNTHETIC_DOMAIN}`;
 }
 
-export function emailToUserId(email: string | null | undefined): string | null {
-  if (!email) return null;
-  const idx = email.indexOf("@");
-  if (idx < 0) return email;
-  return email.slice(0, idx);
-}
+/** Sin Firebase de por medio: vive en lib/sesion.ts para que `AuthProvider` no lo arrastre. */
+export { emailToUserId } from "./sesion";
 
 /**
  * A dónde volver después de entrar o crear la cuenta. `next` viene de la URL, así

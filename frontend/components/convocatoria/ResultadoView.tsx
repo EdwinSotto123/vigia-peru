@@ -13,7 +13,7 @@ import { Pestanas, irAPestana } from "@/components/patrones/Pestanas";
 import { Indicadores } from "@/components/listado";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import type { ApiResult } from "./types";
-import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, separarBanderas } from "./dossier";
+import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas } from "./dossier";
 import { IdentidadDossier, indicadoresDossier } from "./sections/IdentidadDossier";
 import { ResumenHumano } from "./sections/ResumenHumano";
 import { SeccionSegura } from "./sections/SeccionSegura";
@@ -46,7 +46,20 @@ const PARAM_TAB = "tab";
  * compartir un enlace que todavía no es público). Por eso la vista previa NUNCA cae en el aviso
  * "En revisión": el equipo tiene que ver el informe entero para decidir.
  */
-export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResult; vistaPrevia?: boolean }) {
+export function ResultadoView({
+  result,
+  vistaPrevia = false,
+  tabInicial,
+}: {
+  result: ApiResult;
+  vistaPrevia?: boolean;
+  /**
+   * La pestaña de `?tab=`, leída en el servidor (la página pública llega armada del servidor:
+   * leer la URL en el navegador desfasaría la hidratación). `null` = la primera. Sin la prop
+   * (panel admin, que pinta sólo en el cliente), se lee de la URL al montar.
+   */
+  tabInicial?: string | null;
+}) {
   const conv = result.convocatoria || {};
   const compl = result.compliance || {};
   const dict = result.dictamen?.dictamen_markdown || "";
@@ -57,10 +70,14 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
   const enRevision = !vistaPrevia && dossierEnRevision(result);
 
   // ─── Pestaña inicial: la de `?tab=` (se lee una vez; después la lleva `Pestanas`) ───
-  // Este informe se pinta sólo en el cliente (la página espera los datos; el panel admin lo
-  // carga con ssr:false), así que leer la URL al montar no desfasa la hidratación.
-  const [tabInicial] = useState<string | undefined>(() =>
-    typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get(PARAM_TAB) ?? undefined,
+  // La página pública la pasa desde el servidor. Sólo el panel admin (ssr:false, nunca pasa por
+  // el servidor) cae en leer la URL al montar, que ahí no desfasa ninguna hidratación.
+  const [tabElegida] = useState<string | undefined>(() =>
+    tabInicial !== undefined
+      ? tabInicial ?? undefined
+      : typeof window === "undefined"
+        ? undefined
+        : new URLSearchParams(window.location.search).get(PARAM_TAB) ?? undefined,
   );
 
   // Los botones del veredicto y de la barra lateral cambian de pestaña con `irAPestana` (kit):
@@ -113,7 +130,8 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
   );
   const nDocs = (result.documentos || []).length;
   const nNoticias = (result.news_research?.noticias || []).length;
-  const nEvents = (result.agent_trace || []).length;
+  // El informe público llega sin la traza: su largo sale del resumen que armó el servidor.
+  const nEvents = useMemo(() => resumenDeTraza(result).eventos, [result]);
 
   const _pn = result.person_network || {};
   const _red = _pn.red_empresarial || {};
@@ -128,6 +146,10 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
   // Diccionario de personas PRIVADAS conocidas para censurar su apellido también en la
   // PROSA (síntesis, dictamen, evidencia). Se arma en ./nombresPrivados.ts, que también
   // usa el panel de revisión para registrarla antes de que este componente cargue.
+  // Ahora el informe también se dibuja en el SERVIDOR, donde ese registro es global del proceso:
+  // se fija aquí y la cabecera, el veredicto y la pestaña Señales redactan en el mismo render,
+  // sin nada que suspenda en el medio. Las demás pestañas no pasan por el servidor y cada una
+  // vuelve a registrarlo antes de redactar (PanelesDossier).
   const nombresPrivados = useMemo(() => nombresPrivadosDe(result), [result]);
   setRedactNames(nombresPrivados);
   const nombresSunat = useMemo(
@@ -225,7 +247,7 @@ export function ResultadoView({ result, vistaPrevia = false }: { result: ApiResu
               etiqueta="Secciones del informe"
               fija
               param={PARAM_TAB}
-              activa={tabInicial}
+              activa={tabElegida}
               pestanas={TABS.map((t) => ({
                 clave: t.key,
                 etiqueta: t.label,

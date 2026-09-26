@@ -10,6 +10,9 @@
  * `navegacion="url"`: la página vive en `?pagina=` — el link funciona sin JS.
  * `navegacion="interna"`: estado propio del cliente — `onChange(n)` dispara el fetch.
  *
+ * Los enlaces van con `prefetch={false}`: prebajar la página siguiente de cada lista visible
+ * era una consulta al API por paginador en cada vista, casi nunca usada.
+ *
  * Dos formas de decirle a este componente cómo armar el link de cada página:
  *  - `href(n)`: una función ya armada por el llamador — solo válida si el llamador es OTRO
  *    client component (p.ej. ContratosLista). Un server component NO puede pasar una función
@@ -69,13 +72,13 @@ export function Paginacion({ actual, paginas, total, tam, navegacion, href, onCh
       </span>
       <span className="inline-flex items-center gap-1.5">
         {navegacion === "url" ? (
-          <Link href={resolvedHref(prev)} aria-disabled={pagina <= 1} className={btn} aria-label="Página anterior" scroll={false}><ChevronLeft size={13} aria-hidden /></Link>
+          <Link href={resolvedHref(prev)} prefetch={false} aria-disabled={pagina <= 1} className={btn} aria-label="Página anterior" scroll={false}><ChevronLeft size={13} aria-hidden /></Link>
         ) : (
           <button type="button" disabled={pagina <= 1} onClick={() => resolvedOnChange(prev)} className={btn} aria-label="Página anterior"><ChevronLeft size={13} /></button>
         )}
         <span className="font-mono tabular-nums text-ink">{pagina}<span className="text-mute"> / {ultima}</span></span>
         {navegacion === "url" ? (
-          <Link href={resolvedHref(next)} aria-disabled={pagina >= ultima} className={btn} aria-label="Página siguiente" scroll={false}><ChevronRight size={13} aria-hidden /></Link>
+          <Link href={resolvedHref(next)} prefetch={false} aria-disabled={pagina >= ultima} className={btn} aria-label="Página siguiente" scroll={false}><ChevronRight size={13} aria-hidden /></Link>
         ) : (
           <button type="button" disabled={pagina >= ultima} onClick={() => resolvedOnChange(next)} className={btn} aria-label="Página siguiente"><ChevronRight size={13} /></button>
         )}

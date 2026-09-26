@@ -248,7 +248,13 @@ export default async function ImpactoPage({
                         ? "Se asignan al validar el pago; desde ahí los verás avanzar en vivo."
                         : "Toca uno para ver su lectura paso por paso."}
                     </p>
-                    <TableroAuditoria codigo={c.codigo} autoRefreshMs={5000} limit={300} initial={semilla} />
+                    <TableroAuditoria
+                      codigo={c.codigo}
+                      autoRefreshMs={5000}
+                      limit={300}
+                      initial={semilla}
+                      pedirAlMontar={!enVivo?.length}
+                    />
                   </>
                 ),
               },

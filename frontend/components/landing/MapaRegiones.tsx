@@ -1,5 +1,6 @@
-import { geoMercator, geoPath } from "d3-geo";
-import deptos from "@/public/peru-departments.json";
+// Proyección ya hecha (scripts/generar-mapa-portada.mjs): de acá sólo se leen códigos,
+// nombres y centroides; los recorridos los baja el navegador por su lado.
+import geometria from "@/public/assets/mapa/portada-departamentos.v1.json";
 import { construirEscala, RAMPA, SIN_DATO } from "@/components/mapa/escala";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { ContratoZona } from "@/lib/contratos";
@@ -9,19 +10,21 @@ import { MapaRegionesEscena, type RegionMapa } from "./MapaRegionesEscena";
 /**
  * El mapa de la portada: del país entero a la región de quien mira.
  *
- * Todo lo pesado se hace ACÁ, en el servidor: la proyección, los recorridos de
- * los 25 departamentos y los colores de cada paso. La escena del cliente recibe
- * strings y números y nada más, así que `d3-geo` no viaja al navegador y el mapa
- * se pinta con el primer HTML, sin esperar a ningún fetch.
+ * La proyección de los 25 departamentos se hizo UNA vez, al generar
+ * `public/assets/mapa/portada-departamentos.v1.json`. Acá, en el servidor, se
+ * arman los colores y las cifras de cada paso; la escena del cliente recibe
+ * strings y números, sin recorridos: antes viajaban dos veces en cada visita (en
+ * el HTML y en el payload RSC). El navegador baja la geometría aparte, cuando
+ * está ocioso, y la guarda un año. `d3-geo` no viaja al navegador.
  *
  * Es el ÚNICO mapa de la portada, a propósito: el usuario ya pidió no repetir
  * mapas. Cuenta tres cosas y deja una pregunta, y el mapa interactivo de verdad
  * sigue siendo `/app/mapa`.
  */
 
-/** Tamaño del lienzo. Retrato, porque el Perú lo es. */
-const ANCHO = 520;
-const ALTO = 720;
+/** Tamaño del lienzo (el del JSON generado). Retrato, porque el Perú lo es. */
+const ANCHO = geometria.ancho;
+const ALTO = geometria.alto;
 
 /**
  * El segundo paso pinta dos estados: con contratos leídos, o todavía ninguno.
@@ -33,33 +36,20 @@ const ALTO = 720;
 const COLOR_LEIDO = RAMPA[3];
 const COLOR_SIN_LEER = SIN_DATO;
 
-type Feature = { properties: { code: string; name: string } };
-
 export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
   const porCodigo = new Map(zonas.map((z) => [z.ubigeo, z]));
-  const coleccion = deptos as unknown as { features: Feature[] };
-  const proyeccion = geoMercator().fitExtent(
-    [
-      [8, 8],
-      [ANCHO - 8, ALTO - 8],
-    ],
-    coleccion as never,
-  );
-  const trazo = geoPath(proyeccion).digits(1);
   const escala = construirEscala(zonas.map((z) => z.montoPen ?? 0));
 
-  const regiones: RegionMapa[] = coleccion.features
-    .map((f) => {
-      const z = porCodigo.get(f.properties.code);
-      const [cx, cy] = trazo.centroid(f as never);
+  const regiones: RegionMapa[] = geometria.zonas
+    .map((g) => {
+      const z = porCodigo.get(g.codigo);
       return {
-        codigo: f.properties.code,
-        id: UBIGEO_REGION[f.properties.code] ?? "",
+        codigo: g.codigo,
+        id: UBIGEO_REGION[g.codigo] ?? "",
         // El nombre de la API trae las tildes ("Junín"); el del geojson no.
-        nombre: z?.nombre ?? f.properties.name,
-        d: trazo(f as never) ?? "",
-        cx: Math.round(cx),
-        cy: Math.round(cy),
+        nombre: z?.nombre ?? g.nombre,
+        cx: g.cx,
+        cy: g.cy,
         contratos: z?.total ?? 0,
         monto: solesCompacto(z ? z.montoPen ?? 0 : 0),
         leidos: z?.procesados ?? 0,

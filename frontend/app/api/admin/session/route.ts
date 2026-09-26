@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE_ADMIN, correosAdmin, leerSesionDetalle } from "@/lib/admin-sesion";
+import { COOKIE_ADMIN, cookieAdmin, correosAdmin, leerSesionDetalle } from "@/lib/admin-sesion";
 
 /**
  * A diferencia de /api/admin/[...path] (que proxea a la API y devuelve 401 si no hay cookie —
@@ -14,7 +14,7 @@ import { COOKIE_ADMIN, correosAdmin, leerSesionDetalle } from "@/lib/admin-sesio
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const lectura = await leerSesionDetalle(req.cookies.get(COOKIE_ADMIN)?.value);
+  const lectura = await leerSesionDetalle(cookieAdmin(req));
   // Perfil sin confirmar (API lenta): 503 para que el panel reintente en vez de creer que ya no es del equipo.
   if (lectura.estado === "sin_verificar") {
     return NextResponse.json({ error: "perfil_sin_verificar" }, { status: 503, headers: { "cache-control": "no-store" } });

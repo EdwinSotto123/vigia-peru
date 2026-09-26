@@ -33,11 +33,26 @@ export interface EstadoCorrida {
   faltan: string[];
 }
 
-export function estadoCorrida(result: ApiResult): EstadoCorrida {
-  const trace = (result.agent_trace || []) as any[];
+/**
+ * Lo que la cabecera, el veredicto y las pestañas necesitan saber de la traza, sin la traza:
+ * cuántos eventos tiene, qué agentes del catálogo dejaron rastro y qué herramientas se
+ * llamaron. La traza completa (~68 % del dossier) ya no viaja con el informe: se pide recién
+ * al abrir "Cómo se hizo" (`/alertas/:id/traza`). El servidor la resume al armar el informe
+ * (lib/dossier-servidor.ts) para que "qué corrió" se lea igual que antes.
+ */
+export interface ResumenTraza {
+  eventos: number;
+  /** Claves del catálogo (`compliance`, `market`…) de los agentes que dejaron rastro. */
+  agentes: string[];
+  /** Nombres de las herramientas llamadas (`persist_alert_from_flags`…), sin repetir. */
+  herramientas: string[];
+}
+
+export function resumirTraza(trace: unknown): ResumenTraza {
+  const eventos = Array.isArray(trace) ? (trace as any[]) : [];
   const claves = new Set<string>();
   const tools = new Set<string>();
-  for (const ev of trace) {
+  for (const ev of eventos) {
     const candidatos: unknown[] = [ev?.agent];
     // El orquestador viejo invocaba a los agentes como herramientas: el nombre
     // del tool_call ES el agente ("compliance_agent").
@@ -55,12 +70,49 @@ export function estadoCorrida(result: ApiResult): EstadoCorrida {
       if (k && pasoDeClave(k)?.tipo === "agente") claves.add(k);
     }
   }
+  return { eventos: eventos.length, agentes: Array.from(claves), herramientas: Array.from(tools) };
+}
+
+/**
+ * Un `traza_resumen` que llegó por la red: sólo se acepta con su forma exacta. Los agentes
+ * pueden venir como clave del catálogo o con su nombre en la traza ("compliance_agent"): se
+ * pasan por el catálogo, y lo que no es un agente del catálogo se descarta.
+ */
+export function resumenTrazaValido(x: unknown): ResumenTraza | null {
+  const r = x as Partial<ResumenTraza> | null | undefined;
+  if (!r || typeof r !== "object" || typeof r.eventos !== "number" || !Array.isArray(r.agentes) || !Array.isArray(r.herramientas)) return null;
+  const agentes = new Set<string>();
+  for (const a of r.agentes) {
+    const k = typeof a === "string" ? claveDePaso(a) : null;
+    if (k && pasoDeClave(k)?.tipo === "agente") agentes.add(k);
+  }
+  return {
+    eventos: r.eventos,
+    agentes: Array.from(agentes),
+    herramientas: r.herramientas.filter((h): h is string => typeof h === "string"),
+  };
+}
+
+/**
+ * La traza del informe, venga entera (panel admin, API vieja) o resumida (informe público):
+ * con la traza a mano se resume ahí mismo; sin ella, se usa el resumen que armó el servidor.
+ */
+export function resumenDeTraza(result: ApiResult): ResumenTraza {
+  const trace = result.agent_trace;
+  if (Array.isArray(trace) && trace.length > 0) return resumirTraza(trace);
+  return resumenTrazaValido(result.traza_resumen) ?? { eventos: 0, agentes: [], herramientas: [] };
+}
+
+export function estadoCorrida(result: ApiResult): EstadoCorrida {
+  const resumen = resumenDeTraza(result);
+  const claves = new Set(resumen.agentes);
+  const tools = new Set(resumen.herramientas);
   const dictamen = (result.dictamen?.dictamen_markdown || "").trim();
   const nBanderas = (result.compliance?.banderas || []).length;
   const corrioCumplimiento = claves.has("compliance");
   const corrioDictamen = dictamen.length > 100 || claves.has("report_writer");
   const guardoSenales = nBanderas > 0 || tools.has("persist_alert_from_flags");
-  const hayTraza = trace.length > 0;
+  const hayTraza = resumen.eventos > 0;
 
   const faltan: string[] = [];
   if (!corrioCumplimiento) faltan.push(hayTraza ? "la evaluación de las reglas de contratación" : "el registro de qué agentes corrieron");

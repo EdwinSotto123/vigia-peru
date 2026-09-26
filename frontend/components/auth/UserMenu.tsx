@@ -5,6 +5,11 @@
  *   · con sesión: Mi impacto · Configuración · Salir
  *   · sin sesión: "Entrar" (y crear cuenta)
  * Se usa en la cabecera pública y en el pie del sidebar del dashboard (`variant="sidebar"`).
+ *
+ * Firebase no se importa acá de forma estática (la cabecera está en todas las páginas):
+ * "Salir" lo pide con `import()`, y a esa altura ya está cargado porque hay sesión. Los
+ * enlaces a /login van sin prefetch: prefetchear la ruta bajaba el JS de Firebase en la
+ * portada para cualquier visitante (auditoría A14).
  */
 
 import Link from "next/link";
@@ -12,7 +17,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { LogIn, LogOut, User as UserIcon, ChevronDown, Heart, Settings } from "lucide-react";
 import { useAuth } from "./AuthProvider";
-import { signOut } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
@@ -47,13 +51,14 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
 
   if (!user) {
     return variant === "sidebar" ? (
-      <Link href={`/login${next}`} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
+      <Link href={`/login${next}`} prefetch={false} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-2 text-[13px] font-medium text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
         <LogIn size={14} aria-hidden /> Entrar
       </Link>
     ) : (
       // En el celular sólo el ícono: con el texto, la cabecera no entraba en 360 px.
       <Link
         href={`/login${next}`}
+        prefetch={false}
         aria-label="Entrar"
         className={cn(
           "inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:px-3.5",
@@ -66,6 +71,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
   }
 
   const salir = async () => {
+    const { signOut } = await import("@/lib/auth");
     await signOut();
     setOpen(false);
     if (pathname.startsWith("/app/mi-impacto") || pathname.startsWith("/app/configuracion")) router.push("/app/mapa");

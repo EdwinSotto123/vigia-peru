@@ -65,10 +65,15 @@ class ErrorSubida extends Error {
 
 export const codigoDeError = (e: unknown) => (e instanceof ErrorSubida ? e.codigo : "error_al_guardar");
 
-/** Sube un archivo a /api/upload con progreso real (XHR). Rechaza con un código de `MENSAJE_SUBIDA`. */
+/**
+ * Sube un archivo a /api/upload con progreso real (XHR). Rechaza con un código de `MENSAJE_SUBIDA`.
+ * `modo: "entidad"`: evidencia de una denuncia a una entidad, que va al bucket privado (nunca
+ * se publica); la URL que vuelve es sólo una referencia para la API.
+ */
 export function subirArchivo(
   file: File,
   onProgress?: (pct: number) => void,
+  opciones: { modo?: "obra" | "entidad" } = {},
 ): Promise<{ url: string; tipo: MediaSubido["tipo"]; filename?: string; size_bytes?: number; content_type?: string }> {
   return new Promise((resolve, reject) => {
     const invalido = validarArchivo(file);
@@ -78,6 +83,7 @@ export function subirArchivo(
     }
     const fd = new FormData();
     fd.append("file", file);
+    if (opciones.modo) fd.append("modo", opciones.modo);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.upload.onprogress = (e) => {
