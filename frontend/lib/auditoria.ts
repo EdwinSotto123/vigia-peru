@@ -14,7 +14,7 @@
  * backend/dispatcher/events.py.
  */
 
-import { API_BASE } from "./api-client";
+import { API_BASE, baseApiNavegador } from "./api-client";
 import { diaLima, ritmoDiario } from "./auditoria-fechas";
 
 /** `revision` no existe en `procesamientos.estado`: es procesado + alerta bloqueada por la autoevaluación. */
@@ -269,25 +269,7 @@ export const ESTADO_PROC: Record<EstadoProc, { label: string; cls: string }> = {
 export const estadoVisible = (p: Pick<Procesamiento, "estado" | "alertaEstado">): EstadoProc =>
   p.estado === "procesado" && p.alertaEstado === "revision" ? "revision" : p.estado;
 
-/** URL del API utilizable desde client components (NEXT_PUBLIC_* se inyecta en build). */
-const API_DIRECTA = process.env.NEXT_PUBLIC_VIGIA_API_URL ?? "https://vigia-peru-api-36169102688.us-central1.run.app";
-
-/**
- * Base de la API para pedidos DESDE EL NAVEGADOR. Detrás de Firebase Hosting (*.web.app,
- * *.firebaseapp.com o el dominio propio en NEXT_PUBLIC_DOMINIO_HOSTING) se usa el mismo dominio con
- * `/v1`: Hosting lo reenvía a la API y su CDN cachea lo que la API marca `public, s-maxage`. En
- * cualquier otro origen (run.app, localhost) se va directo a la API. Solo se usa dentro de efectos y
- * handlers (nunca en el render), así que el valor distinto en servidor y navegador no descuadra la
- * hidratación.
- */
-function baseApiNavegador(): string {
-  if (typeof window === "undefined") return API_DIRECTA;
-  const host = window.location.hostname;
-  const propio = process.env.NEXT_PUBLIC_DOMINIO_HOSTING;
-  const detrasDeHosting = /\.(web\.app|firebaseapp\.com)$/.test(host) || (!!propio && host === propio);
-  return detrasDeHosting ? `${window.location.origin}/v1` : API_DIRECTA;
-}
-
+/** URL del API para client components: `/v1` del mismo dominio detrás de Firebase Hosting (ver `baseApiNavegador`). */
 export const PUBLIC_API_BASE = baseApiNavegador();
 
 async function getJson<T>(path: string, revalidate = 5): Promise<T | null> {

@@ -16,13 +16,29 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_VIGIA_API_URL ??
   "https://vigia-peru-api-36169102688.us-central1.run.app";
 
+/**
+ * Base de la API para pedidos DESDE EL NAVEGADOR. Detrás de Firebase Hosting (*.web.app,
+ * *.firebaseapp.com o el dominio propio en NEXT_PUBLIC_DOMINIO_HOSTING) se usa el mismo dominio con
+ * `/v1`: Hosting lo reenvía a la API y su CDN cachea lo que la API marca `public, s-maxage`. En
+ * cualquier otro origen (run.app, localhost) y en el servidor se va directo a la API. Solo se usa
+ * dentro de efectos y handlers (nunca en el render), así que el valor distinto en servidor y
+ * navegador no descuadra la hidratación.
+ */
+export function baseApiNavegador(): string {
+  if (typeof window === "undefined") return API_BASE;
+  const host = window.location.hostname;
+  const propio = process.env.NEXT_PUBLIC_DOMINIO_HOSTING;
+  const detrasDeHosting = /\.(web\.app|firebaseapp\.com)$/.test(host) || (!!propio && host === propio);
+  return detrasDeHosting ? `${window.location.origin}/v1` : API_BASE;
+}
+
 const DEFAULT_INIT: RequestInit = {
   // En server components: cachea 60s por URL+query. Ajustable si se necesita real-time.
   next: { revalidate: 60 } as any,
 };
 
 async function get<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { ...DEFAULT_INIT, ...init });
+  const res = await fetch(`${baseApiNavegador()}${path}`, { ...DEFAULT_INIT, ...init });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new ApiError(res.status, path, txt.slice(0, 200));
