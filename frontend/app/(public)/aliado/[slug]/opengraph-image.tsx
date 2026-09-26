@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { puestoDe } from "@/components/aliados/ranking";
 import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoImagen";
@@ -24,6 +25,8 @@ export const contentType = "image/png";
 const PAPER_75 = "rgba(255,255,255,0.75)";
 
 export default async function Image({ params }: { params: { slug: string } }) {
+  const fija = await imagenFijaEnWindows();
+  if (fija) return fija;
   let perfil: Awaited<ReturnType<typeof getPerfilAliado>> = null;
   let puesto: Awaited<ReturnType<typeof puestoDe>> = null;
   try {

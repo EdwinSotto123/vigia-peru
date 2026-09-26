@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { isotipoSvg } from "@/components/sitio/isotipoImagen";
 
 /**
@@ -15,14 +16,16 @@ import { isotipoSvg } from "@/components/sitio/isotipoImagen";
  * de `next/og` arma la ruta de su fuente con `path.join(import.meta.url, …)` y en
  * Windows eso da una URL inválida ("Invalid URL … noto-sans-v27-latin-regular.ttf"),
  * así que un build hecho en Windows no podría prerenderizarlo. En Linux (Cloud
- * Run, Workers) se dibuja bien; con `next dev` en Windows el ícono no sale.
+ * Run, Workers) se dibuja bien; con `next dev` en Windows se sirve el logo fijo (lib/imagen-fija-windows.ts).
  */
 
 export const dynamic = "force-dynamic";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
-export default function Icon() {
+export default async function Icon() {
+  const fija = await imagenFijaEnWindows();
+  if (fija) return fija;
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { getComprobante } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
 import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoImagen";
@@ -22,6 +23,8 @@ const PAPER_75 = "rgba(255,255,255,0.75)";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export default async function Image({ params }: { params: { codigo: string } }) {
+  const fija = await imagenFijaEnWindows();
+  if (fija) return fija;
   const codigo = params.codigo.toUpperCase();
   let c: Awaited<ReturnType<typeof getComprobante>> = null;
   try {

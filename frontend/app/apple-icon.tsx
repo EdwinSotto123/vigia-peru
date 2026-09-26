@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { COLOR, isotipoSvg } from "@/components/sitio/isotipoImagen";
 
 /**
@@ -15,7 +16,9 @@ export const dynamic = "force-dynamic";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-export default function AppleIcon() {
+export default async function AppleIcon() {
+  const fija = await imagenFijaEnWindows();
+  if (fija) return fija;
   return new ImageResponse(
     (
       <div
