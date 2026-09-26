@@ -1,0 +1,37 @@
+-- Vigía Perú · Migración 31 — Observabilidad de la base ───────────────────────────────────────────
+--
+-- Qué hace: crea la extensión pg_stat_statements en la base `vigia`.
+--
+-- Por qué (auditoría técnica 2026-09-25, hallazgos A4 / DB-5): la librería ya está en
+-- shared_preload_libraries de Cloud SQL, pero la EXTENSIÓN no existe en `vigia`, así que no hay
+-- historial de consultas: no se puede saber qué sentencia provoca los ~530 k seq scans de
+-- `convocatorias` ni medir el antes/después de las migraciones 32–35. Primero medir, después
+-- optimizar.
+--
+-- Flags que NO se ponen por SQL (Cloud SQL no deja ALTER SYSTEM): se aplican con gcloud, en una
+-- sola llamada porque `--database-flags` REEMPLAZA la lista completa (hoy está vacía):
+--
+--     gcloud sql instances patch vigia-db \
+--       --database-flags=log_min_duration_statement=500,track_io_timing=on \
+--       --insights-config-query-insights-enabled \
+--       --insights-config-record-application-tags \
+--       --insights-config-record-client-address
+--
+--   · log_min_duration_statement=500 → toda sentencia de más de 500 ms queda en Cloud Logging.
+--   · track_io_timing=on             → EXPLAIN (BUFFERS) y pg_stat_statements separan tiempo de
+--                                      lectura de disco del de CPU. Costo despreciable en Linux.
+--   · Query Insights                 → planes y latencias por consulta en la consola.
+--   Ninguno de los tres pide reinicio de la instancia.
+--
+-- Línea base: después de aplicar la 28 y esta, y ANTES de la 32, conviene poner los contadores
+-- en cero para comparar (a mano, no desde la migración, para que re-correrla no borre historia):
+--     SELECT pg_stat_statements_reset();  SELECT pg_stat_reset();
+--
+-- Cómo verificar:
+--     SELECT extname, extversion FROM pg_extension WHERE extname = 'pg_stat_statements';
+--     SELECT calls, round(total_exec_time) AS ms, left(query, 80)
+--       FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20;
+--
+-- Idempotente (IF NOT EXISTS). Sin bloqueos sobre tablas de datos.
+
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
