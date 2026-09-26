@@ -1,0 +1,18 @@
+{
+  // Réplica de los buckets de GCS en R2 mientras conviven las dos nubes: GCS sigue siendo la fuente
+  // (ahí escriben los agentes y el batch); este Worker copia lo que falta y verifica por MD5.
+  "name": "vigia-r2-sync",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  // Junto a GCS (us-central1): cada lectura de GCS queda cerca.
+  "placement": { "region": "gcp:us-central1" },
+  "triggers": { "crons": ["17 * * * *"] },
+  "r2_buckets": [
+    { "binding": "B_DOCUMENTOS", "bucket_name": "vigia-peru-documentos" },
+    { "binding": "B_PRIVADO", "bucket_name": "vigia-peru-privado" },
+    { "binding": "B_REPORTES", "bucket_name": "vigia-peru-reportes" },
+    { "binding": "B_RAG", "bucket_name": "vigia-peru-rag" }
+  ]
+  // Secretos: GCP_SA_KEY (cuenta vigia-r2-sync, solo lectura en los 4 buckets) y SYNC_TOKEN.
+}
