@@ -1,0 +1,27 @@
+// Réplica de la API en Cloudflare Workers (la de Cloud Run sigue igual). Ver CLOUDFLARE.md.
+{
+  "name": "vigia-api",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+
+  // Postgres detrás de Hyperdrive (reparte en modo transacción, como PgBouncer). Crear ambos con
+  // el caché de consultas apagado (CLOUDFLARE.md). Local: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>.
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "PENDIENTE_HYPERDRIVE_API" },
+    { "binding": "HYPERDRIVE_ADMIN", "id": "PENDIENTE_HYPERDRIVE_ADMIN" }
+  ],
+
+  // Las mismas de infrastructure/deploy/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
+  // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY.
+  "vars": {
+    "FIREBASE_PROJECT_ID": "simplia-project",
+    "GCS_PROJECT_ID": "vivid-spot-480905-a4",
+    "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
+    "GCS_BUCKET_REPORTES": "vigia-peru-reportes",
+    "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app",
+    "LOCAL_DOWNLOADER_URL": "http://149.104.66.211:8080"
+  }
+}

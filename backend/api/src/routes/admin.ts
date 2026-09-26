@@ -32,7 +32,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 // Pool propio del panel (lib/db.ts): 120 s por sentencia y sus propias credenciales si existen.
 import { OCID_CANDIDATOS, esErrorPg, poolAdmin as pool } from "../lib/db.js";
-import { storage, ubicarComprobante } from "../lib/storage.js";
+import { descargarObjeto, metadatosObjeto, ubicarComprobante } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
@@ -185,14 +185,13 @@ adminRouter.get("/contribuciones/:codigo/comprobante", async (c) => {
   if (!url) return c.json({ error: "sin_comprobante" }, 404);
   const donde = ubicarComprobante(url);
   if (!donde) return c.json({ error: "comprobante_fuera_de_bucket", detail: "El comprobante no está en un bucket de Vigía: no se abre." }, 404);
-  const file = storage.bucket(donde.bucket).file(donde.ruta);
-  const [meta] = await file.getMetadata();
+  const meta = await metadatosObjeto(donde.bucket, donde.ruta);
   const tipo = String(meta.contentType ?? "").split(";")[0].trim().toLowerCase();
   const ext = TIPOS_COMPROBANTE[tipo];
   if (!ext) return c.json({ error: "tipo_no_permitido", detail: "Sólo se muestran comprobantes en imagen (JPG, PNG, WEBP) o PDF." }, 415);
   if (Number(meta.size ?? 0) > MAX_COMPROBANTE) return c.json({ error: "comprobante_demasiado_grande" }, 413);
-  const [buf] = await file.download();
-  return new Response(new Uint8Array(buf), {
+  const buf = await descargarObjeto(donde.bucket, donde.ruta);
+  return new Response(buf, {
     headers: {
       "Content-Type": tipo,
       "X-Content-Type-Options": "nosniff",

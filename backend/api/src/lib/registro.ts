@@ -69,7 +69,8 @@ export const registroPedidos: MiddlewareHandler = async (c, next) => {
       status,
       latency: `${(ms / 1000).toFixed(3)}s`,
       userAgent: c.req.header("user-agent") ?? undefined,
-      remoteIp: c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || undefined,
+      // Cloudflare pone la IP del cliente en CF-Connecting-IP (Cloud Run, en X-Forwarded-For).
+      remoteIp: c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("cf-connecting-ip") || undefined,
       responseSize: c.res.headers.get("content-length") ?? undefined,
     },
     ...correlacion(c),

@@ -35,6 +35,9 @@
  *   · si la base no pudo guardar la generación (o no se puede leer), las demás se ponen al día sólo
  *     por TTL: como mucho `ttlMs + staleMs` de cada caché (2 min en las más largas).
  * Encima de eso sigue el `Cache-Control` público de cada ruta (navegador o CDN), que esto no acorta.
+ *
+ * En Workers cada isolate tiene su caché (sólo valores y cuerpos ya serializados, nunca sockets ni
+ * clientes): la consulta corre con el pool del pedido que la lanzó y los demás esperan su resultado.
  */
 
 import { createHash } from "node:crypto";
@@ -42,6 +45,8 @@ import type { Context } from "hono";
 // Leer la generación: pool público. Subirla (escritura en ajustes) sólo lo hace el panel: poolAdmin
 // (con roles por componente, el rol público no escribe ajustes; migración 37).
 import { pool, poolAdmin } from "./db.js";
+// Workers: el refresco en segundo plano sigue después de responder (ctx.waitUntil; en Node no hace nada).
+import { enSegundoPlano } from "./plataforma.js";
 
 interface Entrada<T> { valor: T; at: number }
 interface Vuelo<T> { p: Promise<T>; t0: number }
@@ -71,7 +76,7 @@ export class Memo<T> {
       const edad = Date.now() - e.at;
       if (edad < this.opts.ttlMs) return e.valor;
       if (edad < this.opts.ttlMs + (this.opts.staleMs ?? 0)) {
-        this.calcular(clave, fn).catch((err) => console.warn(`[cache:${this.opts.nombre}] refresco en segundo plano falló: ${(err as Error).message}`));
+        enSegundoPlano(this.calcular(clave, fn).catch((err) => console.warn(`[cache:${this.opts.nombre}] refresco en segundo plano falló: ${(err as Error).message}`)));
         return e.valor;
       }
     }

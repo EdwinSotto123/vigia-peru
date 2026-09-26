@@ -4,22 +4,14 @@
  * El frontend manda en cada request:
  *   Authorization: Bearer <id-token>
  *
- * Acá lo validamos contra Firebase Admin SDK. Si pasa, exponemos `c.var.user`
- * con `{ uid, userId }` (userId es el displayName del que armaste en lib/auth.ts
- * del frontend).
+ * Acá lo validamos (lib/plataforma.ts): en Node con Firebase Admin SDK (node/plataforma.ts); en
+ * Workers con jose contra las llaves públicas de securetoken y los mismos chequeos que el SDK
+ * (workers/firebase.ts). Si pasa, exponemos `c.var.user` con `{ uid, userId }` (userId es el
+ * displayName del que armaste en lib/auth.ts del frontend).
  */
 
-import type { Context, MiddlewareHandler } from "hono";
-import { initializeApp, applicationDefault, cert, getApps } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-
-if (!getApps().length) {
-  const credsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  initializeApp({
-    credential: credsJson ? cert(JSON.parse(credsJson)) : applicationDefault(),
-    projectId: process.env.FIREBASE_PROJECT_ID ?? "simplia-project",
-  });
-}
+import type { MiddlewareHandler } from "hono";
+import { plataforma } from "./plataforma.js";
 
 export interface AuthedUser {
   uid: string;
@@ -40,7 +32,7 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
   if (!m) return c.json({ error: "missing_token" }, 401);
 
   try {
-    const decoded = await getAuth().verifyIdToken(m[1]);
+    const decoded = await plataforma().verificarIdToken(m[1]);
     c.set("user", {
       uid: decoded.uid,
       userId: (decoded as any).name ?? null,
@@ -59,7 +51,7 @@ export const optionalAuth: MiddlewareHandler = async (c, next) => {
   const m = auth.match(/^Bearer (.+)$/i);
   if (m) {
     try {
-      const decoded = await getAuth().verifyIdToken(m[1]);
+      const decoded = await plataforma().verificarIdToken(m[1]);
       c.set("user", {
         uid: decoded.uid,
         userId: (decoded as any).name ?? null,
