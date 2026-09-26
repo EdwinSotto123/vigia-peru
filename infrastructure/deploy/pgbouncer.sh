@@ -64,6 +64,8 @@ umask 077
   printf '"vigia_api" "%s"\n' "\$(leer cloudsql-password-api)"
   printf '"vigia_api_admin" "%s"\n' "\$(leer cloudsql-password-api-admin)"
   printf '"vigia_mcp" "%s"\n' "\$(leer cloudsql-password-mcp)"
+  # vigia_dispatcher: solo para el dispatcher replicado en Cloudflare (el de Cloud Run va por socket).
+  if d="\$(leer cloudsql-password-dispatcher 2>/dev/null)"; then printf '"vigia_dispatcher" "%s"\n' "\$d"; fi
 } > /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt
 # Certificado propio para TLS de clientes (Hyperdrive lo exige; Cloud Run sigue sin TLS).
@@ -77,7 +79,7 @@ cat > /etc/pgbouncer/pgbouncer.ini <<'INI'
 [databases]
 vigia = host=127.0.0.1 port=5432 dbname=vigia
 [pgbouncer]
-; vigia-db es db-f1-micro (max_connections=40): 3 roles × (4 + 2 de reserva) = 18 conexiones como máximo.
+; vigia-db es db-f1-micro (max_connections=40): 4 roles × (4 + 2 de reserva) = 24 conexiones como máximo.
 listen_addr = 0.0.0.0
 listen_port = 6432
 auth_type = scram-sha-256
@@ -136,7 +138,7 @@ crear() {
     gcloud iam service-accounts create vigia-pgbouncer --project "$PROJECT_ID" --display-name "Vigía: PgBouncer" --quiet
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role roles/cloudsql.client --condition=None --quiet >/dev/null
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role roles/logging.logWriter --condition=None --quiet >/dev/null
-  for s in cloudsql-password-api cloudsql-password-api-admin cloudsql-password-mcp cloudflare-tunnel-token; do
+  for s in cloudsql-password-api cloudsql-password-api-admin cloudsql-password-mcp cloudsql-password-dispatcher cloudflare-tunnel-token; do
     gcloud secrets add-iam-policy-binding "$s" --project "$PROJECT_ID" --member "serviceAccount:$SA" \
       --role roles/secretmanager.secretAccessor --quiet >/dev/null
   done

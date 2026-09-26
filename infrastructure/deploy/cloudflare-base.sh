@@ -6,7 +6,7 @@
 #
 #   bash infrastructure/deploy/cloudflare-base.sh tunel        # crea el túnel y guarda su token en Secret Manager
 #   bash infrastructure/deploy/pgbouncer.sh actualizar          # instala/arranca cloudflared en la VM
-#   bash infrastructure/deploy/cloudflare-base.sh hyperdrive   # servicio VPC + 3 Hyperdrive (api, api-admin, mcp)
+#   bash infrastructure/deploy/cloudflare-base.sh hyperdrive   # servicio VPC + 4 Hyperdrive (api, api-admin, mcp, dispatcher)
 #   bash infrastructure/deploy/cloudflare-base.sh estado       # túnel, servicio VPC e Hyperdrive
 #
 # Requiere `npx wrangler login` con la cuenta de Cloudflare de Vigía. Los ids de Hyperdrive no son secretos
@@ -68,6 +68,7 @@ hyperdrive() {
   crear vigia-api vigia_api cloudsql-password-api
   crear vigia-api-admin vigia_api_admin cloudsql-password-api-admin
   crear vigia-mcp vigia_mcp cloudsql-password-mcp
+  crear vigia-dispatcher vigia_dispatcher cloudsql-password-dispatcher
 }
 
 estado() {
