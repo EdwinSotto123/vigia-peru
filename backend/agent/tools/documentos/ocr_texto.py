@@ -2,6 +2,7 @@
 caché de unidades en memoria y caché de texto en BD (documentos_texto)."""
 
 from tools._core import *  # noqa: F401,F403
+from tools.costo_llm import etiquetas
 from collections import OrderedDict as _OrderedDict
 from ._base import _sha256_hex, PARSE_CALL_TIMEOUT_MS, PARSE_UNIT_WORKERS, VERSION_PARSER
 from .pdf_utils import _analyze_pdf_layout, _render_pdf_pages_to_png
@@ -57,7 +58,8 @@ def _ocr_paginas_gemini(rendered: list[tuple[int, bytes]]) -> list[str]:
                                        max_output_tokens=65535, temperature=0.0,
                                        http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
                                        # Transcribir literal no necesita razonamiento.
-                                       thinking_config=thinking_crudo("ocr", DEFAULT_GEMINI_MODEL, "minimal"))
+                                       thinking_config=thinking_crudo("ocr", DEFAULT_GEMINI_MODEL, "minimal"),
+                                       labels=etiquetas("ocr"))
     with _throttle_gemini():
         resp = _gemini_call_with_retry(lambda: client.models.generate_content(
             model=DEFAULT_GEMINI_MODEL, contents=parts, config=cfg))

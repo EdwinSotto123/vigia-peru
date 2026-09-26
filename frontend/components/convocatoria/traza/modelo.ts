@@ -275,6 +275,17 @@ function nodoVacio(e: Estructura): NodoTraza {
   };
 }
 
+/** Nodo de cada etapa de llamadas directas al modelo (etiqueta `vigia_etapa` del backend). */
+const ETAPA_DIRECTA: Record<string, string> = {
+  extractor: "document_parser",
+  extractor_legado: "document_parser",
+  ocr: "document_parser",
+  saneo: "document_parser",
+  mercado: "market",
+  mercado_estimacion: "market",
+  juez: "self_eval",
+};
+
 /** Clave del nodo de un agente de la traza ("market_price_agent" → "market"); null si es el coordinador u otro. */
 function claveDeAgente(nombre: unknown): string | null {
   if (typeof nombre !== "string" || !nombre) return null;
@@ -424,6 +435,27 @@ export function construirRecorrido(result: ApiResult): Recorrido {
     }
     previo = actual;
   });
+
+  // 4 bis. Desde 2026-09-26 el backend guarda el consumo exacto de TODAS las llamadas por etapa
+  // (`llm_metrics.por_etapa`), incluidas las directas que no dejan eventos `metrics`: extractor,
+  // mercado y jueces. Si está, reemplaza la diferencia entre eventos.
+  const porEtapa = result.llm_metrics?.por_etapa;
+  if (Array.isArray(porEtapa) && porEtapa.length > 0) {
+    nodos.forEach((n) => (n.consumo = null));
+    porEtapa.forEach((e) => {
+      const k = ETAPA_DIRECTA[e.etapa] ?? claveDeAgente(e.etapa);
+      if (!k || !porClave[k]) return;
+      const n = porClave[k];
+      const c = n.consumo ?? { llamadas: 0, tokens: 0, entrada: 0, salida: 0, costo: 0 };
+      const salida = num(e.salida) + num(e.razonamiento);
+      c.llamadas += num(e.llamadas);
+      c.entrada += num(e.entrada);
+      c.salida += salida;
+      c.tokens += num(e.entrada) + salida;
+      c.costo += num(e.costo_usd);
+      n.consumo = c;
+    });
+  }
 
   // 5. Avisos, errores, pasos omitidos y razonamientos.
   trace.forEach((ev, i) => {

@@ -69,39 +69,13 @@ def _tool(fn, fname: str, state: dict, agent: str = "pipeline", **kwargs) -> tup
     return evs, res
 
 
-# Tarifas Gemini en Vertex (USD/1M tokens; lista pública consultada 2026-09-15 —
-# [verificar] contra cloud.google.com/vertex-ai/generative-ai/pricing antes de facturar:
-# 3.6-flash está en tarifa introductoria 0.75/3.75 hasta 2026-12-31, lista 1.50/7.50).
-# El pipeline MEZCLA tiers; cobrar todo a una tarifa única distorsiona el costo que va al
-# span de Arize → el costo se acumula POR LLAMADA con la tarifa del modelo del sub-agente.
-# Los tokens de THINKING (`thoughts_token_count`) se cobran como salida (así los factura Vertex).
-_MODEL_RATES = {
-    "gemini-3.6-flash":      (0.75, 3.75),
-    "gemini-3.8-flash":      (0.75, 3.75),   # mismo precio que 3.6 (Gemini API, 2026-09-24)
-    "gemini-3.5-flash-lite": (0.30, 2.50),
-    "gemini-3.5-flash":      (1.50, 9.00),
-    "gemini-3-flash":        (0.50, 3.00),
-    "gemini-2.5-pro":        (1.25, 10.00),
-    "gemini-2.5-flash-lite": (0.10, 0.40),
-    "gemini-2.5-flash":      (0.30, 2.50),
-}
-_DEFAULT_RATE = _MODEL_RATES["gemini-3.6-flash"]
-
-
-def _rate_for_model(model) -> tuple[float, float]:
-    """(in_rate, out_rate) USD/1M según el id del modelo (prefijo más largo que matchee;
-    'lite' antes que su base). Robusto a None o a un objeto Model (se castea a str)."""
-    m = str(model or "").lower()
-    if "/" in m:
-        m = m.rsplit("/", 1)[-1]
-    for key in sorted(_MODEL_RATES, key=len, reverse=True):
-        if m.startswith(key):
-            return _MODEL_RATES[key]
-    if "pro" in m:
-        return _MODEL_RATES["gemini-2.5-pro"]
-    if "lite" in m:
-        return _MODEL_RATES["gemini-3.5-flash-lite"]
-    return _DEFAULT_RATE
+# Tarifas y costo por llamada: tools/costo_llm.py (una sola tabla para agentes y llamadas
+# directas; descuenta caché implícito y Flex). Se re-exportan con los nombres de siempre.
+from tools.costo_llm import TARIFA_DEFAULT as _DEFAULT_RATE  # noqa: E402,F401
+from tools.costo_llm import TARIFAS as _MODEL_RATES  # noqa: E402,F401
+from tools.costo_llm import costo as _costo_llamada  # noqa: E402
+from tools.costo_llm import es_flex as _es_flex  # noqa: E402
+from tools.costo_llm import tarifa as _rate_for_model  # noqa: E402,F401
 
 
 def _usage_tokens(um) -> tuple[int, int, int, int]:
@@ -111,11 +85,6 @@ def _usage_tokens(um) -> tuple[int, int, int, int]:
     tt = int(getattr(um, "thoughts_token_count", 0) or 0)
     total = int(getattr(um, "total_token_count", 0) or (pt + ct + tt))
     return pt, ct, tt, total
-
-
-def _factor_trafico(um) -> float:
-    """Flex PayGo cobra la mitad: la respuesta trae traffic_type ON_DEMAND_FLEX."""
-    return 0.5 if "FLEX" in str(getattr(um, "traffic_type", "") or "").upper() else 1.0
 
 
 def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple[list[dict], list[dict], str | None]:
@@ -165,19 +134,17 @@ def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple
     if um is not None:
         pt, ct, tt, total = _usage_tokens(um)
         if pt or ct or tt:
-            in_r, out_r = _rate_for_model(model)
             metrics["prompt"] += pt
+            metrics["cached"] = int(metrics.get("cached") or 0) + int(getattr(um, "cached_content_token_count", 0) or 0)
             metrics["output"] += ct + tt
             metrics["thoughts"] = int(metrics.get("thoughts") or 0) + tt
             metrics["total"] += total
             metrics["calls"] += 1
-            # Costo = SUMA POR LLAMADA con la tarifa del modelo (no recálculo desde
-            # totales con una tarifa única). Los tokens de thinking se cobran como salida.
-            fx = _factor_trafico(um)
-            if fx < 1:
+            # Costo = SUMA POR LLAMADA con la tarifa del modelo, caché al 10 % y Flex a la mitad
+            # (tools/costo_llm.py). Los tokens de thinking se cobran como salida.
+            if _es_flex(um):
                 metrics["flex_calls"] = int(metrics.get("flex_calls") or 0) + 1
-            metrics["cost"] = round(float(metrics.get("cost") or 0.0)
-                                    + (pt / 1e6 * in_r + (ct + tt) / 1e6 * out_r) * fx, 6)
+            metrics["cost"] = round(float(metrics.get("cost") or 0.0) + _costo_llamada(model, um), 6)
             metric_events.append({"kind": "metrics", "agent": agent_name,
                                   "tokens_total": metrics["total"], "tokens_prompt": metrics["prompt"],
                                   "tokens_output": metrics["output"], "n_llm_calls": metrics["calls"],
@@ -232,7 +199,7 @@ async def _run_agent(agent, msg_text: str, state: dict, session_service, user_id
 
 def _merge_metrics(dst: dict, src: dict) -> None:
     """Suma las métricas de un sub-run aislado al acumulador global (in-place)."""
-    for k in ("prompt", "output", "total", "calls", "thoughts", "flex_calls"):
+    for k in ("prompt", "output", "total", "calls", "thoughts", "flex_calls", "cached"):
         dst[k] = (dst.get(k) or 0) + (src.get(k) or 0)
     dst["cost"] = round(float(dst.get("cost") or 0.0) + float(src.get("cost") or 0.0), 6)
 

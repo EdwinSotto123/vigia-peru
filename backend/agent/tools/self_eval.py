@@ -20,6 +20,7 @@ from tools._core import (  # noqa: F401
     _gemini_client, _gemini_call_with_retry, _throttle_gemini, DEFAULT_GEMINI_MODEL,
     thinking_crudo,
 )
+from tools.costo_llm import etiquetas
 
 # Los jueces LLM (respaldo, precio, tono, coherencia) son llamadas independientes a Gemini:
 # corren a la vez en un pool de hilos (EVAL_CONCURRENCY, default 4) en vez de en serie.
@@ -48,6 +49,7 @@ def _cfg_juez(schema):
         temperature=0.0, response_mime_type="application/json", response_schema=schema,
         http_options=gt.HttpOptions(timeout=60000),
         thinking_config=thinking_crudo("juez", _judge_model(), "minimal"),
+        labels=etiquetas("juez"),
     )
 
 

@@ -2,6 +2,7 @@
 de los ítems crudos del parseo — el LLM solo decide (fundir/descartar), nunca genera."""
 
 from tools._core import *  # noqa: F401,F403
+from tools.costo_llm import etiquetas
 
 
 # ── Capa 2 (LLM único de sanitización) ─────────────────────────────────────
@@ -102,6 +103,7 @@ def sanitize_items_with_llm(raw_items, objeto: str = "", tool_context=None) -> l
             system_instruction=sys_inst,
             # Decidir índices a fundir/descartar es mecánico: sin razonamiento.
             thinking_config=thinking_crudo("sanitize", model, "minimal"),
+            labels=etiquetas("saneo"),
         )
         client = _gemini_client()
         with _throttle_gemini():

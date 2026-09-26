@@ -42,8 +42,8 @@ from google.genai import types as gtypes
 
 import agents as _agents
 from agents import vigia_orchestrator
-from deterministic import _kwargs_soportados, _rate_for_model, _usage_tokens
-from pipeline_runtime import _factor_trafico
+from deterministic import _kwargs_soportados, _usage_tokens
+from tools import costo_llm as _costo_llm
 from tools import flex as _flex_mod
 
 
@@ -51,12 +51,10 @@ APP_NAME = "vigia-peru"
 PROFILE = get_profile()
 
 
-def _rate_for_agent_name(name: str) -> tuple[float, float]:
-    """Tarifa (in, out) USD/1M del MODELO real del agente `name` (camino LLM / safety-net
-    writer). Reusa la tabla de deterministic._rate_for_model (3.x/2.5 + thinking)."""
+def _modelo_de_agente(name: str):
+    """Modelo real del agente `name` (camino LLM / safety-net writer), para cobrarlo a su tarifa."""
     ag = getattr(_agents, name, None) if name else None
-    model = getattr(ag, "model", None) if ag is not None else None
-    return _rate_for_model(model)
+    return getattr(ag, "model", None) if ag is not None else None
 
 
 def _build_runner() -> Runner:
@@ -100,6 +98,7 @@ async def _run_streaming(
     user_id = "demo"
     session_id = str(uuid.uuid4())
     _flex_mod.iniciar_corrida()   # corte por tiempo de Flex (tools/flex.py) cuenta desde aquí
+    _costo_llm.iniciar()          # costo de TODAS las llamadas del análisis (tools/costo_llm.py)
 
     initial_state: dict[str, Any] = {}
     if ocds:
@@ -197,7 +196,7 @@ async def _run_streaming(
     # Acumulador de tokens/costo (de usage_metadata de cada respuesta del LLM) —
     # se emite como eventos `metrics` al stream para mostrar en vivo que Arize
     # está midiendo. Tarifas Gemini 2.5 Flash en Vertex (USD/1M tokens, estimado).
-    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0, "thoughts": 0, "flex_calls": 0}
+    _metrics = {"prompt": 0, "output": 0, "total": 0, "calls": 0, "cost": 0.0, "thoughts": 0, "flex_calls": 0, "cached": 0}
 
     # ── Pipeline DETERMINISTA: la secuencia de agentes/tools la corre el código
     #    (deterministic.run_deterministic) → todos los agentes corren SIEMPRE, no
@@ -299,18 +298,17 @@ async def _run_streaming(
         if um is not None:
             pt, ct, tt, _total = _usage_tokens(um)
             if pt or ct or tt:
-                _in_r, _out_r = _rate_for_agent_name(agent_name)
                 _metrics["prompt"] += pt
+                _metrics["cached"] = int(_metrics.get("cached") or 0) + int(getattr(um, "cached_content_token_count", 0) or 0)
                 _metrics["output"] += ct + tt       # thinking se cobra como salida
                 _metrics["thoughts"] = int(_metrics.get("thoughts") or 0) + tt
                 _metrics["total"] += _total
                 _metrics["calls"] += 1
-                # Suma POR LLAMADA con la tarifa del modelo real (no recálculo desde totales).
-                _fx = _factor_trafico(um)
-                if _fx < 1:
+                # Suma POR LLAMADA con la tarifa del modelo real, caché al 10 % y Flex a la mitad.
+                if _costo_llm.es_flex(um):
                     _metrics["flex_calls"] = int(_metrics.get("flex_calls") or 0) + 1
                 _metrics["cost"] = round(float(_metrics.get("cost") or 0.0)
-                                         + (pt / 1e6 * _in_r + (ct + tt) / 1e6 * _out_r) * _fx, 6)
+                                         + _costo_llm.costo(_modelo_de_agente(agent_name), um), 6)
                 yield {
                     "kind": "metrics", "agent": agent_name,
                     "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
@@ -620,13 +618,7 @@ async def _run_streaming(
             # para que /history (cargas cacheadas) muestre el dashboard completo.
             _extra = {
                 "agent_trace": events_trace,
-                "llm_metrics": {
-                    "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
-                    "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
-                    "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
-                    "n_llm_calls_flex": _metrics.get("flex_calls", 0),
-                    "flex": _flex_mod.resumen_corrida(),
-                },
+                "llm_metrics": _costo_llm.metricas_finales(_metrics, {"flex": _flex_mod.resumen_corrida()}),
                 "perfil": PROFILE.nombre,
                 "recortes": raw_state.get("recortes") or [],
                 "descartes": raw_state.get("descartes") or [],
@@ -670,16 +662,10 @@ async def _run_streaming(
         state["self_evals"] = _evals
     # Persistir métricas LLM finales para que el resultado (no solo el vivo) las muestre.
     state["perfil_nombre"] = PROFILE.nombre
-    state["llm_metrics"] = {
-        "tokens_total": _metrics["total"], "tokens_prompt": _metrics["prompt"],
-        "tokens_output": _metrics["output"], "tokens_thoughts": _metrics.get("thoughts", 0),
-        "n_llm_calls": _metrics["calls"], "cost_usd": _metrics["cost"],
-        "n_llm_calls_flex": _metrics.get("flex_calls", 0),
-        "flex": _flex_mod.resumen_corrida(),
-        # trace_id de Phoenix para que el frontend ofrezca el deep-link a la traza
-        # completa (orquestación ADK + cada call a Gemini, vía OpenInference).
-        "phoenix_trace_id": _phoenix_trace_hex or None,
-    }
+    # Totales de TODAS las llamadas (agentes + directas) con caché y Flex; `agentes` = lo de los
+    # eventos ADK. phoenix_trace_id: deep-link del frontend a la traza completa.
+    state["llm_metrics"] = _costo_llm.metricas_finales(
+        _metrics, {"flex": _flex_mod.resumen_corrida(), "phoenix_trace_id": _phoenix_trace_hex or None})
 
     final_payload = {
         "kind": "final",

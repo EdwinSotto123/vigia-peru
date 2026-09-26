@@ -2,6 +2,7 @@
 reintento por rango de páginas cuando el JSON llega truncado."""
 
 from tools._core import *  # noqa: F401,F403
+from tools.costo_llm import etiquetas
 from ._base import PARSE_CALL_TIMEOUT_MS, PARSE_MAX_CHARS_POR_LLAMADA, PARSE_UNIT_WORKERS
 from .schema import _parser_schema, secciones_para_documento, _schema_solo, descartes_de_este_hilo
 
@@ -145,6 +146,7 @@ def _llamar_extractor(texto: str, label: str, bloque: str | None, ocds_ctx: dict
         max_output_tokens=65535,
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),
         system_instruction=_SYSTEM_LOTE,
+        labels=etiquetas("extractor"),
     )
     # Sin thinking_config el modelo pensaba en MEDIUM: 0,97 M tokens de razonamiento en
     # septiembre, cobrados como salida y comiéndose el tope de 65 k (más cortes por MAX_TOKENS).

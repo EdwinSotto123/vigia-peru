@@ -2,6 +2,7 @@
 sobre un PDF (o PDF sintético de páginas de texto) con layout híbrido texto+Vision."""
 
 from tools._core import *  # noqa: F401,F403
+from tools.costo_llm import etiquetas
 from ._base import PARSE_CALL_TIMEOUT_MS
 from .pdf_utils import _analyze_pdf_layout, _render_pdf_pages_to_png
 from .schema import _parser_schema
@@ -87,6 +88,7 @@ def _parse_single_pdf_with_gemini(blob: bytes, source_label: str) -> dict:
         response_mime_type="application/json",
         response_schema=schema, max_output_tokens=65535,
         http_options=gtypes.HttpOptions(timeout=PARSE_CALL_TIMEOUT_MS),  # techo por-llamada
+        labels=etiquetas("extractor_legado"),
         system_instruction=(
             "Sos un extractor experto en documentos del Sistema Electrónico de "
             "Contrataciones del Estado (SEACE) del Perú y del Organismo Especializado "

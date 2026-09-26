@@ -154,6 +154,14 @@ def _flex():
         return None
 
 
+def _contabilizar(flex_estado, model, config, resp):
+    """Suma la respuesta al costo del análisis (tools/costo_llm.py). Nunca levanta."""
+    c = flex_estado.get("costo")
+    if c is not None:
+        c.registrar(model, config, resp)
+    return resp
+
+
 def _con_flex_o_escape(flex_estado, model, config, llamar):
     """Una llamada: por Flex si toca y, si Flex falla por capacidad/tiempo, la MISMA llamada en
     Standard al instante. `llamar(cfg)` hace la request; `flex_estado["on"]` pasa a False tras el
@@ -163,7 +171,7 @@ def _con_flex_o_escape(flex_estado, model, config, llamar):
         try:
             resp = llamar(_config_para(model, f.con_flex(config)))
             f.registrar_uso()
-            return resp
+            return _contabilizar(flex_estado, model, config, resp)
         except Exception as e:
             if not f.es_falla_flex(e):
                 raise
@@ -171,7 +179,7 @@ def _con_flex_o_escape(flex_estado, model, config, llamar):
             abierto = f.registrar_falla()
             _mp_log(kind="flex_escape", model=model, tipo=type(e).__name__, error=str(e)[:200],
                     cortacircuito=abierto)
-    return llamar(_config_para(model, config))
+    return _contabilizar(flex_estado, model, config, llamar(_config_para(model, config)))
 
 
 async def _con_flex_o_escape_async(flex_estado, model, config, llamar):
@@ -181,7 +189,7 @@ async def _con_flex_o_escape_async(flex_estado, model, config, llamar):
         try:
             resp = await llamar(_config_para(model, f.con_flex(config)))
             f.registrar_uso()
-            return resp
+            return _contabilizar(flex_estado, model, config, resp)
         except Exception as e:
             if not f.es_falla_flex(e):
                 raise
@@ -189,12 +197,16 @@ async def _con_flex_o_escape_async(flex_estado, model, config, llamar):
             abierto = f.registrar_falla()
             _mp_log(kind="flex_escape", model=model, tipo=type(e).__name__, error=str(e)[:200],
                     cortacircuito=abierto)
-    return await llamar(_config_para(model, config))
+    return _contabilizar(flex_estado, model, config, await llamar(_config_para(model, config)))
 
 
 def _estado_flex(config=None):
     f = _flex()
-    return {"mod": f, "on": bool(f and f.usar_flex_ahora(f.agente_de(config)))}
+    try:
+        from tools import costo_llm as _c  # type: ignore
+    except Exception:
+        _c = None
+    return {"mod": f, "on": bool(f and f.usar_flex_ahora(f.agente_de(config))), "costo": _c}
 
 
 def _apply_gemini_fallback_patch():

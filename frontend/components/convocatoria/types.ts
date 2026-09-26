@@ -46,6 +46,13 @@ export interface ApiResult {
     n_llm_calls?: number;
     cost_usd?: number;
     phoenix_trace_id?: string | null;
+    /** Desde 2026-09-26: tokens de entrada que salieron de caché (cobrados al 10 %). */
+    tokens_cached?: number;
+    /**
+     * Desde 2026-09-26: TODAS las llamadas al modelo por etapa (agentes y llamadas directas como
+     * extractor, mercado y jueces). `etapa` es el nombre del agente ADK o la etapa directa.
+     */
+    por_etapa?: { etapa: string; llamadas: number; entrada: number; cache: number; salida: number; razonamiento: number; costo_usd: number }[];
   };
   self_evals?: any;
   timing?: Record<string, number>;

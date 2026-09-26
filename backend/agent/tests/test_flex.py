@@ -8,7 +8,7 @@ import pytest
 from google.genai import types
 
 from agents._shared import model_fallback as MF
-from pipeline_runtime import _factor_trafico
+from tools import costo_llm as CL
 from tools import flex as F
 
 
@@ -127,9 +127,10 @@ def test_patch_real_manda_flex_y_escapa(monkeypatch):
 
 
 def test_costo_flex_a_mitad():
-    assert _factor_trafico(SimpleNamespace(traffic_type="ON_DEMAND_FLEX")) == 0.5
-    assert _factor_trafico(SimpleNamespace(traffic_type="ON_DEMAND")) == 1.0
-    assert _factor_trafico(SimpleNamespace()) == 1.0
+    um = dict(prompt_token_count=1_000_000, candidates_token_count=0)
+    assert CL.costo("gemini-3.6-flash", SimpleNamespace(**um, traffic_type="ON_DEMAND_FLEX")) == 0.375
+    assert CL.costo("gemini-3.6-flash", SimpleNamespace(**um, traffic_type="ON_DEMAND")) == 0.75
+    assert CL.costo("gemini-3.6-flash", SimpleNamespace(**um)) == 0.75
 
 
 def test_agente_excluido_va_por_standard(monkeypatch):

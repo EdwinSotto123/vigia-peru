@@ -1,6 +1,7 @@
 """Tools del dominio: market."""
 
 from tools._core import *  # noqa: F401,F403
+from tools.costo_llm import etiquetas
 from .ancla_regional import _ancla_regional_item, _consultar_referencias_internas
 from .config import (MARKET_CHUNK_SIZE, MARKET_CHUNK_SIZE_ESTIMACION, MARKET_COBERTURA_LOTE,
     MARKET_DELTA_IMPLAUSIBLE, MARKET_ESTIMACION_DESDE, MARKET_MAX_WORKERS, MARKET_MIN_PRECIOS,
@@ -152,6 +153,7 @@ def _worker_goods_retail(items_chunk: list, objeto: str, idx: int, contexto: str
         # Buscar y transcribir precios: sin thinking_config el worker pensaba en MEDIUM y la
         # salida la dominaba el razonamiento.
         thinking_config=thinking_crudo("market", MARKET_WORKER_MODEL, "low"),
+        labels=etiquetas("mercado"),
     )
 
     # Sin _throttle_gemini(): el semáforo global (2) serializaría los workers. La
@@ -286,7 +288,8 @@ def _worker_estimacion_llm(items_chunk: list, objeto: str, idx: int, contexto: s
     client = _gemini_client()
     cfg = types.GenerateContentConfig(
         temperature=0.3, max_output_tokens=4096,
-        thinking_config=thinking_crudo("market_estimacion", MARKET_WORKER_MODEL, "minimal"))
+        thinking_config=thinking_crudo("market_estimacion", MARKET_WORKER_MODEL, "minimal"),
+        labels=etiquetas("mercado_estimacion"))
 
     def _call():
         return client.models.generate_content(model=MARKET_WORKER_MODEL, contents=prompt, config=cfg)

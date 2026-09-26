@@ -26,6 +26,7 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
   const llamadas = nro(m?.n_llm_calls);
   const tokens = nro(m?.tokens_total);
   const razonamiento = nro(m?.tokens_thoughts);
+  const enCache = nro(m?.tokens_cached);
   const segundos = nro(result.timing?.total_s);
 
   // Las llamadas del juez de calidad van aparte: se afirma sólo si el último evento de métricas
@@ -33,7 +34,8 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
   const trace = (result.agent_trace || []) as any[];
   const ultimaMetrica = [...trace].reverse().find((e) => e?.kind === "metrics");
   const juez = nro((result.self_evals as any)?.n_judge_calls);
-  const juezAparte = juez != null && juez > 0 && ultimaMetrica && nro(ultimaMetrica.n_llm_calls) === llamadas;
+  // Desde que el backend guarda `por_etapa`, el total ya incluye al juez.
+  const juezAparte = !m?.por_etapa && juez != null && juez > 0 && ultimaMetrica && nro(ultimaMetrica.n_llm_calls) === llamadas;
 
   if (!m || (costo == null && llamadas == null && tokens == null)) {
     return (
@@ -50,8 +52,8 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
       contexto: "un aporte ciudadano es S/ 3",
       ayuda: (
         <Ayuda titulo="¿Qué incluye esta cifra?">
-          Es el costo de los tokens del modelo en esta lectura, sumando las llamadas de todos los agentes. No incluye la
-          infraestructura ni las descargas del expediente. El aporte de S/ 3 paga la lectura completa de un contrato, no sólo el
+          Es el costo de los tokens del modelo en esta lectura: todas las llamadas, incluidas la lectura de documentos, los
+          precios de mercado y el control de calidad. No incluye la infraestructura ni las descargas del expediente. El aporte de S/ 3 paga la lectura completa de un contrato, no sólo el
           cómputo.
         </Ayuda>
       ),
@@ -71,6 +73,11 @@ export function CostoCorrida({ recorrido, result }: { recorrido: Recorrido; resu
           {razonamiento != null && razonamiento > 0 && (
             <span className="mt-1.5 block">
               De los tokens de salida, {numero(razonamiento)} fueron del razonamiento interno del modelo antes de responder.
+            </span>
+          )}
+          {enCache != null && enCache > 0 && (
+            <span className="mt-1.5 block">
+              De los tokens de entrada, {numero(enCache)} el modelo ya los tenía de una llamada anterior y se cobran al 10 %.
             </span>
           )}
         </Ayuda>
