@@ -51,8 +51,10 @@ crear() {
 #!/bin/bash
 set -euo pipefail
 apt-get update -y && apt-get install -y pgbouncer curl
-curl -sSLo /usr/local/bin/cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
-chmod +x /usr/local/bin/cloud-sql-proxy
+# A un temporal y con mv: al re-correr el script el binario está en uso ("text file busy").
+curl -sSLo /usr/local/bin/cloud-sql-proxy.nuevo https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
+chmod +x /usr/local/bin/cloud-sql-proxy.nuevo
+mv -f /usr/local/bin/cloud-sql-proxy.nuevo /usr/local/bin/cloud-sql-proxy
 cat > /etc/systemd/system/cloud-sql-proxy.service <<'UNIT'
 [Unit]
 Description=Cloud SQL Auth Proxy
@@ -85,14 +87,15 @@ cat > /etc/pgbouncer/pgbouncer.ini <<'INI'
 [databases]
 vigia = host=127.0.0.1 port=5432 dbname=vigia
 [pgbouncer]
+; vigia-db es db-f1-micro (max_connections=40): 3 roles × (4 + 2 de reserva) = 18 conexiones como máximo.
 listen_addr = 0.0.0.0
 listen_port = 6432
 auth_type = scram-sha-256
 auth_file = /etc/pgbouncer/userlist.txt
 pool_mode = transaction
 max_client_conn = 400
-default_pool_size = 12
-reserve_pool_size = 4
+default_pool_size = 4
+reserve_pool_size = 2
 reserve_pool_timeout = 3
 server_idle_timeout = 120
 query_wait_timeout = 15
