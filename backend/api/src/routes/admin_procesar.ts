@@ -20,7 +20,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { poolAdmin as pool } from "../lib/db.js"; // pool del panel (lib/db.ts)
 import { actor, esRevisor, log } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 
@@ -100,7 +100,7 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
-    return c.json({ error: "internal", detail: (e as Error).message }, 500);
+    throw e; // index.ts lo registra con el requestId; la respuesta no lleva el mensaje interno
   } finally {
     client.release();
   }

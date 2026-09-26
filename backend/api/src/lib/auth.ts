@@ -47,8 +47,9 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
       email: decoded.email ?? null,
     });
     await next();
-  } catch (e) {
-    return c.json({ error: "invalid_token", detail: (e as Error).message }, 401);
+  } catch {
+    // Sin el mensaje de Firebase en la respuesta (auditoría M2): vencido, mal firmado o de otro proyecto dan lo mismo.
+    return c.json({ error: "invalid_token" }, 401);
   }
 };
 

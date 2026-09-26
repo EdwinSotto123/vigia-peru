@@ -20,8 +20,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { requireAuth } from "../lib/auth.js";
+import { SIN_CACHE } from "../lib/http.js";
 
 export const cuentasRouter = new Hono();
+// Todo es de la persona que entró: nunca en un CDN ni en la caché compartida (también los 401).
+cuentasRouter.use("*", async (c, next) => {
+  c.header("Cache-Control", SIN_CACHE);
+  await next();
+  c.res.headers.set("Cache-Control", SIN_CACHE);
+});
 cuentasRouter.use("*", requireAuth);
 
 const slugify = (s: string) =>

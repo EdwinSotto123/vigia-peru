@@ -2,16 +2,21 @@
  * Procesamiento EN VIVO de los contratos asignados a contribuciones (tablero público).
  * Lee la vista `procesamientos_publico` (migración 12): sin email ni worker.
  *
- *   GET /financiamiento/procesamientos?ubigeo=15&codigo=VIG-2026-00002&estado=procesando&limit=100
+ *   GET /financiamiento/procesamientos?ubigeo=15&codigo=VIG-2026-00002&estado=procesando&alerta=revision&limit=100
  *       estado = encolado | procesando | procesado | error | pendiente_de_procesamiento | esperando_documentos
  *              | activos  (= todo lo que aún no terminó bien: esperando_documentos, pendiente_de_procesamiento,
  *                           encolado, procesando, error)
+ *       alerta = revision  sólo los procesados cuya alerta quedó en revisión humana; cada fila trae
+ *                          `motivos` (los mismos de GET /alertas/:id/revision). Reemplaza el N+1 del frontend.
  *       Orden por defecto: primero lo activo (procesando → encolado → esperando_documentos → error →
  *       pendiente_de_procesamiento) y al final lo procesado, así un `limit` corto no deja afuera la cola.
  *       Si la alerta no está publicada (`alertaEstado` revision/descartada): `score` y `banderas` = null
  *       y `enRevision` = true para revision (lib/publicacion.ts §2).
- *   GET /financiamiento/procesamientos/resumen        conteo por estado + procesados hoy + activos (fase, segundos)
- *                                                     + lote de ingesta en curso + documentos descargados (7 días) + en revisión + agentes activos
+ *       Caché 3 s por combinación de parámetros + ETag (304 ante If-None-Match).
+ *   GET /financiamiento/procesamientos/resumen        conteo por estado + procesados hoy (hora de Lima) + activos
+ *                                                     (fase, segundos) + lote de ingesta + documentos + en revisión
+ *                                                     + agentes activos + `version` + `porDepartamento`
+ *   GET /financiamiento/procesamientos/ritmo?dias=14  procesados por día (hora de Lima, con los días en cero)
  *   GET /financiamiento/procesamientos/:ocid          detalle + eventos [{ts, kind, name, msg}] + fases + resultado
  *                                                     (score, señales, mercado, documentos leídos) + estimado (mediana)
  *
@@ -20,21 +25,22 @@
  * autoevaluación bloqueó la publicación.
  *
  * Se monta ANTES de /financiamiento para que no lo capture financiamientoRouter.
- * Cache corta (3-10 s): el frontend hace polling.
+ * Cache corta (2-5 s en el CDN, 0 en el navegador, que revalida con el ETag): el frontend sondea.
  */
 
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
-import reglasJson from "../data/reglas.json" with { type: "json" };
-import { motivosDesdeEval, umbralesSelfEval } from "./admin_revision.js";
+import { etiquetaRegla, reglasJson } from "../lib/reglas.js";
+import { motivosDesdeEval, umbralesSelfEval, type SelfEvalConfig } from "./admin_revision.js";
 import { procBanderasSql, procScoreSql, redactarResultado } from "../lib/publicacion.js";
-import { Memo } from "../lib/cache.js";
+import { Memo, responderJson, responderSerializado, serializar, type Serializado } from "../lib/cache.js";
+import { cachePublico, fechaIso, parametros } from "../lib/http.js";
 
 export const procesamientosRouter = new Hono();
 
-const cache = (c: Context, s: number) => c.header("Cache-Control", `public, s-maxage=${s}, stale-while-revalidate=10`);
+const cache = (c: Context, s: number) => c.header("Cache-Control", cachePublico(s, { maxAge: 0 }));
 
 /** Columnas públicas de `procesamientos_publico`. Score y conteo de señales solo si la alerta está publicada. */
 export const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "faseIndex", iniciado_at AS "iniciadoAt",
@@ -43,7 +49,7 @@ export const COLS = `ocid, estado, fase_actual AS "faseActual", fase_index AS "f
   alerta_codigo AS "alertaCodigo", ${procScoreSql()} AS score, ${procBanderasSql()} AS banderas, fases,
   alerta_estado AS "alertaEstado", COALESCE(alerta_estado = 'revision', false) AS "enRevision"`;
 
-/** Estados "activos" (aún no terminaron bien) para `?estado=activos` y para el orden por defecto. */
+/** Estados "activos" (aún no terminaron bien) para `?estado=activos`, el orden por defecto y `porDepartamento`. */
 const ESTADOS_ACTIVOS = ["esperando_documentos", "pendiente_de_procesamiento", "encolado", "procesando", "error"] as const;
 
 /** Cuánto suele tardar un análisis (mediana de los procesados en 7 días) para el "estimado" del tablero. */
@@ -102,7 +108,7 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
 // todo lo procesado y un `limit` corto los dejaba fuera de la respuesta.
 const ORDER = `ORDER BY CASE estado WHEN 'procesando' THEN 0 WHEN 'encolado' THEN 1 WHEN 'esperando_documentos' THEN 2
                                  WHEN 'error' THEN 3 WHEN 'pendiente_de_procesamiento' THEN 4 WHEN 'procesado' THEN 5 ELSE 6 END,
-  COALESCE(finalizado_at, iniciado_at, encolado_at) DESC, ocid`;
+  COALESCE(finalizado_at, iniciado_at, encolado_at) DESC, ocid, alerta_codigo`;
 
 const Q = z.object({
   ubigeo: z.string().regex(/^\d{2,6}$/).optional(),
@@ -110,23 +116,37 @@ const Q = z.object({
   estado: z.enum([
     "encolado", "procesando", "procesado", "error", "pendiente_de_procesamiento", "esperando_documentos", "activos",
   ]).optional(),
+  alerta: z.enum(["revision"]).optional(),
   financiador: z.string().min(1).max(120).optional(),
-  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  desde: fechaIso().optional(),
+  hasta: fechaIso().optional(),
   limit: z.coerce.number().int().min(1).max(300).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+// Lista del tablero (sondeada): 3 s por combinación de parámetros. El texto libre del financiador
+// va en una caché aparte y chica (lib/cache.ts). Cuando el resumen ve una `version` nueva, vacía
+// esta caché: la lista que el tablero pide justo después ya trae el cambio.
+const listaMemo = new Memo<Serializado>({ nombre: "procesamientos:lista", ttlMs: 3_000, max: 100 });
+const listaTextoMemo = new Memo<Serializado>({ nombre: "procesamientos:lista:texto", ttlMs: 3_000, max: 20 });
+
 procesamientosRouter.get("/", async (c) => {
-  const p = Q.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
+  const p = Q.safeParse(parametros(c));
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
-  const { ubigeo, codigo, estado, financiador, desde, hasta, limit, offset } = p.data;
+  const q = p.data;
+  const memo = q.financiador ? listaTextoMemo : listaMemo;
+  return responderJson(c, memo, JSON.stringify(q), () => listaProcesamientos(q), cachePublico(2, { maxAge: 0 }));
+});
+
+async function listaProcesamientos(q: z.infer<typeof Q>) {
+  const { ubigeo, codigo, estado, alerta, financiador, desde, hasta, limit, offset } = q;
   const vals: unknown[] = [];
   const w: string[] = [];
   if (ubigeo) { vals.push(ubigeo); w.push(`ubigeo LIKE $${vals.length} || '%'`); }
   if (codigo) { vals.push(codigo.toUpperCase()); w.push(`contribucion_codigo = $${vals.length}`); }
   if (estado === "activos") { vals.push([...ESTADOS_ACTIVOS]); w.push(`estado = ANY($${vals.length}::text[])`); }
   else if (estado) { vals.push(estado); w.push(`estado = $${vals.length}`); }
+  if (alerta === "revision") w.push(`alerta_estado = 'revision'`);
   // `financiador` (procesamientos_publico) ya sale como 'Anónimo' cuando financiador_visible es falso,
   // así que un ILIKE acá nunca expone a quien pidió no aparecer.
   if (financiador) { vals.push(`%${financiador}%`); w.push(`financiador ILIKE $${vals.length}`); }
@@ -138,12 +158,20 @@ procesamientosRouter.get("/", async (c) => {
   const totalVals = [...vals];
   vals.push(limit, offset);
   const [r, total] = await Promise.all([
-    pool.query(`SELECT ${COLS} FROM procesamientos_publico ${whereSql} ${ORDER} LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
+    pool.query(`SELECT ${COLS}, alerta_id::text AS "_alertaId" FROM procesamientos_publico ${whereSql} ${ORDER}
+                LIMIT $${vals.length - 1} OFFSET $${vals.length}`, vals),
     pool.query(`SELECT count(*)::int AS n FROM procesamientos_publico ${whereSql}`, totalVals),
   ]);
-  cache(c, 5);
-  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
-});
+  // Con `alerta=revision`: los motivos de cada fila en UNA consulta (antes el frontend pedía
+  // /alertas/:id/revision una vez por alerta). Sólo con ese filtro: leer la autoevaluación saca
+  // analisis_full de la tabla, y la lista general se sondea cada pocos segundos.
+  const motivos = alerta === "revision"
+    ? await motivosRevisionLote(r.rows.map((x) => x._alertaId).filter((x): x is string => !!x))
+    : null;
+  const data = r.rows.map(({ _alertaId, ...fila }) =>
+    motivos ? { ...fila, motivos: (_alertaId && motivos.get(_alertaId)) || [] } : fila);
+  return { data, total: total.rows[0].n, limit, offset };
+}
 
 // ─── GET /financiamiento/procesamientos/financiadores ────────────────────────
 // Nombres distintos (visibles) presentes en el tablero, para el filtro por patrocinador.
@@ -155,7 +183,7 @@ procesamientosRouter.get("/financiadores", async (c) => {
      FROM procesamientos_publico
      WHERE financiador IS NOT NULL AND financiador <> 'Anónimo'
      GROUP BY financiador ORDER BY n DESC, financiador LIMIT 200`);
-  cache(c, 60);
+  c.header("Cache-Control", cachePublico(60));
   return c.json({ data: r.rows });
 });
 
@@ -175,31 +203,63 @@ async function hayLotesIngesta(): Promise<boolean> {
   return lotesTabla;
 }
 
+// ─── GET /financiamiento/procesamientos/resumen ──────────────────────────────
 // Lo sondea cada 5 s el tablero público (y cada visitante): en caché 4 s (< su Cache-Control de 5 s),
-// así N visitantes simultáneos cuestan UNA pasada (~35 ms: tres recorridos de documentos_gcs y convocatorias).
-const resumenMemo = new Memo<Record<string, unknown>>({ nombre: "procesamientos:resumen", ttlMs: 4_000 });
+// así N visitantes simultáneos cuestan UNA pasada. Antes eran 11 consultas en paralelo contra un
+// pool de 10 (auditoría A3); ahora UNA sentencia con subconsultas escalares + el lote de ingesta.
+//
+// `version`: md5 de las columnas públicas de todos los procesamientos (estado, fase, fases,
+// finalizado, alerta, score…; no el latido): cambia exactamente cuando cambia algo que el tablero
+// muestra, y el tablero pide la lista sólo entonces. `procesamientos` no tiene updated_at.
+//
+// `porDepartamento`: {"15": {activos, procesando, error}} con activos = todo lo que no terminó bien
+// (los estados de `?estado=activos`, incluidos `procesando` y `error`), por el ubigeo del aporte.
+//
+// `procesadosHoy` cuenta el día de Lima (antes, el de la base: UTC, que cambia a las 19:00 en Perú):
+// coincide con el último día de /ritmo.
+const RESUMEN_SQL = `SELECT
+  (SELECT COALESCE(json_object_agg(x.estado, x.n), '{}'::json)
+     FROM (SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado) x) AS "porEstado",
+  (SELECT count(*)::int FROM procesamientos
+    WHERE estado = 'procesado' AND finalizado_at >= (date_trunc('day', now() AT TIME ZONE 'America/Lima') AT TIME ZONE 'America/Lima')) AS "procesadosHoy",
+  (SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+     SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo, fases,
+            GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
+       FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24) x) AS activos,
+  (SELECT count(*)::int FROM convocatorias WHERE created_at >= now() - interval '24 hours') AS "descargados24h",
+  (SELECT valor FROM ajustes WHERE clave = 'procesamiento') AS "procesamientoActivo",
+  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
+     FROM documentos_gcs WHERE borrado_at IS NULL AND expira_at > now()) AS "documentosListos",
+  (SELECT json_build_object('pendientes', count(*) FILTER (WHERE estado = 'pendiente')::int,
+                            'descargando', count(*) FILTER (WHERE estado = 'descargando')::int,
+                            'listos24h', count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int,
+                            'fallidos', count(*) FILTER (WHERE estado = 'fallido')::int)
+     FROM pedidos_descarga) AS pedidos,
+  (SELECT json_build_object('medianaSeg', e."medianaSeg", 'n', e.n) FROM (${ESTIMADO_SQL}) e) AS estimado,
+  (SELECT json_build_object('n', count(*)::int, 'contratos', count(DISTINCT ocid)::int)
+     FROM documentos_gcs WHERE creado_at >= now() - interval '7 days') AS "documentosDescargados7d",
+  -- Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
+  (SELECT count(*)::int FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
+    WHERE p.estado = 'procesado' AND a.estado = 'revision') AS revision,
+  (SELECT md5(COALESCE(string_agg(ROW(v.ocid, v.estado, v.fase_actual, v.fase_index, v.intentos, v.iniciado_at, v.finalizado_at,
+                                      v.contribucion_codigo, v.ubigeo, v.financiador, v.alerta_codigo, v.score, v.banderas,
+                                      v.alerta_estado, md5(v.fases::text))::text, ';' ORDER BY v.ocid, v.alerta_codigo), ''))
+     FROM procesamientos_publico v) AS version,
+  (SELECT COALESCE(json_object_agg(x.dep, json_build_object('activos', x.activos, 'procesando', x.procesando, 'error', x.errores) ORDER BY x.dep), '{}'::json)
+     FROM (SELECT left(co.ubigeo, 2) AS dep,
+                  count(*) FILTER (WHERE p.estado = ANY($1::text[]))::int AS activos,
+                  count(*) FILTER (WHERE p.estado = 'procesando')::int AS procesando,
+                  count(*) FILTER (WHERE p.estado = 'error')::int AS errores
+             FROM procesamientos p JOIN contribuciones co ON co.id = p.contribucion_id
+            GROUP BY 1 HAVING count(*) FILTER (WHERE p.estado = ANY($1::text[])) > 0) x) AS "porDepartamento"`;
 
-procesamientosRouter.get("/resumen", async (c) => {
-  const body = await resumenMemo.obtener("resumen", async () => {
-    const [r, hoy, activos, descargados, procesamientoActivo, documentosListos, pedidos, lote, estimado, docs7d, revision] = await Promise.all([
-      pool.query(`SELECT estado, count(*)::int AS n FROM procesamientos GROUP BY estado`),
-      pool.query(`SELECT count(*)::int AS n FROM procesamientos WHERE estado = 'procesado' AND finalizado_at::date = current_date`),
-      pool.query(
-        `SELECT ocid, fase_actual AS "faseActual", fase_index AS "faseIndex", financiador, zona, titulo, fases,
-                GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(iniciado_at, encolado_at))))::int AS "desdeSeg"
-         FROM procesamientos_publico WHERE estado = 'procesando' ORDER BY iniciado_at NULLS LAST, ocid LIMIT 24`),
-      pool.query(`SELECT count(*)::int AS n FROM convocatorias WHERE created_at >= now() - interval '24 hours'`),
-      // Migración 19: qué tipos/etapas se analizan hoy + cuántos contratos tienen documentos listos.
-      pool.query(`SELECT valor FROM ajustes WHERE clave = 'procesamiento'`).then((q) => q.rows[0]?.valor ?? null).catch(() => null),
-      pool.query(`SELECT count(*) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS n,
-                         count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos
-                  FROM documentos_gcs`).then((q) => q.rows[0]).catch(() => null),
-      // Migración 15: pedidos de descarga (contratos financiados sin documentos en GCS).
-      pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente')::int AS pendientes,
-                         count(*) FILTER (WHERE estado = 'descargando')::int AS descargando,
-                         count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int AS "listos24h",
-                         count(*) FILTER (WHERE estado = 'fallido')::int AS fallidos
-                  FROM pedidos_descarga`).then((q) => q.rows[0]).catch(() => null),
+const resumenMemo = new Memo<Serializado>({ nombre: "procesamientos:resumen", ttlMs: 4_000 });
+let versionVista = "";
+
+procesamientosRouter.get("/resumen", (c) =>
+  responderJson(c, resumenMemo, "resumen", async () => {
+    const [r, lote] = await Promise.all([
+      pool.query(RESUMEN_SQL, [[...ESTADOS_ACTIVOS]]),
       (async () => {
         if (!(await hayLotesIngesta())) return null;
         try {
@@ -212,51 +272,87 @@ procesamientosRouter.get("/resumen", async (c) => {
           return null;
         }
       })(),
-      pool.query(ESTIMADO_SQL).then((q) => q.rows[0] ?? null).catch(() => null),
-      // Documentos del SEACE bajados por el lote nocturno en los últimos 7 días (no son contratos nuevos).
-      pool.query(`SELECT count(*)::int AS n, count(DISTINCT ocid)::int AS contratos FROM documentos_gcs WHERE creado_at >= now() - interval '7 days'`)
-        .then((q) => q.rows[0]).catch(() => ({ n: 0, contratos: 0 })),
-      // Procesados cuya alerta quedó bloqueada por la autoevaluación (revisión humana): cuentan como procesados, no como señales.
-      pool.query(`SELECT count(*)::int AS n FROM procesamientos p JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
-                  WHERE p.estado = 'procesado' AND a.estado = 'revision'`).then((q) => q.rows[0].n as number).catch(() => 0),
     ]);
-    const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0 };
-    for (const x of r.rows) porEstado[x.estado] = x.n;
-    porEstado.revision = revision;
+    const x = r.rows[0];
+    const porEstado: Record<string, number> = { encolado: 0, procesando: 0, procesado: 0, error: 0, pendiente_de_procesamiento: 0, esperando_documentos: 0, revision: 0, ...x.porEstado };
+    porEstado.revision = x.revision;
+    const activos = x.activos as { faseActual: string | null }[];
     const agentesActivos = Array.from(new Set(
-      activos.rows.map((a) => a.faseActual as string | null).filter((f): f is string => !!f && f !== "started" && f !== "final"),
+      activos.map((a) => a.faseActual).filter((f): f is string => !!f && f !== "started" && f !== "final"),
     ));
+    // Algo público cambió: la lista (y el ritmo) que se pida ahora no puede salir de la caché anterior.
+    if (x.version !== versionVista) {
+      versionVista = x.version;
+      listaMemo.invalidar();
+      listaTextoMemo.invalidar();
+    }
     return {
       porEstado,
-      procesadosHoy: hoy.rows[0].n,
-      activos: activos.rows,
-      lote,
-      descargados24h: descargados.rows[0].n,
-      documentosDescargados7d: docs7d,
-      enRevision: revision,
-      procesamientoActivo,
-      documentosListos,
-      pedidos,
+      procesadosHoy: x.procesadosHoy,
+      activos,
+      lote: lote ?? null,
+      descargados24h: x.descargados24h,
+      documentosDescargados7d: x.documentosDescargados7d,
+      enRevision: x.revision,
+      procesamientoActivo: x.procesamientoActivo ?? null,
+      documentosListos: x.documentosListos,
+      pedidos: x.pedidos,
       agentesActivos,
-      estimado,
+      estimado: x.estimado,
+      version: x.version,
+      porDepartamento: x.porDepartamento,
     };
-  });
-  cache(c, 5);
-  return c.json(body);
+  }, cachePublico(4, { maxAge: 0 })));
+
+// ─── GET /financiamiento/procesamientos/ritmo?dias=14 ────────────────────────
+// Procesados por día (hora de Lima), con los días en cero, hasta hoy: `{dias:[{dia, n}], total, ultimoFin}`.
+// Antes el frontend lo contaba sobre `?estado=procesado&limit=300` y se truncaba en silencio (C8).
+// Caché de 60 s cuya clave incluye cuántos procesados hay y el último fin (una consulta mínima por
+// índice): nunca sirve un ritmo viejo, y sin cambios no vuelve a contar. En el CDN, 0 s: el tablero
+// lo pide justo cuando cambió el número de procesados.
+const RitmoQuery = z.object({ dias: z.coerce.number().int().min(1).max(60).default(14) });
+const ritmoMemo = new Memo<Serializado>({ nombre: "procesamientos:ritmo", ttlMs: 60_000, max: 20 });
+
+procesamientosRouter.get("/ritmo", async (c) => {
+  const p = RitmoQuery.safeParse(parametros(c));
+  if (!p.success) return c.json({ error: "invalid_query" }, 400);
+  const { dias } = p.data;
+  const k = await pool.query<{ n: number; ultimo: Date | null }>(
+    `SELECT count(*)::int AS n, max(finalizado_at) AS ultimo FROM procesamientos WHERE estado = 'procesado'`);
+  const ultimoFin = k.rows[0].ultimo ? new Date(k.rows[0].ultimo).toISOString() : null;
+  const clave = `${dias}|${k.rows[0].n}|${ultimoFin ?? ""}`;
+  return responderJson(c, ritmoMemo, clave, async () => {
+    const r = await pool.query<{ dia: string; n: number }>(
+      `WITH hoy AS (SELECT (now() AT TIME ZONE 'America/Lima')::date AS d),
+            dias AS (SELECT generate_series(hoy.d - ($1::int - 1), hoy.d, interval '1 day')::date AS dia FROM hoy),
+            n AS (SELECT (p.finalizado_at AT TIME ZONE 'America/Lima')::date AS dia, count(*)::int AS n
+                    FROM procesamientos p, hoy
+                   WHERE p.estado = 'procesado'
+                     AND p.finalizado_at >= ((hoy.d - ($1::int - 1))::timestamp AT TIME ZONE 'America/Lima')
+                   GROUP BY 1)
+       SELECT to_char(dias.dia, 'YYYY-MM-DD') AS dia, COALESCE(n.n, 0)::int AS n
+         FROM dias LEFT JOIN n USING (dia) ORDER BY dias.dia`, [dias]);
+    return { dias: r.rows, total: r.rows.reduce((s, d) => s + d.n, 0), ultimoFin };
+  }, cachePublico(0, { maxAge: 0 }));
 });
 
 // ─── GET /financiamiento/procesamientos/reglas?perfil=bienes ─────────────────────────────
 // Reglas deterministas por perfil (JSON estático generado por backend/scripts/exportar_reglas.py).
+// Cambia sólo con un despliegue: serializado una vez, con ETag.
+const reglasSerializadas = new Map<string, Serializado>();
 procesamientosRouter.get("/reglas", (c) => {
   const perfil = (c.req.query("perfil") ?? "").toLowerCase();
-  const perfiles = (reglasJson as any).perfiles as Record<string, unknown>;
-  cache(c, 3600);
-  if (perfil) {
-    const p = perfiles[perfil];
-    if (!p) return c.json({ error: "perfil_desconocido", perfiles: Object.keys(perfiles) }, 404);
-    return c.json({ version: (reglasJson as any).version, generadoAt: (reglasJson as any).generado_at, perfil, ...(p as object), otrasSenales: (reglasJson as any).otras_senales });
+  const rj = reglasJson as any;
+  const perfiles = rj.perfiles as Record<string, unknown>;
+  if (perfil && !perfiles[perfil]) return c.json({ error: "perfil_desconocido", perfiles: Object.keys(perfiles) }, 404);
+  let s = reglasSerializadas.get(perfil);
+  if (!s) {
+    s = serializar(perfil
+      ? { version: rj.version, generadoAt: rj.generado_at, perfil, ...(perfiles[perfil] as object), otrasSenales: rj.otras_senales }
+      : { version: rj.version, generadoAt: rj.generado_at, perfiles, otrasSenales: rj.otras_senales });
+    reglasSerializadas.set(perfil, s);
   }
-  return c.json({ version: (reglasJson as any).version, generadoAt: (reglasJson as any).generado_at, perfiles, otrasSenales: (reglasJson as any).otras_senales });
+  return responderSerializado(c, s, cachePublico(3600, { maxAge: 3600 }));
 });
 
 procesamientosRouter.get("/:ocid", async (c) => {
@@ -294,16 +390,6 @@ procesamientosRouter.get("/:ocid", async (c) => {
 // Reutiliza el port de tools/self_eval.debe_bloquear de admin_revision.ts y los umbrales de ajustes.self_eval.
 export interface RevisionMotivo { clave: string; titulo: string; detalle: string; valor: number | null; umbral: number | null; reglas?: string[]; reglasEtiquetas?: string[] }
 
-/** Etiqueta humana de una regla (reglas.json: perfiles + otras señales); cae al id legible. */
-function etiquetaRegla(id: string): string {
-  const rj = reglasJson as any;
-  for (const p of Object.values(rj.perfiles ?? {}) as any[]) {
-    const r = (p.reglas ?? []).find((x: any) => x.id === id);
-    if (r) return r.etiqueta;
-  }
-  return rj.otras_senales?.[id]?.etiqueta ?? id.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase());
-}
-
 const TITULOS: Record<string, { titulo: string; detalle: (v: number | null, u: number | null) => string }> = {
   respaldo: { titulo: "Evidencia insuficiente", detalle: (v, u) => `Solo el ${pct100(v)} de las señales tiene evidencia localizable en el expediente, el registro OCDS o las fuentes oficiales (mínimo ${pct100(u)}).` },
   tono: { titulo: "Tono del dictamen", detalle: () => "El dictamen usa un tono acusatorio. Vigía publica señales de riesgo, no acusaciones: una persona lo ajusta antes de publicar." },
@@ -314,12 +400,9 @@ const TITULOS: Record<string, { titulo: string; detalle: (v: number | null, u: n
 };
 const pct100 = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)} %`);
 
-/** Explica por qué la autoevaluación bloqueó la publicación (misma regla que el admin, sin texto sensible). */
-export async function motivosRevision(alertaId: string): Promise<RevisionMotivo[]> {
-  const r = await pool.query(`SELECT analisis_full->'self_evals' AS se FROM alertas a WHERE a.id = $1`, [alertaId]);
-  const se = r.rows[0]?.se ?? null;
+/** Motivos públicos a partir de la autoevaluación (`analisis_full.self_evals`) y los umbrales vigentes. */
+function motivosDe(se: any, u: SelfEvalConfig): RevisionMotivo[] {
   if (!se || typeof se !== "object") return [];
-  const u = (await umbralesSelfEval()).valor;
   const out: RevisionMotivo[] = motivosDesdeEval(se, u).map((m) => {
     const t = TITULOS[m.clave];
     const reglas = m.clave === "respaldo" && Array.isArray(se.per_bandera)
@@ -329,5 +412,26 @@ export async function motivosRevision(alertaId: string): Promise<RevisionMotivo[
              valor: m.valor ?? null, umbral: m.umbral ?? null, ...(reglas?.length ? { reglas, reglasEtiquetas: reglas.map(etiquetaRegla) } : {}) };
   });
   if (!out.length) out.push({ clave: "general", titulo: "Autoevaluación por debajo del umbral", detalle: "Alguno de los 8 evaluadores (4 jueces independientes + 4 comprobaciones en código) no alcanzó el mínimo para publicar. Una persona revisa el análisis antes de decidir.", valor: null, umbral: null });
+  return out;
+}
+
+/** Explica por qué la autoevaluación bloqueó la publicación (misma regla que el admin, sin texto sensible). */
+export async function motivosRevision(alertaId: string): Promise<RevisionMotivo[]> {
+  const r = await pool.query(`SELECT analisis_full->'self_evals' AS se FROM alertas a WHERE a.id = $1`, [alertaId]);
+  const se = r.rows[0]?.se ?? null;
+  if (!se || typeof se !== "object") return [];
+  return motivosDe(se, (await umbralesSelfEval()).valor);
+}
+
+/** Los motivos de varias alertas (uuid → motivos) en una sola consulta. */
+export async function motivosRevisionLote(alertaIds: string[]): Promise<Map<string, RevisionMotivo[]>> {
+  const out = new Map<string, RevisionMotivo[]>();
+  const ids = Array.from(new Set(alertaIds));
+  if (!ids.length) return out;
+  const [r, u] = await Promise.all([
+    pool.query<{ id: string; se: unknown }>(`SELECT a.id::text AS id, a.analisis_full->'self_evals' AS se FROM alertas a WHERE a.id = ANY($1::uuid[])`, [ids]),
+    umbralesSelfEval().then((x) => x.valor),
+  ]);
+  for (const row of r.rows) out.set(row.id, motivosDe(row.se, u));
   return out;
 }

@@ -16,7 +16,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { OCID_CANDIDATOS, pool } from "../lib/db.js";
+import { OCID_CANDIDATOS, poolAdmin as pool, pool as poolPublico } from "../lib/db.js"; // pool del panel (lib/db.ts)
 import { actor, log, refrescarRanking } from "../lib/adminlog.js";
 import { dossierCompleto, filaDossier } from "../lib/dossier.js";
 
@@ -39,7 +39,8 @@ export async function umbralesSelfEval() {
   if (umbralesCache && Date.now() - umbralesCache.at < 60_000) return umbralesCache;
   let valor = DEFAULT_SELF_EVAL, updatedAt: string | null = null, updatedBy: string | null = null;
   try {
-    const r = await pool.query(`SELECT valor, updated_at AS "updatedAt", updated_by AS "updatedBy" FROM ajustes WHERE clave = 'self_eval'`);
+    // Pool público: también lo usan rutas públicas (motivos de revisión en procesamientos.ts).
+    const r = await poolPublico.query(`SELECT valor, updated_at AS "updatedAt", updated_by AS "updatedBy" FROM ajustes WHERE clave = 'self_eval'`);
     const p = SelfEvalSchema.safeParse(r.rows[0]?.valor);
     if (p.success) valor = p.data;
     updatedAt = r.rows[0]?.updatedAt ?? null; updatedBy = r.rows[0]?.updatedBy ?? null;

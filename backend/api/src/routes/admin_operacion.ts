@@ -15,7 +15,7 @@
  */
 
 import { Hono } from "hono";
-import { pool } from "../lib/db.js";
+import { poolAdmin as pool } from "../lib/db.js"; // pool del panel (lib/db.ts)
 import { actor, log } from "../lib/adminlog.js";
 import { ingestaConvocatorias, saludRelay, saludServicios } from "../lib/salud.js";
 

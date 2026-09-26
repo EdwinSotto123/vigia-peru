@@ -6,7 +6,7 @@
  *   GET /financiamiento/zonas/:ubigeo                          detalle + aliados + hijas
  *   GET /financiamiento/ranking?periodo=mes|anio|todo&region=&limit=&offset=  ranking de impacto (contratos, no soles)
  *   GET /financiamiento/estado                                  métricas globales + tarifa vigente
- *   GET /financiamiento/impacto/:codigo                         comprobante público de una contribución
+ *   GET /financiamiento/impacto/:codigo?limit=100&cursor=       comprobante público de una contribución (detalle paginado)
  *   GET /financiamiento/aliados/:slug                           perfil público de un financiador (+ lo que publicó: migración 30)
  *   GET /financiamiento/recientes                               últimas contribuciones confirmadas
  *   GET /financiamiento/pago                                    medios de pago (Yape/Plin/cuentas/QR) — públicos
@@ -21,6 +21,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { cachePublico } from "../lib/http.js";
+import { decodificarCursor, codificarCursor } from "../lib/cursor.js";
 import { getPagosConfig } from "./contribuciones.js";
 import { alertaNoDemo, alertaPublica } from "../lib/publicacion.js";
 import { Memo } from "../lib/cache.js";
@@ -32,7 +34,7 @@ export const financiamientoRouter = new Hono();
 const SENAL_HALLADA = `${alertaPublica("a")} AND EXISTS (SELECT 1 FROM banderas b WHERE b.alerta_id = a.id)`;
 const EN_REVISION = `a.estado = 'revision' AND ${alertaNoDemo("a")}`;
 
-const cache = (c: any, seconds: number) => c.header("Cache-Control", `public, s-maxage=${seconds}, stale-while-revalidate=60`);
+const cache = (c: any, seconds: number) => c.header("Cache-Control", cachePublico(seconds, { swr: 60 }));
 
 const ZonasQuery = z.object({
   nivel: z.enum(["departamento", "provincia", "distrito"]).default("departamento"),
@@ -210,10 +212,24 @@ financiamientoRouter.get("/recientes", async (c) => {
 });
 
 // ─── GET /financiamiento/impacto/:codigo ─────────────────────────────────────
+// Auditoría M3: un aporte puede tener hasta 50.000 contratos y el detalle salía entero (~22 MB).
+// Ahora `resumen` se cuenta en SQL sobre TODOS los contratos y `detalle` va paginado:
+// `?limit=` (100 por defecto, máx. 200) y `?cursor=` (el `siguiente` de la página anterior; null = no hay más).
+const ImpactoQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  cursor: z.string().max(200).optional(),
+});
+
 financiamientoRouter.get("/impacto/:codigo", async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
+  if (codigo.length > 40) return c.json({ error: "not_found" }, 404);
+  const parsed = ImpactoQuery.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { limit } = parsed.data;
+  const cur = parsed.data.cursor ? decodificarCursor(parsed.data.cursor, "i", 2) : null;
+  if (parsed.data.cursor && !cur) return c.json({ error: "invalid_cursor" }, 400);
   const head = await pool.query(
-    `SELECT co.codigo, co.contratos, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt",
+    `SELECT co.id, co.codigo, co.contratos, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt",
             co.created_at AS "createdAt", co.mensaje_publico AS "mensajePublico", co.pasarela,
             z.ubigeo, z.nombre AS zona, z.nivel,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl", f.visible,
@@ -224,45 +240,66 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
      JOIN tarifas t ON t.id = co.tarifa_id
      WHERE co.codigo = $1`, [codigo]);
   if (!head.rows.length) return c.json({ error: "not_found" }, 404);
+  const { id: contribucionId, ...h } = head.rows[0];
   // Por contrato: score, severidad y conteo de señales SOLO si la alerta está publicada; en revisión
   // humana o descartada salen null (con `alertaEstado` y `enRevision` para decir por qué).
-  const det = await pool.query(
-    `SELECT s.ocid, s.asignada_at AS "asignadaAt", s.procesada_at AS "procesadaAt",
-            cv.objeto AS titulo, cv.cuantia_referencial::float AS "valorReferencial", e.nombre AS entidad,
-            a.codigo AS "alertaCodigo",
-            CASE WHEN alerta_publicada(a.estado) THEN a.score END AS score,
-            a.estado AS "alertaEstado",
-            COALESCE(a.estado = 'revision', false) AS "enRevision",
-            -- La más grave (no max() de texto: alfabéticamente 'media' > 'alta').
-            CASE WHEN alerta_publicada(a.estado)
-                 THEN (SELECT b.severidad FROM banderas b WHERE b.alerta_id = a.id
-                        ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END LIMIT 1) END AS severidad,
-            CASE WHEN a.id IS NULL OR alerta_publicada(a.estado)
-                 THEN (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int END AS banderas
-     FROM asignaciones s
-     JOIN contribuciones co ON co.id = s.contribucion_id
-     JOIN convocatorias cv ON cv.ocid = s.ocid
-     LEFT JOIN entidades e ON e.ruc = cv.entidad_ruc
-     LEFT JOIN alertas a ON a.id = s.alerta_id AND ${alertaNoDemo("a")}
-     WHERE co.codigo = $1 ORDER BY s.asignada_at`, [codigo]);
-  const h = head.rows[0];
-  const procesados = det.rows.filter((r) => r.procesadaAt).length;
-  const publicada = (r: { alertaEstado: string | null }) => r.alertaEstado === "activa" || r.alertaEstado === "confirmada";
+  const desde = cur ? `AND (s.asignada_at, s.id) > ($2::timestamptz, $3::bigint)` : "";
+  const valsDet: unknown[] = cur ? [contribucionId, cur[0], cur[1], limit + 1] : [contribucionId, limit + 1];
+  const [det, res] = await Promise.all([
+    pool.query(
+      `SELECT s.id::text AS _id, s.asignada_at::text AS _k, s.ocid, s.asignada_at AS "asignadaAt", s.procesada_at AS "procesadaAt",
+              cv.objeto AS titulo, cv.cuantia_referencial::float AS "valorReferencial", e.nombre AS entidad,
+              a.codigo AS "alertaCodigo",
+              CASE WHEN alerta_publicada(a.estado) THEN a.score END AS score,
+              a.estado AS "alertaEstado",
+              COALESCE(a.estado = 'revision', false) AS "enRevision",
+              -- La más grave (no max() de texto: alfabéticamente 'media' > 'alta').
+              CASE WHEN alerta_publicada(a.estado)
+                   THEN (SELECT b.severidad FROM banderas b WHERE b.alerta_id = a.id
+                          ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END LIMIT 1) END AS severidad,
+              CASE WHEN a.id IS NULL OR alerta_publicada(a.estado)
+                   THEN (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int END AS banderas
+       FROM asignaciones s
+       JOIN convocatorias cv ON cv.ocid = s.ocid
+       LEFT JOIN entidades e ON e.ruc = cv.entidad_ruc
+       LEFT JOIN alertas a ON a.id = s.alerta_id AND ${alertaNoDemo("a")}
+       WHERE s.contribucion_id = $1 ${desde}
+       ORDER BY s.asignada_at, s.id
+       LIMIT $${valsDet.length}`, valsDet),
+    // Totales sobre TODOS los contratos del aporte (antes se sumaban en JS sobre la lista entera).
+    // Señales = banderas de alertas PUBLICADAS; lo que está en revisión humana no se cuenta.
+    pool.query(
+      `SELECT count(*)::int AS asignados, count(s.procesada_at)::int AS procesados,
+              COALESCE(sum(b.n) FILTER (WHERE alerta_publicada(a.estado)), 0)::int AS senales,
+              count(*) FILTER (WHERE alerta_publicada(a.estado) AND b.n > 0)::int AS "contratosConSenal",
+              count(*) FILTER (WHERE a.estado = 'revision')::int AS "enRevision",
+              COALESCE(sum(cv.cuantia_referencial), 0)::float AS "montoAuditado"
+       FROM asignaciones s
+       JOIN convocatorias cv ON cv.ocid = s.ocid
+       LEFT JOIN alertas a ON a.id = s.alerta_id AND ${alertaNoDemo("a")}
+       LEFT JOIN LATERAL (SELECT count(*)::int AS n FROM banderas b WHERE b.alerta_id = a.id) b ON TRUE
+       WHERE s.contribucion_id = $1`, [contribucionId]),
+  ]);
+  const hay = det.rows.length > limit;
+  const filas = det.rows.slice(0, limit);
+  const ultima = filas[filas.length - 1];
+  const r = res.rows[0];
   cache(c, 30);
   return c.json({
     ...h,
     financiador: h.visible ? h.financiador : "Aliado no visible (conflicto de interés declarado)",
     resumen: {
-      asignados: det.rows.length,
-      procesados,
-      pendientes: h.contratos - det.rows.length,
-      // Señales = banderas de alertas PUBLICADAS; lo que está en revisión humana no se cuenta.
-      senales: det.rows.filter(publicada).reduce((n, r) => n + (r.banderas ?? 0), 0),
-      contratosConSenal: det.rows.filter((r) => publicada(r) && (r.banderas ?? 0) > 0).length,
-      enRevision: det.rows.filter((r) => r.alertaEstado === "revision").length,
-      montoAuditado: det.rows.reduce((n, r) => n + (r.valorReferencial ?? 0), 0),
+      asignados: r.asignados,
+      procesados: r.procesados,
+      pendientes: h.contratos - r.asignados,
+      senales: r.senales,
+      contratosConSenal: r.contratosConSenal,
+      enRevision: r.enRevision,
+      montoAuditado: r.montoAuditado,
     },
-    detalle: det.rows,
+    detalle: filas.map(({ _id, _k, ...fila }) => fila),
+    siguiente: hay && ultima ? codificarCursor("i", [ultima._k, ultima._id]) : null,
+    limit,
   });
 });
 
@@ -356,6 +393,7 @@ function redesPublicas(v: unknown): Partial<Record<RedAliado, string>> {
 }
 
 // ─── GET /financiamiento/aliados/:slug ───────────────────────────────────────
+const MAX_CONTRIBUCIONES_ALIADO = 100;
 const COLS_ALIADO = `id, tipo, COALESCE(nombre_publico,'Anónimo') AS nombre, slug, logo_url AS "logoUrl", created_at AS "desde"`;
 // email_publico: el correo que el aliado publicó. `email` (el del pago) nunca entra en esta consulta.
 const COLS_ALIADO_PERFIL = `, descripcion, sitio_web AS "sitioWeb", email_publico AS "emailPublico", redes, portada_url AS "portadaUrl"`;
@@ -385,9 +423,14 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
               WHERE s.contribucion_id = co.id AND ${EN_REVISION})::int AS "enRevision"
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.financiador_id = $1 AND co.estado IN ('pagada','en_proceso','procesada')
-     ORDER BY co.pagada_at DESC`, [r.id]);
+     ORDER BY co.pagada_at DESC NULLS LAST, co.id DESC
+     LIMIT ${MAX_CONTRIBUCIONES_ALIADO}`, [r.id]);
+  // Con tope (auditoría M3): las 100 más recientes y el total contado en SQL.
+  const total = cs.rows.length < MAX_CONTRIBUCIONES_ALIADO ? cs.rows.length
+    : (await pool.query(`SELECT count(*)::int AS n FROM contribuciones co
+                          WHERE co.financiador_id = $1 AND co.estado IN ('pagada','en_proceso','procesada')`, [r.id])).rows[0].n;
   cache(c, 30);
-  return c.json({ aliado, contribuciones: cs.rows });
+  return c.json({ aliado, contribuciones: cs.rows, totalContribuciones: total });
 });
 
 // ─── Alcance activo (migración 19): qué tipos × etapas entran hoy a la cola ──────────────
@@ -406,7 +449,11 @@ export function getAlcance(): Promise<Alcance> {
   return alcanceMemo.obtener("alcance", async () => {
     const [aj, cola, docs] = await Promise.all([
       pool.query(`SELECT valor, updated_at AS "updatedAt" FROM ajustes WHERE clave = 'procesamiento'`),
-      pool.query(`SELECT count(*)::int AS n FROM cola_auditoria`),
+      // La cola por departamento ya está sumada en zona_estado (`pendientes`, el mismo rollup que
+      // count(cola_auditoria)): leerla cuesta O(zonas). El count(*) recorría convocatorias entera
+      // (medido en staging: el único scan completo de la tabla en una pasada fría por toda la API).
+      // Queda tan fresco como el último refresco (condicional, a lo sumo cada 10 min).
+      pool.query(`SELECT COALESCE(sum(pendientes), 0)::int AS n FROM zona_estado WHERE nivel = 'departamento'`),
       pool.query(`SELECT COALESCE(sum(documentos_listos), 0)::int AS n FROM zona_estado WHERE nivel = 'departamento'`),
     ]);
     return {

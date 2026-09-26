@@ -10,7 +10,8 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
+import { conCache, parametros } from "../lib/http.js";
 import {
   convergenciaPublica, latPublica, lonPublica, reporteIdsPublicos, reportePublico,
 } from "../lib/publicacion.js";
@@ -82,29 +83,40 @@ reportesRouter.get("/", async (c) => {
     pool.query(
       `SELECT ${COLS_PUBLICAS}
        FROM reportes_indexados r ${where}
-       ORDER BY r.fecha DESC, r.created_at DESC
+       ORDER BY r.fecha DESC, r.created_at DESC, r.id
        LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
       vals,
     ),
     pool.query(`SELECT count(*)::int AS n FROM reportes_indexados r ${where}`, totalVals),
   ]);
+  conCache(c, 30);
   return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /reportes/convergencias — para el cruce con alertas ─────
 // Solo convergencias públicas: no demo, con la alerta PUBLICADA (una alerta en revisión o descartada
 // no se cruza en público) y al menos un reporte público; `reporteIds` lista solo los públicos.
+// Con tope (auditoría M3): `?limit=` (por defecto 200, máx. 500) y `total` contado en SQL; si
+// `total > data.length`, la vista dice que la lista es parcial.
+const ConvergenciasQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).default(200) });
+
 reportesRouter.get("/convergencias", async (c) => {
-  const r = await pool.query(
-    `SELECT c.id, c.alerta_id AS "alertaId", ${reporteIdsPublicos("c")} AS "reporteIds",
-            ${latPublica("c.ubicacion_geo")} AS lat,
-            ${lonPublica("c.ubicacion_geo")} AS lon,
-            c.resumen
-       FROM convergencias c
-      WHERE ${convergenciaPublica("c")}
-       ORDER BY c.created_at DESC`,
-  );
-  return c.json({ data: r.rows });
+  const parsed = ConvergenciasQuery.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const [r, total] = await Promise.all([
+    pool.query(
+      `SELECT c.id, c.alerta_id AS "alertaId", ${reporteIdsPublicos("c")} AS "reporteIds",
+              ${latPublica("c.ubicacion_geo")} AS lat,
+              ${lonPublica("c.ubicacion_geo")} AS lon,
+              c.resumen
+         FROM convergencias c
+        WHERE ${convergenciaPublica("c")}
+        ORDER BY c.created_at DESC, c.id
+        LIMIT $1`, [parsed.data.limit]),
+    pool.query(`SELECT count(*)::int AS n FROM convergencias c WHERE ${convergenciaPublica("c")}`),
+  ]);
+  conCache(c, 60);
+  return c.json({ data: r.rows, total: total.rows[0].n, limit: parsed.data.limit });
 });
 
 // ─── POST /reportes — crear denuncia ciudadana ──────────────────
@@ -150,52 +162,12 @@ reportesRouter.post("/", async (c) => {
     return c.json({ error: "invalid_body", detail: parsed.error.errors }, 400);
   }
   const d = parsed.data;
-  const id = `RPT-${d.modo === "entidad" ? "ENT-" : ""}${new Date().getFullYear()}-${String(
-    Math.floor(1000 + Math.random() * 9000),
-  )}`;
   // ubicacion_geo: solo seteamos si tenemos lat+lon. Para denuncias a entidades
   // (sin foto/ubicación) queda NULL — la columna debe permitir NULL.
   const hasGeo = d.lat != null && d.lon != null;
 
-  // Schema-ensure idempotente: crea la tabla si no existe y agrega columnas
-  // nuevas. Postgres es tolerante a IF NOT EXISTS en ALTER COLUMN.
-  try {
-    await pool.query(
-      `CREATE TABLE IF NOT EXISTS reportes_indexados (
-         id TEXT PRIMARY KEY, categoria TEXT NOT NULL, descripcion TEXT NOT NULL,
-         foto_url TEXT, region TEXT, ubicacion_geo GEOGRAPHY(POINT, 4326),
-         direccion_texto TEXT, ruc_entidad TEXT, contacto_email TEXT,
-         confirmado BOOL DEFAULT FALSE, confirmaciones INT DEFAULT 1,
-         convergencia_id TEXT, fecha DATE DEFAULT CURRENT_DATE,
-         moderacion_estado TEXT DEFAULT 'pendiente',
-         modo TEXT DEFAULT 'obra',
-         created_at TIMESTAMPTZ DEFAULT NOW()
-       )`,
-    );
-    await pool.query(
-      `ALTER TABLE reportes_indexados
-          ALTER COLUMN ubicacion_geo DROP NOT NULL,
-          ADD COLUMN IF NOT EXISTS direccion_texto TEXT,
-          ADD COLUMN IF NOT EXISTS ruc_entidad TEXT,
-          ADD COLUMN IF NOT EXISTS contacto_email TEXT,
-          ADD COLUMN IF NOT EXISTS modo TEXT DEFAULT 'obra',
-          ADD COLUMN IF NOT EXISTS media_urls JSONB DEFAULT '[]'::jsonb,
-          ADD COLUMN IF NOT EXISTS provincia TEXT,
-          ADD COLUMN IF NOT EXISTS distrito TEXT,
-          ADD COLUMN IF NOT EXISTS monto_estimado NUMERIC,
-          ADD COLUMN IF NOT EXISTS periodo_desde DATE,
-          ADD COLUMN IF NOT EXISTS periodo_hasta DATE,
-          ADD COLUMN IF NOT EXISTS personas_involucradas TEXT,
-          ADD COLUMN IF NOT EXISTS enlaces_externos JSONB DEFAULT '[]'::jsonb,
-          ADD COLUMN IF NOT EXISTS contacto_nombre TEXT,
-          ADD COLUMN IF NOT EXISTS contacto_telefono TEXT,
-          ADD COLUMN IF NOT EXISTS anonimo BOOL DEFAULT TRUE`,
-    );
-  } catch (e: any) {
-    if (!/already|does not exist/i.test(e?.message || "")) {
-      console.error("[reportes] schema-ensure error:", e?.message);
-    }
-  }
+  // Sin DDL en el request (auditoría A15): la tabla y sus columnas están en la migración 33. Antes
+  // cada denuncia corría CREATE TABLE + ALTER TABLE (bloqueo exclusivo de la tabla).
 
   // Componer media_urls: combina legacy `fotoUrl` (si vino) + lista `media`
   const mediaList: any[] = [];
@@ -204,9 +176,8 @@ reportesRouter.post("/", async (c) => {
   // foto_url legacy = primera foto si hay
   const primeraFoto = mediaList.find((m) => m.tipo === "foto")?.url ?? d.fotoUrl ?? null;
 
-  try {
-    const vals: any[] = [
-      id, d.modo, d.categoria, d.descripcion,
+  const vals: any[] = [
+      d.modo, d.modo, d.categoria, d.descripcion,
       primeraFoto,
       d.region ?? null,
       d.direccionTexto ?? null,
@@ -223,32 +194,46 @@ reportesRouter.post("/", async (c) => {
       d.contactoNombre ?? null,
       d.contactoTelefono ?? null,
       d.anonimo ?? true,
-    ];
-    if (hasGeo) vals.push(`POINT(${d.lon} ${d.lat})`);
+  ];
+  if (hasGeo) vals.push(`POINT(${d.lon} ${d.lat})`);
 
-    await pool.query(
-      `INSERT INTO reportes_indexados
-         (id, modo, categoria, descripcion, foto_url, region,
-          direccion_texto, ruc_entidad, contacto_email,
-          media_urls, provincia, distrito,
-          monto_estimado, periodo_desde, periodo_hasta,
-          personas_involucradas, enlaces_externos,
-          contacto_nombre, contacto_telefono, anonimo,
-          ubicacion_geo, confirmado, confirmaciones, fecha, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6,
-               $7, $8, $9,
-               $10::jsonb, $11, $12,
-               $13, $14, $15,
-               $16, $17::jsonb,
-               $18, $19, $20,
-               ${hasGeo ? "ST_GeogFromText($21)" : "NULL"},
-               FALSE, 1, CURRENT_DATE, NOW())`,
-      vals,
-    );
-  } catch (e: any) {
-    return c.json({ error: "insert_failed", detail: e?.message?.slice(0, 400) }, 500);
+  // ID por secuencia (next_codigo_reporte, migración 33): RPT-[ENT-]AAAA-NNNNN. Antes eran 4 dígitos
+  // al azar y con ~112 denuncias al año la mitad de las veces chocaba con la PK y se perdía (500).
+  // Se reintenta ante unique_violation (un ID viejo cargado a mano con el mismo número).
+  const insertar = (idSql: string) => pool.query<{ id: string }>(
+    `INSERT INTO reportes_indexados
+       (id, modo, categoria, descripcion, foto_url, region,
+        direccion_texto, ruc_entidad, contacto_email,
+        media_urls, provincia, distrito,
+        monto_estimado, periodo_desde, periodo_hasta,
+        personas_involucradas, enlaces_externos,
+        contacto_nombre, contacto_telefono, anonimo,
+        ubicacion_geo, confirmado, confirmaciones, fecha, created_at)
+     VALUES (${idSql}, $2, $3, $4, $5, $6,
+             $7, $8, $9,
+             $10::jsonb, $11, $12,
+             $13, $14, $15,
+             $16, $17::jsonb,
+             $18, $19, $20,
+             ${hasGeo ? "ST_GeogFromText($21)" : "NULL"},
+             FALSE, 1, CURRENT_DATE, NOW())
+     RETURNING id`,
+    vals,
+  );
+  for (let intento = 1; ; intento++) {
+    try {
+      const r = await insertar("next_codigo_reporte($1)");
+      return c.json({ id: r.rows[0].id, ok: true });
+    } catch (e) {
+      if (esErrorPg(e, "23505") && intento < 3) continue;
+      if (!esErrorPg(e, "42883")) throw e;
+      // Base sin la migración 33 (next_codigo_reporte no existe): ID con 8 caracteres al azar
+      // (sin DDL). Deja de usarse apenas se aplica la 33.
+      const azar = `'RPT-' || CASE WHEN $1 = 'entidad' THEN 'ENT-' ELSE '' END || to_char(now(), 'YYYY') || '-' || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8))`;
+      const r = await insertar(azar);
+      return c.json({ id: r.rows[0].id, ok: true });
+    }
   }
-  return c.json({ id, ok: true });
 });
 
 // ─── GET /reportes/:id ───────────────────────────────────────────
@@ -264,5 +249,6 @@ reportesRouter.get("/:id", async (c) => {
     [id],
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
+  conCache(c, 60);
   return c.json(r.rows[0]);
 });

@@ -43,5 +43,6 @@ uploadRouter.post("/sign", requireAuth, async (c) => {
     filename: finalName,
     contentType,
   });
+  c.header("Cache-Control", "private, no-store");
   return c.json({ uploadUrl, blobUrl, filename: finalName });
 });

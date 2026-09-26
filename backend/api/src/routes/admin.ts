@@ -30,8 +30,10 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { OCID_CANDIDATOS, pool } from "../lib/db.js";
-import { storage } from "../lib/storage.js";
+// Pool propio del panel (lib/db.ts): 120 s por sentencia y sus propias credenciales si existen.
+import { OCID_CANDIDATOS, esErrorPg, poolAdmin as pool } from "../lib/db.js";
+import { storage, ubicarComprobante } from "../lib/storage.js";
+import { SIN_CACHE } from "../lib/http.js";
 import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
@@ -51,8 +53,11 @@ export const adminRouter = new Hono();
 const SIN_INVALIDAR = /\/equipo\/ingreso\//;
 
 adminRouter.use("*", async (c, next) => {
+  // Nada del panel se guarda en un navegador ni en el CDN de Firebase Hosting.
+  c.header("Cache-Control", SIN_CACHE);
   if (!tokenAdminValido(c)) return c.json({ error: "forbidden" }, 403);
   await next();
+  if (!c.res.headers.get("Cache-Control")?.includes("no-store")) c.res.headers.set("Cache-Control", SIN_CACHE);
   // Toda escritura del panel (validar un aporte, publicar/descartar una alerta, cambiar el alcance…)
   // vacía las cachés en memoria de esta instancia y avisa a las demás (lib/cache.ts: ≤ ~2 s).
   const metodo = c.req.method;
@@ -165,18 +170,38 @@ adminRouter.get("/contribuciones/:codigo", async (c) => {
   return c.json({ ...row, monto_pen: undefined, asignaciones: a.rows, log: lg.rows });
 });
 
-// Stream del comprobante (bucket privado): el admin lo ve sin URL pública.
+// Stream del comprobante (bucket privado): el admin lo ve sin URL pública. Auditoría C4 (XSS
+// almacenado): sólo se lee de los buckets propios (lib/storage.ts, BUCKETS_COMPROBANTE; antes
+// cualquier bucket y, si la URL no era de GCS, un redirect abierto), sólo se sirven imágenes y PDF
+// (lo demás, 415) y siempre con `nosniff` + `CSP: sandbox`: aunque el objeto dijera text/html, el
+// navegador no lo ejecuta como página del panel.
+const TIPOS_COMPROBANTE: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+const MAX_COMPROBANTE = 15 * 1024 * 1024;
+
 adminRouter.get("/contribuciones/:codigo/comprobante", async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
   const r = await pool.query("SELECT comprobante_url FROM contribuciones WHERE codigo = $1", [codigo]);
   const url: string | null = r.rows[0]?.comprobante_url ?? null;
   if (!url) return c.json({ error: "sin_comprobante" }, 404);
-  const m = url.match(/^https:\/\/storage\.googleapis\.com\/([^/]+)\/(.+)$/);
-  if (!m) return c.redirect(url);
-  const file = storage.bucket(m[1]).file(decodeURIComponent(m[2]));
+  const donde = ubicarComprobante(url);
+  if (!donde) return c.json({ error: "comprobante_fuera_de_bucket", detail: "El comprobante no está en un bucket de Vigía: no se abre." }, 404);
+  const file = storage.bucket(donde.bucket).file(donde.ruta);
   const [meta] = await file.getMetadata();
+  const tipo = String(meta.contentType ?? "").split(";")[0].trim().toLowerCase();
+  const ext = TIPOS_COMPROBANTE[tipo];
+  if (!ext) return c.json({ error: "tipo_no_permitido", detail: "Sólo se muestran comprobantes en imagen (JPG, PNG, WEBP) o PDF." }, 415);
+  if (Number(meta.size ?? 0) > MAX_COMPROBANTE) return c.json({ error: "comprobante_demasiado_grande" }, 413);
   const [buf] = await file.download();
-  return new Response(new Uint8Array(buf), { headers: { "Content-Type": String(meta.contentType ?? "application/octet-stream"), "Cache-Control": "private, max-age=60" } });
+  return new Response(new Uint8Array(buf), {
+    headers: {
+      "Content-Type": tipo,
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox",
+      "Cache-Control": SIN_CACHE,
+      // El visor de PDF de Chrome no abre dentro de un documento con sandbox: el PDF se descarga.
+      "Content-Disposition": `${ext === "pdf" ? "attachment" : "inline"}; filename="comprobante-${codigo.replace(/[^A-Z0-9-]/g, "")}.${ext}"`,
+    },
+  });
 });
 
 adminRouter.post("/contribuciones/:codigo/validar", async (c) => {
@@ -193,13 +218,15 @@ adminRouter.post("/contribuciones/:codigo/validar", async (c) => {
       [codigo, who, typeof body?.referencia === "string" ? body.referencia : null, typeof body?.nota === "string" ? body.nota : null]);
     if (!r.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "not_found_or_not_pending" }, 404); }
     const asig = await client.query("SELECT asignar_contribucion($1) AS n", [r.rows[0].id]);
-    await client.query("SELECT refresh_financiamiento()");
     await client.query("COMMIT");
     await log(who, "validar", `contribucion:${codigo}`, { asignados: asig.rows[0].n });
+    // El refresco va DESPUÉS del COMMIT (auditoría A1): dentro de la transacción retenía los bloqueos
+    // de la validación todo lo que tardaban las vistas materializadas.
+    await pool.query("SELECT refresh_financiamiento()").catch((e) => console.warn(`[admin] refresh tras validar falló: ${(e as Error).message}`));
     return c.json({ ok: true, codigo, estado: asig.rows[0].n > 0 ? "en_proceso" : "pagada", asignados: asig.rows[0].n });
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
-    return c.json({ error: "internal", detail: (e as Error).message }, 500);
+    throw e; // index.ts lo registra con el requestId; la respuesta no lleva el mensaje interno
   } finally {
     client.release();
   }
@@ -526,17 +553,34 @@ adminRouter.post("/procesamientos/reencolar-errores", async (c) => {
 });
 
 // ─── Re-asignación (Cloud Scheduler) ─────────────────────────────────────────
+// Auditoría A1: antes llamaba asignar_contribucion() por cada aporte abierto aunque su zona no
+// tuviera nada en la cola, y refrescaba las vistas materializadas SIEMPRE (cada 10 min). Ahora
+// salta las zonas sin pendientes y refresca sólo si algo cambió (refresh_financiamiento_si_hace_falta,
+// migración 32: mira las marcas que dejan los triggers; las asignaciones dejan la suya).
 adminRouter.post("/asignar", async (c) => {
   const r = await pool.query(
-    `SELECT id, codigo FROM contribuciones WHERE estado IN ('pagada','en_proceso')
-       AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id)`);
+    `SELECT co.id, co.codigo,
+            EXISTS (SELECT 1 FROM cola_auditoria q WHERE q.ubigeo LIKE co.ubigeo || '%') AS "hayCola"
+       FROM contribuciones co
+      WHERE co.estado IN ('pagada','en_proceso')
+        AND co.contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)`);
   const out: Record<string, number> = {};
+  const sinCola: string[] = [];
   for (const row of r.rows) {
+    if (!row.hayCola) { sinCola.push(row.codigo); continue; }
     const a = await pool.query("SELECT asignar_contribucion($1) AS n", [row.id]);
     if (a.rows[0].n > 0) out[row.codigo] = a.rows[0].n;
   }
-  await pool.query("SELECT refresh_financiamiento()");
-  return c.json({ asignados: out });
+  let refrescado: boolean;
+  try {
+    refrescado = (await pool.query<{ r: boolean }>("SELECT refresh_financiamiento_si_hace_falta() AS r")).rows[0].r;
+  } catch (e) {
+    // Base sin la migración 32: se refresca como antes, siempre.
+    if (!esErrorPg(e, "42883")) throw e;
+    await pool.query("SELECT refresh_financiamiento()");
+    refrescado = true;
+  }
+  return c.json({ asignados: out, sinCola, refrescado });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

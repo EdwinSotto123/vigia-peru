@@ -27,8 +27,9 @@
  *       · Denuncias a ENTIDADES (`modo = 'entidad'`, id `RPT-ENT-…`): NUNCA públicas. El producto
  *         promete que "entran al panel privado de validación" y lo que se publica, si hay patrón, es
  *         un dictamen en el perfil de la entidad, no la denuncia.
- *     `modo` no está en la migración 05 (lo agrega el schema-ensure de POST /reportes), por eso se
- *     lee con `to_jsonb(r)->>'modo'`: no falla en una base recién migrada sin esa columna.
+ *     `modo` no está en la migración 05: lo agregaba el schema-ensure de POST /reportes y desde la
+ *     migración 33 está en la DDL versionada. Se lee directo (`r.modo`); antes iba por
+ *     `to_jsonb(r)->>'modo'`, que serializaba la fila entera por cada reporte (auditoría A15).
  *
  * 4 · Coordenadas de reportes: "Usar mi ubicación" (FormObra) guarda el GPS de alta precisión del
  *     teléfono, o sea la posición de la persona que denunció. Se publican redondeadas a 3 decimales
@@ -92,7 +93,7 @@ export const reporteNoDemo = (alias = "r") => `${alias}.id <> ALL(${sqlTextos(RE
 
 /** SQL: el reporte `alias` se puede mostrar en público (ver §3 del encabezado). */
 export const reportePublico = (alias = "r") => `(${reporteNoDemo(alias)}
-  AND COALESCE(to_jsonb(${alias})->>'modo', 'obra') <> 'entidad'
+  AND COALESCE(${alias}.modo, 'obra') <> 'entidad'
   AND ${alias}.id NOT LIKE 'RPT-ENT-%'
   AND COALESCE(${alias}.moderacion_estado, 'pendiente') <> 'rechazado')`;
 

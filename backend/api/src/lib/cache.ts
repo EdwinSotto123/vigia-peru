@@ -11,8 +11,14 @@
  *     pisa a la nueva.
  *   · Nunca guarda errores: si la consulta falla, el próximo pedido reintenta. La función también
  *     puede pedir `noGuardar()` (armó la respuesta con un respaldo tras un error): se devuelve, no se guarda.
- *   · `max` acota las claves (las más viejas salen primero): las claves llevan los filtros del
- *     pedido y el texto libre (`q`) no tiene techo.
+ *   · `max` acota las claves, LRU por uso: cada acierto la mueve al final y sale primero la que
+ *     hace más tiempo nadie lee. Las claves llevan los filtros del pedido; el texto libre (`q`) no
+ *     tiene techo y va en una caché aparte y chica (así una ráfaga de búsquedas únicas no expulsa
+ *     las páginas que todos piden).
+ *
+ * Respuestas JSON (fase 2, A7): `Memo<Serializado>` guarda el cuerpo YA serializado y su ETag, y
+ * `responderJson` responde 304 si el `If-None-Match` del pedido coincide (antes cada acierto volvía
+ * a hacer JSON.stringify y no había ETag). `responderConEtag` hace lo mismo sin caché.
  *
  * Los TTL no superan el `Cache-Control` que ya devuelve cada ruta (s-maxage + stale-while-revalidate):
  * la caché no alarga lo que un navegador o un CDN ya podían mostrar.
@@ -31,7 +37,11 @@
  * Encima de eso sigue el `Cache-Control` público de cada ruta (navegador o CDN), que esto no acorta.
  */
 
-import { pool } from "./db.js";
+import { createHash } from "node:crypto";
+import type { Context } from "hono";
+// Leer la generación: pool público. Subirla (escritura en ajustes) sólo lo hace el panel: poolAdmin
+// (con roles por componente, el rol público no escribe ajustes; migración 37).
+import { pool, poolAdmin } from "./db.js";
 
 interface Entrada<T> { valor: T; at: number }
 interface Vuelo<T> { p: Promise<T>; t0: number }
@@ -55,6 +65,9 @@ export class Memo<T> {
     if (sync) await sync;
     const e = this.entradas.get(clave);
     if (e) {
+      // LRU por uso: la clave leída pasa al final (la que sale por `max` es la menos leída).
+      this.entradas.delete(clave);
+      this.entradas.set(clave, e);
       const edad = Date.now() - e.at;
       if (edad < this.opts.ttlMs) return e.valor;
       if (edad < this.opts.ttlMs + (this.opts.staleMs ?? 0)) {
@@ -93,7 +106,7 @@ export class Memo<T> {
     // Una consulta que empezó antes que la guardada (la colgada que se reemplazó) no la pisa.
     const actual = this.entradas.get(clave);
     if (actual && actual.at > at) return;
-    this.entradas.delete(clave); // re-inserta al final: las que salen por `max` son las menos refrescadas
+    this.entradas.delete(clave); // re-inserta al final: las que salen por `max` son las menos usadas
     this.entradas.set(clave, { valor, at });
     const max = this.opts.max ?? 1;
     while (this.entradas.size > max) {
@@ -164,8 +177,59 @@ function sincronizarGeneracion(): Promise<void> | null {
  */
 export async function invalidarMemosEnTodas(): Promise<void> {
   invalidarMemos();
-  const p = pool.query(SUBIR_GEN_SQL).catch((e) => {
+  const p = poolAdmin.query(SUBIR_GEN_SQL).catch((e) => {
     console.warn(`[cache] no se pudo subir la generación compartida: ${(e as Error).message}`);
   });
   await aTiempo(p, AVISO_ESPERA_MS);
+}
+
+// ─── Respuestas JSON con ETag (fase 2) ──────────────────────────────────────
+
+/** Cuerpo JSON ya serializado y su ETag débil (sha1 del cuerpo). */
+export interface Serializado { cuerpo: string; etag: string }
+
+export const etagDe = (cuerpo: string) => `W/"${createHash("sha1").update(cuerpo).digest("base64url")}"`;
+
+export function serializar(valor: unknown): Serializado {
+  const cuerpo = JSON.stringify(valor);
+  return { cuerpo, etag: etagDe(cuerpo) };
+}
+
+/** ¿El `If-None-Match` del pedido nombra este ETag? Comparación débil (RFC 9110 §13.1.2), acepta listas y `*`. */
+export function coincideEtag(c: Context, etag: string): boolean {
+  const inm = c.req.header("if-none-match");
+  if (!inm) return false;
+  if (inm.trim() === "*") return true;
+  const sinW = (t: string) => t.trim().replace(/^W\//, "");
+  const buscado = sinW(etag);
+  return inm.split(",").some((t) => sinW(t) === buscado);
+}
+
+/** Responde un cuerpo serializado con su ETag y `Cache-Control`; 304 sin cuerpo si el pedido ya lo tiene. */
+export function responderSerializado(c: Context, s: Serializado, cacheControl: string): Response {
+  c.header("Cache-Control", cacheControl);
+  c.header("ETag", s.etag);
+  if (coincideEtag(c, s.etag)) {
+    const r = c.body(null, 304);
+    r.headers.delete("Content-Type"); // un 304 no lleva cuerpo ni tipo
+    return r;
+  }
+  c.header("Content-Type", "application/json; charset=UTF-8");
+  return c.body(s.cuerpo, 200);
+}
+
+/**
+ * Respuesta JSON desde una caché de cuerpos serializados: `fn` arma el valor sólo si `clave` no
+ * está vigente en `memo`; el acierto ya no se vuelve a serializar. 304 ante `If-None-Match`.
+ */
+export async function responderJson(
+  c: Context, memo: Memo<Serializado>, clave: string, fn: (ctl: ControlMemo) => Promise<unknown>, cacheControl: string,
+): Promise<Response> {
+  const s = await memo.obtener(clave, async (ctl) => serializar(await fn(ctl)));
+  return responderSerializado(c, s, cacheControl);
+}
+
+/** Como `responderJson`, sin caché: serializa, pone el ETag y responde 304 si corresponde. */
+export function responderConEtag(c: Context, valor: unknown, cacheControl: string): Response {
+  return responderSerializado(c, serializar(valor), cacheControl);
 }

@@ -18,6 +18,8 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
 import { alertaNoDemo } from "../lib/publicacion.js";
+import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
+import { SIN_CACHE } from "../lib/http.js";
 
 export const contribucionesRouter = new Hono();
 
@@ -143,8 +145,8 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
     }, 201);
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error("[contribuciones] error:", (e as Error).message);
-    return c.json({ error: "internal", detail: (e as Error).message }, 500);
+    // Sin el mensaje interno en la respuesta: lo registra el manejador de errores (index.ts) con el requestId.
+    throw e;
   } finally {
     client.release();
   }
@@ -158,11 +160,15 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
 //   · correo: `email` en el cuerpo = el correo con el que se registró el aporte (financiadores.email),
 //     sin distinguir mayúsculas ni espacios (mismo criterio que /cuentas/me/reclamar).
 // Sin ninguna → 403 `titularidad_requerida`; con una que no coincide → 403 `titularidad_no_coincide`.
-// La URL solo puede apuntar a un archivo subido por /api/upload como comprobante (GCS, prefijo
-// comprobantes/): el panel admin la descarga con la cuenta de servicio de la API.
-const URL_COMPROBANTE = /^https:\/\/storage\.googleapis\.com\/[a-z0-9][a-z0-9._-]{1,220}\/comprobantes\/[A-Za-z0-9._-]{1,120}$/;
+// La URL solo puede apuntar a un archivo subido por /api/upload como comprobante, en un bucket
+// PROPIO (auditoría C4): antes aceptaba `<cualquier bucket>/comprobantes/…` y el panel admin lo
+// descargaba y lo servía con el Content-Type que trajera (XSS almacenado). Hoy los comprobantes van
+// al bucket privado (GCS_BUCKET_PRIVADO); se sigue aceptando la ruta vieja del bucket de documentos.
+// El panel los lee con la cuenta de servicio de la API (routes/admin.ts, BUCKETS_COMPROBANTE).
+const URL_COMPROBANTE = new RegExp(
+  `^https://storage\\.googleapis\\.com/(${BUCKETS_COMPROBANTE.map(escaparRegex).join("|")})/comprobantes/[A-Za-z0-9._-]{1,120}$`);
 const ComprobanteBody = z.object({
-  url: z.string().url().regex(URL_COMPROBANTE),
+  url: z.string().max(400).regex(URL_COMPROBANTE),
   referencia: z.string().max(80).optional(),
   email: z.string().trim().max(254).optional(),
 });
@@ -214,5 +220,6 @@ contribucionesRouter.get("/:codigo", async (c) => {
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);
   if (!r.rows.length) return c.json({ error: "not_found" }, 404);
+  c.header("Cache-Control", SIN_CACHE);
   return c.json(r.rows[0]);
 });

@@ -9,7 +9,7 @@
 
 import { timingSafeEqual } from "node:crypto";
 import type { Context } from "hono";
-import { pool } from "./db.js";
+import { poolAdmin as pool } from "./db.js"; // pool del panel (lib/db.ts)
 
 // 254 = largo máximo de un correo: el actor es el correo verificado de quien entró al panel.
 export const actor = (c: Context) => (c.req.header("x-admin-actor") ?? "admin").slice(0, 254);

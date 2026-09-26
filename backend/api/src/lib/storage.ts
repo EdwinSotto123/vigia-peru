@@ -23,6 +23,23 @@ export const BUCKETS = {
 
 export type BucketName = keyof typeof BUCKETS;
 
+/**
+ * Buckets donde puede vivir un comprobante de aporte (auditoría C4): el privado (el frontend sube
+ * ahí desde la fase 0) y, por compatibilidad, el de documentos (ruta vieja `comprobantes/`). Nada
+ * fuera de estos se lee ni se sirve.
+ */
+export const BUCKET_PRIVADO = process.env.GCS_BUCKET_PRIVADO || "vigia-peru-privado";
+export const BUCKETS_COMPROBANTE: readonly string[] = Array.from(new Set([BUCKET_PRIVADO, BUCKETS.documentos]));
+
+export const escaparRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/** `https://storage.googleapis.com/<bucket propio>/comprobantes/<archivo>` → {bucket, ruta}; si no, null. */
+export function ubicarComprobante(url: string): { bucket: string; ruta: string } | null {
+  const m = url.match(/^https:\/\/storage\.googleapis\.com\/([^/]+)\/(comprobantes\/[A-Za-z0-9._-]{1,120})$/);
+  if (!m || !BUCKETS_COMPROBANTE.includes(m[1])) return null;
+  return { bucket: m[1], ruta: m[2] };
+}
+
 export async function signUploadUrl(opts: {
   bucket: BucketName;
   filename: string;
