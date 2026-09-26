@@ -8,6 +8,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  // Junto a la base: cada consulta ~50 ms en vez de ~200 ms desde Lima (infrastructure/deploy/cloudflare-base.sh).
+  "placement": { "region": "gcp:us-central1" },
   "minify": true,
   "upload_source_maps": true,
   "hyperdrive": [
@@ -15,7 +17,7 @@
       // Rol vigia_mcp, pooling en modo transacción (equivale al PgBouncer de Cloud Run).
       // En `wrangler dev` la conexión sale de CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE.
       "binding": "HYPERDRIVE",
-      "id": "PENDIENTE_HYPERDRIVE_MCP"
+      "id": "d25debb0dc09480797676f8edab64a75"
     }
   ]
 }
