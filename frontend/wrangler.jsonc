@@ -1,0 +1,30 @@
+// Réplica del frontend en Cloudflare Workers (OpenNext). Cloud Run sigue igual:
+// infrastructure/deploy/frontend.sh. Variables y secretos: CLOUDFLARE.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // /_next/image: sin este binding el worker devuelve la imagen original (el logo de 64 px
+  // pesaría 140 KB en vez de 3). Cloudflare Images: 5000 transformaciones únicas al mes gratis.
+  "images": { "binding": "IMAGES" },
+  "services": [
+    // Revalidación ISR: el worker se pide a sí mismo la página vencida (open-next.config.ts).
+    { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
+  ],
+  "vars": {
+    "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
+    "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
+    "GOOGLE_CLOUD_PROJECT": "vivid-spot-480905-a4",
+    "DOCS_BUCKET": "vigia-peru-documentos",
+    "REPORTES_BUCKET": "vigia-peru-reportes",
+    "GCS_BUCKET_PRIVADO": "vigia-peru-privado",
+    "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev"
+  },
+  "observability": { "enabled": true }
+}

@@ -7,11 +7,11 @@ import { COLOR, isotipoSvg } from "@/components/sitio/isotipoImagen";
  * esquinas en curva, así que el fondo es opaco y el isotipo ocupa el 80 % del
  * lado, dentro de la zona que el recorte no toca.
  *
- * Edge por la misma razón que app/icon.tsx (la versión Node de `next/og` no
- * encuentra su fuente en Windows).
+ * Node y dinámico por la misma razón que app/icon.tsx (la versión Node de
+ * `next/og` no encuentra su fuente en Windows: no se puede prerenderizar ahí).
  */
 
-export const runtime = "edge";
+export const dynamic = "force-dynamic";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 

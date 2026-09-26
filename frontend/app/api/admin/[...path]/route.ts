@@ -2,6 +2,7 @@ import { promisify } from "util";
 import { gzip } from "zlib";
 import { NextResponse, type NextRequest } from "next/server";
 import { API_BASE } from "@/lib/api-client";
+import { EN_WORKERS } from "@/lib/entorno";
 import { COOKIE_ADMIN, COOKIE_ADMIN_LEGADO, cookieAdmin, esAdmin, leerSesionDetalle, olvidarPerfil, tokenApi } from "@/lib/admin-sesion";
 import { puedeApi, ROLES } from "@/lib/permisos";
 
@@ -21,7 +22,8 @@ import { puedeApi, ROLES } from "@/lib/permisos";
  * gzipea las route handlers (sí las páginas), así que el JSON llegaba plano al
  * navegador: /procesamientos pesa ~75 KB y el dossier admin ~480 KB. El JSON de
  * más de 1 KB se vuelve a comprimir acá si el navegador acepta gzip; lo binario
- * (comprobantes, imágenes) sigue pasando como stream, sin tocarlo.
+ * (comprobantes, imágenes) sigue pasando como stream, sin tocarlo. En Cloudflare Workers no: el
+ * runtime vuelve a comprimir todo cuerpo con `Content-Encoding` y el borde ya comprime el JSON.
  *
  * Seguridad de lo que se reenvía (fase 0 de la auditoría técnica, C4): el comprobante de un
  * aporte lo sube un anónimo y se abre en ESTE origen, con la sesión del admin. Un HTML o un SVG
@@ -103,7 +105,7 @@ async function proxy(req: NextRequest, { params }: { params: { path: string[] } 
   const rct = r.headers.get("content-type");
   const tipo = tipoBase(rct);
   const esJson = tipo === "application/json";
-  const aceptaGzip = (req.headers.get("accept-encoding") ?? "").includes("gzip");
+  const aceptaGzip = !EN_WORKERS && (req.headers.get("accept-encoding") ?? "").includes("gzip");
   const conCuerpo = req.method !== "HEAD" && ![204, 205, 304].includes(r.status);
   // Un tipo fuera de la lista (text/html, image/svg+xml…) nunca llega al navegador. Sin tipo y
   // con cuerpo, tampoco: el navegador lo adivinaría.

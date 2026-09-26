@@ -9,6 +9,10 @@ node_modules/
 out/
 dist/
 build/
+# réplica en Cloudflare Workers (CLOUDFLARE.md): build de OpenNext y estado local de wrangler
+.open-next/
+.wrangler/
+.dev.vars*
 
 .env
 .env.*

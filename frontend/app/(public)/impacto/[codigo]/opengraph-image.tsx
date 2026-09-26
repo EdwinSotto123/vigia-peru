@@ -8,11 +8,11 @@ import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoIm
  * 1200×630 con la identidad de Vigía (DESIGN_SYSTEM.md §2, §3.8 y §6): fondo
  * granate profundo —un momento de marca, no de dato—, la franja textil arriba,
  * la firma con el isotipo y las cifras en maíz, que es lo que brilla sobre oscuro.
- * Sin fuentes externas (la tipografía del motor) para que corra en edge.
+ * Sin fuentes externas (la tipografía del motor). Runtime Node: el único que corre
+ * la réplica en Cloudflare Workers (ver app/icon.tsx).
  * Si el API no responde, devuelve una tarjeta genérica en vez de fallar.
  */
 
-export const runtime = "edge";
 export const alt = "Comprobante de impacto de Vigía Perú";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

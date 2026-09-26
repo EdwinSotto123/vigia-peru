@@ -10,13 +10,15 @@ import { isotipoSvg } from "@/components/sitio/isotipoImagen";
  * 32 px: por encima del mínimo de 24 px del isotipo (por debajo el anillo se
  * vuelve ruido). Fondo transparente: la pestaña pone el suyo.
  *
- * Edge, como la tarjeta Open Graph del comprobante: la versión Node de `next/og`
- * arma la ruta de su fuente con `path.join(import.meta.url, …)` y en Windows eso
- * da una URL inválida ("Invalid URL … noto-sans-v27-latin-regular.ttf"): en un
- * build hecho en Windows el ícono no se podría prerenderizar.
+ * Runtime Node (el de Cloud Run y el único que corre la réplica en Cloudflare
+ * Workers; ver CLOUDFLARE.md) y dinámico, como cuando era edge: la versión Node
+ * de `next/og` arma la ruta de su fuente con `path.join(import.meta.url, …)` y en
+ * Windows eso da una URL inválida ("Invalid URL … noto-sans-v27-latin-regular.ttf"),
+ * así que un build hecho en Windows no podría prerenderizarlo. En Linux (Cloud
+ * Run, Workers) se dibuja bien; con `next dev` en Windows el ícono no sale.
  */
 
-export const runtime = "edge";
+export const dynamic = "force-dynamic";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 

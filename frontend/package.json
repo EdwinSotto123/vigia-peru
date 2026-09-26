@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview -- --port 8788",
+    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
@@ -27,6 +30,7 @@
     "undici": "^7.25.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.15.1",
     "@tailwindcss/typography": "^0.5.19",
     "@types/d3-geo": "3.1.0",
     "@types/geojson": "7946.0.14",
@@ -36,6 +40,7 @@
     "autoprefixer": "10.4.19",
     "postcss": "8.4.39",
     "tailwindcss": "3.4.6",
-    "typescript": "5.5.3"
+    "typescript": "5.5.3",
+    "wrangler": "^4.141.0"
   }
 }

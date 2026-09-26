@@ -36,8 +36,8 @@
  *    obras, QR de pago y logos de aliados, que se muestran en el sitio.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { Storage } from "@google-cloud/storage";
 import { COOKIE_ADMIN, cookieAdmin, leerSesion } from "@/lib/admin-sesion";
+import { guardarObjeto } from "@/lib/gcs";
 import { puede } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
@@ -46,15 +46,6 @@ export const runtime = "nodejs";
 const BUCKET = process.env.REPORTES_BUCKET || "vigia-peru-reportes";
 /** Lo que tiene datos personales y nunca se publica. Ver la cabecera. */
 const BUCKET_PRIVADO = process.env.GCS_BUCKET_PRIVADO || "vigia-peru-privado";
-
-let _storage: Storage | null = null;
-function getStorage() {
-  if (_storage) return _storage;
-  _storage = new Storage({
-    projectId: process.env.GOOGLE_CLOUD_PROJECT || "vivid-spot-480905-a4",
-  });
-  return _storage;
-}
 
 /** 12 MB: holgado para una foto de celular o un PDF escaneado, lejos del tope de 32 MiB de Cloud Run. */
 const MAX_BYTES = 12 * 1024 * 1024;
@@ -374,11 +365,10 @@ export async function POST(req: NextRequest) {
   const path = `${prefix}/${stamp}.${formato.ext}`;
 
   try {
-    await getStorage().bucket(bucketName).file(path).save(buf, {
+    await guardarObjeto(bucketName, path, buf, {
       contentType: formato.mime,
-      resumable: false,
       // Lo privado no se cachea en ningún lado; lo público es inmutable (nombre único).
-      metadata: { cacheControl: privado ? "private, no-store" : "public, max-age=31536000" },
+      cacheControl: privado ? "private, no-store" : "public, max-age=31536000",
     });
   } catch (e) {
     console.error("[upload] GCS:", (e as Error).message);

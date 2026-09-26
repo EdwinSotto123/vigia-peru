@@ -12,18 +12,12 @@
  */
 
 import type { NextRequest } from "next/server";
-import { Agent as UndiciAgent } from "undici";
 import { exigirAdmin } from "../_admin";
 import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../../_orquestador";
+import { fetchLargo } from "@/lib/fetch-largo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 3600;  // 60 min — Cloud Run max es 3600s
-
-const LONG_TIMEOUT_DISPATCHER = new UndiciAgent({
-  headersTimeout: 3_600_000,  // 60 min
-  bodyTimeout: 3_600_000,
-  connectTimeout: 30_000,
-});
 
 export async function POST(req: NextRequest) {
   // Cada corrida cuesta: solo el equipo (cookie de admin verificada) puede dispararla.
@@ -50,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   let upstream: Response;
   try {
-    upstream = await fetch(orchUrl, {
+    upstream = await fetchLargo(orchUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
       body: JSON.stringify({
@@ -59,8 +53,6 @@ export async function POST(req: NextRequest) {
         docs_b64: body.docs_b64 || {},
         doc_urls: body.doc_urls || {},
       }),
-      // @ts-expect-error undici dispatcher
-      dispatcher: LONG_TIMEOUT_DISPATCHER,
     });
   } catch (e) {
     return new Response(

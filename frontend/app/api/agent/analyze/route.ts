@@ -17,22 +17,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirAdmin } from "./_admin";
 import { ORCHESTRATOR_URL, cabecerasOrquestador } from "../_orquestador";
-import { Agent as UndiciAgent, setGlobalDispatcher } from "undici";
-import { Storage } from "@google-cloud/storage";
+import { fetchLargo } from "@/lib/fetch-largo";
+import { guardarObjeto, leerObjeto } from "@/lib/gcs";
 
 export const dynamic = "force-dynamic";
 // 25 min. Cubre runs largos donde Vertex AI hace retry/backoff por 429.
 // En Cloud Run hosting, no hay cap. En Vercel free, esto se trunca a 60s
 // (Hobby) o 300s (Pro) — si corre en Vercel, ajustar al plan.
 export const maxDuration = 3600;  // 60 min — Cloud Run max
-
-// El default de undici (5 min) corta el fetch al Cloud Function. Subido a 25 min
-// para tolerar retries del SDK de Gemini por 429 RESOURCE_EXHAUSTED.
-const LONG_TIMEOUT_DISPATCHER = new UndiciAgent({
-  headersTimeout: 3_600_000,  // 60 min
-  bodyTimeout: 3_600_000,
-  connectTimeout: 30_000,
-});
 
 const OECE_BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
 // Cap por PDF en el path server-side (fallback cuando el cliente no pre-fetcheó).
@@ -62,15 +54,6 @@ function viaRelay(targetUrl: string): string {
 //      si los OECE original URLs estuvieran inaccesibles desde el Cloud Function.
 const DOCS_BUCKET = process.env.DOCS_BUCKET || "vigia-peru-documentos";
 
-let _storage: Storage | null = null;
-function getStorage(): Storage {
-  if (_storage) return _storage;
-  _storage = new Storage({
-    projectId: process.env.GOOGLE_CLOUD_PROJECT || "vivid-spot-480905-a4",
-  });
-  return _storage;
-}
-
 function safeName(name: string): string {
   return name
     .normalize("NFD")
@@ -96,7 +79,6 @@ async function archiveDocsToGcs(
   const metaByUrl = new Map<string, DocMeta>();
   for (const m of metas) metaByUrl.set(m.url, m);
 
-  const bucket = getStorage().bucket(DOCS_BUCKET);
   const cleanOcid = safeName(ocid);
 
   await Promise.all(
@@ -107,14 +89,10 @@ async function archiveDocsToGcs(
         const contentType = meta?.contentType || "application/octet-stream";
         const path = `convocatorias/${cleanOcid}/${filename}`;
         const buf = Buffer.from(b64, "base64");
-        const blob = bucket.file(path);
-        await blob.save(buf, {
+        await guardarObjeto(DOCS_BUCKET, path, buf, {
           contentType,
-          resumable: false,
-          metadata: {
-            cacheControl: "public, max-age=86400",
-            metadata: { ocid, original_url: url },
-          },
+          cacheControl: "public, max-age=86400",
+          metadata: { ocid, original_url: url },
         });
         out[url] = {
           gcs_url: `https://storage.googleapis.com/${DOCS_BUCKET}/${path}`,
@@ -159,12 +137,9 @@ const OCDS_CACHE_PREFIX = "ocds-cache";
 
 async function readOcdsCache(ocid: string): Promise<any | null> {
   try {
-    const bucket = getStorage().bucket(DOCS_BUCKET);
     const path = `${OCDS_CACHE_PREFIX}/${safeName(ocid)}.json`;
-    const file = bucket.file(path);
-    const [exists] = await file.exists();
-    if (!exists) return null;
-    const [buf] = await file.download();
+    const buf = await leerObjeto(DOCS_BUCKET, path);
+    if (!buf) return null;
     return JSON.parse(buf.toString("utf-8"));
   } catch {
     return null;
@@ -173,13 +148,10 @@ async function readOcdsCache(ocid: string): Promise<any | null> {
 
 async function writeOcdsCache(ocid: string, cr: any): Promise<void> {
   try {
-    const bucket = getStorage().bucket(DOCS_BUCKET);
     const path = `${OCDS_CACHE_PREFIX}/${safeName(ocid)}.json`;
-    const blob = bucket.file(path);
-    await blob.save(JSON.stringify(cr), {
+    await guardarObjeto(DOCS_BUCKET, path, JSON.stringify(cr), {
       contentType: "application/json",
-      resumable: false,
-      metadata: { cacheControl: "public, max-age=86400" },
+      cacheControl: "public, max-age=86400",
     });
   } catch {
     // Cache write best-effort, no abortar.
@@ -571,12 +543,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const r = await fetch(ORCHESTRATOR_URL, {
+    const r = await fetchLargo(ORCHESTRATOR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await cabecerasOrquestador(ORCHESTRATOR_URL)) },
       body: JSON.stringify({ input, ocds: cr, docs_b64: body_docs_b64, doc_urls }),
-      // @ts-expect-error undici dispatcher is supported by Node fetch
-      dispatcher: LONG_TIMEOUT_DISPATCHER,
     });
     if (!r.ok) {
       return NextResponse.json(
