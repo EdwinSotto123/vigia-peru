@@ -1,0 +1,15 @@
+{
+  // Réplica en Cloudflare del relay de Lima (backend/relay/app.py): misma API y mismo token.
+  // Desde Cloudflare, OECE y SEACE responden 200 (medido 2026-09-26), cosa que desde GCP no pasa.
+  "name": "vigia-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "GCS_BUCKET": "vigia-peru-documentos",
+    "GCP_PROJECT": "vivid-spot-480905-a4",
+    "MAX_BYTES": "62914560"
+  }
+  // Secretos (wrangler secret put): VIGIA_DL_TOKEN (el mismo LOCAL_DOWNLOADER_TOKEN de los agentes)
+  // y GCP_SA_KEY (JSON de la cuenta vigia-downloader, con escritura en el bucket).
+}
