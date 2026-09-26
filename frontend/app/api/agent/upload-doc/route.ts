@@ -20,21 +20,12 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirAdmin } from "../analyze/_admin";
-import { Storage } from "@google-cloud/storage";
+import { guardarObjeto } from "@/lib/gcs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const DOCS_BUCKET = process.env.DOCS_BUCKET || "vigia-peru-documentos";
-
-let _storage: Storage | null = null;
-function getStorage(): Storage {
-  if (_storage) return _storage;
-  _storage = new Storage({
-    projectId: process.env.GOOGLE_CLOUD_PROJECT || "vivid-spot-480905-a4",
-  });
-  return _storage;
-}
 
 function safeName(name: string): string {
   return name
@@ -64,15 +55,10 @@ export async function POST(req: NextRequest) {
     const safeFile = safeName(filename || "doc.bin");
     const path = `convocatorias/${cleanOcid}/${safeFile}`;
     const buf = Buffer.from(base64, "base64");
-    const bucket = getStorage().bucket(DOCS_BUCKET);
-    const blob = bucket.file(path);
-    await blob.save(buf, {
+    await guardarObjeto(DOCS_BUCKET, path, buf, {
       contentType: contentType || "application/octet-stream",
-      resumable: false,
-      metadata: {
-        cacheControl: "public, max-age=86400",
-        metadata: { ocid, original_url: url },
-      },
+      cacheControl: "public, max-age=86400",
+      metadata: { ocid, original_url: url },
     });
     return NextResponse.json({
       ok: true,

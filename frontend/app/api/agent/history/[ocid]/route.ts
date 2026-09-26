@@ -10,11 +10,16 @@
  * resultado ya comprimido queda en una caché LRU acotada en memoria, por dossier y por versión
  * de lo que mandó la API (su ETag o, si no manda, un hash del cuerpo): si no cambió, no se
  * re-arma ni se re-comprime. La respuesta lleva `ETag` y contesta 304 a `If-None-Match`.
+ *
+ * En Cloudflare Workers no se comprime a mano: el runtime vuelve a comprimir todo cuerpo con
+ * `Content-Encoding` (saldría gzip dentro de gzip) y el borde ya comprime el JSON. Ahí se guarda
+ * el JSON plano.
  */
 import { createHash } from "crypto";
 import { gunzipSync, gzipSync } from "zlib";
 import { NextResponse } from "next/server";
 import { API_DOSSIER, armarDossier, claveDossier, extraerTraza, noEsDossier } from "@/lib/dossier-servidor";
+import { EN_WORKERS } from "@/lib/entorno";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +32,7 @@ interface Entrada {
   origen: string;
   /** ETag propio de esta respuesta ya transformada. */
   etag: string;
+  /** El JSON en gzip (en Workers, plano). */
   gz: Buffer;
 }
 
@@ -109,7 +115,7 @@ export async function GET(req: Request, { params }: { params: { ocid: string } }
         const cuerpo = soloTraza ? extraerTraza(loaded) : await armarDossier(loaded, clave);
         const json = JSON.stringify(cuerpo);
         // Next no gzipea las route handlers en Cloud Run: se comprime a mano, una sola vez.
-        entrada = { origen, etag: `W/"${sha1(json)}"`, gz: gzipSync(Buffer.from(json)) };
+        entrada = { origen, etag: `W/"${sha1(json)}"`, gz: EN_WORKERS ? Buffer.from(json) : gzipSync(Buffer.from(json)) };
         guardar(k, entrada);
       }
     }
@@ -126,6 +132,7 @@ export async function GET(req: Request, { params }: { params: { ocid: string } }
     if (pedido && pedido.split(/\s*,\s*/).some((t) => t === entrada.etag || t === "*")) {
       return new Response(null, { status: 304, headers });
     }
+    if (EN_WORKERS) return new Response(entrada.gz, { status: 200, headers });
     if ((req.headers.get("accept-encoding") || "").includes("gzip")) {
       return new Response(entrada.gz, { status: 200, headers: { ...headers, "Content-Encoding": "gzip" } });
     }

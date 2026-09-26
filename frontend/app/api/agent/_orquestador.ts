@@ -12,8 +12,14 @@
  * Mientras el orquestador siga público funciona igual; después del cambio a IAM-only se puede
  * probar local con `AGENT_ID_TOKEN=$(gcloud auth print-identity-token) npm run dev`.
  *
+ * Cloudflare Workers (réplica, CLOUDFLARE.md): no hay servidor de metadatos; el token se firma
+ * con la llave de la misma cuenta de servicio (secreto `GCP_SA_KEY`, lib/cuenta-google.ts).
+ *
  * Solo servidor: lo importan los route handlers de /api/agent/*, nunca un componente.
  */
+
+import { idTokenDeCuenta } from "@/lib/cuenta-google";
+import { EN_WORKERS } from "@/lib/entorno";
 
 export const ORCHESTRATOR_URL =
   process.env.VIGIA_AGENT_URL ||
@@ -38,6 +44,7 @@ export function audienciaDe(url: string): string {
 }
 
 async function pedirToken(audiencia: string): Promise<string | null> {
+  if (EN_WORKERS) return tokenDeCuenta(audiencia);
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), METADATA_TIMEOUT_MS);
   try {
@@ -63,6 +70,16 @@ async function pedirToken(audiencia: string): Promise<string | null> {
     return null;
   } finally {
     clearTimeout(t);
+  }
+}
+
+/** Workers: el ID token sale de `GCP_SA_KEY`. Sin llave o con error, va sin Authorization (avisa). */
+async function tokenDeCuenta(audiencia: string): Promise<string | null> {
+  try {
+    return await idTokenDeCuenta(audiencia);
+  } catch (e) {
+    console.warn(`[orquestador] sin ID token para ${audiencia} (${(e as Error).message}): la llamada va sin Authorization.`);
+    return null;
   }
 }
 

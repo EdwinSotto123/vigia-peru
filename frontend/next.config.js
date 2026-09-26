@@ -14,6 +14,28 @@ const nextConfig = {
   // tsc --noEmit está limpio: un error de tipos vuelve a frenar el build.
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    // Réplica en Cloudflare Workers (CLOUDFLARE.md): OpenNext arma el worker con los archivos
+    // que traza Next. En Windows la traza de `next/og` pierde su fuente y sus .wasm (el mismo
+    // bug de rutas que se cuenta en app/icon.tsx), así que se agregan a mano. Cloud Run no
+    // usa las trazas: ahí no cambia nada.
+    outputFileTracingIncludes: {
+      "/{icon,apple-icon}": ["./node_modules/next/dist/compiled/@vercel/og/*.{ttf,wasm}"],
+      "/**/opengraph-image-*": ["./node_modules/next/dist/compiled/@vercel/og/*.{ttf,wasm}"],
+    },
+  },
+  // Build de la réplica en Workers (open-next.config.ts pone VIGIA_DESTINO=cloudflare): ahí
+  // lib/gcs.ts y lib/fetch-largo.ts van por la API REST y el fetch del runtime, y nunca cargan
+  // estos paquetes de Node; se dejan fuera del worker (~1,3 MB). Sin la variable, no cambia nada.
+  webpack(config, { isServer }) {
+    if (isServer && process.env.VIGIA_DESTINO === "cloudflare") {
+      config.resolve.alias = { ...config.resolve.alias, "@google-cloud/storage": false, undici: false };
+      // Caché de webpack aparte: la variable no entra en su clave, y un `next build` para Cloud
+      // Run reusaría los módulos vacíos (y al revés).
+      if (config.cache) config.cache = { ...config.cache, name: `${config.name}-${config.mode}-cloudflare` };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

@@ -10,6 +10,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { EN_WORKERS, leerAssetPublico } from "./entorno";
 import {
   fetchRegionBudget,
   fetchMefBudget,
@@ -49,13 +50,22 @@ function fechaDe(entry: unknown): string | null {
   return typeof f === "string" && !Number.isNaN(new Date(f).getTime()) ? f : null;
 }
 
+/** Un JSON de `public/`: del disco en Node; en Cloudflare Workers (sin disco), de los assets. */
+async function leerPublico(nombre: string): Promise<string> {
+  if (EN_WORKERS) {
+    const texto = await leerAssetPublico(nombre);
+    if (texto === null) throw new Error(`${nombre} no está en los assets`);
+    return texto;
+  }
+  return fs.readFile(path.join(process.cwd(), "public", nombre), "utf-8");
+}
+
 async function loadCache(): Promise<Record<string, RegionBudgetSummary>> {
   if (cachedFile && Date.now() - cacheLoadedAt < CACHE_TTL_MS) {
     return cachedFile;
   }
   try {
-    const p = path.join(process.cwd(), "public", "mef-budget.json");
-    const raw = await fs.readFile(p, "utf-8");
+    const raw = await leerPublico("mef-budget.json");
     cachedFile = JSON.parse(raw);
     cacheLoadedAt = Date.now();
     return cachedFile ?? {};
@@ -100,8 +110,7 @@ async function loadEntities(): Promise<Record<string, EntityCacheEntry>> {
     return cachedEntities;
   }
   try {
-    const p = path.join(process.cwd(), "public", "mef-entities.json");
-    const raw = await fs.readFile(p, "utf-8");
+    const raw = await leerPublico("mef-entities.json");
     cachedEntities = JSON.parse(raw);
     entitiesLoadedAt = Date.now();
     return cachedEntities ?? {};

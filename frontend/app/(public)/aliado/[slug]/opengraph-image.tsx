@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { getPerfilAliado, resumirContribuciones } from "@/components/aliados/perfil";
 import { puestoDe } from "@/components/aliados/ranking";
 import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoImagen";
@@ -11,12 +12,11 @@ import { numero } from "@/lib/formato";
  * granate profundo, la franja textil arriba, la firma con el isotipo, su nombre, su
  * puesto en el ranking y sus cifras en maíz. Cuenta contratos, nunca soles.
  *
- * Sin fuentes externas y en edge. Sin el logo del aliado: si su archivo no respondiera,
- * la tarjeta entera fallaría; va su inicial en un disco. Si el API no responde, devuelve
- * una tarjeta genérica en vez de fallar.
+ * Sin fuentes externas y en runtime Node (ver app/icon.tsx). Sin el logo del aliado: si su
+ * archivo no respondiera, la tarjeta entera fallaría; va su inicial en un disco. Si el API no
+ * responde, devuelve una tarjeta genérica en vez de fallar.
  */
 
-export const runtime = "edge";
 export const alt = "Perfil de un aliado de transparencia de Vigía Perú";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -25,6 +25,8 @@ export const contentType = "image/png";
 const PAPER_75 = "rgba(255,255,255,0.75)";
 
 export default async function Image({ params }: { params: { slug: string } }) {
+  const fija = await imagenFijaEnWindows();
+  if (fija) return fija;
   let perfil: Awaited<ReturnType<typeof getPerfilAliado>> = null;
   let puesto: Awaited<ReturnType<typeof puestoDe>> = null;
   try {
