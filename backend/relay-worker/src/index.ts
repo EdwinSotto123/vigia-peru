@@ -62,7 +62,7 @@ function urlPermitida(u: string): URL | null {
 
 /** Mismo saneo que el upload-doc del frontend (NFD, sin tildes, [A-Za-z0-9._-]). */
 function nombreSeguro(n: string): string {
-  const s = (n || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const s = (n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
   return s.slice(0, 200) || "doc.bin";
 }
 
