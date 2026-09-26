@@ -26,5 +26,8 @@
     "GCS_BUCKET_PRIVADO": "vigia-peru-privado",
     "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev"
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Junto a la API y los agentes (us-central1), como el frontend de Cloud Run: cada fetch del
+  // servidor queda local y al usuario le llega una sola respuesta.
+  "placement": { "region": "gcp:us-central1" }
 }
