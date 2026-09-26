@@ -1,0 +1,48 @@
+// Vigía Perú · réplica del dispatcher en Cloudflare Workers (backend/dispatcher, el Cloud Run Job
+// vigia-dispatcher, sigue igual). Ver README.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-dispatcher",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  // Junto a la base y a los servicios de agentes: ~50 ms por consulta en vez de ~200 ms.
+  "placement": { "region": "gcp:us-central1" },
+  "minify": true,
+  "upload_source_maps": true,
+
+  // Rol vigia_dispatcher, pooling en modo transacción (PgBouncer). En `wrangler dev` la conexión sale
+  // de CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "5616f9f3183941adb536f06fa2287bd3" }],
+
+  // Un Workflow por hilo de corrida (src/workflow.ts).
+  "workflows": [{ "name": "vigia-dispatcher-procesar", "binding": "PROCESAR", "class_name": "ProcesarContratos" }],
+
+  // APAGADO mientras corra el job de Cloud Run. Para encenderlo: "crons": ["*/5 * * * *"] y
+  // DISPATCHER_ACTIVO "1" (las dos cosas; sin la variable el cron no reclama nada).
+  "triggers": { "crons": [] },
+
+  // Las de infrastructure/deploy/dispatcher.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
+  // Secretos (wrangler secret put): GCP_SA_KEY (cuenta con roles/run.invoker en los 4 servicios de
+  // agentes) y DISPATCHER_TOKEN (endpoints manuales).
+  "vars": {
+    "DISPATCHER_ACTIVO": "0",
+    "AGENT_URL": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
+    "AGENT_URL_BIENES": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
+    "AGENT_URL_SERVICIOS": "https://agente-servicios-oq3gq6a4ka-uc.a.run.app",
+    "AGENT_URL_OBRAS": "https://agente-obras-oq3gq6a4ka-uc.a.run.app",
+    "AGENT_URL_OTROS": "https://agente-otros-oq3gq6a4ka-uc.a.run.app",
+    "DISPATCHER_PARALLEL": "1",
+    "DISPATCHER_MAX_MINUTES": "25",
+    "DISPATCHER_TASK_TIMEOUT_S": "7200",
+    "DISPATCHER_ANALISIS_MAX_S": "3600",
+    "DISPATCHER_STREAM_TIMEOUT": "1200",
+    "DISPATCHER_GRACE_MINUTES": "20",
+    "DISPATCHER_MAX_EVENTOS": "400",
+    "DISPATCHER_PREFETCH_OCDS": "1",
+    "DISPATCHER_REQUIERE_DOCS_GCS": "1",
+    "DISPATCHER_TRAMO_S": "1200"
+  }
+}
