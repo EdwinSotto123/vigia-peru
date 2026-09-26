@@ -18,12 +18,12 @@ REGION="${REGION:-us-central1}"
 AGENTES=(agent-orchestrator-adk agente-servicios agente-obras agente-otros)
 JOBS_DATOS=(vigia-ingest scraper-jne-infogob scraper-mef-presupuesto scraper-oece-ocds scraper-onpe-claridad
             scraper-pnda-dji scraper-pnda-oece scraper-pnda-sancionados scraper-pnda-visitas)
-# Secreto de la base por componente: al pasar a roles propios (migración 37) cada uno tiene el suyo;
-# mientras tanto todos leen `cloudsql-password`.
-SECRETO_DB_API="${SECRETO_DB_API:-cloudsql-password}"
-SECRETO_DB_MCP="${SECRETO_DB_MCP:-cloudsql-password}"
-SECRETO_DB_DISPATCHER="${SECRETO_DB_DISPATCHER:-cloudsql-password}"
-SECRETO_DB_JOBS="${SECRETO_DB_JOBS:-cloudsql-password}"
+# Secreto de la base por componente (roles de la migración 37); la API usa dos (público y panel).
+SECRETO_DB_API="${SECRETO_DB_API:-cloudsql-password-api}"
+SECRETO_DB_API_ADMIN="${SECRETO_DB_API_ADMIN:-cloudsql-password-api-admin}"
+SECRETO_DB_MCP="${SECRETO_DB_MCP:-cloudsql-password-mcp}"
+SECRETO_DB_DISPATCHER="${SECRETO_DB_DISPATCHER:-cloudsql-password-dispatcher}"
+SECRETO_DB_JOBS="${SECRETO_DB_JOBS:-cloudsql-password-jobs}"
 
 sa() { echo "vigia-$1@${PROJECT_ID}.iam.gserviceaccount.com"; }
 
@@ -45,9 +45,11 @@ crear() {
   crear_sa api "API pública"
   proyecto api roles/cloudsql.client
   proyecto api roles/cloudtrace.agent
-  secreto api admin-token; secreto api "$SECRETO_DB_API"
+  secreto api admin-token; secreto api "$SECRETO_DB_API"; secreto api "$SECRETO_DB_API_ADMIN"
   bucket api vigia-peru-privado roles/storage.objectViewer
   bucket api vigia-peru-documentos roles/storage.objectViewer
+  # signReadUrl: vista previa de los documentos del SEACE guardados en el bucket de lotes.
+  bucket api vigia-peru-batch roles/storage.objectViewer
   gcloud iam service-accounts add-iam-policy-binding "$(sa api)" --project "$PROJECT_ID" \
     --member "serviceAccount:$(sa api)" --role roles/iam.serviceAccountTokenCreator --quiet >/dev/null
   ejecutar_job api vigia-dispatcher
@@ -60,6 +62,8 @@ crear() {
   secreto frontend admin-token; secreto frontend admin-session-secret; secreto frontend admin-emails
   bucket frontend vigia-peru-reportes roles/storage.objectCreator
   bucket frontend vigia-peru-privado roles/storage.objectCreator
+  # /api/agent/analyze y upload-doc (sólo el equipo): suben documentos y reescriben su caché JSON.
+  bucket frontend vigia-peru-documentos roles/storage.objectUser
   for s in "${AGENTES[@]}"; do invocar_servicio frontend "$s"; done
 
   # MCP: solo lectura de la base.
@@ -93,8 +97,9 @@ cambiar() {
     dispatcher) gcloud run jobs update vigia-dispatcher --region "$REGION" --service-account "$(sa dispatcher)" --quiet ;;
     jobs)       for j in "${JOBS_DATOS[@]}"; do gcloud run jobs update "$j" --region "$REGION" --service-account "$(sa jobs)" --quiet || true; done ;;
     scheduler)
-      for j in $(gcloud scheduler jobs list --location "$REGION" --format='value(name.basename())'); do
-        uri="$(gcloud scheduler jobs describe "$j" --location "$REGION" --format='value(httpTarget.uri)')"
+      # tr -d '\r': gcloud en Windows termina las líneas con CRLF.
+      for j in $(gcloud scheduler jobs list --location "$REGION" --format='value(name.basename())' | tr -d '\r'); do
+        uri="$(gcloud scheduler jobs describe "$j" --location "$REGION" --format='value(httpTarget.uri)' | tr -d '\r')"
         # Solo los que ejecutan jobs de Cloud Run con OAuth; el de /admin/asignar va con su propio encabezado.
         if [[ "$uri" == https://run.googleapis.com/* ]]; then
           gcloud scheduler jobs update http "$j" --location "$REGION" --oauth-service-account-email "$(sa scheduler)" --quiet

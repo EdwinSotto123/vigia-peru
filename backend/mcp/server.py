@@ -39,14 +39,20 @@ _ALERTA_PUBLICA = "(alerta_publicada(a.estado) AND a.codigo NOT LIKE 'ALT-%')"
 
 def _pg():
     if PG_HOST.startswith("/cloudsql/"):
-        return pg8000.dbapi.connect(
+        conn = pg8000.dbapi.connect(
             user=PG_USER, password=PG_PASS, database=PG_DB,
             unix_sock=f"{PG_HOST}/.s.PGSQL.5432",
         )
-    return pg8000.dbapi.connect(
-        host=PG_HOST, port=5432, user=PG_USER, password=PG_PASS,
-        database=PG_DB, ssl_context=True,
-    )
+    else:
+        # Por TCP: directo a Cloud SQL (TLS) o a PgBouncer dentro de la VPC (PGPORT=6432, PGSSLMODE=disable).
+        conn = pg8000.dbapi.connect(
+            host=PG_HOST, port=int(os.getenv("PGPORT", "5432")), user=PG_USER, password=PG_PASS,
+            database=PG_DB, ssl_context=None if os.getenv("PGSSLMODE") == "disable" else True,
+        )
+    # Sólo lectura: sin una transacción abierta al cerrar, PgBouncer (modo transacción) reutiliza la
+    # conexión al servidor en vez de descartarla.
+    conn.autocommit = True
+    return conn
 
 
 def _short_ocid(ocid: str) -> str:

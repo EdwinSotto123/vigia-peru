@@ -36,9 +36,15 @@ crear() {
   gcloud compute firewall-rules describe vigia-pgbouncer-desde-run --project "$PROJECT_ID" >/dev/null 2>&1 || \
     gcloud compute firewall-rules create vigia-pgbouncer-desde-run --project "$PROJECT_ID" --network default \
       --direction INGRESS --action ALLOW --rules tcp:6432 --source-ranges "$SUBRED_RUN" --target-tags vigia-pgbouncer --quiet
+  # La red default abre SSH y RDP a 0.0.0.0/0 para todas las VMs: para ésta se niegan (prioridad 900)
+  # y SSH queda sólo por IAP (prioridad 800).
+  gcloud compute firewall-rules describe vigia-pgbouncer-sin-internet --project "$PROJECT_ID" >/dev/null 2>&1 || \
+    gcloud compute firewall-rules create vigia-pgbouncer-sin-internet --project "$PROJECT_ID" --network default \
+      --direction INGRESS --action DENY --rules tcp:22,tcp:3389 --source-ranges 0.0.0.0/0 --priority 900 \
+      --target-tags vigia-pgbouncer --quiet
   gcloud compute firewall-rules describe vigia-pgbouncer-ssh-iap --project "$PROJECT_ID" >/dev/null 2>&1 || \
     gcloud compute firewall-rules create vigia-pgbouncer-ssh-iap --project "$PROJECT_ID" --network default \
-      --direction INGRESS --action ALLOW --rules tcp:22 --source-ranges 35.235.240.0/20 --target-tags vigia-pgbouncer --quiet
+      --direction INGRESS --action ALLOW --rules tcp:22 --source-ranges 35.235.240.0/20 --priority 800 --target-tags vigia-pgbouncer --quiet
 
   local arranque; arranque="$(mktemp)"
   cat > "$arranque" <<SCRIPT
@@ -59,8 +65,15 @@ RestartSec=3
 WantedBy=multi-user.target
 UNIT
 # Contraseñas de los roles desde Secret Manager (token de la cuenta de la VM, sin llaves en disco).
-leer() { curl -s -H "Authorization: Bearer \$(curl -s -H 'Metadata-Flavor: Google' http://metadata/computeMetadata/v1/instance/service-accounts/default/token | sed -E 's/.*"access_token":"([^"]+)".*/\1/')" \
-  "https://secretmanager.googleapis.com/v1/projects/${PROJECT_ID}/secrets/\$1/versions/latest:access" | sed -E 's/.*"data": *"([^"]+)".*/\1/' | base64 -d; }
+leer() { python3 - "\$1" <<'PY'
+import base64, json, sys, urllib.request
+md = urllib.request.Request('http://metadata/computeMetadata/v1/instance/service-accounts/default/token', headers={'Metadata-Flavor': 'Google'})
+tok = json.load(urllib.request.urlopen(md))['access_token']
+url = 'https://secretmanager.googleapis.com/v1/projects/${PROJECT_ID}/secrets/' + sys.argv[1] + '/versions/latest:access'
+r = json.load(urllib.request.urlopen(urllib.request.Request(url, headers={'Authorization': 'Bearer ' + tok})))
+sys.stdout.write(base64.b64decode(r['payload']['data']).decode())
+PY
+}
 umask 077
 {
   printf '"vigia_api" "%s"\n' "\$(leer cloudsql-password-api)"

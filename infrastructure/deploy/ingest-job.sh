@@ -39,7 +39,7 @@ gcloud run jobs deploy vigia-ingest --source "$CTX" --region "$REGION" \
   --service-account "$JOB_SA" \
   --tasks 1 --max-retries 0 --task-timeout 3600 --cpu 1 --memory 1Gi \
   --set-cloudsql-instances "$SQL_CONNECTION" \
-  --set-env-vars "PGHOST=/cloudsql/${SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,BATCH_BUCKET=${BUCKET_BATCH},BATCH_PREFIJO=batch/" \
-  --set-secrets "PGPASSWORD=cloudsql-password:latest" --quiet
+  --set-env-vars "PGHOST=/cloudsql/${SQL_CONNECTION},PGUSER=vigia_jobs,PGDATABASE=vigia,BATCH_BUCKET=${BUCKET_BATCH},BATCH_PREFIJO=batch/" \
+  --set-secrets "PGPASSWORD=cloudsql-password-jobs:latest" --quiet
 
 echo "✓ job vigia-ingest listo · ejecutar: gcloud run jobs execute vigia-ingest --region $REGION --args=--lote,<id> --wait"

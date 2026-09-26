@@ -12,6 +12,7 @@ gcloud run deploy vigia-peru-frontend \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \
+  --min-instances 1 \
   --memory 1Gi \
   --update-env-vars "VIGIA_API_URL=${API_URL},VIGIA_AGENT_URL=${AGENT_URL},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},DOCS_BUCKET=${BUCKET_DOCUMENTOS},REPORTES_BUCKET=${BUCKET_REPORTES}" \
   --update-secrets "ADMIN_TOKEN=admin-token:latest,ADMIN_EMAILS=admin-emails:latest,ADMIN_SESSION_SECRET=admin-session-secret:latest" \

@@ -31,4 +31,10 @@ secretos_decolecta_flags() {
   fi
 }
 
+# ¿El servicio ya pasa por PgBouncer (pgbouncer.sh conectar)? Entonces api.sh/mcp.sh no le pisan PGHOST.
+en_pgbouncer() {
+  gcloud run services describe "$1" --region "$REGION" --format=yaml 2>/dev/null | tr -d '\r' \
+    | grep -A1 -- '- name: PG_POOLER' | grep -q 'value: pgbouncer'
+}
+
 gcloud config set project "$PROJECT_ID" --quiet >/dev/null

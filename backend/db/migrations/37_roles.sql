@@ -61,8 +61,10 @@ BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r.rol) THEN
       EXECUTE format('CREATE ROLE %I LOGIN', r.rol);
     END IF;
-    EXECUTE format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION '
-                   'NOBYPASSRLS CONNECTION LIMIT %s', r.rol, r.limite);
+    -- Sin NOSUPERUSER/NOREPLICATION/NOBYPASSRLS: en Cloud SQL `postgres` no es superusuario y no puede
+    -- nombrar esos atributos (ni para negarlos). Un rol creado por él nunca los tiene.
+    EXECUTE format('ALTER ROLE %I WITH LOGIN NOCREATEDB NOCREATEROLE INHERIT CONNECTION LIMIT %s',
+                   r.rol, r.limite);
   END LOOP;
 END $$;
 

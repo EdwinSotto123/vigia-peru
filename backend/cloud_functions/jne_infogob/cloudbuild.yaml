@@ -51,8 +51,8 @@ steps:
       - --cpu=${_CPU}
       - --memory=${_MEM}
       - --set-cloudsql-instances=${_SQL_CONNECTION}
-      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=postgres,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET}
-      - --set-secrets=PGPASSWORD=cloudsql-password:latest
+      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=vigia_jobs,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET}
+      - --set-secrets=PGPASSWORD=cloudsql-password-jobs:latest
       - --quiet
 
   # 5. Cloud Scheduler — dispara el Job por su cuenta (día 5 — el JNE republica tras cada proclamación/vacancia).
