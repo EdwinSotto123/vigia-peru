@@ -8,6 +8,8 @@
   "observability": { "enabled": true },
   // Junto a la base: ~50 ms por consulta en vez de ~200 ms desde Lima (infrastructure/deploy/cloudflare-base.sh).
   "placement": { "region": "gcp:us-central1" },
+  // Asignación de aportes cada 10 min (src/worker.ts → scheduled); el Scheduler de GCP quedó pausado.
+  "triggers": { "crons": ["*/10 * * * *"] },
 
   // Postgres detrás de Hyperdrive (reparte en modo transacción, como PgBouncer). Crear ambos con
   // el caché de consultas apagado (CLOUDFLARE.md). Local: CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>.

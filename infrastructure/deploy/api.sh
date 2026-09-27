@@ -11,12 +11,14 @@ ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000,https://vigia-peru-fro
 CONEXION="PGHOST=/cloudsql/${SQL_CONNECTION}|"
 en_pgbouncer vigia-peru-api && CONEXION=""
 
+# Sin instancias fijas desde 2026-09-27: la réplica de Cloudflare (vigia-web / vigia-api) es la que va a
+# atender cuando se apunte el dominio; Cloud Run queda de respaldo. MIN_INSTANCIAS=1 lo vuelve a tener tibio.
 cd "$REPO_ROOT/backend/api"
 gcloud run deploy vigia-peru-api \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \
-  --min-instances 1 \
+  --min-instances "${MIN_INSTANCIAS:-0}" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
   --update-env-vars "^|^${CONEXION}PGUSER=vigia_api|PGUSER_ADMIN=vigia_api_admin|PGDATABASE=vigia|FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}|GCS_PROJECT_ID=${PROJECT_ID}|GCS_BUCKET_DOCUMENTOS=${BUCKET_DOCUMENTOS}|GCS_BUCKET_REPORTES=${BUCKET_REPORTES}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|LOCAL_DOWNLOADER_URL=${LOCAL_DOWNLOADER_URL:-http://149.104.66.211:8080}" \
   --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest" \

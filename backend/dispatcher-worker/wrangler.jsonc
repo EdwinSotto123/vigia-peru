@@ -20,15 +20,16 @@
   // Un Workflow por hilo de corrida (src/workflow.ts).
   "workflows": [{ "name": "vigia-dispatcher-procesar", "binding": "PROCESAR", "class_name": "ProcesarContratos" }],
 
-  // APAGADO mientras corra el job de Cloud Run. Para encenderlo: "crons": ["*/5 * * * *"] y
-  // DISPATCHER_ACTIVO "1" (las dos cosas; sin la variable el cron no reclama nada).
-  "triggers": { "crons": [] },
+  // ENCENDIDO desde 2026-09-27: este es el dispatcher de producción. El job de Cloud Run quedó con su
+  // Scheduler (vigia-dispatcher-run) PAUSADO, sin borrar. Para volver: "crons": [] y DISPATCHER_ACTIVO "0"
+  // acá, y `gcloud scheduler jobs resume vigia-dispatcher-run --location us-central1`.
+  "triggers": { "crons": ["*/5 * * * *"] },
 
   // Las de infrastructure/deploy/dispatcher.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): GCP_SA_KEY (cuenta con roles/run.invoker en los 4 servicios de
   // agentes) y DISPATCHER_TOKEN (endpoints manuales).
   "vars": {
-    "DISPATCHER_ACTIVO": "0",
+    "DISPATCHER_ACTIVO": "1",
     "AGENT_URL": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
     "AGENT_URL_BIENES": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
     "AGENT_URL_SERVICIOS": "https://agente-servicios-oq3gq6a4ka-uc.a.run.app",

@@ -7,12 +7,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 API_URL="${VIGIA_API_URL:-$(gcloud run services describe vigia-peru-api --region "$REGION" --format='value(status.url)')}"
 AGENT_URL="${VIGIA_AGENT_URL:-$(gcloud run services describe agent-orchestrator-adk --region "$REGION" --format='value(status.url)')}"
 
+# Sin instancias fijas desde 2026-09-27: la réplica de Cloudflare (vigia-web / vigia-api) es la que va a
+# atender cuando se apunte el dominio; Cloud Run queda de respaldo. MIN_INSTANCIAS=1 lo vuelve a tener tibio.
 cd "$REPO_ROOT/frontend"
 gcloud run deploy vigia-peru-frontend \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \
-  --min-instances 1 \
+  --min-instances "${MIN_INSTANCIAS:-0}" \
   --memory 1Gi \
   --update-env-vars "VIGIA_API_URL=${API_URL},VIGIA_AGENT_URL=${AGENT_URL},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},DOCS_BUCKET=${BUCKET_DOCUMENTOS},REPORTES_BUCKET=${BUCKET_REPORTES}" \
   --update-secrets "ADMIN_TOKEN=admin-token:latest,ADMIN_EMAILS=admin-emails:latest,ADMIN_SESSION_SECRET=admin-session-secret:latest" \
