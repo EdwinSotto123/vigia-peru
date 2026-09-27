@@ -6,7 +6,7 @@ El mismo frontend (Next.js 14.2) corre también como worker `vigia-web`
 
 - Adaptador: `@opennextjs/cloudflare` **1.15.1**, fijo. Es el último que acepta Next 14
   (desde 1.16 exige Next 15). No subirlo sin migrar Next.
-- Archivos: `wrangler.jsonc`, `open-next.config.ts`, `cloudflare/cache-memoria.ts`.
+- Archivos: `wrangler.jsonc`, `open-next.config.ts`.
 
 ## Comandos
 
@@ -23,7 +23,7 @@ En Windows funciona (OpenNext avisa que prefiere Linux); para producción, mejor
 
 En `wrangler.jsonc` (`vars`, no son secretas): `VIGIA_API_URL`, `VIGIA_AGENT_URL`,
 `GOOGLE_CLOUD_PROJECT`, `DOCS_BUCKET`, `REPORTES_BUCKET`, `GCS_BUCKET_PRIVADO`,
-`OECE_RELAY_URL`. Opcionales: `VIGIA_CACHE_MAX_MB` (24 por defecto), `AGENT_ID_TOKEN`.
+`OECE_RELAY_URL`. Opcional: `AGENT_ID_TOKEN`. Bucket R2: `vigia-web-cache` (binding `NEXT_INC_CACHE_R2_BUCKET`).
 
 Secretos, una vez por cuenta (`npx wrangler secret put NOMBRE`):
 
@@ -60,14 +60,15 @@ GCS a un emulador, como en `@google-cloud/storage`.
   `app/api/agent/_orquestador.ts` y `lib/gcs.ts` sólo en Workers (`lib/entorno.ts`).
 - **Cloud Storage**: en Workers, API JSON por `fetch`; en Node, `@google-cloud/storage`.
   `undici` y `@google-cloud/storage` quedan fuera del worker (`next.config.js`).
-- **Caché**: una LRU en memoria por isolate (`cloudflare/cache-memoria.ts`), sembrada con
-  lo prerenderizado. ISR: el worker se pide a sí mismo la página vencida.
+- **Caché de páginas**: en R2 (`vigia-web-cache`), compartida por todas las instancias, con una capa
+  regional (Cache API de cada punto) delante. `cf:deploy` sube lo prerenderizado. ISR: el worker se
+  pide a sí mismo la página vencida.
 - **Compresión**: el borde de Cloudflare comprime; las rutas que gzipeaban a mano no lo
   hacen en Workers (saldría gzip dentro de gzip).
 - **Imágenes**: `/_next/image` usa el binding `IMAGES` (Cloudflare Images).
 - **Ícono y tarjetas Open Graph**: runtime Node (OpenNext no corre rutas `edge`). Con
-  `next dev` o `next start` en Windows no se dibujan: bug de `next/og` con las rutas de
-  Windows. En Linux (Cloud Run, Workers) salen igual que antes.
+  `next dev` o `next start` en Windows se sirve el logo fijo (`lib/imagen-fija-windows.ts`): bug de
+  `next/og` con las rutas de Windows. En Linux (Cloud Run, Workers) se dibujan igual que antes.
 
 ## Límites
 

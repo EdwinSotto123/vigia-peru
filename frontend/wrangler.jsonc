@@ -13,6 +13,8 @@
   // /_next/image: sin este binding el worker devuelve la imagen original (el logo de 64 px
   // pesaría 140 KB en vez de 3). Cloudflare Images: 5000 transformaciones únicas al mes gratis.
   "images": { "binding": "IMAGES" },
+  // Caché de páginas (ISR) compartida entre instancias: open-next.config.ts.
+  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache" }],
   "services": [
     // Revalidación ISR: el worker se pide a sí mismo la página vencida (open-next.config.ts).
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
