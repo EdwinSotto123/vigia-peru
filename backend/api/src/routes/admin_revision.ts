@@ -109,7 +109,7 @@ const HEAD_SQL = `
          (SELECT count(*) FROM banderas b WHERE b.alerta_id = a.id)::int AS banderas,
          a.analisis_full->'self_evals' AS "selfEvals",
          a.analisis_full->'self_evals'->'pct' AS pct,
-         a.analisis_full->>'perfil' AS perfil,
+         COALESCE(a.analisis_full->'perfil'->>'nombre', a.analisis_full->>'perfil') AS perfil,
          a.moderacion,
          pp.contribucion_codigo AS "contribucionCodigo", pp.financiador, pp.ocid AS "procesamientoOcid"
   FROM alertas a

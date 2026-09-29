@@ -93,7 +93,8 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
   a.analisis_full->'self_evals'->'pct' AS autoevaluacion,
   (a.dictamen_markdown IS NOT NULL AND length(a.dictamen_markdown) > 200) AS "dictamenListo",
   -- U5: perfil del pipeline, costo/tokens del análisis y modelo usado (para "versión del pipeline")
-  a.analisis_full->>'perfil' AS perfil,
+  -- El primer guardado del agente deja el perfil como objeto (el segundo, ~50 s después, como nombre): siempre el nombre.
+  COALESCE(a.analisis_full->'perfil'->>'nombre', a.analisis_full->>'perfil') AS perfil,
   CASE WHEN jsonb_typeof(a.analisis_full->'llm_metrics') = 'object' THEN json_build_object(
     'costoUsd', (a.analisis_full->'llm_metrics'->>'cost_usd')::float,
     'llamadas', (a.analisis_full->'llm_metrics'->>'n_llm_calls')::int,

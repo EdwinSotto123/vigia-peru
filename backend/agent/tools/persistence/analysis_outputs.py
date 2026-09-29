@@ -12,6 +12,13 @@ from tools.persistence.shared import (
 )
 
 
+def _nombre_perfil(perfil):
+    """El perfil del pipeline como texto: el estado puede traer el perfil entero (dict) o su nombre."""
+    if isinstance(perfil, dict):
+        return perfil.get("nombre")
+    return perfil
+
+
 def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> dict:
     """Persiste el análisis completo de los sub-agentes en Cloud SQL para
     que se pueda consultar el histórico de convocatorias analizadas. Guarda:
@@ -178,7 +185,9 @@ def persist_analysis_outputs(alerta_codigo: str, tool_context: ToolContext) -> d
         "descartes":            state.get("descartes") or [],
         "validaciones_pendientes": state.get("validaciones_pendientes"),
         "verificacion_dictamen": state.get("verificacion_dictamen"),
-        "perfil":               state.get("perfil") or state.get("pipeline_profile"),
+        # Solo el nombre ("bienes"): el estado guarda el perfil entero y la API/la web esperan texto
+        # (se veía el JSON del perfil como "Tipo de contrato" hasta el segundo guardado).
+        "perfil":               _nombre_perfil(state.get("perfil") or state.get("pipeline_profile")),
         # `compliance_summary` se completa más abajo con el conteo REAL de banderas de la
         # alerta (lote 1 · T5): el texto del agente decía "0 banderas" porque se genera
         # antes de compliance_extended/mercado/legal.
