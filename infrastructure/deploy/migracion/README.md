@@ -2,6 +2,12 @@
 
 La receta completa para llevar la plataforma a un proyecto nuevo (por ejemplo, uno más grande y financiado), probada en la mudanza `vivid-spot-480905-a4` → `project-a974c6e5-0cdf-4b11-a86` del 29/09/2026.
 
+Cómo terminó esa mudanza:
+
+- Tras el corte y un snapshot de la base nueva (`backend/db/snapshot/`), en vivid-spot se borraron la instancia de Cloud SQL, la VM de PgBouncer, los 4 agentes, los 10 jobs y sus Schedulers.
+- Quedaron la entrada pública y los buckets.
+- Las imágenes siguen en Artifact Registry, para volver a desplegar si hiciera falta.
+
 **Ningún código ni script tiene un proyecto fijo.** Mudarse es:
 
 1. Poner el proyecto nuevo en `PROJECT_ID` (`infrastructure/deploy/_common.sh` y `infrastructure/terraform/terraform.tfvars`).
