@@ -76,3 +76,9 @@ GCS a un emulador, como en `@google-cloud/storage`.
 - CPU: renderizar Next pasa los 10 ms por pedido del plan gratis; hace falta el plan pago.
 - `/api/agent/analyze` (sin stream) espera la respuesta entera del orquestador; la UI usa
   `/api/agent/analyze/stream`, que manda bytes mientras corre.
+
+## Sin memoria para el build
+
+`bash infrastructure/deploy/web-cloudflare-remoto.sh` hace el `next build` en Cloud Build (`frontend/cloudbuild-cf.yaml`) y despliega desde la PC con una carpeta mínima (solo el adaptador y wrangler). No toca el `.next` de `next dev`.
+
+El build de Cloud Build importa `.wasm` con rutas absolutas `/workspace/frontend/...`; el script las reescribe antes de `opennextjs-cloudflare deploy`. Así se desplegó el 29/09/2026, con 0,9 GB libres en la PC.

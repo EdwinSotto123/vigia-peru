@@ -1,0 +1,27 @@
+# Build de vigia-web (OpenNext para Cloudflare) en Cloud Build, para cuando la PC no tiene memoria
+# para `next build`. Lo usa infrastructure/deploy/web-cloudflare-remoto.sh, que sube el código
+# (git archive + .env.production) y después despliega desde la PC con el resultado.
+substitutions:
+  _SALIDA: gs://vigia-migracion-${PROJECT_NUMBER}/web
+  _SITE_URL: https://vigia-web.vigiaperu.workers.dev
+  _API_URL: https://vigia-api.vigiaperu.workers.dev
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+steps:
+  - name: node:22
+    dir: frontend
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        npm ci --no-audit --no-fund
+        NEXT_PUBLIC_SITE_URL=${_SITE_URL} NEXT_PUBLIC_VIGIA_API_URL=${_API_URL} npx opennextjs-cloudflare build
+        tar -czf /workspace/open-next.tgz .open-next
+artifacts:
+  objects:
+    location: ${_SALIDA}/
+    paths: ['open-next.tgz']
+timeout: 2400s
