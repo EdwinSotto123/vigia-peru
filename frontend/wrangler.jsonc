@@ -21,7 +21,7 @@
   ],
   "vars": {
     "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
-    "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
+    "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
     "GOOGLE_CLOUD_PROJECT": "vivid-spot-480905-a4",
     "DOCS_BUCKET": "vigia-peru-documentos",
     "REPORTES_BUCKET": "vigia-peru-reportes",

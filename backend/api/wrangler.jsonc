@@ -26,6 +26,8 @@
     "GCS_BUCKET_DOCUMENTOS": "vigia-peru-documentos",
     "GCS_BUCKET_REPORTES": "vigia-peru-reportes",
     "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev",
-    "LOCAL_DOWNLOADER_URL": "http://149.104.66.211:8080"
+    "LOCAL_DOWNLOADER_URL": "http://149.104.66.211:8080",
+    // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app
+    "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
   }
 }

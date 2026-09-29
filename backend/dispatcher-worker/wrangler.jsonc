@@ -30,11 +30,11 @@
   // agentes) y DISPATCHER_TOKEN (endpoints manuales).
   "vars": {
     "DISPATCHER_ACTIVO": "1",
-    "AGENT_URL": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
-    "AGENT_URL_BIENES": "https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app",
-    "AGENT_URL_SERVICIOS": "https://agente-servicios-oq3gq6a4ka-uc.a.run.app",
-    "AGENT_URL_OBRAS": "https://agente-obras-oq3gq6a4ka-uc.a.run.app",
-    "AGENT_URL_OTROS": "https://agente-otros-oq3gq6a4ka-uc.a.run.app",
+    "AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
+    "AGENT_URL_BIENES": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
+    "AGENT_URL_SERVICIOS": "https://agente-servicios-753067078557.us-central1.run.app",
+    "AGENT_URL_OBRAS": "https://agente-obras-753067078557.us-central1.run.app",
+    "AGENT_URL_OTROS": "https://agente-otros-753067078557.us-central1.run.app",
     "DISPATCHER_PARALLEL": "1",
     "DISPATCHER_MAX_MINUTES": "25",
     "DISPATCHER_TASK_TIMEOUT_S": "7200",
