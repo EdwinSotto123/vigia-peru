@@ -21,6 +21,7 @@ En un solo proyecto, las tres variables de proyecto tienen el mismo valor. Mudar
 | `cloudflare-base.sh tunel\|hyperdrive` | Túnel y configuraciones de Hyperdrive | `PROJECT_ID` (secretos) |
 | `api.sh`, `mcp.sh`, `frontend.sh` | Cloud Run de la entrada (conectan a la base y los agentes de `PROJECT_ID`) | `ENTRADA_PROJECT_ID` |
 | `hosting.sh` | Firebase Hosting `vigia-peru.web.app` | `ENTRADA_PROJECT_ID` |
+| `web-cloudflare-remoto.sh` | vigia-web en Cloudflare: build en Cloud Build, deploy desde la PC | `PROJECT_ID` (Cloud Build) |
 | `cuentas-servicio.sh` | Cuentas por componente | el que se pase en `PROJECT_ID` |
 | `dispatcher.sh`, `agent.sh` | Históricos: el dispatcher de Cloud Run quedó reemplazado por el de Cloudflare | `PROJECT_ID` |
 
