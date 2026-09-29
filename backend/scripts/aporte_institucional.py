@@ -33,6 +33,9 @@ def main() -> int:
     ap.add_argument("--contratos", type=int, default=10)
     ap.add_argument("--mensaje", default=None)
     ap.add_argument("--pedir-documentos", action="store_true")
+    ap.add_argument("--tipos", default=None, help="tipos elegibles separados por coma, p. ej. 'bienes' (migración 38)")
+    ap.add_argument("--incluir-sin-documentos", action="store_true",
+                    help="asignar también contratos sin documentos en GCS (por defecto solo los listos)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
@@ -54,17 +57,23 @@ def main() -> int:
         z = cur.fetchone()
         if not z:
             print(f"✗ zona {a.ubigeo} no existe"); return 2
-        cur.execute("SELECT count(*) FROM cola_auditoria WHERE ubigeo LIKE %s", (a.ubigeo + "%",))
-        en_cola = cur.fetchone()[0]
-        print(f"financiador #{fid} {a.nombre} · zona {z[0]} ({z[1]}) · en cola financiable: {en_cola} · "
+        tipos = [s.strip() for s in a.tipos.split(",") if s.strip()] if a.tipos else None
+        cur.execute("""SELECT count(*), count(*) FILTER (WHERE documentos_listos(q.ocid))
+                         FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
+                        WHERE q.ubigeo LIKE %s AND (%s::text[] IS NULL OR c.tipo_contratacion = ANY (%s))""",
+                    (a.ubigeo + "%", tipos, tipos))
+        en_cola, listos = cur.fetchone()
+        print(f"financiador #{fid} {a.nombre} · zona {z[0]} ({z[1]}) · en cola financiable: {en_cola} (con documentos: {listos}) · "
               f"{a.contratos} contratos × S/ {precio} = S/ {float(precio) * a.contratos:.2f}")
         if a.dry_run:
             conn.rollback(); return 0
         cur.execute("""INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, estado,
-                                                   pasarela, pasarela_ref, validada_por, pagada_at, mensaje_publico)
+                                                   pasarela, pasarela_ref, validada_por, pagada_at, mensaje_publico,
+                                                   solo_con_documentos, tipos)
                        VALUES (next_codigo_contribucion(), %s, %s, %s, %s, %s, 'pagada', 'institucional',
-                               'aporte-institucional', 'sistema', now(), %s) RETURNING id, codigo""",
-                    (fid, a.ubigeo, a.contratos, tarifa_id, float(precio) * a.contratos, a.mensaje))
+                               'aporte-institucional', 'sistema', now(), %s, %s, %s) RETURNING id, codigo""",
+                    (fid, a.ubigeo, a.contratos, tarifa_id, float(precio) * a.contratos, a.mensaje,
+                     not a.incluir_sin_documentos, tipos))
         cid, codigo = cur.fetchone()
         cur.execute("SELECT asignar_contribucion(%s)", (cid,))
         n = cur.fetchone()[0]

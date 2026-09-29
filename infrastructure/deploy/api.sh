@@ -16,6 +16,7 @@ en_pgbouncer vigia-peru-api && CONEXION=""
 cd "$REPO_ROOT/backend/api"
 # La API vive en la entrada pública (ENTRADA_PROJECT_ID) y usa la base de PROJECT_ID por el conector
 # de Cloud SQL (su cuenta necesita roles/cloudsql.client en PROJECT_ID: migracion/README.md).
+# "Correr el dispatcher ahora" llama al Worker de Cloudflare (DISPATCHER_URL + secreto dispatcher-cloudflare-token).
 AGENT_HOST_SUFFIX="${AGENT_HOST_SUFFIX:-$(sufijo_run)}"
 gcloud_entrada run deploy vigia-peru-api \
   --source . \
@@ -23,6 +24,6 @@ gcloud_entrada run deploy vigia-peru-api \
   --allow-unauthenticated \
   --min-instances "${MIN_INSTANCIAS:-0}" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
-  --update-env-vars "^|^${CONEXION}PGUSER=vigia_api|PGUSER_ADMIN=vigia_api_admin|PGDATABASE=vigia|FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}|GCS_PROJECT_ID=${BUCKETS_PROJECT_ID}|AGENT_HOST_SUFFIX=${AGENT_HOST_SUFFIX}|GCS_BUCKET_DOCUMENTOS=${BUCKET_DOCUMENTOS}|GCS_BUCKET_REPORTES=${BUCKET_REPORTES}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|LOCAL_DOWNLOADER_URL=${LOCAL_DOWNLOADER_URL:-http://149.104.66.211:8080}" \
-  --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest" \
+  --update-env-vars "^|^${CONEXION}PGUSER=vigia_api|PGUSER_ADMIN=vigia_api_admin|PGDATABASE=vigia|FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}|GCS_PROJECT_ID=${BUCKETS_PROJECT_ID}|AGENT_HOST_SUFFIX=${AGENT_HOST_SUFFIX}|GCS_BUCKET_DOCUMENTOS=${BUCKET_DOCUMENTOS}|GCS_BUCKET_REPORTES=${BUCKET_REPORTES}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|LOCAL_DOWNLOADER_URL=${LOCAL_DOWNLOADER_URL:-http://149.104.66.211:8080}|DISPATCHER_URL=${DISPATCHER_URL:-https://vigia-dispatcher.vigiaperu.workers.dev}" \
+  --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest,DISPATCHER_TOKEN=dispatcher-cloudflare-token:latest" \
   --quiet

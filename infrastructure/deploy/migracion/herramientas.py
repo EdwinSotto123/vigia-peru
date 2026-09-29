@@ -121,7 +121,8 @@ SECRETOS_AGENTE = {
     "PINECONE_API_KEY": "pinecone-api-key", "ARIZE_API_KEY": "arize-api-key", "DECOLECTA_API_KEY": "decolecta-api-key",
     "LOCAL_DOWNLOADER_TOKEN": "local-downloader-token",
 }
-PERFILES = [("agent-orchestrator-adk", "bienes", "8Gi", "2"), ("agente-servicios", "servicios", "4Gi", "1"),
+# bienes con 6 instancias: el dispatcher corre ~5 carriles a la vez con la cola llena (lotes de 100).
+PERFILES = [("agent-orchestrator-adk", "bienes", "8Gi", "6"), ("agente-servicios", "servicios", "4Gi", "1"),
             ("agente-obras", "obras", "4Gi", "1"), ("agente-otros", "otros", "4Gi", "1")]
 
 

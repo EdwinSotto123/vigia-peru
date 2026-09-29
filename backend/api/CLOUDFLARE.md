@@ -110,3 +110,11 @@ Wrangler no está entre las dependencias (el build de Cloud Run no lo necesita):
   lo pasan. Hace falta el plan pago (30 s por defecto, `limits.cpu_ms` para subirlo).
 - **Latencia**: cada consulta viaja del borde a us-central1. Smart Placement (`"placement": { "mode": "smart" }`)
   acerca el Worker a la base; no está activado.
+
+## Correr el dispatcher ahora
+
+`POST /v1/admin/dispatcher/run` y los lotes del panel (`procesar-lote`) llaman a `POST /ejecutar` del Worker `vigia-dispatcher`.
+
+- En Cloudflare va por el service binding `DISPATCHER`: por URL pública, otro workers.dev de la misma cuenta responde 1042.
+- En Cloud Run va por `DISPATCHER_URL`.
+- Las dos formas usan el secreto `DISPATCHER_TOKEN` (en GCP, `dispatcher-cloudflare-token`).

@@ -18,6 +18,10 @@
     { "binding": "HYPERDRIVE_ADMIN", "id": "e59e43440e124a26936da5d311a9574f" }
   ],
 
+  // "Correr el dispatcher ahora" (lib/dispatcher.ts): un Worker no puede llamar por URL pública a otro
+  // workers.dev de la misma cuenta (error 1042), así que va por service binding.
+  "services": [{ "binding": "DISPATCHER", "service": "vigia-dispatcher" }],
+
   // Las mismas de infrastructure/deploy/api.sh, sin las de conexión (PG*), que reemplaza Hyperdrive.
   // Secretos (wrangler secret put): ADMIN_TOKEN, GCP_SA_KEY.
   "vars": {
@@ -28,6 +32,8 @@
     "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app,https://vigia-web.vigiaperu.workers.dev",
     "LOCAL_DOWNLOADER_URL": "http://149.104.66.211:8080",
     // Sufijo de las URLs de los 4 agentes (lib/salud.ts): <servicio>-<número de proyecto>.<región>.run.app
-    "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
+    "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app",
+    // "Correr el dispatcher ahora" (lib/dispatcher.ts): POST /ejecutar del Worker, con el secreto DISPATCHER_TOKEN.
+    "DISPATCHER_URL": "https://vigia-dispatcher.vigiaperu.workers.dev"
   }
 }

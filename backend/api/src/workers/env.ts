@@ -18,6 +18,9 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   LOCAL_DOWNLOADER_URL?: string;
 
+  /** Service binding al Worker vigia-dispatcher (lib/dispatcher.ts: "correr el dispatcher ahora"). */
+  DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
+
   // secretos
   ADMIN_TOKEN?: string;
   GCP_SA_KEY?: string;

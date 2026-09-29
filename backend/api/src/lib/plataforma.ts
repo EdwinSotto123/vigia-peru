@@ -69,6 +69,11 @@ export interface AmbitoPedido {
   pool(rol: RolDb): pg.Pool;
   /** Trabajo que sigue después de responder: el pedido no se cierra hasta que termina. */
   seguir(p: Promise<unknown>): void;
+  /**
+   * Otro Worker por service binding (solo en Workers). Un Worker no puede llamar por su URL pública a
+   * otro *.workers.dev de la misma cuenta (error 1042): el dispatcher se llama por acá.
+   */
+  servicio?(nombre: "dispatcher"): { fetch(input: string, init?: RequestInit): Promise<Response> } | undefined;
 }
 
 export const ambitoPedido = new AsyncLocalStorage<AmbitoPedido>();

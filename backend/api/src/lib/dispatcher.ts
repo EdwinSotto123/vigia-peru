@@ -1,4 +1,4 @@
-import { plataforma } from "./plataforma.js";
+import { ambitoPedido, plataforma } from "./plataforma.js";
 
 /**
  * Dispara el Cloud Run Job del dispatcher ahora mismo (en vez de esperar su próximo ciclo), con un
@@ -8,6 +8,26 @@ import { plataforma } from "./plataforma.js";
  * asignado con documentos ya listos no espere el próximo ciclo de 5 min).
  */
 export async function dispatchNow(): Promise<{ ok: boolean; operation: string | null; error?: string }> {
+  // Desde el 27/09/2026 el dispatcher es el Worker de Cloudflare (backend/dispatcher-worker): POST /ejecutar
+  // con su token. El Job de Cloud Run queda como camino alternativo si no hay DISPATCHER_URL.
+  const url = process.env.DISPATCHER_URL;
+  const binding = ambitoPedido.getStore()?.servicio?.("dispatcher");
+  if (url || binding) {
+    const token = process.env.DISPATCHER_TOKEN;
+    if (!token) return { ok: false, operation: null, error: "sin_dispatcher_token" };
+    try {
+      // En Workers, por service binding (la URL pública de otro workers.dev de la cuenta da 1042).
+      const init = { method: "POST", headers: { Authorization: `Bearer ${token}` } };
+      const r = binding
+        ? await binding.fetch("https://vigia-dispatcher/ejecutar", init)
+        : await fetch(`${(url as string).replace(/\/$/, "")}/ejecutar`, init);
+      const j: any = await r.json().catch(() => ({}));
+      if (!r.ok || j?.ok === false) return { ok: false, operation: null, error: j?.error ?? String(r.status) };
+      return { ok: true, operation: j?.worker ?? null };
+    } catch (e) {
+      return { ok: false, operation: null, error: (e as Error).message };
+    }
+  }
   const project = process.env.GCS_PROJECT_ID ?? process.env.GOOGLE_CLOUD_PROJECT;
   const region = process.env.DISPATCHER_REGION ?? "us-central1";
   const job = process.env.DISPATCHER_JOB ?? "vigia-dispatcher";

@@ -48,6 +48,10 @@ class Ambito implements AmbitoPedido {
     return p;
   }
 
+  servicio(nombre: "dispatcher") {
+    return nombre === "dispatcher" ? this.env.DISPATCHER : undefined;
+  }
+
   seguir(p: Promise<unknown>): void {
     const t = p.then(nada, nada);
     this.tareas.add(t);
