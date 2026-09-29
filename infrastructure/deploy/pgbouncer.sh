@@ -76,7 +76,7 @@ cat > /etc/pgbouncer/pgbouncer.ini <<'INI'
 [databases]
 vigia = host=127.0.0.1 port=5432 dbname=vigia
 [pgbouncer]
-; vigia-db es db-f1-micro (max_connections=40): 4 roles × (4 + 2 de reserva) = 24 conexiones como máximo.
+; vigia-db: 4 roles × (4 + 2 de reserva) = 24 conexiones como máximo de PgBouncer (la base admite 100).
 listen_addr = 0.0.0.0
 listen_port = 6432
 auth_type = scram-sha-256

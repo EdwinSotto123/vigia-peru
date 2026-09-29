@@ -41,10 +41,10 @@ resource "google_sql_database_instance" "vigia" {
       query_insights_enabled = true
     }
 
-    # max_connections: PgBouncer reparte 4 roles × (4 + 2 de reserva). Consultas lentas al log desde 500 ms.
+    # max_connections: PgBouncer (4 roles × (4 + 2)) más los agentes directos. Consultas lentas al log desde 500 ms.
     database_flags {
       name  = "max_connections"
-      value = "40"
+      value = tostring(var.sql_max_connections)
     }
     database_flags {
       name  = "log_min_duration_statement"

@@ -21,7 +21,7 @@
 set -euo pipefail
 : "${ORIGEN:?ORIGEN=<proyecto actual>}" "${DESTINO:?DESTINO=<proyecto nuevo>}"
 REGION="${REGION:-us-central1}"
-TIER="${TIER:-db-f1-micro}"
+TIER="${TIER:-db-custom-1-3840}"   # f1-micro (0,6 GB) no aguanta varios análisis a la vez
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RAIZ="$(cd "$AQUI/../../.." && pwd)"
 PY="${PYTHON:-python}"
@@ -90,7 +90,7 @@ base() {
     cd_ sql instances create vigia-db --database-version POSTGRES_16 --edition ENTERPRISE --tier "$TIER" \
       --region "$REGION" --storage-type SSD --storage-size 10 --storage-auto-increase \
       --root-password="$(secreto cloudsql-password)" \
-      --database-flags=log_min_duration_statement=500,max_connections=40,track_io_timing=on \
+      --database-flags=log_min_duration_statement=500,max_connections=100,track_io_timing=on \
       --insights-config-query-insights-enabled --backup-start-time 08:00 --authorized-networks "$ip/32" --ssl-mode ENCRYPTED_ONLY
   fi
   cd_ sql databases delete vigia --instance vigia-db --quiet >/dev/null 2>&1 || true

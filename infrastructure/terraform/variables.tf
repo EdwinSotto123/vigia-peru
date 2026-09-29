@@ -24,9 +24,15 @@ variable "sql_instance_name" {
 }
 
 variable "sql_tier" {
-  description = "db-f1-micro (40 conexiones, ~US$9/mes) alcanza con PgBouncer delante. Para un import rápido o más carga: db-custom-2-7680."
+  description = "Producción desde el 29/09/2026: db-custom-1-3840 (1 vCPU, 3,75 GB). db-f1-micro (0,6 GB) se queda sin memoria con más de ~2 análisis a la vez."
   type        = string
-  default     = "db-f1-micro"
+  default     = "db-custom-1-3840"
+}
+
+variable "sql_max_connections" {
+  description = "Los agentes conectan directo como postgres (2-3 conexiones por análisis) además de PgBouncer. 100 con 3,75 GB; 40 con f1-micro."
+  type        = number
+  default     = 100
 }
 
 variable "sql_disk_gb" {

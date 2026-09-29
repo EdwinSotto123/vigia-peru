@@ -16,6 +16,6 @@ gestionar_password_sql = false
 #   "vigia-api@vivid-spot-480905-a4.iam.gserviceaccount.com",
 # ]
 
-# sql_tier                = "db-f1-micro"
+# sql_tier                = "db-custom-1-3840"   # f1-micro solo para pruebas: se queda sin memoria
 # crear_buckets_documentos = false   # los vigia-peru-* siguen en el proyecto viejo
 # gestionar_servicios      = false   # los servicios los despliegan los scripts

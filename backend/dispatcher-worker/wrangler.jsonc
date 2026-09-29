@@ -36,7 +36,10 @@
     "AGENT_URL_OBRAS": "https://agente-obras-753067078557.us-central1.run.app",
     "AGENT_URL_OTROS": "https://agente-otros-753067078557.us-central1.run.app",
     "DISPATCHER_PARALLEL": "1",
-    "DISPATCHER_MAX_MINUTES": "25",
+    // Carriles a la vez ≈ DISPATCHER_MAX_MINUTES / 5 (cron cada 5 min). Con db-f1-micro (0,6 GB, 40 conexiones)
+    // la base se quedó sin memoria con 5-7 carriles (29/09: memoria 100 %, análisis de 4 a 28 min).
+    // Con db-custom-1-3840 (3,75 GB, 100 conexiones): ~4 carriles. El agente de bienes admite 6.
+    "DISPATCHER_MAX_MINUTES": "20",
     "DISPATCHER_TASK_TIMEOUT_S": "7200",
     "DISPATCHER_ANALISIS_MAX_S": "3600",
     "DISPATCHER_STREAM_TIMEOUT": "1200",
