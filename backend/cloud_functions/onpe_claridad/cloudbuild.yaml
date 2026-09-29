@@ -8,17 +8,19 @@
 # 403 confirmado desde IP de nube (Cloudflare) + necesita Chromium con ventana — NO se agenda; correr con docker en el VPS/laptop
 #
 substitutions:
-  _IMAGE: 'us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy/scraper-onpe-claridad'
+  _IMAGE: 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/scraper-onpe-claridad'
   _JOB: 'scraper-onpe-claridad'
   _REGION: 'us-central1'
-  _SQL_CONNECTION: 'vivid-spot-480905-a4:us-central1:vigia-db'
-  _SA: '36169102688-compute@developer.gserviceaccount.com'
+  _SQL_CONNECTION: '${PROJECT_ID}:us-central1:vigia-db'
+  _SA: 'vigia-jobs@${PROJECT_ID}.iam.gserviceaccount.com'
   _BUCKET: 'vigia-peru-batch'
   _MEM: '1Gi'
   _CPU: '1'
   _TIMEOUT: '1800s'
 options:
   substitutionOption: ALLOW_LOOSE
+  # ${PROJECT_ID} dentro de las sustituciones: todo va al proyecto de `gcloud builds submit --project`.
+  dynamicSubstitutions: true
 steps:
   # 1. copia fresca de backend/scrapers/onpe_claridad + backend/scrapers/_core (+ los backend/scripts/
   #    que este pipeline usa) hacia ./vendor — nunca se construye con una copia vieja.

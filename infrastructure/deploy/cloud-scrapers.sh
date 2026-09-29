@@ -8,15 +8,16 @@
 #
 #   bash infrastructure/deploy/cloud-scrapers.sh              # las 8 carpetas
 #   bash infrastructure/deploy/cloud-scrapers.sh pnda_dji      # una sola
-set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+cd "$REPO_ROOT"
 
 FUENTES=(pnda_sancionados pnda_visitas pnda_dji pnda_oece jne_infogob mef_presupuesto oece_ocds onpe_claridad)
 [[ $# -gt 0 ]] && FUENTES=("$@")
 
 for f in "${FUENTES[@]}"; do
   echo "── backend/cloud_functions/${f}"
-  gcloud builds submit . --config "backend/cloud_functions/${f}/cloudbuild.yaml" --quiet
+  # Imagen, Job, Scheduler y cuenta (vigia-jobs@) salen de ${PROJECT_ID} en cada cloudbuild.yaml.
+  gcloud builds submit . --project "$PROJECT_ID" --config "backend/cloud_functions/${f}/cloudbuild.yaml" --quiet
 done
 
 echo "✓ listo · gcloud scheduler jobs list --location us-central1 · gcloud run jobs list --region us-central1"

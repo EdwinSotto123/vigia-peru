@@ -5,7 +5,7 @@ Vertex AI RAG Engine (modo *serverless*, sin costo fijo por hora) y las consulta
 desde `backend/agent/tools/legal.py` (backend `rag_engine`).
 
 Variables de entorno (todas opcionales):
-  GOOGLE_CLOUD_PROJECT / VERTEX_PROJECT   proyecto (default vivid-spot-480905-a4)
+  GOOGLE_CLOUD_PROJECT / VERTEX_PROJECT   proyecto (default: el de las credenciales ADC)
   RAG_LOCATION                            región de RAG Engine (default us-central1)
   RAG_BUCKET                              bucket GCS (default vigia-peru-rag)
   RAG_EMBEDDING_MODEL                     modelo de embeddings (default text-multilingual-embedding-002;
@@ -21,7 +21,15 @@ import re
 import unicodedata
 from pathlib import Path
 
-PROJECT = os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4")
+def _proyecto_adc() -> str:
+    try:
+        import google.auth
+        return google.auth.default()[1] or ""
+    except Exception:
+        return ""
+
+
+PROJECT = os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or _proyecto_adc()
 LOCATION = os.getenv("RAG_LOCATION", "us-central1")
 BUCKET = os.getenv("RAG_BUCKET", "vigia-peru-rag")
 EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-multilingual-embedding-002")

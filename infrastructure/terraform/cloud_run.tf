@@ -1,3 +1,8 @@
+# SOLO con var.gestionar_servicios = true (por defecto false): hoy los servicios los despliegan los
+# scripts (migracion/migrar-proyecto.sh agentes con herramientas.py agentes-yaml, api.sh, mcp.sh,
+# frontend.sh) y Terraform se ocupa de la base de la plataforma. Esto queda para un proyecto único
+# donde se quiera que Terraform también conozca los servicios.
+#
 # Los servicios de Cloud Run. Terraform fija la CONFIGURACIÓN (recursos, escala,
 # variables, secretos, conexión SQL); la IMAGEN la actualiza cada deploy con
 # `gcloud run deploy --source` (infrastructure/deploy/*.sh), por eso `ignore_changes`.
@@ -30,16 +35,21 @@ locals {
     GOOGLE_GENAI_USE_VERTEXAI = "true"
     DETERMINISTIC_PIPELINE    = "1"
     PARALLEL_RESEARCH         = "1"
-    LEGAL_RAG_BACKEND         = "vertex"
-    DOCAI_PROJECT             = var.project_id
+    VERTEX_PROJECT            = var.project_id
+    LEGAL_RAG_BACKEND         = "rag_engine"
+    RAG_LOCATION              = var.region
+    RAG_BUCKET                = google_storage_bucket.rag.name
     DOCAI_LOCATION            = "us"
+    DOCAI_PROCESSOR_ID        = reverse(split("/", google_document_ai_processor.ocr.name))[0]
   })
   agent_secrets = {
-    PGPASSWORD        = google_secret_manager_secret.cloudsql_password.secret_id
-    GOOGLE_API_KEY    = "google-api-key"
-    PHOENIX_API_KEY   = "phoenix-api-key"
-    PINECONE_API_KEY  = "pinecone-api-key"
-    DECOLECTA_API_KEY = "decolecta-api-key" # SUNAT (decolecta); antes texto plano en el servicio
+    PGPASSWORD             = google_secret_manager_secret.cloudsql_password.secret_id
+    ARIZE_API_KEY          = "arize-api-key"
+    LOCAL_DOWNLOADER_TOKEN = "local-downloader-token"
+    GOOGLE_API_KEY         = "google-api-key"
+    PHOENIX_API_KEY        = "phoenix-api-key"
+    PINECONE_API_KEY       = "pinecone-api-key"
+    DECOLECTA_API_KEY      = "decolecta-api-key" # SUNAT (decolecta); antes texto plano en el servicio
   }
   # Perfil → nombre del servicio (bienes es el histórico, recurso `agent` abajo).
   agent_profiles = {
@@ -51,12 +61,13 @@ locals {
 
 # ── Orquestador ADK (único servicio que escribe en la DB) ────────────────────
 resource "google_cloud_run_v2_service" "agent" {
+  count    = var.gestionar_servicios ? 1 : 0
   name     = "agent-orchestrator-adk"
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
-    service_account                  = local.runtime_sa
+    service_account                  = google_service_account.agentes.email
     timeout                          = "3600s"
     max_instance_request_concurrency = 1
 
@@ -123,7 +134,7 @@ resource "google_cloud_run_v2_service" "agent" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_iam_member.runtime_sql,
+    google_project_iam_member.cuentas,
   ]
 }
 
@@ -131,7 +142,7 @@ resource "google_cloud_run_v2_service" "agent" {
 # El spec vivo (imagen + variables operativas) lo aplica infrastructure/deploy/agentes.sh;
 # Terraform solo garantiza forma, recursos y secretos. Misma imagen que `agent`.
 resource "google_cloud_run_v2_service" "agente_perfil" {
-  for_each = local.agent_profiles
+  for_each = var.gestionar_servicios ? local.agent_profiles : {}
 
   name     = each.value
   location = var.region
@@ -140,7 +151,7 @@ resource "google_cloud_run_v2_service" "agente_perfil" {
   labels = { vigia-perfil = each.key }
 
   template {
-    service_account                  = local.runtime_sa
+    service_account                  = google_service_account.agentes.email
     timeout                          = "3600s"
     max_instance_request_concurrency = 1
 
@@ -205,12 +216,13 @@ resource "google_cloud_run_v2_service" "agente_perfil" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_iam_member.runtime_sql,
+    google_project_iam_member.cuentas,
   ]
 }
 
 # ── API de lectura (Hono) ────────────────────────────────────────────────────
 resource "google_cloud_run_v2_service" "api" {
+  count    = var.gestionar_servicios ? 1 : 0
   name     = "vigia-peru-api"
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
@@ -249,8 +261,8 @@ resource "google_cloud_run_v2_service" "api" {
         for_each = merge(local.pg_env, {
           FIREBASE_PROJECT_ID   = var.firebase_project_id
           GCS_PROJECT_ID        = var.project_id
-          GCS_BUCKET_DOCUMENTOS = google_storage_bucket.documentos.name
-          GCS_BUCKET_REPORTES   = google_storage_bucket.reportes.name
+          GCS_BUCKET_DOCUMENTOS = var.bucket_documentos
+          GCS_BUCKET_REPORTES   = var.bucket_reportes
           ALLOWED_ORIGINS       = "http://localhost:3000"
         })
         content {
@@ -277,12 +289,13 @@ resource "google_cloud_run_v2_service" "api" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_iam_member.runtime_sql,
+    google_project_iam_member.cuentas,
   ]
 }
 
 # ── Servidor MCP (read-only) ─────────────────────────────────────────────────
 resource "google_cloud_run_v2_service" "mcp" {
+  count    = var.gestionar_servicios ? 1 : 0
   name     = "vigia-mcp"
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
@@ -343,12 +356,13 @@ resource "google_cloud_run_v2_service" "mcp" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_iam_member.runtime_sql,
+    google_project_iam_member.cuentas,
   ]
 }
 
 # ── Frontend (Next.js) ───────────────────────────────────────────────────────
 resource "google_cloud_run_v2_service" "frontend" {
+  count    = var.gestionar_servicios ? 1 : 0
   name     = "vigia-peru-frontend"
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
@@ -373,11 +387,11 @@ resource "google_cloud_run_v2_service" "frontend" {
 
       dynamic "env" {
         for_each = {
-          VIGIA_API_URL        = google_cloud_run_v2_service.api.uri
-          VIGIA_AGENT_URL      = google_cloud_run_v2_service.agent.uri
+          VIGIA_API_URL        = google_cloud_run_v2_service.api[0].uri
+          VIGIA_AGENT_URL      = google_cloud_run_v2_service.agent[0].uri
           GOOGLE_CLOUD_PROJECT = var.project_id
-          DOCS_BUCKET          = google_storage_bucket.documentos.name
-          REPORTES_BUCKET      = google_storage_bucket.reportes.name
+          DOCS_BUCKET          = var.bucket_documentos
+          REPORTES_BUCKET      = var.bucket_reportes
         }
         content {
           name  = env.key
@@ -396,31 +410,31 @@ resource "google_cloud_run_v2_service" "frontend" {
 
 locals {
   # Los 4 servicios de agentes (cada corrida cuesta): IAM-only cuando var.agents_public = false.
-  agent_services = merge(
-    { agent = google_cloud_run_v2_service.agent.name },
+  agent_services = var.gestionar_servicios ? merge(
+    { agent = google_cloud_run_v2_service.agent[0].name },
     { for k, s in google_cloud_run_v2_service.agente_perfil : "agente_${k}" => s.name },
-  )
+  ) : {}
 }
 
 # API, MCP y frontend son públicos por diseño. Los agentes, solo mientras var.agents_public = true.
 resource "google_cloud_run_v2_service_iam_member" "public" {
-  for_each = merge({
-    api      = google_cloud_run_v2_service.api.name
-    mcp      = google_cloud_run_v2_service.mcp.name
-    frontend = google_cloud_run_v2_service.frontend.name
-  }, { for k, v in local.agent_services : k => v if var.agents_public })
+  for_each = var.gestionar_servicios ? merge({
+    api      = google_cloud_run_v2_service.api[0].name
+    mcp      = google_cloud_run_v2_service.mcp[0].name
+    frontend = google_cloud_run_v2_service.frontend[0].name
+  }, { for k, v in local.agent_services : k => v if var.agents_public }) : {}
   name     = each.value
   location = var.region
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
 
-# Quien invoca a los agentes con ID token (frontend, API y job vigia-dispatcher corren con la SA de
-# runtime). Aditivo: con agents_public = true no cambia nada visible.
+# Quién invoca a los agentes con ID token (var.invocadores_agentes: dispatcher y web de Cloudflare,
+# frontend y API de la entrada).
 resource "google_cloud_run_v2_service_iam_member" "agent_invoker" {
-  for_each = local.agent_services
-  name     = each.value
+  for_each = { for par in setproduct(keys(local.agent_services), var.invocadores_agentes) : "${par[0]}:${par[1]}" => par }
+  name     = local.agent_services[each.value[0]]
   location = var.region
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${local.runtime_sa}"
+  member   = "serviceAccount:${each.value[1]}"
 }

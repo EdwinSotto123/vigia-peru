@@ -1,28 +1,62 @@
+# Mudarse de proyecto = cambiar project_id y project_number en terraform.tfvars (ver README.md).
+# Nada más en este directorio tiene un proyecto fijo.
+
 variable "project_id" {
-  description = "ID del proyecto GCP."
+  description = "Proyecto de la plataforma: Cloud SQL, agentes, IA, PgBouncer, scrapers (PROJECT_ID de infrastructure/deploy/_common.sh)."
   type        = string
 }
 
 variable "project_number" {
-  description = "Número del proyecto GCP (para la service account por defecto de Compute)."
+  description = "Número del proyecto (gcloud projects describe <id> --format='value(projectNumber)'): agentes de servicio y nombres de buckets."
   type        = string
 }
 
 variable "region" {
-  description = "Región principal de Cloud Run y Cloud SQL."
+  description = "Región principal de Cloud Run, Cloud SQL y RAG Engine."
   type        = string
   default     = "us-central1"
 }
 
+# ── Cloud SQL ───────────────────────────────────────────────────────────────────────────────────
 variable "sql_instance_name" {
   type    = string
   default = "vigia-db"
 }
 
 variable "sql_tier" {
-  description = "Tier de Cloud SQL. Hoy corre db-custom-2-7680 (2 vCPU / 7.5 GB, ~US$100/mes); db-custom-1-3840 (~US$50) alcanza para la carga actual."
+  description = "db-f1-micro (40 conexiones, ~US$9/mes) alcanza con PgBouncer delante. Para un import rápido o más carga: db-custom-2-7680."
   type        = string
-  default     = "db-custom-1-3840"
+  default     = "db-f1-micro"
+}
+
+variable "sql_disk_gb" {
+  type    = number
+  default = 10
+}
+
+variable "sql_authorized_networks" {
+  description = "IPs (CIDR) que llegan a la IP pública de la base: la PC del batch nocturno y quien administre. Cloud Run y la VM usan el conector."
+  type        = list(string)
+  default     = []
+}
+
+variable "sql_pitr" {
+  description = "Recuperación a un punto en el tiempo (guarda WAL: más disco)."
+  type        = bool
+  default     = false
+}
+
+variable "gestionar_password_sql" {
+  description = "true en un proyecto nuevo: Terraform genera la clave de postgres y la guarda en cloudsql-password. false al mudarse: el secreto se copia del origen (migracion/herramientas.py secretos)."
+  type        = bool
+  default     = true
+}
+
+# ── Buckets ─────────────────────────────────────────────────────────────────────────────────────
+variable "crear_buckets_documentos" {
+  description = "Crear vigia-peru-documentos / -reportes en este proyecto. false mientras vivan en el proyecto viejo (BUCKETS_PROJECT_ID)."
+  type        = bool
+  default     = false
 }
 
 variable "bucket_documentos" {
@@ -35,10 +69,17 @@ variable "bucket_reportes" {
   default = "vigia-peru-reportes"
 }
 
-variable "bucket_rag" {
-  description = "Bucket con el Parquet de embeddings de opiniones OECE (RAG legal)."
-  type        = string
-  default     = "hacklatam-rag-leyes"
+# ── Servicios ───────────────────────────────────────────────────────────────────────────────────
+variable "gestionar_servicios" {
+  description = "Declarar acá los servicios de Cloud Run (agentes, API, MCP, frontend). false: los despliegan los scripts (migracion/migrar-proyecto.sh agentes, api.sh, mcp.sh, frontend.sh) y Terraform no los toca."
+  type        = bool
+  default     = false
+}
+
+variable "invocadores_agentes" {
+  description = "Cuentas (email) que llaman a los agentes: dispatcher y web de Cloudflare, frontend y API de la entrada."
+  type        = list(string)
+  default     = []
 }
 
 variable "firebase_project_id" {
@@ -49,17 +90,17 @@ variable "firebase_project_id" {
 
 variable "agent_max_instances" {
   type    = number
-  default = 5
+  default = 2
 }
 
 variable "agents_public" {
-  description = "Si los 4 servicios de agentes aceptan invocaciones sin autenticar (allUsers). Pasar a false DESPUÉS de desplegar los clientes que mandan ID token (frontend /api/agent/*, API /admin/operacion, job vigia-dispatcher): quedan IAM-only con roles/run.invoker para la SA de runtime."
+  description = "Si los agentes aceptan invocaciones sin autenticar (allUsers). Solo con gestionar_servicios."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "placeholder_image" {
-  description = "Imagen inicial de los servicios Cloud Run. El código real se despliega con infrastructure/deploy/*.sh (gcloud run deploy --source); Terraform ignora cambios de imagen."
+  description = "Imagen inicial de los servicios de Cloud Run (solo con gestionar_servicios); la real la ponen los scripts."
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }

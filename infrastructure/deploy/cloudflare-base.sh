@@ -17,7 +17,7 @@
 # `"placement": { "region": "gcp:us-central1" }` en el wrangler.jsonc, ~50 ms. Usar esa ubicación en
 # todo Worker que consulte la base.
 set -euo pipefail
-PROJECT_ID="${PROJECT_ID:-vivid-spot-480905-a4}"
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID: dónde viven la VM y los secretos
 TUNEL="vigia-db"
 SERVICIO_VPC="vigia-pgbouncer"
 wr() { npx --yes wrangler "$@"; }

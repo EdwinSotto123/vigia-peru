@@ -154,7 +154,7 @@ directa a Cloud SQL y cada archivo queda en `datasets_cargas (fuente, clave, sha
 La vista `datasets_cobertura` (una fila por fuente) es lo que puede leer `/admin/cobertura → Fuentes externas`.
 
 ```bash
-export PGHOST=34.71.244.66 PGSSLMODE=require SCRAPER_GCS_BUCKET=vigia-peru-batch
+export PGHOST=<ip-de-la-base> PGSSLMODE=require SCRAPER_GCS_BUCKET=vigia-peru-batch
 python -m backend.scrapers.pnda_visitas.pipeline --desde 2025-01 --hasta 2026-05      # backfill (17 meses, ~3 min)
 python -m backend.scrapers.pnda_visitas.pipeline --xlsx dataset/VISITANTES_ENTIDADES/visita_a_entidades.xlsx   # export manual del portal PCM
 python -m backend.scrapers.jne_infogob.pipeline --dry-run                            # autoridades vigentes: ubigeo INEI resuelto, sin escribir

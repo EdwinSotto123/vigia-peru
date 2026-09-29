@@ -133,3 +133,13 @@ gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY=ingest
 python -m pytest backend/batch -q
 python -m compileall -q backend/batch
 ```
+
+## Cambiar de proyecto
+
+`infrastructure/deploy/batch-nocturno.sh` toma todo de `PROJECT_ID` (`_common.sh`): la IP de la base y el job `vigia-ingest`.
+
+- La IP de la PC tiene que estar en `authorized-networks` de la instancia.
+- `BUCKET_BATCH` (`vigia-peru-batch`) es un nombre global. Si el bucket se muda, `vigia-jobs@<PROJECT_ID>` necesita `roles/storage.objectAdmin` en él.
+- El job se despliega con `bash infrastructure/deploy/ingest-job.sh`.
+
+Guía: `infrastructure/deploy/migracion/README.md`.

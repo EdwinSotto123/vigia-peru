@@ -10,3 +10,10 @@ y mismo formato de respuesta. URL: `https://vigia-relay.vigiaperu.workers.dev`.
 
 Secretos (`npx wrangler secret put`): `VIGIA_DL_TOKEN` (copia en Secret Manager: `relay-cloudflare-token`) y
 `GCP_SA_KEY` (llave JSON de `vigia-downloader`). Despliegue: `npm install && npx wrangler deploy`.
+
+## Cambiar de proyecto
+
+- `GCP_PROJECT` (en `wrangler.jsonc`): el proyecto de los buckets, `BUCKETS_PROJECT_ID`.
+- `GCP_SA_KEY`: una cuenta con escritura en el bucket de documentos.
+
+Mientras los buckets sigan en `vivid-spot-480905-a4`, no cambia nada. Guía: `infrastructure/deploy/migracion/README.md`.

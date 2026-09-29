@@ -58,3 +58,7 @@ de cada llamada (listados, 3 tools con argumentos válidos, inválidos y de bord
 - Errores: los de validación imitan a pydantic 2.13 (la URL de ayuda lleva esa versión) y los de Postgres
   salen con el formato de pg8000; los de conexión a la base tienen otro texto.
 - Enteros de más de 2^53 en los argumentos pierden precisión al parsear el JSON.
+
+## Cambiar de proyecto
+
+Nada que cambiar. La base llega por Hyperdrive (`vigia-mcp`) y el túnel `vigia-db`, que sigue a la VM de PgBouncer donde esté (`infrastructure/deploy/pgbouncer.sh crear` en el proyecto nuevo). Guía: `infrastructure/deploy/migracion/README.md`.

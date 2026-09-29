@@ -34,7 +34,7 @@ XLSX = ROOT / "dataset" / "datos_complementarios" / "opiniones_normativas" / "CO
 OUT_PARQUET = ROOT / "dataset" / "_rag_build" / "opiniones_oece.parquet"
 OUT_PARQUET.parent.mkdir(parents=True, exist_ok=True)
 
-PROJECT = os.getenv("VERTEX_PROJECT", "vivid-spot-480905-a4")
+PROJECT = os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
 BUCKET = "hacklatam-rag-leyes"
 EMBED_MODEL = "gemini-embedding-001"

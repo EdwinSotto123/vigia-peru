@@ -35,7 +35,7 @@ from google.cloud import storage
 
 # ── Config (vía env) ─────────────────────────────────────────────────
 BUCKET = os.getenv("GCS_BUCKET", "vigia-peru-documentos")
-PROJECT = os.getenv("GCP_PROJECT", "vivid-spot-480905-a4")
+PROJECT = os.getenv("GCP_PROJECT") or None  # None: el proyecto de las credenciales
 TOKEN = os.getenv("VIGIA_DL_TOKEN", "").strip()
 MAX_BYTES = int(os.getenv("MAX_BYTES", str(60 * 1024 * 1024)))  # 60 MB por doc
 HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "120"))

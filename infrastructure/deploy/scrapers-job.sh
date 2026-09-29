@@ -9,9 +9,10 @@
 # `.cloudsql-password` en la raíz del repo (o PGPASSWORD en el entorno) y la IP pública del
 # host autorizada en Cloud SQL:  gcloud sql instances patch vigia-db --authorized-networks=<IP>/32
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
-export PGHOST="${PGHOST:-34.71.244.66}" PGSSLMODE="${PGSSLMODE:-require}"
+export PGHOST="${PGHOST:-$(ip_cloud_sql)}" PGSSLMODE="${PGSSLMODE:-require}"
 PY="${PYTHON:-python}"
 
 echo "── $(date -Is) · oece_ocds (ventana por defecto: últimos 7 días de fecha de convocatoria)"

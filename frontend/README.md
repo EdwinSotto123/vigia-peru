@@ -129,3 +129,12 @@ backend FastAPI no esté arriba. Para conectar:
   OECE… redactando…" — la transparencia del modelo es parte de la confianza.
 - **FAQ contesta las preguntas duras**: ¿la IA decide?, ¿reemplazan a Contraloría?,
   ¿quién financia esto?, etc.
+
+## Cambiar de proyecto
+
+La web llama a un solo agente (`VIGIA_AGENT_URL`, el de bienes) y lee los buckets con `GOOGLE_CLOUD_PROJECT` (el proyecto de los buckets).
+
+- **Cloud Run** (`infrastructure/deploy/frontend.sh`, en `ENTRADA_PROJECT_ID`): toma la URL del agente de `PROJECT_ID`.
+- **Cloudflare** (`wrangler.jsonc`): cambiar `VIGIA_AGENT_URL` y volver a construir y desplegar (`CLOUDFLARE.md`). La cuenta de `GCP_SA_KEY` necesita `run.invoker` en el agente.
+
+Guía: `infrastructure/deploy/migracion/README.md`.

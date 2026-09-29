@@ -20,12 +20,9 @@
 #
 # Riesgo conocido: es un punto único de falla. La VM se reinicia sola (política de mantenimiento) y
 # systemd reinicia los procesos; la alerta de uptime de la API avisa si cae. `volver` deshace en 1 min.
-set -euo pipefail
-PROJECT_ID="${PROJECT_ID:-vivid-spot-480905-a4}"
-REGION="${REGION:-us-central1}"
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID, REGION, SQL_CONNECTION, gcloud_entrada
 ZONA="${ZONA:-us-central1-a}"
 VM="vigia-pgbouncer"
-SQL_CONNECTION="${PROJECT_ID}:${REGION}:vigia-db"
 SA="vigia-pgbouncer@${PROJECT_ID}.iam.gserviceaccount.com"
 SUBRED_RUN="10.128.0.0/20"
 
@@ -183,13 +180,14 @@ servicio_de() { case "$1" in api) echo vigia-peru-api ;; mcp) echo vigia-mcp ;; 
 
 conectar() {
   local svc; svc="$(servicio_de "$1")"
-  gcloud run services update "$svc" --region "$REGION" --network default --subnet default --vpc-egress private-ranges-only \
+  # Solo si la API/MCP están en el MISMO proyecto que la VM (misma VPC). Si no, van directo (volver).
+  gcloud_entrada run services update "$svc" --region "$REGION" --network default --subnet default --vpc-egress private-ranges-only \
     --update-env-vars "PGHOST=$(ip_interna),PGPORT=6432,PGSSLMODE=disable,PG_POOLER=pgbouncer" --quiet
 }
 
 volver() {
   local svc; svc="$(servicio_de "$1")"
-  gcloud run services update "$svc" --region "$REGION" --clear-network \
+  gcloud_entrada run services update "$svc" --region "$REGION" --clear-network --set-cloudsql-instances "$SQL_CONNECTION" \
     --update-env-vars "PGHOST=/cloudsql/${SQL_CONNECTION},PGPORT=5432,PG_POOLER=directo" --remove-env-vars PGSSLMODE --quiet
 }
 

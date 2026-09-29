@@ -7,7 +7,7 @@ CONEXION="PGHOST=/cloudsql/${SQL_CONNECTION},"
 en_pgbouncer vigia-mcp && CONEXION=""
 
 cd "$REPO_ROOT/backend/mcp"
-gcloud run deploy vigia-mcp \
+gcloud_entrada run deploy vigia-mcp \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \

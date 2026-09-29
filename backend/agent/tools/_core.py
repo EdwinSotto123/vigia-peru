@@ -17,6 +17,7 @@ import zipfile
 import pg8000.dbapi
 import requests
 from google.adk.tools import FunctionTool, ToolContext
+from tools._proyecto import conexion_cloud_sql, proyecto_gcp
 import datetime as _dt
 
 # Concurrencia de las llamadas DIRECTAS a Gemini desde tools (extracción del parser,
@@ -29,7 +30,7 @@ _GEMINI_CALL_SEM = threading.Semaphore(_GEMINI_CALL_CONCURRENCY)
 _GEMINI_LAST_CALL_T = [0.0]
 _GEMINI_LAST_CALL_LOCK = threading.Lock()
 _GEMINI_MIN_INTERVAL_S = float(os.getenv("GEMINI_MIN_INTERVAL_S", "0.25") or 0.25)
-PG_HOST = os.getenv("PGHOST", "/cloudsql/vivid-spot-480905-a4:us-central1:vigia-db")
+PG_HOST = os.getenv("PGHOST") or f"/cloudsql/{conexion_cloud_sql()}"
 PG_USER = os.getenv("PGUSER", "postgres")
 PG_PASS = os.getenv("PGPASSWORD", "")
 PG_DB = os.getenv("PGDATABASE", "vigia")
@@ -352,7 +353,7 @@ def _gemini_client():
     # que puede repetir en Standard la llamada que Flex no atiende. Así los embeddings tampoco lo llevan.
     return genai.Client(
         vertexai=True,
-        project=os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4"),
+        project=proyecto_gcp(),
         location=os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION", "global"),
     )
 

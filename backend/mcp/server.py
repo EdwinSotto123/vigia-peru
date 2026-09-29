@@ -20,7 +20,22 @@ import os
 import pg8000.dbapi
 from mcp.server.fastmcp import FastMCP
 
-PG_HOST = os.getenv("PGHOST", "/cloudsql/vivid-spot-480905-a4:us-central1:vigia-db")
+
+def _proyecto_gcp() -> str:
+    """GOOGLE_CLOUD_PROJECT o, sin ella, el de las credenciales (ADC): ningún proyecto fijo en el código."""
+    p = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if p:
+        return p
+    try:
+        import google.auth
+        return google.auth.default()[1] or ""
+    except Exception:
+        return ""
+
+
+# Cloud SQL: PGHOST (IP de PgBouncer o /cloudsql/<conexión>); sin ella, CLOUD_SQL_CONNECTION o
+# <proyecto de las credenciales>:us-central1:vigia-db (infrastructure/deploy/migracion/README.md).
+PG_HOST = os.getenv("PGHOST") or "/cloudsql/" + (os.getenv("CLOUD_SQL_CONNECTION") or f"{_proyecto_gcp()}:us-central1:vigia-db")
 PG_USER = os.getenv("PGUSER", "postgres")
 PG_PASS = os.getenv("PGPASSWORD", "")
 PG_DB = os.getenv("PGDATABASE", "vigia")

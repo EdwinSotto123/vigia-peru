@@ -10,12 +10,14 @@
 # Ejecución manual:  gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY=api,frontend
 substitutions:
   _REGION: us-central1
-  _SQL: vivid-spot-480905-a4:us-central1:vigia-db
+  _SQL: ${PROJECT_ID}:us-central1:vigia-db
   _DEPLOY: "api,frontend"   # subconjunto: api,frontend,agent,agentes,mcp,dispatcher,ingest
-  _AR_REPO: us-central1-docker.pkg.dev/vivid-spot-480905-a4/cloud-run-source-deploy
+  _AR_REPO: us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  # ${PROJECT_ID} en las sustituciones: todo va al proyecto de `gcloud builds submit --project`.
+  dynamicSubstitutions: true
 
 steps:
   - id: api

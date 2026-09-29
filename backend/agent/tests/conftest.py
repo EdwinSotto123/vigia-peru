@@ -4,7 +4,7 @@
   igual que en Cloud Run (el código no es un paquete instalable).
 · Marker `live`: tests que llaman a Gemini/Vertex de verdad. Se saltan salvo `RUN_LIVE=1`;
   con ADC de gcloud y GOOGLE_GENAI_USE_VERTEXAI=1 GOOGLE_CLOUD_LOCATION=global
-  GOOGLE_CLOUD_PROJECT=vivid-spot-480905-a4 (se fijan por defecto si faltan).
+  GOOGLE_CLOUD_PROJECT (si falta, el proyecto de las credenciales ADC).
 """
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ def pytest_configure(config):
     if RUN_LIVE:
         os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "1")
         os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
-        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4")
     # google-genai avisa por valores de enum aún no tipados (p. ej. thinking_level=medium).
     warnings.filterwarnings("ignore", message=".*is not a valid.*")
 

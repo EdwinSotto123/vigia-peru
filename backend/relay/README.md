@@ -140,3 +140,7 @@ contenedor → descarga con IP peruana → sube a GCS → procesa. ✅
 - El servicio solo escucha en `127.0.0.1:8080` localmente; al exterior solo se
   llega por el túnel.
 - (Opcional, más seguro) añade **Cloudflare Access** sobre el hostname del túnel.
+
+## Cambiar de proyecto
+
+`GCP_PROJECT` es opcional: sin ella se usa el proyecto de las credenciales. Lo que manda es `GCS_BUCKET`. Guía: `infrastructure/deploy/migracion/README.md`.

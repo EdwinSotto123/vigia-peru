@@ -9,7 +9,8 @@
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 BUCKET_BATCH="${BUCKET_BATCH:-vigia-peru-batch}"
-JOB_SA="${JOB_SA:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com}"
+# Cuenta propia (migracion/migrar-proyecto.sh identidades): cloudsql.client, secretos y el bucket de batch.
+JOB_SA="${JOB_SA:-vigia-jobs@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 # ── contexto de build mínimo (ver backend/batch/Dockerfile) ─────────────────────────────
 CTX="$(mktemp -d)"
@@ -30,7 +31,9 @@ if [[ "${1:-}" == "--build-only" ]]; then
 fi
 
 # ── bucket de lotes (no toca otros buckets) ─────────────────────────────────────────────
-if ! gcloud storage buckets describe "gs://${BUCKET_BATCH}" >/dev/null 2>&1; then
+# Vive en BUCKETS_PROJECT_ID: solo se crea si ese es este mismo proyecto. Si es otro, la cuenta del job
+# necesita roles/storage.objectAdmin en él (migracion/migrar-proyecto.sh identidades lo indica).
+if [[ "$BUCKETS_PROJECT_ID" == "$PROJECT_ID" ]] && ! gcloud storage buckets describe "gs://${BUCKET_BATCH}" >/dev/null 2>&1; then
   gcloud storage buckets create "gs://${BUCKET_BATCH}" --location="$REGION" --uniform-bucket-level-access
 fi
 

@@ -1,32 +1,43 @@
-output "frontend_url" {
-  value = google_cloud_run_v2_service.frontend.uri
-}
-
-output "api_url" {
-  value = google_cloud_run_v2_service.api.uri
-}
-
-output "agent_url" {
-  value = google_cloud_run_v2_service.agent.uri
-}
-
-output "mcp_url" {
-  value = "${google_cloud_run_v2_service.mcp.uri}/mcp"
-}
-
 output "sql_connection_name" {
-  value = google_sql_database_instance.vigia.connection_name
+  description = "Para PGHOST=/cloudsql/<esto> (agentes, jobs) y el proxy de la VM de PgBouncer."
+  value       = google_sql_database_instance.vigia.connection_name
 }
 
 output "sql_public_ip" {
-  value = google_sql_database_instance.vigia.public_ip_address
+  description = "Para el batch nocturno local (PGHOST) y restauraciones (backend/db/snapshot)."
+  value       = google_sql_database_instance.vigia.public_ip_address
 }
 
-output "relay_service_account" {
-  value = google_service_account.relay.email
+output "docai_processor_id" {
+  description = "DOCAI_PROCESSOR_ID de los agentes."
+  value       = reverse(split("/", google_document_ai_processor.ocr.name))[0]
 }
 
-output "agente_urls" {
-  description = "URLs de los servicios de agentes por perfil (servicios/obras/otros); bienes = agent_url"
-  value       = { for k, s in google_cloud_run_v2_service.agente_perfil : k => s.uri }
+output "rag_bucket" {
+  description = "RAG_BUCKET de los agentes y de backend/rag."
+  value       = google_storage_bucket.rag.name
+}
+
+output "cuentas" {
+  value = {
+    agentes   = google_service_account.agentes.email
+    jobs      = google_service_account.jobs.email
+    pgbouncer = google_service_account.pgbouncer.email
+  }
+}
+
+output "agent_host_suffix" {
+  description = "AGENT_HOST_SUFFIX de la API y sufijo de las URLs de los agentes: <servicio>-<esto>."
+  value       = "${var.project_number}.${var.region}.run.app"
+}
+
+output "servicios" {
+  description = "URLs de los servicios, solo con gestionar_servicios = true."
+  value = var.gestionar_servicios ? {
+    agent    = google_cloud_run_v2_service.agent[0].uri
+    api      = google_cloud_run_v2_service.api[0].uri
+    mcp      = "${google_cloud_run_v2_service.mcp[0].uri}/mcp"
+    frontend = google_cloud_run_v2_service.frontend[0].uri
+    agentes  = { for k, s in google_cloud_run_v2_service.agente_perfil : k => s.uri }
+  } : null
 }

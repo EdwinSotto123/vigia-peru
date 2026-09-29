@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import os
 
-_PROJECT = os.getenv("DOCAI_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4")
+from tools._proyecto import proyecto_gcp
+
+_PROJECT = os.getenv("DOCAI_PROJECT") or proyecto_gcp()
 _LOCATION = os.getenv("DOCAI_LOCATION", "us")
 _PROCESSOR_ID = os.getenv("DOCAI_PROCESSOR_ID", "").strip()
 

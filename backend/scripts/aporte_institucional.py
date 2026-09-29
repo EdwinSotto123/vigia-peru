@@ -2,7 +2,7 @@
 una zona sin pasar por pasarela. Misma tabla y mismas reglas que cualquier aporte: la asignación
 es FIFO sobre `cola_auditoria` (solo tipos/etapas activos, migración 19); nadie elige contratos.
 
-  PGHOST=34.71.244.66 PGSSLMODE=require PYTHONPATH=. python backend/scripts/aporte_institucional.py \
+  PGHOST=<ip-de-la-base> PGSSLMODE=require PYTHONPATH=. python backend/scripts/aporte_institucional.py \
       --nombre "Vigía Perú" --slug vigia-peru --email contacto@example.org \
       --logo https://.../assets/logo/vigia_peru_512.png --ubigeo 08 --contratos 10 \
       --mensaje "Aporte institucional: 10 contratos de bienes con adjudicación o contrato" [--pedir-documentos]

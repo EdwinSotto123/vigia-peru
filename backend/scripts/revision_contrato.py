@@ -1,6 +1,6 @@
 """Vuelca TODO lo que Vigía tiene de un contrato a una carpeta local para revisarlo a mano:
 
-  PGHOST=34.71.244.66 PGSSLMODE=require PYTHONPATH=. python backend/scripts/revision_contrato.py 1225030 dataset/_revision/1225030
+  PGHOST=<ip-de-la-base> PGSSLMODE=require PYTHONPATH=. python backend/scripts/revision_contrato.py 1225030 dataset/_revision/1225030
 
 Genera:
   convocatoria.json        record/release OCDS + clasificación (tipo, etapa, agentes, validaciones)

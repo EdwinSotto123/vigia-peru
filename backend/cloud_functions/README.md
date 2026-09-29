@@ -155,3 +155,14 @@ gcloud scheduler jobs list --location us-central1                              #
    `cloudbuild.yaml` (copiar uno existente y cambiar `_IMAGE`/`_JOB`/memoria/cpu/timeout/cron —
    quitar el paso 5 entero si es Peru-only).
 4. `gcloud builds submit . --config backend/cloud_functions/<fuente>/cloudbuild.yaml`.
+
+## Cambiar de proyecto
+
+Los `cloudbuild.yaml` toman imagen, Job, Scheduler, cuenta (`vigia-jobs@`) e instancia de `${PROJECT_ID}` (`options.dynamicSubstitutions`).
+
+- **Todos en el proyecto de `_common.sh`:** `bash infrastructure/deploy/cloud-scrapers.sh`.
+- **Uno solo en otro proyecto:** `gcloud builds submit . --project <p> --config backend/cloud_functions/<fuente>/cloudbuild.yaml`.
+
+`_BUCKET` es un nombre global y `vigia-jobs@` necesita escritura en él. `oece_ocds` y `onpe_claridad` solo responden desde Perú: sus Jobs no tienen Scheduler.
+
+Guía: `infrastructure/deploy/migracion/README.md`.

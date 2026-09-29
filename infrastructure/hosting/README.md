@@ -18,3 +18,7 @@ Detalles que condicionan el código:
   (`/api/agent/*`, streaming largo) se usa desde la URL directa de Cloud Run.
 
 Desplegar: `bash infrastructure/deploy/hosting.sh` (solo publica la configuración; no toca los servicios).
+
+## Cambiar de proyecto
+
+El sitio `vigia-peru.web.app` es del proyecto de la entrada (`ENTRADA_PROJECT_ID`). `bash infrastructure/deploy/hosting.sh` publica ahí. Sus reescrituras apuntan a los servicios de Cloud Run de ese mismo proyecto. Guía: `infrastructure/deploy/migracion/README.md`.

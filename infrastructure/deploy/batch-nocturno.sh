@@ -17,11 +17,11 @@
 # (`gcloud auth application-default login`) y `gcloud` autenticado para ejecutar el job.
 # Todo es reanudable: si una noche se corta, la siguiente retoma (ítems `completed` se saltan;
 # `descargar <tipo> --lote <id>` reanuda un lote a medias).
-set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID (job vigia-ingest, IP de la base)
+set +e -uo pipefail  # sin -e a propósito: una noche con fallos parciales sigue con lo que sí anduvo
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 PY="${PYTHON:-python}"
-REGION="${REGION:-us-central1}"
 BUCKET_BATCH="${BUCKET_BATCH:-vigia-peru-batch}"
 DIAS="${DIAS:-7}"
 HASTA="${HASTA:-$(date +%F)}"
@@ -81,7 +81,7 @@ fi
 #    una recarga fuera de agenda. Lo que SÍ sigue aquí es lo que el WAF/Cloudflare bloquea desde
 #    IP de nube: ONPE Claridad (necesita navegador con ventana, ONPE=1, día 10 sugerido).
 if [[ -n "${DATASETS:-}" || -n "${ONPE:-}" ]]; then
-  export PGHOST="${PGHOST:-34.71.244.66}" PGSSLMODE="${PGSSLMODE:-require}" SCRAPER_GCS_BUCKET="${SCRAPER_GCS_BUCKET:-$BUCKET_BATCH}"
+  export PGHOST="${PGHOST:-$(ip_cloud_sql)}" PGSSLMODE="${PGSSLMODE:-require}" SCRAPER_GCS_BUCKET="${SCRAPER_GCS_BUCKET:-$BUCKET_BATCH}"
   if [[ -n "${DATASETS:-}" ]]; then
     IFS=, read -r -a HOY <<< "$DATASETS"
     echo "── $(date -Is) · datasets externos (forzado): ${HOY[*]}"

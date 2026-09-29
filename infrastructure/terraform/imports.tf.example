@@ -1,69 +1,70 @@
-# La infraestructura YA existe (creada a mano con gcloud durante el hackathon).
-# Para que Terraform la adopte sin recrearla, renombrar este archivo a imports.tf,
-# correr `terraform plan` (debe mostrar cambios mínimos) y luego `terraform apply`.
-# Después del primer apply exitoso, borrar imports.tf.
+# Adoptar lo que ya existe en el proyecto (creado por migracion/migrar-proyecto.sh) sin recrearlo.
+# Copiar a imports.tf, correr `terraform plan` (debe decir "import", no "create") y `terraform apply`.
+# Después, borrar imports.tf. Los ids usan var.project_id: sirven para cualquier proyecto.
 
 import {
   to = google_sql_database_instance.vigia
-  id = "vivid-spot-480905-a4/vigia-db"
+  id = "${var.project_id}/vigia-db"
 }
 
 import {
   to = google_sql_database.vigia
-  id = "vivid-spot-480905-a4/vigia-db/vigia"
-}
-
-import {
-  to = google_storage_bucket.documentos
-  id = "vigia-peru-documentos"
-}
-
-import {
-  to = google_storage_bucket.reportes
-  id = "vigia-peru-reportes"
+  id = "${var.project_id}/vigia-db/vigia"
 }
 
 import {
   to = google_storage_bucket.rag
-  id = "hacklatam-rag-leyes"
+  id = "vigia-rag-${var.project_number}"
+}
+
+import {
+  to = google_storage_bucket.migracion
+  id = "vigia-migracion-${var.project_number}"
+}
+
+import {
+  to = google_artifact_registry_repository.run
+  id = "projects/${var.project_id}/locations/${var.region}/repositories/cloud-run-source-deploy"
+}
+
+import {
+  to = google_service_account.agentes
+  id = "projects/${var.project_id}/serviceAccounts/vigia-agentes@${var.project_id}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_service_account.jobs
+  id = "projects/${var.project_id}/serviceAccounts/vigia-jobs@${var.project_id}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_service_account.pgbouncer
+  id = "projects/${var.project_id}/serviceAccounts/vigia-pgbouncer@${var.project_id}.iam.gserviceaccount.com"
 }
 
 import {
   to = google_secret_manager_secret.cloudsql_password
-  id = "projects/vivid-spot-480905-a4/secrets/cloudsql-password"
+  id = "projects/${var.project_id}/secrets/cloudsql-password"
 }
 
 import {
-  to = google_secret_manager_secret.external["google-api-key"]
-  id = "projects/vivid-spot-480905-a4/secrets/google-api-key"
+  for_each = toset(local.secret_ids)
+  to       = google_secret_manager_secret.external[each.value]
+  id       = "projects/${var.project_id}/secrets/${each.value}"
+}
+
+# El id del procesador sale de: curl .../v1/projects/<p>/locations/us/processors (o de la fase `ia`).
+import {
+  to = google_document_ai_processor.ocr
+  id = "projects/${var.project_id}/locations/us/processors/254d0f2975c626bd"
 }
 
 import {
-  to = google_secret_manager_secret.external["phoenix-api-key"]
-  id = "projects/vivid-spot-480905-a4/secrets/phoenix-api-key"
+  to = google_discovery_engine_data_store.oece
+  id = "projects/${var.project_id}/locations/global/collections/default_collection/dataStores/vigia-oece"
 }
 
 import {
-  to = google_secret_manager_secret.external["pinecone-api-key"]
-  id = "projects/vivid-spot-480905-a4/secrets/pinecone-api-key"
-}
-
-import {
-  to = google_cloud_run_v2_service.agent
-  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/agent-orchestrator-adk"
-}
-
-import {
-  to = google_cloud_run_v2_service.api
-  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-peru-api"
-}
-
-import {
-  to = google_cloud_run_v2_service.mcp
-  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-mcp"
-}
-
-import {
-  to = google_cloud_run_v2_service.frontend
-  id = "projects/vivid-spot-480905-a4/locations/us-central1/services/vigia-peru-frontend"
+  to = google_discovery_engine_search_engine.oece
+  id = "projects/${var.project_id}/locations/global/collections/default_collection/engines/vigia-oece-search"
 }

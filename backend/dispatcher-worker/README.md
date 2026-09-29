@@ -145,3 +145,11 @@ procesamientos encolados o en curso. `test/vectores_py.json` sale de `scripts/ve
   re-serializa; el de la base se reenvía tal cual.
 - **Separadores de línea:** se replica `str.splitlines()` de `iter_lines` al carácter, incluido que un
   U+2028/U+2029/U+0085 dentro de un texto del stream parte la línea y ese evento se descarta (en los dos).
+
+## Cambiar de proyecto
+
+En `wrangler.jsonc`, las URLs de los agentes del proyecto nuevo (`AGENT_URL`, `AGENT_URL_BIENES|SERVICIOS|OBRAS|OTROS`): `https://<servicio>-<número de proyecto>.<región>.run.app`. Después, `npx wrangler deploy`.
+
+La cuenta de `GCP_SA_KEY` necesita `roles/run.invoker` en los 4 agentes (fase `agentes`, variable `INVOCADORES`). La base llega por Hyperdrive y el túnel: no cambia.
+
+Validar con `GET /simular?tokens=1`: debe dar `id_tokens: 4`. Guía: `infrastructure/deploy/migracion/README.md`.

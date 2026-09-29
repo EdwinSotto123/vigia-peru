@@ -63,7 +63,7 @@ Cada ejecución (Cloud Run Job `vigia-dispatcher`, disparado por Cloud Scheduler
 
 ```bash
 export PGPASSWORD="$(sed -n 's/.*password:[[:space:]]*//p' .cloudsql-password | tr -d '\r')"
-AGENT_URL=https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app PGHOST=34.71.244.66 PGSSLMODE=require \
+AGENT_URL=https://agent-orchestrator-adk-oq3gq6a4ka-uc.a.run.app PGHOST=<ip-de-la-base> PGSSLMODE=require \
 DISPATCHER_PARALLEL=1 DISPATCHER_MAX_MINUTES=15 python -m backend.dispatcher.main
 ```
 
@@ -77,3 +77,7 @@ Deploy: `bash infrastructure/deploy/dispatcher.sh` (lee las 4 URLs de los servic
 - Re-encolar a mano: `POST /admin/procesamientos/:ocid/reencolar` o
   `UPDATE procesamientos SET estado='encolado', intentos=0, error=NULL, worker=NULL WHERE ocid='…';`
 - Logs: `gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="vigia-dispatcher"' --limit 50`
+
+## Estado y cambio de proyecto
+
+Reemplazado por `backend/dispatcher-worker` (Cloudflare) desde el 27/09/2026. El job `vigia-dispatcher` y su Scheduler quedaron pausados en `vivid-spot-480905-a4`. Si se vuelve a usar, `infrastructure/deploy/dispatcher.sh` despliega en `PROJECT_ID`. Guía: `infrastructure/deploy/migracion/README.md`.

@@ -2,7 +2,7 @@
 
 Correr:  RUN_LIVE=1 python -m pytest backend/agent/tests -m live -q -s
 (ADC de gcloud; GOOGLE_GENAI_USE_VERTEXAI=1 GOOGLE_CLOUD_LOCATION=global
-GOOGLE_CLOUD_PROJECT=vivid-spot-480905-a4 — conftest los fija si faltan).
+GOOGLE_CLOUD_PROJECT: si falta, el proyecto de las credenciales ADC).
 
 Qué verifica (resultado pegado en docs/design/PERFILES_AGENTES.md):
   1. `thinking_level` minimal/low/medium/high aceptados por 3.6-flash (y thoughts_token_count).

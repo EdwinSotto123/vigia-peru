@@ -1,6 +1,7 @@
 """Tools del dominio: legal."""
 
 from tools._core import *  # noqa: F401,F403
+from tools._proyecto import proyecto_gcp
 
 def lookup_opinion_oece(
     norma: str = "",
@@ -128,7 +129,7 @@ def _query_legal_rag_pgvector(question: str, tool_context=None) -> dict:
 # Data store gestionado + grounding, sin pipeline de embeddings. Backend por env
 # LEGAL_RAG_BACKEND ('rag_engine' | 'vertex' [default] | 'pgvector'); ver la sección
 # RAG Engine más abajo para el RAG normativo completo (normas + criterios).
-_DE_PROJECT = os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "vivid-spot-480905-a4")
+_DE_PROJECT = proyecto_gcp()
 _DE_DATASTORE = os.getenv("LEGAL_RAG_DATASTORE", "vigia-oece")
 _DE_ENGINE = os.getenv("LEGAL_RAG_ENGINE", "vigia-oece-search")
 _DE_BASE = ("https://discoveryengine.googleapis.com/v1/projects/{p}"

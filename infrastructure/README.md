@@ -177,3 +177,9 @@ actual antes.
   invocador (IAM) o IAP + Cloud Armor delante.
 - Cloud SQL sin IP pública (solo Private Service Connect + Auth Proxy).
 - CI: GitHub Actions con `terraform plan` en PR y `deploy/*.sh` en merge a `main`.
+
+## Cambiar de proyecto
+
+- `deploy/README.md`: qué despliega cada script y en qué proyecto (`PROJECT_ID`, `ENTRADA_PROJECT_ID`, `BUCKETS_PROJECT_ID` en `deploy/_common.sh`).
+- `infrastructure/deploy/migracion/README.md`: la mudanza completa, con tiempos y trampas.
+- `terraform/README.md`: la base de la plataforma, declarada.

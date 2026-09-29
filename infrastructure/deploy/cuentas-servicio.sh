@@ -13,7 +13,8 @@
 # Los agentes de IA (agent-orchestrator-adk, agente-*) siguen con la cuenta por defecto: necesitan
 # Vertex, Document AI y más; quedan para una etapa aparte.
 set -euo pipefail
-PROJECT_ID="${PROJECT_ID:-vivid-spot-480905-a4}"
+# Las cuentas de la entrada (api, frontend, mcp) van en su proyecto: PROJECT_ID=$ENTRADA_PROJECT_ID bash cuentas-servicio.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 REGION="${REGION:-us-central1}"
 AGENTES=(agent-orchestrator-adk agente-servicios agente-obras agente-otros)
 JOBS_DATOS=(vigia-ingest scraper-jne-infogob scraper-mef-presupuesto scraper-oece-ocds scraper-onpe-claridad

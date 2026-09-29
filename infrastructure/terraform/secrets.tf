@@ -1,11 +1,18 @@
-# Los secretos que consumen los servicios vía --update-secrets. Terraform crea el
-# contenedor; el VALOR se carga fuera de Terraform (no queda en el state):
-#   printf '%s' "$VALUE" | gcloud secrets versions add google-api-key --data-file=-
-# Excepción: cloudsql-password sí se genera y carga acá porque Terraform crea el usuario.
-# decolecta-api-key (SUNAT): cargar una versión ANTES de que un servicio lo referencie, o la
-# revisión no arranca ("secret version not found").
+# Terraform crea los contenedores; el VALOR se carga fuera (no queda en el state):
+#   · al mudarse: python infrastructure/deploy/migracion/herramientas.py secretos --origen <viejo> --destino <nuevo> <nombres>
+#   · a mano: printf '%s' "$VALOR" | gcloud secrets versions add <nombre> --data-file=-
+# Excepción: cloudsql-password la genera Terraform cuando gestionar_password_sql = true.
+# Un servicio que referencia un secreto sin versiones no arranca ("secret version not found").
 locals {
-  secret_ids = ["google-api-key", "phoenix-api-key", "pinecone-api-key", "decolecta-api-key"]
+  secret_ids = [
+    "cloudsql-password-api", "cloudsql-password-api-admin", "cloudsql-password-mcp",
+    "cloudsql-password-dispatcher", "cloudsql-password-jobs",
+    "google-api-key", "phoenix-api-key", "pinecone-api-key", "arize-api-key", "decolecta-api-key",
+    "local-downloader-token", "cloudflare-tunnel-token",
+  ]
+  # La VM de PgBouncer lee solo lo suyo (el resto de las cuentas tiene secretAccessor a nivel proyecto).
+  secretos_pgbouncer = ["cloudsql-password-api", "cloudsql-password-api-admin", "cloudsql-password-mcp",
+  "cloudsql-password-dispatcher", "cloudflare-tunnel-token"]
 }
 
 resource "google_secret_manager_secret" "external" {
@@ -26,21 +33,14 @@ resource "google_secret_manager_secret" "cloudsql_password" {
 }
 
 resource "google_secret_manager_secret_version" "cloudsql_password" {
+  count       = var.gestionar_password_sql ? 1 : 0
   secret      = google_secret_manager_secret.cloudsql_password.id
-  secret_data = random_password.sql.result
+  secret_data = random_password.sql[0].result
 }
 
-# El accessor se otorga POR SECRETO (no a nivel proyecto). Si agregás un secreto
-# nuevo y olvidás este binding, el servicio no arranca.
-resource "google_secret_manager_secret_iam_member" "runtime_external" {
-  for_each  = google_secret_manager_secret.external
-  secret_id = each.value.id
+resource "google_secret_manager_secret_iam_member" "pgbouncer" {
+  for_each  = toset(local.secretos_pgbouncer)
+  secret_id = google_secret_manager_secret.external[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${local.runtime_sa}"
-}
-
-resource "google_secret_manager_secret_iam_member" "runtime_sql" {
-  secret_id = google_secret_manager_secret.cloudsql_password.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${local.runtime_sa}"
+  member    = "serviceAccount:${google_service_account.pgbouncer.email}"
 }

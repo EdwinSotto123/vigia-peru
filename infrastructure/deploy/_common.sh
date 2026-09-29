@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 # Variables compartidas por los scripts de deploy. Sobreescribibles por entorno:
-#   PROJECT_ID=otro-proyecto bash infrastructure/deploy/api.sh
+#   PROJECT_ID=otro-proyecto bash infrastructure/deploy/agentes.sh
+#
+# MUDARSE A OTRO PROYECTO = cambiar PROJECT_ID acá (o exportarlo) y correr
+# infrastructure/deploy/migracion/migrar-proyecto.sh (paso a paso en migracion/README.md).
+# Ningún script ni el código tienen otro proyecto fijo.
 set -euo pipefail
 
-export PROJECT_ID="${PROJECT_ID:-vivid-spot-480905-a4}"
+# ── Proyectos ─────────────────────────────────────────────────────────────────────────────────
+# PROJECT_ID: la plataforma. Cloud SQL, agentes (Vertex AI, Document AI, RAG Engine, Vertex AI Search),
+# PgBouncer + túnel de Cloudflare, scrapers, ingesta, Secret Manager. Desde el 29/09/2026: formulab.
+export PROJECT_ID="${PROJECT_ID:-project-a974c6e5-0cdf-4b11-a86}"
+# ENTRADA_PROJECT_ID: la entrada pública de hoy (Firebase Hosting vigia-peru.web.app → Cloud Run
+# web, API y MCP), que se queda en vivid-spot hasta que el dominio propio apunte a Cloudflare.
+# Con todo en un solo proyecto: ENTRADA_PROJECT_ID=$PROJECT_ID.
+export ENTRADA_PROJECT_ID="${ENTRADA_PROJECT_ID:-vivid-spot-480905-a4}"
+# BUCKETS_PROJECT_ID: dueño de los buckets vigia-peru-* (documentos, batch, reportes, privado). La base
+# guarda sus URLs gs://, así que moverlos es copiar y reescribir esas URLs (migracion/README.md).
+export BUCKETS_PROJECT_ID="${BUCKETS_PROJECT_ID:-vivid-spot-480905-a4}"
+# Cuentas de gcloud (opcionales) si cada proyecto es de una cuenta distinta:
+#   CUENTA=<cuenta de PROJECT_ID>  CUENTA_ENTRADA=<cuenta de ENTRADA_PROJECT_ID>
+if [[ -n "${CUENTA:-}" ]]; then export CLOUDSDK_CORE_ACCOUNT="$CUENTA"; fi
 export REGION="${REGION:-us-central1}"
 export SQL_INSTANCE="${SQL_INSTANCE:-vigia-db}"
 export SQL_CONNECTION="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
@@ -33,8 +50,27 @@ secretos_decolecta_flags() {
 
 # ¿El servicio ya pasa por PgBouncer (pgbouncer.sh conectar)? Entonces api.sh/mcp.sh no le pisan PGHOST.
 en_pgbouncer() {
-  gcloud run services describe "$1" --region "$REGION" --format=yaml 2>/dev/null | tr -d '\r' \
+  gcloud_entrada run services describe "$1" --region "$REGION" --format=yaml 2>/dev/null | tr -d '\r' \
     | grep -A1 -- '- name: PG_POOLER' | grep -q 'value: pgbouncer'
 }
 
-gcloud config set project "$PROJECT_ID" --quiet >/dev/null
+# Proyecto por defecto de gcloud SOLO para este proceso (antes: `gcloud config set project`, que cambiaba
+# el de toda la máquina). Lo de la entrada va con gcloud_entrada.
+export CLOUDSDK_CORE_PROJECT="$PROJECT_ID"
+
+# gcloud contra el proyecto de la entrada pública (y su cuenta, si es otra).
+gcloud_entrada() {
+  local cuenta="${CUENTA_ENTRADA:-${CLOUDSDK_CORE_ACCOUNT:-}}"
+  if [[ -n "$cuenta" ]]; then
+    CLOUDSDK_CORE_PROJECT="$ENTRADA_PROJECT_ID" CLOUDSDK_CORE_ACCOUNT="$cuenta" gcloud "$@"
+  else
+    CLOUDSDK_CORE_PROJECT="$ENTRADA_PROJECT_ID" gcloud "$@"
+  fi
+}
+
+# Sufijo de las URLs de Cloud Run de PROJECT_ID: <servicio>-<número>.<región>.run.app
+numero_proyecto() { gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)'; }
+sufijo_run() { echo "$(numero_proyecto).${REGION}.run.app"; }
+
+# IP pública de la instancia (scripts que corren desde la PC: batch, scrapers locales).
+ip_cloud_sql() { gcloud sql instances describe "$SQL_INSTANCE" --project "$PROJECT_ID" --format='value(ipAddresses[0].ipAddress)'; }

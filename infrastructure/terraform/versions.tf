@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    google-beta = { # google_project_service_identity (agentes de servicio de Vertex)
+      source  = "hashicorp/google-beta"
+      version = "~> 6.0"
+    }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.6"
@@ -23,4 +27,15 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+  # Vertex AI Search (Discovery Engine) exige proyecto de cuota con credenciales de usuario (ADC).
+  user_project_override = true
+  billing_project       = var.project_id
+}
+
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+  # Vertex AI Search (Discovery Engine) exige proyecto de cuota con credenciales de usuario (ADC).
+  user_project_override = true
+  billing_project       = var.project_id
 }

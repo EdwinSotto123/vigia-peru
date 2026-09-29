@@ -1,8 +1,21 @@
-# Copiar a terraform.tfvars (gitignored) y completar.
-project_id     = "vivid-spot-480905-a4"
-project_number = "36169102688"
+# Copiar a terraform.tfvars (gitignored). Mudarse de proyecto = cambiar estas dos líneas.
+project_id     = "project-a974c6e5-0cdf-4b11-a86"
+project_number = "753067078557"
 region         = "us-central1"
 
-# sql_tier            = "db-f1-micro"
-# agent_max_instances = 5
-# firebase_project_id = "simplia-project"
+# IP de la PC del batch nocturno (y de quien administre la base).
+sql_authorized_networks = ["<tu-ip>/32"]
+
+# Al mudarse, la clave de postgres se copia del origen: que Terraform no genere otra.
+gestionar_password_sql = false
+
+# Cuentas que llaman a los agentes (solo si gestionar_servicios = true; si no, las da el script).
+# invocadores_agentes = [
+#   "vigia-dispatcher@vivid-spot-480905-a4.iam.gserviceaccount.com",
+#   "vigia-frontend@vivid-spot-480905-a4.iam.gserviceaccount.com",
+#   "vigia-api@vivid-spot-480905-a4.iam.gserviceaccount.com",
+# ]
+
+# sql_tier                = "db-f1-micro"
+# crear_buckets_documentos = false   # los vigia-peru-* siguen en el proyecto viejo
+# gestionar_servicios      = false   # los servicios los despliegan los scripts

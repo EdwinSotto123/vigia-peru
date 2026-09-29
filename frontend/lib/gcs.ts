@@ -27,7 +27,7 @@ const SCOPE_GCS = "https://www.googleapis.com/auth/devstorage.read_write";
 let storage: Promise<Storage> | null = null;
 function storageNode(): Promise<Storage> {
   storage ??= import("@google-cloud/storage").then(
-    ({ Storage }) => new Storage({ projectId: process.env.GOOGLE_CLOUD_PROJECT || "vivid-spot-480905-a4" }),
+    ({ Storage }) => new Storage({ projectId: process.env.GOOGLE_CLOUD_PROJECT || undefined }),
   );
   return storage;
 }

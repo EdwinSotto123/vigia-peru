@@ -70,3 +70,18 @@ Authorization: Bearer <ID token de firebase>
 
 El middleware `requireAuth` lo valida vía Firebase Admin SDK (en Workers, con jose y los mismos
 chequeos) contra el proyecto `simplia-project` (que es donde están los user-ids del login del demo).
+
+## Cambiar de proyecto
+
+**Cloud Run.** `bash infrastructure/deploy/api.sh` despliega en `ENTRADA_PROJECT_ID`, pero se conecta a la base de `PROJECT_ID`:
+
+- `PGHOST=/cloudsql/<PROJECT_ID>:us-central1:vigia-db`. La cuenta `vigia-api@` necesita `roles/cloudsql.client` en `PROJECT_ID`.
+- Las URLs de los agentes se arman con `AGENT_HOST_SUFFIX` (`<número de PROJECT_ID>.<región>.run.app`; `sufijo_run` en `_common.sh`).
+
+**Worker de Cloudflare** (`wrangler.jsonc`):
+
+- `AGENT_HOST_SUFFIX` y `GCS_PROJECT_ID` (el proyecto de los buckets).
+- Secretos: `GCP_SA_KEY` (su cuenta necesita `run.invoker` en los agentes y lectura en los buckets) y `ADMIN_TOKEN`.
+- La base llega por Hyperdrive y el túnel `vigia-db`, que siguen a la VM de PgBouncer: al mudarse no se tocan.
+
+Guía completa: `infrastructure/deploy/migracion/README.md`.
