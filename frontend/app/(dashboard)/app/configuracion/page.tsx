@@ -2,7 +2,10 @@
 
 /**
  * Configuración de la cuenta (con sesión):
- *   · perfil público de aliado: nombre y logo si quiero aparecer en el muro; visibilidad anónimo/visible
+ *   · perfil público de aliado, completo y definido por quien aporta (nombre, tipo, logo, descripción,
+ *     web, correo público, redes, portada y el RUC privado del chequeo de conflicto de interés), con
+ *     vista previa en vivo; visibilidad anónimo/visible. El panel admin sólo lo modera (oculta/muestra).
+ *     Campos y validación: components/cuenta/ y lib/perfilAliado.ts (las mismas reglas del API).
  *   · correo opcional + preferencias de notificación (solo se guardan; el envío queda para después)
  *   · exportar mis datos (JSON) · borrar cuenta (con confirmación; los aportes se conservan anónimos)
  * Diseño: docs/design/CUENTAS.md
@@ -30,31 +33,31 @@
  * estados de carga/vacío/error con los patrones del sistema, y el "Guardado" en moss.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Download, Trash2, Loader2, Check, Upload, LogIn, ShieldAlert, RefreshCw, ChevronRight } from "lucide-react";
+import { Eye, EyeOff, Download, Trash2, Loader2, Check, LogIn, RefreshCw, ChevronRight, ShieldAlert } from "lucide-react";
 import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
 import { fechaCorta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { actualizarPerfil, borrarCuentaApi, exportarDatos, idToken, useCuenta, type Perfil } from "@/lib/cuentas";
+import { actualizarPerfil, borrarCuentaApi, cargarPerfil, exportarDatos, perfilCompletoDisponible, useCuenta, type Perfil } from "@/lib/cuentas";
 import { reautenticar, signOut } from "@/lib/auth";
 import { deleteUser } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { AvatarAliado } from "@/components/aliados/TarjetaAliado";
-
-/** Campo de texto del sistema (§5: inputs `rounded-xl`, hundidos en paperDeep). */
-const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate";
-/** Opción de un grupo de radio: la elegida en granate (selección), no en tinta. */
-const opcion = (activa: boolean) =>
-  cn(
-    "inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-sm transition-colors duration-rapido",
-    activa ? "border-granate bg-granate-soft font-semibold text-granate" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
-  );
-/** Subtítulo dentro de una tarjeta: frase corta en caja normal, no un rótulo en mayúsculas. */
-const SUBTITULO = "text-xs font-semibold text-mute";
+import { PerfilPublicoForm } from "@/components/cuenta/PerfilPublicoForm";
+import { VistaPreviaPerfil, type EstadoPublico } from "@/components/cuenta/VistaPreviaPerfil";
+import { CAMPO, SUBTITULO, campo } from "@/components/cuenta/estilos";
+import {
+  ORDEN_CAMPOS,
+  borradorDesde,
+  erroresDelApi,
+  idCampo,
+  motivoOculto,
+  prepararCambios,
+  type BorradorPerfil,
+  type ErroresForm,
+} from "@/components/cuenta/perfilPropio";
 
 const NOTIFS: { k: string; label: string; hint: string }[] = [
   { k: "contrato_financiado_procesado", label: "Cuando se procese un contrato que financié", hint: "Un aviso por contrato con el resultado del análisis." },
@@ -75,7 +78,7 @@ export default function ConfiguracionPage() {
     <Pagina>
       <EncabezadoPagina
         titulo="Configuración"
-        bajada="Cómo apareces en el muro de aliados, qué avisos quieres y qué guardamos de ti."
+        bajada="Tu perfil público de aliado, qué avisos quieres y qué guardamos de ti."
         ayuda={
           <Ayuda titulo="¿Necesito una cuenta?">
             No. Todo es opcional: sin cuenta el sitio funciona igual. Puedes financiar como invitado y denunciar sin tu
@@ -117,54 +120,73 @@ export default function ConfiguracionPage() {
 
 function Formulario({ perfil }: { perfil: Perfil }) {
   const router = useRouter();
-  const [nombre, setNombre] = useState(perfil.nombrePublico ?? "");
-  const [tipo, setTipo] = useState<"persona" | "empresa" | "organizacion">(perfil.tipo ?? "persona");
-  const [visible, setVisible] = useState(perfil.visible);
-  const [logoUrl, setLogoUrl] = useState<string | null>(perfil.logoUrl);
+  // Todo el perfil público vive en un borrador (components/cuenta/perfilPropio.ts); el correo y
+  // los avisos, aparte. Se guarda todo junto con el botón del pie.
+  const [borrador, setBorrador] = useState<BorradorPerfil>(() => borradorDesde(perfil));
   const [correo, setCorreo] = useState(perfil.correo ?? "");
   const [notifs, setNotifs] = useState<Record<string, boolean>>(perfil.notificaciones ?? {});
   const [guardando, setGuardando] = useState(false);
   const [ok, setOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [errores, setErrores] = useState<ErroresForm>({});
   const [confirmar, setConfirmar] = useState(false);
   const [confirmTexto, setConfirmTexto] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
-  // Controlado (no defaultOpen): así `guardar()` puede reabrir esta tarjeta si el guardado
-  // falla -- el único error de validación del formulario (nombre público vacío) vive adentro,
-  // y no tendría sentido mostrar el mensaje de error si la tarjeta que lo explica está cerrada.
+  // Controladas (no defaultOpen): así `guardar()` puede reabrir la tarjeta del campo con error;
+  // un mensaje junto a un campo escondido detrás de una tarjeta cerrada no sirve de nada.
   const [perfilOpen, setPerfilOpen] = useState(true);
-  const logoInput = useRef<HTMLInputElement>(null);
+  const [correoOpen, setCorreoOpen] = useState(true);
+  const completo = perfilCompletoDisponible(perfil);
 
+  // Se rehace desde lo guardado cuando lo guardado cambia (tras guardar llega la versión nueva).
+  // Por `updatedAt` y no por identidad: recargar el perfil sin cambios no borra lo que escribiste.
   useEffect(() => {
-    setNombre(perfil.nombrePublico ?? ""); setTipo(perfil.tipo ?? "persona"); setVisible(perfil.visible);
-    setLogoUrl(perfil.logoUrl); setCorreo(perfil.correo ?? ""); setNotifs(perfil.notificaciones ?? {});
-  }, [perfil]);
+    setBorrador(borradorDesde(perfil)); setCorreo(perfil.correo ?? ""); setNotifs(perfil.notificaciones ?? {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil.uid, perfil.updatedAt]);
+
+  const cambiar = (c: Partial<BorradorPerfil>) => {
+    setBorrador((b) => ({ ...b, ...c }));
+    setOk(false);
+    // El error de un campo se va cuando lo corriges (de las redes, sólo el de la que cambió).
+    const tocados = Object.keys(c).flatMap((k) =>
+      k === "redes" ? ["redes", ...Object.keys(c.redes ?? {}).filter((r) => c.redes?.[r as keyof typeof c.redes] !== borrador.redes[r as keyof typeof borrador.redes])] : [k],
+    );
+    quitarErrores(tocados);
+  };
+
+  const quitarErrores = (campos: string[]) => {
+    if (campos.some((k) => k in errores)) setErrores((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !campos.includes(k))));
+  };
+
+  /** Abre la tarjeta del primer campo con error y le pasa el foco. */
+  const mostrarErrores = (errs: ErroresForm) => {
+    setErrores(errs);
+    const primero = ORDEN_CAMPOS.find((c) => errs[c]);
+    if (!primero) return;
+    if (primero === "correo") setCorreoOpen(true);
+    else setPerfilOpen(true);
+    setTimeout(() => document.getElementById(idCampo(primero))?.focus(), 50);
+  };
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGuardando(true); setError(null); setOk(false);
+    setError(null); setOk(false);
+    const { cuerpo, errores: errs } = prepararCambios(perfil, borrador, { correo, notificaciones: notifs }, completo);
+    if (Object.keys(errs).length) { mostrarErrores(errs); return; }
+    setGuardando(true); setErrores({});
     try {
-      if (visible && nombre.trim().length < 2) throw new Error("Para aparecer en el muro necesitas un nombre público (mínimo 2 caracteres).");
-      await actualizarPerfil({ nombrePublico: nombre.trim() || null, tipo, visible, logoUrl, correo: correo.trim() || null, notificaciones: notifs });
+      await actualizarPerfil(cuerpo);
       setOk(true); setTimeout(() => setOk(false), 2500);
-    } catch (err) { setError((err as Error).message); setPerfilOpen(true); } finally { setGuardando(false); }
-  };
-
-  const subirLogo = async (f: File | null) => {
-    if (!f) return;
-    setSubiendoLogo(true); setError(null);
-    try {
-      const fd = new FormData(); fd.append("file", f); fd.append("kind", "logo");
-      // /api/upload exige sesión para subir logos: se manda el token de Firebase.
-      const token = await idToken();
-      const r = await fetch("/api/upload", { method: "POST", body: fd, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
-      const j = await r.json();
-      if (!r.ok || !j.url) throw new Error(j.error ?? "No se pudo subir el logo");
-      setLogoUrl(j.url);
-    } catch (err) { setError((err as Error).message); } finally { setSubiendoLogo(false); }
+    } catch (err) {
+      const r = erroresDelApi(err);
+      if (r.general) { setError(r.general); setPerfilOpen(true); }
+      if (Object.keys(r.errores).length) mostrarErrores(r.errores);
+      // Otro dispositivo ya registró un RUC: se trae el perfil para mostrar el que quedó.
+      if (r.rucFijado) void cargarPerfil(true);
+    } finally { setGuardando(false); }
   };
 
   const exportar = async () => {
@@ -211,121 +233,52 @@ function Formulario({ perfil }: { perfil: Perfil }) {
     router.push(accesoBorrado ? "/login?cuenta=borrada" : "/login?cuenta=borrada&acceso=pendiente");
   };
 
-  const conflicto = perfil.aliadoVisible === false && perfil.motivoNoVisible && perfil.motivoNoVisible !== "cuenta_borrada";
+  const estado: EstadoPublico = motivoOculto(perfil) ? "oculto" : borrador.visible ? "visible" : "anonimo";
   const notifsActivos = NOTIFS.filter((n) => !!notifs[n.k]).length;
+  const nErrores = Object.keys(errores).length;
+  const previa = (className?: string) => (
+    <VistaPreviaPerfil
+      nombre={borrador.nombre}
+      tipo={borrador.tipo}
+      logoUrl={borrador.logoUrl}
+      valores={borrador}
+      estado={estado}
+      publicada={perfil.slug && perfil.aliadoVisible ? `/aliado/${perfil.slug}` : null}
+      className={className}
+    />
+  );
 
   return (
-    <form onSubmit={guardar} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <form onSubmit={guardar} noValidate className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-6">
         {/* Perfil público: abierta por defecto -- es el motivo real de esta página -- y se
-            reabre sola desde `guardar()` si falla el guardado. */}
+            reabre sola desde `guardar()` si hay un error en uno de sus campos. */}
         <div>
           <Colapsable
-            titulo="Perfil público de aliado"
-            subtitulo="Nombre, logo y visibilidad en el muro de aliados"
+            titulo="Tu perfil público"
+            subtitulo="Cómo apareces en el ranking de aliados y en tu página"
             open={perfilOpen}
             onOpenChange={setPerfilOpen}
             hint={
               <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-mute">
-                {visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
-                {visible ? "Visible" : "Anónimo"}
+                {estado === "oculto" ? <ShieldAlert size={12} aria-hidden /> : estado === "visible" ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
+                {estado === "oculto" ? "Oculto" : estado === "visible" ? "Visible" : "Anónimo"}
               </span>
             }
           >
-            <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
+            <p className="mb-4 flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
               <span>
-                Cómo figuras en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">muro de aliados</Link>.
+                Lo defines tú: así figuras en el <Link href="/app/aliados" className="font-medium text-granate underline underline-offset-2">ranking de aliados</Link>.
               </span>
               <Ayuda titulo="¿Para qué sirve el perfil público?">
-                Sólo importa si quieres aparecer en el muro de aliados y en los comprobantes de tus aportes. Si no, tus
-                aportes figuran como “Anónimo”.
+                Sólo importa si quieres aparecer en el ranking, tener tu página de aliado y figurar en los comprobantes de tus
+                aportes. Si eliges Anónimo, tus aportes figuran como “Anónimo”. El equipo de Vigía no lo edita: sólo puede
+                ocultarlo, con un motivo.
               </Ayuda>
             </p>
-
-            <div className="mt-4 flex gap-2" role="radiogroup" aria-label="Visibilidad">
-              <button type="button" role="radio" aria-checked={!visible} onClick={() => setVisible(false)} className={cn(opcion(!visible), "flex-1")}>
-                <EyeOff size={14} aria-hidden /> Anónimo
-              </button>
-              <button type="button" role="radio" aria-checked={visible} onClick={() => setVisible(true)} className={cn(opcion(visible), "flex-1")}>
-                <Eye size={14} aria-hidden /> Visible en el muro
-              </button>
-            </div>
-            {conflicto && (
-              <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-soft px-3 py-2 text-[13px] text-ink" role="status">
-                <ShieldAlert size={13} className="mt-0.5 shrink-0 text-amberTexto" aria-hidden />
-                <span>Tu perfil no puede ser visible: hay un conflicto de interés declarado ({perfil.motivoNoVisible === "sancion_vigente_osce" ? "sanción vigente OSCE" : "proveedor con alertas activas"}). Tus aportes procesan contratos igual.</span>
-              </p>
-            )}
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-              <div className="space-y-3">
-                <label className="block text-sm">
-                  <span className="font-semibold text-inkSoft">Nombre público {visible ? "(obligatorio para el muro)" : "(opcional)"}</span>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} autoComplete="organization" className={CAMPO} placeholder="Ej. María Q., o Empresa X S.A.C." />
-                </label>
-                <div>
-                  <span className="text-sm font-semibold text-inkSoft">Tipo</span>
-                  <div className="mt-1 flex gap-2" role="radiogroup" aria-label="Tipo de aliado">
-                    {(["persona", "empresa", "organizacion"] as const).map((t) => (
-                      <button type="button" key={t} role="radio" aria-checked={tipo === t} onClick={() => setTipo(t)} className={opcion(tipo === t)}>{t === "organizacion" ? "Organización" : t === "empresa" ? "Empresa" : "Persona"}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="text-center">
-                <span className="text-sm font-semibold text-inkSoft">Logo</span>
-                <button
-                  type="button"
-                  onClick={() => logoInput.current?.click()}
-                  disabled={subiendoLogo}
-                  aria-label={logoUrl ? "Cambiar logo" : "Subir logo"}
-                  className="relative mt-1 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-line bg-paperSoft transition-colors hover:border-granate/50 disabled:cursor-wait"
-                >
-                  {logoUrl ? (
-                    <Image src={logoUrl} alt="Logo" width={80} height={80} className="h-full w-full object-contain" unoptimized />
-                  ) : (
-                    <Upload size={18} className="text-mute" aria-hidden />
-                  )}
-                  {subiendoLogo && (
-                    <span className="absolute inset-0 flex items-center justify-center bg-paper/80">
-                      <Loader2 size={16} className="animate-spin text-granate" aria-hidden />
-                    </span>
-                  )}
-                </button>
-                <input ref={logoInput} type="file" accept="image/*" className="sr-only" onChange={(e) => subirLogo(e.target.files?.[0] ?? null)} aria-label="Subir logo" />
-                <div className="mt-1 flex justify-center gap-2 text-[11px]">
-                  <button type="button" onClick={() => logoInput.current?.click()} disabled={subiendoLogo} className="inline-flex items-center gap-1 text-ink underline transition-colors hover:text-granate disabled:opacity-60">
-                    {subiendoLogo ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <Upload size={11} aria-hidden />} {logoUrl ? "Cambiar" : "Subir"}
-                  </button>
-                  {logoUrl && <button type="button" onClick={() => setLogoUrl(null)} className="text-mute underline transition-colors hover:text-ink">Quitar</button>}
-                </div>
-              </div>
-            </div>
-
-            {/* Vista previa: antes nombre/tipo/logo/visibilidad se configuraban a ciegas, sin
-                ninguna prueba de cómo se ve el resultado. Reusa AvatarAliado (mismo componente
-                que renderiza la fila real en /app/aliados) para que la vista previa sea honesta,
-                no una maqueta aparte que se desincroniza. */}
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-line bg-paperSoft p-3">
-              <AvatarAliado tipo={tipo} logoUrl={logoUrl} nombre={nombre || "Tu nombre"} size="sm" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-ink">{visible ? (nombre.trim() || "Aún sin nombre") : "Anónimo"}</div>
-                <div className="text-xs text-mute">Así se verá en el muro de aliados</div>
-              </div>
-              {visible ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-granate/20 bg-granate-soft px-2.5 py-1 text-[11px] font-semibold text-granate">
-                  <Eye size={11} aria-hidden /> Visible
-                </span>
-              ) : (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-paperDeep px-2.5 py-1 text-[11px] font-medium text-mute">
-                  <EyeOff size={11} aria-hidden /> Oculto
-                </span>
-              )}
-            </div>
-
-            {perfil.slug && perfil.aliadoVisible && (
-              <p className="mt-3 text-[13px] text-inkSoft">Tu página de aliado: <Link href={`/aliado/${perfil.slug}`} className="font-mono text-granate underline underline-offset-2">/aliado/{perfil.slug}</Link></p>
-            )}
+            <PerfilPublicoForm perfil={perfil} valor={borrador} onCambiar={cambiar} errores={errores} completo={completo} />
+            {/* En escritorio la vista previa va fija en la columna derecha; acá, al pie del perfil. */}
+            {previa("mt-6 lg:hidden")}
           </Colapsable>
         </div>
 
@@ -335,26 +288,40 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           <Colapsable
             titulo="Correo y avisos"
             subtitulo="Correo opcional y qué avisos quieres recibir"
-            defaultOpen
+            open={correoOpen}
+            onOpenChange={setCorreoOpen}
             hint={<span className="shrink-0 text-xs font-medium tabular-nums text-mute">{notifsActivos} de {NOTIFS.length} activos</span>}
           >
             <p className="flex flex-wrap items-center gap-x-1 text-sm text-inkSoft">
               <strong className="font-semibold text-ink">Todavía no enviamos correos:</strong> sólo guardamos tu preferencia.
               <Ayuda titulo="¿Para qué es el correo?">
-                Tu cuenta no necesita correo. Si dejas uno, es privado y solo sirve para los avisos que actives.
+                Tu cuenta no necesita correo. Si dejas uno, es privado y solo sirve para los avisos que actives. No es el correo
+                público de tu perfil.
               </Ayuda>
             </p>
-            <label className="mt-3 block text-sm">
-              <span className="font-semibold text-inkSoft">Correo (opcional)</span>
-              <input type="email" inputMode="email" value={correo} onChange={(e) => setCorreo(e.target.value)} autoComplete="email" className={CAMPO} placeholder="tu@correo.pe" />
-            </label>
+            <div className="mt-3 text-sm">
+              <label htmlFor={idCampo("correo")} className="font-semibold text-inkSoft">Correo (opcional)</label>
+              <input
+                id={idCampo("correo")}
+                type="email"
+                inputMode="email"
+                value={correo}
+                onChange={(e) => { setCorreo(e.target.value); setOk(false); quitarErrores(["correo"]); }}
+                autoComplete="email"
+                aria-invalid={errores.correo ? true : undefined}
+                aria-describedby={errores.correo ? `${idCampo("correo")}-error` : undefined}
+                className={campo(errores.correo)}
+                placeholder="tu@correo.pe"
+              />
+              {errores.correo && <p id={`${idCampo("correo")}-error`} className="mt-1 text-[13px] text-crimsonTexto">{errores.correo}</p>}
+            </div>
             <ul className="mt-3 space-y-2">
               {NOTIFS.map((n) => {
                 const activo = !!notifs[n.k];
                 return (
                   <li key={n.k}>
                     <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-sm transition-colors duration-rapido ${activo ? "border-granate/30 bg-granate-50" : "border-line hover:bg-paperSoft"}`}>
-                      <input type="checkbox" checked={activo} onChange={(e) => setNotifs((x) => ({ ...x, [n.k]: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-line accent-granate" />
+                      <input type="checkbox" checked={activo} onChange={(e) => { setNotifs((x) => ({ ...x, [n.k]: e.target.checked })); setOk(false); }} className="mt-0.5 h-4 w-4 rounded border-line accent-granate" />
                       <span><span className="block text-ink">{n.label}</span><span className="block text-xs text-mute">{n.hint}</span></span>
                     </label>
                   </li>
@@ -364,20 +331,30 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           </Colapsable>
         </div>
 
-        {error && <p className="text-sm text-crimsonTexto" role="alert">{error}</p>}
-        {/* Guardado = positivo: moss (antes maíz con texto blanco, ≈ 1.9:1, ilegible). */}
-        <button
-          type="submit"
-          disabled={guardando}
-          className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-paper transition-colors duration-rapido disabled:opacity-60 ${ok ? "bg-moss" : "bg-granate hover:bg-granate-deep"}`}
-        >
-          {/* key cambia entre idle/guardando/ok -> React remonta el span y el fade-in de 200ms
-              vuelve a correr cada vez, así el "Guardado" se siente como una confirmación y no
-              como un cambio de texto/color instantáneo. */}
-          <span key={guardando ? "guardando" : ok ? "ok" : "idle"} className="inline-flex items-center gap-2 animate-fadeIn" aria-live="polite">
-            {guardando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : ok ? <Check size={14} aria-hidden /> : null} {ok ? "Guardado" : "Guardar cambios"}
-          </span>
-        </button>
+        <div className="space-y-3">
+          {/* Una región viva siempre montada: el resumen de errores o el fallo general se anuncian al aparecer. */}
+          <div role="alert">
+            {nErrores > 0 && (
+              <p className="text-sm text-crimsonTexto">
+                {nErrores === 1 ? "Revisa el campo marcado antes de guardar." : `Revisa los ${nErrores} campos marcados antes de guardar.`}
+              </p>
+            )}
+            {error && <p className="text-sm text-crimsonTexto">{error}</p>}
+          </div>
+          {/* Guardado = positivo: moss (antes maíz con texto blanco, ≈ 1.9:1, ilegible). */}
+          <button
+            type="submit"
+            disabled={guardando}
+            className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-paper transition-colors duration-rapido disabled:opacity-60 ${ok ? "bg-moss" : "bg-granate hover:bg-granate-deep"}`}
+          >
+            {/* key cambia entre idle/guardando/ok -> React remonta el span y el fade-in de 200ms
+                vuelve a correr cada vez, así el "Guardado" se siente como una confirmación y no
+                como un cambio de texto/color instantáneo. */}
+            <span key={guardando ? "guardando" : ok ? "ok" : "idle"} className="inline-flex items-center gap-2 animate-fadeIn" aria-live="polite">
+              {guardando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : ok ? <Check size={14} aria-hidden /> : null} {ok ? "Guardado" : "Guardar cambios"}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Privacidad y datos: identificador de cuenta + qué guardamos/exportar + borrar cuenta.
@@ -385,7 +362,8 @@ function Formulario({ perfil }: { perfil: Perfil }) {
           avisos, no a exportar ni a borrarse), así que arranca colapsada -- en móvil, donde el
           formulario cae en una sola columna, esto sola ya ahorraba tres tarjetas apiladas de
           scroll a quien nunca las toca. */}
-      <aside className="lg:sticky lg:top-6 lg:self-start">
+      <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+        {previa("hidden lg:block")}
         <div>
           <Colapsable titulo="Privacidad y datos" subtitulo="Tu identificador, qué guardamos, exportar o borrar tu cuenta">
             <div className="space-y-4">
@@ -407,7 +385,8 @@ function Formulario({ perfil }: { perfil: Perfil }) {
                 <h3 className={SUBTITULO}>Qué guardamos</h3>
                 <ul className="mt-2 list-outside list-disc space-y-1 rounded-xl bg-paperSoft p-3 pl-7 text-[12px] text-ink">
                   <li>Tu nombre de usuario (sin correo, salvo que lo dejes arriba).</li>
-                  <li>Perfil de aliado: nombre, tipo, logo, visibilidad.</li>
+                  <li>Tu perfil público: lo que decidas publicar y si eres visible o anónimo.</li>
+                  <li>Tu RUC, si lo registras: sólo para el chequeo de conflicto de interés, nunca se publica.</li>
                   <li>Zonas y entidades que sigues; preferencias de aviso.</li>
                   <li>Tus aportes y las denuncias enviadas con sesión.</li>
                 </ul>

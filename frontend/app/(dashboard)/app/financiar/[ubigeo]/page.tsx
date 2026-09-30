@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Activity, ChevronRight, Radio, ShieldCheck } from "lucide-react";
 import { ContribuirForm } from "@/components/financiar/ContribuirForm";
-import { Avatar } from "@/components/financiar/RankingTable";
 import { ListaZonas } from "@/components/financiar/ListaZonas";
+import { TablaAliados } from "@/components/financiar/TablaAliados";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Revelar } from "@/components/ui/Revelar";
 import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, type Pestana } from "@/components/patrones";
@@ -12,7 +12,7 @@ import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fil
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
-import { ESTADO_LABEL, ESTADO_PUNTO, TIPO_FINANCIADOR_LABEL, alcanceLargo, getPago, getZona, type ZonaDetalle } from "@/lib/financiamiento";
+import { ESTADO_LABEL, ESTADO_PUNTO, alcanceLargo, getPago, getZona, type ZonaDetalle } from "@/lib/financiamiento";
 import { numero, plural, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { estadoVisible, getProcesamientos, type EstadoProc, type Procesamiento } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
@@ -137,8 +137,7 @@ export default async function ZonaPage({
         >
           {zona.totalCola > 0 ? (
             <ContribuirForm
-              ubigeo={zona.ubigeo}
-              zonaNombre={zona.nombre}
+              alcance={{ tipo: "zona", ubigeo: zona.ubigeo, nombre: zona.nombre }}
               precioPen={zona.precioPen}
               restantes={enCola}
               metodos={metodos}
@@ -280,7 +279,7 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
     etiqueta: "Quién financió",
     conteo: aliados.length,
     contenido: aliados.length ? (
-      <Tabla columnas={COLUMNAS_ALIADOS} filas={filasAliados(aliados)} etiqueta={`Quién financió la lectura en ${zona.nombre}`} />
+      <TablaAliados aliados={aliados} etiqueta={`Quién financió la lectura en ${zona.nombre}`} />
     ) : (
       <p className="text-sm text-inkSoft">Nadie ha financiado la lectura de {zona.nombre} todavía.</p>
     ),
@@ -375,26 +374,4 @@ function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
     },
   }));
   return <Tabla columnas={COLUMNAS_VIVO} filas={filas} etiqueta="Contratos que se mueven ahora" />;
-}
-
-const COLUMNAS_ALIADOS: Columna[] = [
-  { clave: "aliado", titulo: "Aliado", ancho: "minmax(0,1fr)" },
-  { clave: "contratos", titulo: "Financiados", ancho: "112px", alinear: "der" },
-];
-
-/** Reconocimiento en contratos, nunca en soles. La fila va a su ficha cuando tiene una. */
-function filasAliados(aliados: ZonaDetalle["aliados"]): Fila[] {
-  return aliados.map((a) => ({
-    id: `${a.slug ?? a.nombre}-${a.contratos}`,
-    href: a.slug ? `/aliado/${a.slug}` : undefined,
-    celdas: {
-      aliado: (
-        <span className="flex w-full min-w-0 items-center gap-3">
-          <Avatar tipo={a.tipo} logoUrl={a.logoUrl} nombre={a.nombre} />
-          <CeldaPrincipal titulo={a.nombre} meta={a.slug === "vigia-peru" ? "La propia plataforma" : TIPO_FINANCIADOR_LABEL[a.tipo]} />
-        </span>
-      ),
-      contratos: <CeldaNumero>{numero(a.contratos)}</CeldaNumero>,
-    },
-  }));
 }

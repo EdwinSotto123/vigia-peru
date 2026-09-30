@@ -199,17 +199,37 @@ export const PERFIL_LABEL: Record<string, string> = { bienes: "Bienes", servicio
 
 // ─── U6 · Procesar un lote a nombre de Vigía Perú (sin pasarela) ─────────────
 
-export interface PreviewLote { ubigeo: string; zona: string; nivel: string; enCola: number; precioPen: number }
+export interface PreviewLote {
+  ubigeo: string; zona: string; nivel: string; enCola: number; precioPen: number;
+  /** En cola con documentos ya descargados. */
+  listos?: number;
+  /** Vista previa por entidad (`?entidadRuc=`): la entidad elegida. */
+  entidad?: { ruc: string; nombre: string } | null;
+}
 export interface LoteProcesado {
   codigo: string; ubigeo: string; asignados: number; solicitados: number; ocids: string[];
   pedidosAbiertos: number; listosParaProcesar: number; dispatcherDisparado: boolean;
 }
 
-/** Vista previa (cuántos hay en cola en esa zona) antes de confirmar — no escribe nada. */
-export const previewLote = (ubigeo: string) => adminFetch<PreviewLote>(`/procesar-lote/preview?ubigeo=${encodeURIComponent(ubigeo)}`);
+/**
+ * De dónde salen los contratos de un lote: una zona (por antigüedad, mínimo 5) o una entidad
+ * (al azar entre los suyos en cola, primero los que ya tienen documentos; mínimo 1).
+ * Un string suelto es un ubigeo: la firma de siempre sigue sirviendo.
+ */
+export type AlcanceLote = string | { ubigeo: string } | { entidadRuc: string };
 
-/** Crea la contribución YA `pagada` a nombre de Vigía Perú, asigna por antigüedad (FIFO, igual
- *  que un aporte ciudadano) y abre pedidos de descarga; si algún contrato ya tiene documentos,
- *  además dispara el dispatcher ahora en vez de esperar su ciclo. */
-export const procesarLote = (ubigeo: string, contratos: number) =>
-  adminFetch<LoteProcesado>("/procesar-lote", { method: "POST", body: JSON.stringify({ ubigeo, contratos }) });
+const cuerpoLote = (a: AlcanceLote): { ubigeo: string } | { entidadRuc: string } => (typeof a === "string" ? { ubigeo: a } : a);
+
+/** Vista previa (cuántos hay en cola en esa zona o entidad) antes de confirmar — no escribe nada. */
+export const previewLote = (alcance: AlcanceLote) => {
+  const c = cuerpoLote(alcance);
+  const qs = "entidadRuc" in c ? `entidadRuc=${encodeURIComponent(c.entidadRuc)}` : `ubigeo=${encodeURIComponent(c.ubigeo)}`;
+  return adminFetch<PreviewLote>(`/procesar-lote/preview?${qs}`);
+};
+
+/** Crea la contribución YA `pagada` a nombre de Vigía Perú, asigna (por zona: por antigüedad,
+ *  FIFO, igual que un aporte ciudadano; por entidad: al azar entre los suyos en cola) y abre
+ *  pedidos de descarga; si algún contrato ya tiene documentos, además dispara el dispatcher
+ *  ahora en vez de esperar su ciclo. */
+export const procesarLote = (alcance: AlcanceLote, contratos: number) =>
+  adminFetch<LoteProcesado>("/procesar-lote", { method: "POST", body: JSON.stringify({ ...cuerpoLote(alcance), contratos }) });

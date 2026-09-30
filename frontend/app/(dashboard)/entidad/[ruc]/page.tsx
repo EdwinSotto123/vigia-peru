@@ -41,33 +41,6 @@ interface AlertaEntidad {
   objeto?: string | null;
 }
 
-/** Departamentos por los dos primeros dígitos del ubigeo INEI. */
-const DEPARTAMENTO: Record<string, string> = {
-  "01": "Amazonas", "02": "Áncash", "03": "Apurímac", "04": "Arequipa", "05": "Ayacucho",
-  "06": "Cajamarca", "07": "Callao", "08": "Cusco", "09": "Huancavelica", "10": "Huánuco",
-  "11": "Ica", "12": "Junín", "13": "La Libertad", "14": "Lambayeque", "15": "Lima",
-  "16": "Loreto", "17": "Madre de Dios", "18": "Moquegua", "19": "Pasco", "20": "Piura",
-  "21": "Puno", "22": "San Martín", "23": "Tacna", "24": "Tumbes", "25": "Ucayali",
-};
-
-const normal = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-
-/**
- * ¿El ubigeo que trae la entidad cae en su misma región? El ubigeo de la ficha
- * sale de un cruce automático y a veces apunta a otro departamento; ofrecer
- * "Financiar la auditoría de X" sobre una zona equivocada manda el aporte de un
- * vecino a otro lugar. Sin región declarada no hay contra qué comparar.
- */
-function ubigeoCoincide(ubigeo: string | null, region: string | null): boolean {
-  if (!ubigeo) return false;
-  const dep = DEPARTAMENTO[ubigeo.slice(0, 2)];
-  if (!dep) return false;
-  if (!region) return true;
-  const r = normal(region);
-  const d = normal(dep);
-  return r === d || r.startsWith(d) || d.startsWith(r);
-}
-
 /** DATE/TIMESTAMP a medianoche UTC → sólo el día (AAAA-MM-DD), que `fechaCorta` toma como día de Lima. */
 const diaDe = (v: string | null | undefined): string | null => {
   const ymd = String(v ?? "").slice(0, 10);
@@ -123,8 +96,6 @@ export default async function EntidadProfile({
   const e = apiResp.entidad;
   const nombre: string = e.nombre;
   const region: string | null = e.region || null;
-  const ubigeo: string | null = e.ubigeo || null;
-  const zonaNombre: string | null = e.zonaNombre || null;
   const enCola = Number(e.contratosEnCola || 0);
   const contratos = Number(e.contratos || 0);
 
@@ -138,8 +109,8 @@ export default async function EntidadProfile({
   const monto = truncada
     ? Math.max(0, Number(e.monto || 0) - demo.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0))
     : publicadas.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0);
-  const financiable = enCola > 0 && ubigeoCoincide(ubigeo, region);
-  const zonaFinanciar = ubigeo ? zonaNombre ?? DEPARTAMENTO[ubigeo.slice(0, 2)] : null;
+  // Se financia la entidad misma (sus contratos en cola, al azar): ya no depende de adivinar su zona.
+  const financiable = enCola > 0;
 
   // "Con señales" = contratos con al menos una señal publicada (DESIGN_SYSTEM.md §10.1).
   // El score es la suma de los pesos de las señales (todo peso ≥ 5), así que score > 0 ⇔ hay señales.
@@ -186,17 +157,14 @@ export default async function EntidadProfile({
     {
       valor: numero(enCola),
       etiqueta: "en cola",
-      contexto: enCola > 0 && !financiable ? "no se puede financiar desde aquí" : `de ${numero(contratos)} registrados`,
+      contexto: `de ${numero(contratos)} registrados`,
       ayuda: (
         <Ayuda titulo="¿Qué está en cola?">
           <span className="block">Convocatorias que Vigía todavía no leyó y esperan financiamiento.</span>
           {financiable && (
-            <span className="mt-2 block">Se leen por antigüedad dentro de la zona: no se puede elegir una entidad concreta.</span>
-          )}
-          {enCola > 0 && !financiable && (
             <span className="mt-2 block">
-              Todavía no sabemos a qué zona pertenece esta entidad. La lectura se financia por zona, y un aporte sobre una
-              zona equivocada iría a otro lugar.
+              Puedes financiar la lectura de esta entidad: eliges la entidad, no los contratos, que se asignan al azar entre
+              los suyos en cola.
             </span>
           )}
         </Ayuda>
@@ -268,10 +236,10 @@ export default async function EntidadProfile({
             <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario">
               <Flag size={14} aria-hidden /> Denunciar a esta entidad
             </EnlaceAccion>
-            {/* La única acción sobre su cola: financiar la zona. Por qué no hay botón, en el ⓘ de "en cola". */}
-            {financiable && ubigeo && (
-              <EnlaceAccion href={`/app/financiar/${ubigeo}`} flecha>
-                Financiar la lectura de {zonaFinanciar}
+            {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
+            {financiable && (
+              <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
+                Financiar su auditoría
               </EnlaceAccion>
             )}
           </>

@@ -35,7 +35,12 @@ export default async function Image({ params }: { params: { codigo: string } }) 
 
   const financiador = c?.financiador ?? "un aliado de transparencia";
   const contratos = c?.contratos ?? null;
-  const zona = c?.zona ?? null;
+  // Por entidad, la tarjeta nombra a la entidad (nunca en claro a una persona natural, RUC 10).
+  const lugar = c?.entidad
+    ? { prep: "de", nombre: /^10\d{9}$/.test(c.entidad.ruc) ? "una entidad" : c.entidad.nombre }
+    : c?.zona
+      ? { prep: "en", nombre: c.zona }
+      : null;
   const senales = c?.resumen.senales ?? null;
   const procesados = c?.resumen.procesados ?? null;
 
@@ -103,10 +108,10 @@ export default async function Image({ params }: { params: { codigo: string } }) 
               ) : (
                 <span style={{ color: PAPER_75 }}>contratos públicos leídos con independencia</span>
               )}
-              {zona && (
+              {lugar && (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                  <span style={{ color: PAPER_75 }}>en</span>
-                  <span>{zona}</span>
+                  <span style={{ color: PAPER_75 }}>{lugar.prep}</span>
+                  <span>{lugar.nombre}</span>
                 </div>
               )}
             </div>

@@ -2,16 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Clock, Code2, ShieldCheck } from "lucide-react";
 import { ListaZonas, type ZonaListada } from "@/components/financiar/ListaZonas";
+import { ResultadosEntidades, TAM_ENTIDADES } from "@/components/financiar/ListaEntidades";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Popover } from "@/components/ui/Flotante";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { Ayuda, EncabezadoPagina, EstadoError, EstadoVacio, FuenteDato, Pagina, Seccion } from "@/components/patrones";
-import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador } from "@/components/listado";
+import { BarraFiltros, Indicadores, Listado, Vistas, ZonaResultados, type Indicador } from "@/components/listado";
 import { FranjaTextil } from "@/components/marca";
 import { numero, plural, porcentaje, soles } from "@/lib/formato";
 import {
   alcanceCorto,
+  getEntidadesFinanciables,
   getEstadoGlobal,
   getPago,
   getRecientes,
@@ -45,8 +47,9 @@ export const revalidate = 120;
 const REGLAS: { titulo: string; resumen: string; detalle: string }[] = [
   {
     titulo: "Sin selección",
-    resumen: "Los contratos salen de la cola por antigüedad.",
-    detalle: "La asignación es por antigüedad dentro de la zona, en SQL. Ninguna API acepta un contrato elegido por quien financia.",
+    resumen: "Eliges una zona o una entidad, nunca un contrato.",
+    detalle:
+      "Por zona, los contratos salen de su cola por antigüedad; por entidad, al azar entre los suyos en cola. La asignación se hace en SQL y ninguna API acepta un contrato elegido por quien financia.",
   },
   {
     titulo: "Sin edición",
@@ -66,8 +69,8 @@ const REGLAS: { titulo: string; resumen: string; detalle: string }[] = [
   },
   {
     titulo: "Reconocimiento aditivo",
-    resumen: "Nadie es dueño de una zona.",
-    detalle: "Varios aliados pueden apoyar la misma zona. Nadie la “tiene”.",
+    resumen: "Nadie es dueño de una zona ni de una entidad.",
+    detalle: "Varios aliados pueden apoyar la misma zona o la misma entidad. Nadie la “tiene”.",
   },
   {
     titulo: "Trazabilidad",
@@ -87,31 +90,47 @@ const ACCION =
 
 /**
  * /app/financiar — plantilla de conversión (DESIGN_SYSTEM.md §14): una pregunta por
- * pantalla, "¿qué contratos de tu zona quieres que se lean?". Encabezado → Indicadores
- * (el déficit de lectura y el precio, cada cifra con su contexto) → la lista de zonas
- * con la anatomía de todo listado (§14.1) y, al costado, los últimos aportes. La
- * búsqueda vive en la URL (`?q=`): se comparte y el botón atrás la deshace.
+ * pantalla. Dos vistas (§14.1), en la URL (`?por=entidad`): "Por zona" pregunta "¿qué
+ * contratos de tu zona quieres que se lean?"; "Por entidad", "¿de qué entidad quieres que
+ * se lean los contratos?" (quien desconfía de una entidad concreta la elige a ella).
+ * Encabezado → Vistas → Indicadores (el déficit de lectura y el precio, cada cifra con su
+ * contexto) → la lista de zonas o de entidades con la anatomía de todo listado (§14.1) y,
+ * al costado, los últimos aportes. La búsqueda vive en la URL (`?q=`): se comparte y el
+ * botón atrás la deshace.
  */
 export default async function FinanciarPage({
   searchParams,
 }: {
-  searchParams?: { ubigeo?: string; q?: string; pagina?: string };
+  searchParams?: { ubigeo?: string; entidad?: string; por?: string; q?: string; pagina?: string };
 }) {
   // Llegada desde el mapa con la zona ya elegida (/app/financiar?ubigeo=21) → directo al paso de cantidad.
   const u = searchParams?.ubigeo;
   if (u && /^\d{2}(\d{2}(\d{2})?)?$/.test(u)) redirect(`/app/financiar/${u}`);
+  // Lo mismo con una entidad ya elegida (?entidad=RUC).
+  const ruc = searchParams?.entidad;
+  if (ruc && /^\d{11}$/.test(ruc)) redirect(`/app/financiar/entidad/${ruc}`);
 
+  const porEntidad = searchParams?.por === "entidad";
   const q = (searchParams?.q ?? "").trim().slice(0, 60);
+  const paginaPedida = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   // Con dos letras o más la búsqueda también mira las provincias (una sola lista, cacheada).
-  const buscaProvincias = q.length >= 2;
-  const [zonas, estado, recientes, resumenContratos, pago, provincias] = await Promise.all([
+  const buscaProvincias = !porEntidad && q.length >= 2;
+  // Por entidad, el API busca desde 2 letras: una sola letra no filtra (y no se dice que filtra).
+  const qEntidad = porEntidad && q.length >= 2 ? q : "";
+  const [zonas, estado, recientes, resumenContratos, pago, provincias, entidades, entidadesSinBusqueda] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),
     getRecientes(),
     getResumenContratos(),
     getPago(),
     buscaProvincias ? getZonas("provincia") : Promise.resolve(null),
+    porEntidad
+      ? getEntidadesFinanciables({ q: qEntidad || undefined, limit: TAM_ENTIDADES, offset: (paginaPedida - 1) * TAM_ENTIDADES })
+      : Promise.resolve(null),
+    // El conteo de la vista "Por entidad" (entidades con contratos en cola), si la lista de arriba no lo trae.
+    porEntidad && !qEntidad ? Promise.resolve(null) : getEntidadesFinanciables({ limit: 1 }),
   ]);
+  const totalEntidades = porEntidad && !qEntidad ? entidades?.total : entidadesSinBusqueda?.total;
   const precio = estado?.tarifa.precioPen ?? null;
   const pagosAbiertos = !!pago?.configurado;
 
@@ -138,7 +157,7 @@ export default async function FinanciarPage({
     lista = [...deptos].sort(porCola);
   }
   const paginas = Math.max(1, Math.ceil(lista.length / TAM));
-  const pagina = Math.min(paginas, Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1));
+  const pagina = Math.min(paginas, paginaPedida);
   const fallaronProvincias = buscaProvincias && provincias === null;
 
   return (
@@ -146,15 +165,21 @@ export default async function FinanciarPage({
       <div className="space-y-4">
         {/* La pregunta de la pantalla va de título (plantilla de conversión, §14); el porqué, en el ⓘ. */}
         <EncabezadoPagina
-          titulo="¿Qué contratos de tu zona quieres que se lean?"
-          bajada="Elige una zona y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+          titulo={porEntidad ? "¿De qué entidad quieres que se lean los contratos?" : "¿Qué contratos de tu zona quieres que se lean?"}
+          bajada={
+            porEntidad
+              ? "Elige una entidad y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+              : "Elige una zona y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+          }
           ayuda={
             <Ayuda titulo="¿Qué financias?">
               <span className="block">
                 El Estado publica todos sus contratos, pero nadie tiene capacidad de leerlos. Vigía lee cada uno completo,
                 lo cruza con registros públicos y publica sus señales con la norma que las respalda.
               </span>
-              <span className="mt-2 block text-mute">Financias esa lectura: no compras una región ni un resultado.</span>
+              <span className="mt-2 block text-mute">
+                Financias esa lectura: no compras una región, una entidad ni un resultado.
+              </span>
             </Ayuda>
           }
           acciones={
@@ -162,6 +187,14 @@ export default async function FinanciarPage({
               <ShieldCheck size={16} className="text-granate" aria-hidden /> Reglas de independencia
             </EnlaceAccion>
           }
+        />
+        {/* Dos poblaciones del mismo trámite (§14.1): se financia una zona o una entidad. */}
+        <Vistas
+          etiqueta="Cómo elegir qué financiar"
+          vistas={[
+            { href: "/app/financiar", etiqueta: "Por zona", conteo: zonas ? deptos.length : undefined, activa: !porEntidad },
+            { href: "/app/financiar?por=entidad", etiqueta: "Por entidad", conteo: totalEntidades, activa: porEntidad },
+          ]}
         />
         <CifrasFinanciar
           leidos={leidos}
@@ -177,51 +210,92 @@ export default async function FinanciarPage({
             <strong className="font-semibold text-ink">Los aportes todavía no están abiertos.</strong>
             <Ayuda titulo="¿Por qué no se puede aportar?">
               Aún no hay un medio de pago conectado. Hoy la lectura la paga Vigía Perú con su propio capital semilla.
-              Puedes elegir una zona para ver su cola, seguirla y mirar cómo avanza.
+              Puedes elegir una zona o una entidad para ver su cola, seguirla y mirar cómo avanza.
             </Ayuda>
           </p>
         )}
       </div>
 
-      {/* La lista de zonas y los últimos aportes, lado a lado: la vista usa el ancho (§10.7). */}
+      {/* La lista de zonas (o de entidades) y los últimos aportes, lado a lado: la vista usa el ancho (§10.7). */}
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-        {/* ─── ELIGE TU ZONA (sin mapa: el mapa vive en /app/mapa) ─── */}
-        <Seccion
-          id="zonas"
-          titulo="Elige la zona"
-          descripcion={
-            <>
-              Contratos en cola y lo que cuesta leerlos.{" "}
-              <Link href="/app/mapa" className="font-medium text-granate underline underline-offset-2">Verlo en el mapa</Link>
-            </>
-          }
-          ayuda={
-            <Ayuda titulo="¿Qué zonas aparecen?">
-              Las que tienen contratos en cola. Hoy entran solo {alcanceCorto(estado?.alcance)}. El punto de color es el
-              estado de la zona, dicho también en palabras debajo de su nombre.
-            </Ayuda>
-          }
-          acciones={<FuenteDato fuente="OECE, API OCDS" />}
-        >
-          <Listado ruta="/app/financiar" parametros={{ q: q || undefined }}>
-            <div className="space-y-3">
-              <BarraFiltros
-                busqueda={{ param: "q", placeholder: "Ej. Huamanga, Cañete, Cusco", etiqueta: "Buscar una región o provincia" }}
-              />
-              <ZonaResultados>
-                <ResultadosZonas
-                  hayZonas={!!zonas}
-                  lista={lista}
-                  q={q}
-                  pagina={pagina}
-                  paginas={paginas}
-                  fallaronProvincias={fallaronProvincias}
-                  precio={precio}
+        {porEntidad ? (
+          /* ─── ELIGE LA ENTIDAD ─── */
+          <Seccion
+            id="entidades"
+            titulo="Elige la entidad"
+            descripcion="Sus contratos en cola, los que ya tienen documentos y lo que cuesta leerlos."
+            ayuda={
+              <Ayuda titulo="¿Qué entidades aparecen?">
+                <span className="block">
+                  Las que tienen contratos en cola, de más a menos. Buscando, aparecen todas las que coinciden, también las
+                  que hoy no tienen nada que financiar.
+                </span>
+                <span className="mt-2 block">Hoy entran a la cola solo {alcanceCorto(estado?.alcance)}.</span>
+              </Ayuda>
+            }
+            acciones={<FuenteDato fuente="OECE, API OCDS" />}
+          >
+            <Listado ruta="/app/financiar" parametros={{ por: "entidad", q: qEntidad || undefined }}>
+              <div className="space-y-3">
+                <BarraFiltros
+                  busqueda={{
+                    param: "q",
+                    placeholder: "Ej. Procesos Electorales, Puno o un RUC",
+                    etiqueta: "Buscar una entidad por su nombre o su RUC",
+                    min: 2,
+                  }}
                 />
-              </ZonaResultados>
-            </div>
-          </Listado>
-        </Seccion>
+                <ZonaResultados>
+                  <ResultadosEntidades
+                    datos={entidades}
+                    q={qEntidad}
+                    pagina={paginaPedida}
+                    precioPen={precio}
+                    alcance={estado?.alcance}
+                  />
+                </ZonaResultados>
+              </div>
+            </Listado>
+          </Seccion>
+        ) : (
+          /* ─── ELIGE TU ZONA (sin mapa: el mapa vive en /app/mapa) ─── */
+          <Seccion
+            id="zonas"
+            titulo="Elige la zona"
+            descripcion={
+              <>
+                Contratos en cola y lo que cuesta leerlos.{" "}
+                <Link href="/app/mapa" className="font-medium text-granate underline underline-offset-2">Verlo en el mapa</Link>
+              </>
+            }
+            ayuda={
+              <Ayuda titulo="¿Qué zonas aparecen?">
+                Las que tienen contratos en cola. Hoy entran solo {alcanceCorto(estado?.alcance)}. El punto de color es el
+                estado de la zona, dicho también en palabras debajo de su nombre.
+              </Ayuda>
+            }
+            acciones={<FuenteDato fuente="OECE, API OCDS" />}
+          >
+            <Listado ruta="/app/financiar" parametros={{ q: q || undefined }}>
+              <div className="space-y-3">
+                <BarraFiltros
+                  busqueda={{ param: "q", placeholder: "Ej. Huamanga, Cañete, Cusco", etiqueta: "Buscar una región o provincia" }}
+                />
+                <ZonaResultados>
+                  <ResultadosZonas
+                    hayZonas={!!zonas}
+                    lista={lista}
+                    q={q}
+                    pagina={pagina}
+                    paginas={paginas}
+                    fallaronProvincias={fallaronProvincias}
+                    precio={precio}
+                  />
+                </ZonaResultados>
+              </div>
+            </Listado>
+          </Seccion>
+        )}
 
         {/* ─── ÚLTIMOS APORTES (el orden por aliado vive en /app/aliados) ─── */}
         <Seccion
@@ -234,7 +308,7 @@ export default async function FinanciarPage({
           }
         >
           {recientes ? (
-            <RecientesFeed items={recientes} />
+            <RecientesFeed items={recientes} porEntidad={porEntidad} />
           ) : (
             <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
           )}

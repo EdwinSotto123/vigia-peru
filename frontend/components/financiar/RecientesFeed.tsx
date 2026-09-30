@@ -3,26 +3,34 @@ import { EstadoVacio } from "@/components/patrones";
 import { numero, relativo } from "@/lib/formato";
 import { mensajePublicoVisible, type ContribucionReciente } from "@/lib/financiamiento";
 import { Avatar } from "./RankingTable";
+import { NombreEntidad } from "./NombreEntidad";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 
 /**
  * Los últimos aportes confirmados. Cada uno se cuenta en contratos, nunca en soles
  * (PRODUCT.md: el reconocimiento se mide en contratos leídos), y enlaza a su
  * comprobante público, que es donde se ve en qué terminó.
+ *
+ * Un aporte por entidad nombra a la entidad (no la zona donde están sus contratos) y enlaza a
+ * donde se financia, igual que la zona de un aporte por zona.
  */
-export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
+export function RecientesFeed({ items, porEntidad = false }: {
+  items: ContribucionReciente[];
+  /** La vista de /app/financiar: decide a qué lista lleva el estado vacío. */
+  porEntidad?: boolean;
+}) {
   if (!items.length) {
     return (
       <EstadoVacio
         compacto
         titulo="Todavía no hay aportes confirmados"
         accion={
-          <EnlaceAccion variante="secundario" href="#zonas">
-            Elegir una zona
+          <EnlaceAccion variante="secundario" href={porEntidad ? "#entidades" : "#zonas"}>
+            {porEntidad ? "Elegir una entidad" : "Elegir una zona"}
           </EnlaceAccion>
         }
       >
-        Cuando se confirme el primero, aparece acá con su zona y su comprobante público.
+        Cuando se confirme el primero, aparece acá con su {porEntidad ? "entidad" : "zona"} y su comprobante público.
       </EstadoVacio>
     );
   }
@@ -36,8 +44,20 @@ export function RecientesFeed({ items }: { items: ContribucionReciente[] }) {
             <div className="min-w-0 flex-1 text-sm">
               <p className="text-ink">
                 <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
-                <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"} en{" "}
-                <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold text-granate underline-offset-2 hover:underline">{c.zona}</Link>
+                <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"}{" "}
+                {c.entidad ? (
+                  <>
+                    de{" "}
+                    <Link href={`/app/financiar/entidad/${c.entidad.ruc}`} className="font-semibold text-granate underline-offset-2 hover:underline">
+                      <NombreEntidad ruc={c.entidad.ruc} nombre={c.entidad.nombre} />
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    en{" "}
+                    <Link href={`/app/financiar/${c.ubigeo}`} className="font-semibold text-granate underline-offset-2 hover:underline">{c.zona}</Link>
+                  </>
+                )}
               </p>
               {mensaje && <p className="mt-0.5 line-clamp-2 text-[13px] italic text-inkSoft" title={mensaje}>“{mensaje}”</p>}
               <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px] text-mute">

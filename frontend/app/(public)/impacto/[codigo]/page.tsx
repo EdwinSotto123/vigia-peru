@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Clock, ShieldCheck, Sprout, XCircle } from "l
 import { Avatar } from "@/components/financiar/RankingTable";
 import { EstadoAporte, haceDias } from "@/components/financiar/EstadoAporte";
 import { CuentaCta } from "@/components/financiar/CuentaCta";
+import { NombreEntidad, esRucPersona } from "@/components/financiar/NombreEntidad";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { TableroAuditoria } from "@/components/auditoria/TableroAuditoria";
 import { Severidad } from "@/components/ui/Severidad";
@@ -23,11 +24,20 @@ import { getProcesamientos, type Procesamiento } from "@/lib/auditoria";
 
 export const revalidate = 30;
 
+/**
+ * Dónde se leyó, en texto plano (metadatos, compartir): "en Cusco" para un aporte por zona,
+ * "de ONPE" para uno por entidad. El nombre de una persona natural (RUC 10) no va en claro.
+ */
+function lugarPlano(c: Pick<Comprobante, "zona" | "entidad">): string {
+  if (!c.entidad) return `en ${c.zona}`;
+  return esRucPersona(c.entidad.ruc) ? "de una entidad" : `de ${c.entidad.nombre}`;
+}
+
 export async function generateMetadata({ params }: { params: { codigo: string } }) {
   const codigo = params.codigo.toUpperCase();
   const c = await getComprobante(codigo);
   const description = c
-    ? `${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} en ${c.zona}. ${numero(c.resumen.contratosConSenal ?? c.resumen.senales)} con al menos una señal.`
+    ? `${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} ${lugarPlano(c)}. ${numero(c.resumen.contratosConSenal ?? c.resumen.senales)} con al menos una señal.`
     : "Comprobante público de una lectura financiada en Vigía Perú.";
   return {
     title: `Comprobante de impacto ${codigo}`,
@@ -155,7 +165,17 @@ export default async function ImpactoPage({
                 {c.codigo}
               </h1>
               <p className="mt-1 text-sm text-inkSoft">
-                Comprobante de impacto: lectura de {plural(c.contratos, "contrato", "contratos")} en {c.zona}
+                Comprobante de impacto: lectura de {plural(c.contratos, "contrato", "contratos")}{" "}
+                {c.entidad ? (
+                  <>
+                    de{" "}
+                    <Link href={`/entidad/${c.entidad.ruc}`} className="font-medium text-ink underline-offset-2 hover:underline">
+                      <NombreEntidad ruc={c.entidad.ruc} nombre={c.entidad.nombre} />
+                    </Link>
+                  </>
+                ) : (
+                  <>en {c.zona}</>
+                )}
               </p>
               <p className={`mt-2 inline-flex items-start gap-1.5 text-sm font-medium ${tonoEstado}`}>
                 {institucional ? <Sprout size={15} className="mt-0.5 shrink-0" aria-hidden /> : <IconoEstado size={15} className="mt-0.5 shrink-0" aria-hidden />}
@@ -205,6 +225,7 @@ export default async function ImpactoPage({
                       procesados={c.resumen.procesados}
                       contratos={c.contratos}
                       institucional={institucional}
+                      porEntidad={!!c.entidad}
                       registrado={c.createdAt}
                       espera={c.resumen.asignados > 0 ? { asignadoHace: haceDias(asignadaAt), esperandoDocumentos, asignados: c.resumen.asignados } : null}
                     />
@@ -265,8 +286,10 @@ export default async function ImpactoPage({
             <ShieldCheck size={15} className="shrink-0 text-granate" aria-hidden />
             <span>{institucional ? "Este lote" : "Este aporte"} financió capacidad de lectura, no resultados.</span>
             <Ayuda titulo="¿Qué garantiza la independencia?">
-              Los contratos se asignaron por antigüedad y los dictámenes se escribieron sin conocer el nombre de quien
-              financió.
+              {c.entidad
+                ? "Los contratos se asignaron al azar entre los de la entidad en cola"
+                : "Los contratos se asignaron por antigüedad"}{" "}
+              y los dictámenes se escribieron sin conocer el nombre de quien financió.
             </Ayuda>
           </p>
 
@@ -277,10 +300,10 @@ export default async function ImpactoPage({
             <BarraCompartir
               ruta={`/impacto/${c.codigo}`}
               titulo={`Lectura financiada por ${c.financiador}`}
-              texto={`${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} en ${c.zona}. ${numero(nConSenal)} con al menos una señal.`}
+              texto={`${c.financiador} financió la lectura de ${plural(c.contratos, "contrato público", "contratos públicos")} ${lugarPlano(c)}. ${numero(nConSenal)} con al menos una señal.`}
             />
-            <EnlaceAccion href="/app/financiar" className="sm:ml-auto">
-              Elegir otra zona <ArrowRight size={14} aria-hidden />
+            <EnlaceAccion href={c.entidad ? "/app/financiar?por=entidad" : "/app/financiar"} className="sm:ml-auto">
+              {c.entidad ? "Elegir otra entidad" : "Elegir otra zona"} <ArrowRight size={14} aria-hidden />
             </EnlaceAccion>
           </div>
         </div>
@@ -323,9 +346,11 @@ function EnUnaFrase({ c, leidos, valorAsignado, esperandoDocumentos }: {
   return (
     <div className="rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
       <p className="font-display text-lg leading-snug text-ink text-pretty sm:text-xl">
-        {n === 1 ? "El contrato" : <>Los <strong className="font-mono">{numero(n)}</strong> contratos</>} de {c.zona}{" "}
+        {n === 1 ? "El contrato" : <>Los <strong className="font-mono">{numero(n)}</strong> contratos</>} de{" "}
+        {c.entidad ? <NombreEntidad ruc={c.entidad.ruc} nombre={c.entidad.nombre} /> : c.zona}{" "}
         {n === 1 ? "vale" : "suman"} <strong className="whitespace-nowrap">{solesCompacto(valorAsignado)}</strong> de valor referencial
-        {entidades > 0 && <> en {entidades === 1 ? "1 entidad" : `${numero(entidades)} entidades`}</>}
+        {/* Por entidad, "en 1 entidad" repetiría lo que ya dice la frase. */}
+        {entidades > 0 && !c.entidad && <> en {entidades === 1 ? "1 entidad" : `${numero(entidades)} entidades`}</>}
         {desenlace}
       </p>
       {fuerte && (

@@ -19,12 +19,14 @@ import { CostoCorrida } from "./CostoCorrida";
 import { construirRecorrido } from "./modelo";
 import { RecorridoAgentes } from "./RecorridoAgentes";
 import { ProveedorSensibles, sensiblesDeTraza } from "./redaccion";
+import { nombresPrivadosDe } from "../nombresPrivados";
 
 const PARAM = "traza";
 
 export function TrazaAnalisis({ result }: { result: ApiResult }) {
   const recorrido = useMemo(() => construirRecorrido(result), [result]);
-  const sensibles = useMemo(() => sensiblesDeTraza(result.agent_trace || []), [result]);
+  // Las personas del análisis terminado: la traza no adivina quién es persona en las búsquedas.
+  const sensibles = useMemo(() => sensiblesDeTraza(result.agent_trace || [], nombresPrivadosDe(result)), [result]);
   // Sólo cliente (ver RecorridoAgentes): leer la URL al montar no desfasa la hidratación.
   const [inicial] = useState<string | undefined>(() =>
     typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get(PARAM) ?? undefined,

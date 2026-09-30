@@ -34,7 +34,8 @@ export function AnalisisPublicadosPanel() {
         if (d?.error) return setFallo(String(d.detail || d.error));
         const crudos: unknown[] = Array.isArray(d?.items) ? d.items : [];
         setItems(crudos.filter(esAnalisisPublicado));
-        setParcial(crudos.length >= TOPE_API);
+        // /api/agent/history pagina el API hasta 500; parcial si el total real es mayor.
+        setParcial(typeof d?.total === "number" ? d.total > 500 : crudos.length >= TOPE_API);
       })
       .catch((e) => setFallo((e as Error)?.message || "sin conexión"));
   }, []);

@@ -64,6 +64,7 @@ export function EstadoAporte({
   institucional = false,
   espera = null,
   registrado = null,
+  porEntidad = false,
 }: {
   estado: EstadoContribucion;
   procesados?: number;
@@ -81,6 +82,8 @@ export function EstadoAporte({
    * deja de prometer el plazo y dice desde cuándo espera.
    */
   registrado?: string | null;
+  /** Aporte por entidad: los contratos salen al azar entre los de la entidad, no por antigüedad. */
+  porEntidad?: boolean;
 }) {
   if (estado === "rechazada" || estado === "reembolsada") {
     return (
@@ -91,6 +94,14 @@ export function EstadoAporte({
   }
   const idx = indicePaso(estado, procesados, contratos);
   const pasos = (institucional ? PASOS_INSTITUCIONAL : PASOS).map((p) => ({ ...p }));
+  if (porEntidad) {
+    pasos[1] = {
+      ...pasos[1],
+      hint: institucional
+        ? "Salen de la cola de la entidad, al azar."
+        : "Pago confirmado. Se asignan contratos de la entidad al azar.",
+    };
+  }
 
   // Pendiente fuera de plazo: se dice tal cual, sin la promesa de las 48 h.
   if (!institucional && idx === 0 && registrado) {

@@ -15,7 +15,7 @@
  */
 
 import { createContext, useCallback, useContext, type ReactNode } from "react";
-import { Glass, maskDnis, pareceEmpresa, redactDnis, type OrdenNombre } from "@/components/Redact";
+import { Glass, maskDnis, pareceEmpresa, redactDnis, type NombreConocido, type OrdenNombre } from "@/components/Redact";
 
 interface Sensibles {
   re: RegExp | null;
@@ -67,7 +67,14 @@ const pareceNombre = (s: string) => {
  * Recorre la traza y junta las personas privadas y sus documentos. Cada nombre se registra en
  * los dos órdenes (nombres primero y apellidos primero), cada uno tapando el mismo apellido.
  */
-export function sensiblesDeTraza(trace: unknown[]): Sensibles {
+/**
+ * `conocidas`: las personas privadas del análisis terminado (`nombresPrivadosDe(result)`, las
+ * mismas que tapa el resto del informe). Con ellas NO se adivina nada en las búsquedas: sus
+ * nombres ya se tapan donde aparezcan, también dentro de una búsqueda. Sin ellas (traza en vivo,
+ * el análisis todavía no existe) se tapa, ante la duda, todo texto entre comillas que parezca un
+ * nombre; eso tapaba de más ("AGRO RURAL", la sigla de la entidad, en 1226395).
+ */
+export function sensiblesDeTraza(trace: unknown[], conocidas?: NombreConocido[]): Sensibles {
   const nombres = new Map<string, { texto: string; tapar: Set<number> }>();
   const ids = new Set<string>();
   const poner = (texto: string, orden: OrdenNombre) => {
@@ -104,6 +111,7 @@ export function sensiblesDeTraza(trace: unknown[]): Sensibles {
     const deRegistro = "tipo_documento" in o || /socio|representante|organo/i.test(rol) || (!!llave && LISTA_REGISTRO.test(llave));
     for (const [k, x] of Object.entries(o)) {
       if (k === "queries" && Array.isArray(x)) {
+        if (conocidas) continue;
         // Las búsquedas las escribe el modelo con el nombre entre comillas ("CARLOS DANIEL PEREZ
         // BALBUENA"), a veces antes de que llegue a la traza el dato del registro que lo nombra
         // (en vivo, siempre). Un texto entre comillas, en mayúsculas, que parece una persona, se
@@ -149,6 +157,12 @@ export function sensiblesDeTraza(trace: unknown[]): Sensibles {
       visitar(x, k, pub || RAMA_PUBLICA.test(k), depth + 1);
     }
   };
+  for (const n of conocidas || []) {
+    const texto = typeof n === "string" ? n : n?.nombre;
+    if (typeof texto !== "string" || texto.trim().split(/\s+/).length < 2) continue;
+    if (pareceEmpresa(texto, typeof n === "object" && n ? n.ruc : null)) continue;
+    agregar(texto.trim(), typeof n === "object" && n ? n.orden : "nombres-primero");
+  }
   for (const ev of trace) visitar(ev, null, false, 0);
 
   const lista = [...nombres.values()].sort((a, b) => b.texto.length - a.texto.length);

@@ -111,10 +111,18 @@ export interface ContribucionReciente {
   ubigeo: string;
   zona: string;
   nivel: NivelZona;
+  /** Aporte por ENTIDAD: la entidad elegida (la zona es sólo donde está la mayoría de sus contratos). */
+  entidad?: EntidadAporte | null;
   financiador: string;
   tipo: Aliado["tipo"];
   slug: string | null;
   logoUrl: string | null;
+}
+
+/** La entidad de un aporte por entidad (A5: recientes, comprobante, admin). */
+export interface EntidadAporte {
+  ruc: string;
+  nombre: string;
 }
 
 export interface Comprobante {
@@ -133,11 +141,13 @@ export interface Comprobante {
   ubigeo: string;
   zona: string;
   nivel: NivelZona;
+  /** Aporte por ENTIDAD: la entidad elegida. Sin ella, el aporte fue por zona. */
+  entidad?: EntidadAporte | null;
   financiador: string;
   tipo: Aliado["tipo"];
   slug: string | null;
   logoUrl: string | null;
-  resumen: { asignados: number; procesados: number; pendientes: number; senales: number; contratosConSenal?: number; enRevision?: number; montoAuditado: number };
+  resumen:{ asignados: number; procesados: number; pendientes: number; senales: number; contratosConSenal?: number; enRevision?: number; montoAuditado: number };
   detalle: ComprobanteContrato[];
 }
 
@@ -229,6 +239,124 @@ export const getComprobante = (codigo: string) =>
 
 export const getAlcance = () => getJson<Alcance>("/financiamiento/alcance", 60);
 
+// ─── Financiar por ENTIDAD (GET /financiamiento/entidades[/:ruc]) ────────────
+
+/** Una entidad en la vista "Por entidad" de /app/financiar. */
+export interface EntidadFinanciable {
+  ruc: string;
+  nombre: string;
+  tipo: string | null;
+  region: string | null;
+  /** Contratos de la entidad en cola (tipos y etapas activos): los que se pueden financiar hoy. */
+  enCola: number;
+  /** De esos, los que ya tienen sus documentos en el almacén de Vigía: se leen apenas se financian. */
+  conDocumentos: number;
+  /** Contratos de la entidad con dictamen publicado. */
+  auditados: number;
+  /** Convocatorias registradas de la entidad, de todo tipo. */
+  contratos: number;
+}
+
+export interface EntidadesFinanciables {
+  /** Entidades que cumplen la búsqueda (sin búsqueda: las que tienen contratos en cola). */
+  total: number;
+  items: EntidadFinanciable[];
+}
+
+export interface EntidadesFinanciablesQuery {
+  /** Nombre (desde 2 letras, sin tildes) o RUC de 11 dígitos. */
+  q?: string;
+  /** 1 a 50 (el API usa 20 si no se dice). */
+  limit?: number;
+  offset?: number;
+}
+
+/** Un contrato de la entidad que espera financiamiento (hasta 50, del más reciente al más antiguo). */
+export interface ContratoEnColaEntidad {
+  ocid: string;
+  codigo: string | null;
+  objeto: string | null;
+  montoReferencial: number | null;
+  fecha: string | null;
+  documentosListos: boolean;
+}
+
+/** Un aliado visible que financió contratos de esta entidad (top 12 por contratos). */
+export interface AliadoEntidad {
+  nombre: string;
+  slug: string | null;
+  logoUrl: string | null;
+  tipo: string;
+  contratos: number;
+}
+
+export interface EntidadFinanciableDetalle {
+  entidad: {
+    ruc: string;
+    nombre: string;
+    tipo: string | null;
+    region: string | null;
+    /** La zona que lleva su aporte: donde está la mayoría de sus contratos en cola. */
+    zona: { ubigeo: string; nombre: string } | null;
+  };
+  cola: { contratos: number; conDocumentos: number; montoReferencial: number };
+  /** `enProceso`: financiados que todavía no tienen dictamen. */
+  contratos: { total: number; auditados: number; enProceso: number };
+  /** Tipos que hoy se auditan (ajustes.procesamiento): hoy `["bienes"]`. */
+  tiposActivos: string[];
+  precioPen: number;
+  enCola: ContratoEnColaEntidad[];
+  aliados: AliadoEntidad[];
+}
+
+const esNumero = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+
+/**
+ * Entidades con contratos que se pueden financiar. Sin `q`: sólo las que tienen contratos
+ * en cola, de más a menos. Con `q` (≥ 2 letras o un RUC): también las que hoy no tienen nada
+ * en cola. `null` = el API no respondió o respondió otra cosa: la página muestra el error,
+ * nunca una lista vacía que parezca un dato.
+ */
+export async function getEntidadesFinanciables({ q, limit, offset }: EntidadesFinanciablesQuery = {}): Promise<EntidadesFinanciables | null> {
+  const p = new URLSearchParams();
+  const t = (q ?? "").trim();
+  if (t.length >= 2) p.set("q", t.slice(0, 80));
+  if (limit != null) p.set("limit", String(Math.min(50, Math.max(1, Math.floor(limit)))));
+  if (offset && offset > 0) p.set("offset", String(Math.floor(offset)));
+  const qs = p.toString();
+  const r = await getJson<EntidadesFinanciables>(`/financiamiento/entidades${qs ? `?${qs}` : ""}`, 60);
+  if (!r || !esNumero(r.total) || !Array.isArray(r.items)) return null;
+  return r;
+}
+
+/**
+ * La entidad para la página "¿En qué gasta tu dinero…?". Tres desenlaces distintos, porque
+ * la página los dice distinto: los datos; `"no_encontrada"` (404 del API o un RUC que no es
+ * de 11 dígitos); `null` (el API no respondió: se muestra el error, nunca ceros).
+ */
+export async function getEntidadFinanciable(ruc: string): Promise<EntidadFinanciableDetalle | "no_encontrada" | null> {
+  if (!/^\d{11}$/.test(ruc)) return "no_encontrada";
+  try {
+    const res = await fetch(`${API_BASE}/financiamiento/entidades/${ruc}`, { next: { revalidate: 60 } } as any);
+    if (res.status === 404) return "no_encontrada";
+    if (!res.ok) return null;
+    const d = (await res.json()) as Partial<EntidadFinanciableDetalle> | null;
+    // Sin las cifras de la cola no hay página: faltando, es un error y no un cero.
+    if (!d?.entidad?.nombre || !esNumero(d.cola?.contratos) || !esNumero(d.contratos?.total) || !esNumero(d.precioPen)) return null;
+    return {
+      entidad: d.entidad,
+      cola: d.cola!,
+      contratos: d.contratos!,
+      tiposActivos: Array.isArray(d.tiposActivos) ? d.tiposActivos : [],
+      precioPen: d.precioPen,
+      enCola: Array.isArray(d.enCola) ? d.enCola : [],
+      aliados: Array.isArray(d.aliados) ? d.aliados : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Alcance activo en palabras ──────────────────────────────────────────────
 
 const TIPO_TXT: Record<string, string> = {
@@ -238,6 +366,11 @@ const ETAPA_TXT: Record<string, string> = {
   planificacion: "en planificación", convocada: "convocados", adjudicada: "adjudicados", contratada: "contratados", en_ejecucion: "en ejecución", finalizada: "finalizados",
 };
 const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+/** Los tipos que hoy se auditan, en palabras: "bienes", "bienes y obras". Vacío si no hay dato. */
+export function tiposEnPalabras(tipos: string[] | null | undefined): string {
+  return lista((tipos ?? []).map((t) => TIPO_TXT[t] ?? t));
+}
 
 /** "bienes con adjudicación o contrato" — para etiquetar la cola financiable. */
 export function alcanceCorto(a: AlcanceProcesamiento | null | undefined): string {
@@ -300,6 +433,8 @@ export const formatPENCorto = (n: number) => solesCompacto(n);
 
 /** Mínimo de contratos por aporte: mismo CHECK (contratos >= 5) que exige el backend. */
 export const MIN_CONTRATOS = 5;
+/** Por entidad el mínimo es 1: una entidad puede tener menos de 5 contratos en cola. */
+export const MIN_CONTRATOS_ENTIDAD = 1;
 
 /** Tipo de financiador en palabras (el API lo manda crudo: "organizacion"). */
 export const TIPO_FINANCIADOR_LABEL: Record<Aliado["tipo"], string> = {

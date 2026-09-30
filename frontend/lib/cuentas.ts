@@ -20,6 +20,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { PUBLIC_API_BASE } from "./auditoria";
 import { conAcentos } from "./financiamiento";
 import { firebaseYaCargado, leerPista } from "./sesion";
+import type { RedSocial } from "@/components/aliados/perfil";
+import type { CambiosPerfilPublico } from "./perfilAliado";
 
 export interface ZonaSeguida { ubigeo: string; nombre: string; nivel: "departamento" | "provincia" | "distrito" }
 export interface EntidadSeguida { ruc: string; nombre: string }
@@ -35,7 +37,18 @@ export interface Perfil {
   slug: string | null;
   logoUrl: string | null;
   tipo: "empresa" | "persona" | "organizacion" | null;
+  /** Se fija una sola vez desde la cuenta (PUT con `ruc`); después, 409 `ruc_inmutable`. Nunca se publica. */
   ruc: string | null;
+  /**
+   * Perfil público que el aliado define (migración 30, contrato A6). Opcionales: una API
+   * desplegada antes de A6 no los devuelve, y entonces la configuración no los ofrece
+   * (no se muestra un formulario que no se guardaría). `redes` llega `{}` si no publicó ninguna.
+   */
+  descripcion?: string | null;
+  sitioWeb?: string | null;
+  emailPublico?: string | null;
+  portadaUrl?: string | null;
+  redes?: Partial<Record<RedSocial, string>>;
   zonasSeguidas: string[];
   entidadesSeguidas: string[];
   zonas: ZonaSeguida[];
@@ -45,6 +58,9 @@ export interface Perfil {
   createdAt: string;
   updatedAt: string;
 }
+
+/** ¿La API ya acepta el perfil público completo desde la cuenta (A6)? Se sabe por `redes` en el GET. */
+export const perfilCompletoDisponible = (p: Perfil | null | undefined) => !!p && p.redes !== undefined && p.redes !== null;
 
 export interface AporteMio {
   codigo: string; estado: string; contratos: number; montoPen: number; createdAt: string; pagadaAt: string | null;
@@ -98,9 +114,24 @@ export async function authFetch(path: string, init: RequestInit = {}): Promise<R
   return fetch(`${PUBLIC_API_BASE}${path}`, { ...init, headers, cache: "no-store" });
 }
 
+/**
+ * Error del API de cuentas con lo que el formulario necesita para marcar el campo:
+ * `codigo` (`perfil_invalido`, `ruc_inmutable`, `invalid_body`…) y `campo` (el del cuerpo:
+ * "descripcion", "redes.facebook"…). El mensaje es `detalle`/`detail` del API, o el código.
+ */
+export class CuentaError extends Error {
+  constructor(public status: number, public codigo: string | null, message: string, public campo: string | null = null) { super(message); }
+}
+
 async function json<T>(r: Response): Promise<T> {
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j as any).detail ?? (j as any).error ?? `HTTP ${r.status}`);
+  if (!r.ok) {
+    const b = j as { error?: unknown; detalle?: unknown; detail?: unknown; campo?: unknown; issues?: { path?: unknown[] }[] };
+    const texto = (v: unknown) => (typeof v === "string" && v ? v : null);
+    // zod (400 `invalid_body`) no trae `campo`, pero sí la ruta del primer problema.
+    const ruta = Array.isArray(b.issues) && Array.isArray(b.issues[0]?.path) ? b.issues[0].path.map(String).join(".") : null;
+    throw new CuentaError(r.status, texto(b.error), texto(b.detalle) ?? texto(b.detail) ?? texto(b.error) ?? `HTTP ${r.status}`, texto(b.campo) ?? (ruta || null));
+  }
   return j as T;
 }
 
@@ -126,8 +157,32 @@ export async function cargarPerfil(force = false): Promise<Perfil | null> {
   return enCurso;
 }
 
-export const actualizarPerfil = (body: Partial<Pick<Perfil, "nombrePublico" | "visible" | "correo" | "notificaciones" | "logoUrl" | "tipo">>) =>
+/**
+ * Lo que acepta PUT /cuentas/me. El perfil público (descripción, web, correo público, redes,
+ * portada) va sólo con lo que cambió y "" lo borra (lib/perfilAliado.ts). `ruc`, sólo si la
+ * cuenta aún no tiene uno (si ya tiene: 409 `ruc_inmutable`).
+ */
+export type CambiosCuenta = Partial<Pick<Perfil, "nombrePublico" | "visible" | "correo" | "notificaciones" | "logoUrl" | "tipo">> &
+  CambiosPerfilPublico & { ruc?: string };
+
+export const actualizarPerfil = (body: CambiosCuenta) =>
   authFetch("/cuentas/me", { method: "PUT", body: JSON.stringify(body) }).then((r) => json<Perfil>(r)).then((p) => { setPerfil(p); return p; });
+
+/**
+ * Sube una imagen pública del perfil (logo o portada) a /api/upload con `kind=logo`: bucket
+ * público, exige sesión (Bearer). La ruta también acepta PDF; acá sólo sirve una foto.
+ */
+export async function subirImagenPerfil(f: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", f);
+  fd.append("kind", "logo");
+  const token = await idToken();
+  const r = await fetch("/api/upload", { method: "POST", body: fd, headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+  const j = (await r.json().catch(() => ({}))) as { url?: string; tipo?: string; mensaje?: string };
+  if (!r.ok || !j.url) throw new Error(j.mensaje ?? "No pudimos subir la imagen. Inténtalo otra vez en un momento.");
+  if (j.tipo !== "foto") throw new Error("Sube una imagen JPG, PNG o WebP.");
+  return j.url;
+}
 
 export const seguir = (tipo: "zona" | "entidad", id: string) =>
   authFetch("/cuentas/me/seguir", { method: "POST", body: JSON.stringify({ tipo, id }) }).then((r) => json<Perfil>(r)).then((p) => { setPerfil(p); return p; });
