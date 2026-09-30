@@ -213,8 +213,9 @@ function indicadoresEntidad(d: EntidadFinanciableDetalle, tipos: string): Indica
 
 const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-[13px] font-medium text-granate underline-offset-2 hover:underline";
 
+// El objeto del contrato ES lo que la página responde ("¿en qué gasta?"): se lleva el ancho. El estado de
+// sus documentos va en la línea de abajo, junto al código, en vez de una columna de 148 px.
 const COLUMNAS_COLA: Columna[] = [
-  { clave: "documentos", titulo: "Documentos", ancho: "148px", desde: "md", apilar: true },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
   { clave: "monto", titulo: "Valor referencial", ancho: "128px", alinear: "der" },
   { clave: "fecha", titulo: "Fecha", ancho: "96px", desde: "lg" },
@@ -272,34 +273,35 @@ function pestanasEntidad(d: EntidadFinanciableDetalle): Pestana[] {
   ];
 }
 
-/** Una fila por contrato en cola: documentos (chip) · objeto y código · valor · fecha · ›. */
+/** Una fila por contrato en cola: objeto, y debajo el código y el estado de sus documentos · valor · fecha · ›. */
 function filasCola(d: EntidadFinanciableDetalle): Fila[] {
   return d.enCola.map((c) => {
     const monto = c.montoReferencial != null && c.montoReferencial > 0 ? soles(c.montoReferencial) : null;
+    const documentos = c.documentosListos ? (
+      <span className="inline-flex items-center gap-1 text-mossTexto">
+        <CheckCircle2 size={12} aria-hidden /> Listo para leerse
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1">
+        <Clock size={12} aria-hidden /> Por descargar
+      </span>
+    );
     return {
       id: c.ocid,
       href: `/app/contratos/${encodeURIComponent(c.ocid)}`,
       celdas: {
-        documentos: c.documentosListos ? (
-          <span className="pill border-moss/30 bg-moss/10 text-mossTexto">
-            <CheckCircle2 size={12} aria-hidden /> Listo para leerse
-          </span>
-        ) : (
-          <span className="pill border-line bg-paper text-inkSoft">
-            <Clock size={12} aria-hidden /> Por descargar
-          </span>
-        ),
         contrato: (
           <CeldaPrincipal
             dosLineas
             titulo={c.objeto || "Contrato sin objeto registrado"}
-            meta={
+            meta={[
               c.codigo ? (
-                <span className="font-mono" translate="no">
+                <span key="codigo" className="font-mono" translate="no">
                   {c.codigo}
                 </span>
-              ) : undefined
-            }
+              ) : null,
+              documentos,
+            ]}
           />
         ),
         monto: <CeldaNumero>{monto ?? <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
