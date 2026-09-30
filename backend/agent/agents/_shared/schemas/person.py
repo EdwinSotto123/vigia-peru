@@ -14,6 +14,20 @@ class CargoEmpresa(_Base):
     desde: str | None = Field(default=None, max_length=20)
     fuente_url: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _desde_texto(cls, data):
+        """El modelo suele listar el cargo como texto ("Gerente general en X S.A.C."): se
+        descartaba (46 en un lote de 78). Se separa por " en "/" de "; si no, va entero como
+        empresa y el cargo queda dicho como no especificado (nada inventado)."""
+        if not isinstance(data, str) or not data.strip():
+            return data
+        t = data.strip()
+        m = re.match(r"^(.{2,80}?)\s+(?:en|de)\s+(.{2,}?)$", t, re.I)
+        if m:
+            return {"cargo": m.group(1).strip(), "empresa": m.group(2).strip()}
+        return {"cargo": "no especificado", "empresa": t}
+
 
 class CargoPublico(_Base):
     cargo: str = Field(..., min_length=1, max_length=160)
@@ -100,6 +114,17 @@ class EmpresaRed(_Base):
     rol_del_gerente: str | None = Field(default=None, max_length=80)
     observacion: str | None = Field(default=None, max_length=300)
     fuente_url: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _desde_texto(cls, data):
+        """La empresa como texto a secas ("X S.A.C. (RUC 20123456789)") → razón social y RUC."""
+        if not isinstance(data, str) or not data.strip():
+            return data
+        t = data.strip()
+        m = re.search(r"\b(\d{11})\b", t)
+        razon = re.sub(r"\(?\s*RUC[:\s]*\d{11}\s*\)?", "", t, flags=re.I).strip(" -–,;") or t
+        return {"razon_social": razon, "ruc": m.group(1) if m else None}
 
 
 class RedEmpresarial(_Base):

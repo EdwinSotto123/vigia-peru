@@ -440,7 +440,9 @@ def _normalizar_dict(cls, data: dict) -> dict:
 def _lista_tolerante(v, handler, info):
     """WrapValidator para `list[Modelo]`: valida ítem por ítem; el inválido se descarta y se
     anota en el colector (si hay). Así una bandera sin evidencia no tumba toda la salida."""
-    if isinstance(v, dict):          # un solo objeto en vez de lista
+    if v is None:                    # "socios": null → lista vacía (antes tumbaba el bloque padre
+        v = []                       # entero: 21 `empresa` de web_research perdidas en un lote de 78)
+    elif isinstance(v, dict):        # un solo objeto en vez de lista
         v = [v]
     elif isinstance(v, str):         # "ninguno" / "" en vez de lista
         if v.strip():
@@ -700,6 +702,25 @@ class NotaPrensa(Hallazgo):
     url: str | None = None
     resumen: str | None = Field(default=None, max_length=600)
     severidad: SeveridadInfo = "info"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _titulo_de_la_nota(cls, data):
+        """Sin `titulo` se descartaba la nota entera (20 en un lote de 78). Se toma el titular con
+        otro nombre o, si no hay, el comienzo de su propio resumen: texto de la misma nota."""
+        if not isinstance(data, dict) or str(data.get("titulo") or "").strip():
+            return data
+        d = dict(data)
+        for k in ("title", "titular", "encabezado", "headline"):
+            if str(d.get(k) or "").strip():
+                d["titulo"] = str(d[k]).strip()
+                return d
+        for k in ("resumen", "descripcion", "detalle", "extracto"):
+            t = str(d.get(k) or "").strip()
+            if t:
+                d["titulo"] = t if len(t) <= 120 else t[:117].rstrip() + "…"
+                return d
+        return d
 
 
 _TITULO_ALIAS = ("titulo", "title", "regla", "nombre", "tipo", "bandera", "titulo_bandera", "senal", "señal")

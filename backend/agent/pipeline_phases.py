@@ -595,6 +595,14 @@ async def fase_compliance_ext(pc: PipelineCtx):
             yield {"kind": "phase", "name": "compliance_extended", "msg": "juicio contextual (2 banderas de criterio)"}
             async for e in agent_call(pc, pc.A.compliance_criterio_agent, mensaje_juicio(pc), "compliance_extended"):
                 yield e
+            # En modo juicio el prompt pide un REPORTE en texto plano (las banderas van por
+            # `add_contextual_flag` y las 12 reglas ya corrieron en código). Persistido tal cual,
+            # el texto no parseaba como JSON y el persist lo descartaba en el 100 % de un lote
+            # de 78 contratos (243 descartes "json_no_parseable"): se guarda estructurado.
+            _rep = pc.state.get("compliance_extended")
+            if isinstance(_rep, str) and _rep.strip() and not _rep.lstrip().startswith(("{", "```")):
+                pc.state["compliance_extended"] = {"estado": "ok", "modo": "juicio",
+                                                   "resumen": _rep.strip()[:2000]}
     elif pc.perm("compliance_extended"):
         yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
         async for e in agent_call(pc, pc.A.compliance_extended_agent,

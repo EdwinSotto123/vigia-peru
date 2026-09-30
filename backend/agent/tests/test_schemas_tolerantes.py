@@ -564,3 +564,28 @@ def test_prompts_enumeran_enums_en_minuscula_y_prohiben_dni():
     for v in ("PROHIBIDO publicar el DNI de CUALQUIER persona", "ocds.buyer.ruc", "Ley 32069",
               "Lo que no se pudo verificar", "salidas_no_verificables", "PROHIBIDO volcar JSON"):
         assert v in w
+
+
+def test_lote_bienes_2026_09_29_formas_que_se_perdian():
+    """Lote de 78 contratos de bienes (29/09/2026): `socios: null` tumbaba el bloque `empresa`
+    entero (21), cargos y empresas como texto se descartaban (46 + 20) y las notas de prensa sin
+    `titulo` también (20)."""
+    w = S.WebResearchOutput.model_validate({
+        "estado": "sin_dato",
+        "empresa": {"ruc": "20600728491", "razon_social": "SERVICENTRO SAN FRANCISCO L & E S.R.L.", "socios": None},
+        "hallazgos_prensa": [{"estado": "sin_dato", "medio": "Diario Correo",
+                              "resumen": "La municipalidad adjudicó el abastecimiento de combustible al grifo local."}],
+    })
+    assert w.empresa is not None and w.empresa.socios == []
+    assert w.hallazgos_prensa and w.hallazgos_prensa[0].titulo.startswith("La municipalidad adjudicó")
+
+    pp = S.PersonaPrincipal.model_validate({
+        "estado": "sin_dato",
+        "otros_cargos_actuales": ["Gerente general en CQS INGENIEROS S.A.C", "ALFATEK E.I.R.L."],
+    })
+    assert [(c.cargo, c.empresa) for c in pp.otros_cargos_actuales] == [
+        ("Gerente general", "CQS INGENIEROS S.A.C"), ("no especificado", "ALFATEK E.I.R.L.")]
+
+    red = S.RedEmpresarial.model_validate({"empresas_mismo_titular": ["GRUPO BENAUTE S.A.C. (RUC 20523996615)"]})
+    assert red.empresas_mismo_titular[0].razon_social == "GRUPO BENAUTE S.A.C."
+    assert red.empresas_mismo_titular[0].ruc == "20523996615"

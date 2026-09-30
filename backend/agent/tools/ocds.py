@@ -309,7 +309,13 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
         )
         cur.execute("DELETE FROM convocatoria_items WHERE ocid=%s", (ocid,))
         items = tender.get("items") or []
-        item_id_by_cubso = {}
+        # Ítem de la base por id OCDS del ítem (lo que citan awards[].items[].id) y, de respaldo,
+        # por CUBSO. El CUBSO solo no alcanza: un proceso por lotes repite el mismo código en
+        # varios ítems (1226395: 4 ítems con 3015150700391420), y mapear por él mandaba las 3
+        # adjudicaciones de un postor al mismo ítem → 23505 en ofertas_postor_id_item_id_key.
+        item_id_by_ocds: dict[str, int] = {}
+        item_id_by_cubso: dict = {}
+        item_ids: list[int] = []
         for i, it in enumerate(items):
             cubso = (it.get("classification") or {}).get("id")
             qty = float(it.get("quantity") or 0)
@@ -329,7 +335,11 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                  qty, ((it.get("unit") or {}).get("name")) or "UND",
                  tot, tot / max(qty, 1), cubso),
             )
-            item_id_by_cubso[cubso] = cur.fetchone()[0]
+            iid = cur.fetchone()[0]
+            item_ids.append(iid)
+            if it.get("id") is not None:
+                item_id_by_ocds[str(it["id"])] = iid
+            item_id_by_cubso.setdefault(cubso, iid)
 
         cur.execute("DELETE FROM postores WHERE ocid=%s", (ocid,))
         postor_by_ruc = {}
@@ -349,7 +359,7 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                 if not pid: continue
                 for it in (a.get("items") or []):
                     cubso = (it.get("classification") or {}).get("id")
-                    iid = item_id_by_cubso.get(cubso)
+                    iid = item_id_by_ocds.get(str(it.get("id"))) or item_id_by_cubso.get(cubso)
                     if not iid: continue
                     monto = float((it.get("totalValue") or {}).get("amount") or 0)
                     cur.execute("SELECT cuantia_referencial FROM convocatoria_items WHERE id=%s", (iid,))
@@ -359,10 +369,12 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
                     # 'numeric field overflow' y abortarían el registro entero.
                     pct = (monto / float(ref[0]) * 100) if ref and ref[0] else 0
                     pct = min(pct, 999.999)
+                    # Si aun así se repite (ítem sin id que cae al CUBSO), gana la primera.
                     cur.execute(
                         """INSERT INTO ofertas (postor_id, item_id, monto_ofertado,
                              porcentaje_referencial, admitida, calificada, ganadora)
-                           VALUES (%s, %s, %s, %s, TRUE, TRUE, TRUE)""",
+                           VALUES (%s, %s, %s, %s, TRUE, TRUE, TRUE)
+                           ON CONFLICT (postor_id, item_id) DO NOTHING""",
                         (pid, iid, monto, round(pct, 3)),
                     )
         # Postores NO ganadores: una oferta por (postor × ítem) con ganadora=false y sin
@@ -372,7 +384,7 @@ def register_convocatoria_in_db(ocid: str, tool_context: ToolContext) -> dict:
             pid = postor_by_ruc.get(ruc)
             if not pid:
                 continue
-            for iid in item_id_by_cubso.values():
+            for iid in item_ids:
                 cur.execute(
                     """INSERT INTO ofertas (postor_id, item_id, monto_ofertado, porcentaje_referencial,
                                             admitida, calificada, ganadora)

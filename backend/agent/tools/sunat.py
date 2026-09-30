@@ -484,13 +484,19 @@ _MESES_ES = {
 
 
 def _up_slug(razon: str) -> str:
-    """Deriva el slug de universidadperu desde la razón social (best-effort)."""
+    """Deriva el slug de universidadperu desde la razón social (best-effort, respaldo de la
+    búsqueda por RUC). El sitio quita artículos y preposiciones: "Banco de Crédito del Perú"
+    → banco-credito-peru, "Jurado Nacional de Elecciones" → jurado-nacional-elecciones."""
     import unicodedata
     s = unicodedata.normalize("NFD", razon or "")
     s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
     s = re.sub(r"\b(e\.?i\.?r\.?l|s\.?a\.?c|s\.?r\.?l(tda)?|s\.?a\.?a|s\.?a|s\.?c\.?r\.?l)\.?\b", "", s)
-    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return re.sub(r"-+", "-", s)
+    palabras = [p for p in re.split(r"[^a-z0-9]+", s) if p and p not in _UP_VACIAS]
+    return "-".join(palabras)
+
+
+_UP_VACIAS = {"de", "del", "la", "las", "los", "el", "y", "e", "en"}
+_UP_BASE = "https://www.universidadperu.com/empresas"
 
 
 def _fetch_text_via_downloader(url: str):
@@ -523,10 +529,11 @@ def _fetch_text_via_downloader(url: str):
 
 def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) -> dict:
     """Fallback para EDAD del RUC (fecha de alta) y CIIU cuando decolecta no
-    tiene cuota. Scrapea universidadperu.com (vía downloader) usando un slug
-    derivado de la razón social, y VERIFICA que el RUC de la página coincida
-    con el pedido (si no, descarta — nunca devuelve data de otra empresa).
-    Cobertura PARCIAL: el slug acierta para muchas empresas, no todas.
+    tiene cuota. Scrapea universidadperu.com (vía downloader): primero su búsqueda
+    por RUC (redirige a la ficha de la empresa), y de respaldo un slug derivado de
+    la razón social. VERIFICA que el RUC de la página coincida con el pedido (si
+    no, descarta — nunca devuelve data de otra empresa). Las personas naturales
+    (RUC 10…) casi nunca tienen ficha.
 
     Args:
         ruc: RUC peruano de 11 dígitos.
@@ -540,17 +547,25 @@ def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) 
     if len(ruc) != 11 or not ruc.isdigit() or not razon_social:
         return {"found": False, "razon": "RUC inválido o sin razón social para derivar slug."}
     slug = _up_slug(razon_social)
-    if not slug:
-        return {"found": False, "razon": "no se pudo derivar slug de la razón social."}
-    html = _fetch_text_via_downloader(f"https://www.universidadperu.com/empresas/{slug}.php")
+    # Hasta 2026-09-29 solo se probaba el slug y fallaba en el 100 % de un lote de 75 contratos:
+    # el sitio quita "de/del/la…" del slug. La búsqueda por RUC no adivina nada.
+    candidatas = [f"{_UP_BASE}/busqueda/?buscaempresa={ruc}"] + ([f"{_UP_BASE}/{slug}.php"] if slug else [])
+    html, fuente_url, motivo = None, None, "página no encontrada o fetch falló."
+    for url in candidatas:
+        body = _fetch_text_via_downloader(url)
+        if not body:
+            continue
+        # VERIFICACIÓN DE RUC: el slug puede caer en otra empresa de nombre similar, y la búsqueda
+        # sin resultados devuelve una página "No existe Dicha Empresa" que igual repite el RUC en
+        # sus enlaces: se exige la ficha (su campo de fecha de inicio) además del RUC.
+        if ruc in re.findall(r"\b(\d{11})\b", body) and "Fecha Inicio Actividades" in body:
+            html, fuente_url = body, url
+            break
+        motivo = f"sin ficha con el RUC {ruc} (búsqueda por RUC y slug {slug!r})."
     if not html:
-        return {"found": False, "slug": slug, "razon": "página no encontrada (slug no resolvió) o fetch falló."}
-
-    # VERIFICACIÓN DE RUC: el slug puede caer en otra empresa de nombre similar.
-    rucs_en_pag = re.findall(r"\b(\d{11})\b", html)
-    if ruc not in rucs_en_pag:
-        return {"found": False, "slug": slug,
-                "razon": f"el slug resolvió a otra empresa (RUC {ruc} no está en la página). Descartado por seguridad."}
+        if ruc.startswith("10"):
+            motivo = "persona natural (RUC 10…): universidadperu no publica su ficha."
+        return {"found": False, "slug": slug, "razon": motivo}
 
     def _campo(label):
         m = re.search(re.escape(label) + r"\s*</[^>]+>\s*<[^>]+>\s*([^<]{1,80})", html)
@@ -582,7 +597,7 @@ def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) 
         "ciiu": _campo("CIIU"),
         "tipo": _campo("Tipo Empresa"),
         "estado_domicilio": _campo("Estado Domicilio"),
-        "fuente_url": f"https://www.universidadperu.com/empresas/{slug}.php",
+        "fuente_url": fuente_url,
         "_source": "universidadperu",
     }
     # Cachear edad en el perfil de state si existe
