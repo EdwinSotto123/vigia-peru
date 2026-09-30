@@ -2,24 +2,30 @@
  * "Financia una auditoría" — escritura.
  *
  *   POST /contribuciones                       crea una contribución en `pendiente_pago` (fase 0: transferencia/Yape)
+ *                                              por ZONA ({ubigeo}, mínimo 5 contratos) o por ENTIDAD ({entidadRuc},
+ *                                              mínimo 1, hasta los que tenga en cola; migración 39)
  *   POST /contribuciones/:codigo/comprobante   adjunta la URL del comprobante subido (GCS vía /upload);
  *                                              exige probar titularidad (sesión dueña o correo del aporte)
  *   GET  /contribuciones/:codigo               estado (privado: incluye email enmascarado) — requiere token
  *   (las rutas /admin/* viven en routes/admin.ts)
  *
  * Reglas de independencia codificadas acá (docs/design/FINANCIA_UNA_AUDITORIA.md §6):
- *   · No existe ningún campo para elegir contratos: la asignación es `asignar_contribucion()` (SQL, FIFO).
- *   · Empresa con sanción vigente o que aparece como proveedor en alertas de la zona →
- *     se acepta el aporte pero `financiadores.visible = false` (sin ranking ni muro).
+ *   · No existe ningún campo para elegir contratos: la asignación es `asignar_contribucion()` (SQL): FIFO
+ *     dentro de la zona, o al azar entre los contratos en cola de la entidad.
+ *   · Empresa con sanción vigente o que aparece como proveedor en alertas activas →
+ *     se acepta el aporte pero `financiadores.visible = false` (sin ranking ni muro): lib/aportes.ts.
+ *   · Un aporte por entidad guarda también `ubigeo`: la zona de la mayoría de sus contratos en cola
+ *     (zona_de_entidad), para que todo lo que une aportes con zonas siga igual.
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
-import { alertaNoDemo } from "../lib/publicacion.js";
 import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
+import { hayAporteEntidad } from "../lib/esquema.js";
+import { colaDeEntidad, entidadDeAporteSql, marcarConflictoDeInteres, tarifaVigente } from "../lib/aportes.js";
 
 export const contribucionesRouter = new Hono();
 
@@ -40,9 +46,12 @@ export async function getPagosConfig() {
 const slugify = (s: string) =>
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
 
+// Alcance: exactamente uno de `ubigeo` (zona) o `entidadRuc` (entidad, migración 39).
+const MINIMO_ZONA = 5;
 const CrearBody = z.object({
-  ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/),
-  contratos: z.number().int().min(5).max(50_000),
+  ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
+  entidadRuc: z.string().regex(/^\d{11}$/).optional(),
+  contratos: z.number().int().min(1).max(50_000),   // por zona, además, mínimo 5 (abajo)
   financiador: z.object({
     tipo: z.enum(["empresa", "persona", "organizacion"]),
     nombrePublico: z.string().trim().min(2).max(80).optional(),   // ausente = anónimo
@@ -58,7 +67,16 @@ const CrearBody = z.object({
 contribucionesRouter.post("/", optionalAuth, async (c) => {
   const body = CrearBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
-  const { ubigeo, contratos, financiador: f, mensajePublico, metodo } = body.data;
+  const { ubigeo, entidadRuc, contratos, financiador: f, mensajePublico, metodo } = body.data;
+  if (!ubigeo === !entidadRuc) {
+    return c.json({ error: "alcance_requerido", detail: "Indica una zona o una entidad para tu aporte (una sola de las dos)." }, 400);
+  }
+  if (ubigeo && contratos < MINIMO_ZONA) {
+    return c.json({ error: "minimo_contratos", minimo: MINIMO_ZONA, detail: `El mínimo por zona son ${MINIMO_ZONA} contratos.` }, 400);
+  }
+  if (entidadRuc && !(await hayAporteEntidad())) {
+    return c.json({ error: "sin_migracion", detail: "Todavía no se puede financiar una entidad: estamos terminando de habilitarlo. Mientras tanto puedes financiar su zona." }, 503);
+  }
   if ((f.tipo === "empresa" || f.tipo === "organizacion") && !f.ruc) {
     return c.json({ error: "ruc_required", detail: "Empresas y organizaciones deben indicar RUC" }, 400);
   }
@@ -68,8 +86,34 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
-    if (!zona.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "zona_not_found" }, 404); }
+    // Alcance: la zona (como siempre) o la entidad, con su cola y la zona que lleva su aporte.
+    let zonaUbigeo: string;
+    let zonaNombre: string;
+    let entidad: { ruc: string; nombre: string } | null = null;
+    if (ubigeo) {
+      const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
+      if (!zona.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "zona_not_found" }, 404); }
+      zonaUbigeo = ubigeo;
+      zonaNombre = zona.rows[0].nombre;
+    } else {
+      const ent = await colaDeEntidad(client, entidadRuc!);
+      if (!ent) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "entidad_no_encontrada", detail: "No encontramos esa entidad." }, 404);
+      }
+      if (ent.enCola === 0 || !ent.zona) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "entidad_sin_cola", detail: "Esta entidad no tiene contratos esperando auditoría en este momento." }, 409);
+      }
+      if (contratos > ent.enCola) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "excede_cola", disponibles: ent.enCola,
+          detail: `Esta entidad tiene ${ent.enCola} contratos esperando auditoría: no se puede financiar más.` }, 409);
+      }
+      zonaUbigeo = ent.zona.ubigeo;
+      zonaNombre = ent.zona.nombre;
+      entidad = { ruc: ent.ruc, nombre: ent.nombre };
+    }
 
     // Financiador: con sesión, el de la cuenta (usuarios.financiador_id, migración 26) o el que tenga ese uid;
     // sin sesión, por (ruc|email) como invitado. Con sesión no hace falta repetir nombre/logo.
@@ -109,28 +153,22 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
         [uid, financiadorId]).catch(() => { /* sin migración 26 */ });
     }
 
-    // Conflicto de interés (regla 3): sanción vigente o proveedor con alertas en la zona.
-    if (f.ruc) {
-      const conflicto = await client.query(
-        `SELECT
-           EXISTS (SELECT 1 FROM osce_sancionados s WHERE s.ruc = $1 AND (s.fecha_hasta IS NULL OR s.fecha_hasta >= current_date)) AS sancionado,
-           EXISTS (SELECT 1 FROM alertas a WHERE a.proveedor_ruc = $1 AND a.estado = 'activa' AND ${alertaNoDemo("a")}) AS con_alertas`,
-        [f.ruc]);
-      const { sancionado, con_alertas } = conflicto.rows[0];
-      if (sancionado || con_alertas) {
-        await client.query(
-          `UPDATE financiadores SET visible = false, motivo_no_visible = $2 WHERE id = $1`,
-          [financiadorId, sancionado ? "sancion_vigente_osce" : "proveedor_con_alertas_activas"]);
-      }
-    }
+    // Conflicto de interés (regla 3): sanción vigente o proveedor con alertas activas.
+    if (f.ruc) await marcarConflictoDeInteres(client, financiadorId, f.ruc);
 
-    const tarifa = await client.query("SELECT id, precio_pen FROM tarifas ORDER BY vigente_desde DESC LIMIT 1");
-    const monto = Number(tarifa.rows[0].precio_pen) * contratos;
+    // La tarifa que rige hoy (una con vigente_desde futuro todavía no cuenta).
+    const tarifa = await tarifaVigente(client);
+    if (!tarifa) { await client.query("ROLLBACK"); return c.json({ error: "sin_tarifa_vigente" }, 500); }
+    const monto = tarifa.precioPen * contratos;
     const codigo = (await client.query("SELECT next_codigo_contribucion() AS c")).rows[0].c as string;
-    await client.query(
-      `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [codigo, financiadorId, ubigeo, contratos, tarifa.rows[0].id, monto, metodo, mensajePublico ?? null]);
+    // El aporte por zona no nombra la columna entidad_ruc: sigue funcionando en una base sin la 39.
+    await client.query(entidad
+      ? `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico, entidad_ruc)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`
+      : `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [codigo, financiadorId, zonaUbigeo, contratos, tarifa.id, monto, metodo, mensajePublico ?? null,
+       ...(entidad ? [entidad.ruc] : [])]);
     await client.query("COMMIT");
 
     const pagos = await getPagosConfig();
@@ -139,7 +177,8 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
       estado: "pendiente_pago",
       montoPen: monto,
       contratos,
-      zona: zona.rows[0].nombre,
+      zona: zonaNombre,
+      entidad,
       // Fase 0: instrucciones de pago manual, editables desde el panel admin (ajustes.pagos).
       pago: { metodo, concepto: codigo, ...pagos },
     }, 201);
@@ -213,9 +252,11 @@ contribucionesRouter.post("/:codigo/comprobante", optionalAuth, async (c) => {
 // ─── GET /contribuciones/:codigo (estado, para quien tiene el código) ────────
 contribucionesRouter.get("/:codigo", async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
+  const conEntidad = await hayAporteEntidad();
   const r = await pool.query(
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
             co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", z.nombre AS zona, co.ubigeo,
+            ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);

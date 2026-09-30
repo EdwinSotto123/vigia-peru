@@ -11,6 +11,12 @@
  *   GET /financiamiento/recientes                               últimas contribuciones confirmadas
  *   GET /financiamiento/pago                                    medios de pago (Yape/Plin/cuentas/QR) — públicos
  *   GET /financiamiento/alcance                                 qué tipos × etapas se analizan hoy (ajustes.procesamiento) + cola + docs listos
+ *   GET /financiamiento/entidades?q=&limit=1..50(20)&offset=    entidades que se pueden financiar (migración 39): con
+ *                                                              contratos en cola; con `q`, por nombre o RUC (también sin cola)
+ *   GET /financiamiento/entidades/:ruc                          una entidad: su cola, sus contratos, su zona, tarifa y aliados
+ *
+ * Aportes por ENTIDAD (migración 39): recientes, impacto y aliados traen `entidad: {ruc, nombre} | null`
+ * (null = aporte por zona). Un aporte por entidad tiene también zona: la de la mayoría de sus contratos.
  *
  * Migración 22: "señal hallada" = alerta PUBLICADA (activa/confirmada) con ≥ 1 bandera; las alertas en
  * `revision` cuentan como procesadas pero no como señales (se exponen como `enRevision`). Aliado,
@@ -20,12 +26,15 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
-import { cachePublico } from "../lib/http.js";
+import { escaparLike, pool } from "../lib/db.js";
+import { cachePublico, parametros } from "../lib/http.js";
 import { decodificarCursor, codificarCursor } from "../lib/cursor.js";
 import { getPagosConfig } from "./contribuciones.js";
-import { alertaNoDemo, alertaPublica } from "../lib/publicacion.js";
-import { Memo } from "../lib/cache.js";
+import { alertaNoDemo, alertaPublica, convocatoriaNoDemo } from "../lib/publicacion.js";
+import { Memo, responderJson, responderSerializado, serializar, type Serializado } from "../lib/cache.js";
+import { conPerfilAliado, hayAporteEntidad, hayModelosLectura } from "../lib/esquema.js";
+import { perfilPublicado } from "../lib/perfilAliado.js";
+import { entidadDeAporteSql, tarifaVigente } from "../lib/aportes.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -198,9 +207,10 @@ financiamientoRouter.get("/estado", async (c) => {
 
 // ─── GET /financiamiento/recientes ───────────────────────────────────────────
 financiamientoRouter.get("/recientes", async (c) => {
+  const conEntidad = await hayAporteEntidad();
   const r = await pool.query(
     `SELECT co.codigo, co.contratos, co.pagada_at AS "pagadaAt", co.estado, co.mensaje_publico AS "mensajePublico",
-            z.ubigeo, z.nombre AS zona, z.nivel,
+            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl"
      FROM contribuciones co
      JOIN financiadores f ON f.id = co.financiador_id
@@ -228,10 +238,11 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
   const { limit } = parsed.data;
   const cur = parsed.data.cursor ? decodificarCursor(parsed.data.cursor, "i", 2) : null;
   if (parsed.data.cursor && !cur) return c.json({ error: "invalid_cursor" }, 400);
+  const conEntidad = await hayAporteEntidad();
   const head = await pool.query(
     `SELECT co.id, co.codigo, co.contratos, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt",
             co.created_at AS "createdAt", co.mensaje_publico AS "mensajePublico", co.pasarela,
-            z.ubigeo, z.nombre AS zona, z.nivel,
+            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl", f.visible,
             t.precio_pen::float AS "precioPen"
      FROM contribuciones co
@@ -303,96 +314,10 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
   });
 });
 
-// ─── Perfil público del aliado (migración 30) ────────────────────────────────
-// descripción, web, correo de contacto, redes y portada. La API puede desplegarse antes que la
-// migración: sin las columnas, el perfil sale sin esos datos y el panel avisa, en vez de un 500.
-// Lo usan este archivo (GET /aliados/:slug) y admin.ts (GET/PATCH /admin/financiadores).
-
-export type RedAliado = "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube";
-
-/** Las seis redes que un aliado puede publicar y los dominios que se aceptan para cada una. */
-export const REDES_ALIADO: Record<RedAliado, { nombre: string; dominios: readonly string[] }> = {
-  facebook: { nombre: "Facebook", dominios: ["facebook.com"] },
-  instagram: { nombre: "Instagram", dominios: ["instagram.com"] },
-  linkedin: { nombre: "LinkedIn", dominios: ["linkedin.com"] },
-  x: { nombre: "X", dominios: ["x.com", "twitter.com"] },
-  tiktok: { nombre: "TikTok", dominios: ["tiktok.com"] },
-  youtube: { nombre: "YouTube", dominios: ["youtube.com"] },
-};
-export const CLAVES_RED = Object.keys(REDES_ALIADO) as RedAliado[];
-
-const COLS_PERFIL = ["descripcion", "sitio_web", "email_publico", "redes", "portada_url"];
-let perfilCols: { ok: boolean; at: number } | null = null;
-
-/** ¿Tiene `financiadores` las columnas de la 30? Presentes, no se vuelve a preguntar; ausentes, se re-chequea cada minuto. */
-export async function perfilAliadoDisponible(): Promise<boolean> {
-  if (perfilCols && (perfilCols.ok || Date.now() - perfilCols.at < 60_000)) return perfilCols.ok;
-  try {
-    const r = await pool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'financiadores' AND column_name = ANY($1::text[])`, [COLS_PERFIL]);
-    perfilCols = { ok: r.rows[0]?.n === COLS_PERFIL.length, at: Date.now() };
-  } catch (e) {
-    // Sin guardar: el próximo pedido vuelve a preguntar.
-    console.warn(`[financiamiento] no pude leer information_schema: ${(e as Error).message}`);
-    return false;
-  }
-  return perfilCols.ok;
-}
-
-/** 42703 (undefined_column) con la detección en "sí": la columna ya no está. Olvida la detección. */
-export function columnaAusente(e: unknown): boolean {
-  if ((e as { code?: string })?.code !== "42703") return false;
-  perfilCols = null;
-  return true;
-}
-
-/** Corre `consulta` con las columnas del perfil si existen; si una falta (42703), la repite sin ellas. */
-export async function conPerfilAliado<T>(consulta: (perfil: boolean) => Promise<T>): Promise<{ valor: T; perfil: boolean }> {
-  if (!(await perfilAliadoDisponible())) return { valor: await consulta(false), perfil: false };
-  try {
-    return { valor: await consulta(true), perfil: true };
-  } catch (e) {
-    if (!columnaAusente(e)) throw e;
-    return { valor: await consulta(false), perfil: false };
-  }
-}
-
-/** Enlace https bien formado (normalizado), o null. Al escribir (panel) y otra vez al leer. */
-export function urlHttps(v: unknown): string | null {
-  if (typeof v !== "string" || !v.trim() || v.length > 500) return null;
-  try {
-    const u = new URL(v.trim());
-    return u.protocol === "https:" && u.hostname.includes(".") && !u.username && !u.password ? u.href : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Enlace de esa red: https, su dominio o un subdominio (www., m., pe.linkedin.com) y una página, no la portada de la red. */
-export function enlaceDeRed(red: RedAliado, v: unknown): string | null {
-  const href = urlHttps(v);
-  if (!href) return null;
-  const u = new URL(href);
-  const host = u.hostname.toLowerCase();
-  const deLaRed = REDES_ALIADO[red].dominios.some((d) => host === d || host.endsWith(`.${d}`));
-  return deLaRed && u.pathname.replace(/\/+$/, "") !== "" ? href : null;
-}
-
-export const CORREO_PUBLICO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-/** Sólo las seis redes, en orden fijo y con enlaces válidos: lo que no cumple no sale. */
-function redesPublicas(v: unknown): Partial<Record<RedAliado, string>> {
-  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-  const out: Partial<Record<RedAliado, string>> = {};
-  for (const red of CLAVES_RED) {
-    const href = enlaceDeRed(red, o[red]);
-    if (href) out[red] = href;
-  }
-  return out;
-}
-
 // ─── GET /financiamiento/aliados/:slug ───────────────────────────────────────
+// Perfil público (migración 30: descripción, web, correo de contacto, redes y portada), que quien aporta
+// edita desde su cuenta: reglas en lib/perfilAliado.ts, detección de las columnas en lib/esquema.ts.
+// Sin la migración, el perfil sale sin esos datos (en vez de un 500).
 const MAX_CONTRIBUCIONES_ALIADO = 100;
 const COLS_ALIADO = `id, tipo, COALESCE(nombre_publico,'Anónimo') AS nombre, slug, logo_url AS "logoUrl", created_at AS "desde"`;
 // email_publico: el correo que el aliado publicó. `email` (el del pago) nunca entra en esta consulta.
@@ -405,17 +330,16 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
   if (!f.rows.length) return c.json({ error: "not_found" }, 404);
   const r = f.rows[0];
   // Campo por campo, sin esparcir la fila: sólo sale lo que el aliado publicó, saneado otra vez
-  // (por si algo lo escribió sin pasar por el panel). Sin la migración 30, todo vacío.
+  // (por si algo lo escribió sin pasar por su cuenta). Sin la migración 30, todo vacío.
+  const p = perfilPublicado(r);
   const aliado = {
     id: r.id, tipo: r.tipo, nombre: r.nombre, slug: r.slug, logoUrl: r.logoUrl, desde: r.desde,
-    descripcion: typeof r.descripcion === "string" && r.descripcion.trim() ? r.descripcion.trim() : null,
-    web: urlHttps(r.sitioWeb),
-    email: typeof r.emailPublico === "string" && CORREO_PUBLICO.test(r.emailPublico) ? r.emailPublico : null,
-    redes: redesPublicas(r.redes),
-    portadaUrl: urlHttps(r.portadaUrl),
+    descripcion: p.descripcion, web: p.sitioWeb, email: p.emailPublico, redes: p.redes, portadaUrl: p.portadaUrl,
   };
+  const conEntidad = await hayAporteEntidad();
   const cs = await pool.query(
     `SELECT co.codigo, co.contratos, co.estado, co.pagada_at AS "pagadaAt", z.ubigeo, z.nombre AS zona, z.nivel,
+            ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
               WHERE s.contribucion_id = co.id AND ${SENAL_HALLADA})::int AS senales,
@@ -432,6 +356,147 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
   cache(c, 30);
   return c.json({ aliado, contribuciones: cs.rows, totalContribuciones: total });
 });
+
+// ─── Entidades que se pueden financiar (migración 39) ─────────────────────────
+// Financiar una ENTIDAD: se le asignan contratos al azar entre los suyos en cola (con documentos listos
+// primero), mínimo 1. Estas dos lecturas arman la búsqueda y la ficha para elegirla.
+
+const EntidadesQuery = z.object({
+  q: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+});
+// 60 s (= su Cache-Control). El texto libre va en una caché aparte y chica (lib/cache.ts).
+const entidadesMemo = new Memo<Serializado>({ nombre: "financiamiento:entidades", ttlMs: 60_000, staleMs: 60_000, max: 100 });
+const entidadesTextoMemo = new Memo<Serializado>({ nombre: "financiamiento:entidades:texto", ttlMs: 60_000, max: 30 });
+
+// ─── GET /financiamiento/entidades ───────────────────────────────────────────
+// → { total, items: [{ruc, nombre, tipo, region, enCola, conDocumentos, auditados, contratos}] }
+//   · sin `q`: sólo las que tienen contratos en cola;
+//   · con `q` (2 caracteres o más): por nombre sin tildes, o el RUC exacto (11 dígitos); también sin cola.
+//   Orden: enCola DESC, nombre. enCola/conDocumentos en vivo (cola_auditoria); auditados (alertas
+//   publicadas) y contratos desde entidad_stats (35), que va hasta un refresco detrás.
+financiamientoRouter.get("/entidades", async (c) => {
+  const parsed = EntidadesQuery.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { limit, offset } = parsed.data;
+  const q = parsed.data.q && [...parsed.data.q].length >= 2 ? parsed.data.q : undefined;
+  return responderJson(c, q ? entidadesTextoMemo : entidadesMemo, JSON.stringify({ q, limit, offset }),
+    () => entidadesFinanciables(q, limit, offset), cachePublico(60, { swr: 60 }));
+});
+
+async function entidadesFinanciables(q: string | undefined, limit: number, offset: number) {
+  // Sin la 35 (entidad_stats), las mismas columnas desde `entidades`, contadas en vivo.
+  const fuente = (await hayModelosLectura())
+    ? "entidad_stats es"
+    : `(SELECT e.ruc, e.nombre, immutable_unaccent(lower(e.nombre)) AS nombre_norm, e.tipo, e.region,
+               (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = e.ruc AND ${convocatoriaNoDemo("c")})::int AS contratos,
+               (SELECT count(*) FROM alertas a WHERE a.entidad_ruc = e.ruc AND ${alertaPublica("a")})::int AS alertas_publicadas
+          FROM entidades e) es`;
+  const vals: unknown[] = [];
+  let filtro = "";
+  if (q && /^\d{11}$/.test(q)) {
+    vals.push(q);
+    filtro = "WHERE es.ruc = $1";
+  } else if (q) {
+    vals.push(`%${escaparLike(q.toLowerCase())}%`);
+    filtro = "WHERE es.nombre_norm LIKE immutable_unaccent($1)";
+  }
+  vals.push(limit, offset);
+  // Una consulta: `base` se calcula una vez (CTE usado dos veces) para el total y para la página.
+  const r = await pool.query(
+    `WITH cola AS (
+       SELECT c.entidad_ruc AS ruc, count(*)::int AS n,
+              count(*) FILTER (WHERE documentos_listos(q.ocid))::int AS listos
+         FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
+        WHERE c.entidad_ruc IS NOT NULL
+        GROUP BY 1
+     ),
+     base AS (
+       SELECT btrim(es.ruc) AS ruc, es.nombre, es.tipo, es.region,
+              COALESCE(k.n, 0) AS "enCola", COALESCE(k.listos, 0) AS "conDocumentos",
+              COALESCE(es.alertas_publicadas, 0)::int AS auditados, COALESCE(es.contratos, 0)::int AS contratos
+         FROM ${fuente} ${q ? "LEFT JOIN" : "JOIN"} cola k ON k.ruc = es.ruc
+        ${filtro}
+     )
+     SELECT (SELECT count(*)::int FROM base) AS total,
+            COALESCE((SELECT json_agg(p ORDER BY p."enCola" DESC, p.nombre, p.ruc)
+                        FROM (SELECT * FROM base ORDER BY "enCola" DESC, nombre, ruc
+                               LIMIT $${vals.length - 1} OFFSET $${vals.length}) p), '[]'::json) AS items`, vals);
+  return { total: r.rows[0]?.total ?? 0, items: r.rows[0]?.items ?? [] };
+}
+
+// ─── GET /financiamiento/entidades/:ruc ──────────────────────────────────────
+// La ficha para financiar una entidad (404 `entidad_no_encontrada`). En caché 60 s por RUC.
+//   · entidad.zona: la que llevaría su aporte (zona_de_entidad, 39); null sin cola o sin la 39.
+//   · contratos.enProceso: contratos de la entidad asignados a un aporte (cualquiera) sin alerta todavía.
+//   · enCola: hasta 50, los más recientes primero. aliados: financiadores VISIBLES con aportes a esta
+//     entidad (por entidad, no por zona), top 12 por contratos.
+//   · tiposActivos: ajustes.procesamiento ([] si no hay alcance configurado: entra todo).
+const entidadMemo = new Memo<Serializado | null>({ nombre: "financiamiento:entidad", ttlMs: 60_000, max: 300 });
+
+financiamientoRouter.get("/entidades/:ruc", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "entidad_no_encontrada" }, 404);
+  const s = await entidadMemo.obtener(ruc, async (ctl) => {
+    const v = await detalleEntidad(ruc, ctl.noGuardar);
+    return v ? serializar(v) : null;
+  });
+  if (!s) return c.json({ error: "entidad_no_encontrada" }, 404);
+  return responderSerializado(c, s, cachePublico(60, { swr: 60 }));
+});
+
+async function detalleEntidad(ruc: string, noGuardar: () => void): Promise<Record<string, unknown> | null> {
+  const ent = await pool.query(`SELECT btrim(e.ruc) AS ruc, e.nombre, e.tipo, e.region FROM entidades e WHERE e.ruc = $1`, [ruc]);
+  if (!ent.rows.length) return null;
+  const conEntidad = await hayAporteEntidad();
+  const vacio = Promise.resolve({ rows: [] as any[] });
+  const [zona, resumen, lista, aliados, tarifa, alcance] = await Promise.all([
+    conEntidad ? pool.query(`SELECT z.ubigeo, z.nombre FROM zonas z WHERE z.ubigeo = zona_de_entidad($1)`, [ruc]) : vacio,
+    pool.query(
+      `SELECT k.contratos, k."conDocumentos", k."montoReferencial",
+              (SELECT count(*) FROM convocatorias c WHERE c.entidad_ruc = $1 AND ${convocatoriaNoDemo("c")})::int AS total,
+              (SELECT count(*) FROM alertas a WHERE a.entidad_ruc = $1 AND ${alertaPublica("a")})::int AS auditados,
+              (SELECT count(*) FROM asignaciones s JOIN convocatorias c ON c.ocid = s.ocid
+                WHERE c.entidad_ruc = $1 AND s.alerta_id IS NULL)::int AS "enProceso"
+         FROM (SELECT count(*)::int AS contratos,
+                      count(*) FILTER (WHERE documentos_listos(q.ocid))::int AS "conDocumentos",
+                      COALESCE(sum(c.cuantia_referencial), 0)::float AS "montoReferencial"
+                 FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
+                WHERE c.entidad_ruc = $1) k`, [ruc]),
+    pool.query(
+      `SELECT q.ocid, c.codigo, c.objeto, c.cuantia_referencial::float AS "montoReferencial",
+              to_char(q.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, documentos_listos(q.ocid) AS "documentosListos"
+         FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
+        WHERE c.entidad_ruc = $1
+        ORDER BY q.fecha_convocatoria DESC NULLS LAST, q.ocid
+        LIMIT 50`, [ruc]),
+    conEntidad
+      ? pool.query(
+        `SELECT COALESCE(f.nombre_publico, 'Anónimo') AS nombre, f.slug, f.logo_url AS "logoUrl", f.tipo,
+                SUM(co.contratos)::int AS contratos
+           FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
+          WHERE co.entidad_ruc = $1 AND co.estado IN ('pagada','en_proceso','procesada') AND f.visible
+          GROUP BY f.id ORDER BY contratos DESC, MAX(co.pagada_at) DESC NULLS LAST, f.id LIMIT 12`, [ruc])
+      : vacio,
+    tarifaVigente(pool),
+    alcanceORespaldo(noGuardar),
+  ]);
+  // Sin tarifa vigente no se inventa un precio: sale null y no se guarda en caché.
+  if (!tarifa) noGuardar();
+  const r = resumen.rows[0];
+  const tipos = alcance.procesamiento?.tipos_activos;
+  const e = ent.rows[0];
+  return {
+    entidad: { ruc: e.ruc, nombre: e.nombre, tipo: e.tipo ?? null, region: e.region ?? null, zona: zona.rows[0] ?? null },
+    cola: { contratos: r.contratos, conDocumentos: r.conDocumentos, montoReferencial: r.montoReferencial },
+    contratos: { total: r.total, auditados: r.auditados, enProceso: r.enProceso },
+    tiposActivos: Array.isArray(tipos) ? tipos.filter((t): t is string => typeof t === "string") : [],
+    precioPen: tarifa?.precioPen ?? null,
+    enCola: lista.rows,
+    aliados: aliados.rows,
+  };
+}
 
 // ─── Alcance activo (migración 19): qué tipos × etapas entran hoy a la cola ──────────────
 export interface Alcance {

@@ -5,18 +5,19 @@
  *
  *   GET   /admin/ping                                  valida el token
  *   GET   /admin/resumen                               KPIs, serie diaria, pendientes, cola (revisor: sin montos ni financiadores)
- *   GET   /admin/contribuciones?estado=pendiente_pago|todas&q=
- *   GET   /admin/contribuciones/:codigo                detalle privado (email, comprobante, asignaciones)
+ *   GET   /admin/contribuciones?estado=pendiente_pago|todas&q=   (+ `entidad: {ruc, nombre} | null`: aporte por entidad, migración 39)
+ *   GET   /admin/contribuciones/:codigo                detalle privado (email, comprobante, asignaciones, entidad)
  *   GET   /admin/contribuciones/:codigo/comprobante    stream del comprobante desde GCS (bucket privado)
  *   POST  /admin/contribuciones/:codigo/validar        → pagada + asignación FIFO
  *   POST  /admin/contribuciones/:codigo/rechazar       {motivo}
  *   PATCH /admin/contribuciones/:codigo                {notaAdmin}
- *   GET   /admin/financiadores                         (+ perfil público y `perfil`: ¿está la migración 30?)
- *   PATCH /admin/financiadores/:id                     {visible, motivoNoVisible, nombrePublico, logoUrl,
- *                                                       descripcion, sitioWeb, emailPublico, portadaUrl, redes}
+ *   GET   /admin/financiadores                         (+ perfil público saneado y `perfil`: ¿está la migración 30?)
+ *   PATCH /admin/financiadores/:id                     SÓLO moderación: {visible?, motivoNoVisible?}. El perfil público
+ *                                                       (nombre, logo, descripción, web, redes…) lo edita quien aporta
+ *                                                       desde su cuenta (PUT /cuentas/me); otra clave → 400 solo_moderacion
  *   GET   /admin/config/pagos · PUT /admin/config/pagos
  *   GET   /admin/log                                   (revisor: sin plata, configuración ni equipo)
- *   POST  /admin/asignar                               re-asigna abiertas + refresh (lo llama Cloud Scheduler)
+ *   POST  /admin/asignar                               re-asigna abiertas (por zona y por entidad) + refresh (Cloud Scheduler)
  *   GET   /admin/procesamientos?estado=                monitor del dispatcher (+ worker, error, latido)
  *   POST  /admin/procesamientos/:ocid/reencolar        vuelve a encolar (intentos=0)
  *   GET   /admin/clasificacion/resumen                 tipo × etapa × procesable + motivos (migración 13)
@@ -24,7 +25,8 @@
  *   GET   /admin/pedidos · POST /admin/pedidos/:id/reintentar   pedidos de descarga (migración 15)
  *   + admin_revision.ts  (/revision, /alertas/:id/estado, /config/self_eval)
  *   + admin_operacion.ts (/operacion, /procesamientos/:ocid/reanalizar, /cobertura/progreso)
- *   + admin_procesar.ts  (GET /procesar-lote/preview, POST /procesar-lote — a nombre de Vigía Perú, sin pasarela)
+ *   + admin_procesar.ts  (GET /procesar-lote/preview, POST /procesar-lote — a nombre de Vigía Perú, sin pasarela;
+ *                         por zona o por entidad)
  *   + admin_equipo.ts    (/equipo: miembros del panel y su perfil, admin o revisor — migración 29)
  */
 
@@ -38,10 +40,10 @@ import { actor, esRevisor, log, tokenAdminValido } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { invalidarMemosEnTodas } from "../lib/cache.js";
 import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
-import {
-  alcanceORespaldo, CLAVES_RED, columnaAusente, conPerfilAliado, CORREO_PUBLICO, enlaceDeRed, perfilAliadoDisponible,
-  REDES_ALIADO, urlHttps, type RedAliado,
-} from "./financiamiento.js";
+import { alcanceORespaldo } from "./financiamiento.js";
+import { conPerfilAliado, hayAporteEntidad } from "../lib/esquema.js";
+import { perfilPublicado } from "../lib/perfilAliado.js";
+import { entidadDeAporteSql } from "../lib/aportes.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
@@ -137,13 +139,23 @@ adminRouter.get("/contribuciones", async (c) => {
   const vals: any[] = [];
   const conds: string[] = [];
   if (estado !== "todas") { vals.push(estado); conds.push(`co.estado = $${vals.length}`); }
-  if (q) { vals.push(`%${q}%`); conds.push(`(lower(co.codigo) LIKE $${vals.length} OR lower(f.nombre_publico) LIKE $${vals.length} OR lower(f.email) LIKE $${vals.length} OR f.ruc LIKE $${vals.length} OR lower(z.nombre) LIKE $${vals.length})`); }
+  const conEntidad = await hayAporteEntidad();
+  if (q) {
+    vals.push(`%${q}%`);
+    const p = `$${vals.length}`;
+    // Con la 39, también por la entidad de un aporte por entidad (nombre o RUC).
+    const porEntidad = conEntidad
+      ? ` OR (co.entidad_ruc IS NOT NULL AND (co.entidad_ruc LIKE ${p}
+             OR EXISTS (SELECT 1 FROM entidades en WHERE en.ruc = co.entidad_ruc AND lower(en.nombre) LIKE ${p})))`
+      : "";
+    conds.push(`(lower(co.codigo) LIKE ${p} OR lower(f.nombre_publico) LIKE ${p} OR lower(f.email) LIKE ${p} OR f.ruc LIKE ${p} OR lower(z.nombre) LIKE ${p}${porEntidad})`);
+  }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const r = await pool.query(
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.pasarela, co.pasarela_ref AS "pasarelaRef",
             co.comprobante_url IS NOT NULL AS "tieneComprobante", co.created_at AS "createdAt", co.pagada_at AS "pagadaAt",
             co.validada_por AS "validadaPor", co.mensaje_publico AS "mensajePublico", co.nota_admin AS "notaAdmin",
-            z.nombre AS zona, z.nivel, co.ubigeo,
+            z.nombre AS zona, z.nivel, co.ubigeo, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             f.id AS "financiadorId", f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.visible, f.motivo_no_visible AS "motivoNoVisible",
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
@@ -154,8 +166,9 @@ adminRouter.get("/contribuciones", async (c) => {
 
 adminRouter.get("/contribuciones/:codigo", async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
+  const conEntidad = await hayAporteEntidad();
   const h = await pool.query(
-    `SELECT co.*, co.monto_pen::float AS "montoPen", z.nombre AS zona, z.nivel,
+    `SELECT co.*, co.monto_pen::float AS "montoPen", z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
             f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.logo_url AS "logoUrl", f.visible, f.motivo_no_visible AS "motivoNoVisible", f.slug
      FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.codigo = $1`, [codigo]);
@@ -252,9 +265,10 @@ adminRouter.patch("/contribuciones/:codigo", async (c) => {
 });
 
 // ─── Financiadores ───────────────────────────────────────────────────────────
-// Perfil público (migración 30): descripción, web, correo de CONTACTO (`email_publico`; `email` es el
-// del pago), redes y portada. Sin las columnas, la lista sale con el perfil vacío y `perfil: false`
-// (el panel avisa y no deja editarlo) y un PATCH que lo toca responde 503 en palabras, no un 500.
+// El perfil público (nombre, tipo, logo, descripción, web, correo de CONTACTO, redes, portada, RUC) lo
+// define QUIEN APORTA desde su cuenta (PUT /cuentas/me). El panel lo LEE (saneado con las mismas
+// reglas que la página pública, lib/perfilAliado.ts) y sólo MODERA: ocultar o mostrar con motivo.
+// Sin las columnas de la 30, la lista sale con el perfil vacío y `perfil: false`.
 const COLS_PERFIL_ADMIN = `f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.redes, f.portada_url AS "portadaUrl"`;
 const COLS_PERFIL_VACIO = `NULL::text AS descripcion, NULL::text AS "sitioWeb", NULL::text AS "emailPublico", '{}'::jsonb AS redes, NULL::text AS "portadaUrl"`;
 
@@ -268,159 +282,46 @@ adminRouter.get("/financiadores", async (c) => {
             EXISTS (SELECT 1 FROM osce_sancionados s WHERE s.ruc = f.ruc AND (s.fecha_hasta IS NULL OR s.fecha_hasta >= current_date)) AS "sancionVigente",
             EXISTS (SELECT 1 FROM alertas a WHERE a.proveedor_ruc = f.ruc AND a.estado = 'activa') AS "alertasActivas"
      FROM financiadores f ORDER BY f.created_at DESC LIMIT 500`));
-  return c.json({ data: r.rows, perfil });
+  // El perfil, como se publica: lo que no cumple las reglas no se muestra (tampoco en el panel).
+  const data = r.rows.map((row) => ({ ...row, ...perfilPublicado(row) }));
+  return c.json({ data, perfil });
 });
 
-const SIN_MIGRACION_30 = {
-  error: "sin_migracion",
-  detail: "El perfil público todavía no se puede guardar: falta aplicar la migración 30 (perfil del aliado) en la base. Nombre, logo y visibilidad sí se pueden cambiar.",
-};
-
-// Perfil: campo ausente = no se toca; "" = se borra. Estos topes son del texto crudo; la regla fina
-// (280 caracteres, https, dominio de cada red) va en perfilDelCuerpo.
-const Enlace = z.string().max(500).optional();
+// Sólo moderación (contrato A7). `.strict()`: cualquier otra clave (nombre, logo, perfil…) es un 400
+// `solo_moderacion`: esos datos los cambia quien aporta, no el panel.
 const FinanciadorPatch = z.object({
   visible: z.boolean().optional(),
   motivoNoVisible: z.string().max(200).nullable().optional(),
-  nombrePublico: z.string().max(80).nullable().optional(),
-  logoUrl: z.string().url().nullable().optional(),
-  descripcion: z.string().max(1000).optional(),
-  sitioWeb: Enlace,
-  emailPublico: z.string().max(254).optional(),
-  portadaUrl: Enlace,
-  redes: z.object({ facebook: Enlace, instagram: Enlace, linkedin: Enlace, x: Enlace, tiktok: Enlace, youtube: Enlace }).strict().optional(),
-});
-type FinanciadorPatch = z.infer<typeof FinanciadorPatch>;
-
-/** Campo del API → columna de `financiadores` (lista cerrada: es lo único que entra en el SET). */
-const COL_PERFIL = { descripcion: "descripcion", sitioWeb: "sitio_web", emailPublico: "email_publico", portadaUrl: "portada_url" } as const;
-type CampoPerfil = keyof typeof COL_PERFIL;
-interface CambiosPerfil {
-  campos: Partial<Record<CampoPerfil, string | null>>;
-  poner: Partial<Record<RedAliado, string>>;
-  quitar: RedAliado[];
-}
-
-/** El primer problema del cuerpo, en palabras: el panel lo muestra tal cual. */
-function problemaDeZod(e: z.ZodError): string {
-  const i = e.issues[0];
-  const campo = String(i?.path[0] ?? "");
-  if (campo === "redes") {
-    return i.code === "unrecognized_keys"
-      ? `Sólo se aceptan estas redes: ${CLAVES_RED.map((r) => REDES_ALIADO[r].nombre).join(", ")}.`
-      : "Cada red va como un enlace de hasta 500 caracteres.";
-  }
-  if (campo === "descripcion") return "La descripción es demasiado larga: el máximo es 280 caracteres.";
-  if (campo === "emailPublico") return "El correo de contacto no es válido.";
-  if (campo === "sitioWeb" || campo === "portadaUrl" || campo === "logoUrl") return "Ese enlace no es válido.";
-  return "Los datos no se aceptaron: revisa lo que ingresaste.";
-}
-
-/** Valida y normaliza el perfil del cuerpo (las mismas reglas que los CHECK de la 30). Error = texto. */
-function perfilDelCuerpo(b: FinanciadorPatch): CambiosPerfil | string {
-  const campos: CambiosPerfil["campos"] = {};
-  if (b.descripcion !== undefined) {
-    // Una línea: la cabecera del perfil es un párrafo corto. Caracteres como char_length() del CHECK.
-    const d = b.descripcion.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-    const n = [...d].length;
-    if (n > 280) return `La descripción tiene ${n} caracteres: el máximo es 280.`;
-    campos.descripcion = d || null;
-  }
-  for (const [campo, nombre] of [["sitioWeb", "La web"], ["portadaUrl", "La imagen de portada"]] as const) {
-    const v = b[campo]?.trim();
-    if (v === undefined) continue;
-    const href = v ? urlHttps(v) : null;
-    if (v && !href) return `${nombre} tiene que ser un enlace completo que empiece con https:// (por ejemplo https://empresa.pe).`;
-    campos[campo] = href;
-  }
-  if (b.emailPublico !== undefined) {
-    const v = b.emailPublico.trim().toLowerCase();
-    if (v && !(CORREO_PUBLICO.test(v) && z.string().email().safeParse(v).success)) return "El correo de contacto no es válido.";
-    campos.emailPublico = v || null;
-  }
-  const poner: CambiosPerfil["poner"] = {};
-  const quitar: RedAliado[] = [];
-  for (const red of CLAVES_RED) {
-    const v = b.redes?.[red]?.trim();
-    if (v === undefined) continue;
-    if (!v) { quitar.push(red); continue; }
-    const href = enlaceDeRed(red, v);
-    if (!href) {
-      const { nombre, dominios } = REDES_ALIADO[red];
-      return `El enlace de ${nombre} tiene que empezar con https:// y ser de ${dominios.join(" o ")}, con la página del aliado (no la portada de la red).`;
-    }
-    poner[red] = href;
-  }
-  return { campos, poner, quitar };
-}
+}).strict();
+const SOLO_MODERACION = "El perfil público lo edita quien aporta desde su cuenta.";
 
 adminRouter.patch("/financiadores/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const body = FinanciadorPatch.safeParse(await c.req.json().catch(() => null));
   if (!Number.isSafeInteger(id) || id <= 0) return c.json({ error: "invalid_body" }, 400);
-  if (!body.success) return c.json({ error: "invalid_body", detail: problemaDeZod(body.error) }, 400);
+  const body = FinanciadorPatch.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) {
+    if (body.error.issues.some((i) => i.code === "unrecognized_keys")) {
+      // `detail` además de `detalle`: el panel muestra `detail` tal cual (components/admin).
+      return c.json({ error: "solo_moderacion", detalle: SOLO_MODERACION, detail: SOLO_MODERACION }, 400);
+    }
+    const detalle = "Para moderar se indica si el aliado se muestra o no y, si se oculta, un motivo de hasta 200 caracteres.";
+    return c.json({ error: "invalid_body", detalle, detail: detalle }, 400);
+  }
   const b = body.data;
-  const perfil = perfilDelCuerpo(b);
-  if (typeof perfil === "string") return c.json({ error: "datos_invalidos", detail: perfil }, 400);
-  const tocaRedes = Object.keys(perfil.poner).length > 0 || perfil.quitar.length > 0;
-  const tocaPerfil = tocaRedes || Object.keys(perfil.campos).length > 0;
-  if (tocaPerfil && !(await perfilAliadoDisponible())) return c.json(SIN_MIGRACION_30, 503);
-
-  // Nombre, logo y visibilidad como siempre (null o ausente = se mantiene); del perfil, sólo lo que llegó.
-  const vals: unknown[] = [id, b.visible ?? null, b.motivoNoVisible ?? null, b.nombrePublico ?? null, b.logoUrl ?? null];
-  const sets = [
-    "visible = COALESCE($2, visible)",
-    "motivo_no_visible = CASE WHEN $2 IS TRUE THEN NULL ELSE COALESCE($3, motivo_no_visible) END",
-    "nombre_publico = COALESCE($4, nombre_publico)",
-    "logo_url = COALESCE($5, logo_url)",
-  ];
-  for (const [campo, v] of Object.entries(perfil.campos) as [CampoPerfil, string | null][]) {
-    vals.push(v);
-    sets.push(`${COL_PERFIL[campo]} = $${vals.length}`);
-  }
-  if (tocaRedes) {
-    vals.push(JSON.stringify(perfil.poner), perfil.quitar);
-    sets.push(`redes = (redes || $${vals.length - 1}::jsonb) - $${vals.length}::text[]`);
-  }
-
-  let antes: Record<string, unknown> = {};
-  try {
-    if (tocaPerfil) {
-      const a = await pool.query(`SELECT ${COLS_PERFIL_ADMIN} FROM financiadores f WHERE f.id = $1`, [id]);
-      antes = a.rows[0] ?? {};
-    }
-    const r = await pool.query(`UPDATE financiadores SET ${sets.join(", ")} WHERE id = $1 RETURNING id`, vals);
-    if (!r.rows.length) return c.json({ error: "not_found", detail: "Ese financiador ya no existe." }, 404);
-  } catch (e) {
-    if (columnaAusente(e)) return c.json(SIN_MIGRACION_30, 503);
-    // 23514 = check_violation: algo pasó la validación de acá y no la de la base.
-    if ((e as { code?: string })?.code === "23514") {
-      return c.json({ error: "datos_invalidos", detail: "La base rechazó un dato del perfil por su formato. Revisa los enlaces y el correo." }, 400);
-    }
-    throw e;
-  }
-  // El ranking y el muro leen nombre, logo y visibilidad de vistas materializadas; el perfil no está ahí.
-  if (b.visible !== undefined || b.motivoNoVisible != null || b.nombrePublico != null || b.logoUrl != null) {
+  // Mostrar (visible = true) borra el motivo; ocultar guarda el motivo nuevo o conserva el anterior.
+  const r = await pool.query(
+    `UPDATE financiadores SET
+       visible = COALESCE($2, visible),
+       motivo_no_visible = CASE WHEN $2 IS TRUE THEN NULL ELSE COALESCE($3, motivo_no_visible) END
+     WHERE id = $1 RETURNING id`,
+    [id, b.visible ?? null, b.motivoNoVisible ?? null]);
+  if (!r.rows.length) return c.json({ error: "not_found", detail: "Ese financiador ya no existe." }, 404);
+  // El ranking y el muro leen la visibilidad de vistas materializadas.
+  if (b.visible !== undefined || b.motivoNoVisible != null) {
     await pool.query("SELECT refresh_financiamiento()");
   }
-
-  // Bitácora: lo de siempre arriba (lo lee components/admin/ui/bitacora.ts) y el perfil con su valor anterior.
-  const detalle: Record<string, unknown> = {
-    visible: b.visible, motivoNoVisible: b.motivoNoVisible, nombrePublico: b.nombrePublico, logoUrl: b.logoUrl,
-  };
-  if (tocaPerfil) {
-    const redesTocadas = [...(Object.keys(perfil.poner) as RedAliado[]), ...perfil.quitar];
-    const redesAntes = (antes.redes ?? {}) as Record<string, unknown>;
-    detalle.perfil = {
-      ...perfil.campos,
-      ...(tocaRedes ? { redes: Object.fromEntries(redesTocadas.map((r) => [r, perfil.poner[r] ?? null])) } : {}),
-    };
-    detalle.perfilAntes = {
-      ...Object.fromEntries(Object.keys(perfil.campos).map((k) => [k, antes[k] ?? null])),
-      ...(tocaRedes ? { redes: Object.fromEntries(redesTocadas.map((r) => [r, redesAntes[r] ?? null])) } : {}),
-    };
-  }
-  await log(actor(c), "editar_financiador", `financiador:${id}`, detalle);
+  // Bitácora: la misma acción de siempre (la lee components/admin/ui/bitacora.ts).
+  await log(actor(c), "editar_financiador", `financiador:${id}`, { visible: b.visible, motivoNoVisible: b.motivoNoVisible });
   return c.json({ ok: true });
 });
 
@@ -556,10 +457,15 @@ adminRouter.post("/procesamientos/reencolar-errores", async (c) => {
 // tuviera nada en la cola, y refrescaba las vistas materializadas SIEMPRE (cada 10 min). Ahora
 // salta las zonas sin pendientes y refresca sólo si algo cambió (refresh_financiamiento_si_hace_falta,
 // migración 32: mira las marcas que dejan los triggers; las asignaciones dejan la suya).
+// Un aporte por entidad (39) mira la cola de SU entidad, no la de su zona derivada.
+const COLA_ZONA = `EXISTS (SELECT 1 FROM cola_auditoria q WHERE q.ubigeo LIKE co.ubigeo || '%')`;
+const COLA_ZONA_O_ENTIDAD = `CASE WHEN co.entidad_ruc IS NULL THEN ${COLA_ZONA}
+  ELSE EXISTS (SELECT 1 FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE c.entidad_ruc = co.entidad_ruc) END`;
+
 adminRouter.post("/asignar", async (c) => {
   const r = await pool.query(
     `SELECT co.id, co.codigo,
-            EXISTS (SELECT 1 FROM cola_auditoria q WHERE q.ubigeo LIKE co.ubigeo || '%') AS "hayCola"
+            ${(await hayAporteEntidad()) ? COLA_ZONA_O_ENTIDAD : COLA_ZONA} AS "hayCola"
        FROM contribuciones co
       WHERE co.estado IN ('pagada','en_proceso')
         AND co.contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)`);

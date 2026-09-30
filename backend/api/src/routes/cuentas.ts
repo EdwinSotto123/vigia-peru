@@ -2,9 +2,16 @@
  * Cuentas de usuario — perfil, configuración y "Mi impacto" (migración 26).
  * Diseño: docs/design/CUENTAS.md · plan 2026-09-16 § U3
  *
- *   GET    /cuentas/me            perfil + configuración (crea la fila si no existe)
- *   PUT    /cuentas/me            { nombrePublico?, visible?, correo?, notificaciones?, logoUrl?, tipo? }
- *   GET    /cuentas/me/impacto    mis aportes (progreso en vivo desde asignaciones/alertas),
+ *   GET    /cuentas/me            perfil + configuración (crea la fila si no existe); con la migración 30, también
+ *                                 el perfil público: descripcion, sitioWeb, emailPublico, portadaUrl, redes ({} si no hay)
+ *   PUT    /cuentas/me            { nombrePublico?, visible?, correo?, notificaciones?, logoUrl?, tipo?,
+ *                                   descripcion?, sitioWeb?, emailPublico?, portadaUrl?, redes?, ruc? }
+ *                                 El perfil público del aliado lo define QUIEN APORTA (el panel sólo modera):
+ *                                 campo ausente = no se toca, "" = se borra; mismas reglas que la página pública
+ *                                 (lib/perfilAliado.ts). Error → 400 {error: "perfil_invalido", campo, detalle}.
+ *                                 `ruc` se fija una sola vez (otro distinto → 409 ruc_inmutable) y corre el mismo
+ *                                 chequeo de conflicto de interés que POST /contribuciones (lib/aportes.ts).
+ *   GET    /cuentas/me/impacto    mis aportes (progreso en vivo desde asignaciones/alertas; `entidad` si fue por entidad),
  *                                 mis denuncias (estado de moderación), zonas/entidades seguidas
  *   POST   /cuentas/me/seguir     { tipo: "zona"|"entidad", id }
  *   DELETE /cuentas/me/seguir     { tipo, id }
@@ -18,9 +25,14 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { esErrorPg, pool } from "../lib/db.js";
 import { requireAuth } from "../lib/auth.js";
 import { SIN_CACHE } from "../lib/http.js";
+import { columnaAusente, conPerfilAliado, hayAporteEntidad, perfilEditableDesdeCuenta } from "../lib/esquema.js";
+import {
+  CAMPO_DEL_CHECK, CamposPerfil, esProblema, normalizarPerfil, problemaDeZod, setsDelPerfil, tocaPerfil,
+} from "../lib/perfilAliado.js";
+import { entidadDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
 
 export const cuentasRouter = new Hono();
 // Todo es de la persona que entró: nunca en un CDN ni en la caché compartida (también los 401).
@@ -34,7 +46,13 @@ cuentasRouter.use("*", requireAuth);
 const slugify = (s: string) =>
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
 
-const PERFIL_SQL = `
+// Perfil público (migración 30): sólo si las columnas existen y el rol público puede escribirlas (39).
+// Si no, esas claves no salen y el frontend no ofrece editarlas (lo detecta por `redes`).
+const COLS_PERFIL_PUBLICO = `,
+         f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.portada_url AS "portadaUrl",
+         COALESCE(f.redes, '{}'::jsonb) AS redes`;
+
+const perfilSql = (conPerfil: boolean) => `
   SELECT u.firebase_uid AS uid, u.financiador_id AS "financiadorId",
          COALESCE(u.nombre_publico, f.nombre_publico) AS "nombrePublico",
          u.visible, u.zonas_seguidas AS "zonasSeguidas", u.entidades_seguidas AS "entidadesSeguidas",
@@ -43,7 +61,7 @@ const PERFIL_SQL = `
          (SELECT json_agg(json_build_object('ubigeo', z.ubigeo, 'nombre', z.nombre, 'nivel', z.nivel) ORDER BY z.nombre)
             FROM zonas z WHERE z.ubigeo = ANY(u.zonas_seguidas)) AS "zonas",
          (SELECT json_agg(json_build_object('ruc', e.ruc, 'nombre', e.nombre) ORDER BY e.nombre)
-            FROM entidades e WHERE e.ruc = ANY(u.entidades_seguidas)) AS "entidades"
+            FROM entidades e WHERE e.ruc = ANY(u.entidades_seguidas)) AS "entidades"${conPerfil ? COLS_PERFIL_PUBLICO : ""}
   FROM usuarios u LEFT JOIN financiadores f ON f.id = u.financiador_id
   WHERE u.firebase_uid = $1`;
 
@@ -59,7 +77,8 @@ export async function asegurarUsuario(uid: string) {
 
 async function perfil(uid: string) {
   await asegurarUsuario(uid);
-  const r = await pool.query(PERFIL_SQL, [uid]);
+  const editable = await perfilEditableDesdeCuenta();
+  const { valor: r } = await conPerfilAliado((conPerfil) => pool.query(perfilSql(conPerfil && editable), [uid]));
   const p = r.rows[0];
   return { ...p, zonas: p.zonas ?? [], entidades: p.entidades ?? [] };
 }
@@ -72,6 +91,10 @@ cuentasRouter.get("/me", async (c) => {
 });
 
 // ─── PUT /cuentas/me ─────────────────────────────────────────────────────────
+// RUC: "" o null cuentan como no enviado (un formulario que manda el campo vacío no es un error).
+const Ruc = z.preprocess((v) => (v === "" || v === null ? undefined : typeof v === "string" ? v.trim() : v),
+  z.string().regex(/^\d{11}$/).optional());
+
 const PutBody = z.object({
   nombrePublico: z.string().trim().max(80).nullable().optional(),
   visible: z.boolean().optional(),
@@ -79,22 +102,57 @@ const PutBody = z.object({
   notificaciones: z.record(z.boolean()).optional(),
   logoUrl: z.string().url().nullable().optional(),
   tipo: z.enum(["empresa", "persona", "organizacion"]).optional(),
+  ...CamposPerfil,
+  ruc: Ruc,
 });
+
+// Aviso en palabras (503) si la base todavía no tiene lo necesario para guardar el perfil público:
+// columnas de la migración 30 o permisos de la 39 para el rol público.
+const PERFIL_NO_DISPONIBLE = {
+  error: "sin_migracion",
+  detail: "Todavía no podemos guardar tu perfil público: estamos terminando de habilitarlo. Inténtalo más tarde; el resto de tu cuenta sí se guarda.",
+};
 
 cuentasRouter.put("/me", async (c) => {
   const u = c.get("user");
   const body = PutBody.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  if (!body.success) {
+    // Un problema en un campo del perfil (o el RUC): { campo, detalle } para marcarlo en el formulario.
+    const problema = problemaDeZod(body.error);
+    if (problema) return c.json({ error: "perfil_invalido", ...problema }, 400);
+    return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  }
   const b = body.data;
+  const cambios = normalizarPerfil(b);
+  if (esProblema(cambios)) return c.json({ error: "perfil_invalido", ...cambios }, 400);
+  const conPerfil = tocaPerfil(cambios);
+  if (conPerfil && !(await perfilEditableDesdeCuenta())) return c.json(PERFIL_NO_DISPONIBLE, 503);
   await asegurarUsuario(u.uid);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const cur = await client.query(`SELECT financiador_id, correo FROM usuarios WHERE firebase_uid = $1 FOR UPDATE`, [u.uid]);
     let finId: number | null = cur.rows[0]?.financiador_id ?? null;
-    const quiereMuro = b.visible === true || (b.nombrePublico && b.nombrePublico.length >= 2) || b.logoUrl;
-    // El perfil público de aliado (financiadores) se crea solo si el usuario quiere aparecer en el muro
-    // o pone nombre/logo; si no, se queda sin fila (anónimo total).
+
+    // RUC: se fija una sola vez. Uno distinto del que ya tiene → 409; el mismo, no hay nada que cambiar.
+    let rucNuevo: string | null = null;
+    if (b.ruc) {
+      const actual = finId
+        ? (await client.query(`SELECT ruc FROM financiadores WHERE id = $1 FOR UPDATE`, [finId])).rows[0]?.ruc
+        : null;
+      const rucActual = typeof actual === "string" && actual.trim() ? actual.trim() : null;
+      if (rucActual && rucActual !== b.ruc) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "ruc_inmutable", detail: "Tu perfil ya tiene un RUC registrado y no se puede cambiar. Si es un error, escríbenos." }, 409);
+      }
+      if (!rucActual) rucNuevo = b.ruc;
+    }
+
+    // El perfil público de aliado (financiadores) se crea si el usuario quiere aparecer en el muro, pone
+    // nombre/logo o define cualquier dato del perfil (descripción, web, correo, portada, redes, RUC), aunque
+    // siga anónimo; si no, se queda sin fila (anónimo total).
+    const quiereMuro = b.visible === true || (!!b.nombrePublico && b.nombrePublico.length >= 2) || !!b.logoUrl
+      || conPerfil || rucNuevo !== null;
     if (!finId && quiereMuro) {
       const email = b.correo ?? cur.rows[0]?.correo ?? `${u.uid}@cuenta.vigia.local`;
       const ins = await client.query(
@@ -121,6 +179,18 @@ cuentasRouter.put("/me", async (c) => {
          b.nombrePublico ? slugify(b.nombrePublico) + "-" + Math.random().toString(36).slice(2, 6) : null,
          b.logoUrl !== undefined, b.logoUrl ?? null, b.tipo ?? null, b.visible ?? null, b.correo ?? null]);
     }
+
+    // Perfil público y RUC: sólo lo que llegó (columnas de lista cerrada, valores como parámetros).
+    if (finId && (conPerfil || rucNuevo)) {
+      const vals: unknown[] = [finId];
+      const sets = setsDelPerfil(cambios, vals);
+      if (rucNuevo) { vals.push(rucNuevo); sets.push(`ruc = COALESCE(ruc, $${vals.length})`); }
+      await client.query(`UPDATE financiadores SET ${sets.join(", ")} WHERE id = $1`, vals);
+    }
+    // Al fijar el RUC, el mismo chequeo que POST /contribuciones: sanción vigente o alertas activas
+    // → el aliado no aparece (visible = false, con el motivo).
+    if (finId && rucNuevo) await marcarConflictoDeInteres(client, finId, rucNuevo);
+
     await client.query(
       `UPDATE usuarios SET
          financiador_id = COALESCE($2, financiador_id),
@@ -135,6 +205,11 @@ cuentasRouter.put("/me", async (c) => {
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
+    // 42501: el rol público todavía no puede escribir esas columnas (falta la migración 39). 42703: faltan (30).
+    if (esErrorPg(e, "42501") || columnaAusente(e)) return c.json(PERFIL_NO_DISPONIBLE, 503);
+    // 23514: algo pasó la validación de acá y no un CHECK de la 30.
+    const campo = esErrorPg(e, "23514") ? CAMPO_DEL_CHECK[String((e as { constraint?: string }).constraint ?? "")] : undefined;
+    if (campo) return c.json({ error: "perfil_invalido", campo, detalle: "Ese dato no tiene un formato válido. Revisa el enlace o el correo." }, 400);
     throw e;
   } finally {
     client.release();
@@ -147,12 +222,13 @@ cuentasRouter.put("/me", async (c) => {
 cuentasRouter.get("/me/impacto", async (c) => {
   const u = c.get("user");
   const p = await perfil(u.uid);
+  const conEntidad = await hayAporteEntidad();
   const [aportes, denuncias, zonas] = await Promise.all([
     p.financiadorId
       ? pool.query(
           `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
                   co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", co.comprobante_url AS "comprobanteUrl",
-                  z.ubigeo, z.nombre AS zona, z.nivel,
+                  z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
                   (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
@@ -288,7 +364,11 @@ cuentasRouter.get("/me/exportar", async (c) => {
   return c.json({
     exportadoAt: new Date().toISOString(),
     cuenta: { uid: u.uid, userId: u.userId, correo: p.correo, createdAt: p.createdAt },
-    perfilPublico: { nombrePublico: p.nombrePublico, slug: p.slug, logoUrl: p.logoUrl, tipo: p.tipo, visible: p.visible, aliadoVisible: p.aliadoVisible },
+    perfilPublico: {
+      nombrePublico: p.nombrePublico, slug: p.slug, logoUrl: p.logoUrl, tipo: p.tipo, ruc: p.ruc, visible: p.visible, aliadoVisible: p.aliadoVisible,
+      descripcion: p.descripcion ?? null, sitioWeb: p.sitioWeb ?? null, emailPublico: p.emailPublico ?? null,
+      portadaUrl: p.portadaUrl ?? null, redes: p.redes ?? {},
+    },
     configuracion: { notificaciones: p.notificaciones, zonasSeguidas: p.zonasSeguidas, entidadesSeguidas: p.entidadesSeguidas },
     aportes: aportes.rows,
     contratosAsignados: asignaciones.rows,
