@@ -12,7 +12,8 @@ trap 'rm -rf "$W"' EXIT
 cd "$W"
 
 # 1. Código del commit actual + .env.production (NEXT_PUBLIC_* de Firebase, fuera de git).
-git -C "$REPO_ROOT" archive -o web.tar HEAD frontend
+# Ruta absoluta: con `git -C`, un `-o` relativo cae en el repo y no en $W (se subía solo el .env).
+git -C "$REPO_ROOT" archive -o "$W/web.tar" HEAD frontend
 tar -rf web.tar -C "$REPO_ROOT" frontend/.env.production
 gzip web.tar
 
