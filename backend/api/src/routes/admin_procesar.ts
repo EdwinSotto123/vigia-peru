@@ -139,7 +139,7 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
       }
       if (contratos > ent.enCola) {
         await client.query("ROLLBACK");
-        return c.json({ error: "excede_cola", disponibles: ent.enCola, detail: `Esta entidad tiene ${ent.enCola} contratos en cola.` }, 409);
+        return c.json({ error: "excede_cola", disponibles: ent.enCola, detail: `Esta entidad tiene ${ent.enCola} ${ent.enCola === 1 ? "contrato" : "contratos"} en cola.` }, 409);
       }
       zonaUbigeo = ent.zona.ubigeo;
       entidad = { ruc: ent.ruc, nombre: ent.nombre };

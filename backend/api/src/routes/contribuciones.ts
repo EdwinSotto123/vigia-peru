@@ -108,7 +108,7 @@ contribucionesRouter.post("/", optionalAuth, async (c) => {
       if (contratos > ent.enCola) {
         await client.query("ROLLBACK");
         return c.json({ error: "excede_cola", disponibles: ent.enCola,
-          detail: `Esta entidad tiene ${ent.enCola} contratos esperando auditoría: no se puede financiar más.` }, 409);
+          detail: `Esta entidad tiene ${ent.enCola} ${ent.enCola === 1 ? "contrato" : "contratos"} esperando auditoría: no se puede financiar más.` }, 409);
       }
       zonaUbigeo = ent.zona.ubigeo;
       zonaNombre = ent.zona.nombre;
