@@ -226,9 +226,10 @@ def test_market_precio_texto_y_moneda_libre():
 # T4 · el driver vuelca los descartes del schema a state['descartes'] y avisa
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_validar_schema_propaga_descartes_y_avisa_listas_vaciadas():
+def test_validar_schema_propaga_descartes_y_avisa_listas_vaciadas(monkeypatch):
     """1225090 #2 / 1225392 #7: `descartes_schema` quedaba dentro del objeto y `state.descartes`
     vacío; el dictamen decía "sin descartes" habiendo perdido 3 banderas legales."""
+    monkeypatch.setenv("ESTRUCTURAR_SALIDAS", "0")   # sin llamada al modelo: solo la validación
     st = {"descartes": [], "legal_analysis": json.dumps({
         "estado": "hallado",
         "red_flags_documentales": [
@@ -238,8 +239,8 @@ def test_validar_schema_propaga_descartes_y_avisa_listas_vaciadas():
              "norma_citada": "Art. 2"},
         ],
     })}
-    ev = D._validar_schema(st, "legal_analysis", "LegalOutput")
-    assert ev and ev["kind"] == "warn" and "red_flags_documentales 2→1" in ev["msg"]
+    evs = D._validar_schema(st, "legal_analysis", "LegalOutput")
+    assert len(evs) == 1 and evs[0]["kind"] == "warn" and "red_flags_documentales 2→1" in evs[0]["msg"]
     assert len(st["legal_analysis"]["red_flags_documentales"]) == 1
     assert st["descartes"] and st["descartes"][0]["donde"].startswith("legal_analysis.schema.red_flags_documentales[1]")
     assert st["descartes"][0]["motivo"] == "item_invalido"
@@ -249,7 +250,7 @@ def test_validar_schema_propaga_descartes_y_avisa_listas_vaciadas():
         "estado": "hallado",
         "red_flags_documentales": [{"estado": "hallado", "vector": "marca_unica", "severidad": "ALTA",
                                     "descripcion": "ok", "norma_citada": "Art. 2", "evidencia": [EV_DOC]}]})}
-    assert D._validar_schema(st2, "legal_analysis", "LegalOutput") is None
+    assert D._validar_schema(st2, "legal_analysis", "LegalOutput") == []
     assert st2["descartes"] == [] and st2["legal_analysis"]["red_flags_documentales"][0]["severidad"] == "alta"
 
 
@@ -566,26 +567,93 @@ def test_prompts_enumeran_enums_en_minuscula_y_prohiben_dni():
         assert v in w
 
 
-def test_lote_bienes_2026_09_29_formas_que_se_perdian():
+def test_lote_bienes_2026_09_29_formas_validas_sin_parches():
     """Lote de 78 contratos de bienes (29/09/2026): `socios: null` tumbaba el bloque `empresa`
-    entero (21), cargos y empresas como texto se descartaban (46 + 20) y las notas de prensa sin
-    `titulo` también (20)."""
+    entero (21) y las notas de prensa sin titular se descartaban (20). `null` es una lista vacía y
+    el titular es opcional (la fuente a menudo no lo tiene); un cargo escrito como frase NO se
+    adivina acá: lo reubica el estructurador con el esquema (tools/estructurar.py)."""
     w = S.WebResearchOutput.model_validate({
         "estado": "sin_dato",
         "empresa": {"ruc": "20600728491", "razon_social": "SERVICENTRO SAN FRANCISCO L & E S.R.L.", "socios": None},
         "hallazgos_prensa": [{"estado": "sin_dato", "medio": "Diario Correo",
-                              "resumen": "La municipalidad adjudicó el abastecimiento de combustible al grifo local."}],
+                              "resumen": "La municipalidad adjudicó el combustible al grifo local."}],
     })
     assert w.empresa is not None and w.empresa.socios == []
-    assert w.hallazgos_prensa and w.hallazgos_prensa[0].titulo.startswith("La municipalidad adjudicó")
+    assert len(w.hallazgos_prensa) == 1 and w.hallazgos_prensa[0].titulo is None
+    pp = S.PersonaPrincipal.model_validate({"estado": "sin_dato",
+                                            "otros_cargos_actuales": ["Gerente general en CQS INGENIEROS S.A.C"]})
+    assert pp.otros_cargos_actuales == []   # forma desviada: la arregla el estructurador, no un regex
 
-    pp = S.PersonaPrincipal.model_validate({
-        "estado": "sin_dato",
-        "otros_cargos_actuales": ["Gerente general en CQS INGENIEROS S.A.C", "ALFATEK E.I.R.L."],
-    })
-    assert [(c.cargo, c.empresa) for c in pp.otros_cargos_actuales] == [
-        ("Gerente general", "CQS INGENIEROS S.A.C"), ("no especificado", "ALFATEK E.I.R.L.")]
 
-    red = S.RedEmpresarial.model_validate({"empresas_mismo_titular": ["GRUPO BENAUTE S.A.C. (RUC 20523996615)"]})
-    assert red.empresas_mismo_titular[0].razon_social == "GRUPO BENAUTE S.A.C."
-    assert red.empresas_mismo_titular[0].ruc == "20523996615"
+_RED_DESVIADA = {
+    "estado": "sin_dato",
+    "persona_principal": {"estado": "sin_dato", "nombre_completo": "YULY LIZ COLQUEHUANCA HITO",
+                          "otros_cargos_actuales": ["Gerente general en CQS INGENIEROS S.A.C", "Titular de ALFATEK E.I.R.L."]},
+}
+_RED_REHECHA = {
+    "estado": "sin_dato",
+    "persona_principal": {"estado": "sin_dato", "nombre_completo": "YULY LIZ COLQUEHUANCA HITO",
+                          "otros_cargos_actuales": [{"cargo": "Gerente general", "empresa": "CQS INGENIEROS S.A.C"},
+                                                    {"cargo": "Titular", "empresa": "ALFATEK E.I.R.L."}]},
+}
+
+
+def test_validar_schema_reestructura_una_salida_con_forma_desviada(monkeypatch):
+    """La salida que no calza se reorganiza con el esquema (decodificación restringida) y se
+    queda la versión que conserva el contenido; queda un evento en la traza."""
+    import tools.estructurar as E
+    llamadas = []
+    monkeypatch.setattr(E, "estructurar", lambda crudo, modelo, agente: (llamadas.append(agente) or _RED_REHECHA,
+                                                                          {"segundos": 1.2}))
+    st = {"descartes": [], "person_network": json.dumps(_RED_DESVIADA, ensure_ascii=False)}
+    evs = D._validar_schema(st, "person_network", "PersonNetworkOutput")
+    assert llamadas == ["person_network"]
+    cargos = st["person_network"]["persona_principal"]["otros_cargos_actuales"]
+    assert [(c["cargo"], c["empresa"]) for c in cargos] == [("Gerente general", "CQS INGENIEROS S.A.C"),
+                                                             ("Titular", "ALFATEK E.I.R.L.")]
+    assert any(e["kind"] == "info" and "reestructurada" in e["msg"] for e in evs)
+    assert not [d for d in st["descartes"] if d.get("motivo") == "item_invalido"]
+
+
+def test_validar_schema_no_acepta_una_reestructura_que_pierde_contenido(monkeypatch):
+    import tools.estructurar as E
+    pobre = {"estado": "sin_dato", "persona_principal": {"estado": "sin_dato", "otros_cargos_actuales": []}}
+    monkeypatch.setattr(E, "estructurar", lambda crudo, modelo, agente: (pobre, {"segundos": 1.0}))
+    st = {"descartes": [], "person_network": json.dumps(_RED_DESVIADA, ensure_ascii=False)}
+    D._validar_schema(st, "person_network", "PersonNetworkOutput")
+    assert st["person_network"]["persona_principal"]["nombre_completo"] == "YULY LIZ COLQUEHUANCA HITO"
+
+
+def test_esquema_de_generacion_solo_lleva_palabras_que_usa_gemini():
+    from tools.estructurar import esquema_de_generacion, _CLAVES
+    esq = esquema_de_generacion(S.PersonNetworkOutput)
+
+    def claves(n, dentro_de_nombres=False):
+        if isinstance(n, dict):
+            for k, v in n.items():
+                if not dentro_de_nombres:
+                    assert k in _CLAVES, k
+                yield from claves(v, k in ("properties", "$defs") and not dentro_de_nombres)
+        elif isinstance(n, list):
+            for x in n:
+                yield from claves(x)
+        return
+        yield
+    list(claves(esq))
+    assert "pattern" not in json.dumps(esq) and "$defs" in esq
+
+
+def test_compliance_extended_se_arma_con_las_banderas_del_juicio_no_con_su_prosa():
+    """Lote 29/09/2026: el agente de juicio escribía prosa bajo `compliance_extended` y el persist
+    la descartaba (json_no_parseable) en todos los análisis. Ahora la prosa va a
+    `compliance_juicio` y `compliance_extended` sale de las banderas que agregó en su llamada."""
+    from pipeline_reglas import resultado_juicio
+    previa = {"regla": "senal_oece", "severidad": "baja", "_source": "orchestrator_paso_7.7"}
+    juicio = {"regla": "capacidad_operativa_cuestionable", "severidad": "media", "evidencia": "RUC de 3 meses",
+              "norma": "Art. 64", "fuente_url": "https://www.gob.pe/x", "_source": "orchestrator_paso_7.7"}
+    st = {"pending_flags": [previa, juicio], "compliance_juicio": "Emití 1 bandera: capacidad operativa."}
+    r = resultado_juicio(st, desde=1)
+    assert r["estado"] == "hallado" and [b["regla"] for b in r["banderas_juicio"]] == ["capacidad_operativa_cuestionable"]
+    assert r["reporte"].startswith("Emití 1 bandera")
+    assert resultado_juicio({"pending_flags": [previa]}, desde=1) == {
+        "estado": "sin_dato", "modo": "juicio", "banderas_juicio": [], "reporte": None}

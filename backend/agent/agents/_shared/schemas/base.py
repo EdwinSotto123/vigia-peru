@@ -698,29 +698,13 @@ class Hallazgo(_Base):
 class NotaPrensa(Hallazgo):
     medio: str = Field(..., min_length=1, max_length=120)
     fecha: str | None = Field(default=None, max_length=20)
-    titulo: str = Field(..., min_length=1, max_length=300)
+    # Opcional: una mención de prensa se sostiene con medio, URL, resumen y evidencia; el titular a
+    # menudo no está en la fuente. Obligatorio, el modelo tenía que inventarlo o dejar caer la nota
+    # (20 notas descartadas en un lote de 78; la vista ya lo muestra solo si existe).
+    titulo: str | None = Field(default=None, max_length=300)
     url: str | None = None
     resumen: str | None = Field(default=None, max_length=600)
     severidad: SeveridadInfo = "info"
-
-    @model_validator(mode="before")
-    @classmethod
-    def _titulo_de_la_nota(cls, data):
-        """Sin `titulo` se descartaba la nota entera (20 en un lote de 78). Se toma el titular con
-        otro nombre o, si no hay, el comienzo de su propio resumen: texto de la misma nota."""
-        if not isinstance(data, dict) or str(data.get("titulo") or "").strip():
-            return data
-        d = dict(data)
-        for k in ("title", "titular", "encabezado", "headline"):
-            if str(d.get(k) or "").strip():
-                d["titulo"] = str(d[k]).strip()
-                return d
-        for k in ("resumen", "descripcion", "detalle", "extracto"):
-            t = str(d.get(k) or "").strip()
-            if t:
-                d["titulo"] = t if len(t) <= 120 else t[:117].rstrip() + "…"
-                return d
-        return d
 
 
 _TITULO_ALIAS = ("titulo", "title", "regla", "nombre", "tipo", "bandera", "titulo_bandera", "senal", "señal")

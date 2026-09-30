@@ -198,40 +198,79 @@ def _parse_json_flexible(v):
     return None
 
 
-def _validar_schema(state: dict, key: str, schema_name: str) -> dict | None:
-    """Valida `state[key]` contra `agents._shared.schemas.<schema_name>` (WS M) en el DRIVER.
+def _n_items(v) -> int:
+    """Elementos de lista en todo el objeto: con cuánto contenido se quedó una validación."""
+    if isinstance(v, dict):
+        return sum(_n_items(x) for x in v.values())
+    if isinstance(v, list):
+        return len(v) + sum(_n_items(x) for x in v)
+    return 0
 
-    No se usa `output_schema` nativo en los agentes con google_search: verificado en vivo que
-    con 3.6-flash `response_schema` + grounding deja `grounding_chunks` vacío (URLs no
-    verificables). Aquí el JSON en texto se valida con pydantic; si no valida, la salida se
-    conserva tal cual (para no perder información) pero queda anotada en `descartes` y se
-    devuelve el evento `warn`. Si el schema aún no existe (WS M) → no-op."""
-    if _schemas is None:
-        return None
-    schema = getattr(_schemas, schema_name, None)
-    if schema is None:
-        return None
-    data = _parse_json_flexible(state.get(key))
+
+def _intento(schema, data):
+    """(validado | None, error, descartes relevantes) de validar `data` con el schema tolerante."""
     if data is None:
-        _registrar_descarte(state, key, "salida_no_json")
-        return {"kind": "warn", "name": key, "msg": f"{key}: salida no es JSON (schema {schema_name} no aplicable)"}
+        return None, "salida_no_json", []
     try:
         validado = schema.model_validate(data)
     except Exception as e:
-        _registrar_descarte(state, key, "schema_invalido", str(e)[:400])
-        return {"kind": "warn", "name": key,
-                "msg": f"{key}: no cumple {schema_name} — {str(e)[:160]}"}
-    state[key] = validado.model_dump(exclude_none=True)
-    # Revisión lote 1 (T4): lo que el schema descartó o degradó NO se queda solo en
-    # `descartes_schema` del objeto: va a state['descartes'] (sección "Recortes y datos no
-    # verificables" del dictamen, analisis_full) y, si una lista perdió ítems (banderas
-    # legales, cruces de red, hallazgos web), se avisa por evento `warn`.
-    relevantes = []
+        return None, str(e)[:400], []
     try:
         relevantes = validado.descartes_relevantes() if hasattr(validado, "descartes_relevantes") else (
             validado.descartes() if hasattr(validado, "descartes") else [])
     except Exception:
         relevantes = []
+    return validado, None, relevantes
+
+
+def _estructurar_activo() -> bool:
+    return os.getenv("ESTRUCTURAR_SALIDAS", "1").strip().lower() not in ("0", "false", "no")
+
+
+def _validar_schema(state: dict, key: str, schema_name: str) -> list[dict]:
+    """Valida `state[key]` contra `agents._shared.schemas.<schema_name>` (WS M) en el DRIVER.
+
+    Los agentes con google_search no generan con `output_schema` (con esquema + grounding,
+    3.6-flash deja `grounding_chunks` vacío): escriben JSON en el texto y la forma puede
+    desviarse. Si la validación directa no calza (no es JSON, no valida o pierde ítems), la
+    salida se REESTRUCTURA con decodificación restringida (tools/estructurar.py: segunda llamada
+    sin herramientas, con el esquema, que solo reubica lo que la salida ya dice) y se queda la
+    versión que conserva más contenido. Lo que igual se descarte queda en `descartes` con su
+    evento `warn`. Sin schema (WS M) → no-op. Bloquea (llamada al modelo): el pipeline la
+    corre en un hilo."""
+    if _schemas is None:
+        return []
+    schema = getattr(_schemas, schema_name, None)
+    if schema is None:
+        return []
+    crudo = state.get(key)
+    data = _parse_json_flexible(crudo)
+    validado, error, relevantes = _intento(schema, data)
+    evento_estructura = None
+    if (error or relevantes) and _estructurar_activo() and crudo:
+        from tools.estructurar import estructurar
+        rehecho, info = estructurar(crudo, schema, agente=key)
+        v2, e2, r2 = _intento(schema, rehecho)
+        antes = _n_items(validado.model_dump(exclude_none=True)) if validado is not None else -1
+        despues = _n_items(v2.model_dump(exclude_none=True)) if v2 is not None else -1
+        usar = v2 is not None and (validado is None or (len(r2) < len(relevantes) and despues >= antes))
+        evento_estructura = {"kind": "info", "name": key, "agent": key, "msg": (
+            f"{key}: salida reestructurada con el esquema {schema_name} ({info.get('segundos')} s, "
+            f"{len(relevantes)}→{len(r2)} descartes)" if usar else
+            f"{key}: reestructurar no mejoró la salida ({info.get('error') or f'{len(r2)} descartes'})")}
+        if usar:
+            data, validado, error, relevantes = rehecho, v2, None, r2
+    if validado is None:
+        motivo = "salida_no_json" if data is None else "schema_invalido"
+        _registrar_descarte(state, key, motivo, None if data is None else error)
+        return [e for e in (evento_estructura, {"kind": "warn", "name": key, "msg": (
+            f"{key}: salida no es JSON (schema {schema_name} no aplicable)" if data is None
+            else f"{key}: no cumple {schema_name} — {str(error)[:160]}")}) if e]
+    state[key] = validado.model_dump(exclude_none=True)
+    # Revisión lote 1 (T4): lo que el schema descartó o degradó NO se queda solo en
+    # `descartes_schema` del objeto: va a state['descartes'] (sección "Recortes y datos no
+    # verificables" del dictamen, analisis_full) y, si una lista perdió ítems (banderas
+    # legales, cruces de red, hallazgos web), se avisa por evento `warn`.
     for d in relevantes:
         _registrar_descarte(state, f"{key}.{d.get('donde')}", str(d.get("motivo")), d.get("detalle"))
     perdidas = []
@@ -241,12 +280,13 @@ def _validar_schema(state: dict, key: str, schema_name: str) -> dict | None:
         if isinstance(antes, list) and isinstance(despues, list) and len(despues) < len(antes):
             perdidas.append(f"{campo} {len(antes)}→{len(despues)}")
     estado_final = getattr(validado, "estado", None)
+    eventos = [evento_estructura] if evento_estructura else []
     if perdidas or (estado_final == "no_verificable" and isinstance(data, dict)
                     and str(data.get("estado") or "").lower() not in ("", "no_verificable")):
         detalle = "; ".join(perdidas) if perdidas else "salida degradada a no_verificable"
-        return {"kind": "warn", "name": key,
-                "msg": f"{key}: {detalle} por schema ({len(relevantes)} descarte(s) anotados en state.descartes)"}
-    return None
+        eventos.append({"kind": "warn", "name": key,
+                        "msg": f"{key}: {detalle} por schema ({len(relevantes)} descarte(s) anotados en state.descartes)"})
+    return eventos
 
 
 def _norm_codigo(ocid: str) -> str:

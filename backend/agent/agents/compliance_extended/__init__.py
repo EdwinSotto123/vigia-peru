@@ -51,7 +51,9 @@ compliance_criterio_agent = Agent(
     description=prompt.DESCRIPTION,
     instruction=make_state_aware_instruction(prompt.INSTRUCTION_CRITERIO, config.STATE_INJECTIONS or []),
     tools=config.TOOLS_CRITERIO,
-    output_key=config.OUTPUT_KEY,
+    # Su reporte es prosa: va a su propia clave. `compliance_extended` lo arma el driver con las
+    # banderas que emitió (pipeline_reglas.resultado_juicio).
+    output_key="compliance_juicio",
     **_kw,
     **CALLBACKS,
 )

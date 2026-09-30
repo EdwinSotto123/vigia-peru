@@ -2,6 +2,9 @@
 
 from tools._core import *  # noqa: F401,F403
 from tools._core import downloader_base
+from datetime import date
+
+from tools import universidadperu as _up
 
 
 def _sunat_no_disponible(status: int, body: str) -> dict:
@@ -476,29 +479,6 @@ def clasificar_sanciones_oece(ruc: str, sanciones: list, inh_jud: list, inh_adm:
     return senales, {"n_vigentes": len(vigentes), "n_historicas": len(historicas), "detalle": detalle}
 
 
-_MESES_ES = {
-    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
-    "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10,
-    "noviembre": 11, "diciembre": 12,
-}
-
-
-def _up_slug(razon: str) -> str:
-    """Deriva el slug de universidadperu desde la razón social (best-effort, respaldo de la
-    búsqueda por RUC). El sitio quita artículos y preposiciones: "Banco de Crédito del Perú"
-    → banco-credito-peru, "Jurado Nacional de Elecciones" → jurado-nacional-elecciones."""
-    import unicodedata
-    s = unicodedata.normalize("NFD", razon or "")
-    s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
-    s = re.sub(r"\b(e\.?i\.?r\.?l|s\.?a\.?c|s\.?r\.?l(tda)?|s\.?a\.?a|s\.?a|s\.?c\.?r\.?l)\.?\b", "", s)
-    palabras = [p for p in re.split(r"[^a-z0-9]+", s) if p and p not in _UP_VACIAS]
-    return "-".join(palabras)
-
-
-_UP_VACIAS = {"de", "del", "la", "las", "los", "el", "y", "e", "en"}
-_UP_BASE = "https://www.universidadperu.com/empresas"
-
-
 def _fetch_text_via_downloader(url: str):
     """Trae el BODY (texto/HTML) de una URL vía el downloader local (IP PE +
     headers de navegador → pasa anti-bots que rechazan UAs mínimos). Fallback
@@ -529,11 +509,11 @@ def _fetch_text_via_downloader(url: str):
 
 def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) -> dict:
     """Fallback para EDAD del RUC (fecha de alta) y CIIU cuando decolecta no
-    tiene cuota. Scrapea universidadperu.com (vía downloader): primero su búsqueda
-    por RUC (redirige a la ficha de la empresa), y de respaldo un slug derivado de
-    la razón social. VERIFICA que el RUC de la página coincida con el pedido (si
-    no, descarta — nunca devuelve data de otra empresa). Las personas naturales
-    (RUC 10…) casi nunca tienen ficha.
+    tiene cuota: la ficha pública de universidadperu.com (tools/universidadperu.py),
+    vía downloader. Se llega por la búsqueda por RUC del sitio (o, de respaldo, por
+    el slug de la razón social) y solo se acepta si el campo RUC de la ficha es el
+    pedido: nunca devuelve datos de otra empresa. Las personas naturales (RUC 10…)
+    casi nunca tienen ficha.
 
     Args:
         ruc: RUC peruano de 11 dígitos.
@@ -544,59 +524,22 @@ def query_edad_ciiu_web(ruc: str, razon_social: str, tool_context: ToolContext) 
         o {found: false} si el slug no resolvió o el RUC no coincide.
     """
     ruc = (ruc or "").strip().replace("PE-RUC-", "")
-    if len(ruc) != 11 or not ruc.isdigit() or not razon_social:
-        return {"found": False, "razon": "RUC inválido o sin razón social para derivar slug."}
-    slug = _up_slug(razon_social)
-    # Hasta 2026-09-29 solo se probaba el slug y fallaba en el 100 % de un lote de 75 contratos:
-    # el sitio quita "de/del/la…" del slug. La búsqueda por RUC no adivina nada.
-    candidatas = [f"{_UP_BASE}/busqueda/?buscaempresa={ruc}"] + ([f"{_UP_BASE}/{slug}.php"] if slug else [])
-    html, fuente_url, motivo = None, None, "página no encontrada o fetch falló."
-    for url in candidatas:
-        body = _fetch_text_via_downloader(url)
-        if not body:
-            continue
-        # VERIFICACIÓN DE RUC: el slug puede caer en otra empresa de nombre similar, y la búsqueda
-        # sin resultados devuelve una página "No existe Dicha Empresa" que igual repite el RUC en
-        # sus enlaces: se exige la ficha (su campo de fecha de inicio) además del RUC.
-        if ruc in re.findall(r"\b(\d{11})\b", body) and "Fecha Inicio Actividades" in body:
-            html, fuente_url = body, url
-            break
-        motivo = f"sin ficha con el RUC {ruc} (búsqueda por RUC y slug {slug!r})."
-    if not html:
-        if ruc.startswith("10"):
-            motivo = "persona natural (RUC 10…): universidadperu no publica su ficha."
-        return {"found": False, "slug": slug, "razon": motivo}
-
-    def _campo(label):
-        m = re.search(re.escape(label) + r"\s*</[^>]+>\s*<[^>]+>\s*([^<]{1,80})", html)
-        return m.group(1).strip() if m else None
-
-    fecha_txt = _campo("Fecha Inicio Actividades")  # ej. "30 / Diciembre / 2023"
-    fecha_iso, edad_dias = None, None
-    if fecha_txt:
-        m = re.match(r"(\d{1,2})\s*/\s*([A-Za-zÁÉÍÓÚáéíóú]+)\s*/\s*(\d{4})", fecha_txt)
-        if m:
-            import unicodedata
-            mes = "".join(c for c in unicodedata.normalize("NFD", m.group(2).lower())
-                          if unicodedata.category(c) != "Mn")
-            mm = _MESES_ES.get(mes)
-            if mm:
-                try:
-                    from datetime import date
-                    d = date(int(m.group(3)), mm, int(m.group(1)))
-                    fecha_iso = d.isoformat()
-                    edad_dias = (date.today() - d).days
-                except Exception:
-                    pass
-
+    if len(ruc) != 11 or not ruc.isdigit():
+        return {"found": False, "razon": "RUC inválido."}
+    ficha, fuente_url, motivo = _up.ficha_por_ruc(ruc, razon_social or "", _fetch_text_via_downloader)
+    if ficha is None:
+        return {"found": False, "slug": _up.slug(razon_social or ""), "razon": motivo}
+    inicio = _up.fecha_inicio(ficha.get("fecha inicio actividades"))
+    fecha_iso = inicio.isoformat() if inicio else None
+    edad_dias = (date.today() - inicio).days if inicio else None
     out = {
         "found": True,
         "ruc": ruc,
-        "fecha_inicio_actividades": fecha_iso or fecha_txt,
+        "fecha_inicio_actividades": fecha_iso or ficha.get("fecha inicio actividades"),
         "edad_dias": edad_dias,
-        "ciiu": _campo("CIIU"),
-        "tipo": _campo("Tipo Empresa"),
-        "estado_domicilio": _campo("Estado Domicilio"),
+        "ciiu": ficha.get("ciiu"),
+        "tipo": ficha.get("tipo empresa"),
+        "estado_domicilio": ficha.get("estado domicilio"),
         "fuente_url": fuente_url,
         "_source": "universidadperu",
     }

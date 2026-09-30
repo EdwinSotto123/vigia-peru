@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from pipeline_guardrails import _bloque_recortes, _bloque_validaciones, _dictamen_problems, _sanitize_dictamen
-from pipeline_reglas import (fase_compliance_codigo, hay_datos_para_juicio, mensaje_juicio,
+from pipeline_reglas import (fase_compliance_codigo, hay_datos_para_juicio, mensaje_juicio, resultado_juicio,
                              reglas_en_codigo, reglas_extendidas_codigo)
 from pipeline_runtime import _tool, _truncate_result
 from pipeline_state import _aplicar_delta, _backfill_document_analysis, _is_empty_output, _kwargs_soportados, _registrar_descarte, _registrar_recorte
@@ -57,7 +57,7 @@ class PipelineCtx:
     run_agent_isolated: Callable
     run_agent_delta: Callable
     perm: Callable              # (nombre) -> bool
-    validar: Callable           # (key, schema_name) -> evento|None
+    validar: Callable           # (key, schema_name) -> [eventos] (bloquea: correr en hilo)
 
 
 # ── Helpers que reemplazan a los closures de `_pipeline` ────────────────────────────────
@@ -306,8 +306,7 @@ async def fase_legal(pc: PipelineCtx):
                           f"read_document_analysis() para obtener el JSON real del parser antes de emitir banderas.",
                           "legal_analysis"):
         yield e
-    _vev = pc.validar("legal_analysis", "LegalOutput")
-    if _vev:
+    for _vev in await asyncio.to_thread(pc.validar, "legal_analysis", "LegalOutput"):
         yield _vev
     evs, _ = await t_call(pc, pc.T.persist_doc_flags_as_banderas, "persist_doc_flags_as_banderas", alerta_codigo=pc.alerta_codigo)
     for e in evs:
@@ -501,8 +500,7 @@ async def fase_research(pc: PipelineCtx):
     for _k, _sn in (("web_research", "WebResearchOutput"), ("news_research", "NewsOutput"),
                     ("entity_personnel", "EntityPersonnelOutput")):
         if pc.perm(_k):
-            _vev = pc.validar(_k, _sn)
-            if _vev:
+            for _vev in await asyncio.to_thread(pc.validar, _k, _sn):
                 yield _vev
 
     # ── Lookup de funcionarios descubiertos (común a ambos caminos) ──
@@ -571,8 +569,7 @@ async def fase_person_network(pc: PipelineCtx):
                                      {"vinculos_detectados": [], "sin_red_detectada": True,
                                       "_note": "person_network sin vínculos tras reintento"}):
         yield e
-    _vev = pc.validar("person_network", "PersonNetworkOutput")
-    if _vev:
+    for _vev in await asyncio.to_thread(pc.validar, "person_network", "PersonNetworkOutput"):
         yield _vev
 
 
@@ -591,18 +588,14 @@ async def fase_compliance_ext(pc: PipelineCtx):
         elif not hay_datos_para_juicio(pc):
             yield {"kind": "phase", "name": "compliance_extended",
                    "msg": "sin datos de SUNAT, web ni red de personas: no hay juicio contextual que hacer"}
+            pc.state["compliance_extended"] = {"estado": "sin_dato", "modo": "juicio", "banderas_juicio": [],
+                                               "motivo": "sin datos de SUNAT, web ni red de personas"}
         else:
             yield {"kind": "phase", "name": "compliance_extended", "msg": "juicio contextual (2 banderas de criterio)"}
-            async for e in agent_call(pc, pc.A.compliance_criterio_agent, mensaje_juicio(pc), "compliance_extended"):
+            _desde = len(pc.state.get("pending_flags") or [])   # corre tras el join: nadie más agrega
+            async for e in agent_call(pc, pc.A.compliance_criterio_agent, mensaje_juicio(pc), "compliance_juicio"):
                 yield e
-            # En modo juicio el prompt pide un REPORTE en texto plano (las banderas van por
-            # `add_contextual_flag` y las 12 reglas ya corrieron en código). Persistido tal cual,
-            # el texto no parseaba como JSON y el persist lo descartaba en el 100 % de un lote
-            # de 78 contratos (243 descartes "json_no_parseable"): se guarda estructurado.
-            _rep = pc.state.get("compliance_extended")
-            if isinstance(_rep, str) and _rep.strip() and not _rep.lstrip().startswith(("{", "```")):
-                pc.state["compliance_extended"] = {"estado": "ok", "modo": "juicio",
-                                                   "resumen": _rep.strip()[:2000]}
+            pc.state["compliance_extended"] = resultado_juicio(pc.state, _desde)
     elif pc.perm("compliance_extended"):
         yield {"kind": "phase", "name": "compliance_extended", "msg": "cumplimiento normativo extendido"}
         async for e in agent_call(pc, pc.A.compliance_extended_agent,

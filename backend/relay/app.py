@@ -159,7 +159,17 @@ def fetch(
         buf.write(chunk)
 
     content_type = (r.headers.get("content-type") or "").split(";")[0].strip()
-    text = buf.getvalue().decode("utf-8", errors="replace")
+    # Con la codificación de la respuesta (cabecera o, si falta, la que detecta requests): antes
+    # se asumía UTF-8 y una página Latin-1 (universidadperu) llegaba con "Condici�n".
+    raw = buf.getvalue()
+    encoding = r.encoding if r.headers.get("content-type", "").lower().find("charset=") >= 0 else None
+    if not encoding:
+        try:
+            raw.decode("utf-8")
+            encoding = "utf-8"
+        except UnicodeDecodeError:
+            encoding = r.apparent_encoding or "latin-1"
+    text = raw.decode(encoding, errors="replace")
     log.info("FETCH %s · HTTP %d · %d bytes · %s", req.url[:80], r.status_code, total, content_type)
     return {
         "ok": r.status_code == 200,

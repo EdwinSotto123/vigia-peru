@@ -51,3 +51,17 @@ def perfil_env(monkeypatch):
         importlib.reload(profiles)
         return profiles
     return _set
+
+
+@pytest.fixture(autouse=True)
+def _sin_estructurador_real(monkeypatch):
+    """El estructurador (tools/estructurar.py) llama a Gemini: fuera de los tests `live`, cada
+    test que lo necesite lo reemplaza por uno falso. Sin esto, una validación que no calza
+    haría una llamada de red silenciosa."""
+    if RUN_LIVE:
+        return
+    import tools.estructurar as E
+
+    def _sin_red(crudo, modelo, agente, **_kw):
+        return None, {"segundos": 0, "error": "estructurador desactivado en tests"}
+    monkeypatch.setattr(E, "estructurar", _sin_red)

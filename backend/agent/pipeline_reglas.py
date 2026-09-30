@@ -156,6 +156,20 @@ def hay_datos_para_juicio(pc) -> bool:
     return any(_bloque_util(pc.state.get(k)) for k in ("sunat_decolecta", "web_research", "person_network"))
 
 
+def resultado_juicio(state: dict, desde: int) -> dict:
+    """`compliance_extended` del modo juicio, armado con lo que el agente HIZO (las banderas que
+    agregó a `pending_flags` durante su llamada, de la posición `desde` en adelante), no con lo
+    que escribió. Su reporte en prosa va aparte (`compliance_juicio`) y se adjunta como texto.
+    Antes el prompt pedía prosa bajo la misma clave que el persist lee como JSON, y la salida se
+    descartaba en todos los análisis (243 descartes en un lote de 78)."""
+    nuevas = (state.get("pending_flags") or [])[desde:]
+    banderas = [{k: b.get(k) for k in ("regla", "severidad", "evidencia", "norma", "fuente_url")}
+                for b in nuevas if isinstance(b, dict)]
+    reporte = state.get("compliance_juicio")
+    return {"estado": "hallado" if banderas else "sin_dato", "modo": "juicio", "banderas_juicio": banderas,
+            "reporte": reporte.strip()[:2000] if isinstance(reporte, str) and reporte.strip() else None}
+
+
 def mensaje_juicio(pc) -> str:
     """Mensaje del agente de juicio: monto y ganador del OCDS (la bandera de capacidad operativa
     exige citar el monto) y las reglas deterministas que dispararon, en forma compacta."""
