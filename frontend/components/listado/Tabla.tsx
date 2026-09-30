@@ -254,18 +254,21 @@ export function CeldaPrincipal({
   textoCompleto,
   meta,
   className,
+  dosLineas = false,
 }: {
   titulo: ReactNode;
   textoCompleto?: string;
   /** La línea de contexto. Un arreglo son datos distintos (entidad, zona…): van separados por aire (`Partes`). */
   meta?: ReactNode;
   className?: string;
+  /** Una línea más (3 en móvil, 2 en escritorio): cuando el título ES el dato (qué se compra) y la columna es angosta. */
+  dosLineas?: boolean;
 }) {
   const tooltip = textoCompleto ?? (typeof titulo === "string" ? titulo : undefined);
   const lineaMeta = Array.isArray(meta) ? (meta.some(hayDato) ? <Partes partes={meta} /> : null) : meta;
   return (
     <span className={cn("block w-full min-w-0", className)}>
-      <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink lg:line-clamp-1" title={tooltip}>
+      <span className={cn("text-[14px] font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
       {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute">{lineaMeta}</span>}

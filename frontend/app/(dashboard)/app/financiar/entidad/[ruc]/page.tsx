@@ -291,6 +291,7 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
         ),
         contrato: (
           <CeldaPrincipal
+            dosLineas
             titulo={c.objeto || "Contrato sin objeto registrado"}
             meta={
               c.codigo ? (
