@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { conCache, parametros } from "../lib/http.js";
+import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import {
   convergenciaPublica, latPublica, lonPublica, reporteIdsPublicos, reportePublico,
 } from "../lib/publicacion.js";
@@ -155,7 +156,8 @@ const CreateReporte = z.object({
   anonimo: z.boolean().optional().default(true),
 });
 
-reportesRouter.post("/", async (c) => {
+// Denuncia ciudadana sin sesión: límite por IP y captcha (lib/antibots.ts).
+reportesRouter.post("/", limiteEscritura, exigirCaptcha, async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = CreateReporte.safeParse(body);
   if (!parsed.success) {

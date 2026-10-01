@@ -63,7 +63,9 @@ app.use("*", cors({
   },
   allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   // Sin x-admin-*: el panel pasa por el proxy del servidor del frontend (servidor a servidor, sin CORS).
-  allowHeaders: ["Content-Type", "Authorization"],
+  // cf-turnstile-response: el token del captcha de las escrituras públicas (lib/antibots.ts).
+  allowHeaders: ["Content-Type", "Authorization", "cf-turnstile-response"],
+  exposeHeaders: ["Retry-After"],
   maxAge: 600,
 }));
 

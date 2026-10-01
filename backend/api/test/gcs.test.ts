@@ -13,7 +13,8 @@ import { cuentaFalsa, simularFetch } from "./ayuda.js";
 
 const cuenta = cuentaFalsa();
 const sdk = new Storage({ projectId: "proyecto-prueba", credentials: { client_email: cuenta.email, private_key: cuenta.pemPrivado } });
-const AHORA = Date.UTC(2026, 8, 26, 14, 3, 27, 512);
+// Relativo al reloj real: el SDK rechaza un vencimiento pasado (con una fecha fija, el test caducaba).
+const AHORA = Math.floor(Date.now() / 1000) * 1000 - 60_000;
 
 const casos = [
   { nombre: "subida (write + content-type)", bucket: "vigia-peru-documentos", ruta: "uid123/1758900000000-foto_1.jpg", o: { action: "write" as const, expires: AHORA + 15 * 60 * 1000, contentType: "image/jpeg" } },

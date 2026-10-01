@@ -22,6 +22,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { optionalAuth } from "../lib/auth.js";
+import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { hayAporteEntidad } from "../lib/esquema.js";
@@ -64,7 +65,8 @@ const CrearBody = z.object({
 });
 
 // ─── POST /contribuciones ────────────────────────────────────────────────────
-contribucionesRouter.post("/", optionalAuth, async (c) => {
+// Límite por IP primero (no gasta siteverify en una ráfaga) y después el captcha (lib/antibots.ts).
+contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, async (c) => {
   const body = CrearBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
   const { ubigeo, entidadRuc, contratos, financiador: f, mensajePublico, metodo } = body.data;
@@ -212,7 +214,7 @@ const ComprobanteBody = z.object({
   email: z.string().trim().max(254).optional(),
 });
 
-contribucionesRouter.post("/:codigo/comprobante", optionalAuth, async (c) => {
+contribucionesRouter.post("/:codigo/comprobante", limiteEscritura, exigirCaptcha, optionalAuth, async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
   const body = ComprobanteBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);

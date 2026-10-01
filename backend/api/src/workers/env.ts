@@ -20,8 +20,12 @@ export interface Env {
 
   /** Service binding al Worker vigia-dispatcher (lib/dispatcher.ts: "correr el dispatcher ahora"). */
   DISPATCHER?: { fetch(input: string, init?: RequestInit): Promise<Response> };
+  /** Rate Limiting por IP y ruta de las escrituras públicas (lib/antibots.ts): 10 por 60 s. */
+  LIMITE_ESCRITURA?: { limit(o: { key: string }): Promise<{ success: boolean }> };
 
   // secretos
   ADMIN_TOKEN?: string;
   GCP_SA_KEY?: string;
+  /** Secreto del widget Turnstile (lib/antibots.ts). */
+  TURNSTILE_SECRET_KEY?: string;
 }

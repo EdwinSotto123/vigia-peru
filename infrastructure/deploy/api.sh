@@ -25,5 +25,5 @@ gcloud_entrada run deploy vigia-peru-api \
   --min-instances "${MIN_INSTANCIAS:-0}" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
   --update-env-vars "^|^${CONEXION}PGUSER=vigia_api|PGUSER_ADMIN=vigia_api_admin|PGDATABASE=vigia|FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}|GCS_PROJECT_ID=${BUCKETS_PROJECT_ID}|AGENT_HOST_SUFFIX=${AGENT_HOST_SUFFIX}|GCS_BUCKET_DOCUMENTOS=${BUCKET_DOCUMENTOS}|GCS_BUCKET_REPORTES=${BUCKET_REPORTES}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|LOCAL_DOWNLOADER_URL=${LOCAL_DOWNLOADER_URL:-https://vigia-relay.vigiaperu.workers.dev}|DISPATCHER_URL=${DISPATCHER_URL:-https://vigia-dispatcher.vigiaperu.workers.dev}" \
-  --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest,DISPATCHER_TOKEN=dispatcher-cloudflare-token:latest" \
+  --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest,DISPATCHER_TOKEN=dispatcher-cloudflare-token:latest,TURNSTILE_SECRET_KEY=turnstile-secret:latest" \
   --quiet

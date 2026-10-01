@@ -27,6 +27,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { requireAuth } from "../lib/auth.js";
+import { limiteEscritura } from "../lib/antibots.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { columnaAusente, conPerfilAliado, hayAporteEntidad, perfilEditableDesdeCuenta } from "../lib/esquema.js";
 import {
@@ -113,7 +114,7 @@ const PERFIL_NO_DISPONIBLE = {
   detail: "Todavía no podemos guardar tu perfil público: estamos terminando de habilitarlo. Inténtalo más tarde; el resto de tu cuenta sí se guarda.",
 };
 
-cuentasRouter.put("/me", async (c) => {
+cuentasRouter.put("/me", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = PutBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) {
@@ -276,7 +277,7 @@ const SeguirBody = z.object({
   id: z.string().trim().min(2).max(20),
 });
 
-cuentasRouter.post("/me/seguir", async (c) => {
+cuentasRouter.post("/me/seguir", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = SeguirBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
@@ -292,7 +293,7 @@ cuentasRouter.post("/me/seguir", async (c) => {
   return c.json(await perfil(u.uid));
 });
 
-cuentasRouter.delete("/me/seguir", async (c) => {
+cuentasRouter.delete("/me/seguir", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = SeguirBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
@@ -306,7 +307,7 @@ cuentasRouter.delete("/me/seguir", async (c) => {
 // ─── POST /cuentas/me/reclamar — aporte hecho como invitado → mi cuenta ──────
 // El código es público (está en la URL del comprobante); el correo con el que se aportó es privado:
 // ambos juntos son la prueba de que el aporte es tuyo.
-cuentasRouter.post("/me/reclamar", async (c) => {
+cuentasRouter.post("/me/reclamar", limiteEscritura, async (c) => {
   const u = c.get("user");
   const body = z.object({ codigo: z.string().trim().max(20), email: z.string().trim().email() }).safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body" }, 400);
@@ -378,7 +379,7 @@ cuentasRouter.get("/me/exportar", async (c) => {
 });
 
 // ─── DELETE /cuentas/me ──────────────────────────────────────────────────────
-cuentasRouter.delete("/me", async (c) => {
+cuentasRouter.delete("/me", limiteEscritura, async (c) => {
   const u = c.get("user");
   const r = await pool.query(`SELECT borrar_cuenta($1) AS aportes`, [u.uid]);
   c.header("Cache-Control", "private, no-store");

@@ -52,6 +52,10 @@ class Ambito implements AmbitoPedido {
     return nombre === "dispatcher" ? this.env.DISPATCHER : undefined;
   }
 
+  limitador(nombre: "escritura") {
+    return nombre === "escritura" ? this.env.LIMITE_ESCRITURA : undefined;
+  }
+
   seguir(p: Promise<unknown>): void {
     const t = p.then(nada, nada);
     this.tareas.add(t);
