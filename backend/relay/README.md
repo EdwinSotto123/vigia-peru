@@ -1,4 +1,10 @@
-# Vigía — Servicio local de descarga (puente residencial PE)
+# Vigía — Servicio local de descarga (puente residencial PE) · RETIRADO
+
+> **Retirado el 30/09/2026.** El VPS de Lima que lo corría ya no existe. Lo reemplaza el Worker
+> `vigia-relay` (`backend/relay-worker`, misma API `/health`, `/fetch`, `/download`), que corre en
+> Zúrich por `placement`: OECE y SEACE filtran por la IP de salida y aceptan la de ese punto de
+> Cloudflare aunque lo llame Cloud Run. Este código queda como referencia para correrlo en una PC con
+> IP peruana si alguna vez hiciera falta.
 
 SEACE bloquea IPs de datacenter (Cloud Run, Cloudflare colos) con `403`, pero
 acepta IPs residenciales peruanas. Este contenedor corre en **tu máquina** (IP

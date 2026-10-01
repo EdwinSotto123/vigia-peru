@@ -73,7 +73,8 @@
   evaluadores (4 LLM-as-judge + 2 deterministas).
 - **Persistencia resiliente.** El `analisis_full` se persiste en un **checkpoint ANTES del
   dictamen** (el paso más largo) → un timeout ya no deja el dossier vacío.
-- **Relay residencial PE.** VPS en Lima (`LOCAL_DOWNLOADER_URL`) baja OCDS + PDFs por IP peruana;
+- **Relay de descargas.** El Worker `vigia-relay` (`LOCAL_DOWNLOADER_URL`, ubicado en Zúrich: OECE y SEACE
+  filtran por la IP de salida y aceptan la de ese punto de Cloudflare; el VPS de Lima ya no existe) baja OCDS + PDFs;
   Cloudflare Worker como fallback. Sin esto, la capa máquina queda ciega.
 - **Lectura ≠ escritura.** Los dossiers cacheados se sirven por `vigia-peru-api` (barato); el
   orquestador (caro) solo corre análisis **nuevos**.

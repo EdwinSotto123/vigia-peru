@@ -107,7 +107,7 @@ FIJAS = {
     "GEMINI_MODEL": "gemini-3.6-flash", "GEMINI_MODEL_SMART": "gemini-3.6-flash",
     "GEMINI_MODEL_FAST": "gemini-3.5-flash-lite", "GEMINI_MODEL_JUDGE": "gemini-3.5-flash-lite", "GEMINI_FLEX": "1",
     "GOOGLE_CLOUD_LOCATION": "global", "VERTEX_LOCATION": "global", "GOOGLE_GENAI_USE_VERTEXAI": "true",
-    "LOCAL_DOWNLOADER_URL": "http://149.104.66.211:8080", "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev",
+    "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev", "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev",
     "LOG_EXECUTION_ID": "true", "OPENINFERENCE_HIDE_INPUT_IMAGES": "true",
     "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT": "100000", "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT": "100000",
     "PHOENIX_COLLECTOR_ENDPOINT": "https://app.phoenix.arize.com/s/edwin-soto-c/v1/traces",

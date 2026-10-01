@@ -1,7 +1,10 @@
 {
-  // Réplica en Cloudflare del relay de Lima (backend/relay/app.py): misma API y mismo token.
-  // Desde Cloudflare, OECE y SEACE responden 200 (medido 2026-09-26), cosa que desde GCP no pasa.
+  // Reemplaza al relay de Lima (backend/relay/app.py, ese VPS ya no existe): misma API.
+  // OECE y SEACE filtran por la IP de salida del punto de Cloudflare (ver src/index.ts): con esta
+  // ubicación el Worker corre en Zúrich, donde responden 200, aunque lo llame Cloud Run desde EE.UU.
+  // Medido 2026-09-30: Zúrich y Buenos Aires 200; Chicago, Dallas, Santiago, São Paulo y Fráncfort 403.
   "name": "vigia-relay",
+  "placement": { "mode": "targeted", "region": "gcp:europe-west6" },
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true },

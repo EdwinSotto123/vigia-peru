@@ -50,7 +50,7 @@ Las de `infrastructure/deploy/api.sh`, sin las de conexión (`PGHOST`, `PGUSER`,
 | `GCS_BUCKET_DOCUMENTOS` | `vigia-peru-documentos` |
 | `GCS_BUCKET_REPORTES` | `vigia-peru-reportes` |
 | `ALLOWED_ORIGINS` | los orígenes de api.sh (sumar el del frontend que llame a esta réplica) |
-| `LOCAL_DOWNLOADER_URL` | `http://149.104.66.211:8080` (ver "Diferencias") |
+| `LOCAL_DOWNLOADER_URL` | `https://vigia-relay.vigiaperu.workers.dev` (el Worker `vigia-relay`) |
 
 Opcionales con el mismo valor por defecto que en Cloud Run: `GCS_BUCKET_PRIVADO`,
 `DISPATCHER_REGION`, `DISPATCHER_JOB`, `AGENT_HOST_SUFFIX`, `AGENT_URL_BIENES|SERVICIOS|OBRAS|OTROS`,
@@ -98,9 +98,9 @@ Wrangler no está entre las dependencias (el build de Cloud Run no lo necesita):
 
 ## Diferencias con Cloud Run
 
-- **Relay por IP**: Workers no hace `fetch` a una IP pelada (error 1003). El sondeo del relay en
-  `/admin/operacion` y `/admin/salud` lo va a dar caído hasta que `LOCAL_DOWNLOADER_URL` sea un nombre
-  DNS (un registro A hacia la VPS). Sólo afecta a ese indicador del panel.
+- **Relay**: desde el 30/09/2026 es el Worker `vigia-relay` (un nombre DNS), así que el sondeo de
+  `/admin/operacion` y `/admin/salud` funciona igual en Workers y en Cloud Run. (Con la IP pelada del
+  VPS de Lima, Workers daba error 1003.)
 - **Cachés en memoria**: una por isolate, con más isolates y más cortos que las instancias de Cloud
   Run. La invalidación entre instancias (`ajustes.cache_gen`) funciona igual.
 - **Conexiones**: hasta 3 (público) + 2 (panel) por pedido; Workers deja 6 abiertas a la vez contando

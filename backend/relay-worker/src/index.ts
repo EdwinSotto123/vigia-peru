@@ -5,16 +5,18 @@
  *   GET  /health    → {ok, bucket, project, protected}
  *   POST /fetch     {url}                 → {ok, status, content_type, body}   (metadata OCDS)
  *   POST /download  {url, ocid, filename} → sube a gs://<bucket>/convocatorias/<ocid>/<archivo>
+ *   POST /raw       {url}                 → los bytes tal cual, con el status del origen
  *
- * Dónde funciona (medido 2026-09-26): OECE y SEACE filtran por ubicación. Un Worker corre en el punto
- * de Cloudflare más cercano a quien lo llama:
- *   · llamado desde Perú (punto EZE): OCDS y documentos de SEACE responden 200;
- *   · llamado desde GCP us-central1 (punto ORD), con `placement` en us-central1 o en
- *     southamerica-west1, o desde un Durable Object con locationHint "sam" (queda en ATL): 403.
- * O sea: sirve para quien llama desde Perú (scripts locales, el frontend de Cloudflare atendiendo a un
- * usuario peruano); todavía NO reemplaza al relay de Lima para los agentes de Cloud Run.
- * A diferencia del relay de Lima, solo acepta URLs de *.gob.pe: con el token filtrado no sirve
- * como proxy abierto.
+ * Dónde funciona: OECE (API OCDS) y prod1.seace.gob.pe filtran por la IP de SALIDA, que en un Worker
+ * es la del punto de Cloudflare donde corre (no se reenvía la IP de quien llama). Medido 2026-09-30 con
+ * sondas llamadas desde GCP us-central1 y desde Perú:
+ *   · 200: salida por Buenos Aires (EZE) o Zúrich (ZRH);
+ *   · 403: Chicago (ORD), Dallas (DFW), Santiago (SCL), São Paulo (GRU), Fráncfort (FRA).
+ * Sin `placement`, el Worker corre donde entra la llamada: desde Perú (entra por EZE) funcionaba y
+ * desde Cloud Run (entra por ORD) no. Con `placement` en la región gcp:europe-west6 (wrangler.jsonc)
+ * corre siempre en Zúrich, llame quien llame: así reemplaza al relay de Lima, que ya no existe.
+ * Además de *.gob.pe acepta la ficha de empresas de universidadperu.com (respaldo de SUNAT); con el
+ * token filtrado no sirve como proxy abierto.
  */
 import { subirGcs, tokenGoogle } from "./gcp";
 
@@ -50,11 +52,16 @@ function autorizado(req: Request, env: Env): boolean {
   return iguales(dado, esperado);
 }
 
+/** *.gob.pe y la ficha pública de empresas de universidadperu.com (fecha de inicio y CIIU). */
+function hostPermitido(h: string): boolean {
+  return h === "gob.pe" || h.endsWith(".gob.pe") || h === "www.universidadperu.com";
+}
+
 function urlPermitida(u: string): URL | null {
   try {
     const p = new URL(u);
     if (!["http:", "https:"].includes(p.protocol)) return null;
-    return p.hostname === "gob.pe" || p.hostname.endsWith(".gob.pe") ? p : null;
+    return hostPermitido(p.hostname) ? p : null;
   } catch {
     return null;
   }
@@ -84,7 +91,7 @@ async function leerConTope(r: Response, maximo: number): Promise<ArrayBuffer | n
 async function fetchUrl(req: Request, env: Env): Promise<Response> {
   const { url } = (await req.json().catch(() => ({}))) as { url?: string };
   const u = urlPermitida(url || "");
-  if (!u) return error(400, "url inválida o fuera de *.gob.pe");
+  if (!u) return error(400, "url inválida o fuera de los dominios permitidos");
   let r: Response;
   try {
     r = await fetch(u.toString(), { headers: { "User-Agent": UA, Referer: `${u.protocol}//${u.host}/`, Accept: "application/json, */*" } });
@@ -97,14 +104,63 @@ async function fetchUrl(req: Request, env: Env): Promise<Response> {
     ok: r.status === 200,
     status: r.status,
     content_type: (r.headers.get("content-type") || "").split(";")[0].trim(),
-    body: new TextDecoder().decode(datos),
+    body: decodificar(datos, r.headers.get("content-type")),
+  });
+}
+
+/**
+ * El texto con la codificación real de la respuesta. El encabezado no basta: universidadperu declara
+ * UTF-8 y manda Latin-1 ("Condici�n"). Se prueba UTF-8 estricto; si los bytes no lo son, la etiqueta
+ * del encabezado (si es otra) y, si no, Latin-1.
+ */
+function decodificar(datos: ArrayBuffer, contentType: string | null): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(datos);
+  } catch {
+    // no es UTF-8 válido
+  }
+  const charset = /charset=([^;]+)/i.exec(contentType || "")?.[1]?.trim().replace(/"/g, "").toLowerCase();
+  if (charset && charset !== "utf-8" && charset !== "utf8") {
+    try {
+      return new TextDecoder(charset).decode(datos);
+    } catch {
+      // etiqueta desconocida
+    }
+  }
+  // Latin-1 a mano: cada byte es su punto de código (no depende de qué etiquetas acepte el runtime).
+  const b = new Uint8Array(datos);
+  let s = "";
+  for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode(...b.subarray(i, i + 8192));
+  return s;
+}
+
+/** Los bytes tal cual (para el lote que descarga en la nube): mismo control de dominio y tope. */
+async function crudo(req: Request, env: Env): Promise<Response> {
+  const { url } = (await req.json().catch(() => ({}))) as { url?: string };
+  const u = urlPermitida(url || "");
+  if (!u) return error(400, "url inválida o fuera de los dominios permitidos");
+  let r: Response;
+  try {
+    r = await fetch(u.toString(), { headers: { "User-Agent": UA, Referer: `${u.protocol}//${u.host}/`, Accept: "*/*" } });
+  } catch (e) {
+    return error(502, `fetch_exception: ${String(e).slice(0, 200)}`);
+  }
+  const datos = await leerConTope(r, Number(env.MAX_BYTES));
+  if (!datos) return error(413, `body > ${env.MAX_BYTES} bytes`);
+  return new Response(datos, {
+    status: r.status,
+    headers: {
+      "content-type": r.headers.get("content-type") || "application/octet-stream",
+      "x-relay-status": String(r.status),
+      ...(r.headers.get("content-disposition") ? { "content-disposition": r.headers.get("content-disposition") as string } : {}),
+    },
   });
 }
 
 async function download(req: Request, env: Env): Promise<Response> {
   const cuerpo = (await req.json().catch(() => ({}))) as { url?: string; ocid?: string; filename?: string };
   const u = urlPermitida(cuerpo.url || "");
-  if (!u) return error(400, "url inválida o fuera de *.gob.pe");
+  if (!u) return error(400, "url inválida o fuera de los dominios permitidos");
   let r: Response;
   try {
     r = await fetch(u.toString(), { headers: { "User-Agent": UA, Referer: "https://prod1.seace.gob.pe/", Accept: "*/*" } });
@@ -142,8 +198,9 @@ export default {
     if (req.method === "GET" && pathname === "/health") {
       return json({ ok: true, bucket: env.GCS_BUCKET, project: env.GCP_PROJECT, protected: Boolean((env.VIGIA_DL_TOKEN || "").trim()) });
     }
-    if (req.method !== "POST" || !["/fetch", "/download"].includes(pathname)) return error(404, "no encontrado");
+    if (req.method !== "POST" || !["/fetch", "/download", "/raw"].includes(pathname)) return error(404, "no encontrado");
     if (!autorizado(req, env)) return error(401, "unauthorized");
+    if (pathname === "/raw") return crudo(req, env);
     return pathname === "/fetch" ? fetchUrl(req, env) : download(req, env);
   },
 } satisfies ExportedHandler<Env>;
