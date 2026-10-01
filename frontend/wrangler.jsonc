@@ -19,6 +19,8 @@
     // Revalidación ISR: el worker se pide a sí mismo la página vencida (open-next.config.ts).
     { "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web" }
   ],
+  // Subidas por IP en /api/upload (lib/limite-ip.ts): 10 cada 60 s. Fuera de Workers, en memoria.
+  "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } }],
   "vars": {
     "VIGIA_API_URL": "https://vigia-api.vigiaperu.workers.dev",
     "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",

@@ -10,6 +10,10 @@
  *   · la sesión (Firebase ID token), si la cuenta es la dueña del aporte (Mi impacto);
  *   · el correo con el que se registró el aporte (el formulario lo pasa por `email`; si no se
  *     conoce y no hay sesión, se le pide a la persona).
+ *
+ * Contra bots: la subida del archivo (/api/upload) y el POST del comprobante llevan cada uno su
+ * token de Turnstile (`useTurnstile`, uno nuevo por pedido). El widget sólo se ve si Cloudflare
+ * pide marcar la casilla, debajo del botón.
  */
 
 import { useEffect, useId, useState } from "react";
@@ -18,6 +22,8 @@ import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { idToken } from "@/lib/cuentas";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
+import { useTurnstile } from "@/components/seguridad/Turnstile";
+import { CABECERA_TURNSTILE, cabeceraTurnstile, mensajeBots } from "@/components/seguridad/mensajes";
 
 const ERRORES: Record<string, string> = {
   invalid_body: "El archivo subió, pero no pudimos asociarlo al aporte. Inténtalo de nuevo.",
@@ -61,6 +67,7 @@ export function SubirComprobante({
   const [pedirCorreo, setPedirCorreo] = useState(false);
   // URL del archivo ya subido: si la API rechaza la titularidad, reintentar no vuelve a subirlo.
   const [urlSubida, setUrlSubida] = useState<string | null>(null);
+  const verificacion = useTurnstile("comprobante");
 
   useEffect(() => { if (email?.trim()) setCorreo(email.trim()); }, [email]);
 
@@ -86,17 +93,27 @@ export function SubirComprobante({
     try {
       let url = urlSubida;
       if (!url) {
+        // Cada pedido lleva su propio token de Turnstile: sirve una sola vez.
+        const verificadoSubida = await verificacion.obtenerToken();
         setProgreso(0);
-        url = await subirConProgreso(archivo, setProgreso);
+        url = await subirConProgreso(archivo, setProgreso, verificadoSubida);
         setUrlSubida(url);
       }
+      const verificado = await verificacion.obtenerToken();
       const r = await fetch(`${PUBLIC_API_BASE}/contribuciones/${encodeURIComponent(codigo)}/comprobante`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...cabeceraTurnstile(verificado),
+        },
         body: JSON.stringify({ url, email: CORREO_VALIDO.test(correoLimpio) ? correoLimpio : undefined }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
+        // 403/429 de la protección contra bots: no es un problema del correo.
+        const bots = mensajeBots(j as { error?: string; reintentarEn?: number });
+        if (bots) throw new Error(bots);
         const codigoError = (j as { error?: string }).error ?? "";
         if (r.status === 403) setPedirCorreo(true);
         throw new Error(
@@ -165,6 +182,7 @@ export function SubirComprobante({
           {cargando ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Upload size={14} aria-hidden />} Enviar comprobante
         </Button>
       </div>
+      {verificacion.widget}
       {progreso != null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-paperDeep" role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100} aria-label="Subiendo comprobante">
           <div className="h-full rounded-full bg-moss" style={{ width: `${progreso}%` }} />
@@ -175,20 +193,24 @@ export function SubirComprobante({
   );
 }
 
-/** Sube a /api/upload con progreso real (XHR). Devuelve la URL pública/firmada del archivo. */
-function subirConProgreso(file: File, onProgress: (pct: number) => void): Promise<string> {
+/**
+ * Sube a /api/upload con progreso real (XHR). Devuelve la URL (privada) del archivo.
+ * `verificado`: el token de Turnstile de ESTA subida (`null` sin sitekey, en desarrollo).
+ */
+function subirConProgreso(file: File, onProgress: (pct: number) => void, verificado: string | null): Promise<string> {
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("kind", "comprobante");
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
+    if (verificado) xhr.setRequestHeader(CABECERA_TURNSTILE, verificado);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       try {
         const j = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300 && j.url) resolve(j.url);
-        else reject(new Error("No se pudo subir el comprobante. Revisa que sea una imagen o un PDF."));
+        else reject(new Error(mensajeBots(j) ?? "No se pudo subir el comprobante. Revisa que sea una imagen o un PDF."));
       } catch { reject(new Error("No se pudo subir el comprobante.")); }
     };
     xhr.onerror = () => reject(new Error("Sin conexión al subir el comprobante."));

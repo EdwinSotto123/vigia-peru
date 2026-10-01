@@ -341,10 +341,11 @@ export async function createReporte(payload: {
   contactoNombre?: string | null;
   contactoTelefono?: string | null;
   anonimo?: boolean;
-}): Promise<{ id: string; ok: true }> {
+}, cabeceras: Record<string, string> = {}): Promise<{ id: string; ok: true }> {
+  // `cabeceras`: la verificación contra bots (`cf-turnstile-response`, components/seguridad/mensajes.ts).
   const r = await fetch(`${API_BASE}/reportes`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cabeceras },
     body: JSON.stringify(payload),
   });
   const data = await r.json();

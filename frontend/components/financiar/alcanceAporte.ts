@@ -8,6 +8,7 @@
 
 import { MIN_CONTRATOS, MIN_CONTRATOS_ENTIDAD } from "@/lib/financiamiento";
 import { numero, plural } from "@/lib/formato";
+import { MENSAJE_BOTS, mensajeBots } from "@/components/seguridad/mensajes";
 
 export type AlcanceAporte =
   | { tipo: "zona"; ubigeo: string; nombre: string }
@@ -62,6 +63,8 @@ export const ERRORES_API: Record<string, string> = {
   sin_migracion: "Todavía no se puede financiar una entidad: estamos terminando de habilitarlo. Mientras tanto puedes financiar una zona.",
   internal: "No pudimos registrar el aporte por un error del servidor. Inténtalo de nuevo en un momento.",
   unauthorized: "Tu sesión de administrador venció. Vuelve a entrar al panel.",
+  // Protección contra bots (403/429): `demasiados_pedidos` con su espera, en `mensajeDeError`.
+  ...MENSAJE_BOTS,
 };
 
 export function erroresCampo(minimo: number): Record<string, string> {
@@ -83,6 +86,8 @@ export interface RespuestaError {
   disponibles?: number;
   /** `minimo_contratos`: el mínimo que exige el backend. */
   minimo?: number;
+  /** `demasiados_pedidos`: segundos hasta poder reintentar. */
+  reintentarEn?: number;
 }
 
 export function mensajeDeError(j: RespuestaError | null, fallback: string, minimo: number): string {
@@ -97,5 +102,7 @@ export function mensajeDeError(j: RespuestaError | null, fallback: string, minim
       : ERRORES_API.entidad_sin_cola;
   }
   if (j.error === "minimo_contratos" && typeof j.minimo === "number") return `El mínimo son ${j.minimo} contratos por aporte.`;
+  const bots = mensajeBots(j);
+  if (bots) return bots;
   return ERRORES_API[j.error] ?? fallback;
 }

@@ -52,7 +52,20 @@ const nextConfig = {
     const immutable = [
       { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
     ];
+    // Cabeceras de seguridad en todas las páginas. Sin una CSP de scripts (romper Firebase, el mapa o
+    // Turnstile sería fácil): solo lo que no restringe recursos. `frame-ancestors 'none'` impide meter
+    // el sitio en un iframe ajeno (clickjacking); cámara y ubicación quedan para el propio sitio
+    // (denuncia con foto y ubicación de la obra).
+    const seguridad = [
+      { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(self), geolocation=(self), microphone=(), payment=(), usb=()" },
+    ];
     return [
+      { source: "/:path*", headers: seguridad },
       // Imágenes y datos estáticos de la interfaz (lupa de la portada, logos, geometría del
       // mapa de la portada). OJO: al cambiar el contenido de un archivo de /assets hay que
       // cambiarle el nombre (p. ej. `.v2.json`, `-720.webp`): el navegador lo guarda un año.

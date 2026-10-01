@@ -6,6 +6,9 @@
 // Estado). Antes se buscaba en `lib/mock-entities`, una lista de una docena de
 // municipalidades inventadas: una entidad real no aparecía nunca y el vecino no
 // podía denunciarla.
+//
+// Contra bots: la subida de la evidencia y el envío llevan cada uno su token de
+// Turnstile; el widget, junto al botón de enviar, sólo se ve si hay que marcar la casilla.
 
 import { useEffect, useRef, useState } from "react";
 import { Building2, Search, Upload, Check, Loader2, Send, X } from "lucide-react";
@@ -14,6 +17,8 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 import { createReporte, getEntidad, getEntidades } from "@/lib/api-client";
+import { ErrorTurnstile, useTurnstile } from "@/components/seguridad/Turnstile";
+import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import { numero } from "@/lib/formato";
 import type { CategoriaDenuncia } from "@/lib/denuncias-meta";
@@ -25,9 +30,10 @@ import {
   DESCRIPCION_MAX,
   DESCRIPCION_MIN,
   MAX_MB,
-  codigoDeError,
   correoValido,
+  detieneLasSubidas,
   mensajeEnvio,
+  mensajeErrorSubida,
   mensajeSubida,
   subirArchivo,
   validarArchivo,
@@ -77,6 +83,7 @@ export function FormEntidad({
   const [errores, setErrores] = useState<Errores>({});
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const pedido = useRef(0);
+  const verificacion = useTurnstile("denuncia");
 
   // ?ruc= (desde la ficha de una entidad): se precarga la entidad real.
   useEffect(() => {
@@ -179,24 +186,36 @@ export function FormEntidad({
         setSubiendo(true);
         try {
           // Al bucket privado: una denuncia a una entidad nunca se publica.
-          fotoUrl = (await subirArchivo(evidencia, undefined, { modo: "entidad" })).url;
+          fotoUrl = (await subirArchivo(evidencia, undefined, { modo: "entidad", verificar: verificacion.obtenerToken })).url;
         } catch (err) {
-          setErrores((x) => ({ ...x, evidencia: mensajeSubida(evidencia.name, codigoDeError(err)) }));
-          setErrorEnvio("No pudimos subir la evidencia. Quítala o prueba con otro archivo.");
+          if (err instanceof ErrorTurnstile) {
+            setErrorEnvio(mensajeEnvio(err));
+            return;
+          }
+          setErrores((x) => ({ ...x, evidencia: mensajeErrorSubida(evidencia.name, err) }));
+          setErrorEnvio(
+            detieneLasSubidas(err)
+              ? "No pudimos subir la evidencia. Revisa el aviso junto al archivo."
+              : "No pudimos subir la evidencia. Quítala o prueba con otro archivo.",
+          );
           return;
         } finally {
           setSubiendo(false);
         }
       }
-      const r = await createReporte({
-        modo: "entidad",
-        categoria,
-        descripcion: descripcion.trim(),
-        fotoUrl,
-        region: ent.region,
-        rucEntidad: ent.ruc,
-        contactoEmail: contactoOpcional.trim() || null,
-      });
+      const verificado = await verificacion.obtenerToken();
+      const r = await createReporte(
+        {
+          modo: "entidad",
+          categoria,
+          descripcion: descripcion.trim(),
+          fotoUrl,
+          region: ent.region,
+          rucEntidad: ent.ruc,
+          contactoEmail: contactoOpcional.trim() || null,
+        },
+        cabeceraTurnstile(verificado),
+      );
       onDone(r.id);
     } catch (err) {
       setErrorEnvio(mensajeEnvio(err));
@@ -395,6 +414,7 @@ export function FormEntidad({
       <DisclaimerBanner />
 
       <div className="space-y-2">
+        {verificacion.widget}
         {errorEnvio && <ErrorEnvio>{errorEnvio}</ErrorEnvio>}
         <Button type="submit" disabled={submitting} full variant="primary">
           {submitting ? (

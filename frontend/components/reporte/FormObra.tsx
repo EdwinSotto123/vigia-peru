@@ -6,6 +6,10 @@
 // (el botón "Tomar foto" quedaba a 1.300 px del borde superior, detrás del
 // encabezado y de la elección de categoría), después el lugar y el relato, y al
 // final lo opcional.
+//
+// Contra bots: cada archivo que se sube y el envío final llevan su propio token de
+// Turnstile. Hay dos widgets (sólo se ven si Cloudflare pide marcar la casilla): uno
+// junto a los botones de subir, arriba, y otro junto al botón de enviar, abajo.
 
 import { useState } from "react";
 import { Camera, MapPin, Lock, Check, Upload, Loader2, Send, AlertTriangle, ChevronDown, X } from "lucide-react";
@@ -14,6 +18,8 @@ import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { cn } from "@/lib/utils";
 import { createReporte } from "@/lib/api-client";
+import { useTurnstile } from "@/components/seguridad/Turnstile";
+import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { REGIONES } from "@/lib/peru-data";
 import { numero, porcentaje } from "@/lib/formato";
 import type { CategoriaDenuncia } from "@/lib/denuncias-meta";
@@ -26,11 +32,11 @@ import {
   DESCRIPCION_MAX,
   DESCRIPCION_MIN,
   MAX_MB,
-  codigoDeError,
   correoValido,
+  detieneLasSubidas,
   enlacesInvalidos,
   mensajeEnvio,
-  mensajeSubida,
+  mensajeErrorSubida,
   subirArchivo,
   type MediaSubido,
 } from "./envio";
@@ -77,6 +83,8 @@ export function FormObra({
   const [contactoOpcional, setContactoOpcional] = useState("");
   const [contactoNombre, setContactoNombre] = useState("");
   const [anonimo, setAnonimo] = useState(true);
+  const verificacionSubida = useTurnstile("denuncia-adjuntos");
+  const verificacionEnvio = useTurnstile("denuncia");
 
   const usarMiUbicacion = () => {
     if (!navigator.geolocation) {
@@ -101,10 +109,12 @@ export function FormObra({
     setErroresSubida([]);
     setSubiendo(true);
     try {
-      for (const f of nuevos) {
+      for (const [i, f] of nuevos.entries()) {
         setProgreso((p) => ({ ...p, [f.name]: 0 }));
         try {
-          const data = await subirArchivo(f, (pct) => setProgreso((p) => ({ ...p, [f.name]: pct })));
+          const data = await subirArchivo(f, (pct) => setProgreso((p) => ({ ...p, [f.name]: pct })), {
+            verificar: verificacionSubida.obtenerToken,
+          });
           setSubidos((prev) => [
             ...prev,
             {
@@ -117,7 +127,13 @@ export function FormObra({
           ]);
           if (data.tipo === "foto") setErrores((e) => ({ ...e, foto: undefined }));
         } catch (e) {
-          setErroresSubida((prev) => [...prev, mensajeSubida(f.name, codigoDeError(e))]);
+          setErroresSubida((prev) => [...prev, mensajeErrorSubida(f.name, e)]);
+          // Sin verificación o con el límite de subidas alcanzado, los que siguen fallarían igual.
+          if (detieneLasSubidas(e)) {
+            const resto = nuevos.slice(i + 1).map((x) => `«${x.name}»`);
+            if (resto.length) setErroresSubida((prev) => [...prev, `No se subieron ${resto.join(", ")}: vuelve a elegirlos.`]);
+            break;
+          }
         } finally {
           setProgreso((p) => {
             const { [f.name]: _x, ...rest } = p;
@@ -160,6 +176,7 @@ export function FormObra({
     setSubmitting(true);
     try {
       const enlaces = enlacesExternos.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+      const verificado = await verificacionEnvio.obtenerToken();
       const r = await createReporte({
         modo: "obra",
         categoria: categoria || "irregularidad_general",
@@ -182,7 +199,7 @@ export function FormObra({
         contactoEmail: contactoOpcional.trim() || null,
         contactoNombre: anonimo ? null : contactoNombre.trim() || null,
         anonimo,
-      });
+      }, cabeceraTurnstile(verificado));
       onDone(r.id, region || undefined);
     } catch (err) {
       setErrorEnvio(mensajeEnvio(err));
@@ -280,6 +297,7 @@ export function FormObra({
             ))}
           </ul>
         )}
+        {verificacionSubida.widget}
         {errores.foto && <ErrorCampo>{errores.foto}</ErrorCampo>}
         {subidos.length > 0 && (
           <ul className="mt-3 space-y-1.5">
@@ -548,6 +566,7 @@ export function FormObra({
       <DisclaimerBanner />
 
       <div className="space-y-2">
+        {verificacionEnvio.widget}
         {errorEnvio && <ErrorEnvio>{errorEnvio}</ErrorEnvio>}
         <Button type="submit" disabled={submitting || subiendo} full variant="primary">
           {submitting ? (

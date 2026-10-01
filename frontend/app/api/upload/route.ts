@@ -23,6 +23,17 @@
  *     que la foto no aparezca girada. Los PDF se guardan tal cual: sus metadatos
  *     (autor, programa) no se limpian aquí.
  *
+ * Contra bots (contrato de la API, mismos códigos):
+ *  - Límite por IP: 10 subidas cada 60 s, con o sin sesión. En Cloudflare, el binding
+ *    `LIMITE_SUBIDAS` de wrangler.jsonc; en Cloud Run y `next dev`, uno en memoria
+ *    (lib/limite-ip.ts). Pasado el límite: 429 `demasiados_pedidos` + `reintentarEn` y `Retry-After`.
+ *  - Lo que se sube SIN sesión (adjuntos de denuncias, `modo=entidad`, comprobantes de aporte)
+ *    exige un token de Cloudflare Turnstile, uno por subida, en la cabecera
+ *    `cf-turnstile-response` (o en el campo de formulario del mismo nombre). Falta: 403
+ *    `captcha_requerido`; rechazado por siteverify: 403 `captcha_invalido`. Sin
+ *    `TURNSTILE_SECRET_KEY` en el servidor (desarrollo) no se exige (lib/turnstile-servidor.ts).
+ *    Los QR de pago y los logos ya piden sesión y no lo necesitan.
+ *
  * Los errores vuelven con un `error` en castellano estable (los formularios lo
  * traducen a un mensaje) y un `mensaje` ya legible.
  *
@@ -38,7 +49,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_ADMIN, cookieAdmin, leerSesion } from "@/lib/admin-sesion";
 import { guardarObjeto } from "@/lib/gcs";
+import { ipDelPedido, limitarPorIp, type Limite } from "@/lib/limite-ip";
 import { puede } from "@/lib/permisos";
+import { verificarTurnstile } from "@/lib/turnstile-servidor";
+import { CABECERA_TURNSTILE } from "@/components/seguridad/mensajes";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -64,7 +78,15 @@ type CodigoError =
   | "heic_no_soportado"
   | "archivo_danado"
   | "no_autorizado"
+  | "captcha_requerido"
+  | "captcha_invalido"
   | "error_al_guardar";
+
+/** Subidas por IP: el mismo límite que el binding `LIMITE_SUBIDAS` de wrangler.jsonc. */
+const LIMITE_SUBIDAS: Limite = { binding: "LIMITE_SUBIDAS", limite: 10, periodoS: 60 };
+
+/** Lo que se sube con sesión (admin o cuenta). Todo lo demás es público y pide la verificación contra bots. */
+const CON_SESION = new Set(["pago", "logo"]);
 
 const MENSAJE: Record<CodigoError, string> = {
   archivo_faltante: "No llegó ningún archivo.",
@@ -73,6 +95,8 @@ const MENSAJE: Record<CodigoError, string> = {
   heic_no_soportado: "La foto está en formato HEIC. Conviértela a JPG y vuelve a subirla.",
   archivo_danado: "No pudimos leer el archivo. Puede estar dañado.",
   no_autorizado: "Necesitas iniciar sesión para subir este archivo.",
+  captcha_requerido: "Falta la verificación contra robots. Recarga la página y vuelve a intentarlo.",
+  captcha_invalido: "La verificación contra robots venció o no fue válida. Vuelve a intentarlo.",
   error_al_guardar: "No pudimos guardar el archivo. Inténtalo otra vez en un momento.",
 };
 
@@ -83,11 +107,24 @@ const ESTADO: Record<CodigoError, number> = {
   heic_no_soportado: 415,
   archivo_danado: 422,
   no_autorizado: 401,
+  captcha_requerido: 403,
+  captcha_invalido: 403,
   error_al_guardar: 500,
 };
 
 const fallar = (error: CodigoError) =>
   NextResponse.json({ ok: false, error, mensaje: MENSAJE[error] }, { status: ESTADO[error] });
+
+const demasiadosPedidos = (reintentarEn: number) =>
+  NextResponse.json(
+    {
+      ok: false,
+      error: "demasiados_pedidos",
+      reintentarEn,
+      mensaje: "Subiste muchos archivos seguidos. Espera un minuto y vuelve a intentarlo.",
+    },
+    { status: 429, headers: { "Retry-After": String(reintentarEn) } },
+  );
 
 /** Qué es el archivo según sus primeros bytes. `null` = algo que no aceptamos. */
 function reconocer(b: Buffer): Formato | "heic" | null {
@@ -289,7 +326,8 @@ function sinMetadatos(b: Buffer, f: Formato): Buffer {
 
 /**
  * Las denuncias ciudadanas y los comprobantes de aporte se suben sin sesión (se
- * puede denunciar sin cuenta). Lo que se publica como parte del SITIO sí la pide:
+ * puede denunciar sin cuenta), con la verificación contra bots (ver `POST`). Lo
+ * que se publica como parte del SITIO (`CON_SESION`) pide sesión:
  *  - `pago` (QR de Yape/Plin que ve cualquier financiador): sólo el panel admin,
  *    con su sesión firmada (lib/admin-sesion.ts). Antes bastaba con que existiera
  *    una cookie con ese nombre, cualquiera fuera su valor.
@@ -312,6 +350,16 @@ async function autorizado(req: NextRequest, kind: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  // Límite por IP antes de leer nada: una ráfaga no llega ni a descargar el archivo.
+  const ip = ipDelPedido(req.headers);
+  const limite = await limitarPorIp(ip, LIMITE_SUBIDAS);
+  if (!limite.ok) return demasiadosPedidos(limite.reintentarEn);
+
+  // El token de la cabecera se verifica YA, mientras llega el archivo: en una conexión lenta,
+  // 12 MB pueden tardar más que la vida del token (5 minutos). No lanza nunca.
+  const tokenCabecera = req.headers.get(CABECERA_TURNSTILE);
+  const verificacionTemprana = tokenCabecera ? verificarTurnstile(tokenCabecera, ip) : null;
+
   // Corte temprano por Content-Length: no hace falta leer 30 MB para rechazarlos.
   const declarado = Number(req.headers.get("content-length") ?? 0);
   if (declarado > MAX_BYTES + 512 * 1024) return fallar("archivo_muy_grande");
@@ -331,7 +379,14 @@ export async function POST(req: NextRequest) {
   // `modo=entidad`: evidencia de una denuncia a una entidad (nunca pública). Sólo cuenta para
   // los adjuntos de denuncias (sin `kind` o `kind=reporte`), no para QR ni logos.
   const modoEntidad = form.get("modo") === "entidad" && (kind === "" || kind === "reporte");
-  if (!(await autorizado(req, kind))) return fallar("no_autorizado");
+  if (CON_SESION.has(kind)) {
+    if (!(await autorizado(req, kind))) return fallar("no_autorizado");
+  } else {
+    // Sin sesión (cualquier `kind` que no sea QR ni logo): un token de Turnstile por subida.
+    const campo = form.get(CABECERA_TURNSTILE);
+    const resultado = await (verificacionTemprana ?? verificarTurnstile(typeof campo === "string" ? campo : null, ip));
+    if (resultado === "captcha_requerido" || resultado === "captcha_invalido") return fallar(resultado);
+  }
 
   const original = Buffer.from(await file.arrayBuffer());
   const formato = reconocer(original);

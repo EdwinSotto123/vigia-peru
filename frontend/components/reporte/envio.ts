@@ -4,9 +4,14 @@
 // Regla: el ciudadano nunca ve un JSON, un código de estado ni un "invalid_body".
 // Cada código que devuelven /api/upload y POST /reportes se traduce aquí a una
 // frase que dice qué pasó y qué hacer.
+//
+// Contra bots: cada subida y el envío final llevan su propio token de Turnstile
+// (`cf-turnstile-response`); los 403/429 de esa protección también se traducen aquí.
 
 import { ApiError } from "@/lib/api-client";
 import { numero } from "@/lib/formato";
+import { ErrorTurnstile } from "@/components/seguridad/turnstile-api";
+import { CABECERA_TURNSTILE, mensajeBots } from "@/components/seguridad/mensajes";
 
 /** El mismo límite que aplica /api/upload. */
 export const MAX_MB = 12;
@@ -37,6 +42,9 @@ const MENSAJE_SUBIDA: Record<string, string> = {
   heic_no_soportado: "está en formato HEIC. Conviértela a JPG, o elígela desde el teléfono, que la convierte sola.",
   archivo_danado: "no se pudo leer: puede estar dañado. Prueba con otra copia.",
   no_autorizado: "no se pudo subir: hace falta iniciar sesión.",
+  captcha_requerido: "no se pudo subir: falta la verificación contra robots. Recarga la página y vuelve a intentarlo.",
+  captcha_invalido: "no se pudo subir: la verificación contra robots venció. Vuelve a elegirlo.",
+  demasiados_pedidos: "no se pudo subir: subiste muchos archivos seguidos. Espera un minuto y vuelve a elegirlo.",
   error_al_guardar: "no se pudo guardar por un problema de nuestro lado. Inténtalo otra vez en un momento.",
   sin_conexion: "no se pudo subir: no hay conexión. Revisa tu internet e inténtalo otra vez.",
 };
@@ -65,27 +73,41 @@ class ErrorSubida extends Error {
 
 export const codigoDeError = (e: unknown) => (e instanceof ErrorSubida ? e.codigo : "error_al_guardar");
 
+/** El mensaje de una subida fallida: el de la verificación contra robots tal cual, o el del archivo. */
+export const mensajeErrorSubida = (nombre: string, e: unknown) =>
+  e instanceof ErrorTurnstile ? e.message : mensajeSubida(nombre, codigoDeError(e));
+
 /**
- * Sube un archivo a /api/upload con progreso real (XHR). Rechaza con un código de `MENSAJE_SUBIDA`.
+ * Si después de este error no tiene sentido seguir subiendo los demás archivos elegidos:
+ * la verificación no se pudo hacer o el servidor pidió esperar.
+ */
+export const detieneLasSubidas = (e: unknown) =>
+  e instanceof ErrorTurnstile || (e instanceof ErrorSubida && (e.codigo === "demasiados_pedidos" || e.codigo === "captcha_requerido"));
+
+/**
+ * Sube un archivo a /api/upload con progreso real (XHR). Rechaza con un código de `MENSAJE_SUBIDA`,
+ * o con `ErrorTurnstile` si no se pudo hacer la verificación contra robots.
  * `modo: "entidad"`: evidencia de una denuncia a una entidad, que va al bucket privado (nunca
  * se publica); la URL que vuelve es sólo una referencia para la API.
+ * `verificar`: da el token de Turnstile de ESTA subida (`obtenerToken` de `useTurnstile`). Se
+ * pide recién después de validar el archivo, para no gastar una verificación en un archivo que
+ * se rechazaría igual.
  */
-export function subirArchivo(
+export async function subirArchivo(
   file: File,
   onProgress?: (pct: number) => void,
-  opciones: { modo?: "obra" | "entidad" } = {},
+  opciones: { modo?: "obra" | "entidad"; verificar?: () => Promise<string | null> } = {},
 ): Promise<{ url: string; tipo: MediaSubido["tipo"]; filename?: string; size_bytes?: number; content_type?: string }> {
+  const invalido = validarArchivo(file);
+  if (invalido) throw new ErrorSubida(invalido);
+  const verificado = opciones.verificar ? await opciones.verificar() : null;
   return new Promise((resolve, reject) => {
-    const invalido = validarArchivo(file);
-    if (invalido) {
-      reject(new ErrorSubida(invalido));
-      return;
-    }
     const fd = new FormData();
     fd.append("file", file);
     if (opciones.modo) fd.append("modo", opciones.modo);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
+    if (verificado) xhr.setRequestHeader(CABECERA_TURNSTILE, verificado);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
     };
@@ -125,7 +147,15 @@ const MENSAJE_CAMPO: Record<string, string> = {
 
 /** Traduce un error de `createReporte` a una frase. Nunca devuelve el JSON crudo. */
 export function mensajeEnvio(err: unknown): string {
+  if (err instanceof ErrorTurnstile) return `${err.message} Lo que escribiste sigue aquí.`;
   if (err instanceof ApiError) {
+    if (err.status === 403 || err.status === 429) {
+      // Protección contra bots. El detalle es el JSON recortado: se leen sus dos campos a mano.
+      const error = /"error":"(\w+)"/.exec(err.detail)?.[1];
+      const reintentarEn = Number(/"reintentarEn":(\d+)/.exec(err.detail)?.[1]);
+      const bots = mensajeBots({ error, reintentarEn: Number.isFinite(reintentarEn) ? reintentarEn : undefined });
+      if (bots) return `${bots} Lo que escribiste sigue aquí.`;
+    }
     if (err.status === 400) {
       // El detalle es el JSON de zod, recortado a 200 caracteres: puede no parsear,
       // así que se buscan los nombres de campo con una expresión regular.

@@ -19,11 +19,19 @@ interface Assets {
  * del request en este símbolo global: es lo mismo que `getCloudflareContext()` sin importar el
  * adaptador (que es devDependency y no existe en Cloud Run).
  */
-function bindings(): { ASSETS?: Assets } | null {
-  const ctx = (globalThis as Record<symbol, { env?: { ASSETS?: Assets } } | undefined>)[
+function bindings(): ({ ASSETS?: Assets } & Record<string, unknown>) | null {
+  const ctx = (globalThis as Record<symbol, { env?: { ASSETS?: Assets } & Record<string, unknown> } | undefined>)[
     Symbol.for("__cloudflare-context__")
   ];
   return ctx?.env ?? null;
+}
+
+/**
+ * Un binding del worker por su nombre en wrangler.jsonc (p. ej. el limitador `LIMITE_SUBIDAS`).
+ * `null` fuera de Workers (Cloud Run, `next dev`) o si el binding no está declarado.
+ */
+export function bindingCloudflare<T>(nombre: string): T | null {
+  return (bindings()?.[nombre] as T | undefined) ?? null;
 }
 
 /**

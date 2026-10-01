@@ -21,6 +21,9 @@
  * U6: sesión admin activa → `LoteAdmin` (mismo paso de cantidad, un solo botón que procesa a
  * nombre de Vigía Perú en vez de cobrar).
  *
+ * Contra bots: crear el aporte lleva un token de Turnstile (`useTurnstile`, uno nuevo por envío);
+ * el widget sólo se ve si Cloudflare pide marcar la casilla, junto al botón. El admin no lo usa.
+ *
  * Presentación (DESIGN_SYSTEM.md §14, conversión): la pregunta de la pantalla es UNA —¿cuántos
  * contratos?—, y va de título; quién financia y cómo paga son pasos del mismo trámite. Los
  * momentos finales (aporte recibido, zona sin cupo) usan `TarjetaConfirmacion`: franja textil
@@ -44,6 +47,8 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { TarjetaConfirmacion } from "./TarjetaConfirmacion";
 import { LoteAdmin } from "./LoteAdmin";
+import { useTurnstile } from "@/components/seguridad/Turnstile";
+import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { CantidadPicker, ETIQUETA_GRUPO, OpcionRadio, Stepper, TARJETA, errorCantidad } from "./PasosAporte";
 import {
   ASIGNACION,
@@ -132,6 +137,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
   const [subido, setSubido] = useState(false);
   const [masDatos, setMasDatos] = useState(false);
   const restaurado = useRef(false);
+  const verificacion = useTurnstile("aporte");
 
   const contratos = /^\d+$/.test(cantidadTxt) ? Number.parseInt(cantidadTxt, 10) : Number.NaN;
   const errCantidad = errorCantidad(contratos, restantes, minimo, mensajeTope(alcance, restantes));
@@ -180,9 +186,15 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
     setLoading(true);
     try {
       const token = conCuenta ? await idToken() : null;
+      // Un token de Turnstile nuevo por envío; si la verificación falla, el aporte no se envía.
+      const verificado = await verificacion.obtenerToken();
       const r = await fetch(`${PUBLIC_API_BASE}/contribuciones`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...cabeceraTurnstile(verificado),
+        },
         body: JSON.stringify({
           ...cuerpoAlcance(alcance),
           contratos,
@@ -433,6 +445,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
         )}
       </fieldset>
 
+      {verificacion.widget}
       {error && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{error}</p>}
 
       <Button type="submit" full disabled={loading} className="mt-6 py-3">
