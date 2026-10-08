@@ -14,6 +14,8 @@ API
   pendientes(lote_id) · resumen(lote_id) · items(lote_id, estado=None)
   claves_completadas(tipo) · sha_presente(sha256) · completado_por_meta(tipo, campo, valor)
   reponer_procesando(lote_id)
+  copia(destino, sanear) · rezagados(tipo, desde) · lotes_sin_ingestar(desde) · marcar_ingestados(ids)
+                                                       corrida en la nube (nube.py / estado_remoto.py)
 
 `reclamar` devuelve `pending`, `failed` con intentos < MAX_INTENTOS y `processing` cuya última
 actualización es más vieja que `stale_min` (proceso muerto). `Ctrl+C` deja los ítems en
@@ -70,6 +72,12 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE INDEX IF NOT EXISTS items_estado_idx ON items (lote_id, estado);
 CREATE INDEX IF NOT EXISTS items_clave_idx  ON items (clave);
 CREATE INDEX IF NOT EXISTS items_sha_idx    ON items (sha256);
+-- lotes que la corrida en la nube ya ingirió en Cloud SQL sin errores (nube.py): los demás subidos
+-- de los últimos días se vuelven a pasar por `ingestar` (idempotente) la noche siguiente.
+CREATE TABLE IF NOT EXISTS ingestados (
+  lote_id     TEXT PRIMARY KEY,
+  ok_at       TEXT NOT NULL
+);
 """
 
 
@@ -269,19 +277,72 @@ class Estado:
             (tipo, f"$.{campo}", valor))
         return self._fila(r) if r else None
 
+    # ── corrida en la nube (nube.py) ────────────────────────────────────
+    def rezagados(self, tipo: str, desde: str, politica: str | None = None) -> list[str]:
+        """Lotes de `tipo` creados desde `desde` (ISO) que aún tienen ítems por intentar, del más viejo al
+        más nuevo. `politica` filtra los de documentos por la nota de cmd_documentos ("· política clave ·"),
+        así no se retoman los de pedidos (política todo), que el pedido vuelve a pedir solo."""
+        q = """SELECT l.id FROM lotes l
+                WHERE l.tipo = ? AND l.creado >= ?
+                  AND EXISTS (SELECT 1 FROM items i WHERE i.lote_id = l.id
+                               AND (i.estado IN ('pending','processing') OR (i.estado = 'failed' AND i.intentos < ?)))"""
+        args: list = [tipo, desde, MAX_INTENTOS]
+        if politica:
+            q += " AND l.nota LIKE ?"
+            args.append(f"%· política {politica} ·%")
+        return [r["id"] for r in self._q(q + " ORDER BY l.creado", tuple(args))]
+
+    def lotes_sin_ingestar(self, desde: str) -> list[str]:
+        """Lotes creados desde `desde` con algo subido a GCS y que la nube todavía no dio por ingeridos."""
+        rows = self._q(
+            """SELECT l.id FROM lotes l
+                WHERE l.creado >= ? AND l.id NOT IN (SELECT lote_id FROM ingestados)
+                  AND EXISTS (SELECT 1 FROM items i WHERE i.lote_id = l.id AND i.subido_at IS NOT NULL)
+                ORDER BY l.creado""", (desde,))
+        return [r["id"] for r in rows]
+
+    def marcar_ingestados(self, lote_ids: Iterable[str]) -> None:
+        with self._tx():
+            self.con.executemany("INSERT OR REPLACE INTO ingestados (lote_id, ok_at) VALUES (?, ?)",
+                                 [(l, _ahora()) for l in lote_ids])
+
+    def copia(self, destino: Path | str, sanear: Iterable[str] | bool = ()) -> int:
+        """Copia consistente en `destino` (API de backup de sqlite: incluye lo que sigue en el WAL), en un
+        solo archivo (journal DELETE). La copia se SANEA en los lotes `sanear` (True = todos): lo
+        `completed` sin `subido_at` (el archivo sólo existía en un disco que ya no está) y lo `processing`
+        vuelven a `pending`, para que el estado guardado nunca diga "bajado" de algo que no está en el
+        bucket. El original no se toca. Devuelve cuántos ítems se repusieron."""
+        destino = Path(destino)
+        destino.unlink(missing_ok=True)
+        dst = sqlite3.connect(str(destino), isolation_level=None)
+        try:
+            with self._lock:
+                self.con.backup(dst)
+            dst.execute("PRAGMA journal_mode=DELETE")
+            if sanear is True:
+                lotes = [r[0] for r in dst.execute("SELECT id FROM lotes")]
+            else:
+                lotes = list(sanear or ())
+            repuestos = 0
+            if lotes:
+                dst.execute("BEGIN IMMEDIATE")
+                for lote_id in lotes:
+                    cur = dst.execute(
+                        """UPDATE items SET estado = 'pending', actualizado = ?
+                            WHERE lote_id = ? AND (estado = 'processing' OR (estado = 'completed' AND subido_at IS NULL))""",
+                        (_ahora(), lote_id))
+                    if cur.rowcount:
+                        repuestos += cur.rowcount
+                        _recontar(dst, lote_id)
+                dst.execute("COMMIT")
+            return repuestos
+        finally:
+            dst.close()
+
     # ── internos ────────────────────────────────────────────────────────
     def _recontar(self, lote_id: str) -> None:
         """Se llama dentro de una transacción abierta."""
-        r = self.con.execute(
-            """SELECT count(*) AS total,
-                      sum(estado = 'completed') AS ok,
-                      sum(estado = 'failed' AND intentos >= ?) AS fallidos,
-                      sum(estado IN ('pending','processing') OR (estado = 'failed' AND intentos < ?)) AS abiertos
-                 FROM items WHERE lote_id = ?""", (MAX_INTENTOS, MAX_INTENTOS, lote_id)).fetchone()
-        total, ok, fallidos, abiertos = r["total"], r["ok"] or 0, r["fallidos"] or 0, r["abiertos"] or 0
-        estado = "completed" if total and not abiertos else ("processing" if ok or fallidos else "pending")
-        self.con.execute("UPDATE lotes SET total = ?, ok = ?, fallidos = ?, estado = ?, actualizado = ? WHERE id = ?",
-                         (total, ok, fallidos, estado, _ahora(), lote_id))
+        _recontar(self.con, lote_id)
 
     @staticmethod
     def _fila(r: sqlite3.Row) -> dict:
@@ -292,6 +353,20 @@ class Estado:
             except ValueError:
                 pass
         return d
+
+
+def _recontar(con: sqlite3.Connection, lote_id: str) -> None:
+    """Conteos y estado del lote a partir de sus ítems (dentro de una transacción abierta)."""
+    total, ok, fallidos, abiertos = con.execute(
+        """SELECT count(*) AS total,
+                  sum(estado = 'completed') AS ok,
+                  sum(estado = 'failed' AND intentos >= ?) AS fallidos,
+                  sum(estado IN ('pending','processing') OR (estado = 'failed' AND intentos < ?)) AS abiertos
+             FROM items WHERE lote_id = ?""", (MAX_INTENTOS, MAX_INTENTOS, lote_id)).fetchone()
+    ok, fallidos, abiertos = ok or 0, fallidos or 0, abiertos or 0
+    estado = "completed" if total and not abiertos else ("processing" if ok or fallidos else "pending")
+    con.execute("UPDATE lotes SET total = ?, ok = ?, fallidos = ?, estado = ?, actualizado = ? WHERE id = ?",
+                (total, ok, fallidos, estado, _ahora(), lote_id))
 
 
 def abrir(path: Path | str | None = None) -> Estado:

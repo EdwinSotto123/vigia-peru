@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -51,6 +53,30 @@ def session() -> requests.Session:
     if _session is None:
         _session = make_session()
     return _session
+
+
+def _por_relay(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return bool(os.getenv("RELAY_URL", "").strip()) and (host == "gob.pe" or host.endswith(".gob.pe"))
+
+
+def get(url: str, params: dict | None = None, timeout=(15, 90)) -> requests.Response:
+    """GET de un *.gob.pe. La API OCDS del OECE y el SEACE responden 403 a las IP de GCP: con `RELAY_URL`
+    (+ `RELAY_TOKEN`) el pedido sale por el Worker `vigia-relay` (backend/relay-worker, fijado en Zúrich,
+    donde responden 200) y `status_code` es el del ORIGEN. Sin `RELAY_URL`, GET directo como siempre
+    (una PC con IP peruana sigue sirviendo)."""
+    if not _por_relay(url):
+        return session().get(url, params=params, timeout=timeout)
+    p = urlsplit(url)
+    query = parse_qsl(p.query, keep_blank_values=True) + [(k, str(v)) for k, v in (params or {}).items() if v is not None]
+    destino = urlunsplit((p.scheme, p.netloc, p.path, urlencode(query), p.fragment))
+    base = os.environ["RELAY_URL"].strip().rstrip("/")
+    conexion, lectura = timeout if isinstance(timeout, tuple) else (timeout, timeout)
+    r = requests.post(f"{base}/raw", json={"url": destino}, timeout=(conexion, max(lectura, 120)),
+                      headers={"X-Vigia-Token": os.getenv("RELAY_TOKEN", "").strip(), "User-Agent": USER_AGENT})
+    if r.status_code == 401 and not r.headers.get("x-relay-status"):
+        raise RuntimeError("el relay rechazó RELAY_TOKEN (401)")
+    return r
 
 
 def get_text(url: str, **kw) -> str:

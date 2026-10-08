@@ -39,6 +39,14 @@ SCRIPTS_POR_FUENTE: dict[str, list[str]] = {
 }
 
 
+# fuente → paquetes de backend/ (además de scrapers/) que su pipeline importa. oece_ocds importa
+# backend.core.clasificacion (tipo × etapa): sin él la imagen moría al arrancar con ModuleNotFoundError
+# y el job de contratos nunca ingirió nada en la nube.
+PAQUETES_POR_FUENTE: dict[str, list[str]] = {
+    "oece_ocds": ["core"],
+}
+
+
 def _limpiar_pycache(p: Path) -> None:
     for d in p.rglob("__pycache__"):
         shutil.rmtree(d, ignore_errors=True)
@@ -55,6 +63,8 @@ def vendorizar(fuente: str) -> None:
     shutil.copy2(SCRAPERS / "__init__.py", dest / "backend" / "scrapers" / "__init__.py")
     shutil.copy2(SCRAPERS / "requirements.txt", dest / "backend" / "scrapers" / "requirements.txt")
     shutil.copytree(SCRAPERS / fuente, dest / "backend" / "scrapers" / fuente)
+    for paquete in PAQUETES_POR_FUENTE.get(fuente, []):
+        shutil.copytree(ROOT / "backend" / paquete, dest / "backend" / paquete, ignore=shutil.ignore_patterns("tests", "__pycache__"))
     scripts = SCRIPTS_POR_FUENTE.get(fuente, [])
     if scripts:
         (dest / "backend" / "scripts").mkdir(parents=True)

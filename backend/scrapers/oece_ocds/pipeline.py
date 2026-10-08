@@ -130,7 +130,7 @@ def _get_json(url: str, params: dict | None = None) -> dict | None:
     Devuelve None si la API responde un error definitivo (4xx distinto de 429)."""
     for i, pausa in enumerate((*RETRY_SLEEPS, None)):
         try:
-            r = http.session().get(url, params=params, timeout=(15, 90))
+            r = http.get(url, params=params, timeout=(15, 90))
         except requests.RequestException as e:
             if pausa is None:
                 raise
@@ -153,7 +153,7 @@ def _get_json(url: str, params: dict | None = None) -> dict | None:
 class OcdsIncrementalPipeline(Pipeline):
     name = "oece_ocds"
     description = "OECE OCDS API — releases por fecha de convocatoria → convocatorias + entidades (cola real)"
-    schedule = "diario 06:00 (desde IP peruana)"
+    schedule = "diario 06:00 Lima (Cloud Scheduler; sale por el relay vigia-relay si hay RELAY_URL)"
 
     def __init__(self, **kw):
         super().__init__(**kw)

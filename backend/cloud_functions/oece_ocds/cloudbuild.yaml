@@ -5,7 +5,9 @@
 #
 #   gcloud builds submit . --config backend/cloud_functions/oece_ocds/cloudbuild.yaml
 #
-# 403 confirmado desde IP de nube (WAF del OECE) — NO se agenda; correr con docker en el VPS/laptop
+# El OECE da 403 a las IP de GCP, así que el job sale por el Worker `vigia-relay` (Zúrich, 200 medido
+# desde GCP el 30/09/2026): RELAY_URL + RELAY_TOKEN (secreto local-downloader-token). Corre DIARIO a las
+# 06:00 de Lima sobre una ventana de 7 días (el release sale días después de la convocatoria).
 #
 substitutions:
   _IMAGE: 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/scraper-oece-ocds'
@@ -55,9 +57,19 @@ steps:
       - --cpu=${_CPU}
       - --memory=${_MEM}
       - --set-cloudsql-instances=${_SQL_CONNECTION}
-      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=vigia_jobs,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET}
-      - --set-secrets=PGPASSWORD=cloudsql-password-jobs:latest
+      - --set-env-vars=PGHOST=/cloudsql/${_SQL_CONNECTION},PGUSER=vigia_jobs,PGDATABASE=vigia,SCRAPER_GCS_BUCKET=${_BUCKET},RELAY_URL=https://vigia-relay.vigiaperu.workers.dev
+      - --set-secrets=PGPASSWORD=cloudsql-password-jobs:latest,RELAY_TOKEN=local-downloader-token:latest
       - --quiet
+
+  # 5. Cloud Scheduler: todos los días 06:00 America/Lima. update si ya existe, create la primera vez.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        if gcloud scheduler jobs describe ${_JOB} --location ${_REGION} >/dev/null 2>&1; then ACCION=update; else ACCION=create; fi
+        gcloud scheduler jobs "$$ACCION" http ${_JOB} --location ${_REGION}           --schedule "0 6 * * *" --time-zone "America/Lima"           --uri "https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${_REGION}/jobs/${_JOB}:run"           --http-method POST --oauth-service-account-email ${_SA} --quiet
 
 images:
   - '${_IMAGE}:$BUILD_ID'

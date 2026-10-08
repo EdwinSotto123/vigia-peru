@@ -1,4 +1,4 @@
-"""Descargador nocturno por lotes: releases → records → documentos (desde IP peruana).
+"""Descargador nocturno por lotes: releases → records → documentos (IP peruana o relay de Cloudflare).
 
   python -m backend.batch.descargar releases   --desde 2016-01-01 --hasta 2026-09-15 --ventana 7d
   python -m backend.batch.descargar records    --lote <releases-…> [--max-por-noche 20000] [--paralelo 4]
@@ -6,6 +6,12 @@
   python -m backend.batch.descargar documentos --lote <records-…> --politica clave|todo [--max-gb-por-noche 20]
   python -m backend.batch.descargar pedidos   [--max 200]                     # financiados sin docs en GCS (migración 15)
   python -m backend.batch.descargar <tipo> --lote <id-del-mismo-tipo>        # reanudar
+
+Transporte (transporte.py): con `RELAY_URL` + `RELAY_TOKEN` cada GET a OECE/SEACE sale por el relay
+`vigia-relay` (desde la nube el acceso directo da 403); sin `RELAY_URL`, GET directo desde una IP peruana.
+`--max-minutos` (records/documentos/pedidos) deja de reclamar ítems a esa hora: lo que falte queda
+pendiente para otra corrida. Código de salida: 0 ok · 4 el SEACE cortó por 403 seguidos · 5 relay
+inservible (token) · 130 Ctrl+C.
 
 Layout local (gitignored, `dataset/_batch/`):
   releases/<desde>_<hasta>/page-0001.json.gz     una página cruda de /releasesAfter por archivo
@@ -41,9 +47,8 @@ from typing import Callable
 
 import requests
 
-from ..scrapers._core import http
 from ..scrapers.oece_ocds.pipeline import BASE, OCID_PREFIX, PAGE, short_ocid
-from . import BATCH_DIR
+from . import BATCH_DIR, transporte
 from .estado import Estado
 
 log = logging.getLogger("batch.descargar")
@@ -57,6 +62,7 @@ MAX_403_SEGUIDOS = 25       # cortacircuito: el WAF del SEACE bloquea la IP → 
 PAUSA_DOCS = 1.5
 ESPERA_403 = (60, 180, 420)
 _stop = threading.Event()
+_corte: dict[str, str | None] = {"motivo": None}      # "seace_403" | "relay": define el código de salida
 
 
 # ── utilidades ──────────────────────────────────────────────────────────
@@ -83,7 +89,9 @@ def _get_json(url: str, params: dict | None = None) -> tuple[int, dict | None]:
         if _stop.is_set():
             raise KeyboardInterrupt
         try:
-            r = http.session().get(url, params=params, timeout=(15, 90))
+            r = transporte.get(url, params=params, timeout=(15, 90))
+        except transporte.ErrorRelay as e:
+            _cortar_por_relay(e)
         except requests.RequestException as e:
             if pausa is None:
                 raise
@@ -106,6 +114,25 @@ def _get_json(url: str, params: dict | None = None) -> tuple[int, dict | None]:
             continue
         return r.status_code, None
     return 0, None
+
+
+def _cortar_por_relay(e: Exception) -> None:
+    """Token rechazado o relay mal configurado: ningún ítem más puede salir esta noche. Los ítems
+    quedan en `processing` (se retoman otra noche), no se queman intentos."""
+    if not _stop.is_set():
+        log.error("   relay inservible: %s; corto la corrida", e)
+    _corte["motivo"] = "relay"
+    _stop.set()
+    raise KeyboardInterrupt
+
+
+def _vence(args: argparse.Namespace) -> Callable[[], bool] | None:
+    """`--max-minutos`: función que dice si todavía hay tiempo (None = sin límite)."""
+    minutos = getattr(args, "max_minutos", None)
+    if not minutos:
+        return None
+    limite = time.time() + float(minutos) * 60
+    return lambda: time.time() < limite
 
 
 def escribir_gz(path: Path, data: bytes) -> tuple[str, int, bool]:
@@ -389,7 +416,7 @@ def cmd_records(args: argparse.Namespace) -> None:
         est.agregar_items(lote_id, {c: {"ocid": candidatos[c]} for c in nuevos})
         log.info("   lote %s · %d ítems", lote_id, len(nuevos))
     try:
-        _correr_paralelo(est, lote_id, args.paralelo, lambda it: _bajar_record(est, lote_id, it))
+        _correr_paralelo(est, lote_id, args.paralelo, lambda it: _bajar_record(est, lote_id, it), presupuesto=_vence(args))
     finally:
         _resumen_final(est, lote_id, t0, "records")
         est.close()
@@ -461,7 +488,7 @@ def _bajar_documento(est: Estado, lote_id: str, item: dict, contador: dict, lock
         tmp = carpeta / f"{clave.rsplit('/', 1)[-1]}.descargando"
         for k, espera in enumerate((*ESPERA_403, None)):
             try:
-                _, sha, nb = http.download(url, tmp)
+                _, sha, nb = transporte.descargar(url, tmp)
                 break
             except requests.HTTPError as e:
                 if e.response is None or e.response.status_code != 403 or espera is None or _stop.is_set():
@@ -486,6 +513,8 @@ def _bajar_documento(est: Estado, lote_id: str, item: dict, contador: dict, lock
         est.marcar(lote_id, clave, "completed", sha256=sha, bytes=nb, ruta=ruta, meta={**meta, "bytes_reales": nb})
     except KeyboardInterrupt:
         raise
+    except transporte.ErrorRelay as e:
+        _cortar_por_relay(e)
     except Exception as e:  # noqa: BLE001
         log.warning("   %s falló: %s", clave, str(e)[:160])
         est.marcar(lote_id, clave, "failed", error=str(e)[:500])
@@ -495,6 +524,7 @@ def _bajar_documento(est: Estado, lote_id: str, item: dict, contador: dict, lock
                 if contador["403_seguidos"] >= MAX_403_SEGUIDOS and not _stop.is_set():
                     log.error("   %d HTTP 403 seguidos: el SEACE está bloqueando esta IP; corto la noche. "
                               "Reanudá otro día con: descargar documentos --lote %s", MAX_403_SEGUIDOS, lote_id)
+                    _corte["motivo"] = "seace_403"
                     _stop.set()
 
 
@@ -537,13 +567,18 @@ def cmd_documentos(args: argparse.Namespace) -> None:
         lote_id = est.nuevo_lote("documentos", nota=f"desde records {args.lote} · política {args.politica} · {len(nuevos)} docs")
         est.agregar_items(lote_id, nuevos)
         log.info("   lote %s · %d ítems", lote_id, len(nuevos))
+        if getattr(args, "solo_crear", False):       # la corrida en la nube lo baja después, por tramos
+            est.close()
+            _imprimir_lote(lote_id)
+            return
     contador = {"bytes": 0, "403_seguidos": 0, "pausa": args.pausa}
     lock = threading.Lock()
     tope = int(args.max_gb_por_noche * 1e9)
+    vence = _vence(args)
     try:
         _correr_paralelo(est, lote_id, args.paralelo,
                          lambda it: _bajar_documento(est, lote_id, it, contador, lock),
-                         presupuesto=lambda: contador["bytes"] < tope, cada=20)
+                         presupuesto=lambda: contador["bytes"] < tope and (vence is None or vence()), cada=20)
     finally:
         _resumen_final(est, lote_id, t0, "documentos")
         est.close()
@@ -597,10 +632,11 @@ def cmd_pedidos(args: argparse.Namespace) -> None:
 
     # record siempre de nuevo (puede haber cambiado: adjudicación, contrato) y todos los documentos.
     cmd_records(argparse.Namespace(lote=None, ocids=str(archivo), max_por_noche=len(lineas), paralelo=args.paralelo,
-                                   incluir_existentes=True, reponer=False))
+                                   incluir_existentes=True, reponer=False, max_minutos=args.max_minutos))
     lote_rec = (BATCH_DIR / "ultimo_lote").read_text(encoding="utf-8").strip()
     cmd_documentos(argparse.Namespace(lote=lote_rec, politica="todo", paralelo=1, pausa=args.pausa,
-                                      max_gb_por_noche=args.max_gb_por_noche, reponer=False, incluir_existentes=True))
+                                      max_gb_por_noche=args.max_gb_por_noche, reponer=False, incluir_existentes=True,
+                                      max_minutos=args.max_minutos))
     lote_doc = (BATCH_DIR / "ultimo_lote").read_text(encoding="utf-8").strip()
     with _pg() as conn, conn.cursor() as cur:
         cur.execute("UPDATE pedidos_descarga SET lote_id = %s WHERE id = ANY(%s)",
@@ -633,6 +669,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--max-por-noche", type=int, default=20000)
     c.add_argument("--incluir-existentes", action="store_true", help="re-bajar también ocids ya descargados (refresco)")
     c.add_argument("--reponer", action="store_true")
+    c.add_argument("--max-minutos", type=float, help="dejar de reclamar ítems pasados N minutos (el resto queda pendiente)")
     c.set_defaults(fn=cmd_records)
 
     d = sub.add_parser("documentos", help="archivos (PDF/ZIP) de records ya descargados")
@@ -644,6 +681,8 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--max-gb-por-noche", type=float, default=20.0)
     d.add_argument("--reponer", action="store_true")
     d.add_argument("--incluir-existentes", action="store_true", help="re-bajar también documentos ya descargados (tras expirar en GCS)")
+    d.add_argument("--max-minutos", type=float, help="dejar de reclamar ítems pasados N minutos (el resto queda pendiente)")
+    d.add_argument("--solo-crear", action="store_true", help="crear el lote (de un lote de records) sin bajar nada todavía")
     d.set_defaults(fn=cmd_documentos)
 
     q = sub.add_parser("pedidos", help="contratos financiados sin documentos en GCS (pedidos_descarga): record + todos los docs")
@@ -651,6 +690,7 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--paralelo", type=int, default=4, help="hilos para los records")
     q.add_argument("--pausa", type=float, default=PAUSA_DOCS)
     q.add_argument("--max-gb-por-noche", type=float, default=20.0)
+    q.add_argument("--max-minutos", type=float, help="dejar de reclamar ítems pasados N minutos")
     q.set_defaults(fn=cmd_pedidos)
 
     args = ap.parse_args(argv)
@@ -659,8 +699,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args.fn(args)
     except KeyboardInterrupt:
-        return 130
-    return 0
+        return 5 if _corte["motivo"] == "relay" else 130
+    return {"seace_403": 4, "relay": 5}.get(_corte["motivo"] or "", 0)
 
 
 if __name__ == "__main__":
