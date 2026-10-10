@@ -102,7 +102,7 @@ export function PortadaAliado({
           <p className="mt-4 max-w-[70ch] text-[15px] leading-relaxed text-inkSoft text-pretty">{aliado.descripcion}</p>
         )}
 
-        <ContactoAliado web={aliado.web} email={aliado.email} redes={aliado.redes} className="mt-4" />
+        <ContactoAliado web={aliado.web} email={aliado.email} redes={aliado.redes} telefono={aliado.telefono} ubicacion={aliado.ubicacion} enlaces={aliado.enlaces} className="mt-4" />
 
         <Insignias insignias={insignias} className="mt-4" />
 

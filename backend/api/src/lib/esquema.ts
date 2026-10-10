@@ -40,7 +40,7 @@ export async function hayModelosLectura(): Promise<boolean> {
 // ─── Perfil público del aliado (migración 30) ────────────────────────────────
 // descripción, web, correo de contacto, redes y portada. Sin las columnas, el perfil sale sin esos
 // datos y quien lo edita recibe un aviso en palabras (503 `sin_migracion`), en vez de un 500.
-const COLS_PERFIL = ["descripcion", "sitio_web", "email_publico", "redes", "portada_url"];
+const COLS_PERFIL = ["descripcion", "sitio_web", "email_publico", "redes", "portada_url", "telefono", "ubicacion", "enlaces"];
 let perfilCols: { ok: boolean; at: number } | null = null;
 
 /** ¿Tiene `financiadores` las columnas de la 30? */

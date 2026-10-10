@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Eye, EyeOff, ImagePlus, Loader2, ShieldAlert, Upload } from "lucide-react";
+import { Eye, EyeOff, ImagePlus, Loader2, Plus, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { Ayuda } from "@/components/patrones";
 import { Ruc } from "@/components/Redact";
 import { cn } from "@/lib/utils";
 import { subirImagenPerfil, type Perfil } from "@/lib/cuentas";
-import { MAX_DESCRIPCION, REDES, largoDescripcion } from "@/lib/perfilAliado";
+import { MAX_DESCRIPCION, MAX_ENLACES, MAX_TITULO_ENLACE, MAX_UBICACION, REDES, largoDescripcion } from "@/lib/perfilAliado";
 import { ETIQUETA, SUBTITULO, campo, opcion } from "./estilos";
 import { idCampo, motivoOculto, type BorradorPerfil, type CampoForm, type ErroresForm, type TipoAliado } from "./perfilPropio";
 
@@ -156,6 +156,15 @@ export function PerfilPublicoForm({
             </Campo>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo campo="telefono" etiqueta="Teléfono de contacto (opcional)" error={errores.telefono} pista="Se muestra en tu perfil como enlace para llamar.">
+              {(props) => <input {...props} type="tel" value={valor.telefono} onChange={(e) => onCambiar({ telefono: e.target.value })} inputMode="tel" autoComplete="tel" placeholder="+51 999 999 999" maxLength={40} />}
+            </Campo>
+            <Campo campo="ubicacion" etiqueta="Ciudad o región (opcional)" error={errores.ubicacion}>
+              {(props) => <input {...props} value={valor.ubicacion} onChange={(e) => onCambiar({ ubicacion: e.target.value })} autoComplete="address-level2" placeholder="Lima, Perú" maxLength={MAX_UBICACION + 20} />}
+            </Campo>
+          </div>
+
           <fieldset aria-describedby={errores.redes ? `${idCampo("redes")}-error` : undefined}>
             <legend className={SUBTITULO}>Redes (opcional): pega el enlace a tu página en cada una</legend>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -176,6 +185,62 @@ export function PerfilPublicoForm({
               ))}
             </div>
             {errores.redes && <p id={`${idCampo("redes")}-error`} className="mt-2 text-[13px] text-crimsonTexto">{errores.redes}</p>}
+          </fieldset>
+
+          <fieldset>
+            <legend className={SUBTITULO}>Enlaces relevantes (opcional): informes, noticias, tu página de transparencia</legend>
+            <p className="mt-1 text-xs text-mute">Hasta {MAX_ENLACES}. Cada uno con un título corto y su enlace https.</p>
+            <ul className="mt-2 space-y-3">
+              {valor.enlaces.map((e, i) => {
+                const idErr = `${idCampo(`enlace-${i}`)}-error`;
+                return (
+                  <li key={i} className="grid gap-2 sm:grid-cols-[1fr_1.6fr_auto] sm:items-start">
+                    <input
+                      id={idCampo(`enlace-${i}`)}
+                      aria-label={`Título del enlace ${i + 1}`}
+                      aria-invalid={errores[`enlace-${i}`] ? true : undefined}
+                      aria-describedby={errores[`enlace-${i}`] ? idErr : undefined}
+                      className={campo(errores[`enlace-${i}`])}
+                      value={e.titulo}
+                      maxLength={MAX_TITULO_ENLACE + 20}
+                      placeholder="Informe de sostenibilidad"
+                      onChange={(ev) => onCambiar({ enlaces: valor.enlaces.map((x, j) => (j === i ? { ...x, titulo: ev.target.value } : x)) })}
+                    />
+                    <input
+                      aria-label={`Dirección del enlace ${i + 1}`}
+                      aria-invalid={errores[`enlace-${i}`] ? true : undefined}
+                      aria-describedby={errores[`enlace-${i}`] ? idErr : undefined}
+                      className={campo(errores[`enlace-${i}`])}
+                      value={e.url}
+                      inputMode="url"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="https://empresa.pe/informe"
+                      onChange={(ev) => onCambiar({ enlaces: valor.enlaces.map((x, j) => (j === i ? { ...x, url: ev.target.value } : x)) })}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Quitar el enlace ${i + 1}`}
+                      onClick={() => onCambiar({ enlaces: valor.enlaces.filter((_, j) => j !== i) })}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-mute transition-colors hover:border-granate/40 hover:text-ink"
+                    >
+                      <Trash2 size={15} aria-hidden />
+                    </button>
+                    {errores[`enlace-${i}`] && <p id={idErr} className="text-[13px] text-crimsonTexto sm:col-span-3">{errores[`enlace-${i}`]}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+            {valor.enlaces.length < MAX_ENLACES && (
+              <button
+                type="button"
+                onClick={() => onCambiar({ enlaces: [...valor.enlaces, { titulo: "", url: "" }] })}
+                className="mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line bg-paper px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-granate/40 hover:bg-granate-50"
+              >
+                <Plus size={14} aria-hidden /> Agregar enlace
+              </button>
+            )}
+            {errores.enlaces && <p className="mt-2 text-[13px] text-crimsonTexto">{errores.enlaces}</p>}
           </fieldset>
 
           <div>

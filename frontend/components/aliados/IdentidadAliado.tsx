@@ -9,6 +9,9 @@ import {
   Instagram,
   Linkedin,
   Mail,
+  MapPin,
+  Phone,
+  Link2,
   MapPinned,
   Receipt,
   Sprout,
@@ -290,8 +293,15 @@ export function ContactoAliado({
   web,
   email,
   redes,
+  telefono,
+  ubicacion,
+  enlaces,
   className,
 }: {
+  telefono?: string | null;
+  ubicacion?: string | null;
+  /** Enlaces relevantes que el aliado eligió publicar: {titulo, url}. */
+  enlaces?: { titulo: string; url: string }[] | null;
   web?: string | null;
   /** El correo de CONTACTO que el aliado publicó (`email_publico`), nunca el del pago. */
   email?: string | null;
@@ -301,7 +311,10 @@ export function ContactoAliado({
   const sitio = esUrl(web) ? web : null;
   const correo = esCorreo(email) ? email : null;
   const susRedes = ORDEN_REDES.filter((r) => esUrl(redes?.[r]));
-  if (!sitio && !correo && susRedes.length === 0) return null;
+  const tel = telefono && /^\+?[0-9][0-9 ()-]{5,19}$/.test(telefono) ? telefono : null;
+  const lugar = ubicacion?.trim() || null;
+  const otros = (enlaces ?? []).filter((e) => e.titulo && esUrl(e.url));
+  if (!sitio && !correo && !tel && !lugar && otros.length === 0 && susRedes.length === 0) return null;
   const host = sitio ? sitio.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
   return (
     <ul aria-label="Sitio, contacto y redes" className={cn("flex flex-wrap items-center gap-2", className)}>
@@ -318,6 +331,20 @@ export function ContactoAliado({
           <a href={`mailto:${correo}`} className={ENLACE}>
             <Mail size={14} className="text-granate" aria-hidden /> {correo}
           </a>
+        </li>
+      )}
+      {tel && (
+        <li>
+          <a href={`tel:${tel.replace(/[^+\d]/g, "")}`} className={ENLACE}>
+            <Phone size={14} className="text-granate" aria-hidden /> <span className="tabular-nums">{tel}</span>
+          </a>
+        </li>
+      )}
+      {lugar && (
+        <li>
+          <span className={cn(ENLACE, "pointer-events-none hover:border-line hover:bg-paper")}>
+            <MapPin size={14} className="text-granate" aria-hidden /> {lugar}
+          </span>
         </li>
       )}
       {susRedes.map((r) => {
@@ -338,6 +365,14 @@ export function ContactoAliado({
           </li>
         );
       })}
+      {otros.map((e) => (
+        <li key={e.url}>
+          <a href={e.url} target="_blank" rel="noopener noreferrer nofollow" className={ENLACE}>
+            <Link2 size={14} className="text-granate" aria-hidden /> {e.titulo}
+            <span className="sr-only"> (se abre en otra pestaña)</span>
+          </a>
+        </li>
+      ))}
     </ul>
   );
 }

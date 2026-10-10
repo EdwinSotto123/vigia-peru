@@ -321,7 +321,7 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
 const MAX_CONTRIBUCIONES_ALIADO = 100;
 const COLS_ALIADO = `id, tipo, COALESCE(nombre_publico,'Anónimo') AS nombre, slug, logo_url AS "logoUrl", created_at AS "desde"`;
 // email_publico: el correo que el aliado publicó. `email` (el del pago) nunca entra en esta consulta.
-const COLS_ALIADO_PERFIL = `, descripcion, sitio_web AS "sitioWeb", email_publico AS "emailPublico", redes, portada_url AS "portadaUrl"`;
+const COLS_ALIADO_PERFIL = `, descripcion, sitio_web AS "sitioWeb", email_publico AS "emailPublico", redes, portada_url AS "portadaUrl", telefono, ubicacion, enlaces`;
 
 financiamientoRouter.get("/aliados/:slug", async (c) => {
   const slug = c.req.param("slug");
@@ -335,6 +335,7 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
   const aliado = {
     id: r.id, tipo: r.tipo, nombre: r.nombre, slug: r.slug, logoUrl: r.logoUrl, desde: r.desde,
     descripcion: p.descripcion, web: p.sitioWeb, email: p.emailPublico, redes: p.redes, portadaUrl: p.portadaUrl,
+    telefono: p.telefono, ubicacion: p.ubicacion, enlaces: p.enlaces,
   };
   const conEntidad = await hayAporteEntidad();
   const cs = await pool.query(

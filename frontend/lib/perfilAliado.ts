@@ -12,6 +12,13 @@ import { listaY } from "@/lib/formato";
  */
 
 export const MAX_DESCRIPCION = 280;
+export const MAX_ENLACES = 5;
+export const MAX_TITULO_ENLACE = 60;
+export const MAX_UBICACION = 80;
+/** Mismo TELEFONO del API (el CHECK de la migración 40). */
+const TELEFONO = /^\+?[0-9][0-9 ()-]{5,19}$/;
+
+export interface EnlaceEscrito { titulo: string; url: string }
 /** Tope del API para cualquier enlace (urlHttps). */
 const MAX_ENLACE = 500;
 
@@ -39,6 +46,9 @@ export interface PerfilPublicado {
   emailPublico?: string | null;
   portadaUrl?: string | null;
   redes?: Partial<Record<RedSocial, string>> | null;
+  telefono?: string | null;
+  ubicacion?: string | null;
+  enlaces?: EnlaceEscrito[] | null;
 }
 
 /** Lo que se manda: sólo lo que cambió; "" borra el dato (en `redes`, borra esa red). */
@@ -48,6 +58,10 @@ export interface CambiosPerfilPublico {
   emailPublico?: string;
   portadaUrl?: string;
   redes?: Partial<Record<RedSocial, string>>;
+  telefono?: string;
+  ubicacion?: string;
+  /** La lista completa (reemplaza la anterior). */
+  enlaces?: EnlaceEscrito[];
 }
 
 /** Lo que está escrito en el formulario, tal cual. */
@@ -57,10 +71,15 @@ export interface ValoresPerfil {
   emailPublico: string;
   portadaUrl: string;
   redes: Partial<Record<RedSocial, string>>;
+  telefono: string;
+  ubicacion: string;
+  enlaces: EnlaceEscrito[];
 }
 
-/** Campo con error: los cuatro del perfil o una red por su clave ("facebook"). */
-export type CampoPerfil = "descripcion" | "sitioWeb" | "emailPublico" | "portadaUrl" | RedSocial;
+/** Campo con error: los del perfil, una red por su clave ("facebook") o un enlace por su lugar ("enlace-0"). */
+export type CampoPerfil =
+  | "descripcion" | "sitioWeb" | "emailPublico" | "portadaUrl" | "telefono" | "ubicacion" | "enlaces"
+  | RedSocial | `enlace-${number}`;
 
 /** Una línea, como la guarda el API. */
 export const unaLinea = (s: string) => s.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
@@ -106,7 +125,7 @@ function probar(f: () => string): { ok: string } | { error: string } {
 export function validarPerfil(actual: PerfilPublicado, v: ValoresPerfil): { cambios: CambiosPerfilPublico; errores: Partial<Record<CampoPerfil, string>> } {
   const cambios: CambiosPerfilPublico = {};
   const errores: Partial<Record<CampoPerfil, string>> = {};
-  const anotar = (campo: "descripcion" | "sitioWeb" | "emailPublico" | "portadaUrl", nuevo: string) => {
+  const anotar = (campo: "descripcion" | "sitioWeb" | "emailPublico" | "portadaUrl" | "telefono" | "ubicacion", nuevo: string) => {
     if (nuevo !== (actual[campo] ?? "")) cambios[campo] = nuevo;
   };
 
@@ -126,6 +145,30 @@ export function validarPerfil(actual: PerfilPublicado, v: ValoresPerfil): { camb
   const correo = v.emailPublico.trim().toLowerCase();
   if (correo && !esCorreoValido(correo)) errores.emailPublico = "No es un correo válido. Revisa que tenga la forma nombre@dominio.pe.";
   else anotar("emailPublico", correo);
+
+  const telefono = unaLinea(v.telefono);
+  if (telefono && !TELEFONO.test(telefono)) errores.telefono = "Usa entre 6 y 20 caracteres: dígitos, espacios, guiones o paréntesis, y un + al inicio si es de otro país.";
+  else anotar("telefono", telefono);
+
+  const ubicacion = unaLinea(v.ubicacion);
+  if ([...ubicacion].length > MAX_UBICACION) errores.ubicacion = `Tiene ${[...ubicacion].length} caracteres: el máximo es ${MAX_UBICACION}.`;
+  else anotar("ubicacion", ubicacion);
+
+  // Enlaces relevantes: título + https. Una fila vacía se ignora; la lista completa viaja si algo cambió.
+  const enlaces: EnlaceEscrito[] = [];
+  v.enlaces.forEach((e, i) => {
+    const titulo = unaLinea(e.titulo);
+    const url = e.url.trim();
+    if (!titulo && !url) return;
+    if (!titulo) { errores[`enlace-${i}`] = "Ponle un título corto, por ejemplo “Informe de sostenibilidad”."; return; }
+    if ([...titulo].length > MAX_TITULO_ENLACE) { errores[`enlace-${i}`] = `El título tiene ${[...titulo].length} caracteres: el máximo es ${MAX_TITULO_ENLACE}.`; return; }
+    const r = probar(() => enlace(url));
+    if ("error" in r) errores[`enlace-${i}`] = r.error;
+    else enlaces.push({ titulo, url: r.ok });
+  });
+  if (v.enlaces.length > MAX_ENLACES) errores.enlaces = `Hasta ${MAX_ENLACES} enlaces.`;
+  const previos = actual.enlaces ?? [];
+  if (JSON.stringify(enlaces) !== JSON.stringify(previos.map((e) => ({ titulo: e.titulo, url: e.url })))) cambios.enlaces = enlaces;
 
   const redes: Partial<Record<RedSocial, string>> = {};
   for (const r of REDES) {
@@ -148,6 +191,9 @@ export function comoSePublica(v: ValoresPerfil): {
   email: string | null;
   portadaUrl: string | null;
   redes: Partial<Record<RedSocial, string>>;
+  telefono: string | null;
+  ubicacion: string | null;
+  enlaces: EnlaceEscrito[];
 } {
   const valido = (f: () => string) => {
     const r = probar(f);
@@ -167,6 +213,13 @@ export function comoSePublica(v: ValoresPerfil): {
     email: correo && esCorreoValido(correo) ? correo : null,
     portadaUrl: v.portadaUrl.trim() ? valido(() => enlace(v.portadaUrl.trim())) : null,
     redes,
+    telefono: TELEFONO.test(unaLinea(v.telefono)) ? unaLinea(v.telefono) : null,
+    ubicacion: unaLinea(v.ubicacion) && [...unaLinea(v.ubicacion)].length <= MAX_UBICACION ? unaLinea(v.ubicacion) : null,
+    enlaces: v.enlaces.flatMap((e) => {
+      const titulo = unaLinea(e.titulo);
+      const url = e.url.trim() ? valido(() => enlace(e.url.trim())) : null;
+      return titulo && url && [...titulo].length <= MAX_TITULO_ENLACE ? [{ titulo, url }] : [];
+    }).slice(0, MAX_ENLACES),
   };
 }
 
@@ -177,6 +230,8 @@ export function resumenPerfil(p: PerfilPublicado): string | null {
     p.descripcion && "descripción",
     p.sitioWeb && "web",
     p.emailPublico && "correo",
+    p.telefono && "teléfono",
+    (p.enlaces?.length ?? 0) > 0 && "enlaces",
     redes > 0 && (redes === 1 ? "1 red" : `${redes} redes`),
     p.portadaUrl && "portada",
   ].filter((x): x is string => Boolean(x));

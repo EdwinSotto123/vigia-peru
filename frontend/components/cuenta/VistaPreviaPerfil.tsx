@@ -77,7 +77,7 @@ export function VistaPreviaPerfil({
         <p className={cn("mt-2 truncate font-display text-lg font-bold", n ? "text-ink" : "italic text-mute")}>{n || "Aún sin nombre"}</p>
         {TIPO[tipo] && <IdentidadAliado datos={[{ icono: TIPO[tipo].icono, texto: TIPO[tipo].texto }]} tam="sm" className="mt-1" />}
         {pub.descripcion && <p className="mt-2 text-[13px] leading-relaxed text-inkSoft text-pretty">{pub.descripcion}</p>}
-        <ContactoAliado web={pub.web} email={pub.email} redes={pub.redes} className="mt-3" />
+        <ContactoAliado web={pub.web} email={pub.email} redes={pub.redes} telefono={pub.telefono} ubicacion={pub.ubicacion} enlaces={pub.enlaces} className="mt-3" />
 
         <p className="mt-3 border-t border-line pt-3 text-xs text-mute">
           {estado === "oculto" ? (

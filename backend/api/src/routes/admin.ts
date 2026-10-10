@@ -269,8 +269,8 @@ adminRouter.patch("/contribuciones/:codigo", async (c) => {
 // define QUIEN APORTA desde su cuenta (PUT /cuentas/me). El panel lo LEE (saneado con las mismas
 // reglas que la página pública, lib/perfilAliado.ts) y sólo MODERA: ocultar o mostrar con motivo.
 // Sin las columnas de la 30, la lista sale con el perfil vacío y `perfil: false`.
-const COLS_PERFIL_ADMIN = `f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.redes, f.portada_url AS "portadaUrl"`;
-const COLS_PERFIL_VACIO = `NULL::text AS descripcion, NULL::text AS "sitioWeb", NULL::text AS "emailPublico", '{}'::jsonb AS redes, NULL::text AS "portadaUrl"`;
+const COLS_PERFIL_ADMIN = `f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.redes, f.portada_url AS "portadaUrl", f.telefono, f.ubicacion, f.enlaces`;
+const COLS_PERFIL_VACIO = `NULL::text AS descripcion, NULL::text AS "sitioWeb", NULL::text AS "emailPublico", '{}'::jsonb AS redes, NULL::text AS "portadaUrl", NULL::text AS telefono, NULL::text AS ubicacion, '[]'::jsonb AS enlaces`;
 
 adminRouter.get("/financiadores", async (c) => {
   const { valor: r, perfil } = await conPerfilAliado((conPerfil) => pool.query(

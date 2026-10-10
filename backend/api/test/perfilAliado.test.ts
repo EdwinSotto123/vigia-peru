@@ -117,8 +117,46 @@ test("perfilPublicado: al leer, lo que no cumple no sale", () => {
   }), {
     descripcion: "Somos una ONG", sitioWeb: null, emailPublico: "hola@ong.pe",
     redes: { facebook: "https://facebook.com/ong" }, portadaUrl: "https://ong.pe/portada.jpg",
+    telefono: null, ubicacion: null, enlaces: [],
   });
-  assert.deepEqual(perfilPublicado({}), { descripcion: null, sitioWeb: null, emailPublico: null, redes: {}, portadaUrl: null });
+  assert.deepEqual(perfilPublicado({}), {
+    descripcion: null, sitioWeb: null, emailPublico: null, redes: {}, portadaUrl: null, telefono: null, ubicacion: null, enlaces: [],
+  });
+});
+
+test("contacto (migración 40): teléfono, ubicación y enlaces se validan al escribir", () => {
+  const ok = normalizarPerfil({
+    telefono: " +51  999 999 999 ", ubicacion: " Lima, Perú ",
+    enlaces: [{ titulo: " Informe 2025 ", url: "https://empresa.pe/informe" }, { titulo: "", url: "" }],
+  });
+  assert.ok(!esProblema(ok));
+  if (!esProblema(ok)) {
+    assert.deepEqual(ok.campos, { telefono: "+51 999 999 999", ubicacion: "Lima, Perú" });
+    assert.deepEqual(ok.enlaces, [{ titulo: "Informe 2025", url: "https://empresa.pe/informe" }]);
+  }
+  const borra = normalizarPerfil({ telefono: "", enlaces: [] });
+  assert.ok(!esProblema(borra));
+  if (!esProblema(borra)) {
+    assert.deepEqual(borra.campos, { telefono: null });
+    assert.deepEqual(borra.enlaces, []);
+  }
+  assert.equal((normalizarPerfil({ telefono: "abc" }) as { campo: string }).campo, "telefono");
+  assert.equal((normalizarPerfil({ enlaces: [{ titulo: "x", url: "http://inseguro.pe" }] }) as { campo: string }).campo, "enlaces.0");
+  assert.equal((normalizarPerfil({ enlaces: [{ titulo: "", url: "https://a.pe/x" }] }) as { campo: string }).campo, "enlaces.0");
+});
+
+test("contacto (migración 40): al leer, lo que no cumple no sale y el tope es 5", () => {
+  const p = perfilPublicado({
+    telefono: "no es un teléfono", ubicacion: "  ",
+    enlaces: [
+      { titulo: "Bueno", url: "https://a.pe/1" }, { titulo: "Sin https", url: "http://a.pe/2" }, { titulo: "", url: "https://a.pe/3" },
+      ...[4, 5, 6, 7, 8].map((n) => ({ titulo: `E${n}`, url: `https://a.pe/${n}` })),
+    ],
+  });
+  assert.equal(p.telefono, null);
+  assert.equal(p.ubicacion, null);
+  assert.equal(p.enlaces.length, 5);
+  assert.deepEqual(p.enlaces[0], { titulo: "Bueno", url: "https://a.pe/1" });
 });
 
 // ─── lib/aportes.ts con una base simulada ────────────────────────────────────

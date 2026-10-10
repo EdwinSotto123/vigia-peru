@@ -19,6 +19,9 @@ export interface BorradorPerfil {
   emailPublico: string;
   portadaUrl: string;
   redes: Partial<Record<RedSocial, string>>;
+  telefono: string;
+  ubicacion: string;
+  enlaces: { titulo: string; url: string }[];
   /** Sólo se escribe si la cuenta aún no tiene RUC. */
   ruc: string;
   rucConfirmado: boolean;
@@ -33,8 +36,8 @@ export const idCampo = (c: CampoForm) => `cuenta-${c}`;
 
 /** Orden en la página: al guardar con errores, el foco va al primero. */
 export const ORDEN_CAMPOS: CampoForm[] = [
-  "nombre", "logoUrl", "descripcion", "sitioWeb", "emailPublico",
-  ...REDES.map((r) => r.red), "redes", "portadaUrl", "ruc", "rucConfirmado", "correo",
+  "nombre", "logoUrl", "descripcion", "sitioWeb", "emailPublico", "telefono", "ubicacion",
+  ...REDES.map((r) => r.red), "redes", "enlaces", "portadaUrl", "ruc", "rucConfirmado", "correo",
 ];
 
 export function borradorDesde(p: Perfil): BorradorPerfil {
@@ -48,6 +51,9 @@ export function borradorDesde(p: Perfil): BorradorPerfil {
     emailPublico: p.emailPublico ?? "",
     portadaUrl: p.portadaUrl ?? "",
     redes: { ...(p.redes ?? {}) },
+    telefono: p.telefono ?? "",
+    ubicacion: p.ubicacion ?? "",
+    enlaces: (p.enlaces ?? []).map((e) => ({ ...e })),
     ruc: "",
     rucConfirmado: false,
   };
@@ -92,7 +98,7 @@ export function prepararCambios(
   return { cuerpo, errores };
 }
 
-const CAMPOS_DIRECTOS = new Set<string>(["descripcion", "sitioWeb", "emailPublico", "portadaUrl", "logoUrl", "ruc", "correo"]);
+const CAMPOS_DIRECTOS = new Set<string>(["descripcion", "sitioWeb", "emailPublico", "portadaUrl", "telefono", "ubicacion", "logoUrl", "ruc", "correo"]);
 const esRed = (c: string): c is RedSocial => REDES.some((r) => r.red === c);
 
 /** "redes.facebook", "facebook", "nombrePublico"… → el campo del formulario, o null si no es uno de ellos. */
@@ -101,6 +107,7 @@ function campoDelApi(c: string | null): CampoForm | null {
   const [a, b] = c.split(/[./]/);
   if (a === "nombrePublico") return "nombre";
   if (a === "redes") return b && esRed(b) ? b : "redes";
+  if (a === "enlaces") return b && /^\d+$/.test(b) ? (`enlace-${b}` as CampoForm) : "enlaces";
   if (esRed(a)) return a;
   return CAMPOS_DIRECTOS.has(a) ? (a as CampoForm) : null;
 }

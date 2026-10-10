@@ -49,6 +49,10 @@ export interface Perfil {
   emailPublico?: string | null;
   portadaUrl?: string | null;
   redes?: Partial<Record<RedSocial, string>>;
+  /** Migración 40: contacto y enlaces opcionales. */
+  telefono?: string | null;
+  ubicacion?: string | null;
+  enlaces?: { titulo: string; url: string }[];
   zonasSeguidas: string[];
   entidadesSeguidas: string[];
   zonas: ZonaSeguida[];

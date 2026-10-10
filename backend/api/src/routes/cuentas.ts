@@ -51,7 +51,8 @@ const slugify = (s: string) =>
 // Si no, esas claves no salen y el frontend no ofrece editarlas (lo detecta por `redes`).
 const COLS_PERFIL_PUBLICO = `,
          f.descripcion, f.sitio_web AS "sitioWeb", f.email_publico AS "emailPublico", f.portada_url AS "portadaUrl",
-         COALESCE(f.redes, '{}'::jsonb) AS redes`;
+         COALESCE(f.redes, '{}'::jsonb) AS redes,
+         f.telefono, f.ubicacion, COALESCE(f.enlaces, '[]'::jsonb) AS enlaces`;
 
 const perfilSql = (conPerfil: boolean) => `
   SELECT u.firebase_uid AS uid, u.financiador_id AS "financiadorId",
@@ -369,6 +370,7 @@ cuentasRouter.get("/me/exportar", async (c) => {
       nombrePublico: p.nombrePublico, slug: p.slug, logoUrl: p.logoUrl, tipo: p.tipo, ruc: p.ruc, visible: p.visible, aliadoVisible: p.aliadoVisible,
       descripcion: p.descripcion ?? null, sitioWeb: p.sitioWeb ?? null, emailPublico: p.emailPublico ?? null,
       portadaUrl: p.portadaUrl ?? null, redes: p.redes ?? {},
+      telefono: p.telefono ?? null, ubicacion: p.ubicacion ?? null, enlaces: p.enlaces ?? [],
     },
     configuracion: { notificaciones: p.notificaciones, zonasSeguidas: p.zonasSeguidas, entidadesSeguidas: p.entidadesSeguidas },
     aportes: aportes.rows,

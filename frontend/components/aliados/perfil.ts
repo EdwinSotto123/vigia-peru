@@ -32,7 +32,13 @@ export interface AliadoPerfil {
   redes?: Partial<Record<RedSocial, string>> | null;
   /** Imagen de portada del perfil (opcional). Sin ella, la portada es la franja textil. */
   portadaUrl?: string | null;
+  /** Teléfono, ciudad y enlaces relevantes que el aliado eligió publicar (migración 40). */
+  telefono?: string | null;
+  ubicacion?: string | null;
+  enlaces?: EnlaceAliado[] | null;
 }
+
+export interface EnlaceAliado { titulo: string; url: string }
 
 export type RedSocial = "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube";
 

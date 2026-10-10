@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, Globe, Mail } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Globe, Link2, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
@@ -38,6 +38,9 @@ interface PerfilApi {
     web?: string | null;
     email?: string | null;
     redes?: Record<string, string> | null;
+    telefono?: string | null;
+    ubicacion?: string | null;
+    enlaces?: { titulo: string; url: string }[] | null;
   };
   contribuciones: Contribucion[];
 }
@@ -76,7 +79,11 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
   const fundador = esFundador(fila);
   const desde = mesAnio(fila.desde);
   const a = perfil?.aliado;
-  const redes = Object.entries(a?.redes ?? {}).filter(([, url]) => !!url);
+  const linkedin = a?.redes?.linkedin ?? null;
+  const redes = Object.entries(a?.redes ?? {}).filter(([red, url]) => !!url && red !== "linkedin");
+  const enlaces = (a?.enlaces ?? []).filter((e) => e.url && e.titulo);
+  const telefono = a?.telefono ?? null;
+  const sinContacto = !!a && !a.web && !a.email && !telefono && !linkedin && redes.length === 0 && enlaces.length === 0;
 
   // Las zonas que financió, juntando aportes de la misma zona.
   const zonas = new Map<string, number>();
@@ -163,8 +170,35 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
           ) : (
             <p className="mt-2 text-[15px] leading-relaxed text-mute">Todavía no publicó una descripción de sí.</p>
           )}
-          {(a?.web || a?.email || redes.length > 0) && (
+          {a?.ubicacion && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[14px] text-inkSoft">
+              <MapPin size={14} aria-hidden /> {a.ubicacion}
+            </p>
+          )}
+          {(a?.web || a?.email || telefono || linkedin || redes.length > 0) && (
             <ul className="mt-3 flex flex-wrap gap-2">
+              {linkedin && (
+                <li>
+                  <a
+                    href={linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                  >
+                    <Linkedin size={14} aria-hidden /> LinkedIn <ArrowUpRight size={13} aria-hidden />
+                  </a>
+                </li>
+              )}
+              {telefono && (
+                <li>
+                  <a
+                    href={`tel:${telefono.replace(/[^+\d]/g, "")}`}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
+                  >
+                    <Phone size={14} aria-hidden /> <span className="tabular-nums">{telefono}</span>
+                  </a>
+                </li>
+              )}
               {a?.web && (
                 <li>
                   <a
@@ -183,7 +217,7 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                     href={`mailto:${a.email}`}
                     className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3.5 text-[14px] font-medium text-ink hover:bg-paperSoft"
                   >
-                    <Mail size={14} aria-hidden /> Contacto
+                    <Mail size={14} aria-hidden /> {a.email}
                   </a>
                 </li>
               )}
@@ -200,6 +234,34 @@ export function AliadoAbrir({ fila, className, children }: { fila: FilaRanking; 
                 </li>
               ))}
             </ul>
+          )}
+          {enlaces.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-[13px] font-semibold text-inkSoft">Enlaces relevantes</h4>
+              <ul className="mt-2 space-y-1.5">
+                {enlaces.map((e) => (
+                  <li key={e.url}>
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="inline-flex items-center gap-1.5 text-[14.5px] font-medium text-granate underline-offset-4 hover:underline"
+                    >
+                      <Link2 size={14} aria-hidden /> {e.titulo} <ArrowUpRight size={13} aria-hidden />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {sinContacto && !fundador && (
+            <p className="mt-3 text-[13px] leading-snug text-mute">
+              Todavía no publicó datos de contacto.{" "}
+              <Link href="/app/configuracion" className="text-granate underline-offset-4 hover:underline">
+                ¿Es tu empresa? Completa su perfil
+              </Link>
+              .
+            </p>
           )}
         </section>
 

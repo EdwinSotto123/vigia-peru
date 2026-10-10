@@ -25,6 +25,27 @@ export const REDES_ALIADO: Record<RedAliado, { nombre: string; dominios: readonl
 export const CLAVES_RED = Object.keys(REDES_ALIADO) as RedAliado[];
 
 export const MAX_DESCRIPCION = 280;
+export const MAX_ENLACES = 5;
+export const MAX_TITULO_ENLACE = 60;
+export const MAX_UBICACION = 80;
+/** Teléfono: + inicial opcional, dígitos, espacios, guiones y paréntesis; 6 a 20 caracteres (el CHECK de la 40). */
+export const TELEFONO = /^\+?[0-9][0-9 ()-]{5,19}$/;
+
+export interface EnlaceAliado { titulo: string; url: string }
+
+/** Hasta cinco enlaces {titulo, url} válidos, en el orden dado; lo que no cumple no sale. */
+export function enlacesPublicos(v: unknown): EnlaceAliado[] {
+  if (!Array.isArray(v)) return [];
+  const out: EnlaceAliado[] = [];
+  for (const x of v) {
+    if (out.length >= MAX_ENLACES) break;
+    const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
+    const url = urlHttps(o.url);
+    const titulo = typeof o.titulo === "string" ? unaLinea(o.titulo) : "";
+    if (url && titulo && [...titulo].length <= MAX_TITULO_ENLACE) out.push({ titulo, url });
+  }
+  return out;
+}
 export const CORREO_PUBLICO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** Enlace https bien formado (normalizado), o null. Al escribir y otra vez al leer. */
@@ -66,10 +87,14 @@ export interface PerfilPublicado {
   emailPublico: string | null;
   redes: Partial<Record<RedAliado, string>>;
   portadaUrl: string | null;
+  telefono: string | null;
+  ubicacion: string | null;
+  enlaces: EnlaceAliado[];
 }
 
 export function perfilPublicado(r: {
   descripcion?: unknown; sitioWeb?: unknown; emailPublico?: unknown; redes?: unknown; portadaUrl?: unknown;
+  telefono?: unknown; ubicacion?: unknown; enlaces?: unknown;
 }): PerfilPublicado {
   return {
     descripcion: typeof r.descripcion === "string" && r.descripcion.trim() ? r.descripcion.trim() : null,
@@ -77,6 +102,9 @@ export function perfilPublicado(r: {
     emailPublico: typeof r.emailPublico === "string" && CORREO_PUBLICO.test(r.emailPublico) ? r.emailPublico : null,
     redes: redesPublicas(r.redes),
     portadaUrl: urlHttps(r.portadaUrl),
+    telefono: typeof r.telefono === "string" && TELEFONO.test(r.telefono) ? r.telefono : null,
+    ubicacion: typeof r.ubicacion === "string" && r.ubicacion.trim() && [...r.ubicacion].length <= MAX_UBICACION ? r.ubicacion.trim() : null,
+    enlaces: enlacesPublicos(r.enlaces),
   };
 }
 
@@ -91,6 +119,9 @@ export const CamposPerfil = {
   sitioWeb: Enlace,
   emailPublico: z.string().max(254).nullable().optional(),
   portadaUrl: Enlace,
+  telefono: z.string().max(40).nullable().optional(),
+  ubicacion: z.string().max(200).nullable().optional(),
+  enlaces: z.array(z.object({ titulo: z.string().max(200), url: z.string().max(500) }).strict()).max(MAX_ENLACES).optional(),
   redes: z.object({
     facebook: Enlace, instagram: Enlace, linkedin: Enlace, x: Enlace, tiktok: Enlace, youtube: Enlace,
   }).strict().optional(),
@@ -101,6 +132,7 @@ export type CuerpoPerfil = z.infer<typeof CuerpoPerfil>;
 /** Campo del API → columna de `financiadores` (lista cerrada: es lo único que entra en el SET). */
 export const COL_PERFIL = {
   descripcion: "descripcion", sitioWeb: "sitio_web", emailPublico: "email_publico", portadaUrl: "portada_url",
+  telefono: "telefono", ubicacion: "ubicacion",
 } as const;
 export type CampoPerfil = keyof typeof COL_PERFIL;
 
@@ -108,6 +140,8 @@ export interface CambiosPerfil {
   campos: Partial<Record<CampoPerfil, string | null>>;
   poner: Partial<Record<RedAliado, string>>;
   quitar: RedAliado[];
+  /** Lista completa de enlaces (reemplaza la anterior); ausente = no se toca. */
+  enlaces?: EnlaceAliado[];
 }
 
 /** Un problema del perfil: el campo del cuerpo ("descripcion", "redes.facebook"…) y la frase para la persona. */
@@ -117,7 +151,7 @@ export const esProblema = (x: CambiosPerfil | ProblemaPerfil): x is ProblemaPerf
 
 /** ¿Cambia algo del perfil? */
 export const tocaPerfil = (p: CambiosPerfil) =>
-  Object.keys(p.campos).length > 0 || Object.keys(p.poner).length > 0 || p.quitar.length > 0;
+  Object.keys(p.campos).length > 0 || Object.keys(p.poner).length > 0 || p.quitar.length > 0 || p.enlaces !== undefined;
 
 /** Una línea: la cabecera del perfil es un párrafo corto. */
 export const unaLinea = (s: string) => s.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
@@ -149,6 +183,37 @@ export function normalizarPerfil(b: CuerpoPerfil): CambiosPerfil | ProblemaPerfi
     }
     campos.emailPublico = v || null;
   }
+  if (b.telefono !== undefined) {
+    const v = unaLinea(b.telefono ?? "");
+    if (v && !TELEFONO.test(v)) {
+      return { campo: "telefono", detalle: "El teléfono tiene que tener entre 6 y 20 caracteres: dígitos, espacios, guiones o paréntesis, y un + al inicio si es de otro país." };
+    }
+    campos.telefono = v || null;
+  }
+  if (b.ubicacion !== undefined) {
+    const v = unaLinea(b.ubicacion ?? "");
+    if ([...v].length > MAX_UBICACION) {
+      return { campo: "ubicacion", detalle: `La ubicación tiene ${[...v].length} caracteres: el máximo es ${MAX_UBICACION}.` };
+    }
+    campos.ubicacion = v || null;
+  }
+  let enlaces: EnlaceAliado[] | undefined;
+  if (b.enlaces !== undefined) {
+    enlaces = [];
+    for (const [i, e] of b.enlaces.entries()) {
+      const titulo = unaLinea(e.titulo);
+      const url = e.url.trim();
+      if (!titulo && !url) continue; // fila vacía del formulario
+      if ([...titulo].length > MAX_TITULO_ENLACE || !titulo) {
+        return { campo: `enlaces.${i}`, detalle: `Cada enlace necesita un título de hasta ${MAX_TITULO_ENLACE} caracteres.` };
+      }
+      const href = urlHttps(url);
+      if (!href) {
+        return { campo: `enlaces.${i}`, detalle: "Cada enlace tiene que empezar con https:// (por ejemplo https://empresa.pe/informe)." };
+      }
+      enlaces.push({ titulo, url: href });
+    }
+  }
   const poner: CambiosPerfil["poner"] = {};
   const quitar: RedAliado[] = [];
   for (const red of CLAVES_RED) {
@@ -166,7 +231,7 @@ export function normalizarPerfil(b: CuerpoPerfil): CambiosPerfil | ProblemaPerfi
     }
     poner[red] = href;
   }
-  return { campos, poner, quitar };
+  return enlaces ? { campos, poner, quitar, enlaces } : { campos, poner, quitar };
 }
 
 /**
@@ -192,6 +257,11 @@ export function problemaDeZod(e: z.ZodError): ProblemaPerfil | null {
   if (campo === "emailPublico") return { campo, detalle: "El correo de contacto no es válido." };
   if (campo === "sitioWeb") return { campo, detalle: "La web no es un enlace válido." };
   if (campo === "portadaUrl") return { campo, detalle: "La imagen de portada no es un enlace válido." };
+  if (campo === "telefono") return { campo, detalle: "El teléfono es demasiado largo." };
+  if (campo === "ubicacion") return { campo, detalle: `La ubicación es demasiado larga: el máximo es ${MAX_UBICACION} caracteres.` };
+  if (campo === "enlaces") {
+    return { campo: i.path[1] != null ? `enlaces.${String(i.path[1])}` : "enlaces", detalle: `Hasta ${MAX_ENLACES} enlaces, cada uno con título y dirección.` };
+  }
   if (campo === "ruc") return { campo, detalle: "El RUC tiene que tener 11 dígitos." };
   return null;
 }
@@ -210,6 +280,10 @@ export function setsDelPerfil(p: CambiosPerfil, vals: unknown[]): string[] {
     vals.push(JSON.stringify(p.poner), p.quitar);
     sets.push(`redes = (COALESCE(redes, '{}'::jsonb) || $${vals.length - 1}::jsonb) - $${vals.length}::text[]`);
   }
+  if (p.enlaces !== undefined) {
+    vals.push(JSON.stringify(p.enlaces));
+    sets.push(`enlaces = $${vals.length}::jsonb`);
+  }
   return sets;
 }
 
@@ -220,4 +294,7 @@ export const CAMPO_DEL_CHECK: Record<string, string> = {
   financiadores_portada_url_check: "portadaUrl",
   financiadores_email_publico_check: "emailPublico",
   financiadores_redes_check: "redes",
+  financiadores_telefono_check: "telefono",
+  financiadores_ubicacion_check: "ubicacion",
+  financiadores_enlaces_check: "enlaces",
 };
