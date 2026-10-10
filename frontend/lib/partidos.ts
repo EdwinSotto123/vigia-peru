@@ -13,6 +13,28 @@
 
 export type TipoOrg = "partido" | "movimiento" | "alianza" | "otro";
 
+/**
+ * Cuánto de lo que se contrata ya lo leyó Vigía, para decir QUÉ TANTO se vigila cada lugar y cuánto
+ * falta. Sale de `/contratos/geo` y del resumen de contratos (la API), nunca de una estimación: es
+ * el mismo conteo que usa el mapa de contratos. La zona es la sede de la entidad que contrata.
+ */
+export interface Cobertura {
+  /** Contratos publicados que Vigía tiene en su base. */
+  publicados: number;
+  /** Los que ya se leyeron a fondo. */
+  leidos: number;
+  /** Los que faltan por leer (publicados − leídos). */
+  faltan: number;
+  /** De los que faltan, los que ya pueden financiarse hoy. */
+  enColaHoy: number;
+  /** Precio de leer un contrato, en soles. */
+  precioPen: number | null;
+  regionesConLectura: number;
+  regionesTotal: number;
+  /** Por departamento (ubigeo de 2 dígitos). */
+  porRegion: Record<string, { total: number; leidos: number; enCola: number }>;
+}
+
 export interface Org {
   /** Nombre como lo escribe el JNE, con las tildes repuestas de una lista corta. */
   n: string;

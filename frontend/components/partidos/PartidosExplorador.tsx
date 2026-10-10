@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Search, Swords, Trophy } from "lucide-react";
 import { PeruChoropleth, type ZonaPintada } from "@/components/PeruChoropleth";
 import { nombreDepartamento } from "@/components/mapa/region-match";
+import { RAMPA } from "@/components/mapa/escala";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +24,7 @@ import {
   pct,
   type Anio,
   type AutoridadesDatos,
+  type Cobertura,
   type Gano,
   type Nivel,
 } from "@/lib/partidos";
@@ -52,11 +54,14 @@ const PANELES: { id: Panel; label: string; Icono: typeof Trophy }[] = [
 
 const ANIOS_CARGADOS = PERIODOS.filter((p) => p.cargado).map((p) => p.anio as Anio);
 
-export function PartidosExplorador({ compacto = false }: { compacto?: boolean }) {
+type Modo = "ganador" | "vigilancia";
+
+export function PartidosExplorador({ compacto = false, cobertura = null }: { compacto?: boolean; cobertura?: Cobertura | null }) {
   const [datos, setDatos] = useState<Partial<Record<number, AutoridadesDatos>>>({});
   const [error, setError] = useState(false);
   const [anio, setAnio] = useState<number>(ANIO_ACTUAL);
   const [panel, setPanel] = useState<Panel>("ranking");
+  const [modo, setModo] = useState<Modo>("ganador");
   const [nivel, setNivel] = useState<Nivel>("regional");
   const [resaltar, setResaltar] = useState<number | null>(null);
   const [seleccion, setSeleccion] = useState<string | null>(null);
@@ -98,9 +103,31 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
   }, [d, seleccion]);
   const nivelMapa: Nivel = seleccion ? "provincial" : "regional";
 
+  // Modo "qué tanto vigilamos": las regiones se pintan por cuántos contratos ya leyó Vigía en ellas.
+  const vigilando = modo === "vigilancia" && !!cobertura && !seleccion;
+  // Por PARTE de los contratos de la región que ya se leyó (no por cantidad): una región con 2 leídos de
+  // 1.416 no está vigilada, aunque 2 sea más que 0. Los tramos son fijos, así todas se ven por lo que son.
+  const colorLectura = (leidos: number, total: number) => {
+    if (leidos === 0 || total === 0) return "#1F2A2A";
+    const p = (leidos / total) * 100;
+    return p < 0.5 ? RAMPA[0] : p < 1 ? RAMPA[1] : p < 2 ? RAMPA[2] : p < 3 ? RAMPA[3] : RAMPA[4];
+  };
+
   const regiones = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
     if (!d) return out;
+    if (vigilando && cobertura) {
+      for (const g of d.regional) {
+        const r = cobertura.porRegion[g.u];
+        const n = r?.leidos ?? 0;
+        out[g.u] = {
+          color: colorLectura(n, r?.total ?? 0),
+          sinDato: false,
+          resumen: `${nombreDepartamento(g.u)}: ${numero(n)} de ${numero(r?.total ?? 0)} contratos leídos por Vigía`,
+        };
+      }
+      return out;
+    }
     const colReg = coloresPorOrg(d, "regional");
     for (const g of d.regional) {
       const o = orgDe(d, g.o);
@@ -112,7 +139,7 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
       };
     }
     return out;
-  }, [d, resaltar, nivel]);
+  }, [d, resaltar, nivel, vigilando, cobertura]);
 
   const provincias = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
@@ -142,15 +169,17 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
     const nombre = esProv ? (d.provincial.find((x) => x.u === foco)?.n ?? foco) : nombreDepartamento(foco);
     const fuente = !esProv ? d.regional.find((x) => x.u === foco)?.s : undefined;
     const historial = PERIODOS.filter((p) => p.cargado).map((p) => ({ anio: p.anio, gano: gano(datos[p.anio]) }));
+    const lectura = !esProv && cobertura ? (cobertura.porRegion[foco] ?? { total: 0, leidos: 0, enCola: 0 }) : null;
     return {
       titulo: esProv ? `${nombre}, ${nombreDepartamento(foco)}` : nombre,
       cargo: esProv ? NIVEL_LABEL.provincial.cargo : cargoRegional(anio),
       gano: ahora,
       fuente,
       historial,
+      lectura,
       region: !esProv ? foco : null,
     };
-  }, [d, foco, datos, anio]);
+  }, [d, foco, datos, anio, cobertura]);
 
   const leyenda = useMemo(() => {
     if (!d) return [];
@@ -214,9 +243,34 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
           <div className="min-w-0">
             <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft">
               <div className="flex items-center justify-between gap-3 px-4 pt-4">
-                <p className="etiqueta-mono">
-                  {seleccion ? `Provincias de ${nombreDepartamento(seleccion)}, ${anio}` : `${anio <= 2014 ? "Presidentes" : "Gobernadores"} regionales ${anio}`}
-                </p>
+                {cobertura && !seleccion ? (
+                  <div role="tablist" aria-label="Qué pinta el mapa" className="inline-flex rounded-full border border-line bg-paperDeep p-1">
+                    {(
+                      [
+                        ["ganador", "Quién ganó"],
+                        ["vigilancia", "Qué tanto vigilamos"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        role="tab"
+                        type="button"
+                        aria-selected={modo === id}
+                        onClick={() => setModo(id)}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
+                          modo === id ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="etiqueta-mono">
+                    {seleccion ? `Provincias de ${nombreDepartamento(seleccion)}, ${anio}` : `${anio <= 2014 ? "Presidentes" : "Gobernadores"} regionales ${anio}`}
+                  </p>
+                )}
                 {seleccion && (
                   <button
                     type="button"
@@ -248,6 +302,26 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
                   onSelectProvincia={(u) => setProvSel(u)}
                 />
               </div>
+              {vigilando ? (
+                <div className="border-t border-line px-4 py-3">
+                  <p className="text-[12.5px] text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-mute">
+                    {(
+                      [
+                        ["#1F2A2A", "Ninguno"],
+                        [RAMPA[0], "menos de 0,5 %"],
+                        [RAMPA[1], "0,5 a 1 %"],
+                        [RAMPA[2], "1 a 2 %"],
+                        [RAMPA[3], "2 % o más"],
+                      ] as const
+                    ).map(([c, t]) => (
+                      <li key={t} className="flex items-center gap-1.5">
+                        <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: c }} /> {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
               <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-3">
                 {leyenda.map(([o, n]) => (
                   <li key={o} className="flex items-center gap-1.5 text-[12.5px] text-inkSoft">
@@ -262,6 +336,7 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
                   <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
                 </li>
               </ul>
+              )}
             </div>
 
             {/* Quién gobierna donde apunta el cursor (o lo elegido), y cómo votó antes. */}
@@ -290,9 +365,17 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
                       </li>
                     ))}
                   </ol>
+                  {ficha.lectura && (
+                    <p className="mt-3 rounded-lg bg-paperDeep px-3 py-2 text-[13px] leading-snug text-inkSoft">
+                      Vigía leyó{" "}
+                      <span className="font-mono font-bold tabular-nums text-ink">{numero(ficha.lectura.leidos)}</span> de{" "}
+                      <span className="font-mono tabular-nums">{numero(ficha.lectura.total)}</span> contratos de esta región.
+                      {ficha.lectura.leidos === 0 ? " Con tu ayuda se puede empezar." : ""}
+                    </p>
+                  )}
                   {ficha.region && (
                     <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
-                      Ver contratos de esta región en Vigía
+                      Financiar la lectura de esta región
                     </Link>
                   )}
                 </>
