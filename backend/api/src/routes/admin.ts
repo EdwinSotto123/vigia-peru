@@ -43,7 +43,7 @@ import { ingestaConvocatorias, saludRelay } from "../lib/salud.js";
 import { alcanceORespaldo } from "./financiamiento.js";
 import { conPerfilAliado, hayAporteEntidad } from "../lib/esquema.js";
 import { perfilPublicado } from "../lib/perfilAliado.js";
-import { entidadDeAporteSql } from "../lib/aportes.js";
+import { entidadDeAporteSql, partidoDeAporteSql } from "../lib/aportes.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
@@ -155,7 +155,7 @@ adminRouter.get("/contribuciones", async (c) => {
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.pasarela, co.pasarela_ref AS "pasarelaRef",
             co.comprobante_url IS NOT NULL AS "tieneComprobante", co.created_at AS "createdAt", co.pagada_at AS "pagadaAt",
             co.validada_por AS "validadaPor", co.mensaje_publico AS "mensajePublico", co.nota_admin AS "notaAdmin",
-            z.nombre AS zona, z.nivel, co.ubigeo, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+            z.nombre AS zona, z.nivel, co.ubigeo, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             f.id AS "financiadorId", f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.visible, f.motivo_no_visible AS "motivoNoVisible",
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
@@ -168,7 +168,7 @@ adminRouter.get("/contribuciones/:codigo", async (c) => {
   const codigo = c.req.param("codigo").toUpperCase();
   const conEntidad = await hayAporteEntidad();
   const h = await pool.query(
-    `SELECT co.*, co.monto_pen::float AS "montoPen", z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+    `SELECT co.*, co.monto_pen::float AS "montoPen", z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             f.tipo, f.nombre_publico AS "nombrePublico", f.ruc, f.email, f.logo_url AS "logoUrl", f.visible, f.motivo_no_visible AS "motivoNoVisible", f.slug
      FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.codigo = $1`, [codigo]);

@@ -5,6 +5,7 @@ import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
 import { numero, porcentaje } from "@/lib/formato";
 import type { Cobertura } from "@/lib/partidos";
+import { getRankingPartidos, type RankingPartidos } from "@/lib/partidosApi";
 import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
@@ -71,7 +72,7 @@ export async function leerCobertura(): Promise<Cobertura | null> {
 }
 
 export async function PartidosSeccion() {
-  const cobertura = await leerCobertura();
+  const [cobertura, porPartido] = await Promise.all([leerCobertura(), getRankingPartidos(2022)]);
   return (
     <section id="partidos" aria-labelledby="partidos-titulo" className="relative scroll-mt-16 overflow-hidden bg-paper">
       <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
@@ -92,6 +93,8 @@ export async function PartidosSeccion() {
         </div>
 
         {cobertura && <LoQueFalta c={cobertura} />}
+
+        {porPartido && porPartido.data.length > 0 && <PorPartido r={porPartido} />}
 
         <ul className="mt-12 grid gap-3 md:grid-cols-3">
           {CRUCES.map(({ Icono, titulo, texto }) => (
@@ -187,6 +190,56 @@ function LoQueFalta({ c }: { c: Cobertura }) {
       <p className="mt-4 text-[13px] leading-relaxed text-mute">
         De los {numero(c.faltan)} que faltan, {numero(c.enColaHoy)} ya pueden financiarse hoy y {numero(noFinanciables)} todavía no: les falta
         adjudicarse o que se descarguen sus documentos. La región es la sede de la entidad que contrata.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Qué tanto vigilamos a cada partido: cada contrato se asocia al partido que gobernaba la entidad el
+ * mes en que se convocó (2023 a 2026). La barra muestra lo leído sobre lo publicado; lo demás espera a
+ * que alguien lo financie. Se asocia al ganador de la elección: no registra vacancias ni reemplazos.
+ */
+function PorPartido({ r }: { r: RankingPartidos }) {
+  const top = r.data.slice(0, 8);
+  const maximo = Math.max(...top.map((x) => x.contratos), 1);
+  return (
+    <div className="mt-8 rounded-2xl border border-line bg-paperSoft p-5 sm:p-7">
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <div className="max-w-2xl">
+          <h3 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">Qué tanto vigilamos a cada partido</h3>
+          <p className="mt-2 text-[15px] leading-relaxed text-inkSoft">
+            Cada contrato se asocia al partido que gobernaba la entidad el mes en que se convocó, de {r.desde.slice(0, 4)} a {r.hasta.slice(0, 4)}.
+            Elige un partido y financia la lectura de sus contratos.
+          </p>
+        </div>
+        <EnlaceAccion href="/app/partidos" tamano="lg">
+          Ver todos los partidos
+        </EnlaceAccion>
+      </div>
+      <ul className="mt-6 space-y-3">
+        {top.map((x) => (
+          <li key={x.clave}>
+            <Link href={`/app/partidos/${x.clave}?anio=${r.anio}`} className="group block rounded-xl border border-line bg-paper p-3.5 transition-colors hover:border-granate/50 sm:p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="text-[15px] font-semibold text-ink group-hover:text-granate">{x.nombre}</span>
+                <span className="font-mono text-[12.5px] tabular-nums text-mute">
+                  {numero(x.contratos)} contratos en {numero(x.gobiernosConContratos)} gobiernos
+                </span>
+              </div>
+              <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-paperDeep" style={{ width: `${Math.max(6, (x.contratos / maximo) * 100)}%` }} aria-hidden>
+                <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(x.leidos > 0 ? 4 : 0, (x.leidos / Math.max(x.contratos, 1)) * 100)}%` }} />
+              </div>
+              <p className="mt-2 text-[13px] text-mute">
+                <span className="font-semibold text-ink">{numero(x.leidos)}</span> leídos, <span className="font-semibold text-ink">{numero(x.enCola)}</span> esperando lectura
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-[13px] leading-relaxed text-mute">
+        Se asocia al partido que ganó la elección de ese período; no registra vacancias ni reemplazos. Una señal es un motivo para
+        revisar un contrato, nunca una acusación contra un partido ni una persona.
       </p>
     </div>
   );

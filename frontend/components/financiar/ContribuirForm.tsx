@@ -53,6 +53,7 @@ import { CantidadPicker, ETIQUETA_GRUPO, OpcionRadio, Stepper, TARJETA, errorCan
 import {
   ASIGNACION,
   PRESETS,
+  ETIQUETA_ALCANCE,
   claveAlcance,
   cuerpoAlcance,
   mensajeDeError,
@@ -278,7 +279,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
   if (creada) {
     return (
       <div className={TARJETA}>
-        <Stepper step={3} primero={porZona ? "Zona" : "Entidad"} />
+        <Stepper step={3} primero={ETIQUETA_ALCANCE[alcance.tipo]} />
         <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-mossTexto">
           <CheckCircle2 size={16} aria-hidden /> Aporte registrado
         </p>
@@ -341,7 +342,13 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
     ) : (
       <TarjetaConfirmacion
         titulo={`${destino} ya no tiene contratos en cola`}
-        acciones={<EnlaceAccion href="/app/financiar?por=entidad">Elegir otra entidad</EnlaceAccion>}
+        acciones={
+          alcance.tipo === "partido" ? (
+            <EnlaceAccion href={`/app/financiar?por=partido&anio=${alcance.anio}`}>Elegir otro partido</EnlaceAccion>
+          ) : (
+            <EnlaceAccion href="/app/financiar?por=entidad">Elegir otra entidad</EnlaceAccion>
+          )
+        }
       >
         Todos los contratos de su cola ya tienen quien pague su lectura.
       </TarjetaConfirmacion>
@@ -352,7 +359,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
 
   return (
     <form onSubmit={crear} noValidate className={TARJETA} aria-labelledby={`titulo-aporte-${clave}`}>
-      <Stepper step={2} primero={porZona ? "Zona" : "Entidad"} />
+      <Stepper step={2} primero={ETIQUETA_ALCANCE[alcance.tipo]} />
       <h2 id={`titulo-aporte-${clave}`} className="mt-5 font-display text-xl font-bold leading-snug text-ink text-balance">
         ¿Cuántos contratos de {destino} quieres que se lean?
       </h2>
@@ -425,7 +432,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
             value={mensaje}
             onChange={(e) => setMensaje(e.target.value)}
             className={CAMPO}
-            placeholder={porZona ? `Por un ${destino} sin sobrecostos` : "Para saber en qué se gasta nuestro dinero"}
+            placeholder={porZona ? `Por un ${destino} sin sobrecostos` : alcance.tipo === "partido" ? "Para saber cómo se contrata con el dinero público" : "Para saber en qué se gasta nuestro dinero"}
           />
         </label>
       </fieldset>

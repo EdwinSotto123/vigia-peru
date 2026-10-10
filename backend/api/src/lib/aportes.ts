@@ -7,6 +7,9 @@
  *   · colaDeEntidad()             contratos de una entidad en cola, cuántos con documentos, y la zona
  *                                 que llevaría su aporte (zona_de_entidad, migración 39).
  *   · entidadDeAporteSql()        `{ruc, nombre}` de un aporte por entidad (o null) como expresión SQL.
+ *   · colaDePartido()             contratos en cola de un partido en un período (los de las entidades que gobernó
+ *                                 cuando se convocaron) y la zona que llevaría su aporte (migración 41).
+ *   · partidoDeAporteSql()        `{clave, nombre, anio}` de un aporte por partido (o null) como expresión SQL.
  *   · marcarConflictoDeInteres()  regla de independencia (docs/design/FINANCIA_UNA_AUDITORIA.md §6).
  */
 
@@ -60,6 +63,47 @@ export async function colaDeEntidad(q: Consultable, ruc: string, tipos: string[]
     zona: f.zonaUbigeo ? { ubigeo: f.zonaUbigeo, nombre: f.zonaNombre, nivel: f.zonaNivel } : null,
   };
 }
+
+export interface ColaPartido {
+  clave: string;
+  nombre: string;
+  anio: number;
+  /** Contratos del partido en cola_auditoria (con `tipos`, sólo esos). */
+  enCola: number;
+  /** De esos, con documentos vigentes en GCS. */
+  listos: number;
+  zona: { ubigeo: string; nombre: string; nivel: string } | null;
+}
+
+/** El partido en ese período, su cola y su zona derivada; null si no gobernó nada ese período. Requiere la migración 41. */
+export async function colaDePartido(q: Consultable, clave: string, anio: number, tipos: string[] | null = null): Promise<ColaPartido | null> {
+  const r = await q.query(
+    `SELECT g.nombre, k.n AS "enCola", k.listos, z.ubigeo AS "zonaUbigeo", z.nombre AS "zonaNombre", z.nivel AS "zonaNivel"
+       FROM (SELECT max(org_nombre) AS nombre FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2) g
+       CROSS JOIN LATERAL (
+         SELECT count(*)::int AS n, count(*) FILTER (WHERE documentos_listos(q.ocid))::int AS listos
+           FROM cola_auditoria q
+           JOIN convocatorias c ON c.ocid = q.ocid
+           JOIN contrato_partido cp ON cp.ocid = q.ocid
+          WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
+            AND ($3::text[] IS NULL OR c.tipo_contratacion = ANY ($3::text[]))) k
+       LEFT JOIN zonas z ON z.ubigeo = zona_de_partido($1, $2)
+      WHERE g.nombre IS NOT NULL`,
+    [clave, anio, tipos && tipos.length ? tipos : null]);
+  const f = r.rows[0];
+  if (!f) return null;
+  return {
+    clave, anio, nombre: f.nombre, enCola: f.enCola, listos: f.listos,
+    zona: f.zonaUbigeo ? { ubigeo: f.zonaUbigeo, nombre: f.zonaNombre, nivel: f.zonaNivel } : null,
+  };
+}
+
+/** `{clave, nombre, anio}` del partido de un aporte por partido, o null. `alias` es el de `contribuciones`. */
+export const partidoDeAporteSql = (alias: string, disponible: boolean) => disponible
+  ? `(SELECT json_build_object('clave', ${alias}.partido_clave, 'anio', ${alias}.partido_anio,
+            'nombre', (SELECT max(gp.org_nombre) FROM gobierno_periodo gp WHERE gp.org_clave = ${alias}.partido_clave))
+       WHERE ${alias}.partido_clave IS NOT NULL)`
+  : "NULL::json";
 
 /**
  * `{ruc, nombre}` de la entidad de un aporte por entidad, o null (aporte por zona). `alias` es el de

@@ -205,6 +205,8 @@ export interface PreviewLote {
   listos?: number;
   /** Vista previa por entidad (`?entidadRuc=`): la entidad elegida. */
   entidad?: { ruc: string; nombre: string } | null;
+  /** Vista previa por partido (`?partido=&anio=`): el partido y el período elegidos. */
+  partido?: { clave: string; nombre: string; anio: number } | null;
 }
 export interface LoteProcesado {
   codigo: string; ubigeo: string; asignados: number; solicitados: number; ocids: string[];
@@ -216,14 +218,17 @@ export interface LoteProcesado {
  * (al azar entre los suyos en cola, primero los que ya tienen documentos; mínimo 1).
  * Un string suelto es un ubigeo: la firma de siempre sigue sirviendo.
  */
-export type AlcanceLote = string | { ubigeo: string } | { entidadRuc: string };
+export type AlcanceLote = string | { ubigeo: string } | { entidadRuc: string } | { partido: { clave: string; anio: number } };
 
-const cuerpoLote = (a: AlcanceLote): { ubigeo: string } | { entidadRuc: string } => (typeof a === "string" ? { ubigeo: a } : a);
+const cuerpoLote = (a: AlcanceLote): { ubigeo: string } | { entidadRuc: string } | { partido: { clave: string; anio: number } } =>
+  typeof a === "string" ? { ubigeo: a } : a;
 
 /** Vista previa (cuántos hay en cola en esa zona o entidad) antes de confirmar — no escribe nada. */
 export const previewLote = (alcance: AlcanceLote) => {
   const c = cuerpoLote(alcance);
-  const qs = "entidadRuc" in c ? `entidadRuc=${encodeURIComponent(c.entidadRuc)}` : `ubigeo=${encodeURIComponent(c.ubigeo)}`;
+  const qs = "partido" in c
+    ? `partido=${encodeURIComponent(c.partido.clave)}&anio=${c.partido.anio}`
+    : "entidadRuc" in c ? `entidadRuc=${encodeURIComponent(c.entidadRuc)}` : `ubigeo=${encodeURIComponent(c.ubigeo)}`;
   return adminFetch<PreviewLote>(`/procesar-lote/preview?${qs}`);
 };
 

@@ -33,7 +33,7 @@ import { columnaAusente, conPerfilAliado, hayAporteEntidad, perfilEditableDesdeC
 import {
   CAMPO_DEL_CHECK, CamposPerfil, esProblema, normalizarPerfil, problemaDeZod, setsDelPerfil, tocaPerfil,
 } from "../lib/perfilAliado.js";
-import { entidadDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
+import { entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres } from "../lib/aportes.js";
 
 export const cuentasRouter = new Hono();
 // Todo es de la persona que entró: nunca en un CDN ni en la caché compartida (también los 401).
@@ -230,7 +230,7 @@ cuentasRouter.get("/me/impacto", async (c) => {
       ? pool.query(
           `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
                   co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", co.comprobante_url AS "comprobanteUrl",
-                  z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+                  z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
                   (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
                   (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id

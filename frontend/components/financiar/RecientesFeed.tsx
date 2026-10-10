@@ -14,10 +14,11 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
  * Un aporte por entidad nombra a la entidad (no la zona donde están sus contratos) y enlaza a
  * donde se financia, igual que la zona de un aporte por zona.
  */
-export function RecientesFeed({ items, porEntidad = false }: {
+export function RecientesFeed({ items, porEntidad = false, porPartido = false }: {
   items: ContribucionReciente[];
   /** La vista de /app/financiar: decide a qué lista lleva el estado vacío. */
   porEntidad?: boolean;
+  porPartido?: boolean;
 }) {
   if (!items.length) {
     return (
@@ -25,12 +26,12 @@ export function RecientesFeed({ items, porEntidad = false }: {
         compacto
         titulo="Todavía no hay aportes confirmados"
         accion={
-          <EnlaceAccion variante="secundario" href={porEntidad ? "#entidades" : "#zonas"}>
-            {porEntidad ? "Elegir una entidad" : "Elegir una zona"}
+          <EnlaceAccion variante="secundario" href={porPartido ? "#partidos" : porEntidad ? "#entidades" : "#zonas"}>
+            {porPartido ? "Elegir un partido" : porEntidad ? "Elegir una entidad" : "Elegir una zona"}
           </EnlaceAccion>
         }
       >
-        Cuando se confirme el primero, aparece acá con su {porEntidad ? "entidad" : "zona"} y su comprobante público.
+        Cuando se confirme el primero, aparece acá con su {porPartido ? "partido" : porEntidad ? "entidad" : "zona"} y su comprobante público.
       </EstadoVacio>
     );
   }
@@ -45,7 +46,14 @@ export function RecientesFeed({ items, porEntidad = false }: {
               <p className="text-ink">
                 <span className="font-semibold">{c.financiador}</span> financió la lectura de{" "}
                 <span className="font-mono tabular-nums">{numero(c.contratos)}</span> {c.contratos === 1 ? "contrato" : "contratos"}{" "}
-                {c.entidad ? (
+                {c.partido ? (
+                  <>
+                    de los gobiernos de{" "}
+                    <Link href={`/app/financiar/partido/${c.partido.clave}?anio=${c.partido.anio}`} className="font-semibold text-granate underline-offset-2 hover:underline">
+                      {c.partido.nombre}
+                    </Link>
+                  </>
+                ) : c.entidad ? (
                   <>
                     de{" "}
                     <Link href={`/app/financiar/entidad/${c.entidad.ruc}`} className="font-semibold text-granate underline-offset-2 hover:underline">

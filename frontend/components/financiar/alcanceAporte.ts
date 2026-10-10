@@ -12,41 +12,50 @@ import { MENSAJE_BOTS, mensajeBots } from "@/components/seguridad/mensajes";
 
 export type AlcanceAporte =
   | { tipo: "zona"; ubigeo: string; nombre: string }
-  | { tipo: "entidad"; ruc: string; nombre: string };
+  | { tipo: "entidad"; ruc: string; nombre: string }
+  // Por PARTIDO y período (migración 41): los contratos de las entidades que gobernó, convocados en esos años.
+  | { tipo: "partido"; clave: string; anio: number; nombre: string };
 
-export const minimoDe = (a: AlcanceAporte) => (a.tipo === "zona" ? MIN_CONTRATOS : MIN_CONTRATOS_ENTIDAD);
+export const minimoDe = (a: AlcanceAporte) => (a.tipo === "entidad" ? MIN_CONTRATOS_ENTIDAD : MIN_CONTRATOS);
 
 /** Lo que va en el cuerpo de POST /contribuciones y POST /admin/procesar-lote. */
-export const cuerpoAlcance = (a: AlcanceAporte): { ubigeo: string } | { entidadRuc: string } =>
-  a.tipo === "zona" ? { ubigeo: a.ubigeo } : { entidadRuc: a.ruc };
+export const cuerpoAlcance = (a: AlcanceAporte): { ubigeo: string } | { entidadRuc: string } | { partido: { clave: string; anio: number } } =>
+  a.tipo === "zona" ? { ubigeo: a.ubigeo } : a.tipo === "entidad" ? { entidadRuc: a.ruc } : { partido: { clave: a.clave, anio: a.anio } };
 
 /** La página donde se financia este alcance. */
-export const hrefAlcance = (a: AlcanceAporte) => (a.tipo === "zona" ? `/app/financiar/${a.ubigeo}` : `/app/financiar/entidad/${a.ruc}`);
+export const hrefAlcance = (a: AlcanceAporte) =>
+  a.tipo === "zona" ? `/app/financiar/${a.ubigeo}` : a.tipo === "entidad" ? `/app/financiar/entidad/${a.ruc}` : `/app/financiar/partido/${a.clave}?anio=${a.anio}`;
 
 /**
  * Clave del borrador local (lib/cuentas lo guarda en `vigia:financiar:<clave>`): la zona
  * sigue usando su ubigeo, como siempre; la entidad, `entidad-<ruc>`, que no choca con ningún
  * ubigeo (sólo dígitos). También sirve de sufijo para los `id` y `name` del formulario.
  */
-export const claveAlcance = (a: AlcanceAporte) => (a.tipo === "zona" ? a.ubigeo : `entidad-${a.ruc}`);
+export const claveAlcance = (a: AlcanceAporte) =>
+  a.tipo === "zona" ? a.ubigeo : a.tipo === "entidad" ? `entidad-${a.ruc}` : `partido-${a.clave}-${a.anio}`;
+
+/** "Zona", "Entidad" o "Partido": lo primero que se elige, para el paso 1 del formulario. */
+export const ETIQUETA_ALCANCE: Record<AlcanceAporte["tipo"], "Zona" | "Entidad" | "Partido"> = { zona: "Zona", entidad: "Entidad", partido: "Partido" };
 
 /** Cómo salen los contratos de la cola, para "se asignan N contratos de X …". */
 export const ASIGNACION: Record<AlcanceAporte["tipo"], string> = {
   zona: "por antigüedad",
   entidad: "al azar, primero los que ya tienen sus documentos",
+  partido: "al azar entre los contratos de las entidades que gobernó en ese período, primero los que ya tienen sus documentos",
 };
 
 /** Opciones rápidas de cantidad: por zona se piensa en decenas; una entidad puede tener 1. */
 export const PRESETS: Record<AlcanceAporte["tipo"], number[]> = {
   zona: [10, 20, 50, 100],
   entidad: [1, 5, 10],
+  partido: [10, 20, 50],
 };
 
 /** Cuántos quedan, dicho como tope: "En Cusco quedan 12 contratos sin financiar…". */
 export function mensajeTope(a: AlcanceAporte, restantes: number): string {
   return a.tipo === "zona"
     ? `En ${a.nombre} quedan ${numero(restantes)} contratos sin financiar: no se puede pedir más.`
-    : `${a.nombre} tiene ${plural(restantes, "contrato", "contratos")} en cola: no se puede pedir más.`;
+    : `${a.nombre} tiene ${plural(restantes, "contrato", "contratos")} en cola${a.tipo === "partido" ? " en ese período" : ""}: no se puede pedir más.`;
 }
 
 // ─── Errores del API → castellano (nunca un "invalid_body" crudo) ────────────
@@ -58,9 +67,11 @@ export const ERRORES_API: Record<string, string> = {
   entidad_no_encontrada: "No encontramos esa entidad. Vuelve a elegirla desde la lista.",
   entidad_sin_cola: "Esta entidad ya no tiene contratos en cola. Recarga la página para ver su estado.",
   excede_cola: "Pediste más contratos de los que hay en cola. Recarga la página y elige otra cantidad.",
-  alcance_requerido: "Falta elegir una zona o una entidad. Vuelve a elegirla desde la lista.",
-  minimo_contratos: `El mínimo por zona son ${MIN_CONTRATOS} contratos por aporte.`,
-  sin_migracion: "Todavía no se puede financiar una entidad: estamos terminando de habilitarlo. Mientras tanto puedes financiar una zona.",
+  alcance_requerido: "Falta elegir una zona, una entidad o un partido. Vuelve a elegirlo desde la lista.",
+  partido_no_encontrado: "Ese partido no gobernó nada en ese período. Vuelve a elegirlo desde la lista.",
+  partido_sin_cola: "Este partido ya no tiene contratos en cola en ese período. Recarga la página para ver su estado.",
+  minimo_contratos: `El mínimo por zona o por partido son ${MIN_CONTRATOS} contratos por aporte.`,
+  sin_migracion: "Todavía no se puede financiar por esa vía: estamos terminando de habilitarlo. Mientras tanto puedes financiar una zona.",
   internal: "No pudimos registrar el aporte por un error del servidor. Inténtalo de nuevo en un momento.",
   unauthorized: "Tu sesión de administrador venció. Vuelve a entrar al panel.",
   // Protección contra bots (403/429): `demasiados_pedidos` con su espera, en `mensajeDeError`.
@@ -76,6 +87,7 @@ export function erroresCampo(minimo: number): Record<string, string> {
     mensajePublico: "El mensaje público admite hasta 140 caracteres.",
     ubigeo: "La zona no es válida. Vuelve a elegirla desde la lista.",
     entidadRuc: "La entidad no es válida. Vuelve a elegirla desde la lista.",
+    partido: "El partido o el período no es válido. Vuelve a elegirlo desde la lista.",
   };
 }
 

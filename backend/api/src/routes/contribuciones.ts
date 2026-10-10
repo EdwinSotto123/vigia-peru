@@ -26,7 +26,7 @@ import { exigirCaptcha, limiteEscritura } from "../lib/antibots.js";
 import { BUCKETS_COMPROBANTE, escaparRegex } from "../lib/storage.js";
 import { SIN_CACHE } from "../lib/http.js";
 import { hayAporteEntidad } from "../lib/esquema.js";
-import { colaDeEntidad, entidadDeAporteSql, marcarConflictoDeInteres, tarifaVigente } from "../lib/aportes.js";
+import { colaDeEntidad, colaDePartido, entidadDeAporteSql, partidoDeAporteSql, marcarConflictoDeInteres, tarifaVigente } from "../lib/aportes.js";
 
 export const contribucionesRouter = new Hono();
 
@@ -52,6 +52,8 @@ const MINIMO_ZONA = 5;
 const CrearBody = z.object({
   ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
   entidadRuc: z.string().regex(/^\d{11}$/).optional(),
+  // Por PARTIDO (migración 41): los contratos de las entidades que gobernó en ese período; mínimo 5.
+  partido: z.object({ clave: z.string().regex(/^[a-z0-9-]{1,80}$/), anio: z.number().int().min(2014).max(2022) }).optional(),
   contratos: z.number().int().min(1).max(50_000),   // por zona, además, mínimo 5 (abajo)
   financiador: z.object({
     tipo: z.enum(["empresa", "persona", "organizacion"]),
@@ -69,15 +71,18 @@ const CrearBody = z.object({
 contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, async (c) => {
   const body = CrearBody.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
-  const { ubigeo, entidadRuc, contratos, financiador: f, mensajePublico, metodo } = body.data;
-  if (!ubigeo === !entidadRuc) {
-    return c.json({ error: "alcance_requerido", detail: "Indica una zona o una entidad para tu aporte (una sola de las dos)." }, 400);
+  const { ubigeo, entidadRuc, partido: partidoPedido, contratos, financiador: f, mensajePublico, metodo } = body.data;
+  if ([ubigeo, entidadRuc, partidoPedido].filter(Boolean).length !== 1) {
+    return c.json({ error: "alcance_requerido", detail: "Indica una zona, una entidad o un partido para tu aporte (uno solo)." }, 400);
   }
-  if (ubigeo && contratos < MINIMO_ZONA) {
+  if ((ubigeo || partidoPedido) && contratos < MINIMO_ZONA) {
     return c.json({ error: "minimo_contratos", minimo: MINIMO_ZONA, detail: `El mínimo por zona son ${MINIMO_ZONA} contratos.` }, 400);
   }
   if (entidadRuc && !(await hayAporteEntidad())) {
     return c.json({ error: "sin_migracion", detail: "Todavía no se puede financiar una entidad: estamos terminando de habilitarlo. Mientras tanto puedes financiar su zona." }, 503);
+  }
+  if (partidoPedido && !(await hayAporteEntidad())) {
+    return c.json({ error: "sin_migracion", detail: "Todavía no se puede financiar por partido: estamos terminando de habilitarlo." }, 503);
   }
   if ((f.tipo === "empresa" || f.tipo === "organizacion") && !f.ruc) {
     return c.json({ error: "ruc_required", detail: "Empresas y organizaciones deben indicar RUC" }, 400);
@@ -92,7 +97,26 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
     let zonaUbigeo: string;
     let zonaNombre: string;
     let entidad: { ruc: string; nombre: string } | null = null;
-    if (ubigeo) {
+    let partido: { clave: string; nombre: string; anio: number } | null = null;
+    if (partidoPedido) {
+      const par = await colaDePartido(client, partidoPedido.clave, partidoPedido.anio);
+      if (!par) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "partido_no_encontrado", detail: "Ese partido no gobernó nada en ese período." }, 404);
+      }
+      if (par.enCola === 0 || !par.zona) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "partido_sin_cola", detail: "Este partido no tiene contratos esperando auditoría en este período." }, 409);
+      }
+      if (contratos > par.enCola) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "excede_cola", disponibles: par.enCola,
+          detail: `Este partido tiene ${par.enCola} ${par.enCola === 1 ? "contrato" : "contratos"} esperando auditoría en ese período: no se puede financiar más.` }, 409);
+      }
+      zonaUbigeo = par.zona.ubigeo;
+      zonaNombre = par.zona.nombre;
+      partido = { clave: par.clave, nombre: par.nombre, anio: par.anio };
+    } else if (ubigeo) {
       const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
       if (!zona.rows.length) { await client.query("ROLLBACK"); return c.json({ error: "zona_not_found" }, 404); }
       zonaUbigeo = ubigeo;
@@ -164,13 +188,16 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
     const monto = tarifa.precioPen * contratos;
     const codigo = (await client.query("SELECT next_codigo_contribucion() AS c")).rows[0].c as string;
     // El aporte por zona no nombra la columna entidad_ruc: sigue funcionando en una base sin la 39.
-    await client.query(entidad
+    await client.query(partido
+      ? `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico, partido_clave, partido_anio)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
+      : entidad
       ? `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico, entidad_ruc)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`
       : `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, pasarela, mensaje_publico)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [codigo, financiadorId, zonaUbigeo, contratos, tarifa.id, monto, metodo, mensajePublico ?? null,
-       ...(entidad ? [entidad.ruc] : [])]);
+       ...(partido ? [partido.clave, partido.anio] : entidad ? [entidad.ruc] : [])]);
     await client.query("COMMIT");
 
     const pagos = await getPagosConfig();
@@ -181,6 +208,7 @@ contribucionesRouter.post("/", limiteEscritura, exigirCaptcha, optionalAuth, asy
       contratos,
       zona: zonaNombre,
       entidad,
+      partido,
       // Fase 0: instrucciones de pago manual, editables desde el panel admin (ajustes.pagos).
       pago: { metodo, concepto: codigo, ...pagos },
     }, 201);
@@ -258,7 +286,7 @@ contribucionesRouter.get("/:codigo", async (c) => {
   const r = await pool.query(
     `SELECT co.codigo, co.estado, co.contratos, co.monto_pen::float AS "montoPen", co.created_at AS "createdAt",
             co.pagada_at AS "pagadaAt", co.comprobante_url IS NOT NULL AS "tieneComprobante", z.nombre AS zona, co.ubigeo,
-            ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+            ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id)::int AS asignados,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados
      FROM contribuciones co JOIN zonas z ON z.ubigeo = co.ubigeo WHERE co.codigo = $1`, [codigo]);

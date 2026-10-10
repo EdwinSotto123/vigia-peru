@@ -113,6 +113,8 @@ export interface ContribucionReciente {
   nivel: NivelZona;
   /** Aporte por ENTIDAD: la entidad elegida (la zona es sólo donde está la mayoría de sus contratos). */
   entidad?: EntidadAporte | null;
+  /** Aporte por PARTIDO (migración 41): el partido y el período elegidos. */
+  partido?: PartidoAporte | null;
   financiador: string;
   tipo: Aliado["tipo"];
   slug: string | null;
@@ -123,6 +125,13 @@ export interface ContribucionReciente {
 export interface EntidadAporte {
   ruc: string;
   nombre: string;
+}
+
+/** El partido de un aporte por partido: `anio` es la elección (2014, 2018, 2022). */
+export interface PartidoAporte {
+  clave: string;
+  nombre: string;
+  anio: number;
 }
 
 export interface Comprobante {
@@ -143,6 +152,7 @@ export interface Comprobante {
   nivel: NivelZona;
   /** Aporte por ENTIDAD: la entidad elegida. Sin ella, el aporte fue por zona. */
   entidad?: EntidadAporte | null;
+  partido?: PartidoAporte | null;
   financiador: string;
   tipo: Aliado["tipo"];
   slug: string | null;

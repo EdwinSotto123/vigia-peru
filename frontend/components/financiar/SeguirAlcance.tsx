@@ -17,7 +17,7 @@ import { hrefAlcance, type AlcanceAporte } from "./alcanceAporte";
 
 export function SeguirAlcance({ alcance }: { alcance: AlcanceAporte }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading || alcance.tipo === "partido") return null; // un partido no se sigue: se sigue la zona o la entidad
   if (!user) {
     return (
       <EnlaceAccion variante="secundario" href={`/login?next=${encodeURIComponent(hrefAlcance(alcance))}`} prefetch={false}>
@@ -35,6 +35,6 @@ export function SeguirAlcance({ alcance }: { alcance: AlcanceAporte }) {
 /** La línea que dice dónde se ve lo seguido. Sólo con sesión. */
 export function PieSeguir({ alcance }: { alcance: AlcanceAporte }) {
   const { user, loading } = useAuth();
-  if (loading || !user) return null;
+  if (loading || !user || alcance.tipo === "partido") return null;
   return <p>{alcance.tipo === "zona" ? "Siguiendo la zona" : "Siguiendo la entidad"}, la ves en Mi impacto con cada contrato que se lea.</p>;
 }

@@ -1,3 +1,4 @@
+import { periodoTexto, type AnioGobierno } from "@/lib/partidosApi";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, CheckCircle2, Clock, ShieldCheck, Sprout, XCircle } from "lucide-react";
@@ -28,7 +29,8 @@ export const revalidate = 30;
  * Dónde se leyó, en texto plano (metadatos, compartir): "en Cusco" para un aporte por zona,
  * "de ONPE" para uno por entidad. El nombre de una persona natural (RUC 10) no va en claro.
  */
-function lugarPlano(c: Pick<Comprobante, "zona" | "entidad">): string {
+function lugarPlano(c: Pick<Comprobante, "zona" | "entidad" | "partido">): string {
+  if (c.partido) return `de ${c.partido.nombre} (${periodoTexto(c.partido.anio as AnioGobierno)})`;
   if (!c.entidad) return `en ${c.zona}`;
   return esRucPersona(c.entidad.ruc) ? "de una entidad" : `de ${c.entidad.nombre}`;
 }
@@ -166,7 +168,15 @@ export default async function ImpactoPage({
               </h1>
               <p className="mt-1 text-sm text-inkSoft">
                 Comprobante de impacto: lectura de {plural(c.contratos, "contrato", "contratos")}{" "}
-                {c.entidad ? (
+                {c.partido ? (
+                  <>
+                    de los gobiernos de{" "}
+                    <Link href={`/app/partidos/${c.partido.clave}?anio=${c.partido.anio}`} className="font-medium text-ink underline-offset-2 hover:underline">
+                      {c.partido.nombre}
+                    </Link>{" "}
+                    ({periodoTexto(c.partido.anio as AnioGobierno)})
+                  </>
+                ) : c.entidad ? (
                   <>
                     de{" "}
                     <Link href={`/entidad/${c.entidad.ruc}`} className="font-medium text-ink underline-offset-2 hover:underline">

@@ -34,7 +34,7 @@ import { alertaNoDemo, alertaPublica, convocatoriaNoDemo } from "../lib/publicac
 import { Memo, responderJson, responderSerializado, serializar, type Serializado } from "../lib/cache.js";
 import { conPerfilAliado, hayAporteEntidad, hayModelosLectura } from "../lib/esquema.js";
 import { perfilPublicado } from "../lib/perfilAliado.js";
-import { entidadDeAporteSql, tarifaVigente } from "../lib/aportes.js";
+import { entidadDeAporteSql, partidoDeAporteSql, tarifaVigente } from "../lib/aportes.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -210,7 +210,7 @@ financiamientoRouter.get("/recientes", async (c) => {
   const conEntidad = await hayAporteEntidad();
   const r = await pool.query(
     `SELECT co.codigo, co.contratos, co.pagada_at AS "pagadaAt", co.estado, co.mensaje_publico AS "mensajePublico",
-            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl"
      FROM contribuciones co
      JOIN financiadores f ON f.id = co.financiador_id
@@ -242,7 +242,7 @@ financiamientoRouter.get("/impacto/:codigo", async (c) => {
   const head = await pool.query(
     `SELECT co.id, co.codigo, co.contratos, co.monto_pen::float AS "montoPen", co.estado, co.pagada_at AS "pagadaAt",
             co.created_at AS "createdAt", co.mensaje_publico AS "mensajePublico", co.pasarela,
-            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+            z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl", f.visible,
             t.precio_pen::float AS "precioPen"
      FROM contribuciones co
@@ -340,7 +340,7 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
   const conEntidad = await hayAporteEntidad();
   const cs = await pool.query(
     `SELECT co.codigo, co.contratos, co.estado, co.pagada_at AS "pagadaAt", z.ubigeo, z.nombre AS zona, z.nivel,
-            ${entidadDeAporteSql("co", conEntidad)} AS entidad,
+            ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = co.id AND s.procesada_at IS NOT NULL)::int AS procesados,
             (SELECT count(*) FROM asignaciones s JOIN alertas a ON a.id = s.alerta_id
               WHERE s.contribucion_id = co.id AND ${SENAL_HALLADA})::int AS senales,

@@ -93,7 +93,7 @@ export function CantidadPicker({ nombreGrupo, cantidadTxt, setCantidadTxt, prese
 }
 
 /** Los tres pasos del trámite. Hecho = moss (positivo); en curso = granate (la marca). */
-export function Stepper({ step, primero = "Zona" }: { step: 1 | 2 | 3 | 4; primero?: "Zona" | "Entidad" }) {
+export function Stepper({ step, primero = "Zona" }: { step: 1 | 2 | 3 | 4; primero?: "Zona" | "Entidad" | "Partido" }) {
   const steps = [primero, "Cantidad", "Pago"];
   return (
     <ol className="flex flex-wrap items-center gap-2 text-[12px]" aria-label="Pasos">

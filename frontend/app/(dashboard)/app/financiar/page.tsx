@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { ArrowRight, Clock, Code2, ShieldCheck } from "lucide-react";
 import { ListaZonas, type ZonaListada } from "@/components/financiar/ListaZonas";
 import { ResultadosEntidades, TAM_ENTIDADES } from "@/components/financiar/ListaEntidades";
+import { ResultadosPartidos, SelectorPeriodo } from "@/components/financiar/ListaPartidos";
+import { EXPLICACION_PARTIDO, anioDeUrl, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { EnlaceAccion, claseAccion } from "@/components/ui/EnlaceAccion";
 import { Popover } from "@/components/ui/Flotante";
@@ -101,7 +103,7 @@ const ACCION =
 export default async function FinanciarPage({
   searchParams,
 }: {
-  searchParams?: { ubigeo?: string; entidad?: string; por?: string; q?: string; pagina?: string };
+  searchParams?: { ubigeo?: string; entidad?: string; por?: string; q?: string; pagina?: string; anio?: string };
 }) {
   // Llegada desde el mapa con la zona ya elegida (/app/financiar?ubigeo=21) → directo al paso de cantidad.
   const u = searchParams?.ubigeo;
@@ -110,14 +112,16 @@ export default async function FinanciarPage({
   const ruc = searchParams?.entidad;
   if (ruc && /^\d{11}$/.test(ruc)) redirect(`/app/financiar/entidad/${ruc}`);
 
+  const porPartido = searchParams?.por === "partido";
+  const anioPartido = anioDeUrl(searchParams?.anio);
   const porEntidad = searchParams?.por === "entidad";
   const q = (searchParams?.q ?? "").trim().slice(0, 60);
   const paginaPedida = Math.max(1, Number.parseInt(searchParams?.pagina ?? "1", 10) || 1);
   // Con dos letras o más la búsqueda también mira las provincias (una sola lista, cacheada).
-  const buscaProvincias = !porEntidad && q.length >= 2;
+  const buscaProvincias = !porEntidad && !porPartido && q.length >= 2;
   // Por entidad, el API busca desde 2 letras: una sola letra no filtra (y no se dice que filtra).
   const qEntidad = porEntidad && q.length >= 2 ? q : "";
-  const [zonas, estado, recientes, resumenContratos, pago, provincias, entidades, entidadesSinBusqueda] = await Promise.all([
+  const [zonas, estado, recientes, resumenContratos, pago, provincias, entidades, entidadesSinBusqueda, partidos] = await Promise.all([
     getZonas("departamento"),
     getEstadoGlobal(),
     getRecientes(),
@@ -129,6 +133,8 @@ export default async function FinanciarPage({
       : Promise.resolve(null),
     // El conteo de la vista "Por entidad" (entidades con contratos en cola), si la lista de arriba no lo trae.
     porEntidad && !qEntidad ? Promise.resolve(null) : getEntidadesFinanciables({ limit: 1 }),
+    // Los partidos del período elegido (ranking de /partidos): su cola, sus listos y lo que ya se leyó.
+    porPartido ? getRankingPartidos(anioPartido) : Promise.resolve(null),
   ]);
   const totalEntidades = porEntidad && !qEntidad ? entidades?.total : entidadesSinBusqueda?.total;
   const precio = estado?.tarifa.precioPen ?? null;
@@ -165,11 +171,17 @@ export default async function FinanciarPage({
       <div className="space-y-4">
         {/* La pregunta de la pantalla va de título (plantilla de conversión, §14); el porqué, en el ⓘ. */}
         <EncabezadoPagina
-          titulo={porEntidad ? "¿De qué entidad quieres que se lean los contratos?" : "¿Qué contratos de tu zona quieres que se lean?"}
+          titulo={
+            porPartido
+              ? "¿De qué partido quieres que se lean los contratos?"
+              : porEntidad ? "¿De qué entidad quieres que se lean los contratos?" : "¿Qué contratos de tu zona quieres que se lean?"
+          }
           bajada={
-            porEntidad
-              ? "Elige una entidad y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
-              : "Elige una zona y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+            porPartido
+              ? `Elige un partido y financia la lectura de contratos de los gobiernos que ganó en ${periodoTexto(anioPartido)}. Los resultados son públicos, siempre.`
+              : porEntidad
+                ? "Elige una entidad y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
+                : "Elige una zona y financia la lectura de sus contratos en cola. Los resultados son públicos, siempre."
           }
           ayuda={
             <Ayuda titulo="¿Qué financias?">
@@ -194,6 +206,7 @@ export default async function FinanciarPage({
           vistas={[
             { href: "/app/financiar", etiqueta: "Por zona", conteo: zonas ? deptos.length : undefined, activa: !porEntidad },
             { href: "/app/financiar?por=entidad", etiqueta: "Por entidad", conteo: totalEntidades, activa: porEntidad },
+            { href: "/app/financiar?por=partido", etiqueta: "Por partido", activa: porPartido },
           ]}
         />
         <CifrasFinanciar
@@ -218,7 +231,36 @@ export default async function FinanciarPage({
 
       {/* La lista de zonas (o de entidades) y los últimos aportes, lado a lado: la vista usa el ancho (§10.7). */}
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-        {porEntidad ? (
+        {porPartido ? (
+          /* ─── ELIGE EL PARTIDO (y el período) ─── */
+          <Seccion
+            id="partidos"
+            titulo="Elige el partido"
+            descripcion={EXPLICACION_PARTIDO}
+            ayuda={
+              <Ayuda titulo="¿Cómo se asocia un contrato a un partido?">
+                <span className="block">
+                  Por la fecha de convocatoria: el contrato se asocia al partido que gobernaba la entidad ese mes (gobierno
+                  regional, municipalidad provincial o distrital). Los datos de quién ganó son del JNE.
+                </span>
+                <span className="mt-2 block">Hoy entran a la cola solo {alcanceCorto(estado?.alcance)}.</span>
+              </Ayuda>
+            }
+            acciones={<FuenteDato fuente="JNE y OECE, API OCDS" />}
+          >
+            <Listado ruta="/app/financiar" parametros={{ por: "partido", anio: String(anioPartido), q: q || undefined }}>
+              <div className="space-y-3">
+                <SelectorPeriodo anio={anioPartido} q={q || undefined} />
+                <BarraFiltros
+                  busqueda={{ param: "q", placeholder: "Ej. Alianza para el Progreso, Acción Popular", etiqueta: "Buscar un partido por su nombre", min: 2 }}
+                />
+                <ZonaResultados>
+                  <ResultadosPartidos datos={partidos} anio={anioPartido} q={q.length >= 2 ? q : ""} precioPen={precio} alcance={estado?.alcance} />
+                </ZonaResultados>
+              </div>
+            </Listado>
+          </Seccion>
+        ) : porEntidad ? (
           /* ─── ELIGE LA ENTIDAD ─── */
           <Seccion
             id="entidades"
@@ -308,7 +350,7 @@ export default async function FinanciarPage({
           }
         >
           {recientes ? (
-            <RecientesFeed items={recientes} porEntidad={porEntidad} />
+            <RecientesFeed items={recientes} porEntidad={porEntidad} porPartido={porPartido} />
           ) : (
             <EstadoError titulo="No pudimos leer los últimos aportes">Vuelve a intentarlo en un momento.</EstadoError>
           )}

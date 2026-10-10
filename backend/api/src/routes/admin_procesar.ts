@@ -31,7 +31,7 @@ import { poolAdmin as pool } from "../lib/db.js"; // pool del panel (lib/db.ts)
 import { actor, esRevisor, log } from "../lib/adminlog.js";
 import { dispatchNow } from "../lib/dispatcher.js";
 import { hayAporteEntidad } from "../lib/esquema.js";
-import { colaDeEntidad, tarifaVigente } from "../lib/aportes.js";
+import { colaDeEntidad, colaDePartido, tarifaVigente } from "../lib/aportes.js";
 
 export const adminProcesarRouter = new Hono();
 
@@ -59,7 +59,24 @@ adminProcesarRouter.get("/procesar-lote/preview", async (c) => {
   const ubigeo = c.req.query("ubigeo") ?? "";
   const entidadRuc = c.req.query("entidadRuc") ?? "";
   const tipos = (c.req.query("tipos") ?? "").split(",").map((s) => s.trim()).filter((s) => /^[a-z_]{3,20}$/.test(s));
-  if (ubigeo && entidadRuc) return c.json({ error: "alcance_requerido", detail: "Elige una zona o una entidad (sólo una de las dos)." }, 400);
+  const partidoClave = c.req.query("partido") ?? "";
+  const partidoAnio = Number(c.req.query("anio") ?? "");
+  if ([ubigeo, entidadRuc, partidoClave].filter(Boolean).length > 1) {
+    return c.json({ error: "alcance_requerido", detail: "Elige una zona, una entidad o un partido (sólo uno)." }, 400);
+  }
+  if (partidoClave) {
+    if (!/^[a-z0-9-]{1,80}$/.test(partidoClave) || ![2014, 2018, 2022].includes(partidoAnio)) {
+      return c.json({ error: "partido_invalido", detail: "Indica la clave del partido y el período (2014, 2018 o 2022)." }, 400);
+    }
+    if (!(await hayAporteEntidad())) return c.json(SIN_MIGRACION_39, 503);
+    const [par, tarifa] = await Promise.all([colaDePartido(pool, partidoClave, partidoAnio, tipos), tarifaVigente(pool)]);
+    if (!par) return c.json({ error: "partido_no_encontrado" }, 404);
+    return c.json({
+      ubigeo: par.zona?.ubigeo ?? null, zona: par.zona?.nombre ?? null, nivel: par.zona?.nivel ?? null,
+      enCola: par.enCola, listos: par.listos, precioPen: tarifa?.precioPen ?? null,
+      entidad: null, partido: { clave: par.clave, nombre: par.nombre, anio: par.anio },
+    });
+  }
   if (entidadRuc) {
     if (!/^\d{11}$/.test(entidadRuc)) return c.json({ error: "entidad_invalida", detail: "El RUC de la entidad tiene 11 dígitos." }, 400);
     if (!(await hayAporteEntidad())) return c.json(SIN_MIGRACION_39, 503);
@@ -95,6 +112,8 @@ const MINIMO_ZONA = 5;
 const ProcesarBody = z.object({
   ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
   entidadRuc: z.string().regex(/^\d{11}$/).optional(),
+  // Por PARTIDO (migración 41): los contratos de las entidades que gobernó en ese período; mínimo 5.
+  partido: z.object({ clave: z.string().regex(/^[a-z0-9-]{1,80}$/), anio: z.number().int().min(2014).max(2022) }).optional(),
   // Mismo CHECK que la tabla (39): por zona mínimo 5 (abajo); por entidad mínimo 1.
   contratos: z.coerce.number().int().min(1).max(500),
   correrDispatcher: z.boolean().optional().default(true),
@@ -108,12 +127,14 @@ const TOPE_REVISOR = 50;
 adminProcesarRouter.post("/procesar-lote", async (c) => {
   const parsed = ProcesarBody.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return c.json({ error: "invalid_body", issues: parsed.error.issues }, 400);
-  const { ubigeo, entidadRuc, contratos, correrDispatcher, tipos, soloConDocumentos } = parsed.data;
-  if (!ubigeo === !entidadRuc) return c.json({ error: "alcance_requerido", detail: "Elige una zona o una entidad (sólo una de las dos)." }, 400);
-  if (ubigeo && contratos < MINIMO_ZONA) {
+  const { ubigeo, entidadRuc, partido: partidoPedido, contratos, correrDispatcher, tipos, soloConDocumentos } = parsed.data;
+  if ([ubigeo, entidadRuc, partidoPedido].filter(Boolean).length !== 1) {
+    return c.json({ error: "alcance_requerido", detail: "Elige una zona, una entidad o un partido (sólo uno)." }, 400);
+  }
+  if ((ubigeo || partidoPedido) && contratos < MINIMO_ZONA) {
     return c.json({ error: "minimo_contratos", minimo: MINIMO_ZONA, detail: `El mínimo por zona son ${MINIMO_ZONA} contratos.` }, 400);
   }
-  if (entidadRuc && !(await hayAporteEntidad())) return c.json(SIN_MIGRACION_39, 503);
+  if ((entidadRuc || partidoPedido) && !(await hayAporteEntidad())) return c.json(SIN_MIGRACION_39, 503);
   if (esRevisor(c) && contratos > TOPE_REVISOR) {
     return c.json({ error: "tope_revisor", detail: `Un revisor procesa hasta ${TOPE_REVISOR} contratos por lote; para más, pídeselo a un administrador.` }, 403);
   }
@@ -124,9 +145,23 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
   let cid = 0;
   let zonaUbigeo = ubigeo ?? "";
   let entidad: { ruc: string; nombre: string } | null = null;
+  let partido: { clave: string; nombre: string; anio: number } | null = null;
   try {
     await client.query("BEGIN");
-    if (ubigeo) {
+    if (partidoPedido) {
+      const par = await colaDePartido(client, partidoPedido.clave, partidoPedido.anio, tipos ?? null);
+      if (!par) { await client.query("ROLLBACK"); return c.json({ error: "partido_no_encontrado" }, 404); }
+      if (par.enCola === 0 || !par.zona) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "partido_sin_cola", detail: "Este partido no tiene contratos en cola en ese período para esos tipos." }, 409);
+      }
+      if (contratos > par.enCola) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "excede_cola", disponibles: par.enCola, detail: `Este partido tiene ${par.enCola} ${par.enCola === 1 ? "contrato" : "contratos"} en cola en ese período.` }, 409);
+      }
+      zonaUbigeo = par.zona.ubigeo;
+      partido = { clave: par.clave, nombre: par.nombre, anio: par.anio };
+    } else if (ubigeo) {
       const zona = await client.query("SELECT nombre FROM zonas WHERE ubigeo = $1", [ubigeo]);
       if (!zona.rowCount) { await client.query("ROLLBACK"); return c.json({ error: "zona_no_existe" }, 404); }
     } else {
@@ -156,10 +191,10 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
     // ya se ve público por `pasarela = 'institucional'` y el financiador "Vigía Perú".
     // Por zona, el INSERT de siempre (no nombra entidad_ruc: funciona en una base sin la 39).
     const ins = await client.query(
-      `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, estado, pasarela, pasarela_ref, validada_por, pagada_at, mensaje_publico, solo_con_documentos, tipos${entidad ? ", entidad_ruc" : ""})
-       VALUES ($1,$2,$3,$4,$5,$6,'pagada','institucional','admin-panel',$7,now(),NULL,$8,$9${entidad ? ",$10" : ""}) RETURNING id`,
+      `INSERT INTO contribuciones (codigo, financiador_id, ubigeo, contratos, tarifa_id, monto_pen, estado, pasarela, pasarela_ref, validada_por, pagada_at, mensaje_publico, solo_con_documentos, tipos${partido ? ", partido_clave, partido_anio" : entidad ? ", entidad_ruc" : ""})
+       VALUES ($1,$2,$3,$4,$5,$6,'pagada','institucional','admin-panel',$7,now(),NULL,$8,$9${partido ? ",$10,$11" : entidad ? ",$10" : ""}) RETURNING id`,
       [codigo, fid, zonaUbigeo, contratos, tarifa.id, precio * contratos, quien, soloConDocumentos, tipos ?? null,
-       ...(entidad ? [entidad.ruc] : [])]);
+       ...(partido ? [partido.clave, partido.anio] : entidad ? [entidad.ruc] : [])]);
     cid = ins.rows[0].id as number;
     await client.query("COMMIT");
   } catch (e) {
@@ -186,7 +221,7 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
   }
   await pool.query("SELECT refresh_financiamiento()").catch(() => null);
   await log(quien, "procesar_lote", codigo, {
-    ubigeo: zonaUbigeo, entidadRuc: entidad?.ruc ?? null, contratos, asignados, pedidos,
+    ubigeo: zonaUbigeo, entidadRuc: entidad?.ruc ?? null, partido: partido ? `${partido.clave}:${partido.anio}` : null, contratos, asignados, pedidos,
     conDocumentos: ocidsConDocs.length, tipos: tipos ?? null, soloConDocumentos,
   });
 
@@ -194,7 +229,7 @@ adminProcesarRouter.post("/procesar-lote", async (c) => {
   if (correrDispatcher && ocidsConDocs.length > 0) dispatcher = await dispatchNow();
 
   return c.json({
-    codigo, ubigeo: zonaUbigeo, entidad, asignados, solicitados: contratos, ocids, tipos: tipos ?? null, soloConDocumentos,
+    codigo, ubigeo: zonaUbigeo, entidad, partido, asignados, solicitados: contratos, ocids, tipos: tipos ?? null, soloConDocumentos,
     pedidosAbiertos: pedidos, listosParaProcesar: ocidsConDocs.length,
     dispatcherDisparado: !!dispatcher?.ok,
   });

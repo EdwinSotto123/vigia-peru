@@ -142,7 +142,7 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
       ) : (
         <p className="mt-4 rounded-xl bg-paperDeep px-3 py-2 text-[13px] text-inkSoft">
           {restantes === 0
-            ? porZona ? "No quedan contratos sin financiar en esta zona." : "Esta entidad no tiene contratos en cola."
+            ? porZona ? "No quedan contratos sin financiar en esta zona." : alcance.tipo === "partido" ? "Este partido no tiene contratos en cola en ese período." : "Esta entidad no tiene contratos en cola."
             : `Quedan ${numero(restantes)}, menos que el mínimo de ${minimo} por lote.`}
           {porZona && padre && <> Procesa <Link href={`/app/financiar/${padre.ubigeo}`} className="font-semibold text-granate underline underline-offset-2">{padre.nombre}</Link> en su lugar.</>}
         </p>
@@ -150,7 +150,9 @@ export function LoteAdmin({ alcance, precioPen, restantes, padre = null }: {
       <p className="mt-3 inline-flex flex-wrap items-center gap-1 text-[12px] text-mute">
         {porZona
           ? "Se asignan por antigüedad: nadie elige contratos, ni el admin."
-          : "Se asignan al azar entre los de la entidad: nadie elige contratos, ni el admin."}
+          : alcance.tipo === "partido"
+            ? "Se asignan al azar entre los de las entidades que el partido gobernó en ese período: nadie elige contratos, ni el admin."
+            : "Se asignan al azar entre los de la entidad: nadie elige contratos, ni el admin."}
         <Ayuda titulo="¿Cuándo se leen?">
           Los que ya tienen sus documentos se leen ahora; los demás, cuando el lote nocturno los descargue.
         </Ayuda>
