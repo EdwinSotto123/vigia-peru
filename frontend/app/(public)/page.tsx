@@ -12,6 +12,7 @@ import { MapaRegiones } from "@/components/landing/MapaRegiones";
 import { CasosReales } from "@/components/landing/CasosReales";
 import { Aliados } from "@/components/landing/Aliados";
 import { PodioPortada } from "@/components/landing/PodioPortada";
+import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
@@ -36,6 +37,7 @@ export const metadata: Metadata = {
  *
  *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
  *  1b. …quién lo hace posible (PodioPortada): el podio, que se toca para ver quién es.
+ *  1c. Monitoreamos a los partidos políticos (PartidosSeccion): quién ganó cada región y distrito en 2022.
  *  2. El problema: miles de millones en contratos, casi nada leído (EscalaDinero).
  *  3. Qué hace Vigía, con un contrato real (CasoLeido).
  *  4. Cómo lo hace, en palabras de persona (PipelineAgentes).
@@ -110,6 +112,11 @@ export default async function LandingPage() {
 
       {/* El podio, arriba: quién hace posible que Vigía lea. Cada puesto se toca para ver quién es. */}
       <PodioPortada />
+
+      {/* Elecciones: quién gobierna cada región y distrito, y qué cruza Vigía alrededor de la política. */}
+      <PixelReveal desde="izquierda" celda={30}>
+        <PartidosSeccion />
+      </PixelReveal>
 
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero

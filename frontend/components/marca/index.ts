@@ -2,6 +2,7 @@
 export { Llamita, LLAMITA_PATH } from "./Llamita";
 export { Isotipo } from "./Isotipo";
 export { OjoPixel } from "./OjoPixel";
+export { OjoVivo } from "./OjoVivo";
 export { Marca } from "./Marca";
 export { FranjaTextil, FranjaBandera } from "./FranjaTextil";
 export { Medalla, COLUMNA_PODIO } from "./Medalla";

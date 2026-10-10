@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
-import { FranjaTextil, Medalla, OjoPixel } from "@/components/marca";
+import { FranjaTextil, Medalla, OjoVivo } from "@/components/marca";
 import { AliadoAbrir } from "@/components/aliados/AliadoAbrir";
 import type { FilaRanking } from "@/components/aliados/ranking";
 import { numero } from "@/lib/formato";
@@ -159,12 +159,7 @@ export function HeroPixel({ aliados = [] }: { aliados?: FilaRanking[] }) {
 
           <div className="ojo-ancla relative z-20 mx-auto w-[min(78vw,22rem)] sm:w-[min(60vw,28rem)] lg:w-[min(42vw,36rem)]">
             <div className="ojo-escena will-change-transform">
-              <OjoPixel
-                animado
-                tamano={560}
-                titulo="El símbolo de Vigía: un ojo hecho de puntos"
-                className="h-auto w-full"
-              />
+              <OjoVivo tamano={560} titulo="El símbolo de Vigía: un ojo hecho de puntos que mira" className="h-auto w-full" />
             </div>
           </div>
         </div>

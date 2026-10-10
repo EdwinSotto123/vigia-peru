@@ -20,6 +20,7 @@ import {
   Heart,
   HelpCircle,
   Crown,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -114,6 +115,13 @@ const SECTIONS: Section[] = [
         icon: <Camera size={16} />,
         hint: "Lo que reporta la gente",
         match: (p) => p.startsWith("/app/denuncias"),
+      },
+      {
+        href: "/app/partidos",
+        label: "Partidos",
+        icon: <Landmark size={16} />,
+        hint: "Quién gobierna cada región",
+        match: (p) => p.startsWith("/app/partidos"),
       },
       {
         href: "/app/aliados",

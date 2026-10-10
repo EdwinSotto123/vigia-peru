@@ -1,0 +1,76 @@
+{
+ "regional": [
+  {
+   "u": "01",
+   "g": "Gilmer Horna",
+   "org": "SENTIMIENTO AMAZONENSE REGIONAL",
+   "tipo": "MOVIMIENTO REGIONAL",
+   "p": 0.51048,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "06",
+   "g": "Roger Guevara",
+   "org": "PARTIDO DEMOCRATICO SOMOS PERU",
+   "tipo": "PARTIDO POLITICO",
+   "p": 0.69368,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "07",
+   "g": "Ciro Castillo Rojo",
+   "org": "MOVIMIENTO REGIONAL MAS CALLAO",
+   "tipo": "MOVIMIENTO REGIONAL",
+   "p": 0.6795,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "08",
+   "g": "Werner Salcedo",
+   "org": "PARTIDO DEMOCRATICO SOMOS PERU",
+   "tipo": "PARTIDO POLITICO",
+   "p": 0.58951,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "14",
+   "g": "Jorge Pérez",
+   "org": "PARTIDO DEMOCRATICO SOMOS PERU",
+   "tipo": "PARTIDO POLITICO",
+   "p": 0.55164,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "15",
+   "g": "Rosa Vásquez",
+   "org": "MOVIMIENTO REGIONAL UNIDAD CIVICA LIMA",
+   "tipo": "MOVIMIENTO REGIONAL",
+   "p": 0.59842,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "18",
+   "g": "Gilia Gutiérrez",
+   "org": "PARTIDO DEMOCRATICO SOMOS PERU",
+   "tipo": "PARTIDO POLITICO",
+   "p": 0.52281,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "19",
+   "g": "Juan Luis Chombo",
+   "org": "PARTIDO DEMOCRATICO SOMOS PERU",
+   "tipo": "PARTIDO POLITICO",
+   "p": 0.54385,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  },
+  {
+   "u": "20",
+   "g": "Luis Neyra",
+   "org": "CONTIGO REGION",
+   "tipo": "MOVIMIENTO REGIONAL",
+   "p": 0.58545,
+   "fuente": "ONPE, segunda vuelta 2022 (vía Infobae, 3 dic 2022)"
+  }
+ ]
+}

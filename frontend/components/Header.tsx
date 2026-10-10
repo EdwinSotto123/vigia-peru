@@ -32,6 +32,7 @@ const NAV = [
   { href: "/", label: "Inicio" },
   { href: "/app/mapa", label: "Mapa" },
   { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true },
+  { href: "/app/partidos", label: "Partidos" },
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
   { href: "/app/aliados", label: "Aliados", dorado: true },
   { href: "/reporte/nuevo", label: "Denunciar" },
