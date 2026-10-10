@@ -34,6 +34,33 @@ export interface AlertaReal {
 }
 
 /** Lo que la portada muestra de un caso. Todo string, ya formateado. */
+/**
+ * El SEACE escribe todo en MAYÚSCULAS ("ADQUISICIÓN DE SUMINISTRO DE ALIMENTOS (CARNES)…"), que
+ * cansa y parece un grito. `tituloNatural` lo vuelve legible sin tocar el dato: cada palabra con su
+ * inicial en mayúscula y los conectores en minúscula ("Programa Nacional de Centros Juveniles").
+ * Se usa título y no oración a propósito: en una oración los nombres propios ("José Quiñones",
+ * "Chiclayo") quedarían en minúscula. Las siglas y los códigos conocidos se respetan.
+ */
+const MENORES = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "en", "para", "por", "con", "al", "a", "o", "u", "su", "sus"]);
+const SIGLA = /^(?:s\.?a\.?c?\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|seace|ruc|oece|osce|dni|uit|igv|onpe|jne|mef|pnp|ii|iii|iv|vi|vii|viii|ix|xi|xii|n°|nº)$/i;
+
+function palabra(p: string, enMayuscula: boolean): string {
+  if (!p) return p;
+  if (SIGLA.test(p.replace(/[(),.;:]+$/g, "")) || /\d/.test(p)) return p; // siglas y códigos: tal cual
+  const baja = p.toLocaleLowerCase("es");
+  if (enMayuscula) return baja.charAt(0).toLocaleUpperCase("es") + baja.slice(1);
+  return baja;
+}
+
+/** "PROGRAMA NACIONAL DE CENTROS JUVENILES" → "Programa Nacional de Centros Juveniles". */
+export function tituloNatural(t: string): string {
+  if (t !== t.toLocaleUpperCase("es")) return t; // ya viene legible
+  return t
+    .split(/\s+/)
+    .map((p, i) => palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))))
+    .join(" ");
+}
+
 export interface CasoPortada {
   codigo: string;
   convocatoria: string;

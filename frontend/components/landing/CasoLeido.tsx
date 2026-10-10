@@ -4,7 +4,7 @@ import { useRef } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Building2, ChevronRight, ExternalLink, FileText, Info, Scale, Search, type LucideIcon } from "lucide-react";
 import { SIN_REDUCIR, useEscenaGsap } from "@/lib/gsap";
-import type { CasoPortada, OtraSenal } from "@/lib/landing";
+import { tituloNatural, type CasoPortada, type OtraSenal } from "@/lib/landing";
 import { severidadDeBandera } from "@/lib/severidad";
 import { numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -42,9 +42,9 @@ import {
  */
 
 const PASOS: { Icono: LucideIcon; t: string }[] = [
-  { Icono: FileText, t: "El Estado lo publica" },
+  { Icono: FileText, t: "Alguien compra" },
   { Icono: Search, t: "Vigía lo lee" },
-  { Icono: Scale, t: "Cita la ley" },
+  { Icono: Scale, t: "Encuentra una señal" },
   { Icono: ExternalLink, t: "Tú lo compruebas" },
 ];
 
@@ -121,11 +121,12 @@ export function CasoLeido({
       <div className="container-page relative py-16 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <div className="min-w-0">
+            <p className="etiqueta-mono mb-4 !text-maiz">Cómo funciona</p>
             <h2 id="caso-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
-              ¿Pero cómo lo hizo?
+              Así lee Vigía <span className="text-maiz">un contrato.</span>
             </h2>
-            <p className="mt-3 text-pretty text-lg leading-relaxed text-paper/75">
-              Así leyó uno de esos {numero(leidos)} contratos, de principio a fin.
+            <p className="mt-3 max-w-[54ch] text-pretty text-lg leading-relaxed text-paper/75">
+              Un ejemplo real, de principio a fin: uno de los {numero(leidos)} que ya leyó.
             </p>
           </div>
           <p className="inline-flex items-center gap-2 rounded-full border border-paper/15 bg-paper/[0.05] px-3.5 py-1.5 text-[13.5px] text-paper/80">
@@ -146,13 +147,14 @@ export function CasoLeido({
             <Paso n={1}>
               <div className={cn("capa", TARJETA)}>
                 <p className="flex items-center gap-1.5 text-[12px] text-paper/60">
-                  <FileText size={13} aria-hidden /> Contrato publicado en el SEACE
+                  <FileText size={13} aria-hidden /> Publicado en el SEACE
                 </p>
-                <p className="mt-2 line-clamp-2 font-display text-[16px] font-bold leading-snug" title={caso.entidad}>
-                  {caso.entidad}
+                <p className="mt-2 line-clamp-2 font-display text-[17px] font-bold leading-snug" title={caso.entidad}>
+                  {tituloNatural(caso.entidad)}
                 </p>
-                <p className="mt-1.5 line-clamp-3 text-[13.5px] leading-relaxed text-paper/70" title={caso.objeto}>
-                  {caso.objeto}
+                <p className="mt-1.5 text-[13px] text-paper/60">compró:</p>
+                <p className="mt-1 line-clamp-4 text-[14.5px] leading-snug text-paper/90" title={caso.objeto}>
+                  {tituloNatural(caso.objeto)}
                 </p>
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-paper/10 pt-3.5">
                   {caso.monto && <Dato t="Monto" v={caso.monto} mono />}
@@ -164,22 +166,23 @@ export function CasoLeido({
 
             <Paso n={2}>
               <div className={cn("capa", TARJETA)}>
-                <div className="grid grid-cols-2 gap-3">
-                  <Cifra n={TOTAL_AGENTES} t="agentes" />
-                  <Cifra n={TOTAL_PASOS} t="revisiones" />
+                <p className="text-[15px] font-medium leading-snug text-paper/90">Revisores automáticos leen todo el expediente:</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Cifra n={TOTAL_AGENTES} t="revisores" />
+                  <Cifra n={TOTAL_PASOS} t="comprobaciones" />
                 </div>
                 <ul className="mt-4 space-y-2.5 border-t border-paper/10 pt-3.5 text-[13.5px] leading-snug">
-                  <Hizo Icono={FileText}>Leyó el expediente completo</Hizo>
+                  <Hizo Icono={FileText}>Leyeron las bases, las actas y el contrato</Hizo>
                   {caso.proveedor && (
                     <Hizo Icono={Building2}>
-                      Investigó a la empresa ganadora,{" "}
+                      Investigaron a la empresa ganadora,{" "}
                       <span className="font-semibold text-paper" title={caso.proveedor}>
                         {caso.proveedor}
                       </span>
                     </Hizo>
                   )}
                   <Hizo Icono={Search}>
-                    Encontró <span className="font-semibold text-maiz">{plural(totalSenales, "señal", "señales")}</span>
+                    Encontraron <span className="font-semibold text-maiz">{plural(totalSenales, "señal", "señales")}</span>
                   </Hizo>
                 </ul>
               </div>
@@ -190,14 +193,15 @@ export function CasoLeido({
               <article className="capa sobre-claro overflow-hidden rounded-2xl bg-paper text-ink shadow-dialog">
                 <div className={cn("p-4 sm:p-5", sev.fondo)}>
                   <Severidad bandera={caso.severidad} className="bg-paper" />
-                  <h4 className="mt-2.5 text-balance font-display text-xl font-extrabold leading-tight">{titulo}</h4>
-                  <p className="mt-1.5 line-clamp-3 text-[13.5px] leading-relaxed text-inkSoft">{caso.hallazgo}</p>
+                  <h4 className="mt-2.5 text-balance font-display text-xl font-bold leading-tight">{titulo}</h4>
+                  <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">Qué encontró</p>
+                  <p className="mt-1 line-clamp-4 text-[14px] leading-relaxed text-ink">{caso.hallazgo}</p>
                 </div>
                 <div className="space-y-2.5 border-t border-line p-4 sm:px-5">
-                  <p className="flex items-start gap-1.5 text-[13px] font-medium text-granate" title={caso.norma}>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">Qué dice la ley</p>
+                  <p className="flex items-start gap-1.5 text-[13.5px] font-medium text-granate" title={caso.norma}>
                     <Scale size={14} className="mt-0.5 shrink-0" aria-hidden />
-                    <span className="sr-only">La norma que cita: </span>
-                    <span className="line-clamp-2">{caso.norma}</span>
+                    <span className="line-clamp-3">{caso.norma}</span>
                   </p>
                   <Revelar
                     titulo={titulo}
@@ -215,9 +219,12 @@ export function CasoLeido({
 
             <Paso n={4}>
               <div className={cn("capa", TARJETA)}>
+                <p className="text-[15px] font-medium leading-snug text-paper/90">
+                  Cada señal cita su norma y su fuente. Puedes comprobarla tú.
+                </p>
                 {nombradas.length > 0 && (
                   <>
-                    <p className="text-[12px] text-paper/60">Otras señales de este contrato</p>
+                    <p className="mt-4 text-[12px] text-paper/60">Otras señales de este contrato</p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
                       {nombradas.map((o) => (
                         <li
@@ -233,7 +240,7 @@ export function CasoLeido({
                   </>
                 )}
                 {sinNombrar > 0 && (
-                  <p className={cn("text-[12.5px] text-paper/60", nombradas.length > 0 && "mt-2")}>
+                  <p className="mt-3 text-[13px] text-paper/70">
                     {plural(sinNombrar, "señal más", "señales más")} en el análisis
                   </p>
                 )}
