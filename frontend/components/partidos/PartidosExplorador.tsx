@@ -2,32 +2,44 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Search, Swords, Trophy } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Search, Swords, Trophy } from "lucide-react";
 import { PeruChoropleth, type ZonaPintada } from "@/components/PeruChoropleth";
 import { nombreDepartamento } from "@/components/mapa/region-match";
 import { numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
+  ANIO_ACTUAL,
   COLOR_OTRAS,
   NIVEL_LABEL,
+  PERIODOS,
   TIPO_ORG_LABEL,
   cargarAutoridades,
+  cargoRegional,
   coloresDeFilas,
   coloresPorOrg,
+  ganoProvincia,
+  ganoRegion,
   orgDe,
   pct,
+  type Anio,
   type AutoridadesDatos,
+  type Gano,
   type Nivel,
 } from "@/lib/partidos";
 import { DueloPartidos, MiDistrito, RankingPartidos } from "./PartidosPaneles";
 
 /**
  * El explorador de partidos: un mapa del país pintado por la organización que ganó cada
- * gobierno regional en 2022 (al abrir una región, por la que ganó cada provincia), y a un lado
- * tres paneles: quién gobierna más, el duelo entre dos organizaciones y el buscador de distrito.
+ * gobierno regional en la elección que se elija (2014, 2018 o 2022), y a un lado tres paneles:
+ * quién gobierna más, el duelo entre dos organizaciones y el buscador de distrito.
  *
- * Todo sale de `public/data/autoridades-2022.json` (JNE, Infogob). El archivo se baja una vez
- * en el navegador; mientras llega se ve un esqueleto. Si falla, se dice y se deja un enlace.
+ * El PERÍODO se elige arriba: todo lo de abajo (mapa, ranking, duelo, buscador) se recalcula
+ * con esa elección. Las elecciones de 2026 aparecen como pendientes y se activan cuando el JNE
+ * proclame los resultados y se carguen. Al tocar una región o provincia, la ficha muestra
+ * también quién ganó en los otros períodos: así se ve quién se mantuvo y quién cambió.
+ *
+ * Los archivos salen de `public/data/autoridades-<año>.json` (JNE, Infogob); se bajan una vez
+ * cada uno en el navegador. Mientras llegan se ve un esqueleto; si fallan, se dice.
  */
 
 type Panel = "ranking" | "duelo" | "distrito";
@@ -38,9 +50,12 @@ const PANELES: { id: Panel; label: string; Icono: typeof Trophy }[] = [
   { id: "distrito", label: "Mi distrito", Icono: Search },
 ];
 
+const ANIOS_CARGADOS = PERIODOS.filter((p) => p.cargado).map((p) => p.anio as Anio);
+
 export function PartidosExplorador({ compacto = false }: { compacto?: boolean }) {
-  const [d, setD] = useState<AutoridadesDatos | null>(null);
+  const [datos, setDatos] = useState<Partial<Record<number, AutoridadesDatos>>>({});
   const [error, setError] = useState(false);
+  const [anio, setAnio] = useState<number>(ANIO_ACTUAL);
   const [panel, setPanel] = useState<Panel>("ranking");
   const [nivel, setNivel] = useState<Nivel>("regional");
   const [resaltar, setResaltar] = useState<number | null>(null);
@@ -48,26 +63,40 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
   const [provSel, setProvSel] = useState<string | null>(null);
   const [activa, setActiva] = useState<{ ubigeo: string; nivel: "departamento" | "provincia" } | null>(null);
 
+  // Primero el período elegido; después, sin apuro, los otros (los necesita la ficha para el "antes").
   useEffect(() => {
     let vivo = true;
-    cargarAutoridades().then((x) => {
-      if (!vivo) return;
-      if (x) setD(x);
-      else setError(true);
+    const pedir = (a: Anio, esElegido: boolean) =>
+      cargarAutoridades(a).then((x) => {
+        if (!vivo) return;
+        if (x) setDatos((prev) => (prev[a] ? prev : { ...prev, [a]: x }));
+        else if (esElegido) setError(true);
+      });
+    pedir(ANIO_ACTUAL, true).then(() => {
+      for (const a of ANIOS_CARGADOS) if (a !== ANIO_ACTUAL) void pedir(a, false);
     });
     return () => {
       vivo = false;
     };
   }, []);
 
-  // Con una región abierta el mapa pinta provincias; el ranking sigue el nivel que se mire.
-  const nivelMapa: Nivel = seleccion ? "provincial" : "regional";
+  const d = datos[anio];
+  const periodo = PERIODOS.find((p) => p.anio === anio);
+
+  const cambiarAnio = (a: number) => {
+    setAnio(a);
+    setResaltar(null); // los índices de organización son de cada archivo
+    setActiva(null);
+    setProvSel(null);
+  };
+
   // Con una región abierta, los colores se reparten entre las organizaciones de ESA región:
   // si no, la leyenda nombra organizaciones que el mapa pinta de gris.
   const colores = useMemo(() => {
     if (!d) return new Map<number, string>();
     return seleccion ? coloresDeFilas(d.provincial.filter((p) => p.u.startsWith(seleccion))) : coloresPorOrg(d, "regional");
   }, [d, seleccion]);
+  const nivelMapa: Nivel = seleccion ? "provincial" : "regional";
 
   const regiones = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
@@ -102,17 +131,26 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
   }, [d, seleccion, colores, resaltar, nivel]);
 
   const foco = activa?.ubigeo ?? provSel ?? seleccion;
+
+  /** La ficha del lugar que se mira: quién gobierna en el período elegido y quién ganó en los demás. */
   const ficha = useMemo(() => {
     if (!d || !foco) return null;
-    if (foco.length === 4) {
-      const p = d.provincial.find((x) => x.u === foco);
-      if (!p) return null;
-      return { titulo: `${p.n}, ${nombreDepartamento(foco)}`, cargo: NIVEL_LABEL.provincial.cargo, persona: p.a, o: p.o, p: p.p, s: undefined as string | undefined, ubigeo: foco };
-    }
-    const g = d.regional.find((x) => x.u === foco);
-    if (!g) return null;
-    return { titulo: nombreDepartamento(foco), cargo: NIVEL_LABEL.regional.cargo, persona: g.g, o: g.o, p: g.p, s: g.s, ubigeo: foco };
-  }, [d, foco]);
+    const esProv = foco.length === 4;
+    const gano = (x: AutoridadesDatos | undefined): Gano | null => (esProv ? ganoProvincia(x, foco) : ganoRegion(x, foco));
+    const ahora = gano(d);
+    if (!ahora) return null;
+    const nombre = esProv ? (d.provincial.find((x) => x.u === foco)?.n ?? foco) : nombreDepartamento(foco);
+    const fuente = !esProv ? d.regional.find((x) => x.u === foco)?.s : undefined;
+    const historial = PERIODOS.filter((p) => p.cargado).map((p) => ({ anio: p.anio, gano: gano(datos[p.anio]) }));
+    return {
+      titulo: esProv ? `${nombre}, ${nombreDepartamento(foco)}` : nombre,
+      cargo: esProv ? NIVEL_LABEL.provincial.cargo : cargoRegional(anio),
+      gano: ahora,
+      fuente,
+      historial,
+      region: !esProv ? foco : null,
+    };
+  }, [d, foco, datos, anio]);
 
   const leyenda = useMemo(() => {
     if (!d) return [];
@@ -129,128 +167,175 @@ export function PartidosExplorador({ compacto = false }: { compacto?: boolean })
       </p>
     );
   }
-  if (!d) {
-    return (
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" aria-busy>
-        <div className="h-[28rem] animate-pulseSoft rounded-2xl bg-paperSoft" />
-        <div className="h-[28rem] animate-pulseSoft rounded-2xl bg-paperSoft" />
-      </div>
-    );
-  }
 
   return (
-    <div className={cn("grid gap-6 lg:gap-8", compacto ? "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]" : "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]")}>
-      {/* ── El mapa ─────────────────────────────────────────────── */}
-      <div className="min-w-0">
-        <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft">
-          <div className="flex items-center justify-between gap-3 px-4 pt-4">
-            <p className="etiqueta-mono">{seleccion ? `Provincias de ${nombreDepartamento(seleccion)}` : "Gobernadores regionales 2022"}</p>
-            {seleccion && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSeleccion(null);
-                  setProvSel(null);
-                  setActiva(null);
-                }}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-[13px] font-semibold text-ink hover:bg-paperDeep"
-              >
-                <ArrowLeft size={14} aria-hidden /> Todo el Perú
-              </button>
-            )}
-          </div>
-          <div className="mx-auto h-[26rem] max-w-md sm:h-[32rem]">
-            <PeruChoropleth
-              regiones={regiones}
-              provincias={provincias}
-              provinciaPorDefecto={{ color: COLOR_OTRAS, sinDato: true, resumen: "Sin dato en los resultados" }}
-              seleccion={seleccion}
-              zonaSel={provSel}
-              onZonaActiva={(z) => setActiva(z ? { ubigeo: z.ubigeo, nivel: z.nivel } : null)}
-              activaUbigeo={activa?.ubigeo ?? null}
-              onSelectRegion={(u) => {
-                setSeleccion(u);
-                setProvSel(null);
-                setActiva(null);
-              }}
-              onSelectProvincia={(u) => setProvSel(u)}
-            />
-          </div>
-          <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-3">
-            {leyenda.map(([o, n]) => (
-              <li key={o} className="flex items-center gap-1.5 text-[12.5px] text-inkSoft">
-                <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? COLOR_OTRAS }} />
-                <span className="max-w-[11rem] truncate" title={orgDe(d, o).n}>
-                  {orgDe(d, o).n}
-                </span>
-                <span className="font-mono text-[12px] tabular-nums text-mute">{n}</span>
-              </li>
-            ))}
-            <li className="flex items-center gap-1.5 text-[12.5px] text-mute">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
-            </li>
-          </ul>
-        </div>
-
-        {/* Quién gobierna donde apunta el cursor (o lo elegido). */}
-        <div className="mt-4 min-h-[8.5rem] rounded-2xl border border-line bg-paperSoft p-4" aria-live="polite">
-          {ficha ? (
-            <>
-              <p className="etiqueta-mono flex items-center gap-1.5">
-                <MapPin size={13} aria-hidden /> {ficha.titulo}
-              </p>
-              <p className="mt-2 font-display text-[22px] font-bold leading-tight text-ink">{orgDe(d, ficha.o).n}</p>
-              <p className="mt-1 text-[14px] text-inkSoft">
-                {ficha.cargo}: <span className="font-semibold text-ink">{ficha.persona}</span>
-              </p>
-              <p className="mt-1 text-[13px] text-mute">
-                {TIPO_ORG_LABEL[orgDe(d, ficha.o).t]}
-                {pct(ficha.p) ? `, ${pct(ficha.p)} de los votos` : ""}
-              </p>
-              {ficha.s && <p className="mt-1 text-[12px] text-mute">Fuente: {ficha.s}</p>}
-              {ficha.ubigeo.length === 2 && (
-                <Link href={`/app/financiar/${ficha.ubigeo}`} className="mt-2 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
-                  Ver contratos de esta región en Vigía
-                </Link>
-              )}
-            </>
-          ) : (
-            <p className="text-[15px] leading-relaxed text-mute">
-              Pasa el cursor o toca una región para ver quién la gobierna. Toca una región dos veces para abrir sus provincias.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Los paneles ─────────────────────────────────────────── */}
-      <div className="min-w-0">
-        <div role="tablist" aria-label="Qué quieres ver" className="mb-5 flex flex-wrap gap-2">
-          {PANELES.map(({ id, label, Icono }) => (
-            <button
-              key={id}
-              role="tab"
-              type="button"
-              aria-selected={panel === id}
-              onClick={() => setPanel(id)}
-              className={cn(
-                "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
-                panel === id ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
-              )}
-            >
-              <Icono size={15} aria-hidden /> {label}
-            </button>
-          ))}
-        </div>
-        <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-          {panel === "ranking" && <RankingPartidos d={d} nivel={nivel} onNivel={setNivel} resaltar={resaltar} onResaltar={setResaltar} />}
-          {panel === "duelo" && <DueloPartidos d={d} />}
-          {panel === "distrito" && <MiDistrito d={d} />}
-        </div>
-        <p className="mt-3 text-[12.5px] leading-snug text-mute">
-          {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales y {numero(d.distrital.length)} distritales.
-          Fuente: {d.fuente}.
+    <div>
+      {/* ── El período ──────────────────────────────────────────── */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <p className="etiqueta-mono flex items-center gap-2">
+          <CalendarDays size={14} aria-hidden /> Período electoral
         </p>
+        <div role="tablist" aria-label="Elecciones de" className="flex flex-wrap gap-2">
+          {PERIODOS.map((p) => {
+            const activo = p.anio === anio;
+            return (
+              <button
+                key={p.anio}
+                role="tab"
+                type="button"
+                aria-selected={activo}
+                disabled={!p.cargado}
+                title={p.cargado ? `Mandato ${p.mandato}` : "Pendiente: se carga cuando el JNE proclame los resultados"}
+                onClick={() => p.cargado && cambiarAnio(p.anio)}
+                className={cn(
+                  "inline-flex min-h-10 flex-col items-start justify-center rounded-xl border px-4 py-1.5 text-left transition-colors",
+                  activo ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
+                  !p.cargado && "cursor-not-allowed border-dashed opacity-60 hover:border-line hover:text-inkSoft",
+                )}
+              >
+                <span className="font-mono text-[15px] font-bold tabular-nums leading-tight">{p.anio}</span>
+                <span className={cn("text-[11.5px] leading-tight", activo ? "text-paper/80" : "text-mute")}>
+                  {p.cargado ? `Mandato ${p.mandato}` : "Pendiente"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {!d ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" aria-busy>
+          <div className="h-[28rem] animate-pulseSoft rounded-2xl bg-paperSoft" />
+          <div className="h-[28rem] animate-pulseSoft rounded-2xl bg-paperSoft" />
+        </div>
+      ) : (
+        <div className={cn("grid gap-6 lg:gap-8", compacto ? "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]" : "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]")}>
+          {/* ── El mapa ─────────────────────────────────────────── */}
+          <div className="min-w-0">
+            <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft">
+              <div className="flex items-center justify-between gap-3 px-4 pt-4">
+                <p className="etiqueta-mono">
+                  {seleccion ? `Provincias de ${nombreDepartamento(seleccion)}, ${anio}` : `${anio <= 2014 ? "Presidentes" : "Gobernadores"} regionales ${anio}`}
+                </p>
+                {seleccion && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSeleccion(null);
+                      setProvSel(null);
+                      setActiva(null);
+                    }}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-[13px] font-semibold text-ink hover:bg-paperDeep"
+                  >
+                    <ArrowLeft size={14} aria-hidden /> Todo el Perú
+                  </button>
+                )}
+              </div>
+              <div className="mx-auto h-[26rem] max-w-md sm:h-[32rem]">
+                <PeruChoropleth
+                  regiones={regiones}
+                  provincias={provincias}
+                  provinciaPorDefecto={{ color: COLOR_OTRAS, sinDato: true, resumen: "Sin dato en los resultados" }}
+                  seleccion={seleccion}
+                  zonaSel={provSel}
+                  onZonaActiva={(z) => setActiva(z ? { ubigeo: z.ubigeo, nivel: z.nivel } : null)}
+                  activaUbigeo={activa?.ubigeo ?? null}
+                  onSelectRegion={(u) => {
+                    setSeleccion(u);
+                    setProvSel(null);
+                    setActiva(null);
+                  }}
+                  onSelectProvincia={(u) => setProvSel(u)}
+                />
+              </div>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-3">
+                {leyenda.map(([o, n]) => (
+                  <li key={o} className="flex items-center gap-1.5 text-[12.5px] text-inkSoft">
+                    <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? COLOR_OTRAS }} />
+                    <span className="max-w-[11rem] truncate" title={orgDe(d, o).n}>
+                      {orgDe(d, o).n}
+                    </span>
+                    <span className="font-mono text-[12px] tabular-nums text-mute">{n}</span>
+                  </li>
+                ))}
+                <li className="flex items-center gap-1.5 text-[12.5px] text-mute">
+                  <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
+                </li>
+              </ul>
+            </div>
+
+            {/* Quién gobierna donde apunta el cursor (o lo elegido), y cómo votó antes. */}
+            <div className="mt-4 min-h-[8.5rem] rounded-2xl border border-line bg-paperSoft p-4" aria-live="polite">
+              {ficha ? (
+                <>
+                  <p className="etiqueta-mono flex items-center gap-1.5">
+                    <MapPin size={13} aria-hidden /> {ficha.titulo}
+                  </p>
+                  <p className="mt-2 font-display text-[22px] font-bold leading-tight text-ink">{ficha.gano.org.n}</p>
+                  <p className="mt-1 text-[14px] text-inkSoft">
+                    {ficha.cargo}: <span className="font-semibold text-ink">{ficha.gano.persona}</span>
+                  </p>
+                  <p className="mt-1 text-[13px] text-mute">
+                    {TIPO_ORG_LABEL[ficha.gano.org.t]}
+                    {pct(ficha.gano.p) ? `, ${pct(ficha.gano.p)} de los votos` : ""}
+                  </p>
+                  {ficha.fuente && <p className="mt-1 text-[12px] text-mute">Fuente: {ficha.fuente}</p>}
+                  <ol className="mt-3 space-y-1 border-t border-line pt-3">
+                    {ficha.historial.map((h) => (
+                      <li key={h.anio} className={cn("grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", h.anio === anio ? "text-ink" : "text-inkSoft")}>
+                        <span className="font-mono tabular-nums text-mute">{h.anio}</span>
+                        <span className={cn("truncate", h.anio === anio && "font-semibold")} title={h.gano?.org.n}>
+                          {h.gano ? h.gano.org.n : "Sin dato"}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  {ficha.region && (
+                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+                      Ver contratos de esta región en Vigía
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <p className="text-[15px] leading-relaxed text-mute">
+                  Pasa el cursor o toca una región para ver quién la gobierna en {anio} y quién ganó en los otros períodos. Toca una región para abrir
+                  sus provincias.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Los paneles ─────────────────────────────────────── */}
+          <div className="min-w-0">
+            <div role="tablist" aria-label="Qué quieres ver" className="mb-5 flex flex-wrap gap-2">
+              {PANELES.map(({ id, label, Icono }) => (
+                <button
+                  key={id}
+                  role="tab"
+                  type="button"
+                  aria-selected={panel === id}
+                  onClick={() => setPanel(id)}
+                  className={cn(
+                    "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
+                    panel === id ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
+                  )}
+                >
+                  <Icono size={15} aria-hidden /> {label}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
+              {panel === "ranking" && <RankingPartidos key={anio} d={d} nivel={nivel} onNivel={setNivel} resaltar={resaltar} onResaltar={setResaltar} />}
+              {panel === "duelo" && <DueloPartidos key={anio} d={d} />}
+              {panel === "distrito" && <MiDistrito d={d} anio={anio} datos={datos} />}
+            </div>
+            <p className="mt-3 text-[12.5px] leading-snug text-mute">
+              Elecciones {anio} (mandato {periodo?.mandato}): {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales
+              y {numero(d.distrital.length)} distritales. Fuente: {d.fuente}.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

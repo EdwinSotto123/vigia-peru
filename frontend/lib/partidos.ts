@@ -1,7 +1,8 @@
 /**
- * Quién gobierna dónde: las autoridades electas en las Elecciones Regionales y Municipales 2022
- * (mandato 2023 a 2026), de la Plataforma Electoral del JNE (Infogob). El archivo lo genera
- * `backend/scripts/generar_autoridades_2022.py` a `public/data/autoridades-2022.json`.
+ * Quién gobierna dónde: las autoridades electas en las Elecciones Regionales y Municipales de
+ * 2014, 2018 y 2022, de la Plataforma Electoral del JNE (Infogob). Los archivos
+ * `public/data/autoridades-<año>.json` los genera `backend/scripts/generar_autoridades.py`.
+ * Las elecciones de 2026 se suman cuando el JNE proclame los resultados.
  *
  * Reglas del módulo:
  *  - Sólo lo que dice la fuente. Lo que el archivo no trae se dice (`faltan`), no se rellena.
@@ -53,6 +54,7 @@ export interface AlcaldeDistrital {
 }
 
 export interface AutoridadesDatos {
+  anio?: number;
   fuente: string;
   generado: string;
   orgs: Org[];
@@ -77,18 +79,71 @@ export const TIPO_ORG_LABEL: Record<TipoOrg, string> = {
   otro: "Organización política",
 };
 
-let enVuelo: Promise<AutoridadesDatos | null> | null = null;
+/** Los períodos con resultados cargados, y el que falta. */
+export type Anio = 2014 | 2018 | 2022;
 
-/** Descarga el archivo una sola vez por carga de página (lo pide quien lo necesite). */
-export function cargarAutoridades(): Promise<AutoridadesDatos | null> {
-  enVuelo ??= fetch("/data/autoridades-2022.json")
-    .then((r) => (r.ok ? (r.json() as Promise<AutoridadesDatos>) : null))
-    .catch(() => null)
-    .then((d) => {
-      if (!d) enVuelo = null; // si falló, el próximo intento vuelve a pedirlo
-      return d;
-    });
-  return enVuelo;
+export interface Periodo {
+  anio: number;
+  /** Años del mandato, en palabras. */
+  mandato: string;
+  /** `false`: todavía no hay resultados cargados (elecciones de 2026). */
+  cargado: boolean;
+}
+
+export const PERIODOS: Periodo[] = [
+  { anio: 2014, mandato: "2015 a 2018", cargado: true },
+  { anio: 2018, mandato: "2019 a 2022", cargado: true },
+  { anio: 2022, mandato: "2023 a 2026", cargado: true },
+  { anio: 2026, mandato: "2027 a 2030", cargado: false },
+];
+
+export const ANIO_ACTUAL: Anio = 2022;
+
+/** El cargo regional se llamaba "presidente regional" hasta 2014. */
+export const cargoRegional = (anio: number) => (anio <= 2014 ? "Presidente o presidenta regional" : "Gobernador o gobernadora regional");
+
+const enVuelo = new Map<number, Promise<AutoridadesDatos | null>>();
+
+/** Descarga el archivo de un año una sola vez por carga de página (lo pide quien lo necesite). */
+export function cargarAutoridades(anio: Anio = ANIO_ACTUAL): Promise<AutoridadesDatos | null> {
+  let p = enVuelo.get(anio);
+  if (!p) {
+    p = fetch(`/data/autoridades-${anio}.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<AutoridadesDatos>) : null))
+      .catch(() => null)
+      .then((d) => {
+        if (!d) enVuelo.delete(anio); // si falló, el próximo intento vuelve a pedirlo
+        return d;
+      });
+    enVuelo.set(anio, p);
+  }
+  return p;
+}
+
+/** Lo que ganó un lugar en un período: la organización y quién la encabezó. */
+export interface Gano {
+  org: Org;
+  persona: string;
+  p: number | null;
+}
+
+export function ganoRegion(d: AutoridadesDatos | undefined, u: string): Gano | null {
+  const g = d?.regional.find((x) => x.u === u);
+  return g && d ? { org: orgDe(d, g.o), persona: g.g, p: g.p } : null;
+}
+
+export function ganoProvincia(d: AutoridadesDatos | undefined, u: string): Gano | null {
+  const g = d?.provincial.find((x) => x.u === u);
+  return g && d ? { org: orgDe(d, g.o), persona: g.a, p: g.p } : null;
+}
+
+/** El distrito se busca por (provincia, distrito) sin tildes: los códigos de ubigeo no viajan en los archivos. */
+export function ganoDistrito(d: AutoridadesDatos | undefined, provincia: string, distrito: string): Gano | null {
+  if (!d) return null;
+  const kp = normalizar(provincia);
+  const kd = normalizar(distrito);
+  const g = d.distrital.find((x) => normalizar(x.pv) === kp && normalizar(x.n) === kd);
+  return g ? { org: orgDe(d, g.o), persona: g.a, p: g.p } : null;
 }
 
 /** Cuántos gobiernos tiene cada organización, por nivel. */

@@ -7,9 +7,12 @@ import { cn } from "@/lib/utils";
 import {
   COLOR_OTRAS,
   NIVEL_LABEL,
+  PERIODOS,
   TIPO_ORG_LABEL,
+  cargoRegional,
   coloresPorOrg,
   conteos,
+  ganoDistrito,
   normalizar,
   orgDe,
   pct,
@@ -153,7 +156,7 @@ export function DueloPartidos({ d }: { d: AutoridadesDatos }) {
   return (
     <div>
       <p className="text-[13px] leading-snug text-mute">
-        Dos organizaciones frente a frente, contando cuántos gobiernos ganó cada una en 2022.
+        Dos organizaciones frente a frente, contando cuántos gobiernos ganó cada una en este período.
       </p>
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <Selector valor={a} onChange={setA} opciones={opciones.map((c) => c.org)} d={d} etiqueta="Organización A" />
@@ -234,7 +237,15 @@ function Selector({
 
 /* ───────────────────────── Mi distrito ───────────────────────── */
 
-export function MiDistrito({ d }: { d: AutoridadesDatos }) {
+export function MiDistrito({
+  d,
+  anio,
+  datos,
+}: {
+  d: AutoridadesDatos;
+  anio: number;
+  datos: Partial<Record<number, AutoridadesDatos>>;
+}) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -254,12 +265,12 @@ export function MiDistrito({ d }: { d: AutoridadesDatos }) {
   const reg = dist ? d.regional.find((g) => g.u === dist.u.slice(0, 2)) : null;
 
   const texto = dist
-    ? `En ${dist.n} (${dist.pv}) gobierna ${orgDe(d, dist.o).n}${pct(dist.p) ? ` (${pct(dist.p)} de los votos en 2022)` : ""}. Mira quién gobierna tu distrito en Vigía Perú.`
+    ? `En ${dist.n} (${dist.pv}) ganó ${orgDe(d, dist.o).n} en ${anio}${pct(dist.p) ? ` (${pct(dist.p)} de los votos)` : ""}. Mira quién gobierna tu distrito en Vigía Perú.`
     : "";
 
   return (
     <div>
-      <p className="text-[13px] leading-snug text-mute">Escribe el nombre de tu distrito y mira quién ganó en 2022.</p>
+      <p className="text-[13px] leading-snug text-mute">Escribe el nombre de tu distrito y mira quién ganó en {anio}.</p>
       <label className="relative mt-3 block">
         <span className="sr-only">Buscar un distrito</span>
         <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
@@ -309,7 +320,7 @@ export function MiDistrito({ d }: { d: AutoridadesDatos }) {
         </ul>
       )}
       {!dist && q.trim().length >= 2 && resultados.length === 0 && (
-        <p className="mt-3 text-[13px] text-mute">No encontramos ese distrito en los resultados de 2022.</p>
+        <p className="mt-3 text-[13px] text-mute">No encontramos ese distrito en los resultados de {anio}.</p>
       )}
 
       {dist && (
@@ -337,6 +348,20 @@ export function MiDistrito({ d }: { d: AutoridadesDatos }) {
               </li>
             )}
           </ul>
+          {/* Cómo votó este distrito en cada elección cargada. */}
+          <ol className="mt-3 space-y-1 border-t border-line pt-3">
+            {PERIODOS.filter((p) => p.cargado).map((p) => {
+              const g = ganoDistrito(datos[p.anio], dist.pv, dist.n);
+              return (
+                <li key={p.anio} className={cn("grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", p.anio === anio ? "text-ink" : "text-inkSoft")}>
+                  <span className="font-mono tabular-nums text-mute">{p.anio}</span>
+                  <span className={cn("truncate", p.anio === anio && "font-semibold")} title={g?.org.n}>
+                    {g ? `${g.org.n}, ${g.persona}` : datos[p.anio] ? "Sin dato" : "Cargando"}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
               href={`/app/entidades?q=${encodeURIComponent(`Municipalidad Distrital de ${dist.n}`)}`}

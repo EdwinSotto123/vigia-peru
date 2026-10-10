@@ -8,7 +8,7 @@ import { PartidosExplorador } from "@/components/partidos/PartidosExplorador";
  * da en época de elecciones: ¿qué partido ganó en mi región?, ¿y en mi distrito?
  *
  * Dos cosas, sin mezclarlas:
- *  1. Los resultados (explorador): quién ganó cada gobierno en 2022, de la Plataforma Electoral
+ *  1. Los resultados (explorador): quién ganó cada gobierno en las elecciones de 2014, 2018 y 2022, de la Plataforma Electoral
  *     del JNE. Un mapa, un ranking, un duelo y un buscador de distrito. Cuenta quién ganó, no
  *     qué hizo cada gobierno.
  *  2. Lo que Vigía cruza (tres tarjetas): los registros de campañas y candidaturas contra los
@@ -47,8 +47,8 @@ export function PartidosSeccion() {
             Monitoreamos a los <span className="text-granate">partidos políticos.</span>
           </h2>
           <p className="mt-5 max-w-[58ch] text-pretty text-lg leading-relaxed text-inkSoft">
-            ¿Qué partido ganó en tu región? ¿Y en tu distrito? Mira quién gobierna donde vives, compara a dos organizaciones y
-            descubre qué cruza Vigía alrededor de la política.
+            ¿Qué partido ganó en tu región? ¿Y en tu distrito? Elige el período electoral, mira quién gobierna donde vives, compara a dos
+            organizaciones y descubre qué cruza Vigía alrededor de la política.
           </p>
         </div>
 
@@ -71,8 +71,8 @@ export function PartidosSeccion() {
         </ul>
 
         <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-mute">
-          Esto muestra quién ganó en las Elecciones Regionales y Municipales 2022, no qué hizo cada gobierno. Los resultados de 2026 se suman
-          cuando el JNE los proclame. Una señal de Vigía es para revisar, nunca una acusación.{" "}
+          Esto muestra quién ganó en las Elecciones Regionales y Municipales de 2014, 2018 y 2022, no qué hizo cada gobierno. Los resultados
+          de 2026 se suman cuando el JNE los proclame. Una señal de Vigía es para revisar, nunca una acusación.{" "}
           <Link href="/preguntas" className="text-granate underline-offset-4 hover:underline">
             Cómo leemos las señales
           </Link>
