@@ -133,7 +133,7 @@ export function RankingAliados({
     <div className="space-y-4">
       {/* Con uno o dos nombres, los puestos que faltan se ven libres: el podio es también la invitación. */}
       {podio.length > 0 && (
-        <PodioRanking filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} />
+        <PodioRanking filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} destacado />
       )}
 
       {tabla.length > 0 && (

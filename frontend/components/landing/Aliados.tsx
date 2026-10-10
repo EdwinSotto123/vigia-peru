@@ -1,33 +1,20 @@
 import Link from "next/link";
 import { ArrowUpRight, EyeOff, ListOrdered, Megaphone, ShieldCheck, type LucideIcon } from "lucide-react";
-import { LUGAR_LIBRE, PodioRanking } from "@/components/aliados/Podio";
-import { clasificar } from "@/components/aliados/ranking";
-import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
-import { EstadoError } from "@/components/patrones";
+import { getEstadoGlobal } from "@/lib/financiamiento";
 import { CalculadoraAporte, type ParteTarifa } from "./CalculadoraAporte";
-import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
- * Quienes lo hacen posible.
+ * Cuánto cuesta leer un contrato, y por qué financiar no compra nada.
  *
- * La lectura de cada contrato la paga alguien, y la portada lo muestra con el mismo
- * podio de /app/aliados (`PodioRanking`): los que más contratos hicieron leer, con su
- * medalla, y el enlace al ranking completo. Debajo, en dos filas que se leen de
- * izquierda a derecha: cuánto cuesta leer uno (la calculadora, la única acción de
- * financiar de la sección) y las tres reglas que protegen lo que se encuentra, en
- * cajitas con su ícono en vez de una lista de oraciones.
+ * El podio de quienes lo hacen posible subió al inicio de la portada (`PodioPortada`, justo
+ * después de la escala del dinero). Acá quedan, en dos filas que se leen de izquierda a
+ * derecha: la calculadora (la única acción de financiar de la sección) y las tres reglas
+ * que protegen lo que se encuentra, en cajitas con su ícono.
  *
- * Tres reglas que no se negocian, porque son las del producto:
- *  - Se cuenta en CONTRATOS, nunca en soles. Ningún monto va al lado de ningún
- *    nombre: trescientos vecinos que financian trescientos contratos pesan lo
- *    mismo que una empresa que financia trescientos.
+ * Reglas que no se negocian, porque son las del producto:
+ *  - Se cuenta en CONTRATOS, nunca en soles.
  *  - Sólo aliados reales, siempre: ningún nombre inventado, ni en desarrollo.
- *  - Con menos de tres nombres, los puestos que faltan se ven libres: una
- *    invitación, no una losa que finja que hay alguien.
  */
-
-/** Filas que se piden: los aportes sin nombre no ocupan puesto, y el podio necesita tres con nombre. */
-const TOPE = 12;
 
 /** "S/1 procesamiento · S/1 infraestructura y datos · …" → partes con monto. */
 function partesDeTarifa(nota: string | null | undefined): ParteTarifa[] {
@@ -47,13 +34,7 @@ const REGLAS: { Icono: LucideIcon; titulo: string; detalle: string }[] = [
 ];
 
 export async function Aliados() {
-  const [rankingRaw, estado] = await Promise.all([
-    getRankingPaginado({ periodo: "todo", limit: TOPE }),
-    getEstadoGlobal(),
-  ]);
-
-  // El mismo orden y los mismos puestos que /app/aliados (components/aliados/ranking.ts).
-  const podio = clasificar(rankingRaw?.data ?? []).slice(0, 3);
+  const estado = await getEstadoGlobal();
 
   const precio = estado?.tarifa.precioPen ?? null;
   const partes = partesDeTarifa(estado?.tarifa.nota);
@@ -68,41 +49,16 @@ export async function Aliados() {
       <div className="container-page relative py-20 sm:py-24">
         <div className="max-w-3xl">
           <h2 id="aliados-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-            Cada contrato que Vigía lee, lo financia alguien.
+            Leer un contrato cuesta poco, y lo puede pagar cualquiera.
           </h2>
           <p className="mt-5 max-w-[60ch] text-pretty text-lg leading-relaxed text-paper/75">
-            Personas, colectivos y empresas. Su nombre queda acá, contado en contratos, nunca en soles.
+            Personas, colectivos y empresas. Su nombre queda en el podio, contado en contratos, nunca en soles.
           </p>
         </div>
 
-        {/* Sin ranking hay dos casos distintos: el registro no respondió (una falla,
-            con su EstadoError sobre papel) o todavía nadie financió (el podio con
-            sus tres puestos libres, que es una invitación, no un error). */}
-        {podio.length === 0 && rankingRaw == null ? (
-          <div className="sobre-claro mt-10 rounded-2xl bg-paper">
-            <EstadoError titulo="No pudimos leer el registro de aportes">
-              Es una falla de esta página: los aportes siguen registrados. Vuelve a intentarlo en unos minutos.
-            </EstadoError>
-          </div>
-        ) : (
-          <div className="mt-10">
-            <PodioRanking
-              filas={podio}
-              titulo="Quienes más contratos hicieron leer"
-              nivel={3}
-              lugarLibre={LUGAR_LIBRE}
-            />
-            {podio.length > 0 && (
-              <EnlaceAccion href="/app/aliados" variante="contornoOscuro" className="mt-5">
-                Ver el ranking completo
-              </EnlaceAccion>
-            )}
-          </div>
-        )}
-
         {/* Cuánto cuesta: una placa a lo ancho. */}
         {precio != null && (
-          <div className="mt-16">
+          <div className="mt-10">
             <CalculadoraAporte precio={precio} partes={partes} enCola={estado?.colaGlobal ?? 0} />
           </div>
         )}

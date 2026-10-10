@@ -11,11 +11,13 @@ import { FuentesSection } from "@/components/landing/FuentesSection";
 import { MapaRegiones } from "@/components/landing/MapaRegiones";
 import { CasosReales } from "@/components/landing/CasosReales";
 import { Aliados } from "@/components/landing/Aliados";
+import { PodioPortada } from "@/components/landing/PodioPortada";
 import { Participar } from "@/components/landing/Participar";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
 import { getAlertas } from "@/lib/api-client";
-import { getEstadoGlobal } from "@/lib/financiamiento";
+import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
+import { clasificar } from "@/components/aliados/ranking";
 import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
 import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal, type TipoEscala } from "@/lib/landing";
@@ -33,7 +35,8 @@ export const metadata: Metadata = {
  * La portada cuenta una historia, en este orden:
  *
  *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
- *  2. …el problema: miles de millones en contratos, casi nada leído (EscalaDinero).
+ *  1b. …quién lo hace posible (PodioPortada): el podio, que se toca para ver quién es.
+ *  2. El problema: miles de millones en contratos, casi nada leído (EscalaDinero).
  *  3. Qué hace Vigía, con un contrato real (CasoLeido).
  *  4. Cómo lo hace, en palabras de persona (PipelineAgentes).
  *  5. De dónde sale lo que dice (FuentesSection).
@@ -51,12 +54,14 @@ export default async function LandingPage() {
   // Las lecturas en paralelo: son independientes, y en serie cada una le sumaba
   // su viaje de ida y vuelta al primer byte de la portada.
   const anio = anioLima();
-  const [alertas, estado, resumen, regiones, resumenAnio, ...porTipo] = await Promise.all([
+  const [alertas, estado, resumen, regiones, resumenAnio, ranking, ...porTipo] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
     getResumenContratos().catch(() => null),
     getContratosGeo({ nivel: "departamento" }).catch(() => null),
     getResumenContratos({ desde: `${anio}-01-01` }).catch(() => null),
+    // Los tres del podio, para la primera pantalla (el mismo pedido que usa el podio de más abajo).
+    getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
     // Las cajitas de la escala: cuántos leyó Vigía de cada tipo (el resumen general
     // trae el total por tipo, pero no los leídos por tipo).
     ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave }).catch(() => null)),
@@ -101,7 +106,10 @@ export default async function LandingPage() {
 
   return (
     <>
-      <HeroPixel />
+      <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} />
+
+      {/* El podio, arriba: quién hace posible que Vigía lea. Cada puesto se toca para ver quién es. */}
+      <PodioPortada />
 
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero

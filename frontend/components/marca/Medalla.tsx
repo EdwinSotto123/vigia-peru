@@ -1,13 +1,12 @@
 import { cn } from "@/lib/utils";
-import { LLAMITA_PATH } from "./Llamita";
+import { PUNTOS_OJO } from "./OjoPixel";
 
 /**
- * La medalla del ranking de aliados (DESIGN_SYSTEM.md §2.5 y §14.6): la llamita del
- * logo grabada en un disco de oro, plata o bronce; el primer puesto lleva corona.
+ * La medalla del ranking de aliados (DESIGN_SYSTEM.md §14.6): el ojo de puntos de la marca
+ * grabado en un disco de oro, plata o bronce; el primer puesto lleva corona.
  *
- * Es la ÚNICA excepción a "una llamita por pantalla": en el podio la llamita no
- * acompaña un estado, es el trofeo. Nunca se usa fuera del ranking ni junto a una
- * señal, una entidad o una persona señalada.
+ * Es el trofeo del ranking: no se usa fuera de él ni junto a una señal, una entidad o una
+ * persona señalada.
  *
  * Server-safe (SVG puro). `animada`: la medalla sube y la corona cae cuando el podio
  * entra en pantalla — el disparo lo hace `PodioEscena` (`data-visto` en el grupo
@@ -99,10 +98,16 @@ export function Medalla({
         <circle cx="50" cy="50" r="48" fill={m.oscuro} />
         <circle cx="50" cy="50" r="44" fill={`url(#${id}-disco)`} />
         <circle cx="50" cy="50" r="36" fill="none" stroke={m.oscuro} strokeOpacity="0.45" strokeWidth="1.5" strokeDasharray="3 3" />
-        {/* La llama del isotipo, grabada: el tono oscuro del mismo metal. */}
-        <g transform="translate(29 23) scale(0.57)">
-          <path d={LLAMITA_PATH} fill={m.oscuro} fillRule="evenodd" />
-        </g>
+        {/* El ojo de puntos de la marca, grabado: el tono oscuro del mismo metal. */}
+        {PUNTOS_OJO.map((p, k) => (
+          <circle
+            key={k}
+            cx={22 + p.x * (56 / 11)}
+            cy={50 + (p.y - 2.5) * (56 / 11)}
+            r={0.42 * (56 / 11)}
+            fill={m.oscuro}
+          />
+        ))}
       </svg>
     </span>
   );

@@ -2,7 +2,10 @@
 
 import { useRef } from "react";
 import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
-import { FranjaTextil, OjoPixel } from "@/components/marca";
+import { FranjaTextil, Medalla, OjoPixel } from "@/components/marca";
+import { AliadoAbrir } from "@/components/aliados/AliadoAbrir";
+import type { FilaRanking } from "@/components/aliados/ranking";
+import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
@@ -29,7 +32,35 @@ const COLS = 30;
 const FILAS = 17;
 const CELDAS = Array.from({ length: COLS * FILAS }, (_, i) => i);
 
-export function HeroPixel() {
+/** Los tres del podio, ya en la primera pantalla: quién hace posible la lectura, y un toque para ver quién es. */
+function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
+  if (aliados.length === 0) return null;
+  return (
+    <div className="mt-10">
+      <p className="etiqueta-mono mb-3">Lo hacen posible</p>
+      <ul className="flex flex-wrap gap-2.5">
+        {aliados.slice(0, 3).map((f) => (
+          <li key={f.id}>
+            <AliadoAbrir
+              fila={f}
+              className="group/mini flex items-center gap-2.5 rounded-full border border-paperEdge bg-paperSoft/80 py-1.5 pl-1.5 pr-4 transition-colors hover:border-granate hover:bg-paperDeep"
+            >
+              <Medalla puesto={Math.min(f.puesto, 3) as 1 | 2 | 3} tamano={30} corona={false} />
+              <span className="flex flex-col leading-tight">
+                <span className="max-w-[11rem] truncate text-[14px] font-semibold text-ink">{f.nombre}</span>
+                <span className="text-[12px] text-mute">
+                  {numero(f.contratosFinanciados)} {f.contratosFinanciados === 1 ? "contrato" : "contratos"}
+                </span>
+              </span>
+            </AliadoAbrir>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function HeroPixel({ aliados = [] }: { aliados?: FilaRanking[] }) {
   const escena = useRef<HTMLDivElement>(null);
 
   useEscenaGsap(escena, CON_MOVIMIENTO, ({ gsap }) => {
@@ -123,6 +154,7 @@ export function HeroPixel() {
                 Cómo funciona
               </EnlaceAccion>
             </div>
+            <LoHacenPosible aliados={aliados} />
           </div>
 
           <div className="ojo-ancla relative z-20 mx-auto w-[min(78vw,22rem)] sm:w-[min(60vw,28rem)] lg:w-[min(42vw,36rem)]">
@@ -154,7 +186,7 @@ export function HeroPixel() {
           aria-hidden
           className="puente pointer-events-none invisible absolute inset-0 z-40 hidden items-center justify-center text-center font-display text-3xl font-bold text-ink/85 lg:flex"
         >
-          Esto es lo que Vigía mira.
+          Vigía mira. Alguien lo hace posible.
         </p>
       </div>
     </section>
