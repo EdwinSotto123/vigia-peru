@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Llamita } from "@/components/marca";
+import { OjoPixel } from "@/components/marca";
+import { PixelReveal } from "@/components/ui/PixelReveal";
 import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "@/components/landing/EnlaceAccion";
-import { HeroLupa } from "@/components/landing/HeroLupa";
+import { HeroPixel } from "@/components/landing/HeroPixel";
 import { EscalaDinero } from "@/components/landing/EscalaDinero";
 import { CasoLeido } from "@/components/landing/CasoLeido";
 import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 /**
  * La portada cuenta una historia, en este orden:
  *
- *  1. Qué es (HeroLupa). La lupa se abre y del otro lado está…
+ *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
  *  2. …el problema: miles de millones en contratos, casi nada leído (EscalaDinero).
  *  3. Qué hace Vigía, con un contrato real (CasoLeido).
  *  4. Cómo lo hace, en palabras de persona (PipelineAgentes).
@@ -100,7 +101,7 @@ export default async function LandingPage() {
 
   return (
     <>
-      <HeroLupa />
+      <HeroPixel />
 
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero
@@ -115,26 +116,28 @@ export default async function LandingPage() {
 
       {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
 
-      <PipelineAgentes />
+      <PixelReveal><PipelineAgentes /></PixelReveal>
 
-      <FuentesSection cifras={cifrasFuentes} />
+      <PixelReveal><FuentesSection cifras={cifrasFuentes} /></PixelReveal>
 
       {regiones && regiones.length > 0 && <MapaRegiones zonas={regiones} />}
 
-      <CasosReales casos={otrosCasos} />
+      <PixelReveal><CasosReales casos={otrosCasos} /></PixelReveal>
 
-      <Aliados />
+      <PixelReveal><Aliados /></PixelReveal>
 
-      <Participar />
+      <PixelReveal><Participar /></PixelReveal>
 
       {/* La misma cuenta que el gráfico de señales del mapa de fuentes (resumen de
           contratos). El estado global contaba otro universo y la portada decía 12
           en una sección y 14 en otra. */}
-      <ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} />
+      <PixelReveal><ConfianzaSection enRevision={r ? (r.en_revision ?? 0) : null} /></PixelReveal>
 
-      <ExpansionSection />
+      <PixelReveal><ExpansionSection /></PixelReveal>
 
-      <CierreLanding enCola={estado?.colaGlobal ?? null} />
+      <PixelReveal desde="centro" celda={32}>
+        <CierreLanding enCola={estado?.colaGlobal ?? null} />
+      </PixelReveal>
     </>
   );
 }
@@ -234,10 +237,8 @@ function tiposConResto(total: number, porTipo: Partial<Record<string, number>>):
 
 /**
  * El cierre: una cifra real y las dos acciones que importan. Es el momento de
- * marca de la portada (DESIGN_SYSTEM.md §3.8 y §14): granate profundo, y la
- * llamita en maíz, de pie sobre el borde de la placa y mirando hacia el texto
- * —hacia adelante, como manda §2.4—. Acá la llama no acompaña ninguna señal ni
- * ningún nombre: acompaña la invitación.
+ * marca de la portada: una banda carbón con el ojo de puntos al lado del titular. El
+ * ojo no acompaña ninguna señal ni ningún nombre: acompaña la invitación.
  *
  * Sin franja textil propia: el pie abre con la suya ochenta píxeles más abajo,
  * y son una por pantalla (§6).
@@ -250,7 +251,7 @@ function CierreLanding({ enCola }: { enCola: number | null }) {
           {/* La llama, decorativa: en el celular va chica arriba del titular;
               desde lg, grande a la izquierda, con las patas en el borde de la
               placa (baja exactamente el pb-10 de la grilla). */}
-          <Llamita className="w-14 text-maiz sm:w-16 lg:w-40 lg:translate-y-10" />
+          <OjoPixel animado tamano={220} className="h-auto w-28 sm:w-40 lg:w-56 lg:translate-y-4" />
           <div className="lg:pb-6">
             <h2 id="cierre-titulo" className="max-w-[20ch] text-balance font-display text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
               {enCola != null && enCola > 0

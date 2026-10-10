@@ -464,7 +464,7 @@ function SidebarLink({
                 ? "bg-paper/15 text-paper"
                 : "bg-granate-soft text-granate"
               : dorado
-              ? "bg-maiz text-ink shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
+              ? "bg-maiz text-[#0B0F0F] shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
               : active
               ? "bg-granate text-paper"
               : "bg-paperDeep text-mute group-hover:bg-granate-50 group-hover:text-granate",

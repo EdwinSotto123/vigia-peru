@@ -125,15 +125,18 @@ export const medidaPorId = (id: MedidaId): Medida => MEDIDAS.find((m) => m.id ==
  * abajo no cambia): claro 2,51:1 contra blanco, oscuro 13,42:1, separación
  * mínima entre escalones adyacentes 1,50.
  */
-export const RAMPA = ["#8DA2DE", "#6480CB", "#4360B0", "#314781", "#202D54"] as const;
+export const RAMPA = ["#2A3A18", "#46661A", "#74A01F", "#AAD82A", "#D4FF3F"] as const;
+/* Identidad Píxel (2026-10): sobre carbón, la rampa es de lima y SUBE en brillo: lo más
+   brillante es lo más alto. La añil de arriba (más oscuro = más) desaparecía contra el
+   fondo; el rojo de las señales sigue separándose por matiz (rojo contra verde). */
 
 /**
  * "Sin dato" es neutro, no un sexto escalón. Antes era un crema (#E8DFC7) que
  * pertenecía a la familia de la rampa cálida y se leía como "poquito", cuando
  * significa "no sabemos". En gris no compite con la escala.
  */
-export const SIN_DATO = "#EEF0F3";
-export const SIN_DATO_TRAMA = "#C2C8D0";
+export const SIN_DATO = "#1A2323";
+export const SIN_DATO_TRAMA = "#2C3939";
 export const ESCALONES = RAMPA.length;
 
 /**
@@ -179,7 +182,7 @@ export function construirEscala(valores: number[]): Escala {
   const max = limpios.length ? Math.max(...limpios) : 0;
   const n = cortes.length + 1;
   // Con menos de 5 escalones reales se usan los tonos de los extremos hacia
-  // adentro, así el más oscuro siempre significa "lo más alto que hay".
+  // adentro, así el más brillante siempre significa "lo más alto que hay".
   const colores = RAMPA.slice(RAMPA.length - n);
   const tramos = colores.map((color, i) => ({
     desde: i === 0 ? min : cortes[i - 1],

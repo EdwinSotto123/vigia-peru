@@ -240,7 +240,7 @@ export function CasoLeido({
                 <div className={cn("flex flex-col gap-2", caso.otrasSenales > 0 && "mt-4 border-t border-paper/10 pt-4")}>
                   <Link
                     href={analisis}
-                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-maiz px-4 text-[14px] font-semibold text-ink transition-colors duration-rapido hover:bg-maiz-soft"
+                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full bg-maiz px-4 text-[14px] font-semibold text-[#0B0F0F] transition-colors duration-rapido hover:bg-maiz-soft"
                   >
                     Leer el análisis completo <ArrowUpRight size={15} aria-hidden />
                   </Link>

@@ -170,7 +170,7 @@ export function DataTable<T>({
                       className={cn(
                         "border-t border-line align-top transition-colors duration-rapido",
                         clickeable && "cursor-pointer hover:bg-paperSoft",
-                        activa && "bg-paperSoft shadow-[inset_3px_0_0_#1E191B]",
+                        activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]",
                       )}
                     >
                       {columnas.map((c, i) => (
@@ -204,7 +204,7 @@ export function DataTable<T>({
                   key={claveFila(f)}
                   onClick={clickeable ? (e) => alClicFila(e, f) : undefined}
                   onFocus={alAcercarse ? () => alAcercarse(f) : undefined}
-                  className={cn("px-4 py-3", clickeable && "cursor-pointer active:bg-paperSoft", activa && "bg-paperSoft shadow-[inset_3px_0_0_#1E191B]")}
+                  className={cn("px-4 py-3", clickeable && "cursor-pointer active:bg-paperSoft", activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]")}
                 >
                   <div className="min-w-0">{celdaPrincipal(f)}</div>
                   {resto.length > 0 && (

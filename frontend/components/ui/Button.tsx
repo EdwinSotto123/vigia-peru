@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { forwardRef } from "react";
 
-/** DESIGN_SYSTEM.md §11.2. `oscuro` va sobre fondos ink/granate: papel con texto granate. */
+/** DESIGN_SYSTEM.md §11.2. `oscuro` va sobre bandas oscuras: lima con texto carbón. */
 type Variant = "primary" | "secondary" | "ghost" | "ink" | "oscuro";
 
 export const Button = forwardRef<
@@ -15,7 +15,7 @@ export const Button = forwardRef<
     secondary: "border border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
     ghost: "text-ink hover:bg-paperDeep",
     ink: "bg-ink text-paper hover:bg-ink/90",
-    oscuro: "bg-paper text-granate hover:bg-maiz-soft",
+    oscuro: "bg-maiz text-ink hover:bg-maiz/85",
   };
   return (
     <button

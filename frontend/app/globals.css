@@ -2,10 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────
+   Identidad Píxel (2026-10): carbón y verde lima.
+   Los colores son canales RGB: tailwind.config.ts los envuelve en
+   `rgb(var(--x) / <alpha-value>)`, así `bg-paper/80` sigue funcionando.
+   ───────────────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+
+  /* Superficies, de la más lejana a la más hundida */
+  --paper: 11 15 15;          /* #0B0F0F  fondo de la página */
+  --paper-soft: 17 23 23;     /* #111717  tarjetas y paneles */
+  --paper-deep: 25 33 33;     /* #192121  campos, filtros, hundidos */
+  --paper-edge: 44 57 57;     /* #2C3939  borde marcado */
+  --line: 33 44 44;           /* #212C2C  borde por defecto */
+
+  /* Texto */
+  --ink: 231 240 238;         /* #E7F0EE  principal  · 15.6:1 sobre paper */
+  --ink-soft: 190 205 202;    /* #BECDCA  secundario ·  11.2:1 */
+  --mute: 143 163 160;        /* #8FA3A0  terciario  ·   7.0:1 */
+
+  /* Marca: el verde lima del ojo de puntos (el nombre `granate` se conserva por los usos) */
+  --granate: 212 255 63;      /* #D4FF3F  16.2:1 sobre paper; sobre él, texto paper 16.2:1 */
+  --granate-50: 18 25 7;      /* #121907  fondo apenas teñido */
+  --granate-soft: 29 40 8;    /* #1D2808  fondo de selección / chip */
+  --granate-200: 74 99 16;    /* #4A6310  borde teñido */
+  --granate-300: 138 184 42;
+  --granate-400: 170 220 50;
+  --granate-500: 232 255 130; /* hover del texto lima: más claro */
+  --granate-700: 143 182 31;
+  --granate-deep: 182 221 46; /* hover de un botón lima: algo más oscuro */
+  --granate-900: 13 20 4;
+  --maiz: 212 255 63;
+  --maiz-soft: 29 40 8;
+
+  /* Estado (severidad alta rojo, media ámbar, verificado verde menta) */
+  --rust: 255 90 77;          /* #FF5A4D */
+  --amber: 255 176 32;        /* #FFB020 */
+  --amber-soft: 46 34 8;
+  --crimson: 255 90 77;
+  --crimson-soft: 58 21 19;
+  --moss: 61 220 151;         /* #3DDC97 */
+  --clay: 232 140 92;
+  --amber-texto: 255 197 82;
+  --moss-texto: 98 232 173;
+  --clay-texto: 240 164 118;
+  --crimson-texto: 255 139 126;
+}
+
+/* Banda oscura: dentro de ella el reparto vuelve a ser "texto claro, placas claras",
+   con el fondo de la banda más oscuro que la página. Es lo que hacen `bg-ink`,
+   `bg-granate-deep` y la marca `.sobre-oscuro`. */
+.bg-ink,
+.bg-granate-deep,
+.sobre-oscuro {
+  --paper: 231 240 238;
+  --paper-soft: 244 249 248;
+  --paper-deep: 218 230 228;
+  --paper-edge: 178 193 190;
+  --line: 200 214 211;
+  --ink: 4 7 7;               /* #040707  el fondo de la banda */
+  --ink-soft: 40 54 54;
+  --mute: 86 104 102;
+  --granate-deep: 9 16 6;     /* banda de marca: casi negra con un tinte verde */
+  --granate: 66 102 8;        /* #426608  el acento de una placa CLARA dentro de la banda (el acento sobre la banda es maiz) */
+  /* Las placas claras dentro de una banda recuperan los tintes claros de estado, con
+     el texto de estado oscuro que les corresponde. */
+  --crimson-soft: 251 227 223;
+  --amber-soft: 247 232 200;
+  --granate-soft: 232 246 190;
+  --granate-50: 244 250 222;
+  --maiz-soft: 244 252 205;
+  --crimson-texto: 143 35 24;
+  --amber-texto: 138 90 21;
+  --moss-texto: 47 107 54;
+  --clay-texto: 138 79 30;
+}
+
 @layer base {
   html {
     font-family: var(--font-sans), "Inter", system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    background-color: rgb(var(--paper));
   }
   body {
     @apply bg-paper text-ink;
@@ -14,58 +92,32 @@
     @apply tracking-tight;
   }
 
-  /* ─────────────────────────────────────────────────────────────
-     Superficies que no dibujamos pero igual se ven
-     Selección, caret, foco, scrollbar y numerales vienen con los
-     defaults del navegador, que no pertenecen a ningún sistema de
-     diseño. Tematizarlas es lo más barato que distingue una página
-     construida de una ensamblada.
-     ───────────────────────────────────────────────────────────── */
-
+  /* Selección, caret, foco y scrollbar tematizados: lo más barato que distingue una
+     página construida de una ensamblada. */
   ::selection {
-    background-color: rgba(113, 28, 48, 0.16); /* granate */
-    color: #1E191B;                            /* ink */
+    background-color: rgba(212, 255, 63, 0.9);
+    color: #0B0F0F;
   }
-  /* Sobre fondos oscuros (ink, granate-deep) la selección se invierte:
-     maíz sobre texto claro. */
-  .sobre-oscuro ::selection {
-    background-color: rgba(240, 184, 60, 0.35); /* maiz */
-    color: #FFFFFF;
-  }
-
   input, textarea, [contenteditable] {
-    caret-color: #711C30; /* granate */
+    caret-color: #D4FF3F;
   }
 
-  /* Un solo anillo de foco para todo el producto. Solo :focus-visible,
-     así el clic con mouse no lo dispara pero el teclado siempre sí.
-     Es la base de accesibilidad de drawers, popovers y del mapa. */
+  /* Un solo anillo de foco. Solo :focus-visible: el teclado siempre, el clic no. */
   :focus-visible {
-    outline: 2px solid #711C30; /* granate: 10.99:1 sobre paper */
+    outline: 2px solid #D4FF3F;
     outline-offset: 2px;
     border-radius: 4px;
   }
-  /* Elementos que ya tienen su propio tratamiento de foco lo declaran
-     con .foco-propio y quedan fuera del anillo genérico. */
   .foco-propio:focus-visible {
     outline: none;
   }
-  /* Sobre fondos oscuros (ink, granate, granate-deep) el granate no se ve: el
-     anillo pasa a maíz (9.61:1 sobre ink). Toda sección oscura lleva .sobre-oscuro. */
-  .sobre-oscuro :focus-visible {
-    outline-color: #F0B83C;
-  }
-  /* Una placa clara dentro de una sección oscura vuelve al anillo granate:
-     el maíz no se ve sobre blanco. */
-  .sobre-oscuro .sobre-claro :focus-visible,
+  /* Sobre una placa clara el lima no se ve: el anillo pasa a carbón. */
   .sobre-claro :focus-visible {
-    outline-color: #711C30;
+    outline-color: #0B0F0F;
   }
 
-  /* Scrollbar tematizada, no reinventada: se conserva el ancho y el
-     comportamiento nativo, solo se le da el color del sistema. */
   * {
-    scrollbar-color: rgba(107, 97, 102, 0.35) transparent; /* mute */
+    scrollbar-color: rgba(143, 163, 160, 0.35) transparent;
     scrollbar-width: thin;
   }
 
@@ -74,8 +126,7 @@
     text-decoration-thickness: from-font;
   }
 
-  /* Cifras que se comparan en columna no deben bailar: los datos del
-     producto (montos, conteos, fechas, códigos) van tabulares. */
+  /* Cifras que se comparan en columna no deben bailar: montos, conteos, fechas, códigos. */
   .font-mono,
   table,
   [data-cifra] {
@@ -91,30 +142,63 @@
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium;
   }
-  /* Tarjeta en reposo: borde, sin sombra (DESIGN_SYSTEM.md §5). La sombra es de lo que flota. */
+  /* Tarjeta en reposo: borde, sin sombra. La sombra es de lo que flota. */
   .surface {
     @apply rounded-2xl border border-line bg-paperSoft;
   }
   .surface-deep {
     @apply rounded-2xl border border-paperEdge bg-paperDeep;
   }
+  /* Etiqueta de datos: mono, versalitas, espaciada. Es la voz "terminal" de la marca. */
+  .etiqueta-mono {
+    @apply font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-mute;
+  }
 }
 
-/* Scrollbar discreto y cálido — opt-in para paneles densos que quieren
-   un thumb más presente que el global de arriba. */
+/* ── Píxel: utilidades de la identidad ───────────────────────────────── */
+
+/* Rejilla de puntos de fondo. Sólo en portada y bandas de marca: nunca en tablas ni formularios. */
+.fondo-puntos {
+  background-image: radial-gradient(rgba(212, 255, 63, 0.16) 1.2px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+.fondo-puntos-tenue {
+  background-image: radial-gradient(rgba(231, 240, 238, 0.08) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+/* El guion bajo del nombre: parpadea como un cursor de terminal. */
+@keyframes cursorParpadeo {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.cursor-parpadeo {
+  animation: cursorParpadeo 1.1s steps(1, end) infinite;
+}
+
+/* Punto del ojo que aparece desde el centro (ver components/marca/OjoPixel). Sólo
+   transform: el contenido nunca nace oculto por opacidad. */
+@keyframes puntoEntra {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+@keyframes pupilaLatido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 .scrollbar-warm::-webkit-scrollbar { width: 8px; height: 8px; }
 .scrollbar-warm::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-warm::-webkit-scrollbar-thumb {
-  background: rgba(107, 97, 102, 0.3); /* mute */
+  background: rgba(143, 163, 160, 0.3);
   border-radius: 8px;
 }
 .scrollbar-warm::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 97, 102, 0.5);
+  background: rgba(143, 163, 160, 0.5);
 }
 
-/* Respeta la preferencia del SO: neutraliza cualquier animación/transición en loop
-   (PulseDot, Marquee, floats) para quien pidió menos movimiento. Aditivo — no toca
-   ningún componente, cierra el gap en un solo lugar para todo el sitio. */
+/* Respeta la preferencia del SO: neutraliza cualquier animación en loop. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -124,21 +208,15 @@
   }
 }
 
-/* Barra de progreso de un listado mientras llega la página filtrada (ZonaResultados).
-   Con movimiento reducido la regla de arriba la deja quieta: sigue viéndose. */
+/* Barra de progreso de un listado mientras llega la página filtrada (ZonaResultados). */
 @keyframes progresoListado {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(300%); }
 }
 
-/* `.paper-grain` (un patrón de puntos decorativo) se eliminó: cero usos en
-   app/ y components/, y el detector de Impeccable lo marca como textura de
-   fondo decorativa. Una utilidad que nadie usa es una invitación a usarla. */
-
 /* ─── Overlays ───────────────────────────────────────────────────
-   <dialog> nativo: escapa cualquier overflow:hidden, trae foco
-   atrapado y Escape gratis. Solo hay que vestirlo, porque el
-   ::backdrop por defecto es un gris que no es de nadie. */
+   <dialog> nativo: escapa cualquier overflow:hidden, trae foco atrapado y Escape
+   gratis. Sólo hay que vestirlo. */
 dialog {
   padding: 0;
   border: none;
@@ -147,7 +225,7 @@ dialog {
   max-height: 100dvh;
 }
 dialog::backdrop {
-  background: rgba(30, 25, 27, 0.42); /* ink */
+  background: rgba(3, 5, 5, 0.66);
   backdrop-filter: blur(2px);
   transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -155,11 +233,8 @@ dialog:not([open]) {
   display: none;
 }
 
-/* Entrada del overlay. `display` no se puede transicionar, así que el estado
-   inicial de un elemento que acaba de entrar al top layer sólo se declara con
-   @starting-style. Sin esto el panel aparece de golpe y el usuario no ve DE
-   DÓNDE salió — que es justamente lo que un panel lateral tiene que comunicar.
-   Mejora progresiva: donde no hay soporte, aparece sin animar y funciona igual. */
+/* Entrada del overlay: `display` no se transiciona; @starting-style declara el estado
+   inicial. Mejora progresiva: sin soporte, aparece sin animar y funciona igual. */
 @starting-style {
   dialog[open] {
     opacity: 0;

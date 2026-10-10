@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  *  - `primario`: granate sobre claro (10.99:1). Una por pantalla.
  *  - `secundario`: borde sobre claro.
  *  - `fantasma`: sin superficie, dentro de tarjetas.
- *  - `oscuro`: papel con texto granate, sobre ink o granate-deep (`.sobre-oscuro`).
+ *  - `oscuro`: lima con texto carbón, sobre ink o granate-deep (`.sobre-oscuro`).
  *  - `contornoOscuro`: borde claro sobre oscuro. La acción secundaria ahí.
  *
  * Tamaños: `sm` (40 px) en el producto, `md` (48 px) y `lg` (52 px) en la portada.
@@ -25,7 +25,7 @@ const VARIANTE = {
   primario: "bg-granate text-paper hover:bg-granate-deep",
   secundario: "border border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
   fantasma: "text-ink hover:bg-paperDeep",
-  oscuro: "bg-paper text-granate hover:bg-maiz-soft",
+  oscuro: "bg-maiz text-ink hover:bg-maiz/85",
   contornoOscuro: "border border-paper/30 text-paper hover:bg-paper/10",
 } as const;
 

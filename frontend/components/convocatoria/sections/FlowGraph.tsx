@@ -248,7 +248,7 @@ export function FlowGraph({ liveEvents = [], override }: {
     function draw() {
       ctx!.clearRect(0, 0, CW, CH);
       // grid sutil
-      ctx!.save(); ctx!.strokeStyle = "rgba(30,25,27,0.05)"; ctx!.lineWidth = 1;
+      ctx!.save(); ctx!.strokeStyle = "rgba(231,240,238,0.06)"; ctx!.lineWidth = 1;
       for (let x = 0; x < CW; x += 36) { ctx!.beginPath(); ctx!.moveTo(x, 0); ctx!.lineTo(x, CH); ctx!.stroke(); }
       for (let y = 0; y < CH; y += 36) { ctx!.beginPath(); ctx!.moveTo(0, y); ctx!.lineTo(CW, y); ctx!.stroke(); }
       ctx!.restore();
@@ -319,7 +319,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         ctx!.save(); ctx!.globalAlpha = dimmed ? 0.18 : 1;
         if (isActive || isSel) { ctx!.shadowColor = c.stroke; ctx!.shadowBlur = isSel ? 26 : 18; }
         ctx!.beginPath(); ctx!.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx!.fillStyle = isDone ? G_DONE.fill : "#FFFFFF";
+        ctx!.fillStyle = isDone ? G_DONE.fill : "#111717";
         ctx!.fill(); ctx!.shadowBlur = 0;
         ctx!.strokeStyle = isDone ? G_DONE.stroke : (isActive || isSel) ? c.stroke : c.stroke + "66";
         ctx!.lineWidth = (isActive || isSel) ? 2.4 : 1.2;
@@ -337,7 +337,7 @@ export function FlowGraph({ liveEvents = [], override }: {
         const lines = [n.label]; if (sub) lines.push(sub);
         const fs = n.type === "orch" ? 12 : 11;
         ctx!.textAlign = "center"; ctx!.textBaseline = "middle";
-        ctx!.fillStyle = dimmed ? "#A79DA1" : isDone ? G_DONE.text : (isActive || isSel) ? c.stroke : "#1E191B"; // ink
+        ctx!.fillStyle = dimmed ? "#4A5959" : isDone ? G_DONE.text : (isActive || isSel) ? c.stroke : "#E7F0EE"; // ink
         ctx!.font = `${n.type === "orch" ? "800" : "700"} ${fs}px ${FONT}`;
         lines.forEach((line, i) => { const lh = fs + 2; const yOff = (i - (lines.length - 1) / 2) * lh; ctx!.fillText(line, n.x, n.y + yOff); });
         if (isDone) { ctx!.fillStyle = G_DONE.stroke; ctx!.font = `${Math.max(r * 0.5, 10)}px sans-serif`; ctx!.fillText("✓", n.x + r * 0.62, n.y - r * 0.62); }

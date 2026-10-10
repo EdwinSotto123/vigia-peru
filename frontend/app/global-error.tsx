@@ -12,16 +12,16 @@
 import { useEffect } from "react";
 
 // Valores de los tokens de tailwind.config.ts (DESIGN_SYSTEM.md §3): acá no hay clases.
-const PAPER = "#FFFFFF";
-const INK = "#1E191B";
-const INK_SOFT = "#463D41";
-const MUTE = "#6B6166";
-const GRANATE = "#711C30";
+const PAPER = "#0B0F0F";
+const INK = "#E7F0EE";
+const INK_SOFT = "#BECDCA";
+const MUTE = "#8FA3A0";
+const GRANATE = "#D4FF3F";
 
 // La franja textil de la cabecera, en CSS puro: los hilos del tejido del isotipo
 // (ladrillo, maíz, verde, ocre, añil). Sin SVG ni imagen que cargar.
 const FRANJA =
-  "repeating-linear-gradient(90deg, #843022 0 14px, #E2A460 14px 20px, #843022 20px 26px, #3E7B4F 26px 32px, #843022 32px 38px, #C47F3E 38px 42px, #2D3E6F 42px 48px)";
+  "repeating-linear-gradient(90deg, #D4FF3F 0 6px, #0B0F0F 6px 14px)";
 
 // `reset` no se usa: re-renderizar el layout raíz que acaba de fallar suele fallar
 // igual. Recargar la página completa trae también el JS nuevo si hubo un deploy.

@@ -47,56 +47,56 @@ export function RelationshipGraph({
   // Estilos por tipo
   const styleNode = (kind: GraphNode["kind"]) => {
     switch (kind) {
-      case "person":              return { fill: "#843022", stroke: "#843022", text: "#FFFFFF", r: 38 };
-      case "pareja":              return { fill: "#FBF3F5", stroke: "#8E2A45", text: "#4A1020", r: 24 };
-      case "company_main":        return { fill: "#FFFFFF", stroke: "#B7462A", text: "#1E191B", r: 30 };
-      case "company_titular":     return { fill: "#FDF3DC", stroke: "#BE7B26", text: "#8A5A15", r: 24 };
-      case "company_domicilio":   return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 22 };
-      case "party":               return { fill: "#FBE3DF", stroke: "#8F2318", text: "#8F2318", r: 22 };
-      case "cargo_pasado":        return { fill: "#F8F5F3", stroke: "#6B6166", text: "#1E191B", r: 20 };
-      case "autoridad":           return { fill: "#FDF3DC", stroke: "#C47F3E", text: "#95612C", r: 22 };
-      case "firmante_conflicto":  return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 22 };
-      case "contract":            return { fill: "#FDF3DC", stroke: "#95612C", text: "#95612C", r: 18 };
+      case "person":              return { fill: "#E7F0EE", stroke: "#E7F0EE", text: "#0B0F0F", r: 38 };
+      case "pareja":              return { fill: "#2B1620", stroke: "#FF8FA3", text: "#FFC2CE", r: 24 };
+      case "company_main":        return { fill: "#111717", stroke: "#D4FF3F", text: "#E7F0EE", r: 30 };
+      case "company_titular":     return { fill: "#2E2208", stroke: "#FFB020", text: "#FFC552", r: 24 };
+      case "company_domicilio":   return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 22 };
+      case "party":               return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 22 };
+      case "cargo_pasado":        return { fill: "#182020", stroke: "#8FA3A0", text: "#E7F0EE", r: 20 };
+      case "autoridad":           return { fill: "#2E2208", stroke: "#E88C5C", text: "#F0A476", r: 22 };
+      case "firmante_conflicto":  return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 22 };
+      case "contract":            return { fill: "#2E2208", stroke: "#E88C5C", text: "#F0A476", r: 18 };
       // Nuevos: cluster entidad contratante
-      case "entidad":             return { fill: "#2D3E6F", stroke: "#2D3E6F", text: "#FFFFFF",    r: 34 };
-      case "alcalde":             return { fill: "#E4E9F4", stroke: "#2D3E6F", text: "#2D3E6F", r: 26 };
-      case "funcionario_designado":return { fill: "#EEF1F8", stroke: "#4360B0", text: "#2D3E6F", r: 22 };
+      case "entidad":             return { fill: "#1B2447", stroke: "#6C8CFF", text: "#C8D4FF",    r: 34 };
+      case "alcalde":             return { fill: "#1B2447", stroke: "#6C8CFF", text: "#C8D4FF", r: 26 };
+      case "funcionario_designado":return { fill: "#161C38", stroke: "#8AA2FF", text: "#C8D4FF", r: 22 };
       // Cargo público de un familiar → municipio donde trabaja
-      case "municipio_familiar":  return { fill: "#F6E4E8", stroke: "#711C30", text: "#4A1020", r: 24 };
+      case "municipio_familiar":  return { fill: "#2B1620", stroke: "#FF8FA3", text: "#FFC2CE", r: 24 };
       // Partido político derivado (del municipio del familiar)
-      case "partido_compartido":  return { fill: "#FBE3DF", stroke: "#8F2318", text: "#8F2318", r: 20 };
+      case "partido_compartido":  return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 20 };
       // Postor rival (no ganador)
-      case "postor_rival":        return { fill: "#FDF3DC", stroke: "#843022", text: "#843022", r: 24 };
+      case "postor_rival":        return { fill: "#2E2208", stroke: "#E88C5C", text: "#F0A476", r: 24 };
       // Socio del postor rival que es funcionario público — bandera ALTA
-      case "socio_postor_conflicto": return { fill: "#FBE3DF", stroke: "#A81E12", text: "#8F2318", r: 26 };
+      case "socio_postor_conflicto": return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 26 };
       // Entidad secundaria por doble vinculación de un funcionario
-      case "entidad_secundaria":  return { fill: "#EEF4EE", stroke: "#3E7B4F", text: "#2F6B36", r: 22 };
+      case "entidad_secundaria":  return { fill: "#0F2A1F", stroke: "#3DDC97", text: "#62E8AD", r: 22 };
     }
   };
   const styleEdge = (kind: GraphEdge["kind"]) => {
     switch (kind) {
-      case "titular":              return { color: "#BE7B26", width: 2,   dash: "" };
-      case "domicilio":            return { color: "#A81E12", width: 2,   dash: "4 4" };
-      case "candidato":            return { color: "#8F2318", width: 1.5, dash: "6 3" };
-      case "aporte":               return { color: "#A81E12", width: 2,   dash: "" };
-      case "cargo":                return { color: "#6B6166", width: 1.5, dash: "2 3" };
-      case "contrato":             return { color: "#95612C", width: 1.2, dash: "" };
-      case "pareja":               return { color: "#8E2A45", width: 2.5, dash: "" };
-      case "autoridad":            return { color: "#C47F3E", width: 2,   dash: "5 2" };
-      case "firma_conflicto":      return { color: "#A81E12", width: 3,   dash: "" };
+      case "titular":              return { color: "#FFB020", width: 2,   dash: "" };
+      case "domicilio":            return { color: "#FF5A4D", width: 2,   dash: "4 4" };
+      case "candidato":            return { color: "#FF8B7E", width: 1.5, dash: "6 3" };
+      case "aporte":               return { color: "#FF5A4D", width: 2,   dash: "" };
+      case "cargo":                return { color: "#8FA3A0", width: 1.5, dash: "2 3" };
+      case "contrato":             return { color: "#E88C5C", width: 1.2, dash: "" };
+      case "pareja":               return { color: "#FF8FA3", width: 2.5, dash: "" };
+      case "autoridad":            return { color: "#E88C5C", width: 2,   dash: "5 2" };
+      case "firma_conflicto":      return { color: "#FF5A4D", width: 3,   dash: "" };
       // Nuevos
-      case "adjudicacion":         return { color: "#2D3E6F", width: 3,   dash: "" };
-      case "preside_entidad":      return { color: "#2D3E6F", width: 2,   dash: "" };
-      case "designado_por":        return { color: "#4360B0", width: 1.5, dash: "3 3" };
-      case "conflicto_funcionario":return { color: "#A81E12", width: 3,   dash: "" };
+      case "adjudicacion":         return { color: "#6C8CFF", width: 3,   dash: "" };
+      case "preside_entidad":      return { color: "#6C8CFF", width: 2,   dash: "" };
+      case "designado_por":        return { color: "#8AA2FF", width: 1.5, dash: "3 3" };
+      case "conflicto_funcionario":return { color: "#FF5A4D", width: 3,   dash: "" };
       // Familiar trabaja en municipio
-      case "trabaja_en":           return { color: "#711C30", width: 1.5, dash: "" };
+      case "trabaja_en":           return { color: "#FF8FA3", width: 1.5, dash: "" };
       // Partido del municipio (cuando NO coincide con el contratante)
-      case "partido_de":           return { color: "#8F2318", width: 1.2, dash: "4 4" };
+      case "partido_de":           return { color: "#FF8B7E", width: 1.2, dash: "4 4" };
       // ⚠ MISMO PARTIDO que el municipio que contrata — alerta cruzada
-      case "mismo_partido_que":    return { color: "#A81E12", width: 3.5, dash: "2 4" };
+      case "mismo_partido_que":    return { color: "#FF5A4D", width: 3.5, dash: "2 4" };
       // Postor rival compitió por el contrato
-      case "compitio":             return { color: "#843022", width: 1.2, dash: "5 3" };
+      case "compitio":             return { color: "#E88C5C", width: 1.2, dash: "5 3" };
       // Socio de postor rival
       case "socio_de":             return { color: "#843022", width: 1.5, dash: "" };
       // Funcionario visitó otra entidad
@@ -340,7 +340,7 @@ export function RelationshipGraph({
             aporte ONPE
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded" style={{ background: "#6B6166", backgroundImage: "repeating-linear-gradient(90deg,#6B6166 0 1px,transparent 1px 3px)" }} />
+            <span className="inline-block h-2 w-3 rounded" style={{ background: "#8FA3A0", backgroundImage: "repeating-linear-gradient(90deg,#6B6166 0 1px,transparent 1px 3px)" }} />
             cargo público
           </span>
           <span className="inline-flex items-center gap-1">
@@ -432,7 +432,7 @@ export function RelationshipGraph({
                       opacity={0.7} />
                 {e.label && (
                   <text x={mx} y={my - 4} fontSize="9" fill={st.color}
-                        textAnchor="middle" style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3 }}>
+                        textAnchor="middle" style={{ paintOrder: "stroke", stroke: "#0B0F0F", strokeWidth: 3 }}>
                     {e.label}
                   </text>
                 )}
@@ -471,15 +471,15 @@ export function RelationshipGraph({
                     {initials || "?"}
                   </text>
                   {/* Label multilinea */}
-                  <text x={pos.x} y={pos.y + s.r + 13} fontSize="11" fontWeight="700" fill="#1E191B" textAnchor="middle"
-                        style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3, pointerEvents: "none" }}>
+                  <text x={pos.x} y={pos.y + s.r + 13} fontSize="11" fontWeight="700" fill="#E7F0EE" textAnchor="middle"
+                        style={{ paintOrder: "stroke", stroke: "#0B0F0F", strokeWidth: 3, pointerEvents: "none" }}>
                     {lines.map((l, idx) => (
                       <tspan key={idx} x={pos.x} dy={idx === 0 ? 0 : 13}>{l}</tspan>
                     ))}
                   </text>
                   {n.sublabel && (
-                    <text x={pos.x} y={pos.y + s.r + 13 + lines.length * 13 + 2} fontSize="9" fill="#6B6166" textAnchor="middle"
-                          style={{ paintOrder: "stroke", stroke: "#FFFFFF", strokeWidth: 3, pointerEvents: "none" }}>
+                    <text x={pos.x} y={pos.y + s.r + 13 + lines.length * 13 + 2} fontSize="9" fill="#8FA3A0" textAnchor="middle"
+                          style={{ paintOrder: "stroke", stroke: "#0B0F0F", strokeWidth: 3, pointerEvents: "none" }}>
                       {n.sublabel}
                     </text>
                   )}

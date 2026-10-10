@@ -1,26 +1,18 @@
 import { cn } from "@/lib/utils";
 
 /**
- * La franja textil (DESIGN_SYSTEM.md §6): una banda de rombos escalonados —el
- * tocapu de la manta andina— en la paleta del tejido del isotipo. Es un patrón
- * SVG repetible (no una imagen): pesa cientos de bytes y escala con su alto.
+ * La franja de puntos (identidad Píxel): una hilera de puntos lima y blancos, como la
+ * trama del ojo. Mantiene el nombre `FranjaTextil` y su API (la cabecera, el pie y
+ * varias portadas ya la importaban). Es un patrón SVG repetible, no una imagen.
  *
- * Reglas: 4 px en la cabecera (la firma del sitio); una franja más por pantalla
- * como mucho; nunca detrás de texto, en tablas, formularios ni informes (el
- * informe es evidencia, no decoración). Siempre decorativa.
+ * Reglas: 4 px en la cabecera (la firma del sitio); una franja más por pantalla como
+ * mucho; nunca detrás de texto, en tablas, formularios ni informes. Decorativa.
  */
 
-// Baldosa de 48 × 12: fondo ladrillo, hilo añil arriba y achiote abajo, dos rombos
-// escalonados que alternan (maíz con corazón de achiote; verde con corazón de maíz)
-// y un grano de ocre entre ellos: el ritmo de la manta del isotipo.
-const BALDOSA = `<svg xmlns='http://www.w3.org/2000/svg' width='48' height='12' viewBox='0 0 48 12' shape-rendering='crispEdges'>
-<rect width='48' height='12' fill='#843022'/>
-<rect width='48' height='1' fill='#2D3E6F'/><rect y='11' width='48' height='1' fill='#B7462A'/>
-<rect x='10' y='2' width='4' height='8' fill='#E2A460'/><rect x='8' y='4' width='8' height='4' fill='#E2A460'/>
-<rect x='11' y='5' width='2' height='2' fill='#B7462A'/>
-<rect x='34' y='2' width='4' height='8' fill='#3E7B4F'/><rect x='32' y='4' width='8' height='4' fill='#3E7B4F'/>
-<rect x='35' y='5' width='2' height='2' fill='#E2A460'/>
-<rect x='22' y='5' width='4' height='2' fill='#C47F3E'/><rect x='46' y='5' width='2' height='2' fill='#C47F3E'/><rect x='0' y='5' width='2' height='2' fill='#C47F3E'/>
+// Baldosa de 28 x 12: un punto lima grande y uno blanco pequeño debajo, sobre carbón.
+const BALDOSA = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='12' viewBox='0 0 28 12'>
+<rect width='28' height='12' fill='#0B0F0F'/>
+<circle cx='7' cy='4.5' r='2.6' fill='#D4FF3F'/><circle cx='21' cy='7.5' r='1.4' fill='#E7F0EE'/>
 </svg>`;
 
 const FONDO = `url("data:image/svg+xml,${encodeURIComponent(BALDOSA.replace(/\n/g, ""))}")`;

@@ -13,99 +13,77 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Neutros: papel blanco y tinta apenas cálida (DESIGN_SYSTEM.md §3.6) ──
-        // Grises tierra con 2–4 % de rojo, no beige: el negro frío azulado peleaba con
-        // el granate del logo. Contraste de texto medido sobre paper / paperSoft / paperDeep.
-        paper: "#FFFFFF",        // fondo principal
-        paperSoft: "#F8F5F3",    // superficies
-        paperDeep: "#F0EBE8",    // hundidos (inputs, barras de filtros)
-        paperEdge: "#E3DCD8",    // borde sutil
-        ink: "#1E191B",          // texto principal · 17.35 / 15.99 / 14.67
-        inkSoft: "#463D41",      // texto secundario · 10.48 / 9.65 / 8.86
-        mute: "#6B6166",         // texto terciario · 5.95 / 5.49 / 5.03
-        line: "#E9E3DF",         // borde por defecto
-
-        // ── Escala secuencial cálida (para el choropleth) ──
-        warm0: "#E8DFC7",        // sin data
-        warm1: "#D9B97A",        // bajo (sand)
-        warm2: "#C28840",        // medio-bajo
-        warm3: "#A05A1F",        // medio-alto (tobacco)
-        warm4: "#7A2E18",        // alto (oxblood)
-        warm5: "#4A150C",        // crítico (deep)
-
-        // ── Acentos ──
-        // ── Variantes de TEXTO ──────────────────────────────────────────
-        // Un color puede servir como marca (punto, barra, relleno, donde el
-        // piso es 3:1) y no servir como texto (4.5:1). Medido sobre los tres
-        // fondos del producto — paper, paperSoft, paperDeep:
-        //   amber #BE7B26 → 3.47 / 3.21 / 2.98   FALLA en los tres
-        //   clay  #B26A2E → 4.20 / 3.89 / 3.61   FALLA en los tres
-        //   moss  #3F7D43 → 4.97 / 4.60 / 4.27   FALLA sobre paperDeep
-        // Eso importaba de verdad: lib/severidad.ts usaba `text-amber` para
-        // "Señal media", así que la etiqueta de severidad del propio sistema
-        // no alcanzaba el piso que el sistema exige. Estas variantes pasan en
-        // los tres fondos (5.08 la peor). Los tonos de arriba se conservan
-        // intactos para puntos, barras y rellenos, donde sí son correctos.
-        // Mismos tres fondos, salvo donde se indica.
-        amberTexto: "#8A5A15",   // 5.91 / 5.46 / 5.08
-        mossTexto: "#2F6B36",    // 6.41 / 5.93 / 5.51
-        clayTexto: "#8A4F1E",    // 6.53 / 6.04 / 5.61
-        // crimson #CF3A2C cae a 3.99 sobre su propio crimson-soft, que es justo
-        // el par del Badge de error: el texto va en crimsonTexto.
-        crimsonTexto: "#8F2318",   // 8.67 / 8.02 / 7.45 · 7.08 sobre crimson-soft
-        clay: "#B26A2E",         // CTA secundario (terracota cálido)
-        // rust era #CF3A2C. Contra amber #BE7B26 daba ΔE 13.6, por debajo del
-        // piso de 15: "señal alta" y "señal media" costaba distinguirlas incluso
-        // con visión de color completa. Con #A81E12 el peor par sube a ΔE 18.3 y
-        // la escala de severidad completa pasa la validación. Es el encoding del
-        // que depende la credibilidad del producto — no era un ajuste de gusto.
-        rust: "#A81E12",         // severidad alta
-        moss: "#3F7D43",         // verificado / positivo
-        amber: { DEFAULT: "#BE7B26", soft: "#F7E8C8" },
-        crimson: { DEFAULT: "#CF3A2C", soft: "#FBE3DF" },
-        // ── Identidad (DESIGN_SYSTEM.md §3, decisión del 2026-09-25) ─────────
-        // La del logo: VIGIA en granate, la G como lupa tejida en manta andina y
-        // la llama blanca. Reemplaza al violeta/verde de sept 2026 (heroViolet /
-        // heroGreen), que se renombraron en todo el código: un alias que miente
-        // sobre su color es una trampa.
+        // ── Identidad Píxel (2026-10): carbón y verde lima ────────────────────
+        // Cada color es una variable CSS (globals.css) con canales RGB: así Tailwind
+        // sigue entendiendo `bg-paper/80` y los nombres de siempre (paper, ink,
+        // granate, maiz…) apuntan a la paleta nueva sin tocar cada componente.
         //
-        // granate: muestreado de las letras del logotipo (#711C30). Marca, acción
-        // primaria, enlaces y foco. Como texto: 10.99 / 10.12 / 9.29 (paper /
-        // paperSoft / paperDeep); paper sobre granate 10.99, sobre deep 15.15.
-        // 400 sólo para texto grande o UI (3.75 sobre paperDeep).
+        // Roles (no los nombres) son los que importan:
+        //   paper* = superficies (de la más lejana a la más hundida)
+        //   ink*   = texto (claro sobre carbón)      mute = texto terciario
+        //   granate = la marca y la acción primaria (hoy lima #D4FF3F)
+        //   maiz    = el acento sobre secciones oscuras (también lima)
+        // Una banda oscura (`bg-ink`, `bg-granate-deep`, `.sobre-oscuro`) redefine
+        // esas variables en su ámbito (globals.css), así `text-paper` sigue siendo
+        // "texto claro sobre banda" y `bg-paperSoft` una placa clara dentro de ella.
+        paper: "rgb(var(--paper) / <alpha-value>)",
+        paperSoft: "rgb(var(--paper-soft) / <alpha-value>)",
+        paperDeep: "rgb(var(--paper-deep) / <alpha-value>)",
+        paperEdge: "rgb(var(--paper-edge) / <alpha-value>)",
+        ink: "rgb(var(--ink) / <alpha-value>)",
+        inkSoft: "rgb(var(--ink-soft) / <alpha-value>)",
+        mute: "rgb(var(--mute) / <alpha-value>)",
+        line: "rgb(var(--line) / <alpha-value>)",
+
+        // Escala secuencial del choropleth: sin data → más intenso (lima).
+        warm0: "#1B2323",
+        warm1: "#3C4F12",
+        warm2: "#6D8A15",
+        warm3: "#A6CC25",
+        warm4: "#D4FF3F",
+        warm5: "#F4FFB3",
+
+        // ── Estado ──
+        // Sobre carbón los tonos oscuros de antes no llegan a 4.5:1; los de texto
+        // son las versiones claras de cada matiz. Severidad alta (rojo) y media
+        // (ámbar) conservan su distancia de color; verde = verificado.
+        amberTexto: "rgb(var(--amber-texto) / <alpha-value>)",
+        mossTexto: "rgb(var(--moss-texto) / <alpha-value>)",
+        clayTexto: "rgb(var(--clay-texto) / <alpha-value>)",
+        crimsonTexto: "rgb(var(--crimson-texto) / <alpha-value>)",
+        clay: "rgb(var(--clay) / <alpha-value>)",
+        rust: "rgb(var(--rust) / <alpha-value>)",
+        moss: "rgb(var(--moss) / <alpha-value>)",
+        amber: { DEFAULT: "rgb(var(--amber) / <alpha-value>)", soft: "rgb(var(--amber-soft) / <alpha-value>)" },
+        crimson: { DEFAULT: "rgb(var(--crimson) / <alpha-value>)", soft: "rgb(var(--crimson-soft) / <alpha-value>)" },
+
+        // ── Marca ── (el nombre `granate` se conserva por los ~700 usos; el color es lima)
         granate: {
-          50: "#FBF3F5",
-          soft: "#F6E4E8",         // 100 · granate sobre él: 8.99
-          200: "#EBC3CC",          // texto sobre oscuro: 6.91 sobre granate, 10.92 sobre ink
-          300: "#D896A5",
-          400: "#B85A71",
-          500: "#8E2A45",          // hover sobre claro · 8.18
-          DEFAULT: "#711C30",      // 600
-          700: "#5E1628",
-          deep: "#4A1020",         // 800 · hover de botón y secciones de marca
-          900: "#340B16",
+          50: "rgb(var(--granate-50) / <alpha-value>)",
+          soft: "rgb(var(--granate-soft) / <alpha-value>)",
+          200: "rgb(var(--granate-200) / <alpha-value>)",
+          300: "rgb(var(--granate-300) / <alpha-value>)",
+          400: "rgb(var(--granate-400) / <alpha-value>)",
+          500: "rgb(var(--granate-500) / <alpha-value>)",
+          DEFAULT: "rgb(var(--granate) / <alpha-value>)",
+          700: "rgb(var(--granate-700) / <alpha-value>)",
+          deep: "rgb(var(--granate-deep) / <alpha-value>)",
+          900: "rgb(var(--granate-900) / <alpha-value>)",
         },
-        // maíz: el oro andino. SÓLO sobre fondos oscuros (≈ 1.9:1 sobre blanco):
-        // 6.08 sobre granate, 8.39 sobre granate-deep, 9.61 sobre ink. Sobre claro
-        // el acento es granate. maiz-soft es fondo con texto granate (9.96) o ink.
-        maiz: { DEFAULT: "#F0B83C", soft: "#FDF3DC" },
-        // Paleta del tejido del isotipo (k-means del anillo de la lupa). SÓLO
-        // decoración: franja textil, ilustración y series categóricas de gráficos.
-        // Nunca significa estado.
+        maiz: { DEFAULT: "rgb(var(--maiz) / <alpha-value>)", soft: "rgb(var(--maiz-soft) / <alpha-value>)" },
+        // Series categóricas de gráficos (antes la paleta del tejido). SÓLO decoración
+        // y series: nunca significa estado.
         textil: {
-          ladrillo: "#843022",
-          achiote: "#B7462A",
-          ocre: "#C47F3E",
-          maiz: "#E2A460",
-          tierra: "#95612C",
-          anil: "#2D3E6F",
-          verde: "#3E7B4F",
+          ladrillo: "#FF6B5B",
+          achiote: "#FFB020",
+          ocre: "#D4FF3F",
+          maiz: "#E7F0EE",
+          tierra: "#8FA3A0",
+          anil: "#6C8CFF",
+          verde: "#3DDC97",
         },
-        // Rojo de la bandera: SÓLO la franja bicolor del pie. En este producto el
-        // rojo significa riesgo; la marca no puede parecer una alarma.
+        // Franja bicolor de la bandera: ya no se usa; se conserva por compatibilidad.
         rojoPeru: "#D91023",
-        // Medallas del ranking de aliados (§14.6): el oro es el maíz de la marca; plata y
-        // bronce, metales sobrios. Sólo para el podio, nunca como color de interfaz.
         medalla: {
           oro: "#F0B83C",
           oroOscuro: "#B8841C",
@@ -114,18 +92,11 @@ const config: Config = {
           bronce: "#D08C4E",
           bronceOscuro: "#8A5424",
         },
-
-        // El bloque "legacy" (bone/ash/coal/void/abyss/slate*/chalk/cyan/
-        // fuchsia/navy/violet/emerald) se eliminó: 0 usos reales en app/ y
-        // components/, y varios mentían sobre su propio nombre — `cyan` era
-        // un marrón #A0512D y `fuchsia` un oxblood #8B2A1E. Un alias que no
-        // dice la verdad sobre su color es una trampa para el próximo que
-        // lo use de buena fe.
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
-        // Títulos: Montserrat, la geométrica del logotipo (DESIGN_SYSTEM.md §4).
-        display: ["var(--font-display)", "Montserrat", "system-ui", "sans-serif"],
+        // Títulos: Space Grotesk (identidad Píxel).
+        display: ["var(--font-display)", "Space Grotesk", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)", "'Source Serif Pro'", "Georgia", "serif"],
         mono: ["var(--font-mono)", "'JetBrains Mono'", "ui-monospace", "monospace"],
       },
@@ -134,16 +105,17 @@ const config: Config = {
       // card/paper/inset se conservan con sus valores exactos — los usan 200+
       // componentes y cambiarlos sería un rediseño encubierto de todo el sitio.
       boxShadow: {
-        card: "0 1px 2px rgba(27,22,17,0.06), 0 8px 24px rgba(27,22,17,0.08)",
-        paper: "0 2px 0 rgba(27,22,17,0.04), 0 14px 40px -8px rgba(27,22,17,0.18)",
-        inset: "inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(27,22,17,0.05)",
-        // Nivel 3 — popover/tooltip: despega del contenido, sigue cerca de él.
-        pop: "0 4px 8px -2px rgba(20,23,26,0.10), 0 12px 28px -6px rgba(20,23,26,0.16)",
-        // Nivel 4 — drawer/panel lateral: sombra direccional hacia el contenido.
-        drawer: "-8px 0 24px -8px rgba(20,23,26,0.18), -1px 0 0 rgba(20,23,26,0.06)",
-        // Nivel 5 — diálogo centrado: lo más alto que existe en el producto.
-        dialog: "0 16px 32px -8px rgba(20,23,26,0.20), 0 40px 80px -24px rgba(20,23,26,0.28)",
+        card: "0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.35)",
+        paper: "0 2px 0 rgba(0,0,0,0.2), 0 14px 40px -8px rgba(0,0,0,0.55)",
+        inset: "inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.3)",
+        pop: "0 4px 8px -2px rgba(0,0,0,0.4), 0 12px 28px -6px rgba(0,0,0,0.55)",
+        drawer: "-8px 0 24px -8px rgba(0,0,0,0.6), -1px 0 0 rgba(255,255,255,0.05)",
+        dialog: "0 16px 32px -8px rgba(0,0,0,0.6), 0 40px 80px -24px rgba(0,0,0,0.7)",
       },
+      // Esquinas más contenidas: la identidad Píxel es de rejilla, no de burbujas.
+      // Space Grotesk llega a 700: `font-extrabold` (800) se sintetizaba y apelmazaba los títulos.
+      fontWeight: { extrabold: "700", black: "700" },
+      borderRadius: { xl: "10px", "2xl": "12px", "3xl": "16px" },
       transitionTimingFunction: {
         // Salida exponencial: arranca rápido y se asienta. Es la curva de todo
         // lo que aparece (paneles, popovers, reveals).
@@ -256,10 +228,10 @@ const config: Config = {
            queda es el del CSS base (opacidad 1, todos encendidos). Por eso el
            estado legible vive en la clase y no en el keyframe. */
         pasoCorriendo: {
-          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(240, 184, 60,0)" },
-          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(240, 184, 60,0.65), 0 0 26px -4px rgba(240, 184, 60,0.75)" },
-          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(240, 184, 60,0.65), 0 0 26px -4px rgba(240, 184, 60,0.75)" },
-          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(240, 184, 60,0)" },
+          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(212, 255, 63,0)" },
+          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(212, 255, 63,0.65), 0 0 26px -4px rgba(212, 255, 63,0.75)" },
+          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(212, 255, 63,0.65), 0 0 26px -4px rgba(212, 255, 63,0.75)" },
+          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(212, 255, 63,0)" },
         },
         /* Los datos corriendo por un cable del diagrama de orquestación. El
            desplazamiento es -32 con un patrón de período 16: dos períodos
@@ -276,8 +248,8 @@ const config: Config = {
         /* El destello que marca dónde está la astilla de lo leído en la barra a
            escala real: 98 de 18 394 son 7 px y sin esto no se encuentran. */
         astillaViva: {
-          "0%, 100%": { boxShadow: "0 0 0 0 rgba(240, 184, 60,0.55)" },
-          "50%": { boxShadow: "0 0 18px 3px rgba(240, 184, 60,0.85)" },
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(212, 255, 63,0.55)" },
+          "50%": { boxShadow: "0 0 18px 3px rgba(212, 255, 63,0.85)" },
         },
         /* El corazón del botón de financiar: dos golpes, como un latido, y
            quieto. Sólo al pasar el cursor; nunca en bucle. */

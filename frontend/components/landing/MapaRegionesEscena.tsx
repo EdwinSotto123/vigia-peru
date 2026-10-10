@@ -226,13 +226,13 @@ export function MapaRegionesEscena({
           {/* `group`: lo que sólo tiene sentido mientras el mapa está pintado por
               monto (la frase del color y su leyenda) se muestra con
               `group-[.apilado]:`. Sin animación el mapa queda en su estado final
-              —leídas en añil— y hablar de "más oscuro" no describiría nada. */}
+              —leídas en lima— y hablar de "más brillante" no describiría nada. */}
           <div className="pasos-mapa group flex flex-col gap-12 [&.apilado>*]:col-start-1 [&.apilado>*]:row-start-1 [&.apilado]:grid [&.apilado]:content-center">
             <Paso
               titulo={`El dinero público se reparte en las ${resumen.totalRegiones} regiones.`}
               texto={
                 <>
-                  <span className="hidden group-[.apilado]:inline">Cuanto más oscuro, más plata en contratos. </span>
+                  <span className="hidden group-[.apilado]:inline">Cuanto más brillante, más plata en contratos. </span>
                   {resumen.mayor && resumen.menor
                     ? `${resumen.mayor.nombre} suma ${resumen.mayor.monto}; ${resumen.menor.nombre}, ${resumen.menor.monto}.`
                     : null}

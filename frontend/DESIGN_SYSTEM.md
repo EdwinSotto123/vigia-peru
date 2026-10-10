@@ -1,5 +1,36 @@
 # Sistema de diseño — Vigía Perú
 
+> **Identidad vigente: Píxel (2026-10-10).** Carbón y verde lima, un ojo hecho de puntos y el
+> nombre `vigía_` en mono. **Reemplaza a la identidad de la llamita** que describen las
+> secciones 0 a 6 y 11 de este documento: donde dicen "granate", "maíz", "llamita",
+> "franja textil" o "Montserrat", léase lo de la tabla de abajo. Los *nombres* de los tokens
+> (`granate`, `maiz`, `paper`, `ink`…) se conservaron porque tienen ~700 usos; cambió el color.
+> Las reglas de contraste, jerarquía, voz, accesibilidad y presentación de la información
+> (§7 a §10, §12 a §14) siguen vigentes.
+>
+> | Antes | Ahora (Píxel) |
+> |---|---|
+> | Granate `#711C30` (marca, acción primaria) | **Lima `#D4FF3F`**, variable `--granate` |
+> | Maíz (acento sobre oscuro) | **Lima**, variable `--maiz` (también el acento sobre bandas) |
+> | Papel blanco `#FFFFFF`, tinta `#1E191B` | **Carbón `#0B0F0F`** (`--paper`), texto `#E7F0EE` (`--ink`) |
+> | Montserrat | **Space Grotesk** (títulos, tope 700), Inter y JetBrains Mono |
+> | Llamita, isotipo de lupa tejida | **`OjoPixel`**: ojo de 11 × 5 puntos, pupila blanca en cruz; `Isotipo` y `Marca` lo envuelven; `Llamita` quedó como compatibilidad y dibuja el ojo |
+> | Franja textil de rombos | **Franja de puntos** (`FranjaTextil`, mismo nombre) |
+> | Rampa del mapa en añil (más oscuro = más) | **Rampa lima que SUBE en brillo** (más brillante = más) |
+>
+> **Cómo funcionan los colores.** Cada color es una variable CSS de canales RGB en
+> `app/globals.css` y `tailwind.config.ts` la envuelve en `rgb(var(--x) / <alpha-value>)`, así
+> `bg-paper/80` sigue valiendo. Una **banda oscura** (`bg-ink`, `bg-granate-deep` o la clase
+> `.sobre-oscuro`) redefine esas variables en su ámbito: dentro de ella `text-paper` es texto
+> claro, `bg-paperSoft` una placa clara, y el acento es `maiz` (lima). Sobre una placa clara
+> dentro de una banda, `granate` pasa a un lima oscuro legible. Un botón lima lleva siempre
+> texto carbón (`text-paper` fuera de bandas, `text-ink` dentro de ellas).
+>
+> **Movimiento.** `PixelReveal` (`components/ui`) cubre un bloque con una malla de celdas
+> carbón y la disuelve al entrar en pantalla; la monta el cliente y nunca existe en el
+> servidor ni con movimiento reducido, así que el contenido jamás nace oculto. La portada
+> (`HeroPixel`) agranda el ojo con el scroll y disuelve la pantalla en píxeles.
+>
 > Versión 1.0 · 2026-09-25 · Alcance: todo lo que ve el ciudadano (landing, `/app/*`,
 > financiar, aliados, informes) y, por herencia de tokens, el panel `/admin`.
 >

@@ -145,13 +145,13 @@ export function Header() {
               className={cn(
                 "group hidden min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido sm:inline-flex",
                 // Sobre oscuro, el botón primario se invierte: papel con texto granate (Button "oscuro").
-                oscuro ? "bg-paper text-granate hover:bg-maiz-soft" : "bg-granate text-paper hover:bg-granate-deep",
+                oscuro ? "bg-maiz text-ink hover:bg-maiz/85" : "bg-granate text-paper hover:bg-granate-deep",
               )}
             >
               <Heart
                 size={14}
                 aria-hidden
-                className={cn("motion-safe:group-hover:animate-latir", oscuro ? "fill-granate text-granate" : "fill-paper text-paper")}
+                className={cn("motion-safe:group-hover:animate-latir", oscuro ? "fill-ink text-ink" : "fill-paper text-paper")}
               />
               Financiar una auditoría
             </Link>
@@ -307,8 +307,8 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
           >
             {"dorado" in n && n.dorado ? (
               // Pastilla de maíz con texto tinta (legible sobre claro y sobre oscuro).
-              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-ink shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
-                <Crown size={13} aria-hidden className="text-medalla-oroOscuro" />
+              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-[#0B0F0F] shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
+                <Crown size={13} aria-hidden className="text-[#0B0F0F]" />
                 {n.label}
               </span>
             ) : (

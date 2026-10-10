@@ -20,11 +20,11 @@ import type { ContratoZona } from "@/lib/contratos";
 export type EstadoOperativoZona = "sin_analizar" | "documentos_listos" | "en_cola" | "procesado" | "en_revision";
 
 export const COLOR_ESTADO: Record<EstadoOperativoZona, string> = {
-  sin_analizar: "#A79DA1",        // gris tierra claro (entre mute y paperEdge): nada descargado ni analizable aún
-  documentos_listos: "#463D41",   // inkSoft: expediente en el almacén, análisis en preparación
-  en_cola: "#BE7B26",             // amber: financiable hoy (bienes con adjudicación)
-  procesado: "#3F7D43",           // moss: dictamen publicado
-  en_revision: "#B26A2E",         // clay: procesado, espera revisión humana
+  sin_analizar: "#6B7B78",        // gris verdoso (entre mute y paperEdge): nada descargado ni analizable aún
+  documentos_listos: "#BECDCA",   // inkSoft: expediente en el almacén, análisis en preparación
+  en_cola: "#FFB020",             // amber: financiable hoy (bienes con adjudicación)
+  procesado: "#3DDC97",           // moss: dictamen publicado
+  en_revision: "#E88C5C",         // clay: procesado, espera revisión humana
 };
 export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
   // Las palabras de la leyenda de la lista (estadoLectura.tsx, §10.1), con un poco más de aire.
@@ -34,7 +34,7 @@ export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
   procesado: "Leído",
   en_revision: "En revisión",
 };
-export const COLOR_SELECCION = "#1E191B"; // ink
+export const COLOR_SELECCION = "#FFFFFF"; // ink (sobre carbón)
 
 /**
  * Estado operativo dominante de una zona. Prioridad: lo ya hecho (procesado / en revisión) →
@@ -125,7 +125,7 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           seleccionado se retiró: era movimiento perpetuo sobre un dato y sobre
           la selección, justo donde el usuario necesita leer una cifra quieta.
           La selección ya se distingue por grosor y opacidad del anillo. */}
-      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#711C30" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
+      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#D4FF3F" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
       {(selected || hovered) && (
         <circle
           r={rr + 2.4 / zoom}
@@ -135,11 +135,11 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           strokeOpacity={selected ? 0.9 : 0.5}
         />
       )}
-      <circle r={rr} fill={color} fillOpacity={0.78} stroke="#FFFFFF" strokeWidth={sw}>
+      <circle r={rr} fill={color} fillOpacity={0.9} stroke="#0B0F0F" strokeWidth={sw}>
         <title>{`${nombre}: ${plural(total, "contrato", "contratos")}`}</title>
       </circle>
       {rr >= 6 / zoom && (
-        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#FFFFFF" pointerEvents="none">
+        <text textAnchor="middle" dy="0.35em" fontSize={Math.min(rr * 0.9, 7 / zoom)} fontFamily="JetBrains Mono, monospace" fontWeight={600} fill="#0B0F0F" pointerEvents="none">
           {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total}
         </text>
       )}

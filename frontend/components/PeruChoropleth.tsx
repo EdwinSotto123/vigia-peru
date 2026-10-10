@@ -22,12 +22,12 @@ const VB_H = 700;
  * grises fríos que había (#E7EAEE, #D2D7DE, #5B6B7A) eran de otra paleta.
  */
 const COLOR = {
-  ink: "#1E191B",
-  paper: "#FFFFFF",
-  paperDeep: "#F0EBE8",
-  paperEdge: "#E3DCD8",
-  mute: "#6B6166",
-  granate: "#711C30",
+  ink: "#E7F0EE",
+  paper: "#0B0F0F",
+  paperDeep: "#192121",
+  paperEdge: "#2C3939",
+  mute: "#8FA3A0",
+  granate: "#D4FF3F",
 } as const;
 
 export interface MapPoint {

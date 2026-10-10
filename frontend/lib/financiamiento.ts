@@ -416,11 +416,11 @@ export const ESTADO_PUNTO: Record<ZonaEstado, string> = {
  * Son los valores de los tokens de `ESTADO_PUNTO`; si cambia uno, cambian los dos.
  */
 export const ESTADO_FILL: Record<ZonaEstado, string> = {
-  sin_datos: "#F0EBE8",
-  pendiente: "#E3DCD8",
-  parcial: "#D896A5",
-  financiada: "#711C30",
-  procesada: "#3F7D43",
+  sin_datos: "#1A2323",
+  pendiente: "#2C3939",
+  parcial: "#6D8A15",
+  financiada: "#D4FF3F",
+  procesada: "#3DDC97",
 };
 
 /** Soles con el formato único del producto (lib/formato): "S/ 45,000", "S/ 3". */

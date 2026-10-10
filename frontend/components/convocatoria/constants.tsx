@@ -14,15 +14,15 @@ export const AGENT_IDS = ["compliance", "parser", "legal", "market", "web", "new
 // textil (decoración, DESIGN_SYSTEM.md §3.4): núcleo granate, agente añil, fuente ocre,
 // persistencia tierra. El violeta y los verdes vivos del grafo viejo se fueron con la marca vieja.
 export const G_COLOR: Record<string, { fill: string; stroke: string; text: string }> = {
-  orch:  { fill: "#FFFFFF", stroke: "#711C30", text: "#4A1020" }, // granate · granate-deep
-  agent: { fill: "#FFFFFF", stroke: "#2D3E6F", text: "#2D3E6F" }, // textil-anil
-  src:   { fill: "#FFFFFF", stroke: "#C47F3E", text: "#95612C" }, // textil-ocre · textil-tierra
-  store: { fill: "#FFFFFF", stroke: "#95612C", text: "#843022" }, // textil-tierra · textil-ladrillo
+  orch:  { fill: "#111717", stroke: "#D4FF3F", text: "#D4FF3F" }, // marca lima
+  agent: { fill: "#111717", stroke: "#6C8CFF", text: "#C8D4FF" }, // textil-anil
+  src:   { fill: "#111717", stroke: "#E88C5C", text: "#F0A476" }, // textil-ocre
+  store: { fill: "#111717", stroke: "#8FA3A0", text: "#BECDCA" }, // neutro
 };
 
-export const G_DONE = { fill: "#EEF4EE", stroke: "#3F7D43", text: "#2F6B36" }; // moss · mossTexto: "completado"
+export const G_DONE = { fill: "#0F2A1F", stroke: "#3DDC97", text: "#62E8AD" }; // moss · mossTexto: "completado"
 
-export const G_FLOW = "#3F7D43"; // moss: arista con intercambio de info ACTIVO
+export const G_FLOW = "#3DDC97"; // moss: arista con intercambio de info ACTIVO
 
 export const TYPE_LABEL: Record<string, string> = { orch: "Núcleo", agent: "Agente", src: "Fuente", store: "Persistencia" };
 
@@ -39,7 +39,7 @@ export const TRACE_ROLE: Record<string, string> = {
   writer: "redactar el dictamen con la evidencia",
 };
 
-export const VERB_HEX: Record<string, string> = { delega: "#711C30", invoca: "#2D3E6F", consulta: "#95612C", persiste: "#843022" };
+export const VERB_HEX: Record<string, string> = { delega: "#D4FF3F", invoca: "#6C8CFF", consulta: "#E88C5C", persiste: "#8FA3A0" };
 
 // Mapeo visual de cada agente. Rótulos en castellano (los de FASES en lib/auditoria), no el
 // nombre interno en inglés. Todos en tinta neutra: los tokens de severidad (rust, amber, moss)
