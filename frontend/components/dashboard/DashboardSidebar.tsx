@@ -21,6 +21,7 @@ import {
   HelpCircle,
   Crown,
   Landmark,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -60,6 +61,17 @@ type Section = { title?: string; items: Item[] };
  */
 const SECTIONS: Section[] = [
   {
+    items: [
+      {
+        href: "/app",
+        label: "Inicio",
+        icon: <LayoutGrid size={16} />,
+        hint: "Busca y elige",
+        match: (p) => p === "/app",
+      },
+    ],
+  },
+  {
     title: "Explorar",
     items: [
       {
@@ -67,25 +79,15 @@ const SECTIONS: Section[] = [
         label: "Mapa",
         icon: <MapPin size={16} />,
         hint: "Elige tu región",
-        // El match ya no se traga media aplicación. Antes absorbía entidades,
-        // alertas, denuncias y convocatoria, así que estando dentro de un
-        // dossier la navegación decía "Mapa" — el usuario no podía saber dónde
-        // estaba. Ahora el mapa se marca activo solo cuando es el mapa.
-        match: (p) => p === "/app" || p.startsWith("/app/mapa") || p.startsWith("/region"),
-      },
-      {
-        href: "/app/hallazgos",
-        label: "Señales",
-        icon: <Flag size={16} />,
-        hint: "Señales con norma y evidencia",
-        match: (p) =>
-          p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+        // El mapa se marca activo sólo cuando es el mapa (o una región): estando dentro
+        // de un dossier la navegación no puede decir "Mapa".
+        match: (p) => p.startsWith("/app/mapa") || p.startsWith("/region"),
       },
       {
         href: "/app/contratos",
         label: "Contratos",
         icon: <FileSearch size={16} />,
-        hint: "Todo el SEACE, contrato a contrato",
+        hint: "Todo el SEACE",
         // El dossier de un contrato ES un contrato: /app/convocatoria/[id] y
         // /convocatoria/[id] marcan activo acá, no en "Mapa".
         match: (p) =>
@@ -98,23 +100,7 @@ const SECTIONS: Section[] = [
         label: "Entidades",
         icon: <Building2 size={16} />,
         hint: "Quién contrata, y cuánto",
-        // Existía la ruta pero no la entrada: sólo se llegaba desde el panel de
-        // una zona. 2.121 entidades escondidas detrás de un clic en el mapa.
         match: (p) => p.startsWith("/app/entidades") || p.startsWith("/entidad"),
-      },
-      {
-        href: "/app/auditoria",
-        label: "Auditoría en vivo",
-        icon: <Activity size={16} />,
-        hint: "Cola → procesando → listo",
-        match: (p) => p.startsWith("/app/auditoria"),
-      },
-      {
-        href: "/app/denuncias",
-        label: "Denuncias",
-        icon: <Camera size={16} />,
-        hint: "Lo que reporta la gente",
-        match: (p) => p.startsWith("/app/denuncias"),
       },
       {
         href: "/app/partidos",
@@ -123,24 +109,36 @@ const SECTIONS: Section[] = [
         hint: "Quién gobierna cada región",
         match: (p) => p.startsWith("/app/partidos"),
       },
+    ],
+  },
+  {
+    title: "Alertas",
+    items: [
       {
-        href: "/app/aliados",
-        label: "Aliados",
-        icon: <Crown size={15} />,
-        hint: "El ranking de quienes financian",
-        dorado: true,
-        match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
+        href: "/app/hallazgos",
+        label: "Señales",
+        icon: <Flag size={16} />,
+        hint: "Qué revisar primero",
+        match: (p) =>
+          p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+      },
+      {
+        href: "/app/denuncias",
+        label: "Denuncias",
+        icon: <Camera size={16} />,
+        hint: "Lo que reporta la gente",
+        match: (p) => p.startsWith("/app/denuncias"),
       },
     ],
   },
   {
-    title: "Acción",
+    title: "Participar",
     items: [
       {
         href: "/app/financiar",
         label: "Financiar",
         icon: <Heart size={16} />,
-        hint: "Capacidad de auditoría",
+        hint: "Paga más lecturas",
         featured: true,
         match: (p) => p.startsWith("/app/financiar") || p.startsWith("/impacto"),
       },
@@ -150,6 +148,21 @@ const SECTIONS: Section[] = [
         icon: <FileText size={16} />,
         hint: "Foto y ubicación, públicas",
         match: (p) => p.startsWith("/reporte"),
+      },
+      {
+        href: "/app/aliados",
+        label: "Aliados",
+        icon: <Crown size={15} />,
+        hint: "Quién financia",
+        dorado: true,
+        match: (p) => p.startsWith("/app/aliados") || p.startsWith("/aliado/"),
+      },
+      {
+        href: "/app/auditoria",
+        label: "Auditoría en vivo",
+        icon: <Activity size={16} />,
+        hint: "Lo que se lee ahora",
+        match: (p) => p.startsWith("/app/auditoria"),
       },
       ...(FLAGS.editorial
         ? [
@@ -411,7 +424,7 @@ export function DashboardSidebar() {
                 prefetch={false}
                 className="flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-[13px] text-mute transition-colors duration-rapido hover:bg-paper hover:text-ink"
               >
-                <Home size={14} aria-hidden /> Inicio
+                <Home size={14} aria-hidden /> Portada de Vigía
               </Link>
             </div>
           </div>

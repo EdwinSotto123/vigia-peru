@@ -32,7 +32,7 @@ export interface Cobertura {
   regionesConLectura: number;
   regionesTotal: number;
   /** Por departamento (ubigeo de 2 dígitos). */
-  porRegion: Record<string, { total: number; leidos: number; enCola: number }>;
+  porRegion: Record<string, { total: number; leidos: number; enCola: number; monto: number; conSenales: number }>;
 }
 
 export interface Org {

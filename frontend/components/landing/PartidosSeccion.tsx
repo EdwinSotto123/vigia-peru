@@ -52,7 +52,9 @@ export async function leerCobertura(): Promise<Cobertura | null> {
   ]);
   if (!resumen || !regiones?.length) return null;
   const porRegion: Cobertura["porRegion"] = {};
-  for (const z of regiones) porRegion[z.ubigeo.slice(0, 2)] = { total: z.total, leidos: z.procesados, enCola: z.enCola };
+  for (const z of regiones) porRegion[z.ubigeo.slice(0, 2)] = {
+      total: z.total, leidos: z.procesados, enCola: z.enCola, monto: z.montoPen ?? 0, conSenales: z.conSenales ?? 0,
+    };
   const publicados = resumen.total;
   const sinLeer = resumen.porRiesgo.sin_analizar ?? 0;
   const leidos = Math.max(0, publicados - sinLeer);
@@ -75,13 +77,13 @@ export async function PartidosSeccion() {
       <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
       <div className="container-page relative py-20 sm:py-28">
         <div className="max-w-3xl">
-          <p className="etiqueta-mono mb-4 text-granate">Elecciones</p>
+          <p className="etiqueta-mono mb-4 text-granate">El mapa</p>
           <h2 id="partidos-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
             Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
           </h2>
           <p className="mt-5 max-w-[60ch] text-pretty text-lg leading-relaxed text-inkSoft">
-            Este mapa dice quién ganó en tu región y en tu distrito. Para saber qué pasó después, hay que leer los contratos de cada
-            gobierno y cruzarlos con aportes de campaña y autoridades. Eso lo hace Vigía, y lo hace posible gente como tú.
+            Un solo mapa con tres lecturas. Quién gobierna cada región, cuánto dinero se contrata en ella y qué tanto de eso ya leyó
+            Vigía. Cambia de lectura arriba del mapa y toca tu región.
           </p>
         </div>
 

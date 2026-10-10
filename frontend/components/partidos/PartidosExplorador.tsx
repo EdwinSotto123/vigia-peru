@@ -5,8 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Search, Swords, Trophy } from "lucide-react";
 import { PeruChoropleth, type ZonaPintada } from "@/components/PeruChoropleth";
 import { nombreDepartamento } from "@/components/mapa/region-match";
-import { RAMPA } from "@/components/mapa/escala";
-import { numero } from "@/lib/formato";
+import { RAMPA, construirEscala } from "@/components/mapa/escala";
+import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
   ANIO_ACTUAL,
@@ -54,7 +54,7 @@ const PANELES: { id: Panel; label: string; Icono: typeof Trophy }[] = [
 
 const ANIOS_CARGADOS = PERIODOS.filter((p) => p.cargado).map((p) => p.anio as Anio);
 
-type Modo = "ganador" | "vigilancia";
+type Modo = "ganador" | "dinero" | "vigilancia";
 
 export function PartidosExplorador({ compacto = false, cobertura = null }: { compacto?: boolean; cobertura?: Cobertura | null }) {
   const [datos, setDatos] = useState<Partial<Record<number, AutoridadesDatos>>>({});
@@ -105,6 +105,12 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
 
   // Modo "qué tanto vigilamos": las regiones se pintan por cuántos contratos ya leyó Vigía en ellas.
   const vigilando = modo === "vigilancia" && !!cobertura && !seleccion;
+  // Modo "cuánto se contrata": el valor referencial convocado en la sede de cada región (misma cuenta que /app/mapa).
+  const conDinero = modo === "dinero" && !!cobertura && !seleccion;
+  const escalaDinero = useMemo(
+    () => (cobertura ? construirEscala(Object.values(cobertura.porRegion).map((r) => r.monto)) : null),
+    [cobertura],
+  );
   // Por PARTE de los contratos de la región que ya se leyó (no por cantidad): una región con 2 leídos de
   // 1.416 no está vigilada, aunque 2 sea más que 0. Los tramos son fijos, así todas se ven por lo que son.
   const colorLectura = (leidos: number, total: number) => {
@@ -116,6 +122,17 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
   const regiones = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
     if (!d) return out;
+    if (conDinero && cobertura && escalaDinero) {
+      for (const g of d.regional) {
+        const r = cobertura.porRegion[g.u];
+        out[g.u] = {
+          color: escalaDinero.color(r?.monto ?? null),
+          sinDato: false,
+          resumen: `${nombreDepartamento(g.u)}: ${solesCompacto(r?.monto ?? 0)} en ${numero(r?.total ?? 0)} contratos`,
+        };
+      }
+      return out;
+    }
     if (vigilando && cobertura) {
       for (const g of d.regional) {
         const r = cobertura.porRegion[g.u];
@@ -139,7 +156,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
       };
     }
     return out;
-  }, [d, resaltar, nivel, vigilando, cobertura]);
+  }, [d, resaltar, nivel, vigilando, conDinero, cobertura, escalaDinero]);
 
   const provincias = useMemo(() => {
     const out: Record<string, ZonaPintada> = {};
@@ -169,7 +186,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
     const nombre = esProv ? (d.provincial.find((x) => x.u === foco)?.n ?? foco) : nombreDepartamento(foco);
     const fuente = !esProv ? d.regional.find((x) => x.u === foco)?.s : undefined;
     const historial = PERIODOS.filter((p) => p.cargado).map((p) => ({ anio: p.anio, gano: gano(datos[p.anio]) }));
-    const lectura = !esProv && cobertura ? (cobertura.porRegion[foco] ?? { total: 0, leidos: 0, enCola: 0 }) : null;
+    const lectura = !esProv && cobertura ? (cobertura.porRegion[foco] ?? { total: 0, leidos: 0, enCola: 0, monto: 0, conSenales: 0 }) : null;
     return {
       titulo: esProv ? `${nombre}, ${nombreDepartamento(foco)}` : nombre,
       cargo: esProv ? NIVEL_LABEL.provincial.cargo : cargoRegional(anio),
@@ -247,7 +264,8 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   <div role="tablist" aria-label="Qué pinta el mapa" className="inline-flex rounded-full border border-line bg-paperDeep p-1">
                     {(
                       [
-                        ["ganador", "Quién ganó"],
+                        ["ganador", "Quién gobierna"],
+                        ["dinero", "Cuánto se contrata"],
                         ["vigilancia", "Qué tanto vigilamos"],
                       ] as const
                     ).map(([id, label]) => (
@@ -302,7 +320,16 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   onSelectProvincia={(u) => setProvSel(u)}
                 />
               </div>
-              {vigilando ? (
+              {conDinero ? (
+                <div className="border-t border-line px-4 py-3">
+                  <p className="text-[12.5px] text-inkSoft">Valor de los contratos convocados en la sede de cada región. No es lo pagado.</p>
+                  <div className="mt-2 flex items-center gap-2 text-[12px] text-mute">
+                    <span>Menos</span>
+                    <span aria-hidden className="h-2.5 flex-1 rounded-sm" style={{ background: `linear-gradient(90deg, ${RAMPA.join(", ")})` }} />
+                    <span>Más</span>
+                  </div>
+                </div>
+              ) : vigilando ? (
                 <div className="border-t border-line px-4 py-3">
                   <p className="text-[12.5px] text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
                   <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-mute">
@@ -367,6 +394,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   </ol>
                   {ficha.lectura && (
                     <p className="mt-3 rounded-lg bg-paperDeep px-3 py-2 text-[13px] leading-snug text-inkSoft">
+                      Se contratan <span className="font-mono font-bold tabular-nums text-ink">{solesCompacto(ficha.lectura.monto)}</span>.{" "}
                       Vigía leyó{" "}
                       <span className="font-mono font-bold tabular-nums text-ink">{numero(ficha.lectura.leidos)}</span> de{" "}
                       <span className="font-mono tabular-nums">{numero(ficha.lectura.total)}</span> contratos de esta región.

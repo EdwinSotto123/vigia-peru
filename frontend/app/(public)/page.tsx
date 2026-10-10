@@ -8,7 +8,6 @@ import { EscalaDinero } from "@/components/landing/EscalaDinero";
 import { CasoLeido } from "@/components/landing/CasoLeido";
 import { PipelineAgentes } from "@/components/landing/PipelineAgentes";
 import { FuentesSection } from "@/components/landing/FuentesSection";
-import { MapaRegiones } from "@/components/landing/MapaRegiones";
 import { CasosReales } from "@/components/landing/CasosReales";
 import { Aliados } from "@/components/landing/Aliados";
 import { PodioPortada } from "@/components/landing/PodioPortada";
@@ -36,15 +35,14 @@ export const metadata: Metadata = {
  * La portada cuenta una historia, en este orden:
  *
  *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
- *  1b. …quién lo hace posible (PodioPortada): el podio, que se toca para ver quién es.
- *  1c. Monitoreamos a los partidos políticos (PartidosSeccion): quién ganó cada región y distrito en 2022.
- *  2. El problema: miles de millones en contratos, casi nada leído (EscalaDinero).
- *  3. Qué hace Vigía, con un contrato real (CasoLeido).
- *  4. Cómo lo hace, en palabras de persona (PipelineAgentes).
- *  5. De dónde sale lo que dice (FuentesSection).
- *  6. El país, y tu región (MapaRegiones: el único mapa de la portada).
- *  7. Lo que ya encontró (CasosReales).
- *  8. Quién lo hace posible (Aliados: podio, calculadora).
+ *  2. El mapa (PartidosSeccion): UN solo mapa con tres lecturas: quién gobierna, cuánto se contrata y
+ *     qué tanto vigilamos. Es el único mapa de la portada.
+ *  3. El problema: miles de millones en contratos, casi nada leído (EscalaDinero).
+ *  4. Quién lo hace posible: nos financiamos con donaciones (PodioPortada + Aliados: podio y calculadora).
+ *  5. Qué hace Vigía, con un contrato real (CasoLeido).
+ *  6. Cómo lo hace, en palabras de persona (PipelineAgentes).
+ *  7. De dónde sale lo que dice (FuentesSection).
+ *  8. Lo que ya encontró (CasosReales).
  *  9. Cómo sumarse sin financiar (Participar).
  * 10. Por qué creerle (ConfianzaSection), adónde va (ExpansionSection), y el cierre.
  *
@@ -108,12 +106,9 @@ export default async function LandingPage() {
 
   return (
     <>
-      <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} />
+      <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} precio={estado?.tarifa.precioPen ?? null} />
 
-      {/* El podio, arriba: quién hace posible que Vigía lea. Cada puesto se toca para ver quién es. */}
-      <PodioPortada />
-
-      {/* Elecciones: quién gobierna cada región y distrito, y qué cruza Vigía alrededor de la política. */}
+      {/* El mapa, uno solo: quién gobierna, cuánto se contrata y qué tanto vigilamos. */}
       <PixelReveal desde="izquierda" celda={30}>
         <PartidosSeccion />
       </PixelReveal>
@@ -129,17 +124,17 @@ export default async function LandingPage() {
         />
       )}
 
+      {/* Nos financiamos con donaciones: el podio de quienes lo hacen posible y cuánto cuesta leer un contrato. */}
+      <PodioPortada />
+      <PixelReveal><Aliados /></PixelReveal>
+
       {casoPrincipal && <CasoLeido caso={casoPrincipal} regla={reglaCaso} otras={otrasDelCaso} leidos={leidos} />}
 
       <PixelReveal><PipelineAgentes /></PixelReveal>
 
       <PixelReveal><FuentesSection cifras={cifrasFuentes} /></PixelReveal>
 
-      {regiones && regiones.length > 0 && <MapaRegiones zonas={regiones} />}
-
       <PixelReveal><CasosReales casos={otrosCasos} /></PixelReveal>
-
-      <PixelReveal><Aliados /></PixelReveal>
 
       <PixelReveal><Participar /></PixelReveal>
 

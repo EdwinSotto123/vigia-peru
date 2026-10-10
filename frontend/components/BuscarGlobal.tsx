@@ -60,7 +60,8 @@ export function BuscarGlobal({
   className,
   atajo = true,
 }: {
-  variant?: "campo" | "boton";
+  /** `grande`: el campo de la pantalla de inicio (/app), alto y con la pregunta a la vista. */
+  variant?: "campo" | "boton" | "grande";
   className?: string;
   /**
    * Si esta instancia escucha Ctrl+K. Cuando hay dos disparadores en la misma
@@ -188,7 +189,22 @@ export function BuscarGlobal({
 
   // El botón redondo vive en la cabecera: sobre una sección oscura se vuelve
   // vidrio claro (group-data de la cabecera). El campo vive en la barra lateral y en el 404.
-  const trigger = variant === "boton" ? (
+  const trigger = variant === "grande" ? (
+    <button
+      type="button"
+      onClick={abrir}
+      aria-haspopup="dialog"
+      aria-label="Buscar un contrato, una entidad, un RUC o una región"
+      className={cn(
+        "group flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-ink/80 bg-paper px-5 py-3 text-left transition-colors duration-rapido hover:border-granate hover:bg-granate-50 sm:min-h-[4.5rem] sm:px-6",
+        className,
+      )}
+    >
+      <Search size={22} className="shrink-0 text-granate" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-[16px] text-mute sm:text-[18px]"><span className="sm:hidden">Contrato, entidad, RUC o región</span><span className="hidden sm:inline">Busca un contrato, una entidad, un RUC o tu región</span></span>
+      <kbd className="hidden rounded border border-line bg-paperSoft px-1.5 py-0.5 font-mono text-[11px] text-mute sm:inline">Ctrl K</kbd>
+    </button>
+  ) : variant === "boton" ? (
     <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-granate group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
       <Search size={15} aria-hidden />
     </button>

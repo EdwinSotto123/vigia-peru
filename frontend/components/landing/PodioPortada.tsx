@@ -32,9 +32,9 @@ export async function PodioPortada() {
 
   const cifras: { valor: number; etiqueta: string }[] = estado
     ? [
-        { valor: estado.contratosFinanciados, etiqueta: "contratos financiados" },
-        { valor: estado.contratosProcesados, etiqueta: "ya leídos" },
-        { valor: estado.senalesHalladas, etiqueta: "señales halladas" },
+        { valor: estado.contratosFinanciados, etiqueta: "contratos pagados por aliados" },
+        { valor: estado.contratosProcesados, etiqueta: "de ellos, ya leídos" },
+        { valor: estado.senalesHalladas, etiqueta: "señales para revisar" },
       ]
     : [];
 
@@ -49,7 +49,7 @@ export async function PodioPortada() {
       <div className="container-page relative py-16 sm:py-24">
         <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="max-w-3xl">
-            <p className="etiqueta-mono mb-4 text-maiz">El podio</p>
+            <p className="etiqueta-mono mb-4 text-maiz">Nos financiamos con donaciones</p>
             <h2
               id="podio-portada-titulo"
               className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl"
@@ -57,20 +57,22 @@ export async function PodioPortada() {
               Quienes hacen posible que Vigía <span className="text-maiz">lea.</span>
             </h2>
             <p className="mt-5 max-w-[56ch] text-pretty text-lg leading-relaxed text-paper/75">
-              Cada contrato leído lo financió alguien. Toca un nombre para ver quién es y qué hizo leer.
+              Ver todo en Vigía es gratis: cada contrato leído lo pagó una persona, un colectivo o una empresa. Tú también puedes
+              poner tu granito de arena. Toca un nombre para ver quién es y qué hizo leer.
             </p>
           </div>
-          {cifras.length > 0 && (
-            <dl className="grid grid-cols-3 gap-6 lg:gap-8">
-              {cifras.map((c) => (
-                <div key={c.etiqueta}>
-                  <dd className="font-display text-3xl font-bold leading-none tabular-nums text-maiz sm:text-4xl">{numero(c.valor)}</dd>
-                  <dt className="mt-1.5 text-[13px] leading-snug text-paper/70">{c.etiqueta}</dt>
-                </div>
-              ))}
-            </dl>
-          )}
         </div>
+
+        {cifras.length > 0 && (
+          <dl className="mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-paper/15 bg-paper/15">
+            {cifras.map((c) => (
+              <div key={c.etiqueta} className="bg-ink p-4 sm:p-6">
+                <dd className="font-display text-3xl font-bold leading-none tabular-nums text-maiz sm:text-5xl">{numero(c.valor)}</dd>
+                <dt className="mt-2 text-[13px] leading-snug text-paper/70 sm:text-[15px]">{c.etiqueta}</dt>
+              </div>
+            ))}
+          </dl>
+        )}
 
         <div className="mt-10 sm:mt-12">
           <PodioRanking

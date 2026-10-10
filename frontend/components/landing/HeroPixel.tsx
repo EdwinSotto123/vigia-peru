@@ -60,7 +60,7 @@ function LoHacenPosible({ aliados }: { aliados: FilaRanking[] }) {
   );
 }
 
-export function HeroPixel({ aliados = [] }: { aliados?: FilaRanking[] }) {
+export function HeroPixel({ aliados = [], precio = null }: { aliados?: FilaRanking[]; precio?: number | null }) {
   const escena = useRef<HTMLDivElement>(null);
 
   useEscenaGsap(escena, CON_MOVIMIENTO, ({ gsap }) => {
@@ -143,15 +143,21 @@ export function HeroPixel({ aliados = [] }: { aliados?: FilaRanking[] }) {
               ¿En qué se gasta el dinero de tu <span className="text-granate">región?</span>
             </h1>
             <p className="mt-6 max-w-[46ch] text-pretty text-lg leading-relaxed text-inkSoft sm:text-xl">
-              Vigía lee los contratos del Estado, los cruza con registros oficiales y te muestra cuáles merecen una
-              segunda mirada.
+              Agentes de inteligencia artificial leen los contratos del Estado y los cruzan con registros oficiales
+              para detectar indicios de corrupción. Tú ves cuáles merecen una segunda mirada.
+            </p>
+            <p className="mt-4 max-w-[46ch] rounded-xl border border-paperEdge bg-paperSoft/80 px-4 py-3 text-[15px] leading-snug text-inkSoft">
+              <span className="font-semibold text-ink">Nos financiamos con donaciones.</span>{" "}
+              {precio != null
+                ? `Con S/ ${numero(precio)} pagas la lectura de un contrato. Tu granito de arena sí cuenta.`
+                : "Tu granito de arena paga la lectura de contratos."}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <EnlaceAccion href="/app/mapa" tamano="lg">
                 Ver mi región
               </EnlaceAccion>
-              <EnlaceAccion href="#como" variante="secundario" tamano="lg" flecha={false}>
-                Cómo funciona
+              <EnlaceAccion href="/app/financiar" variante="secundario" tamano="lg" flecha={false}>
+                Aportar mi granito
               </EnlaceAccion>
             </div>
             <LoHacenPosible aliados={aliados} />
