@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
  *   tono      "neutro" | "alta" | "media" | "positivo": solo severidad y lo positivo colorean el número.
  *   href      la cifra entera es el enlace a su lista filtrada.
  *   marca     clase de relleno de un punto junto a la etiqueta (une la cifra con su tramo en `pie`).
- * Props de la franja: `items` (máx. 4), `pie` (una barra opcional debajo, p. ej. el reparto), `className` y `apilado`
+ * Props de la franja: `chico` (tamaño discreto: cifras de apoyo que no son el foco de la página), `items` (máx. 4), `pie` (una barra opcional debajo, p. ej. el reparto), `className` y `apilado`
  * (el número arriba y la etiqueta debajo en todos los anchos: para una columna angosta, p. ej. una ficha con barra lateral).
  */
 
@@ -36,7 +36,7 @@ export interface Cifra {
 }
 
 const TONO: Record<NonNullable<Cifra["tono"]>, string> = {
-  neutro: "text-ink",
+  neutro: "text-[rgb(var(--acento-cifra))]",
   alta: "text-rust",
   media: "text-amberTexto",
   positivo: "text-mossTexto",
@@ -45,7 +45,7 @@ const TONO: Record<NonNullable<Cifra["tono"]>, string> = {
 /** Un valor con letras ("12 mar. 2025", "hace 3 h") va más chico: a 26 px partía en dos líneas. */
 const tieneLetras = (v: ReactNode | null) => typeof v === "string" && /[a-zá-ú]/i.test(v.replace(/^S\//, ""));
 
-export function CifrasEnFila({ items, pie, className, apilado = false }: { items: Cifra[]; pie?: ReactNode; className?: string; apilado?: boolean }) {
+export function CifrasEnFila({ items, pie, className, apilado = false, chico = false }: { items: Cifra[]; pie?: ReactNode; className?: string; apilado?: boolean; chico?: boolean }) {
   const visibles = items.slice(0, 4);
   const fila = (
     <dl className={cn("grid grid-cols-2 gap-x-4 gap-y-3", apilado ? "sm:grid-cols-4" : "sm:flex sm:flex-wrap sm:gap-y-3")}>
@@ -63,7 +63,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false }: { items
         >
           <dt
             className={cn(
-              "order-2 flex min-w-0 items-center gap-1 text-[13px] font-medium leading-tight text-inkSoft",
+              "order-2 flex min-w-0 items-center gap-1 font-medium leading-tight text-inkSoft", chico ? "text-[12px]" : "text-[13px]",
               !apilado && "sm:order-none sm:col-start-2 sm:row-start-1",
               // Sin contexto la etiqueta se centra junto al número.
               !apilado && (it.contexto != null ? "sm:self-end" : "sm:row-span-2 sm:self-center"),
@@ -78,7 +78,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false }: { items
             className={cn(
               "order-1 font-display font-bold leading-none tracking-tight tabular-nums",
               !apilado && "sm:order-none sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-center",
-              tieneLetras(it.valor) ? "text-[19px]" : "text-[26px]",
+              tieneLetras(it.valor) ? (chico ? "text-[15px]" : "text-[19px]") : chico ? "text-[18px]" : "text-[26px]",
               TONO[it.tono ?? "neutro"],
             )}
           >
@@ -94,7 +94,7 @@ export function CifrasEnFila({ items, pie, className, apilado = false }: { items
             )}
           </dd>
           {it.contexto != null && (
-            <dd className={cn("order-3 text-[12px] leading-tight text-mute tabular-nums", !apilado && "sm:order-none sm:col-start-2 sm:row-start-2 sm:self-start")}>{it.contexto}</dd>
+            <dd className={cn("order-3 leading-tight text-mute tabular-nums", chico ? "text-[11px]" : "text-[12px]", !apilado && "sm:order-none sm:col-start-2 sm:row-start-2 sm:self-start")}>{it.contexto}</dd>
           )}
         </div>
       ))}

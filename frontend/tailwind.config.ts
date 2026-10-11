@@ -35,6 +35,14 @@ const config: Config = {
         mute: "rgb(var(--mute) / <alpha-value>)",
         line: "rgb(var(--line) / <alpha-value>)",
 
+        // Color por intención de la navegación (globals.css: [data-intencion]).
+        acento: {
+          DEFAULT: "rgb(var(--acento) / <alpha-value>)",
+          soft: "rgb(var(--acento-soft) / <alpha-value>)",
+          borde: "rgb(var(--acento-borde) / <alpha-value>)",
+          texto: "rgb(var(--acento-texto) / <alpha-value>)",
+        },
+
         // Escala secuencial del choropleth: sin data → más intenso (lima).
         warm0: "#1B2323",
         warm1: "#3C4F12",

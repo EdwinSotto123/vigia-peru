@@ -1,14 +1,15 @@
+import type { ReactNode } from "react";
 import { EyeOff } from "lucide-react";
 import { TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
-import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { AvatarAliado, esFundador } from "./TarjetaAliado";
-import { LUGAR_LIBRE, Puesto } from "./Podio";
-import { PodioBanda } from "./PodioBanda";
+import { LUGAR_LIBRE, PodioRanking, Puesto } from "./Podio";
+import { CintaAportes } from "./CintaAportes";
+import { LlamadaPodio } from "./LlamadaPodio";
 import { pctProporcion } from "./proporcion";
 import { ORDEN_LABEL, TAM_PAGINA, hrefPerfil, type ClaveOrden, type FilaRanking, type Periodo, type Ranking } from "./ranking";
 
@@ -89,6 +90,8 @@ export function RankingAliados({
   precio,
   desglose,
   recientes = null,
+  totalRecientes,
+  franja,
 }: {
   ranking: Ranking;
   /** Contratos financiados en el ámbito (región y periodo): denominador de cada fila. */
@@ -102,8 +105,12 @@ export function RankingAliados({
   precio: number | null;
   /** "procesamiento (S/ 1), infraestructura y datos (S/ 1)…", o vacío. */
   desglose: string;
-  /** Los últimos aportes: con un ranking corto (hasta tres nombres) se muestran junto a "cómo entras". */
+  /** Los últimos aportes: van en la cinta que se desplaza, al pie. */
   recientes?: ContribucionReciente[] | null;
+  /** Cuántos aportes hay en total (para el botón "Ver todos los aportes"). */
+  totalRecientes?: number;
+  /** Las cifras de apoyo, en tamaño discreto, justo debajo del podio. */
+  franja?: ReactNode;
 }) {
   const { podio, tabla, anonimos, totalNombres, completa, paginas } = ranking;
 
@@ -136,8 +143,27 @@ export function RankingAliados({
 
   return (
     <div className="space-y-4">
-      {/* Con uno o dos nombres, los puestos que faltan se ven libres: el podio es también la invitación. */}
-      {podio.length > 0 && <PodioBanda filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} />}
+      {/* El podio es el foco: los guardianes. Con uno o dos nombres, los puestos que faltan se ven libres: es también la invitación. */}
+      {podio.length > 0 && (
+        <PodioRanking
+          filas={podio}
+          financiadosAmbito={financiadosAmbito}
+          lugarLibre={LUGAR_LIBRE}
+          etiqueta="Top auditores ciudadanos"
+          titulo="Guardianes de los recursos del Perú"
+          subtitulo="Cada contrato que hicieron leer es dinero público bajo vigilancia."
+          nota={
+            <>
+              <p>El puesto se gana por contratos financiados; a igualdad, quien aportó primero. Nunca por soles.</p>
+              <p>Nadie elige qué se lee: la cola asigna los contratos por antigüedad.</p>
+              <p>Solo figuran aliados sin sanción vigente del OECE ni alertas activas como proveedor.</p>
+            </>
+          }
+        />
+      )}
+
+      {/* Las cifras, chicas y discretas: apoyan al podio, no compiten con él. */}
+      {franja && <div className="rounded-2xl bg-granate-50 px-4 py-2.5">{franja}</div>}
 
       {tabla.length > 0 && (
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">
@@ -161,75 +187,11 @@ export function RankingAliados({
         </section>
       )}
 
-      {totalNombres <= 3 && (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-          <Invitacion totalNombres={totalNombres} nombreRegion={nombreRegion} precio={precio} desglose={desglose} />
-          {recientes && recientes.length > 0 && (
-            <section aria-labelledby="aportes-recientes" className="min-w-0 space-y-2">
-              <h2 id="aportes-recientes" className="font-display text-base font-bold text-ink">
-                Últimos aportes
-              </h2>
-              <RecientesFeed items={recientes.slice(0, 5)} />
-            </section>
-          )}
-        </div>
-      )}
+      <LlamadaPodio precio={precio} desglose={desglose} nombreRegion={nombreRegion} />
+
+      {recientes && recientes.length > 0 && <CintaAportes items={recientes} total={totalRecientes} />}
       <Anonimos cantidad={anonimos.cantidad} contratos={anonimos.contratos} />
     </div>
-  );
-}
-
-/**
- * Con uno a tres nombres, el ranking es sobre todo una invitación: cómo se entra, en
- * tres pasos de una línea (§10.7). Sin botón: la acción de financiar está una sola vez,
- * arriba de la página.
- */
-function Invitacion({
-  totalNombres,
-  nombreRegion,
-  precio,
-  desglose,
-}: {
-  totalNombres: number;
-  nombreRegion?: string;
-  precio: number | null;
-  desglose: string;
-}) {
-  const donde = nombreRegion ? ` en ${nombreRegion}` : "";
-  return (
-    <section aria-labelledby="invitacion-ranking" className="rounded-2xl border border-dashed border-line bg-paperSoft px-5 py-4">
-      <h2 id="invitacion-ranking" className="font-display text-base font-bold text-ink">
-        {totalNombres === 1 ? `Hay un solo nombre en este ranking${donde}` : `Hay ${num(totalNombres)} nombres en este ranking${donde}`}
-      </h2>
-      <ol className="mt-2 space-y-2 text-[13px] leading-snug text-inkSoft">
-        <li className="flex gap-2">
-          <span className="font-mono text-mute">1.</span>
-          <span>
-            Eliges una región y cuántos contratos.
-            {precio != null && (
-              <>
-                {" "}
-                {soles(precio)} cada uno
-                {desglose && (
-                  <>
-                    {" "}
-                    <Ayuda titulo="¿En qué se va cada contrato?">{desglose}.</Ayuda>
-                  </>
-                )}
-              </>
-            )}
-          </span>
-        </li>
-        <li className="flex gap-2">
-          <span className="font-mono text-mute">2.</span>
-          <span>La cola los asigna por antigüedad: no los eliges tú ni Vigía Perú.</span>
-        </li>
-        <li className="flex gap-2">
-          <span className="font-mono text-mute">3.</span>
-          <span>Cada dictamen se publica con su norma y tu nombre entra al ranking, con tu perfil para compartir.</span>
-        </li>
-      </ol>
-    </section>
   );
 }
 

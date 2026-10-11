@@ -224,3 +224,18 @@ export const normalizar = (s: string) =>
 
 /** Nombre y tipo de una organización, listo para mostrar. */
 export const orgDe = (d: AutoridadesDatos, i: number): Org => d.orgs[i] ?? { n: "Sin dato", t: "otro" };
+
+/**
+ * La clave estable de una organización, la MISMA que `clave_org` de backend/scripts/cargar_gobiernos.py
+ * (sin tildes, en minúsculas, palabras unidas con guiones, 80 caracteres): es la que usan la API de partidos
+ * y la ficha /app/partidos/<clave>.
+ */
+export const claveOrg = (nombre: string) =>
+  nombre
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80);

@@ -15,7 +15,7 @@ import { Aviso } from "./AvisoPartido";
 const TOPE = 12;
 const hrefPeriodo = (anio: number) => `/app/partidos?anio=${anio}`;
 
-export function ContratosPorPartido({ ranking, anio }: { ranking: RankingPartidos | null; anio: AnioGobierno }) {
+export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { ranking: RankingPartidos | null; anio: AnioGobierno; sinNavegacion?: boolean }) {
   const periodo = PERIODOS_GOBIERNO.find((p) => p.anio === anio)!;
   const filas = (ranking?.data ?? []).slice(0, TOPE);
   const maximo = Math.max(1, ...filas.map((f) => f.contratos));
@@ -28,7 +28,7 @@ export function ContratosPorPartido({ ranking, anio }: { ranking: RankingPartido
             Cada contrato se asocia al partido que gobernaba la entidad el mes en que se convocó, según la elección de ese período.
           </p>
         </div>
-        <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-2">
+        {!sinNavegacion && <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-2">
           {PERIODOS_GOBIERNO.map((p) => (
             <Link
               key={p.anio}
@@ -42,7 +42,7 @@ export function ContratosPorPartido({ ranking, anio }: { ranking: RankingPartido
               {p.texto}
             </Link>
           ))}
-        </nav>
+        </nav>}
       </div>
 
       {!ranking ? (

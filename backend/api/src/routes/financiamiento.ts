@@ -35,6 +35,7 @@ import { Memo, responderJson, responderSerializado, serializar, type Serializado
 import { conPerfilAliado, hayAporteEntidad, hayModelosLectura } from "../lib/esquema.js";
 import { perfilPublicado } from "../lib/perfilAliado.js";
 import { entidadDeAporteSql, partidoDeAporteSql, tarifaVigente } from "../lib/aportes.js";
+import { leerRecientes } from "../lib/recientes.js";
 
 export const financiamientoRouter = new Hono();
 
@@ -207,8 +208,10 @@ financiamientoRouter.get("/estado", async (c) => {
 
 // ─── GET /financiamiento/recientes ───────────────────────────────────────────
 financiamientoRouter.get("/recientes", async (c) => {
+  const pag = leerRecientes(Object.fromEntries(new URL(c.req.url).searchParams));
+  if (!pag) return c.json({ error: "invalid_query" }, 400);
   const conEntidad = await hayAporteEntidad();
-  const r = await pool.query(
+  const [r, total] = await Promise.all([pool.query(
     `SELECT co.codigo, co.contratos, co.pagada_at AS "pagadaAt", co.estado, co.mensaje_publico AS "mensajePublico",
             z.ubigeo, z.nombre AS zona, z.nivel, ${entidadDeAporteSql("co", conEntidad)} AS entidad, ${partidoDeAporteSql("co", conEntidad)} AS partido,
             COALESCE(f.nombre_publico,'Anónimo') AS financiador, f.tipo, f.slug, f.logo_url AS "logoUrl"
@@ -216,9 +219,13 @@ financiamientoRouter.get("/recientes", async (c) => {
      JOIN financiadores f ON f.id = co.financiador_id
      JOIN zonas z ON z.ubigeo = co.ubigeo
      WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible
-     ORDER BY co.pagada_at DESC LIMIT 20`);
+     ORDER BY co.pagada_at DESC, co.id DESC LIMIT $1 OFFSET $2`, [pag.limit, pag.offset]),
+    pool.query(
+      `SELECT count(*)::int AS n FROM contribuciones co JOIN financiadores f ON f.id = co.financiador_id
+        WHERE co.estado IN ('pagada','en_proceso','procesada') AND f.visible`),
+  ]);
   cache(c, 60);
-  return c.json({ data: r.rows });
+  return c.json({ data: r.rows, total: total.rows[0].n as number, limit: pag.limit, offset: pag.offset });
 });
 
 // ─── GET /financiamiento/impacto/:codigo ─────────────────────────────────────

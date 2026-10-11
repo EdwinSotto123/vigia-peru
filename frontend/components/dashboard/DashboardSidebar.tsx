@@ -44,7 +44,7 @@ type Item = {
   match?: (path: string) => boolean;
 };
 
-type Section = { title?: string; items: Item[] };
+type Section = { title?: string; intencion?: "explorar" | "alertas" | "participar"; items: Item[] };
 
 /**
  * Navegación pública del dashboard.
@@ -73,6 +73,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Explorar",
+    intencion: "explorar",
     items: [
       {
         href: "/app/mapa",
@@ -113,6 +114,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Alertas",
+    intencion: "alertas",
     items: [
       {
         href: "/app/hallazgos",
@@ -133,6 +135,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Participar",
+    intencion: "participar",
     items: [
       {
         href: "/app/financiar",
@@ -353,11 +356,13 @@ export function DashboardSidebar() {
                 <div
                   key={i}
                   role="group"
+                  data-intencion={section.intencion}
                   aria-labelledby={section.title ? idTitulo : undefined}
                   className="flex flex-col gap-0.5"
                 >
                   {section.title && (
-                    <p id={idTitulo} className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-mute">
+                    <p id={idTitulo} className="flex items-center gap-2 px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-acento-texto">
+                      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-acento" />
                       {section.title}
                     </p>
                   )}
@@ -471,8 +476,8 @@ function SidebarLink({
             ? "border-granate bg-granate text-paper"
             : "border-granate/30 bg-paper text-granate hover:border-granate/50 hover:bg-granate-50"
           : active
-          ? "border-granate/15 bg-granate-50 text-granate"
-          : "border-transparent text-inkSoft hover:bg-paper hover:text-ink",
+          ? "border-acento/25 bg-acento/10 text-acento-texto"
+          : "border-transparent text-inkSoft hover:bg-acento/[0.06] hover:text-ink",
       )}
     >
       <span className="flex min-w-0 items-center gap-2.5">
@@ -487,8 +492,8 @@ function SidebarLink({
               : dorado
               ? "bg-maiz text-[#0B0F0F] shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
               : active
-              ? "bg-granate text-paper"
-              : "bg-paperDeep text-mute group-hover:bg-granate-50 group-hover:text-granate",
+              ? "bg-acento text-paper"
+              : "bg-acento/10 text-acento-texto group-hover:bg-acento/20",
           )}
         >
           {icon}
@@ -501,7 +506,7 @@ function SidebarLink({
             <span
               className={cn(
                 "truncate text-[11px]",
-                featured && active ? "text-paper/80" : active || featured ? "text-granate/80" : "text-mute",
+                featured && active ? "text-paper/80" : active || featured ? "text-acento-texto/80" : "text-mute",
               )}
             >
               {hint}

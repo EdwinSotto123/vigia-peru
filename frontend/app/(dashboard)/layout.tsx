@@ -1,4 +1,5 @@
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MainConIntencion } from "@/components/dashboard/Intencion";
 import { SaltarAlContenido } from "@/components/sitio/SaltarAlContenido";
 
 /**
@@ -22,9 +23,7 @@ export default function DashboardLayout({
     <div className="flex min-h-screen flex-col md:flex-row">
       <SaltarAlContenido />
       <DashboardSidebar />
-      <main id="contenido" tabIndex={-1} className={`min-w-0 flex-1 focus:outline-none ${BAJO_BARRA_MOVIL}`}>
-        {children}
-      </main>
+      <MainConIntencion className={`min-w-0 flex-1 focus:outline-none ${BAJO_BARRA_MOVIL}`}>{children}</MainConIntencion>
     </div>
   );
 }

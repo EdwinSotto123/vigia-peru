@@ -3,7 +3,6 @@ import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patro
 import { BarraFiltros, Listado, ZonaResultados, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { RankingAliados } from "@/components/aliados/RankingAliados";
-import { ReglasIndependencia } from "@/components/aliados/ReglasIndependencia";
 import { pctProporcion } from "@/components/aliados/proporcion";
 import {
   MUESTRA_RANKING,
@@ -22,7 +21,7 @@ import {
   frasePartesTarifa,
   getEstadoGlobal,
   getRankingPaginado,
-  getRecientes,
+  getRecientesPagina,
   getZonas,
   partesTarifa,
   type EstadoGlobal,
@@ -41,10 +40,11 @@ export const revalidate = 300;
 
 /**
  * /app/aliados — un ranking, con la plantilla Listado (DESIGN_SYSTEM.md §14.1 y §14.6):
- * encabezado (con la única acción de financiar) → Indicadores del ámbito → barra de
- * filtros (periodo en chips; región y orden, en la URL) → los tres primeros destacados y
- * el resto en la `Tabla`, cada uno con su puesto (#1, #2…) y su perfil a un clic → las
- * reglas que hacen que ese dinero no compre nada.
+ * encabezado → barra de filtros (periodo en chips; región y orden, en la URL) → el podio de
+ * los guardianes (el foco) con las cifras chicas debajo → el resto en la `Tabla`, cada uno con su
+ * puesto (#1, #2…) y su perfil a un clic → "¿Quieres salir en este podio?" (la invitación a donar,
+ * con el único botón de financiar) → la cinta de últimos aportes. Las reglas de independencia viven
+ * en /app/financiar#independencia: no se repiten acá.
  *
  * Sólo aliados reales, del API, en desarrollo igual que en producción.
  */
@@ -58,14 +58,14 @@ export default async function AliadosPage({
   const orden = parseOrden(searchParams?.orden);
   const periodo = parsePeriodo(searchParams?.periodo);
 
-  const [estado, zonas, resumenPais, resumenZona, muestra, recientes] = await Promise.all([
+  const [estado, zonas, resumenPais, resumenZona, muestra, recientesPag] = await Promise.all([
     getEstadoGlobal(),
     getZonas("departamento"),
     getResumenContratos(),
     ubigeo ? getResumenContratos({ ubigeo }) : Promise.resolve(null),
     getRankingPaginado({ periodo, region: ubigeo, limit: MUESTRA_RANKING }),
     // Con pocos nombres, el ranking es corto: los últimos aportes llenan la pantalla con lo que sí pasó.
-    getRecientes().catch(() => null),
+    getRecientesPagina(20, 0).catch(() => null),
   ]);
   // Pasados los 60 aliados, la página del ranking la trae el API.
   const paginaApi =
@@ -128,15 +128,7 @@ export default async function AliadosPage({
             </span>
           </Ayuda>
         }
-        acciones={
-          <EnlaceAccion href="/app/financiar" flecha>
-            Financiar una auditoría
-          </EnlaceAccion>
-        }
       />
-
-      {/* Si el API cae, se dice: no se dibujan ceros que parezcan dato. */}
-      {indicadores ? <CifrasEnFila items={indicadores} /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
 
       <Listado
         ruta="/app/aliados"
@@ -188,7 +180,10 @@ export default async function AliadosPage({
                 nombreRegion={zona?.nombre}
                 precio={estado?.tarifa?.precioPen ?? null}
                 desglose={frasePartesTarifa(partes)}
-                recientes={recientes}
+                recientes={recientesPag?.data ?? null}
+                totalRecientes={recientesPag?.total}
+                // Si el API cae, se dice: no se dibujan ceros que parezcan dato.
+                franja={indicadores ? <CifrasEnFila items={indicadores} chico /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
               />
             ) : (
               // Es una falla de la página, no un ranking vacío: los aportes siguen registrados.
@@ -206,8 +201,6 @@ export default async function AliadosPage({
           </ZonaResultados>
         </div>
       </Listado>
-
-      <ReglasIndependencia />
     </Pagina>
   );
 }

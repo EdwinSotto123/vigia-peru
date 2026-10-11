@@ -240,6 +240,15 @@ export const getRecientes = () =>
     r?.data ? r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })) : null,
   );
 
+/**
+ * Una página de los aportes confirmados (la de /app/aliados/aportes): `limit` de a 25 por defecto. El API
+ * viejo no pagina ni trae `total`: entonces vuelve lo que haya y el total es lo recibido.
+ */
+export const getRecientesPagina = (limit = 25, offset = 0) =>
+  getJson<{ data: ContribucionReciente[]; total?: number }>(`/financiamiento/recientes?limit=${limit}&offset=${offset}`, 60).then((r) =>
+    r?.data ? { data: r.data.map((c) => ({ ...c, zona: conAcentos(c.zona) })), total: r.total ?? r.data.length } : null,
+  );
+
 export const getPago = () => getJson<import("@/components/financiar/PaymentMethods").PagoPublico>("/financiamiento/pago", 60);
 
 export const getComprobante = (codigo: string) =>

@@ -91,7 +91,7 @@ export function AdminShell({ children, title, subtitle, actions }: { children: R
   }
 
   return (
-    <div className="flex min-h-screen bg-paperDeep">
+    <div data-intencion="admin" className="fondo-intencion flex min-h-screen bg-paperDeep">
       <a href="#contenido-admin" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-overlay focus:rounded-lg focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:text-paper">
         Saltar al contenido
       </a>

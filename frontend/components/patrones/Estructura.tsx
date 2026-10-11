@@ -57,7 +57,7 @@ export function EncabezadoPagina({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", className)}>
+    <header className={cn("encabezado-color flex flex-wrap items-end justify-between gap-x-6 gap-y-3", className)}>
       <div className="min-w-0 max-w-3xl">
         {/* El ⓘ va al final de la bajada (lo que amplía), no junto al h1: un título que
             parte en dos líneas ocupa todo el ancho y empujaba el ⓘ al borde derecho. */}

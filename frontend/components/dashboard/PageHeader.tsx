@@ -42,5 +42,6 @@ export function PageHeader({
       </>
     ) : undefined;
 
+  // La banda de color la pone .encabezado-color (globals.css) solo dentro de una pantalla con intención.
   return <EncabezadoPagina titulo={title} bajada={subtitle} acciones={acciones} className="border-b border-line pb-5" />;
 }

@@ -50,6 +50,89 @@
   --crimson-texto: 255 139 126;
 }
 
+/* ── Color por intención (2026-10) ─────────────────────────────────────────
+   Cada pantalla de la app pertenece a una intención de la navegación y toma su acento:
+   Explorar azul de dato, Alertas rojo señal, Participar lima, Cuenta violeta sobrio y el panel
+   admin ámbar. `components/dashboard/Intencion.tsx` pone `data-intencion` según la ruta; sin
+   él, el acento es el de siempre (texto claro y filetes lima), así la portada y las pantallas
+   que no eligen intención no cambian. Todos los pares texto sobre fondo pasan AA sobre paper:
+   acento-texto sobre paper 8,8 a 12:1, sobre acento-soft más de 8:1. */
+:root {
+  --acento: 212 255 63;
+  --acento-soft: 24 32 8;
+  --acento-borde: 74 99 16;
+  --acento-texto: 231 240 238;
+  --acento-cifra: 231 240 238;
+}
+[data-intencion="explorar"] {
+  --acento: 108 182 255;       /* #6CB6FF */
+  --acento-soft: 12 27 44;
+  --acento-borde: 36 82 128;
+  --acento-texto: 142 200 255; /* 10,3:1 sobre paper */
+  --acento-cifra: 142 200 255;
+}
+[data-intencion="alertas"] {
+  --acento: 255 107 94;        /* #FF6B5E */
+  --acento-soft: 44 17 16;
+  --acento-borde: 128 46 40;
+  --acento-texto: 255 150 138; /* 8,6:1 */
+}
+[data-intencion="participar"] {
+  --acento: 212 255 63;
+  --acento-soft: 24 32 8;
+  --acento-borde: 74 99 16;
+  --acento-texto: 212 255 63;  /* 16,2:1 */
+  --acento-cifra: 212 255 63;
+}
+[data-intencion="cuenta"] {
+  --acento: 176 156 255;       /* #B09CFF */
+  --acento-soft: 24 20 46;
+  --acento-borde: 84 70 150;
+  --acento-texto: 200 186 255; /* 10,2:1 */
+  --acento-cifra: 200 186 255;
+}
+[data-intencion="admin"] {
+  --acento: 242 184 75;        /* #F2B84B */
+  --acento-soft: 40 30 10;
+  --acento-borde: 120 88 26;
+  --acento-texto: 248 206 120; /* 12,4:1 */
+}
+
+/* El fondo de la pantalla deja de ser un carbón plano: un lavado de su color arriba. */
+.fondo-intencion {
+  background-image:
+    radial-gradient(ellipse 60% 340px at 12% 0%, rgb(var(--acento) / 0.14), transparent 72%),
+    linear-gradient(180deg, rgb(var(--acento) / 0.045), transparent 520px);
+  background-repeat: no-repeat;
+}
+
+/* Encabezado de pantalla con banda de color: lavado horizontal de la tinta de la intención, borde en su tono y un
+   filete vertical a la izquierda. Solo dentro de un <main data-intencion>; fuera, el encabezado no cambia. */
+[data-intencion] .encabezado-color {
+  position: relative;
+  padding: 1rem 1.25rem 1rem 1.6rem;
+  border: 1px solid rgb(var(--acento-borde) / 0.55);
+  border-radius: 1rem;
+  background-image: linear-gradient(90deg, rgb(var(--acento) / 0.14), rgb(var(--acento) / 0.05) 55%, transparent);
+}
+[data-intencion] .encabezado-color::before {
+  content: "";
+  position: absolute;
+  left: 0.6rem;
+  top: 0.8rem;
+  bottom: 0.8rem;
+  width: 4px;
+  border-radius: 9999px;
+  background: rgb(var(--acento));
+}
+
+/* Tarjetas y bloques con borde: un tinte del 5 al 6 % de la intención y el filete superior en su color.
+   Usa background-image (no background-color) para no pisar los fondos de cada componente. */
+[data-intencion] :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper) {
+  background-image: linear-gradient(180deg, rgb(var(--acento) / 0.055), transparent 62%);
+  border-top-color: rgb(var(--acento) / 0.38);
+}
+
 /* Banda oscura: dentro de ella el reparto vuelve a ser "texto claro, placas claras",
    con el fondo de la banda más oscuro que la página. Es lo que hacen `bg-ink`,
    `bg-granate-deep` y la marca `.sobre-oscuro`. */
@@ -170,9 +253,41 @@
   background-image: radial-gradient(rgba(212, 255, 63, 0.16) 1.2px, transparent 1.4px);
   background-size: 22px 22px;
 }
+/* Los puntos de la marca como capa de un bloque (pseudo-elemento: no es una caja más en la página). */
+.con-puntos::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(212, 255, 63, 0.16) 1.2px, transparent 1.4px);
+  background-size: 22px 22px;
+}
 .fondo-puntos-tenue {
   background-image: radial-gradient(rgba(231, 240, 238, 0.08) 1px, transparent 1.2px);
   background-size: 18px 18px;
+}
+
+/* Cinta de "Últimos aportes": una línea que se desplaza despacio de derecha a izquierda. El contenido va
+   duplicado para el bucle (la copia es inert). Se detiene al pasar el cursor o enfocar un aporte; con
+   movimiento reducido no se anima y la fila se desliza a mano. Sólo transform. */
+@keyframes cintaMover {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.cinta-pista {
+  display: flex;
+  width: max-content;
+  animation: cintaMover var(--cinta-duracion, 70s) linear infinite;
+}
+.cinta-marco:hover .cinta-pista,
+.cinta-marco:focus-within .cinta-pista {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cinta-pista { animation: none; }
+  .cinta-marco { overflow-x: auto; }
+  .cinta-copia { display: none; }
 }
 
 /* El guion bajo del nombre: parpadea como un cursor de terminal. */

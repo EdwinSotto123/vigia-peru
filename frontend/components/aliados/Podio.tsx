@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Shield, ShieldCheck } from "lucide-react";
 import { COLUMNA_PODIO, FranjaTextil, Medalla, PodioEscena } from "@/components/marca";
 import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
@@ -134,6 +135,9 @@ export function PodioRanking({
   nivel = 2,
   lugarLibre,
   destacado = false,
+  etiqueta,
+  subtitulo,
+  nota,
 }: {
   /** Los primeros del ranking (hasta tres), ya con su puesto. */
   filas: FilaRanking[];
@@ -147,12 +151,22 @@ export function PodioRanking({
   lugarLibre?: string;
   /** La versión de portada: más grande, con halo y chispas. Mismos datos, mismas reglas. */
   destacado?: boolean;
+  /** Rótulo corto sobre el título, con el escudo del guardián ("Top auditores ciudadanos"). */
+  etiqueta?: string;
+  /** Una frase bajo el título: qué significa estar acá. Con ella, el podio se pone al lado del texto (desde lg). */
+  subtitulo?: string;
+  /** Lo que se dice bajo el subtítulo, a la izquierda del podio: cómo se gana un puesto. */
+  nota?: React.ReactNode;
 }) {
   const primeros = filas.slice(0, 3);
   if (primeros.length < 3 && !lugarLibre) return null;
   const Titulo = nivel === 3 ? "h3" : "h2";
   const texto = titulo ?? (primeros.length === 3 ? "Los tres que más contratos hicieron leer" : "Quienes más contratos hicieron leer");
   const lugares: Lugar[] = [1, 2, 3];
+  // El botón de "Ocupa este puesto" va una sola vez: en el primer puesto libre. Los otros solo invitan.
+  const primerLibre = lugares.find((l) => !primeros.some((f) => f.puesto === l));
+  // Con subtítulo (la versión de la app), el texto va a la izquierda y el podio a la derecha: sin una franja vacía a los lados.
+  const lateral = !!subtitulo && !destacado;
 
   return (
     <section
@@ -168,13 +182,23 @@ export function PodioRanking({
       <FranjaTextil alto={8} />
       <div className={cn("relative", destacado ? "px-3 pb-6 pt-6 sm:px-10 sm:pb-10 sm:pt-8" : "px-3 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-5")}>
         {/* De qué ranking se habla (región, periodo) lo dicen los filtros de la página, no el podio. */}
+        <div className={cn(lateral && "lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8")}>
+        <div className="min-w-0">
+        {etiqueta && (
+          <p className="etiqueta-mono mb-1.5 flex items-center gap-1.5 px-1 text-maiz sm:px-0">
+            <ShieldCheck size={14} aria-hidden /> {etiqueta}
+          </p>
+        )}
         <Titulo
           id="podio-titulo"
-          className={cn("px-1 font-display font-bold leading-tight sm:px-0", destacado ? "text-[22px] sm:text-[28px]" : "text-[17px]")}
+          className={cn("px-1 font-display font-bold leading-tight sm:px-0", destacado ? "text-[22px] sm:text-[28px]" : subtitulo ? "text-[24px] sm:text-[28px] lg:text-[34px]" : "text-[17px]")}
         >
           {texto}
         </Titulo>
-        <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : "mt-5 max-w-3xl")}>
+        {subtitulo && <p className="mt-2 max-w-[60ch] px-1 text-[14px] leading-snug text-paper/80 sm:px-0 sm:text-[16px]">{subtitulo}</p>}
+        {nota && <div className="mt-4 hidden max-w-[48ch] space-y-2 border-l-2 border-maiz/40 pl-3.5 text-[14px] leading-snug text-paper/75 lg:block">{nota}</div>}
+        </div>
+        <PodioEscena className={cn("mx-auto", destacado ? "mt-8 max-w-5xl" : lateral ? "mt-5 max-w-3xl lg:mt-0 lg:max-w-none" : "mt-5 max-w-3xl")}>
           {/* El piso del escenario: los escalones se apoyan en una línea, no en el borde. */}
           <ol className="grid grid-cols-3 items-end gap-1.5 border-b border-paper/20 sm:gap-3">
             {lugares.map((lugar) => {
@@ -182,11 +206,12 @@ export function PodioRanking({
               return fila ? (
                 <Escalon key={fila.id} lugar={lugar} fila={fila} financiadosAmbito={financiadosAmbito} destacado={destacado} />
               ) : (
-                <EscalonLibre key={`libre-${lugar}`} lugar={lugar} texto={lugarLibre ?? ""} destacado={destacado} />
+                <EscalonLibre key={`libre-${lugar}`} lugar={lugar} texto={lugarLibre ?? ""} destacado={destacado} conBoton={lugar === primerLibre} />
               );
             })}
           </ol>
         </PodioEscena>
+        </div>
       </div>
     </section>
   );
@@ -222,7 +247,7 @@ function Escalon({
             )}
           />
         )}
-        {lugar === 1 && destacado && <Chispas />}
+        {lugar === 1 && <Chispas />}
         <Medalla puesto={lugar} tamano={l.medalla} animada retraso={l.sube + DESPUES_DEL_ESCALON} className="relative" />
         <span aria-hidden className={cn("mt-2.5 flex", lugar === 1 && destacado && "rounded-2xl ring-2 ring-maiz ring-offset-4 ring-offset-transparent")}>
           <AvatarAliado tipo={f.tipo} logoUrl={f.logoUrl} nombre={f.nombre} size={destacado && lugar === 1 ? "xl" : "lg"} />
@@ -253,6 +278,11 @@ function Escalon({
         </span>
         {/* Su parte de lo financiado, en línea propia: debajo de la cifra, no pegada con un separador. */}
         {pct && <span className="mt-0.5 hidden text-[12.5px] leading-tight text-paper/75 md:block">{pct} del total</span>}
+        {!!financiadosAmbito && (
+          <span aria-hidden className="mt-1.5 hidden h-1.5 w-full max-w-[7rem] overflow-hidden rounded-full bg-paper/15 sm:block">
+            <span className="block h-full rounded-full bg-maiz" style={{ width: `${Math.min(100, Math.round((f.contratosFinanciados / financiadosAmbito) * 100))}%` }} />
+          </span>
+        )}
         {/* La invitación a tocar: sin ella nadie sabe que el puesto abre al aliado. */}
         {href && (
           <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-maiz/40 px-2.5 py-1 text-[12px] font-semibold text-maiz transition-colors group-hover/aliado:bg-maiz group-hover/aliado:text-ink sm:text-[13px]">
@@ -262,10 +292,11 @@ function Escalon({
       </span>
       <span
         aria-hidden
-        className={cn(SUBE, "flex w-full justify-center rounded-t-xl border-t-2 pt-1.5 sm:pt-2", l.alto, l.cara)}
+        className={cn(SUBE, "relative flex w-full justify-center overflow-hidden rounded-t-xl border-t-2 pt-1.5 sm:pt-2", l.alto, l.cara)}
         style={{ animationDelay: `${l.sube}ms` }}
       >
-        <span className={cn("font-display font-extrabold leading-none tabular-nums", l.numeral)}>{lugar}</span>
+        <span aria-hidden className="fondo-puntos pointer-events-none absolute inset-0 opacity-30" />
+        <span className={cn("relative font-display font-extrabold leading-none tabular-nums", l.numeral)}>{lugar}</span>
       </span>
     </>
   );
@@ -283,33 +314,58 @@ function Escalon({
   );
 }
 
-/** Un puesto sin nombre: el escalón punteado y la invitación, sin fingir que hay alguien. */
-function EscalonLibre({ lugar, texto, destacado }: { lugar: Lugar; texto: string; destacado: boolean }) {
+/**
+ * Un puesto sin nombre: un escalón punteado con el escudo del guardián vacío y la pregunta
+ * "¿Serás tú?". Solo el primer puesto libre lleva el botón (`conBoton`): los demás invitan sin
+ * repetir el mismo destino tres veces.
+ */
+function EscalonLibre({ lugar, texto, destacado, conBoton }: { lugar: Lugar; texto: string; destacado: boolean; conBoton: boolean }) {
   const l = (destacado ? LUGAR_DESTACADO : LUGAR)[lugar];
-  return (
-    <li className={cn("min-w-0", l.orden)}>
-      <Link href="/app/financiar" className="group/libre flex h-full flex-col rounded-t-xl">
+  const contenido = (
+    <>
       <span className="flex flex-col items-center px-0.5 pb-3 text-center">
         <span
           aria-hidden
-          className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-paper/30 font-display text-lg font-bold text-paper/60"
+          className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-paper/35 text-paper/55 sm:h-16 sm:w-16"
         >
-          {lugar}
+          <Shield size={26} strokeWidth={1.5} />
+          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-paper/15 font-display text-[12px] font-bold text-paper">
+            {lugar}
+          </span>
         </span>
-        <span className="mt-2 text-[13px] font-semibold leading-snug text-paper/80 sm:text-[15px]">
-          Puesto<span className="sr-only"> {lugar}</span> libre
+        <span className="mt-2.5 font-display text-[15px] font-bold leading-snug text-paper sm:text-[18px]">
+          ¿Serás tú?<span className="sr-only"> Puesto {lugar} libre</span>
         </span>
         {texto && <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{texto}</span>}
-        <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-paper/30 px-2.5 py-1 text-[12px] font-semibold text-paper/85 transition-colors group-hover/libre:border-maiz group-hover/libre:text-maiz sm:text-[13px]">
-          Ocupa este lugar <span aria-hidden>→</span>
-        </span>
+        {conBoton && (
+          <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-[12.5px] font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-[13.5px]">
+            Ocupa este puesto <span aria-hidden>→</span>
+          </span>
+        )}
       </span>
       <span
         aria-hidden
-        className={cn(SUBE, "w-full rounded-t-xl border-2 border-b-0 border-dashed border-paper/20 transition-colors group-hover/libre:border-maiz/60", l.alto)}
+        className={cn(
+          SUBE,
+          "relative flex w-full justify-center rounded-t-xl border-2 border-b-0 border-dashed border-paper/25 pt-1.5 transition-colors sm:pt-2",
+          conBoton && "group-hover/libre:border-maiz/60",
+          l.alto,
+        )}
         style={{ animationDelay: `${l.sube}ms` }}
-      />
-      </Link>
+      >
+        <span className={cn("font-display font-extrabold leading-none tabular-nums text-paper/15", l.numeral)}>{lugar}</span>
+      </span>
+    </>
+  );
+  return (
+    <li className={cn("min-w-0", l.orden)}>
+      {conBoton ? (
+        <Link href="/app/financiar" className="group/libre flex h-full flex-col rounded-t-xl">
+          {contenido}
+        </Link>
+      ) : (
+        <div className="flex h-full flex-col rounded-t-xl">{contenido}</div>
+      )}
     </li>
   );
 }
