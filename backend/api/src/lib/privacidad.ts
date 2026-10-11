@@ -10,7 +10,7 @@
  * una decisión de producto aparte).
  */
 
-const CLAVES_DOCUMENTO = /^(dni|dni_persona_natural|numero_documento|num_documento|nro_documento|documento_identidad|doc_identidad)$/i;
+const CLAVES_DOCUMENTO = /(^|_)(dni|dnis|dni_persona_natural|numero_documento|num_documento|nro_documento|documento_identidad|doc_identidad)$/i;
 const DNI_CON_ETIQUETA = /(\b(?:d\.?\s?n\.?\s?i\.?|documento(?:\s+de\s+identidad)?|c\.?e\.?)\b[^\d\n]{0,14})(\d{8})\b/gi;
 const CORREO = /\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g;
 
@@ -32,9 +32,14 @@ export function limpiarPersonales<T>(valor: T, profundidad = 0): T {
   if (typeof valor === "object") {
     const salida: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
-      salida[k] = CLAVES_DOCUMENTO.test(k) && (typeof v === "string" || typeof v === "number")
+      // Un DNI usado como CLAVE (p. ej. datos_peru_por_persona["43960880"]) también es un dato personal.
+      const clave = /^\d{8}$/.test(k) ? enmascararDni(k) : k;
+      const esDoc = (x: unknown) => typeof x === "string" || typeof x === "number";
+      salida[clave] = CLAVES_DOCUMENTO.test(k) && esDoc(v)
         ? enmascararDni(String(v))
-        : limpiarPersonales(v, profundidad + 1);
+        : CLAVES_DOCUMENTO.test(k) && Array.isArray(v) && v.every(esDoc)
+          ? v.map((x) => enmascararDni(String(x)))
+          : limpiarPersonales(v, profundidad + 1);
     }
     return salida as T;
   }

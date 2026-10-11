@@ -21,3 +21,15 @@ test("no toca RUC ni montos de 8 dígitos sin etiqueta", () => {
   assert.equal(limpiarTexto("RUC 20607558184 por S/ 12345678"), "RUC 20607558184 por S/ 12345678");
   assert.equal(enmascararDni("abc"), "****");
 });
+
+test("un DNI usado como clave de objeto también se enmascara", () => {
+  const r = limpiarPersonales({ datos_peru_por_persona: { "43960880": { n: 1 }, "JUAN PEREZ": { n: 2 } } });
+  assert.deepEqual(Object.keys(r.datos_peru_por_persona).sort(), ["43****80", "JUAN PEREZ"]);
+});
+
+test("listas de DNI bajo claves como socios_dni", () => {
+  const r = limpiarPersonales({ socios_dni: ["43960880", "71114275"], representantes_dni: ["12345678"], otros: ["43960880"] });
+  assert.deepEqual(r.socios_dni, ["43****80", "71****75"]);
+  assert.deepEqual(r.representantes_dni, ["12****78"]);
+  assert.deepEqual(r.otros, ["43960880"]);
+});
