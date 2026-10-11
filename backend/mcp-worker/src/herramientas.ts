@@ -158,13 +158,22 @@ async function riesgoConvocatoria(env: Env, ctx: ExecutionContext, ocid: string)
         ORDER BY CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`,
       [fila[0]],
     );
-    const banderas = filasBanderas.map((b) => ({ regla: b[0], severidad: b[1], evidencia: b[2], norma: b[3] }));
+    const banderas = filasBanderas.map((b) => ({ regla: b[0], severidad: b[1], evidencia: limpiarEvidencia(b[2]), norma: b[3] }));
     return {
       encontrada: true, codigo: fila[1], ocid: fila[2], score: fila[3], region: fila[4],
       monto_adjudicado: aNumero(fila[5]), objeto: fila[6],
       n_banderas: banderas.length, banderas, disclaimer: DISCLAIMER,
     };
   });
+}
+
+/** Misma regla que la API pública: evidencia recortada a 320 y sin DNI con etiqueta ni correos. */
+function limpiarEvidencia(v: unknown): string | null {
+  if (v == null) return null;
+  return String(v)
+    .slice(0, 320)
+    .replace(/(\b(?:d\.?\s?n\.?\s?i\.?|documento(?:\s+de\s+identidad)?|c\.?e\.?)\b[^\d\n]{0,14})(\d{2})\d{4}(\d{2})\b/gi, "$1$2****$3")
+    .replace(/\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g, "$1***@$2");
 }
 
 async function empresaSancionada(env: Env, ctx: ExecutionContext, rucIn: string) {

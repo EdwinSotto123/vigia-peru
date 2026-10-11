@@ -8,6 +8,7 @@
  * `a.id::text = $1 OR a.codigo = $1 OR …`: el cast anulaba el índice y recorría la tabla.
  */
 
+import { limpiarPersonales } from "./privacidad.js";
 import { OCID_CANDIDATOS, pool } from "./db.js";
 import { alertaNoDemo, esPublicada } from "./publicacion.js";
 
@@ -129,7 +130,7 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
   const traza = opts.sinTraza
     ? { traza_resumen: row.traza_resumen ?? { eventos: 0, agentes: [], herramientas: [] } }
     : { agent_trace: an.agent_trace ?? [], llm_metrics: an.llm_metrics ?? null, self_evals: an.self_evals ?? null };
-  return {
+  return limpiarPersonales({
     alerta_codigo: row.codigo,
     ocid: row.ocid,
     estado: row.estado,
@@ -161,5 +162,5 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     ...traza,
     dictamen_markdown: row.dictamen_markdown ?? "",
     ocds_payload: row.ocds_payload ?? null,
-  };
+  });
 }

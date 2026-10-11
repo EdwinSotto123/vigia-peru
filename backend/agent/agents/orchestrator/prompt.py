@@ -329,8 +329,8 @@ PASO 7.5. RED EMPRESARIAL — primero, datos duros del RNP de Cloud SQL:
                   ThreadPoolExecutor — terminas en 5-15 s lo que antes tardaba
                   20-30 min.
 
-                  Formato: `personas=[{"id":"gerente","dni":"43960880","nombre":"FIORELLA ELIAS TIMANA","rol":"titular"},
-                            {"id":"socio_1","dni":"71114275","nombre":"ELIAS TIMANA MUNUEL","rol":"socio"},
+                  Formato: `personas=[{"id":"gerente","dni":"43****80","nombre":"NOMBRE APELLIDO UNO","rol":"titular"},
+                            {"id":"socio_1","dni":"71****75","nombre":"NOMBRE APELLIDO DOS","rol":"socio"},
                             {"id":"firmante_1","nombre":"JUAN PEREZ","rol":"firmante"}, ...]`
                   Cada persona requiere AL MENOS uno de `dni` o `nombre`. Si
                   tienes DNI, úsalo (match exacto). Si solo tienes nombre, va

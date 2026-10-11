@@ -307,7 +307,7 @@ secuencial (`person_network → compliance_extended → writer → self_eval`), 
 |---|---:|---:|---|
 | Parser sin caché (`1216608`, perfil otros, 4 docs / 31 págs, `PARSE_SKIP_TEXTO_CACHE=1`) | 172.3 s (1 worker, semáforo 2) | **82.2 s** (3 workers, semáforo 4) | mismos 4/4 OK, mismo orden de consolidación, ZIP de 2 unidades OCR-eado en paralelo (9.1 → 7.9 s); ítems 1 vs 2 por variación del extractor |
 | report_writer sobre el state final de A (2 corridas por nivel) | high: 54.5 s / 44.9 s · out 10.6 k / 8.5 k tok · 0.0549 / 0.0471 USD | **medium: 42.7 s / 42.7 s** · out 8.4 k / 8.0 k tok · 0.0467 / 0.0452 USD | prompt 26.9 k → 20.2 k tokens por el contexto recortado (62 019 → 48 128 chars en este contrato; −22 %, más en contratos con muchos ítems) |
-| person_network sobre el mismo `person_network_context` | high: 40.1 s · out 7.6 k tok · 0.0339 USD | **medium: 28.8 s** · out 5.1 k tok · 0.0245 USD | misma `persona_principal` (DNI 02546088), 0 vínculos en ambos, todas las secciones del schema |
+| person_network sobre el mismo `person_network_context` | high: 40.1 s · out 7.6 k tok · 0.0339 USD | **medium: 28.8 s** · out 5.1 k tok · 0.0245 USD | misma `persona_principal` (DNI 02****88), 0 vínculos en ambos, todas las secciones del schema |
 | self_eval sobre el mismo state (4 banderas, 1 ítem con precios) | 46.2 s (`EVAL_CONCURRENCY=1`) | **26.7 s** (`=4`) | veredictos idénticos: respaldo 4/4, precio 1/1, tono ok |
 
 ### 8.4 Calidad del dictamen (thinking high vs medium, mismo contexto)

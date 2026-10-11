@@ -22,6 +22,7 @@
  *   · El texto de la evidencia se redacta en el frontend (Redact), como siempre.
  */
 
+import { limpiarTexto } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
@@ -159,6 +160,7 @@ async function senales(q: Q, claves: (string | number | null)[] | null) {
   const citadores = await citadoresDeAlertas(filas.map((r) => r._alerta).filter((x): x is string => !!x));
   const data = filas.map(({ _alerta, _k0, ...r }) => ({
     ...r,
+    evidencia: r.evidencia == null ? r.evidencia : limpiarTexto(String(r.evidencia)),
     etiqueta: etiquetaRegla(r.regla),
     citas: citadores.get(_alerta)?.citasDeBandera(r) ?? [],
   }));

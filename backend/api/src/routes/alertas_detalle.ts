@@ -13,6 +13,7 @@
  * código de convocatoria, y /revision la forma corta del OCID. Sin `a.id::text = $1` (auditoría A13).
  */
 
+import { limpiarPersonales } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool, poolAdmin } from "../lib/db.js";
@@ -127,7 +128,7 @@ alertasDetalleRouter.get("/:id/traza", async (c) => {
   if (!esPublicada(t.estado)) {
     return responderConEtag(c, { codigo: t.codigo, agent_trace: [], llm_metrics: t.llm_metrics ?? null, self_evals: null }, CACHE_NO_PUBLICADA);
   }
-  return responderConEtag(c, { codigo: t.codigo, agent_trace: t.agent_trace ?? [], llm_metrics: t.llm_metrics ?? null, self_evals: t.self_evals ?? null }, CACHE_PUBLICADA);
+  return responderConEtag(c, limpiarPersonales({ codigo: t.codigo, agent_trace: t.agent_trace ?? [], llm_metrics: t.llm_metrics ?? null, self_evals: t.self_evals ?? null }), CACHE_PUBLICADA);
 });
 
 // ─── GET /alertas/:id — ficha ─────────────────────────────────────
@@ -180,7 +181,7 @@ alertasDetalleRouter.get("/:id", async (c) => {
   if (esAlertaDemo(row.codigo)) return c.json({ error: "not_found" }, 404);
   if (esPublicada(row.estado)) {
     c.header("Cache-Control", cachePublico(60, { maxAge: 30 }));
-    return c.json({ ...row, publicada: true, enRevision: false });
+    return c.json(limpiarPersonales({ ...row, publicada: true, enRevision: false }));
   }
   // No publicada (revision / descartada): existe, pero sin score, señales, reglas, dictamen ni
   // análisis — ver GET /alertas/:id/full y /alertas/:id/revision.
