@@ -99,7 +99,7 @@ def test_insert_bandera_omite_duplicados_con_la_expresion_del_indice():
     sql, params = cur.calls[0]
     assert sql.startswith("insert into banderas")
     assert "where not exists" in sql and sql.endswith("on conflict do nothing")
-    assert len(params) == 8 and params[1] == "c2_unico_postor" and params[3] == "Un solo postor."
+    assert len(params) == 11 and params[1] == "c2_unico_postor" and params[3] == "Un solo postor."
     # La comparación del agente y el índice único de la migración usan la misma expresión.
     assert "md5(coalesce(b.evidencia::text, ''))" in sql
     with open(os.path.join(_REPO, "backend", "db", "migrations", "27_banderas_unicas.sql"), encoding="utf-8") as f:

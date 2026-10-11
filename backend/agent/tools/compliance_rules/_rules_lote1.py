@@ -281,26 +281,59 @@ def _firmantes_entidad(state: dict) -> list[dict]:
     return out
 
 
+REGLA_FIRMANTE_RNP_VERSION = "2"  # v1 (hasta 2026-10-11): sin lado ni DNI, daba MEDIA/ALTA por coincidencia de nombre
+
+_ROLES_ENTIDAD = {"comite", "oec", "entidad", "area_usuaria", "aprobo", "elaboro"}
+_ROLES_CONTRATISTA = {"contratista"}
+
+
+def _lado_del_firmante(f: dict | None, g_tok: set[str]) -> str:
+    """'entidad' | 'contratista' | 'indeterminado'. Manda el rol que el lector vio en el
+    documento (`rol_en_documento`); la lista de cargos ya no decide (un gerente del
+    contratista no es un funcionario de la entidad)."""
+    if not f:
+        return "indeterminado"
+    rol = _sin_tildes(str(f.get("rol_en_documento") or "")).strip().lower()
+    if rol in _ROLES_CONTRATISTA:
+        return "contratista"
+    if rol in _ROLES_ENTIDAD:
+        return "entidad"
+    ent = _norm_razon_cr(f.get("entidad") or "")
+    if ent and g_tok and len(g_tok & set(ent.split())) >= 2:
+        return "contratista"
+    return "indeterminado"
+
+
 def check_firmante_con_empresa_rnp_rule(ocid: str, tool_context: ToolContext,
                                         reglas_activas: frozenset[str] | None = None,
                                         topes_uit: dict | None = None) -> dict:
-    """Firmante de la entidad (OEC, oficial de compras, jefe de abastecimiento, residente…)
-    que figura en el RNP como socio/titular/representante de una empresa proveedora del
-    Estado (`rnp_firmantes_resultados` con match ≥ 0.95). MEDIA; ALTA si la empresa es
-    postora del proceso o su rubro coincide con el objeto (1225058, 1225266, 1225450)."""
+    """Firmante que figura en el RNP como socio/representante de una proveedora.
+
+    v2: SOLO es señal (ALTA) si se cumplen las tres condiciones a la vez:
+      1) la persona firma por la ENTIDAD según el rol visto en el documento;
+      2) su identidad está confirmada por DNI (no por coincidencia de nombre);
+      3) la empresa vinculada postula o gana ESTE proceso.
+    Cualquier otro caso es contexto sin puntaje (`state['contexto_rnp']`), nunca bandera:
+    estar en el RNP no es un hecho irregular por sí mismo."""
     om = _regla_omitida("firmante_con_empresa_rnp", _perfil_reglas(tool_context, reglas_activas), True)
     if om:
         return om
     state = tool_context.state
     pnc = state.get("person_network_context") or {}
     resultados = pnc.get("rnp_firmantes_resultados") or []
-    result = {"regla": "firmante_con_empresa_rnp", "triggered": False, "n_firmantes_consultados": len(resultados)}
+    result = {"regla": "firmante_con_empresa_rnp", "triggered": False, "n_firmantes_consultados": len(resultados),
+              "regla_version": REGLA_FIRMANTE_RNP_VERSION}
     if not resultados:
         result.update({"estado": "sin_dato", "motivo": "sin cruce RNP de firmantes en person_network_context"})
         return result
-    firmantes_ent = {_norm_razon_cr(f.get("nombre_completo")): f for f in _firmantes_entidad(state)}
+    raw = state.get("parser_raw_consolidated") or {}
+    da = _safe_parse_json(state.get("document_analysis")) or {}
+    todos = raw.get("firmantes_consolidados") or raw.get("firmantes") or da.get("firmantes") or []
+    firmantes = {_norm_razon_cr(f.get("nombre_completo")): f for f in todos
+                 if isinstance(f, dict) and (f.get("nombre_completo") or "").strip()}
     ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
-    g_ruc, _ = _ganador_ocds(ocds)
+    g_ruc, g_nom = _ganador_ocds(ocds)
+    g_tok = set(_norm_razon_cr(g_nom or "").split())
     rucs_postores = {p["ruc"] for p in _postores_parser(state) if p.get("ruc")}
     for t in ((ocds.get("tender") or {}).get("tenderers") or []):
         r = "".join(ch for ch in str((t or {}).get("id") or "") if ch.isdigit())
@@ -308,52 +341,51 @@ def check_firmante_con_empresa_rnp_rule(ocid: str, tool_context: ToolContext,
             rucs_postores.add(r)
     if g_ruc:
         rucs_postores.add(g_ruc)
-    objeto = ((ocds.get("tender") or {}).get("description") or "")
     hallazgos = []
     for r in resultados:
         if not isinstance(r, dict):
             continue
         nombre = str(r.get("firmante") or "").strip()
         nn = _norm_razon_cr(nombre)
-        f = firmantes_ent.get(nn)
-        if f is None and firmantes_ent:
-            # firmante conocido pero fuera del lado entidad (representante del contratista) → saltar
-            continue
+        f = firmantes.get(nn)
+        lado = _lado_del_firmante(f, g_tok)
+        identidad = r.get("identidad") or "solo_nombre"
         for e in (r.get("empresas") or []):
             if not isinstance(e, dict):
                 continue
             score = float(e.get("match_score") or 0)
-            exacto = str(r.get("match_por") or "") == "nombre_exacto"
+            exacto = str(r.get("match_por") or "") in ("nombre_exacto", "numero_documento_exacto")
             if not exacto and score < 0.95:
                 continue
             ruc_e = str(e.get("ruc_empresa") or "")
-            if g_ruc and ruc_e == g_ruc and not f:
-                continue  # es el representante del propio contratista
-            es_postora = ruc_e in rucs_postores
-            rubro = coincide_objeto(objeto, [e.get("nombre_visto") or ""]) if objeto and e.get("nombre_visto") else False
-            hallazgos.append({"firmante": nombre, "cargo": (f or {}).get("cargo"), "ruc_empresa": ruc_e,
-                              "empresa": e.get("nombre_visto"), "roles": e.get("roles"), "match_score": score,
-                              "es_postora": es_postora, "rubro_coincide": bool(rubro),
+            visto = str(e.get("nombre_visto") or "")
+            # `nombre_visto` en el RNP es el nombre de la PERSONA, no la razón social.
+            razon = None if _norm_razon_cr(visto) == nn else (visto or None)
+            hallazgos.append({"firmante": nombre, "cargo": (f or {}).get("cargo"), "lado": lado,
+                              "identidad": identidad, "ruc_empresa": ruc_e, "razon_social": razon,
+                              "roles": e.get("roles"), "match_score": score,
+                              "es_postora": ruc_e in rucs_postores, "es_ganadora": bool(g_ruc and ruc_e == g_ruc),
                               "vigencia_desde": e.get("fecha_inicio_vigencia")})
     result.update({"estado": "hallado", "n_hallazgos": len(hallazgos), "detalle": hallazgos[:6]})
     if not hallazgos:
         return result
-    hallazgos.sort(key=lambda h: (not h["es_postora"], not h["rubro_coincide"], -h["match_score"]))
-    h = hallazgos[0]
-    sev = "alta" if (h["es_postora"] or h["rubro_coincide"]) else "media"
-    ev = (f"{h['firmante']}" + (f" ({h['cargo']})" if h.get("cargo") else "") + f", firmante del expediente por la "
-          f"entidad, figura en el RNP como {', '.join(h.get('roles') or ['socio/representante'])} de "
-          f"{h.get('empresa') or 'una empresa'} (RUC {h['ruc_empresa']}), proveedora inscrita del Estado. ")
-    if h["es_postora"]:
-        ev += "Esa empresa es postora en este mismo proceso: conflicto de interés directo a verificar."
-    elif h["rubro_coincide"]:
-        ev += "El rubro de la empresa coincide con el objeto contratado: posible conflicto de interés; requiere verificación."
-    else:
-        ev += ("No es impedimento por sí solo (la empresa no postuló aquí); es una observación de "
-               "conflicto de interés potencial que el dictamen debe consignar.")
-    if len(hallazgos) > 1:
-        ev += f" Otros firmantes con empresa en RNP: {len(hallazgos) - 1}."
-    return _flag(state, result, sev, ev, _norma_state(state)["impedimentos"] + " / Ley 27815 (Código de Ética)",
+    cumple = [h for h in hallazgos if h["lado"] == "entidad" and h["identidad"] == "dni_confirmada"
+              and (h["es_postora"] or h["es_ganadora"])]
+    if not cumple:
+        # Contexto sin puntaje: se conserva para el revisor, no entra como bandera.
+        state.setdefault("contexto_rnp", []).append({"regla": "firmante_vinculo_rnp", "detalle": hallazgos[:6]})
+        result["motivo"] = "vínculo RNP sin lado de la entidad confirmado, sin DNI o sin relación con el proceso: contexto sin puntaje"
+        return result
+    h = cumple[0]
+    empresa = h["razon_social"] or f"la empresa con RUC {h['ruc_empresa']}"
+    ev = (f"Una persona identificada por DNI como firmante por la entidad"
+          + (f" ({h['cargo']})" if h.get("cargo") else "") +
+          f" figura en el RNP como {', '.join(h.get('roles') or ['socio/representante'])} de {empresa} "
+          f"(RUC {h['ruc_empresa']}), que postula o gana este mismo proceso. El RNP no informa porcentaje de "
+          "participación ni fecha de fin: dato para revisar, no una conclusión.")
+    result["regla_version"] = REGLA_FIRMANTE_RNP_VERSION
+    result["identidad"] = "dni_confirmada"
+    return _flag(state, result, "alta", ev, _norma_state(state)["impedimentos"] + " / Ley 27815 (Código de Ética)",
                  f"https://apps.oece.gob.pe/perfilprov-ui/ficha/{h['ruc_empresa']}")
 
 

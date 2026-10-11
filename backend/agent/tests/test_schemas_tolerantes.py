@@ -455,7 +455,7 @@ class _CursorMercado:
         elif s.startswith("delete from banderas where id"):
             self.db["banderas"] = [b for b in self.db["banderas"] if b["id"] != p[0]]
         elif s.startswith("select regla, severidad, evidencia, norma, fuente_url, agente_origen"):
-            self._rows = [(b["regla"], b["severidad"], b["evidencia"], b["norma"], b["fuente_url"], b["agente_origen"], None)
+            self._rows = [(b["regla"], b["severidad"], b["evidencia"], b["norma"], b["fuente_url"], b["agente_origen"], None, True)
                           for b in self.db["banderas"]]
         elif s.startswith("update alertas set score"):
             self.db["score"] = p[0]

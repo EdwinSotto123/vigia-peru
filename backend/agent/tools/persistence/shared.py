@@ -50,12 +50,13 @@ def _norma_slug(s: str) -> str:
 # aunque la migración aún no esté aplicada) cubre la carrera entre dos corridas concurrentes una
 # vez que el índice existe. Se mantienen los 8 parámetros posicionales en el mismo orden.
 _INSERT_BANDERA_SQL = """INSERT INTO banderas (alerta_id, regla, severidad, evidencia, norma,
-                                 fuente_url, agente_origen, verificacion)
+                                 fuente_url, agente_origen, verificacion, puntua, regla_version, identidad)
            SELECT v.alerta_id, v.regla, v.severidad, v.evidencia, v.norma,
-                  v.fuente_url, v.agente_origen, v.verificacion
+                  v.fuente_url, v.agente_origen, v.verificacion, v.puntua, v.regla_version, v.identidad
              FROM (SELECT %s::uuid AS alerta_id, %s::text AS regla, %s::text AS severidad,
                           %s::text AS evidencia, %s::text AS norma, %s::text AS fuente_url,
-                          %s::text AS agente_origen, %s::jsonb AS verificacion) v
+                          %s::text AS agente_origen, %s::jsonb AS verificacion,
+                          %s::boolean AS puntua, %s::text AS regla_version, %s::text AS identidad) v
             WHERE NOT EXISTS (
                   SELECT 1 FROM banderas b
                    WHERE b.alerta_id = v.alerta_id AND b.regla = v.regla
@@ -64,18 +65,20 @@ _INSERT_BANDERA_SQL = """INSERT INTO banderas (alerta_id, regla, severidad, evid
 
 
 def _insert_bandera(cur, alerta_id, regla, severidad, evidencia, norma, fuente_url,
-                    agente_origen, verificacion) -> None:
+                    agente_origen, verificacion, puntua: bool = True, regla_version: str | None = None,
+                    identidad: str | None = None) -> None:
     cur.execute(
         _INSERT_BANDERA_SQL,
         (alerta_id, (regla or "sin_regla")[:80], severidad if severidad in ("alta", "media", "baja") else "media",
          (evidencia or "")[:500], (norma or "")[:300], (fuente_url or None),
-         agente_origen, json.dumps(verificacion or {}, ensure_ascii=False, default=str)),
+         agente_origen, json.dumps(verificacion or {}, ensure_ascii=False, default=str),
+         bool(puntua), regla_version, identidad),
     )
 
 
 def _leer_banderas(cur, alerta_id) -> list[dict]:
     cur.execute(
-        "SELECT regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion "
+        "SELECT regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion, puntua "
         "FROM banderas WHERE alerta_id=%s ORDER BY CASE severidad WHEN 'alta' THEN 1 "
         "WHEN 'media' THEN 2 ELSE 3 END, id", (alerta_id,))
     out = []
@@ -84,7 +87,8 @@ def _leer_banderas(cur, alerta_id) -> list[dict]:
         if isinstance(ver, str):
             ver = _safe_parse_json(ver)
         out.append({"regla": r[0], "severidad": r[1], "evidencia": r[2], "norma": r[3],
-                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver})
+                    "fuente_url": r[4], "agente_origen": r[5], "verificacion": ver,
+                    "puntua": True if r[7] is None else bool(r[7])})
     return out
 
 
@@ -93,7 +97,9 @@ def _recalcular_score(cur, alerta_id, state=None) -> tuple[int, list[dict]]:
     Actualiza `alertas.score` y `reglas_disparadas`; deja state['banderas'] con la
     lista completa (todos los agentes) y devuelve (score, banderas)."""
     banderas = _leer_banderas(cur, alerta_id)
-    score = min(sum(_peso(b.get("agente_origen"), b.get("severidad")) for b in banderas), 100)
+    # Los hechos neutros (puntua=false) se muestran pero no suman: no son riesgo, son contexto.
+    score = min(sum(_peso(b.get("agente_origen"), b.get("severidad")) for b in banderas
+                    if b.get("puntua", True)), 100)
     reglas = sorted({b["regla"] for b in banderas if b.get("regla")})
     cur.execute("UPDATE alertas SET score=%s, reglas_disparadas=%s, updated_at=NOW() WHERE id=%s",
                 (score, reglas, alerta_id))

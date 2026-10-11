@@ -94,7 +94,7 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
                 "banderas_descartadas": n_descartadas,
                 "mensaje": "Todas las banderas fueron descartadas por la verificación determinista", **lim}
     # Score provisional (solo para el INSERT inicial; se recalcula con TODAS al final).
-    score = min(sum(_peso("compliance_agent", b.get("severidad")) for b in banderas), 100)
+    score = min(sum(_peso("compliance_agent", b.get("severidad")) for b in banderas if b.get("puntua", True)), 100)
     codigo = f"OECE-{_short_ocid(ocid)}"  # _short_ocid → soporta flat y año-secuencia (no 'OECE-12')
     conn = _pg()
     try:
@@ -176,7 +176,8 @@ def persist_alert_from_flags(ocid: str, tool_context: ToolContext) -> dict:
             _insert_bandera(cur, alerta_id, b.get("regla", "sin_regla"), b.get("severidad", "media"),
                             b.get("evidencia", ""), b.get("norma", ""),
                             b.get("fuente_url") or _fuente_default, "compliance_agent",
-                            b.get("verificacion"))
+                            b.get("verificacion"), puntua=b.get("puntua", True),
+                            regla_version=b.get("regla_version"), identidad=b.get("identidad"))
         # Score con TODAS las banderas de la alerta (compliance + legal + market + …).
         score, todas = _recalcular_score(cur, alerta_id, state)
         conn.commit()

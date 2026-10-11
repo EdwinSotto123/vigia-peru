@@ -258,14 +258,14 @@ class _FakeCursor:
                 raise AssertionError(f"DELETE global de banderas prohibido: {sql}")
             return
         if s.startswith("insert into banderas"):
-            aid, regla, sev, ev, norma, fuente, agente, ver = p
+            aid, regla, sev, ev, norma, fuente, agente, ver, *_extra = p
             self.db.banderas.append({"alerta_id": aid, "regla": regla, "severidad": sev, "evidencia": ev,
                                      "norma": norma, "fuente_url": fuente, "agente_origen": agente,
                                      "verificacion": json.loads(ver) if ver else None})
             return
-        if s.startswith("select regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion from banderas"):
+        if s.startswith("select regla, severidad, evidencia, norma, fuente_url, agente_origen, verificacion, puntua from banderas"):
             self._rows = [(b["regla"], b["severidad"], b["evidencia"], b["norma"], b["fuente_url"],
-                           b["agente_origen"], b["verificacion"]) for b in self.db.banderas if b["alerta_id"] == p[0]]
+                           b["agente_origen"], b["verificacion"], True) for b in self.db.banderas if b["alerta_id"] == p[0]]
             return
         if s.startswith("update alertas set score"):
             score, reglas, aid = p

@@ -395,27 +395,36 @@ def test_ganador_no_invitado_1225379():
     assert cr.check_ganador_no_invitado_rule(OCID, _Ctx(st4))["estado"] == "sin_dato"
 
 
-def test_firmante_con_empresa_rnp_1225266_y_representante_del_contratista():
+def _st_rnp(rol, identidad, ruc_emp="20607558184", postora=False):
     st = {"ocds": _ocds(),
           "parser_raw_consolidated": {"firmantes_consolidados": [
-              {"nombre_completo": "Liz Frine Alvarez Gutierrez", "cargo": "Oficial de compra", "entidad": "GOBIERNO REGIONAL DE CUSCO"},
-              {"nombre_completo": "Gilberto Baca Nuñez", "cargo": "Representante legal", "entidad": "FIERRO DOMINIC S.A.C."}]},
+              {"nombre_completo": "Liz Frine Alvarez Gutierrez", "cargo": "Oficial de compra",
+               "rol_en_documento": rol, "entidad": "GOBIERNO REGIONAL DE CUSCO"}]},
           "person_network_context": {"rnp_firmantes_resultados": [
-              {"firmante": "Liz Frine Alvarez Gutierrez", "match_por": "nombre_exacto", "n_empresas": 1,
-               "empresas": [{"ruc_empresa": "20607558184", "nombre_visto": "SERVICIOS GENERALES LFAG S.R.L.", "roles": ["socio", "titular"],
-                             "match_score": 1.0, "fecha_inicio_vigencia": "2021-03-01"}]},
-              {"firmante": "Gilberto Baca Nuñez", "match_por": "nombre_exacto", "n_empresas": 1,
-               "empresas": [{"ruc_empresa": RUC_G, "nombre_visto": "FIERRO DOMINIC S.A.C.", "roles": ["representante"], "match_score": 1.0}]},
-              {"firmante": "Wilber Limache", "match_por": "nombre_fuzzy", "n_empresas": 1,
-               "empresas": [{"ruc_empresa": "20606766034", "nombre_visto": "X S.A.C.", "roles": ["socio"], "match_score": 0.788}]}]}}
-    r = cr.check_firmante_con_empresa_rnp_rule(OCID, _Ctx(st))
-    assert r["triggered"] is True and r["severidad"] == "media" and r["n_hallazgos"] == 1
-    assert "Alvarez Gutierrez" in r["evidencia"] and "20607558184" in r["evidencia"] and "DNI" not in r["evidencia"]
-    # empresa del firmante es postora → alta
-    st["ocds"]["tender"]["tenderers"] = [{"id": "PE-RUC-20607558184", "name": "SERVICIOS GENERALES LFAG S.R.L."}]
-    st.pop("pending_flags")
-    r2 = cr.check_firmante_con_empresa_rnp_rule(OCID, _Ctx(st))
-    assert r2["severidad"] == "alta" and "postora" in r2["evidencia"]
+              {"firmante": "Liz Frine Alvarez Gutierrez", "identidad": identidad, "match_por": "nombre_exacto",
+               "empresas": [{"ruc_empresa": ruc_emp, "nombre_visto": "LIZ FRINE ALVAREZ GUTIERREZ",
+                             "roles": ["socio"], "match_score": 1.0}]}]}}
+    if postora:
+        st["ocds"]["tender"]["tenderers"] = [{"id": f"PE-RUC-{ruc_emp}", "name": "SERVICIOS GENERALES LFAG S.R.L."}]
+    return st
+
+
+def test_firmante_rnp_v2_solo_es_senal_con_lado_entidad_dni_y_empresa_en_el_proceso():
+    # Cumple las tres condiciones → alta, sin usar el nombre de la persona como razón social
+    r = cr.check_firmante_con_empresa_rnp_rule(OCID, _Ctx(_st_rnp("comite", "dni_confirmada", postora=True)))
+    assert r["triggered"] is True and r["severidad"] == "alta" and r["regla_version"] == "2"
+    assert "20607558184" in r["evidencia"] and "LIZ FRINE" not in r["evidencia"]
+
+
+def test_firmante_rnp_v2_contexto_sin_puntaje_si_falta_una_condicion():
+    for rol, ident, post in (("comite", "solo_nombre", True),        # sin DNI
+                             ("contratista", "dni_confirmada", True),  # lado del contratista
+                             (None, "dni_confirmada", True),         # lado indeterminado
+                             ("comite", "dni_confirmada", False)):   # la empresa no participa
+        st = _st_rnp(rol, ident, postora=post)
+        r = cr.check_firmante_con_empresa_rnp_rule(OCID, _Ctx(st))
+        assert r["triggered"] is False and "pending_flags" not in st, (rol, ident, post)
+        assert st["contexto_rnp"][0]["regla"] == "firmante_vinculo_rnp"
     assert cr.check_firmante_con_empresa_rnp_rule(OCID, _Ctx({"ocds": _ocds()}))["estado"] == "sin_dato"
 
 
@@ -546,13 +555,13 @@ class _DB:
                     db.banderas = [b for b in db.banderas if b["agente_origen"] not in ag]
                     return
                 if s.startswith("insert into banderas"):
-                    aid, regla, sev, ev, norma, fuente, agente, ver = p
+                    aid, regla, sev, ev, norma, fuente, agente, ver, *_extra = p
                     db.banderas.append({"regla": regla, "severidad": sev, "evidencia": ev, "norma": norma,
                                         "fuente_url": fuente, "agente_origen": agente, "verificacion": json.loads(ver)})
                     return
                 if s.startswith("select regla, severidad"):
                     self._rows = [(b["regla"], b["severidad"], b["evidencia"], b["norma"], b["fuente_url"],
-                                   b["agente_origen"], b["verificacion"]) for b in db.banderas]
+                                   b["agente_origen"], b["verificacion"], True) for b in db.banderas]
                     return
                 if s.startswith("update alertas set score"):
                     db.alertas["OECE-" + OCID]["score"] = p[0]

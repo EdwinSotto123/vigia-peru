@@ -167,10 +167,15 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
 
     def _rnp_persona_firmante(f: dict) -> dict:
         nombre = (f.get("nombre_completo") or "").strip()
+        # Identidad: con DNI de 8 dígitos se consulta por documento (identidad confirmada);
+        # sin DNI se cae al nombre, que NO identifica a una persona (homónimos).
+        dni = "".join(ch for ch in str(f.get("dni") or "") if ch.isdigit())
+        por_dni = len(dni) == 8
         try:
-            r = query_rnp_persona(query=nombre, tool_context=tool_context)
+            r = query_rnp_persona(query=dni if por_dni else nombre, tool_context=tool_context)
             return {
                 "firmante": nombre,
+                "identidad": "dni_confirmada" if por_dni else "solo_nombre",
                 "n_empresas": r.get("n_empresas", 0),
                 "empresas": r.get("empresas", [])[:10],
                 "match_por": r.get("match_por"),
