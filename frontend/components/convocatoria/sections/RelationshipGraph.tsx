@@ -69,7 +69,7 @@ export function RelationshipGraph({
       case "postor_rival":        return { fill: "#2E2208", stroke: "#E88C5C", text: "#F0A476", r: 24 };
       // Socio del postor rival que es funcionario público — bandera ALTA
       case "socio_postor_conflicto": return { fill: "#3A1513", stroke: "#FF5A4D", text: "#FF8B7E", r: 26 };
-      // Entidad secundaria por doble vinculación de un funcionario
+      // Entidad ligada a una visita relevante al proceso (no es una vinculación)
       case "entidad_secundaria":  return { fill: "#0F2A1F", stroke: "#3DDC97", text: "#62E8AD", r: 22 };
     }
   };
@@ -542,6 +542,18 @@ export function RelationshipGraph({
           />
         );
       })()}
+
+      {/* Cómo leer el grafo: qué es un hecho, qué es contexto y qué NO significa un trazo */}
+      <details className="mt-2 rounded-md border border-line bg-paperSoft px-3 py-2 text-xs text-inkSoft">
+        <summary className="cursor-pointer font-medium text-ink">Cómo leer este grafo</summary>
+        <ul className="mt-2 space-y-1">
+          <li><b>Trazo continuo y grueso:</b> relación documentada en un registro oficial (RNP, JNE, ONPE, contrato).</li>
+          <li><b>Trazo punteado:</b> coincidencia o contexto; sirve para revisar, no prueba nada por sí solo.</li>
+          <li><b>«Visita»:</b> la persona figura en el registro de visitas. Solo se dibuja si fue a la entidad que contrata o si el motivo menciona al proveedor. Visitar el Congreso o un ministerio es gestión ordinaria y no se muestra como relación.</li>
+          <li><b>Simultaneidad:</b> una relación es «concurrente» solo si estaba vigente entre la convocatoria y la buena pro de este proceso. El RNP informa la fecha de inicio, no la de fin.</li>
+          <li><b>Ausencia de trazo:</b> significa que no se encontró relación en las fuentes consultadas, no que se haya descartado en todo el país.</li>
+        </ul>
+      </details>
 
     </div>
   );

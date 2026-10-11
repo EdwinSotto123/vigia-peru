@@ -9,6 +9,7 @@ from tools.personas.rnp import query_rnp_empresa, query_rnp_persona
 from tools.personas.electoral import (query_autoridades_entidad, query_jne_candidaturas,
                                       query_onpe_aportantes, query_pep)
 from tools.personas.visitas import query_visitas_de_persona
+from tools.personas.visitas_clasificar import resumir_visitas
 
 
 def read_person_network_context(tool_context: ToolContext) -> dict:
@@ -386,33 +387,15 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
             nf["confianza_match"] = "sin_lookup"
         funcionarios_designados_enriched.append(nf)
 
-    # ─── ENRIQUECIMIENTO 3: visitas inter-municipales detectadas ───
+    # ─── ENRIQUECIMIENTO 3: visitas, clasificadas (no es un vínculo) ───
     #
-    # Cuando un funcionario de la entidad contratante visitó otra entidad
-    # representando a una municipalidad distinta, eso indica doble vinculación.
-    # Caso real: Danilin Cardenas Torres (Secretaria General de Las Amazonas)
-    # visitó OSIPTEL representando a Municipalidad Provincial de Alto Amazonas.
-    visitas_inter_municipales: list[dict] = []
-    entidad_actual_upper = (buyer_nombre or "").upper()
-    # Iteramos sobre datos_peru que es el dict que ya construimos en este scope
-    for nombre_pers, d in datos_peru.items():
-        visitas_obj = (d or {}).get("visitas") or {}
-        for v in (visitas_obj.get("visitas") or []):
-            ent_visitante = (v.get("entidad_visitante") or "").upper()
-            ent_visitada = (v.get("entidad_visitada") or "").upper()
-            # Inter-municipal: la persona aparece vinculada a una entidad
-            # distinta de la que figura como su empleadora actual
-            if ent_visitante and entidad_actual_upper and \
-               "MUNICIPALIDAD" in ent_visitante and \
-               entidad_actual_upper not in ent_visitante:
-                visitas_inter_municipales.append({
-                    "persona": nombre_pers,
-                    "entidad_visitada": v.get("entidad_visitada"),
-                    "entidad_representada": v.get("entidad_visitante"),
-                    "funcionario_anfitrion": v.get("funcionario"),
-                    "fecha": v.get("fecha"),
-                    "motivo": v.get("motivo"),
-                })
+    # Una visita a otra entidad (Congreso, ministerio, regulador) es gestión institucional
+    # ordinaria. Antes toda visita de alguien "de otra municipalidad" se dibujaba como "doble
+    # vinculación"; ahora solo se destaca la que toca a la entidad contratante o menciona al
+    # proveedor ganador, y las coincidencias aproximadas por nombre se descartan.
+    resumen_visitas = resumir_visitas(
+        {n: ((d or {}).get("visitas") or {}).get("visitas") or [] for n, d in datos_peru.items()},
+        entidad_contratante=buyer_nombre, ganador_razon=ganador_razon)
 
     out = {
         # Anclaje temporal — fecha de hoy para que el LLM no marque fechas
@@ -445,9 +428,11 @@ def read_person_network_context(tool_context: ToolContext) -> dict:
         # NUEVO: funcionarios con confianza_match cruzada
         "funcionarios_designados": funcionarios_designados_enriched,
         "n_funcionarios_designados": len(funcionarios_designados_enriched),
-        # NUEVO: visitas inter-municipales para visualizar doble vinculación
-        "visitas_inter_municipales": visitas_inter_municipales,
-        "n_visitas_inter_municipales": len(visitas_inter_municipales),
+        # Visitas clasificadas: solo `relevantes` se dibujan y se razonan; el resto es contexto.
+        "visitas_relevantes": resumen_visitas["relevantes"],
+        "n_visitas_relevantes": resumen_visitas["n_relevantes"],
+        "n_visitas_institucionales": resumen_visitas["n_institucionales"],
+        "n_visitas_descartadas": resumen_visitas["n_descartadas"],
     }
     state["person_network_context"] = out
     return out

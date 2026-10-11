@@ -515,34 +515,31 @@ export function buildRelationshipGraphData(
     });
   });
 
-  // ─── F2 · VISITAS INTER-MUNICIPALES ───
-  // Funcionario de la entidad contratante figura representando otra
-  // municipalidad en visitas oficiales → doble vinculación.
-  const visitasInterMun = (ctx?.visitas_inter_municipales || []) as any[];
-  // Deduplicar por entidad_representada
+  // ─── F2 · VISITAS RELEVANTES ───
+  // Una visita no es un vínculo. Solo se dibuja la que el análisis marcó como relevante (a la
+  // entidad contratante o con el proveedor ganador en el motivo). Las visitas institucionales
+  // ordinarias (p. ej. un funcionario municipal en el Congreso) no se trazan. El campo antiguo
+  // `visitas_inter_municipales` de análisis previos se ignora a propósito.
+  const visitasInterMun = (ctx?.visitas_relevantes || []) as any[];
   const entidadesSecundariasYaCreadas = new Set<string>();
   visitasInterMun.slice(0, 4).forEach((v: any, i: number) => {
-    const entRep = (v.entidad_representada || "").trim();
-    if (!entRep || entidadesSecundariasYaCreadas.has(entRep.toUpperCase())) return;
-    entidadesSecundariasYaCreadas.add(entRep.toUpperCase());
+    const etiqueta = (v.entidad_representada || v.entidad_visitada || "Visita registrada").trim();
+    if (entidadesSecundariasYaCreadas.has(etiqueta.toUpperCase())) return;
+    entidadesSecundariasYaCreadas.add(etiqueta.toUpperCase());
     const id = `es_${i}`;
+    const quien = v.persona ? maskApellido(v.persona) : "Una persona";
     nodes.push({
       id, kind: "entidad_secundaria",
-      label: entRep,
-      sublabel: "doble vinculación",
-      tooltip: `${v.persona ? maskApellido(v.persona) : "Un funcionario"} representó a ${entRep} en visita a ${
-        v.entidad_visitada || "entidad pública"
-      }${v.fecha ? " (" + v.fecha + ")" : ""}`,
+      label: etiqueta,
+      sublabel: "visita relevante",
+      tooltip: `${quien} visitó ${v.entidad_visitada || "una entidad pública"}${v.fecha ? " (" + v.fecha + ")" : ""}. ${v.razon || ""}`.trim(),
       meta: {
-        entidad: entRep,
-        observacion: `${v.persona ? maskApellido(v.persona) : "Un funcionario"} (funcionario de ${entidadContratante?.nombre || "la entidad"}) representó a esta otra entidad`,
-        rol: "Entidad secundaria, doble vinculación detectada",
+        entidad: etiqueta,
+        observacion: `${v.razon || "Visita registrada"}. Una visita por sí sola no prueba ningún vínculo.`,
+        rol: "Visita relevante al proceso (no es una vinculación)",
       },
     });
-    edges.push({
-      from: idEntidad, to: id, kind: "doble_vinculacion",
-      label: "doble vinculación",
-    });
+    edges.push({ from: idEntidad, to: id, kind: "visito", label: "visita" });
   });
 
   // No renderizar si solo hay persona + empresa principal sin nada más
@@ -702,7 +699,7 @@ export function buildRelationshipGraphData(
 
     // F2: Entidades secundarias por visita inter-municipal — debajo de la entidad
     visitasInterMun.slice(0, 4).forEach((_v: any, i: number) => {
-      const entRep = (_v.entidad_representada || "").trim().toUpperCase();
+      const entRep = (_v.entidad_representada || _v.entidad_visitada || "x").trim().toUpperCase();
       if (!entRep) return;
       // posición debajo-derecha
       positions.set(`es_${i}`, { x: ep.x + 30 + i * 60, y: ep.y + 200 });

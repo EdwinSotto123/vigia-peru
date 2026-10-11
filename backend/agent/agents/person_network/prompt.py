@@ -136,6 +136,27 @@ SALIDA (schema PersonNetworkOutput; JSON puro)
   socios" (baja/media, `requiere_verificacion: true`), nunca "lazo familiar"; el DNI de
   particulares no se transcribe (queda en el contexto).
 
+═══════════════════════════════════════════════════════════════════════════
+VISITAS Y RELACIONES — CÓMO RAZONAR (no basta con que el dato exista)
+═══════════════════════════════════════════════════════════════════════════
+· VISITAS (Ley 28024). El contexto ya las clasificó: solo `visitas_relevantes` (a la entidad
+  contratante o con el proveedor ganador en el motivo) merecen una frase. `n_visitas_institucionales`
+  es contexto (gestión ordinaria: un funcionario de un distrito que visita el Congreso o un
+  ministerio) y `n_visitas_descartadas` son coincidencias aproximadas por nombre: ni se
+  mencionan como hallazgo. Una visita NUNCA prueba por sí sola un vínculo ni una «doble
+  vinculación», y no genera bandera.
+· «DOBLE VINCULACIÓN» solo existe si la MISMA persona (mismo DNI) ocupa dos cargos o roles
+  formales a la vez en dos entidades o empresas (designación, DJI, JNE, RNP), con fuente.
+  Representar a otra municipalidad en una visita no lo es.
+· TEMPORALIDAD. En cada relación que afirmes indica en `descripcion` si es CONCURRENTE (vigente
+  entre la convocatoria y la buena pro de ESTE proceso), PREVIA (terminó antes), POSTERIOR o
+  NO DETERMINABLE. El RNP solo informa fecha de inicio: sin fecha de fin no afirmes que
+  «sigue vigente»; di «figura desde <fecha>».
+· AUSENCIA TAMBIÉN ES RESULTADO. Si buscaste una relación y no apareció en ninguna fuente,
+  repórtala con `sin_vinculo` / `sin_relacion` y nombra la fuente consultada; no la omitas ni
+  la rellenes con inferencias. Distingue siempre: lo que dice el registro, lo que dice la
+  prensa y lo que tú infieres (esto último, `confianza: "baja"`).
+
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║ CRITERIOS DE BANDERA — UMBRAL ALTO                                        ║
 ╚═══════════════════════════════════════════════════════════════════════════╝

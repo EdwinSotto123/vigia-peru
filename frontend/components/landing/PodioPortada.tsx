@@ -1,6 +1,8 @@
 import { LUGAR_LIBRE, PodioRanking } from "@/components/aliados/Podio";
 import { clasificar } from "@/components/aliados/ranking";
-import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
+import { frasePartesTarifa, getEstadoGlobal, getRankingPaginado, getRecientesPagina, partesTarifa } from "@/lib/financiamiento";
+import { CintaAportes } from "@/components/aliados/CintaAportes";
+import { LlamadaPodio } from "@/components/aliados/LlamadaPodio";
 import { numero } from "@/lib/formato";
 import { EnlaceAccion } from "./EnlaceAccion";
 
@@ -23,9 +25,10 @@ import { EnlaceAccion } from "./EnlaceAccion";
 const TOPE = 12;
 
 export async function PodioPortada() {
-  const [ranking, estado] = await Promise.all([
+  const [ranking, estado, recientes] = await Promise.all([
     getRankingPaginado({ periodo: "todo", limit: TOPE }),
     getEstadoGlobal().catch(() => null),
+    getRecientesPagina(20, 0).catch(() => null),
   ]);
   if (ranking == null) return null;
   const podio = clasificar(ranking.data ?? []).slice(0, 3);
@@ -49,16 +52,16 @@ export async function PodioPortada() {
       <div className="container-page relative py-16 sm:py-24">
         <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="max-w-3xl">
-            <p className="etiqueta-mono mb-4 text-maiz">Nos financiamos con donaciones</p>
+            <p className="etiqueta-mono mb-4 text-maiz">Top auditores ciudadanos</p>
             <h2
               id="podio-portada-titulo"
               className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl"
             >
-              Quienes hacen posible que Vigía <span className="text-maiz">lea.</span>
+              Guardianes de los recursos <span className="text-maiz">del Perú.</span>
             </h2>
             <p className="mt-5 max-w-[56ch] text-pretty text-lg leading-relaxed text-paper/75">
-              Ver todo en Vigía es gratis: cada contrato leído lo pagó una persona, un colectivo o una empresa. Tú también puedes
-              poner tu granito de arena. Toca un nombre para ver quién es y qué hizo leer.
+              Ver todo en Vigía es gratis: cada contrato leído lo pagó una persona, un colectivo o una empresa, y es dinero público
+              bajo vigilancia. Toca un nombre para ver quién es y qué hizo leer.
             </p>
           </div>
         </div>
@@ -90,6 +93,14 @@ export async function PodioPortada() {
               Ver el ranking completo
             </EnlaceAccion>
           )}
+        </div>
+
+        <div className="mt-8 space-y-4">
+          <LlamadaPodio
+            precio={estado?.tarifa?.precioPen ?? null}
+            desglose={frasePartesTarifa(partesTarifa(estado?.tarifa?.nota))}
+          />
+          {recientes && recientes.data.length > 0 && <CintaAportes items={recientes.data} total={recientes.total} />}
         </div>
       </div>
     </section>

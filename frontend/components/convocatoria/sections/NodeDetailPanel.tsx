@@ -32,7 +32,7 @@ export function NodeDetailPanel({
     partido_compartido: "Partido político del municipio",
     postor_rival: "Postor rival (no ganador)",
     socio_postor_conflicto: "Socio de postor rival que es funcionario público",
-    entidad_secundaria: "Entidad secundaria (doble vinculación)",
+    entidad_secundaria: "Visita relevante al proceso",
   };
   // Mismos tonos que el grafo (paleta textil para el tipo de nodo, DESIGN_SYSTEM.md §3.4); el
   // rojo de severidad queda sólo para los nodos que SON un conflicto detectado.
