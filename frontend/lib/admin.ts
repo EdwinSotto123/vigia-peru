@@ -148,7 +148,13 @@ export interface SelfEvalConfig { min_respaldo: number; min_cita: number; min_pr
 export interface BanderaRevision {
   id: string; regla: string; severidad: "alta" | "media" | "baja"; evidencia: string | null; norma: string | null; fuenteUrl: string | null; agente: string | null;
   verificacion: { ok?: boolean; motivos?: string[]; n_checks?: number } | null;
+  /** false = hecho de contexto: se muestra pero no suma al nivel de la alerta. */
+  puntua?: boolean; reglaVersion?: string | null; identidad?: string | null;
+  /** Última decisión del revisor sobre esta señal. */
+  decision?: DecisionBandera | null;
 }
+
+export type DecisionBandera = "confirmada" | "falso_positivo" | "no_concluyente" | "mal_clasificada";
 
 /** Un hallazgo que el pipeline descartó o recortó (`analisis_full.descartes`); la forma varía por etapa. */
 export interface DescarteRevision { donde?: string; motivo?: string; detalle?: string; agente?: string; motivos?: string[]; chars?: number }

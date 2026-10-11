@@ -157,7 +157,9 @@ adminRevisionRouter.get("/revision/:id", async (c) => {
   const [row] = await conMotivo(h.rows);
   const [banderas, dictamen, lg, u] = await Promise.all([
     pool.query(
-      `SELECT b.id, b.regla, b.severidad, b.evidencia, b.norma, b.fuente_url AS "fuenteUrl", b.agente_origen AS agente, b.verificacion
+      `SELECT b.id, b.regla, b.severidad, b.evidencia, b.norma, b.fuente_url AS "fuenteUrl", b.agente_origen AS agente, b.verificacion,
+              b.puntua, b.regla_version AS "reglaVersion", b.identidad,
+              (SELECT r.decision FROM bandera_revision r WHERE r.bandera_id = b.id ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS decision
        FROM banderas b WHERE b.alerta_id = $1
        ORDER BY CASE b.severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, b.id`, [id]),
     pool.query(`SELECT dictamen_markdown AS dictamen, analisis_full->'verificacion_dictamen' AS "verificacionDictamen",
@@ -184,6 +186,32 @@ adminRevisionRouter.get("/revision/:id", async (c) => {
     umbrales: u.valor,
     log: lg.rows,
   });
+});
+
+// ─── POST /revision/:id/banderas/:bid/decision ───────────────────────────────
+// La decisión del revisor sobre UNA señal (no sobre la alerta entera). Es la fuente del conjunto
+// de casos etiquetados con el que se mide la precisión de cada regla. Se guarda cada decisión
+// (no se sobrescribe): la última manda y el historial queda.
+const DecisionBandera = z.object({
+  decision: z.enum(["confirmada", "falso_positivo", "no_concluyente", "mal_clasificada"]),
+  motivo: z.string().trim().max(500).optional(),
+});
+
+adminRevisionRouter.post("/revision/:id/banderas/:bid/decision", async (c) => {
+  const id = c.req.param("id");
+  const bid = c.req.param("bid");
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{1,12}$/.test(bid)) return c.json({ error: "invalid_id" }, 400);
+  const body = DecisionBandera.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  const who = actor(c);
+  const r = await pool.query(
+    `INSERT INTO bandera_revision (bandera_id, alerta_id, decision, motivo, revisor)
+     SELECT b.id, b.alerta_id, $3, $4, $5 FROM banderas b WHERE b.id = $2 AND b.alerta_id = $1
+     RETURNING id`,
+    [id, bid, body.data.decision, body.data.motivo ?? null, who]);
+  if (!r.rows.length) return c.json({ error: "not_found", detail: "Esa señal no existe en esta alerta." }, 404);
+  await log(who, "bandera_decision", `alerta:${id}`, { bandera: bid, decision: body.data.decision });
+  return c.json({ ok: true, decision: body.data.decision });
 });
 
 // ─── GET /revision/:id/informe ───────────────────────────────────────────────

@@ -6,11 +6,12 @@
  * Va dentro del detalle técnico. La evidencia y los valores cotejados pasan por Redact.
  */
 
+import { useState } from "react";
 import { ExternalLink, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/admin/ui";
 import { nombreDeAgente } from "@/components/agentes/catalogo";
 import { redactDnis } from "@/components/Redact";
-import type { BanderaRevision } from "@/lib/admin";
+import { adminFetch, type BanderaRevision, type DecisionBandera } from "@/lib/admin";
 import { SEVERIDAD_UI } from "./PorQueBloqueo";
 
 const TIPO_COTEJO: Record<string, string> = { ruc: "RUC", dni: "DNI", fecha: "Fecha", url: "Enlace", monto: "Monto", cantidad: "Cantidad", pagina: "Página" };
@@ -59,22 +60,68 @@ function Cotejo({ raw }: { raw: string }) {
   );
 }
 
-export function SenalesCrudas({ banderas }: { banderas: BanderaRevision[] }) {
+export function SenalesCrudas({ banderas, alertaId }: { banderas: BanderaRevision[]; alertaId?: string }) {
   if (!banderas.length) return <p className="text-[12px] text-mute">Sin señales guardadas.</p>;
   return (
     <ul className="space-y-2">
-      {banderas.map((b) => <Senal key={b.id} b={b} />)}
+      {banderas.map((b) => <Senal key={b.id} b={b} alertaId={alertaId} />)}
     </ul>
   );
 }
 
-function Senal({ b }: { b: BanderaRevision }) {
+const DECISIONES: { clave: DecisionBandera; texto: string }[] = [
+  { clave: "confirmada", texto: "Confirmada" },
+  { clave: "falso_positivo", texto: "Falso positivo" },
+  { clave: "no_concluyente", texto: "No concluyente" },
+];
+
+/** Tres botones por señal: lo que decide el revisor se guarda y alimenta la medición de cada regla. */
+function Decision({ b, alertaId }: { b: BanderaRevision; alertaId: string }) {
+  const [actual, setActual] = useState<DecisionBandera | null>(b.decision ?? null);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function decidir(d: DecisionBandera) {
+    setEnviando(true);
+    setError(null);
+    try {
+      await adminFetch(`/revision/${alertaId}/banderas/${b.id}/decision`, { method: "POST", body: JSON.stringify({ decision: d }) });
+      setActual(d);
+    } catch {
+      setError("No se pudo guardar. Inténtalo de nuevo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="text-mute">¿Esta señal es correcta?</span>
+      {DECISIONES.map(({ clave, texto }) => (
+        <button
+          key={clave}
+          type="button"
+          disabled={enviando}
+          aria-pressed={actual === clave}
+          onClick={() => decidir(clave)}
+          className={`rounded-full border px-2.5 py-1 font-medium transition ${
+            actual === clave ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperSoft"
+          }`}
+        >
+          {texto}
+        </button>
+      ))}
+      {error && <span role="alert" className="text-crimsonTexto">{error}</span>}
+    </div>
+  );
+}
+
+function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
   const url = urlSegura(b.fuenteUrl);
   return (
     <li className="rounded-xl border border-line bg-paper p-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
         <span className="font-mono text-ink">{b.regla}</span>
         <Badge tono={SEVERIDAD_UI[b.severidad]?.tono ?? SEVERIDAD_UI.baja.tono}>{b.severidad}</Badge>
+        {b.puntua === false && <Badge tono="neutral">contexto, sin puntaje</Badge>}
         <span className="text-mute">
           {b.agente ? <>{nombreDeAgente(b.agente)} <span className="font-mono text-[11px]">({b.agente})</span></> : "Sin agente registrado"}
         </span>
@@ -106,6 +153,7 @@ function Senal({ b }: { b: BanderaRevision }) {
       ) : (
         <p className="mt-2 text-[11px] text-mute">Sin verificación automática registrada.</p>
       )}
+      {alertaId && <Decision b={b} alertaId={alertaId} />}
     </li>
   );
 }

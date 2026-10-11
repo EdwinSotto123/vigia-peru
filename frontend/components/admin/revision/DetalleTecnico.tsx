@@ -76,7 +76,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
       <div className="space-y-4 border-t border-line px-4 py-3 sm:px-5">
         <Bloque titulo={`Señales tal como se guardaron (${d.banderas.length})`}>
-          <SenalesCrudas banderas={d.banderas} />
+          <SenalesCrudas banderas={d.banderas} alertaId={d.id} />
         </Bloque>
 
         {/* Columnas CSS: los bloques fluyen de una a otra y quedan parejos, sin huecos de una grilla desigual. */}
