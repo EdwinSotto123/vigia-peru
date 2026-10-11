@@ -1,13 +1,13 @@
 """JNE — autoridades electas y vigentes por ubigeo → `jne_autoridades` (+ `jne_candidaturas` vía XLSX de Infogob).
 
 Fuente principal (verificada 2026-09-16, descarga directa sin navegador):
-  · PNDA /dataset/autoridades-vigentes-jne  →  autoridades_vigentes_<AAAAMMDD>.xls (13 238 filas el 2026-07-30)
+  · PNDA /dataset/autoridades-vigentes-nivel-nacional-jurado-nacional-de-elecciones  →  autoridades_vigentes_<AAAAMMDD>.xls (13 238 filas el 2026-07-30)
       NOMBRES, APELLIDOPATERNO, APELLIDOMATERNO, ORGANIZACIONPOLITICA, POSICION, CARGO, REGION,
       PROVINCIA, DISTRITO, FEINICIOVIGENCIA, FEFINVIGENCIA, AUTORIDADREEMPLAZO, UBIGEO,
       PROCESOELECTORAL, ANIOELECCION, PRONUNCIAMIENTO, …, AMBITO, GENERO, EDAD, PERIODO, TIPOORGPOLITICA
     Cubre gobernadores, vicegobernadores, consejeros, alcaldes y regidores (ERM 2022 + complementarias
     2023/2025 + reemplazos por vacancia) y el Congreso bicameral / Ejecutivo electos en 2026.
-  · PNDA /dataset/autoridades-electas-jne    →  autoridades_electas_<AAAAMMDD>.xls (proclamados que aún no
+  · PNDA /dataset/autoridades-electas-en-procesos-electorales-jurado-nacional-de-elecciones →  autoridades_electas_<AAAAMMDD>.xls (proclamados que aún no
     asumen; hoy: EG 2026, periodo 2026-2031).
   Gotchas:
     - El diccionario lista DOCUMENTOIDENTIDAD pero el archivo publicado NO trae el DNI. Se completa
@@ -44,8 +44,8 @@ from .._core.storage import sha256_of
 from .._core.ubigeo import ZonaIndex, resolve_ubigeo
 
 DATASETS = {
-    "vigentes": ("autoridades-vigentes-jne", "autoridades_vigentes", True),
-    "electas": ("autoridades-electas-jne", "autoridades_electas", False),
+    "vigentes": ("autoridades-vigentes-nivel-nacional-jurado-nacional-de-elecciones", "autoridades_vigentes", True),
+    "electas": ("autoridades-electas-en-procesos-electorales-jurado-nacional-de-elecciones", "autoridades_electas", False),
 }
 FUENTE_URL = "https://www.datosabiertos.gob.pe/dataset/{slug}"
 
@@ -248,7 +248,7 @@ class InfogobPipeline(Pipeline):
         ix = self._zona_index(conn)
         try:
             for p in paths:
-                parte, slug, vigente, _mod = self.meta.get(p, ("vigentes", "autoridades-vigentes-jne", True, None))
+                parte, slug, vigente, _mod = self.meta.get(p, ("vigentes", "autoridades-vigentes-nivel-nacional-jurado-nacional-de-elecciones", True, None))
                 raw = parse_xls(p, vigente)
                 rows = normalize_rows(raw, ix, FUENTE_URL.format(slug=slug))
                 if self.regiones:

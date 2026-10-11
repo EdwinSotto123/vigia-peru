@@ -79,6 +79,14 @@
   --clay-texto: 138 79 30;
 }
 
+/* Una placa clara dentro de una banda oscura (.sobre-claro): el rojo y el ámbar de estado pasan a tonos
+   oscuros. Con el rojo claro de la página (#FF5A4D) sobre la placa el texto daba 2,65:1. */
+.sobre-claro {
+  --rust: 179 38 30;          /* 6,5:1 sobre la placa clara */
+  --crimson: 179 38 30;
+  --amber: 150 96 0;
+}
+
 @layer base {
   html {
     font-family: var(--font-sans), "Inter", system-ui, -apple-system, sans-serif;

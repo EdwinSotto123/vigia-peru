@@ -78,7 +78,7 @@ export function BarraMapa({
           role="group"
           aria-label="Qué se pinta en el mapa"
         >
-          <span className="hidden shrink-0 whitespace-nowrap px-2 text-[11px] text-inkSoft sm:inline">Pintar por</span>
+          <span className="shrink-0 whitespace-nowrap px-2 text-[11px] font-medium text-mute">Pintar por</span>
           {MEDIDAS.map((m) => (
             <button
               key={m.id}
@@ -87,7 +87,7 @@ export function BarraMapa({
               aria-pressed={medida === m.id}
               title={m.ayuda}
               className={cn(
-                "min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                "min-h-[36px] sm:min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
                 // Granate = elegido (la marca), el mismo idioma en los dos grupos y en las capas.
                 medida === m.id ? "bg-granate text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
               )}
@@ -105,7 +105,7 @@ export function BarraMapa({
           role="group"
           aria-label="Acotar el mapa"
         >
-          <span className="hidden shrink-0 whitespace-nowrap px-2 text-[11px] text-inkSoft sm:inline">Ver solo</span>
+          <span className="shrink-0 whitespace-nowrap px-2 text-[11px] font-medium text-mute">Ver solo</span>
           {FILTROS.map((f) => (
             <button
               key={f.id}
@@ -114,7 +114,7 @@ export function BarraMapa({
               aria-pressed={filtro === f.id}
               title={f.ayuda}
               className={cn(
-                "min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+                "min-h-[36px] sm:min-h-[28px] shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
                 filtro === f.id ? "bg-granate text-paper" : "text-inkSoft hover:bg-paper hover:text-ink",
               )}
             >
@@ -206,7 +206,7 @@ function BotonCapa({
       disabled={vacia}
       aria-busy={cargando || undefined}
       className={cn(
-        "inline-flex min-h-[28px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
+        "inline-flex min-h-[36px] sm:min-h-[28px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-rapido",
         "disabled:cursor-not-allowed disabled:border-line disabled:bg-paperDeep disabled:text-mute",
         activa && !vacia && !cargando
           ? "border-granate bg-granate-soft text-granate"

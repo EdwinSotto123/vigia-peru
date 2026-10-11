@@ -83,7 +83,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           bajada={
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span className="inline-flex items-center gap-1.5">
-                <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {periodoTexto(anio)}: de {mesLargo(d.desde)} a {mesLargo(d.hasta)}
+                <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {mesLargo(d.desde)} a {mesLargo(d.hasta)}
               </span>
               <span>
                 {numero(partido.gobiernos.regional)} {partido.gobiernos.regional === 1 ? "región" : "regiones"}, {numero(partido.gobiernos.provincial)}{" "}

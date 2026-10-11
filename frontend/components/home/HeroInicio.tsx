@@ -50,13 +50,13 @@ export function HeroInicio({ c }: { c: CifrasInicio | null }) {
       </div>
       <BuscarGlobal variant="grande" atajo={false} />
       {tarjetas.length > 0 && (
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
           {tarjetas.map((t) => (
-            <div key={t.etiqueta} className="flex items-center gap-4 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-              {t.pct != null ? <AnilloProgreso pct={t.pct} /> : null}
+            <div key={t.etiqueta} className="flex items-center gap-4 rounded-2xl border border-line bg-paper p-3.5 sm:p-5">
+              {t.pct != null ? <AnilloProgreso pct={t.pct} className="hidden sm:block" /> : null}
               <div className="min-w-0">
-                <dd className="font-display text-3xl font-bold leading-none tabular-nums text-ink sm:text-4xl">{t.valor}</dd>
-                <dt className="mt-1.5 text-[15px] font-semibold text-ink">{t.etiqueta}</dt>
+                <dd className="font-display text-2xl font-bold leading-none tabular-nums text-ink sm:text-4xl">{t.valor}</dd>
+                <dt className="mt-1.5 text-[14px] font-semibold leading-tight text-ink sm:text-[15px]">{t.etiqueta}</dt>
                 <dd className="mt-0.5 text-[13px] leading-snug text-mute">{t.detalle}</dd>
               </div>
             </div>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { FileSearch, HandCoins, Network, type LucideIcon } from "lucide-react";
 import { PartidosExplorador } from "@/components/partidos/PartidosExplorador";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
@@ -26,24 +25,6 @@ import { EnlaceAccion } from "./EnlaceAccion";
  * partido; los resultados de 2026 se suman cuando el JNE los proclame. Si la API de contratos no
  * responde, se omite la parte de lectura (nada se estima).
  */
-
-const CRUCES: { Icono: LucideIcon; titulo: string; texto: string }[] = [
-  {
-    Icono: HandCoins,
-    titulo: "Quién aportó a la campaña",
-    texto: "Los aportes declarados a ONPE se cruzan con quienes ganan contratos: una empresa que financió una campaña y luego gana en esa gestión.",
-  },
-  {
-    Icono: Network,
-    titulo: "Quién es quién en el municipio",
-    texto: "Autoridades y candidatos del JNE se cruzan con socios y firmantes de los proveedores, y con el partido del municipio que contrata.",
-  },
-  {
-    Icono: FileSearch,
-    titulo: "Todo con su fuente",
-    texto: "Cada cruce muestra el registro de donde sale. Un cruce es un motivo para mirar más de cerca, no una acusación.",
-  },
-];
 
 export async function leerCobertura(): Promise<Cobertura | null> {
   const [resumen, regiones, estado] = await Promise.all([
@@ -96,21 +77,8 @@ export async function PartidosSeccion() {
 
         {porPartido && porPartido.data.length > 0 && <PorPartido r={porPartido} />}
 
-        <ul className="mt-12 grid gap-3 md:grid-cols-3">
-          {CRUCES.map(({ Icono, titulo, texto }) => (
-            <li key={titulo} className="flex items-start gap-3.5 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-granate-soft text-granate" aria-hidden>
-                <Icono size={19} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[15px] font-semibold leading-snug text-ink">{titulo}</span>
-                <span className="mt-1 block text-[14px] leading-snug text-inkSoft">{texto}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
 
-        <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-mute">
+        <p className="mt-8 max-w-3xl text-[13px] leading-relaxed text-mute">
           Esto muestra quién ganó en las Elecciones Regionales y Municipales de 2014, 2018 y 2022, no qué hizo cada gobierno. Los resultados
           de 2026 se suman cuando el JNE los proclame. Una señal de Vigía es para revisar, nunca una acusación.{" "}
           <Link href="/preguntas" className="text-granate underline-offset-4 hover:underline">
@@ -156,15 +124,12 @@ function LoQueFalta({ c }: { c: Cobertura }) {
     <div className="mt-8 rounded-2xl border border-granate/35 bg-granate-50 p-5 sm:p-7">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="max-w-2xl">
-          <h3 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">Hoy vigilamos poco. Esto es lo que falta.</h3>
+          <h3 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">Hoy vigilamos poco. Esto falta.</h3>
           <p className="mt-2 text-[15px] leading-relaxed text-inkSoft">
             Cada contrato que se lee se cruza con aportes de campaña y con las autoridades electas. Mientras más se lee, más gobiernos y más
             partidos podemos mirar de cerca.
           </p>
         </div>
-        <EnlaceAccion href="/app/financiar" tamano="lg">
-          Financiar una lectura
-        </EnlaceAccion>
       </div>
 
       {/* La barra: lo leído es una rendija. */}

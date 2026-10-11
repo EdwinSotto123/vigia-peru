@@ -20,7 +20,7 @@ export function FiltroMes({ valor, onChange, meses = 12 }: {
 }) {
   const opciones = useMemo(() => ultimosMeses(meses), [meses]);
   return (
-    <label className="inline-flex min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft focus-within:ring-2 focus-within:ring-granate focus-within:ring-offset-1">
+    <label className="inline-flex min-h-[36px] sm:min-h-[28px] shrink-0 items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft focus-within:ring-2 focus-within:ring-granate focus-within:ring-offset-1">
       <Calendar size={13} aria-hidden />
       <span className="sr-only">Mes de convocatoria</span>
       <select

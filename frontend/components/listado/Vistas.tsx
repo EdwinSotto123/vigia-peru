@@ -32,7 +32,7 @@ export function Vistas({ vistas, etiqueta, className }: { vistas: Vista[]; etiqu
           prefetch={false}
           aria-current={v.activa ? "page" : undefined}
           className={cn(
-            "inline-flex min-h-[36px] items-center gap-2 rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors duration-rapido",
+            "inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-rapido sm:gap-2 sm:px-4 sm:text-[14px]",
             v.activa ? "bg-granate text-paper" : "text-inkSoft hover:bg-granate-50 hover:text-ink",
           )}
         >

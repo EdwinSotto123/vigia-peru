@@ -27,6 +27,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
       <div className="container-page">
         <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-4">
           <div>
+            <p className="etiqueta-mono mb-4 text-granate">Lo que encontró</p>
             <h2 id="casos-titulo" className="font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
               Lo que ya encontró.
             </h2>
@@ -70,7 +71,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
                 <Severidad bandera={c.severidad} />
                 <Link
                   href={`/app/convocatoria/${encodeURIComponent(c.convocatoria)}`}
-                  className="inline-flex min-h-[32px] items-center gap-1.5 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
                 >
                   Leer el análisis <ArrowUpRight size={14} aria-hidden />
                 </Link>
@@ -79,7 +80,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
                     href={c.fuenteUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-h-[32px] items-center gap-1.5 text-[14px] text-inkSoft underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] text-inkSoft underline-offset-4 hover:underline"
                   >
                     Ficha oficial <ExternalLink size={13} aria-hidden />
                     <span className="sr-only">(se abre en una pestaña nueva)</span>

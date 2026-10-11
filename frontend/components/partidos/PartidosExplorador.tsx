@@ -234,7 +234,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                 title={p.cargado ? `Mandato ${p.mandato}` : "Pendiente: se carga cuando el JNE proclame los resultados"}
                 onClick={() => p.cargado && cambiarAnio(p.anio)}
                 className={cn(
-                  "inline-flex min-h-10 flex-col items-start justify-center rounded-xl border px-4 py-1.5 text-left transition-colors",
+                  "inline-flex min-h-11 flex-col items-start justify-center rounded-xl border px-4 py-1.5 text-left transition-colors",
                   activo ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
                   !p.cargado && "cursor-not-allowed border-dashed opacity-60 hover:border-line hover:text-inkSoft",
                 )}
@@ -276,7 +276,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                         aria-selected={modo === id}
                         onClick={() => setModo(id)}
                         className={cn(
-                          "rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
+                          "inline-flex min-h-11 items-center rounded-full px-3.5 text-[12.5px] font-semibold transition-colors",
                           modo === id ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
                         )}
                       >
@@ -297,7 +297,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                       setProvSel(null);
                       setActiva(null);
                     }}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-[13px] font-semibold text-ink hover:bg-paperDeep"
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-paperEdge px-3 text-[13px] font-semibold text-ink hover:bg-paperDeep"
                   >
                     <ArrowLeft size={14} aria-hidden /> Todo el Perú
                   </button>
@@ -427,7 +427,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   aria-selected={panel === id}
                   onClick={() => setPanel(id)}
                   className={cn(
-                    "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
+                    "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
                     panel === id ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
                   )}
                 >

@@ -112,8 +112,8 @@ export function TablaContratos({
 
   if (total === 0) {
     return filtrado ? (
-      <EstadoVacio titulo="Ningún contrato cumple todos los filtros a la vez" compacto accion={<Link href={RUTA} className={ACCION}>Quitar los filtros</Link>}>
-        Los filtros se suman: quita el más restrictivo y la lista se vuelve a llenar.
+      <EstadoVacio titulo="Ningún contrato coincide con tu búsqueda" compacto accion={<Link href={RUTA} className={ACCION}>Quitar búsqueda y filtros</Link>}>
+        Prueba otra palabra del objeto, el código o la entidad. Si usas filtros, se suman: quita el más restrictivo.
       </EstadoVacio>
     ) : (
       <EstadoVacio titulo="Todavía no hay contratos en la base">

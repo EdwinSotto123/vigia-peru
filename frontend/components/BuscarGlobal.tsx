@@ -205,7 +205,7 @@ export function BuscarGlobal({
       <kbd className="hidden rounded border border-line bg-paperSoft px-1.5 py-0.5 font-mono text-[11px] text-mute sm:inline">Ctrl K</kbd>
     </button>
   ) : variant === "boton" ? (
-    <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-granate group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
+    <button type="button" onClick={abrir} aria-haspopup="dialog" aria-label="Buscar (Ctrl+K)" title="Buscar (Ctrl+K)" className={cn("inline-flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-line bg-paperSoft text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-granate group-data-[tema-header=oscuro]/header:border-paper/20 group-data-[tema-header=oscuro]/header:bg-paper/10 group-data-[tema-header=oscuro]/header:text-paper group-data-[tema-header=oscuro]/header:hover:bg-paper/20", className)}>
       <Search size={15} aria-hidden />
     </button>
   ) : (

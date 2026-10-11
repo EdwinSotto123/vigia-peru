@@ -207,7 +207,7 @@ export function CasoLeido({
                     titulo={titulo}
                     descripcion={caso.entidad}
                     etiqueta="Ver lo que encontró Vigía en este contrato"
-                    className="inline-flex w-auto min-h-[32px] items-center gap-1 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline"
+                    className="inline-flex w-auto min-h-11 sm:min-h-8 items-center gap-1 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline"
                     detalle={<DetalleCaso caso={caso} />}
                     pie={<PieCaso caso={caso} analisis={analisis} />}
                   >
@@ -324,7 +324,7 @@ function FichaOficial({ href, oscuro = false }: { href: string; oscuro?: boolean
       target="_blank"
       rel="noreferrer"
       className={cn(
-        "inline-flex min-h-[32px] items-center gap-1.5 font-medium underline-offset-2 hover:underline",
+        "inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 font-medium underline-offset-2 hover:underline",
         oscuro ? "justify-center text-[14px] text-paper/85" : "text-ink",
       )}
     >

@@ -85,11 +85,8 @@ export async function PodioPortada() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <EnlaceAccion href="/app/financiar" variante="oscuro" tamano="lg">
-            Subir al podio
-          </EnlaceAccion>
           {podio.length > 0 && (
-            <EnlaceAccion href="/app/aliados" variante="contornoOscuro" tamano="lg" flecha={false}>
+            <EnlaceAccion href="/app/aliados" variante="oscuro" tamano="lg">
               Ver el ranking completo
             </EnlaceAccion>
           )}

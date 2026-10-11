@@ -144,7 +144,7 @@ export function Header() {
             <Link
               href="/app/financiar"
               className={cn(
-                "group hidden min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido sm:inline-flex",
+                "group hidden min-h-11 lg:min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido sm:inline-flex",
                 // Sobre oscuro, el botón primario se invierte: papel con texto granate (Button "oscuro").
                 oscuro ? "bg-maiz text-ink hover:bg-maiz/85" : "bg-granate text-paper hover:bg-granate-deep",
               )}
@@ -165,7 +165,7 @@ export function Header() {
               aria-controls="mobile-nav-panel"
               aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors duration-rapido lg:hidden",
+                "inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors duration-rapido lg:hidden",
                 oscuro ? "border-paper/20 bg-paper/10 text-paper hover:bg-paper/20" : "border-line bg-paperSoft text-ink hover:bg-paperDeep",
               )}
             >
@@ -298,7 +298,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
             onMouseEnter={(e) => mover(e.currentTarget)}
             onFocus={(e) => mover(e.currentTarget)}
             className={cn(
-              "group relative z-10 inline-flex min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors duration-rapido xl:px-3",
+              "group relative z-10 inline-flex min-h-11 xl:min-h-9 items-center whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors duration-rapido xl:px-3",
               "after:absolute after:bottom-0.5 after:left-3 after:right-3 after:h-[2px] after:origin-center after:rounded-full after:transition-transform after:duration-normal",
               active ? "after:scale-x-100" : "after:scale-x-0",
               oscuro

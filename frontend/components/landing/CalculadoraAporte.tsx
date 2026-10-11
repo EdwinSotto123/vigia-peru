@@ -102,7 +102,7 @@ export function CalculadoraAporte({
               type="button"
               onClick={() => setContratos(p)}
               aria-pressed={contratos === p}
-              className={`min-h-[36px] min-w-[44px] rounded-full border px-3.5 py-1.5 text-[13px] font-semibold tabular-nums transition-colors duration-rapido ${
+              className={`min-h-11 min-w-[44px] rounded-full border px-3.5 py-1.5 text-[13px] font-semibold tabular-nums transition-colors duration-rapido ${
                 contratos === p
                   ? "border-granate bg-granate text-paper"
                   : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50"

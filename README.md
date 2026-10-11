@@ -1,307 +1,222 @@
-# 🛰️ Vigía Perú
+# vigía_ Perú
 
-### A civic anti-corruption platform that audits Peruvian public contracts with an **11-agent AI pipeline** — for **≈ 1 sol (US$0.30)** and **≈ 3 minutes** each.
+### Civic anti-corruption platform. AI agents read Peru's public contracts, cross them with official records, and flag the ones that deserve a second look.
 
 > **Corruption in Peru is already public. Vigía makes it _readable_.**
-> Every tender, every contract, every debarred company is already open data on SEACE/OECE.
-> The bottleneck was never the data — it was the **cost** of reading it. Vigía drops that cost
-> to the price of a coffee.
+> Every tender, contract and debarred company is open data. The bottleneck was never the data,
+> it was the **cost of reading it**. Vigía funds that reading with small donations: a contract is read
+> for **S/ 3**, and the result is public, always.
 
-🔗 **Live demo:** https://vigia-peru-frontend-36169102688.us-central1.run.app
-📊 **Observability (Arize Phoenix):** project `vigia-peru`
-
----
-
-## 🎯 The problem
-
-Investigating **a single** suspicious state contract takes a journalist **days**: 80-page scanned
-PDFs scattered across a dozen `.gob.pe` portals that don't talk to each other (SEACE, OECE, SUNAT,
-INFOBRAS, ONPE, JNE…). There are **thousands** of new contracts every month. Oversight is a slow,
-heroic act that doesn't scale.
-
-## 💡 The solution
-
-Vigía Perú is a three-layer platform:
-
-| Layer | What it does |
-|---|---|
-| 🟡 **Machine** | 11 AI agents read the bidding file, cross-check open data, and emit **risk signals** on suspicious contracts — each one **linked to its official source**. |
-| 🔴 **Citizen** | Anyone reports a stalled or anomalous public work with a **photo + geolocation**. |
-| ⬛ **Convergence** | When an automated alert and a citizen report point at the **same work**, the case turns "red": evidence ready for a journalist or prosecutor. |
-
-Everything is plotted on an **interactive map of Peru**: 🟡 alert · 🔴 citizen report · ⬛ convergence.
-
-> **Non-negotiable principle:** we never accuse anyone. We say *"risk signal"*, never *"crime"*.
-> No verifiable link to an official source → it is not published.
+**Live:** https://vigia-web.vigiaperu.workers.dev  ·  **Observability:** Arize Phoenix, project `vigia-peru`
+**Spanish docs:** [`ARQUITECTURA.md`](ARQUITECTURA.md) · [`SOLUCION.md`](SOLUCION.md) · [`OBSERVABILITY.md`](OBSERVABILITY.md)
 
 ![Full process](docs/img/proceso-completo.png)
 
 ---
 
-## 🏗️ Architecture
+## What it does
+
+| For | What you get |
+|---|---|
+| **Any citizen** | Pick your region on one map and see three readings: **who governs it**, **how much money is contracted**, and **how much of it Vigía has already read**. Every contract has a plain-language status. |
+| **Journalists and investigators** | Risk signals with the **law they cite** and the **official document** they come from, ready to verify and quote. Search by contract, entity, RUC or region. A read-only **MCP server** exposes the same evidence to any AI assistant. |
+| **Donors** | Fund the reading of contracts **by zone, by entity or by political party and electoral period**. Nobody picks which contracts are read, results are published even if they point at the donor, and the ranking counts contracts, never soles. |
+| **Neighbours** | Report a stalled or suspicious public work with a photo and a location. Two independent reports within 30 days confirm it. |
+
+> **Non-negotiable principle:** we never accuse anyone. A signal is a reason to review a contract,
+> never a charge. No verifiable link to an official source means it is not published.
+
+### Contracts by political party
+
+Every contract is linked to the party that governed the contracting entity **in the month the contract was
+called**, using the regional and municipal election results (JNE, 2014, 2018 and 2022 terms). The link is made
+with the election winner: vacancies, recalls and replacements inside a term are not recorded, and the UI says so.
+Funding by party picks contracts at random among those of the entities that party governed in a given term.
+See [`backend/db/migrations/41_aporte_por_partido.sql`](backend/db/migrations/41_aporte_por_partido.sql).
+
+---
+
+## Architecture at a glance
 
 ```
- USER ──► FRONTEND (Next.js, Cloud Run) ──NDJSON stream──► ADK ORCHESTRATOR (Cloud Run)
-   ▲                │                                            │  ADK Runner + Gemini 2.5
-   │   GET dossier  │                                            ▼
-   │                ▼                            ┌──────────────────────────────────┐
-   │      Read API (Hono/TS, Cloud Run)          │       11-AGENT PIPELINE            │
-   │      + cache + gzip   ◄── reads ─┐           └──────┬────────┬────────┬──────────┘
-   │                                  │                  ▼        ▼        ▼
-   └──────────────────────────────────┤            Document AI  Vertex    SUNAT
-                                       │             (PDF OCR)   AI Search (apis.net.pe)
-                              Cloud SQL (PostgreSQL        │     (RAG: 721
-                              + PostGIS): alerts,          │      OECE opinions)
-                              flags, network, pins         ▼
-                                                  OECE/SEACE (OCDS + PDFs)
-                                                  via residential relay in Lima
+ People ─► Cloudflare Workers ──────────────────────────────────────────────┐
+           vigia-web (Next.js 14, OpenNext)                                   │
+           vigia-api (Hono / TypeScript)  ─ Hyperdrive ─► tunnel ─► PgBouncer ─► Cloud SQL (Postgres 16 + PostGIS)
+           vigia-dispatcher · vigia-mcp · vigia-relay · vigia-r2-sync          │
+                       │                                                      │
+                       ▼                                                      │
+   Cloud Run agents (one per contract type, Google ADK) ◄── reads / writes ───┘
+     ├─ Vertex AI · Gemini 3.6 Flash (+ Flash-Lite judges)
+     ├─ Document AI (PDF text)
+     └─ RAG Engine · 4 corpora of procurement law and OECE opinions
+
+   Cloud Run Jobs + Cloud Scheduler ─► OECE (OCDS), PNDA, JNE, MEF, ONPE ─► GCS ─► Postgres
 ```
 
-### The 11 agents (Google ADK)
-
-A **coordinator** delegates to specialized sub-agents; each runs on **Gemini 2.5**:
-
-`orchestrator` (coordinates) · `compliance` (hard rules) · `document_parser` (OCR + line items) ·
-`document_legal_analyst` (OECE RAG) · `market_analyst` (price vs market) · `web_research`
-(company profile) · `person_network` (partners/representatives) · `political_financing` (ONPE) ·
-`news_research` (press) · `citizen_reports` (red pins) · `report_writer` (verdict) ·
-`evaluator` (self-eval).
+* **Edge:** the public site, the API, the dispatcher and the MCP server run on **Cloudflare Workers**.
+  A Worker in Zurich relays the OECE API, which only answers to Peruvian and nearby IPs.
+* **Core:** one Postgres database is the source of truth. Roles per component, read models, and the contract
+  assignment functions live inside the database.
+* **AI:** each contract type (goods, services, works, other) has its own Cloud Run agent. The sequence of
+  agents is **deterministic code**, not a model's decision, and each reading ends with four self-evaluation
+  judges before anything is published.
+* **Data:** daily ingestion of new contracts (06:00 Lima) and their documents (02:00), plus monthly and weekly
+  scrapers for sanctions, visits, interest declarations, authorities and budget.
 
 ![Agentic pipeline graph](docs/img/grafo-verde.png)
 
 ---
 
-## 🔌 MCP server — Vigía as a data source, not just an app
+## MCP server: Vigía as a data source
 
-Beyond the web app, Vigía ships a **remote [Model Context Protocol](https://modelcontextprotocol.io)
-server** (`backend/mcp`, on Cloud Run) that exposes its risk signals and evidence as
-**read-only tools** to any MCP-compatible LLM client. A journalist or prosecutor can ask, from their
-own AI assistant, *"show me the red alerts in Áncash"* and get them back **with their official
-evidence attached** — no scraping, no UI.
-
-The server enforces the same non-negotiable rules: only public data (serving officials and
-state-contracting companies), risk *signals* never accusations, and read-only access (no tool ever
-writes to the database).
+`backend/mcp` is a remote [Model Context Protocol](https://modelcontextprotocol.io) server with **read-only**
+tools. A journalist can ask their own AI assistant "show me the high-risk contracts in Áncash" and get them back
+**with their official evidence attached**, without scraping and without the UI. It only exposes public data and
+never writes to the database.
 
 ---
 
-## 🗄️ Data
+## Data
 
-Vigía combines a **local snapshot of Peru's public-procurement lifecycle** with **live external
-sources**. Full breakdown in [`docs/DATA.md`](docs/DATA.md).
+Vigía combines the OECE/SEACE procurement lifecycle with live public sources. Details in [`docs/DATA.md`](docs/DATA.md).
 
-### Primary dataset — SEACE/OECE procurement (OCDS), 2026 snapshot (~2.5M rows)
-
-The complete lifecycle of a Peruvian public contract, keyed end-to-end by `codigoconvocatoria`:
-
-| Phase | Tables | Join key |
+| Source | Used for | Cadence |
 |---|---|---|
-| Planning | `plan_anual_contratacion` (PAC) | `ruc_entidad` + description |
-| Call for bids | `datos_de_la_convocatoria`, `miembros_comite`, `nulos`, `procesos_desiertos` | `codigoconvocatoria` |
-| Bidding | `listado_de_ofertantes`, `proveedores_y_consorcios` | `codigoconvocatoria`, `ruc_postor` |
-| Award | `datos_de_adjudicacion`, `contratacion_directa` | `codigoconvocatoria`, `ruc_proveedor` |
-| Execution | `contratos`, `ordenes_compra_y_servicio` | `codigoconvocatoria`, `ruc_contratista` |
-| Post-control | `arbitraje`, `PRONUNCIAMIENTOS` | `codigoconvocatoria` |
-| Master data | `entidades_contratantes`, `rnp_proveedores`, `sanciones`, `sican_certificados`, `opiniones_normativas` | RUC, DNI |
+| **OECE, Contrataciones Abiertas (OCDS)** | Contracts, entities, amounts, stage | Daily |
+| **OECE documents** | Bidding files and contracts in PDF | Daily |
+| **PNDA (datosabiertos.gob.pe)** | Sanctions, entity visits, penalties, interest declarations | Weekly to monthly |
+| **JNE, Infogob** | Authorities and candidacies, who governs each place | Monthly and per election |
+| **ONPE, Claridad** | Campaign contributions | Manual (needs a browser and a Peruvian IP) |
+| **MEF** | Regional budget | Monthly |
+| **SUNAT** (via decolecta) | Company age and status | On demand |
 
-The **721 OECE normative opinions** (`opiniones_normativas`) are indexed in **Vertex AI Search**
-and power the legal-grounding RAG: every compliance finding cites the specific opinion it relies on.
+The raw datasets are **not** in this repository: they are large and some contain personal data (the RNP
+registry has partners' names and IDs). We reference the official open-data sources instead.
+Personal data is never shown in clear in the UI: IDs and surnames sit behind frosted glass until clicked,
+while companies and public officials are not censored.
 
-### Live external sources (selection)
+### The alert engine
 
-| Source | Used for | Access |
-|---|---|---|
-| **OECE — Contrataciones Abiertas** | Contracts in **OCDS** format | REST API + downloads |
-| **SUNAT** (via `apis.net.pe` / decolecta) | Company tax-ID (RUC) age & status | REST API |
-| **INFOBRAS** (Comptroller) | Public-works progress | Web/downloads |
-| **MEF** (Consulta Amigable / Datos Abiertos) | Budget (PIA, PIM, executed) | CSV/scrape |
-| **ONPE — Portal Claridad** | Campaign contributions | Web |
-| **JNE** | Officials' CVs | Web + PDFs |
-
-### Risk cross-checks (the alert engine)
-
-The MVP implements **C1 (RUC age vs winner)** and **C2 (single bidder at 100% of the reference
-value)**, plus hard compliance rules (sanctioned/debarred provider, direct award without valid
-grounds, addenda > 25% of original amount, etc.). Each red flag cites its legal basis (Law 32069 /
-Law 30225) and the relevant OECE opinion.
-
-> ⚠️ **The raw local dataset is _not_ in this repo** — it is ~739 MB and contains personal data
-> (the RNP registry includes partners'/representatives' names and national IDs). Publishing it
-> would violate our own ethics rule #2 ("we do not publish citizens' personal data"). We reference
-> the **official open-data sources** instead. See [`docs/DATA.md`](docs/DATA.md).
+Hard rules (sanctioned supplier, single bidder at 100 % of the reference value, direct award without valid
+grounds, addenda above 25 %, company created shortly before winning, penalties, door-turning between
+officials and suppliers, campaign contributions followed by contracts) plus model-assisted legal and market
+analysis. Each flag cites its legal basis and the official document it comes from.
 
 ---
 
-## ☁️ Google Cloud services used
+## Google Cloud and AI
 
 | Service | Purpose |
 |---|---|
-| **Vertex AI** | Gemini 2.5 (Flash + Flash-Lite), **global endpoint** — the reasoning engine for all 11 agents |
-| **Agent Development Kit (ADK)** | Multi-agent orchestration (coordinator + `transfer_to_agent`) |
-| **Vertex AI Search** | Semantic RAG over **721 OECE normative opinions** (legal grounding) |
-| **Document AI** | OCR of bidding-file PDFs (per-use, imageless mode) |
-| **Cloud Run** | Frontend, read API, orchestrator, and MCP server |
-| **Cloud Functions (gen2)** | Orchestrator entrypoint (Cloud Run-backed) |
-| **Cloud SQL (PostgreSQL + PostGIS)** | Procurement lifecycle, alerts, flags, corporate network, geospatial pins |
-| **Cloud Storage** | Document & report staging |
-| **Secret Manager** | All credentials (no plaintext keys in the codebase) |
-| **Cloud Build + Artifact Registry** | Container builds & deploys |
-| **Cloud Logging / Monitoring** | Pipeline observability |
-| **Firebase Authentication** | Demo login |
+| **Vertex AI (Gemini)** | `gemini-3.6-flash` for analysis and `gemini-3.5-flash-lite` for fast steps and judges, global endpoint, Flex pricing with fallback to standard |
+| **Agent Development Kit** | Multi-agent orchestration |
+| **Document AI** | Text from bidding-file PDFs |
+| **RAG Engine** | Procurement law and OECE opinions, with a fallback cascade to Vertex AI Search and pgvector |
+| **Cloud Run and Jobs** | Agents, scrapers, ingestion |
+| **Cloud SQL (PostgreSQL + PostGIS)** | The single source of truth |
+| **Cloud Storage, Secret Manager, Cloud Scheduler, Cloud Build** | Files, credentials (none in the repo), schedules, builds |
 
----
+**Cost:** about **US$ 0.17 per newly read contract** after the Flex and caching work, against a S/ 3 donation per contract.
 
-## 🤖 Models
+### Observability with Arize
 
-| Model | Role |
-|---|---|
-| **Gemini 2.5 Flash** (Vertex AI, global) | Main agent reasoning and verdict writing |
-| **Gemini 2.5 Flash-Lite** (Vertex AI, global) | Fast extraction / lightweight steps |
-| **Document AI** (OCR processor) | Scanned-PDF text → fed to Gemini in **a single call** per document |
-| **Vertex AI Search** | Embeddings + retrieval over the OECE legal corpus |
-
-**Why the Vertex `global` endpoint?** New projects hit aggressive per-region throttling (429); the
-global endpoint routes across regions and fixed exactly that, letting document-heavy tenders finish
-without hitting the time wall.
-
----
-
-## 📊 Observability — and why **Arize** matters
-
-Trust in an 11-agent system depends on being able to **see and evaluate every decision**.
-
-- **OpenInference** instruments the **ADK Runner** (the full loop + every `transfer_to_agent`
-  between agents) and **every Gemini call**. Everything is exported over OTEL to **Arize AX** and
-  **Arize Phoenix** (project `vigia-peru`).
-- The result: a **full span tree per OCID** — tokens, cost, latency, and prompt/response for each
-  step. If an agent hallucinates or drifts, it shows up in the trace.
-- **Inline self-eval**: at the end of each analysis, **6 evaluators** run (4 LLM-as-judge +
-  2 deterministic): flag support, evidence citation, price plausibility, object↔items coherence,
-  **non-accusatory tone**, and pipeline completeness.
-
-> Arize turns an agentic black box into an **auditable, evaluable** system — a prerequisite for
-> journalists and prosecutors to trust the signals.
+OpenInference instruments the ADK runner and every Gemini call and exports to **Arize Phoenix**
+(project `vigia-peru`): a full span tree per contract with tokens, cost, latency, prompts and responses.
+Each reading runs **four LLM-as-judge evaluators** (flag support, evidence citation, non-accusatory tone,
+pipeline completeness) and an unsure result goes to human review instead of being published.
 
 ![Arize dashboard](docs/img/dashboard-arize.png)
 ![Arize metrics](docs/img/metricas-arize.png)
 
 ---
 
-## 💰 Cost and ⏱️ latency (measured)
-
-| Metric | Value |
-|---|---|
-| **Cost per full analysis** | **≈ 1 sol (≈ US$0.30)** |
-| **Latency per analysis** | **≈ 3 minutes** (depends on document weight) |
-| Gemini calls per run | ≈ 12 |
-| Tokens per run | ≈ 180K in + 80K out (≈ 245K total) |
-| OCR | per-use (Document AI), only the actual pages of the file |
-
-**Cost/latency optimizations implemented:**
-- **Document AI + one Gemini call per document** (previously: page-by-page Vision).
-- **Per-URL parse cache** — the same PDF is never OCR'd/parsed twice in a run.
-- **Semantic line-item dedup** — the same item is never priced twice against the market.
-- **Read ≠ write** — cached dossiers are served by a lightweight gzip API; the (expensive)
-  orchestrator only runs **new** analyses.
-- **Persistence checkpoint** before the verdict — a timeout never leaves an empty dossier.
-
----
-
-## 🧱 Stack
+## Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 · React · TailwindCSS · Leaflet/OpenStreetMap |
-| Read API | Hono (TypeScript) · cache · gzip |
-| Orchestrator | Python · Google ADK · functions-framework |
-| AI | Gemini 2.5 (Vertex AI global) · Document AI · Vertex AI Search |
-| Data | Cloud SQL (PostgreSQL + PostGIS) · DuckDB (local analysis) |
-| Observability | OpenInference · OpenTelemetry · Arize AX + Phoenix |
-| Integration | Custom **MCP** server (Cloud Run) · residential relay (FastAPI) |
+| Web | Next.js 14, React, Tailwind, GSAP, d3-geo. Identity: charcoal and lime, a dot-matrix eye |
+| API | Hono (TypeScript) on Cloudflare Workers and Cloud Run |
+| Agents | Python, Google ADK, Gemini on Vertex AI |
+| Data | PostgreSQL 16 + PostGIS, PgBouncer, Hyperdrive |
+| Ingestion | Python scrapers as Cloud Run Jobs (`backend/scrapers`) |
+| Observability | OpenInference, OpenTelemetry, Arize Phoenix |
+| Infra as code | Terraform and one deploy script per component |
 
----
-
-## 📁 Repository layout
+## Repository layout
 
 ```
 vigia-peru/
-├── frontend/                  # Web app (Next.js 14): map, dossiers, citizen reports · Cloud Run
+├── frontend/                  Next.js 14 app: portada, /app (map, contracts, signals, entities, parties,
+│                              funding), /admin
 ├── backend/
-│   ├── agent/                 # 11-agent orchestrator (Python + Google ADK) · Cloud Run
-│   │   ├── agents/            #   one subfolder per agent (prompt + config)
-│   │   ├── tools/             #   OCDS, Document AI, market, legal RAG, persistence
-│   │   └── deterministic.py   #   the pipeline sequence, in code
-│   ├── api/                   # Read API (Hono/TS) over Cloud SQL · Cloud Run
-│   ├── mcp/                   # Remote MCP server (read-only tools for external LLM clients) · Cloud Run
-│   ├── relay/                 # Residential relay in Lima (FastAPI) — .gob.pe WAF bypass · VPS
-│   ├── db/                    # Postgres schema: migrations/ (01..08), schemas/ (external datasets), apply_all.py
-│   ├── scripts/               # Ingestion, seed, dataset catalog, offline evals
-│   └── scrapers/              # Automated ingestion pipelines (PNDA, OCDS, MEF, ONPE, JNE) — see its README
+│   ├── agent/                 ADK agents (Python): one per contract type, deterministic pipeline
+│   ├── api/                   Read and write API (Hono) · Cloudflare Worker and Cloud Run
+│   ├── dispatcher-worker/     Hands paid contracts to the agents
+│   ├── mcp/ · mcp-worker/     Read-only MCP server
+│   ├── relay-worker/          Zurich relay to the OECE API
+│   ├── r2-sync-worker/        GCS to R2 file copy
+│   ├── db/migrations/         Numbered SQL migrations (01 to 41) and apply_all.py
+│   ├── scrapers/              Ingestion pipelines (PNDA, OCDS, MEF, ONPE, JNE)
+│   └── scripts/               Loaders and generators (for example, who governs each place)
 ├── infrastructure/
-│   ├── terraform/             # GCP platform as code (Cloud SQL, buckets, secrets, IAM, Cloud Run)
-│   ├── deploy/                # One deploy script per service (gcloud run deploy --source)
-│   └── docker-compose.yml     # Local Postgres + PostGIS for development
-├── docs/                      # DATA.md, DATASET_MAP.md, MARCO_NORMATIVO.md, hackathon/, img/
-├── ARQUITECTURA.md            # GCP architecture as built (ES)
-├── SOLUCION.md                # How it works: end-to-end data flow (ES)
-└── OBSERVABILITY.md           # Observability setup detail — Arize/Phoenix (ES)
+│   ├── terraform/             The platform as code
+│   └── deploy/                One script per component, and the project-move runbook
+└── docs/                      DATA.md, DATASET_MAP.md, MARCO_NORMATIVO.md, images
 ```
 
-## ⚖️ Non-negotiable rules (legal + ethical)
+## Non-negotiable rules (legal and ethical)
 
-1. **We never accuse anyone** — "risk signal" / "detected pattern", never "crime".
-2. **We never publish citizens' personal data** — only serving officials and companies that
-   contract with the State (public by law).
-3. **We do not replace the Comptroller / Prosecutor / journalism** — we detect and prioritize.
-4. **Citizen reports**: two independent reports within ≤30 days to be "confirmed"; no photo → not
-   published.
-5. **No ads, no data monetization** — open source, non-profit.
-6. **Every flag links to official evidence** (SEACE/OECE/MEF URL, contract code, OECE opinion
-   number). No verifiable link → not published.
+1. **We never accuse anyone.** A signal is a reason to review, never a charge, not against a company, a person or a party.
+2. **We never publish citizens' personal data.** Only serving officials and companies that contract with the State.
+3. **We do not replace the Comptroller, the prosecutors or journalism.** We detect and prioritize.
+4. **Citizen reports:** two independent reports within 30 days to be confirmed. No photo, not published.
+5. **Funding buys reading, not results:** donors do not choose contracts, cannot edit findings, and are published even if flagged.
+6. **Every flag links to official evidence.** No verifiable link, not published.
+7. **No ads, no data monetization.** Open source and non-profit.
 
 ---
 
-## 🚀 Running locally (overview)
+## Running locally
 
-Each component ships a `.env.example`. In broad strokes:
+Each component ships a `.env.example`.
 
 ```bash
-# Frontend
+# Local database (Postgres 16 + PostGIS)
+docker compose -f infrastructure/docker-compose.yml up -d
+python backend/db/apply_all.py             # PGHOST=127.0.0.1 PGPASSWORD=vigia by default
+
+# API
+cd backend/api && npm install && cp .env.example .env && npm run dev
+npm test                                    # unit tests
+
+# Web
 cd frontend && npm install && cp .env.example .env.local && npm run dev
 
-# Local database (Postgres 16 + PostGIS + pgvector)
-docker compose -f infrastructure/docker-compose.yml up -d
-python backend/db/apply_all.py            # PGHOST=127.0.0.1 PGPASSWORD=vigia by default
+# Agents (needs Vertex AI credentials)
+cd backend/agent && pip install -r requirements.txt
 
-# Read API
-cd backend/api && npm install && cp .env.example .env && npm run dev
-
-# Orchestrator (requires GCP / Vertex AI credentials)
-cd backend/agent && pip install -r requirements.txt && functions-framework --target=orchestrate
-
-# Deploy (see infrastructure/README.md)
-bash infrastructure/deploy/frontend.sh
+# Scrapers
+cd backend && pip install -r scrapers/requirements.txt && python -m pytest scrapers/tests
 ```
 
-> Credentials (Cloud SQL, Vertex, Document AI, Arize/Phoenix) live in environment variables or
-> Secret Manager — **never** in the repo.
+Deploys go one component at a time, in this order: **migration, then API, then web**
+(`infrastructure/deploy/*.sh`, see `infrastructure/deploy/README.md`).
+Credentials live in environment variables or Secret Manager, never in the repo.
 
 ---
 
-## 📍 Status
+## Status
 
-Working MVP over a pilot region: full machine layer + citizen report form + interactive map.
-Built for the **Google Cloud Rapid Agent Hackathon** (Arize observability track). Roadmap to
-national coverage, report moderation, and Comptroller/Prosecutor hand-off in
-[`ARQUITECTURA.md`](ARQUITECTURA.md).
+Working platform with national coverage of published contracts (about 20 thousand in the base), the map with
+three readings, funding by zone, entity and party, public donor profiles, and an admin panel. Reading with AI is
+funded by donations, so the share of contracts read grows as people contribute.
+Built for the **Google Cloud Rapid Agent Hackathon** (Arize observability track).
 
----
+Known gaps: ONPE contributions are loaded by hand, payments are validated manually (no gateway yet), and the
+2026 election results will be added when the JNE proclaims them.
 
-## 📄 License
+## License
 
-Released under the **MIT License** — see [`LICENSE`](LICENSE). Open source, non-profit, no ads,
-no data monetization.
+Released under the **MIT License**, see [`LICENSE`](LICENSE). Open source, non-profit, no ads, no data monetization.
 
----
-
-*Open source · non-profit · built for Peru.* 🇵🇪
+*Open source · non-profit · built for Peru.*

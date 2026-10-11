@@ -36,7 +36,9 @@ export function Ayuda({
       titulo={titulo}
       anchoClase={ancho}
       className={cn(
-        "h-6 w-6 shrink-0 justify-center rounded-full align-middle text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-granate",
+        "relative h-6 w-6 shrink-0 justify-center rounded-full align-middle text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-granate",
+        // Área de toque de 44 px sin cambiar lo que se ve (WCAG 2.5.5): sólo con puntero táctil.
+        "[@media(pointer:coarse)]:before:absolute [@media(pointer:coarse)]:before:-inset-2.5 [@media(pointer:coarse)]:before:content-['']",
         className,
       )}
       trigger={

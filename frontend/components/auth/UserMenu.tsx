@@ -61,7 +61,7 @@ export function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar
         prefetch={false}
         aria-label="Entrar"
         className={cn(
-          "inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:px-3.5",
+          "inline-flex h-11 min-w-11 sm:h-9 sm:min-w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-sm font-medium text-ink transition-colors duration-rapido hover:bg-paperDeep sm:px-3.5",
           sobreCabeceraOscura,
         )}
       >

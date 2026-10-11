@@ -175,7 +175,7 @@ function TituloColumna({ children }: { children: React.ReactNode }) {
 function ColumnaEnlaces({ titulo, enlaces }: { titulo: string; enlaces: Enlace[] }) {
   // El subrayado en maíz al pasar es el acento del pie (DESIGN_SYSTEM.md §3.3).
   const clase =
-    "inline-flex min-h-6 items-center text-[13px] leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
+    "inline-flex min-h-11 lg:min-h-6 items-center text-[13px] leading-snug text-paper/80 decoration-maiz decoration-2 underline-offset-4 transition-colors duration-rapido hover:text-paper hover:underline";
   return (
     <div className="min-w-0">
       <TituloColumna>{titulo}</TituloColumna>

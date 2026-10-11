@@ -31,7 +31,7 @@ export function ExpansionSection() {
             Perú es el primero, <span className="text-granate">no el único</span>.
           </h2>
           <p className="mt-1.5 text-[14px] leading-relaxed text-inkSoft">
-            El Perú publica sus contratos en un formato abierto (OCDS) que también usan otros gobiernos de la
+            El Perú publica sus contratos en un formato abierto que también usan otros gobiernos de la
             región. Por eso Vigía podría leer los suyos con las mismas revisiones.
           </p>
         </div>

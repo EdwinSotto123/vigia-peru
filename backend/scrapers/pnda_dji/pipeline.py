@@ -1,7 +1,7 @@
 """Declaraciones Juradas de Intereses (Contraloría) vía PNDA → tablas `dji_*`.
 
 Fuentes verificadas 2026-09-14 (CSV directos, actualizados 2026-08/09):
-  - declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría-general-de-la-república
+  - declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría
       Reporte1.csv (268 MB): CODIGO_DDJJ, TIPO_DOCUMENTO_FUNCIONARIO, APELLIDO_PATERNO,
       APELLIDO_MATERNO, NOMBRES, ENTIDAD, CARGO, FECHA_ELABORACION_DDJJ, FECHA_PRESENTACION_DDJJ,
       FECHA_INICIO_CARGO, FECHA_CESE_CARGO
@@ -41,11 +41,11 @@ from .._core.storage import sha256_of
 
 DATASETS = {
     "funcionarios": (
-        "declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría-general-de-la-república",
+        "declaraciones-juradas-de-intereses-presentadas-ante-la-contraloría",
         "Reporte1.csv",
     ),
-    "empleos": ("empleos-declarados-en-las-declaraciones-juradas-de-intereses", "Reporte3.csv"),
-    "familiares": ("familiares-declarados-en-las-declaraciones-juradas-de-intereses", "Reporte2.csv"),
+    "empleos": ("empleos-declarados-en-las-declaraciones-juradas-de-intereses-contraloría", "Reporte3.csv"),
+    "familiares": ("familiares-declarados-en-las-declaraciones-juradas-de-intereses-contraloría", "Reporte2.csv"),
 }
 
 # (tabla destino, columnas en el orden del CSV)

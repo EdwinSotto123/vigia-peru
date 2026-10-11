@@ -75,7 +75,7 @@ export function RankingPartidos({
               onResaltar(null);
             }}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-[13px] font-semibold capitalize transition-colors",
+              "min-h-11 rounded-full px-3.5 py-1.5 text-[13px] font-semibold capitalize transition-colors sm:min-h-[32px]",
               nivel === n ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
             )}
           >
@@ -365,7 +365,7 @@ export function MiDistrito({
           <div className="mt-4 flex flex-wrap gap-2">
             <a
               href={`/app/entidades?q=${encodeURIComponent(`Municipalidad Distrital de ${dist.n}`)}`}
-              className="inline-flex min-h-10 items-center rounded-full bg-granate px-4 text-[14px] font-semibold text-paper hover:bg-granate-deep"
+              className="inline-flex min-h-11 items-center rounded-full bg-granate px-4 text-[14px] font-semibold text-paper hover:bg-granate-deep"
             >
               Ver sus contratos en Vigía
             </a>
@@ -383,11 +383,11 @@ export function MiDistrito({
                   /* el usuario canceló */
                 }
               }}
-              className="inline-flex min-h-10 items-center rounded-full border border-paperEdge px-4 text-[14px] font-semibold text-ink hover:bg-paperSoft"
+              className="inline-flex min-h-11 items-center rounded-full border border-paperEdge px-4 text-[14px] font-semibold text-ink hover:bg-paperSoft"
             >
               {copiado ? "Copiado" : "Compartir"}
             </button>
-            <button type="button" onClick={() => setSel(null)} className="inline-flex min-h-10 items-center px-2 text-[13px] text-mute hover:text-ink">
+            <button type="button" onClick={() => setSel(null)} className="inline-flex min-h-11 items-center px-2 text-[13px] text-mute hover:text-ink">
               Otro distrito
             </button>
           </div>

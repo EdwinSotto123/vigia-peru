@@ -148,9 +148,9 @@ export function ContratosLista({ query, size = 20, selectedOcid = null, onSelect
           {hayFiltros ? " con estos filtros" : ""}, {tam} por página.
         </EstadoVacio>
       ) : !rows.length && !cargando ? (
-        <EstadoVacio compacto titulo={hayFiltros ? "Ningún contrato cumple todos los filtros a la vez" : "No hay contratos para esta consulta"}>
+        <EstadoVacio compacto titulo={hayFiltros ? "Ningún contrato coincide con tu búsqueda" : "No hay contratos para esta consulta"}>
           {hayFiltros
-            ? "Los filtros se suman: quita el más restrictivo y la lista se vuelve a llenar."
+            ? "Prueba otra palabra o quita un filtro: los filtros se suman y el más restrictivo vacía la lista."
             : "Esta zona no tiene convocatorias publicadas en el SEACE para el rango pedido."}
         </EstadoVacio>
       ) : (
