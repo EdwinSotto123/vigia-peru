@@ -1,0 +1,11 @@
+{
+  "id": "humo",
+  "motor": "edge",
+  "voz": "es-PE-CamilaNeural",
+  "ritmo": "-8%",
+  "pausa_entre_escenas_ms": 250,
+  "escenas": [
+    {"id": "e1", "texto": "Este camino lleva años [400] esperando.", "pausa_antes_ms": 500},
+    {"id": "e2", "texto": "Alguien firmó. [300] ¿Quién mira?", "pausa_despues_ms": 600}
+  ]
+}

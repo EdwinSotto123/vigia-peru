@@ -180,26 +180,28 @@ export default function RevisionPage() {
       clave: "contrato",
       titulo: "Contrato",
       principal: true,
-      className: "max-w-[340px]",
+      className: "max-w-[380px]",
       celda: (r) => (
         <>
-          <span className="font-mono text-xs font-medium text-ink">{r.codigo}</span>
-          <span className="mt-0.5 line-clamp-2 text-[12px] text-inkSoft" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</span>
-          <span className="block text-[11px] text-mute">
-            <Partes partes={[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? tipoLabel(r.tipo) ?? r.tipo, r.contribucionCodigo && `aporte ${r.contribucionCodigo}`]} />
+          <span className="flex items-baseline gap-2">
+            <span className="shrink-0 font-mono text-xs font-medium text-ink">{r.codigo}</span>
+            <span className="truncate text-[11px] text-mute">
+              <Partes partes={[PERFIL_LABEL[r.perfil ?? ""]?.split(" ")[0] ?? tipoLabel(r.tipo) ?? r.tipo, r.contribucionCodigo && `aporte ${r.contribucionCodigo}`]} />
+            </span>
           </span>
+          <span className="block truncate text-[12px] text-inkSoft" title={r.objeto ?? ""}>{r.objeto ?? r.ocid}</span>
         </>
       ),
     },
     {
       clave: "entidad",
       titulo: "Entidad y zona",
-      className: "max-w-[240px] text-[12px]",
+      className: "max-w-[230px] text-[12px]",
       anchoCompletoMovil: true,
       celda: (r) => (
         <>
-          <span className="line-clamp-2 text-ink" title={r.entidad ?? ""}>{r.entidad ?? r.entidadRuc ?? "Entidad sin dato"}</span>
-          <span className="block text-[11px] text-mute">{r.zona ?? r.provincia ?? r.region ?? "Zona sin dato"}</span>
+          <span className="block truncate text-ink" title={r.entidad ?? ""}>{r.entidad ?? r.entidadRuc ?? "Entidad sin dato"}</span>
+          <span className="block truncate text-[11px] text-mute">{r.zona ?? r.provincia ?? r.region ?? "Zona sin dato"}</span>
         </>
       ),
     },
@@ -208,7 +210,7 @@ export default function RevisionPage() {
     {
       clave: "motivo",
       titulo: "Por qué se bloqueó",
-      className: "max-w-[320px]",
+      className: "max-w-[340px]",
       anchoCompletoMovil: true,
       celda: (r) => (
         <div className="text-[12px]">
@@ -218,11 +220,11 @@ export default function RevisionPage() {
               return <Badge key={k} tono={m.tono}>{m.label}</Badge>;
             })}
           </div>
-          <p className="mt-1 line-clamp-2 text-inkSoft" title={r.motivo}>
+          <p className="truncate text-inkSoft" title={fraseDe(r)}>
             {fraseDe(r)}
           </p>
           {r.moderacion && (
-            <p className="mt-1 text-[11px] text-mute">
+            <p className="truncate text-[11px] text-mute" title={`${r.moderacion.actor}: ${r.moderacion.motivo}`}>
               {r.moderacion.accion === "publicar" ? <CheckCircle2 size={11} className="inline text-moss" aria-hidden /> : <XCircle size={11} className="inline text-rust" aria-hidden />}{" "}
               {r.moderacion.accion === "publicar" ? "Publicada" : "Descartada"} por {r.moderacion.actor}, {fmtFechaHora(r.moderacion.at)}: {r.moderacion.motivo}
             </p>
@@ -241,11 +243,11 @@ export default function RevisionPage() {
       titulo: "Acciones",
       acciones: true,
       celda: (r) => (
-        <div className="inline-flex flex-wrap items-center justify-end gap-1">
+        <div className="inline-flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
           <Link href={`/admin/revision/${r.id}`} className={claseBoton("secundario", "xs")}><Eye size={11} aria-hidden /> Revisar</Link>
           {r.procesamientoOcid && (
-            <Link href={`/app/auditoria/${encodeURIComponent(r.procesamientoOcid)}`} target="_blank" className={claseBoton("secundario", "xs")} title="Qué hizo cada revisión, paso a paso">
-              <ExternalLink size={11} aria-hidden /> Traza
+            <Link href={`/app/auditoria/${encodeURIComponent(r.procesamientoOcid)}`} target="_blank" className={claseBoton("secundario", "xs")} title="Traza: qué hizo cada revisión, paso a paso" aria-label={`Traza de ${r.codigo}`}>
+              <ExternalLink size={11} aria-hidden />
             </Link>
           )}
           {r.estado === "revision" && (
@@ -278,7 +280,7 @@ export default function RevisionPage() {
         </>
       }
     >
-      <div className="space-y-8">
+      <div className="space-y-5">
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
         <section aria-label="Por qué se bloquearon">
@@ -334,6 +336,8 @@ export default function RevisionPage() {
             alAcercarse={(r) => precargarDetalle(r.id)}
             cargando={isLoading}
             apilarHasta="lg"
+            ventana={25}
+            anchoMinimo="min-w-[1040px]"
             vacio={
               filtro ? (
                 <EmptyState compacto titulo="Ninguna alerta con este motivo" descripcion="Toca la caja de nuevo para ver todas." />

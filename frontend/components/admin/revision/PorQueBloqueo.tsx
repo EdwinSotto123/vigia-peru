@@ -51,18 +51,17 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
   const respaldadas = juzgadas.filter((f) => f.juicio?.respaldada).length;
 
   return (
-    <section aria-labelledby="porque" className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+    <section aria-labelledby="porque" className="rounded-2xl border border-line bg-paper p-3.5 sm:p-4">
       <h2 id="porque" className="text-[11px] font-semibold uppercase tracking-wide text-mute">Por qué se bloqueó</h2>
-      <p className="mt-1 max-w-3xl text-[13px] leading-relaxed text-inkSoft">
-        Antes de publicar, un evaluador automático relee cada señal contra el expediente y el registro oficial. Esto es lo que
-        dijo. Úsalo como guía: la decisión es tuya.
+      <p className="mt-0.5 max-w-3xl text-[12.5px] leading-snug text-inkSoft">
+        Un evaluador automático releyó cada señal contra el expediente y el registro oficial. Úsalo como guía: la decisión es tuya.
       </p>
 
       {!ae ? (
-        <p className="mt-4 rounded-xl border border-dashed border-line p-4 text-sm text-mute">Este análisis no guardó su autoevaluación.</p>
+        <p className="mt-3 rounded-lg bg-paperSoft px-3 py-2 text-[13px] text-mute">Este análisis no guardó su autoevaluación.</p>
       ) : (
         <>
-          <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h3 className="text-sm font-semibold text-ink">¿La evidencia respalda cada señal?</h3>
             <span className="text-[12px] text-mute">
               {juzgadas.length ? `${respaldadas} de ${juzgadas.length} ${juzgadas.length === 1 ? "respaldada" : "respaldadas"}` : "Sin señales juzgadas"}, mínimo {pct(d.umbrales.min_respaldo)}
@@ -70,7 +69,7 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
           </div>
           <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
             {filas.map((f) => (
-              <li key={f.key} className="flex items-start gap-3 px-3 py-3 sm:px-4">
+              <li key={f.key} className="flex items-start gap-3 px-3 py-2 sm:px-4">
                 <Veredicto ok={f.juicio ? !!f.juicio.respaldada : null} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -91,10 +90,10 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
                 </div>
               </li>
             ))}
-            {!filas.length && <li className="px-4 py-5 text-center text-sm text-mute">No quedaron señales guardadas: la verificación las descartó todas.</li>}
+            {!filas.length && <li className="px-4 py-2.5 text-[13px] text-mute">No quedaron señales guardadas: la verificación las descartó todas.</li>}
           </ul>
 
-          <h3 className="mt-6 text-sm font-semibold text-ink">Otras comprobaciones</h3>
+          <h3 className="mt-4 text-sm font-semibold text-ink">Otras comprobaciones</h3>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <Comprobacion titulo="Norma y fuente citadas" conteo={ae.cita} umbral={d.umbrales.min_cita} nombre={["señal con cita", "señales con cita"]} />
             <Comprobacion titulo="Precios comparables con el mercado" conteo={ae.precio} umbral={d.umbrales.min_precio} nombre={["comparación razonable", "comparaciones razonables"]} />
@@ -114,7 +113,7 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
 
           {ae.perPrecio.length > 0 && (
             <>
-              <h3 className="mt-6 text-sm font-semibold text-ink">Precio por ítem</h3>
+              <h3 className="mt-4 text-sm font-semibold text-ink">Precio por ítem</h3>
               <ul className="mt-2 space-y-1.5">
                 {ae.perPrecio.map((p, i) => (
                   <li key={i} className="flex items-start gap-2 text-[13px]">
@@ -165,7 +164,7 @@ function Comprobacion({
     texto = n ? `${aprobadas} de ${n} ${nombre?.[n === 1 ? 0 : 1] ?? ""}`.trim() : "Nada que juzgar";
   }
   return (
-    <div className={cn("rounded-xl border px-3 py-2.5", estado === false ? "border-rust/30 bg-crimson-soft/40" : "border-line bg-paperSoft")}>
+    <div className={cn("rounded-xl border px-3 py-2", estado === false ? "border-rust/30 bg-crimson-soft/40" : "border-line bg-paperSoft")}>
       <div className="flex items-start gap-2">
         <Veredicto ok={estado} chico />
         <div className="min-w-0 flex-1">

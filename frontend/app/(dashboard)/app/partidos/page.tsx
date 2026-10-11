@@ -17,7 +17,7 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
   const anio = anioDeUrl(searchParams?.anio);
   const [cobertura, ranking] = await Promise.all([leerCobertura(), getRankingPartidos(anio)]);
   return (
-    <Pagina className="space-y-10">
+    <Pagina className="space-y-8">
       <EncabezadoPagina
         titulo="Partidos y gobiernos"
         bajada="Qué contratos se firmaron bajo los gobiernos de cada partido, y quién ganó cada región, provincia y distrito en 2014, 2018 y 2022."

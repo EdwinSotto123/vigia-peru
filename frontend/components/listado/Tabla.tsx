@@ -97,6 +97,7 @@ const MOSTRAR_HASTA_C: Record<Desde, string> = {
 };
 
 type Medida = "pantalla" | "contenedor";
+type Densidad = "normal" | "compacta";
 const clases = (m: Medida) =>
   m === "contenedor"
     ? { grid: GRID_C, oculta: OCULTA_C, bloque: OCULTA_BLOQUE_C, hasta: MOSTRAR_HASTA_C }
@@ -115,6 +116,7 @@ export function Tabla({
   grupos,
   etiqueta,
   medida = "pantalla",
+  densidad = "normal",
   className,
 }: {
   columnas: Columna[];
@@ -125,6 +127,11 @@ export function Tabla({
   etiqueta: string;
   /** Los cortes de columnas por la pantalla (por defecto) o por el ancho de la tabla (dentro de un panel). */
   medida?: Medida;
+  /**
+   * `compacta`: filas de ~40 px con el título y su contexto en UNA línea (listas largas de pocas
+   * columnas: zonas, entidades, partidos). Por defecto, las filas de 60 px de siempre.
+   */
+  densidad?: Densidad;
   className?: string;
 }) {
   const k = clases(medida);
@@ -138,7 +145,7 @@ export function Tabla({
       className={cn("overflow-clip rounded-2xl border border-line bg-paper", medida === "contenedor" && "[container-type:inline-size]", className)}
       style={estilo}
     >
-      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 py-2.5 text-[12px] font-medium text-mute")}>
+      <div className={cn(k.grid, "border-b border-line bg-paperSoft px-4 text-[12px] font-medium text-mute", densidad === "compacta" ? "py-1.5" : "py-2.5")}>
         {columnas.map((c) => (
           <span key={c.clave} className={cn("min-w-0 items-center gap-1", c.desde ? k.oculta[c.desde] : "flex", c.alinear === "der" && "justify-end")}>
             <span className="truncate">{c.titulo}</span>
@@ -157,7 +164,7 @@ export function Tabla({
             <ul>
               {g.filas.map((f) => (
                 <li key={f.id} className="border-b border-line/70 last:border-b-0">
-                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} />
+                  <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} />
                 </li>
               ))}
             </ul>
@@ -167,7 +174,7 @@ export function Tabla({
         <ul aria-label={etiqueta}>
           {todas.map((f) => (
             <li key={f.id} className="border-b border-line/70 last:border-b-0">
-              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} />
+              <FilaTabla fila={f} columnas={columnas} conAccion={conAccion} medida={medida} densidad={densidad} />
             </li>
           ))}
         </ul>
@@ -179,7 +186,22 @@ export function Tabla({
 const FILA =
   "min-h-[60px] px-4 py-3 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
 
-function FilaTabla({ fila, columnas, conAccion, medida }: { fila: Fila; columnas: Columna[]; conAccion: boolean; medida: Medida }) {
+const FILA_COMPACTA =
+  "min-h-[42px] px-4 py-1.5 text-left transition-colors duration-rapido hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-granate";
+
+function FilaTabla({
+  fila,
+  columnas,
+  conAccion,
+  medida,
+  densidad,
+}: {
+  fila: Fila;
+  columnas: Columna[];
+  conAccion: boolean;
+  medida: Medida;
+  densidad: Densidad;
+}) {
   const k = clases(medida);
   const apiladas = columnas.filter((c) => c.apilar && c.desde);
   // Lo apilado va bajo la primera columna que se ve en el celular (el título), aunque en
@@ -215,7 +237,7 @@ function FilaTabla({ fila, columnas, conAccion, medida }: { fila: Fila; columnas
         ))}
     </>
   );
-  const clase = cn(k.grid, FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
+  const clase = cn(k.grid, densidad === "compacta" ? FILA_COMPACTA : FILA, "group w-full", fila.resaltada && "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]");
   if (fila.href && fila.externo) {
     return (
       <a href={fila.href} target="_blank" rel="noopener noreferrer" className={clase}>
@@ -255,6 +277,7 @@ export function CeldaPrincipal({
   meta,
   className,
   dosLineas = false,
+  enLinea = false,
 }: {
   titulo: ReactNode;
   textoCompleto?: string;
@@ -263,15 +286,44 @@ export function CeldaPrincipal({
   className?: string;
   /** Una línea más (3 en móvil, 2 en escritorio): cuando el título ES el dato (qué se compra) y la columna es angosta. */
   dosLineas?: boolean;
+  /**
+   * Título y contexto en UNA línea desde `sm` (el título manda y el contexto se recorta): la fila de una
+   * tabla `compacta`. En el celular se apilan como siempre, para no partir el nombre.
+   */
+  enLinea?: boolean;
 }) {
   const tooltip = textoCompleto ?? (typeof titulo === "string" ? titulo : undefined);
   const lineaMeta = Array.isArray(meta) ? (meta.some(hayDato) ? <Partes partes={meta} /> : null) : meta;
+  if (enLinea) {
+    return (
+      <span className={cn("block w-full min-w-0 sm:flex sm:items-baseline sm:gap-x-3", className)}>
+        <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-ink sm:line-clamp-1 sm:shrink-0 sm:max-w-[70%]" title={tooltip}>
+          {titulo}
+        </span>
+        {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute sm:mt-0 sm:min-w-0">{lineaMeta}</span>}
+      </span>
+    );
+  }
   return (
     <span className={cn("block w-full min-w-0", className)}>
       <span className={cn("text-[14px] font-semibold leading-snug text-ink", dosLineas ? "line-clamp-3 lg:line-clamp-2" : "line-clamp-2 lg:line-clamp-1")} title={tooltip}>
         {titulo}
       </span>
       {lineaMeta && <span className="mt-0.5 block truncate text-[12.5px] text-mute">{lineaMeta}</span>}
+    </span>
+  );
+}
+
+/**
+ * Una barra proporcional pequeña dentro de una fila: cuánto pesa este valor frente al mayor de la lista.
+ * Es dato (no adorno): llena el hueco entre el nombre y las cifras y deja comparar de un vistazo.
+ * `parte` (0 a 1) es el largo de la barra; `resumen` es lo que dice a quien no la ve ("812 de 812 en cola").
+ */
+export function CeldaBarra({ parte, resumen, className }: { parte: number; resumen: string; className?: string }) {
+  const p = Math.min(1, Math.max(0, Number.isFinite(parte) ? parte : 0));
+  return (
+    <span role="img" aria-label={resumen} className={cn("block h-1.5 w-full overflow-hidden rounded-full bg-paperDeep", className)}>
+      <span className="block h-full rounded-full bg-granate/70" style={{ width: `${p > 0 ? Math.max(3, p * 100) : 0}%` }} />
     </span>
   );
 }

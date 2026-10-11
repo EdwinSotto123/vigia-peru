@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ export function DataTable<T>({
   vacio,
   apilarHasta = "md",
   anchoMinimo,
+  ventana,
   className,
 }: {
   columnas: Columna<T>[];
@@ -83,9 +85,15 @@ export function DataTable<T>({
   apilarHasta?: keyof typeof APILAR;
   /** min-width de la tabla de escritorio, p. ej. "min-w-[860px]". */
   anchoMinimo?: string;
+  /**
+   * Listas largas: se muestran las primeras `ventana` filas y un botón "Ver N más" agrega otra tanda.
+   * Las filas siguen en los datos (buscar y filtrar corre sobre todas); solo se pintan por tramos.
+   */
+  ventana?: number;
   className?: string;
 }) {
   const router = useRouter();
+  const [pintadas, setPintadas] = useState(ventana ?? Infinity);
   const principal = columnas.find((c) => c.principal) ?? columnas[0];
   const resto = columnas.filter((c) => c !== principal && !c.acciones && !c.soloEscritorio);
   const acciones = columnas.filter((c) => c.acciones);
@@ -124,6 +132,8 @@ export function DataTable<T>({
   const etiquetaDe = (c: Columna<T>) => c.etiquetaMovil ?? (typeof c.titulo === "string" ? c.titulo : c.clave);
   const sinFilas = !!filas && filas.length === 0;
   const esperando = !filas;
+  const visibles = filas ? filas.slice(0, pintadas) : filas;
+  const faltan = filas ? Math.max(0, filas.length - pintadas) : 0;
 
   return (
     <div className={cn("overflow-hidden rounded-2xl border border-line bg-paper", className)} aria-busy={cargando || undefined}>
@@ -146,7 +156,7 @@ export function DataTable<T>({
                       key={c.clave}
                       scope="col"
                       className={cn(
-                        "px-2 py-2.5 font-medium",
+                        "px-2 py-2 font-medium",
                         i === 0 && "pl-4",
                         i === columnas.length - 1 && "pr-4",
                         (c.alinear === "derecha" || c.acciones) && "text-right",
@@ -159,7 +169,7 @@ export function DataTable<T>({
                 </tr>
               </thead>
               <tbody>
-                {filas!.map((f) => {
+                {visibles!.map((f) => {
                   const activa = filaActiva?.(f);
                   return (
                     <tr
@@ -168,7 +178,7 @@ export function DataTable<T>({
                       onMouseEnter={alAcercarse ? () => alAcercarse(f) : undefined}
                       onFocus={alAcercarse ? () => alAcercarse(f) : undefined}
                       className={cn(
-                        "border-t border-line align-top transition-colors duration-rapido",
+                        "border-t border-line align-middle transition-colors duration-rapido",
                         clickeable && "cursor-pointer hover:bg-paperSoft",
                         activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]",
                       )}
@@ -177,7 +187,7 @@ export function DataTable<T>({
                         <td
                           key={c.clave}
                           className={cn(
-                            "px-2 py-2.5",
+                            "px-2 py-1.5",
                             i === 0 && "pl-4",
                             i === columnas.length - 1 && "pr-4",
                             (c.alinear === "derecha" || c.acciones) && "text-right",
@@ -197,14 +207,14 @@ export function DataTable<T>({
 
           {/* Teléfono: tarjetas apiladas */}
           <ul className={cn("divide-y divide-line", APILAR[apilarHasta].lista)} aria-label={etiqueta}>
-            {filas!.map((f) => {
+            {visibles!.map((f) => {
               const activa = filaActiva?.(f);
               return (
                 <li
                   key={claveFila(f)}
                   onClick={clickeable ? (e) => alClicFila(e, f) : undefined}
                   onFocus={alAcercarse ? () => alAcercarse(f) : undefined}
-                  className={cn("px-4 py-3", clickeable && "cursor-pointer active:bg-paperSoft", activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]")}
+                  className={cn("px-4 py-2.5", clickeable && "cursor-pointer active:bg-paperSoft", activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]")}
                 >
                   <div className="min-w-0">{celdaPrincipal(f)}</div>
                   {resto.length > 0 && (
@@ -222,6 +232,20 @@ export function DataTable<T>({
               );
             })}
           </ul>
+          {faltan > 0 && (
+            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2 text-[12.5px] text-inkSoft">
+              <span>
+                Se muestran {pintadas.toLocaleString("es-PE")} de {filas!.length.toLocaleString("es-PE")}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPintadas((n) => n + (ventana ?? 50))}
+                className="min-h-9 rounded-full border border-line px-3 font-semibold text-ink hover:bg-paperSoft"
+              >
+                Ver {Math.min(faltan, ventana ?? 50).toLocaleString("es-PE")} más
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

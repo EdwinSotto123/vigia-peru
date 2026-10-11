@@ -98,9 +98,9 @@ function ProcesamientoActivo() {
   }
 
   return (
-    <Card>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="space-y-3">
+    <Card relleno="sm">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="space-y-2">
           <div role="group" aria-label="Tipos de contratación activos" className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 w-14 text-[12px] font-medium text-inkSoft">Tipos</span>
             {TIPOS_CFG.map((t) => editable
@@ -115,10 +115,10 @@ function ProcesamientoActivo() {
           </div>
           {v.nota && <p className="text-[12px] text-mute">{v.nota}</p>}
         </div>
-        <div className="flex flex-col justify-between gap-3 rounded-xl bg-paperSoft p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-paperSoft px-3 py-2">
           <div>
             <p className="text-[12px] font-medium text-inkSoft">Cola financiable hoy</p>
-            <p className="font-mono text-2xl font-semibold text-ink">{fmtNum(data.cola) ?? "—"}</p>
+            <p className="font-mono text-xl font-semibold leading-tight text-ink">{fmtNum(data.cola) ?? "—"}</p>
             <p className="text-[11.5px] text-mute">
               {data.updatedAt ? `Editada ${fmtFechaHora(data.updatedAt)}${data.updatedBy ? ` por ${data.updatedBy}` : ", sin autor registrado"}` : "Nunca editada"}
             </p>
@@ -135,8 +135,8 @@ function ProcesamientoActivo() {
           )}
         </div>
       </div>
-      {msg?.ok && <Aviso tono="ok" titulo="Guardado. La cola financiable se recalculó." className="mt-4" />}
-      {msg && !msg.ok && <ErrorBanner error={msg.error} titulo="No se guardó el cambio" className="mt-4" />}
+      {msg?.ok && <Aviso tono="ok" titulo="Guardado. La cola financiable se recalculó." className="mt-3" />}
+      {msg && !msg.ok && <ErrorBanner error={msg.error} titulo="No se guardó el cambio" className="mt-3" />}
     </Card>
   );
 }
@@ -170,7 +170,7 @@ export default function ClasificacionPage() {
         </button>
       }
     >
-      <div className="space-y-10">
+      <div className="space-y-5">
         <PageSection titulo="Qué entra a la cola" descripcion="Solo los tipos y etapas marcados se pueden financiar. Los demás se descargan y clasifican igual, y aparecen como “documentos listos”.">
           <ProcesamientoActivo />
         </PageSection>
@@ -260,7 +260,7 @@ export default function ClasificacionPage() {
         </PageSection>
 
         {r && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-3 md:grid-cols-2">
             <Lista
               titulo="Por qué no se pueden procesar"
               rows={r.motivosNoProcesable.map((m) => ({ codigo: m.motivo, texto: MOTIVO[m.motivo] ?? motivoLabel(m.motivo), n: m.n }))}
@@ -288,12 +288,18 @@ export default function ClasificacionPage() {
 
 function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripcion?: string; rows: { codigo: string; texto: string; n: number }[]; vacio: string }) {
   const max = Math.max(1, ...rows.map((r) => r.n));
+  // Sin filas no hace falta una caja con cabecera: una línea que diga la buena noticia.
+  if (!rows.length)
+    return (
+      <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+        <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+        <span><strong className="font-semibold text-ink">{titulo}.</strong> {vacio}</span>
+      </p>
+    );
   return (
     <Panel titulo={titulo} descripcion={descripcion}>
-      {!rows.length ? (
-        <EmptyState compacto icono={<CheckCircle2 size={18} />} titulo={vacio} className="py-4" />
-      ) : (
-        <ul className="space-y-3">
+      {(
+        <ul className="space-y-2">
           {rows.map((r) => (
             <li key={r.codigo} title={r.codigo}>
               <div className="flex items-baseline justify-between gap-3 text-[13px]">

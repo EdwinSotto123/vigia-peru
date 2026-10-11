@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useDialog } from "@/components/admin/Dialog";
-import { BarraDecision } from "@/components/admin/revision/BarraDecision";
+import { ContratoDeAlerta, PanelDecision, ResumenAlerta } from "@/components/admin/revision/BarraDecision";
 import { DetalleTecnico } from "@/components/admin/revision/DetalleTecnico";
 import { EsqueletoPagina, EsqueletoPorQue } from "@/components/admin/revision/Esqueleto";
 import { PorQueBloqueo } from "@/components/admin/revision/PorQueBloqueo";
@@ -20,11 +20,11 @@ import { adaptLoadedToUi } from "@/lib/dossier-adaptar";
 import { refrescarTodo, useAdmin } from "@/lib/useAdmin";
 
 /**
- * Revisión de una alerta que la autoevaluación no dejó publicar. De arriba abajo:
- *  · la decisión: estado, contrato, por qué se frenó (en palabras) y Publicar / Descartar;
- *  · el INFORME tal como lo verá el público al publicarlo (el mismo <ResultadoView>);
- *  · el juicio del evaluador señal por señal;
- *  · el detalle técnico (evidencia cruda, verificación, agentes, descartes, bitácora), plegado.
+ * Revisión de una alerta que la autoevaluación no dejó publicar. Dos columnas en escritorio:
+ *  · a la izquierda, lo que se lee: contrato y por qué se frenó, el juicio del evaluador señal por
+ *    señal, el INFORME tal como lo verá el público (plegado, el mismo <ResultadoView>) y el detalle
+ *    técnico (evidencia cruda, verificación, agentes, descartes, bitácora), plegado;
+ *  · a la derecha, pegada al borde, la decisión: estado y Publicar / Descartar. En el teléfono va primero.
  * Los DNI y apellidos que puedan venir en evidencias, juicios o dictamen pasan por Redact.
  */
 export default function RevisionDetallePage({ params }: { params: { id: string } }) {
@@ -40,11 +40,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
   const nombresPrivados = useMemo(() => (ui ? nombresPrivadosDe(ui) : []), [ui]);
   setRedactNames(nombresPrivados);
   const d = det.data;
-  // El informe público (~120 KB de JS) empieza a bajar ya, a la par de los datos, y no recién
-  // cuando llegan: así no se suma su descarga a la espera.
-  useEffect(() => {
-    void import("@/components/convocatoria/ResultadoView");
-  }, []);
+  // El informe público (~120 KB de JS) se baja recién al abrir su bloque plegado.
 
   function resolver(estado: "activa" | "descartada") {
     if (!d) return;
@@ -84,19 +80,25 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
       ) : !d ? (
         <EsqueletoPagina />
       ) : (
-        <div className="space-y-6">
-          <BarraDecision d={d} onDecidir={resolver} />
-          <VistaPublicada
-            ui={ui}
-            publicada={d.estado === "activa" || d.estado === "confirmada"}
-            ocid={(inf.data?.ocid ?? d.ocid ?? "").split("-").pop() || null}
-            error={!inf.data && inf.error ? sinInforme(inf.error) : null}
-            onReintentar={() => inf.mutate()}
-          />
-          {/* Los apellidos de personas privadas se tapan con el diccionario que arma el informe:
-              hasta que llegue, el juicio del evaluador (que puede nombrarlas) espera. */}
-          {ui || inf.error ? <PorQueBloqueo d={d} /> : <EsqueletoPorQue />}
-          {(ui || inf.error) && <DetalleTecnico d={d} />}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+          <aside className="space-y-3 lg:sticky lg:top-20 lg:order-2">
+            <PanelDecision d={d} onDecidir={resolver} />
+            <ContratoDeAlerta d={d} />
+          </aside>
+          <div className="min-w-0 space-y-4 lg:order-1">
+            <ResumenAlerta d={d} />
+            {/* Los apellidos de personas privadas se tapan con el diccionario que arma el informe:
+                hasta que llegue, el juicio del evaluador (que puede nombrarlas) espera. */}
+            {ui || inf.error ? <PorQueBloqueo d={d} /> : <EsqueletoPorQue />}
+            <VistaPublicada
+              ui={ui}
+              publicada={d.estado === "activa" || d.estado === "confirmada"}
+              ocid={(inf.data?.ocid ?? d.ocid ?? "").split("-").pop() || null}
+              error={!inf.data && inf.error ? sinInforme(inf.error) : null}
+              onReintentar={() => inf.mutate()}
+            />
+            {(ui || inf.error) && <DetalleTecnico d={d} />}
+          </div>
         </div>
       )}
     </AdminShell>

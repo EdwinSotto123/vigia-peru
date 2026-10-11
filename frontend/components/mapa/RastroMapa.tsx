@@ -36,9 +36,11 @@ export function RastroMapa({
   enCurso: Record<string, EnCurso>;
 }) {
   const deptos = Object.keys(enCurso).sort((a, b) => nombreDepartamento(a).localeCompare(nombreDepartamento(b), "es"));
+  // En la vista del país, sin nada en curso, el rastro sería sólo la palabra "Perú": una fila vacía menos.
+  if (!region && !zona && deptos.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-3 sm:px-5">
-      <nav aria-label="Dónde estás en el mapa" className="flex min-h-[28px] items-center gap-1.5 text-[12px]">
+      <nav aria-label="Dónde estás en el mapa" className={`min-h-[28px] items-center gap-1.5 text-[12px] ${region || zona ? "flex" : "hidden"}`}>
         <button
           type="button"
           onClick={onPeru}

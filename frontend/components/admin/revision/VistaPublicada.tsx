@@ -6,7 +6,8 @@
  * entero aunque la alerta no esté publicada) y la misma adaptación (lib/dossier-adaptar).
  */
 
-import { AlertTriangle, ExternalLink, Eye, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ChevronDown, ExternalLink, Eye, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { ApiResult } from "@/components/convocatoria/types";
@@ -38,32 +39,42 @@ export function VistaPublicada({
   onReintentar: () => void;
 }) {
   const ruta = ocid ? `/app/convocatoria/${encodeURIComponent(ocid)}` : null;
+  // El informe es largo (varios miles de píxeles): queda plegado con su resumen de una línea, y recién
+  // al abrirlo se monta (así tampoco se baja su JavaScript si no se mira).
+  const [abierto, setAbierto] = useState(false);
   return (
-    <section aria-labelledby="vista-publicada">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div className="min-w-0">
-          <h2 id="vista-publicada" className="text-[11px] font-semibold uppercase tracking-wide text-inkSoft">Así se verá publicado</h2>
-          <p className="text-[12px] text-inkSoft">
-            El informe completo, tal como aparece en la página pública del contrato.
-            {publicada ? " Ya es público." : " Por ahora sólo lo ve el equipo."}
-          </p>
-        </div>
+    <details
+      aria-labelledby="vista-publicada"
+      onToggle={(e) => setAbierto(e.currentTarget.open)}
+      className="group overflow-hidden rounded-2xl border border-line bg-paper"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 hover:bg-paperSoft sm:px-5 [&::-webkit-details-marker]:hidden">
+        <Eye size={15} className="shrink-0 text-mute" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span id="vista-publicada" className="block text-sm font-semibold text-ink">Así se verá publicado</span>
+          <span className="block text-[12px] text-inkSoft">
+            El informe completo, como en la página pública del contrato.{publicada ? " Ya es público." : " Por ahora sólo lo ve el equipo."}
+          </span>
+        </span>
         {ruta && publicada && (
-          <Link href={ruta} target="_blank" className="inline-flex items-center gap-1 text-[12px] font-medium text-ink hover:underline">
+          <Link href={ruta} target="_blank" onClick={(e) => e.stopPropagation()} className="hidden shrink-0 items-center gap-1 text-[12px] font-medium text-ink hover:underline sm:inline-flex">
             <ExternalLink size={12} aria-hidden /> Abrir la página pública
           </Link>
         )}
-      </div>
+        <span className="shrink-0 text-[12px] text-mute group-open:hidden">Abrir</span>
+        <ChevronDown size={16} className="shrink-0 text-mute transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
 
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper shadow-card">
-        <div className="flex min-w-0 items-center gap-2 border-b border-line bg-paperSoft px-3 py-2 text-[11px] text-mute sm:px-4">
-          <Eye size={13} className="shrink-0" aria-hidden />
-          <span className="shrink-0 font-semibold uppercase tracking-wide">Vista previa</span>
-          {ruta && <span className="min-w-0 truncate font-mono">{ruta}</span>}
-        </div>
+      <div className="border-t border-line">
+        {ruta && (
+          <div className="flex min-w-0 items-center gap-2 border-b border-line bg-paperSoft px-3 py-1.5 text-[11px] text-mute sm:px-4">
+            <span className="shrink-0 font-semibold uppercase tracking-wide">Vista previa</span>
+            <span className="min-w-0 truncate font-mono">{ruta}</span>
+          </div>
+        )}
 
-        <div className="px-3 py-4 sm:px-6 sm:py-6">
-          {error ? (
+        <div className="px-3 py-4 sm:px-6 sm:py-5">
+          {!abierto ? null : error ? (
             <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4 text-sm text-crimsonTexto sm:flex-row sm:items-center">
               <AlertTriangle size={18} className="shrink-0" aria-hidden />
               <p className="min-w-0 flex-1">No se pudo cargar el informe: {error}. La decisión y el juicio del evaluador siguen disponibles más abajo.</p>
@@ -81,6 +92,6 @@ export function VistaPublicada({
           )}
         </div>
       </div>
-    </section>
+    </details>
   );
 }

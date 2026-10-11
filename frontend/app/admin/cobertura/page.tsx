@@ -166,11 +166,11 @@ export default function CoberturaPage() {
         </button>
       }
     >
-      <div className="space-y-10">
+      <div className="space-y-5">
         <PageSection titulo="Documentos del SEACE" descripcion="El lote nocturno los baja desde una conexión peruana (el SEACE no deja entrar a la nube) y los guarda en el almacén 90 días.">
           <ErrorBanner error={pro.error} titulo="No se pudo leer el avance del lote nocturno" onReintentar={() => pro.mutate()} className="mb-3" />
           {pr ? <Progreso pr={pr} /> : pro.isLoading && <div className="space-y-3"><SkeletonPanel lineas={2} /><SkeletonStats n={4} /></div>}
-          {d ? <Almacen documentos={d.documentos} porFormato={d.porFormato} /> : cob.isLoading && <SkeletonPanel lineas={2} className="mt-3" />}
+          {d ? <div className="mt-2"><Almacen documentos={d.documentos} porFormato={d.porFormato} /></div> : cob.isLoading && <SkeletonPanel lineas={2} className="mt-3" />}
         </PageSection>
 
         <ErrorBanner error={cob.error} titulo="No se pudo leer la cobertura" onReintentar={() => cob.mutate()} />

@@ -57,53 +57,47 @@ export function ReporteNuevo() {
     window.scrollTo({ top: 0 });
   };
 
-  // `Pagina` como toda la app (alineada a la izquierda, sin `mx-auto`); el formulario
-  // conserva una columna legible: un campo de 1.600 px de ancho no se llena mejor.
+  // `Pagina` como toda la app: el formulario usa todo el ancho porque son tres columnas (desde lg) que se
+  // habilitan una tras otra; en el teléfono se apilan como un acordeón de pasos.
   return (
     <Pagina>
-      <div className="max-w-3xl space-y-5">
-        <Link href="/app/denuncias" className="inline-flex min-h-[24px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
+      <div className="space-y-3">
+        <Link href="/app/denuncias" className="inline-flex min-h-[44px] items-center gap-2 text-[13px] font-medium text-inkSoft hover:text-ink">
           <ArrowLeft size={14} aria-hidden /> Volver a las denuncias
         </Link>
 
-        <EncabezadoPagina
-          titulo="Denuncia lo que viste"
-          bajada={
-            modo === "obra"
-              ? "Sube una foto, marca el lugar y cuenta qué pasa. Se publica para que cualquiera la vea."
-              : "Elige la entidad y cuenta el patrón que viste. Tu denuncia queda en reserva: no se publica."
-          }
-        />
-        <ul className="-mt-2 flex flex-wrap gap-2" aria-label="Qué pasa con tu denuncia">
-          {PROMESAS[modo].map((p) => (
-            <li key={p.texto} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paperSoft px-3 py-1 text-xs font-medium text-inkSoft">
-              <span className="text-granate" aria-hidden>
-                {p.icono}
-              </span>
-              {p.texto}
-            </li>
-          ))}
-        </ul>
-
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-paperDeep p-1.5" role="group" aria-label="Qué quieres denunciar">
-          <TabBig
-            active={modo === "obra"}
-            onClick={() => setModo("obra")}
-            icon={<HardHat size={18} />}
-            title="Una obra"
-            subtitle="Paralizada, fantasma, mal hecha"
+        {/* Una sola franja: título, frase, las tres garantías y el tipo de denuncia como pestañas. */}
+        <div className="space-y-3 rounded-2xl border border-line bg-paperSoft px-4 py-4 sm:px-5">
+          <EncabezadoPagina
+            titulo="Denuncia lo que viste"
+            bajada={
+              modo === "obra"
+                ? "Sube una foto, marca el lugar y cuenta qué pasa. Se publica para que cualquiera la vea."
+                : "Elige la entidad y cuenta el patrón que viste. Tu denuncia queda en reserva: no se publica."
+            }
+            acciones={
+              <div className="grid w-full grid-cols-2 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:w-auto" role="group" aria-label="Qué quieres denunciar">
+                <TabBig active={modo === "obra"} onClick={() => setModo("obra")} icon={<HardHat size={16} />} title="Una obra" subtitle="Paralizada, fantasma, mal hecha" />
+                <TabBig active={modo === "entidad"} onClick={() => setModo("entidad")} icon={<Building2 size={16} />} title="Una entidad" subtitle="Un patrón en una institución" />
+              </div>
+            }
           />
-          <TabBig
-            active={modo === "entidad"}
-            onClick={() => setModo("entidad")}
-            icon={<Building2 size={18} />}
-            title="Una entidad"
-            subtitle="Un patrón en una institución"
-          />
+          <ul className="flex flex-wrap gap-2" aria-label="Qué pasa con tu denuncia">
+            {PROMESAS[modo].map((p) => (
+              <li key={p.texto} className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs font-medium text-inkSoft">
+                <span className="text-granate" aria-hidden>
+                  {p.icono}
+                </span>
+                {p.texto}
+              </li>
+            ))}
+          </ul>
         </div>
 
         {ok ? (
-          <Confirmacion id={ok} modo={modo} regionNombre={okRegion} onOtra={otra} />
+          <div className="max-w-3xl">
+            <Confirmacion id={ok} modo={modo} regionNombre={okRegion} onOtra={otra} />
+          </div>
         ) : modo === "obra" ? (
           <FormObra
             key={`obra-${vuelta}`}
@@ -151,25 +145,16 @@ function TabBig({
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      title={subtitle}
       className={cn(
-        "flex min-h-[48px] items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-rapido sm:px-4 sm:py-3",
+        "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-rapido",
         // Granate = la opción elegida (selección de marca), no una advertencia.
         active ? "bg-granate text-paper" : "bg-transparent text-inkSoft hover:bg-paper hover:text-ink",
       )}
     >
-      <span
-        className={cn(
-          "hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg sm:flex",
-          active ? "bg-paper/15 text-paper" : "bg-paperDeep text-mute",
-        )}
-        aria-hidden
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold">{title}</span>
-        <span className={cn("block text-xs", active ? "text-paper/80" : "text-mute")}>{subtitle}</span>
-      </span>
+      <span aria-hidden>{icon}</span>
+      <span>{title}</span>
+      <span className="sr-only">: {subtitle}</span>
     </button>
   );
 }

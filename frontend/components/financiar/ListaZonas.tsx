@@ -1,5 +1,5 @@
 import { Ayuda } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
+import { CeldaBarra, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { ESTADO_LABEL, ESTADO_PUNTO, type Zona } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -26,11 +26,13 @@ export type ZonaListada = Pick<Zona, "ubigeo" | "nombre" | "pendientes" | "finan
 function columnas(precioPen: number | null): Columna[] {
   return [
     { clave: "estado", titulo: "", ancho: "10px" },
-    { clave: "zona", titulo: "Zona", ancho: "minmax(0,1fr)" },
+    { clave: "zona", titulo: "Zona", ancho: "minmax(0,2.2fr)" },
+    // El peso de su cola frente a la mayor de la lista: llena el hueco entre el nombre y las cifras.
+    { clave: "barra", titulo: "", ancho: "minmax(0,0.5fr)", desde: "md" },
     {
       clave: "cola",
       titulo: "En cola",
-      ancho: "92px",
+      ancho: "76px",
       alinear: "der",
       ayuda: (
         <Ayuda titulo="¿Qué es “en cola”?">
@@ -41,7 +43,7 @@ function columnas(precioPen: number | null): Columna[] {
     {
       clave: "costo",
       titulo: "Costo",
-      ancho: "112px",
+      ancho: "88px",
       alinear: "der",
       desde: "md",
       ayuda: (
@@ -54,6 +56,7 @@ function columnas(precioPen: number | null): Columna[] {
 }
 
 function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
+  const mayor = Math.max(1, ...zonas.map((z) => z.pendientes));
   return zonas.map((z) => ({
     id: z.ubigeo,
     href: `/app/financiar/${z.ubigeo}`,
@@ -61,10 +64,12 @@ function filas(zonas: ZonaListada[], precioPen: number | null): Fila[] {
       estado: <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", ESTADO_PUNTO[z.estado])} aria-hidden />,
       zona: (
         <CeldaPrincipal
+          enLinea
           titulo={z.nombre}
           meta={[z.lugar, ESTADO_LABEL[z.estado], z.financiados > 0 ? `${numero(z.financiados)} financiados` : null]}
         />
       ),
+      barra: <CeldaBarra parte={z.pendientes / mayor} resumen={`${numero(z.pendientes)} contratos en cola, de ${numero(mayor)} en la zona con más`} />,
       cola: <CeldaNumero>{numero(z.pendientes)}</CeldaNumero>,
       costo: <CeldaNumero>{soles(precioPen != null ? z.pendientes * precioPen : null)}</CeldaNumero>,
     },
@@ -81,5 +86,5 @@ export function ListaZonas({
   precioPen: number | null;
   etiqueta: string;
 }) {
-  return <Tabla columnas={columnas(precioPen)} filas={filas(zonas, precioPen)} etiqueta={etiqueta} />;
+  return <Tabla columnas={columnas(precioPen)} filas={filas(zonas, precioPen)} etiqueta={etiqueta} densidad="compacta" medida="contenedor" />;
 }

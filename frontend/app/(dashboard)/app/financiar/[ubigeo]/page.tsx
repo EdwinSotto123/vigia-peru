@@ -127,6 +127,22 @@ export default async function ZonaPage({
             </Ayuda>
             <Link href="/app/financiar#independencia" className="font-medium text-granate underline underline-offset-2">Reglas de independencia</Link>
           </p>
+
+          {/* Las zonas hijas, a la vista y no en una pestaña: llenan la columna junto al formulario y son
+              la forma de bajar de una región a su provincia o distrito. */}
+          {d.hijas.length > 0 && (
+            <section aria-labelledby="hijas-titulo" className="space-y-2">
+              <h2 id="hijas-titulo" className="font-display text-base font-bold text-ink">
+                {zona.nivel === "departamento" ? "Provincias" : "Distritos"} de {zona.nombre}
+                <span className="ml-2 font-mono text-[13px] font-normal text-mute">{numero(d.hijas.length)}</span>
+              </h2>
+              <ListaZonas
+                zonas={d.hijas}
+                precioPen={zona.precioPen}
+                etiqueta={`${zona.nivel === "departamento" ? "Provincias" : "Distritos"} de ${zona.nombre}`}
+              />
+            </section>
+          )}
         </div>
 
         {/* En móvil la respuesta va PRIMERO (se llega desde "Financiar esta zona"); en escritorio, columna derecha pegajosa. */}
@@ -173,8 +189,7 @@ const ENLACE_PESTANA = "inline-flex min-h-[24px] items-center gap-1 text-[13px] 
  * tiene su cifra arriba, en los Indicadores). Provincias o distritos, sólo si la zona los tiene.
  */
 function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[] {
-  const { zona, hijas, aliados, cola } = d;
-  const nombreHijas = zona.nivel === "departamento" ? "Provincias" : "Distritos";
+  const { zona, aliados, cola } = d;
   // "En vivo" cuenta lo que se está leyendo ahora; sin avance que leer, no hay número que mostrar.
   const enAnalisis = zona.financiados > 0 && enVivo ? enVivo.filter((p) => p.estado === "procesando").length : null;
   const pestanas: Pestana[] = [
@@ -264,15 +279,6 @@ function pestanasZona(d: ZonaDetalle, enVivo: Procesamiento[] | null): Pestana[]
         ),
     },
   ];
-  // Zonas hijas: la misma tabla que la lista de /app/financiar.
-  if (hijas.length > 0) {
-    pestanas.push({
-      clave: "zonas",
-      etiqueta: nombreHijas,
-      conteo: hijas.length,
-      contenido: <ListaZonas zonas={hijas} precioPen={zona.precioPen} etiqueta={`${nombreHijas} de ${zona.nombre}`} />,
-    });
-  }
   // Aliados: reconocimiento en contratos, nunca en soles.
   pestanas.push({
     clave: "aliados",

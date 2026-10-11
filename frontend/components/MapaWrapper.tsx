@@ -15,7 +15,7 @@ import { Indicadores } from "@/components/listado";
 import { Llamita } from "@/components/marca";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
 import { colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
-import { RegionDetailPanel } from "./RegionDetailPanel";
+import { RegionDetailPanel, type FilaPais } from "./RegionDetailPanel";
 import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
 import { type RangoMes } from "./mapa/FiltroMes";
 import { BarraMapa } from "./mapa/BarraMapa";
@@ -558,8 +558,27 @@ export function MapaWrapper({
         ? `${enteros(zBase.enCola)} esperando, ${enteros(zBase.conSenales)} de riesgo medio o alto`
         : null;
 
+  // El panel sin región abierta ordena los departamentos por lo que pinta el mapa (no se queda vacío).
+  const rankingPais = useMemo<FilaPais[] | null>(() => {
+    if (!geoPais) return cargandoPais ? null : [];
+    return [...geoPais]
+      .map((z) => ({
+        ubigeo: z.ubigeo,
+        nombre: z.nombre,
+        valor: m.valor(z),
+        texto: m.formato(m.valor(z)),
+        total: z.total,
+        leidos: z.procesados,
+        conSenales: z.conSenales,
+      }))
+      .sort((a, b) => b.valor - a.valor || a.nombre.localeCompare(b.nombre, "es"));
+  }, [geoPais, cargandoPais, m]);
+
   const panel = (
     <RegionDetailPanel
+      ranking={rankingPais}
+      medidaTitulo={m.titulo}
+      onElegirRegion={elegirRegion}
       region={region}
       onClose={() => elegirRegion(null)}
       alertasApi={alertasZona}

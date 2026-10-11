@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Moon } from "lucide-react";
 import type { ProgresoDocumentos } from "@/lib/admin";
 import { Badge, BarraProgreso, Card, EmptyState, Expandable, Panel, StatCard, StatGrid, estadoLote, fmtDia, fmtFechaHora, fmtNum, hace } from "@/components/admin/ui";
 
@@ -19,8 +19,8 @@ function estimacion(pr: ProgresoDocumentos): { valor: string; pista: string; ton
   if (pr.restantes === 0) return { valor: "Completo", pista: "no falta ningún documento publicado", tono: "ok" };
   if (!pr.porNoche || activas < NOCHES_MINIMAS || pr.nochesRestantes == null)
     return {
-      valor: "Sin ritmo suficiente para estimar",
-      pista: activas === 0 ? "ninguna noche de los últimos 7 días bajó documentos" : `solo ${activas} ${activas === 1 ? "noche" : "noches"} con descargas en 7 días; hacen falta ${NOCHES_MINIMAS}`,
+      valor: "Sin estimar",
+      pista: activas === 0 ? "sin descargas en 7 días" : `${activas} de ${NOCHES_MINIMAS} noches con descargas`,
       tono: "muted",
     };
   const fin = fmtDia(new Date(Date.now() + pr.nochesRestantes * 864e5));
@@ -69,41 +69,53 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
       </Card>
 
       <StatGrid columnas={4}>
-        <StatCard etiqueta="Faltan" valor={pr.restantes} tono={pr.restantes ? "warn" : "ok"} pista={`documentos; ${fmtNum(pr.contratosSinBajar)} contratos sin ninguno bajado`} />
+        <StatCard etiqueta="Faltan" valor={pr.restantes} tono={pr.restantes ? "warn" : "ok"} pista={`documentos, de ${fmtNum(pr.contratosSinBajar)} contratos`} />
         <StatCard
           etiqueta="Ritmo"
           valor={pr.porNoche ? `${fmtNum(pr.porNoche)} / noche` : "Sin descargas"}
-          pista={pr.porNoche ? "promedio de las noches con descargas, últimos 7 días" : "en los últimos 7 días"}
+          pista={pr.porNoche ? "noches con descargas, 7 días" : "en los últimos 7 días"}
         />
         <StatCard etiqueta="Fin estimado" valor={est.valor} tono={est.tono} pista={est.pista} />
-        <StatCard etiqueta="En lotes abiertos" valor={pr.itemsPendientes} pista="documentos esperando su turno en un lote que no terminó" />
+        <StatCard etiqueta="En lotes abiertos" valor={pr.itemsPendientes} pista="documentos esperando turno" />
       </StatGrid>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Panel titulo="Descargados por noche" descripcion="Últimos 7 días">
-          {!pr.ritmo.length ? (
-            <EmptyState compacto titulo="Ninguna descarga en la última semana" descripcion="El lote nocturno no bajó documentos en estos 7 días." className="py-4" />
-          ) : (
-            <ul className="space-y-1.5 text-[12px]">
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        {/* Un panel con cabecera solo si hay algo que listar; sin datos, una línea que lo diga. */}
+        {!pr.ritmo.length && (
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+            <Moon size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
+            <span><strong className="font-semibold text-ink">Ninguna descarga en la última semana.</strong> El lote nocturno no bajó documentos en estos 7 días.</span>
+          </p>
+        )}
+        {!!pr.ritmo.length && (
+          <section aria-label="Descargados por noche" className="rounded-xl border border-line bg-paper px-3 py-2">
+            <h3 className="text-[13px] font-semibold text-ink">
+              Descargados por noche <span className="font-normal text-mute">últimos 7 días</span>
+            </h3>
+            <ul className="mt-1.5 grid gap-x-4 gap-y-1 text-[12px] sm:grid-cols-2">
               {pr.ritmo.map((r) => (
                 <li key={r.dia} className="flex items-center gap-2">
-                  <span className="w-24 shrink-0 text-inkSoft">{dia(r.dia)}</span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
+                  <span className="w-20 shrink-0 text-inkSoft">{dia(r.dia)}</span>
+                  <span className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
                     <span className="block h-full rounded-full bg-moss" style={{ width: `${Math.round((r.n / max) * 100)}%` }} />
                   </span>
-                  <span className="w-32 shrink-0 text-right text-mute">
+                  <span className="shrink-0 text-right text-mute">
                     <span className="font-mono text-ink">{fmtNum(r.n)}</span> docs, {fmtNum(r.contratos)} contr.
                   </span>
                 </li>
               ))}
             </ul>
-          )}
-        </Panel>
+          </section>
+        )}
 
-        <Panel titulo="Errores recientes" descripcion={pr.errores.length ? `Los últimos ${pr.errores.length} documentos que fallaron, agrupados por causa` : "Documentos que fallaron en los últimos lotes"}>
-          {!pr.errores.length ? (
-            <EmptyState compacto icono={<CheckCircle2 size={18} />} titulo="Ningún documento falló" descripcion="Los últimos lotes bajaron todo lo que intentaron." className="py-4" />
-          ) : (
+        {!pr.errores.length && (
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+            <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+            <span><strong className="font-semibold text-ink">Ningún documento falló.</strong> Los últimos lotes bajaron todo lo que intentaron.</span>
+          </p>
+        )}
+        {!!pr.errores.length && <Panel titulo="Errores recientes" descripcion={pr.errores.length ? `Los últimos ${pr.errores.length} documentos que fallaron, agrupados por causa` : "Documentos que fallaron en los últimos lotes"}>
+          {(
             <div className="space-y-2">
               {Array.from(grupos.entries()).map(([causa, items]) => {
                 const contratos = new Set(items.map((e) => e.clave.split("/")[0]));
@@ -134,7 +146,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
               })}
             </div>
           )}
-        </Panel>
+        </Panel>}
       </div>
     </div>
   );

@@ -36,8 +36,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Download, Trash2, Loader2, Check, LogIn, RefreshCw, ChevronRight, ShieldAlert } from "lucide-react";
-import { Ayuda, Cargando, EncabezadoPagina, EstadoError, EstadoVacio, Pagina } from "@/components/patrones";
+import { Bell, Eye, EyeOff, Download, Trash2, Loader2, Check, LogIn, RefreshCw, ChevronRight, ShieldAlert, ShieldCheck, UserRound } from "lucide-react";
+import { Ayuda, Beneficios, Cargando, EncabezadoPagina, EstadoError, Franja, Pagina } from "@/components/patrones";
+import { AliadosDelPais, CifrasDelPais, RecientesDelPais, SinCuentaConCuenta } from "@/components/cuenta/ResumenPublico";
 import { fechaCorta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -89,17 +90,49 @@ export default function ConfiguracionPage() {
       {loading || (user && cargando && !perfil) ? (
         <Cargando texto="Cargando tu cuenta…" />
       ) : !user ? (
-        <EstadoVacio
-          titulo="Necesitas una cuenta"
-          accion={
-            <Link href="/login?next=/app/configuracion" prefetch={false} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
-              <LogIn size={16} aria-hidden /> Entrar
-            </Link>
-          }
-        >
-          Aquí se guardan tu perfil de aliado y tus avisos. Sin cuenta puedes financiar como invitado y denunciar sin tu
-          nombre.
-        </EstadoVacio>
+        <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-3">
+            <Franja
+              icono={<LogIn size={18} />}
+              titulo="Entra para guardar tu perfil y tus avisos"
+              accion={
+                <Link href="/login?next=/app/configuracion" prefetch={false} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
+                  <LogIn size={16} aria-hidden /> Entrar
+                </Link>
+              }
+            >
+              Sin cuenta puedes financiar como invitado y denunciar sin tu nombre; con ella guardas tu perfil de aliado y tus avisos.
+            </Franja>
+            <Beneficios
+              columnas={1}
+              items={[
+                { icono: <UserRound size={16} />, titulo: "Tu perfil público", texto: "Cómo apareces en el ranking de aliados y en tu página." },
+                { icono: <Bell size={16} />, titulo: "Correo y avisos", texto: "Un correo opcional y qué avisos quieres recibir." },
+                { icono: <ShieldCheck size={16} />, titulo: "Privacidad y datos", texto: "Qué guardamos de ti; puedes exportarlo o borrar tu cuenta." },
+              ]}
+            />
+            <section aria-labelledby="config-guardamos" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+              <h2 id="config-guardamos" className="font-display text-[16px] font-bold text-ink">Qué guardamos si creas una cuenta</h2>
+              <ul className="mt-2 list-outside list-disc space-y-1 pl-5 text-[13.5px] leading-snug text-inkSoft">
+                <li>Tu nombre de usuario, sin correo salvo que lo dejes.</li>
+                <li>Tu perfil público: lo que decidas publicar y si eres visible o anónimo.</li>
+                <li>Tu RUC, si lo registras: solo para el chequeo de conflicto de interés, nunca se publica.</li>
+                <li>Las zonas y entidades que sigues, y tus preferencias de aviso.</li>
+                <li>Tus aportes y las denuncias enviadas con sesión.</li>
+              </ul>
+              <p className="mt-2 text-xs text-mute">
+                Los aportes y los contratos leídos con ellos son públicos por diseño (comprobante de impacto). Detalle en{" "}
+                <Link href="/preguntas#cuentas" className="font-medium text-granate underline underline-offset-2">Cuánto cuesta y quién paga</Link>.
+              </p>
+            </section>
+            <CifrasDelPais />
+          </div>
+          <div className="space-y-3">
+            <SinCuentaConCuenta />
+            <AliadosDelPais />
+            <RecientesDelPais cuantos={4} titulo="Lo último que financiaron" />
+          </div>
+        </div>
       ) : perfil ? (
         <Formulario perfil={perfil} />
       ) : (

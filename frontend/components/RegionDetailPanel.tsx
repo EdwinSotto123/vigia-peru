@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MapPin } from "lucide-react";
 import type { RegionGeo } from "@/lib/peru-data";
 import type { ContratoZona } from "@/lib/contratos";
@@ -26,6 +27,9 @@ export function RegionDetailPanel({
   geo,
   tab,
   onTab,
+  ranking,
+  medidaTitulo,
+  onElegirRegion,
 }: {
   region: RegionGeo | null;
   onClose: () => void;
@@ -39,8 +43,13 @@ export function RegionDetailPanel({
   geo: ContratoZona | null | undefined;
   tab: ZonaTab;
   onTab: (t: ZonaTab) => void;
+  /** Los departamentos ya ordenados por lo que pinta el mapa; `null` = cargando. Llena el panel cuando no hay región abierta. */
+  ranking?: FilaPais[] | null;
+  /** Qué mide el ranking (lo que pinta el mapa), en palabras. */
+  medidaTitulo?: string;
+  onElegirRegion?: (ubigeo: string) => void;
 }) {
-  if (!region) return <PanelVacio />;
+  if (!region) return <PanelPais ranking={ranking ?? null} medidaTitulo={medidaTitulo ?? ""} onElegir={onElegirRegion} />;
 
   return (
     <ZonaHubPanel
@@ -58,30 +67,84 @@ export function RegionDetailPanel({
   );
 }
 
-/** Qué trae el panel de una zona: una línea por pestaña, sin párrafos (§10.7). */
-const QUE_TRAE: { titulo: string; detalle: string }[] = [
-  { titulo: "Cola de auditoría", detalle: "qué espera lectura y cuánto cuesta leerlo" },
-  { titulo: "Lo ya encontrado", detalle: "señales con su norma y denuncias vecinales" },
-  { titulo: "Quién contrata", detalle: "entidades y presupuesto MEF" },
-];
+/** Un departamento del ranking del país: lo que pinta el mapa y lo que se leyó. */
+export interface FilaPais {
+  ubigeo: string;
+  nombre: string;
+  /** Lo que ordena y fija el largo de la barra (la medida del mapa). */
+  valor: number;
+  /** Ese valor, ya formateado ("S/ 5.9 mil M"). */
+  texto: string;
+  total: number;
+  leidos: number;
+  conSenales: number;
+}
 
-function PanelVacio() {
-  // Arriba, no centrado: centrado en 680 px dejaba 200 px en blanco sobre el texto.
+const FILAS_INICIALES = 12;
+
+/**
+ * Sin región abierta, el panel no se queda vacío: ordena los departamentos por lo que pinta el
+ * mapa. Es otra puerta al mismo mapa (un toque abre la región), con las mismas cifras de la API.
+ */
+function PanelPais({ ranking, medidaTitulo, onElegir }: { ranking: FilaPais[] | null; medidaTitulo: string; onElegir?: (ubigeo: string) => void }) {
+  const [todas, setTodas] = useState(false);
+  const max = Math.max(1, ...(ranking ?? []).map((f) => f.valor));
+  const filas = ranking ? (todas ? ranking : ranking.slice(0, FILAS_INICIALES)) : [];
   return (
-    <div className="flex h-full flex-col justify-start gap-3 bg-paperSoft px-6 py-6">
+    <div className="flex h-full flex-col overflow-y-auto bg-paperSoft px-5 py-5">
       <h2 className="flex items-center gap-2 font-display text-lg font-bold leading-tight text-ink">
         <MapPin size={18} className="shrink-0 text-granate" aria-hidden />
-        Ningún departamento abierto
+        Todo el Perú
       </h2>
-      <p className="text-[13px] text-mute">Toca uno en el mapa (o Tab y Enter) para ver:</p>
-      <ul className="divide-y divide-line border-y border-line text-[13px]">
-        {QUE_TRAE.map((q) => (
-          <li key={q.titulo} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
-            <span className="font-semibold text-ink">{q.titulo}</span>
-            <span className="text-[12px] text-mute">{q.detalle}</span>
-          </li>
-        ))}
-      </ul>
+      <p className="mt-1 text-[13px] leading-snug text-mute">
+        {medidaTitulo ? `Departamentos por ${medidaTitulo.toLowerCase()}. ` : ""}Toca uno aquí o en el mapa.
+      </p>
+      {ranking === null ? (
+        <div className="mt-4 space-y-2" aria-hidden>
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="h-9 animate-pulse rounded-lg bg-paperDeep" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <ol className="mt-3 divide-y divide-line border-y border-line">
+            {filas.map((f, i) => (
+              <li key={f.ubigeo}>
+                <button
+                  type="button"
+                  onClick={() => onElegir?.(f.ubigeo)}
+                  className="group flex w-full items-center gap-2.5 py-2 text-left transition-colors duration-rapido hover:bg-granate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
+                >
+                  <span aria-hidden className="w-5 shrink-0 text-right font-mono text-[12px] tabular-nums text-mute">{i + 1}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[14px] font-semibold text-ink group-hover:text-granate">{f.nombre}</span>
+                      <span className="shrink-0 font-mono text-[12.5px] font-semibold tabular-nums text-ink">{f.texto}</span>
+                    </span>
+                    <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep">
+                      <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(2, (f.valor / max) * 100)}%` }} />
+                    </span>
+                    <span className="mt-0.5 block text-[11.5px] text-mute">
+                      {f.leidos.toLocaleString("es-PE")} leídos de {f.total.toLocaleString("es-PE")}
+                      {f.conSenales > 0 ? `, ${f.conSenales.toLocaleString("es-PE")} con riesgo medio o alto` : ""}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          {ranking.length > FILAS_INICIALES && (
+            <button
+              type="button"
+              onClick={() => setTodas((v) => !v)}
+              aria-expanded={todas}
+              className="mt-2 self-start text-[13px] font-semibold text-granate underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-granate"
+            >
+              {todas ? "Ver menos" : `Ver los ${ranking.length}`}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }

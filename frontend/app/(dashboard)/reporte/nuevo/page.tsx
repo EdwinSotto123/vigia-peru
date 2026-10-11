@@ -14,7 +14,7 @@ export default function ReporteNuevoPage() {
     <Suspense
       fallback={
         <Pagina>
-          <Cargando texto="Cargando el formulario…" className="max-w-3xl" />
+          <Cargando texto="Cargando el formulario…" />
         </Pagina>
       }
     >

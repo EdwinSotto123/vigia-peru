@@ -13,6 +13,7 @@ import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { esPdf, formatoDoc, tipoDocLabel, type ContratoDocumento } from "@/lib/contratos";
 import { fechaCorta, numero } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { EstadoVacio } from "@/components/ui/EstadoVacio";
 
 interface Firmada { url: string; formato: string; bytes: number | null; previsualizable: boolean; venceEnSeg: number }
 
@@ -55,7 +56,7 @@ export function DocumentosContrato({ ocid, documentos }: { ocid: string; documen
   }
 
   if (!documentos.length) {
-    return <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-6 text-center text-sm text-mute">El registro no publica documentos para este proceso.</p>;
+    return <EstadoVacio icono={<FileText size={15} />} variante="compacta">El registro no publica documentos para este proceso.</EstadoVacio>;
   }
 
   return (

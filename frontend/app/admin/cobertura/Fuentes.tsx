@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, DataTable, Expandable, KeyValue, SinDato, fmtFechaHora, fmtNum, hace, type Columna, type Tone } from "@/components/admin/ui";
+import { Badge, DataTable, Expandable, SinDato, fmtFechaHora, fmtNum, hace, type Columna, type Tone } from "@/components/admin/ui";
 
 // ── Fuentes externas: lo que no viene del SEACE ────────────────────────────
 
@@ -104,19 +104,17 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
     <div className="space-y-3">
       <DataTable etiqueta="Fuentes externas" columnas={columnas} filas={filas} claveFila={(x) => x.clave} />
       <Expandable variante="linea" resumen={`Detalle técnico de las cargas (${conCargas} fuentes con registro)`}>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-2 md:grid-cols-2">
           {filas.filter((x) => x.f).map(({ clave, f, meta }) => (
-            <div key={clave} className="rounded-xl border border-line bg-paper p-3">
+            <div key={clave} className="min-w-0 rounded-xl border border-line bg-paper px-3 py-2">
               <p className="text-[13px] font-medium text-ink">{meta.nombre}</p>
-              <KeyValue
-                className="mt-2"
-                items={[
-                  { etiqueta: "Pipeline → tabla", valor: `${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`, mono: true, completo: true },
-                  { etiqueta: "Último archivo o periodo", valor: f!.ultimaClave, mono: true },
-                  { etiqueta: "Descargado de la fuente", valor: fmtFechaHora(f!.ultimaDescarga) },
-                  { etiqueta: "Último error", valor: f!.ultimoError ?? <span className="text-mute">Ninguno</span>, mono: !!f!.ultimoError, completo: true },
-                ]}
-              />
+              <p className="truncate font-mono text-[11px] text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>{clave}{f!.tabla ? ` → ${f!.tabla}` : ""}</p>
+              <p className="text-[12px] leading-snug text-inkSoft">
+                Último archivo <span className="font-mono text-ink">{f!.ultimaClave ?? "sin dato"}</span>, descargado {fmtFechaHora(f!.ultimaDescarga) ?? "sin fecha"}.
+              </p>
+              <p className={`truncate text-[12px] ${f!.ultimoError ? "font-mono text-crimsonTexto" : "text-mute"}`} title={f!.ultimoError ?? undefined}>
+                {f!.ultimoError ? `Último error: ${f!.ultimoError}` : "Sin errores registrados"}
+              </p>
             </div>
           ))}
         </div>

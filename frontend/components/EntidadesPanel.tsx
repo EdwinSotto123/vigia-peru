@@ -136,7 +136,7 @@ export function EntidadesPanel({ pagina, actual, orden, parametros, q, aqui }: P
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag}</div>
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Entidades ordenadas por contratos con dictamen publicado" />
+      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Entidades ordenadas por contratos con dictamen publicado" densidad="compacta" />
       <div className="flex justify-end">{pag}</div>
     </div>
   );

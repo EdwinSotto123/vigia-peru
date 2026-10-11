@@ -24,23 +24,31 @@ function completar(porMes: Mes[]): Mes[] {
 }
 
 export function GraficoMeses({ porMes, etiqueta }: { porMes: Mes[]; etiqueta: string }) {
-  const meses = completar(porMes);
-  if (meses.length === 0) return <p className="text-sm text-inkSoft">Este partido no tiene contratos convocados en este período.</p>;
+  const todos = completar(porMes);
+  if (todos.length === 0) return <p className="text-sm text-inkSoft">Este partido no tiene contratos convocados en este período.</p>;
+  // Los primeros meses de la base tienen unos pocos contratos sueltos: dibujarlos deja media figura vacía.
+  // Se parte del primer mes con al menos el 4 % del mes más cargado (con un mes de margen) y lo anterior se
+  // resume en una línea, con su número: no se esconde, se cuenta aparte.
+  const maxTodos = Math.max(1, ...todos.map((m) => m.contratos));
+  const corte = Math.max(0, todos.findIndex((m) => m.contratos >= Math.max(3, maxTodos * 0.04)) - 1);
+  const meses = todos.length - corte >= 6 ? todos.slice(corte) : todos;
+  const antes = todos.slice(0, todos.length - meses.length);
+  const antesContratos = antes.reduce((s, m) => s + m.contratos, 0);
   const maximo = Math.max(1, ...meses.map((m) => m.contratos));
   const W = 720;
-  const H = 190;
+  const H = 150;
   const PAD_B = 26;
   const alto = H - PAD_B - 8;
   const paso = W / meses.length;
   const ancho = Math.max(2, paso * 0.72);
-  const total = meses.reduce((s, m) => s + m.contratos, 0);
-  const leidos = meses.reduce((s, m) => s + m.leidos, 0);
+  const total = todos.reduce((s, m) => s + m.contratos, 0);
+  const leidos = todos.reduce((s, m) => s + m.leidos, 0);
   // Una marca de año cada enero (y la primera barra): el eje no se llena de texto.
   const marcas = meses.map((m, i) => ({ m, i })).filter(({ m, i }) => i === 0 || m.mes.endsWith("-01"));
 
   return (
     <figure className="space-y-3">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: ${numero(total)} contratos en ${meses.length} meses, ${numero(leidos)} ya leídos`} className="h-auto w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: ${numero(total)} contratos en ${todos.length} meses, ${numero(leidos)} ya leídos`} className="h-auto w-full">
         <line x1="0" x2={W} y1={H - PAD_B} y2={H - PAD_B} className="stroke-line" strokeWidth="1" />
         {meses.map((m, i) => {
           const x = i * paso + (paso - ancho) / 2;
@@ -64,10 +72,15 @@ export function GraficoMeses({ porMes, etiqueta }: { porMes: Mes[]; etiqueta: st
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-inkSoft">
         <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-granate/25" /> Contratos convocados en el mes</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-granate" /> Los que Vigía ya leyó</span>
+        {antes.length > 0 && (
+          <span className="text-mute">
+            Antes de {mesCorto(meses[0].mes)}: {numero(antesContratos)} {antesContratos === 1 ? "contrato" : "contratos"} en {antes.length} {antes.length === 1 ? "mes" : "meses"}, en la tabla.
+          </span>
+        )}
       </figcaption>
       <details className="text-[13px] text-inkSoft">
         <summary className="min-h-[24px] cursor-pointer font-medium text-granate">Ver la tabla de meses</summary>
-        <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-line">
+        <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-line [details:not([open])>&]:hidden">
           <table className="w-full text-left">
             <caption className="sr-only">{etiqueta}</caption>
             <thead className="sticky top-0 bg-paperSoft text-[12px] text-mute">
@@ -79,7 +92,7 @@ export function GraficoMeses({ porMes, etiqueta }: { porMes: Mes[]; etiqueta: st
               </tr>
             </thead>
             <tbody className="divide-y divide-line font-mono tabular-nums">
-              {meses.map((m) => (
+              {todos.map((m) => (
                 <tr key={m.mes}>
                   <th scope="row" className="px-3 py-1.5 font-sans font-normal">{mesCorto(m.mes)}</th>
                   <td className="px-3 py-1.5 text-right">{numero(m.contratos)}</td>

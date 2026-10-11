@@ -24,6 +24,7 @@ export function OpcionesCategoria({
   onElegir,
   etiqueta,
   permiteQuitar = false,
+  compacta = false,
 }: {
   opciones: { id: CategoriaDenuncia; label: string }[];
   elegida: string;
@@ -32,9 +33,11 @@ export function OpcionesCategoria({
   etiqueta: string;
   /** Si tocar la elegida la desmarca (categoría opcional). */
   permiteQuitar?: boolean;
+  /** Una sola columna de opciones bajas: para una columna angosta del formulario en tres columnas. */
+  compacta?: boolean;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={etiqueta}>
+    <div className={cn("grid gap-2", compacta ? "gap-1.5" : "sm:grid-cols-2")} role="group" aria-label={etiqueta}>
       {opciones.map((c) => {
         const activa = elegida === c.id;
         const Icono = CATEGORIA_META[c.id].icon;
@@ -45,7 +48,8 @@ export function OpcionesCategoria({
             aria-pressed={activa}
             onClick={() => onElegir(activa && permiteQuitar ? "" : c.id)}
             className={cn(
-              "flex min-h-[48px] items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors duration-rapido",
+              "flex items-center gap-3 rounded-xl border text-left text-sm transition-colors duration-rapido",
+              compacta ? "min-h-[44px] gap-2 px-3 py-2 text-[13px] leading-tight" : "min-h-[48px] px-4 py-3",
               activa
                 ? "border-granate bg-granate-soft font-semibold text-granate"
                 : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",

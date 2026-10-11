@@ -1,8 +1,9 @@
+import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Flag } from "lucide-react";
 import { EntidadesPanel, hrefEntidades, ORDENES_ENTIDADES, type OrdenEntidades } from "@/components/EntidadesPanel";
-import { BarraFiltros, Indicadores, Listado, ZonaResultados } from "@/components/listado";
+import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
 import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
 import {
   getEntidadesPagina,
@@ -94,7 +95,7 @@ export default async function EntidadesPage({
       />
 
       {resumen && (
-        <Indicadores
+        <CifrasEnFila
           items={[
             {
               valor: numero(resumen.conAlertas),

@@ -11,6 +11,7 @@ import { EstadoAuditoria } from "@/components/auditoria/EstadoAuditoria";
 import { ActividadAuditoria } from "@/components/auditoria/ActividadAuditoria";
 import { ComoFunciona } from "@/components/auditoria/ComoFunciona";
 import { UltimoAnalisis } from "@/components/auditoria/UltimoAnalisis";
+import { LecturasAnteriores } from "@/components/auditoria/LecturasAnteriores";
 import { cuentasAuditoria } from "@/components/auditoria/cuentasAuditoria";
 import {
   DIAS_RITMO,
@@ -261,7 +262,15 @@ export default async function AuditoriaPage({
                             autoRefreshMs={5000}
                             enPestanas
                             conLlamita
-                            panelSecundario={<UltimoAnalisis p={ultimo} hayFiltros={hayFiltros} />}
+                            panelSecundario={
+                              <div className="space-y-4">
+                                <UltimoAnalisis p={ultimo} hayFiltros={hayFiltros} />
+                                <LecturasAnteriores
+                                  items={(historico?.data ?? []).filter((x) => x.ocid !== ultimo?.ocid).slice(0, 5)}
+                                  total={historico?.total ?? null}
+                                />
+                              </div>
+                            }
                           />
                         </ZonaResultados>
                       </>

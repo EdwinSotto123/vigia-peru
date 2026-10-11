@@ -1,3 +1,4 @@
+import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Landmark, ShieldCheck } from "lucide-react";
@@ -5,7 +6,7 @@ import { ContribuirForm } from "@/components/financiar/ContribuirForm";
 import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Volver } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { getEstadoGlobal, getPago, tiposEnPalabras } from "@/lib/financiamiento";
 import { numero, plural, soles } from "@/lib/formato";
@@ -121,7 +122,7 @@ export default async function FinanciarPartidoPage({
             </span>
           }
         />
-        <Indicadores items={indicadores} />
+        <CifrasEnFila items={indicadores} />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">

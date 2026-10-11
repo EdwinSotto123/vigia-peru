@@ -438,19 +438,22 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
       </fieldset>
 
       {/* Método */}
-      <fieldset className={GRUPO}>
-        <legend className={LEYENDA}>¿Cómo pagas?</legend>
-        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Método de pago">
-          {(["yape", "plin", "transferencia"] as const).map((m) => (
-            <OpcionRadio key={m} name={`metodo-${clave}`} checked={metodo === m} onChange={() => setMetodo(m)} className="capitalize">
-              {m}
-            </OpcionRadio>
-          ))}
+      {/* Una sola franja: la pregunta, las tres opciones y lo que aceptamos (antes, tres líneas sueltas en una caja alta). */}
+      <div role="group" aria-labelledby={`pago-${clave}`} className="mt-5 min-w-0 border-t border-line pt-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span id={`pago-${clave}`} className={ETIQUETA_GRUPO}>¿Cómo pagas?</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Método de pago">
+            {(["yape", "plin", "transferencia"] as const).map((m) => (
+              <OpcionRadio key={m} name={`metodo-${clave}`} checked={metodo === m} onChange={() => setMetodo(m)} className="capitalize">
+                {m}
+              </OpcionRadio>
+            ))}
+          </div>
         </div>
         {metodos.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">Aceptamos {metodos.map((m) => <BrandBadge key={m} brand={m} />)}</div>
         )}
-      </fieldset>
+      </div>
 
       {verificacion.widget}
       {error && <p className="mt-4 text-sm text-crimsonTexto" role="alert">{error}</p>}

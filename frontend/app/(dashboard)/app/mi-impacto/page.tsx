@@ -21,7 +21,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Camera, ArrowRight, Loader2, Building2, Bell, Link2, LogIn, ExternalLink, CheckCircle2, Clock, XCircle, GitMerge, Lock, type LucideIcon } from "lucide-react";
 import { PieDetalle, CabeceraPestana,
-  Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, EstadoVacio,
+  Ayuda, BloqueDetalle, Cargando, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave, EncabezadoPagina, EstadoError, Franja, Beneficios,
   Pagina, Pestanas, type DatoClave,
 } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -32,6 +32,7 @@ import { Partes, Separador } from "@/components/ui/Partes";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { dejarDeSeguir, getImpacto, reclamarAporte, type AporteMio, type DenunciaMia, type Impacto } from "@/lib/cuentas";
 import { ESTADO_LABEL, ESTADO_PUNTO, type ZonaEstado } from "@/lib/financiamiento";
+import { AliadosDelPais, CifrasDelPais, RecientesDelPais } from "@/components/cuenta/ResumenPublico";
 import { CATEGORIA_META, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { fechaCorta, numero, plural, soles } from "@/lib/formato";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
@@ -109,22 +110,22 @@ function Contenido() {
     return (
       <div className="space-y-6">
         {aporteParam && !yaTiene && <Reclamar codigo={aporteParam.toUpperCase()} onOk={cargar} />}
-        <EstadoVacio
+        <Franja
           titulo="Todavía no hay nada con esta cuenta"
           accion={
-            <div className="flex flex-wrap justify-center gap-2">
+            <>
               <Link href="/app/financiar" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep">
-                Financiar la lectura de una zona <ArrowRight size={16} aria-hidden />
+                Financiar una lectura <ArrowRight size={16} aria-hidden />
               </Link>
               <Link href="/reporte/nuevo" className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">
                 Denunciar una obra
               </Link>
-            </div>
+            </>
           }
         >
           Si financiaste como invitado, abre tu comprobante <span className="font-mono text-ink">/impacto/VIG-…</span> y
           asócialo desde ahí.
-        </EstadoVacio>
+        </Franja>
       </div>
     );
   }
@@ -645,18 +646,33 @@ function VacioSeccion({ icon: Icon, children }: { icon: LucideIcon; children: Re
 }
 
 function SinSesion() {
+  // Sin cuenta no hay nada propio que mostrar, pero sí lo que ya hicieron entre todos (datos reales de la API).
   return (
-    <EstadoVacio
-      titulo="Mi impacto necesita una cuenta"
-      accion={
-        <div className="flex flex-wrap justify-center gap-2">
-          <Link href="/login?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
-          <Link href="/signup?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center rounded-full border border-line bg-paper px-5 py-2 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50">Crear cuenta</Link>
-        </div>
-      }
-    >
-      Sin cuenta puedes ver todo, financiar como invitado (con tu código VIG-…) y denunciar sin tu nombre. Con cuenta,
-      lo reúnes aquí.
-    </EstadoVacio>
+    <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-3">
+        <Franja
+          icono={<LogIn size={18} />}
+          titulo="Entra para reunir lo tuyo"
+          accion={
+            <Link href="/login?next=/app/mi-impacto" prefetch={false} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-granate px-5 py-2 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"><LogIn size={16} aria-hidden /> Entrar</Link>
+          }
+        >
+          Sin cuenta puedes ver todo, financiar como invitado (con tu código VIG-…) y denunciar sin tu nombre.{" "}
+          <Link href="/signup?next=/app/mi-impacto" prefetch={false} className="font-semibold text-granate underline underline-offset-2">Crear cuenta</Link>
+        </Franja>
+        <Beneficios
+          columnas={2}
+          items={[
+            { icono: <Link2 size={16} />, titulo: "Tus aportes", texto: "Su progreso en vivo, los contratos con señales y tu comprobante." },
+            { icono: <Camera size={16} />, titulo: "Tus denuncias", texto: "Las que enviaste con sesión y en qué estado están." },
+            { icono: <MapPin size={16} />, titulo: "Zonas que sigues", texto: "Lo nuevo en las regiones que te importan." },
+            { icono: <Building2 size={16} />, titulo: "Entidades que sigues", texto: "Lo nuevo de las entidades que quieres vigilar." },
+          ]}
+        />
+        <CifrasDelPais />
+        <AliadosDelPais />
+      </div>
+      <RecientesDelPais cuantos={11} />
+    </div>
   );
 }

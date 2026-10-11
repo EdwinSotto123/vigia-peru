@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Map as MapIcon, MessageSquareWarning } from "lucide-react";
-import { Ayuda, EncabezadoPagina, EstadoVacio, Pagina } from "@/components/patrones";
+import { ArrowRight, BadgeCheck, Camera, Map as MapIcon, MessageSquareWarning } from "lucide-react";
+import { Ayuda, EncabezadoPagina, Franja, Pagina } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type OpcionFaceta } from "@/components/listado";
 import { ListaDenuncias, hrefDenuncias } from "@/components/denuncias/ListaDenuncias";
 import { getReportesPagina, type ApiReporte, type ReportesPagina } from "@/lib/api-client";
+import { getContratosGeo } from "@/lib/contratos";
+import { ObrasPorRegion } from "@/components/denuncias/ObrasPorRegion";
 import { CATEGORIA_META, TODAS_CATEGORIAS, estaConfirmada, tieneUbicacion, type CategoriaDenuncia } from "@/lib/denuncias-meta";
 import { confirmadosDe, parseDenunciasQuery, type EstadoDenunciaFiltro } from "@/lib/denuncias-query";
 import { REGIONES } from "@/lib/peru-data";
@@ -102,6 +104,8 @@ export default async function DenunciasPage({
   // ¿La muestra es todo el universo? Entonces sus conteos son exactos.
   const completa = !!muestra && muestra.total <= muestra.data.length;
   const recortada = !!muestra && !completa;
+  // Sin denuncias, la pantalla no queda a medias: muestra el registro oficial de obras por región (datos reales).
+  const obrasZonas = sinNinguna ? await getContratosGeo({ nivel: "departamento", tipo: "obras" }).catch(() => null) : null;
 
   const filtro: Filtro = { region: query.region, categoria: query.categoria, estado: query.estado };
   // El universo de los conteos: la muestra, ya con la búsqueda aplicada.
@@ -191,8 +195,12 @@ export default async function DenunciasPage({
           </Ayuda>
         }
         acciones={
-          // Sin ninguna denuncia, el llamado a denunciar lo lleva el propio estado vacío.
-          sinNinguna ? undefined : (
+          sinNinguna ? (
+            <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
+              <MessageSquareWarning size={16} aria-hidden />
+              Denunciar una obra
+            </Link>
+          ) : (
             <>
               {!fallo && (
                 <Link href={hrefMapa} className={BOTON_SECUNDARIO}>
@@ -210,18 +218,68 @@ export default async function DenunciasPage({
       />
 
       {sinNinguna ? (
-        <EstadoVacio
-          compacto
-          titulo="Todavía no hay denuncias de vecinos publicadas"
-          accion={
-            <Link href="/reporte/nuevo" className={BOTON_DENUNCIAR}>
-              <MessageSquareWarning size={16} aria-hidden />
-              Denunciar una obra
-            </Link>
-          }
-        >
-          Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio.
-        </EstadoVacio>
+        <div className="space-y-4">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
+            <div className="space-y-4">
+              <Franja titulo="Todavía no hay denuncias de vecinos publicadas" className="sm:w-full">
+                Cuando alguien reporte una obra, aparece aquí con su foto y el lugar donde la vio.
+              </Franja>
+              {obrasZonas && obrasZonas.length > 0 && <ObrasPorRegion zonas={obrasZonas} cuantas={16} />}
+            </div>
+            <div className="space-y-4">
+            <section aria-labelledby="como-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+              <h2 id="como-denunciar" className="font-display text-[16px] font-bold text-ink">Cómo funciona una denuncia</h2>
+              <ol className="mt-3 space-y-3">
+                {[
+                  { icono: <Camera size={16} />, titulo: "Foto y lugar", texto: "Se publica al instante, tal como llegó, en esta lista y en el mapa. Nadie la revisa antes." },
+                  { icono: <MessageSquareWarning size={16} />, titulo: "Es el testimonio de un vecino", texto: "No es un hallazgo de Vigía: los agentes que leen contratos no la analizan." },
+                  { icono: <BadgeCheck size={16} />, titulo: "Se confirma entre varios", texto: "Figura como confirmada cuando la respaldan dos o más reportes independientes del mismo lugar." },
+                ].map((p, i) => (
+                  <li key={p.titulo} className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden>{p.icono}</span>
+                    <span className="min-w-0">
+                      <span className="block text-[14.5px] font-semibold leading-snug text-ink"><span className="font-mono text-mute">{i + 1}.</span> {p.titulo}</span>
+                      <span className="mt-0.5 block text-[13px] leading-snug text-mute">{p.texto}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 border-t border-line pt-3 text-[13px] leading-snug text-inkSoft">
+                Puedes denunciar sin tu nombre: no se publica tu DNI ni tu nombre. Entra al formulario con el botón de arriba.
+              </p>
+            </section>
+              <section aria-labelledby="que-denunciar" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+                <h2 id="que-denunciar" className="font-display text-[16px] font-bold text-ink">Qué se puede denunciar</h2>
+                <ul className="mt-3 space-y-3">
+                  {Array.from(CATEGORIAS_OBRA).map((c) => {
+                    const m = CATEGORIA_META[c as CategoriaDenuncia];
+                    const Icono = m.icon;
+                    return (
+                      <li key={c} className="flex items-start gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-paperDeep text-granate" aria-hidden><Icono size={16} /></span>
+                        <span className="min-w-0">
+                          <span className="block text-[14.5px] font-semibold leading-snug text-ink">{m.label}</span>
+                          <span className="mt-0.5 block text-[13px] leading-snug text-mute">{m.descripcion}</span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+              <section aria-labelledby="que-se-ve" className="rounded-2xl border border-line bg-paper px-4 py-3.5 sm:px-5">
+                <h2 id="que-se-ve" className="font-display text-[16px] font-bold text-ink">Qué se ve en cada denuncia</h2>
+                <ul className="mt-2.5 flex flex-wrap gap-2">
+                  {["Foto de la obra", "Lugar en el mapa", "Categoría", "Relato del vecino", "Si está confirmada"].map((t) => (
+                    <li key={t} className="rounded-full border border-line bg-paperSoft px-3 py-1 text-[13px] font-medium text-ink">{t}</li>
+                  ))}
+                </ul>
+                <p className="mt-2.5 text-[13px] leading-snug text-mute">
+                  No se publica el DNI ni el nombre de quien denuncia.
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
       ) : (
         <>
           {muestra && <Indicadores items={indicadores(muestra)} />}

@@ -1,5 +1,6 @@
+import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { Ayuda, EncabezadoPagina, EstadoError, Pagina } from "@/components/patrones";
-import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador } from "@/components/listado";
+import { BarraFiltros, Listado, ZonaResultados, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { RankingAliados } from "@/components/aliados/RankingAliados";
 import { ReglasIndependencia } from "@/components/aliados/ReglasIndependencia";
@@ -21,6 +22,7 @@ import {
   frasePartesTarifa,
   getEstadoGlobal,
   getRankingPaginado,
+  getRecientes,
   getZonas,
   partesTarifa,
   type EstadoGlobal,
@@ -56,12 +58,14 @@ export default async function AliadosPage({
   const orden = parseOrden(searchParams?.orden);
   const periodo = parsePeriodo(searchParams?.periodo);
 
-  const [estado, zonas, resumenPais, resumenZona, muestra] = await Promise.all([
+  const [estado, zonas, resumenPais, resumenZona, muestra, recientes] = await Promise.all([
     getEstadoGlobal(),
     getZonas("departamento"),
     getResumenContratos(),
     ubigeo ? getResumenContratos({ ubigeo }) : Promise.resolve(null),
     getRankingPaginado({ periodo, region: ubigeo, limit: MUESTRA_RANKING }),
+    // Con pocos nombres, el ranking es corto: los últimos aportes llenan la pantalla con lo que sí pasó.
+    getRecientes().catch(() => null),
   ]);
   // Pasados los 60 aliados, la página del ranking la trae el API.
   const paginaApi =
@@ -132,7 +136,7 @@ export default async function AliadosPage({
       />
 
       {/* Si el API cae, se dice: no se dibujan ceros que parezcan dato. */}
-      {indicadores ? <Indicadores items={indicadores} /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
+      {indicadores ? <CifrasEnFila items={indicadores} /> : <EstadoError titulo="No pudimos leer las cifras de los aportes" />}
 
       <Listado
         ruta="/app/aliados"
@@ -184,6 +188,7 @@ export default async function AliadosPage({
                 nombreRegion={zona?.nombre}
                 precio={estado?.tarifa?.precioPen ?? null}
                 desglose={frasePartesTarifa(partes)}
+                recientes={recientes}
               />
             ) : (
               // Es una falla de la página, no un ranking vacío: los aportes siguen registrados.

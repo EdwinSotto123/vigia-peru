@@ -22,13 +22,16 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center text-center", compacto ? "px-4 py-8" : "px-6 py-12", className)}>
-      <span className="grid h-10 w-10 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
-        {icono ?? <Inbox size={18} />}
+    // Una franja de una o dos líneas: ícono, qué pasa y qué hacer. Nunca una caja alta con aire alrededor.
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", compacto ? "px-4 py-3" : "px-4 py-4 sm:px-5", className)}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-paperDeep text-inkSoft" aria-hidden>
+        {icono ?? <Inbox size={16} />}
       </span>
-      <p className="mt-3 text-sm font-semibold text-ink">{titulo}</p>
-      {descripcion && <p className="mt-1 max-w-md text-[13px] leading-relaxed text-mute">{descripcion}</p>}
-      {accion && <div className="mt-4 flex flex-wrap justify-center gap-2">{accion}</div>}
+      <div className="min-w-0 flex-1 basis-60">
+        <p className="text-sm font-semibold leading-snug text-ink">{titulo}</p>
+        {descripcion && <p className="text-[12.5px] leading-snug text-inkSoft">{descripcion}</p>}
+      </div>
+      {accion && <div className="flex flex-wrap gap-2">{accion}</div>}
     </div>
   );
 }

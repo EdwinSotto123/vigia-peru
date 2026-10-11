@@ -11,7 +11,7 @@
 // Turnstile; el widget, junto al botón de enviar, sólo se ve si hay que marcar la casilla.
 
 import { useEffect, useRef, useState } from "react";
-import { Building2, Search, Upload, Check, Loader2, Send, X } from "lucide-react";
+import { Building2, Check, ChevronDown, Loader2, Paperclip, Pencil, Search, Send, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { Ayuda } from "@/components/patrones/Ayuda";
@@ -22,8 +22,8 @@ import { cabeceraTurnstile } from "@/components/seguridad/mensajes";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import { numero } from "@/lib/formato";
 import type { CategoriaDenuncia } from "@/lib/denuncias-meta";
-import { Step } from "./Step";
 import { CAMPO as campo, ETIQUETA as etiqueta, ErrorCampo, ErrorEnvio, OpcionesCategoria } from "./Campos";
+import { PasosEnColumnas, type Paso } from "./PasosEnColumnas";
 import { ProgressTracker } from "./ProgressTracker";
 import {
   ACEPTA_ARCHIVO,
@@ -224,93 +224,103 @@ export function FormEntidad({
     }
   };
 
-  return (
-    <form onSubmit={submit} noValidate className="space-y-6 rounded-2xl border border-line bg-paper p-4 sm:p-6">
-      <div className="hidden sm:block">
-        <ProgressTracker milestones={milestones} />
-      </div>
-
-      <Step n={1} title="¿Cuál es la entidad?">
-        {ent ? (
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-line bg-paperSoft p-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
-                <span className="inline-flex items-center gap-1">
-                  <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(ent.tipo, ent.nombre, "corto")}
-                </span>
-                <span className="font-mono tabular-nums">RUC {ent.ruc}</span>
-              </div>
-              <div className="mt-0.5 font-display text-base font-bold text-ink">{ent.nombre}</div>
-              {(ent.region || ent.provincia) && (
-                <div className="text-xs text-mute">{[ent.region, ent.provincia].filter(Boolean).join(", ")}</div>
-              )}
+  const columnaEntidad = (
+    <>
+      {ent ? (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-line bg-paperSoft p-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-mute">
+              <span className="inline-flex items-center gap-1">
+                <Building2 size={11} aria-hidden /> {etiquetaTipoEntidad(ent.tipo, ent.nombre, "corto")}
+              </span>
+              <span className="font-mono tabular-nums">RUC {ent.ruc}</span>
             </div>
-            <button type="button" onClick={() => setEnt(null)} className="min-h-[24px] shrink-0 rounded-full px-2 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
-              Cambiar
-            </button>
+            <div className="mt-0.5 font-display text-base font-bold text-ink">{ent.nombre}</div>
+            {(ent.region || ent.provincia) && <div className="text-xs text-mute">{[ent.region, ent.provincia].filter(Boolean).join(", ")}</div>}
           </div>
-        ) : cargandoInicial ? (
-          <p className="inline-flex items-center gap-2 text-sm text-mute">
-            <Loader2 size={14} className="animate-spin" aria-hidden /> Cargando la entidad…
-          </p>
-        ) : (
+          <button type="button" onClick={() => setEnt(null)} className="inline-flex min-h-[44px] shrink-0 items-center rounded-full px-3 text-[13px] font-medium text-granate underline-offset-2 hover:underline">
+            Cambiar
+          </button>
+        </div>
+      ) : cargandoInicial ? (
+        <p className="inline-flex items-center gap-2 text-sm text-mute">
+          <Loader2 size={14} className="animate-spin" aria-hidden /> Cargando la entidad…
+        </p>
+      ) : (
+        <div className="relative">
+          <label htmlFor="entidad-buscar" className={etiqueta}>
+            Nombre de la entidad o RUC
+          </label>
           <div className="relative">
-            <label htmlFor="entidad-buscar" className={etiqueta}>
-              Nombre de la entidad o RUC
-            </label>
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-              <input
-                id="entidad-buscar"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ej: Municipalidad de Independencia, 20131369981"
-                aria-invalid={!!errores.entidad}
-                aria-describedby="entidad-estado"
-                className={cn(campo, "px-9")}
-              />
-              {buscando && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-mute" aria-hidden />}
-            </div>
-            <div id="entidad-estado" aria-live="polite">
-              {resultados.length > 0 && (
-                <ul className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-paper shadow-pop">
-                  {resultados.map((r) => (
-                    <li key={r.ruc} className="border-b border-line last:border-b-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEnt(r);
-                          setQuery("");
-                          setErrores((x) => ({ ...x, entidad: undefined }));
-                        }}
-                        className="block min-h-[44px] w-full px-3 py-2 text-left transition-colors duration-rapido hover:bg-granate-50"
-                      >
-                        <span className="block text-sm font-medium text-ink">{r.nombre}</span>
-                        <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-mute">
-                          <span className="font-mono tabular-nums">RUC {r.ruc}</span>
-                          <span>{etiquetaTipoEntidad(r.tipo, r.nombre, "corto")}</span>
-                          {r.region && <span>{r.region}</span>}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!buscando && query.trim().length >= 2 && resultados.length === 0 && (
-                <p className="mt-2 rounded-xl border border-dashed border-line bg-paperSoft p-3 text-xs text-inkSoft">
-                  {errorBusqueda
-                    ? "No pudimos buscar ahora mismo: el servidor de Vigía no respondió. Inténtalo otra vez en un momento."
-                    : "No encontramos una entidad con ese nombre. Prueba con otra palabra del nombre oficial o con su RUC de 11 dígitos."}
-                </p>
-              )}
-            </div>
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
+            <input
+              id="entidad-buscar"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ej: Municipalidad de Independencia, 20131369981"
+              aria-invalid={!!errores.entidad}
+              aria-describedby="entidad-estado"
+              className={cn(campo, "px-9")}
+            />
+            {buscando && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-mute" aria-hidden />}
           </div>
-        )}
-        {errores.entidad && <ErrorCampo>{errores.entidad}</ErrorCampo>}
-      </Step>
+          <div id="entidad-estado" aria-live="polite">
+            {resultados.length > 0 && (
+              <ul className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-paper shadow-pop">
+                {resultados.map((r) => (
+                  <li key={r.ruc} className="border-b border-line last:border-b-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEnt(r);
+                        setQuery("");
+                        setErrores((x) => ({ ...x, entidad: undefined }));
+                      }}
+                      className="block min-h-[44px] w-full px-3 py-2 text-left transition-colors duration-rapido hover:bg-granate-50"
+                    >
+                      <span className="block text-sm font-medium text-ink">{r.nombre}</span>
+                      <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-mute">
+                        <span className="font-mono tabular-nums">RUC {r.ruc}</span>
+                        <span>{etiquetaTipoEntidad(r.tipo, r.nombre, "corto")}</span>
+                        {r.region && <span>{r.region}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!buscando && query.trim().length >= 2 && resultados.length === 0 && (
+              <p className="mt-2 rounded-xl border border-dashed border-line bg-paperSoft p-3 text-xs text-inkSoft">
+                {errorBusqueda
+                  ? "No pudimos buscar ahora mismo: el servidor de Vigía no respondió. Inténtalo otra vez en un momento."
+                  : "No encontramos una entidad con ese nombre. Prueba con otra palabra del nombre oficial o con su RUC de 11 dígitos."}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {errores.entidad && <ErrorCampo>{errores.entidad}</ErrorCampo>}
+      {!ent && (
+        <ul className="mt-auto space-y-1 rounded-xl bg-paperSoft px-3 py-3 text-xs text-inkSoft">
+          <li className="flex items-start gap-1.5">
+            <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden /> Busca por el nombre oficial o por el RUC de 11 dígitos.
+          </li>
+          <li className="flex items-start gap-1.5">
+            <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden /> Son municipalidades, gobiernos regionales, hospitales y demás entidades del Estado.
+          </li>
+          <li className="flex items-start gap-1.5">
+            <Check size={12} className="mt-0.5 shrink-0 text-moss" aria-hidden /> Tu denuncia queda en reserva: no se publica.
+          </li>
+        </ul>
+      )}
+    </>
+  );
 
-      <Step n={2} title="¿Qué patrón estás denunciando?">
+  const columnaQuePasa = (
+    <>
+      <div>
+        <span className={etiqueta}>Qué patrón estás denunciando</span>
         <OpcionesCategoria
           opciones={CATEGORIAS_ENTIDAD}
           elegida={categoria}
@@ -319,13 +329,13 @@ export function FormEntidad({
             setErrores((x) => ({ ...x, categoria: undefined }));
           }}
           etiqueta="Patrón que denuncias"
+          compacta
         />
         {errores.categoria && <ErrorCampo>{errores.categoria}</ErrorCampo>}
-      </Step>
-
-      <Step n={3} title="Describe lo que viste">
-        <label htmlFor="entidad-descripcion" className="sr-only">
-          Lo que viste
+      </div>
+      <div className="flex flex-1 flex-col">
+        <label htmlFor="entidad-descripcion" className={etiqueta}>
+          Describe lo que viste
         </label>
         <textarea
           id="entidad-descripcion"
@@ -339,7 +349,7 @@ export function FormEntidad({
           aria-invalid={!!errores.descripcion}
           aria-describedby="entidad-descripcion-ayuda"
           placeholder="Ej: La municipalidad lleva 4 años contratando siempre al mismo proveedor para mantenimiento. El gerente de logística es pariente del dueño de la empresa."
-          className={cn(campo, "py-3 leading-relaxed")}
+          className={cn(campo, "min-h-[140px] flex-1 py-3 leading-relaxed")}
         />
         <p id="entidad-descripcion-ayuda" className="mt-1 flex justify-between gap-2 text-[11px] text-mute">
           <span>Cargos, fechas, números de contrato y enlaces hacen que tu denuncia se pueda comprobar.</span>
@@ -348,21 +358,25 @@ export function FormEntidad({
           </span>
         </p>
         {errores.descripcion && <ErrorCampo>{errores.descripcion}</ErrorCampo>}
-      </Step>
+      </div>
+    </>
+  );
 
-      <Step n={4} title="Adjunta evidencia (opcional)">
-        <label className="flex min-h-[64px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperSoft px-6 py-6 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate/40">
-          <Upload size={18} className="text-mute" aria-hidden />
+  const columnaPruebas = (
+    <>
+      <div>
+        <span className={etiqueta}>Evidencia (opcional)</span>
+        <label className="flex min-h-[96px] cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-line bg-paperSoft px-4 py-4 text-center transition-colors duration-rapido focus-within:border-granate hover:border-granate/40">
+          <Upload size={18} className="shrink-0 text-mute" aria-hidden />
           <span className="text-sm">
             {evidencia ? (
-              <span className="font-medium text-ink">
+              <span className="break-all font-medium text-ink">
                 {evidencia.name} <Check size={14} className="ml-1 inline text-mossTexto" aria-hidden />
               </span>
             ) : (
               <>
                 <span className="font-medium text-ink">Foto o documento PDF</span>
-                <br />
-                <span className="text-xs text-mute">Opcional. JPG, PNG, WebP o PDF, hasta {MAX_MB} MB.</span>
+                <span className="block text-xs text-mute">Opcional. JPG, PNG, WebP o PDF, hasta {MAX_MB} MB.</span>
               </>
             )}
           </span>
@@ -378,42 +392,47 @@ export function FormEntidad({
           />
         </label>
         {evidencia && (
-          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-2 inline-flex min-h-[24px] items-center gap-1 text-xs text-inkSoft hover:text-ink hover:underline">
+          <button type="button" onClick={() => elegirEvidencia(null)} className="mt-1 inline-flex min-h-[44px] items-center gap-1 text-xs text-inkSoft hover:text-ink hover:underline">
             <X size={12} aria-hidden /> Quitar el archivo
           </button>
         )}
         {errores.evidencia && <ErrorCampo>{errores.evidencia}</ErrorCampo>}
-        <p className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-mute">
+        <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-mute">
           A las fotos les quitamos los datos ocultos antes de guardarlas.
           <Ayuda titulo="¿Qué datos ocultos les quitamos?">La ubicación GPS y el modelo del teléfono.</Ayuda>
         </p>
-      </Step>
+      </div>
 
-      <Step n={5} title="Contacto (opcional)">
-        <label htmlFor="entidad-correo" className={etiqueta}>
-          Correo (opcional)
-        </label>
-        <input
-          id="entidad-correo"
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          value={contactoOpcional}
-          onChange={(e) => {
-            setContactoOpcional(e.target.value);
-            setErrores((x) => ({ ...x, correo: undefined }));
-          }}
-          aria-invalid={!!errores.correo}
-          placeholder="tu@correo.com"
-          className={campo}
-        />
-        {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
-        <p className="mt-2 text-[12px] text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado en reserva junto a la denuncia: no se publica.</p>
-      </Step>
+      <details className="group rounded-xl border border-dashed border-line bg-paperSoft open:border-line open:bg-transparent" open={!!errores.correo || undefined}>
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-semibold text-granate marker:hidden [&::-webkit-details-marker]:hidden">
+          <ChevronDown size={16} className="transition-transform duration-normal group-open:rotate-180" aria-hidden />
+          Contacto: tu correo, opcional
+        </summary>
+        <div className="space-y-2 px-3 pb-3 pt-1">
+          <label htmlFor="entidad-correo" className={etiqueta}>
+            Correo (opcional)
+          </label>
+          <input
+            id="entidad-correo"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={contactoOpcional}
+            onChange={(e) => {
+              setContactoOpcional(e.target.value);
+              setErrores((x) => ({ ...x, correo: undefined }));
+            }}
+            aria-invalid={!!errores.correo}
+            placeholder="tu@correo.com"
+            className={campo}
+          />
+          {errores.correo && <ErrorCampo>{errores.correo}</ErrorCampo>}
+          <p className="text-[12px] text-mute">No hace falta cuenta ni nombre. Si dejas tu correo, queda guardado en reserva junto a la denuncia: no se publica.</p>
+        </div>
+      </details>
 
-      <DisclaimerBanner />
-
-      <div className="space-y-2">
+      <div className="mt-auto space-y-2 pt-1">
+        <DisclaimerBanner />
         {verificacion.widget}
         {errorEnvio && <ErrorEnvio>{errorEnvio}</ErrorEnvio>}
         <Button type="submit" disabled={submitting} full variant="primary">
@@ -436,7 +455,47 @@ export function FormEntidad({
                 .join(", ")}.`}
         </p>
       </div>
+    </>
+  );
+
+  const quePasaOk = !!categoria && relatoOk;
+  const pasos: Paso[] = [
+    {
+      id: "entidad",
+      titulo: "Entidad",
+      icono: <Building2 size={14} />,
+      completa: !!ent,
+      bloqueado: false,
+      motivo: "",
+      resumen: ent?.nombre ?? "",
+      children: columnaEntidad,
+    },
+    {
+      id: "que-pasa",
+      titulo: "Qué pasa",
+      icono: <Pencil size={14} />,
+      completa: quePasaOk,
+      bloqueado: !ent,
+      motivo: "Elige la entidad para seguir",
+      resumen: `${numero(descripcion.trim().length)} caracteres`,
+      children: columnaQuePasa,
+    },
+    {
+      id: "pruebas",
+      titulo: "Pruebas y envío",
+      icono: <Paperclip size={14} />,
+      completa: false,
+      bloqueado: !ent || !quePasaOk,
+      motivo: !ent ? "Elige la entidad para seguir" : !categoria ? "Elige el patrón para seguir" : "Cuenta lo que viste para seguir",
+      resumen: evidencia ? evidencia.name : "Sin evidencia",
+      children: columnaPruebas,
+    },
+  ];
+
+  return (
+    <form onSubmit={submit} noValidate className="space-y-3">
+      <ProgressTracker milestones={milestones} />
+      <PasosEnColumnas pasos={pasos} etiqueta="Pasos de la denuncia a una entidad" />
     </form>
   );
 }
-

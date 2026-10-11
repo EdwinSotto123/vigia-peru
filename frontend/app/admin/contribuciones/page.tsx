@@ -65,7 +65,13 @@ function Page() {
     return () => clearTimeout(t);
   }, [q]);
   const { data, error, isLoading, isValidating, mutate } = useAdmin<{ data: ContribucionAdmin[] }>(`/contribuciones?estado=${estado}&q=${encodeURIComponent(qApi)}`);
-  const rows = data?.data ?? null;
+  // Sin pagos por validar la bandeja quedaba en una línea y el resto de la pantalla en blanco: se muestran los
+  // últimos aportes (de cualquier estado) para poder abrir su comprobante y ver cómo van.
+  const sinPendientes = estado === "pendiente_pago" && !qApi && !!data && data.data.length === 0;
+  const recientesQ = useAdmin<{ data: ContribucionAdmin[] }>(sinPendientes ? "/contribuciones?estado=todas&q=" : null);
+  const recientes = sinPendientes ? (recientesQ.data?.data ?? []).slice(0, 12) : [];
+  const mostrandoRecientes = recientes.length > 0;
+  const rows = mostrandoRecientes ? recientes : (data?.data ?? null);
 
   // El elegido se sigue por código: tras validar o refrescar se ve su versión nueva.
   const [elegido, setElegido] = useState<ContribucionAdmin | null>(null);
@@ -133,8 +139,8 @@ function Page() {
           <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink">
             {c.nombrePublico ?? <span className="text-mute">Anónimo</span>}
             {!c.visible && <EyeOff size={12} className="text-rust" aria-label="Sin reconocimiento público" />}
+            <span className="text-[11px] text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
           </span>
-          <span className="block text-[11px] text-mute">{[tipoFinanciadorLabel(c.tipo), c.ruc && `RUC ${c.ruc}`].filter(Boolean).join(", ")}</span>
         </>
       ),
     },
@@ -182,7 +188,19 @@ function Page() {
 
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {mostrandoRecientes && (
+          <p className="flex items-start gap-2 rounded-xl bg-paperSoft px-3 py-2 text-[13px] leading-snug text-inkSoft">
+            <Check size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+            <span>
+              <strong className="font-semibold text-ink">No hay pagos por validar.</strong> Estos son los últimos {recientes.length} aportes: elige uno para ver su comprobante y
+              cuántos de sus contratos ya se leyeron.
+            </span>
+          </p>
+        )}
+
+        {/* Sin aportes en la bandeja no hay detalle que mostrar: la lista ocupa todo el ancho en vez de
+            dejar al lado una segunda caja vacía. */}
+        <div className={sel ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]" : "grid gap-4"}>
           <DataTable
             etiqueta="Aportes"
             columnas={columnas}
@@ -202,16 +220,18 @@ function Page() {
             }
           />
 
-          <aside ref={detalleRef} className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start" aria-label="Detalle del aporte">
-            {sel ? (
+          {sel && (
+            <aside ref={detalleRef} className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start" aria-label="Detalle del aporte">
               <Detalle key={sel.codigo} c={sel} onValidar={() => validar(sel)} onRechazar={() => rechazar(sel)} onClose={() => setElegido(null)} />
-            ) : (
-              <div className="rounded-2xl border border-dashed border-line bg-paper/60">
-                <EmptyState compacto icono={<MousePointerClick size={18} />} titulo="Elige un aporte" descripcion="Verás su comprobante, a quién pertenece y los botones para confirmar el pago o rechazarlo." />
-              </div>
-            )}
-          </aside>
+            </aside>
+          )}
         </div>
+        {!sel && !!rows?.length && (
+          <p className="flex items-center gap-2 text-[12.5px] text-inkSoft">
+            <MousePointerClick size={14} className="shrink-0" aria-hidden />
+            <span><strong className="font-semibold text-ink">Elige un aporte</strong> para ver su comprobante, a quién pertenece y confirmar el pago o rechazarlo.</span>
+          </p>
+        )}
       </div>
     </AdminShell>
   );
@@ -232,7 +252,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
   const e = estadoAporte(c.estado);
   return (
     <section className="rounded-2xl border border-line bg-paper">
-      <header className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
+      <header className="flex items-start justify-between gap-3 px-4 pt-3 sm:px-5">
         <div>
           <p className="font-mono text-lg font-bold text-ink">{c.codigo}</p>
           <div className="mt-1"><Badge tono={e.tono} punto>{e.label}</Badge></div>
@@ -240,7 +260,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
         <button onClick={onClose} aria-label="Cerrar detalle" className="rounded-lg p-1 text-mute hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
       </header>
 
-      <div className="space-y-4 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+      <div className="space-y-3 px-4 pb-4 pt-2.5 sm:px-5">
         <div>
           <p className="text-[12px] text-inkSoft"><span className="font-mono text-ink">{c.procesados}</span> de {c.contratos} contratos leídos, {c.asignados} asignados</p>
           <BarraProgreso valor={c.procesados} total={c.contratos} etiqueta={`${c.procesados} de ${c.contratos} contratos leídos`} className="mt-1.5" />

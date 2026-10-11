@@ -69,7 +69,7 @@ export function PageSection({
         </div>
         {acciones && visible && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>
-      <div id={idCuerpo} hidden={!visible} className="mt-3">
+      <div id={idCuerpo} hidden={!visible} className="mt-2">
         {children}
       </div>
     </section>

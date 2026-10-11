@@ -20,7 +20,7 @@ export function ContratosPorPartido({ ranking, anio }: { ranking: RankingPartido
   const filas = (ranking?.data ?? []).slice(0, TOPE);
   const maximo = Math.max(1, ...filas.map((f) => f.contratos));
   return (
-    <section aria-labelledby="contratos-partido-titulo" className="space-y-4">
+    <section aria-labelledby="contratos-partido-titulo" className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="max-w-2xl">
           <h2 id="contratos-partido-titulo" className="font-display text-2xl font-bold leading-tight text-ink">Contratos por partido</h2>
@@ -57,17 +57,21 @@ export function ContratosPorPartido({ ranking, anio }: { ranking: RankingPartido
             <li key={f.clave}>
               <Link
                 href={`/app/partidos/${f.clave}?anio=${anio}`}
-                className="group grid min-h-[64px] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-granate-50 sm:grid-cols-[2rem_minmax(0,1fr)_minmax(0,14rem)_auto]"
+                className="group grid min-h-[44px] items-center gap-x-4 gap-y-0.5 px-4 py-1.5 transition-colors hover:bg-granate-50 sm:grid-cols-[1.75rem_minmax(0,1.5fr)_minmax(0,1fr)_auto]"
               >
                 <span className="hidden font-mono text-[13px] tabular-nums text-mute sm:block" aria-hidden>{i + 1}</span>
-                <span className="min-w-0">
-                  <span className="block truncate text-[15px] font-semibold text-ink" title={f.nombre}>{f.nombre}</span>
-                  <span className="block text-[12.5px] text-mute">
+                <span className="min-w-0 sm:flex sm:items-baseline sm:gap-x-3">
+                  <span className="block truncate text-[14.5px] font-semibold text-ink sm:max-w-[68%] sm:shrink-0" title={f.nombre}>{f.nombre}</span>
+                  <span className="block truncate text-[12.5px] text-mute sm:min-w-0">
                     {numero(f.gobiernos.regional + f.gobiernos.provincial + f.gobiernos.distrital)} gobiernos, {numero(f.contratos)} contratos
                   </span>
                 </span>
-                <span className="min-w-0" aria-hidden>
-                  <span className="block h-2.5 overflow-hidden rounded-full bg-granate/15">
+                <span
+                  className="min-w-0"
+                  role="img"
+                  aria-label={`${numero(f.contratos)} contratos, ${numero(f.leidos)} leídos, frente a ${numero(maximo)} del partido con más`}
+                >
+                  <span className="block h-2 overflow-hidden rounded-full bg-granate/15">
                     <span className="block h-full rounded-full bg-granate/30" style={{ width: `${Math.max(2, (f.contratos / maximo) * 100)}%` }}>
                       <span className="block h-full rounded-full bg-granate" style={{ width: `${f.contratos > 0 ? (f.leidos / f.contratos) * 100 : 0}%` }} />
                     </span>

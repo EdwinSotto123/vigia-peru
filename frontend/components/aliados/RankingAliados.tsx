@@ -1,12 +1,14 @@
 import { EyeOff } from "lucide-react";
-import { TIPO_FINANCIADOR_LABEL } from "@/lib/financiamiento";
+import { TIPO_FINANCIADOR_LABEL, type ContribucionReciente } from "@/lib/financiamiento";
 import { numero, soles } from "@/lib/formato";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
+import { RecientesFeed } from "@/components/financiar/RecientesFeed";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila } from "@/components/listado";
 import { AvatarAliado, esFundador } from "./TarjetaAliado";
-import { LUGAR_LIBRE, PodioRanking, Puesto } from "./Podio";
+import { LUGAR_LIBRE, Puesto } from "./Podio";
+import { PodioBanda } from "./PodioBanda";
 import { pctProporcion } from "./proporcion";
 import { ORDEN_LABEL, TAM_PAGINA, hrefPerfil, type ClaveOrden, type FilaRanking, type Periodo, type Ranking } from "./ranking";
 
@@ -86,6 +88,7 @@ export function RankingAliados({
   nombreRegion,
   precio,
   desglose,
+  recientes = null,
 }: {
   ranking: Ranking;
   /** Contratos financiados en el ámbito (región y periodo): denominador de cada fila. */
@@ -99,6 +102,8 @@ export function RankingAliados({
   precio: number | null;
   /** "procesamiento (S/ 1), infraestructura y datos (S/ 1)…", o vacío. */
   desglose: string;
+  /** Los últimos aportes: con un ranking corto (hasta tres nombres) se muestran junto a "cómo entras". */
+  recientes?: ContribucionReciente[] | null;
 }) {
   const { podio, tabla, anonimos, totalNombres, completa, paginas } = ranking;
 
@@ -132,9 +137,7 @@ export function RankingAliados({
   return (
     <div className="space-y-4">
       {/* Con uno o dos nombres, los puestos que faltan se ven libres: el podio es también la invitación. */}
-      {podio.length > 0 && (
-        <PodioRanking filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} destacado />
-      )}
+      {podio.length > 0 && <PodioBanda filas={podio} financiadosAmbito={financiadosAmbito} lugarLibre={LUGAR_LIBRE} />}
 
       {tabla.length > 0 && (
         <section aria-labelledby="ranking-titulo" className="space-y-2.5">
@@ -152,12 +155,25 @@ export function RankingAliados({
             columnas={COLUMNAS}
             filas={tabla.map((f) => filaRanking(f, financiadosAmbito))}
             etiqueta={`Aliados, ordenados por ${ORDEN_LABEL[orden].toLowerCase()}`}
+            densidad="compacta"
           />
           {paginacion && <div className="flex justify-end">{paginacion}</div>}
         </section>
       )}
 
-      {totalNombres <= 3 && <Invitacion totalNombres={totalNombres} nombreRegion={nombreRegion} precio={precio} desglose={desglose} />}
+      {totalNombres <= 3 && (
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+          <Invitacion totalNombres={totalNombres} nombreRegion={nombreRegion} precio={precio} desglose={desglose} />
+          {recientes && recientes.length > 0 && (
+            <section aria-labelledby="aportes-recientes" className="min-w-0 space-y-2">
+              <h2 id="aportes-recientes" className="font-display text-base font-bold text-ink">
+                Últimos aportes
+              </h2>
+              <RecientesFeed items={recientes.slice(0, 5)} />
+            </section>
+          )}
+        </div>
+      )}
       <Anonimos cantidad={anonimos.cantidad} contratos={anonimos.contratos} />
     </div>
   );
@@ -185,7 +201,7 @@ function Invitacion({
       <h2 id="invitacion-ranking" className="font-display text-base font-bold text-ink">
         {totalNombres === 1 ? `Hay un solo nombre en este ranking${donde}` : `Hay ${num(totalNombres)} nombres en este ranking${donde}`}
       </h2>
-      <ol className="mt-2 grid gap-x-6 gap-y-2 text-[13px] leading-snug text-inkSoft md:grid-cols-3">
+      <ol className="mt-2 space-y-2 text-[13px] leading-snug text-inkSoft">
         <li className="flex gap-2">
           <span className="font-mono text-mute">1.</span>
           <span>

@@ -21,7 +21,7 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
   return (
     <div>
       <h3 className="text-[11px] font-semibold uppercase tracking-wide text-mute">{titulo}</h3>
-      <div className="mt-2">{children}</div>
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
   return (
     <details className="group rounded-2xl border border-line bg-paper">
-      <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-2.5 sm:px-5 [&::-webkit-details-marker]:hidden">
         <Wrench size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-ink">Detalle técnico</span>
@@ -74,10 +74,13 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
         <ChevronDown size={16} className="mt-0.5 shrink-0 text-mute transition-transform group-open:rotate-180" aria-hidden />
       </summary>
 
-      <div className="space-y-6 border-t border-line px-4 py-4 sm:px-5">
+      <div className="space-y-4 border-t border-line px-4 py-3 sm:px-5">
         <Bloque titulo={`Señales tal como se guardaron (${d.banderas.length})`}>
           <SenalesCrudas banderas={d.banderas} />
         </Bloque>
+
+        {/* Columnas CSS: los bloques fluyen de una a otra y quedan parejos, sin huecos de una grilla desigual. */}
+        <div className="lg:columns-2 lg:gap-x-8 [&>*]:mb-4 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
 
         <Bloque titulo="Motivo que dejó el sistema">
           {d.motivoPipeline
@@ -95,7 +98,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
 
         <Bloque titulo="Verificación del dictamen">
           {verif.length ? (
-            <dl className="grid gap-x-6 gap-y-1 text-[12px] sm:grid-cols-2">
+            <dl className="grid gap-x-6 gap-y-0.5 text-[12px]">
               {verif.map(([k, v]) => (
                 <div key={k} className="flex min-w-0 gap-2 border-b border-line/60 py-1">
                   <dt className="shrink-0 text-mute">{k}</dt>
@@ -155,7 +158,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
         </Bloque>
 
         <Bloque titulo="Umbrales vigentes">
-          <ul className="grid gap-1 text-[12px] text-ink sm:grid-cols-2">
+          <ul className="grid gap-1 text-[12px] text-ink">
             <li>Respaldo mínimo de señales: <span className="font-mono">{pct(u.min_respaldo)}</span> (con 2 o más juzgadas)</li>
             <li>Señales con norma y fuente: <span className="font-mono">{pct(u.min_cita)}</span> (con 3 o más)</li>
             <li>Comparaciones de precio razonables: <span className="font-mono">{pct(u.min_precio)}</span> (con 3 o más)</li>
@@ -163,6 +166,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
           </ul>
           {u.nota && <p className="mt-2 text-[11px] leading-snug text-mute">{u.nota}</p>}
         </Bloque>
+        </div>
       </div>
     </details>
   );

@@ -11,7 +11,7 @@
  *   GET /financiamiento/recientes                               últimas contribuciones confirmadas
  *   GET /financiamiento/pago                                    medios de pago (Yape/Plin/cuentas/QR) — públicos
  *   GET /financiamiento/alcance                                 qué tipos × etapas se analizan hoy (ajustes.procesamiento) + cola + docs listos
- *   GET /financiamiento/entidades?q=&limit=1..50(20)&offset=    entidades que se pueden financiar (migración 39): con
+ *   GET /financiamiento/entidades?q=&region=&limit=1..50(20)&offset=    entidades que se pueden financiar (migración 39): con
  *                                                              contratos en cola; con `q`, por nombre o RUC (también sin cola)
  *   GET /financiamiento/entidades/:ruc                          una entidad: su cola, sus contratos, su zona, tarifa y aliados
  *
@@ -364,6 +364,8 @@ financiamientoRouter.get("/aliados/:slug", async (c) => {
 
 const EntidadesQuery = z.object({
   q: z.string().trim().max(120).optional(),
+  // Departamento (2 dígitos del ubigeo): solo las entidades de esa región. Vacío = todas.
+  region: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().regex(/^\d{2}$/).optional()),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
@@ -380,13 +382,13 @@ const entidadesTextoMemo = new Memo<Serializado>({ nombre: "financiamiento:entid
 financiamientoRouter.get("/entidades", async (c) => {
   const parsed = EntidadesQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
-  const { limit, offset } = parsed.data;
+  const { limit, offset, region } = parsed.data;
   const q = parsed.data.q && [...parsed.data.q].length >= 2 ? parsed.data.q : undefined;
-  return responderJson(c, q ? entidadesTextoMemo : entidadesMemo, JSON.stringify({ q, limit, offset }),
-    () => entidadesFinanciables(q, limit, offset), cachePublico(60, { swr: 60 }));
+  return responderJson(c, q ? entidadesTextoMemo : entidadesMemo, JSON.stringify({ q, region, limit, offset }),
+    () => entidadesFinanciables(q, limit, offset, region), cachePublico(60, { swr: 60 }));
 });
 
-async function entidadesFinanciables(q: string | undefined, limit: number, offset: number) {
+async function entidadesFinanciables(q: string | undefined, limit: number, offset: number, region?: string) {
   // Sin la 35 (entidad_stats), las mismas columnas desde `entidades`, contadas en vivo.
   const fuente = (await hayModelosLectura())
     ? "entidad_stats es"
@@ -395,14 +397,21 @@ async function entidadesFinanciables(q: string | undefined, limit: number, offse
                (SELECT count(*) FROM alertas a WHERE a.entidad_ruc = e.ruc AND ${alertaPublica("a")})::int AS alertas_publicadas
           FROM entidades e) es`;
   const vals: unknown[] = [];
-  let filtro = "";
+  const condiciones: string[] = [];
   if (q && /^\d{11}$/.test(q)) {
     vals.push(q);
-    filtro = "WHERE es.ruc = $1";
+    condiciones.push(`es.ruc = $${vals.length}`);
   } else if (q) {
     vals.push(`%${escaparLike(q.toLowerCase())}%`);
-    filtro = "WHERE es.nombre_norm LIKE immutable_unaccent($1)";
+    condiciones.push(`es.nombre_norm LIKE immutable_unaccent($${vals.length})`);
   }
+  if (region) {
+    // La región de la entidad es un nombre ("Áncash"): se empareja con el departamento por su nombre sin tildes.
+    vals.push(region);
+    condiciones.push(`EXISTS (SELECT 1 FROM zonas z WHERE z.ubigeo = $${vals.length} AND z.nivel = 'departamento'
+                              AND immutable_unaccent(lower(z.nombre)) = immutable_unaccent(lower(es.region)))`);
+  }
+  const filtro = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
   vals.push(limit, offset);
   // Una consulta: `base` se calcula una vez (CTE usado dos veces) para el total y para la página.
   const r = await pool.query(

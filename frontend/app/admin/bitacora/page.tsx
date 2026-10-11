@@ -90,7 +90,7 @@ export default function BitacoraPage() {
         </button>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
         {data && entradas.length > 0 && (
@@ -117,13 +117,16 @@ export default function BitacoraPage() {
             />
           </div>
         ) : (
-          dias.map((d) => (
-            <PageSection key={d.titulo} titulo={d.titulo} meta={`${d.items.length} ${d.items.length === 1 ? "acción" : "acciones"}`}>
-              <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
-                {d.items.map(({ e, a }, i) => <FilaBitacora key={`${e.createdAt}-${i}`} e={e} a={a} rol={rol} />)}
-              </ol>
-            </PageSection>
-          ))
+          // En pantalla ancha los días se reparten en dos columnas: una fila de una línea no necesita 1.100 px.
+          <div className="space-y-5 xl:columns-2 xl:gap-6 xl:space-y-0 xl:[&>*]:mb-5 xl:[&>*]:break-inside-avoid">
+            {dias.map((d) => (
+              <PageSection key={d.titulo} titulo={d.titulo} meta={`${d.items.length} ${d.items.length === 1 ? "acción" : "acciones"}`}>
+                <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+                  {d.items.map(({ e, a }, i) => <FilaBitacora key={`${e.createdAt}-${i}`} e={e} a={a} rol={rol} />)}
+                </ol>
+              </PageSection>
+            ))}
+          </div>
         )}
 
         {entradas.length >= 100 && <p className="text-[12px] text-inkSoft">Se muestran las últimas 100 acciones; las anteriores siguen guardadas en la base.</p>}

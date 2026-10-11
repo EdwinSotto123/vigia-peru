@@ -271,7 +271,7 @@ export default function AdminHome() {
         </button>
       }
     >
-      <div className="space-y-8">
+      <div className="space-y-5">
         <ErrorBanner error={opQ.error} titulo="No se pudo leer el estado del sistema" onReintentar={() => opQ.mutate()} />
 
         <PageSection titulo="Espera una decisión">
@@ -322,7 +322,7 @@ export default function AdminHome() {
           </StatGrid>
         </PageSection>
 
-        <div className="grid gap-8 xl:grid-cols-2">
+        <div className="grid items-start gap-5 xl:grid-cols-2">
           <PageSection titulo="Salud del sistema" meta={op ? `${enOrden} de ${salud.length} en orden` : undefined} className="min-w-0">
             <div className="overflow-hidden rounded-2xl border border-line bg-paper">
               {op ? (
@@ -337,6 +337,7 @@ export default function AdminHome() {
             </div>
           </PageSection>
 
+          <div className="min-w-0 space-y-5">
           <PageSection
             titulo="Cola de procesamiento"
             meta={op ? plural(totalCola, "contrato", "contratos") : undefined}
@@ -351,21 +352,27 @@ export default function AdminHome() {
               {op ? (
                 <>
                   {totalCola > 0 && (
-                    <div className="px-4 pt-4" aria-hidden>
+                    <div className="px-4 pt-3" aria-hidden>
                       <div className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep">
                         {ORDEN_BARRA.map((e) => ((cola[e] ?? 0) > 0 ? <span key={e} className={ESTADO_PROC[e].barra} style={{ width: `${((cola[e] ?? 0) / totalCola) * 100}%` }} /> : null))}
                       </div>
                     </div>
                   )}
+                  {/* Solo los estados que tienen algo: una lista de ceros no dice nada y la alarga. */}
                   <ul className="mt-2 divide-y divide-line">
-                    {FILAS_COLA.map((e) => (
+                    {FILAS_COLA.filter((e) => (cola[e] ?? 0) > 0).map((e) => (
                       <li key={e}>
-                        <FilaCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} etiqueta={ESTADO_PROC[e].label} n={cola[e] ?? 0} />
+                        <FilaCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} etiqueta={ESTADO_PROC[e].label} n={cola[e] ?? 0} ayuda={AYUDA_COLA[e]} total={totalCola + (cola.revision ?? op.revision.n)} />
                       </li>
                     ))}
-                    <li>
-                      <FilaCola href="/admin/revision" tono="pending" etiqueta="En revisión humana" n={cola.revision ?? op.revision.n} />
-                    </li>
+                    {(cola.revision ?? op.revision.n) > 0 && (
+                      <li>
+                        <FilaCola href="/admin/revision" tono="pending" etiqueta="En revisión humana" n={cola.revision ?? op.revision.n} ayuda={AYUDA_COLA.revision} total={totalCola + (cola.revision ?? op.revision.n)} />
+                      </li>
+                    )}
+                    {totalCola === 0 && !(cola.revision ?? op.revision.n) && (
+                      <li className="px-4 py-2.5 text-[13px] text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
+                    )}
                   </ul>
                 </>
               ) : cargandoOp ? (
@@ -378,8 +385,6 @@ export default function AdminHome() {
               </p>
             </div>
           </PageSection>
-        </div>
-
         {verFinanciamiento && (
           <PageSection
             titulo="Financiamiento"
@@ -391,16 +396,18 @@ export default function AdminHome() {
             }
           >
             <ErrorBanner error={resQ.error} titulo="No se pudieron leer las cifras de financiamiento" onReintentar={() => resQ.mutate()} className="mb-3" />
-            <StatGrid columnas={4}>
+            <StatGrid columnas={2}>
               <StatCard etiqueta="Recaudado" valor={k ? fmtPEN(k.montoConfirmadoPen) : null} cargando={cargandoRes} pista={k ? `${fmtPEN(k.montoMesPen)} este mes` : undefined} href="/admin/contribuciones?estado=todas" />
               <StatCard
                 etiqueta="Contratos financiados"
                 valor={k?.contratosFinanciados ?? null}
                 cargando={cargandoRes}
-                pista={k ? `${fmtNum(k.procesados)} leídos de ${fmtNum(k.asignados)} asignados` : undefined}
+                pista={k ? `${fmtNum(k.procesados)} leídos` : undefined}
                 href="/admin/procesamientos"
               />
-              <StatCard etiqueta="Señales halladas" valor={k?.senales ?? null} cargando={cargandoRes} pista={k?.enRevision ? `sin contar ${fmtNum(k.enRevision)} en revisión` : undefined} />
+            </StatGrid>
+            <StatGrid columnas={2} className="mt-2">
+              <StatCard etiqueta="Señales halladas" valor={k?.senales ?? null} cargando={cargandoRes} pista={k?.enRevision ? `${fmtNum(k.enRevision)} en revisión aparte` : undefined} />
               <StatCard
                 etiqueta="Financiadores"
                 valor={k?.financiadores ?? null}
@@ -433,8 +440,11 @@ export default function AdminHome() {
             )}
           </PageSection>
         )}
+          </div>
+        </div>
 
-        <div className="grid gap-8 xl:grid-cols-2">
+
+        <div className="grid items-start gap-5 xl:grid-cols-2">
           <PageSection
             titulo="Últimos procesados"
             acciones={
@@ -543,12 +553,27 @@ function FilaChequeo({ c }: { c: Chequeo }) {
   );
 }
 
-function FilaCola({ href, tono, etiqueta, n }: { href: string; tono: Tone; etiqueta: string; n: number }) {
+/** Qué significa cada estado de la cola, en una frase: quien lo mira no tiene que adivinar. */
+const AYUDA_COLA: Record<string, string> = {
+  procesando: "se están leyendo ahora",
+  encolado: "esperan su turno",
+  esperando_documentos: "falta bajar sus documentos",
+  error: "fallaron: se pueden re-encolar",
+  pendiente_de_procesamiento: "su tipo o etapa no tiene revisiones",
+  procesado: "ya tienen su análisis",
+  revision: "esperan que una persona decida",
+};
+
+function FilaCola({ href, tono, etiqueta, n, ayuda }: { href: string; tono: Tone; etiqueta: string; n: number; ayuda?: string; total?: number }) {
+  // La cifra va primero y pegada al nombre: la fila se lee de corrido, sin un hueco entre el nombre y el número.
   return (
     <Link href={href} className="flex items-center gap-3 px-4 py-2 transition-colors duration-rapido hover:bg-paperSoft">
       <Punto tono={tono} />
-      <span className="min-w-0 flex-1 text-[13px] text-ink">{etiqueta}</span>
-      <span className={n ? "font-mono text-sm font-semibold text-ink" : "font-mono text-sm text-mute"}>{fmtNum(n)}</span>
+      <span className={n ? "w-12 shrink-0 text-right font-mono text-base font-semibold text-ink" : "w-12 shrink-0 text-right font-mono text-base text-mute"}>{fmtNum(n)}</span>
+      <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
+        {etiqueta}
+        {ayuda && <span className="text-mute">, {ayuda}</span>}
+      </span>
     </Link>
   );
 }

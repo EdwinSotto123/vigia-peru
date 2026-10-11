@@ -76,3 +76,7 @@ infrastructure/terraform/*.tfstate*
 backend/rag/.cache/
 # Capturas de verificación en navegador (pesadas; las notas sí se versionan)
 docs/design/capturas/**/*.png
+
+# Capturas y mediciones de la auditoria de UI (pesan 30+ MB; se regeneran con frontend/scripts/auditoria-ui)
+docs/auditoria-ui/img/
+docs/auditoria-ui/datos/

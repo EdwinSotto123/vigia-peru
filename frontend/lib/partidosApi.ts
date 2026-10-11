@@ -40,15 +40,45 @@ export interface FilaPartido extends ConteosPartido {
   tipo: string | null;
   /** Gobiernos del partido en el período, por nivel. */
   gobiernos: { regional: number; provincial: number; distrital: number };
-  /** Gobiernos que tienen contratos en la base de Vigía. */
+  /** Gobiernos que tienen contratos en la base de Vigía (con filtro de región: solo los de esa región). */
   gobiernosConContratos: number;
+  /** Departamentos (ubigeo de 2 dígitos) donde el partido tiene contratos. */
+  regiones?: string[];
 }
 
 export interface RankingPartidos {
   anio: AnioGobierno;
   desde: string;
   hasta: string;
+  /** Departamento del filtro (2 dígitos), si lo hubo. */
+  region?: string | null;
+  /** Cuántos partidos cumplen los filtros, sin paginar. Las API antiguas no lo traen: se usa `data.length`. */
+  total?: number;
+  limit?: number | null;
+  offset?: number;
   data: FilaPartido[];
+}
+
+export type OrdenPartidos = "contratos" | "cola" | "leidos" | "nombre";
+export const ORDENES_PARTIDOS: { valor: OrdenPartidos; etiqueta: string }[] = [
+  { valor: "cola", etiqueta: "Más en cola" },
+  { valor: "contratos", etiqueta: "Más contratos" },
+  { valor: "leidos", etiqueta: "Más leídos" },
+  { valor: "nombre", etiqueta: "Nombre, de la A a la Z" },
+];
+export const esOrdenPartidos = (v: unknown): v is OrdenPartidos => ORDENES_PARTIDOS.some((o) => o.valor === v);
+
+/** Filtros y paginación del ranking. Sin `limit` la API devuelve todos los partidos (los usos de portada e inicio). */
+export interface OpcionesRanking {
+  /** Departamento, 2 dígitos del ubigeo ("15" Lima). */
+  region?: string;
+  /** Parte del nombre (desde 2 letras). */
+  q?: string;
+  /** Solo los que tienen contratos esperando lectura. */
+  conCola?: boolean;
+  orden?: OrdenPartidos;
+  limit?: number;
+  offset?: number;
 }
 
 export interface DetallePartido {
@@ -74,8 +104,17 @@ async function leer<T>(ruta: string, revalidate = 120): Promise<T | null> {
   }
 }
 
-export const getRankingPartidos = (anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE) =>
-  leer<RankingPartidos>(`/partidos/ranking?anio=${anio}`);
+export function getRankingPartidos(anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE, o: OpcionesRanking = {}) {
+  const p = new URLSearchParams({ anio: String(anio) });
+  if (o.region && /^\d{2}$/.test(o.region)) p.set("region", o.region);
+  const q = (o.q ?? "").trim();
+  if (q.length >= 2) p.set("q", q.slice(0, 60));
+  if (o.conCola) p.set("conCola", "1");
+  if (o.orden) p.set("orden", o.orden);
+  if (o.limit != null) p.set("limit", String(Math.min(100, Math.max(1, Math.floor(o.limit)))));
+  if (o.offset && o.offset > 0) p.set("offset", String(Math.floor(o.offset)));
+  return leer<RankingPartidos>(`/partidos/ranking?${p.toString()}`, 60);
+}
 
 export const getDetallePartido = (clave: string, anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE) =>
   leer<DetallePartido>(`/partidos/${encodeURIComponent(clave)}?anio=${anio}`);

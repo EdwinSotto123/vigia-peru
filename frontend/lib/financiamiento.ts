@@ -279,6 +279,8 @@ export interface EntidadesFinanciablesQuery {
   /** 1 a 50 (el API usa 20 si no se dice). */
   limit?: number;
   offset?: number;
+  /** Departamento (2 dígitos del ubigeo): solo las entidades de esa región. */
+  region?: string;
 }
 
 /** Un contrato de la entidad que espera financiamiento (hasta 50, del más reciente al más antiguo). */
@@ -327,10 +329,11 @@ const esNumero = (n: unknown): n is number => typeof n === "number" && Number.is
  * en cola. `null` = el API no respondió o respondió otra cosa: la página muestra el error,
  * nunca una lista vacía que parezca un dato.
  */
-export async function getEntidadesFinanciables({ q, limit, offset }: EntidadesFinanciablesQuery = {}): Promise<EntidadesFinanciables | null> {
+export async function getEntidadesFinanciables({ q, limit, offset, region }: EntidadesFinanciablesQuery = {}): Promise<EntidadesFinanciables | null> {
   const p = new URLSearchParams();
   const t = (q ?? "").trim();
   if (t.length >= 2) p.set("q", t.slice(0, 80));
+  if (region && /^\d{2}$/.test(region)) p.set("region", region);
   if (limit != null) p.set("limit", String(Math.min(50, Math.max(1, Math.floor(limit)))));
   if (offset && offset > 0) p.set("offset", String(Math.floor(offset)));
   const qs = p.toString();

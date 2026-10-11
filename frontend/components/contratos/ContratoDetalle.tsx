@@ -28,6 +28,10 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
 import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
 import { recortar } from "./recortar";
+import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
+import { LineaTiempoProceso } from "./LineaTiempoProceso";
+import { EntidadEnVigia } from "./EntidadEnVigia";
+import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
@@ -63,10 +67,19 @@ export function ContratoDetalle({
   alcance = null,
   catalogo = {},
   seccion,
+  relacionados = null,
+  entidadEnVigia = null,
+  parecidos = null,
 }: {
   c: Detalle;
   alcance?: AlcanceActivo | null;
   catalogo?: CatalogoReglas;
+  /** Otros contratos de la misma entidad (solo en fichas cortas): hasta 5 y el total de la entidad. */
+  relacionados?: { contratos: ContratoResumen[]; total: number } | null;
+  /** Cifras de la entidad que contrata (publicados, leídos, riesgo medio o alto, esperando lectura). */
+  entidadEnVigia?: { total: number; leidos: number; conSenales: number; esperando: number } | null;
+  /** Contratos del mismo tipo en la misma provincia, de otras entidades (con qué comparar este). */
+  parecidos?: { contratos: ContratoResumen[]; total: number; provincia: string | null } | null;
   /** La pestaña abierta al cargar (`?seccion=` de la URL). */
   seccion?: string;
 }) {
@@ -78,19 +91,20 @@ export function ContratoDetalle({
   // Lo adjudicado es la suma de las adjudicaciones del registro; el referencial, lo presupuestado.
   const adjudicado = (c.adjudicaciones ?? []).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
 
-  // El estado de la lectura va en el Resumen (la pestaña con que abre la ficha) y no encima de
-  // las pestañas: con el análisis en vivo la tarjeta trae carriles y bitácora, y empujaría hacia
-  // abajo cada tabla que se abre. El estado igual se ve siempre: es el chip de la identidad.
+  // Dos columnas desde lg. Izquierda: qué se contrata, las cifras y las pestañas (el Resumen abre con la lectura y
+  // sus señales). Derecha, siempre visible y pegada arriba: los datos del proceso, su línea de tiempo, qué partes del
+  // análisis aplican y más contratos de la misma entidad. Así la primera pantalla se llena con datos reales.
+  const otros =
+    relacionados && c.entidadRuc && relacionados.contratos.length > 0 ? (
+      <OtrosContratosEntidad entidad={c.entidad} entidadRuc={c.entidadRuc} contratos={relacionados.contratos} total={relacionados.total} />
+    ) : null;
+  // En una ficha corta (sin lectura) la columna izquierda es una línea: los contratos de la entidad van ahí, con ancho
+  // para leerse; con la lectura hecha, la izquierda ya es larga y esa lista va en la columna lateral.
+  const otrosAbajo = c.estadoProcesamiento !== "procesado";
   const resumen = (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0">
-        <AnalisisCard c={c} alcance={alcance} />
-      </div>
-      <aside className="space-y-4" aria-labelledby="datos-proceso">
-        <DatosProceso c={c} />
-        {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
-        {!c.procesamiento && <ClasificacionCard c={c} />}
-      </aside>
+    <div className="space-y-5">
+      <AnalisisCard c={c} alcance={alcance} />
+      {otrosAbajo && otros}
     </div>
   );
 
@@ -98,27 +112,62 @@ export function ContratoDetalle({
     <>
       <Volver href="/app/contratos">Contratos</Volver>
 
-      {/* 1. Identidad: qué se contrata, su código, quién compra y dónde; debajo, sus chips. */}
-      <div className="space-y-3">
-        <EncabezadoPagina titulo={c.titulo ?? "Contrato sin objeto registrado"} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
-        <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de lectura">
-          <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
-          <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
-          {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
-          <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
-        </ul>
+      <div className="grid items-start gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-5">
+          {/* 1. Identidad: qué se contrata, su código, quién compra y dónde; debajo, sus chips. */}
+          <div className="space-y-3">
+            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ?? "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
+            <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de lectura">
+              <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
+              <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
+              {c.modalidad && <li><span className="pill border-line text-inkSoft">{c.modalidad}</span></li>}
+              <li>{enRevision ? <EstadoPill estado="revision" /> : <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />}</li>
+            </ul>
+          </div>
+
+          {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
+          <Indicadores items={indicadoresDe(c, adjudicado)} apilado />
+
+          {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
+          <Pestanas
+            etiqueta="Secciones del contrato"
+            activa={seccion}
+            pestanas={[{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })]}
+          />
+        </div>
+
+        <aside className="space-y-5 lg:sticky lg:top-4" aria-labelledby="datos-proceso">
+          <DatosProceso c={c} />
+          <LineaTiempoProceso c={c} />
+          {entidadEnVigia && c.entidadRuc && <EntidadEnVigia ruc={c.entidadRuc} {...entidadEnVigia} />}
+          {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
+          {!c.procesamiento && <ClasificacionCard c={c} />}
+          {!otrosAbajo && otros}
+          {parecidos && parecidos.contratos.length > 0 && parecidos.provincia && (
+            <OtrosContratosEntidad
+              entidad={c.entidad}
+              entidadRuc={c.entidadRuc ?? ""}
+              contratos={parecidos.contratos}
+              total={parecidos.total}
+              titulo={`${tipoLabel(c.tipo) ?? "Contratos"} de otras entidades de la provincia`}
+              verHref={`/app/contratos?ubigeo=${parecidos.provincia}&tipo=${c.tipo ?? ""}`}
+              idSeccion="contratos-parecidos"
+              compacta
+            />
+          )}
+        </aside>
       </div>
-
-      {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
-      <Indicadores items={indicadoresDe(c, adjudicado)} />
-
-      {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
-      <Pestanas
-        etiqueta="Secciones del contrato"
-        activa={seccion}
-        pestanas={[{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })]}
-      />
     </>
+  );
+}
+
+/** El objeto del contrato, completo; si es largo (los hay de 300 caracteres) baja de tamaño en vez de ocupar siete líneas. */
+function TituloContrato({ texto }: { texto: string }) {
+  const largo = texto.length;
+  return (
+    <span className={largo > 150 ? "block text-[19px] leading-snug sm:text-[21px]" : largo > 80 ? "block text-[23px] leading-snug sm:text-[26px]" : undefined}>
+      {texto}
+    </span>
   );
 }
 
@@ -265,9 +314,10 @@ function alcanceTexto(a: AlcanceActivo | null): string | null {
  */
 function TarjetaEstado({ icono, titulo, ayuda, children }: { icono: ReactNode; titulo: string; ayuda?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line bg-paper p-4 sm:p-5">
+    // Sin caja: un estado de una línea no merece una tarjeta de 700 x 100 px. Filete a la izquierda.
+    <section className="border-l-2 border-line py-1 pl-4">
       <div className="flex items-center gap-1">
-        <h2 className="inline-flex items-center gap-1.5 text-[16px] font-semibold text-ink">
+        <h2 className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink">
           {icono}
           {titulo}
         </h2>
@@ -396,7 +446,7 @@ function ClasificacionCard({ c }: { c: Detalle }) {
   const agentes = c.clasificacion.agentesAplicables;
   if (!agentes?.length && !c.clasificacion.clasificadoAt) return null;
   return (
-    <section className="rounded-2xl border border-line bg-paperSoft p-4">
+    <section className="space-y-1.5">
       <div className="flex items-center gap-1">
         <h2 className="text-[13px] font-semibold text-ink">Qué partes del análisis aplican</h2>
         <Ayuda titulo="¿Por qué estas partes?">
@@ -404,13 +454,13 @@ function ClasificacionCard({ c }: { c: Detalle }) {
         </Ayuda>
       </div>
       {agentes?.length ? (
-        <ul className="mt-2 flex flex-wrap gap-1">
+        <ul className="flex flex-wrap gap-1">
           {FASES.filter((f) => agentes.includes(f.key)).map((f) => (
             <li key={f.key} className="pill border-line bg-paper text-ink">{f.label}</li>
           ))}
         </ul>
       ) : (
-        <p className="mt-2 text-[12px] text-mute">Ninguna para esta combinación de tipo y etapa.</p>
+        <p className="text-[12px] text-mute">Ninguna para esta combinación de tipo y etapa.</p>
       )}
     </section>
   );

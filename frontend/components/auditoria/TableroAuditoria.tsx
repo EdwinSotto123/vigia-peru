@@ -46,6 +46,7 @@
  * `version`, la lista se sondea cada `autoRefreshMs`, como antes.
  */
 
+import { EstadoVacio as VacioEnLinea } from "@/components/ui/EstadoVacio";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Cpu, WifiOff } from "lucide-react";
@@ -649,9 +650,7 @@ export function TableroAuditoria({
             <TablaSkeleton columnas={columnas} filas={4} />
           ) : sinFilas ? (
             // Todo lo de esta vista ya se leyó (y "Leídos" vive más abajo): una línea, no una tabla vacía.
-            <p className="rounded-xl border border-dashed border-line bg-paperSoft px-4 py-3 text-[13px] text-inkSoft">
-              Nada en espera ni en análisis{filtrado || ubigeo ? " con estos filtros" : ""}.
-            </p>
+            <VacioEnLinea>Nada en espera ni en análisis{filtrado || ubigeo ? " con estos filtros" : ""}.</VacioEnLinea>
           ) : (
             <Tabla columnas={columnas} grupos={grupos} etiqueta="Contratos financiados en vivo" />
           )}

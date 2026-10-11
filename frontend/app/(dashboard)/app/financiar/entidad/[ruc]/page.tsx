@@ -1,3 +1,4 @@
+import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, CheckCircle2, ChevronRight, Clock, MapPin, ShieldCheck } from "lucide-react";
@@ -9,7 +10,7 @@ import { TarjetaConfirmacion } from "@/components/financiar/TarjetaConfirmacion"
 import { Ruc } from "@/components/Redact";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver, type Pestana } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { getEntidadFinanciable, getPago, tiposEnPalabras, type EntidadFinanciableDetalle } from "@/lib/financiamiento";
 import { numero, plural, soles } from "@/lib/formato";
@@ -93,7 +94,7 @@ export default async function FinanciarEntidadPage({
             </span>
           }
         />
-        <Indicadores items={indicadoresEntidad(d, tipos)} />
+        <CifrasEnFila items={indicadoresEntidad(d, tipos)} />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,440px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">

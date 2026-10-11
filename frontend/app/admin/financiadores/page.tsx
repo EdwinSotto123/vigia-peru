@@ -109,12 +109,11 @@ export default function FinanciadoresPage() {
           )}
           <span className="min-w-0">
             <span className="block font-medium text-ink">{f.nombrePublico ?? <span className="text-mute">Anónimo</span>}</span>
-            <span className="block text-[11px] text-mute">{tipoFinanciadorLabel(f.tipo)}</span>
-            {perfilDisponible && f.slug && (
-              <span className="block text-[11px] text-mute">{resumenPerfil(f) ? `Publicó ${resumenPerfil(f)}` : "Perfil público sin completar"}</span>
-            )}
+            <span className="block max-w-[280px] truncate text-[11px] text-mute" title={perfilDisponible && f.slug && resumenPerfil(f) ? `Publicó ${resumenPerfil(f)}` : undefined}>
+              {[tipoFinanciadorLabel(f.tipo), perfilDisponible && f.slug ? (resumenPerfil(f) ? `publicó ${resumenPerfil(f)}` : "perfil sin completar") : null].filter(Boolean).join(", ")}
+            </span>
             {(f.sancionVigente || f.alertasActivas) && (
-              <span className="mt-0.5 flex items-center gap-1 text-[11px] text-crimsonTexto">
+              <span className="flex items-center gap-1 text-[11px] text-crimsonTexto">
                 <AlertTriangle size={11} aria-hidden />{f.sancionVigente ? "Sanción OSCE vigente" : "Proveedor con alertas activas"}
               </span>
             )}
@@ -125,11 +124,11 @@ export default function FinanciadoresPage() {
     {
       clave: "contacto",
       titulo: "Contacto",
-      className: "text-[12px]",
+      className: "max-w-[230px] text-[12px]",
       celda: (f) => (
         <>
-          <span className="block break-all text-ink">{f.email}</span>
-          <span className="block font-mono text-[11px] text-mute">{f.ruc ? <>RUC <Ruc value={f.ruc} /></> : "Sin RUC"}</span>
+          <span className="block truncate text-ink" title={f.email}>{f.email}</span>
+          <span className="block truncate font-mono text-[11px] text-mute">{f.ruc ? <>RUC <Ruc value={f.ruc} /></> : "Sin RUC"}</span>
         </>
       ),
     },
@@ -172,7 +171,7 @@ export default function FinanciadoresPage() {
         </button>
       }
     >
-      <div className="space-y-8">
+      <div className="space-y-5">
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
         <StatGrid columnas={4}>
@@ -187,7 +186,7 @@ export default function FinanciadoresPage() {
           meta={rows ? `${rows.length}` : undefined}
           descripcion="Elige uno para ver lo que publicó. Ocultar no toca su dinero ni sus asignaciones: solo lo saca del ranking, del muro, de su página y de los comprobantes públicos."
         >
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className={rows?.length ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]" : "grid gap-4"}>
             <DataTable
               etiqueta="Financiadores"
               columnas={columnas}
@@ -204,11 +203,12 @@ export default function FinanciadoresPage() {
             <aside ref={detalleRef} className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start" aria-label="Perfil del financiador">
               {sel ? (
                 <DetalleFinanciador key={sel.id} f={sel} perfilDisponible={perfilDisponible} onModerar={() => toggle(sel)} onCerrar={() => setElegidoId(null)} />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-line bg-paper/60">
-                  <EmptyState compacto icono={<MousePointerClick size={18} />} titulo="Elige un financiador" descripcion="Verás lo que publicó en su perfil, sus cifras y el botón para ocultarlo o mostrarlo." />
-                </div>
-              )}
+              ) : rows?.length ? (
+                <p className="flex items-start gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-[12.5px] leading-snug text-inkSoft">
+                  <MousePointerClick size={15} className="mt-0.5 shrink-0" aria-hidden />
+                  <span><strong className="font-semibold text-ink">Elige un financiador</strong> para ver lo que publicó, sus cifras y ocultarlo o mostrarlo.</span>
+                </p>
+              ) : null}
             </aside>
           </div>
         </PageSection>

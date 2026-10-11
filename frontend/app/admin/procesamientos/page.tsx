@@ -16,7 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { Badge, BarraProgreso, claseBoton, EmptyState, ErrorBanner, PageSection, SkeletonFilas, SkeletonPanel, TONO, fmtNum, mensajeError, plural } from "@/components/admin/ui";
+import { Badge, BarraProgreso, claseBoton, DataTable, EmptyState, ErrorBanner, PageSection, SkeletonPanel, TONO, fmtNum, mensajeError, plural, type Columna } from "@/components/admin/ui";
 import { adminFetch, PERFIL_LABEL, type Operacion } from "@/lib/admin";
 import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 import { useDialog } from "@/components/admin/Dialog";
@@ -221,6 +221,71 @@ function Procesamientos() {
         ? `Mostrando ${fmtNum(visible.length)} de ${fmtNum(totalDelFiltro)}`
         : `${fmtNum(visible.length)} de los ${fmtNum(rows.length)} más recientes`;
 
+  const columnas: Columna<ProcAdmin>[] = [
+    {
+      clave: "contrato",
+      titulo: "Contrato",
+      principal: true,
+      className: "max-w-[380px]",
+      celda: (p) => (
+        <>
+          <span className="flex items-baseline gap-2">
+            <span className="shrink-0 font-mono text-xs text-ink">{p.ocid}</span>
+            <span className="truncate text-[11px] text-mute">
+              <Partes partes={[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo]} />
+            </span>
+          </span>
+          {p.titulo && <span className="block truncate text-[12px] text-inkSoft" title={p.titulo}>{p.titulo}</span>}
+        </>
+      ),
+    },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      celda: (p) => (
+        <span className="inline-flex flex-wrap gap-1">
+          <Badge tono={ESTADO_UI[p.estado]?.tono ?? "muted"}>{etiquetaFila(p.estado)}</Badge>
+          {p.estado === "procesado" && p.alertaEstado === "revision" && <Badge tono="pending">En revisión humana</Badge>}
+        </span>
+      ),
+    },
+    { clave: "avance", titulo: "Avance", celda: (p) => <Avance p={p} /> },
+    {
+      clave: "movimiento",
+      titulo: "Último movimiento",
+      className: "whitespace-nowrap text-[12px] text-mute",
+      celda: (p) => hace(p.latidoAt ?? p.finalizadoAt ?? p.encoladoAt) ?? "sin movimiento",
+    },
+    { clave: "detalle", titulo: "Detalle", className: "max-w-[240px] text-[12px]", anchoCompletoMovil: true, celda: (p) => <Detalle p={p} /> },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      acciones: true,
+      celda: (p) => (
+        <div className="inline-flex flex-wrap items-center justify-end gap-1">
+          <Link
+            href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+            target="_blank"
+            className={claseBoton("secundario", "xs")}
+            title="Qué hizo cada revisión, paso a paso"
+          >
+            <Eye size={11} aria-hidden /> Traza
+          </Link>
+          {(p.estado === "procesado" || p.estado === "error" || p.estado === "pendiente_de_procesamiento") && (
+            <button onClick={() => reanalizar(p)} className={claseBoton("secundario", "xs")} title="Vuelve a leer el contrato (≈ US$ 0.25, ~3 min)">
+              <Repeat size={11} aria-hidden /> Re-analizar
+            </button>
+          )}
+          {p.estado !== "procesado" && p.estado !== "procesando" && (
+            <button onClick={() => reencolar(p)} disabled={busy === p.ocid} className={claseBoton("secundario", "xs")}>
+              <RotateCcw size={11} className={busy === p.ocid ? "animate-spin" : ""} aria-hidden /> Re-encolar
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AdminShell
       title="Procesamiento"
@@ -277,7 +342,7 @@ function Procesamientos() {
 
       {lotes.length > 0 && <Lotes lotes={lotes} activo={lote} incompletos={capada} onElegir={(c) => filtrar({ lote: lote === c ? null : c })} />}
 
-      <PageSection titulo="Contratos" meta={metaLista} className="mt-6">
+      <PageSection titulo="Contratos" meta={metaLista} className="mt-4">
         {/* ── Filtros de la tabla ── */}
         <div className="flex flex-wrap items-center gap-2">
           {lote && (
@@ -333,84 +398,27 @@ function Procesamientos() {
           </p>
         )}
 
-        <section className="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper" aria-busy={rows === null || undefined}>
-          {rows === null ? (
-            <SkeletonFilas filas={6} columnas={6} />
-          ) : visible.length === 0 ? (
-            rows.length === 0 && procQ.error ? (
-              // Sin datos por un error: no decir "no hay nada" cuando en realidad no sabemos.
-              <EmptyState compacto titulo="La lista no llegó" descripcion="Reintenta desde el aviso de arriba." />
-            ) : rows.length === 0 ? (
-              <EmptyState compacto icono={<Activity size={18} />} titulo="No hay contratos en proceso" descripcion="Aparecen al validar un aporte o al procesar un lote." />
-            ) : (
-              <EmptyState compacto titulo="Ningún contrato con estos filtros" descripcion="Quita un filtro para ver el resto." />
-            )
-          ) : (
-            <table className="w-full min-w-[900px] text-sm">
-              <caption className="sr-only">Contratos en procesamiento</caption>
-              <thead className="text-left text-[11px] text-mute">
-                <tr>
-                  <th scope="col" className="px-4 py-2.5 font-medium">Contrato</th>
-                  <th scope="col" className="px-2 py-2.5 font-medium">Estado</th>
-                  <th scope="col" className="px-2 py-2.5 font-medium">Avance</th>
-                  <th scope="col" className="px-2 py-2.5 font-medium">Último movimiento</th>
-                  <th scope="col" className="px-2 py-2.5 font-medium">Detalle</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((p) => (
-                  <tr key={p.ocid} className="border-t border-line align-top">
-                    <td className="px-4 py-2.5">
-                      <div className="font-mono text-xs text-ink">{p.ocid}</div>
-                      {p.titulo && <div className="mt-0.5 line-clamp-1 max-w-[340px] text-[12px] text-inkSoft">{p.titulo}</div>}
-                      <div className="text-[11px] text-mute">
-                        <Partes partes={[p.perfil ? PERFIL_LABEL[p.perfil].split(" ")[0] : p.tipo, p.zona, p.contribucionCodigo]} />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <Badge tono={ESTADO_UI[p.estado]?.tono ?? "muted"}>{etiquetaFila(p.estado)}</Badge>
-                      {p.estado === "procesado" && p.alertaEstado === "revision" && (
-                        <div className="mt-1">
-                          <Badge tono="pending">En revisión humana</Badge>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <Avance p={p} />
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2.5 text-[12px] text-mute">{hace(p.latidoAt ?? p.finalizadoAt ?? p.encoladoAt) ?? "sin movimiento"}</td>
-                    <td className="max-w-[240px] px-2 py-2.5 text-[12px]">
-                      <Detalle p={p} />
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <Link
-                          href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
-                          target="_blank"
-                          className={claseBoton("secundario", "xs")}
-                          title="Qué hizo cada revisión, paso a paso"
-                        >
-                          <Eye size={11} aria-hidden /> Traza
-                        </Link>
-                        {(p.estado === "procesado" || p.estado === "error" || p.estado === "pendiente_de_procesamiento") && (
-                          <button onClick={() => reanalizar(p)} className={claseBoton("secundario", "xs")} title="Vuelve a leer el contrato (≈ US$ 0.25, ~3 min)">
-                            <Repeat size={11} aria-hidden /> Re-analizar
-                          </button>
-                        )}
-                        {p.estado !== "procesado" && p.estado !== "procesando" && (
-                          <button onClick={() => reencolar(p)} disabled={busy === p.ocid} className={claseBoton("secundario", "xs")}>
-                            <RotateCcw size={11} className={busy === p.ocid ? "animate-spin" : ""} aria-hidden /> Re-encolar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+        <div className="mt-3">
+          <DataTable
+            etiqueta="Contratos en procesamiento"
+            columnas={columnas}
+            filas={rows === null ? null : visible}
+            claveFila={(p) => p.ocid}
+            cargando={rows === null}
+            apilarHasta="lg"
+            ventana={50}
+            vacio={
+              rows && rows.length === 0 && procQ.error ? (
+                // Sin datos por un error: no decir "no hay nada" cuando en realidad no sabemos.
+                <EmptyState compacto titulo="La lista no llegó" descripcion="Reintenta desde el aviso de arriba." />
+              ) : rows && rows.length === 0 ? (
+                <EmptyState compacto icono={<Activity size={18} />} titulo="No hay contratos en proceso" descripcion="Aparecen al validar un aporte o al procesar un lote." />
+              ) : (
+                <EmptyState compacto titulo="Ningún contrato con estos filtros" descripcion="Quita un filtro para ver el resto." />
+              )
+            }
+          />
+        </div>
       </PageSection>
 
       <PedidosDescarga onChange={load} />
@@ -451,6 +459,6 @@ function Avance({ p }: { p: ProcAdmin }) {
 function Detalle({ p }: { p: ProcAdmin }) {
   if (p.estado === "esperando_documentos") return <span className="text-clayTexto">Espera sus documentos para poder leerlo.</span>;
   if (p.estado === "pendiente_de_procesamiento") return <span className="text-mute">Su tipo o etapa no tiene revisiones que aplicar.</span>;
-  if (p.error) return <span className="line-clamp-2 text-crimsonTexto">{p.error}</span>;
+  if (p.error) return <span className="line-clamp-1 text-crimsonTexto" title={p.error}>{p.error}</span>;
   return <span className="text-mute">—</span>;
 }

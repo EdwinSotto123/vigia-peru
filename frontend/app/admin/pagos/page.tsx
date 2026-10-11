@@ -82,7 +82,7 @@ export default function PagosPage() {
         </>
       }
     >
-      <div className="space-y-8">
+      <div className="space-y-5">
         <ErrorBanner error={error} titulo="No se pudo cargar la configuración" onReintentar={() => mutate()} />
         {msg && (msg.tono === "ok" ? <Aviso tono="ok" titulo={msg.texto} /> : <ErrorBanner error={msg.error ?? msg.texto} titulo={msg.texto} />)}
 
@@ -98,12 +98,12 @@ export default function PagosPage() {
                 {(["yape", "plin"] as const).map((k) => (
                   <Card key={k}>
                     <BrandBadge brand={k} size="lg" />
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <label className="text-sm"><span className="text-[12px] font-medium text-inkSoft">Número</span><input value={cfg[k].numero} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], numero: e.target.value.replace(/\D/g, "").slice(0, 12) } }))} placeholder="9XXXXXXXX" inputMode="numeric" className={`${campo} font-mono`} /></label>
                       <label className="text-sm"><span className="text-[12px] font-medium text-inkSoft">Titular (como aparece en la app)</span><input value={cfg[k].titular} onChange={(e) => editar((c) => ({ ...c, [k]: { ...c[k], titular: e.target.value } }))} placeholder="Edwin S." className={campo} /></label>
                     </div>
-                    <div className="mt-4 flex items-start gap-4">
-                      <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-paperDeep">
+                    <div className="mt-3 flex items-start gap-4">
+                      <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-paperDeep">
                         {cfg[k].qr_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={cfg[k].qr_url} alt={`Código QR de ${k === "yape" ? "Yape" : "Plin"}`} className="h-full w-full object-contain" /> : <span className="text-[11px] text-inkSoft">Sin QR</span>}
                       </div>
                       <div className="min-w-0 text-sm">
@@ -156,25 +156,26 @@ export default function PagosPage() {
             </PageSection>
 
             <PageSection titulo="Lo que lee el financiador">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Card>
-                  <label className="block text-sm">
-                    <span className="font-semibold text-ink">Instrucciones</span>
-                    <textarea value={cfg.instrucciones} onChange={(e) => editar((c) => ({ ...c, instrucciones: e.target.value }))} rows={4} maxLength={600} className={campo} placeholder="Transfiere el monto exacto indicando el código de tu aporte como concepto…" />
-                    <span className="mt-1 block text-right text-[11px] text-mute">{cfg.instrucciones.length} / 600</span>
-                  </label>
-                </Card>
-                <Card>
-                  <label className="block text-sm">
-                    <span className="font-semibold text-ink">Correo de contacto para pagos</span>
-                    <input type="email" value={cfg.contacto_email} onChange={(e) => editar((c) => ({ ...c, contacto_email: e.target.value }))} className={campo} placeholder="el correo que atiende los pagos" />
-                    {/* TODO(contacto): reemplazar cuando exista un correo del equipo. Antes el ejemplo era pagos@vigiaperu.org, un dominio que no resuelve. */}
-                    <span className="mt-2 block text-[12px] text-mute">
-                      {cfg.contacto_email ? "Se muestra al financiador por si el pago falla o necesita factura o recibo." : "Vacío: el financiador no tiene a quién escribir si el pago falla."}
-                    </span>
-                  </label>
-                </Card>
-              </div>
+              {/* Una sola caja en dos columnas: las instrucciones (largas) y el correo (corto) juntos, no dos cajas con aire. */}
+              <Card className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                <p className="text-[12.5px] leading-snug text-inkSoft lg:col-span-2">
+                  Lo ve el financiador al registrar un aporte en <strong className="font-semibold text-ink">Financiar</strong>, junto con los números de Yape o Plin, las
+                  cuentas bancarias y el código de su aporte. Para ver cómo queda, usa «Ver como financiador».
+                </p>
+                <label className="block text-sm">
+                  <span className="font-semibold text-ink">Instrucciones</span>
+                  <textarea value={cfg.instrucciones} onChange={(e) => editar((c) => ({ ...c, instrucciones: e.target.value }))} rows={4} maxLength={600} className={campo} placeholder="Transfiere el monto exacto indicando el código de tu aporte como concepto…" />
+                  <span className="mt-1 block text-right text-[11px] text-mute">{cfg.instrucciones.length} / 600</span>
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-ink">Correo de contacto para pagos</span>
+                  <input type="email" value={cfg.contacto_email} onChange={(e) => editar((c) => ({ ...c, contacto_email: e.target.value }))} className={campo} placeholder="el correo que atiende los pagos" />
+                  {/* TODO(contacto): reemplazar cuando exista un correo del equipo. Antes el ejemplo era pagos@vigiaperu.org, un dominio que no resuelve. */}
+                  <span className="mt-2 block text-[12px] leading-snug text-mute">
+                    {cfg.contacto_email ? "Se muestra al financiador por si el pago falla o necesita factura o recibo." : "Vacío: el financiador no tiene a quién escribir si el pago falla."}
+                  </span>
+                </label>
+              </Card>
             </PageSection>
           </>
         )}

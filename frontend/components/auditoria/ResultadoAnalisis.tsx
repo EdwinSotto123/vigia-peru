@@ -172,10 +172,10 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
 
       {/* mercado, documentos y recortes */}
       {(mercado || r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
-        <dl className={`mt-3 grid gap-2 border-t border-line pt-3 text-[12px] ${compacto ? "" : "sm:grid-cols-2"}`}>
+        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2.5 text-[12px]">
           {mercado && <Mercado mercado={mercado} compacto={compacto} />}
           {(r?.documentos || (r?.recortes ?? 0) > 0 || (r?.validacionesPendientes?.length ?? 0) > 0) && (
-            <div className="rounded-xl bg-paperSoft p-3">
+            <div className="min-w-0 border-l-2 border-line pl-3">
               <dt className="text-[12px] font-semibold text-inkSoft">Expediente</dt>
               <dd className="mt-1 space-y-1 text-ink">
                 {r?.documentos && (
@@ -231,7 +231,7 @@ function Mercado({ mercado, compacto }: { mercado: NonNullable<Resultado["mercad
   const itemsLeidos = `${nItems} ${nItems === 1 ? "ítem leído" : "ítems leídos"}`;
 
   return (
-    <div className="rounded-xl bg-paperSoft p-3">
+    <div className="min-w-0 border-l-2 border-line pl-3">
       <dt className="text-[12px] font-semibold text-inkSoft">Mercado</dt>
       <dd className="mt-1 space-y-1 text-ink">
         {comparables.length === 0 && !loteComparable ? (

@@ -55,9 +55,9 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
 
   return (
     <section aria-labelledby={`${base}-t`} className="rounded-2xl border border-line bg-paper">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
-        <h2 id={`${base}-t`} className="font-display text-[20px] font-bold leading-tight text-ink">Rankings</h2>
-        <div role="tablist" aria-label="Qué ordenar" className="inline-flex flex-wrap gap-1 rounded-full border border-line bg-paperDeep p-1">
+      <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5">
+        <h2 id={`${base}-t`} className="font-display text-[18px] font-bold leading-tight text-ink sm:text-[20px]">Rankings</h2>
+        <div role="tablist" aria-label="Qué ordenar" className="grid grid-cols-4 gap-1 rounded-full border border-line bg-paperDeep p-1 sm:inline-flex">
           {pestanas.map((p, i) => (
             <button
               key={p.id}
@@ -71,7 +71,7 @@ export function RankingsInicio({ pestanas }: { pestanas: PestanaRank[] }) {
               onClick={() => setActiva(p.id)}
               onKeyDown={(e) => teclas(e, i)}
               className={cn(
-                "min-h-9 rounded-full px-3.5 text-[13.5px] font-semibold transition-colors duration-rapido focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-granate",
+                "min-h-9 rounded-full px-1.5 text-[13px] font-semibold sm:px-3.5 sm:text-[13.5px] transition-colors duration-rapido focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-granate",
                 actual.id === p.id ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
               )}
             >

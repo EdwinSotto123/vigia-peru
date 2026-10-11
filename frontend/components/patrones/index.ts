@@ -5,3 +5,4 @@ export { Ayuda } from "./Ayuda";
 export { Pestanas, CabeceraPestana, irAPestana, type Pestana } from "./Pestanas";
 export { CuerpoDetalle, ChipsDetalle, DatosClave, BloqueDetalle, CitaDetalle, PieDetalle, type DatoClave } from "./Detalle";
 export { BarraCompartir } from "./Compartir";
+export { Franja, Beneficios, type Beneficio } from "./Franja";

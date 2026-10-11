@@ -14,8 +14,10 @@ import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
  * Un aporte por entidad nombra a la entidad (no la zona donde están sus contratos) y enlaza a
  * donde se financia, igual que la zona de un aporte por zona.
  */
-export function RecientesFeed({ items, porEntidad = false, porPartido = false }: {
+export function RecientesFeed({ items, porEntidad = false, porPartido = false, enColumnas = false }: {
   items: ContribucionReciente[];
+  /** A todo el ancho de la página: dos columnas en pantallas anchas, para que cada aporte no se estire en una fila rala. */
+  enColumnas?: boolean;
   /** La vista de /app/financiar: decide a qué lista lleva el estado vacío. */
   porEntidad?: boolean;
   porPartido?: boolean;
@@ -36,11 +38,11 @@ export function RecientesFeed({ items, porEntidad = false, porPartido = false }:
     );
   }
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+    <ul className={enColumnas ? "grid gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-2" : "divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper"}>
       {items.map((c) => {
         const mensaje = mensajePublicoVisible(c.mensajePublico, c.pasarela);
         return (
-          <li key={c.codigo} className="flex items-start gap-3 px-4 py-3">
+          <li key={c.codigo} className={enColumnas ? "flex items-start gap-3 bg-paper px-4 py-3" : "flex items-start gap-3 px-4 py-3"}>
             <Avatar tipo={c.tipo} logoUrl={c.logoUrl} nombre={c.financiador} />
             <div className="min-w-0 flex-1 text-sm">
               <p className="text-ink">
