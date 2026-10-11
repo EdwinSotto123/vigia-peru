@@ -14,6 +14,8 @@
 
 const PRIVADAS = /^\/(?:v1\/)?(?:admin|cuentas|upload)(?:\/|$)/;
 const CC_ORIGINAL = "X-Vigia-Cache-Control";
+/** Subir este número descarta de golpe todo lo guardado (2026-10-11: saneado de datos personales). */
+const VERSION_CACHE = "2";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
@@ -24,6 +26,7 @@ function cacheable(req: Request): boolean {
 function clave(req: Request): Request {
   const u = new URL(req.url);
   u.searchParams.set("__origen", req.headers.get("origin") ?? "-");
+  u.searchParams.set("__v", VERSION_CACHE);
   return new Request(u.toString(), { method: "GET" });
 }
 
