@@ -63,7 +63,7 @@ export function NodeDetailPanel({
     links.push({ label: "DatosPerú (perfil)", href: `https://www.datosperu.org/ruc-${m.ruc}.php` });
     links.push({ label: "OECE (búsqueda proveedor)", href: `https://contratacionesabiertas.oece.gob.pe/perfilProveedor/#!/transactions/${m.ruc}` });
   }
-  if (m.dni && /^d{8}$/.test(String(m.dni))) {
+  if (m.dni && /^\d{8}$/.test(String(m.dni))) {
     links.push({ label: "Buscar el DNI (eldni.com)", href: `https://eldni.com/pe/buscar-por-dni?dni=${m.dni}` });
   }
   // Solo URLs públicas: el backend a veces deja "file://ERM2022…xlsx" o el
