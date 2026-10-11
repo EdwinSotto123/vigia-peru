@@ -37,13 +37,17 @@ export function RankingPartidos({
   onNivel,
   resaltar,
   onResaltar,
+  compacto = false,
 }: {
   d: AutoridadesDatos;
   nivel: Nivel;
   onNivel: (n: Nivel) => void;
   resaltar: number | null;
   onResaltar: (o: number | null) => void;
+  /** Versión corta (portada): las 5 primeras y "ver más" en el lugar, sin el resumen por tipo. */
+  compacto?: boolean;
 }) {
+  const [verMas, setVerMas] = useState(false);
   const cs = useMemo(() => conteos(d), [d]);
   const colores = useMemo(() => coloresPorOrg(d, nivel), [d, nivel]);
   const total = d[nivel].length;
@@ -51,8 +55,9 @@ export function RankingPartidos({
     () => cs.filter((c) => c[nivel] > 0).sort((a, b) => b[nivel] - a[nivel] || a.org - b.org),
     [cs, nivel],
   );
-  const top = filas.slice(0, 10);
-  const resto = filas.slice(10);
+  const tope = compacto && !verMas ? 5 : 10;
+  const top = filas.slice(0, tope);
+  const resto = filas.slice(tope);
   const restoN = resto.reduce((s, c) => s + c[nivel], 0);
   const porTipo = useMemo(() => {
     const m: Record<string, number> = { partido: 0, movimiento: 0, alianza: 0, otro: 0 };
@@ -84,23 +89,37 @@ export function RankingPartidos({
         ))}
       </div>
 
-      <p className="mt-3 text-[13px] leading-snug text-mute">
-        {numero(total)} {NIVEL_LABEL[nivel].plural} en total. Toca una organización para verla en el mapa.
-      </p>
+      {compacto ? (
+        <div className="mt-2 hidden items-center justify-between gap-3 sm:flex">
+          <p className="text-[13px] leading-snug text-mute">
+            {numero(total)} {NIVEL_LABEL[nivel].plural}. Toca una organización para verla en el mapa.
+          </p>
+          {filas.length > 5 && (
+            <button type="button" onClick={() => setVerMas((v) => !v)} aria-expanded={verMas} className="shrink-0 text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+              {verMas ? "Ver menos" : "Ver más"}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="mt-3 text-[13px] leading-snug text-mute">
+          {numero(total)} {NIVEL_LABEL[nivel].plural} en total. Toca una organización para verla en el mapa.
+        </p>
+      )}
 
-      <ol className="mt-4 space-y-1.5">
+      <ol className={cn(compacto ? "mt-2 space-y-0.5" : "mt-4 space-y-1.5")}>
         {top.map((c, i) => {
           const o = orgDe(d, c.org);
           const n = c[nivel];
           const activa = resaltar === c.org;
           return (
-            <li key={c.org}>
+            <li key={c.org} className={cn(compacto && !verMas && i >= 3 && "hidden sm:block")}>
               <button
                 type="button"
                 onClick={() => onResaltar(activa ? null : c.org)}
                 aria-pressed={activa}
                 className={cn(
-                  "group grid w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                  "group grid w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border px-3 text-left transition-colors",
+                  compacto ? "py-1" : "py-2",
                   activa ? "border-granate bg-granate-soft" : "border-transparent hover:border-line hover:bg-paperSoft",
                 )}
               >
@@ -109,7 +128,7 @@ export function RankingPartidos({
                   <span className="block truncate text-[14px] font-semibold text-ink" title={o.n}>
                     {o.n}
                   </span>
-                  <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-paperDeep">
+                  <span className={cn("block overflow-hidden rounded-full bg-paperDeep", compacto ? "mt-1 h-1.5" : "mt-1.5 h-2")}>
                     <span
                       className="block h-full rounded-full transition-[width] duration-panel ease-salida"
                       style={{ width: `${Math.max(3, (n / max) * 100)}%`, background: colores.get(c.org) ?? COLOR_OTRAS }}
@@ -118,19 +137,30 @@ export function RankingPartidos({
                 </span>
                 <span className="text-right">
                   <span className="block font-mono text-[15px] font-bold tabular-nums text-ink">{numero(n)}</span>
-                  <span className="block font-mono text-[11px] tabular-nums text-mute">{((n / total) * 100).toFixed(0)} %</span>
+                  {!compacto && <span className="block font-mono text-[11px] tabular-nums text-mute">{((n / total) * 100).toFixed(0)} %</span>}
                 </span>
               </button>
             </li>
           );
         })}
       </ol>
-      {resto.length > 0 && (
-        <p className="mt-3 text-[13px] text-mute">
+      {compacto && filas.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setVerMas((v) => !v)}
+          aria-expanded={verMas}
+          className="mt-2 inline-flex min-h-11 items-center text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline sm:hidden"
+        >
+          {verMas ? "Ver menos" : "Ver más"}
+        </button>
+      )}
+      {(!compacto || verMas) && resto.length > 0 && (
+        <p className="mt-2 text-[13px] text-mute">
           Y otras {numero(resto.length)} organizaciones con {numero(restoN)} {NIVEL_LABEL[nivel].plural} entre todas.
         </p>
       )}
 
+      {!compacto && (
       <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-4">
         {(["partido", "movimiento", "alianza"] as const).map((t) => (
           <div key={t}>
@@ -139,6 +169,7 @@ export function RankingPartidos({
           </div>
         ))}
       </dl>
+      )}
     </div>
   );
 }

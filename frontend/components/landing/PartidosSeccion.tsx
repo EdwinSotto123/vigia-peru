@@ -1,25 +1,20 @@
 import Link from "next/link";
 import { PartidosExplorador } from "@/components/partidos/PartidosExplorador";
+import { Carrusel } from "@/components/ui/Carrusel";
 import { getEstadoGlobal } from "@/lib/financiamiento";
 import { getContratosGeo, getResumenContratos } from "@/lib/contratos";
-import { numero, porcentaje } from "@/lib/formato";
+import { numero } from "@/lib/formato";
 import type { Cobertura } from "@/lib/partidos";
 import { getRankingPartidos, type RankingPartidos } from "@/lib/partidosApi";
-import { EnlaceAccion } from "./EnlaceAccion";
 
 /**
- * "Con tu ayuda, vigilamos a los partidos políticos." Quién gobierna cada región, provincia y
- * distrito, y lo que hace falta para vigilarlos de verdad: que se lean los contratos de cada
- * gobierno. Va en la portada porque en época de elecciones es lo que más curiosidad da (¿qué
- * partido ganó en mi región?, ¿y en mi distrito?) y porque conecta con lo que Vigía necesita:
- * lectores, o sea gente que financie la lectura.
+ * "La respuesta", la segunda mitad del pitch (la primera es EscalaDinero: el problema). Un solo mapa
+ * con tres lecturas, quién gobierna cada región, cuánto se contrata y qué tanto vigila Vigía, y
+ * debajo los partidos en una fila de tarjetas que se desliza a los lados.
  *
- * Tres bloques, sin mezclarlos:
- *  1. El explorador: quién ganó cada gobierno en 2014, 2018 y 2022 (JNE), y un segundo modo del
- *     mapa, "qué tanto vigilamos", con los contratos que Vigía ya leyó en cada región.
- *  2. Lo que falta, a detalle: cuántos contratos se leyeron, cuántos faltan, cuántos ya se
- *     pueden financiar y en cuántas regiones aún no se lee nada. Todo sale de la API.
- *  3. Lo que Vigía cruza al leer: aportes de campaña y autoridades contra proveedores.
+ * Es UNA sección, no tres bloques apilados: el mapa y su panel (la ficha de la región y las 5
+ * organizaciones con más gobiernos), el carrusel de partidos y una sola nota al pie. Las cifras de lo
+ * que falta ya las cuenta la sección anterior.
  *
  * Reglas de siempre: una señal es para revisar, nunca una acusación; ningún color imita el de un
  * partido; los resultados de 2026 se suman cuando el JNE los proclame. Si la API de contratos no
@@ -57,30 +52,28 @@ export async function PartidosSeccion() {
   return (
     <section id="partidos" aria-labelledby="partidos-titulo" className="relative scroll-mt-16 overflow-hidden bg-paper">
       <div aria-hidden className="fondo-puntos-tenue pointer-events-none absolute inset-0" />
-      <div className="container-page relative py-20 sm:py-28">
-        <div className="max-w-3xl">
-          <p className="etiqueta-mono mb-4 text-granate">El mapa</p>
-          <h2 id="partidos-titulo" className="text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-            Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
-          </h2>
-          <p className="mt-5 max-w-[60ch] text-pretty text-lg leading-relaxed text-inkSoft">
-            Un solo mapa con tres lecturas. Quién gobierna cada región, cuánto dinero se contrata en ella y qué tanto de eso ya leyó
-            Vigía. Cambia de lectura arriba del mapa y toca tu región.
-          </p>
-        </div>
-
-        <div className="mt-10 sm:mt-12">
-          <PartidosExplorador cobertura={cobertura} />
-        </div>
-
-        {cobertura && <LoQueFalta c={cobertura} />}
+      <div className="container-page relative py-12 sm:py-14">
+        <PartidosExplorador
+          cobertura={cobertura}
+          variante="portada"
+          encabezado={
+            <div className="max-w-2xl">
+              <p className="etiqueta-mono mb-3 text-granate">La respuesta: el mapa</p>
+              <h2 id="partidos-titulo" className="text-balance font-display text-3xl font-bold leading-[1.06] sm:text-5xl lg:text-[2.4rem]">
+                Con tu ayuda, vigilamos a los <span className="text-granate">partidos políticos.</span>
+              </h2>
+              <p className="mt-3 hidden text-pretty text-base leading-relaxed text-inkSoft sm:block sm:text-lg">
+                Quién gobierna cada región, cuánto se contrata en ella y qué tanto de eso ya leyó Vigía.
+              </p>
+            </div>
+          }
+        />
 
         {porPartido && porPartido.data.length > 0 && <PorPartido r={porPartido} />}
 
-
-        <p className="mt-8 max-w-3xl text-[13px] leading-relaxed text-mute">
-          Esto muestra quién ganó en las Elecciones Regionales y Municipales de 2014, 2018 y 2022, no qué hizo cada gobierno. Los resultados
-          de 2026 se suman cuando el JNE los proclame. Una señal de Vigía es para revisar, nunca una acusación.{" "}
+        <p className="mt-6 max-w-4xl text-[13px] leading-relaxed text-mute">
+          Cada contrato se asocia al partido que ganó la elección de ese período, sin vacancias ni reemplazos. Resultados de 2026 pendientes.
+          Fuente: JNE. Una señal es para revisar, nunca una acusación.{" "}
           <Link href="/preguntas" className="text-granate underline-offset-4 hover:underline">
             Cómo leemos las señales
           </Link>
@@ -91,121 +84,47 @@ export async function PartidosSeccion() {
   );
 }
 
-/** Lo que falta, a detalle: cuánto se leyó, cuánto falta y qué se puede financiar hoy. */
-function LoQueFalta({ c }: { c: Cobertura }) {
-  const pct = c.publicados > 0 ? (c.leidos / c.publicados) * 100 : 0;
-  const noFinanciables = Math.max(0, c.faltan - c.enColaHoy);
-  const sinLectura = c.regionesTotal - c.regionesConLectura;
-  const costoCola = c.precioPen != null ? c.precioPen * c.enColaHoy : null;
-  const cifras: { valor: string; etiqueta: string; detalle: string; fuerte?: boolean }[] = [
-    {
-      valor: numero(c.leidos),
-      etiqueta: "contratos leídos",
-      detalle: `${porcentaje(pct, { decimales: 1 })} de los ${numero(c.publicados)} publicados`,
-      fuerte: true,
-    },
-    {
-      valor: numero(c.faltan),
-      etiqueta: "faltan por leer",
-      detalle: "Ahí están los contratos de los gobiernos que aún no podemos vigilar",
-    },
-    {
-      valor: numero(c.enColaHoy),
-      etiqueta: "se pueden financiar hoy",
-      detalle: costoCola != null ? `Leerlos todos cuesta S/ ${numero(costoCola)}, a S/ ${numero(c.precioPen ?? 0)} cada uno` : "Ya tienen sus documentos y están adjudicados",
-    },
-    {
-      valor: `${numero(c.regionesConLectura)} de ${numero(c.regionesTotal)}`,
-      etiqueta: "regiones con lectura",
-      detalle: sinLectura > 0 ? `En ${numero(sinLectura)} regiones todavía no se leyó ningún contrato` : "En todas hay al menos un contrato leído",
-    },
-  ];
-  return (
-    <div className="mt-8 rounded-2xl border border-granate/35 bg-granate-50 p-5 sm:p-7">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-        <div className="max-w-2xl">
-          <h3 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">Hoy vigilamos poco. Esto falta.</h3>
-          <p className="mt-2 text-[15px] leading-relaxed text-inkSoft">
-            Cada contrato que se lee se cruza con aportes de campaña y con las autoridades electas. Mientras más se lee, más gobiernos y más
-            partidos podemos mirar de cerca.
-          </p>
-        </div>
-      </div>
-
-      {/* La barra: lo leído es una rendija. */}
-      <div className="mt-6" aria-hidden>
-        <div className="h-3 overflow-hidden rounded-full bg-paperDeep">
-          <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(1.2, pct)}%` }} />
-        </div>
-        <div className="mt-1.5 flex justify-between font-mono text-[11.5px] tabular-nums text-mute">
-          <span>0</span>
-          <span>{numero(c.publicados)} contratos</span>
-        </div>
-      </div>
-
-      <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {cifras.map((x) => (
-          <div key={x.etiqueta} className="rounded-xl border border-line bg-paperSoft p-4">
-            <dd className={"font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl " + (x.fuerte ? "text-granate" : "text-ink")}>{x.valor}</dd>
-            <dt className="mt-2 text-[14px] font-semibold text-ink">{x.etiqueta}</dt>
-            <dd className="mt-1 text-[13px] leading-snug text-mute">{x.detalle}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-4 text-[13px] leading-relaxed text-mute">
-        De los {numero(c.faltan)} que faltan, {numero(c.enColaHoy)} ya pueden financiarse hoy y {numero(noFinanciables)} todavía no: les falta
-        adjudicarse o que se descarguen sus documentos. La región es la sede de la entidad que contrata.
-      </p>
-    </div>
-  );
-}
-
 /**
- * Qué tanto vigilamos a cada partido: cada contrato se asocia al partido que gobernaba la entidad el
- * mes en que se convocó (2023 a 2026). La barra muestra lo leído sobre lo publicado; lo demás espera a
- * que alguien lo financie. Se asocia al ganador de la elección: no registra vacancias ni reemplazos.
+ * Qué tanto vigilamos a cada partido, en una fila que se desliza. Cada contrato se asocia al partido
+ * que gobernaba la entidad el mes en que se convocó (2023 a 2026). La barra muestra lo leído sobre lo
+ * publicado; lo demás espera a que alguien lo financie.
  */
 function PorPartido({ r }: { r: RankingPartidos }) {
-  const top = r.data.slice(0, 8);
+  const top = r.data.slice(0, 12);
   const maximo = Math.max(...top.map((x) => x.contratos), 1);
   return (
-    <div className="mt-8 rounded-2xl border border-line bg-paperSoft p-5 sm:p-7">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-        <div className="max-w-2xl">
-          <h3 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">Qué tanto vigilamos a cada partido</h3>
-          <p className="mt-2 text-[15px] leading-relaxed text-inkSoft">
-            Cada contrato se asocia al partido que gobernaba la entidad el mes en que se convocó, de {r.desde.slice(0, 4)} a {r.hasta.slice(0, 4)}.
-            Elige un partido y financia la lectura de sus contratos.
+    <div className="mt-7">
+      <div className="mb-3 flex items-end justify-between gap-x-6 gap-y-2">
+        <div className="min-w-0 max-w-2xl">
+          <h3 className="font-display text-xl font-bold leading-tight text-ink sm:text-3xl">Qué tanto vigilamos a cada partido</h3>
+          <p className="mt-1 text-[14px] leading-snug text-inkSoft">
+            Contratos de las entidades que gobernó cada uno, de {r.desde.slice(0, 4)} a {r.hasta.slice(0, 4)}.
           </p>
         </div>
-        <EnlaceAccion href="/app/partidos" tamano="lg">
-          Ver todos los partidos
-        </EnlaceAccion>
+        <Link href="/app/partidos" className="inline-flex min-h-11 shrink-0 items-center text-[14px] font-semibold text-granate underline-offset-4 hover:underline">
+          Ver todos
+        </Link>
       </div>
-      <ul className="mt-6 space-y-3">
+      <Carrusel etiqueta="Partidos y sus contratos" anchoTarjeta="w-[82%] sm:w-[17.5rem]" flechas="lateral">
         {top.map((x) => (
-          <li key={x.clave}>
-            <Link href={`/app/partidos/${x.clave}?anio=${r.anio}`} className="group block rounded-xl border border-line bg-paper p-3.5 transition-colors hover:border-granate/50 sm:p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-[15px] font-semibold text-ink group-hover:text-granate">{x.nombre}</span>
-                <span className="font-mono text-[12.5px] tabular-nums text-mute">
-                  {numero(x.contratos)} contratos en {numero(x.gobiernosConContratos)} gobiernos
-                </span>
-              </div>
-              <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-paperDeep" style={{ width: `${Math.max(6, (x.contratos / maximo) * 100)}%` }} aria-hidden>
-                <div className="h-full rounded-full bg-granate" style={{ width: `${Math.max(x.leidos > 0 ? 4 : 0, (x.leidos / Math.max(x.contratos, 1)) * 100)}%` }} />
-              </div>
-              <p className="mt-2 text-[13px] text-mute">
-                <span className="font-semibold text-ink">{numero(x.leidos)}</span> leídos, <span className="font-semibold text-ink">{numero(x.enCola)}</span> esperando lectura
-              </p>
-            </Link>
-          </li>
+          <Link
+            key={x.clave}
+            href={`/app/partidos/${x.clave}?anio=${r.anio}`}
+            className="group flex h-full flex-col rounded-2xl border border-line bg-paperSoft p-4 transition-colors hover:border-granate/50"
+          >
+            <span className="line-clamp-2 min-h-[2.6rem] text-[15px] font-semibold leading-snug text-ink group-hover:text-granate">{x.nombre}</span>
+            <span className="mt-3 block h-2.5 overflow-hidden rounded-full bg-paperDeep" style={{ width: `${Math.max(14, (x.contratos / maximo) * 100)}%` }} aria-hidden>
+              <span className="block h-full rounded-full bg-granate" style={{ width: `${Math.max(x.leidos > 0 ? 5 : 0, (x.leidos / Math.max(x.contratos, 1)) * 100)}%` }} />
+            </span>
+            <span className="mt-3 font-mono text-[12.5px] tabular-nums text-mute">
+              {numero(x.contratos)} contratos en {numero(x.gobiernosConContratos)} gobiernos
+            </span>
+            <span className="mt-1 text-[13.5px] text-inkSoft">
+              <span className="font-semibold text-ink">{numero(x.leidos)}</span> leídos, <span className="font-semibold text-ink">{numero(x.enCola)}</span> esperando lectura
+            </span>
+          </Link>
         ))}
-      </ul>
-      <p className="mt-4 text-[13px] leading-relaxed text-mute">
-        Se asocia al partido que ganó la elección de ese período; no registra vacancias ni reemplazos. Una señal es un motivo para
-        revisar un contrato, nunca una acusación contra un partido ni una persona.
-      </p>
+      </Carrusel>
     </div>
   );
 }

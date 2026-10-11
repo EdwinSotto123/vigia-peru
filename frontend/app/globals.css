@@ -251,3 +251,7 @@ dialog:not([open]) {
     opacity: 0;
   }
 }
+
+/* Carrusel: la lista se desliza sin barra visible (los botones y los puntos dicen dónde va). */
+.carrusel-lista { scrollbar-width: none; -ms-overflow-style: none; }
+.carrusel-lista::-webkit-scrollbar { display: none; }

@@ -56,7 +56,20 @@ const ANIOS_CARGADOS = PERIODOS.filter((p) => p.cargado).map((p) => p.anio as An
 
 type Modo = "ganador" | "dinero" | "vigilancia";
 
-export function PartidosExplorador({ compacto = false, cobertura = null }: { compacto?: boolean; cobertura?: Cobertura | null }) {
+export function PartidosExplorador({
+  compacto = false,
+  cobertura = null,
+  variante = "completo",
+  encabezado,
+}: {
+  compacto?: boolean;
+  cobertura?: Cobertura | null;
+  /** "portada": el mapa más bajo, la ficha arriba del panel y el ranking en sus 5 primeras filas. */
+  variante?: "completo" | "portada";
+  /** Portada: el titular de la sección, que comparte fila con el selector de período. */
+  encabezado?: React.ReactNode;
+}) {
+  const portada = variante === "portada";
   const [datos, setDatos] = useState<Partial<Record<number, AutoridadesDatos>>>({});
   const [error, setError] = useState(false);
   const [anio, setAnio] = useState<number>(ANIO_ACTUAL);
@@ -206,22 +219,82 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
     return [...n.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   }, [d, nivelMapa, seleccion]);
 
+  const nodoFicha = (
+            <div className={cn("rounded-2xl border border-line bg-paperSoft p-4", portada ? (ficha ? "mb-3 min-h-[8rem]" : "mb-3") : "mt-4 min-h-[8.5rem]")} aria-live="polite">
+              {ficha ? (
+                <>
+                  <p className="etiqueta-mono flex items-center gap-1.5">
+                    <MapPin size={13} aria-hidden /> {ficha.titulo}
+                  </p>
+                  <p className={cn("mt-2 font-display font-bold leading-tight text-ink", portada ? "text-[19px]" : "text-[22px]")}>{ficha.gano.org.n}</p>
+                  <p className="mt-1 text-[14px] text-inkSoft">
+                    {ficha.cargo}: <span className="font-semibold text-ink">{ficha.gano.persona}</span>
+                  </p>
+                  <p className="mt-1 text-[13px] text-mute">
+                    {TIPO_ORG_LABEL[ficha.gano.org.t]}
+                    {pct(ficha.gano.p) ? `, ${pct(ficha.gano.p)} de los votos` : ""}
+                  </p>
+                  {ficha.fuente && <p className="mt-1 text-[12px] text-mute">Fuente: {ficha.fuente}</p>}
+                  <ol className={portada ? "mt-2 flex flex-wrap gap-1.5" : "mt-3 space-y-1 border-t border-line pt-3"}>
+                    {ficha.historial.map((h) => (
+                      <li key={h.anio} className={cn(portada ? "inline-flex max-w-[12rem] gap-1.5 rounded-full bg-paperDeep px-2.5 py-1 text-[12px]" : "grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", h.anio === anio ? "text-ink" : "text-inkSoft")}>
+                        <span className="font-mono tabular-nums text-mute">{h.anio}</span>
+                        <span className={cn("truncate", h.anio === anio && "font-semibold")} title={h.gano?.org.n}>
+                          {h.gano ? h.gano.org.n : "Sin dato"}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  {ficha.lectura && (
+                    <p className={cn("rounded-lg bg-paperDeep px-3 py-2 text-[13px] leading-snug text-inkSoft", portada ? "mt-2" : "mt-3")}>
+                      Se contratan <span className="font-mono font-bold tabular-nums text-ink">{solesCompacto(ficha.lectura.monto)}</span>.{" "}
+                      Vigía leyó{" "}
+                      <span className="font-mono font-bold tabular-nums text-ink">{numero(ficha.lectura.leidos)}</span> de{" "}
+                      <span className="font-mono tabular-nums">{numero(ficha.lectura.total)}</span> contratos de esta región.
+                      {ficha.lectura.leidos === 0 ? " Con tu ayuda se puede empezar." : ""}
+                    </p>
+                  )}
+                  {ficha.region && (
+                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
+                      Financiar la lectura de esta región
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <p className="text-[15px] leading-relaxed text-mute">
+                  {portada
+                    ? `Toca una región para ver quién la gobierna y quién ganó antes.`
+                    : `Pasa el cursor o toca una región para ver quién la gobierna en ${anio} y quién ganó en los otros períodos. Toca una región para abrir sus provincias.`}
+                </p>
+              )}
+            </div>
+  );
+
   if (error) {
     return (
-      <p className="rounded-xl border border-line bg-paperSoft p-5 text-[15px] text-inkSoft">
-        No pudimos traer los resultados electorales ahora. Vuelve a intentarlo en unos minutos.
-      </p>
+      <div>
+        {portada && encabezado && <div className="mb-4">{encabezado}</div>}
+        <p className="rounded-xl border border-line bg-paperSoft p-5 text-[15px] text-inkSoft">
+          No pudimos traer los resultados electorales ahora. Vuelve a intentarlo en unos minutos.
+        </p>
+      </div>
     );
   }
 
   return (
     <div>
-      {/* ── El período ──────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-        <p className="etiqueta-mono flex items-center gap-2">
+      {/* ── El período (en la portada, con el titular a su izquierda) ───── */}
+      <div className={portada && encabezado ? "mb-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between" : undefined}>
+      {portada && encabezado}
+      <div className={cn("flex flex-wrap items-center gap-x-5 gap-y-3", portada ? (encabezado ? "lg:shrink-0" : "mb-4") : "mb-6")}>
+        <p className={cn("etiqueta-mono items-center gap-2", portada ? "hidden sm:flex" : "flex")}>
           <CalendarDays size={14} aria-hidden /> Período electoral
         </p>
-        <div role="tablist" aria-label="Elecciones de" className="flex flex-wrap gap-2">
+        <div
+          role="tablist"
+          aria-label="Elecciones de"
+          className={cn("flex gap-2", portada ? "carrusel-lista -mx-4 min-w-0 max-w-[calc(100%+2rem)] flex-nowrap overflow-x-auto px-4 sm:mx-0 sm:max-w-full sm:flex-wrap sm:px-0" : "flex-wrap")}
+        >
           {PERIODOS.map((p) => {
             const activo = p.anio === anio;
             return (
@@ -234,7 +307,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                 title={p.cargado ? `Mandato ${p.mandato}` : "Pendiente: se carga cuando el JNE proclame los resultados"}
                 onClick={() => p.cargado && cambiarAnio(p.anio)}
                 className={cn(
-                  "inline-flex min-h-11 flex-col items-start justify-center rounded-xl border px-4 py-1.5 text-left transition-colors",
+                  "inline-flex min-h-11 shrink-0 flex-col items-start justify-center rounded-xl border px-4 py-1.5 text-left transition-colors",
                   activo ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
                   !p.cargado && "cursor-not-allowed border-dashed opacity-60 hover:border-line hover:text-inkSoft",
                 )}
@@ -247,6 +320,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
             );
           })}
         </div>
+      </div>
       </div>
 
       {!d ? (
@@ -261,7 +335,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
             <div className="relative overflow-hidden rounded-2xl border border-line bg-paperSoft">
               <div className="flex items-center justify-between gap-3 px-4 pt-4">
                 {cobertura && !seleccion ? (
-                  <div role="tablist" aria-label="Qué pinta el mapa" className="inline-flex rounded-full border border-line bg-paperDeep p-1">
+                  <div role="tablist" aria-label="Qué pinta el mapa" className={cn("inline-flex rounded-full border border-line bg-paperDeep p-1", portada && "carrusel-lista max-w-full overflow-x-auto")}>
                     {(
                       [
                         ["ganador", "Quién gobierna"],
@@ -276,7 +350,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                         aria-selected={modo === id}
                         onClick={() => setModo(id)}
                         className={cn(
-                          "inline-flex min-h-11 items-center rounded-full px-3.5 text-[12.5px] font-semibold transition-colors",
+                          "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[12.5px] font-semibold transition-colors",
                           modo === id ? "bg-granate text-paper" : "text-inkSoft hover:text-ink",
                         )}
                       >
@@ -303,7 +377,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   </button>
                 )}
               </div>
-              <div className="mx-auto h-[26rem] max-w-md sm:h-[32rem]">
+              <div className={cn("mx-auto max-w-md", portada ? "h-[18rem] sm:h-[23rem]" : "h-[26rem] sm:h-[32rem]")}>
                 <PeruChoropleth
                   regiones={regiones}
                   provincias={provincias}
@@ -332,7 +406,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
               ) : vigilando ? (
                 <div className="border-t border-line px-4 py-3">
                   <p className="text-[12.5px] text-inkSoft">Qué parte de los contratos de cada región ya leyó Vigía</p>
-                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-mute">
+                  <ul className={cn("mt-2 flex gap-x-4 gap-y-1.5 text-[12px] text-mute", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
                     {(
                       [
                         ["#1F2A2A", "Ninguno"],
@@ -349,9 +423,9 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   </ul>
                 </div>
               ) : (
-              <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line px-4 py-3">
+              <ul className={cn("flex gap-x-4 gap-y-1.5 border-t border-line px-4 py-3", portada ? "carrusel-lista overflow-x-auto whitespace-nowrap" : "flex-wrap")}>
                 {leyenda.map(([o, n]) => (
-                  <li key={o} className="flex items-center gap-1.5 text-[12.5px] text-inkSoft">
+                  <li key={o} className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-inkSoft">
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: colores.get(o) ?? COLOR_OTRAS }} />
                     <span className="max-w-[11rem] truncate" title={orgDe(d, o).n}>
                       {orgDe(d, o).n}
@@ -359,66 +433,20 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                     <span className="font-mono text-[12px] tabular-nums text-mute">{n}</span>
                   </li>
                 ))}
-                <li className="flex items-center gap-1.5 text-[12.5px] text-mute">
+                <li className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-mute">
                   <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR_OTRAS }} /> Otras
                 </li>
               </ul>
               )}
             </div>
 
-            {/* Quién gobierna donde apunta el cursor (o lo elegido), y cómo votó antes. */}
-            <div className="mt-4 min-h-[8.5rem] rounded-2xl border border-line bg-paperSoft p-4" aria-live="polite">
-              {ficha ? (
-                <>
-                  <p className="etiqueta-mono flex items-center gap-1.5">
-                    <MapPin size={13} aria-hidden /> {ficha.titulo}
-                  </p>
-                  <p className="mt-2 font-display text-[22px] font-bold leading-tight text-ink">{ficha.gano.org.n}</p>
-                  <p className="mt-1 text-[14px] text-inkSoft">
-                    {ficha.cargo}: <span className="font-semibold text-ink">{ficha.gano.persona}</span>
-                  </p>
-                  <p className="mt-1 text-[13px] text-mute">
-                    {TIPO_ORG_LABEL[ficha.gano.org.t]}
-                    {pct(ficha.gano.p) ? `, ${pct(ficha.gano.p)} de los votos` : ""}
-                  </p>
-                  {ficha.fuente && <p className="mt-1 text-[12px] text-mute">Fuente: {ficha.fuente}</p>}
-                  <ol className="mt-3 space-y-1 border-t border-line pt-3">
-                    {ficha.historial.map((h) => (
-                      <li key={h.anio} className={cn("grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 text-[13px]", h.anio === anio ? "text-ink" : "text-inkSoft")}>
-                        <span className="font-mono tabular-nums text-mute">{h.anio}</span>
-                        <span className={cn("truncate", h.anio === anio && "font-semibold")} title={h.gano?.org.n}>
-                          {h.gano ? h.gano.org.n : "Sin dato"}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                  {ficha.lectura && (
-                    <p className="mt-3 rounded-lg bg-paperDeep px-3 py-2 text-[13px] leading-snug text-inkSoft">
-                      Se contratan <span className="font-mono font-bold tabular-nums text-ink">{solesCompacto(ficha.lectura.monto)}</span>.{" "}
-                      Vigía leyó{" "}
-                      <span className="font-mono font-bold tabular-nums text-ink">{numero(ficha.lectura.leidos)}</span> de{" "}
-                      <span className="font-mono tabular-nums">{numero(ficha.lectura.total)}</span> contratos de esta región.
-                      {ficha.lectura.leidos === 0 ? " Con tu ayuda se puede empezar." : ""}
-                    </p>
-                  )}
-                  {ficha.region && (
-                    <Link href={`/app/financiar/${ficha.region}`} className="mt-3 inline-block text-[13.5px] font-semibold text-granate underline-offset-4 hover:underline">
-                      Financiar la lectura de esta región
-                    </Link>
-                  )}
-                </>
-              ) : (
-                <p className="text-[15px] leading-relaxed text-mute">
-                  Pasa el cursor o toca una región para ver quién la gobierna en {anio} y quién ganó en los otros períodos. Toca una región para abrir
-                  sus provincias.
-                </p>
-              )}
-            </div>
+            {!portada && nodoFicha}
           </div>
 
           {/* ── Los paneles ─────────────────────────────────────── */}
           <div className="min-w-0">
-            <div role="tablist" aria-label="Qué quieres ver" className="mb-5 flex flex-wrap gap-2">
+            {portada && nodoFicha}
+            <div role="tablist" aria-label="Qué quieres ver" className={cn("flex gap-2", portada ? "carrusel-lista mb-3 overflow-x-auto" : "mb-5 flex-wrap")}>
               {PANELES.map(({ id, label, Icono }) => (
                 <button
                   key={id}
@@ -427,7 +455,7 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
                   aria-selected={panel === id}
                   onClick={() => setPanel(id)}
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-[14px] font-semibold transition-colors",
+                    "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[14px] font-semibold transition-colors",
                     panel === id ? "border-granate bg-granate text-paper" : "border-line text-inkSoft hover:border-paperEdge hover:text-ink",
                   )}
                 >
@@ -436,14 +464,16 @@ export function PartidosExplorador({ compacto = false, cobertura = null }: { com
               ))}
             </div>
             <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5">
-              {panel === "ranking" && <RankingPartidos key={anio} d={d} nivel={nivel} onNivel={setNivel} resaltar={resaltar} onResaltar={setResaltar} />}
+              {panel === "ranking" && <RankingPartidos key={anio} d={d} nivel={nivel} onNivel={setNivel} resaltar={resaltar} onResaltar={setResaltar} compacto={portada} />}
               {panel === "duelo" && <DueloPartidos key={anio} d={d} />}
               {panel === "distrito" && <MiDistrito d={d} anio={anio} datos={datos} />}
             </div>
-            <p className="mt-3 text-[12.5px] leading-snug text-mute">
-              Elecciones {anio} (mandato {periodo?.mandato}): {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales
-              y {numero(d.distrital.length)} distritales. Fuente: {d.fuente}.
-            </p>
+            {!portada && (
+              <p className="mt-3 text-[12.5px] leading-snug text-mute">
+                Elecciones {anio} (mandato {periodo?.mandato}): {numero(d.regional.length)} gobiernos regionales, {numero(d.provincial.length)} provinciales
+                y {numero(d.distrital.length)} distritales. Fuente: {d.fuente}.
+              </p>
+            )}
           </div>
         </div>
       )}

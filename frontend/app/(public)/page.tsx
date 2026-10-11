@@ -35,9 +35,9 @@ export const metadata: Metadata = {
  * La portada cuenta una historia, en este orden:
  *
  *  1. Qué es (HeroPixel). El ojo de puntos se agranda, la pantalla se disuelve en píxeles y del otro lado está…
- *  2. El mapa (PartidosSeccion): UN solo mapa con tres lecturas: quién gobierna, cuánto se contrata y
- *     qué tanto vigilamos. Es el único mapa de la portada.
- *  3. El problema: miles de millones en contratos, casi nada leído (EscalaDinero).
+ *  2. El problema (EscalaDinero): miles de millones en contratos, casi nada leído, en una fila de cifras que se desliza.
+ *  3. La respuesta (PartidosSeccion): UN solo mapa con tres lecturas (quién gobierna, cuánto se contrata y
+ *     qué tanto vigilamos) y los partidos en una fila que se desliza. Es el único mapa de la portada.
  *  4. Quién lo hace posible: nos financiamos con donaciones (PodioPortada + Aliados: podio y calculadora).
  *  5. Qué hace Vigía, con un contrato real (CasoLeido).
  *  6. Cómo lo hace, en palabras de persona (PipelineAgentes).
@@ -108,11 +108,7 @@ export default async function LandingPage() {
     <>
       <HeroPixel aliados={clasificar(ranking?.data ?? []).slice(0, 3)} precio={estado?.tarifa.precioPen ?? null} />
 
-      {/* El mapa, uno solo: quién gobierna, cuánto se contrata y qué tanto vigilamos. */}
-      <PixelReveal desde="izquierda" celda={30}>
-        <PartidosSeccion />
-      </PixelReveal>
-
+      {/* El pitch en dos secciones. A: el problema, en cifras que se deslizan. */}
       {publicados > 0 && montoTotal > 0 && (
         <EscalaDinero
           montoTotal={montoTotal}
@@ -121,8 +117,16 @@ export default async function LandingPage() {
           senalAlta={senalAlta}
           tipos={tiposEscala}
           anio={anioEscala}
+          financiables={estado?.colaGlobal ?? null}
+          precioPen={estado?.tarifa.precioPen ?? null}
+          regionesConLectura={regiones?.length ? regiones.filter((z) => z.procesados > 0).length : null}
         />
       )}
+
+      {/* B: la respuesta, un solo mapa con tres lecturas y los partidos en una fila que se desliza. */}
+      <PixelReveal desde="izquierda" celda={30}>
+        <PartidosSeccion />
+      </PixelReveal>
 
       {/* Nos financiamos con donaciones: el podio de quienes lo hacen posible y cuánto cuesta leer un contrato. */}
       <PodioPortada />
