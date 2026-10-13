@@ -7,6 +7,7 @@
  */
 
 import { Hono } from "hono";
+import { publicar } from "../lib/privacidad.js";
 import { OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { COLS as COLS_PROCESAMIENTO, RESULTADO_SQL } from "./procesamientos.js";
 import { signReadUrl } from "../lib/storage.js";
@@ -184,7 +185,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   }
 
   cache(c, 60);
-  return c.json({
+  // Proveedor persona natural (nombre y RUC 10), postores, citas y señales: tapados (lib/privacidad.ts).
+  return c.json(publicar({
     ...resumen,
     items,
     documentos,
@@ -205,5 +207,5 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
       validacionesPendientes: validacionesPendientes ?? null,
       clasificadoAt: clasificadoAt ?? null,
     },
-  });
+  }));
 });

@@ -22,6 +22,7 @@ import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
+import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
 import { Ayuda, EncabezadoPagina, FuenteDato, Pestanas, Volver } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
@@ -134,6 +135,7 @@ export function ContratoDetalle({
             activa={seccion}
             pestanas={[{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })]}
           />
+          <NotaPrivacidad />
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-4" aria-labelledby="datos-proceso">

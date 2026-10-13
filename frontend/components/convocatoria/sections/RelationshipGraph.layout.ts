@@ -19,7 +19,7 @@ import { evidenciaComoTexto } from "./Evidencia";
  */
 function maskApellidoSunat(name?: string | null): string {
   const n = (name || "").trim();
-  if (!n) return n;
+  if (!n || n.includes("•")) return n; // ya tapado por la API (lib/privacidad.ts)
   const parts = n.split(/\s+/);
   if (parts.length < 2) return n;
   const k = parts.length >= 3 ? 1 : 0;

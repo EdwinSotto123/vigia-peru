@@ -14,8 +14,12 @@
 
 const PRIVADAS = /^\/(?:v1\/)?(?:admin|cuentas|upload)(?:\/|$)/;
 const CC_ORIGINAL = "X-Vigia-Cache-Control";
-/** Subir este número descarta de golpe todo lo guardado (2026-10-11: saneado de datos personales). */
-const VERSION_CACHE = "2";
+/**
+ * Subir este número descarta de golpe todo lo guardado (2026-10-11: saneado de datos personales;
+ * 2026-10-13: DNI y RUC 10 como referencias, apellidos tapados en el servidor, traza pública sin datos;
+ * "4": una candidatura del JNE ya no vuelve pública a una persona).
+ */
+const VERSION_CACHE = "4";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;

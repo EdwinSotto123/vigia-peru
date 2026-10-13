@@ -396,7 +396,7 @@ documenta aquí.
 5. **≤ 800 líneas por archivo.** Un archivo que crece se parte en piezas con nombre.
 6. **Nombres en español**, consistentes con el dominio: `Cifra`, `EstadoVacio`, `FilaContrato`.
 7. **Un componente, un propósito.** Variantes por props (`variante`, `tamano`, `tono`), no copias.
-8. **Datos personales** siempre por `components/Redact.tsx` (vidrio revelable al clic).
+8. **Datos personales** siempre por `components/Redact.tsx` (§10.6: marca fija en lo público, vidrio revelable en el panel admin).
 
 ---
 
@@ -468,9 +468,17 @@ Toda vista con datos resuelve los cinco:
 
 ### 10.6 Privacidad
 
-DNI y el último apellido de personas **privadas** van en vidrio esmerilado,
-revelables sólo con clic o teclado (nunca con hover). Empresas y funcionarios
-públicos no se tapan. Nunca se muestra el DNI en claro en un listado.
+Regla completa en `docs/PRIVACIDAD.md`. Nunca un DNI, ni parcial; de las personas
+**privadas**, un apellido tapado; autoridades electas y empresas, completas.
+
+- **Sitio público:** la API ya manda los datos tapados (`ref·…`, `10·ref·…`,
+  `••••••••`, `•••`). Se pintan con `Tapado` (`components/Redact.tsx`): marca fija en
+  `bg-ink/10`, mono, `text-mute`, con la explicación en el `title`. Sin clic: no hay
+  nada que revelar porque el dato no llegó al navegador. Al pie de cada vista con
+  personas va `NotaPrivacidad` ("¿Apareces aquí? Pide una corrección").
+- **Panel admin:** recibe los datos completos y los tapa en vidrio esmerilado,
+  revelables sólo con clic o teclado (nunca con hover). Es la única forma de
+  desenmascarar.
 
 ### 10.7 Densidad: el dato primero, la explicación a un clic
 

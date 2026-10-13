@@ -7,7 +7,7 @@
  *   GET /alertas/analizadas?limit=&offset=&q=&riesgo=&zona=&orden=           análisis publicados + total + resumen
  */
 
-import { limpiarPersonales } from "../lib/privacidad.js";
+import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { OCID_CANDIDATOS, escaparLike, pool } from "../lib/db.js";
@@ -98,7 +98,7 @@ alertasRouter.get("/", async (c) => {
     pool.query(`SELECT count(*)::int AS n FROM alertas a ${where}`, totalVals),
   ]);
   c.header("Cache-Control", cachePublico(60, { maxAge: 30, swr: 60 }));
-  return c.json({ data: limpiarPersonales(r.rows), total: total.rows[0].n, limit, offset });
+  return c.json({ data: publicar(r.rows), total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /alertas/puntos — el mapa entero, en filas mínimas ──────────────────
@@ -160,7 +160,7 @@ alertasRouter.get("/analizadas", async (c) => {
   const parsed = AnalizadasQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = { ...parsed.data, q: parsed.data.q || undefined, zona: parsed.data.zona || undefined };
-  return responderJson(c, q.q ? analizadasTextoMemo : analizadasMemo, JSON.stringify(q), () => analizadas(q),
+  return responderJson(c, q.q ? analizadasTextoMemo : analizadasMemo, JSON.stringify(q), () => analizadas(q).then(publicar),
     cachePublico(30, { swr: 120 }));
 });
 

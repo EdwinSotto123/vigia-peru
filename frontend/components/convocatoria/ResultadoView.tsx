@@ -19,6 +19,7 @@ import { ResumenHumano } from "./sections/ResumenHumano";
 import { SeccionSegura } from "./sections/SeccionSegura";
 import { EnRevisionDossier } from "./sections/EnRevisionDossier";
 import { PanelDossier, type TabKey } from "./sections/PanelesDossier";
+import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
 
 /** Las pestañas del informe, en orden. La primera ("resumen", la de las señales) no va a la URL. */
 
@@ -287,6 +288,8 @@ export function ResultadoView({
               comprobar en su fuente. La denuncia formal corresponde a la Contraloría, la Fiscalía o el periodismo.
             </Ayuda>
           </p>
+          {/* En la vista previa del panel admin los datos llegan completos (en vidrio): ahí no aplica. */}
+          {!vistaPrevia && <NotaPrivacidad className="-mt-2" />}
         </div>
 
         {/* ─── BARRA LATERAL: datos del proceso y cómo se hizo ─── */}

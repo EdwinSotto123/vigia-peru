@@ -10,7 +10,10 @@
  * todo RUC de persona natural (10…, lleva el DNI adentro) y todo DNI suelto.
  */
 
-import { Glass, PersonName, type OrdenNombre } from "@/components/Redact";
+import { ConTapados, Glass, PersonName, type OrdenNombre } from "@/components/Redact";
+
+/** Las marcas de lo que la API ya tapó (lib/privacidad.ts): refs y bullets. */
+const MARCAS = "10·ref·[0-9A-Z]{6}|ref·[0-9A-Z]{6}|10•{9}|9•{8}|•{8}|•{3}";
 
 export interface PersonaTexto {
   nombre: string;
@@ -26,7 +29,7 @@ export function TextoRedactado({ texto, personas = [] }: { texto: string | null 
     .sort((a, b) => b.nombre.length - a.nombre.length);
   const orden = new Map(nombres.map((p) => [p.nombre.toLowerCase(), p.orden]));
   const alt = nombres.map((p) => esc(p.nombre.trim()).replace(/\s+/g, "\\s+"));
-  const re = new RegExp(`(${[...alt, "\\b10\\d{9}\\b", "\\b\\d{8}\\b"].join("|")})`, "gi");
+  const re = new RegExp(`(${[...alt, MARCAS, "\\b10\\d{9}\\b", "\\b\\d{8}\\b"].join("|")})`, "gi");
 
   const out: React.ReactNode[] = [];
   let last = 0;
@@ -35,7 +38,9 @@ export function TextoRedactado({ texto, personas = [] }: { texto: string | null 
     const tok = m[0];
     const at = m.index ?? 0;
     if (at > last) out.push(texto.slice(last, at));
-    if (/^10\d{9}$/.test(tok)) {
+    if (/^(10·ref·|ref·|•|10•|9•)/.test(tok)) {
+      out.push(<ConTapados key={i++} texto={tok} />);
+    } else if (/^10\d{9}$/.test(tok)) {
       out.push(<Glass key={i++} label="RUC de persona natural (contiene su DNI), clic para revelar">{tok}</Glass>);
     } else if (/^\d{8}$/.test(tok)) {
       out.push(<Glass key={i++} label="DNI, clic para revelar">{tok}</Glass>);

@@ -112,6 +112,8 @@ const MARCA_DE_ORGANIZACION =
  * señal de más, la portada elige otra; si deja pasar un nombre, ya no hay vuelta.
  */
 const nombraAUnaPersona = (texto: string) =>
+  // Lo que la API tapó (un apellido "•••", un DNI, una referencia "ref·…") es, por definición, una persona.
+  /•|ref·/.test(texto) ||
   (texto.match(/(?:\b[A-ZÁÉÍÓÚÑ]{2,}\b[ ,]*){3,}/g) ?? []).some((tramo) => !MARCA_DE_ORGANIZACION.test(tramo));
 
 /** Si una regla describe el PROCESO (competencia, precios, plazos…): las únicas que la portada nombra. */

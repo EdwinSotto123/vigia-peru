@@ -39,6 +39,7 @@ const PARTICIPAR: Enlace[] = [
 const SOBRE_VIGIA: Enlace[] = [
   { href: "/preguntas", label: "Preguntas frecuentes" },
   { href: "/preguntas#cuentas", label: "Cuánto cuesta y quién paga" },
+  { href: "/privacidad", label: "Privacidad y tus datos" },
   // TODO(contacto): reemplazar cuando exista un correo del equipo.
   // Antes decía "Escríbenos": los issues de GitHub son públicos, no un buzón privado.
   { href: "https://github.com/EdwinSotto123/vigia-peru/issues", label: "Sugerencias y errores", externo: true },

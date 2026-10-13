@@ -10,6 +10,7 @@
 import { API_BASE } from "./api-client";
 import { fechaCorta, numero, soles } from "./formato";
 import { nivelDeScore } from "./severidad";
+import { esRucPersonaNatural } from "./privacidad";
 import type { CitaDocumento, Estimado, FasesMap, Procesamiento, ResultadoAnalisis } from "./auditoria";
 export type { CitaDocumento };
 
@@ -317,8 +318,8 @@ export const RIESGO_CLS: Record<RiesgoContrato, string> = {
   sin_analizar: "text-mute",
 };
 
-/** RUC que empieza en 10 = persona natural con negocio (contiene el DNI): se redacta. */
-export const esPersonaNatural = (ruc: string | null | undefined) => !!ruc && /^10\d{9}$/.test(ruc);
+/** RUC que empieza en 10 = persona natural con negocio (contiene el DNI): se redacta. En claro o `10·ref·…`. */
+export const esPersonaNatural = (ruc: string | null | undefined) => esRucPersonaNatural(ruc);
 
 /**
  * "CARPIO COBOS ABEL" (orden SUNAT, apellidos primero) → "ABEL CARPIO COBOS" (orden

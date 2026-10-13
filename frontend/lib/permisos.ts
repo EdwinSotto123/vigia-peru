@@ -31,7 +31,8 @@ export const ROLES: Record<Rol, { nombre: string; descripcion: string }> = {
 export const esRol = (x: unknown): x is Rol => x === "admin" || x === "revisor";
 
 /** Secciones del panel que el revisor NO ve (el resto, sí). */
-const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo"];
+// Privacidad: los pedidos llevan el correo y el mensaje de una persona (Ley 29733).
+const SOLO_ADMIN_SECCIONES = ["/admin/contribuciones", "/admin/financiadores", "/admin/pagos", "/admin/equipo", "/admin/privacidad"];
 
 export function puedeVerSeccion(rol: Rol, pathname: string): boolean {
   if (rol === "admin") return true;

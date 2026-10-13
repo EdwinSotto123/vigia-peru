@@ -32,6 +32,8 @@ function apellidosPrivados(nombres: NombreConocido[]): Set<string> {
   for (const n of nombres) {
     const nombre = String((n && typeof n === "object" ? n.nombre : n) || "").normalize("NFC").trim();
     const partes = nombre.split(/\s+/).filter(Boolean);
+    // Ya tapado por la API: su apellido no está en la evidencia (también llega tapado ahí).
+    if (nombre.includes("•")) continue;
     if (partes.length < 2 || pareceEmpresa(nombre, n && typeof n === "object" ? n.ruc : null)) continue;
     const sunat = !!n && typeof n === "object" && n.orden === "sunat";
     const tapadas = partes.length === 2 ? partes : [sunat ? partes[1] : partes[partes.length - 1]];

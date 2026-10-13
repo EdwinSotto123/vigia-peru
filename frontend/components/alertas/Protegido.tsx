@@ -17,6 +17,7 @@
  */
 
 import { PersonName, redactDnis, setRedactNames } from "@/components/Redact";
+import { esRucPersonaNatural } from "@/lib/privacidad";
 import type { PersonaPrivada } from "@/lib/revision";
 
 export function TextoProtegido({ texto, nombres }: { texto: string; nombres: PersonaPrivada[] }) {
@@ -24,9 +25,11 @@ export function TextoProtegido({ texto, nombres }: { texto: string; nombres: Per
   return <>{redactDnis(texto)}</>;
 }
 
-/** El proveedor: una empresa se nombra tal cual; una persona natural, con el apellido materno tapado. */
+/**
+ * El proveedor: una empresa se nombra tal cual; una persona natural, con el apellido materno tapado
+ * (ya tapado por la API en lo público; en vidrio en el panel admin).
+ */
 export function ProveedorProtegido({ nombre, ruc }: { nombre: string; ruc: string | null }) {
-  const personaNatural = !!ruc && /^10\d{9}$/.test(ruc.trim());
-  if (!personaNatural) return <>{nombre}</>;
+  if (!esRucPersonaNatural(ruc)) return <>{nombre}</>;
   return <PersonName name={nombre} orden="sunat" />;
 }

@@ -160,6 +160,8 @@ export function sensiblesDeTraza(trace: unknown[], conocidas?: NombreConocido[])
   for (const n of conocidas || []) {
     const texto = typeof n === "string" ? n : n?.nombre;
     if (typeof texto !== "string" || texto.trim().split(/\s+/).length < 2) continue;
+    // Ya tapado por la API (lib/privacidad.ts): taparlo otra vez escondía el nombre de pila.
+    if (texto.includes("•")) continue;
     if (pareceEmpresa(texto, typeof n === "object" && n ? n.ruc : null)) continue;
     agregar(texto.trim(), typeof n === "object" && n ? n.orden : "nombres-primero");
   }
@@ -272,9 +274,13 @@ const TOPE_CRUDO = 30_000;
 export function JsonSeguro({ valor }: { valor: unknown }) {
   let s: string;
   try {
-    s = typeof valor === "string" ? valor : JSON.stringify(valor, null, 2);
+    // `JSON.stringify(undefined)` no da texto: un paso sin datos (la traza pública no los lleva).
+    s = typeof valor === "string" ? valor : JSON.stringify(valor, null, 2) ?? "";
   } catch {
     s = String(valor);
+  }
+  if (!s || s === "{}" || s === "null") {
+    return <span className="block text-[12px] text-mute">Sin datos: la traza pública no guarda lo que entra ni lo que sale de cada herramienta.</span>;
   }
   const recortado = s.length > TOPE_CRUDO;
   return (

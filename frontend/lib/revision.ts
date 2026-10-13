@@ -54,6 +54,7 @@ import { API_BASE, type ApiAlerta } from "@/lib/api-client";
 import { FASES, canonico, getReglasPerfil, type CitaDocumento } from "@/lib/auditoria";
 import { esAlertaReal } from "@/lib/semillas";
 import { enParalelo } from "@/lib/concurrencia";
+import { esRucPersonaNatural } from "@/lib/privacidad";
 
 export type NivelBandera = "alta" | "media" | "baja";
 
@@ -212,11 +213,10 @@ export interface PersonaPrivada {
 }
 
 /**
- * Un RUC que empieza con 10 es de una persona natural con negocio. Copia de
- * `esPersonaNatural` de components/Redact.tsx: aquella vive en un módulo
- * "use client" y llamarla desde el servidor revienta en producción.
+ * Un RUC que empieza con 10 es de una persona natural con negocio (en claro o, desde la API pública,
+ * `10·ref·…`). Vive en lib/privacidad.ts, sin "use client": se puede llamar desde el servidor.
  */
-export const esRucPersonaNatural = (ruc?: string | null) => !!ruc && /^10\d{9}$/.test(ruc.trim());
+export { esRucPersonaNatural } from "@/lib/privacidad";
 
 /**
  * "CARPIO COBOS ABEL" (orden SUNAT: apellidos primero) → "ABEL CARPIO COBOS".
@@ -231,7 +231,7 @@ function ordenHablado(sunat: string): string | null {
 }
 
 /**
- * Nombres que el texto pega a un DNI: "PEZO VARGAS DIEGO (DNI 73524824)". El DNI
+ * Nombres que el texto pega a un DNI: "SALAS RIVERA DIEGO (DNI 00000000)". El DNI
  * es la marca de que se trata de una persona natural y, con 2 o 3 palabras, del
  * orden RNP/SUNAT (apellidos primero; con 4+, ver `personasPrivadas`). No es
  * adivinar con NER: sin el DNI al lado no se toca nada.
@@ -248,8 +248,8 @@ export function personasPrivadas(proveedor: string | null, rucProveedor: string 
   for (const t of textos) {
     if (!t) continue;
     for (const m of t.matchAll(NOMBRE_CON_DNI)) {
-      // Con 4+ palabras el orden es ambiguo ("DIEGO ARMANDO PEZO VARGAS" o "PEZO
-      // VARGAS DIEGO ARMANDO"), y forzar SUNAT tapaba el segundo nombre de pila
+      // Con 4+ palabras el orden es ambiguo ("DIEGO ARMANDO SALAS RIVERA" o "SALAS
+      // RIVERA DIEGO ARMANDO"), y forzar SUNAT tapaba el segundo nombre de pila
       // del orden hablado. Además la captura puede arrastrar una palabra de más
       // por delante ("GERENTE JUAN PEREZ LOPEZ"), pero termina siempre pegada al
       // DNI. Va en lectura natural (se tapa la última palabra) y setRedactNames

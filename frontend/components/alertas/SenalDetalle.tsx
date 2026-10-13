@@ -10,6 +10,7 @@ import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { BloqueDetalle, ChipsDetalle, CitaDetalle, CuerpoDetalle, DatosClave } from "@/components/patrones/Detalle";
 import { Ruc } from "@/components/Redact";
+import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
 import { plural, soles } from "@/lib/formato";
 import type { Senal } from "@/lib/revision";
 
@@ -213,6 +214,7 @@ export function SenalDetalle({ s }: { s: Senal }) {
           </li>
         </ul>
       </BloqueDetalle>
+      <NotaPrivacidad />
     </CuerpoDetalle>
   );
 }

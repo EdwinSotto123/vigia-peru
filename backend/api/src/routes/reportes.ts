@@ -9,6 +9,7 @@
  */
 
 import { Hono } from "hono";
+import { publicar } from "../lib/privacidad.js";
 import { z } from "zod";
 import { esErrorPg, pool } from "../lib/db.js";
 import { conCache, parametros } from "../lib/http.js";
@@ -91,7 +92,8 @@ reportesRouter.get("/", async (c) => {
     pool.query(`SELECT count(*)::int AS n FROM reportes_indexados r ${where}`, totalVals),
   ]);
   conCache(c, 30);
-  return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
+  // La descripción es texto libre del ciudadano: DNI, celulares y correos que haya escrito, tapados.
+  return c.json({ data: publicar(r.rows), total: total.rows[0].n, limit, offset });
 });
 
 // ─── GET /reportes/convergencias — para el cruce con alertas ─────
@@ -117,7 +119,7 @@ reportesRouter.get("/convergencias", async (c) => {
     pool.query(`SELECT count(*)::int AS n FROM convergencias c WHERE ${convergenciaPublica("c")}`),
   ]);
   conCache(c, 60);
-  return c.json({ data: r.rows, total: total.rows[0].n, limit: parsed.data.limit });
+  return c.json({ data: publicar(r.rows), total: total.rows[0].n, limit: parsed.data.limit });
 });
 
 // ─── POST /reportes — crear denuncia ciudadana ──────────────────
@@ -252,5 +254,5 @@ reportesRouter.get("/:id", async (c) => {
   );
   if (r.rows.length === 0) return c.json({ error: "not_found" }, 404);
   conCache(c, 60);
-  return c.json(r.rows[0]);
+  return c.json(publicar(r.rows[0]));
 });

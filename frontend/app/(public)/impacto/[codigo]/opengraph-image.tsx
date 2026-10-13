@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { imagenFijaEnWindows } from "@/lib/imagen-fija-windows";
 import { getComprobante } from "@/lib/financiamiento";
 import { numero } from "@/lib/formato";
+import { esRucPersonaNatural } from "@/lib/privacidad";
 import { COLOR, franjaTextilUri, isotipoSvg } from "@/components/sitio/isotipoImagen";
 
 /**
@@ -37,7 +38,7 @@ export default async function Image({ params }: { params: { codigo: string } }) 
   const contratos = c?.contratos ?? null;
   // Por entidad, la tarjeta nombra a la entidad (nunca en claro a una persona natural, RUC 10).
   const lugar = c?.entidad
-    ? { prep: "de", nombre: /^10\d{9}$/.test(c.entidad.ruc) ? "una entidad" : c.entidad.nombre }
+    ? { prep: "de", nombre: esRucPersonaNatural(c.entidad.ruc) ? "una entidad" : c.entidad.nombre }
     : c?.zona
       ? { prep: "en", nombre: c.zona }
       : null;

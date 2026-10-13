@@ -30,7 +30,8 @@ function redactarTextoPlano(texto: string, nombres: NombreConocido[]): string {
   let out = maskDnis(texto);
   const lista = nombres
     .map((n) => (n && typeof n === "object" ? { nombre: String(n.nombre || "").trim(), orden: n.orden } : { nombre: String(n || "").trim(), orden: "nombres-primero" as const }))
-    .filter((n) => n.nombre.split(/\s+/).length >= 2)
+    // Los que la API ya tapó no aparecen enteros en el texto: no hay nada que reemplazar.
+    .filter((n) => n.nombre.split(/\s+/).length >= 2 && !n.nombre.includes("•"))
     .sort((a, b) => b.nombre.length - a.nombre.length);
   for (const { nombre, orden } of lista) {
     const partes = nombre.split(/\s+/);

@@ -19,10 +19,12 @@
  *     y `contratos` (distintos). Cada dimensión se cuenta con los OTROS filtros, no con el suyo
  *     (facetas cruzadas: ninguna opción lleva a cero). `total` = con todos los filtros.
  *   · Las citas salen del expediente de las alertas de ESTA página (lib/citas.ts), no de todas.
- *   · El texto de la evidencia se redacta en el frontend (Redact), como siempre.
+ *   · Datos personales (evidencia, citas, proveedor persona natural y su RUC 10) tapados en el servidor
+ *     (lib/privacidad.ts): la página entera pasa por `publicar`, así el nombre del proveedor de una fila se
+ *     tapa también en la evidencia de esa fila.
  */
 
-import { limpiarTexto } from "../lib/privacidad.js";
+import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
@@ -158,12 +160,11 @@ async function senales(q: Q, claves: (string | number | null)[] | null) {
   const hayMas = p.rows.length > q.limit;
   const filas = p.rows.slice(0, q.limit);
   const citadores = await citadoresDeAlertas(filas.map((r) => r._alerta).filter((x): x is string => !!x));
-  const data = filas.map(({ _alerta, _k0, ...r }) => ({
+  const data = publicar(filas.map(({ _alerta, _k0, ...r }) => ({
     ...r,
-    evidencia: r.evidencia == null ? r.evidencia : limpiarTexto(String(r.evidencia)),
     etiqueta: etiquetaRegla(r.regla),
     citas: citadores.get(_alerta)?.citasDeBandera(r) ?? [],
-  }));
+  })));
   let siguiente: string | null = null;
   if (hayMas && filas.length) {
     const u = filas[filas.length - 1];

@@ -218,14 +218,15 @@ adminRevisionRouter.post("/revision/:id/banderas/:bid/decision", async (c) => {
 // El dossier ENTERO, publicado o no: misma forma que GET /alertas/:id/full para una alerta
 // publicada (sale de la misma función), así el panel previsualiza el informe tal como lo verá el
 // público al publicarlo. La ruta pública lo recorta mientras la alerta no está publicada.
-// Acepta el uuid de la alerta (lo que tiene la página de revisión) o su código (OECE-…).
+// Con los datos personales completos (el revisor descarta homónimos; la pantalla los muestra en
+// vidrio, revelables al clic) y la traza entera. Acepta el uuid de la alerta o su código (OECE-…).
 adminRevisionRouter.get("/revision/:id/informe", async (c) => {
   const id = c.req.param("id").trim();
   if (!id || id.length > 80) return c.json({ error: "invalid_id" }, 400);
   const row = await filaDossier(id);
   if (!row) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", "no-store");
-  return c.json(await dossierCompleto(row));
+  return c.json(await dossierCompleto(row, { publico: false }));
 });
 
 // ─── PUT /alertas/:id/estado ─────────────────────────────────────────────────

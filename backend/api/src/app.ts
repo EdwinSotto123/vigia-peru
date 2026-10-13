@@ -25,6 +25,7 @@ import { contratosRouter } from "./routes/contratos.js";
 import { cuentasRouter } from "./routes/cuentas.js";
 import { buscarRouter } from "./routes/buscar.js";
 import { senalesRouter } from "./routes/senales.js";
+import { privacidadRouter } from "./routes/privacidad.js";
 
 export const app = new Hono();
 
@@ -107,6 +108,7 @@ api.route("/contribuciones", contribucionesRouter);
 api.route("/contratos", contratosRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
+api.route("/privacidad", privacidadRouter);
 api.route("/admin", adminRouter);
 
 app.route("/", api);

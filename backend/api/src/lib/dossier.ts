@@ -8,7 +8,7 @@
  * `a.id::text = $1 OR a.codigo = $1 OR …`: el cast anulaba el índice y recorría la tabla.
  */
 
-import { limpiarPersonales } from "./privacidad.js";
+import { publicar, publicarTraza } from "./privacidad.js";
 import { OCID_CANDIDATOS, pool } from "./db.js";
 import { alertaNoDemo, esPublicada } from "./publicacion.js";
 
@@ -93,14 +93,18 @@ export async function filaDossier(id: string, opts: { sinTraza?: boolean } = {})
   return r.rows[0] ?? null;
 }
 
-/** Lo que usa la pestaña "Cómo se hizo": traza, métricas y autoevaluación de UNA alerta. */
-export async function filaTraza(id: string): Promise<{ codigo: string; estado: string; agent_trace: unknown; llm_metrics: unknown; self_evals: unknown } | null> {
+/**
+ * Lo que usa la pestaña "Cómo se hizo": traza, métricas y autoevaluación de UNA alerta. `contexto`: el
+ * resto del análisis, del que salen las personas que hay que tapar en la traza (lib/privacidad.ts).
+ */
+export async function filaTraza(id: string): Promise<{ codigo: string; estado: string; agent_trace: unknown; llm_metrics: unknown; self_evals: unknown; contexto: unknown } | null> {
   const r = await pool.query(
     `WITH ${candidatosAlerta(id, { ocid: true, codigoConvocatoria: true })}
      SELECT a.codigo, a.estado,
             COALESCE(a.analisis_full->'agent_trace', '[]'::jsonb) AS agent_trace,
             a.analisis_full->'llm_metrics' AS llm_metrics,
-            a.analisis_full->'self_evals' AS self_evals
+            a.analisis_full->'self_evals' AS self_evals,
+            a.analisis_full - 'agent_trace' - 'llm_metrics' - 'self_evals' AS contexto
        FROM cand JOIN alertas a ON a.id = cand.id
       WHERE ${alertaNoDemo("a")}
       ORDER BY a.analizado_en DESC NULLS LAST, a.updated_at DESC NULLS LAST
@@ -117,8 +121,10 @@ export async function filaTraza(id: string): Promise<{ codigo: string; estado: s
  * como se verá al publicarla. `publicada` / `enRevision` dicen la verdad en ambos casos.
  * `sinTraza`: sin las claves agent_trace, llm_metrics ni self_evals (ni siquiera vacías) y con
  * `traza_resumen`.
+ * `publico` (por defecto): datos personales tapados (lib/privacidad.ts) y la traza sin entradas ni
+ * salidas de las herramientas. El panel admin pide `publico: false`: los datos completos.
  */
-export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boolean } = {}) {
+export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boolean; publico?: boolean } = {}) {
   const b = await pool.query(
     `SELECT regla, severidad, evidencia, norma, fuente_url
        FROM banderas WHERE alerta_id = $1
@@ -130,7 +136,7 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
   const traza = opts.sinTraza
     ? { traza_resumen: row.traza_resumen ?? { eventos: 0, agentes: [], herramientas: [] } }
     : { agent_trace: an.agent_trace ?? [], llm_metrics: an.llm_metrics ?? null, self_evals: an.self_evals ?? null };
-  return limpiarPersonales({
+  const dossier = {
     alerta_codigo: row.codigo,
     ocid: row.ocid,
     estado: row.estado,
@@ -145,7 +151,8 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     entidad_ruc: row.entidad_ruc,
     proveedor_ruc: row.proveedor_ruc,
     entidad: row.entidad,
-    perfil: typeof an.perfil === "string" ? an.perfil : null,
+    // El primer guardado del agente deja el perfil como objeto ({nombre, …}); el segundo, como nombre.
+    perfil: typeof an.perfil === "string" ? an.perfil : typeof an.perfil?.nombre === "string" ? an.perfil.nombre : null,
     banderas: b.rows,
     market_analysis: an.market_analysis ?? null,
     document_analysis: an.document_analysis ?? null,
@@ -159,8 +166,11 @@ export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boole
     acto_resolutivo_directa: an.acto_resolutivo_directa ?? null,
     estado_real: an.estado_real ?? null,
     analisis_postores: an.analisis_postores ?? null,
-    ...traza,
     dictamen_markdown: row.dictamen_markdown ?? "",
     ocds_payload: row.ocds_payload ?? null,
-  });
+  };
+  if (opts.publico === false) return { ...dossier, ...traza };
+  if (opts.sinTraza) return { ...publicar(dossier), ...traza };
+  // Pedido sin `sinTraza` (frontend viejo, /api/agent/history): la traza también va pública.
+  return { ...publicar(dossier), ...publicarTraza(traza, dossier) };
 }

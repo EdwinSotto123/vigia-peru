@@ -48,6 +48,7 @@ import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
 import { adminEquipoRouter } from "./admin_equipo.js";
+import { adminPrivacidadRouter } from "./admin_privacidad.js";
 
 export const adminRouter = new Hono();
 
@@ -77,6 +78,8 @@ adminRouter.route("/", adminOperacionRouter);
 adminRouter.route("/", adminProcesarRouter);
 // Equipo del panel: quién entra y con qué perfil (admin_equipo.ts, migración 29).
 adminRouter.route("/", adminEquipoRouter);
+// Pedidos de privacidad de las personas que aparecen en Vigía (admin_privacidad.ts, migración 45).
+adminRouter.route("/", adminPrivacidadRouter);
 
 // ─── Resumen ─────────────────────────────────────────────────────────────────
 adminRouter.get("/resumen", async (c) => {

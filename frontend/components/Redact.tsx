@@ -1,20 +1,41 @@
 "use client";
 
-// Redacción de datos personales para la demo / cumplimiento legal.
+// Datos personales en pantalla (docs/PRIVACIDAD.md).
 //
-// Regla del proyecto (ver README, principios): no publicamos datos personales de
-// ciudadanos. Acá los "censuramos" visualmente tipo VIDRIO ESMERILADO (blur) y
-// se revelan al hacer clic. DNI siempre censurado; del nombre completo se censura
-// SOLO el último apellido (el resto del nombre se muestra).
+// Regla del proyecto: no publicamos datos personales de ciudadanos. Nunca un DNI; del
+// nombre de una persona privada, un apellido tapado.
 //
-// NOTA: esto es una capa VISUAL (el dato igual viaja al navegador y se revela en
-// el cliente). Para privacidad real en producción habría que redactar también en
-// el backend antes de enviar el payload. Suficiente para demo + reducir exposición.
+// Al PÚBLICO los datos le llegan ya tapados por la API (backend/api/src/lib/privacidad.ts):
+// `ref·…` en vez del DNI, `10·ref·…` en vez del RUC 10, `•••` en vez del apellido. Acá eso se
+// pinta como una marca fija (`Tapado`), sin clic: no hay nada que revelar porque el dato no
+// llegó al navegador.
+//
+// Al PANEL ADMIN le llegan completos (el revisor descarta homónimos): ahí se tapan con VIDRIO
+// ESMERILADO (blur) y se revelan al hacer clic. Es la única forma de "desenmascarar".
 
 import React, { useState } from "react";
+import { esRef, esRucPersonaNatural, estaTapado } from "@/lib/privacidad";
 
-// DNI peruano = 8 dígitos. \b…\b evita matchear dentro de un RUC (11) u otros números largos.
-const DNI_RE = /\b\d{8}\b/g;
+/** Lo que la API tapó: fijo, sin clic, con la explicación al pasar el puntero. */
+export function Tapado({ children, titulo }: { children: React.ReactNode; titulo: string }) {
+  return (
+    <span
+      title={titulo}
+      aria-label={titulo}
+      className="cursor-help select-none whitespace-nowrap rounded bg-ink/10 px-1 align-baseline font-mono text-[0.85em] tracking-wider text-mute"
+    >
+      {children}
+    </span>
+  );
+}
+
+const TITULO_APELLIDO = "Apellido protegido (Ley 29733). El nombre completo está en la fuente oficial.";
+const TITULO_DNI = "DNI protegido (Ley 29733): Vigía no publica números de documento.";
+const TITULO_RUC10 = "RUC de persona natural (lleva su DNI): protegido (Ley 29733).";
+
+/** El título de una ref: dice qué es y que identifica a la misma persona en todo Vigía. */
+const tituloRef = (ref: string) =>
+  `${ref.startsWith("10·") ? TITULO_RUC10 : TITULO_DNI} Referencia ${ref.replace(/^(10·)?ref·/, "")}: la misma persona lleva la misma en todo Vigía.`;
 
 export function Glass({
   children,
@@ -58,10 +79,12 @@ export function Glass({
   );
 }
 
-// DNI (8 dígitos) — siempre censurado, revelable al clic.
+// DNI: tapado por la API (público) o en vidrio revelable al clic (panel admin).
 export function Dni({ value }: { value?: string | number | null }) {
   const v = value == null ? "" : String(value).trim();
   if (!v) return null;
+  if (esRef(v)) return <Tapado titulo={tituloRef(v)}>••••••••</Tapado>;
+  if (estaTapado(v)) return <Tapado titulo={TITULO_DNI}>••••••••</Tapado>;
   return <Glass label="DNI — clic para revelar">{v}</Glass>;
 }
 
@@ -95,6 +118,8 @@ export function PersonName({
 }) {
   const n = (name || "").trim();
   if (!n) return null;
+  // Ya viene tapado por la API: se pinta tal cual, con la marca en su lugar.
+  if (n.includes("•")) return <ConTapados texto={n} />;
   // Una empresa (un socio puede serlo) no tiene apellido que tapar.
   if (isPublic || pareceEmpresa(n)) return <>{n}</>;
   const parts = n.split(/\s+/);
@@ -113,16 +138,40 @@ export function PersonName({
 
 /**
  * Un RUC que empieza con 10 es de una persona natural con negocio, y sus dígitos
- * 3 a 10 son su DNI. Mostrarlo en claro es mostrar el DNI.
+ * 3 a 10 son su DNI. Mostrarlo en claro es mostrar el DNI. Al público le llega
+ * como `10·ref·…` (lib/privacidad.ts); al panel admin, en claro.
  */
-export const esPersonaNatural = (ruc?: string | number | null) => !!ruc && /^10\d{9}$/.test(String(ruc).trim());
+export const esPersonaNatural = esRucPersonaNatural;
 
-/** Un RUC: de empresa, tal cual; de persona natural, en vidrio (lleva el DNI adentro). */
+/** Un RUC: de empresa, tal cual; de persona natural, tapado (público) o en vidrio (admin). */
 export function Ruc({ value }: { value?: string | number | null }) {
   const v = value == null ? "" : String(value).trim();
   if (!v) return null;
   if (!esPersonaNatural(v)) return <>{v}</>;
+  if (esRef(v)) return <Tapado titulo={tituloRef(v)}>10•••••••••</Tapado>;
   return <Glass label="RUC de persona natural (contiene su DNI), clic para revelar">{v}</Glass>;
+}
+
+/**
+ * Un texto que la API ya tapó, con cada marca (`•••`, `••••••••`, `ref·…`) pintada como `Tapado`.
+ * Lo demás va tal cual.
+ */
+const MARCAS = /(10·ref·[0-9A-Z]{6}|ref·[0-9A-Z]{6}|10•{9}|9•{8}|•{8}|•{3})/g;
+export function ConTapados({ texto }: { texto: string }) {
+  const partes = texto.split(MARCAS);
+  if (partes.length === 1) return <>{texto}</>;
+  return (
+    <>
+      {partes.map((p, i) => {
+        if (i % 2 === 0) return p;
+        if (p.includes("ref·")) return <Tapado key={i} titulo={tituloRef(p)}>{p.startsWith("10·") ? "10•••••••••" : "••••••••"}</Tapado>;
+        if (p === "•••") return <Tapado key={i} titulo={TITULO_APELLIDO}>•••</Tapado>;
+        if (p.startsWith("10")) return <Tapado key={i} titulo={TITULO_RUC10}>{p}</Tapado>;
+        if (p.startsWith("9")) return <Tapado key={i} titulo="Celular protegido (Ley 29733).">{p}</Tapado>;
+        return <Tapado key={i} titulo={TITULO_DNI}>{p}</Tapado>;
+      })}
+    </>
+  );
 }
 
 // Diccionario de nombres de personas PRIVADAS conocidas (del análisis estructurado)
@@ -136,7 +185,8 @@ const _esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Un RUC 10 (11 dígitos) lleva el DNI adentro y va entero en vidrio. El DNI
 // suelto son 8 dígitos con límite de palabra: no matchea dentro de un RUC 20.
-const _NUMEROS = "\\b10\\d{9}\\b|\\b\\d{8}\\b";
+// Las marcas de la API (refs y bullets) van como `Tapado`.
+const _NUMEROS = "10·ref·[0-9A-Z]{6}|ref·[0-9A-Z]{6}|10•{9}|9•{8}|•{8}|•{3}|\\b10\\d{9}\\b|\\b\\d{8}\\b";
 /**
  * El patrón de `redactDnis`, compilado una vez en `setRedactNames` y no en cada
  * texto. `u` para `\p{L}`; `i` sigue emparejando "Ó" con "ó" bajo `u`.
@@ -230,6 +280,8 @@ export function setRedactNames(names: NombreConocido[]) {
   for (const n of names || []) {
     const nombre = String((n && typeof n === "object" ? n.nombre : n) || "").normalize("NFC").trim();
     if (nombre.split(/\s+/).filter(Boolean).length < 2) continue;
+    // Tapado por la API: no hay apellido que buscar en la prosa (también llega tapado ahí).
+    if (estaTapado(nombre)) continue;
     if (pareceEmpresa(nombre, n && typeof n === "object" ? n.ruc : null)) continue;
     const orden: OrdenNombre = n && typeof n === "object" ? n.orden : "nombres-primero";
     todos.push(nombre);
@@ -276,13 +328,16 @@ export function redactDnis(text: any): React.ReactNode {
   let m: RegExpExecArray | null;
   while ((m = re.exec(t)) !== null) {
     const tok = m[0];
+    const marca = /^(10·ref·|ref·|•|10•|9•)/.test(tok);
     // Un nombre pegado a una letra por delante es parte de otra palabra.
-    if (!/^\d/.test(tok) && _esLetra(t[m.index - 1])) {
+    if (!marca && !/^\d/.test(tok) && _esLetra(t[m.index - 1])) {
       re.lastIndex = m.index + 1;
       continue;
     }
     if (m.index > last) out.push(t.slice(last, m.index));
-    if (/^10\d{9}$/.test(tok)) {
+    if (marca) {
+      out.push(<ConTapados key={`r${i++}`} texto={tok} />);
+    } else if (/^10\d{9}$/.test(tok)) {
       out.push(
         <Glass key={`r${i++}`} label="RUC de persona natural (contiene su DNI), clic para revelar">
           {tok}
@@ -320,7 +375,7 @@ export { maskDnis } from "@/lib/privacidad";
 // Un solo token (p.ej. "Funcionario", "Socio") se deja igual.
 export function maskApellido(name?: string | null): string {
   const n = (name || "").trim();
-  if (!n) return n;
+  if (!n || n.includes("•")) return n; // ya tapado por la API
   const parts = n.split(/\s+/);
   if (parts.length < 2) return n;
   const last = parts[parts.length - 1];

@@ -47,6 +47,7 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
     items: [
       { href: "/admin/bitacora", label: "Bitácora", icon: ScrollText, precargar: ["/log"] },
       { href: "/admin/equipo", label: "Equipo", icon: KeyRound, precargar: ["/equipo"] },
+      { href: "/admin/privacidad", label: "Privacidad", icon: Lock, precargar: ["/privacidad?estado=pendiente"] },
     ],
   },
 ];

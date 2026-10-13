@@ -64,6 +64,7 @@ const SECCIONES: { nombre: string; ruta: string }[] = [
   { nombre: "Medios de pago", ruta: "/admin/pagos" },
   { nombre: "Bitácora", ruta: "/admin/bitacora" },
   { nombre: "Equipo", ruta: "/admin/equipo" },
+  { nombre: "Privacidad", ruta: "/admin/privacidad" },
 ];
 
 function MatrizSecciones() {

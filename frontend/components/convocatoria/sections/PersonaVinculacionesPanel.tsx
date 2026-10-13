@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Dni, PersonName, Ruc, esPersonaNatural } from "../../Redact";
+import { ConTapados, Dni, PersonName, Ruc, esPersonaNatural } from "../../Redact";
+import { esRef } from "@/lib/privacidad";
 
 /** Una razón social, no una persona: no lleva vidrio. */
 const ES_EMPRESA = /\b(S\.?A\.?C?\.?|E\.?I\.?R\.?L\.?|S\.?R\.?L\.?|SOCIEDAD|EMPRESA|CONSORCIO|CORPORACI[OÓ]N|ASOCIACI[OÓ]N|COOPERATIVA)\b/i;
@@ -13,6 +14,9 @@ const ES_EMPRESA = /\b(S\.?A\.?C?\.?|E\.?I\.?R\.?L\.?|S\.?R\.?L\.?|SOCIEDAD|EMPR
  */
 function Clave({ valor, ganadorRuc, ganadorRazon }: { valor: string; ganadorRuc?: string; ganadorRazon?: string }) {
   const v = valor.trim();
+  // Lo que la API tapó: un DNI o un RUC 10 como referencia, o un nombre con un apellido tapado.
+  if (esRef(v)) return v.startsWith("10·") ? <span className="font-mono">RUC <Ruc value={v} /></span> : <span>Persona con DNI <Dni value={v} /></span>;
+  if (v.includes("•")) return <ConTapados texto={v} />;
   if (/^\d{8}$/.test(v)) return <span className="font-mono">DNI <Dni value={v} /></span>;
   if (/^\d{11}$/.test(v)) return <span className="font-mono">RUC <Ruc value={v} /></span>;
   if (ganadorRazon && v.toUpperCase() === ganadorRazon.trim().toUpperCase()) {

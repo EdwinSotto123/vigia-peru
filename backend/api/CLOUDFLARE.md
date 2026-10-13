@@ -63,6 +63,7 @@ que es lo que lee el código compartido, también en el nivel superior de los m�
 |---|---|
 | `ADMIN_TOKEN` | el mismo valor que `admin-token` de Secret Manager (lo manda el proxy del panel) |
 | `GCP_SA_KEY` | llave JSON de una cuenta de servicio de Google |
+| `PRIVACIDAD_CLAVE` | clave de las referencias opacas de DNI y RUC 10 (`lib/privacidad.ts`): el mismo valor que `privacidad-clave` de Secret Manager, para que las dos APIs den la misma ref a la misma persona |
 
 `GCP_SA_KEY` necesita los permisos que hoy tiene la cuenta de servicio de la API en Cloud Run:
 leer los buckets de documentos, lotes y el privado (comprobantes); crear objetos en

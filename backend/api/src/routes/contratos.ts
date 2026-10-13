@@ -28,6 +28,7 @@
  */
 
 import { Hono } from "hono";
+import { publicar } from "../lib/privacidad.js";
 import { z } from "zod";
 import { OCID_CANDIDATOS, escaparLike, pool } from "../lib/db.js";
 import { Memo, responderConEtag, responderJson, type Serializado } from "../lib/cache.js";
@@ -214,9 +215,9 @@ contratosRouter.get("/", async (c) => {
   const token = q.cursor ?? q.antes;
   if (token && !decodificarCursor(token, tipoCursor, nClaves)) return c.json({ error: "invalid_cursor" }, 400);
   if (!(await hayModelosLectura())) {
-    return responderJson(c, q.q ? listaTextoMemo : listaMemo, `v0:${JSON.stringify(q)}`, () => listaAnterior(q), CACHE_LISTA);
+    return responderJson(c, q.q ? listaTextoMemo : listaMemo, `v0:${JSON.stringify(q)}`, () => listaAnterior(q).then(publicar), CACHE_LISTA);
   }
-  return responderJson(c, q.q ? listaTextoMemo : listaMemo, JSON.stringify(q), () => lista(q), CACHE_LISTA);
+  return responderJson(c, q.q ? listaTextoMemo : listaMemo, JSON.stringify(q), () => lista(q).then(publicar), CACHE_LISTA);
 });
 
 /** Columnas de cada fila (mismas claves que antes). */

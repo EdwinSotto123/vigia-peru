@@ -51,6 +51,10 @@ const ACCION: Record<string, { frase: string; categoria: CategoriaBitacora; tono
   equipo_agregar: { frase: "agregó a alguien al equipo", categoria: "ajustes", tono: "ok" },
   equipo_cambiar: { frase: "cambió el acceso de alguien del equipo", categoria: "ajustes" },
   equipo_quitar: { frase: "quitó a alguien del equipo", categoria: "ajustes", tono: "danger" },
+  privacidad_en_revision: { frase: "tomó un pedido de privacidad", categoria: "otras" },
+  privacidad_resuelta: { frase: "resolvió un pedido de privacidad", categoria: "otras", tono: "ok" },
+  privacidad_rechazada: { frase: "rechazó un pedido de privacidad", categoria: "otras", tono: "danger" },
+  privacidad_pendiente: { frase: "devolvió a pendiente un pedido de privacidad", categoria: "otras" },
 };
 
 const obj = (d: unknown): Record<string, unknown> => (d && typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>) : {});
@@ -76,6 +80,7 @@ function objetoDe(accion: string, objeto: string, d: Record<string, unknown>): P
     case "job": return { objeto: null, href: "/admin/procesamientos" };
     case "procesamientos": return { objeto: null, href: "/admin/procesamientos?estado=error" };
     case "equipo": return { objeto: id || null, href: "/admin/equipo" };
+    case "solicitudes_privacidad": return { objeto: txt(d.codigo) ? `pedido ${d.codigo}` : null, href: "/admin/privacidad" };
     case "ajustes":
       if (id === "pagos") return { objeto: null, href: "/admin/pagos" };
       if (id === "procesamiento") return { objeto: null, href: "/admin/clasificacion" };

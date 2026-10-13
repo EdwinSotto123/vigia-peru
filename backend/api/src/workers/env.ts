@@ -28,4 +28,6 @@ export interface Env {
   GCP_SA_KEY?: string;
   /** Secreto del widget Turnstile (lib/antibots.ts). */
   TURNSTILE_SECRET_KEY?: string;
+  /** Clave de las referencias opacas de DNI y RUC 10 (lib/privacidad.ts). La misma que en Cloud Run. */
+  PRIVACIDAD_CLAVE?: string;
 }

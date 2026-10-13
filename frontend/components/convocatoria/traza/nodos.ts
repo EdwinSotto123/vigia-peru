@@ -149,7 +149,9 @@ export function resumenCorto(n: NodoTraza, r: Recorrido, result: ApiResult): str
     }
   }
   const consultas = n.pasos.length + n.antes.length;
-  if (n.delegacion?.respuesta != null) return "Su instrucción y su respuesta quedaron en la traza";
+  // La traza pública trae la respuesta sin su texto (lib/privacidad.ts del API): un objeto vacío no cuenta.
+  const devuelto = n.delegacion?.respuesta;
+  if (devuelto != null && !(esObjeto(devuelto) && Object.keys(devuelto).length === 0)) return "Su instrucción y su respuesta quedaron en la traza";
   if (n.consumo?.llamadas) return plural(n.consumo.llamadas, "llamada al modelo", "llamadas al modelo");
   if (consultas) return plural(consultas, "consulta", "consultas");
   return "Corrió, sin más detalle en la traza";

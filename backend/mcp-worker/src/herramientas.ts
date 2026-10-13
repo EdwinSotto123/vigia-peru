@@ -167,12 +167,21 @@ async function riesgoConvocatoria(env: Env, ctx: ExecutionContext, ocid: string)
   });
 }
 
-/** Misma regla que la API pública: evidencia recortada a 320 y sin DNI con etiqueta ni correos. */
+/**
+ * Evidencia recortada a 320, con la regla de la API pública (backend/api/src/lib/privacidad.ts) sin la
+ * parte que necesita el dossier entero: ningún DNI ni RUC 10 (ni parciales), celulares y correos tapados,
+ * y el nombre pegado a un DNI ("PEREZ QUISPE JUAN (DNI 4…)"), entero. Aquí no hay refs: el MCP no tiene
+ * la clave, y no hace falta cruzar personas entre señales.
+ */
 function limpiarEvidencia(v: unknown): string | null {
   if (v == null) return null;
   return String(v)
     .slice(0, 320)
-    .replace(/(\b(?:d\.?\s?n\.?\s?i\.?|documento(?:\s+de\s+identidad)?|c\.?e\.?)\b[^\d\n]{0,14})(\d{2})\d{4}(\d{2})\b/gi, "$1$2****$3")
+    .replace(/((?:\p{Lu}[\p{Lu}'’-]+\s+){1,6}\p{Lu}[\p{Lu}'’-]+)(,?\s*\(\s*(?:D\.?\s?N\.?\s?I\.?\s*(?:N[°º.]?\s*)?:?\s*)?\d{8}\s*\))/gu, "•••$2")
+    .replace(/(?<!\d)10\d{9}(?!\d)/g, "10•••••••••")
+    .replace(/(?<![\p{L}\d.,/])\d{8}(?![\p{L}\d]|[.,]\d)/gu, "••••••••")
+    .replace(/\b\d{2}\*{4}\d{2}\b/g, "••••••••")
+    .replace(/(?<![\p{L}\d.,/])9\d{2}[\s-]?\d{3}[\s-]?\d{3}(?![\p{L}\d]|[.,]\d)/gu, "9••••••••")
     .replace(/\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g, "$1***@$2");
 }
 

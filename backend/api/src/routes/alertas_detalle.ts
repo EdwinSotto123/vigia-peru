@@ -13,7 +13,7 @@
  * código de convocatoria, y /revision la forma corta del OCID. Sin `a.id::text = $1` (auditoría A13).
  */
 
-import { limpiarPersonales } from "../lib/privacidad.js";
+import { publicar, publicarTraza } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool, poolAdmin } from "../lib/db.js";
@@ -45,7 +45,7 @@ alertasDetalleRouter.get("/:id/revision", async (c) => {
      ORDER BY a.analizado_en DESC NULLS LAST, a.id LIMIT 1`, [id]);
   const a = r.rows[0];
   if (!a) return c.json({ error: "not_found" }, 404);
-  const motivos = a.estado === "revision" ? await motivosRevision(a.id).catch(() => []) : [];
+  const motivos = a.estado === "revision" ? publicar(await motivosRevision(a.id).catch(() => [])) : [];
   c.header("Cache-Control", cachePublico(30, { swr: 60 }));
   return c.json({
     codigo: a.codigo, estado: a.estado, analizadoEn: a.analizadoEn, enRevision: a.estado === "revision", motivos,
@@ -77,7 +77,8 @@ alertasDetalleRouter.get("/:id/full", async (c) => {
   // Queda lo que ya es público (ficha del contrato y registro OCDS), el costo del análisis y el estado.
   // Los motivos, en lenguaje claro: GET /alertas/:id/revision.
   if (!publicada) {
-    return responderConEtag(c, {
+    // Lo que queda (ficha y registro OCDS) también lleva al proveedor: su RUC 10 y su nombre, tapados.
+    return responderConEtag(c, publicar({
       alerta_codigo: row.codigo,
       ocid: row.ocid,
       estado: row.estado,
@@ -110,7 +111,7 @@ alertasDetalleRouter.get("/:id/full", async (c) => {
         : { agent_trace: [], llm_metrics: row.analisis_full?.llm_metrics ?? null, self_evals: null }),
       dictamen_markdown: "",
       ocds_payload: row.ocds_payload ?? null,
-    }, CACHE_NO_PUBLICADA);
+    }), CACHE_NO_PUBLICADA);
   }
 
   // Inmutable una vez analizado → cache agresivo en el edge y el browser (con ETag).
@@ -120,6 +121,8 @@ alertasDetalleRouter.get("/:id/full", async (c) => {
 // ─── GET /alertas/:id/traza — lo de la pestaña "Cómo se hizo" ──────
 // {codigo, agent_trace, llm_metrics, self_evals}: lo que /full?sinTraza=1 deja afuera. Alerta no
 // publicada: traza vacía y sin autoevaluación, sí el costo (lo mismo que /full muestra de ella).
+// Publicada: cada paso con su agente, su herramienta y sus cifras, sin los datos que entran y salen de
+// las herramientas ni lo que piensa el agente; mensajes y autoevaluación con los nombres tapados.
 alertasDetalleRouter.get("/:id/traza", async (c) => {
   const id = c.req.param("id");
   if (id.length > 80) return c.json({ error: "not_found" }, 404);
@@ -128,7 +131,7 @@ alertasDetalleRouter.get("/:id/traza", async (c) => {
   if (!esPublicada(t.estado)) {
     return responderConEtag(c, { codigo: t.codigo, agent_trace: [], llm_metrics: t.llm_metrics ?? null, self_evals: null }, CACHE_NO_PUBLICADA);
   }
-  return responderConEtag(c, limpiarPersonales({ codigo: t.codigo, agent_trace: t.agent_trace ?? [], llm_metrics: t.llm_metrics ?? null, self_evals: t.self_evals ?? null }), CACHE_PUBLICADA);
+  return responderConEtag(c, publicarTraza({ codigo: t.codigo, agent_trace: t.agent_trace ?? [], llm_metrics: t.llm_metrics ?? null, self_evals: t.self_evals ?? null }, t.contexto), CACHE_PUBLICADA);
 });
 
 // ─── GET /alertas/:id — ficha ─────────────────────────────────────
@@ -181,12 +184,12 @@ alertasDetalleRouter.get("/:id", async (c) => {
   if (esAlertaDemo(row.codigo)) return c.json({ error: "not_found" }, 404);
   if (esPublicada(row.estado)) {
     c.header("Cache-Control", cachePublico(60, { maxAge: 30 }));
-    return c.json(limpiarPersonales({ ...row, publicada: true, enRevision: false }));
+    return c.json(publicar({ ...row, publicada: true, enRevision: false }));
   }
   // No publicada (revision / descartada): existe, pero sin score, señales, reglas, dictamen ni
   // análisis — ver GET /alertas/:id/full y /alertas/:id/revision.
   c.header("Cache-Control", CACHE_NO_PUBLICADA);
-  return c.json({
+  return c.json(publicar({
     ...row,
     publicada: false,
     enRevision: row.estado === "revision",
@@ -196,7 +199,7 @@ alertasDetalleRouter.get("/:id", async (c) => {
     dictamen_chars: null,
     network: null,
     convergencia: null,
-  });
+  }));
 });
 
 // ─── POST /alertas — crear ────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { montoDossier } from "../dossier";
 import { ExternalLink, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { esRucEnClaro } from "@/lib/privacidad";
 import { Dni, PersonName, Ruc, esPersonaNatural, redactDnis } from "../../Redact";
 import type { GraphNode } from "../types";
 import { Evidencia } from "./Evidencia";
@@ -58,7 +59,10 @@ export function NodeDetailPanel({
   };
 
   const links: Array<{ label: string; href: string; icon?: string }> = [];
-  if (m.ruc) {
+  // Sólo con el RUC en claro (empresas; personas naturales sólo en el panel admin): el de una persona
+  // natural llega tapado al público (lib/privacidad.ts) y no sirve para buscar ni enlazar.
+  const rucUsable = esRucEnClaro(m.ruc);
+  if (rucUsable) {
     links.push({ label: "SUNAT (consulta RUC)", href: `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${m.ruc}` });
     links.push({ label: "DatosPerú (perfil)", href: `https://www.datosperu.org/ruc-${m.ruc}.php` });
     links.push({ label: "OECE (búsqueda proveedor)", href: `https://contratacionesabiertas.oece.gob.pe/perfilProveedor/#!/transactions/${m.ruc}` });
@@ -125,7 +129,7 @@ export function NodeDetailPanel({
 
       {/* Pie de acciones, como el de un panel: buscar en Vigía y las fuentes oficiales. */}
       <div className="flex flex-wrap gap-1.5 border-t border-line bg-paperSoft px-4 py-3">
-        {m.ruc && (
+        {rucUsable && (
           <button
             type="button"
             onClick={() => onVigiaSearch(m.ruc!)}

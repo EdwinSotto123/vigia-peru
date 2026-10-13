@@ -28,7 +28,7 @@
  * Cache corta (2-5 s en el CDN, 0 en el navegador, que revalida con el ETag): el frontend sondea.
  */
 
-import { limpiarPersonales } from "../lib/privacidad.js";
+import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -137,7 +137,7 @@ procesamientosRouter.get("/", async (c) => {
   if (!p.success) return c.json({ error: "invalid_query" }, 400);
   const q = p.data;
   const memo = q.financiador ? listaTextoMemo : listaMemo;
-  return responderJson(c, memo, JSON.stringify(q), () => listaProcesamientos(q), cachePublico(2, { maxAge: 0 }));
+  return responderJson(c, memo, JSON.stringify(q), () => listaProcesamientos(q).then(publicar), cachePublico(2, { maxAge: 0 }));
 });
 
 async function listaProcesamientos(q: z.infer<typeof Q>) {
@@ -385,7 +385,7 @@ procesamientosRouter.get("/:ocid", async (c) => {
   // Alerta no publicada → resultado sin score, señales, mercado ni reglas disparadas (sí documentos
   // leídos, costo y autoevaluación, que explican el bloqueo). Ver lib/publicacion.ts §2.
   const publico = redactarResultado(resultado);
-  return c.json(limpiarPersonales({ ...row, resultado: publico ? { ...publico, revisionMotivo, revisionMotivos } : null, estimado }));
+  return c.json(publicar({ ...row, resultado: publico ? { ...publico, revisionMotivo, revisionMotivos } : null, estimado }));
 });
 
 // ─── Motivos de revisión humana en lenguaje claro (públicos, sin el texto de los jueces) ──
