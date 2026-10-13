@@ -25,6 +25,10 @@ ZONA="${ZONA:-us-central1-a}"
 VM="vigia-pgbouncer"
 SA="vigia-pgbouncer@${PROJECT_ID}.iam.gserviceaccount.com"
 SUBRED_RUN="10.128.0.0/20"
+# Base en AWS (cloud_sql/README.md): UPSTREAM_HOST=<host RDS> bash pgbouncer.sh actualizar → PgBouncer habla con RDS por TLS
+# y el cloud-sql-proxy queda inactivo. Sin la variable: Cloud SQL por el proxy local, como siempre.
+UPSTREAM_HOST="${UPSTREAM_HOST:-127.0.0.1}"
+UPSTREAM_TLS=""; [[ "$UPSTREAM_HOST" != "127.0.0.1" ]] && UPSTREAM_TLS="server_tls_sslmode = require"
 
 script_arranque() {  # startup-script de la VM (lo usan crear y actualizar)
   cat <<SCRIPT
@@ -74,7 +78,7 @@ if [ ! -s /etc/pgbouncer/tls.crt ]; then
 fi
 cat > /etc/pgbouncer/pgbouncer.ini <<'INI'
 [databases]
-vigia = host=127.0.0.1 port=5432 dbname=vigia
+vigia = host=${UPSTREAM_HOST} port=5432 dbname=vigia
 [pgbouncer]
 ; vigia-db: 4 roles × (4 + 2 de reserva) = 24 conexiones como máximo de PgBouncer (la base admite 100).
 listen_addr = 0.0.0.0
@@ -89,6 +93,7 @@ reserve_pool_timeout = 3
 server_idle_timeout = 120
 query_wait_timeout = 15
 ignore_startup_parameters = extra_float_digits,options
+${UPSTREAM_TLS}
 admin_users =
 stats_users =
 log_connections = 0
@@ -122,7 +127,7 @@ WantedBy=multi-user.target
 UNIT
 fi
 systemctl daemon-reload
-systemctl enable --now cloud-sql-proxy
+if [ "${UPSTREAM_HOST}" = "127.0.0.1" ]; then systemctl enable --now cloud-sql-proxy; else systemctl disable --now cloud-sql-proxy 2>/dev/null || true; fi
 # reload: re-lee la configuración (TLS incluido) sin cortar las conexiones de la API y el MCP.
 if systemctl is-active --quiet pgbouncer; then systemctl reload pgbouncer; else systemctl restart pgbouncer; fi
 systemctl enable pgbouncer

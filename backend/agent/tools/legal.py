@@ -134,7 +134,7 @@ _DE_DATASTORE = os.getenv("LEGAL_RAG_DATASTORE", "vigia-oece")
 _DE_ENGINE = os.getenv("LEGAL_RAG_ENGINE", "vigia-oece-search")
 _DE_BASE = ("https://discoveryengine.googleapis.com/v1/projects/{p}"
             "/locations/global/collections/default_collection")
-LEGAL_RAG_BACKEND = os.getenv("LEGAL_RAG_BACKEND", "vertex").strip().lower()
+LEGAL_RAG_BACKEND = os.getenv("LEGAL_RAG_BACKEND", "chroma" if os.getenv("CHROMA_API_KEY") else "vertex").strip().lower()
 
 
 def _discovery_token() -> str:
@@ -393,6 +393,71 @@ def _publicar_urls_grounding(tool_context, matches: list) -> None:
         pass
 
 
+
+# ── Chroma Cloud (normas + criterios vinculantes) — backend `chroma` ────────────────────────────────
+# Mismas 4 colecciones que tenía RAG Engine, ahora `vigia_<corpus>` en Chroma Cloud (backend/rag/chroma_rag.py las
+# construye). Embeddings: Qwen3 de Chroma Cloud, calculados por el servicio. La metadata del catálogo viaja en cada chunk.
+_CHROMA_INSTRUCCION = ("Dada una pregunta sobre contratación pública en el Perú, recupera el artículo de ley o reglamento, "
+                       "o el criterio u opinión del OSCE/Tribunal, que la responde")
+_chroma_cache: dict = {}
+
+
+def _chroma_cliente():
+    if "cl" not in _chroma_cache:
+        import chromadb
+        _chroma_cache["cl"] = chromadb.CloudClient(
+            tenant=os.getenv("CHROMA_TENANT") or None, database=os.getenv("CHROMA_DATABASE", "simplia-vect"),
+            api_key=os.environ["CHROMA_API_KEY"])
+    return _chroma_cache["cl"]
+
+
+def _chroma_coleccion(corpus: str):
+    if corpus not in _chroma_cache:
+        from chromadb.utils.embedding_functions import ChromaCloudQwenEmbeddingFunction as Q
+        from chromadb.utils.embedding_functions.chroma_cloud_qwen_embedding_function import (
+            ChromaCloudQwenEmbeddingModel as M, ChromaCloudQwenEmbeddingTarget as T)
+        ef = Q(model=M.QWEN3_EMBEDDING_0p6B, task="legal_es", instructions={"legal_es": {T.DOCUMENTS: "", T.QUERY: _CHROMA_INSTRUCCION}})
+        _chroma_cache[corpus] = _chroma_cliente().get_collection(f"vigia_{corpus}", embedding_function=ef)
+    return _chroma_cache[corpus]
+
+
+def query_legal_rag_chroma(question: str, regimen: str = "", top_k: int = _RAG_TOP_K, incluir_control: bool = False) -> dict:
+    """Igual que `query_legal_rag_engine` pero sobre Chroma Cloud. Misma forma de salida (chunks citables)."""
+    clave = ("chroma", question.strip().lower(), str(regimen or ""), int(top_k), bool(incluir_control))
+    hit = _RAG_QUERY_CACHE.get(clave)
+    if hit and time.time() - hit[0] < _RAG_QUERY_CACHE_TTL_S:
+        return json.loads(hit[1])
+    nombres = _rag_corpus_por_regimen(regimen)
+    if incluir_control:
+        nombres.append("control-cgr")
+    por_corpus, errores = {}, {}
+    for nombre in nombres:
+        try:
+            r = _chroma_coleccion(nombre).query(query_texts=[question], n_results=int(top_k),
+                                                include=["documents", "metadatas", "distances"])
+            cat, crudos = {}, []
+            for d, m, dist in zip(r["documents"][0], r["metadatas"][0], r["distances"][0]):
+                m = m or {}
+                cat[m.get("uri", "")] = m
+                crudos.append({"sourceUri": m.get("uri", ""), "text": d, "score": dist})
+            por_corpus[nombre] = [_rag_enriquecer(c, nombre, cat) for c in crudos]
+        except Exception as e:
+            errores[nombre] = str(e)[:200]
+    matches = [m for lst in por_corpus.values() for m in lst]
+    matches.sort(key=lambda m: -(m["score"] or 0.0))
+    out = {"question": question, "regimen": regimen or None, "corpus": nombres, "n_matches": len(matches),
+           "matches": matches[: max(top_k, 5) * 2], "por_corpus": por_corpus, "_source": "chroma"}
+    if errores:
+        out["errores_corpus"] = errores
+    if not por_corpus:
+        out["error"] = "chroma sin colecciones consultables: " + "; ".join(f"{k}: {v}" for k, v in errores.items())
+    elif matches:
+        if len(_RAG_QUERY_CACHE) > 500:
+            _RAG_QUERY_CACHE.clear()
+        _RAG_QUERY_CACHE[clave] = (time.time(), json.dumps(out, ensure_ascii=False))
+    return out
+
+
 def query_legal_rag(question: str, tool_context: ToolContext, regimen: str = "") -> dict:
     """Consulta el RAG normativo de contratación pública peruana: artículos de la ley y el
     reglamento aplicables al expediente (Ley 32069 + D.S. 009-2025-EF para convocatorias desde el
@@ -417,6 +482,22 @@ def query_legal_rag(question: str, tool_context: ToolContext, regimen: str = "")
     if LEGAL_RAG_BACKEND == "pgvector":
         return _query_legal_rag_pgvector(question, tool_context)
     fallos = []
+    if LEGAL_RAG_BACKEND == "chroma" and os.getenv("CHROMA_API_KEY"):
+        try:
+            reg = (regimen or "").strip() or _rag_regimen_state(tool_context)
+            res = query_legal_rag_chroma(question, regimen=reg)
+            if not res.get("error") and res.get("n_matches"):
+                _publicar_urls_grounding(tool_context, res["matches"])
+                res = {k: v for k, v in res.items() if k != "por_corpus"}
+                res["matches"] = res["matches"][:8]
+                return res
+            fallos.append(res.get("error") or "chroma_sin_resultados")
+        except Exception as e:
+            fallos.append(f"chroma_exc: {str(e)[:150]}")
+        fb = _query_legal_rag_pgvector(question, tool_context)  # sin Vertex: el respaldo es pgvector
+        if isinstance(fb, dict):
+            fb["_fallback_desde"] = fallos
+        return fb
     if LEGAL_RAG_BACKEND == "rag_engine" and rag_engine_configurado():
         try:
             reg = (regimen or "").strip() or _rag_regimen_state(tool_context)

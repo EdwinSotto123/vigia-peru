@@ -29,6 +29,14 @@ TARIFAS = {
     "gemini-2.5-pro":        (1.25, 10.00),
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-2.5-flash":      (0.30, 2.50),
+    # Cloudflare Workers AI (vía vigia-llm). glm-5.3-flash MEDIDO 2026-10-12 con 4 llamadas de tamaños distintos:
+    # 0,01364 neuronas/token de entrada y 0,04545 de salida × US$0,011 por 1000 neuronas. glm-5.3 ESTIMADO por la
+    # razón de neuronas observada (8,8×) en la misma petición: reconfirmar antes de usarlo.
+    "glm-5.3-flash":         (0.15, 0.50),
+    "glm-5.3":               (1.32, 4.40),
+    # Anthropic. Haiku 5.5: US$0,10/0,50 hasta 100K tokens de prompt (por encima 0,50/2,50), según fuentes de terceros
+    # 2026-10-12: se contrasta con el uso medido en la prueba antes de darlo por bueno.
+    "claude-haiku-5-5":      (0.10, 0.50),
 }
 TARIFA_DEFAULT = TARIFAS["gemini-3.6-flash"]
 FACTOR_CACHE = 0.10
@@ -37,7 +45,7 @@ FACTOR_CACHE = 0.10
 def tarifa(model) -> tuple[float, float]:
     """(entrada, salida) USD/1M según el id del modelo (prefijo más largo; 'lite' antes que su
     base). Robusto a None o a un objeto Model."""
-    m = str(model or "").lower()
+    m = str(getattr(model, "model", None) or model or "").lower()   # LiteLlm trae el id en `.model`
     if "/" in m:
         m = m.rsplit("/", 1)[-1]
     for key in sorted(TARIFAS, key=len, reverse=True):
@@ -121,6 +129,28 @@ def registrar(model, config, resp) -> None:
             e["costo_usd"] += usd
     except Exception:
         pass
+
+
+def registrar_externo(model, etapa: str, um, extra_usd: float = 0.0) -> None:
+    """Suma una respuesta de un modelo que NO pasa por el SDK de Gemini (Workers AI vía LiteLLM): el patch de
+    model_fallback no la ve, así que la registra el parser de eventos del pipeline. Nunca levanta."""
+    try:
+        t = tokens(um)
+        usd = costo(model, um) + extra_usd
+        with _LOCK:
+            e = _ACUM.setdefault(etapa, {"llamadas": 0, "flex": 0, "entrada": 0, "cache": 0,
+                                         "salida": 0, "razonamiento": 0, "costo_usd": 0.0})
+            e["llamadas"] += 1
+            for k in ("entrada", "cache", "salida", "razonamiento"):
+                e[k] += t[k]
+            e["costo_usd"] += usd
+    except Exception:
+        pass
+
+
+def es_gemini(model) -> bool:
+    m = str(getattr(model, "model", None) or model or "").lower()
+    return m.rsplit("/", 1)[-1].startswith("gemini") or not m
 
 
 def resumen() -> dict:

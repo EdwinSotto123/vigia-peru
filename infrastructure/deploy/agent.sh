@@ -38,7 +38,7 @@ gcloud run deploy agent-orchestrator-adk \
   --timeout 3600 \
   --concurrency 1 \
   --max-instances "${MAX_INSTANCES:-5}" \
-  --add-cloudsql-instances "$SQL_CONNECTION" \
+  --clear-cloudsql-instances \
   --update-env-vars "$ENV_VARS" \
   "${SECRET_FLAGS[@]}" \
   --quiet

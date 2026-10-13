@@ -35,6 +35,8 @@ def cargar_evalset() -> list[dict]:
 
 
 def _slug_de(match: dict, cat: dict) -> str:
+    if match.get("_slug"):
+        return match["_slug"]
     meta = cat.get(match.get("source_uri") or "") or {}
     return meta.get("slug") or ""
 
@@ -56,11 +58,29 @@ def cumple(match: dict, esperado: dict, cat: dict) -> bool:
     return False
 
 
-def evaluar(preguntas: list[dict], k: int, verbose: bool = False) -> dict:
-    cat = catalogo()
+def _consultar_chroma(pregunta: str, k: int, corpus: list[str]) -> dict:
+    """Misma salida que `recuperar.consultar` pero sobre Chroma Cloud (backend/rag/chroma_rag.py)."""
+    import time
+    from . import chroma_rag
+    t0 = time.time()
+    por, err = {}, {}
+    try:
+        for c, hits in chroma_rag.consultar(pregunta, corpus, k).items():
+            por[c] = [{"_slug": h["meta"].get("slug", ""), "source_uri": h["sourceUri"], "articulo": h["meta"].get("articulo"),
+                       "cita": h["text"], "score": round(1 - h["score"], 4)} for h in hits]
+    except Exception as e:
+        err = {c: str(e)[:200] for c in corpus}
+    return {"por_corpus": por, "errores": err, "ms": int((time.time() - t0) * 1000)}
+
+
+def evaluar(preguntas: list[dict], k: int, verbose: bool = False, backend: str = "rag_engine") -> dict:
+    cat = {} if backend == "chroma" else catalogo()
     resultados = []
     for q in preguntas:
-        res = consultar(q["pregunta"], regimen=None, top=k, corpus=[q["corpus"]])
+        if backend == "chroma":
+            res = _consultar_chroma(q["pregunta"], k, [q["corpus"]])
+        else:
+            res = consultar(q["pregunta"], regimen=None, top=k, corpus=[q["corpus"]])
         matches = res["por_corpus"].get(q["corpus"], [])
         rank = None
         for i, m in enumerate(matches, 1):
@@ -101,12 +121,13 @@ def main(argv=None) -> int:
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--solo", nargs="*")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--backend", choices=("rag_engine", "chroma"), default="rag_engine")
     args = ap.parse_args(argv)
     preguntas = cargar_evalset()
     if args.solo:
         preguntas = [q for q in preguntas if q["id"] in set(args.solo)]
     print(f"{len(preguntas)} preguntas, k={args.k}\n")
-    ev = evaluar(preguntas, args.k, args.verbose)
+    ev = evaluar(preguntas, args.k, args.verbose, args.backend)
     print("\n" + tabla(ev))
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     out = CACHE_DIR / f"eval-{dt.datetime.now():%Y%m%d-%H%M%S}.json"

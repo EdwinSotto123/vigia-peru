@@ -29,6 +29,7 @@
  * Un pedido que no consulta no abre conexiones. Las rutas no cambian.
  */
 
+import { readFileSync } from "node:fs";
 import pg from "pg";
 import { ambitoPedido, EN_WORKERS, type RolDb } from "./plataforma.js";
 
@@ -38,8 +39,18 @@ const conPgBouncer = (process.env.PG_POOLER ?? "").trim().toLowerCase() === "pgb
 /** Límite por sentencia de cada rol (el mismo que trae el rol en la base, migración 37). */
 const LIMITE_MS: Record<RolDb, number> = { api: 10_000, admin: 120_000 };
 
+/** TLS hacia RDS: con PGSSLMODE=verify-full se verifica el certificado contra la CA de RDS (certs/rds-global-bundle.pem
+ *  o PGSSLROOTCERT). `no-verify`/`require` cifran sin verificar; sin la variable, node-pg decide (sin TLS en socket Unix). */
+function sslDeRds(): pg.PoolConfig["ssl"] | undefined {
+  if ((process.env.PGSSLMODE ?? "").toLowerCase() !== "verify-full") return undefined;
+  const ruta = process.env.PGSSLROOTCERT ?? new URL("../../certs/rds-global-bundle.pem", import.meta.url);
+  return { ca: readFileSync(ruta, "utf8"), rejectUnauthorized: true };
+}
+
 function configBase(usuario: string | undefined, clave: string | undefined, statementMs: number): pg.PoolConfig {
+  const ssl = sslDeRds();
   return {
+    ...(ssl ? { ssl } : {}),
     host: process.env.PGHOST,
     port: isUnixSocket ? undefined : Number(process.env.PGPORT ?? 5432),
     user: usuario ?? "postgres",

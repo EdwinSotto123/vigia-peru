@@ -1,7 +1,7 @@
 """Config del agente entity_personnel_agent: modelo, tools, output_key."""
 
 from agents._shared.models import _MODEL_SMART, _MODEL_DEFAULT, _MODEL_FAST
-from google.adk.tools import google_search
+from tools.busqueda import herramienta_busqueda
 
 MODEL = _MODEL_DEFAULT
 # Tier/thinking según docs/design/AUDITORIA_ORQUESTADOR.md §3.3 — Directorio de funcionarios con grounding: DEFAULT low.
@@ -15,5 +15,5 @@ USES_TODAY_HEADER = False
 STATE_INJECTIONS = None
 
 TOOLS = [
-    google_search,
+    herramienta_busqueda(),
 ]

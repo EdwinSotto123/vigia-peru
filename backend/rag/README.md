@@ -1,3 +1,20 @@
+# RAG normativo (Chroma Cloud · antes Vertex RAG Engine)
+
+**Backend actual: Chroma Cloud** (`chroma_rag.py`, 2026-10-12). Colecciones `vigia_<corpus>` en la base `simplia-vect` (compartida con
+otros proyectos: solo se tocan las que empiezan con `vigia_`). Embeddings Qwen3-Embedding-0.6B calculados por Chroma Cloud, con una
+instrucción de consulta legal en español. Cada chunk lleva en su metadata la ficha del catálogo, así que no depende de GCS.
+
+```bash
+gcloud storage cp -r gs://vigia-rag-753067078557 <dir>        # copia local del bucket (hay una en C:/Users/usuario/vigia-respaldo)
+python -m backend.rag.chroma_rag construir --origen <dir>/vigia-rag-753067078557 [--solo <corpus>] [--vaciar]
+python -m backend.rag.chroma_rag estado
+python -m backend.rag.evaluar --backend chroma --k 5          # 2026-10-12: recall@5 0,93 (68/73), MRR 0,80; ~2,8 s por consulta
+```
+
+Estado 2026-10-12: normas-vigentes 4.341 chunks · normas-historicas 1.456 · criterios-vinculantes 1.006 · control-cgr 662.
+El agente lo usa con `LEGAL_RAG_BACKEND=chroma` (por defecto si hay `CHROMA_API_KEY`; respaldo: pgvector) y `CHROMA_TENANT`/`CHROMA_DATABASE`.
+Lo de abajo describe el backend anterior (RAG Engine), que sigue disponible con `LEGAL_RAG_BACKEND=rag_engine`.
+
 # RAG normativo (RAG Engine)
 
 4 corpus serverless con normativa y criterios:

@@ -1,0 +1,6 @@
+# Volcados con datos personales: NUNCA al repo (el repo es público)
+*.dump
+*.sql.gz
+datos/
+snapshots/
+*.env

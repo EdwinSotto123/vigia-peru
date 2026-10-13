@@ -17,6 +17,15 @@ cuatro aceptados por 3.6-flash, `minimal` ≈ sin pensamiento); 2.5 usa `thinkin
 En ADK 1.19 el thinking va SOLO por `planner=BuiltInPlanner(thinking_config=…)`; ponerlo en
 `generate_content_config` lanza ValueError.
 
+Proveedor (interruptores booleanos, ver `proveedor_para`): por defecto TODO va a Gemini (Vertex).
+  · USAR_WORKERS_AI=1            → los agentes que lo permiten pasan a Cloudflare Workers AI
+  · USAR_WORKERS_AI_<AGENTE>=1/0 → fuerza un agente (gana sobre el global), p. ej. USAR_WORKERS_AI_PERSON_NETWORK=0
+  · Los agentes con `google_search` (grounding de Gemini) SIEMPRE se quedan en Gemini.
+  · USAR_ANTHROPIC=1 / USAR_ANTHROPIC_<AGENTE>=1/0 → Claude (API de Anthropic vía LiteLLM); ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID,
+    ANTHROPIC_MODEL (default claude-haiku-5-5), ANTHROPIC_MAX_TOKENS (32000), ANTHROPIC_REASONING (low|medium|high; vacío = sin parámetro).
+  · WORKERS_AI_MODEL / WORKERS_AI_MODEL_FAST (ids `@cf/...`), WORKERS_AI_URL + WORKERS_AI_TOKEN (Worker vigia-llm).
+  · WORKERS_AI_REASONING=low|medium|high (default low): GLM razona sin parar y Workers AI corta con error 3046 (medido 2026-10-12).
+
 Overrides por env: `THINKING_<AGENTE>` (p. ej. THINKING_REPORT_WRITER=medium),
 `TEMPERATURE_<AGENTE>`, `MAX_OUTPUT_TOKENS_<AGENTE>`, `OUTPUT_SCHEMA_NATIVO` (0|1).
 """
@@ -28,6 +37,108 @@ _MODEL_SMART = os.getenv("GEMINI_MODEL_SMART", "gemini-3.6-flash")
 _MODEL_DEFAULT = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 _MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
 _MODEL_JUDGE = os.getenv("GEMINI_MODEL_JUDGE", "gemini-3.5-flash-lite")
+
+# ── Proveedor de modelos: Gemini (Vertex) o Cloudflare Workers AI ─────────────────────────────────
+_VERDADERO = ("1", "true", "yes", "si", "sí", "on")
+WORKERS_AI_MODEL = os.getenv("WORKERS_AI_MODEL", "@cf/zai-org/glm-5.3-flash")  # verificado 2026-10-12: ~9x más barato que glm-5.3
+WORKERS_AI_MODEL_FAST = os.getenv("WORKERS_AI_MODEL_FAST", WORKERS_AI_MODEL)
+WORKERS_AI_URL = os.getenv("WORKERS_AI_URL", "")     # base OpenAI-compatible, p. ej. https://vigia-llm.<cuenta>.workers.dev/v1
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5")
+_SOLO_GEMINI = ("google_search", "url_context", "google_maps", "code_execution", "vertex_ai_search")
+
+
+def _bool_env(nombre: str):
+    raw = os.getenv(nombre)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.strip().lower() in _VERDADERO
+
+
+def usa_busqueda_gemini(tools) -> bool:
+    """True si alguna tool es del grounding/servidor de Gemini (no funciona con otros modelos)."""
+    for t in tools or []:
+        if getattr(t, "_propia", False):
+            continue
+        nombre = str(getattr(t, "name", "") or getattr(t, "__name__", "") or type(t).__name__).lower()
+        if any(k in nombre for k in _SOLO_GEMINI):
+            return True
+    return False
+
+
+def proveedor_para(agente: str, tools=None) -> str:
+    """'gcp' (Gemini en Vertex), 'cloudflare' (Workers AI) o 'anthropic' (Claude) para ese agente.
+    Orden: tools solo-Gemini → gcp; interruptor puntual (USAR_ANTHROPIC_<AGENTE>, luego USAR_WORKERS_AI_<AGENTE>);
+    interruptor global (USAR_ANTHROPIC, luego USAR_WORKERS_AI); si no, gcp.
+    Sin URL/clave del proveedor no hay a dónde llamar → gcp (nunca se rompe un agente por falta de config)."""
+    if usa_busqueda_gemini(tools):
+        return "gcp"
+    k = _env_key(agente)
+    hay_cf, hay_an = bool(WORKERS_AI_URL), bool(os.getenv("ANTHROPIC_API_KEY"))
+    for proveedor, hay, nombre in (("anthropic", hay_an, f"USAR_ANTHROPIC_{k}"), ("cloudflare", hay_cf, f"USAR_WORKERS_AI_{k}")):
+        puntual = _bool_env(nombre)
+        if puntual is not None:
+            return proveedor if (puntual and hay) else "gcp"
+    for proveedor, hay, nombre in (("anthropic", hay_an, "USAR_ANTHROPIC"), ("cloudflare", hay_cf, "USAR_WORKERS_AI")):
+        if hay and _bool_env(nombre):
+            return proveedor
+    return "gcp"
+
+
+def resolver_modelo(modelo, agente: str, tools=None):
+    """Lo que se pasa a `Agent(model=...)`: el id de Gemini tal cual, o un `LiteLlm` hacia Workers AI / Anthropic."""
+    proveedor = proveedor_para(agente, tools)
+    if proveedor == "gcp":
+        return modelo
+    try:
+        from google.adk.models.lite_llm import LiteLlm  # noqa: F401
+    except Exception as e:  # sin litellm instalado: cae a Gemini en vez de romper
+        print(f"[models] {proveedor} pedido para {agente} pero falta litellm ({e}); uso Gemini", flush=True)
+        return modelo
+    if proveedor == "anthropic":
+        # LiteLLM le pone a Anthropic un tope de salida bajo (~4 k) y el JSON final de agentes como entity_personnel o
+        # legal quedaba cortado (finish MAX_TOKENS → "output_key ausente", medido 2026-10-12): se fija uno amplio.
+        extra = {"max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "32000"))}
+        if os.getenv("ANTHROPIC_REASONING"):
+            extra["reasoning_effort"] = os.environ["ANTHROPIC_REASONING"]
+        ws = os.getenv("ANTHROPIC_WORKSPACE_ID")  # claves sin workspace propio lo exigen en cada llamada
+        if ws:
+            extra["extra_headers"] = {"anthropic-workspace-id": ws}
+        return _litellm_con_log()(model=f"anthropic/{ANTHROPIC_MODEL}", api_key=os.environ["ANTHROPIC_API_KEY"],
+                                  timeout=float(os.getenv("ANTHROPIC_TIMEOUT_S", "240")), **extra)
+    rapido = modelo in (_MODEL_FAST, _MODEL_JUDGE)
+    cf = WORKERS_AI_MODEL_FAST if rapido else WORKERS_AI_MODEL
+    return _litellm_con_log()(model=f"openai/{cf}", api_base=WORKERS_AI_URL, api_key=os.getenv("WORKERS_AI_TOKEN", "sin-token"),
+                              timeout=float(os.getenv("WORKERS_AI_TIMEOUT_S", "240")),
+                              reasoning_effort=os.getenv("WORKERS_AI_REASONING", "low"))
+
+
+_LITELLM_LOG = []
+
+
+def _litellm_con_log():
+    """`LiteLlm` que deja en el log el error REAL de Workers AI (LiteLLM solo imprime 'debug this error') y el tiempo
+    de cada llamada. Mismo comportamiento que LiteLlm: vuelve a lanzar la excepción."""
+    if _LITELLM_LOG:
+        return _LITELLM_LOG[0]
+    import json as _json
+    import time as _time
+    from google.adk.models.lite_llm import LiteLlm
+
+    class LiteLlmConLog(LiteLlm):
+        async def generate_content_async(self, llm_request, stream: bool = False):
+            t0 = _time.time()
+            try:
+                async for r in super().generate_content_async(llm_request, stream=stream):
+                    yield r
+            except Exception as e:  # noqa: BLE001
+                print(_json.dumps({"_vigia": True, "kind": "workers_ai_error", "modelo": str(self.model),
+                                   "segundos": round(_time.time() - t0, 1), "error": f"{type(e).__name__}: {str(e)[:700]}"},
+                                  ensure_ascii=False), flush=True)
+                raise
+
+    _LITELLM_LOG.append(LiteLlmConLog)
+    return LiteLlmConLog
+
 
 THINKING = frozenset({"minimal", "low", "medium", "high"})
 
@@ -85,9 +196,11 @@ def _env_int(name: str, default):
         return default
 
 
-def build_planner(agente: str, model, default_level: str | None):
+def build_planner(agente: str, model, default_level: str | None, tools=None):
     """`BuiltInPlanner` con `thinking_level` (Gemini 3) o `thinking_budget` (2.5, mapeado
-    grueso). None si el nivel es None o el modelo no es Gemini."""
+    grueso). None si el nivel es None, el modelo no es Gemini o el agente corre en Workers AI."""
+    if proveedor_para(agente, tools) == "cloudflare":
+        return None
     level = thinking_level_for(agente, default_level)
     if level is None:
         return None
@@ -140,4 +253,6 @@ def resolve_output_schema(nombre: str | None):
 def modelos_activos() -> dict:
     """Snapshot para `GET /` del servicio."""
     return {"smart": _MODEL_SMART, "default": _MODEL_DEFAULT, "fast": _MODEL_FAST,
-            "judge": _MODEL_JUDGE, "output_schema_nativo": OUTPUT_SCHEMA_NATIVO}
+            "judge": _MODEL_JUDGE, "output_schema_nativo": OUTPUT_SCHEMA_NATIVO,
+            "workers_ai": {"url": bool(WORKERS_AI_URL), "modelo": WORKERS_AI_MODEL, "modelo_fast": WORKERS_AI_MODEL_FAST,
+                           "global": bool(_bool_env("USAR_WORKERS_AI"))}}

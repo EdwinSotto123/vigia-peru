@@ -23,7 +23,13 @@ export BUCKETS_PROJECT_ID="${BUCKETS_PROJECT_ID:-vivid-spot-480905-a4}"
 if [[ -n "${CUENTA:-}" ]]; then export CLOUDSDK_CORE_ACCOUNT="$CUENTA"; fi
 export REGION="${REGION:-us-central1}"
 export SQL_INSTANCE="${SQL_INSTANCE:-vigia-db}"
-export SQL_CONNECTION="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
+export SQL_CONNECTION="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"  # SOLO si DB_PROVEEDOR=gcp (Cloud SQL)
+# La base vive en AWS RDS desde 2026-10-12 (cloud_sql/README.md). Los servicios se conectan por TCP+TLS:
+#   DB_HOST     host de RDS (o la IP de Cloud SQL si se vuelve a GCP: DB_PROVEEDOR=gcp DB_HOST=<ip>)
+#   DB_SSLMODE  require (libpq/pg8000: cifra sin verificar CA) · no-verify en servicios Node (node-pg)
+export DB_PROVEEDOR="${DB_PROVEEDOR:-aws}"
+export DB_HOST="${DB_HOST:-vigia-db.c58yci0sglx8.us-east-2.rds.amazonaws.com}"
+export DB_SSLMODE="${DB_SSLMODE:-require}"
 export BUCKET_DOCUMENTOS="${BUCKET_DOCUMENTOS:-vigia-peru-documentos}"
 export BUCKET_REPORTES="${BUCKET_REPORTES:-vigia-peru-reportes}"
 export FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-simplia-project}"

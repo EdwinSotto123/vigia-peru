@@ -3,7 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # Detrás de PgBouncer (pgbouncer.sh conectar mcp) la conexión es de ese script: acá no se toca.
-CONEXION="PGHOST=/cloudsql/${SQL_CONNECTION},"
+CONEXION="PGHOST=${DB_HOST},PGSSLMODE=no-verify,"
 en_pgbouncer vigia-mcp && CONEXION=""
 
 cd "$REPO_ROOT/backend/mcp"
@@ -11,7 +11,7 @@ gcloud_entrada run deploy vigia-mcp \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \
-  --add-cloudsql-instances "$SQL_CONNECTION" \
+  --clear-cloudsql-instances \
   --update-env-vars "${CONEXION}PGUSER=vigia_mcp,PGDATABASE=vigia" \
   --set-secrets "PGPASSWORD=cloudsql-password-mcp:latest" \
   --quiet

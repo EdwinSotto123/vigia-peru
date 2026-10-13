@@ -1,0 +1,18 @@
+// Vigía Perú · puerta de entrada a Cloudflare Workers AI con forma de API OpenAI (chat/completions).
+// Los agentes (Cloud Run, LiteLLM) la usan cuando USAR_WORKERS_AI=1 (backend/agent/agents/_shared/models.py).
+// Secreto: `npx wrangler secret put LLM_TOKEN` (el agente lo manda como Bearer en WORKERS_AI_TOKEN).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-llm",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "ai": { "binding": "AI" },
+  "vars": {
+    "REASONING_EFFORT_DEFECTO": "low",
+    "MAX_TOKENS_DEFECTO": "16000",
+    // Modelos permitidos (lista blanca): evita que un token filtrado gaste en cualquier modelo.
+    "MODELOS_PERMITIDOS": "@cf/zai-org/glm-5.3-flash,@cf/zai-org/glm-5.3,@cf/zai-org/glm-5.2,@cf/zai-org/glm-4.7-flash,@cf/openai/gpt-oss-120b,@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/qwen/qwen3-30b-a3b-fp8"
+  }
+}

@@ -279,9 +279,26 @@ def _pg():
             unix_sock=f"{PG_HOST}/.s.PGSQL.5432",
         )
     # Por TCP: TLS salvo PGSSLMODE=disable (staging local, o PgBouncer dentro de la VPC).
+    # PGSSLMODE=require (RDS de AWS, Cloud SQL por IP): cifrado SIN verificar el certificado, igual que libpq
+    # (la CA de RDS no está en el almacén del sistema). Sin la variable: TLS verificado, como antes.
+    modo = os.getenv("PGSSLMODE", "").strip().lower()
+    if modo == "disable":
+        ssl_ctx = None
+    elif modo == "require":
+        import ssl as _ssl
+        ssl_ctx = _ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = _ssl.CERT_NONE
+    elif modo in ("verify-full", "verify-ca"):
+        # TLS verificado contra la CA de RDS (certs/rds-global-bundle.pem, o PGSSLROOTCERT): evita MITM.
+        import ssl as _ssl
+        ssl_ctx = _ssl.create_default_context(cafile=os.getenv("PGSSLROOTCERT") or os.path.join(os.path.dirname(os.path.dirname(__file__)), "certs", "rds-global-bundle.pem"))
+        ssl_ctx.check_hostname = modo == "verify-full"
+    else:
+        ssl_ctx = True
     return pg8000.dbapi.connect(
         host=PG_HOST, port=int(os.getenv("PGPORT", "5432") or 5432), user=PG_USER, password=PG_PASS,
-        database=PG_DB, ssl_context=None if os.getenv("PGSSLMODE", "").strip().lower() == "disable" else True,
+        database=PG_DB, ssl_context=ssl_ctx,
     )
 
 def _normalize_name_for_search(s: str) -> str:
@@ -339,6 +356,9 @@ def _gemini_client():
     cuotas separadas y mucho más generosas en Paid Tier 1 (1000 RPM vs los
     bursts impredecibles de Vertex).
     """
+    if os.getenv("LLM_BACKEND", "").strip().lower() == "anthropic":  # sin Gemini/Vertex: ver tools/llm_anthropic.py
+        from tools.llm_anthropic import ClienteAnthropic
+        return ClienteAnthropic()
     from google import genai
     # GOOGLE_GENAI_USE_VERTEXAI=true fuerza Vertex aunque haya GOOGLE_API_KEY
     # (reversible por env, sin tocar código). Default: AI Studio si hay key.

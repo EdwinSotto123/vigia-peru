@@ -1,0 +1,80 @@
+#!/bin/bash
+# Arranque del proxy de base de datos (Amazon Linux 2023, arm64). Idempotente.
+set -euo pipefail
+exec > >(tee /var/log/proxy-arranque.log) 2>&1
+
+# Swap de 1 GB: dnf se queda sin memoria en instancias chicas.
+if [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+fi
+dnf install -y docker openssl
+systemctl enable --now docker
+
+leer() { aws ssm get-parameter --region ${region} --name "$1" --with-decryption --query Parameter.Value --output text; }
+
+install -d -m 750 /etc/pgbouncer
+curl -sSLo /etc/pgbouncer/rds-ca.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+leer /vigia/proxy/userlist > /etc/pgbouncer/userlist.txt
+chmod 600 /etc/pgbouncer/userlist.txt
+
+# Certificado propio para el TLS de clientes (Hyperdrive lo exige).
+if [ ! -s /etc/pgbouncer/tls.crt ]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=vigia-db-proxy" \
+    -keyout /etc/pgbouncer/tls.key -out /etc/pgbouncer/tls.crt 2>/dev/null
+fi
+chmod 644 /etc/pgbouncer/tls.crt
+chmod 640 /etc/pgbouncer/tls.key
+chown -R 70:70 /etc/pgbouncer   # uid de pgbouncer en la imagen
+
+cat > /etc/pgbouncer/pgbouncer.ini <<INI
+[databases]
+vigia = host=${rds_host} port=5432 dbname=vigia
+[pgbouncer]
+listen_addr = 127.0.0.1
+listen_port = 6432
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 400
+default_pool_size = 4
+reserve_pool_size = 2
+reserve_pool_timeout = 3
+server_idle_timeout = 120
+query_wait_timeout = 15
+ignore_startup_parameters = extra_float_digits,options
+log_connections = 0
+log_disconnections = 0
+client_tls_sslmode = allow
+client_tls_key_file = /etc/pgbouncer/tls.key
+client_tls_cert_file = /etc/pgbouncer/tls.crt
+server_tls_sslmode = verify-full
+server_tls_ca_file = /etc/pgbouncer/rds-ca.pem
+INI
+
+docker rm -f pgbouncer 2>/dev/null || true
+docker run -d --name pgbouncer --restart always --network host \
+  -v /etc/pgbouncer:/etc/pgbouncer:ro \
+  edoburu/pgbouncer:latest pgbouncer /etc/pgbouncer/pgbouncer.ini
+
+# cloudflared: túnel saliente `vigia-db`. El token va en un archivo 0600, no en la línea de comandos.
+if ! command -v cloudflared >/dev/null; then
+  curl -fsSLo /tmp/cloudflared.rpm https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-aarch64.rpm
+  dnf install -y /tmp/cloudflared.rpm
+fi
+install -d -m 700 /etc/cloudflared
+echo "TUNNEL_TOKEN=$(leer /vigia/proxy/tunnel-token)" > /etc/cloudflared/token.env
+chmod 600 /etc/cloudflared/token.env
+cat > /etc/systemd/system/cloudflared-vigia.service <<UNIT
+[Unit]
+Description=Cloudflare Tunnel vigia-db
+After=network-online.target docker.service
+[Service]
+EnvironmentFile=/etc/cloudflared/token.env
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel run
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now cloudflared-vigia

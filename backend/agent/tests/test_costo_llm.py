@@ -77,3 +77,31 @@ def test_el_patch_contabiliza_la_llamada_que_responde():
     MF._con_flex_o_escape(MF._estado_flex(cfg), "gemini-3.6-flash", cfg, llamar)
     r = CL.resumen()
     assert r["llamadas"] == 1 and r["flex"] == 0 and r["por_etapa"][0]["etapa"] == "mercado"
+
+
+def test_tarifa_glm_en_workers_ai_y_litellm():
+    from tools.costo_llm import tarifa
+
+    class _LiteLlm:  # forma de google.adk.models.lite_llm.LiteLlm: el id va en `.model`
+        model = "openai/@cf/zai-org/glm-5.3-flash"
+
+    assert tarifa(_LiteLlm()) == (0.15, 0.50)
+    assert tarifa("@cf/zai-org/glm-5.3-flash") == (0.15, 0.50)
+    assert tarifa("gemini-3.6-flash") == (0.75, 3.75)   # Gemini no cambia
+
+
+def test_llamadas_de_workers_ai_entran_al_resumen():
+    from types import SimpleNamespace
+    from tools import costo_llm as c
+
+    class _L:
+        model = "openai/@cf/zai-org/glm-5.3-flash"
+
+    assert c.es_gemini("gemini-3.6-flash") and not c.es_gemini(_L())
+    c.iniciar()
+    um = SimpleNamespace(prompt_token_count=1_000_000, cached_content_token_count=0, candidates_token_count=1_000_000,
+                         thoughts_token_count=0, traffic_type=None)
+    c.registrar_externo(_L(), "legal_agent", um)
+    r = c.resumen()
+    assert r["llamadas"] == 1 and abs(r["costo_usd"] - 0.65) < 1e-6      # 0,15 + 0,50 por millón
+    assert r["por_etapa"][0]["etapa"] == "legal_agent"

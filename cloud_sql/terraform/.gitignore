@@ -1,0 +1,8 @@
+*.tfstate*
+.terraform/
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Planes de terraform: llevan los valores de las variables (contraseñas incluidas)
+*.plan

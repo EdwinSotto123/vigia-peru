@@ -3,7 +3,7 @@
 from google.adk.agents import Agent
 from agents._shared.callbacks import CALLBACKS
 from agents._shared.instructions import with_today_header, make_state_aware_instruction
-from agents._shared.models import build_planner, build_generate_config, resolve_output_schema
+from agents._shared.models import build_planner, build_generate_config, resolve_output_schema, resolver_modelo
 from . import config
 from . import prompt
 
@@ -14,7 +14,7 @@ if config.USES_TODAY_HEADER:
 # Thinking (Gemini 3: thinking_level) va por `planner`; temperatura/tope por
 # `generate_content_config`; ADK 1.19 rechaza thinking_config/tools/schema dentro de este último.
 _kw = {}
-_planner = build_planner("compliance_extended_agent", config.MODEL, getattr(config, "THINKING", None))
+_planner = build_planner("compliance_extended_agent", config.MODEL, getattr(config, "THINKING", None), getattr(config, "TOOLS", None))
 if _planner is not None:
     _kw["planner"] = _planner
 _gcc = build_generate_config("compliance_extended_agent", getattr(config, "TEMPERATURE", None),
@@ -27,7 +27,7 @@ if _schema is not None:
 
 compliance_extended_agent = Agent(
     name="compliance_extended_agent",
-    model=config.MODEL,
+    model=resolver_modelo(config.MODEL, "compliance_extended_agent", getattr(config, "TOOLS", None)),
     description=prompt.DESCRIPTION,
     instruction=_instruction,
     tools=config.TOOLS,
@@ -47,7 +47,7 @@ if config.STATE_INJECTIONS:
 # deterministas (620 llamadas en septiembre).
 compliance_criterio_agent = Agent(
     name="compliance_extended_agent",
-    model=config.MODEL,
+    model=resolver_modelo(config.MODEL, "compliance_extended_agent", getattr(config, "TOOLS", None)),
     description=prompt.DESCRIPTION,
     instruction=make_state_aware_instruction(prompt.INSTRUCTION_CRITERIO, config.STATE_INJECTIONS or []),
     tools=config.TOOLS_CRITERIO,

@@ -36,8 +36,8 @@ gcloud run jobs deploy vigia-batch --source "$CTX" --region "$REGION" \
   --service-account "$JOB_SA" \
   --command python --args=-m,backend.batch.nube \
   --tasks 1 --max-retries 0 --task-timeout 10800 --cpu 2 --memory 8Gi \
-  --set-cloudsql-instances "$SQL_CONNECTION" \
-  --set-env-vars "PGHOST=/cloudsql/${SQL_CONNECTION},PGUSER=vigia_jobs,PGDATABASE=vigia,BATCH_BUCKET=${BUCKET_BATCH},BATCH_PREFIJO=batch/,BATCH_DIR=/tmp/batch,RELAY_URL=${RELAY_URL},NUBE_MAX_MINUTOS=150" \
+  --clear-cloudsql-instances \
+  --set-env-vars "PGHOST=${DB_HOST},PGSSLMODE=${DB_SSLMODE},PGUSER=vigia_jobs,PGDATABASE=vigia,BATCH_BUCKET=${BUCKET_BATCH},BATCH_PREFIJO=batch/,BATCH_DIR=/tmp/batch,RELAY_URL=${RELAY_URL},NUBE_MAX_MINUTOS=150" \
   --set-secrets "PGPASSWORD=cloudsql-password-jobs:latest,RELAY_TOKEN=local-downloader-token:latest" --quiet
 
 # Scheduler: la cuenta del job necesita roles/run.invoker (migracion/migrar-proyecto.sh identidades).

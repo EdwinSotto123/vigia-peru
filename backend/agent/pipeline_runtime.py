@@ -145,6 +145,12 @@ def _parse_event(event, metrics: dict, fallback_agent: str, model=None) -> tuple
             if _es_flex(um):
                 metrics["flex_calls"] = int(metrics.get("flex_calls") or 0) + 1
             metrics["cost"] = round(float(metrics.get("cost") or 0.0) + _costo_llamada(model, um), 6)
+            try:   # Workers AI (LiteLLM): el patch de Gemini no la ve → al acumulador del análisis desde aquí
+                from tools import costo_llm as _cl
+                if not _cl.es_gemini(model):
+                    _cl.registrar_externo(model, agent_name, um)
+            except Exception:
+                pass
             metric_events.append({"kind": "metrics", "agent": agent_name,
                                   "tokens_total": metrics["total"], "tokens_prompt": metrics["prompt"],
                                   "tokens_output": metrics["output"], "n_llm_calls": metrics["calls"],

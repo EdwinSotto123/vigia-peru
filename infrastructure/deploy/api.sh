@@ -8,7 +8,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000,https://vigia-peru-frontend-36169102688.us-central1.run.app,https://vigia-peru-frontend-oq3gq6a4ka-uc.a.run.app}"
 
 # Detrás de PgBouncer (pgbouncer.sh conectar api) la conexión es de ese script: acá no se toca.
-CONEXION="PGHOST=/cloudsql/${SQL_CONNECTION}|"
+CONEXION="PGHOST=${DB_HOST}|PGSSLMODE=verify-full|"
 en_pgbouncer vigia-peru-api && CONEXION=""
 
 # Sin instancias fijas desde 2026-09-27: la réplica de Cloudflare (vigia-web / vigia-api) es la que va a
@@ -23,7 +23,7 @@ gcloud_entrada run deploy vigia-peru-api \
   --region "$REGION" \
   --allow-unauthenticated \
   --min-instances "${MIN_INSTANCIAS:-0}" \
-  --add-cloudsql-instances "$SQL_CONNECTION" \
+  --clear-cloudsql-instances \
   --update-env-vars "^|^${CONEXION}PGUSER=vigia_api|PGUSER_ADMIN=vigia_api_admin|PGDATABASE=vigia|FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}|GCS_PROJECT_ID=${BUCKETS_PROJECT_ID}|AGENT_HOST_SUFFIX=${AGENT_HOST_SUFFIX}|GCS_BUCKET_DOCUMENTOS=${BUCKET_DOCUMENTOS}|GCS_BUCKET_REPORTES=${BUCKET_REPORTES}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|LOCAL_DOWNLOADER_URL=${LOCAL_DOWNLOADER_URL:-https://vigia-relay.vigiaperu.workers.dev}|DISPATCHER_URL=${DISPATCHER_URL:-https://vigia-dispatcher.vigiaperu.workers.dev}" \
   --set-secrets "PGPASSWORD=cloudsql-password-api:latest,PGPASSWORD_ADMIN=cloudsql-password-api-admin:latest,ADMIN_TOKEN=admin-token:latest,DISPATCHER_TOKEN=dispatcher-cloudflare-token:latest,TURNSTILE_SECRET_KEY=turnstile-secret:latest" \
   --quiet
