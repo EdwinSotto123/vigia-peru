@@ -26,7 +26,8 @@ const EMPTY: PagosConfig = {
 type Respuesta = { valor: Partial<PagosConfig>; updatedAt?: string; updatedBy?: string };
 const desde = (v: Partial<PagosConfig>): PagosConfig => ({ ...EMPTY, ...v, yape: { ...EMPTY.yape, ...(v.yape ?? {}) }, plin: { ...EMPTY.plin, ...(v.plin ?? {}) }, cuentas: v.cuentas ?? [] });
 
-const campo = "mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink";
+// Los campos hundidos del sitio: radio xl, fondo paperDeep, foco en lima.
+const campo = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60";
 
 export default function PagosPage() {
   // Sin revalidar al volver a la pestaña: pisaría lo que estás editando.
@@ -133,7 +134,7 @@ export default function PagosPage() {
                     icono={<Landmark size={18} />}
                     titulo="Sin cuentas bancarias"
                     descripcion="Agrega al menos una en soles con su CCI para que las empresas puedan transferir."
-                    accion={<button onClick={agregarCuenta} className={claseBoton("primario")}><Plus size={12} aria-hidden /> Agregar cuenta</button>}
+                    accion={<button onClick={agregarCuenta} className={claseBoton("secundario")}><Plus size={13} aria-hidden /> Agregar cuenta</button>}
                   />
                 </Card>
               ) : (
@@ -147,7 +148,7 @@ export default function PagosPage() {
                       <label className="text-xs"><span className="font-medium text-inkSoft">CCI (20 dígitos)</span><input value={cu.cci} onChange={(e) => setCuenta(i, { cci: e.target.value.replace(/\D/g, "").slice(0, 20) })} inputMode="numeric" className={`${campo} font-mono`} /></label>
                       <div className="flex items-end gap-1">
                         <label className="min-w-0 flex-1 text-xs"><span className="font-medium text-inkSoft">Titular</span><input value={cu.titular} onChange={(e) => setCuenta(i, { titular: e.target.value })} className={campo} /></label>
-                        <button onClick={() => editar((c) => ({ ...c, cuentas: c.cuentas.filter((_, j) => j !== i) }))} aria-label={`Quitar la cuenta ${cu.banco} ${cu.numero}`} className="mb-0.5 rounded-lg border border-line p-2 text-rust hover:bg-crimson-soft"><Trash2 size={14} aria-hidden /></button>
+                        <button onClick={() => editar((c) => ({ ...c, cuentas: c.cuentas.filter((_, j) => j !== i) }))} aria-label={`Quitar la cuenta ${cu.banco} ${cu.numero}`} className="mb-0.5 grid h-9 w-9 place-items-center rounded-full border border-line text-crimsonTexto transition-colors duration-rapido hover:border-rust/50 hover:bg-crimson-soft"><Trash2 size={14} aria-hidden /></button>
                       </div>
                     </Card>
                   ))}

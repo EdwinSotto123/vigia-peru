@@ -77,8 +77,8 @@ export function Lotes({
               onClick={() => onElegir(l.codigo)}
               aria-pressed={sel}
               className={cn(
-                "rounded-2xl border bg-paper p-4 text-left transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-                sel ? "border-granate shadow-[0_0_0_3px_rgba(113,28,48,0.12)]" : "border-line",
+                "rounded-2xl border p-4 text-left transition-colors duration-rapido",
+                sel ? "border-granate/60 bg-granate-50 ring-1 ring-inset ring-granate/40" : "border-line bg-paperSoft hover:border-paperEdge hover:bg-paperDeep/60",
               )}
             >
               <div className="flex items-baseline justify-between gap-2">

@@ -102,8 +102,8 @@ function Decision({ b, alertaId }: { b: BanderaRevision; alertaId: string }) {
           disabled={enviando}
           aria-pressed={actual === clave}
           onClick={() => decidir(clave)}
-          className={`rounded-full border px-2.5 py-1 font-medium transition ${
-            actual === clave ? "border-ink bg-ink text-paper" : "border-line text-ink hover:bg-paperSoft"
+          className={`min-h-[30px] rounded-full border px-3 font-medium transition-colors duration-rapido ${
+            actual === clave ? "border-granate bg-granate text-paper" : "border-line text-ink hover:border-granate/40 hover:bg-granate-50"
           }`}
         >
           {texto}
@@ -117,7 +117,7 @@ function Decision({ b, alertaId }: { b: BanderaRevision; alertaId: string }) {
 function Senal({ b, alertaId }: { b: BanderaRevision; alertaId?: string }) {
   const url = urlSegura(b.fuenteUrl);
   return (
-    <li className="rounded-xl border border-line bg-paper p-3">
+    <li className="rounded-xl border border-line bg-paperSoft p-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
         <span className="font-mono text-ink">{b.regla}</span>
         <Badge tono={SEVERIDAD_UI[b.severidad]?.tono ?? SEVERIDAD_UI.baja.tono}>{b.severidad}</Badge>

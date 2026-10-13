@@ -83,7 +83,7 @@ adminRouter.get("/resumen", async (c) => {
   const [kpi, serie, porEstado, cola, top, alcance] = await Promise.all([
     pool.query(`
       SELECT
-        (SELECT count(*) FROM contribuciones WHERE estado = 'pendiente_pago')::int                        AS "pendientesValidar",
+        (SELECT count(*) FROM contribuciones WHERE estado = 'pendiente_pago' AND comprobante_url IS NOT NULL)::int AS "pendientesValidar",
         (SELECT count(*) FROM contribuciones WHERE estado = 'pendiente_pago' AND comprobante_url IS NOT NULL)::int AS "pendientesConComprobante",
         (SELECT COALESCE(sum(monto_pen),0) FROM contribuciones WHERE estado IN ('pagada','en_proceso','procesada'))::float AS "montoConfirmadoPen",
         (SELECT COALESCE(sum(contratos),0) FROM contribuciones WHERE estado IN ('pagada','en_proceso','procesada'))::int   AS "contratosFinanciados",
@@ -138,7 +138,11 @@ adminRouter.get("/contribuciones", async (c) => {
   const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
   const vals: any[] = [];
   const conds: string[] = [];
-  if (estado !== "todas") { vals.push(estado); conds.push(`co.estado = $${vals.length}`); }
+  // "pendiente_pago" (Por validar) son los que ya subieron comprobante: lo único que el panel puede validar.
+  // Los que no lo subieron van aparte en "sin_comprobante" y vencen solos a los 7 días (POST /asignar).
+  if (estado === "pendiente_pago") conds.push(`co.estado = 'pendiente_pago' AND co.comprobante_url IS NOT NULL`);
+  else if (estado === "sin_comprobante") conds.push(`co.estado = 'pendiente_pago' AND co.comprobante_url IS NULL`);
+  else if (estado !== "todas") { vals.push(estado); conds.push(`co.estado = $${vals.length}`); }
   const conEntidad = await hayAporteEntidad();
   if (q) {
     vals.push(`%${q}%`);
@@ -414,7 +418,7 @@ adminRouter.get("/salud", async (c) => {
                 FROM procesamientos p JOIN convocatorias cv ON cv.ocid = p.ocid
                 LEFT JOIN alertas a ON ocid_corto(a.ocid) = ocid_corto(p.ocid)
                 WHERE p.estado = 'procesado' ORDER BY p.finalizado_at DESC NULLS LAST LIMIT 5`),
-    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente_pago')::int AS "pendientesValidar",
+    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente_pago' AND comprobante_url IS NOT NULL)::int AS "pendientesValidar",
                        count(*) FILTER (WHERE estado IN ('pagada','en_proceso')
                          AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id))::int AS "esperandoContratos"
                 FROM contribuciones`),
@@ -463,6 +467,12 @@ const COLA_ZONA_O_ENTIDAD = `CASE WHEN co.entidad_ruc IS NULL THEN ${COLA_ZONA}
   ELSE EXISTS (SELECT 1 FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid WHERE c.entidad_ruc = co.entidad_ruc) END`;
 
 adminRouter.post("/asignar", async (c) => {
+  // Vencimiento: un aporte que lleva 7 días en `pendiente_pago` sin comprobante es un código huérfano (el visitante
+  // creó el aporte y se fue). Pasa a `rechazada`; si el comprobante llega después, el admin lo ve en "Rechazadas".
+  const vencidos = await pool.query(
+    `UPDATE contribuciones SET estado = 'rechazada', rechazada_motivo = 'Venció sin comprobante (7 días)', validada_por = 'auto-vencimiento'
+      WHERE estado = 'pendiente_pago' AND comprobante_url IS NULL AND created_at < now() - interval '7 days' RETURNING codigo`);
+  if (vencidos.rows.length) await log("auto-vencimiento", "rechazar", "contribuciones", { codigos: vencidos.rows.map((v) => v.codigo), motivo: "sin comprobante" });
   const r = await pool.query(
     `SELECT co.id, co.codigo,
             ${(await hayAporteEntidad()) ? COLA_ZONA_O_ENTIDAD : COLA_ZONA} AS "hayCola"
@@ -485,7 +495,7 @@ adminRouter.post("/asignar", async (c) => {
     await pool.query("SELECT refresh_financiamiento()");
     refrescado = true;
   }
-  return c.json({ asignados: out, sinCola, refrescado });
+  return c.json({ asignados: out, sinCola, refrescado, vencidos: vencidos.rows.length });
 });
 
 // ─── Monitor del dispatcher (procesamientos) ─────────────────────────────────

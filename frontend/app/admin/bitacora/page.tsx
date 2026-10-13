@@ -109,7 +109,7 @@ export default function BitacoraPage() {
         {!data ? (
           isLoading && <SkeletonTabla filas={6} columnas={3} />
         ) : !visibles.length ? (
-          <div className="rounded-2xl border border-line bg-paper">
+          <div className="rounded-2xl border border-line bg-paperSoft">
             <EmptyState
               icono={<ScrollText size={18} />}
               titulo={entradas.length ? "Ninguna acción con estos filtros" : "Sin acciones registradas"}
@@ -118,10 +118,10 @@ export default function BitacoraPage() {
           </div>
         ) : (
           // En pantalla ancha los días se reparten en dos columnas: una fila de una línea no necesita 1.100 px.
-          <div className="space-y-5 xl:columns-2 xl:gap-6 xl:space-y-0 xl:[&>*]:mb-5 xl:[&>*]:break-inside-avoid">
+          <div className="space-y-7 xl:columns-2 xl:gap-6 xl:space-y-0 xl:[&>*]:mb-7 xl:[&>*]:break-inside-avoid">
             {dias.map((d) => (
               <PageSection key={d.titulo} titulo={d.titulo} meta={`${d.items.length} ${d.items.length === 1 ? "acción" : "acciones"}`}>
-                <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+                <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paperSoft">
                   {d.items.map(({ e, a }, i) => <FilaBitacora key={`${e.createdAt}-${i}`} e={e} a={a} rol={rol} />)}
                 </ol>
               </PageSection>
@@ -176,7 +176,7 @@ function FilaBitacora({ e, a, rol }: { e: EntradaBitacora; a: AccionLegible; rol
                 onClick={() => setAbierto((v) => !v)}
                 aria-expanded={abierto}
                 aria-controls={idDatos}
-                className="inline-flex items-center gap-0.5 rounded-lg px-1.5 py-1 text-[11px] text-inkSoft hover:bg-paperDeep"
+                className="inline-flex items-center gap-0.5 rounded-full px-2 py-1 text-[11.5px] text-inkSoft transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"
               >
                 Datos <ChevronDown size={12} className={cn("transition-transform duration-rapido", abierto && "rotate-180")} aria-hidden />
               </button>

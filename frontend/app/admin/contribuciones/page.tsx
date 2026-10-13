@@ -40,7 +40,7 @@ import {
  */
 
 const TABS = [
-  { valor: "pendiente_pago", etiqueta: "Por validar" }, { valor: "pagada", etiqueta: "Pagadas" }, { valor: "en_proceso", etiqueta: "En proceso" },
+  { valor: "pendiente_pago", etiqueta: "Por validar" }, { valor: "sin_comprobante", etiqueta: "Sin comprobante" }, { valor: "pagada", etiqueta: "Pagadas" }, { valor: "en_proceso", etiqueta: "En proceso" },
   { valor: "procesada", etiqueta: "Procesadas" }, { valor: "rechazada", etiqueta: "Rechazadas" }, { valor: "todas", etiqueta: "Todas" },
 ];
 
@@ -182,14 +182,14 @@ function Page() {
           <FilterChips etiqueta="Estado del aporte" valor={estado} onCambiar={setEstado} opciones={TABS} />
           <label className="relative w-full sm:ml-auto sm:w-72">
             <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-mute" aria-hidden />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código, nombre, RUC, correo o zona" aria-label="Buscar aporte" className="w-full rounded-full border border-line bg-paper py-1.5 pl-8 pr-3 text-xs text-ink" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código, nombre, RUC, correo o zona" aria-label="Buscar aporte" className="min-h-[34px] w-full rounded-full border border-line bg-paperDeep py-1.5 pl-8 pr-3 text-[13px] text-ink placeholder:text-mute focus:border-granate/60" />
           </label>
         </div>
 
         <ErrorBanner error={error} onReintentar={() => mutate()} />
 
         {mostrandoRecientes && (
-          <p className="flex items-start gap-2 rounded-xl bg-paperSoft px-3 py-2 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
             <Check size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             <span>
               <strong className="font-semibold text-ink">No hay pagos por validar.</strong> Estos son los últimos {recientes.length} aportes: elige uno para ver su comprobante y
@@ -251,13 +251,13 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
   }
   const e = estadoAporte(c.estado);
   return (
-    <section className="rounded-2xl border border-line bg-paper">
+    <section className="rounded-2xl border border-line bg-paperSoft">
       <header className="flex items-start justify-between gap-3 px-4 pt-3 sm:px-5">
         <div>
           <p className="font-mono text-lg font-bold text-ink">{c.codigo}</p>
           <div className="mt-1"><Badge tono={e.tono} punto>{e.label}</Badge></div>
         </div>
-        <button onClick={onClose} aria-label="Cerrar detalle" className="rounded-lg p-1 text-mute hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
+        <button type="button" onClick={onClose} aria-label="Cerrar detalle" className="-mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
       </header>
 
       <div className="space-y-3 px-4 pb-4 pt-2.5 sm:px-5">
@@ -284,12 +284,12 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
             {motivoNoVisibleLabel(c.motivoNoVisible) ?? "Sin motivo registrado"}. El aporte procesa contratos igual.
           </Aviso>
         )}
-        {c.mensajePublico && <p className="border-l-2 border-amber pl-2 text-[13px] italic text-inkSoft">“{c.mensajePublico}”</p>}
+        {c.mensajePublico && <p className="border-l-2 border-paperEdge pl-2.5 text-[13px] italic text-inkSoft">“{c.mensajePublico}”</p>}
 
         <div>
           <p className="text-[11px] font-medium text-mute">Comprobante</p>
           {c.tieneComprobante ? (
-            <a href={`/api/admin/contribuciones/${c.codigo}/comprobante`} target="_blank" className="mt-1 block overflow-hidden rounded-xl border border-line hover:border-ink/25">
+            <a href={`/api/admin/contribuciones/${c.codigo}/comprobante`} target="_blank" className="mt-1 block overflow-hidden rounded-xl border border-line transition-colors duration-rapido hover:border-paperEdge">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/api/admin/contribuciones/${c.codigo}/comprobante`} alt={`Comprobante del aporte ${c.codigo}`} className="max-h-64 w-full bg-paperDeep object-contain" />
               <span className="flex items-center gap-1 px-2 py-1 text-[11px] text-inkSoft"><ExternalLink size={11} aria-hidden /> Abrir en pestaña nueva</span>
@@ -301,7 +301,7 @@ function Detalle({ c, onValidar, onRechazar, onClose }: { c: ContribucionAdmin; 
 
         <label className="block text-sm">
           <span className="text-[11px] font-medium text-mute">Nota interna</span>
-          <textarea value={nota} onChange={(ev) => { setNota(ev.target.value); setGuardada(null); }} onBlur={guardarNota} rows={2} className="mt-1 w-full rounded-lg border border-line px-2 py-1.5 text-sm" placeholder="Ej. verificado en el extracto del 14/09" />
+          <textarea value={nota} onChange={(ev) => { setNota(ev.target.value); setGuardada(null); }} onBlur={guardarNota} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60" placeholder="Ej. verificado en el extracto del 14/09" />
           {guardada && <span className={guardada === "ok" ? "text-[11px] text-mossTexto" : "text-[11px] text-crimsonTexto"}>{guardada === "ok" ? "Nota guardada" : "No se pudo guardar la nota"}</span>}
         </label>
 

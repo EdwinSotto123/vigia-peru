@@ -15,6 +15,7 @@ import { PartidosSeccion } from "@/components/landing/PartidosSeccion";
 import { Participar } from "@/components/landing/Participar";
 import { ConfianzaSection } from "@/components/landing/ConfianzaSection";
 import { ExpansionSection } from "@/components/landing/ExpansionSection";
+import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla";
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
 import { clasificar } from "@/components/aliados/ranking";
@@ -152,6 +153,9 @@ export default async function LandingPage() {
       <PixelReveal desde="centro" celda={32}>
         <CierreLanding enCola={estado?.colaGlobal ?? null} />
       </PixelReveal>
+
+      {/* Las animaciones en bucle de cada bloque corren sólo cuando el bloque está cerca de la pantalla. */}
+      <PausaFueraDePantalla />
     </>
   );
 }

@@ -3,7 +3,11 @@ import { TONO, type Tone } from "./tono";
 
 const RELLENO = { none: "", sm: "p-3", md: "p-3.5 sm:p-4" } as const;
 
-/** Caja base del panel: borde fino, radio 2xl, fondo papel. `tono` la tiñe (avisos, tarjetas destacadas). */
+/**
+ * Caja base del panel: borde fino, radio 2xl, superficie `paperSoft` sobre la página carbón (la misma
+ * jerarquía que el sitio público: la tarjeta apenas más clara que el fondo, sin sombra). `tono` la tiñe
+ * (avisos, tarjetas destacadas).
+ */
 export function Card({
   tono,
   relleno = "md",
@@ -18,7 +22,7 @@ export function Card({
   id?: string;
 }) {
   return (
-    <div id={id} className={cn("rounded-2xl border", tono ? TONO[tono].caja : "border-line bg-paper", RELLENO[relleno], className)}>
+    <div id={id} className={cn("rounded-2xl border", tono ? TONO[tono].caja : "border-line bg-paperSoft", RELLENO[relleno], className)}>
       {children}
     </div>
   );
@@ -50,11 +54,11 @@ export function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className={cn("overflow-hidden rounded-2xl border", tono ? TONO[tono].caja : "border-line bg-paper", className)}>
-      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 pt-3 sm:px-5">
+    <section id={id} className={cn("overflow-hidden rounded-2xl border", tono ? TONO[tono].caja : "border-line bg-paperSoft", className)}>
+      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 pt-3.5 sm:px-5">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-ink">{titulo}</h3>
-          {descripcion && <p className="mt-0.5 text-[12px] leading-snug text-inkSoft">{descripcion}</p>}
+          <h3 className="text-[14px] font-semibold leading-snug text-ink">{titulo}</h3>
+          {descripcion && <p className="mt-0.5 text-[12.5px] leading-snug text-mute">{descripcion}</p>}
         </div>
         {acciones && <div className="flex flex-wrap items-center gap-1.5">{acciones}</div>}
       </header>

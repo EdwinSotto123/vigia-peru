@@ -30,7 +30,7 @@ export function ResumenAlerta({ d }: { d: RevisionDetalle }) {
   const enRevision = d.estado === "revision";
 
   return (
-    <section aria-label="Resumen de la alerta" className="rounded-2xl border border-line bg-paper p-3.5 sm:p-4">
+    <section aria-label="Resumen de la alerta" className="rounded-2xl border border-line bg-paperSoft p-3.5 sm:p-4">
       {d.objeto && <p className="line-clamp-2 break-words font-display text-base font-bold leading-snug text-ink">{d.objeto}</p>}
 
       <h2 className={cn("text-[11px] font-semibold uppercase tracking-wide text-mute", d.objeto && "mt-3")}>
@@ -101,7 +101,7 @@ export function PanelDecision({ d, onDecidir }: { d: RevisionDetalle; onDecidir:
 export function ContratoDeAlerta({ d }: { d: RevisionDetalle }) {
   const zona = d.zona ?? d.distrito ?? d.provincia ?? d.region;
   return (
-    <section aria-label="Datos del contrato" className="rounded-2xl border border-line bg-paper p-3.5">
+    <section aria-label="Datos del contrato" className="rounded-2xl border border-line bg-paperSoft p-3.5">
       <h2 className="text-[11px] font-semibold uppercase tracking-wide text-mute">Del contrato</h2>
       <dl className="mt-1.5 space-y-1.5 text-[13px] text-ink">
         <Dato icon={<Building2 size={13} />} k="Entidad">{d.entidad ?? d.entidadRuc ?? "sin dato"}</Dato>

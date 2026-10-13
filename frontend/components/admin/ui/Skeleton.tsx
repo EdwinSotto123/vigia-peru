@@ -24,7 +24,7 @@ export function SkeletonStats({ n = 4, className }: { n?: number; className?: st
   return (
     <Cargando className={cn("grid grid-cols-2 gap-2 sm:gap-3", n >= 5 ? "sm:grid-cols-3 xl:grid-cols-5" : n === 3 ? "sm:grid-cols-3" : "lg:grid-cols-4", className)}>
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="rounded-2xl border border-line bg-paper p-3 sm:p-4" aria-hidden>
+        <div key={i} className="rounded-2xl border border-line bg-paperSoft p-3 sm:p-4" aria-hidden>
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-2.5 h-7 w-16" />
           <Skeleton className="mt-2 h-2.5 w-28" />
@@ -58,8 +58,8 @@ export function SkeletonFilas({ filas = 5, columnas = 5 }: { filas?: number; col
 /** Una tabla entera dentro de su caja, con la franja de encabezados. */
 export function SkeletonTabla({ filas = 5, columnas = 5, className }: { filas?: number; columnas?: number; className?: string }) {
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-line bg-paper", className)}>
-      <div className="hidden gap-4 border-b border-line px-4 py-3 md:flex" aria-hidden>
+    <div className={cn("overflow-hidden rounded-2xl border border-line bg-paperSoft", className)}>
+      <div className="hidden gap-4 border-b border-line bg-paperDeep/50 px-4 py-3 md:flex" aria-hidden>
         {Array.from({ length: columnas }, (_, j) => (
           <Skeleton key={j} className={cn("h-2.5", j === 0 ? "w-[28%]" : "w-16")} />
         ))}
@@ -72,7 +72,7 @@ export function SkeletonTabla({ filas = 5, columnas = 5, className }: { filas?: 
 /** Un panel con título y `lineas` de texto. */
 export function SkeletonPanel({ lineas = 3, className }: { lineas?: number; className?: string }) {
   return (
-    <Cargando className={cn("rounded-2xl border border-line bg-paper p-4 sm:p-5", className)}>
+    <Cargando className={cn("rounded-2xl border border-line bg-paperSoft p-4 sm:p-5", className)}>
       <div aria-hidden>
         <Skeleton className="h-3.5 w-40" />
         {Array.from({ length: lineas }, (_, i) => (

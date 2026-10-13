@@ -36,7 +36,7 @@ adminOperacionRouter.get("/operacion", async (c) => {
                        count(*) FILTER (WHERE estado = 'fallido')::int AS fallidos,
                        count(*) FILTER (WHERE estado = 'listo' AND atendido_at >= now() - interval '24 hours')::int AS "listos24h"
                 FROM pedidos_descarga`).then((q) => q.rows[0]).catch(() => null),
-    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente_pago')::int AS "pendientesValidar",
+    pool.query(`SELECT count(*) FILTER (WHERE estado = 'pendiente_pago' AND comprobante_url IS NOT NULL)::int AS "pendientesValidar",
                        count(*) FILTER (WHERE estado = 'pendiente_pago' AND comprobante_url IS NOT NULL)::int AS "conComprobante",
                        count(*) FILTER (WHERE estado IN ('pagada','en_proceso')
                          AND contratos > (SELECT count(*) FROM asignaciones s WHERE s.contribucion_id = contribuciones.id))::int AS "esperandoContratos"

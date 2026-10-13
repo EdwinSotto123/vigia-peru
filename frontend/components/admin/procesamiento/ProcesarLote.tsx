@@ -147,7 +147,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
               <select
                 value={anio}
                 onChange={(e) => { setError(null); setPartido(""); setAnio(Number(e.target.value) as AnioGobierno); }}
-                className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+                className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-ink focus:border-granate/60"
               >
                 {PERIODOS_GOBIERNO.map((p) => <option key={p.anio} value={p.anio}>{p.texto}</option>)}
               </select>
@@ -157,7 +157,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
               <select
                 value={partido}
                 onChange={(e) => { setError(null); setPartido(e.target.value); }}
-                className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+                className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-ink focus:border-granate/60"
               >
                 <option value="">{partidosQ.isLoading ? "Cargando partidos…" : "Elige un partido"}</option>
                 {partidos.map((p) => (
@@ -175,7 +175,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
               setError(null);
               setUbigeo(e.target.value);
             }}
-            className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+            className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-ink focus:border-granate/60"
           >
             <option value="">{zonas === null ? "Cargando regiones…" : "Elige una región"}</option>
             {(zonas ?? []).map((z) => (
@@ -198,7 +198,7 @@ export function ProcesarLote({ op, onCerrar, onCreado }: { op: Operacion | null;
             disabled={!preview}
             aria-invalid={!!preview && !entero ? true : undefined}
             onChange={(e) => setCantidad(e.target.value === "" ? NaN : Number(e.target.value))}
-            className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 font-mono text-ink disabled:opacity-50"
+            className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 font-mono text-ink focus:border-granate/60 disabled:opacity-50"
           />
         </label>
         <div className="text-sm">

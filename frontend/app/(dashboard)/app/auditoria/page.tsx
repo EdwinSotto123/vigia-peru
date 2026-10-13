@@ -114,8 +114,9 @@ export default async function AuditoriaPage({
   const [resumen, zonas, initialCompleto, historicoCompleto, financiadores, ultimo, ritmo, nombreSubzona] = await Promise.all([
     getResumenVivo(),
     getZonas("departamento"),
-    // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó).
-    getProcesamientos({ ...filtros, limit: LIMITE_VIVO }),
+    // El tablero en vivo obedece los mismos filtros que lo ya leído (zona, fecha, quién pagó), y sólo
+    // trae lo que no terminó: lo leído vive en su pestaña (antes viajaban ~380 KB de filas sin dibujar).
+    getProcesamientos({ ...filtros, estado: "activos", limit: LIMITE_VIVO }),
     getProcesamientosPaginado({ ...histQuery, limit: TAM_HISTORICO, offset: (paginaActual - 1) * TAM_HISTORICO }),
     getFinanciadoresProcesamientos(),
     // El último análisis terminado CON LOS FILTROS PUESTOS: es lo que se muestra cuando no
@@ -261,6 +262,8 @@ export default async function AuditoriaPage({
                             initialVersion={resumen?.version ?? null}
                             autoRefreshMs={5000}
                             enPestanas
+                            soloActivos
+                            hayLeidos={(historico?.total ?? 0) > 0}
                             conLlamita
                             panelSecundario={
                               <div className="space-y-4">

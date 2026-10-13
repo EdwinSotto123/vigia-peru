@@ -292,7 +292,7 @@ function Procesamientos() {
       subtitle="Lo que se está leyendo, lo que espera y lo que ya terminó."
       actions={
         <>
-          <button onClick={() => setPanelLote((v) => !v)} aria-expanded={panelLote} className={claseBoton("marca")}>
+          <button onClick={() => setPanelLote((v) => !v)} aria-expanded={panelLote} className={claseBoton(panelLote ? "secundario" : "marca")}>
             <Zap size={12} aria-hidden /> Procesar a nombre de Vigía
           </button>
           <button
@@ -346,7 +346,7 @@ function Procesamientos() {
         {/* ── Filtros de la tabla ── */}
         <div className="flex flex-wrap items-center gap-2">
           {lote && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${TONO.brand.badge}`}>
+            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-medium ${TONO.brand.badge}`}>
               Lote {lote}
               <button onClick={() => filtrar({ lote: null })} aria-label="Quitar filtro de lote" className="rounded-full p-0.5 hover:bg-granate/10">
                 <X size={11} aria-hidden />
@@ -354,9 +354,9 @@ function Procesamientos() {
             </span>
           )}
           {estado !== "todos" && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${ESTADO_UI[estado].badge}`}>
+            <span className={`inline-flex min-h-[30px] items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-medium ${ESTADO_UI[estado].badge}`}>
               {ESTADO_UI[estado].label}
-              <button onClick={() => filtrar({ estado: "todos" })} aria-label="Quitar filtro de estado" className="rounded-full p-0.5 hover:bg-ink/10">
+              <button onClick={() => filtrar({ estado: "todos" })} aria-label="Quitar filtro de estado" className="rounded-full p-0.5 transition-colors duration-rapido hover:bg-paper/40">
                 <X size={11} aria-hidden />
               </button>
             </span>
@@ -365,7 +365,7 @@ function Procesamientos() {
             value={perfil}
             onChange={(e) => filtrar({ perfil: e.target.value as Perfil | "todos" })}
             aria-label="Tipo de contrato"
-            className="rounded-full border border-line bg-paper px-3 py-1 text-xs text-ink"
+            className="min-h-[34px] rounded-full border border-line bg-paperDeep px-3 text-[13px] text-ink focus:border-granate/60"
           >
             <option value="todos">Todos los tipos</option>
             {/* Con la lista cortada, contar ahí daría de menos: sin número. */}
@@ -382,7 +382,7 @@ function Procesamientos() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Código, objeto o entidad"
               aria-label="Buscar contrato"
-              className="w-56 rounded-full border border-line bg-paper py-1 pl-8 pr-3 text-xs text-ink"
+              className="min-h-[34px] w-60 rounded-full border border-line bg-paperDeep py-1 pl-8 pr-3 text-[13px] text-ink placeholder:text-mute focus:border-granate/60"
             />
           </label>
           <Link href="/app/auditoria" target="_blank" className={claseBoton("fantasma")}>

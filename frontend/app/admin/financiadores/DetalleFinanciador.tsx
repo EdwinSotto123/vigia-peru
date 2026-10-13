@@ -40,7 +40,7 @@ export function DetalleFinanciador({
   const redes = REDES.filter((r) => esHttps(f.redes?.[r.red]));
   const nombre = f.nombrePublico ?? "Anónimo";
   return (
-    <section className="rounded-2xl border border-line bg-paper">
+    <section className="rounded-2xl border border-line bg-paperSoft">
       <header className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
         <div className="flex min-w-0 items-start gap-3">
           {f.logoUrl ? (
@@ -64,7 +64,7 @@ export function DetalleFinanciador({
             </div>
           </div>
         </div>
-        <button onClick={onCerrar} aria-label="Cerrar detalle" className="rounded-lg p-1 text-mute hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
+        <button type="button" onClick={onCerrar} aria-label="Cerrar detalle" className="-mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink"><X size={16} aria-hidden /></button>
       </header>
 
       <div className="space-y-4 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
@@ -81,7 +81,7 @@ export function DetalleFinanciador({
         ) : (
           <>
             {esHttps(f.portadaUrl) && (
-              <a href={f.portadaUrl} target="_blank" rel="noopener noreferrer nofollow" className="block overflow-hidden rounded-xl border border-line hover:border-ink/25">
+              <a href={f.portadaUrl} target="_blank" rel="noopener noreferrer nofollow" className="block overflow-hidden rounded-xl border border-line hover:border-paperEdge">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.portadaUrl} alt={`Imagen de portada de ${nombre}`} className="h-20 w-full bg-paperDeep object-cover" />
                 <span className="sr-only">(se abre en otra pestaña)</span>

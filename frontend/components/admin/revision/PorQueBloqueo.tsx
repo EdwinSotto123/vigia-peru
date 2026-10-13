@@ -51,7 +51,7 @@ export function PorQueBloqueo({ d }: { d: RevisionDetalle }) {
   const respaldadas = juzgadas.filter((f) => f.juicio?.respaldada).length;
 
   return (
-    <section aria-labelledby="porque" className="rounded-2xl border border-line bg-paper p-3.5 sm:p-4">
+    <section aria-labelledby="porque" className="rounded-2xl border border-line bg-paperSoft p-3.5 sm:p-4">
       <h2 id="porque" className="text-[11px] font-semibold uppercase tracking-wide text-mute">Por qué se bloqueó</h2>
       <p className="mt-0.5 max-w-3xl text-[12.5px] leading-snug text-inkSoft">
         Un evaluador automático releyó cada señal contra el expediente y el registro oficial. Úsalo como guía: la decisión es tuya.

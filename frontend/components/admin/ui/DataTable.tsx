@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
 import { SkeletonFilas } from "./Skeleton";
+import { claseBoton } from "./boton";
 
 /**
  * Tabla del panel. En escritorio es una <table>; por debajo de `apilarHasta`
@@ -46,6 +47,9 @@ const APILAR = {
 } as const;
 
 const INTERACTIVO = "a,button,input,select,textarea,label,summary,[role=button]";
+
+/** La fila que se está mostrando: el mismo filete lima que la fila resaltada de la `Tabla` pública. */
+const FILA_ELEGIDA = "bg-granate-50 shadow-[inset_3px_0_0_0_theme(colors.granate.DEFAULT)]";
 
 export function DataTable<T>({
   columnas,
@@ -136,7 +140,7 @@ export function DataTable<T>({
   const faltan = filas ? Math.max(0, filas.length - pintadas) : 0;
 
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-line bg-paper", className)} aria-busy={cargando || undefined}>
+    <div className={cn("overflow-hidden rounded-2xl border border-line bg-paperSoft", className)} aria-busy={cargando || undefined}>
       {esperando ? (
         // Sin filas todavía no es "vacío": o está cargando o falló (el aviso de error va arriba, en la página).
         // Nunca se muestra `vacio` acá: diría "no hay nada" cuando en realidad no sabemos.
@@ -149,14 +153,14 @@ export function DataTable<T>({
           <div className={cn("overflow-x-auto", APILAR[apilarHasta].tabla)}>
             <table className={cn("w-full text-sm", anchoMinimo)}>
               <caption className="sr-only">{etiqueta}</caption>
-              <thead className="text-left text-[11px] text-mute">
+              <thead className="bg-paperDeep/50 text-left text-[12px] text-mute">
                 <tr>
                   {columnas.map((c, i) => (
                     <th
                       key={c.clave}
                       scope="col"
                       className={cn(
-                        "px-2 py-2 font-medium",
+                        "px-3 py-2.5 font-medium",
                         i === 0 && "pl-4",
                         i === columnas.length - 1 && "pr-4",
                         (c.alinear === "derecha" || c.acciones) && "text-right",
@@ -178,16 +182,16 @@ export function DataTable<T>({
                       onMouseEnter={alAcercarse ? () => alAcercarse(f) : undefined}
                       onFocus={alAcercarse ? () => alAcercarse(f) : undefined}
                       className={cn(
-                        "border-t border-line align-middle transition-colors duration-rapido",
-                        clickeable && "cursor-pointer hover:bg-paperSoft",
-                        activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]",
+                        "border-t border-line/70 align-middle transition-colors duration-rapido",
+                        clickeable && "cursor-pointer hover:bg-paperDeep/50",
+                        activa && FILA_ELEGIDA,
                       )}
                     >
                       {columnas.map((c, i) => (
                         <td
                           key={c.clave}
                           className={cn(
-                            "px-2 py-1.5",
+                            "px-3 py-2",
                             i === 0 && "pl-4",
                             i === columnas.length - 1 && "pr-4",
                             (c.alinear === "derecha" || c.acciones) && "text-right",
@@ -214,7 +218,7 @@ export function DataTable<T>({
                   key={claveFila(f)}
                   onClick={clickeable ? (e) => alClicFila(e, f) : undefined}
                   onFocus={alAcercarse ? () => alAcercarse(f) : undefined}
-                  className={cn("px-4 py-2.5", clickeable && "cursor-pointer active:bg-paperSoft", activa && "bg-paperSoft shadow-[inset_3px_0_0_#D4FF3F]")}
+                  className={cn("px-4 py-3", clickeable && "cursor-pointer active:bg-paperDeep/50", activa && FILA_ELEGIDA)}
                 >
                   <div className="min-w-0">{celdaPrincipal(f)}</div>
                   {resto.length > 0 && (
@@ -237,11 +241,7 @@ export function DataTable<T>({
               <span>
                 Se muestran {pintadas.toLocaleString("es-PE")} de {filas!.length.toLocaleString("es-PE")}
               </span>
-              <button
-                type="button"
-                onClick={() => setPintadas((n) => n + (ventana ?? 50))}
-                className="min-h-9 rounded-full border border-line px-3 font-semibold text-ink hover:bg-paperSoft"
-              >
+              <button type="button" onClick={() => setPintadas((n) => n + (ventana ?? 50))} className={claseBoton("secundario", "xs")}>
                 Ver {Math.min(faltan, ventana ?? 50).toLocaleString("es-PE")} más
               </button>
             </div>

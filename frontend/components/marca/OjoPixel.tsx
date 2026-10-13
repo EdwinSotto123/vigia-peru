@@ -77,8 +77,8 @@ export function OjoPixel({
                   transformBox: "fill-box",
                   transformOrigin: "center",
                   animation: p.pupila
-                    ? `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms both, pupilaLatido 2.4s ease-in-out ${p.retardo + 1400}ms infinite`
-                    : `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms both`,
+                    ? `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms backwards, pupilaLatido 2.4s ease-in-out ${p.retardo + 1400}ms infinite`
+                    : `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms backwards`,
                 }
               : undefined
           }

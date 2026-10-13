@@ -138,6 +138,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
   const [subido, setSubido] = useState(false);
   const [masDatos, setMasDatos] = useState(false);
   const restaurado = useRef(false);
+  const [listo, setListo] = useState(false);   // el borrador ya se aplicó al estado: recién ahí se puede volver a guardar
   const verificacion = useTurnstile("aporte");
 
   const contratos = /^\d+$/.test(cantidadTxt) ? Number.parseInt(cantidadTxt, 10) : Number.NaN;
@@ -148,7 +149,7 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
     if (restaurado.current) return;
     restaurado.current = true;
     const b = leerBorrador(clave);
-    if (!b) return;
+    if (!b) { setListo(true); return; }
     if (b.contratos >= minimo && b.contratos <= restantes) setCantidadTxt(String(b.contratos));
     if (b.tipo) setTipo(b.tipo as Tipo);
     setNombre(b.nombre ?? ""); setRuc(b.ruc ?? ""); setEmail(b.email ?? ""); setMensaje(b.mensaje ?? "");
@@ -156,12 +157,14 @@ function FormCiudadano({ alcance, precioPen, restantes, metodos = [], pagoConfig
     if (b.creada && Date.now() - new Date(b.creada.creadaAt).getTime() < 7 * 86_400_000) {
       setCreada(b.creada as unknown as Creada);
     }
+    setListo(true);
   }, [clave, restantes, minimo]);
   useEffect(() => {
-    if (!restaurado.current) return;
+    // Sin esperar a `listo`, este efecto corría en el MISMO montaje con el estado vacío y pisaba el borrador (el aporte creado).
+    if (!listo) return;
     guardarBorrador({ ubigeo: clave, contratos: Number.isFinite(contratos) ? contratos : 0, tipo, nombre, ruc, email, mensaje, metodo,
       creada: creada ? { ...creada, creadaAt: leerBorrador(clave)?.creada?.creadaAt ?? new Date().toISOString() } : null });
-  }, [clave, contratos, tipo, nombre, ruc, email, mensaje, metodo, creada]);
+  }, [listo, clave, contratos, tipo, nombre, ruc, email, mensaje, metodo, creada]);
 
   // Con sesión: identidad desde la cuenta (si el usuario quiere aparecer en el muro, con su nombre; si no, anónimo).
   const conCuenta = !!user;

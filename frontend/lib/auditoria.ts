@@ -285,7 +285,8 @@ async function getJson<T>(path: string, revalidate = 5): Promise<T | null> {
 export interface ProcesamientosQuery {
   ubigeo?: string;
   codigo?: string;
-  estado?: Exclude<EstadoProc, "revision">;
+  /** `activos`: todo lo que aún no terminó bien (en análisis, en cola, esperando documentos, con error…). */
+  estado?: Exclude<EstadoProc, "revision"> | "activos";
   financiador?: string;
   /** YYYY-MM-DD, sobre `encolado_at` (el único timestamp que siempre existe). */
   desde?: string;

@@ -236,7 +236,7 @@ function DetalleCarril({ carril }: { carril: CarrilDatos }) {
           Síntesis esperan a que el expediente esté leído. */}
       <div className="relative mt-3 h-1 overflow-hidden rounded-full bg-paper/10" aria-hidden>
         <span
-          className="animate-rielPulso absolute top-0 h-full w-1/5 rounded-full bg-gradient-to-r from-transparent via-maiz to-transparent"
+          className="animate-rielPulso absolute inset-0 bg-gradient-to-r from-transparent via-maiz to-transparent bg-[length:20%_100%] bg-no-repeat"
           style={{ animationDelay: `${carril.arranque * TURNO}s` }}
         />
       </div>
@@ -280,7 +280,7 @@ function ChipPaso({ p, turno }: { p: PasoPipeline; turno: number }) {
     <Popover
       titulo={p.titulo}
       anchoClase="w-80"
-      className={`animate-pasoCorriendo block w-full rounded-2xl border px-3.5 py-2.5 text-left ${t.caja}`}
+      className={`paso-corriendo block w-full rounded-2xl border px-3.5 py-2.5 text-left ${t.caja}`}
       estilo={{ animationDelay: `${turno * TURNO}s` }}
       trigger={
         <span className="block">

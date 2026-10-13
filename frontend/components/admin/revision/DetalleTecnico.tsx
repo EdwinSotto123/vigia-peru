@@ -64,7 +64,7 @@ export function DetalleTecnico({ d }: { d: RevisionDetalle }) {
   const u = d.umbrales;
 
   return (
-    <details className="group rounded-2xl border border-line bg-paper">
+    <details className="group rounded-2xl border border-line bg-paperSoft">
       <summary className="flex cursor-pointer list-none items-start gap-2.5 px-4 py-2.5 sm:px-5 [&::-webkit-details-marker]:hidden">
         <Wrench size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">

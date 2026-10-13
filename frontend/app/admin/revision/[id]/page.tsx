@@ -109,7 +109,7 @@ function ErrorCarga({ error, onReintentar }: { error: AdminError; onReintentar: 
   const noExiste = error.status === 404 || error.status === 400;
   const x = explicarError(error);
   return (
-    <div role="alert" className="mx-auto max-w-xl rounded-2xl border border-line bg-paper p-6 text-center">
+    <div role="alert" className="mx-auto max-w-xl rounded-2xl border border-line bg-paperSoft p-6 text-center">
       <AlertTriangle size={28} className="mx-auto text-amberTexto" aria-hidden />
       <h2 className="mt-3 font-display text-lg font-bold text-ink">{noExiste ? "Esta alerta no existe" : "No se pudo cargar la revisión"}</h2>
       <p className="mt-1 text-sm text-inkSoft">

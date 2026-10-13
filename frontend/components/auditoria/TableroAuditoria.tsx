@@ -282,6 +282,14 @@ interface Props {
    * que usan el tablero ya tienen la suya en otro lado.
    */
   conLlamita?: boolean;
+  /**
+   * Con lo leído aparte (`enPestanas`), la lista sólo pide lo que NO terminó (`?estado=activos`):
+   * antes bajaba hasta 300 filas, casi todas ya leídas y sin dibujarse, ~600 KB en cada cambio
+   * de versión. Una fila que sale de la lista terminó su análisis (procesado o en revisión).
+   */
+  soloActivos?: boolean;
+  /** Con `soloActivos`: hay contratos ya leídos con estos filtros, así que una lista vacía no es "nada todavía". */
+  hayLeidos?: boolean;
 }
 
 export function TableroAuditoria({
@@ -301,6 +309,8 @@ export function TableroAuditoria({
   enPestanas = false,
   panelSecundario,
   conLlamita = false,
+  soloActivos = false,
+  hayLeidos = false,
 }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<Procesamiento[]>(initial ?? []);
@@ -314,15 +324,19 @@ export function TableroAuditoria({
   const abortRef = useRef<AbortController | null>(null);
   // El último cuerpo recibido: si llega igual (un 304 revalidado, o nada cambió), no se toca nada.
   const ultimoTexto = useRef<string | null>(null);
-  // Estado conocido de cada fila (crudo y visible), para detectar cambios reales entre sondeos.
-  const conocido = useRef<Map<string, { crudo: EstadoProc; visible: EstadoProc }> | null>(
-    initial ? new Map(initial.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p) }])) : null,
+  // Estado conocido de cada fila (crudo y visible), para detectar cambios reales entre sondeos. El título
+  // sirve para anunciar una fila que dejó la lista (con `soloActivos`, la que terminó su análisis).
+  const conocido = useRef<Map<string, { crudo: EstadoProc; visible: EstadoProc; titulo: string }> | null>(
+    initial ? new Map(initial.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p), titulo: p.titulo ?? p.ocid }])) : null,
   );
   const raiz = useRef<HTMLDivElement>(null);
   const rectsAntes = useRef<Map<string, DOMRect> | null>(null);
   const menosMovimiento = useRef(false);
 
-  const filtros: ProcesamientosQuery = useMemo(() => ({ ubigeo, codigo, desde, hasta, financiador }), [ubigeo, codigo, desde, hasta, financiador]);
+  const filtros: ProcesamientosQuery = useMemo(
+    () => ({ ubigeo, codigo, desde, hasta, financiador, estado: soloActivos ? ("activos" as const) : undefined }),
+    [ubigeo, codigo, desde, hasta, financiador, soloActivos],
+  );
 
   useEffect(() => {
     try {
@@ -371,8 +385,15 @@ export function TableroAuditoria({
             cambios.push({ ocid: p.ocid, titulo: p.titulo ?? p.ocid, de: antes.visible, a: visible, grupoDe: grupoDe(antes.crudo), grupoA: grupoDe(p.estado) });
           }
         }
+        // Sólo lo activo viaja: la fila que ya no está terminó su análisis (leída o en revisión).
+        if (soloActivos) {
+          const siguen = new Set(data.map((p) => p.ocid));
+          for (const [ocid, antes] of prev) {
+            if (!siguen.has(ocid)) cambios.push({ ocid, titulo: antes.titulo, de: antes.visible, a: "procesado", grupoDe: grupoDe(antes.crudo), grupoA: "procesado" });
+          }
+        }
       }
-      conocido.current = new Map(data.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p) }]));
+      conocido.current = new Map(data.map((p) => [p.ocid, { crudo: p.estado, visible: estadoVisible(p), titulo: p.titulo ?? p.ocid }]));
 
       if (cambios.length) {
         // FLIP, primer paso: dónde estaba cada fila que cambia de grupo.
@@ -411,7 +432,7 @@ export function TableroAuditoria({
     } finally {
       if (!ctrl.signal.aborted) setCargado(true);
     }
-  }, [filtros, limit, router, filaDe]);
+  }, [filtros, limit, router, filaDe, soloActivos]);
 
   const { senal, falloResumen } = useSenalResumen(autoRefreshMs);
   // Sin ningún resumen y con el resumen caído, no hay versión que esperar: se sondea la lista.
@@ -631,7 +652,7 @@ export function TableroAuditoria({
         </p>
       )}
 
-      {cargado && items.length === 0 ? (
+      {cargado && items.length === 0 && !(soloActivos && hayLeidos) ? (
         <VacioTablero
           fallo={sinConexion}
           codigo={codigo}

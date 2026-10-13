@@ -13,6 +13,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { X, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { claseBoton } from "./ui/boton";
 
 export interface DialogField {
   name: string;
@@ -51,7 +52,8 @@ export function useDialog(): Ctx {
   return ctx;
 }
 
-const CAMPO = "mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm";
+// Los campos hundidos del sitio (DESIGN_SYSTEM.md §5): radio xl, fondo paperDeep, foco en lima.
+const CAMPO = "mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2 text-sm text-ink placeholder:text-mute focus:border-granate/60";
 
 export function DialogProvider({ children }: { children: React.ReactNode }) {
   const [spec, setSpec] = useState<DialogSpec | null>(null);
@@ -120,7 +122,8 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     finally { setBusy(false); }
   }
 
-  const toneBtn = spec?.tone === "danger" ? "bg-rust text-paper" : spec?.tone === "success" ? "bg-moss text-paper" : "bg-ink text-paper";
+  // La acción del diálogo: lima por defecto (la acción principal), rojo si destruye, verde si confirma un pago.
+  const toneBtn = spec?.tone === "danger" ? "bg-rust text-paper hover:bg-rust/90" : spec?.tone === "success" ? "bg-moss text-paper hover:bg-moss/90" : "bg-granate text-paper hover:bg-granate-deep";
   const campos = spec?.fields ?? [];
 
   return (
@@ -136,15 +139,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         onClose={() => { if (spec && !dlg.current?.open) cerrar(); }}
         onMouseDown={(e) => { pulsoEnFondo.current = e.target === e.currentTarget; }}
         onClick={(e) => { if (e.target === e.currentTarget && pulsoEnFondo.current && !busy) cerrar(); }}
-        className="mx-auto mb-4 mt-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-line bg-paper p-0 text-ink shadow-xl backdrop:bg-ink/40 backdrop:backdrop-blur-sm sm:my-auto"
+        className="mx-auto mb-4 mt-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-line bg-paperSoft p-0 text-ink shadow-dialog sm:my-auto"
       >
         {spec && (
           <div className="p-5">
             <div className="flex items-start justify-between gap-3">
               <h3 id={idTitulo} className="font-display text-lg font-bold text-ink">{spec.title}</h3>
-              <button type="button" onClick={() => !busy && cerrar()} className="text-mute hover:text-ink" aria-label="Cerrar"><X size={16} aria-hidden /></button>
+              <button type="button" onClick={() => !busy && cerrar()} className="-mr-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-mute transition-colors duration-rapido hover:bg-paperDeep hover:text-ink" aria-label="Cerrar"><X size={16} aria-hidden /></button>
             </div>
-            {spec.body && <div id={idCuerpo} className="mt-2 text-sm text-mute">{spec.body}</div>}
+            {spec.body && <div id={idCuerpo} className="mt-2 text-sm leading-relaxed text-inkSoft">{spec.body}</div>}
             {campos.map((f, i) => {
               const valor = values[f.name] ?? "";
               // Sólo el primero se enfoca al abrir (ver el efecto de arriba).
@@ -152,7 +155,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
               const cambiar = (v: string) => setValues((vs) => ({ ...vs, [f.name]: v }));
               return (
                 <label key={f.name} className="mt-3 block text-sm">
-                  <span className="text-mute">{f.label}{f.required && " *"}</span>
+                  <span className="font-medium text-inkSoft">{f.label}{f.required && " *"}</span>
                   {f.type === "textarea" ? (
                     <textarea rows={3} value={valor} data-foco-inicial={inicial} onChange={(e) => cambiar(e.target.value)} placeholder={f.placeholder} required={f.required} className={CAMPO} />
                   ) : f.type === "select" ? (
@@ -166,15 +169,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                 </label>
               );
             })}
-            {error && <p role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-rust"><AlertTriangle size={14} className="shrink-0" aria-hidden />{error}</p>}
+            {error && <p role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-crimsonTexto"><AlertTriangle size={14} className="shrink-0" aria-hidden />{error}</p>}
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={cerrar} disabled={busy} className="rounded-lg border border-line px-3 py-2 text-sm text-ink hover:bg-paperDeep">Cancelar</button>
+              <button type="button" onClick={cerrar} disabled={busy} className={claseBoton("secundario", "md")}>Cancelar</button>
               <button
                 type="button"
                 onClick={confirm}
                 disabled={busy}
                 data-foco-inicial={campos.length ? undefined : ""}
-                className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-60", toneBtn)}
+                className={cn("inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-5 text-sm font-semibold transition-colors duration-rapido active:translate-y-px disabled:opacity-60", toneBtn)}
               >
                 {busy && <Loader2 size={14} className="animate-spin" aria-hidden />}{spec.confirmLabel ?? "Confirmar"}
               </button>
@@ -185,8 +188,8 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
       {/* Siempre montada: una región viva tiene que existir antes de que llegue el aviso. */}
       <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map((t) => (
-          <div key={t.id} className={cn("pointer-events-auto flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm shadow-lg", t.tone === "ok" ? "bg-ink text-paper" : "bg-rust text-paper")}>
-            {t.tone === "ok" ? <CheckCircle2 size={14} aria-hidden /> : <AlertTriangle size={14} aria-hidden />}{t.text}
+          <div key={t.id} className={cn("pointer-events-auto flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm shadow-pop", t.tone === "ok" ? "border-moss/35 bg-paperDeep text-ink" : "border-rust/40 bg-crimson-soft text-crimsonTexto")}>
+            {t.tone === "ok" ? <CheckCircle2 size={15} className="shrink-0 text-mossTexto" aria-hidden /> : <AlertTriangle size={15} className="shrink-0" aria-hidden />}{t.text}
           </div>
         ))}
       </div>

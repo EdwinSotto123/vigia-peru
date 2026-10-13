@@ -47,7 +47,7 @@ export default function AdminLoading() {
 }
 
 const Caja = ({ className }: { className: string }) => (
-  <div className={`rounded-2xl border border-line bg-paper p-4 ${className}`}>
+  <div className={`rounded-2xl border border-line bg-paperSoft p-4 ${className}`}>
     <Skeleton className="h-3 w-24" />
     <Skeleton className="mt-3 h-6 w-20" />
     <Skeleton className="mt-2 h-3 w-4/5" />
@@ -96,7 +96,7 @@ function CuerpoTabla() {
 
 function Lista({ filas, className = "" }: { filas: number; className?: string }) {
   return (
-    <section className={`rounded-2xl border border-line bg-paper p-5 ${className}`}>
+    <section className={`rounded-2xl border border-line bg-paperSoft p-5 ${className}`}>
       <Skeleton className="h-4 w-40" />
       <ul className="mt-3 divide-y divide-line">
         {Array.from({ length: filas }, (_, i) => (

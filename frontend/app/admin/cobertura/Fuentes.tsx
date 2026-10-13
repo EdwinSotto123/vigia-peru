@@ -106,7 +106,7 @@ export function Fuentes({ fuentes }: { fuentes: Fuente[] }) {
       <Expandable variante="linea" resumen={`Detalle técnico de las cargas (${conCargas} fuentes con registro)`}>
         <div className="grid gap-2 md:grid-cols-2">
           {filas.filter((x) => x.f).map(({ clave, f, meta }) => (
-            <div key={clave} className="min-w-0 rounded-xl border border-line bg-paper px-3 py-2">
+            <div key={clave} className="min-w-0 rounded-xl border border-line bg-paperSoft px-3 py-2">
               <p className="text-[13px] font-medium text-ink">{meta.nombre}</p>
               <p className="truncate font-mono text-[11px] text-mute" title={`${clave}${f!.tabla ? ` → ${f!.tabla}` : ""}`}>{clave}{f!.tabla ? ` → ${f!.tabla}` : ""}</p>
               <p className="text-[12px] leading-snug text-inkSoft">

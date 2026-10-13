@@ -69,7 +69,7 @@ const SECCIONES: { nombre: string; ruta: string }[] = [
 function MatrizSecciones() {
   const mitad = Math.ceil(SECCIONES.length / 2);
   return (
-    <div className="mt-3 grid overflow-hidden rounded-2xl border border-line bg-paper md:grid-cols-2 md:divide-x md:divide-line">
+    <div className="mt-3 grid overflow-hidden rounded-2xl border border-line bg-paperSoft md:grid-cols-2 md:divide-x md:divide-line">
       {[SECCIONES.slice(0, mitad), SECCIONES.slice(mitad)].map((grupo, g) => (
       <table key={g} className="w-full self-start text-[13px]">
         <caption className="sr-only">Qué secciones del panel ve cada perfil</caption>
@@ -256,7 +256,7 @@ export default function EquipoPage() {
         <PageSection titulo="Personas" meta={filas ? `${filas.length}` : undefined}>
           {filas && filas.length > 0 && filas.length <= 3 ? (
             // Un equipo chico no necesita una tabla de columnas con una fila perdida: una línea por persona.
-            <ul aria-label="Personas del equipo" className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+            <ul aria-label="Personas del equipo" className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paperSoft">
               {filas.map((m) => (
                 <li key={m.correo} className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5">
                   <div className="min-w-0 flex-1 basis-56 text-sm">{columnas[0].celda(m)}</div>
@@ -320,7 +320,7 @@ function ActividadReciente() {
   if (!data) return isLoading ? <div className="h-24 animate-pulse rounded-2xl bg-paperDeep" aria-hidden /> : null;
   if (!filas.length) return <EmptyState compacto titulo="Todavía no hay acciones" descripcion="Validar un aporte o publicar una alerta deja aquí una línea con quién lo hizo." />;
   return (
-    <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
+    <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paperSoft">
       {filas.map(({ e, a }, i) => (
         <li key={`${e.createdAt}-${i}`} className="flex items-start gap-3 px-4 py-2 text-[13px] leading-snug">
           <Punto tono={a.tono} className="mt-1.5" />

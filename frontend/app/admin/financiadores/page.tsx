@@ -186,7 +186,9 @@ export default function FinanciadoresPage() {
           meta={rows ? `${rows.length}` : undefined}
           descripcion="Elige uno para ver lo que publicó. Ocultar no toca su dinero ni sus asignaciones: solo lo saca del ranking, del muro, de su página y de los comprobantes públicos."
         >
-          <div className={rows?.length ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]" : "grid gap-4"}>
+          {/* La columna del perfil existe sólo con alguien elegido: reservada vacía, angostaba la tabla y la hacía
+              deslizar de costado (como en Contribuciones). */}
+          <div className={sel ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]" : "grid gap-4"}>
             <DataTable
               etiqueta="Financiadores"
               columnas={columnas}
@@ -200,16 +202,16 @@ export default function FinanciadoresPage() {
               vacio={<EmptyState compacto icono={<Users size={18} />} titulo="Todavía no hay financiadores" descripcion="Aparecen cuando alguien registra su primer aporte en la página pública de financiar." />}
             />
 
-            <aside ref={detalleRef} className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start" aria-label="Perfil del financiador">
-              {sel ? (
+            {sel ? (
+              <aside ref={detalleRef} className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start" aria-label="Perfil del financiador">
                 <DetalleFinanciador key={sel.id} f={sel} perfilDisponible={perfilDisponible} onModerar={() => toggle(sel)} onCerrar={() => setElegidoId(null)} />
-              ) : rows?.length ? (
-                <p className="flex items-start gap-2 rounded-xl border border-dashed border-line px-3 py-2.5 text-[12.5px] leading-snug text-inkSoft">
-                  <MousePointerClick size={15} className="mt-0.5 shrink-0" aria-hidden />
-                  <span><strong className="font-semibold text-ink">Elige un financiador</strong> para ver lo que publicó, sus cifras y ocultarlo o mostrarlo.</span>
-                </p>
-              ) : null}
-            </aside>
+              </aside>
+            ) : rows?.length ? (
+              <p className="flex items-center gap-2 text-[12.5px] text-inkSoft">
+                <MousePointerClick size={14} className="shrink-0" aria-hidden />
+                <span><strong className="font-semibold text-ink">Elige un financiador</strong> para ver lo que publicó, sus cifras y ocultarlo o mostrarlo.</span>
+              </p>
+            ) : null}
           </div>
         </PageSection>
       </div>

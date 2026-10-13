@@ -16,7 +16,7 @@ export function Badge({
   children: React.ReactNode;
 }) {
   return (
-    <span title={title} className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4", TONO[tono].badge, className)}>
+    <span title={title} className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11.5px] font-medium leading-4", TONO[tono].badge, className)}>
       {punto && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONO[tono].punto)} aria-hidden />}
       {children}
     </span>

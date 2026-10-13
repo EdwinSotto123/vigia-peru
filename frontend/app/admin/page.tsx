@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, ChevronDown, ExternalLink, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { cn } from "@/lib/utils";
 import { ESTADO_UI as ESTADO_PROC, ORDEN_BARRA, SONDEO_OPERACION, type Estado } from "@/components/admin/procesamiento/tipos";
 import { fmtPEN, PERFIL_LABEL, type Operacion, type Resumen, type SaludServicio } from "@/lib/admin";
 import { useAdmin } from "@/lib/useAdmin";
@@ -271,7 +272,7 @@ export default function AdminHome() {
         </button>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-6">
         <ErrorBanner error={opQ.error} titulo="No se pudo leer el estado del sistema" onReintentar={() => opQ.mutate()} />
 
         <PageSection titulo="Espera una decisión">
@@ -322,213 +323,215 @@ export default function AdminHome() {
           </StatGrid>
         </PageSection>
 
-        <div className="grid items-start gap-5 xl:grid-cols-2">
-          <PageSection titulo="Salud del sistema" meta={op ? `${enOrden} de ${salud.length} en orden` : undefined} className="min-w-0">
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              {op ? (
-                <ul className="divide-y divide-line">
-                  {salud.map((c) => <FilaChequeo key={c.clave} c={c} />)}
-                </ul>
-              ) : cargandoOp ? (
-                <SkeletonFilas filas={5} columnas={2} />
-              ) : (
-                <EmptyState compacto titulo="El estado no llegó" descripcion="Reintenta desde el aviso de arriba." />
-              )}
-            </div>
-          </PageSection>
-
-          <div className="min-w-0 space-y-5">
-          <PageSection
-            titulo="Cola de procesamiento"
-            meta={op ? plural(totalCola, "contrato", "contratos") : undefined}
-            acciones={
-              <Link href="/admin/procesamientos" className={claseBoton("secundario")}>
-                Abrir <ArrowRight size={12} aria-hidden />
-              </Link>
-            }
-            className="min-w-0"
-          >
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              {op ? (
-                <>
-                  {totalCola > 0 && (
-                    <div className="px-4 pt-3" aria-hidden>
-                      <div className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep">
-                        {ORDEN_BARRA.map((e) => ((cola[e] ?? 0) > 0 ? <span key={e} className={ESTADO_PROC[e].barra} style={{ width: `${((cola[e] ?? 0) / totalCola) * 100}%` }} /> : null))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Solo los estados que tienen algo: una lista de ceros no dice nada y la alarga. */}
-                  <ul className="mt-2 divide-y divide-line">
-                    {FILAS_COLA.filter((e) => (cola[e] ?? 0) > 0).map((e) => (
-                      <li key={e}>
-                        <FilaCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} etiqueta={ESTADO_PROC[e].label} n={cola[e] ?? 0} ayuda={AYUDA_COLA[e]} total={totalCola + (cola.revision ?? op.revision.n)} />
-                      </li>
-                    ))}
-                    {(cola.revision ?? op.revision.n) > 0 && (
-                      <li>
-                        <FilaCola href="/admin/revision" tono="pending" etiqueta="En revisión humana" n={cola.revision ?? op.revision.n} ayuda={AYUDA_COLA.revision} total={totalCola + (cola.revision ?? op.revision.n)} />
-                      </li>
-                    )}
-                    {totalCola === 0 && !(cola.revision ?? op.revision.n) && (
-                      <li className="px-4 py-2.5 text-[13px] text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
-                    )}
-                  </ul>
-                </>
-              ) : cargandoOp ? (
-                <SkeletonFilas filas={6} columnas={2} />
-              ) : (
-                <EmptyState compacto titulo="La cola no llegó" descripcion="Reintenta desde el aviso de arriba." />
-              )}
-              <p className="border-t border-line px-4 py-2.5 text-[12px] text-inkSoft">
-                {k ? <><span className="font-mono text-ink">{fmtNum(k.colaGlobal)}</span> contratos esperan financiamiento en todo el país.</> : cargandoRes ? "Contando los que esperan financiamiento…" : "Sin dato de la cola sin financiar."}
-              </p>
-            </div>
-          </PageSection>
-        {verFinanciamiento && (
-          <PageSection
-            titulo="Financiamiento"
-            acciones={
-              <>
-                <Link href="/admin/contribuciones" className={claseBoton("secundario")}>Contribuciones</Link>
-                <Link href="/admin/financiadores" className={claseBoton("secundario")}>Financiadores</Link>
-              </>
-            }
-          >
-            <ErrorBanner error={resQ.error} titulo="No se pudieron leer las cifras de financiamiento" onReintentar={() => resQ.mutate()} className="mb-3" />
-            <StatGrid columnas={2}>
-              <StatCard etiqueta="Recaudado" valor={k ? fmtPEN(k.montoConfirmadoPen) : null} cargando={cargandoRes} pista={k ? `${fmtPEN(k.montoMesPen)} este mes` : undefined} href="/admin/contribuciones?estado=todas" />
-              <StatCard
-                etiqueta="Contratos financiados"
-                valor={k?.contratosFinanciados ?? null}
-                cargando={cargandoRes}
-                pista={k ? `${fmtNum(k.procesados)} leídos` : undefined}
-                href="/admin/procesamientos"
-              />
-            </StatGrid>
-            <StatGrid columnas={2} className="mt-2">
-              <StatCard etiqueta="Señales halladas" valor={k?.senales ?? null} cargando={cargandoRes} pista={k?.enRevision ? `${fmtNum(k.enRevision)} en revisión aparte` : undefined} />
-              <StatCard
-                etiqueta="Financiadores"
-                valor={k?.financiadores ?? null}
-                cargando={cargandoRes}
-                pista={k ? (k.financiadoresOcultos ? `${plural(k.financiadoresOcultos, "oculto", "ocultos")} al público` : "todos visibles") : undefined}
-                href="/admin/financiadores"
-              />
-            </StatGrid>
-            {data && data.porEstado.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[12px] font-medium text-inkSoft">Aportes</span>
-                <ul className="contents">
-                  {data.porEstado.map((e) => {
-                    const x = estadoAporte(e.estado);
-                    return (
-                      <li key={e.estado}>
-                        <Link
-                          href={`/admin/contribuciones?estado=${encodeURIComponent(e.estado)}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-line bg-paper py-1 pl-1 pr-3 text-[12px] transition-colors duration-rapido hover:border-ink/25"
-                        >
-                          <Badge tono={x.tono} punto>{x.label}</Badge>
-                          <span className="font-mono text-ink">{fmtNum(e.n)}</span>
-                          <span className="text-mute">{fmtPEN(e.monto)}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </PageSection>
-        )}
-          </div>
-        </div>
-
-
-        <div className="grid items-start gap-5 xl:grid-cols-2">
-          <PageSection
-            titulo="Últimos procesados"
-            acciones={
-              <Link href="/app/auditoria" target="_blank" className={claseBoton("secundario")}>
-                <ExternalLink size={12} aria-hidden /> Tablero público
-              </Link>
-            }
-            className="min-w-0"
-          >
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              {op ? (
-                op.ultimos.length ? (
+        {/* Dos columnas que se apilan cada una por su cuenta: con una grilla de filas, la columna más corta
+            dejaba un hueco hasta la fila siguiente. Izquierda, el sistema; derecha, la plata y lo que pasó. */}
+        <div className="grid items-start gap-6 xl:grid-cols-2">
+          <div className="min-w-0 space-y-6">
+            <PageSection titulo="Salud del sistema" meta={op ? `${enOrden} de ${salud.length} en orden` : undefined}>
+              <div className={CAJA}>
+                {op ? (
                   <ul className="divide-y divide-line">
-                    {op.ultimos.map((u) => (
-                      <li key={u.ocid}>
-                        <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className="block px-4 py-2.5 transition-colors duration-rapido hover:bg-paperSoft">
-                          <span className="flex items-start justify-between gap-3">
-                            <span className="line-clamp-1 min-w-0 text-[13px] font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
-                            <span className="shrink-0 text-[11px] text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>
-                          </span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-mute">
-                            <span className="font-mono">{u.ocid}</span>
-                            {u.score != null && <span>puntaje {u.score}</span>}
-                            {u.segundos != null && <span>leído en {duracion(u.segundos)}</span>}
-                            {u.alertaEstado === "revision" && <Badge tono="pending">En revisión</Badge>}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
+                    {salud.map((c) => <FilaChequeo key={c.clave} c={c} />)}
                   </ul>
+                ) : cargandoOp ? (
+                  <SkeletonFilas filas={5} columnas={2} />
                 ) : (
-                  <EmptyState compacto icono={<ShieldCheck size={18} />} titulo="Nada procesado todavía" descripcion="Valida un aporte o procesa un lote: lo que se lea aparece aquí." />
-                )
-              ) : cargandoOp ? (
-                <SkeletonFilas filas={5} columnas={2} />
-              ) : (
-                <EmptyState compacto titulo="La lista no llegó" descripcion="Reintenta desde el aviso de arriba." />
-              )}
-            </div>
-          </PageSection>
+                  <EmptyState compacto titulo="El estado no llegó" descripcion="Reintenta desde el aviso de arriba." />
+                )}
+              </div>
+            </PageSection>
 
-          <PageSection
-            titulo="Actividad reciente"
-            acciones={
-              <Link href="/admin/bitacora" className={claseBoton("secundario")}>
-                Ver bitácora <ArrowRight size={12} aria-hidden />
-              </Link>
-            }
-            className="min-w-0"
-          >
-            <ErrorBanner error={logQ.error} titulo="No se pudo leer la bitácora" onReintentar={() => logQ.mutate()} className="mb-3" />
-            <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-              {cargandoLog ? (
-                <SkeletonFilas filas={5} columnas={2} />
-              ) : log.length ? (
-                <ol className="divide-y divide-line">
-                  {log.map((e, i) => <FilaActividad key={`${e.createdAt}-${i}`} e={e} rol={rol} />)}
-                </ol>
-              ) : (
-                <EmptyState compacto icono={<ScrollText size={18} />} titulo="Sin acciones registradas" descripcion="Validar un aporte, publicar una alerta o editar un ajuste deja aquí una línea con tu correo." />
-              )}
-            </div>
-          </PageSection>
+            <PageSection
+              titulo="Cola de procesamiento"
+              meta={op ? plural(totalCola, "contrato", "contratos") : undefined}
+              acciones={
+                <Link href="/admin/procesamientos" className={claseBoton("secundario")}>
+                  Abrir <ArrowRight size={13} aria-hidden />
+                </Link>
+              }
+            >
+              <div className={CAJA}>
+                {op ? (
+                  <>
+                    {totalCola > 0 && (
+                      <div className="px-4 pt-3.5" aria-hidden>
+                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-paperDeep">
+                          {ORDEN_BARRA.map((e) => ((cola[e] ?? 0) > 0 ? <span key={e} className={ESTADO_PROC[e].barra} style={{ width: `${((cola[e] ?? 0) / totalCola) * 100}%` }} /> : null))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Solo los estados que tienen algo: una lista de ceros no dice nada y la alarga. */}
+                    <ul className="mt-2 divide-y divide-line">
+                      {FILAS_COLA.filter((e) => (cola[e] ?? 0) > 0).map((e) => (
+                        <li key={e}>
+                          <FilaCola href={`/admin/procesamientos?estado=${e}`} tono={ESTADO_PROC[e].tono} etiqueta={ESTADO_PROC[e].label} n={cola[e] ?? 0} ayuda={AYUDA_COLA[e]} />
+                        </li>
+                      ))}
+                      {(cola.revision ?? op.revision.n) > 0 && (
+                        <li>
+                          <FilaCola href="/admin/revision" tono="pending" etiqueta="En revisión humana" n={cola.revision ?? op.revision.n} ayuda={AYUDA_COLA.revision} />
+                        </li>
+                      )}
+                      {totalCola === 0 && !(cola.revision ?? op.revision.n) && (
+                        <li className="px-4 py-3 text-[13px] text-inkSoft">Nada en cola ni en revisión: todo lo financiado ya se leyó.</li>
+                      )}
+                    </ul>
+                  </>
+                ) : cargandoOp ? (
+                  <SkeletonFilas filas={6} columnas={2} />
+                ) : (
+                  <EmptyState compacto titulo="La cola no llegó" descripcion="Reintenta desde el aviso de arriba." />
+                )}
+                <p className="border-t border-line px-4 py-3 text-[12.5px] text-inkSoft">
+                  {k ? <><span className="font-semibold tabular-nums text-ink">{fmtNum(k.colaGlobal)}</span> contratos esperan financiamiento en todo el país.</> : cargandoRes ? "Contando los que esperan financiamiento…" : "Sin dato de la cola sin financiar."}
+                </p>
+              </div>
+            </PageSection>
+
+            <PageSection
+              titulo="Últimos procesados"
+              acciones={
+                <Link href="/app/auditoria" target="_blank" className={claseBoton("secundario")}>
+                  <ExternalLink size={13} aria-hidden /> Tablero público
+                </Link>
+              }
+            >
+              <div className={CAJA}>
+                {op ? (
+                  op.ultimos.length ? (
+                    <ul className="divide-y divide-line">
+                      {op.ultimos.map((u) => (
+                        <li key={u.ocid}>
+                          <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className={cn(FILA, "block")}>
+                            <span className="flex items-start justify-between gap-3">
+                              <span className="line-clamp-1 min-w-0 text-[13px] font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
+                              <span className="shrink-0 text-[12px] text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>
+                            </span>
+                            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-mute">
+                              <span className="font-mono">{u.ocid}</span>
+                              {u.score != null && <span>puntaje <span className="tabular-nums text-inkSoft">{u.score}</span></span>}
+                              {u.segundos != null && <span>leído en {duracion(u.segundos)}</span>}
+                              {u.alertaEstado === "revision" && <Badge tono="pending">En revisión</Badge>}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <EmptyState compacto icono={<ShieldCheck size={18} />} titulo="Nada procesado todavía" descripcion="Valida un aporte o procesa un lote: lo que se lea aparece aquí." />
+                  )
+                ) : cargandoOp ? (
+                  <SkeletonFilas filas={5} columnas={2} />
+                ) : (
+                  <EmptyState compacto titulo="La lista no llegó" descripcion="Reintenta desde el aviso de arriba." />
+                )}
+              </div>
+            </PageSection>
+          </div>
+
+          <div className="min-w-0 space-y-6">
+            {verFinanciamiento && (
+              <PageSection
+                titulo="Financiamiento"
+                acciones={
+                  <>
+                    <Link href="/admin/contribuciones" className={claseBoton("secundario")}>Contribuciones</Link>
+                    <Link href="/admin/financiadores" className={claseBoton("secundario")}>Financiadores</Link>
+                  </>
+                }
+              >
+                <ErrorBanner error={resQ.error} titulo="No se pudieron leer las cifras de financiamiento" onReintentar={() => resQ.mutate()} className="mb-3" />
+                <StatGrid columnas={2}>
+                  <StatCard etiqueta="Recaudado" valor={k ? fmtPEN(k.montoConfirmadoPen) : null} cargando={cargandoRes} pista={k ? `${fmtPEN(k.montoMesPen)} este mes` : undefined} href="/admin/contribuciones?estado=todas" />
+                  <StatCard
+                    etiqueta="Contratos financiados"
+                    valor={k?.contratosFinanciados ?? null}
+                    cargando={cargandoRes}
+                    pista={k ? `${fmtNum(k.procesados)} leídos` : undefined}
+                    href="/admin/procesamientos"
+                  />
+                  <StatCard etiqueta="Señales halladas" valor={k?.senales ?? null} cargando={cargandoRes} pista={k?.enRevision ? `${fmtNum(k.enRevision)} en revisión aparte` : undefined} />
+                  <StatCard
+                    etiqueta="Financiadores"
+                    valor={k?.financiadores ?? null}
+                    cargando={cargandoRes}
+                    pista={k ? (k.financiadoresOcultos ? `${plural(k.financiadoresOcultos, "oculto", "ocultos")} al público` : "todos visibles") : undefined}
+                    href="/admin/financiadores"
+                  />
+                </StatGrid>
+                {data && data.porEstado.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[12.5px] font-medium text-inkSoft">Aportes</span>
+                    <ul className="contents">
+                      {data.porEstado.map((e) => {
+                        const x = estadoAporte(e.estado);
+                        return (
+                          <li key={e.estado}>
+                            <Link
+                              href={`/admin/contribuciones?estado=${encodeURIComponent(e.estado)}`}
+                              className="inline-flex min-h-[32px] items-center gap-2 rounded-full border border-line bg-paperSoft py-1 pl-1 pr-3 text-[12.5px] transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60"
+                            >
+                              <Badge tono={x.tono} punto>{x.label}</Badge>
+                              <span className="font-semibold tabular-nums text-ink">{fmtNum(e.n)}</span>
+                              <span className="tabular-nums text-mute">{fmtPEN(e.monto)}</span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </PageSection>
+            )}
+
+            <PageSection
+              titulo="Actividad reciente"
+              acciones={
+                <Link href="/admin/bitacora" className={claseBoton("secundario")}>
+                  Ver bitácora <ArrowRight size={13} aria-hidden />
+                </Link>
+              }
+            >
+              <ErrorBanner error={logQ.error} titulo="No se pudo leer la bitácora" onReintentar={() => logQ.mutate()} className="mb-3" />
+              <div className={CAJA}>
+                {cargandoLog ? (
+                  <SkeletonFilas filas={5} columnas={2} />
+                ) : log.length ? (
+                  <ol className="divide-y divide-line">
+                    {log.map((e, i) => <FilaActividad key={`${e.createdAt}-${i}`} e={e} rol={rol} />)}
+                  </ol>
+                ) : (
+                  <EmptyState compacto icono={<ScrollText size={18} />} titulo="Sin acciones registradas" descripcion="Validar un aporte, publicar una alerta o editar un ajuste deja aquí una línea con tu correo." />
+                )}
+              </div>
+            </PageSection>
+          </div>
         </div>
       </div>
     </AdminShell>
   );
 }
 
+/** Caja de una lista del resumen: la misma superficie que las tarjetas del panel. */
+const CAJA = "overflow-hidden rounded-2xl border border-line bg-paperSoft";
+/** Fila de una lista: un escalón más clara al pasar el mouse. */
+const FILA = "px-4 py-3 transition-colors duration-rapido hover:bg-paperDeep/50";
+
 /** Un chequeo de salud: la fila dice el estado; se abre para ver los datos, qué hacer y el detalle técnico. */
 function FilaChequeo({ c }: { c: Chequeo }) {
   return (
     <li>
       <details>
-        <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperSoft [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 transition-colors duration-rapido hover:bg-paperDeep/50 [&::-webkit-details-marker]:hidden">
           <Punto tono={c.tono} className="mt-1.5" />
           <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-medium text-ink">{c.nombre}</span>
-            <span className="block text-[12px] leading-snug text-inkSoft">{c.frase}</span>
+            <span className="block text-[13.5px] font-medium text-ink">{c.nombre}</span>
+            <span className="mt-0.5 block text-[12.5px] leading-snug text-mute">{c.frase}</span>
           </span>
           <Badge tono={c.tono}>{c.estado}</Badge>
           <ChevronDown size={14} className="mt-0.5 shrink-0 text-inkSoft transition-transform duration-rapido [details[open]>summary_&]:rotate-180" aria-hidden />
         </summary>
-        <div className="space-y-3 border-t border-line px-4 py-3 sm:pl-9">
+        <div className="space-y-3 border-t border-line bg-paperDeep/30 px-4 py-3 sm:pl-9">
           {c.extra}
           {c.datos && <KeyValue items={c.datos} columnas={4} />}
           {(c.href || c.tecnico?.length) && (
@@ -540,7 +543,7 @@ function FilaChequeo({ c }: { c: Chequeo }) {
               )}
               {c.tecnico?.length ? (
                 <Expandable variante="linea" resumen="Detalle técnico" className="min-w-0 flex-1 pt-0.5">
-                  <ul className="space-y-1 rounded-lg bg-paperSoft px-2.5 py-2 font-mono text-[11px] leading-relaxed text-ink">
+                  <ul className="space-y-1 rounded-xl border border-line bg-paper px-3 py-2 font-mono text-[11.5px] leading-relaxed text-inkSoft">
                     {c.tecnico.map((t, i) => <li key={i} className="break-all">{t}</li>)}
                   </ul>
                 </Expandable>
@@ -567,9 +570,9 @@ const AYUDA_COLA: Record<string, string> = {
 function FilaCola({ href, tono, etiqueta, n, ayuda }: { href: string; tono: Tone; etiqueta: string; n: number; ayuda?: string; total?: number }) {
   // La cifra va primero y pegada al nombre: la fila se lee de corrido, sin un hueco entre el nombre y el número.
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-2 transition-colors duration-rapido hover:bg-paperSoft">
+    <Link href={href} className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-rapido hover:bg-paperDeep/50">
       <Punto tono={tono} />
-      <span className={n ? "w-12 shrink-0 text-right font-mono text-base font-semibold text-ink" : "w-12 shrink-0 text-right font-mono text-base text-mute"}>{fmtNum(n)}</span>
+      <span className={cn("w-12 shrink-0 text-right font-display text-[17px] font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{fmtNum(n)}</span>
       <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
         {etiqueta}
         {ayuda && <span className="text-mute">, {ayuda}</span>}
@@ -594,17 +597,17 @@ function FilaActividad({ e, rol }: { e: EntradaBitacora; rol: Rol | null }) {
         {a.objeto && <span className="text-ink">: {a.objeto}</span>}
         {a.resumen && <span className="mt-0.5 block truncate text-[12px] text-mute">{a.resumen}</span>}
       </span>
-      <span className="shrink-0 text-[11px] text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
+      <span className="shrink-0 text-[12px] text-mute" title={fmtFechaHora(e.createdAt) ?? undefined}>{hace(e.createdAt)}</span>
     </span>
   );
   return (
     <li>
       {href ? (
-        <Link href={href} target={a.externo ? "_blank" : undefined} className="block px-4 py-2.5 transition-colors duration-rapido hover:bg-paperSoft">
+        <Link href={href} target={a.externo ? "_blank" : undefined} className={cn(FILA, "block")}>
           {cuerpo}
         </Link>
       ) : (
-        <div className="px-4 py-2.5">{cuerpo}</div>
+        <div className="px-4 py-3">{cuerpo}</div>
       )}
     </li>
   );

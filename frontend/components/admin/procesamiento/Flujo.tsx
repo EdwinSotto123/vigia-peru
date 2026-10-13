@@ -25,15 +25,16 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
         onClick={() => onElegir(e)}
         aria-pressed={sel}
         className={cn(
-          "group flex min-w-0 flex-1 flex-col rounded-2xl border bg-paper p-3 text-left sm:p-4 transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-          sel ? "border-ink shadow-[0_0_0_3px_rgba(30,25,27,0.08)]" : "border-line",
+          "group flex min-w-0 flex-1 flex-col rounded-2xl border p-3 text-left sm:p-4 transition-colors duration-rapido",
+          // La etapa elegida filtra la lista de abajo: lima, el color de la selección.
+          sel ? "border-granate/60 bg-granate-50 ring-1 ring-inset ring-granate/40" : "border-line bg-paperSoft hover:border-paperEdge hover:bg-paperDeep/60",
         )}
       >
         <span className="flex items-center gap-2 text-[12px] font-medium text-inkSoft">
           <span className={cn("h-2 w-2 shrink-0 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
           {ESTADO_UI[e].label}
         </span>
-        {cargando ? <Cargando className="mt-2 h-7 w-12" /> : <span className="mt-1 font-mono text-2xl font-semibold text-ink sm:text-3xl">{n.toLocaleString("es-PE")}</span>}
+        {cargando ? <Cargando className="mt-2 h-7 w-12" /> : <span className="mt-1.5 font-display text-[26px] font-bold leading-none tracking-tight tabular-nums text-ink sm:text-[30px]">{n.toLocaleString("es-PE")}</span>}
         <span className="mt-0.5 hidden text-[11.5px] leading-snug text-mute sm:block">{ayuda}</span>
       </button>
     );
@@ -75,8 +76,8 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
                     aria-pressed={sel}
                     title={ayuda}
                     className={cn(
-                      "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors duration-rapido hover:bg-paper",
-                      sel && "bg-paper shadow-[0_0_0_2px_rgba(30,25,27,0.12)]",
+                      "flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors duration-rapido",
+                      sel ? "border-granate/50 bg-granate-50" : "border-transparent hover:bg-paperDeep/60",
                     )}
                   >
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", ESTADO_UI[e].punto)} aria-hidden />
@@ -84,7 +85,7 @@ export function Flujo({ counts, total, activo, onElegir, cargando }: { counts: C
                       <span className="block text-[13px] font-medium text-ink">{ESTADO_UI[e].label}</span>
                       <span className="block text-[11.5px] text-inkSoft">{ayuda}</span>
                     </span>
-                    {cargando ? <Cargando className="h-6 w-8" /> : <span className={cn("font-mono text-xl", n ? "font-semibold text-ink" : "text-inkSoft")}>{n.toLocaleString("es-PE")}</span>}
+                    {cargando ? <Cargando className="h-6 w-8" /> : <span className={cn("font-display text-xl font-bold tabular-nums", n ? "text-ink" : "text-mute")}>{n.toLocaleString("es-PE")}</span>}
                   </button>
                 </li>
               );

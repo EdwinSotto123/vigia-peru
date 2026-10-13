@@ -19,6 +19,14 @@ import { cn } from "@/lib/utils";
  * Con `prefers-reduced-motion` no se mueve nada. Un solo bucle de requestAnimationFrame, sólo
  * mientras el ojo está en pantalla, que cambia atributos de los puntos directamente (React no
  * vuelve a renderizar nada por cuadro) y sólo toca los puntos cuyo valor cambió.
+ *
+ * Rendimiento (2026-10-13): el ojo son tres capas SVG apiladas (párpado y esclerótica, iris, ceja).
+ * La mirada, el parpadeo, la ceja, la inclinación y la respiración del iris son `transform` de
+ * una capa entera, que compone la GPU sin volver a pintar. Antes el iris se movía con un atributo
+ * dentro del SVG y la respiración reescribía el radio de ~150 puntos en cada cuadro: el SVG entero
+ * (~600 círculos) se repintaba 60 veces por segundo aunque nadie lo tocara, y en el celular la
+ * portada se trababa. Ahora, en reposo, el bucle no escribe nada en los puntos: sólo el cursor
+ * cerca (o un toque) los agranda, y al irse vuelven a su valor una vez.
  */
 
 // ─── Geometría ───────────────────────────────────────────────────────────────
@@ -111,11 +119,25 @@ function construir(): { fijos: Punto[]; iris: Punto[]; ceja: Punto[] } {
 
 const { fijos: FIJOS, iris: IRIS, ceja: CEJA } = construir();
 
+/**
+ * Centro vertical del ojo (párpados + iris), en % del alto del dibujo: el eje del parpadeo. Antes era
+ * el `fill-box` del grupo; con capas separadas, las dos capas que parpadean comparten este origen.
+ */
+const ORIGEN_PARPADEO = (() => {
+  const ys = [...FIJOS, ...IRIS];
+  const min = Math.min(...ys.map((p) => p.y - p.r));
+  const max = Math.max(...ys.map((p) => p.y + p.r));
+  return `50% ${(((min + max) / 2 / FILAS) * 100).toFixed(2)}%`;
+})();
+
+// `backwards`, no `both`: el punto espera en escala 0 su turno y al terminar la animación deja de estar
+// en efecto (su fin es el estado natural). Con `both` quedaban ~600 animaciones retenidas que el
+// navegador volvía a aplicar en cada recálculo de estilos de la página.
 const anim = (p: Punto) =>
   ({
     transformBox: "fill-box",
     transformOrigin: "center",
-    animation: `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms both`,
+    animation: `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms backwards`,
   }) as const;
 
 const circulo = (p: Punto, k: number) => (
@@ -127,6 +149,17 @@ const suave = (a: number, b: number, v: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/** Las capas que se mueven enteras: su propia capa de composición, así moverlas no repinta. */
+const CAPA: React.CSSProperties = { willChange: "transform", transformOrigin: ORIGEN_PARPADEO };
+const VIEWBOX = `0 0 ${COLS} ${FILAS}`;
+
+/** Escribe un `transform` sólo si cambió: en reposo, ningún cuadro toca el estilo. */
+function ponerTransform(el: HTMLElement | SVGElement, valor: string, ultimo: { v: string }) {
+  if (valor === ultimo.v) return;
+  el.style.transform = valor;
+  ultimo.v = valor;
+}
+
 export function OjoVivo({
   tamano = 560,
   className,
@@ -137,32 +170,33 @@ export function OjoVivo({
   titulo?: string;
 }) {
   const raiz = useRef<HTMLDivElement>(null);
-  const svg = useRef<SVGSVGElement>(null);
-  const gOjo = useRef<SVGGElement>(null);
-  const gFijos = useRef<SVGGElement>(null);
-  const gIris = useRef<SVGGElement>(null);
-  const gCeja = useRef<SVGGElement>(null);
+  const capaOjo = useRef<SVGSVGElement>(null);
+  const capaIris = useRef<HTMLDivElement>(null);
+  const capaCeja = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     const el = raiz.current;
-    const sv = svg.current;
-    const go = gOjo.current;
-    const gf = gFijos.current;
-    const gi = gIris.current;
-    const gc = gCeja.current;
-    if (!el || !sv || !go || !gf || !gi || !gc) return;
+    const sv = capaOjo.current;
+    const si = capaIris.current;
+    const sc = capaCeja.current;
+    if (!el || !sv || !si || !sc) return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
-    const cFijos = Array.from(gf.children) as SVGCircleElement[];
-    const cIris = Array.from(gi.children) as SVGCircleElement[];
-    const cCeja = Array.from(gc.children) as SVGCircleElement[];
+    // Los puntos de cada capa (el <title> de la capa del ojo no es un punto).
+    const cFijos = Array.from(sv.querySelectorAll("circle"));
+    const cIris = Array.from(si.querySelectorAll("circle"));
+    const cCeja = Array.from(sc.querySelectorAll("circle"));
 
-    // Lo último escrito en cada punto: sólo se toca el DOM si cambia.
+    // Lo último escrito en cada punto y en cada capa: sólo se toca el DOM si cambia.
     const ultR = new Float32Array(FIJOS.length + IRIS.length + CEJA.length);
     const ultO = new Float32Array(ultR.length);
     ultR.fill(-1);
     ultO.fill(-1);
     const ultTono = new Int8Array(IRIS.length).fill(-1);
+    const tInclina = { v: "" };
+    const tOjo = { v: "" };
+    const tIris = { v: "" };
+    const tCeja = { v: "" };
 
     // Mirada: objetivo y posición actual, de -1 a 1.
     let objX = 0;
@@ -179,27 +213,35 @@ export function OjoVivo({
     let cur = { x: CX, y: CY };
     let dilata = 0.4;
     let ceja = 0;
+    // El cuadro anterior agrandó puntos: hay que devolverlos a su valor una vez.
+    let huboEfecto = false;
     const ondas: { x: number; y: number; t0: number }[] = [];
+    // El último puntero sin procesar: el layout se lee una vez por cuadro, no en cada evento.
+    let pendiente: { cx: number; cy: number } | null = null;
 
-    const aDibujo = (e: PointerEvent) => {
+    const aDibujo = (cx: number, cy: number) => {
       const r = sv.getBoundingClientRect();
-      return { x: ((e.clientX - r.left) / r.width) * COLS, y: ((e.clientY - r.top) / r.height) * FILAS };
+      return { x: ((cx - r.left) / r.width) * COLS, y: ((cy - r.top) / r.height) * FILAS };
+    };
+
+    const procesarPuntero = (cx: number, cy: number) => {
+      const r = el.getBoundingClientRect();
+      objX = Math.max(-1, Math.min(1, (cx - (r.left + r.width / 2)) / (window.innerWidth * 0.45)));
+      objY = Math.max(-1, Math.min(1, (cy - (r.top + r.height / 2)) / (window.innerHeight * 0.45)));
+      cur = aDibujo(cx, cy);
     };
 
     const alPuntero = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      objX = Math.max(-1, Math.min(1, (e.clientX - cx) / (window.innerWidth * 0.45)));
-      objY = Math.max(-1, Math.min(1, (e.clientY - cy) / (window.innerHeight * 0.45)));
-      cur = aDibujo(e);
+      pendiente = { cx: e.clientX, cy: e.clientY };
       ultimoPuntero = performance.now();
     };
 
     // Un toque o un clic: guiño y una onda de puntos desde donde se tocó.
     const alTocar = (e: PointerEvent) => {
-      alPuntero(e);
+      procesarPuntero(e.clientX, e.clientY);
+      pendiente = null;
       const t = performance.now();
+      ultimoPuntero = t;
       if (ondas.length >= 4) ondas.shift();
       ondas.push({ ...cur, t0: t });
       parpadeoHasta = t + 260;
@@ -220,6 +262,11 @@ export function OjoVivo({
 
     const bucle = (t: number) => {
       if (!visible) return;
+      // Lectura primero (una por cuadro, y sólo si el puntero se movió); después, sólo escrituras.
+      if (pendiente) {
+        procesarPuntero(pendiente.cx, pendiente.cy);
+        pendiente = null;
+      }
       const sinCursor = t - ultimoPuntero > 2600;
 
       // Sin cursor hace rato: la vista recorre el ojo sola.
@@ -234,8 +281,7 @@ export function OjoVivo({
       y += (objY - y) * 0.1;
       const gx = x * MAX_X;
       const gy = y * MAX_Y;
-      gi.setAttribute("transform", `translate(${gx.toFixed(3)} ${gy.toFixed(3)})`);
-      el.style.transform = `perspective(900px) rotateY(${(x * 14).toFixed(2)}deg) rotateX(${(-y * 9).toFixed(2)}deg)`;
+      ponerTransform(el, `perspective(900px) rotateY(${(x * 14).toFixed(2)}deg) rotateX(${(-y * 9).toFixed(2)}deg)`, tInclina);
 
       // Parpadeo: cierra los párpados 140 ms cada 3,5 a 7 s (260 ms si fue un guiño).
       if (t > proximoParpadeo) {
@@ -243,11 +289,13 @@ export function OjoVivo({
         proximoParpadeo = t + 3500 + Math.random() * 3500;
       }
       const cerrando = t < parpadeoHasta;
-      go.style.transform = `scaleY(${cerrando ? 0.08 : 1})`;
+      const parpado = cerrando ? "scaleY(0.08)" : "";
+      ponerTransform(sv, parpado, tOjo);
 
       // Cuánto cuenta el cursor: se desvanece solo cuando deja de moverse.
       const fuerza = 1 - suave(1500, 2600, t - ultimoPuntero);
-      const respira = (Math.sin(t / 1100) + 1) / 2;
+      // La mirada mueve la capa del iris; su respiración es una animación CSS del SVG de adentro (`.ojo-respira`).
+      ponerTransform(si, `${parpado} translate(${((gx / COLS) * 100).toFixed(2)}%, ${((gy / FILAS) * 100).toFixed(2)}%)`, tIris);
 
       // Dilatación: cerca del cursor abre; en reposo late despacio.
       const dist = Math.hypot(cur.x - CX, cur.y - CY);
@@ -255,55 +303,62 @@ export function OjoVivo({
       const objDil = sinCursor ? 0.4 + 0.15 * Math.sin(t / 900) : 0.2 + 0.8 * cerca;
       dilata += (objDil - dilata) * 0.12;
       ceja += (cerca - ceja) * 0.1;
-      gc.setAttribute("transform", `translate(0 ${(-1.1 * S * ceja + (cerrando ? 0.5 : 0)).toFixed(3)})`);
+      ponerTransform(sc, `translate(0, ${(((-1.1 * S * ceja + (cerrando ? 0.5 : 0)) / FILAS) * 100).toFixed(2)}%)`, tCeja);
+
+      // El anillo que se abre con la pupila: blanco cuando está abierta hasta ahí, lima cuando no.
+      for (let n = 0; n < IRIS.length; n++) {
+        const p = IRIS[n];
+        if (p.clase !== "dilata") continue;
+        const tono = Math.round(suave(-0.12, 0.12, dilata - (p.anillo ?? 0)) * 6);
+        if (tono !== ultTono[n]) {
+          ultTono[n] = tono;
+          const m = tono / 6;
+          cIris[n].setAttribute("fill", `rgb(${Math.round(212 + 43 * m)},255,${Math.round(63 + 192 * m)})`);
+        }
+      }
 
       // Ondas vivas.
       for (let w = ondas.length - 1; w >= 0; w--) if (t - ondas[w].t0 > 1500) ondas.splice(w, 1);
       const hayOndas = ondas.length > 0;
       const hayCursor = fuerza > 0.01;
 
-      const efecto = (px: number, py: number): number => {
-        let v = 0;
-        if (hayCursor) {
-          const d = Math.hypot(px - cur.x, py - cur.y);
-          if (d < RADIO_CURSOR) v += (1 - d / RADIO_CURSOR) ** 2 * fuerza;
-        }
-        if (hayOndas) {
-          for (const o of ondas) {
-            const a = (t - o.t0) / 1000;
-            const frente = a * 26 * S * 0.55;
-            const d = Math.hypot(px - o.x, py - o.y);
-            const q = 1 - Math.abs(d - frente) / (2.4 * S);
-            if (q > 0) v += q * Math.max(0, 1 - a / 1.5) * 1.2;
+      // Los puntos sólo se tocan si el cursor o una onda los alcanza, y una vez más al irse (vuelven a su valor).
+      if (hayCursor || hayOndas || huboEfecto) {
+        huboEfecto = hayCursor || hayOndas;
+        const efecto = (px: number, py: number): number => {
+          let v = 0;
+          if (hayCursor) {
+            const d = Math.hypot(px - cur.x, py - cur.y);
+            if (d < RADIO_CURSOR) v += (1 - d / RADIO_CURSOR) ** 2 * fuerza;
           }
-        }
-        return Math.min(1.6, v);
-      };
+          if (hayOndas) {
+            for (const o of ondas) {
+              const a = (t - o.t0) / 1000;
+              const frente = a * 26 * S * 0.55;
+              const d = Math.hypot(px - o.x, py - o.y);
+              const q = 1 - Math.abs(d - frente) / (2.4 * S);
+              if (q > 0) v += q * Math.max(0, 1 - a / 1.5) * 1.2;
+            }
+          }
+          return Math.min(1.6, v);
+        };
 
-      let k = 0;
-      for (let n = 0; n < FIJOS.length; n++, k++) {
-        const p = FIJOS[n];
-        const v = hayCursor || hayOndas ? efecto(p.x, p.y) : 0;
-        poner(cFijos[n], k, p.r * (1 + 0.9 * v), Math.min(1, p.o + 0.55 * v), p.o);
-      }
-      for (let n = 0; n < IRIS.length; n++, k++) {
-        const p = IRIS[n];
-        const v = hayCursor || hayOndas ? efecto(p.x + gx, p.y + gy) : 0;
-        poner(cIris[n], k, p.r * (1 + 0.8 * v + 0.07 * respira), Math.min(1, p.o + 0.5 * v), p.o);
-        if (p.clase === "dilata") {
-          // Blanco cuando la pupila está abierta hasta este anillo; lima cuando no.
-          const tono = Math.round(suave(-0.12, 0.12, dilata - (p.anillo ?? 0)) * 6);
-          if (tono !== ultTono[n]) {
-            ultTono[n] = tono;
-            const m = tono / 6;
-            cIris[n].setAttribute("fill", `rgb(${Math.round(212 + 43 * m)},255,${Math.round(63 + 192 * m)})`);
-          }
+        let k = 0;
+        for (let n = 0; n < FIJOS.length; n++, k++) {
+          const p = FIJOS[n];
+          const v = huboEfecto ? efecto(p.x, p.y) : 0;
+          poner(cFijos[n], k, p.r * (1 + 0.9 * v), Math.min(1, p.o + 0.55 * v), p.o);
         }
-      }
-      for (let n = 0; n < CEJA.length; n++, k++) {
-        const p = CEJA[n];
-        const v = hayCursor || hayOndas ? efecto(p.x, p.y) : 0;
-        poner(cCeja[n], k, p.r * (1 + 0.9 * v), Math.min(1, p.o + 0.5 * v), p.o);
+        for (let n = 0; n < IRIS.length; n++, k++) {
+          const p = IRIS[n];
+          const v = huboEfecto ? efecto(p.x + gx, p.y + gy) : 0;
+          poner(cIris[n], k, p.r * (1 + 0.8 * v), Math.min(1, p.o + 0.5 * v), p.o);
+        }
+        for (let n = 0; n < CEJA.length; n++, k++) {
+          const p = CEJA[n];
+          const v = huboEfecto ? efecto(p.x, p.y) : 0;
+          poner(cCeja[n], k, p.r * (1 + 0.9 * v), Math.min(1, p.o + 0.5 * v), p.o);
+        }
       }
       raf = requestAnimationFrame(bucle);
     };
@@ -325,30 +380,34 @@ export function OjoVivo({
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", alPuntero);
       el.removeEventListener("pointerdown", alTocar);
-      el.style.transform = "";
-      go.style.transform = "";
-      gi.removeAttribute("transform");
-      gc.removeAttribute("transform");
+      for (const capa of [el, sv, si, sc]) capa.style.transform = "";
     };
   }, []);
 
   return (
-    <div ref={raiz} className={cn("will-change-transform", className)} style={{ transformStyle: "preserve-3d" }}>
+    <div ref={raiz} className={cn("relative will-change-transform", className)} style={{ transformStyle: "preserve-3d" }}>
+      {/* Párpados y esclerótica: la capa que da el tamaño. Iris y ceja se apilan encima, con el mismo viewBox. */}
       <svg
-        ref={svg}
-        viewBox={`0 0 ${COLS} ${FILAS}`}
+        ref={capaOjo}
+        viewBox={VIEWBOX}
         width={tamano}
         height={(tamano * FILAS) / COLS}
-        className="h-auto w-full overflow-visible"
+        className="block h-auto w-full overflow-visible"
+        style={CAPA}
         {...(titulo ? { role: "img", "aria-label": titulo } : { "aria-hidden": true })}
         focusable="false"
       >
         {titulo && <title>{titulo}</title>}
-        <g ref={gOjo} style={{ transformBox: "fill-box", transformOrigin: "center" }}>
-          <g ref={gFijos}>{FIJOS.map(circulo)}</g>
-          <g ref={gIris}>{IRIS.map(circulo)}</g>
-        </g>
-        <g ref={gCeja}>{CEJA.map(circulo)}</g>
+        {FIJOS.map(circulo)}
+      </svg>
+      {/* El iris: la capa se mueve con la mirada (JS) y el SVG de adentro respira (CSS, en la GPU). */}
+      <div ref={capaIris} aria-hidden className="pointer-events-none absolute inset-0" style={CAPA}>
+        <svg viewBox={VIEWBOX} focusable="false" className="ojo-respira h-full w-full overflow-visible">
+          {IRIS.map(circulo)}
+        </svg>
+      </div>
+      <svg ref={capaCeja} viewBox={VIEWBOX} aria-hidden focusable="false" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" style={CAPA}>
+        {CEJA.map(circulo)}
       </svg>
     </div>
   );

@@ -203,10 +203,11 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[26rem] rounded-3xl border border-line bg-paper p-7 shadow-card sm:p-8">
-      <div className="flex items-center gap-2">
+    <div className="w-full max-w-[26rem] rounded-2xl border border-line bg-paperSoft p-7 shadow-dialog sm:p-8">
+      <div className="flex items-center justify-between gap-2">
         <Marca />
-        <span className="rounded bg-amber px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">equipo</span>
+        {/* La misma píldora neutra de perfil que la barra del panel (antes ámbar, el color de "por validar"). */}
+        <span className="rounded-full border border-paperEdge bg-paperDeep px-2.5 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-inkSoft">Equipo</span>
       </div>
 
       {paso.tipo === "formulario" && (
@@ -218,7 +219,7 @@ function LoginForm() {
             type="button"
             onClick={conGoogle}
             disabled={!!cargando}
-            className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink transition-colors duration-rapido hover:bg-paperSoft active:translate-y-px disabled:opacity-60"
+            className="mt-6 flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-full border border-line bg-paper px-4 text-sm font-semibold text-ink transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep active:translate-y-px disabled:opacity-60"
           >
             {cargando === "google" ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <LogoGoogle />}
             Continuar con Google
@@ -230,7 +231,7 @@ function LoginForm() {
 
           {/* Entrar o crear cuenta: la misma caja, dos modos. Botones con aria-pressed (no pestañas:
               no hay paneles de pestaña, es el mismo formulario que cambia). */}
-          <div role="group" aria-label="Modo de acceso" className="grid grid-cols-2 rounded-xl bg-paperSoft p-1 text-sm">
+          <div role="group" aria-label="Modo de acceso" className="grid grid-cols-2 rounded-full border border-line bg-paperDeep p-1 text-sm">
             {(["entrar", "crear"] as const).map((m) => (
               <button
                 key={m}
@@ -241,8 +242,8 @@ function LoginForm() {
                   setError(null);
                 }}
                 className={cn(
-                  "rounded-lg px-3 py-1.5 font-medium transition-colors duration-rapido",
-                  modo === m ? "bg-paper text-ink shadow-sm" : "text-mute hover:text-ink",
+                  "min-h-[34px] rounded-full px-3 font-medium transition-colors duration-rapido",
+                  modo === m ? "bg-paperSoft text-ink shadow-inset" : "text-mute hover:text-ink",
                 )}
               >
                 {m === "entrar" ? "Entrar" : "Crear cuenta"}
@@ -271,7 +272,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={!!cargando || !correo || !clave}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition-transform duration-rapido active:translate-y-px disabled:opacity-50"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep active:translate-y-px disabled:opacity-50"
             >
               {cargando === "correo" && <Loader2 size={14} className="animate-spin" aria-hidden />}
               {modo === "entrar" ? "Entrar" : "Crear cuenta"}
@@ -305,7 +306,7 @@ function LoginForm() {
           <p className="mt-2 text-sm leading-relaxed text-inkSoft">
             Te enviamos un enlace a <strong className="font-semibold text-ink">{paso.correo}</strong>. Ábrelo y vuelve acá para entrar.
           </p>
-          {aviso && <p className="mt-3 rounded-lg bg-paperSoft px-3 py-2 text-[13px] text-inkSoft">{aviso}</p>}
+          {aviso && <p className="mt-3 rounded-xl border border-line bg-paperDeep px-3 py-2 text-[13px] text-inkSoft">{aviso}</p>}
           {error && (
             <p role="alert" className="mt-3 rounded-lg bg-crimson-soft px-3 py-2 text-[13px] text-crimsonTexto">
               {error}
@@ -315,7 +316,7 @@ function LoginForm() {
             type="button"
             onClick={yaLoAbri}
             disabled={!!cargando}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper disabled:opacity-50"
+            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
           >
             {cargando === "comprobar" && <Loader2 size={14} className="animate-spin" aria-hidden />}
             Ya lo abrí, entrar
@@ -344,7 +345,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={!!cargando || !correo}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper disabled:opacity-50"
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-granate px-4 text-sm font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep disabled:opacity-50"
           >
             {cargando === "recuperar" && <Loader2 size={14} className="animate-spin" aria-hidden />}
             Enviar enlace
@@ -395,7 +396,7 @@ function Campo({
         value={valor}
         onChange={(e) => onCambio(e.target.value)}
         autoComplete={autocompletar}
-        className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink outline-none transition-shadow duration-rapido focus:border-granate/50 focus:ring-2 focus:ring-granate/20"
+        className="mt-1 w-full rounded-xl border border-line bg-paperDeep px-3 py-2.5 text-ink outline-none transition-shadow duration-rapido placeholder:text-mute focus:border-granate/60 focus:ring-2 focus:ring-granate/20"
       />
       {ayuda && <span className="mt-1 block text-[12px] text-mute">{ayuda}</span>}
     </label>
@@ -416,7 +417,7 @@ function LogoGoogle() {
 
 export default function AdminLoginPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-paperDeep p-5">
+    <div className="fondo-puntos-tenue flex min-h-[100dvh] items-center justify-center bg-paper p-5">
       <Suspense>
         <LoginForm />
       </Suspense>

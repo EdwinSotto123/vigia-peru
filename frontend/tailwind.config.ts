@@ -212,35 +212,20 @@ const config: Config = {
           "0%": { opacity: "0", transform: "scale(0.96)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
-        /* El pulso que recorre el riel de un carril del pipeline. Anima `left`,
-           no `translateX`: el porcentaje de translate es relativo al ancho del
-           propio pulso (20 % del riel), así que llegar al final habría pedido un
-           1100 % frágil que se rompe al cambiar el ancho del pulso. */
+        /* El pulso que recorre el riel de un carril del pipeline. El elemento mide
+           todo el riel y el pulso es su fondo (20 % de ancho), así el `translateX`
+           en % es relativo al riel y no al pulso: mismo recorrido que el `left` de
+           antes (-22 % → 100 %), pero sin recalcular el layout de la página en cada
+           cuadro (con `left` la portada hacía un layout por cuadro, en pantalla o no). */
         rielPulso: {
-          "0%": { left: "-22%", opacity: "0" },
+          "0%": { transform: "translateX(-22%)", opacity: "0" },
           "12%": { opacity: "1" },
           "88%": { opacity: "1" },
-          "100%": { left: "100%", opacity: "0" },
+          "100%": { transform: "translateX(100%)", opacity: "0" },
         },
-        /* La ola que recorre el DAG: cada paso se enciende cuando le toca su
-           turno y vuelve a apagarse. El desfase lo pone cada chip con su propio
-           `animation-delay`, calculado desde su posición real en el grafo, así
-           que lo que se ve es el orden en que corre de verdad. */
-        /* El piso es 0.85, no 0.45: el paso "apagado" tiene que seguir siendo
-           legible — es texto, no un adorno que se atenúa, y la opacidad de un
-           ancestro multiplica el contraste de TODO lo que hay dentro. Con 0.45
-           la línea de fuentes caía a 3.4:1. La diferencia entre apagado y
-           encendido la carga el resplandor, no el desvanecido.
-           Ojo con el 100%: `prefers-reduced-motion` deja la animación en una
-           sola iteración instantánea y sin `forwards`, así que el estado que
-           queda es el del CSS base (opacidad 1, todos encendidos). Por eso el
-           estado legible vive en la clase y no en el keyframe. */
-        pasoCorriendo: {
-          "0%, 100%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(212, 255, 63,0)" },
-          "4%": { opacity: "1", boxShadow: "0 0 0 1px rgba(212, 255, 63,0.65), 0 0 26px -4px rgba(212, 255, 63,0.75)" },
-          "13%": { opacity: "1", boxShadow: "0 0 0 1px rgba(212, 255, 63,0.65), 0 0 26px -4px rgba(212, 255, 63,0.75)" },
-          "21%": { opacity: "0.85", boxShadow: "0 0 0 0 rgba(212, 255, 63,0)" },
-        },
+        /* La ola que recorre el DAG (cada paso se enciende en su turno) ya no vive acá:
+           es la clase `.paso-corriendo` de app/globals.css, con el resplandor en un
+           pseudo-elemento que sólo cambia de opacidad. */
         /* Los datos corriendo por un cable del diagrama de orquestación. El
            desplazamiento es -32 con un patrón de período 16: dos períodos
            exactos, así que el bucle no tiene costura. */
@@ -297,9 +282,12 @@ const config: Config = {
         llamaBob: "llamaBob 0.9s ease-in-out infinite",
         tooltipIn: "tooltipIn 120ms ease-out both",
         rielPulso: "rielPulso 3.8s ease-in-out infinite",
-        pasoCorriendo: "pasoCorriendo 7s ease-in-out infinite",
         astillaViva: "astillaViva 2.6s ease-in-out infinite",
-        fluirDatos: "fluirDatos 1.4s linear infinite",
+        // Cuatro vueltas (unos 6 s) al entrar a la sección y después quieto. El trazo punteado no se puede
+        // animar en la GPU: mientras corre, obliga al navegador a trabajar en CADA cuadro por toda la página
+        // (a mitad de la portada, un 40 % del tiempo sin que nadie tocara nada). Fuera de pantalla se pausa
+        // (PausaFueraDePantalla) y retoma al volver hasta completar sus vueltas.
+        fluirDatos: "fluirDatos 1.4s linear 4",
         latidoNodo: "latidoNodo 2.8s ease-in-out infinite",
         latir: "latir 900ms ease-in-out",
         llenarBarra: "llenarBarra linear both",

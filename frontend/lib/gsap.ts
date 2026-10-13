@@ -43,11 +43,44 @@ export interface MotorGsap {
 // Una sola descarga y un solo registro del plugin para toda la página.
 let motor: Promise<MotorGsap> | null = null;
 
+/**
+ * Registra ScrollTrigger sin su bucle de requestAnimationFrame vacío.
+ *
+ * Al registrarse, ScrollTrigger arranca `_rafBugFix`: un requestAnimationFrame que se vuelve a pedir
+ * a sí mismo para siempre (su comentario: "en algunos navegadores, como Firefox, la pantalla no
+ * repintaba pareja si no había ALGO en requestAnimationFrame"). En Chrome y Safari no hace falta y sale
+ * caro: con un cuadro pedido siempre, el navegador recorre estilos, animaciones y pintado 60 veces por
+ * segundo aunque la portada esté quieta (medido: ~200 pedidos por segundo y un tercio del hilo
+ * principal ocupado a mitad de la portada, sin que nadie la tocara).
+ *
+ * Durante el registro (síncrono) el PRIMER pedido de cuadro es ese bucle: se intercepta y, si tiene la
+ * forma del bucle (una función mínima que sólo se vuelve a pedir), no se agenda. En Firefox se deja
+ * como está. Todo lo demás de ScrollTrigger (scroll, pines, scrub) pide sus cuadros como siempre.
+ */
+function registrarScrollTrigger(gsap: Gsap, ScrollTrigger: ScrollTriggerEstatico) {
+  if (/firefox/i.test(navigator.userAgent)) {
+    gsap.registerPlugin(ScrollTrigger);
+    return;
+  }
+  const original = window.requestAnimationFrame;
+  let primero = true;
+  window.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+    const esElBucle = primero && /^function\s*\w*\(\)\s*\{\s*return\s+\w+\s*&&\s*requestAnimationFrame\(\w+\)\s*;?\s*\}$/.test(cb.toString().trim());
+    primero = false;
+    return esElBucle ? 0 : original.call(window, cb);
+  };
+  try {
+    gsap.registerPlugin(ScrollTrigger);
+  } finally {
+    window.requestAnimationFrame = original;
+  }
+}
+
 function cargarMotor(): Promise<MotorGsap> {
   if (!motor) {
     motor = Promise.all([import("gsap"), import("gsap/ScrollTrigger")])
       .then(([g, s]) => {
-        g.gsap.registerPlugin(s.ScrollTrigger);
+        registrarScrollTrigger(g.gsap, s.ScrollTrigger);
         return { gsap: g.gsap, ScrollTrigger: s.ScrollTrigger };
       })
       .catch((e) => {

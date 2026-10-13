@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import type { ApiResult } from "@/components/convocatoria/types";
 import { NivelTituloDossier } from "@/components/convocatoria/sections/nivelTitulo";
 import { EsqueletoInforme } from "./Esqueleto";
+import { claseBoton } from "@/components/admin/ui/boton";
 
 // El informe público pesa ~120 KB de JS y va en su propio pedazo, así no retrasa la barra de
 // decisión, que es lo primero que se lee. Por sí solo recién se pediría al montarse con los datos
@@ -46,9 +47,9 @@ export function VistaPublicada({
     <details
       aria-labelledby="vista-publicada"
       onToggle={(e) => setAbierto(e.currentTarget.open)}
-      className="group overflow-hidden rounded-2xl border border-line bg-paper"
+      className="group overflow-hidden rounded-2xl border border-line bg-paperSoft"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 hover:bg-paperSoft sm:px-5 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 hover:bg-paperDeep/50 sm:px-5 [&::-webkit-details-marker]:hidden">
         <Eye size={15} className="shrink-0 text-mute" aria-hidden />
         <span className="min-w-0 flex-1">
           <span id="vista-publicada" className="block text-sm font-semibold text-ink">Así se verá publicado</span>
@@ -78,7 +79,7 @@ export function VistaPublicada({
             <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4 text-sm text-crimsonTexto sm:flex-row sm:items-center">
               <AlertTriangle size={18} className="shrink-0" aria-hidden />
               <p className="min-w-0 flex-1">No se pudo cargar el informe: {error}. La decisión y el juicio del evaluador siguen disponibles más abajo.</p>
-              <button type="button" onClick={onReintentar} className="inline-flex items-center gap-1.5 rounded-lg border border-crimson/30 bg-paper px-3 py-1.5 text-xs font-semibold text-crimsonTexto hover:bg-paperSoft">
+              <button type="button" onClick={onReintentar} className={claseBoton("peligro", "sm")}>
                 <RotateCcw size={12} aria-hidden /> Reintentar
               </button>
             </div>

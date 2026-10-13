@@ -59,14 +59,15 @@ export function Chip({
       tabIndex={radio ? ((enfocable ?? activo) ? 0 : -1) : undefined}
       title={title}
       disabled={disabled}
+      // Las píldoras de BarraFiltros del sitio público, en el tamaño del panel: la elegida en lima.
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors duration-rapido disabled:opacity-50",
-        activo ? "border-ink bg-ink text-paper" : "border-line bg-paper text-inkSoft hover:border-ink/25 hover:text-ink",
+        "inline-flex min-h-[34px] items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors duration-rapido active:translate-y-px disabled:opacity-50",
+        activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
       )}
     >
-      {tono && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONO[tono].punto)} aria-hidden />}
+      {tono && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", activo ? "bg-paper/70" : TONO[tono].punto)} aria-hidden />}
       {children}
-      {cuenta != null && <span className={cn("font-mono text-[11px]", activo ? "text-paper/75" : "text-mute")}>{cuenta.toLocaleString("es-PE")}</span>}
+      {cuenta != null && <span className="text-[12px] font-semibold tabular-nums opacity-80">{cuenta.toLocaleString("es-PE")}</span>}
     </button>
   );
 }

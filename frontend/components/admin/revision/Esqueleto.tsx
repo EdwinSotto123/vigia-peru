@@ -7,7 +7,7 @@ const Barra = ({ className = "" }: { className?: string }) => <div className={`a
 
 export function EsqueletoDecision() {
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4 sm:p-5" aria-hidden>
+    <div className="rounded-2xl border border-line bg-paperSoft p-4 sm:p-5" aria-hidden>
       <div className="flex flex-col gap-5 lg:flex-row">
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex gap-2"><Barra className="h-5 w-40 rounded-full" /><Barra className="h-5 w-28" /></div>
@@ -49,7 +49,7 @@ export function EsqueletoInforme() {
 
 export function EsqueletoPorQue() {
   return (
-    <div className="space-y-3 rounded-2xl border border-line bg-paper p-4 sm:p-5" aria-hidden>
+    <div className="space-y-3 rounded-2xl border border-line bg-paperSoft p-4 sm:p-5" aria-hidden>
       <Barra className="h-3 w-32" />
       <Barra className="h-3 w-2/3 max-w-lg" />
       {[0, 1, 2].map((i) => (
@@ -66,7 +66,7 @@ export function EsqueletoPagina() {
   return (
     <div className="space-y-6">
       <EsqueletoDecision />
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="overflow-hidden rounded-2xl border border-line bg-paperSoft">
         <div className="border-b border-line bg-paperSoft px-4 py-2"><Barra className="h-3 w-48" /></div>
         <div className="px-3 py-4 sm:px-6 sm:py-6"><EsqueletoInforme /></div>
       </div>

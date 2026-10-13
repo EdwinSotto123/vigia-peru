@@ -13,6 +13,7 @@ const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-mono", preload: false });
 import type { Viewport } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlotante";
 
 export const metadata: Metadata = {
   // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
@@ -36,7 +37,10 @@ export default function RootLayout({
   return (
     <html lang="es-PE" className={`${inter.variable} ${display.variable} ${mono.variable}`}>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {children}
+          <PagoPendienteFlotante />
+        </AuthProvider>
       </body>
     </html>
   );

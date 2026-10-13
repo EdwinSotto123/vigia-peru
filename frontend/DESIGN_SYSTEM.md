@@ -738,3 +738,24 @@ con los tres primeros destacados.
 | "Sin dato" | Un cero inventado |
 | Montserrat en títulos, Inter en texto | Una tercera familia "para variar" |
 | Rojo Perú en la franja de la bandera | Rojo Perú en botones o alertas |
+
+---
+
+## 17. Panel de administración (`/admin`)
+
+Decisión del 2026-10-13: el panel es **neutro con lima**. Es una herramienta de trabajo (modo
+*Operate*): el color es de los **estados**, no del área.
+
+| Pieza | Regla |
+|---|---|
+| Acento de área | `[data-intencion="admin"]` = lima, **sin** lavado de fondo ni tinte de tarjetas (antes ámbar: teñía todo de marrón y se confundía con "por validar") |
+| Elevación | página `paper` (carbón) → cajas y tarjetas `paperSoft` → cabeceras de tabla, filas al pasar el mouse y campos `paperDeep` |
+| Lima | sólo la sección activa de la barra, LA acción principal de la vista (`claseBoton("primario")`, una por pantalla), el filtro elegido y el foco |
+| Estados | ámbar = pide una decisión · rojo = falló · verde = listo · arcilla = espera algo de afuera (`components/admin/ui/tono.ts`). Una cifra en cero no se colorea |
+| Cantidades | barras de reparto neutras (`inkSoft`); mapas de calor en la rampa lima que sube en brillo, nunca en ámbar |
+| Formas | botones y chips en píldora (`claseBoton`, `FilterChips`: las de `BarraFiltros`), cajas `rounded-2xl`, campos `rounded-xl` |
+| Barra lateral | la del sitio: franja de puntos arriba, grupos en versalitas con su punto, íconos en placas de 28 px; la activa con la placa en lima |
+| Perfil | píldora neutra en mono (`Admin`, `Revisor`, `Equipo`); nunca ámbar |
+
+Todo se arma con el kit `components/admin/ui` (Card, Panel, PageSection, StatCard/StatGrid,
+DataTable, FilterChips, Badge, claseBoton): una página del panel no define colores ni radios.

@@ -158,7 +158,9 @@ export default function ClasificacionPage() {
   const tipos = TIPOS.filter((t) => (r?.porTipo[t] ?? 0) > 0);
   const etapas = ETAPAS.filter((e) => (r?.porEtapa[e] ?? 0) > 0);
   const max = Math.max(1, ...Array.from(grid.values()).map((v) => v.n));
-  const fondo = (n: number) => `rgba(190,123,38,${0.08 + 0.5 * (n / max)})`; // amber, más intenso cuanto más contratos
+  // La rampa de cantidades de la identidad Píxel: lima que sube en brillo (más brillante = más contratos).
+  // Antes era ámbar, el color de "pide una decisión": una celda con muchos contratos parecía un aviso.
+  const fondo = (n: number) => `rgb(var(--granate) / ${(0.04 + 0.26 * (n / max)).toFixed(3)})`;
 
   return (
     <AdminShell
@@ -195,7 +197,7 @@ export default function ClasificacionPage() {
               </StatGrid>
 
               {/* Escritorio: la matriz completa. */}
-              <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paper md:block">
+              <div className="hidden overflow-x-auto rounded-2xl border border-line bg-paperSoft md:block">
                 <table className="w-full text-sm">
                   <caption className="sr-only">Contratos por tipo de contratación y etapa</caption>
                   <thead className="text-left text-[11px] text-mute">
@@ -242,9 +244,9 @@ export default function ClasificacionPage() {
                         const v = grid.get(`${t}|${e}`)!;
                         return (
                           <li key={e}>
-                            <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="flex items-center gap-2 rounded-lg hover:bg-paperSoft">
+                            <Link href={`/app/contratos?tipo=${t}&etapa=${e}`} className="flex items-center gap-2 rounded-lg hover:bg-paperDeep/50">
                               <span className="w-24 shrink-0 text-inkSoft">{etapaTxt(e)}</span>
-                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden><span className="block h-full rounded-full bg-amber" style={{ width: `${(v.n / (r.porTipo[t] || 1)) * 100}%` }} /></span>
+                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paperDeep" aria-hidden><span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(v.n / (r.porTipo[t] || 1)) * 100}%` }} /></span>
                               <span className="w-14 text-right font-mono text-ink">{fmtNum(v.n)}</span>
                             </Link>
                           </li>
@@ -291,7 +293,7 @@ function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripci
   // Sin filas no hace falta una caja con cabecera: una línea que diga la buena noticia.
   if (!rows.length)
     return (
-      <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+      <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
         <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
         <span><strong className="font-semibold text-ink">{titulo}.</strong> {vacio}</span>
       </p>
@@ -307,7 +309,7 @@ function Lista({ titulo, descripcion, rows, vacio }: { titulo: string; descripci
                 <span className="shrink-0 font-mono text-ink">{fmtNum(r.n)}</span>
               </div>
               <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paperDeep" aria-hidden>
-                <span className="block h-full rounded-full bg-amber" style={{ width: `${(r.n / max) * 100}%` }} />
+                <span className="block h-full rounded-full bg-inkSoft/70" style={{ width: `${(r.n / max) * 100}%` }} />
               </span>
             </li>
           ))}

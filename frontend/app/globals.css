@@ -53,7 +53,7 @@
 /* ── Color por intención (2026-10) ─────────────────────────────────────────
    Cada pantalla de la app pertenece a una intención de la navegación y toma su acento:
    Explorar azul de dato, Alertas rojo señal, Participar lima, Cuenta violeta sobrio y el panel
-   admin ámbar. `components/dashboard/Intencion.tsx` pone `data-intencion` según la ruta; sin
+   admin neutro con lima (DESIGN_SYSTEM.md §17). `components/dashboard/Intencion.tsx` pone `data-intencion` según la ruta; sin
    él, el acento es el de siempre (texto claro y filetes lima), así la portada y las pantallas
    que no eligen intención no cambian. Todos los pares texto sobre fondo pasan AA sobre paper:
    acento-texto sobre paper 8,8 a 12:1, sobre acento-soft más de 8:1. */
@@ -91,11 +91,15 @@
   --acento-texto: 200 186 255; /* 10,2:1 */
   --acento-cifra: 200 186 255;
 }
+/* Panel admin (2026-10-13): neutro con lima. Superficies carbón limpias, sin lavado ni tinte de tarjetas
+   (ver las dos reglas de abajo); el lima marca sólo la acción principal, la sección activa y el foco. Antes
+   era ámbar: teñía cada tarjeta de marrón y se confundía con el ámbar de "por validar" y "en análisis". */
 [data-intencion="admin"] {
-  --acento: 242 184 75;        /* #F2B84B */
-  --acento-soft: 40 30 10;
-  --acento-borde: 120 88 26;
-  --acento-texto: 248 206 120; /* 12,4:1 */
+  --acento: 212 255 63;        /* #D4FF3F */
+  --acento-soft: 24 32 8;
+  --acento-borde: 74 99 16;
+  --acento-texto: 212 255 63;  /* 16,2:1 */
+  --acento-cifra: 231 240 238; /* las cifras, en tinta: el color de una cifra es de su estado */
 }
 
 /* El fondo de la pantalla deja de ser un carbón plano: un lavado de su color arriba. */
@@ -127,8 +131,9 @@
 }
 
 /* Tarjetas y bloques con borde: un tinte del 5 al 6 % de la intención y el filete superior en su color.
-   Usa background-image (no background-color) para no pisar los fondos de cada componente. */
-[data-intencion] :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper) {
+   Usa background-image (no background-color) para no pisar los fondos de cada componente. El panel admin
+   no lo lleva: es una herramienta de trabajo y ahí el color es sólo de los estados. */
+[data-intencion]:not([data-intencion="admin"]) :is(div, section, article, aside, ul, ol, dl).border:is(.bg-paperSoft, .bg-paper) {
   background-image: linear-gradient(180deg, rgb(var(--acento) / 0.055), transparent 62%);
   border-top-color: rgb(var(--acento) / 0.38);
 }
@@ -309,6 +314,58 @@
 @keyframes pupilaLatido {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
+}
+
+/* El iris del ojo de la portada (components/marca/OjoVivo) respira: sólo transform, así lo anima la GPU
+   sin pasar por JavaScript ni repintar los puntos. El período es el del seno que usaba antes (2π · 1,1 s). */
+@keyframes ojoRespira {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025); }
+}
+.ojo-respira {
+  transform-origin: 50% 50%;
+  animation: ojoRespira 6.9s ease-in-out infinite;
+}
+
+/* La ola que recorre el pipeline de la portada (components/landing/Orquestacion): cada paso se enciende en su
+   turno y vuelve a apagarse; el desfase lo pone cada paso con su `animation-delay`, desde su posición real en
+   el grafo. El resplandor es fijo en un pseudo-elemento y sólo cambia su OPACIDAD: antes se animaba el
+   box-shadow (26 px de desenfoque) y los pasos visibles se repintaban en cada cuadro.
+   El piso es 0.85, no 0.45: el paso "apagado" es texto y tiene que seguir siendo legible (la opacidad de un
+   ancestro multiplica el contraste de todo lo de adentro). Con movimiento reducido la animación queda en una
+   iteración instantánea sin `forwards`: el estado que queda es el de la clase (opaco, sin resplandor). */
+@keyframes pasoOpacidad {
+  0%, 21%, 100% { opacity: 0.85; }
+  4%, 13% { opacity: 1; }
+}
+@keyframes pasoBrillo {
+  0%, 21%, 100% { opacity: 0; }
+  4%, 13% { opacity: 1; }
+}
+.paso-corriendo {
+  position: relative;
+  animation: pasoOpacidad 7s ease-in-out infinite;
+}
+.paso-corriendo::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(212, 255, 63, 0.65), 0 0 26px -4px rgba(212, 255, 63, 0.75);
+  opacity: 0;
+  animation: pasoBrillo 7s ease-in-out infinite;
+  animation-delay: inherit;
+  will-change: opacity;
+}
+
+/* Un bloque de la portada fuera de pantalla (components/landing/PausaFueraDePantalla): sus animaciones
+   en bucle se detienen hasta que vuelve a acercarse. Sólo la reproducción: nada se oculta ni se mueve. */
+[data-pausa],
+[data-pausa] *,
+[data-pausa] *::before,
+[data-pausa] *::after {
+  animation-play-state: paused !important;
 }
 
 .scrollbar-warm::-webkit-scrollbar { width: 8px; height: 8px; }

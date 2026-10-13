@@ -46,28 +46,31 @@ export function StatCard({
   const sinDato = valor === null || valor === undefined || valor === "";
   const interactivo = !!href || !!onClick;
   const cls = cn(
-    "group relative flex min-w-0 flex-col rounded-xl border px-3 py-2 text-left",
-    destacado ? TONO[tono].caja : "border-line bg-paper",
-    interactivo && "transition-[border-color,box-shadow] duration-rapido hover:border-ink/25",
-    activo && "border-ink shadow-[0_0_0_3px_rgba(30,25,27,0.08)]",
+    "group relative flex min-w-0 flex-col rounded-2xl border px-3.5 py-2.5 text-left",
+    destacado ? TONO[tono].caja : "border-line bg-paperSoft",
+    interactivo && "transition-colors duration-rapido hover:border-paperEdge hover:bg-paperDeep/60",
+    // El filtro elegido: lima, el color de la selección en todo el sitio.
+    activo && "border-granate/60 bg-granate-50 ring-1 ring-inset ring-granate/40 hover:border-granate/60 hover:bg-granate-50",
     className,
   );
   const cuerpo = (
     <>
-      <span className="flex items-center gap-2 pr-4 text-[11.5px] font-medium leading-tight text-inkSoft">
+      <span className="flex items-center gap-2 pr-4 text-[12px] font-medium leading-tight text-inkSoft">
         {tono !== "neutral" && <span className={cn("h-2 w-2 shrink-0 rounded-full", TONO[tono].punto)} aria-hidden />}
         {etiqueta}
       </span>
       {/* La cifra y su pista comparten renglón: una tarjeta de dos líneas, no una caja con aire. */}
-      <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+      <span className="mt-1 flex flex-wrap items-baseline gap-x-2">
         {cargando && sinDato ? (
           <Skeleton className="h-6 w-16" />
         ) : (
           <span
             className={cn(
-              "font-semibold text-ink",
+              "text-ink",
               // Un valor que es frase ("Sin ritmo suficiente…") baja de tamaño y envuelve en vez de cortarse.
-              typeof valor === "string" && valor.length > 12 ? "text-sm leading-snug" : "truncate font-mono text-xl leading-tight",
+              typeof valor === "string" && valor.length > 12
+                ? "text-sm font-semibold leading-snug"
+                : "truncate font-display text-[22px] font-bold leading-none tracking-tight tabular-nums",
             )}
             title={sinDato ? "Sin dato" : undefined}
           >
@@ -115,9 +118,9 @@ const TONO_CIFRA: Record<Tone, NonNullable<Cifra["tono"]>> = {
   neutral: "neutro", muted: "neutro", brand: "neutro", ok: "positivo", warn: "media", pending: "media", danger: "alta",
 };
 
-/** Reparte n cifras en filas de hasta 4, parejas (5 → 3 + 2, no 4 + 1). */
-function repartir(n: number): number[] {
-  const filas = Math.ceil(n / 4);
+/** Reparte n cifras en filas de hasta `max` (4 como mucho), parejas (5 → 3 + 2, no 4 + 1). */
+function repartir(n: number, max = 4): number[] {
+  const filas = Math.ceil(n / Math.min(4, Math.max(1, max)));
   const base = Math.floor(n / filas);
   const resto = n % filas;
   return Array.from({ length: filas }, (_, i) => base + (i < resto ? 1 : 0));
@@ -140,13 +143,14 @@ export function StatGrid({ columnas = 4, className, children }: { columnas?: key
     etiqueta: c.etiqueta,
     valor: c.valor === null || c.valor === undefined || c.valor === "" ? null : typeof c.valor === "number" ? c.valor.toLocaleString("es-PE") : c.valor,
     contexto: c.pista,
-    tono: TONO_CIFRA[c.tono ?? "neutral"],
+    // Un cero no pide atención: "0 aportes por validar" en ámbar parecía un aviso. El color, sólo con algo adentro.
+    tono: c.valor === 0 ? "neutro" : TONO_CIFRA[c.tono ?? "neutral"],
     href: c.href,
   }));
   let desde = 0;
   return (
-    <div className={cn("divide-y divide-line rounded-2xl border border-line bg-paper px-4", className)}>
-      {repartir(cifras.length).map((n, i) => {
+    <div className={cn("divide-y divide-line rounded-2xl border border-line bg-paperSoft px-4", className)}>
+      {repartir(cifras.length, columnas).map((n, i) => {
         const fila = cifras.slice(desde, desde + n);
         desde += n;
         return (

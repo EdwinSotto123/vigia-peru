@@ -82,13 +82,13 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
       <div className="grid items-start gap-3 lg:grid-cols-2">
         {/* Un panel con cabecera solo si hay algo que listar; sin datos, una línea que lo diga. */}
         {!pr.ritmo.length && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
             <Moon size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
             <span><strong className="font-semibold text-ink">Ninguna descarga en la última semana.</strong> El lote nocturno no bajó documentos en estos 7 días.</span>
           </p>
         )}
         {!!pr.ritmo.length && (
-          <section aria-label="Descargados por noche" className="rounded-xl border border-line bg-paper px-3 py-2">
+          <section aria-label="Descargados por noche" className="rounded-xl border border-line bg-paperSoft px-3 py-2">
             <h3 className="text-[13px] font-semibold text-ink">
               Descargados por noche <span className="font-normal text-mute">últimos 7 días</span>
             </h3>
@@ -109,7 +109,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
         )}
 
         {!pr.errores.length && (
-          <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
+          <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
             <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-moss" aria-hidden />
             <span><strong className="font-semibold text-ink">Ningún documento falló.</strong> Los últimos lotes bajaron todo lo que intentaron.</span>
           </p>

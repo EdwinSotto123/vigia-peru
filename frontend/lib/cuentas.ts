@@ -245,12 +245,42 @@ export interface BorradorFinanciar {
   creada?: { codigo: string; montoPen: number; contratos: number; pago: unknown; creadaAt: string } | null;
 }
 const KEY = (ubigeo: string) => `vigia:financiar:${ubigeo}`;
+const PREFIJO_BORRADOR = "vigia:financiar:";
+/** Evento de la misma pestaña: `storage` solo avisa a las OTRAS pestañas. */
+export const EVENTO_BORRADOR = "vigia:borrador";
+const avisar = () => { try { window.dispatchEvent(new Event(EVENTO_BORRADOR)); } catch { /* sin window */ } };
 export function leerBorrador(ubigeo: string): BorradorFinanciar | null {
   try { const raw = localStorage.getItem(KEY(ubigeo)); return raw ? (JSON.parse(raw) as BorradorFinanciar) : null; } catch { return null; }
 }
 export function guardarBorrador(b: BorradorFinanciar) {
   try { localStorage.setItem(KEY(b.ubigeo), JSON.stringify(b)); } catch { /* sin storage */ }
+  avisar();
 }
 export function borrarBorrador(ubigeo: string) {
   try { localStorage.removeItem(KEY(ubigeo)); } catch { /* sin storage */ }
+  avisar();
+}
+
+/** Aportes ya creados (con código) que siguen sin comprobante, en este navegador: el más reciente primero. */
+export function listarPagosPendientes(maxDias = 7): (BorradorFinanciar & { creada: NonNullable<BorradorFinanciar["creada"]> })[] {
+  const out: (BorradorFinanciar & { creada: NonNullable<BorradorFinanciar["creada"]> })[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(PREFIJO_BORRADOR)) continue;
+      const b = JSON.parse(localStorage.getItem(k) ?? "null") as BorradorFinanciar | null;
+      if (!b?.creada?.codigo) continue;
+      if (Date.now() - new Date(b.creada.creadaAt).getTime() > maxDias * 86_400_000) continue;
+      out.push({ ...b, ubigeo: k.slice(PREFIJO_BORRADOR.length), creada: b.creada });
+    }
+  } catch { /* sin storage */ }
+  return out.sort((a, b) => +new Date(b.creada.creadaAt) - +new Date(a.creada.creadaAt));
+}
+
+/** Página donde se financia ese borrador (inverso de `claveAlcance`). */
+export function hrefDeBorrador(clave: string): string {
+  if (clave.startsWith("entidad-")) return `/app/financiar/entidad/${clave.slice(8)}`;
+  const m = /^partido-(.+)-(\d{4})$/.exec(clave);
+  if (m) return `/app/financiar/partido/${m[1]}?anio=${m[2]}`;
+  return `/app/financiar/${clave}`;
 }
