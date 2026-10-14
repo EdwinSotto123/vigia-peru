@@ -79,11 +79,11 @@ lo deja listo para el `compliance_agent`.
 ## Frecuencia sugerida (cron) — y dónde corre cada uno hoy
 
 **Desde el 2026-10-14 los automáticos corren en Cloudflare.** Son `oece_ocds`, `pnda_sancionados`,
-`pnda_visitas`, `pnda_dji`, `jne_infogob` y `pnda_oece`, en el Worker `vigia-scrapers` (**`backend/scrapers-worker/`**):
+`pnda_visitas`, `pnda_dji`, `jne_infogob`, `pnda_oece`, `mef_presupuesto` y `onpe_claridad`, en el Worker `vigia-scrapers` (**`backend/scrapers-worker/`**):
 es un port a TypeScript con las mismas agendas y pruebas de paridad contra este código. Los jobs de GCP de abajo
 quedaron pausados junto con el proyecto de agentes. Este código Python sigue siendo la referencia y sirve para
-los modos manuales (`--xlsx`, `--root`, `onpe_claridad`) y para `mef_presupuesto`, que no se pasó porque la API
-del MEF cambió.
+los modos manuales (`--xlsx`, `--root`). `mef_presupuesto` de acá usa la API vieja del MEF, que ya no
+existe; el Worker lee el ZIP diario.
 
 Historia (2026-09-16 → 2026-10-14): 6 de los 8 pipelines corrían en GCP como Cloud Run Jobs
 agendados con Cloud Scheduler (`backend/cloud_functions/`, `infrastructure/deploy/cloud-scrapers.sh`):

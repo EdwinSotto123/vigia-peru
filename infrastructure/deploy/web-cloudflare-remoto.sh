@@ -19,7 +19,7 @@ gzip web.tar
 
 # 2. Build en Cloud Build (~10 min en E2_HIGHCPU_8); deja open-next.tgz en el bucket de migración.
 SALIDA="gs://vigia-migracion-$(numero_proyecto)/web"
-gcloud builds submit web.tar.gz --config "$REPO_ROOT/frontend/cloudbuild-cf.yaml" --region "$REGION" \
+gcloud builds submit web.tar.gz --config "${CONFIG_BUILD:-$REPO_ROOT/frontend/cloudbuild-cf.yaml}" --region "$REGION" \
   --substitutions "_SALIDA=${SALIDA}"
 
 # 3. Deploy desde una carpeta mínima: solo el adaptador y wrangler (versiones de frontend/package.json).

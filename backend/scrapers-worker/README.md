@@ -15,11 +15,26 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `pnda_dji` | `dji_funcionarios` / `dji_empleos` (CSV de 268 y 442 MB) | día 5, 08:00 |
 | `jne_infogob` | `jne_autoridades` (XLS del JNE) + DNI desde `onpe_candidatos` | día 5, 08:00 |
 | `pnda_oece` | solo crudos (datasets del OECE en la PNDA) | día 1, 08:00 |
+| `mef_presupuesto` | `mef_ejecutora_anual` + `mef_departamento_desglose` desde `<año>-Gasto-Diario.zip` → `refrescar_mef_presupuesto()` (migración 47) | lunes 08:00 |
+| `onpe_claridad` | `onpe_aportantes` + `onpe_candidatos` con Browser Rendering (Cloudflare de la ONPE pasa con Chromium real) | miércoles 08:00 |
 
 Lo que no se pasó:
-- **`mef_presupuesto`**: la API del MEF cambió y el pipeline fallaba igual en GCP.
 - **`vigia-batch`**: baja documentos de los contratos financiados para los agentes, que siguen en GCP y están pausados.
-- **Modos manuales**: `onpe_claridad` (necesita navegador), `pnda_visitas --xlsx` y `jne_infogob --root` siguen en Python.
+- **Modos manuales**: `pnda_visitas --xlsx` y `jne_infogob --root` siguen en Python.
+
+### MEF
+
+El MEF quitó `datastore_search_sql`. Lo que queda completo es el ZIP diario por año (2026: 549 MB, 8,95 M filas,
+ZIP64). Se baja en streaming, se infla con `fflate` de forma síncrona (`DecompressionStream` acumulaba más de
+1 GB y el Worker se caía por memoria) y se agrega por unidad ejecutora y por departamento (`src/mef_agregado.ts`).
+Un año por paso, ~125 s de CPU. Los ZIP de 2022-2024 ya no se publican y el API por páginas tarda 60 s cada
+32 000 filas: esos años quedan con los datos regionales que ya había en la base.
+
+### ONPE
+
+`src/fuentes/onpe_claridad.ts` abre Claridad con `@cloudflare/puppeteer` (binding `BROWSER`) y desde la página
+llama al backend JSON (`org/find`, `find-ifa`, `find-detail` en tandas de 40, `candidate/...`). El backend no
+valida el reCAPTCHA; lo que bloquea es Cloudflare por huella del cliente, y Chromium pasa.
 
 ## Cómo corre
 
