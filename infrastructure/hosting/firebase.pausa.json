@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "vigia-peru",
+    "public": "public",
+    "ignore": ["firebase.json", "firebase.pausa.json", "**/.*"],
+    "redirects": [
+      { "source": "/", "destination": "https://vigia-web.vigiaperu.workers.dev/", "type": 302 },
+      { "source": "/v1/:ruta*", "destination": "https://vigia-api.vigiaperu.workers.dev/v1/:ruta", "type": 302 },
+      { "source": "/:ruta*", "destination": "https://vigia-web.vigiaperu.workers.dev/:ruta", "type": 302 }
+    ]
+  }
+}

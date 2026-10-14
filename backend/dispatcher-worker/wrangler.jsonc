@@ -29,7 +29,11 @@
   // Secretos (wrangler secret put): GCP_SA_KEY (cuenta con roles/run.invoker en los 4 servicios de
   // agentes) y DISPATCHER_TOKEN (endpoints manuales).
   "vars": {
-    "DISPATCHER_ACTIVO": "1",
+    // APAGADO desde 2026-10-14: la facturación del proyecto de los agentes (project-a974c6e5) fue
+    // rechazada; se pausa hasta que se activen los créditos de Google for Startups. Para volver: "1"
+    // acá + `npx wrangler deploy`, y reanudar el Scheduler `vigia-batch` de ese proyecto (los `scraper-*`
+    // NO: los scrapers pasaron a Cloudflare, backend/scrapers-worker).
+    "DISPATCHER_ACTIVO": "0",
     "AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
     "AGENT_URL_BIENES": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
     "AGENT_URL_SERVICIOS": "https://agente-servicios-753067078557.us-central1.run.app",

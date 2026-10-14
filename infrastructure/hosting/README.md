@@ -19,6 +19,16 @@ Detalles que condicionan el código:
 
 Desplegar: `bash infrastructure/deploy/hosting.sh` (solo publica la configuración; no toca los servicios).
 
+## Modo pausa (Cloud Run apagado)
+
+`firebase.pausa.json` manda `vigia-peru.web.app` a la réplica en Cloudflare con un 302 (temporal, para
+poder volver): `/v1/**` a `vigia-api.vigiaperu.workers.dev` y el resto a `vigia-web.vigiaperu.workers.dev`.
+Se usa con `vigia-peru-frontend` y `vigia-peru-api` en `--ingress internal` (sin tráfico, sin costo).
+
+- Activar: `firebase deploy --only hosting:vigia-peru --project vivid-spot-480905-a4 --config firebase.pausa.json`
+  desde esta carpeta, y `gcloud run services update <servicio> --ingress internal` en los dos servicios.
+- Volver: `--ingress all` en los dos servicios y `bash infrastructure/deploy/hosting.sh`.
+
 ## Cambiar de proyecto
 
 El sitio `vigia-peru.web.app` es del proyecto de la entrada (`ENTRADA_PROJECT_ID`). `bash infrastructure/deploy/hosting.sh` publica ahí. Sus reescrituras apuntan a los servicios de Cloud Run de ese mismo proyecto. Guía: `infrastructure/deploy/migracion/README.md`.
