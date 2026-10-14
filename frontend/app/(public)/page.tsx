@@ -23,13 +23,20 @@ import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
 import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal, type TipoEscala } from "@/lib/landing";
 import { reglaLabel } from "@/lib/auditoria";
+import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
 // El metadata de una page gana sobre el de app/layout.tsx solo para esta ruta.
 // Dice qué hace el producto por quien lo busca, no con qué está hecho.
+const TITULO_PORTADA = "Vigía Perú: en qué se gasta el dinero de tu región";
+const DESCRIPCION_PORTADA =
+  "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, financia una lectura o denuncia una obra.";
+
 export const metadata: Metadata = {
-  title: { absolute: "Vigía Perú: en qué se gasta el dinero de tu región" },
-  description:
-    "Vigía lee los contratos del Estado peruano, los cruza con registros oficiales y te muestra cuáles merecen una segunda mirada, con la ley y la fuente para comprobarlo. Explora tu región, financia una lectura o denuncia una obra.",
+  title: { absolute: TITULO_PORTADA },
+  description: DESCRIPCION_PORTADA,
+  // La portada es lo que más se comparte: título y descripción explícitos para la tarjeta.
+  openGraph: { ...OG_BASE, type: "website", url: "/", title: TITULO_PORTADA, description: DESCRIPCION_PORTADA },
+  twitter: { ...TWITTER_BASE, title: TITULO_PORTADA, description: DESCRIPCION_PORTADA },
 };
 
 /**

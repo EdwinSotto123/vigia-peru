@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
 /**
  * Envoltorio de servidor del dossier: el título que ve quien recibe el enlace
@@ -33,7 +34,8 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     return {
       title,
       description,
-      openGraph: { title, description },
+      openGraph: { ...OG_BASE, type: "article", title, description },
+      twitter: { ...TWITTER_BASE, title, description },
     };
   } catch {
     return base;

@@ -6,6 +6,7 @@ import { Pagina } from "@/components/patrones";
 import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
 import { getCatalogoReglas, type CatalogoReglas } from "@/lib/revision";
 import { soles } from "@/lib/formato";
+import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
 export const revalidate = 60;
 
@@ -24,7 +25,8 @@ export async function generateMetadata({ params }: { params: { ocid: string } })
   return {
     title: titulo,
     description: desc || "Contrato público del SEACE en Vigía Perú.",
-    openGraph: { title: titulo, description: desc, type: "article" },
+    openGraph: { ...OG_BASE, title: titulo, description: desc, type: "article" },
+    twitter: { ...TWITTER_BASE, title: titulo, description: desc },
   };
 }
 

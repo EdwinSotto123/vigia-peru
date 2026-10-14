@@ -14,17 +14,22 @@ const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600", 
 import type { Viewport } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlotante";
+import { OG_BASE, SITIO, TWITTER_BASE } from "@/lib/compartir";
 
 export const metadata: Metadata = {
   // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
-  // http://localhost:8080 en producción.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://vigia-peru-frontend-36169102688.us-central1.run.app"),
+  // http://localhost:8080 en producción. El dominio público de cada despliegue: lib/compartir.ts.
+  metadataBase: new URL(SITIO),
   title: {
     default: "Vigía Perú: en qué se gasta el dinero de tu región",
     template: "%s | Vigía Perú",
   },
   description:
     "Plataforma cívica que lee los contratos públicos del Perú publicados en el SEACE, los cruza con fuentes oficiales y muestra señales de riesgo con la norma y la fuente de cada una.",
+  // Vista previa al compartir: la imagen es app/opengraph-image.tsx (lib/compartir.ts); sin título
+  // propio, cada red usa el <title> de la página.
+  openGraph: { ...OG_BASE, type: "website" },
+  twitter: TWITTER_BASE,
 };
 
 export const viewport: Viewport = { themeColor: "#0B0F0F", colorScheme: "dark" };
