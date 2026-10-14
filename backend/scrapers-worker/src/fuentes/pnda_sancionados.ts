@@ -12,7 +12,7 @@ import type { Env, ParamsCorrida } from "../config.ts";
 import { decodificarCp1252, filasDict, leerCsv } from "../csv.ts";
 import { conDb } from "../db.ts";
 import { DatasetInexistente, obtenerDataset, recursosDeDatos } from "../pnda.ts";
-import { asciiNfkd, colapsar, strip } from "../py.ts";
+import { asciiNfkd, colapsar, fechaDmy, fechaIso, fechaYmd, strip } from "../py.ts";
 import { registrar } from "../registro.ts";
 import { CARGA, DESCARGA } from "./comun.ts";
 
@@ -40,20 +40,11 @@ export interface Sancion {
   infraccion: string | null;
 }
 
-function fechaValida(a: number, m: number, d: number): string | null {
-  const f = new Date(Date.UTC(a, m - 1, d));
-  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d || a < 1) return null;
-  return `${String(a).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-}
-
 /** `_date`: AAAAMMDD, DD/MM/AAAA o AAAA-MM-DD (como `strptime`: día y mes de 1 o 2 dígitos). */
 export function fechaSancion(s: string | null): string | null {
   const t = strip(s ?? "");
-  if (/^\d{8}$/.test(t)) return fechaValida(Number(t.slice(0, 4)), Number(t.slice(4, 6)), Number(t.slice(6)));
-  let m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t);
-  if (m) return fechaValida(Number(m[3]), Number(m[2]), Number(m[1]));
-  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
-  return m ? fechaValida(Number(m[1]), Number(m[2]), Number(m[3])) : null;
+  if (/^\d{8}$/.test(t)) return fechaIso(Number(t.slice(0, 4)), Number(t.slice(4, 6)), Number(t.slice(6)));
+  return fechaDmy(t) ?? fechaYmd(t);
 }
 
 const normRazon = (s: string) => colapsar(asciiNfkd(s).toUpperCase());

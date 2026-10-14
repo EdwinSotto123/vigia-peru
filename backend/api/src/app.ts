@@ -26,6 +26,7 @@ import { cuentasRouter } from "./routes/cuentas.js";
 import { buscarRouter } from "./routes/buscar.js";
 import { senalesRouter } from "./routes/senales.js";
 import { privacidadRouter } from "./routes/privacidad.js";
+import { mefRouter } from "./routes/mef.js";
 
 export const app = new Hono();
 
@@ -109,6 +110,7 @@ api.route("/contratos", contratosRouter);
 api.route("/cuentas", cuentasRouter);
 api.route("/buscar", buscarRouter);
 api.route("/privacidad", privacidadRouter);
+api.route("/mef", mefRouter);
 api.route("/admin", adminRouter);
 
 app.route("/", api);

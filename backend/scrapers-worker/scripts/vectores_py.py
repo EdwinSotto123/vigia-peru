@@ -353,10 +353,122 @@ def vectores_jne() -> dict:
     return {"fixture": json.loads(json.dumps(filas, default=a_json)), "procesos": procesos}
 
 
+CABECERA_MEF = ("ANO_EJE,MES_EJE,NIVEL_GOBIERNO,NIVEL_GOBIERNO_NOMBRE,SECTOR,SECTOR_NOMBRE,PLIEGO,PLIEGO_NOMBRE,SEC_EJEC,EJECUTORA,"
+                "EJECUTORA_NOMBRE,DEPARTAMENTO_EJECUTORA,DEPARTAMENTO_EJECUTORA_NOMBRE,PROVINCIA_EJECUTORA,PROVINCIA_EJECUTORA_NOMBRE,"
+                "DISTRITO_EJECUTORA,DISTRITO_EJECUTORA_NOMBRE,SEC_FUNC,PROGRAMA_PPTO,PROGRAMA_PPTO_NOMBRE,TIPO_ACT_PROY,TIPO_ACT_PROY_NOMBRE,"
+                "PRODUCTO_PROYECTO,PRODUCTO_PROYECTO_NOMBRE,ACTIVIDAD_ACCION_OBRA,ACTIVIDAD_ACCION_OBRA_NOMBRE,FUNCION,FUNCION_NOMBRE,"
+                "DIVISION_FUNCIONAL,DIVISION_FUNCIONAL_NOMBRE,GRUPO_FUNCIONAL,GRUPO_FUNCIONAL_NOMBRE,META,FINALIDAD,META_NOMBRE,DEPARTAMENTO_META,"
+                "DEPARTAMENTO_META_NOMBRE,FUENTE_FINANCIAMIENTO,FUENTE_FINANCIAMIENTO_NOMBRE,RUBRO,RUBRO_NOMBRE,TIPO_RECURSO,TIPO_RECURSO_NOMBRE,"
+                "CATEGORIA_GASTO,CATEGORIA_GASTO_NOMBRE,TIPO_TRANSACCION,GENERICA,GENERICA_NOMBRE,SUBGENERICA,SUBGENERICA_NOMBRE,SUBGENERICA_DET,"
+                "SUBGENERICA_DET_NOMBRE,ESPECIFICA,ESPECIFICA_NOMBRE,ESPECIFICA_DET,ESPECIFICA_DET_NOMBRE,MONTO_PIA,MONTO_PIM,MONTO_CERTIFICADO,"
+                "MONTO_COMPROMETIDO_ANUAL,MONTO_COMPROMETIDO,MONTO_DEVENGADO,MONTO_GIRADO").split(",")
+
+
+def vectores_mef() -> dict:
+    """Un ZIP64 sintético con el formato del <año>-Gasto-Diario.zip (cabecera real, todo entre comillas) y lo que
+    da `agregar_zip` del pipeline de Python."""
+    import base64
+    import tempfile
+    import zipfile
+
+    from backend.scrapers.mef_presupuesto.pipeline import agregar_zip
+
+    ejecutoras = [  # sec_ejec, ejecutora, nombre, pliego, pliego_nombre, sector, sector_nombre, nivel, dep, dep_nombre, prov, prov_n, dist, dist_n
+        ("721", "001", "REGION EJEMPLO-SEDE CENTRAL", "440", "GOBIERNO REGIONAL DEL DEPARTAMENTO DE AMAZONAS", "99", "GOBIERNOS REGIONALES", "R",
+         "01", "AMAZONAS", "01", "CHACHAPOYAS", "01", "CHACHAPOYAS"),
+        ("300123", "010101", "MUNICIPALIDAD PROVINCIAL DE EJEMPLO", "", " ", "", "GOBIERNOS LOCALES", "M",
+         "01", "AMAZONAS", "01", "CHACHAPOYAS", "01", "CHACHAPOYAS"),
+        ("1", "001", "MINISTERIO DE EJEMPLO - ADMINISTRACION GENERAL", "010", "M. DE EJEMPLO", "10", "EDUCACION", "E",
+         "15", "LIMA", "01", "LIMA", "01", "LIMA"),
+        ("300999", "250101", "MUNICIPALIDAD DISTRITAL DE \"COMILLAS\", PRUEBA", "", " ", "", "GOBIERNOS LOCALES", "M",
+         "25", "UCAYALI", "01", "CORONEL PORTILLO", "01", "CALLERIA"),
+    ]
+    programas = ["0068: REDUCCION DE VULNERABILIDAD", "9001. ACCIONES CENTRALES", "9002 ASIGNACIONES PRESUPUESTARIAS QUE NO RESULTAN EN PRODUCTOS", ""]
+    genericas = ["PERSONAL Y OBLIGACIONES SOCIALES", "BIENES Y SERVICIOS", "ADQUISICION DE ACTIVOS NO FINANCIEROS", " "]
+    lineas = [",".join(f'"{c}"' for c in CABECERA_MEF)]
+    for _ in range(400):
+        e = rnd.choice(ejecutoras)
+        mes = rnd.choice([0] * 3 + list(range(1, 13)))
+        montos = ["0"] * 7
+        if mes == 0:
+            montos[0] = rnd.choice(["0", "1250000", "1234.56", ""])
+            montos[1] = rnd.choice(["0", "1500000.5", "987654.32"])
+        else:
+            for k in (2, 3, 4, 5, 6):
+                montos[k] = rnd.choice(["0", "", str(round(rnd.uniform(0, 50000), 2)), str(rnd.randint(1, 900000))])
+        fila = {c: "X" for c in CABECERA_MEF}
+        fila.update({"ANO_EJE": "2026", "MES_EJE": str(mes), "SEC_EJEC": e[0], "EJECUTORA": e[1], "EJECUTORA_NOMBRE": e[2], "PLIEGO": e[3],
+                     "PLIEGO_NOMBRE": e[4], "SECTOR": e[5], "SECTOR_NOMBRE": e[6], "NIVEL_GOBIERNO": e[7], "DEPARTAMENTO_EJECUTORA": e[8],
+                     "DEPARTAMENTO_EJECUTORA_NOMBRE": e[9], "PROVINCIA_EJECUTORA": e[10], "PROVINCIA_EJECUTORA_NOMBRE": e[11],
+                     "DISTRITO_EJECUTORA": e[12], "DISTRITO_EJECUTORA_NOMBRE": e[13], "PROGRAMA_PPTO_NOMBRE": rnd.choice(programas),
+                     "GENERICA_NOMBRE": rnd.choice(genericas), "META_NOMBRE": 'META CON "COMILLAS", Y COMAS'})
+        fila.update(dict(zip(CABECERA_MEF[-7:], montos)))
+        lineas.append(",".join('"' + fila[c].replace('"', '""') + '"' for c in CABECERA_MEF))
+    texto = "\r\n".join(lineas) + "\r\n"
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+        ruta = Path(f.name)
+    with zipfile.ZipFile(ruta, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        with z.open("2026-Gasto-Diario.csv", "w", force_zip64=True) as w:
+            w.write(texto.encode("utf-8"))
+    datos = ruta.read_bytes()
+    ejec, desg, res = agregar_zip(ruta)
+    ruta.unlink()
+    return {
+        "zip_b64": base64.b64encode(datos).decode(),
+        "texto": texto,
+        "resumen": {k: res[k] for k in ("filas", "anio", "ejecutoras", "desglose")},
+        "ejecutoras": {e["sec_ejec"]: [*[e[c.lower()].strip() if c == "PLIEGO_NOMBRE" else e[c.lower()] for c in
+                                         ("SEC_EJEC", "EJECUTORA", "EJECUTORA_NOMBRE", "PLIEGO", "PLIEGO_NOMBRE", "SECTOR", "SECTOR_NOMBRE",
+                                          "NIVEL_GOBIERNO", "DEPARTAMENTO_EJECUTORA", "DEPARTAMENTO_EJECUTORA_NOMBRE", "PROVINCIA_EJECUTORA",
+                                          "PROVINCIA_EJECUTORA_NOMBRE", "DISTRITO_EJECUTORA", "DISTRITO_EJECUTORA_NOMBRE")],
+                                       [round(e[k], 2) for k in ("pia", "pim", "certificado", "comprometido_anual", "comprometido", "devengado", "girado")],
+                                       e["filas"]] for e in ejec},
+        "desglose": {f"{d}\t{t}\t{n}": [round(x, 2), round(y, 2), round(z_, 2)] for _, d, t, n, x, y, z_ in desg},
+    }
+
+
+def vectores_onpe() -> dict:
+    """normalize_detail / normalize_candidatos sobre documentos SINTÉTICOS (documentos y nombres inventados),
+    como texto JSON: el port lee `monto` con su texto (70000.0 ≠ 70000 para el aporte_clave de Python)."""
+    from backend.scrapers.onpe_claridad.pipeline import normalize_candidatos, normalize_detail, slug
+
+    def aportante() -> dict:
+        a = {}
+        r = rnd.random()
+        if r < 0.5:
+            a.update({"apellidos": rnd.choice(["PRUEBA EJEMPLO", "ÑANDÚ ÁVILA", "  ESPACIOS  ", "", None]),
+                      "nombres": rnd.choice(["UNO", "Dos Tres", "", None]), "razonSocial": rnd.choice(["N/A", "n/a", "", None])})
+        elif r < 0.8:
+            a.update({"razonSocial": rnd.choice(["EMPRESA DE EJEMPLO S.A.C.", "Constructora Ficticia E.I.R.L.", " CON ESPACIOS "]),
+                      "apellidos": rnd.choice(["", None]), "nombres": None})
+        a["dni"] = rnd.choice(["00000123", "20000000001", " 00000456 ", "123", "", None, "ABC12345"])
+        a["fechaAporte"] = rnd.choice(["09/07/2020", "1/2/2021", "2020-07-09", "1/2/0217", "31/02/2020", "", None, " 15/03/2022 "])
+        a["monto"] = rnd.choice([70000.0, 500, 1234.5, 0, None, 1e16, 0.1])
+        a["tipoAporte"] = rnd.choice(["F", "E", "A", "O", "f", " E ", "X", "", None])
+        a["anioEleccion"] = rnd.choice(["2020", 2021, "", None, "20x0"])
+        return a
+
+    detalle = []
+    for k in range(25):
+        proceso = rnd.choice(["EG2021", "ERM2022", "IFA2019", "EG2026", "ERM2026"])
+        doc = {"proceso": proceso, "organizacion": rnd.choice(["PARTIDO DE EJEMPLO", "Movimiento Regional Ficticio — Ñ", "ALIANZA “PRUEBA”"]),
+               "ruc": rnd.choice(["20000000001", "", None]), "aportantes": [aportante() for _ in range(rnd.randint(0, 12))]}
+        texto = json.dumps(doc, ensure_ascii=False)
+        filas = normalize_detail(json.loads(texto))
+        detalle.append({"texto": texto, "filas": json.loads(json.dumps(filas, default=a_json))})
+    candidatos = {"candidatos": [{"dni": rnd.choice(["00000789", " 00000790 ", "", None, "X1"]), "apellidos": rnd.choice(["APELLIDO PRUEBA", " ", None]),
+                                  "nombres": rnd.choice(["NOMBRE", None]), "organizacion": rnd.choice(["PARTIDO DE EJEMPLO", "", None]),
+                                  "departamento": rnd.choice(["LIMA", " CUSCO ", None]), "proceso": rnd.choice(["EG 2026", "ERM2022", " ", None]),
+                                  "totalIngresos": rnd.choice([None, 1500.5, 0, 200])} for _ in range(60)]}
+    texto_c = json.dumps(candidatos, ensure_ascii=False)
+    slugs = [[s, slug(s)] for s in ["Partido de Ejemplo", "  ALIANZA “PRUEBA” — Ñandú ", "", "x" * 120, "Perú Primero 2026!!"]]
+    return {"detalle": detalle, "candidatos": {"texto": texto_c, "filas": normalize_candidatos(json.loads(texto_c))}, "slug": slugs}
+
+
 def main() -> None:
     datos = {"generado": "scripts/vectores_py.py", "ocds": vectores_ocds(), "texto": vectores_texto(), "ubigeo": vectores_ubigeo(),
              "csv": vectores_csv(), "sancionados": vectores_sancionados(), "visitas": vectores_visitas(), "jne": vectores_jne(),
-             "cp1252": bytes(range(256)).decode("cp1252", errors="replace")}
+             "cp1252": bytes(range(256)).decode("cp1252", errors="replace"), "mef": vectores_mef(), "onpe": vectores_onpe()}
     SALIDA.write_text(json.dumps(datos, ensure_ascii=False, default=a_json), encoding="utf-8")
     errores = sum(1 for v in datos["ocds"] if "error" in v["fila"] or "error" in v["clasificacion"])
     print(f"✓ {SALIDA.relative_to(RAIZ)} · {len(datos['ocds'])} releases ({errores} donde Python lanzó) · "

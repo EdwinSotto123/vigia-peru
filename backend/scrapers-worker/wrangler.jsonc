@@ -18,6 +18,8 @@
   "r2_buckets": [{ "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos" }],
   // La API OCDS del OECE solo responde desde Zúrich o Buenos Aires: el relay corre fijo en Zúrich.
   "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
+  // ONPE Claridad: el challenge de Cloudflare solo deja pasar un navegador (src/fuentes/onpe_claridad.ts).
+  "browser": { "binding": "BROWSER" },
   // Una corrida de una fuente = una instancia (src/workflow.ts).
   "workflows": [{ "name": "vigia-scrapers-correr", "binding": "CORRER", "class_name": "CorrerFuente" }],
 

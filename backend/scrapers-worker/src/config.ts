@@ -25,6 +25,8 @@ export interface Env {
   RELAY: Fetcher;
   /** Workflow `CorrerFuente`: una corrida de una fuente (src/workflow.ts). */
   CORRER: Workflow<ParamsCorrida>;
+  /** Browser Rendering: Claridad (ONPE) está detrás de un challenge de Cloudflare que solo pasa un navegador. */
+  BROWSER: Fetcher;
 
   /** "1" = los crons disparan corridas. Sin eso el cron solo registra qué habría corrido. */
   SCRAPERS_ACTIVO?: string;

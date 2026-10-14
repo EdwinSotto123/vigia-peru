@@ -152,6 +152,31 @@ export function flotante(v: unknown): number | null {
   return RE_FLOAT.test(s) ? Number(s.replaceAll("_", "")) : null;
 }
 
+// ─── Fechas ──────────────────────────────────────────────────────────────────
+/**
+ * `datetime.date(a, m, d).isoformat()` o null si la fecha no existe. Años 1-9999 como Python: `Date.UTC`
+ * convertiría 21 en 1921 (las fuentes traen erratas como "0217").
+ */
+export function fechaIso(a: number, m: number, d: number): string | null {
+  if (!(a >= 1 && a <= 9999 && m >= 1 && m <= 12 && d >= 1)) return null;
+  const f = new Date(Date.UTC(2000, 0, 1));
+  f.setUTCFullYear(a, m - 1, d);
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return `${String(a).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** `strptime(s, "%d/%m/%Y")` (día y mes de 1 o 2 dígitos, año de 4) → AAAA-MM-DD o null. */
+export function fechaDmy(s: string): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  return m ? fechaIso(Number(m[3]), Number(m[2]), Number(m[1])) : null;
+}
+
+/** `strptime(s, "%Y-%m-%d")` → AAAA-MM-DD o null. */
+export function fechaYmd(s: string): string | null {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  return m ? fechaIso(Number(m[1]), Number(m[2]), Number(m[3])) : null;
+}
+
 // ─── Mayúsculas y Unicode ────────────────────────────────────────────────────
 const RE_CASED = /\p{Cased}/u;
 

@@ -234,6 +234,11 @@ export async function getEntidades(params: {
   return r.data;
 }
 
+/** Presupuesto del MEF de un departamento (nombre como en el MEF: "AMAZONAS", "PROVINCIA CONSTITUCIONAL DEL CALLAO"…). */
+export async function getMefRegion(dept: string) {
+  return get<import("./mef").RegionBudgetSummary>(`/mef/region/${encodeURIComponent(dept)}`);
+}
+
 export async function getEntidad(ruc: string) {
   try {
     return await get<{ entidad: any; mef: any; alertas: any[] }>(

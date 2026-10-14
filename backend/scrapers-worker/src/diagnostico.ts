@@ -77,6 +77,30 @@ export async function diagnosticar(env: Env, partes: Set<string>): Promise<Resul
       return { status: r.status };
     });
   }
+  if (partes.has("mef_vel")) {
+    // Velocidad de bajada del ZIP del MEF desde este punto (los primeros 20 MB con Range).
+    out.mef_vel = await medir(async () => {
+      const t0 = Date.now();
+      const r = await fetch("https://fs.datosabiertos.mef.gob.pe/datastorefiles/2026-Gasto-Diario.zip",
+        { headers: { Range: "bytes=0-20971519", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0" } });
+      let n = 0;
+      for await (const t of r.body!) n += t.byteLength;
+      const s = (Date.now() - t0) / 1000;
+      return { status: r.status, mb: +(n / 1e6).toFixed(1), segundos: +s.toFixed(1), mb_s: +(n / 1e6 / s).toFixed(2) };
+    });
+  }
+  if (partes.has("mef_agregar")) {
+    // La agregación del MEF entera, sin base ni Workflow: cuánto tarda en este runtime (no escribe nada).
+    out.mef_agregar = await medir(async () => {
+      const { agregarZip } = await import("./mef_agregado.ts");
+      const t0 = Date.now();
+      const r = await fetch("https://fs.datosabiertos.mef.gob.pe/datastorefiles/2026-Gasto-Diario.zip", { headers: { "User-Agent": "Mozilla/5.0 Chrome/126.0" } });
+      let bytes = 0;
+      const contador = new TransformStream<Uint8Array, Uint8Array>({ transform(t, c) { bytes += t.byteLength; c.enqueue(t); } });
+      const a = await agregarZip(r.body!.pipeThrough(contador));
+      return { filas: a.filas, ejecutoras: a.ejecutoras.size, desglose: a.desglose.size, mb: Math.round(bytes / 1e6), segundos: (Date.now() - t0) / 1000 };
+    });
+  }
   if (todo || partes.has("r2")) {
     out.r2 = await medir(async () => {
       const l = await env.CRUDOS.list({ prefix: "raw/", limit: 5 });

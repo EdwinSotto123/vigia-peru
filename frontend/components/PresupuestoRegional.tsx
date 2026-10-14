@@ -21,7 +21,7 @@ import { Ayuda, Cargando, EstadoVacio, FuenteDato } from "@/components/patrones"
 import { cn } from "@/lib/utils";
 
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
-const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026";
+const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
 
 /** Un año cerrado que devengó menos que esto del PIM se marca como observación (no es una señal de Vigía). */
 const EJECUCION_BAJA = 40;
@@ -83,12 +83,7 @@ export function PresupuestoRegional({
   const nombreDepto = mefDept ? capitalize(mefDept.toLowerCase()) : "este departamento";
 
   if (loading) {
-    return (
-      <div className="space-y-2">
-        <Cargando texto="Cargando el presupuesto del MEF…" lineas={4} />
-        <p className="px-1 text-[12px] text-mute">Si es la primera consulta, el MEF puede tardar uno o dos minutos.</p>
-      </div>
-    );
+    return <Cargando texto="Cargando el presupuesto del MEF…" lineas={4} />;
   }
 
   if (error || !data || data.totalRows === 0) {
@@ -337,7 +332,7 @@ export function PresupuestoRegional({
         </div>
       )}
 
-      <FuenteDato fuente="MEF, Datos Abiertos (comparativo de gastos 2022–2026)" fecha={data.fechaDescarga} href={DATASET_MEF} />
+      <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
     </div>
   );
 }

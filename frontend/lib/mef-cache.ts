@@ -1,54 +1,21 @@
 /**
- * Helper compartido para leer el cache de MEF pre-fetcheado por
- * `backend/scripts/fetch_mef_budget.py`. Usado por:
- *  - app/api/mef/region/[dept]/route.ts
- *  - components/EjecucionPresupuestal.tsx (ficha de entidad)
+ * Presupuesto del MEF para la web, leído de la API de Vigía (la base), no del portal del MEF.
  *
- * La idea: SIEMPRE preferir el JSON estático antes que pegarle al portal MEF,
- * que tarda 60-120 s con cualquier departamento mediano.
+ * Desde octubre de 2026 el MEF quitó `datastore_search_sql` y vació el recurso comparativo 2022-2026: la
+ * consulta en vivo que hacía lib/mef.ts siempre fallaba (≈ 600 errores al día en los logs del frontend). El
+ * dato ahora lo carga el scraper `mef_presupuesto` (archivo <año>-Gasto-Diario.zip del MEF, semanal →
+ * mef_region_budget y mef_entity_budget) y la API lo sirve:
+ *  - región:  GET /mef/region/:dept   (app/api/mef/region/[dept]/route.ts → PresupuestoRegional)
+ *  - entidad: GET /entidades/:ruc → `mef` (components/EjecucionPresupuestal.tsx)
+ * Si la API no responde, la región cae al JSON estático de public/ (copia de mayo de 2026) como último
+ * recurso. No queda ninguna consulta en vivo al MEF.
  */
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import { EN_WORKERS, leerAssetPublico } from "./entorno";
-import {
-  fetchRegionBudget,
-  fetchMefBudget,
-  type RegionBudgetSummary,
-  type MefBudgetResult,
-  type MefBudgetRow,
-} from "./mef";
-
-let cachedFile: Record<string, RegionBudgetSummary> | null = null;
-let cacheLoadedAt = 0;
-const CACHE_TTL_MS = 2_000;
-
-let cachedEntities: Record<string, EntityCacheEntry> | null = null;
-let entitiesLoadedAt = 0;
-
-interface EntityCacheEntry {
-  ruc: string;
-  nombre: string;
-  keyword: string;
-  kind: "ok" | "partial" | "failed";
-  totalRows: number;
-  matchedPliegos: string[];
-  byYear: MefBudgetRow[];
-  fetchedAt?: string;
-}
-
-/**
- * Fecha de descarga de una entrada del cache. Los JSON de hoy no la traen
- * (`fetch_mef_budget.py` no la escribe), así que devuelve `null` y la interfaz
- * dice "sin fecha registrada". No se usa la fecha del archivo: en un clon
- * nuevo es la del checkout, y en Cloud Run (buildpacks) es 1980. Sería otra
- * fecha falsa como el "Datos al <hoy>" que había antes.
- */
-function fechaDe(entry: unknown): string | null {
-  const e = entry as { fetchedAt?: unknown; fechaDescarga?: unknown } | null;
-  const f = e?.fetchedAt ?? e?.fechaDescarga;
-  return typeof f === "string" && !Number.isNaN(new Date(f).getTime()) ? f : null;
-}
+import { ApiError, getEntidad, getMefRegion } from "./api-client";
+import type { MefBudgetResult, MefBudgetRow, RegionBudgetSummary } from "./mef";
 
 /** Un JSON de `public/`: del disco en Node; en Cloudflare Workers (sin disco), de los assets. */
 async function leerPublico(nombre: string): Promise<string> {
@@ -60,109 +27,55 @@ async function leerPublico(nombre: string): Promise<string> {
   return fs.readFile(path.join(process.cwd(), "public", nombre), "utf-8");
 }
 
-async function loadCache(): Promise<Record<string, RegionBudgetSummary>> {
-  if (cachedFile && Date.now() - cacheLoadedAt < CACHE_TTL_MS) {
-    return cachedFile;
-  }
-  try {
-    const raw = await leerPublico("mef-budget.json");
-    cachedFile = JSON.parse(raw);
-    cacheLoadedAt = Date.now();
-    return cachedFile ?? {};
-  } catch (e) {
-    // JSON parcial mientras corre el script → devolvé lo último que tenías
-    if (cachedFile) return cachedFile;
-    cachedFile = {};
-    cacheLoadedAt = Date.now();
-    return {};
-  }
-}
-
-/**
- * Trae el presupuesto regional: cache primero, live como fallback.
- * Devuelve `null` si ni cache ni live tienen data.
- */
-export async function getRegionBudget(
-  mefDept: string,
-): Promise<RegionBudgetSummary | null> {
+/** Presupuesto de un departamento: la API primero; si la API falla, la copia estática (vieja). */
+export async function getRegionBudget(mefDept: string): Promise<RegionBudgetSummary | null> {
   const dept = mefDept.toUpperCase();
-
-  // 1. Cache estático
-  const cache = await loadCache();
-  if (cache[dept] && cache[dept].totalRows > 0) {
-    return { ...cache[dept], fechaDescarga: fechaDe(cache[dept]) };
-  }
-
-  // 2. Fallback live (lento): se descargó recién.
   try {
-    const vivo = await fetchRegionBudget(dept);
-    return vivo ? { ...vivo, fechaDescarga: new Date().toISOString() } : null;
+    return await getMefRegion(dept);
   } catch (e) {
-    console.error("[mef-cache] live fallback failed for", dept, e);
+    if (e instanceof ApiError && e.status === 404) return null;
+    console.error("[mef-cache] API /mef/region falló para", dept, (e as Error).message);
+  }
+  try {
+    const cache = JSON.parse(await leerPublico("mef-budget.json")) as Record<string, RegionBudgetSummary>;
+    return cache[dept]?.totalRows ? { ...cache[dept], fechaDescarga: null } : null;
+  } catch {
     return null;
   }
 }
 
-// ─── Entity cache ──────────────────────────────────────────────
-
-async function loadEntities(): Promise<Record<string, EntityCacheEntry>> {
-  if (cachedEntities && Date.now() - entitiesLoadedAt < CACHE_TTL_MS) {
-    return cachedEntities;
-  }
-  try {
-    const raw = await leerPublico("mef-entities.json");
-    cachedEntities = JSON.parse(raw);
-    entitiesLoadedAt = Date.now();
-    return cachedEntities ?? {};
-  } catch (e) {
-    if (cachedEntities) return cachedEntities;
-    cachedEntities = {};
-    entitiesLoadedAt = Date.now();
-    return {};
-  }
+interface FilaMefEntidad {
+  keyword: string | null;
+  total_rows: number | string | null;
+  by_year: MefBudgetRow[] | null;
+  matched_pliegos: string[] | null;
+  kind: string;
+  last_refreshed: string | null;
+  /** Fecha del archivo del MEF (la API la agrega desde mef_ejecutora_anual). */
+  corte?: string | null;
 }
 
 /**
- * Trae el presupuesto de una entidad. Estrategia:
- *   1. Si pasaste RUC: busca en `mef-entities.json` (pre-fetcheado por
- *      `backend/scripts/fetch_mef_entities.py`)
- *   2. Si el cache devuelve "ok" o "partial" con data → devuelvo eso
- *   3. Fallback: `fetchMefBudget(keyword)` live (con cache en memoria, ver
- *      lib/mef.ts)
+ * Presupuesto de una entidad: la fila `mef` de GET /entidades/:ruc (unidad ejecutora cruzada por ubigeo,
+ * pliego regional o nombre; ver la migración 47). Sin fila → "empty".
  */
-export async function getEntityBudget(
-  keyword: string,
-  ruc?: string,
-): Promise<MefBudgetResult> {
-  // 1. Cache por RUC
-  if (ruc) {
-    const entities = await loadEntities();
-    const entry = entities[ruc];
-    if (entry) {
-      // Caso A: cache dice "ok" o "partial" con data → la devolvemos
-      if (entry.kind !== "failed" && entry.totalRows > 0) {
-        return {
-          kind: "ok",
-          data: {
-            query: entry.keyword || keyword,
-            matchedPliegos: entry.matchedPliegos,
-            totalRows: entry.totalRows,
-            byYear: entry.byYear,
-            fechaDescarga: fechaDe(entry),
-          },
-        };
-      }
-      // Caso B: cache dice 0 rows (el keyword no matchea ningún PLIEGO_NOMBRE)
-      // → devolvemos "empty" sin pegarle a MEF (sería el mismo resultado y caro)
-      if (entry.kind === "partial" || entry.kind === "ok") {
-        return { kind: "empty", query: entry.keyword || keyword };
-      }
-      // Caso C: kind === "failed" → cayó en script; intentamos live
-    }
+export async function getEntityBudget(keyword: string, ruc?: string): Promise<MefBudgetResult> {
+  if (!ruc) return { kind: "empty", query: keyword };
+  let fila: FilaMefEntidad | null = null;
+  try {
+    fila = ((await getEntidad(ruc))?.mef ?? null) as FilaMefEntidad | null;
+  } catch (e) {
+    return { kind: "error", query: keyword, message: (e as Error).message };
   }
-
-  // 2. Live (con cache en memoria 1h adentro de fetchMefBudget): la fecha es la de ahora
-  //    como mucho una hora atrás; se dice "descargado hoy" sin inventar la hora.
-  const vivo = await fetchMefBudget(keyword);
-  return vivo.kind === "ok" ? { ...vivo, data: { ...vivo.data, fechaDescarga: vivo.data.fechaDescarga ?? new Date().toISOString() } } : vivo;
+  if (!fila || fila.kind !== "ok" || !fila.by_year?.length) return { kind: "empty", query: keyword };
+  return {
+    kind: "ok",
+    data: {
+      query: fila.keyword ?? keyword,
+      matchedPliegos: fila.matched_pliegos ?? [],
+      totalRows: Number(fila.total_rows ?? 0),
+      byYear: fila.by_year,
+      fechaDescarga: fila.corte ?? fila.last_refreshed,
+    },
+  };
 }

@@ -10,7 +10,9 @@ import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import type { Env, ParamsCorrida } from "./config.ts";
 import { colo, diagnosticar } from "./diagnostico.ts";
 import { correrJne } from "./fuentes/jne_infogob.ts";
+import { correrMef } from "./fuentes/mef_presupuesto.ts";
 import { correrOcds } from "./fuentes/oece_ocds.ts";
+import { correrOnpe } from "./fuentes/onpe_claridad.ts";
 import { correrDji } from "./fuentes/pnda_dji.ts";
 import { correrPndaOece } from "./fuentes/pnda_oece.ts";
 import { correrSancionados } from "./fuentes/pnda_sancionados.ts";
@@ -26,6 +28,8 @@ export const FUENTES: Record<string, Corredor> = {
   pnda_dji: correrDji,
   jne_infogob: correrJne,
   pnda_oece: correrPndaOece,
+  mef_presupuesto: correrMef,
+  onpe_claridad: correrOnpe,
 };
 
 export class CorrerFuente extends WorkflowEntrypoint<Env, ParamsCorrida> {
@@ -37,7 +41,7 @@ export class CorrerFuente extends WorkflowEntrypoint<Env, ParamsCorrida> {
     if (p.fuente === "diagnostico") {
       return step.do("diagnostico", { retries: { limit: 0, delay: 0 }, timeout: "5 minutes" }, async () => ({
         colo_paso: await colo(),
-        ...(await diagnosticar(this.env, new Set(["pnda", "relay", "oece"]))),
+        ...(await diagnosticar(this.env, new Set(["pnda", "relay", "oece", "mef_vel"]))),
       }));
     }
     const correr = FUENTES[p.fuente];

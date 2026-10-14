@@ -10,6 +10,8 @@
     "build": "wrangler deploy --dry-run --outdir .wrangler-dist"
   },
   "dependencies": {
+    "@cloudflare/puppeteer": "^1.4.0",
+    "fflate": "^0.8.3",
     "pg": "^8.23.0",
     "pg-copy-streams": "^7.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"

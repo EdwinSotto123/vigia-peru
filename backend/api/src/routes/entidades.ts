@@ -132,7 +132,12 @@ entidadesRouter.get("/:ruc", async (c) => {
           WHERE e.ruc = $1`,
       [ruc],
     ),
-    pool.query("SELECT * FROM mef_entity_budget WHERE entidad_ruc = $1", [ruc]),
+    // `corte`: la fecha del archivo del MEF del que salió (last_refreshed es cuándo se recalculó).
+    pool.query(
+      `SELECT b.*, (SELECT max(corte) FROM mef_ejecutora_anual) AS corte
+         FROM mef_entity_budget b WHERE b.entidad_ruc = $1`,
+      [ruc],
+    ),
     // Solo alertas PUBLICADAS y no demo: antes salían también las que están en revisión humana o
     // descartadas, con su score (no publicado).
     pool.query(

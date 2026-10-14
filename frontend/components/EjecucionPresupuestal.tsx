@@ -1,23 +1,24 @@
 import { ejecucionPct, sinAnioRepetido, type MefBudgetSummary, type MefBudgetRow } from "@/lib/mef";
 import { getEntityBudget } from "@/lib/mef-cache";
-import { AlertCircle, Clock, Database, ExternalLink, WifiOff } from "lucide-react";
+import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
 import { Ayuda, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
-const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/comparativo-gastos-2022-2026";
+const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejecucion-de-gasto";
 
 /**
- * Server component. Recibe un keyword (parte del nombre del pliego o ejecutora)
- * y muestra el presupuesto real consultado a MEF — Datos Abiertos.
+ * Server component. Muestra el presupuesto del MEF de una entidad: el que Vigía carga cada semana desde
+ * el archivo oficial de Datos Abiertos (presupuesto y ejecución de gasto) y sirve su API, cruzando la
+ * entidad con sus unidades ejecutoras (por ubigeo, pliego regional o nombre).
  *
  * Vive en la pestaña "Presupuesto MEF" de la ficha de una entidad (§14.3), que ya le pone
  * nombre y bajada: aquí va el dato, sin repetir el encabezado. Plantilla Ficha (§14.2):
  * el último año como `Indicadores` (número → qué es → contexto), los avisos en una línea
- * + ⓘ, y cada año en la `Tabla` del kit, con la ejecución como chip. Sus estados (lento,
- * caído, sin registros) van alineados a la izquierda y sin la llamita: la llamita no
+ * + ⓘ, y cada año en la `Tabla` del kit, con la ejecución como chip. Sus estados (caído,
+ * sin registros) van alineados a la izquierda y sin la llamita: la llamita no
  * acompaña a nadie señalado (§2.3). Una ejecución baja o por encima del PIM es una
  * observación del presupuesto, no una señal de Vigía: va en ámbar con ícono y palabra,
  * nunca en el rojo de las señales.
@@ -27,38 +28,19 @@ export async function EjecucionPresupuestal({
   ruc,
 }: {
   query: string;
-  /** Si pasas el RUC, primero buscamos en public/mef-entities.json */
+  /** La entidad se busca por RUC en la API (GET /entidades/:ruc → `mef`); sin RUC no hay dato. */
   ruc?: string;
 }) {
   const result = await getEntityBudget(query, ruc);
 
-  // MEF API tardó demasiado → timeout (LIKE sin índice sobre 8M filas)
-  if (result.kind === "timeout") {
-    return (
-      <EstadoMef icono={<Clock size={16} className="text-inkSoft" aria-hidden />} query={query}>
-        <strong className="font-semibold text-ink">El MEF respondió lento y los datos no cargaron.</strong> Recarga la
-        página en un minuto.
-        <Ayuda titulo="¿Por qué pasa esto?">
-          <span className="block">
-            El portal de Datos Abiertos del MEF no tiene un índice por nombre de entidad: con las entidades grandes, la
-            búsqueda recorre millones de filas y a veces no termina a tiempo (más de 28 segundos). Cuando la consulta
-            termina una vez, queda guardada por una hora.
-          </span>
-          <span className="mt-2 block text-mute">
-            El presupuesto por departamento ya está guardado y carga al instante en la pestaña Presupuesto del mapa.
-          </span>
-        </Ayuda>
-      </EstadoMef>
-    );
-  }
-
   if (result.kind === "error") {
     return (
       <EstadoMef icono={<WifiOff size={16} className="text-crimsonTexto" aria-hidden />} alerta>
-        <strong className="font-semibold text-crimsonTexto">El portal de Datos Abiertos del MEF no respondió.</strong>{" "}
+        <strong className="font-semibold text-crimsonTexto">No pudimos cargar el presupuesto.</strong>{" "}
         Vuelve a intentarlo en unos segundos.
-        <Ayuda titulo="¿Por qué no responde?">
-          El portal del MEF se satura al consultar su conjunto de 8 millones de filas y por momentos devuelve error.
+        <Ayuda titulo="¿Qué pasó?">
+          El presupuesto de la entidad lo sirve Vigía (copia semanal del archivo oficial del MEF) y esta vez no
+          respondió. El dato también se puede consultar directamente en el MEF.
         </Ayuda>
         <a
           href={CONSULTA_AMIGABLE}
@@ -75,10 +57,11 @@ export async function EjecucionPresupuestal({
   if (result.kind === "empty") {
     return (
       <EstadoMef icono={<Database size={16} className="text-mute" aria-hidden />} query={query}>
-        <strong className="font-semibold text-ink">Sin registros en los datos del MEF</strong> para este nombre.
+        <strong className="font-semibold text-ink">Sin presupuesto del MEF</strong> para esta entidad.
         <Ayuda titulo="¿Por qué no hay registros?">
-          El MEF respondió, pero sin coincidencias. El nombre puede figurar distinto en el MEF (abreviaturas,
-          mayúsculas), o el pliego no registra actividad presupuestal entre 2022 y 2026.
+          No la encontramos entre las unidades ejecutoras del presupuesto público: el nombre puede figurar distinto en
+          el MEF, o la entidad no ejecuta presupuesto propio. Las empresas del Estado (FONAFE) no están en este
+          presupuesto.
         </Ayuda>
       </EstadoMef>
     );
@@ -88,14 +71,13 @@ export async function EjecucionPresupuestal({
 }
 
 /**
- * Mientras responde el MEF (puede tardar más de 20 s): lo que se está haciendo, en
- * palabras, y el esqueleto con la forma de las cifras y la tabla. Sin la llamita a
- * propósito: es la ficha de una entidad (§2.3).
+ * Mientras carga: lo que se está haciendo, en palabras, y el esqueleto con la forma de las
+ * cifras y la tabla. Sin la llamita a propósito: es la ficha de una entidad (§2.3).
  */
 export function EjecucionPresupuestalSkeleton() {
   return (
     <div role="status" aria-live="polite" className="space-y-4">
-      <p className="text-sm text-mute">Consultando los datos abiertos del MEF…</p>
+      <p className="text-sm text-mute">Cargando el presupuesto del MEF…</p>
       <IndicadoresSkeleton n={4} />
       <TablaSkeleton columnas={COLUMNAS} filas={5} />
     </div>
@@ -260,7 +242,7 @@ function EjecucionView({ data }: { data: MefBudgetSummary }) {
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
-        <FuenteDato fuente="MEF, Datos Abiertos (comparativo de gastos 2022–2026)" fecha={data.fechaDescarga} href={DATASET_MEF} />
+        <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
         <span>
           Suma de PIA, PIM, devengado y girado.
           {data.fechaDescarga ? "" : " La copia no registró su fecha de descarga."}

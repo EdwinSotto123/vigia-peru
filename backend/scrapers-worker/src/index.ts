@@ -39,7 +39,7 @@ async function correr(req: Request, env: Env): Promise<Response> {
   if (!c || typeof c.fuente !== "string" || !Object.hasOwn(FUENTES, c.fuente)) {
     return json({ error: "fuente inválida", fuentes: Object.keys(FUENTES) }, 400);
   }
-  const fecha = /^\d{4}-\d{2}(-\d{2})?$/;
+  const fecha = /^\d{4}(-\d{2}){0,2}$/;   // AAAA (mef), AAAA-MM (visitas) o AAAA-MM-DD (oece)
   for (const k of ["desde", "hasta"] as const) {
     if (c[k] !== undefined && !(typeof c[k] === "string" && fecha.test(c[k]))) return json({ error: `${k} inválida` }, 400);
   }

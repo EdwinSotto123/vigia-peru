@@ -12,7 +12,7 @@ import { registrarCarga, yaCargado } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { obtenerDataset, recursosDeDatos, urlDataset } from "../pnda.ts";
-import { colapsar, cortar, flotante, reprFlotante, sinMarcasNfd, strip } from "../py.ts";
+import { colapsar, cortar, fechaDmy, flotante, reprFlotante, sinMarcasNfd, strip } from "../py.ts";
 import { registrar } from "../registro.ts";
 import { ZonaIndex, resolverUbigeo } from "../ubigeo.ts";
 import type { FilaZona } from "../ubigeo.ts";
@@ -83,13 +83,7 @@ export function parsearXls(archivo: Uint8Array, vigente: boolean): FilaCruda[] {
       const v = r[k];
       let f: string | null = null;
       if (typeof v === "number" && v > 0) f = fechaExcel(v, datemode);
-      else if (typeof v === "string" && strip(v)) {
-        const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(cortar(strip(v), 10));
-        if (m) {
-          const d = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
-          if (d.getUTCDate() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1) f = d.toISOString().slice(0, 10);
-        }
-      }
+      else if (typeof v === "string" && strip(v)) f = fechaDmy(cortar(strip(v), 10));
       r._fechas[k] = f;
     }
     r._vigente = vigente;

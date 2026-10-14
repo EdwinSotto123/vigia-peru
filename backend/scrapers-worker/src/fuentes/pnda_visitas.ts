@@ -13,7 +13,7 @@ import { registrarCarga, yaCargado } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { DatasetInexistente, obtenerDataset, recursosDeDatos, urlDataset } from "../pnda.ts";
-import { partir, reprFlotante, sinMarcasNfd, strip } from "../py.ts";
+import { fechaDmy, fechaYmd, partir, reprFlotante, sinMarcasNfd, strip } from "../py.ts";
 import { registrar } from "../registro.ts";
 import { leerXlsx } from "../xlsx.ts";
 import type { ValorXlsx } from "../xlsx.ts";
@@ -75,22 +75,11 @@ export function limpiar(v: ValorXlsx | undefined): string {
 
 const normalizarNombre = (s: string) => strip(sinMarcasNfd(s).toUpperCase());
 
-function fechaDmy(s: string): string | null {
-  let m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
-  let a: number, mes: number, d: number;
-  if (m) [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  else if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) [a, mes, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  else return null;
-  const f = new Date(Date.UTC(a, mes - 1, d));
-  if (a < 1 || f.getUTCFullYear() !== a || f.getUTCMonth() !== mes - 1 || f.getUTCDate() !== d) return null;
-  return `${String(a).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-}
-
 /** `parse_date`: un datetime → su fecha; si no, DD/MM/AAAA o AAAA-MM-DD. */
 export function parsearFecha(v: ValorXlsx | undefined): string | null {
   if (v && typeof v === "object" && "fechaHora" in v) return v.fechaHora.slice(0, 10);
   const s = limpiar(v);
-  return s ? fechaDmy(s) : null;
+  return s ? (fechaDmy(s) ?? fechaYmd(s)) : null;
 }
 
 /** `parse_time`: un time → él mismo; si no, HH:MM o HH:MM:SS (como strptime: 1 o 2 dígitos). */
