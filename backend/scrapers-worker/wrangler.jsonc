@@ -1,0 +1,34 @@
+// Vigía Perú · scrapers en Cloudflare Workers (antes Cloud Run Jobs + Cloud Scheduler en GCP). Ver README.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-scrapers",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "minify": true,
+  "upload_source_maps": true,
+  // Parsear un XLSX de 40 mil filas o recorrer 300 páginas del OCDS pasa los 30 s de CPU por defecto.
+  "limits": { "cpu_ms": 300000 },
+
+  // Rol vigia_jobs (el de los jobs de Cloud Run), pooling en modo transacción (PgBouncer del proxy EC2).
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "5bdb50278763459a898f3bafc59470cc" }],
+  // Crudos de cada descarga (antes gs://vigia-peru-batch/raw/): raw/<fuente>/<clave>/<archivo>.
+  "r2_buckets": [{ "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos" }],
+  // La API OCDS del OECE solo responde desde Zúrich o Buenos Aires: el relay corre fijo en Zúrich.
+  "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
+  // Una corrida de una fuente = una instancia (src/workflow.ts).
+  "workflows": [{ "name": "vigia-scrapers-correr", "binding": "CORRER", "class_name": "CorrerFuente" }],
+
+  // En UTC (Lima = UTC-5): 06:00 Lima el OECE; 08:00 Lima las de la PNDA según el día (src/calendario.ts).
+  "triggers": { "crons": ["0 11 * * *", "0 13 * * *"] },
+
+  "vars": {
+    // "1" = los crons lanzan corridas. Con "0" solo registran qué habría corrido (POST /correr sigue andando).
+    // ENCENDIDO desde 2026-10-14: los Schedulers `scraper-*` de GCP quedaron pausados (no correr los dos).
+    "SCRAPERS_ACTIVO": "1"
+  }
+  // Secretos (wrangler secret put): SCRAPERS_TOKEN (endpoints manuales) y RELAY_TOKEN (el
+  // `local-downloader-token` de los jobs: lo pide /raw del relay).
+}

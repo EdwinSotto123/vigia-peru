@@ -1,5 +1,10 @@
 # backend/cloud_functions/ — un Cloud Run Job por scraper, agendado con Cloud Scheduler
 
+> **Pausado desde el 2026-10-14.** Los scrapers automáticos corren en Cloudflare: Worker `vigia-scrapers`,
+> en **`backend/scrapers-worker/`**. Los Schedulers `scraper-*` del proyecto de agentes quedaron pausados y no
+> hay que reanudarlos mientras el Worker esté activo (`SCRAPERS_ACTIVO=1`), porque sería trabajo doble. Esto
+> queda como referencia y como vuelta atrás.
+
 Cada carpeta es una unidad desplegable independiente (imagen propia, job propio, agenda
 propia) que envuelve el pipeline ya probado de `backend/scrapers/<fuente>/pipeline.py` —
 la lógica de scraping no se duplica aquí, solo se empaqueta para correr sola en la nube.

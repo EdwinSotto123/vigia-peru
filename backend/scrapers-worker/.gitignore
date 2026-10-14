@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.wrangler-dist/
+.dev.vars*
+!.dev.vars.example
+.e2e/
+*.log
+.paridad/

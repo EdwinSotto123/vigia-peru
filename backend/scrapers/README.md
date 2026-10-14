@@ -78,7 +78,14 @@ lo deja listo para el `compliance_agent`.
 
 ## Frecuencia sugerida (cron) — y dónde corre cada uno hoy
 
-Desde el 2026-09-16, 6 de los 8 pipelines corren de verdad en GCP como Cloud Run Jobs
+**Desde el 2026-10-14 los automáticos corren en Cloudflare.** Son `oece_ocds`, `pnda_sancionados`,
+`pnda_visitas`, `pnda_dji`, `jne_infogob` y `pnda_oece`, en el Worker `vigia-scrapers` (**`backend/scrapers-worker/`**):
+es un port a TypeScript con las mismas agendas y pruebas de paridad contra este código. Los jobs de GCP de abajo
+quedaron pausados junto con el proyecto de agentes. Este código Python sigue siendo la referencia y sirve para
+los modos manuales (`--xlsx`, `--root`, `onpe_claridad`) y para `mef_presupuesto`, que no se pasó porque la API
+del MEF cambió.
+
+Historia (2026-09-16 → 2026-10-14): 6 de los 8 pipelines corrían en GCP como Cloud Run Jobs
 agendados con Cloud Scheduler (`backend/cloud_functions/`, `infrastructure/deploy/cloud-scrapers.sh`):
 se comprobó con un `Cloud Build` (IP de GCP) que la PNDA y el API del MEF responden sin WAF,
 así que no hace falta IP peruana para ellos. `oece_ocds` (API OCDS del OECE, WAF) y

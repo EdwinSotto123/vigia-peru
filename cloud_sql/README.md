@@ -28,8 +28,9 @@ cloud_sql/
   - Copia local del volcado: `cloud_sql/archivos/datos/vigia.dump` (gitignored).
   - Copias on-demand de Cloud SQL (IDs `1791784083922` y `1791788578996`, 2026-10-12): Google las retiene al borrar la
     instancia, pero **no pude listarlas después del borrado** (la API da 403); no contar con ellas sin probar un restore.
-- Quién se conecta y cómo: Workers (API, MCP, dispatcher) → Hyperdrive → túnel → **PgBouncer** en el proxy EC2 de AWS
-  (módulo `aws_proxy`; la VM de GCP quedó apagada). Agentes, jobs y scrapers de Cloud Run → RDS directo
+- Quién se conecta y cómo: Workers (API, MCP, dispatcher y, desde 2026-10-14, los scrapers con el rol `vigia_jobs`) →
+  Hyperdrive → túnel → **PgBouncer** en el proxy EC2 de AWS (módulo `aws_proxy`; la VM de GCP quedó apagada).
+  Agentes y jobs de Cloud Run → RDS directo
   (`PGHOST`, `PGSSLMODE=require`; en servicios Node `no-verify`). Los scripts de `infrastructure/deploy/` ya usan `DB_HOST`.
 - Único error al restaurar (inofensivo): `role "cloudsqlsuperuser" does not exist` (rol propio de Google).
 
@@ -90,7 +91,7 @@ Vuelta atrás antes del paso 5: re-apuntar las variables a Cloud SQL; la base de
 ## Seguridad (estado 2026-10-12)
 
 ```
-Workers (API, MCP, dispatcher) → Hyperdrive → túnel Cloudflare ─┐
+Workers (API, MCP, dispatcher, scrapers) → Hyperdrive → túnel ──┐
                                                                  ▼   (sin puertos de entrada, solo SSM)
                                               EC2 proxy t4g.micro: PgBouncer ──TLS verificado──► RDS
 Cloud Run (agentes, jobs, API/MCP de respaldo) ── salida por IP FIJA (Cloud NAT) ──TLS──────────► RDS
