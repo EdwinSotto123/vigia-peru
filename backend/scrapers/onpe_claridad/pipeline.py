@@ -260,14 +260,15 @@ class ClaridadPipeline(Pipeline):
     def _fetch_candidatos(self, page) -> Path:
         """Padrón completo de candidatos (paginado, 500 por página) → un JSON."""
         out: list[dict] = []
-        pg, pages = 0, 1
-        while pg < pages:
+        # Páginas 1-based: la 0 repite la 1 y, contando desde 0, la última quedaba sin pedir.
+        pg, pages = 1, 1
+        while pg <= pages:
             d = self._call(page, "consult/candidate/find-lastname",
                            {"filters": [{"code": "candidato", "value": ""}], "orders": {"field": "", "type": "DESC"}, "page": pg, "size": PAGE_SIZE})
             data = d.get("data") or []
             pages = d.get("pages") or 1
             out += data
-            log.info("   candidatos página %d/%d (+%d, acumulado %d de %s)", pg + 1, pages, len(data), len(out), d.get("total"))
+            log.info("   candidatos página %d/%d (+%d, acumulado %d de %s)", pg, pages, len(data), len(out), d.get("total"))
             if not data:
                 break
             pg += 1

@@ -411,7 +411,8 @@ export async function correrOnpe(env: Env, p: ParamsCorrida, step: WorkflowStep,
     const crudo: string[] = [];
     const lista: Record<string, unknown>[] = [];
     let total: number | null = null;
-    for (let pg = 0, paginas = 1; pg < paginas; pg++) {
+    // Páginas 1-based: la 0 repite la 1 y, contando desde 0, la última quedaba sin pedir (467 candidatos el 14/10).
+    for (let pg = 1, paginas = 1; pg <= paginas; pg++) {
       const texto = await portal.llamar("consult/candidate/find-lastname",
         { filters: [{ code: "candidato", value: "" }], orders: { field: "", type: "DESC" }, page: pg, size: PAGINA });
       crudo.push(texto);
