@@ -32,6 +32,7 @@ import { recortar } from "./recortar";
 import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
 import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
+import { CrucesProveedor } from "./CrucesProveedor";
 import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
@@ -128,6 +129,11 @@ export function ContratoDetalle({
 
           {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
           <Indicadores items={indicadoresDe(c, adjudicado)} apilado />
+
+          {/* 2b. El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. */}
+          {c.cruces && c.cruces.length > 0 && (
+            <CrucesProveedor cruces={c.cruces} varios={new Set(c.cruces.map((x) => x.rucProveedor)).size > 1} />
+          )}
 
           {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}
           <Pestanas

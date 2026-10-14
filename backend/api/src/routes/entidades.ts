@@ -3,6 +3,8 @@ import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { hayModelosLectura } from "../lib/esquema.js";
+import { crucesDeEntidad } from "../lib/cruces.js";
+import { publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 
 export const entidadesRouter = new Hono();
@@ -102,6 +104,14 @@ entidadesRouter.get("/summary", async (c) => {
 });
 
 // ─── GET /entidades/:ruc ─────────────────────────────────────────
+// ─── GET /entidades/:ruc/cruces — procesos cuyo ganador tiene cruces con otras fuentes (migración 48) ─
+entidadesRouter.get("/:ruc/cruces", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  return c.json(publicar(await crucesDeEntidad(ruc)));
+});
+
 entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);

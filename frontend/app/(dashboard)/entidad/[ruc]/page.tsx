@@ -8,7 +8,8 @@ import { esAlertaReal } from "@/lib/semillas";
 import { ETIQUETA_PESO, nivelDeScore } from "@/lib/severidad";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
-import { getEntidad } from "@/lib/api-client";
+import { getCrucesEntidad, getEntidad } from "@/lib/api-client";
+import { CrucesEntidadTabla } from "@/components/contratos/CrucesEntidad";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -84,6 +85,8 @@ export default async function EntidadProfile({
   // inventadas. Ahora: sin respuesta, se dice; RUC desconocido, 404.
   let apiResp: Awaited<ReturnType<typeof getEntidad>> = null;
   let fallo = false;
+  // Los cruces se piden a la vez: no dependen de la ficha y, si fallan, la pestaña no aparece.
+  const crucesP = getCrucesEntidad(params.ruc);
   try {
     apiResp = await getEntidad(params.ruc);
   } catch (e) {
@@ -93,6 +96,7 @@ export default async function EntidadProfile({
   if (fallo) return <NoSePudoLeer ruc={params.ruc} />;
   if (!apiResp?.entidad) notFound();
 
+  const cruces = await crucesP;
   const e = apiResp.entidad;
   const nombre: string = e.nombre;
   const region: string | null = e.region || null;
@@ -297,6 +301,31 @@ export default async function EntidadProfile({
               </>
             ),
           },
+          ...(cruces && cruces.total > 0
+            ? [
+                {
+                  clave: "cruces",
+                  etiqueta: "Ganadores en otros registros",
+                  conteo: cruces.total,
+                  contenido: (
+                    <>
+                      <CabeceraPestana
+                        ayuda={
+                          <Ayuda titulo="¿Qué son estos cruces?">
+                            Cruces automáticos por DNI y RUC entre quienes ganaron (y sus socios y representantes del RNP) y los
+                            registros de la ONPE, el JNE, las visitas, las penalidades y las sanciones del Tribunal. Son datos
+                            oficiales: no prueban por sí solos una irregularidad.
+                          </Ayuda>
+                        }
+                      >
+                        Procesos de esta entidad cuyo ganador aparece en otros registros públicos.
+                      </CabeceraPestana>
+                      <CrucesEntidadTabla procesos={cruces.procesos} nombre={nombre} />
+                    </>
+                  ),
+                },
+              ]
+            : []),
           {
             // Sin conteo: los años del MEF se saben recién cuando responde (puede tardar más de 20 s).
             clave: "presupuesto",

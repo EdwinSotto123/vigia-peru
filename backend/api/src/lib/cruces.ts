@@ -1,0 +1,137 @@
+/**
+ * Cruces de los proveedores ganadores con las otras fuentes de la base (migración 48, `cruces_proveedor`):
+ * aportes a partidos, candidaturas, autoridades, penalidades, sanciones del OSCE, visitas previas a la buena
+ * pro y socios comunes entre postores. Son datos de registros públicos, no conclusiones: cada uno va con su
+ * fuente.
+ *
+ * Privacidad (lib/privacidad.ts): el DNI (`persona_doc`) no sale de la base. Las personas van bajo `socios`
+ * (nombre en orden SUNAT, como en el RNP) y las visitas bajo `visitas` (visitante y funcionario): son papeles
+ * que `publicar` reconoce y les tapa un apellido. Quien llama pasa la respuesta por `publicar`.
+ */
+
+import { pool } from "./db.js";
+
+export const ETIQUETA_CRUCE: Record<string, string> = {
+  aporte: "Aportó a una organización política",
+  aporte_empresa: "La empresa aportó a una organización política",
+  candidato: "Fue candidato",
+  autoridad: "Es autoridad electa",
+  penalidad: "Penalidades en contratos anteriores",
+  sancion: "Sanción del Tribunal de Contrataciones",
+  sancion_vigente: "Ganó con una inhabilitación vigente",
+  visita_previa: "Visitó una entidad antes de la buena pro",
+  socio_comun: "Comparte socio o representante con otro postor",
+};
+
+const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;
+
+const ROL: Record<string, string> = {
+  TITULAR: "titular",
+  SOCIO_ACCIONISTA_TITULAR: "socio",
+  REPRESENTANTE_LEGAL: "representante legal",
+  ORGANO_ADMINISTRACION: "órgano de administración",
+};
+const rolLegible = (r: unknown) =>
+  typeof r === "string" && r ? r.split(/,\s*/).map((x) => ROL[x] ?? x.toLowerCase().replace(/_/g, " ")).join(", ") : null;
+
+export interface Cruce {
+  tipo: string;
+  etiqueta: string;
+  severidad: "alta" | "media" | "baja";
+  rucProveedor: string;
+  ocid: string | null;
+  fecha: string | null;
+  montoSoles: number | null;
+  detalle: Record<string, unknown>;
+  socios: { nombre: string; rol: string | null; cargo?: string | null }[];
+  visitas: Record<string, unknown>[];
+  fuente: string;
+  fuenteUrl: string | null;
+}
+
+const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.slice(0, 10) : null);
+
+/** Fila de cruces_proveedor → lo que ve el público (sin el DNI; personas bajo `socios` / `visitas`). */
+export function aCruce(r: Record<string, any>): Cruce {
+  const d: Record<string, unknown> = { ...(r.detalle ?? {}) };
+  const visitas: Record<string, unknown>[] = [];
+  if (r.tipo === "visita_previa") {
+    visitas.push({
+      visitante: r.persona_nombre ?? null, funcionario: d.funcionario ?? null, cargoFuncionario: d.cargo_funcionario ?? null,
+      entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: d.motivo ?? null,
+    });
+    delete d.funcionario;
+    delete d.cargo_funcionario;
+    delete d.motivo;
+  }
+  const socios = r.persona_nombre && r.tipo !== "visita_previa"
+    ? [{ nombre: String(r.persona_nombre), rol: rolLegible(r.persona_rol), ...(r.tipo === "autoridad" ? { cargo: (d.cargo as string) ?? null } : {}) }]
+    : [];
+  return {
+    tipo: r.tipo,
+    etiqueta: ETIQUETA_CRUCE[r.tipo] ?? r.tipo,
+    severidad: r.severidad,
+    rucProveedor: r.ruc_empresa,
+    ocid: r.ocid ?? null,
+    fecha: fecha(r.fecha),
+    montoSoles: r.monto == null ? null : Number(r.monto),
+    detalle: d,
+    socios,
+    visitas,
+    fuente: r.fuente,
+    fuenteUrl: r.fuente_url ?? null,
+  };
+}
+
+const COLS = `tipo, ruc_empresa, ocid, severidad, fecha, monto, persona_nombre, persona_rol, detalle, fuente, fuente_url`;
+
+/**
+ * Cruces de los proveedores `rucs` que tocan el proceso `ocid`: los de la empresa (aportes, sanciones,
+ * penalidades…) y los de este proceso (visitas previas, inhabilitación vigente, socio común). Sin la
+ * migración 48 devuelve [].
+ */
+export async function crucesDeProceso(ocid: string, rucs: string[]): Promise<Cruce[]> {
+  const lista = [...new Set(rucs.filter((r) => /^\d{11}$/.test(r)))];
+  if (!lista.length) return [];
+  const q = await pool.query(
+    `SELECT ${COLS} FROM cruces_proveedor
+     WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
+     ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [lista, ocid]).catch(() => null);
+  return (q?.rows ?? []).map(aCruce);
+}
+
+/**
+ * Procesos de la entidad `ruc` cuyo ganador tiene cruces: uno por proceso y proveedor, con los tipos que
+ * le tocan, ordenados por cuántos de severidad alta y por fecha de buena pro.
+ */
+export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total: number; procesos: Record<string, unknown>[] }> {
+  const q = await pool.query(
+    `WITH g AS (
+       SELECT DISTINCT c.ocid, c.codigo, c.objeto, c.fecha_buena_pro,
+              regexp_replace(s->>'id', '^PE-RUC-', '') AS ruc, s->>'name' AS proveedor,
+              (aw->'value'->>'amount')::numeric AS monto
+       FROM convocatorias c,
+            jsonb_array_elements(COALESCE(c.ocds_payload->'awards', '[]'::jsonb)) aw,
+            jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
+       WHERE c.entidad_ruc = $1 AND c.ocid NOT LIKE 'ocds-vigia-%'
+     ), x AS (
+       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, max(g.monto) AS monto,
+              jsonb_agg(DISTINCT jsonb_build_object('tipo', k.tipo, 'severidad', k.severidad)) AS tipos,
+              count(*) FILTER (WHERE k.severidad = 'alta') AS altas
+       FROM g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc AND (k.ocid IS NULL OR k.ocid = g.ocid)
+       GROUP BY g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor
+     )
+     SELECT *, count(*) OVER () AS total FROM x ORDER BY altas DESC, fecha_buena_pro DESC NULLS LAST, ocid LIMIT $2`,
+    [ruc, limit]).catch(() => null);
+  const filas = q?.rows ?? [];
+  return {
+    total: filas.length ? Number(filas[0].total) : 0,
+    procesos: filas.map((r) => ({
+      ocid: r.ocid, codigo: r.codigo, objeto: r.objeto, fechaBuenaPro: fecha(r.fecha_buena_pro),
+      proveedor: r.proveedor, rucProveedor: r.ruc, montoSoles: r.monto == null ? null : Number(r.monto),
+      cruces: (r.tipos as { tipo: string; severidad: string }[])
+        .map((t) => ({ ...t, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
+        .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),
+    })),
+  };
+}

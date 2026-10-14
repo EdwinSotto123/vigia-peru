@@ -269,6 +269,7 @@ export interface ResumenOcds {
   crudo: string;
   cargadas?: { convocatorias: number; entidades: number };
   refresh_s?: number;
+  cruces?: { tipo: string; filas: number }[];
   sin_match?: [string, number][];
 }
 
@@ -367,5 +368,10 @@ export async function correrOcds(env: Env, p: ParamsCorrida, step: WorkflowStep,
   });
   registrar("INFO", `   → convocatorias upsert ${resumen.cargadas.convocatorias} · entidades ${resumen.cargadas.entidades} · ` +
     `refresh_financiamiento() en ${refresh}s`, { fuente: "oece_ocds", instancia: id });
-  return { ...resumen, refresh_s: refresh };
+  // Cruces de los ganadores con ONPE, JNE, visitas, penalidades y sanciones (migración 48, ~2 s). Corre a diario
+  // acá porque los procesos nuevos llegan por esta fuente; las demás cambian semanal o mensualmente.
+  const cruces = await step.do("refrescar_cruces", CARGA, () =>
+    conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
+  registrar("INFO", `   → cruces: ${cruces.map((c) => `${c.tipo} ${c.filas}`).join(" · ")}`, { fuente: "oece_ocds", instancia: id });
+  return { ...resumen, refresh_s: refresh, cruces };
 }

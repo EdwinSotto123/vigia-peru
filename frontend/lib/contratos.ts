@@ -134,6 +134,37 @@ export interface Clasificacion {
   clasificadoAt: string | null;
 }
 
+/** Cruce del ganador con otro registro público (migración 48; backend/api/src/lib/cruces.ts). Nombres ya tapados por la API. */
+export interface CruceProveedor {
+  tipo: "aporte" | "aporte_empresa" | "candidato" | "autoridad" | "penalidad" | "sancion" | "sancion_vigente" | "visita_previa" | "socio_comun" | string;
+  etiqueta: string;
+  severidad: "alta" | "media" | "baja";
+  rucProveedor: string;
+  ocid: string | null;
+  fecha: string | null;
+  montoSoles: number | null;
+  detalle: Record<string, unknown>;
+  socios: { nombre: string; rol: string | null; cargo?: string | null }[];
+  visitas: { visitante: string | null; funcionario: string | null; cargoFuncionario: string | null; entidad: string | null; fecha: string | null; motivo: string | null }[];
+  fuente: string;
+  fuenteUrl: string | null;
+}
+
+/** GET /entidades/:ruc/cruces: un proceso por ganador con cruces, con los tipos que le tocan. */
+export interface CrucesEntidad {
+  total: number;
+  procesos: {
+    ocid: string;
+    codigo: string | null;
+    objeto: string | null;
+    fechaBuenaPro: string | null;
+    proveedor: string | null;
+    rucProveedor: string;
+    montoSoles: number | null;
+    cruces: { tipo: string; severidad: "alta" | "media" | "baja"; etiqueta: string }[];
+  }[];
+}
+
 export interface ContratoDetalle extends ContratoResumen {
   fechaBuenaPro: string | null;
   tipoProceso: string | null;
@@ -144,6 +175,8 @@ export interface ContratoDetalle extends ContratoResumen {
   items: ContratoItem[];
   documentos: ContratoDocumento[];
   adjudicaciones: { id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null }[];
+  /** Cruces de los ganadores con ONPE, JNE, visitas, penalidades y sanciones. Falta en una API anterior. */
+  cruces?: CruceProveedor[];
   /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó.
    *  Cada bandera trae `citas` (página del PDF citada) cuando el análisis legal la respalda. */
   alerta: (ResultadoAnalisis & { id: string }) | null;

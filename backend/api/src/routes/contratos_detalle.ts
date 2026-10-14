@@ -14,6 +14,7 @@ import { signReadUrl } from "../lib/storage.js";
 import { convocatoriaNoDemo, esPublicada, redactarResultado } from "../lib/publicacion.js";
 import { cachePublico } from "../lib/http.js";
 import { crearCitador } from "../lib/citas.js";
+import { crucesDeProceso } from "../lib/cruces.js";
 import {
   EXPEDIENTE_SQL, FROM_FILA, JOIN_RESUMEN, alcanceActivo, col, colsDisponibles, exprs, selectResumen,
 } from "./contratos_sql.js";
@@ -135,6 +136,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     proveedorRuc: aw?.suppliers?.[0]?.id ? String(aw.suppliers[0].id).replace(/^PE-RUC-/, "") : null,
   }));
 
+  // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
+  const cruces = await crucesDeProceso(row.ocid, adjudicaciones.map((a) => a.proveedorRuc).filter((r): r is string => !!r));
+
   // ── U5: expediente leído por los agentes (postores, ítems con precio, citas con página) ──
   const enVigiaUrls = new Set(documentos.filter((d) => d.enVigia).map((d) => d.url));
   const { cita, citasDeBandera } = crearCitador(expediente, enVigiaUrls);
@@ -191,6 +195,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     items,
     documentos,
     adjudicaciones,
+    cruces,
     postoresDetalle: postores,
     itemsAnalizados,
     alerta: alertaRow,

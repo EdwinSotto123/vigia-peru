@@ -239,6 +239,15 @@ export async function getMefRegion(dept: string) {
   return get<import("./mef").RegionBudgetSummary>(`/mef/region/${encodeURIComponent(dept)}`);
 }
 
+/** Procesos de la entidad cuyo ganador tiene cruces con otros registros (migración 48). null si la API no lo tiene. */
+export async function getCrucesEntidad(ruc: string) {
+  try {
+    return await get<import("./contratos").CrucesEntidad>(`/entidades/${ruc}/cruces`);
+  } catch {
+    return null;
+  }
+}
+
 export async function getEntidad(ruc: string) {
   try {
     return await get<{ entidad: any; mef: any; alertas: any[] }>(
