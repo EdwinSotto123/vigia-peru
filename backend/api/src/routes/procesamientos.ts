@@ -32,7 +32,7 @@ import { publicar } from "../lib/privacidad.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
-import { pool } from "../lib/db.js";
+import { LISTA_JSON, pool } from "../lib/db.js";
 import { etiquetaRegla, reglasJson } from "../lib/reglas.js";
 import { motivosDesdeEval, umbralesSelfEval, type SelfEvalConfig } from "./admin_revision.js";
 import { procBanderasSql, procScoreSql, redactarResultado } from "../lib/publicacion.js";
@@ -82,7 +82,7 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
                 'item', f->>'item_descripcion', 'unidad', f->>'unidad', 'veredicto', f->>'veredicto',
                 'ofertado', (f->>'precio_unitario_ofertado')::float, 'mediana', (f->>'precio_mediana_mercado')::float,
                 'diffPct', (f->>'diff_pct')::float, 'nPrecios', (f->>'n_precios')::int)), '[]'::json)
-              FROM (SELECT f FROM jsonb_array_elements(COALESCE(a.analisis_full->'market_analysis'->'findings', '[]'::jsonb)) f LIMIT 12) x)
+              FROM (SELECT f FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'market_analysis'->'findings'")}) f LIMIT 12) x)
   ) ELSE NULL END AS mercado,
   CASE WHEN jsonb_typeof(a.analisis_full->'document_analysis'->'documentos') = 'array' THEN (
     SELECT json_build_object('n', count(*), 'paginas', COALESCE(sum((d->>'n_paginas')::int), 0),
@@ -100,8 +100,8 @@ export const RESULTADO_SQL = `SELECT a.id, a.codigo, a.score, a.estado, a.analiz
     'costoUsd', (a.analisis_full->'llm_metrics'->>'cost_usd')::float,
     'llamadas', (a.analisis_full->'llm_metrics'->>'n_llm_calls')::int,
     'tokens', (a.analisis_full->'llm_metrics'->>'tokens_total')::int) ELSE NULL END AS costo,
-  (SELECT u->>'modelo' FROM jsonb_array_elements(COALESCE(a.analisis_full->'document_analysis'->'documentos', '[]'::jsonb)) d,
-          jsonb_array_elements(COALESCE(d->'usos', '[]'::jsonb)) u WHERE u->>'modelo' IS NOT NULL LIMIT 1) AS modelo,
+  (SELECT u->>'modelo' FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'document_analysis'->'documentos'")}) d,
+          jsonb_array_elements(${LISTA_JSON("d->'usos'")}) u WHERE u->>'modelo' IS NOT NULL LIMIT 1) AS modelo,
   CASE WHEN jsonb_typeof(a.analisis_full->'compliance_resumen_det') = 'object'
        THEN a.analisis_full->'compliance_resumen_det'->'reglas' ELSE NULL END AS "reglasDisparadas"
   FROM alertas a WHERE a.id = $1`;

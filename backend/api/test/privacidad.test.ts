@@ -238,6 +238,13 @@ test("traza pública: lo que usa la pestaña (reglas, cifras, estado, ganador, e
   assert.deepEqual(ev[4].result_preview, { resumen: [{ id: "func_1" }], error: "timeout de la SUNAT" });
 });
 
+test("las fechas de pg (Date) salen como fechas, no como objetos vacíos", () => {
+  const f = new Date("2026-10-13T17:54:48Z");
+  const entrada = { clasificadoAt: f, documentosEnVigia: { n: 2, expiraAt: f }, fechas: [f] };
+  assert.equal(json(publicar(entrada)), json(entrada));
+  assert.match(json(publicar(entrada)), /"clasificadoAt":"2026-10-13T17:54:48\.000Z"/);
+});
+
 test("no muta la entrada", () => {
   const entrada = { dni: "43960880", firmantes: [{ nombre_completo: "JUAN PEREZ QUISPE" }] };
   publicar(entrada);

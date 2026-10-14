@@ -15,7 +15,7 @@
  */
 
 import { z } from "zod";
-import { OCID_CANDIDATOS, pool } from "../lib/db.js";
+import { LISTA_JSON, OCID_CANDIDATOS, pool } from "../lib/db.js";
 import { alertaNoDemo, convocatoriaNoDemo } from "../lib/publicacion.js";
 import { Memo } from "../lib/cache.js";
 import { fechaIso } from "../lib/http.js";
@@ -28,7 +28,7 @@ export const EXPEDIENTE_SQL = `SELECT
   COALESCE(a.analisis_full->'document_analysis'->'postores_consolidados', '[]'::jsonb) AS postores,
   COALESCE(a.analisis_full->'document_analysis'->'items_consolidados', '[]'::jsonb) AS items,
   (SELECT COALESCE(jsonb_agg(jsonb_build_object('sha256', d->>'sha256', 'url', d->>'url', 'titulo', d->>'titulo')), '[]'::jsonb)
-     FROM jsonb_array_elements(COALESCE(a.analisis_full->'document_analysis'->'documentos', '[]'::jsonb)) d) AS documentos,
+     FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'document_analysis'->'documentos'")}) d) AS documentos,
   COALESCE(a.analisis_full->'legal_analysis'->'red_flags_documentales', '[]'::jsonb) AS "redFlags",
   COALESCE(a.analisis_full->'legal_analysis'->'evidencia', '[]'::jsonb) AS "legalEvidencia"
   FROM alertas a WHERE a.id = $1`;

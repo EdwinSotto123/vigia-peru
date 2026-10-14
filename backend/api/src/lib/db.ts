@@ -139,6 +139,13 @@ function delegadoDelPedido(rol: RolDb): pg.Pool {
  */
 export const OCID_CANDIDATOS = (p: string) => `ARRAY[${p}, ocid_corto(${p}), 'ocds-dgv273-seacev3-' || ocid_corto(${p})]`;
 
+/**
+ * SQL: el jsonb `expr` si es un arreglo, y si no `'[]'`. Para recorrer con jsonb_array_elements lo que
+ * escriben los agentes en analisis_full: un `null` de JSON (p. ej. `"usos": null` en un documento) no es
+ * NULL, pasa por COALESCE y la función corta la consulta entera ("cannot extract elements from a scalar").
+ */
+export const LISTA_JSON = (expr: string) => `CASE WHEN jsonb_typeof(${expr}) = 'array' THEN ${expr} ELSE '[]'::jsonb END`;
+
 /** Error de Postgres por código SQLSTATE (42883 = función inexistente, 42P01 = tabla inexistente…). */
 export const esErrorPg = (e: unknown, ...codigos: string[]) => codigos.includes(String((e as { code?: string })?.code ?? ""));
 

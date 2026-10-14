@@ -612,7 +612,8 @@ function clavePublica(k: string, ctx: Contexto): string {
 }
 
 function transformar(v: unknown, ctx: Contexto, clave = "", profundidad = 0): unknown {
-  if (v == null || profundidad > 60) return v;
+  // Las fechas de pg (timestamptz) llegan como Date: recorrerlas como objeto las dejaba en `{}`.
+  if (v == null || profundidad > 60 || v instanceof Date) return v;
   if (typeof v === "string") return valorTexto(v, clave, ctx);
   if (typeof v === "number") {
     return esClaveDocumento(clave) && Number.isInteger(v) && v >= 1e6 && v < 1e9 ? documentoPublico(String(v)) : v;

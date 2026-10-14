@@ -5,7 +5,7 @@
  * (GET /senales, sólo para las alertas de la página).
  */
 
-import { pool } from "./db.js";
+import { LISTA_JSON, pool } from "./db.js";
 
 export interface CitaPublica {
   pagina: number | null;
@@ -22,7 +22,7 @@ export interface ExpedienteCitas { documentos?: unknown[] | null; redFlags?: unk
 /** Lo mismo que EXPEDIENTE_SQL (contratos_sql.ts) sin postores ni ítems, para varias alertas a la vez. */
 export const EXPEDIENTE_CITAS_SQL = `SELECT a.id::text AS id,
   (SELECT COALESCE(jsonb_agg(jsonb_build_object('sha256', d->>'sha256', 'url', d->>'url', 'titulo', d->>'titulo')), '[]'::jsonb)
-     FROM jsonb_array_elements(COALESCE(a.analisis_full->'document_analysis'->'documentos', '[]'::jsonb)) d) AS documentos,
+     FROM jsonb_array_elements(${LISTA_JSON("a.analisis_full->'document_analysis'->'documentos'")}) d) AS documentos,
   COALESCE(a.analisis_full->'legal_analysis'->'red_flags_documentales', '[]'::jsonb) AS "redFlags",
   COALESCE(a.analisis_full->'legal_analysis'->'evidencia', '[]'::jsonb) AS "legalEvidencia"
   FROM alertas a WHERE a.id = ANY($1::uuid[])`;
