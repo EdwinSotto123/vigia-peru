@@ -24,7 +24,8 @@ export function CrucesEntidadTabla({ procesos, nombre }: { procesos: CrucesEntid
     const codigo = String(p.codigo ?? p.ocid);
     return {
       id: `${p.ocid}-${p.rucProveedor}`,
-      href: `/app/convocatoria/${encodeURIComponent(codigo)}`,
+      // La ficha del contrato (no el dictamen): ahí está el detalle de cada cruce.
+      href: `/app/contratos/${encodeURIComponent(p.ocid)}`,
       celdas: {
         contrato: (
           <CeldaPrincipal

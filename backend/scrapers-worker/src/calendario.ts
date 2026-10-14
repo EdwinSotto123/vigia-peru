@@ -10,8 +10,10 @@
  *   pnda_oece          día 1 (era 09:00; ahora 08:00)  │
  *   mef_presupuesto    lunes 08:00 (antes día 12; el   │
  *                      MEF regenera el archivo a diario)│
- *   onpe_claridad      miércoles 08:00 (semanal mien-  ┘
- *                      tras dure la rendición de ERM2026; antes era manual)
+ *   onpe_claridad      miércoles 08:00 (semanal mien-  │
+ *   onpe_gastos        tras dure la rendición de ERM2026; antes era manual)
+ *   conosce            sábados 08:00 (CONOSCE regenera ┘
+ *                      los reportes los viernes)
  *
  * Sin portar: vigia-batch (documentos de contratos financiados para los agentes, que siguen en GCP y
  * están pausados).
@@ -29,7 +31,8 @@ export function fuentesDelCron(cron: string, ms: number): string[] {
   const out: string[] = [];
   if (lima.getUTCDay() === 0) out.push("pnda_sancionados");
   if (lima.getUTCDay() === 1) out.push("mef_presupuesto");
-  if (lima.getUTCDay() === 3) out.push("onpe_claridad");
+  if (lima.getUTCDay() === 3) out.push("onpe_claridad", "onpe_gastos");
+  if (lima.getUTCDay() === 6) out.push("conosce");
   if (dia === 1 || dia === 15) out.push("pnda_visitas");
   if (dia === 5) out.push("pnda_dji", "jne_infogob");
   if (dia === 1) out.push("pnda_oece");

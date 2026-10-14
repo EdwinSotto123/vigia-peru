@@ -11,6 +11,8 @@ import type { Env, ParamsCorrida } from "./config.ts";
 import { colo, diagnosticar } from "./diagnostico.ts";
 import { correrJne } from "./fuentes/jne_infogob.ts";
 import { correrMef } from "./fuentes/mef_presupuesto.ts";
+import { correrConosce } from "./fuentes/conosce.ts";
+import { correrGastos } from "./fuentes/onpe_gastos.ts";
 import { correrOcds } from "./fuentes/oece_ocds.ts";
 import { correrOnpe } from "./fuentes/onpe_claridad.ts";
 import { correrDji } from "./fuentes/pnda_dji.ts";
@@ -29,6 +31,8 @@ export const FUENTES: Record<string, Corredor> = {
   jne_infogob: correrJne,
   pnda_oece: correrPndaOece,
   mef_presupuesto: correrMef,
+  conosce: correrConosce,
+  onpe_gastos: correrGastos,
   onpe_claridad: correrOnpe,
 };
 

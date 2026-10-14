@@ -1,7 +1,8 @@
 /**
- * Cruces de los proveedores ganadores con las otras fuentes de la base (migración 48, `cruces_proveedor`):
- * aportes a partidos, candidaturas, autoridades, penalidades, sanciones del OSCE, visitas previas a la buena
- * pro y socios comunes entre postores. Son datos de registros públicos, no conclusiones: cada uno va con su
+ * Cruces de los proveedores ganadores con las otras fuentes de la base (migraciones 48 y 50, `cruces_proveedor`):
+ * aportes a partidos y gastos de campaña (ONPE), candidaturas, autoridades, el partido que gobierna la entidad
+ * (JNE), penalidades, sanciones del OSCE, visitas previas a la buena pro, socios comunes entre postores, y de
+ * CONOSCE el historial con la entidad y los adicionales del contrato. Son datos de registros públicos, no conclusiones: cada uno va con su
  * fuente.
  *
  * Privacidad (lib/privacidad.ts): el DNI (`persona_doc`) no sale de la base. Las personas van bajo `socios`
@@ -21,6 +22,10 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   sancion_vigente: "Ganó con una inhabilitación vigente",
   visita_previa: "Visitó una entidad antes de la buena pro",
   socio_comun: "Comparte socio o representante con otro postor",
+  partido_gobernante: "Financió o le vendió a la campaña del partido que gobierna la entidad",
+  proveedor_campana: "Le vendió a una campaña electoral",
+  recurrente: "Proveedor frecuente de esta entidad",
+  adicional: "Contrato con adicionales o prórrogas",
 };
 
 const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;

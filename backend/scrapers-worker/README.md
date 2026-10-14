@@ -17,6 +17,8 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `pnda_oece` | solo crudos (datasets del OECE en la PNDA) | día 1, 08:00 |
 | `mef_presupuesto` | `mef_ejecutora_anual` + `mef_departamento_desglose` desde `<año>-Gasto-Diario.zip` → `refrescar_mef_presupuesto()` (migración 47) | lunes 08:00 |
 | `onpe_claridad` | `onpe_aportantes` + `onpe_candidatos` con Browser Rendering (Cloudflare de la ONPE pasa con Chromium real) | miércoles 08:00 |
+| `onpe_gastos` | `onpe_gastos_proveedores`: a quién le compró cada organización política en campaña (RUC o DNI y monto), mismo portal | miércoles 08:00 |
+| `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
 
 Lo que no se pasó:
 - **`vigia-batch`**: baja documentos de los contratos financiados para los agentes, que siguen en GCP y están pausados.
@@ -29,6 +31,20 @@ ZIP64). Se baja en streaming, se infla con `fflate` de forma síncrona (`Decompr
 1 GB y el Worker se caía por memoria) y se agrega por unidad ejecutora y por departamento (`src/mef_agregado.ts`).
 Un año por paso, ~125 s de CPU. Los ZIP de 2022-2024 ya no se publican y el API por páginas tarda 60 s cada
 32 000 filas: esos años quedan con los datos regionales que ya había en la base.
+
+### CONOSCE
+
+Los reportes del SEACE están sueltos en `conosce.osce.gob.pe/buscador/assets/67ae6c4a/reportes/<carpeta>/<año>/`,
+sin login ni WAF, y se regeneran los viernes. Algunos años vienen sólo en XLSX (y los postores siempre): se leen por
+rangos desde R2 con `src/xlsx_flujo.ts` (directorio central del ZIP, textos compartidos y la hoja inflada en
+streaming con fflate) y salen como CSV, igual que los CSV, a COPY en una tabla temporal con la cabecera del archivo.
+SheetJS no entra: la hoja de postores 2024 son 78 MB de XML. Cada año se reemplaza en una transacción.
+
+### Cruces
+
+`oece_ocds` (diario), `conosce` y `onpe_gastos` terminan con `refrescar_cruces()` (migraciones 48 y 50): los
+ganadores contra ONPE, JNE, visitas, penalidades, sanciones, CONOSCE y el RNP. La API los muestra en la ficha del
+contrato y de la entidad.
 
 ### ONPE
 

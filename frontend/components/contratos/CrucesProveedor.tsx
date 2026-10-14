@@ -1,7 +1,8 @@
 /**
- * Lo que dicen otros registros públicos de quien ganó: aportes a partidos y candidaturas (ONPE), autoridades
- * electas (JNE), visitas a entidades, penalidades y sanciones del Tribunal (OSCE), y socios compartidos con
- * otro postor (RNP). Cruces automáticos por DNI y RUC (migración 48); los nombres llegan tapados de la API.
+ * Lo que dicen otros registros públicos de quien ganó: aportes, gastos de campaña y candidaturas (ONPE),
+ * autoridades electas y el partido que gobierna la entidad (JNE), visitas a entidades, penalidades y sanciones
+ * del Tribunal (OSCE), socios compartidos con otro postor (RNP), y su historial con la entidad y los adicionales
+ * del contrato (CONOSCE). Cruces automáticos por DNI y RUC (migración 48); los nombres llegan tapados de la API.
  * Son datos de registros oficiales, no conclusiones: cada uno dice de dónde sale.
  */
 
@@ -22,6 +23,9 @@ const FUENTE: Record<string, string> = {
   osce_sancionados: "Tribunal de Contrataciones · sancionados",
   visitas_entidades: "Registro de visitas",
   rnp_conformacion_juridica: "RNP · conformación jurídica",
+  onpe_gastos_proveedores: "ONPE · gastos de campaña",
+  conosce_adjudicaciones: "CONOSCE · adjudicaciones",
+  conosce_contratos: "CONOSCE · contratos",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -119,6 +123,56 @@ function Texto({ c }: { c: CruceProveedor }) {
         </>
       );
     }
+    case "proveedor_campana":
+      return (
+        <>
+          {c.socios.length ? quien(c) : "La empresa"} le vendió <b>{solesCompacto(c.montoSoles)}</b> a la campaña de{" "}
+          {txt(d.organizacion) ?? "una organización política"}
+          {txt(d.proceso) ? ` (${d.proceso})` : ""}.
+        </>
+      );
+    case "partido_gobernante": {
+      const via = txt(d.via);
+      const partido = txt(d.partido) ?? txt(d.organizacion);
+      const accion = via === "proveedor_campana" ? "le vendió a la campaña de" : "aportó a";
+      return (
+        <>
+          {c.socios.length ? quien(c) : "La empresa"} {accion} <b>{partido ?? "una organización política"}</b>
+          {c.montoSoles ? ` (${solesCompacto(c.montoSoles)})` : ""}, la organización del{" "}
+          {txt(d.cargo_gobernante)?.toLowerCase() ?? "alcalde"} que gobernaba la entidad cuando dio la buena pro.
+        </>
+      );
+    }
+    case "recurrente": {
+      const part = n(d.participacion);
+      return (
+        <>
+          Le ganó <b>{numero(n(d.procesos) ?? 0)}</b> procesos más a esta entidad
+          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} por {solesCompacto(c.montoSoles)}
+          {part != null ? `: el ${(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} % de lo que adjudicó la entidad` : ""}
+          {n(d.procesos_entidad) ? ` en ${numero(n(d.procesos_entidad)!)} procesos` : ""}.
+        </>
+      );
+    }
+    case "adicional": {
+      const pct = n(d.porcentaje);
+      const prorroga = n(d.prorroga);
+      return (
+        <>
+          {txt(d.contrato) ? `${d.contrato}: ` : ""}
+          {n(d.adicional) ? <>adicionales por <b>{solesCompacto(n(d.adicional))}</b>{pct != null ? ` (${pct.toLocaleString("es-PE")} % de ${solesCompacto(n(d.contratado))})` : ""}</> : "sin adicionales"}
+          {prorroga ? `; prórrogas por ${solesCompacto(prorroga)}` : ""}.
+          {txt(d.url_contrato) && (
+            <>
+              {" "}
+              <a href={txt(d.url_contrato)!} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2">
+                Ver contrato
+              </a>
+            </>
+          )}
+        </>
+      );
+    }
     default:
       return <>{c.etiqueta}.</>;
   }
@@ -158,7 +212,7 @@ export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; 
         </h2>
         <Ayuda titulo="¿De dónde salen estos cruces?">
           Cruces automáticos por DNI y RUC entre el ganador (y sus socios y representantes del RNP) y los registros de la ONPE, el JNE,
-          las visitas a entidades, las penalidades y las sanciones del Tribunal. Son datos oficiales verificables en cada fuente: no prueban
+          las visitas a entidades, CONOSCE, las penalidades y las sanciones del Tribunal. Son datos oficiales verificables en cada fuente: no prueban
           por sí solos una irregularidad.
         </Ayuda>
       </div>

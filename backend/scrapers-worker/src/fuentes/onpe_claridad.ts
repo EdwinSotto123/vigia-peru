@@ -30,7 +30,7 @@ import { registrar } from "../registro.ts";
 
 const FUENTE = "onpe_claridad";
 export const PORTAL_URL = "https://claridadportal.onpe.gob.pe/consulta-aportante";
-const BACKEND = "https://claridad.onpe.gob.pe/claridad-backend/portal/";
+export const BACKEND = "https://claridad.onpe.gob.pe/claridad-backend/portal/";
 const SITEKEY = "6Lf6p1UtAAAAACYJTSj2fVJhFIYrjduWSWWajOXp";   // reCAPTCHA v3 público del portal
 const PAGINA = 500;
 const PAUSA_MS = 1000;
@@ -209,7 +209,28 @@ const LLAMADA = `async ([sitekey, url, body]) => {
   } catch (e) { return [-1, "fetch: " + e]; }
 }`;
 
-class Portal {
+/** Varios GET desde la página, `concurrencia` a la vez, con reintentos: [status, texto] en el orden de `urls`. */
+const LECTURAS = `async ([urls, concurrencia]) => {
+  const out = new Array(urls.length);
+  let i = 0;
+  async function trabajador() {
+    while (i < urls.length) {
+      const k = i++;
+      for (let intento = 0; intento < 4; intento++) {
+        try {
+          const r = await fetch(urls[k]);
+          out[k] = [r.status, await r.text()];
+          if (r.status === 200) break;
+        } catch (e) { out[k] = [-1, "fetch: " + e]; }
+        await new Promise((r) => setTimeout(r, 2000 * (intento + 1)));
+      }
+    }
+  }
+  await Promise.all(Array.from({length: concurrencia}, trabajador));
+  return out;
+}`;
+
+export class Portal {
   private readonly navegador: Browser;
   private readonly pagina: Page;
 
@@ -250,12 +271,21 @@ class Portal {
     throw new Error(`${ruta}: sin respuesta válida tras ${intentos} intentos (${ultimo})`);
   }
 
+  /** GET a varias rutas del backend (con su query) desde la página; texto JSON de cada una, en orden. */
+  async leerVarias(rutas: string[], concurrencia = 4): Promise<string[]> {
+    const r = (await this.pagina.evaluate(`(${LECTURAS})(${JSON.stringify([rutas.map((x) => BACKEND + x), concurrencia])})`)) as [number, string][];
+    return r.map(([st, texto], k) => {
+      if (st !== 200 || !texto.startsWith("{")) throw new Error(`${rutas[k]}: ${st} ${String(texto).slice(0, 120).replaceAll("\n", " ")}`);
+      return texto;
+    });
+  }
+
   async cerrar(): Promise<void> {
     await this.navegador.close().catch(() => undefined);
   }
 }
 
-async function conPortal<T>(env: Env, fn: (p: Portal) => Promise<T>): Promise<T> {
+export async function conPortal<T>(env: Env, fn: (p: Portal) => Promise<T>): Promise<T> {
   const p = await Portal.abrir(env);
   try {
     return await fn(p);
