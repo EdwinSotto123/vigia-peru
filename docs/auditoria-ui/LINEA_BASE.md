@@ -452,7 +452,7 @@ Fallos: 1 cajas ralas > 40.000 px².
 
 | Tipo | Selector | Medidas | Texto | Componente probable |
 | --- | --- | --- | --- | --- |
-| rala (poco texto en caja grande) | `div.space-y-8 > section.scroll-mt-24 > div#:r1:.mt-3 > div.overflow-hidden.rounded-2xl.border` | 348x133, 67 car., vacío 56 % | edwin.soto.c@uni.pe Perfil Administrador Principal | frontend/app/admin/equipo/page.tsx:78, frontend/components/agentes/AuditoriaDeAgentes.tsx:29 |
+| rala (poco texto en caja grande) | `div.space-y-8 > section.scroll-mt-24 > div#:r1:.mt-3 > div.overflow-hidden.rounded-2xl.border` | 348x133, 67 car., vacío 56 % | <correo del admin> Perfil Administrador Principal | frontend/app/admin/equipo/page.tsx:78, frontend/components/agentes/AuditoriaDeAgentes.tsx:29 |
 
 ### /app/auditoria
 <a id="app-auditoria"></a>
