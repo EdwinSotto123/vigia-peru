@@ -240,7 +240,8 @@ export class Portal {
   }
 
   static async abrir(env: Env): Promise<Portal> {
-    const navegador = await puppeteer.launch(env.BROWSER);
+    // keep_alive: sin él la sesión se cierra tras 60 s sin mensajes CDP (un `evaluate` largo cuenta como silencio).
+    const navegador = await puppeteer.launch(env.BROWSER, { keep_alive: 600_000 });
     try {
       const pagina = await navegador.newPage();
       await pagina.goto(PORTAL_URL, { waitUntil: "domcontentloaded", timeout: 90_000 });
@@ -272,8 +273,13 @@ export class Portal {
   }
 
   /** GET a varias rutas del backend (con su query) desde la página; texto JSON de cada una, en orden. */
-  async leerVarias(rutas: string[], concurrencia = 4): Promise<string[]> {
-    const r = (await this.pagina.evaluate(`(${LECTURAS})(${JSON.stringify([rutas.map((x) => BACKEND + x), concurrencia])})`)) as [number, string][];
+  async leerVarias(rutas: string[], concurrencia = 4, porLlamada = 25): Promise<string[]> {
+    // De a `porLlamada` por evaluate: cada llamada dura segundos, no minutos (Target closed con 200 de una vez).
+    const r: [number, string][] = [];
+    for (let i = 0; i < rutas.length; i += porLlamada) {
+      const tanda = rutas.slice(i, i + porLlamada).map((x) => BACKEND + x);
+      r.push(...((await this.pagina.evaluate(`(${LECTURAS})(${JSON.stringify([tanda, concurrencia])})`)) as [number, string][]));
+    }
     return r.map(([st, texto], k) => {
       if (st !== 200 || !texto.startsWith("{")) throw new Error(`${rutas[k]}: ${st} ${String(texto).slice(0, 120).replaceAll("\n", " ")}`);
       return texto;
