@@ -21,6 +21,7 @@ import { registrarCarga, yaCargado } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { leerCsv } from "../csv.ts";
 import { conDb } from "../db.ts";
+import type { Db } from "../db.ts";
 import { UA } from "../http.ts";
 import { registrar } from "../registro.ts";
 import { xlsxComoCsv } from "../xlsx_flujo.ts";
@@ -36,7 +37,7 @@ const MAX_PARTES = 6;
 
 type Tipo = "t" | "n" | "i" | "d";
 /** Columna destino ← nombres posibles en la cabecera (ya normalizados: minúsculas, `_`). */
-type Mapa = [destino: string, origenes: string[], tipo: Tipo][];
+export type Mapa = [destino: string, origenes: string[], tipo: Tipo][];
 
 interface Conjunto {
   carpeta: string;
@@ -130,15 +131,19 @@ export function normalizarCabecera(cabecera: string[]): string[] {
   });
 }
 
-/** El SELECT que pasa de la tabla temporal (columnas = cabecera) a la tabla destino. */
-export function selectDestino(mapa: Mapa, columnas: Set<string>, anio: number): { cols: string; select: string } {
+/**
+ * El SELECT que pasa de la tabla temporal (columnas = cabecera) a la tabla destino. `fijos`: columnas con un
+ * valor constante (el año, o año y mes); un número es `{ anio }`.
+ */
+export function selectDestino(mapa: Mapa, columnas: Set<string>, fijos: number | Record<string, number>): { cols: string; select: string } {
+  const f = typeof fijos === "number" ? { anio: fijos } : fijos;
   const exprs = mapa.map(([, origenes, tipo]) => {
     const o = origenes.find((x) => columnas.has(x));
     if (!o) return "NULL";
     const x = `"${o}"`;
     return tipo === "n" ? `conosce_num(${x})` : tipo === "i" ? `conosce_num(${x})::int` : tipo === "d" ? `conosce_fecha(${x})` : `NULLIF(btrim(${x}), '')`;
   });
-  return { cols: ["anio", ...mapa.map(([d]) => d)].join(", "), select: [String(anio), ...exprs].join(", ") };
+  return { cols: [...Object.keys(f), ...mapa.map(([d]) => d)].join(", "), select: [...Object.values(f).map(String), ...exprs].join(", ") };
 }
 
 /** La primera línea del CSV (la cabecera) sin consumir el stream: devuelve otro que la vuelve a emitir. */
@@ -169,6 +174,35 @@ export async function separarCabecera(origen: ReadableStream<Uint8Array>): Promi
     },
   });
   return { cabecera, flujo };
+}
+
+/**
+ * Copia los archivos (CSV o XLSX, ya en R2) a la tabla temporal `_st`, con una columna de texto por columna de
+ * la cabecera (normalizada). Las partes tienen que traer la misma cabecera. Va dentro de una transacción abierta.
+ */
+export async function copiarATemporal(env: Env, db: Db, almacen: Almacen, entradas: Entrada[]): Promise<{ columnas: string[]; copiadas: number }> {
+  let columnas: string[] | null = null;
+  let copiadas = 0;
+  for (const e of entradas) {
+    const obj = await almacen.abrir(e);
+    const origen = nombreArchivo(e).toLowerCase().endsWith(".xlsx")
+      ? (await obj.body.cancel(), xlsxComoCsv(async (o, l) => {
+          const parte = await env.CRUDOS.get(`raw/${e.file}`, { range: { offset: o, length: l } });
+          if (!parte) throw new Error(`falta el crudo raw/${e.file}`);
+          return parte.body;
+        }, e.bytes))
+      : obj.body;
+    const { cabecera, flujo } = await separarCabecera(origen);
+    const cols = normalizarCabecera(cabecera);
+    if (!columnas) {
+      columnas = cols;
+      await db.ejecutar(`CREATE TEMP TABLE _st (${cols.map((x) => `"${x}" text`).join(", ")}) ON COMMIT DROP`);
+    } else if (cols.join() !== columnas.join()) {
+      throw new Error(`${nombreArchivo(e)}: cabecera distinta a la de la primera parte`);
+    }
+    copiadas += (await copiarEnTramos(db, "_st", cols.map((x) => `"${x}"`), flujo)).filas;
+  }
+  return { columnas: columnas ?? [], copiadas };
 }
 
 const urlParte = (c: Conjunto, anio: number, parte: number, ext: string) => `${BASE}/${c.carpeta}/${anio}/${c.prefijo}${anio}_${parte}.${ext}`;
@@ -233,29 +267,9 @@ export async function correrConosce(env: Env, p: ParamsCorrida, step: WorkflowSt
           const t0 = Date.now();
           await db.ejecutar("BEGIN");
           try {
-            let columnas: string[] | null = null;
-            let copiadas = 0;
-            for (const e of entradas) {
-              const obj = await almacen.abrir(e);
-              const origen = nombreArchivo(e).toLowerCase().endsWith(".xlsx")
-                ? (await obj.body.cancel(), xlsxComoCsv(async (o, l) => {
-                    const parte = await env.CRUDOS.get(`raw/${e.file}`, { range: { offset: o, length: l } });
-                    if (!parte) throw new Error(`falta el crudo raw/${e.file}`);
-                    return parte.body;
-                  }, e.bytes))
-                : obj.body;
-              const { cabecera, flujo } = await separarCabecera(origen);
-              const cols = normalizarCabecera(cabecera);
-              if (!columnas) {
-                columnas = cols;
-                await db.ejecutar(`CREATE TEMP TABLE _st (${cols.map((x) => `"${x}" text`).join(", ")}) ON COMMIT DROP`);
-              } else if (cols.join() !== columnas.join()) {
-                throw new Error(`${nombreArchivo(e)}: cabecera distinta a la de la primera parte`);
-              }
-              copiadas += (await copiarEnTramos(db, "_st", cols.map((x) => `"${x}"`), flujo)).filas;
-            }
-            const { cols, select } = selectDestino(c.mapa, new Set(columnas ?? []), anio);
-            const faltan = c.mapa.filter(([, o]) => !o.some((x) => columnas!.includes(x))).map(([d]) => d);
+            const { columnas, copiadas } = await copiarATemporal(env, db, almacen, entradas);
+            const { cols, select } = selectDestino(c.mapa, new Set(columnas), anio);
+            const faltan = c.mapa.filter(([, o]) => !o.some((x) => columnas.includes(x))).map(([d]) => d);
             if (faltan.length) registrar("WARNING", `   ${clave}: sin columna para ${faltan.join(", ")}`, { fuente: FUENTE, instancia: id });
             if (p.seco) {
               await db.ejecutar("ROLLBACK");

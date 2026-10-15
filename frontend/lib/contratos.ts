@@ -165,6 +165,25 @@ export interface CrucesEntidad {
   }[];
 }
 
+/** GET /entidades/:ruc/fraccionamiento: órdenes "hasta 8 UIT" a una misma empresa en un día que juntas pasan el tope. */
+export interface FraccionamientoEntidad {
+  total: number;
+  montoTotal: number;
+  empresas: number;
+  casos: {
+    fecha: string | null;
+    rucProveedor: string;
+    proveedor: string | null;
+    objeto: string | null;
+    ordenes: number;
+    totalSoles: number;
+    topeSoles: number;
+    mismaDescripcion: boolean;
+    severidad: "alta" | "media";
+    detalle: { orden: string; montoSoles: number; descripcion: string | null; estado: string | null }[];
+  }[];
+}
+
 export interface ContratoDetalle extends ContratoResumen {
   fechaBuenaPro: string | null;
   tipoProceso: string | null;

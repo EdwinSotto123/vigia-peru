@@ -19,6 +19,7 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `onpe_claridad` | `onpe_aportantes` + `onpe_candidatos` con Browser Rendering (Cloudflare de la ONPE pasa con Chromium real) | miércoles 08:00 |
 | `onpe_gastos` | `onpe_gastos_proveedores`: a quién le compró cada organización política en campaña (RUC o DNI y monto), mismo portal | miércoles 08:00 |
 | `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
+| `conosce_ordenes` | `conosce_ordenes`: órdenes de compra y de servicio por mes de registro (~275 000 al mes) → `refrescar_fraccionamiento()` (migración 51) | sábados 08:00 |
 
 Lo que no se pasó:
 - **`vigia-batch`**: baja documentos de los contratos financiados para los agentes, que siguen en GCP y están pausados.
@@ -40,10 +41,16 @@ rangos desde R2 con `src/xlsx_flujo.ts` (directorio central del ZIP, textos comp
 streaming con fflate) y salen como CSV, igual que los CSV, a COPY en una tabla temporal con la cabecera del archivo.
 SheetJS no entra: la hoja de postores 2024 son 78 MB de XML. Cada año se reemplaza en una transacción.
 
+Las órdenes (`conosce_ordenes`) vienen un XLSX por mes de registro (`ordenes/<año>/CONOSCE_ORDENESCOMPRA<MES><año>_0.xlsx`,
+60–90 MB): cada mes se reemplaza en una transacción; por defecto los últimos 3 (`desde`/`hasta` en AAAA o AAAA-MM
+para otros). Con ellas `refrescar_fraccionamiento()` arma `ordenes_fraccionadas`: días en que una entidad le
+emitió a una misma empresa (RUC 20) varias órdenes "hasta 8 UIT" que juntas pasan el tope.
+
 ### Cruces
 
-`oece_ocds` (diario), `conosce` y `onpe_gastos` terminan con `refrescar_cruces()` (migraciones 48 y 50): los
-ganadores contra ONPE, JNE, visitas, penalidades, sanciones, CONOSCE y el RNP. La API los muestra en la ficha del
+`oece_ocds` (diario), `conosce`, `conosce_ordenes` y `onpe_gastos` terminan con `refrescar_cruces()` (migraciones
+48, 50 y 51): los ganadores contra ONPE, JNE, visitas, penalidades, sanciones, CONOSCE (también las órdenes del
+mismo día) y el RNP. La API los muestra en la ficha del
 contrato y de la entidad.
 
 ### ONPE

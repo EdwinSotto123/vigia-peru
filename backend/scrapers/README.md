@@ -52,6 +52,7 @@ sin navegador.
 | `postores`, `convocatoria_items`, documentos | OECE — API OCDS `record/<ocid>` (expediente completo) | ídem · relay Lima | orquestador (`tools/ocds.py`) | en uso (al analizar) |
 | `dataset/{datos_de_la_convocatoria, adjudicacion, contratos, ordenes, PAC, …}` | CONOSCE / `bi.seace.gob.pe` (datos abiertos SEACE) | 🟡 401 anónimo — descarga manual con usuario | — | snapshot mayo 2026 |
 | `conosce_adjudicaciones`, `conosce_postores`, `conosce_contratos` | CONOSCE: los mismos reportes sueltos en `conosce.osce.gob.pe/buscador/assets/67ae6c4a/reportes/<carpeta>/<año>/` (CSV o XLSX, desde 2018) | ✅ sin login ni WAF (comprobado 2026-10-14) | `conosce` (sólo en `backend/scrapers-worker`) | cargado, semanal |
+| `conosce_ordenes` → `ordenes_fraccionadas` | CONOSCE: órdenes de compra y servicio, `reportes/ordenes/<año>/CONOSCE_ORDENESCOMPRA<MES><año>_0.xlsx` (por mes de registro, desde 2018) | ✅ sin login ni WAF (comprobado 2026-10-14) | `conosce_ordenes` (sólo en `backend/scrapers-worker`) | 2025–2026 cargados, semanal |
 | `dataset/listdo_de_ofertantes`, `proveedores_y_consorcios`, `sican_*`, `PRONUNCIAMIENTOS` | PNDA — datasets OECE | ✅ CSV/XLSX directo | `pnda_oece` | listo |
 | `rnp_conformacion_juridica` (1.44 M) | OECE RNP — conformación jurídica (portal RNP / CONOSCE) | 🟡 no está en PNDA; descarga manual | — | snapshot |
 | `osce_sancionados`, `sancionados` | PNDA — "proveedores sancionados 2025" (Tribunal, sanción vigente) + inhabilitación/multa | ✅ CSV `;` CP1252, 0.9 MB, 2 414 filas | `pnda_sancionados` | **probado** |

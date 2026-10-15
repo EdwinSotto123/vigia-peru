@@ -3,7 +3,7 @@ import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { hayModelosLectura } from "../lib/esquema.js";
-import { crucesDeEntidad } from "../lib/cruces.js";
+import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
 import { publicar } from "../lib/privacidad.js";
 import { alertaNoDemo, alertaPublica, convocatoriaNoDemo, ENTIDAD_METADATA_MOCK } from "../lib/publicacion.js";
 
@@ -110,6 +110,14 @@ entidadesRouter.get("/:ruc/cruces", async (c) => {
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
   return c.json(publicar(await crucesDeEntidad(ruc)));
+});
+
+// ─── GET /entidades/:ruc/fraccionamiento — órdenes menores de un mismo día que juntas pasan 8 UIT (migración 51) ─
+entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  return c.json(publicar(await fraccionamientoDeEntidad(ruc)));
 });
 
 entidadesRouter.get("/:ruc", async (c) => {

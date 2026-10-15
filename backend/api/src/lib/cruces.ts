@@ -2,7 +2,8 @@
  * Cruces de los proveedores ganadores con las otras fuentes de la base (migraciones 48 y 50, `cruces_proveedor`):
  * aportes a partidos y gastos de campaña (ONPE), candidaturas, autoridades, el partido que gobierna la entidad
  * (JNE), penalidades, sanciones del OSCE, visitas previas a la buena pro, socios comunes entre postores, y de
- * CONOSCE el historial con la entidad y los adicionales del contrato. Son datos de registros públicos, no conclusiones: cada uno va con su
+ * CONOSCE el historial con la entidad, los adicionales del contrato y las órdenes menores de un mismo día que
+ * juntas pasan el tope de 8 UIT (migración 51). Son datos de registros públicos, no conclusiones: cada uno va con su
  * fuente.
  *
  * Privacidad (lib/privacidad.ts): el DNI (`persona_doc`) no sale de la base. Las personas van bajo `socios`
@@ -26,6 +27,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   proveedor_campana: "Le vendió a una campaña electoral",
   recurrente: "Proveedor frecuente de esta entidad",
   adicional: "Contrato con adicionales o prórrogas",
+  fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
 };
 
 const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;
@@ -137,6 +139,32 @@ export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total:
       cruces: (r.tipos as { tipo: string; severidad: string }[])
         .map((t) => ({ ...t, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
         .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),
+    })),
+  };
+}
+
+/**
+ * Días en que la entidad `ruc` le emitió a una misma empresa 2 o más órdenes "hasta 8 UIT" que juntas pasan el
+ * tope (migración 51, `ordenes_fraccionadas`): severidad alta primero, luego los más recientes. Sin la
+ * migración devuelve vacío.
+ */
+export async function fraccionamientoDeEntidad(ruc: string, limit = 50): Promise<{ total: number; montoTotal: number; empresas: number; casos: Record<string, unknown>[] }> {
+  const q = await pool.query(
+    `SELECT f.*, count(*) OVER () AS n, sum(f.total) OVER () AS monto_total,
+            (SELECT count(DISTINCT ruc_contratista) FROM ordenes_fraccionadas WHERE entidad_ruc = $1) AS empresas
+     FROM ordenes_fraccionadas f WHERE f.entidad_ruc = $1
+     ORDER BY CASE f.severidad WHEN 'alta' THEN 0 ELSE 1 END, f.fecha DESC, f.total DESC LIMIT $2`, [ruc, limit]).catch(() => null);
+  const filas = q?.rows ?? [];
+  return {
+    total: filas.length ? Number(filas[0].n) : 0,
+    montoTotal: filas.length ? Number(filas[0].monto_total) : 0,
+    empresas: filas.length ? Number(filas[0].empresas) : 0,
+    casos: filas.map((r) => ({
+      fecha: fecha(r.fecha), rucProveedor: r.ruc_contratista, proveedor: r.contratista, objeto: r.objeto,
+      ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,
+      severidad: r.severidad,
+      detalle: (r.detalle as { orden: string; monto: number; descripcion: string | null; estado: string | null }[])
+        .map((o) => ({ orden: o.orden, montoSoles: Number(o.monto), descripcion: o.descripcion, estado: o.estado })),
     })),
   };
 }

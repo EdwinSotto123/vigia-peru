@@ -248,6 +248,14 @@ export async function getCrucesEntidad(ruc: string) {
   }
 }
 
+export async function getFraccionamientoEntidad(ruc: string) {
+  try {
+    return await get<import("./contratos").FraccionamientoEntidad>(`/entidades/${ruc}/fraccionamiento`);
+  } catch {
+    return null;
+  }
+}
+
 export async function getEntidad(ruc: string) {
   try {
     return await get<{ entidad: any; mef: any; alertas: any[] }>(

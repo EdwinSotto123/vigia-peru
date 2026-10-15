@@ -12,6 +12,7 @@ import { colo, diagnosticar } from "./diagnostico.ts";
 import { correrJne } from "./fuentes/jne_infogob.ts";
 import { correrMef } from "./fuentes/mef_presupuesto.ts";
 import { correrConosce } from "./fuentes/conosce.ts";
+import { correrOrdenes } from "./fuentes/conosce_ordenes.ts";
 import { correrGastos } from "./fuentes/onpe_gastos.ts";
 import { correrOcds } from "./fuentes/oece_ocds.ts";
 import { correrOnpe } from "./fuentes/onpe_claridad.ts";
@@ -32,6 +33,7 @@ export const FUENTES: Record<string, Corredor> = {
   pnda_oece: correrPndaOece,
   mef_presupuesto: correrMef,
   conosce: correrConosce,
+  conosce_ordenes: correrOrdenes,
   onpe_gastos: correrGastos,
   onpe_claridad: correrOnpe,
 };

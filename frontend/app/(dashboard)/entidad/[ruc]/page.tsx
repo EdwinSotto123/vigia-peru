@@ -8,8 +8,9 @@ import { esAlertaReal } from "@/lib/semillas";
 import { ETIQUETA_PESO, nivelDeScore } from "@/lib/severidad";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
-import { getCrucesEntidad, getEntidad } from "@/lib/api-client";
+import { getCrucesEntidad, getEntidad, getFraccionamientoEntidad } from "@/lib/api-client";
 import { CrucesEntidadTabla } from "@/components/contratos/CrucesEntidad";
+import { FraccionamientoEntidadTabla } from "@/components/contratos/FraccionamientoEntidad";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -87,6 +88,7 @@ export default async function EntidadProfile({
   let fallo = false;
   // Los cruces se piden a la vez: no dependen de la ficha y, si fallan, la pestaña no aparece.
   const crucesP = getCrucesEntidad(params.ruc);
+  const fraccP = getFraccionamientoEntidad(params.ruc);
   try {
     apiResp = await getEntidad(params.ruc);
   } catch (e) {
@@ -96,7 +98,7 @@ export default async function EntidadProfile({
   if (fallo) return <NoSePudoLeer ruc={params.ruc} />;
   if (!apiResp?.entidad) notFound();
 
-  const cruces = await crucesP;
+  const [cruces, fracc] = await Promise.all([crucesP, fraccP]);
   const e = apiResp.entidad;
   const nombre: string = e.nombre;
   const region: string | null = e.region || null;
@@ -321,6 +323,35 @@ export default async function EntidadProfile({
                         Procesos de esta entidad cuyo ganador aparece en otros registros públicos.
                       </CabeceraPestana>
                       <CrucesEntidadTabla procesos={cruces.procesos} nombre={nombre} />
+                    </>
+                  ),
+                },
+              ]
+            : []),
+          ...(fracc && fracc.total > 0
+            ? [
+                {
+                  clave: "ordenes",
+                  etiqueta: "Órdenes del mismo día",
+                  conteo: fracc.total,
+                  contenido: (
+                    <>
+                      <CabeceraPestana
+                        ayuda={
+                          <Ayuda titulo="¿Qué es esto?">
+                            Las compras de hasta 8 UIT se hacen con una orden, sin procedimiento de selección. La ley prohíbe
+                            partir una contratación para quedar bajo ese tope. Aquí van los días en que esta entidad le emitió a
+                            una misma empresa varias de esas órdenes que juntas lo pasan (registro de órdenes de CONOSCE). Es un
+                            patrón en los datos oficiales, no la prueba de un fraccionamiento.
+                          </Ayuda>
+                        }
+                      >
+                        {fracc.total === 1 ? "Un día" : `${numero(fracc.total)} días`} en que esta entidad le emitió a una misma
+                        empresa varias órdenes de hasta 8 UIT que juntas pasan el tope: {plural(fracc.empresas, "empresa", "empresas")},{" "}
+                        {solesCompacto(fracc.montoTotal)} en total.
+                        {fracc.total > fracc.casos.length ? ` Se muestran los ${fracc.casos.length} más fuertes y recientes.` : ""}
+                      </CabeceraPestana>
+                      <FraccionamientoEntidadTabla casos={fracc.casos} nombre={nombre} />
                     </>
                   ),
                 },

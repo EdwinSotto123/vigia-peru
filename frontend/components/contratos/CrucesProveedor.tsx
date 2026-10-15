@@ -26,6 +26,7 @@ const FUENTE: Record<string, string> = {
   onpe_gastos_proveedores: "ONPE · gastos de campaña",
   conosce_adjudicaciones: "CONOSCE · adjudicaciones",
   conosce_contratos: "CONOSCE · contratos",
+  conosce_ordenes: "CONOSCE · órdenes de compra y servicio",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -170,6 +171,18 @@ function Texto({ c }: { c: CruceProveedor }) {
               </a>
             </>
           )}
+        </>
+      );
+    }
+    case "fraccionamiento": {
+      const dias = n(d.dias) ?? 1;
+      return (
+        <>
+          En <b>{numero(dias)}</b> {dias === 1 ? "día" : "días"}
+          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} esta entidad le emitió varias órdenes de hasta 8 UIT,
+          sin procedimiento de selección, que el mismo día juntas pasaron el tope: <b>{numero(n(d.ordenes) ?? 0)}</b> órdenes por{" "}
+          {solesCompacto(c.montoSoles)}
+          {n(d.misma_descripcion) ? `; en ${numero(n(d.misma_descripcion)!)} de esos días, con la misma descripción` : ""}.
         </>
       );
     }
