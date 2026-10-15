@@ -41,7 +41,18 @@ const rango = (a: unknown, b: unknown) => {
 };
 /** La empresa ganadora de la que habla el cruce, en negrita. */
 function Emp({ c }: { c: CruceProveedor }) {
-  return c.proveedor ? <b>{c.proveedor}</b> : <>la empresa ganadora</>;
+  const emp = c.proveedor ? <b>{c.proveedor}</b> : <>la empresa ganadora</>;
+  if (!c.consorcio) return emp;
+  return (
+    <>
+      {emp} (integrante de <b>{c.consorcio.nombre ?? "un consorcio"}</b>)
+    </>
+  );
+}
+
+/** Quién ganó la buena pro: el consorcio, si el cruce es de uno de sus integrantes. */
+function Ganador({ c }: { c: CruceProveedor }) {
+  return c.consorcio ? <>el <b>{c.consorcio.nombre ?? "consorcio"}</b></> : <Emp c={c} />;
 }
 
 /** "NOMBRE (socio y representante legal de EMPRESA)": quién es la persona respecto del ganador. */
@@ -70,7 +81,7 @@ function Gano({ c, dias }: { c: CruceProveedor; dias?: number | null }) {
     <>
       {" "}
       {dias != null && dias > 0 ? <><b>{numero(dias)} días después</b>, </> : "Después, "}
-      <Emp c={c} /> ganó la buena pro de este proceso
+      <Ganador c={c} /> ganó la buena pro de este proceso
       {bp.fecha ? ` el ${fechaCorta(bp.fecha)}` : ""}
       {bp.montoSoles != null ? <> por <b>{solesCompacto(bp.montoSoles)}</b></> : ""}.
     </>

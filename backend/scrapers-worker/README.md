@@ -18,7 +18,7 @@ filas. Lo comprueban las pruebas de paridad (ver más abajo).
 | `mef_presupuesto` | `mef_ejecutora_anual` + `mef_departamento_desglose` desde `<año>-Gasto-Diario.zip` → `refrescar_mef_presupuesto()` (migración 47) | lunes 08:00 |
 | `onpe_claridad` | `onpe_aportantes` + `onpe_candidatos` con Browser Rendering (Cloudflare de la ONPE pasa con Chromium real) | miércoles 08:00 |
 | `onpe_gastos` | `onpe_gastos_proveedores`: a quién le compró cada organización política en campaña (RUC o DNI y monto), mismo portal | miércoles 08:00 |
-| `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
+| `conosce` | `conosce_adjudicaciones` / `conosce_postores` / `conosce_contratos` / `conosce_consorcios` (todo el país, desde 2018) del portal CONOSCE del OECE | sábados 08:00 |
 | `conosce_ordenes` | `conosce_ordenes`: órdenes de compra y de servicio por mes de registro (~275 000 al mes) → `refrescar_fraccionamiento()` (migración 51) | sábados 08:00 |
 
 Lo que no se pasó:

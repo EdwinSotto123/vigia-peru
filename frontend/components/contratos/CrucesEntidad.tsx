@@ -33,7 +33,10 @@ export function CrucesEntidadTabla({ procesos, nombre }: { procesos: CrucesEntid
             titulo={p.objeto ? limpiarObjeto(p.objeto) : "Proceso sin objeto registrado"}
             meta={
               <>
-                <span>{p.proveedor ?? "Ganador sin nombre"}</span>
+                <span>
+                  {p.proveedor ?? "Ganador sin nombre"}
+                  {p.consorcio ? ` (en ${p.consorcio})` : ""}
+                </span>
                 <Separador />
                 <span className="font-mono" translate="no">
                   {codigo}

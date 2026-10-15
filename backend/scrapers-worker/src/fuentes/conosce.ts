@@ -1,5 +1,6 @@
 /**
- * CONOSCE (OECE) → conosce_adjudicaciones / conosce_postores / conosce_contratos (migración 49), por año.
+ * CONOSCE (OECE) → conosce_adjudicaciones / conosce_postores / conosce_contratos (migración 49) y
+ * conosce_consorcios (integrantes de cada consorcio, migración 53), por año.
  *
  * Los reportes del SEACE están sueltos en el portal CONOSCE, sin login ni WAF, y se regeneran los viernes:
  *   <BASE>/<carpeta>/<año>/CONOSCE_<PREFIJO><año>_<n>.csv   (o .xlsx: 2019, 2023 y 2024 sólo vienen así,
@@ -86,6 +87,15 @@ export const CONJUNTOS: Record<string, Conjunto> = {
       ["ruc_postor", ["ruc_codigo_postor", "ruc_postor"], "t"],
       ["postor", ["postor"], "t"],
       ["fecha_propuesta", ["fecha_presentacion_propuesta"], "d"],
+    ],
+  },
+  consorcios: {
+    carpeta: "consorcios", prefijo: "CONOSCE_CONSORCIO", tabla: "conosce_consorcios",
+    mapa: [
+      ["ruc_consorcio", ["ruc_consorcio"], "t"],
+      ["consorcio", ["consorcio"], "t"],
+      ["ruc_miembro", ["ruc_miembro"], "t"],
+      ["miembro", ["miembro"], "t"],
     ],
   },
   contratos: {

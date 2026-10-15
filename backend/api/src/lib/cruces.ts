@@ -49,6 +49,8 @@ export interface Cruce {
   /** Razón social del ganador y lo que ganó en este proceso (sólo en la ficha del contrato). */
   proveedor?: string | null;
   buenaPro?: { fecha: string | null; montoSoles: number | null } | null;
+  /** Si el ganador es un consorcio, el cruce es de uno de sus integrantes (rucProveedor / proveedor). */
+  consorcio?: { codigo: string; nombre: string | null } | null;
   /** socio_comun: los otros postores del proceso con el mismo socio, con su razón social. */
   otrosPostores?: { ruc: string; nombre: string | null }[];
   ocid: string | null;
@@ -102,6 +104,27 @@ export interface Ganador {
   proveedor: string | null;
   fecha: string | null;
   montoPen: number | null;
+  consorcio?: { codigo: string; nombre: string | null } | null;
+}
+
+const ES_RUC = /^(10|20)\d{9}$/;
+
+/** Un consorcio con código del SEACE (no RUC) se abre en sus integrantes con RUC (conosce_consorcios, migración 53). */
+async function abrirConsorcios(ganadores: Ganador[]): Promise<Ganador[]> {
+  const codigos = [...new Set(ganadores.map((g) => g.proveedorRuc).filter((r): r is string => !!r && /^\d+$/.test(r) && !ES_RUC.test(r)))];
+  if (!codigos.length) return ganadores;
+  const q = await pool.query(
+    `SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro
+     FROM conosce_consorcios WHERE ruc_consorcio = ANY($1::text[]) AND ruc_miembro ~ '^(10|20)[0-9]{9}$'
+     ORDER BY ruc_consorcio, ruc_miembro, anio DESC`, [codigos]).catch(() => null);
+  const miembros = new Map<string, { ruc: string; nombre: string | null }[]>();
+  for (const r of q?.rows ?? []) miembros.set(r.ruc_consorcio, [...(miembros.get(r.ruc_consorcio) ?? []), { ruc: r.ruc_miembro, nombre: r.miembro }]);
+  return ganadores.flatMap((g) => {
+    const ms = g.proveedorRuc ? miembros.get(g.proveedorRuc) : undefined;
+    if (!ms) return [g];
+    const consorcio = { codigo: g.proveedorRuc!, nombre: g.proveedor };
+    return ms.map((m) => ({ ...g, proveedorRuc: m.ruc, proveedor: m.nombre, consorcio }));
+  });
 }
 
 /**
@@ -112,7 +135,7 @@ export interface Ganador {
  */
 export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promise<Cruce[]> {
   const porRuc = new Map<string, Ganador>();
-  for (const g of ganadores) if (g.proveedorRuc && /^\d{11}$/.test(g.proveedorRuc) && !porRuc.has(g.proveedorRuc)) porRuc.set(g.proveedorRuc, g);
+  for (const g of await abrirConsorcios(ganadores)) if (g.proveedorRuc && /^\d{11}$/.test(g.proveedorRuc) && !porRuc.has(g.proveedorRuc)) porRuc.set(g.proveedorRuc, g);
   if (!porRuc.size) return [];
   const q = await pool.query(
     `SELECT ${COLS} FROM cruces_proveedor
@@ -132,6 +155,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       ...c,
       proveedor: g?.proveedor ?? null,
       buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
+      consorcio: g?.consorcio ?? null,
       ...(c.tipo === "socio_comun"
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),
@@ -153,12 +177,19 @@ export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total:
             jsonb_array_elements(COALESCE(c.ocds_payload->'awards', '[]'::jsonb)) aw,
             jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
        WHERE c.entidad_ruc = $1 AND c.ocid NOT LIKE 'ocds-vigia-%'
+     ), gm AS (
+       -- Los consorcios (código del SEACE) se abren en sus integrantes con RUC (migración 53).
+       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, COALESCE(m.ruc_miembro, g.ruc) AS ruc,
+              COALESCE(m.miembro, g.proveedor) AS proveedor, CASE WHEN m.ruc_miembro IS NOT NULL THEN g.proveedor END AS consorcio, g.monto
+       FROM g LEFT JOIN (SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro FROM conosce_consorcios
+                         WHERE ruc_miembro ~ '^(10|20)[0-9]{9}$' ORDER BY ruc_consorcio, ruc_miembro, anio DESC) m
+              ON m.ruc_consorcio = g.ruc AND g.ruc !~ '^(10|20)[0-9]{9}$'
      ), x AS (
-       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, max(g.monto) AS monto,
+       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio, max(g.monto) AS monto,
               jsonb_agg(DISTINCT jsonb_build_object('tipo', k.tipo, 'severidad', k.severidad)) AS tipos,
               count(*) FILTER (WHERE k.severidad = 'alta') AS altas
-       FROM g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc AND (k.ocid IS NULL OR k.ocid = g.ocid)
-       GROUP BY g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor
+       FROM gm g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc AND (k.ocid IS NULL OR k.ocid = g.ocid)
+       GROUP BY g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio
      )
      SELECT *, count(*) OVER () AS total FROM x ORDER BY altas DESC, fecha_buena_pro DESC NULLS LAST, ocid LIMIT $2`,
     [ruc, limit]).catch(() => null);
@@ -167,7 +198,7 @@ export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total:
     total: filas.length ? Number(filas[0].total) : 0,
     procesos: filas.map((r) => ({
       ocid: r.ocid, codigo: r.codigo, objeto: r.objeto, fechaBuenaPro: fecha(r.fecha_buena_pro),
-      proveedor: r.proveedor, rucProveedor: r.ruc, montoSoles: r.monto == null ? null : Number(r.monto),
+      proveedor: r.proveedor, rucProveedor: r.ruc, consorcio: r.consorcio ?? null, montoSoles: r.monto == null ? null : Number(r.monto),
       cruces: (r.tipos as { tipo: string; severidad: string }[])
         .map((t) => ({ ...t, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
         .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),

@@ -144,6 +144,8 @@ export interface CruceProveedor {
   proveedor?: string | null;
   buenaPro?: { fecha: string | null; montoSoles: number | null } | null;
   otrosPostores?: { ruc: string; nombre: string | null }[];
+  /** El ganador es un consorcio y el cruce es de este integrante. */
+  consorcio?: { codigo: string; nombre: string | null } | null;
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -164,6 +166,8 @@ export interface CrucesEntidad {
     fechaBuenaPro: string | null;
     proveedor: string | null;
     rucProveedor: string;
+    /** Si ganó un consorcio: su nombre (`proveedor` es el integrante). */
+    consorcio?: string | null;
     montoSoles: number | null;
     cruces: { tipo: string; severidad: "alta" | "media" | "baja"; etiqueta: string }[];
   }[];
