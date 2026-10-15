@@ -10,7 +10,7 @@
  *
  * Respaldo: si Workers AI falla (error, corte 3046, respuesta vacía), la misma petición va a un proveedor con API
  * compatible con OpenAI, configurado sólo con secretos: RESPALDO_URL (…/v1/chat/completions), RESPALDO_TOKEN
- * (Bearer) y RESPALDO_MODELO. Sin esos secretos no hay respaldo y el error se devuelve como antes. La cabecera
+ * (Bearer), RESPALDO_MODELO y, si el proveedor las pide, RESPALDO_CABECERAS (JSON). Sin esos secretos no hay respaldo y el error se devuelve como antes. La cabecera
  * `x-vigia-modelo` de la respuesta dice quién contestó (`workers-ai:<id>` o `respaldo`); `x-vigia-respaldo:
  * forzar` en la petición salta Workers AI (para probar el respaldo).
  *
@@ -28,6 +28,8 @@ interface Env {
   RESPALDO_URL?: string;
   RESPALDO_TOKEN?: string;
   RESPALDO_MODELO?: string;
+  /** Cabeceras extra del proveedor de respaldo, como JSON ({"nombre": "valor"}). Opcional. */
+  RESPALDO_CABECERAS?: string;
 }
 
 const json = (cuerpo: unknown, status = 200, extra: Record<string, string> = {}) =>
@@ -52,12 +54,21 @@ export function vacia(salida: unknown): boolean {
 
 const hayRespaldo = (env: Env) => !!(env.RESPALDO_URL && env.RESPALDO_TOKEN && env.RESPALDO_MODELO);
 
+function extras(env: Env): Record<string, string> {
+  try {
+    const o = JSON.parse(env.RESPALDO_CABECERAS ?? "{}");
+    return o && typeof o === "object" ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)])) : {};
+  } catch {
+    return {};
+  }
+}
+
 /** La misma petición al proveedor de respaldo, sin los campos propios de Workers AI. */
 async function respaldo(env: Env, cuerpo: Record<string, any>): Promise<Response> {
   const { model: _m, reasoning_effort: _r, ...resto } = cuerpo;
   const r = await fetch(env.RESPALDO_URL!, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${env.RESPALDO_TOKEN}` },
+    headers: { ...extras(env), "content-type": "application/json", authorization: `Bearer ${env.RESPALDO_TOKEN}` },
     body: JSON.stringify({ ...resto, model: env.RESPALDO_MODELO }),
   });
   const h = new Headers(r.headers);

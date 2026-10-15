@@ -8,7 +8,8 @@
 
 Si Workers AI falla (error, corte 3046 o respuesta vacía), la misma petición va a un proveedor con API compatible
 con OpenAI. Se configura sólo con secretos del Worker, no en el repo: `RESPALDO_URL` (la URL completa de
-`…/v1/chat/completions`), `RESPALDO_MODELO` y `RESPALDO_TOKEN`. Sin los tres no hay respaldo. La cabecera
+`…/v1/chat/completions`), `RESPALDO_MODELO` y `RESPALDO_TOKEN` (y `RESPALDO_CABECERAS`, un JSON con cabeceras extra si el proveedor las pide).
+Sin los tres primeros no hay respaldo. La cabecera
 `x-vigia-modelo` de la respuesta dice quién contestó; `x-vigia-respaldo: forzar` en la petición lo prueba directo.
 `GET /salud` dice si el respaldo está configurado.
 
