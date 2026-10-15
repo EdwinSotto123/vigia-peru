@@ -27,6 +27,9 @@ from ab_modelos import extraer  # noqa: E402
 
 # Banderas de juicio de los agentes → señal del catálogo (las reglas duras ya vienen como "regla:<id>").
 _JUICIO = {"legal": "red_flag_documental", "person_network": "red_personas_vinculada"}
+# Reglas que el pipeline guarda con otro nombre que el del catálogo.
+_ALIAS = {"sancion_historica_oece": "antecedentes_proveedor", "penalidades_oece_historicas": "antecedentes_proveedor",
+          "antecedente_proveedor_web": "antecedentes_proveedor", "sobreprecio_muy_elevado": "sobreprecio_elevado"}
 
 
 def nivel(score: float | None) -> str | None:
@@ -39,7 +42,9 @@ def reglas_de_corrida(r: dict, catalogo: set[str]) -> tuple[set[str], float | No
     """Ids del catálogo que la corrida disparó, su score (si lo persistió) y el resumen de `extraer`."""
     x = extraer(r)
     st = (r.get("final") or {}).get("state") or {}
-    ids: set[str] = {b["regla"] for b in st.get("banderas") or [] if isinstance(b, dict) and b.get("regla")}
+    # Los hechos de contexto (puntua=false) se muestran pero no son una alerta: no cuentan como predicción.
+    ids: set[str] = {_ALIAS.get(b["regla"], b["regla"]) for b in st.get("banderas") or []
+                     if isinstance(b, dict) and b.get("regla") and b.get("puntua", True)}
     for b in x["banderas"]:
         fam, _, tag = b.partition(":")
         if fam == "regla":
@@ -64,8 +69,8 @@ def desde_bd(ocids: list[str], destino: pathlib.Path) -> None:
             fila = cu.fetchone()
             if not fila:
                 continue
-            cu.execute("SELECT regla, severidad, agente_origen FROM banderas WHERE alerta_id=%s", (fila[0],))
-            banderas = [{"regla": r, "severidad": s, "agente_origen": ag} for r, s, ag in cu.fetchall()]
+            cu.execute("SELECT regla, severidad, agente_origen, COALESCE(puntua, true) FROM banderas WHERE alerta_id=%s", (fila[0],))
+            banderas = [{"regla": r, "severidad": s, "agente_origen": ag, "puntua": p} for r, s, ag, p in cu.fetchall()]
             (destino / f"{ocid}.json").write_text(json.dumps(
                 {"final": {"state": {"score": fila[1], "banderas": banderas}}}, ensure_ascii=False), encoding="utf-8")
 
