@@ -4,7 +4,8 @@
 #
 #   docker build --platform linux/arm64 -f Dockerfile.lambda -t vigia-agente-lambda .
 #
-# Lambda sólo deja escribir en /tmp: HOME y las cachés de las librerías van ahí.
+# Lambda sólo deja escribir en /tmp: HOME y las cachés de las librerías van ahí. Con HOME=/tmp libpq no encuentra
+# ~/.postgresql/root.crt y PGSSLMODE=verify-full falla con "No such file": la CA de RDS va por PGSSLROOTCERT.
 
 FROM public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 AS adaptador
 
@@ -25,6 +26,7 @@ ENV PORT=8080 \
     AWS_LWA_INVOKE_MODE=response_stream \
     AWS_LWA_READINESS_CHECK_PATH=/ \
     HOME=/tmp \
+    PGSSLROOTCERT=/app/certs/rds-global-bundle.pem \
     XDG_CACHE_HOME=/tmp/.cache \
     HF_HOME=/tmp/hf \
     ANONYMIZED_TELEMETRY=False \
