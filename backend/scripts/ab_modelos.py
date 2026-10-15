@@ -11,7 +11,8 @@ dispatcher (OCDS, documentos, clasificación) para cada contrato, la manda a cad
     # 2) informe comparativo (markdown) de una corrida
     python backend/scripts/ab_modelos.py comparar backend/scripts/ab_out/<corrida> [--base gemini]
 
-Entorno: PGHOST, PGPASSWORD (admin o lector), PGSSLMODE=require. ID token de `gcloud auth print-identity-token`.
+Entorno: PGHOST, PGPASSWORD (admin o lector), PGSSLMODE=require. ID token de `gcloud auth print-identity-token`;
+las variantes en Lambda (URL *.lambda-url.*) usan AGENTE_TOKEN como Bearer.
 Las salidas (ab_out/) tienen datos de contratos: están en .gitignore.
 """
 from __future__ import annotations
@@ -85,8 +86,13 @@ def id_token() -> str:
 _TOKEN = {"t": "", "ts": 0.0}
 
 
-def token_vigente() -> str:
-    """ID token de gcloud, renovado cada 40 min: una corrida larga pasaba de la hora de validez y daba 401."""
+def token_vigente(url: str = "") -> str:
+    """ID token de gcloud, renovado cada 40 min: una corrida larga pasaba de la hora de validez y daba 401.
+    Las variantes en Lambda (Function URL, sin IAM delante) usan el Bearer fijo de AGENTE_TOKEN."""
+    if ".lambda-url." in url:
+        if not os.getenv("AGENTE_TOKEN"):
+            raise SystemExit("la variante en Lambda necesita AGENTE_TOKEN (SSM /vigia/agente/token)")
+        return os.environ["AGENTE_TOKEN"]
     if time.time() - _TOKEN["ts"] > 2400 or not _TOKEN["t"]:
         _TOKEN["t"], _TOKEN["ts"] = id_token(), time.time()
     return _TOKEN["t"]
@@ -147,14 +153,15 @@ def cmd_correr(a) -> None:
         corrida = SALIDA / time.strftime("%Y%m%d-%H%M%S")
     cuerpos = {o: cuerpo(cu, o) for o in ocids}
     cn.close()
-    token = id_token()
+    for u in variantes.values():
+        token_vigente(u)   # falla antes de empezar si falta una credencial
     print(f"{len(ocids)} contratos × {len(variantes)} variantes → {corrida}")
     for v in variantes:
         (corrida / v).mkdir(parents=True, exist_ok=True)
     (corrida / "meta.json").write_text(json.dumps({"ocids": ocids, "variantes": variantes, "seed": a.seed}, indent=1), encoding="utf-8")
 
     def tarea(v: str, o: str):
-        r = correr_uno(variantes[v], token_vigente(), cuerpos[o])
+        r = correr_uno(variantes[v], token_vigente(variantes[v]), cuerpos[o])
         (corrida / v / f"{o}.json").write_text(json.dumps(r, ensure_ascii=False, default=str), encoding="utf-8")
         return v, o, r
 
