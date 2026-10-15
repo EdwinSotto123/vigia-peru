@@ -5,6 +5,7 @@
 *.pem
 # Excepción: las CA públicas de AWS RDS (sólo certificados, sin llaves) que el Dockerfile de la API copia.
 !backend/api/certs/rds-global-bundle.pem
+!backend/agent/certs/rds-global-bundle.pem
 *-key.json
 sa-key.json
 service-account*.json
