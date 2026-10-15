@@ -38,7 +38,7 @@ import {
   type ContratosQuery,
 } from "@/lib/contratos";
 import { EstadoContratoPill as PildoraEstadoContrato, EstadoContratoChip } from "./estadoLectura";
-import { recortar } from "./recortar";
+import { recortar, limpiarObjeto } from "./recortar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -210,7 +210,7 @@ function SkeletonFila() {
 function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  const titulo = c.titulo ?? "Sin objeto registrado";
+  const titulo = c.titulo ? limpiarObjeto(c.titulo) : "Sin objeto registrado";
   const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(", ") || "Sin clasificar";
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4).
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;

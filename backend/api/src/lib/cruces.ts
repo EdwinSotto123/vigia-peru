@@ -46,6 +46,11 @@ export interface Cruce {
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   rucProveedor: string;
+  /** Razón social del ganador y lo que ganó en este proceso (sólo en la ficha del contrato). */
+  proveedor?: string | null;
+  buenaPro?: { fecha: string | null; montoSoles: number | null } | null;
+  /** socio_comun: los otros postores del proceso con el mismo socio, con su razón social. */
+  otrosPostores?: { ruc: string; nombre: string | null }[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -64,7 +69,7 @@ export function aCruce(r: Record<string, any>): Cruce {
   const visitas: Record<string, unknown>[] = [];
   if (r.tipo === "visita_previa") {
     visitas.push({
-      visitante: r.persona_nombre ?? null, funcionario: d.funcionario ?? null, cargoFuncionario: d.cargo_funcionario ?? null,
+      visitante: r.persona_nombre ?? null, rol: rolLegible(r.persona_rol), funcionario: d.funcionario ?? null, cargoFuncionario: d.cargo_funcionario ?? null,
       entidad: d.entidad_visitada ?? null, fecha: fecha(r.fecha), motivo: d.motivo ?? null,
     });
     delete d.funcionario;
@@ -92,19 +97,46 @@ export function aCruce(r: Record<string, any>): Cruce {
 
 const COLS = `tipo, ruc_empresa, ocid, severidad, fecha, monto, persona_nombre, persona_rol, detalle, fuente, fuente_url`;
 
+export interface Ganador {
+  proveedorRuc: string | null;
+  proveedor: string | null;
+  fecha: string | null;
+  montoPen: number | null;
+}
+
 /**
- * Cruces de los proveedores `rucs` que tocan el proceso `ocid`: los de la empresa (aportes, sanciones,
- * penalidades…) y los de este proceso (visitas previas, inhabilitación vigente, socio común). Sin la
- * migración 48 devuelve [].
+ * Cruces de los ganadores del proceso `ocid`: los de la empresa (aportes, sanciones, penalidades…) y los de
+ * este proceso (visitas previas, inhabilitación vigente, socio común). Cada uno va con la razón social del
+ * ganador y lo que ganó (fecha y monto de la buena pro), y el socio común con los nombres de los otros
+ * postores: así el texto dice de qué empresa se habla. Sin la migración 48 devuelve [].
  */
-export async function crucesDeProceso(ocid: string, rucs: string[]): Promise<Cruce[]> {
-  const lista = [...new Set(rucs.filter((r) => /^\d{11}$/.test(r)))];
-  if (!lista.length) return [];
+export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promise<Cruce[]> {
+  const porRuc = new Map<string, Ganador>();
+  for (const g of ganadores) if (g.proveedorRuc && /^\d{11}$/.test(g.proveedorRuc) && !porRuc.has(g.proveedorRuc)) porRuc.set(g.proveedorRuc, g);
+  if (!porRuc.size) return [];
   const q = await pool.query(
     `SELECT ${COLS} FROM cruces_proveedor
      WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
-     ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [lista, ocid]).catch(() => null);
-  return (q?.rows ?? []).map(aCruce);
+     ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
+  const cruces = (q?.rows ?? []).map(aCruce);
+  const otros = [...new Set(cruces.flatMap((c) => (c.tipo === "socio_comun" && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
+  const nombres = new Map<string, string>();
+  if (otros.length) {
+    const n = await pool.query(
+      `SELECT ruc_postor AS ruc, max(postor) AS nombre FROM conosce_postores WHERE ruc_postor = ANY($1::text[]) GROUP BY ruc_postor`, [otros]).catch(() => null);
+    for (const r of n?.rows ?? []) nombres.set(r.ruc, r.nombre);
+  }
+  return cruces.map((c) => {
+    const g = porRuc.get(c.rucProveedor);
+    return {
+      ...c,
+      proveedor: g?.proveedor ?? null,
+      buenaPro: g ? { fecha: g.fecha, montoSoles: g.montoPen } : null,
+      ...(c.tipo === "socio_comun"
+        ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
+        : {}),
+    };
+  });
 }
 
 /**

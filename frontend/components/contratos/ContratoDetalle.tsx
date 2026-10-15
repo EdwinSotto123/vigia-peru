@@ -28,7 +28,7 @@ import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
 import { OCDS, dia, monto, pestanasEvidencia } from "./EvidenciaContrato";
-import { recortar } from "./recortar";
+import { recortar, limpiarObjeto } from "./recortar";
 import { OtrosContratosEntidad } from "./OtrosContratosEntidad";
 import { LineaTiempoProceso } from "./LineaTiempoProceso";
 import { EntidadEnVigia } from "./EntidadEnVigia";
@@ -118,7 +118,7 @@ export function ContratoDetalle({
         <div className="min-w-0 space-y-5">
           {/* 1. Identidad: qué se contrata, su código, quién compra y dónde; debajo, sus chips. */}
           <div className="space-y-3">
-            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ?? "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
+            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ? limpiarObjeto(c.titulo) : "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
             <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de lectura">
               <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
               <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>

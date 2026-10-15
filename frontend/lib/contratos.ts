@@ -140,12 +140,16 @@ export interface CruceProveedor {
   etiqueta: string;
   severidad: "alta" | "media" | "baja";
   rucProveedor: string;
+  /** Razón social del ganador y su buena pro en este proceso (ficha del contrato). */
+  proveedor?: string | null;
+  buenaPro?: { fecha: string | null; montoSoles: number | null } | null;
+  otrosPostores?: { ruc: string; nombre: string | null }[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
   detalle: Record<string, unknown>;
   socios: { nombre: string; rol: string | null; cargo?: string | null }[];
-  visitas: { visitante: string | null; funcionario: string | null; cargoFuncionario: string | null; entidad: string | null; fecha: string | null; motivo: string | null }[];
+  visitas: { visitante: string | null; rol?: string | null; funcionario: string | null; cargoFuncionario: string | null; entidad: string | null; fecha: string | null; motivo: string | null }[];
   fuente: string;
   fuenteUrl: string | null;
 }

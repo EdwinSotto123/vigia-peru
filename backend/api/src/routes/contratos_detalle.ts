@@ -137,7 +137,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   }));
 
   // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
-  const cruces = await crucesDeProceso(row.ocid, adjudicaciones.map((a) => a.proveedorRuc).filter((r): r is string => !!r));
+  const cruces = await crucesDeProceso(row.ocid, adjudicaciones);
 
   // ── U5: expediente leído por los agentes (postores, ítems con precio, citas con página) ──
   const enVigiaUrls = new Set(documentos.filter((d) => d.enVigia).map((d) => d.url));

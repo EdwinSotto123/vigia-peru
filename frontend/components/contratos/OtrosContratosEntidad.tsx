@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { EstadoContratoPill } from "./ContratosLista";
-import { recortar } from "./recortar";
+import { limpiarObjeto, recortar } from "./recortar";
 import { fechaCorta, solesCompacto } from "@/lib/formato";
 import type { ContratoResumen } from "@/lib/contratos";
 
@@ -38,7 +38,7 @@ export function OtrosContratosEntidad({
     <section aria-labelledby={idSeccion} className="space-y-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
         <h2 id={idSeccion} className="text-[13px] font-semibold text-ink">
-          {titulo ?? `Más contratos de ${entidad ? recortar(entidad, 60) : "esta entidad"}`}
+          {titulo ?? `Otros procesos de ${entidad ? recortar(entidad, 60) : "esta entidad"}`}
         </h2>
         <Link
           href={verHref ?? `/app/contratos?entidad=${entidadRuc}`}
@@ -47,6 +47,10 @@ export function OtrosContratosEntidad({
           Ver {quedan > 0 ? `los ${total.toLocaleString("es-PE")}` : "todos"}
         </Link>
       </div>
+      <p className="text-[12px] leading-snug text-mute">
+        {titulo ? "Otras convocatorias, no relacionadas con esta." : "Otras convocatorias de la misma entidad, no relacionadas con esta."}{" "}
+        {compacta ? "" : "La etiqueta dice si Vigía ya revisó su expediente."}
+      </p>
       <ul className="divide-y divide-line">
         {contratos.map((c) => (
           <li key={c.ocid}>
@@ -55,14 +59,14 @@ export function OtrosContratosEntidad({
               className="group flex items-center gap-3 py-2 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
             >
               <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 text-[13.5px] font-medium leading-snug text-ink sm:line-clamp-1">{recortar(c.titulo ?? `Contrato ${c.codigo}`, 110)}</span>
-                <span className="block text-[12px] text-mute tabular-nums">{c.fecha ? fechaCorta(c.fecha) : "sin fecha"}</span>
+                <span className="line-clamp-2 text-[13.5px] font-medium leading-snug text-ink sm:line-clamp-1">{recortar(c.titulo ? limpiarObjeto(c.titulo) : `Contrato ${c.codigo}`, 110)}</span>
+                <span className="block text-[12px] text-mute tabular-nums">{c.fecha ? `Convocado el ${fechaCorta(c.fecha)}` : "Sin fecha de convocatoria"}</span>
               </span>
               <span className={compacta ? "hidden" : "hidden shrink-0 sm:block"}>
                 <EstadoContratoPill estado={c.estadoProcesamiento} operativo={c.estadoOperativo} />
               </span>
               <span className={compacta ? "w-16 shrink-0 text-right font-mono text-[12px] tabular-nums text-inkSoft" : "w-24 shrink-0 text-right font-mono text-[12.5px] tabular-nums text-inkSoft"}>
-                {c.montoPen ? solesCompacto(c.montoPen) : "sin dato"}
+                {c.montoPen ? solesCompacto(c.montoPen) : <span className="font-sans text-[11.5px] text-mute">sin monto publicado</span>}
               </span>
               <ChevronRight size={14} className="shrink-0 text-mute group-hover:text-granate" aria-hidden />
             </Link>

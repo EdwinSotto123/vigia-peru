@@ -32,7 +32,7 @@ import { severidadDeContrato } from "@/lib/severidad";
 import { etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { DetalleContrato } from "./DetalleContrato";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
-import { recortar } from "./recortar";
+import { recortar, limpiarObjeto } from "./recortar";
 
 const RUTA = "/app/contratos";
 
@@ -177,7 +177,7 @@ export function TablaContratos({
 }
 
 function filaDe(c: ContratoResumen): Fila {
-  const titulo = c.titulo ?? "Sin objeto registrado";
+  const titulo = c.titulo ? limpiarObjeto(c.titulo) : "Sin objeto registrado";
   const entidad = c.entidad ?? "Entidad no identificada";
   const monto = formatMonto(c.montoPen, c.moneda);
   // Lo mismo que dice el chip: el peso del riesgo si ya se leyó, si no, el estado de lectura.

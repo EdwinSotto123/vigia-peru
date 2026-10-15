@@ -41,3 +41,22 @@ test("penalidad de empresa: sin personas, montos numéricos", () => {
   assert.deepEqual(c.socios, []);
   assert.equal(c.etiqueta, "Penalidades en contratos anteriores");
 });
+
+test("contexto del ganador: la razón social de un RUC 10 y los otros postores RUC 10 salen tapados", () => {
+  const c = {
+    ...aCruce({ ...base, tipo: "socio_comun", severidad: "alta", ruc_empresa: "10000000011", persona_doc: "00000001",
+      persona_nombre: "QUISPEMAYTA HUAMANCHUMO ROBERTINO", persona_rol: "TITULAR", detalle: { otros_postores: ["10000007891", "20999999992"] } }),
+    proveedor: "QUISPEMAYTA HUAMANCHUMO ROBERTINO", buenaPro: { fecha: "2026-08-01", montoSoles: 1000 },
+    otrosPostores: [{ ruc: "10000007891", nombre: "CCAHUANA TICONA FILOMENO" }, { ruc: "20999999992", nombre: "EMPRESA INVENTADA SAC" }],
+  };
+  const p = publicar({ cruces: [c] }).cruces[0];
+  assert.doesNotMatch(json(p), /HUAMANCHUMO|TICONA|00000001|00000789|10000000011|10000007891/);
+  assert.equal(p.otrosPostores[1].nombre, "EMPRESA INVENTADA SAC");
+  assert.equal(p.buenaPro.montoSoles, 1000);
+});
+
+test("visita previa: el rol del visitante en la empresa sale legible", () => {
+  const c = aCruce({ ...base, tipo: "visita_previa", severidad: "alta", persona_doc: "00000789", persona_nombre: "CCAHUANA TICONA FILOMENO",
+    persona_rol: "REPRESENTANTE_LEGAL, SOCIO_ACCIONISTA_TITULAR", detalle: { entidad_visitada: "X", dias_antes: 5 } });
+  assert.equal(c.visitas[0].rol, "representante legal, socio");
+});

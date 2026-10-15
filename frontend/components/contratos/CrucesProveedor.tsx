@@ -39,18 +39,63 @@ const rango = (a: unknown, b: unknown) => {
   const f = (s: string | null) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? fechaCorta(s) : s);
   return x === y || !y ? f(x) : `${f(x) ?? "?"} – ${f(y)}`;
 };
-function quien(c: CruceProveedor): ReactNode {
-  const s = c.socios[0];
-  if (!s) return null;
+/** La empresa ganadora de la que habla el cruce, en negrita. */
+function Emp({ c }: { c: CruceProveedor }) {
+  return c.proveedor ? <b>{c.proveedor}</b> : <>la empresa ganadora</>;
+}
+
+/** "NOMBRE (socio y representante legal de EMPRESA)": quién es la persona respecto del ganador. */
+function quien(c: CruceProveedor, rol = c.socios[0]?.rol, nombre = c.socios[0]?.nombre): ReactNode {
+  if (!nombre) return <Emp c={c} />;
   return (
     <>
-      <span className="font-semibold">{s.nombre}</span>
-      {s.rol && s.rol !== "titular" && <span className="text-inkSoft"> ({s.rol})</span>}
+      <span className="font-semibold">{nombre}</span>
+      {rol === "titular" ? (
+        <span className="text-inkSoft"> (titular del RUC ganador)</span>
+      ) : (
+        <span className="text-inkSoft">
+          {" "}
+          ({rol ?? "vinculado"} de <Emp c={c} />)
+        </span>
+      )}
     </>
   );
 }
 
-/** Una línea de texto por cruce, con los datos del registro. */
+/** " Después, EMPRESA ganó este proceso el 31 ago. por S/ 217 mil." */
+function Gano({ c, dias }: { c: CruceProveedor; dias?: number | null }) {
+  const bp = c.buenaPro;
+  if (!bp?.fecha && bp?.montoSoles == null) return null;
+  return (
+    <>
+      {" "}
+      {dias != null && dias > 0 ? <><b>{numero(dias)} días después</b>, </> : "Después, "}
+      <Emp c={c} /> ganó la buena pro de este proceso
+      {bp.fecha ? ` el ${fechaCorta(bp.fecha)}` : ""}
+      {bp.montoSoles != null ? <> por <b>{solesCompacto(bp.montoSoles)}</b></> : ""}.
+    </>
+  );
+}
+
+/** Por qué mirar cada tipo de cruce: una línea bajo el título del grupo. */
+const POR_QUE: Record<string, string> = {
+  aporte: "Quien financia una campaña y después contrata con el Estado puede tener un acceso que otros no tienen. No está prohibido, pero es un posible conflicto de interés.",
+  aporte_empresa: "Quien financia una campaña y después contrata con el Estado puede tener un acceso que otros no tienen. No está prohibido, pero es un posible conflicto de interés.",
+  candidato: "Las autoridades electas y sus parientes tienen impedimentos para contratar con el Estado, sobre todo en su jurisdicción. Una candidatura muestra el vínculo político de la empresa.",
+  autoridad: "Las autoridades electas y sus parientes tienen impedimentos para contratar con el Estado, sobre todo en su jurisdicción.",
+  penalidad: "Las penalidades se cobran por retrasos o incumplimientos: muestran cómo cumplió en contratos anteriores.",
+  sancion: "El Tribunal sanciona faltas graves ante el Estado (documentos falsos, incumplimientos). Mientras una inhabilitación está vigente, la empresa no puede contratar.",
+  sancion_vigente: "Con una inhabilitación vigente la empresa no podía contratar con el Estado: la entidad debía verificarlo en el RNP antes de dar la buena pro.",
+  visita_previa: "Reunirse con funcionarios antes de la buena pro no es ilegal, pero el registro de visitas existe para transparentarlo. Una reunión con quien decide, o una visita «personal», merece revisión.",
+  socio_comun: "Si dos postores que compiten comparten dueños o representantes, la competencia puede ser solo aparente (ofertas concertadas). Es una de las señales clásicas de colusión.",
+  partido_gobernante: "La empresa, o una persona detrás de ella, financió o atendió la campaña del partido que gobierna la entidad que le dio el contrato: posible conflicto de interés.",
+  proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
+  recurrente: "Ganarle muchas veces a la misma entidad puede ser buena competencia o un proveedor cautivo. Vale mirar cuántos postores hubo en cada proceso.",
+  adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
+  fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
+};
+
+/** Una línea de texto por cruce, con los datos del registro: quién, de qué empresa, qué hizo y qué ganó después. */
 function Texto({ c }: { c: CruceProveedor }) {
   const d = c.detalle;
   switch (c.tipo) {
@@ -59,76 +104,109 @@ function Texto({ c }: { c: CruceProveedor }) {
       const veces = n(d.aportes);
       return (
         <>
-          {c.tipo === "aporte" ? quien(c) : "La empresa"} aportó <b>{solesCompacto(c.montoSoles)}</b> a {txt(d.partido) ?? "una organización política"}
+          {c.tipo === "aporte" ? quien(c) : <Emp c={c} />} aportó <b>{solesCompacto(c.montoSoles)}</b> a{" "}
+          <b>{txt(d.partido) ?? "una organización política"}</b>
           {veces && veces > 1 ? ` en ${numero(veces)} aportes` : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
+          <Gano c={c} />
         </>
       );
     }
     case "candidato":
       return (
         <>
-          {quien(c)} postuló por {txt(d.organizacion) ?? "una organización política"}
+          {quien(c)} postuló{txt(d.cargo) ? ` a ${txt(d.cargo)!.toLowerCase()}` : ""} por <b>{txt(d.organizacion) ?? "una organización política"}</b>
           {txt(d.proceso) ? ` en ${d.proceso}` : ""}
           {txt(d.departamento) ? ` (${d.departamento})` : ""}.
+          <Gano c={c} />
         </>
       );
-    case "autoridad":
+    case "autoridad": {
+      const lugar = [d.distrito, d.provincia, d.departamento].map(txt).filter(Boolean)[0];
       return (
         <>
-          {quien(c)} es {txt(d.cargo)?.toLowerCase() ?? "autoridad"} {[d.distrito, d.provincia, d.departamento].map(txt).filter(Boolean)[0] ? `de ${[d.distrito, d.provincia, d.departamento].map(txt).filter(Boolean)[0]}` : ""}
+          {quien(c)} es <b>{txt(d.cargo)?.toLowerCase() ?? "autoridad"}</b>
+          {lugar ? ` de ${lugar}` : ""}
           {txt(d.organizacion) ? ` por ${d.organizacion}` : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
+          <Gano c={c} />
         </>
       );
+    }
     case "penalidad":
       return (
         <>
-          {numero(n(d.penalidades) ?? 0)} penalidades por <b>{solesCompacto(c.montoSoles)}</b> en {numero(n(d.entidades) ?? 0)}{" "}
-          {n(d.entidades) === 1 ? "entidad" : "entidades"}
+          <Emp c={c} /> ya recibió <b>{numero(n(d.penalidades) ?? 0)} penalidades</b> por <b>{solesCompacto(c.montoSoles)}</b> en{" "}
+          {numero(n(d.entidades) ?? 0)} {n(d.entidades) === 1 ? "entidad" : "entidades"}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
         </>
       );
     case "sancion":
     case "sancion_vigente": {
       const tipo = txt(d.tipo);
-      const que = tipo === "multa" ? "Multa" : tipo === "definitivo" ? "Inhabilitación definitiva" : "Inhabilitación temporal";
+      const que = tipo === "multa" ? "una multa" : tipo === "definitivo" ? "una inhabilitación definitiva" : "una inhabilitación temporal";
       return (
         <>
-          {c.tipo === "sancion_vigente" && <>La buena pro ({fechaCorta(c.fecha)}) cayó dentro de esta sanción. </>}
-          {que}
+          {c.tipo === "sancion_vigente" ? (
+            <>
+              <Emp c={c} /> ganó la buena pro el <b>{fechaCorta(c.buenaPro?.fecha ?? c.fecha)}</b>
+              {c.buenaPro?.montoSoles != null ? <> por <b>{solesCompacto(c.buenaPro.montoSoles)}</b></> : ""} mientras tenía <b>{que}</b> vigente
+            </>
+          ) : (
+            <>
+              El Tribunal de Contrataciones le impuso a <Emp c={c} /> <b>{que}</b>
+            </>
+          )}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
-          {txt(d.infraccion) ? `: ${txt(d.infraccion)!.replace(/^[-\s]*/, "").slice(0, 160)}` : ""}
-          {txt(d.resolucion) ? ` · Res. ${d.resolucion}` : ""}.
+          {txt(d.infraccion) ? `, por ${txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, "").slice(0, 180).toLowerCase()}` : ""}
+          {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
         </>
       );
     }
     case "visita_previa": {
       const v = c.visitas[0];
+      const dias = n(d.dias_antes);
       return (
         <>
-          <span className="font-semibold">{v?.visitante ?? "Un socio"}</span> visitó {v?.entidad ?? "una entidad"}
-          {d.misma_entidad === true && <b> (la entidad que contrató)</b>} el {fechaCorta(v?.fecha ?? c.fecha)}, {numero(n(d.dias_antes) ?? 0)} días antes de la buena pro
-          {v?.funcionario ? <>, y lo recibió {v.funcionario}{v.cargoFuncionario ? ` (${v.cargoFuncionario})` : ""}</> : ""}
-          {v?.motivo ? `. Motivo: ${v.motivo.slice(0, 120)}` : ""}.
+          {quien(c, v?.rol ?? null, v?.visitante ?? undefined)} visitó <b>{v?.entidad ?? "una entidad"}</b>
+          {d.misma_entidad === true ? <b> (la misma entidad que contrató)</b> : ""} el {fechaCorta(v?.fecha ?? c.fecha)}
+          {v?.funcionario ? (
+            <>
+              {" "}
+              y lo recibió <span className="font-semibold">{v.funcionario}</span>
+              {v.cargoFuncionario ? ` (${v.cargoFuncionario.toLowerCase()})` : ""}
+            </>
+          ) : (
+            ""
+          )}
+          .{v?.motivo ? <> Motivo declarado: «{v.motivo.slice(0, 120)}».</> : ""}
+          <Gano c={c} dias={dias} />
         </>
       );
     }
     case "socio_comun": {
-      const otros = Array.isArray(d.otros_postores) ? (d.otros_postores as string[]) : [];
+      const otros = c.otrosPostores ?? (Array.isArray(d.otros_postores) ? (d.otros_postores as string[]).map((ruc) => ({ ruc, nombre: null })) : []);
+      const rolOtro = Array.isArray(d.rol_en_otros) ? (d.rol_en_otros as string[]).map((r) => r.toLowerCase().replace(/_/g, " ").replace("socio accionista titular", "socio")).join(", ") : null;
       return (
         <>
-          {quien(c)} también figura en {otros.length === 1 ? "otra empresa" : `${otros.length} empresas`} que se presentó a este mismo proceso
-          {otros.length ? <> (RUC <span className="font-mono">{otros.join(", ")}</span>)</> : ""}.
+          {quien(c)} también figura{rolOtro ? ` como ${rolOtro}` : ""} en {otros.length === 1 ? "otra empresa que compitió" : `${numero(otros.length)} empresas que compitieron`} en este
+          mismo proceso:{" "}
+          {otros.map((o, i) => (
+            <span key={o.ruc}>
+              {i > 0 && ", "}
+              {o.nombre ? <b>{o.nombre}</b> : null} <span className="font-mono text-[12px]">(RUC {o.ruc})</span>
+            </span>
+          ))}
+          .<Gano c={c} />
         </>
       );
     }
     case "proveedor_campana":
       return (
         <>
-          {c.socios.length ? quien(c) : "La empresa"} le vendió <b>{solesCompacto(c.montoSoles)}</b> a la campaña de{" "}
-          {txt(d.organizacion) ?? "una organización política"}
+          {c.socios.length ? quien(c) : <Emp c={c} />} le vendió <b>{solesCompacto(c.montoSoles)}</b> a la campaña de{" "}
+          <b>{txt(d.organizacion) ?? "una organización política"}</b>
           {txt(d.proceso) ? ` (${d.proceso})` : ""}.
         </>
       );
@@ -138,9 +216,11 @@ function Texto({ c }: { c: CruceProveedor }) {
       const accion = via === "proveedor_campana" ? "le vendió a la campaña de" : "aportó a";
       return (
         <>
-          {c.socios.length ? quien(c) : "La empresa"} {accion} <b>{partido ?? "una organización política"}</b>
-          {c.montoSoles ? ` (${solesCompacto(c.montoSoles)})` : ""}, la organización del{" "}
-          {txt(d.cargo_gobernante)?.toLowerCase() ?? "alcalde"} que gobernaba la entidad cuando dio la buena pro.
+          {c.socios.length ? quien(c) : <Emp c={c} />} {accion} <b>{partido ?? "una organización política"}</b>
+          {c.montoSoles ? ` (${solesCompacto(c.montoSoles)})` : ""}
+          {txt(d.proceso) ? ` en ${d.proceso}` : ""}. Es el partido del {txt(d.cargo_gobernante)?.toLowerCase() ?? "alcalde"} que gobernaba la
+          entidad cuando dio la buena pro.
+          <Gano c={c} />
         </>
       );
     }
@@ -148,9 +228,9 @@ function Texto({ c }: { c: CruceProveedor }) {
       const part = n(d.participacion);
       return (
         <>
-          Le ganó <b>{numero(n(d.procesos) ?? 0)}</b> procesos más a esta entidad
+          Aparte de este, <Emp c={c} /> le ganó <b>{numero(n(d.procesos) ?? 0)} procesos</b> a esta entidad
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} por {solesCompacto(c.montoSoles)}
-          {part != null ? `: el ${(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} % de lo que adjudicó la entidad` : ""}
+          {part != null ? <>: el <b>{(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b> de lo que adjudicó la entidad</> : ""}
           {n(d.procesos_entidad) ? ` en ${numero(n(d.procesos_entidad)!)} procesos` : ""}.
         </>
       );
@@ -160,8 +240,15 @@ function Texto({ c }: { c: CruceProveedor }) {
       const prorroga = n(d.prorroga);
       return (
         <>
-          {txt(d.contrato) ? `${d.contrato}: ` : ""}
-          {n(d.adicional) ? <>adicionales por <b>{solesCompacto(n(d.adicional))}</b>{pct != null ? ` (${pct.toLocaleString("es-PE")} % de ${solesCompacto(n(d.contratado))})` : ""}</> : "sin adicionales"}
+          El contrato {txt(d.contrato) ? `${d.contrato} ` : ""}de <Emp c={c} />
+          {n(d.adicional) ? (
+            <>
+              {" "}sumó adicionales por <b>{solesCompacto(n(d.adicional))}</b>
+              {pct != null ? <>: el <b>{pct.toLocaleString("es-PE")} %</b> de los {solesCompacto(n(d.contratado))} contratados</> : ""}
+            </>
+          ) : (
+            " no tuvo adicionales"
+          )}
           {prorroga ? `; prórrogas por ${solesCompacto(prorroga)}` : ""}.
           {txt(d.url_contrato) && (
             <>
@@ -178,11 +265,12 @@ function Texto({ c }: { c: CruceProveedor }) {
       const dias = n(d.dias) ?? 1;
       return (
         <>
-          En <b>{numero(dias)}</b> {dias === 1 ? "día" : "días"}
-          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} esta entidad le emitió varias órdenes de hasta 8 UIT,
-          sin procedimiento de selección, que el mismo día juntas pasaron el tope: <b>{numero(n(d.ordenes) ?? 0)}</b> órdenes por{" "}
-          {solesCompacto(c.montoSoles)}
-          {n(d.misma_descripcion) ? `; en ${numero(n(d.misma_descripcion)!)} de esos días, con la misma descripción` : ""}.
+          En <b>{numero(dias)}</b> {dias === 1 ? "día" : "días distintos"}
+          {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}, esta entidad le emitió a <Emp c={c} /> varias órdenes de hasta 8 UIT
+          (sin proceso de selección) que ese mismo día juntas pasaron el tope: <b>{numero(n(d.ordenes) ?? 0)} órdenes</b> por{" "}
+          <b>{solesCompacto(c.montoSoles)}</b>
+          {n(d.misma_descripcion) ? <>; en {numero(n(d.misma_descripcion)!)} de esos días, todas con <b>la misma descripción</b></> : ""}.
+          {c.buenaPro && <> Además, en este proceso le dieron la buena pro{c.buenaPro.montoSoles != null ? ` por ${solesCompacto(c.buenaPro.montoSoles)}` : ""}.</>}
         </>
       );
     }
@@ -242,6 +330,7 @@ export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; 
                   {grupo.length > 1 && <span className="font-normal text-mute"> · {grupo.length}</span>}
                 </h3>
               </div>
+              {POR_QUE[grupo[0].tipo] && <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">{POR_QUE[grupo[0].tipo]}</p>}
               <ul className="list-disc space-y-1.5 pl-5">
                 {filas.slice(0, VISIBLES).map((c, i) => <Fila key={i} c={c} />)}
               </ul>

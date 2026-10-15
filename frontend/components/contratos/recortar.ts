@@ -15,3 +15,15 @@ export function recortar(texto: string, max: number): string {
   const i = c.lastIndexOf(" ");
   return `${(i > max * 0.5 ? c.slice(0, i) : c).replace(/[\s,.;:(-]+$/, "")}…`;
 }
+
+/**
+ * Objeto de contratación tal como lo escribe la entidad, sin el rótulo del formulario
+ * ("DENOMINACIÓN DEL REQUERIMIENTO:", "OBJETO DE LA CONTRATACIÓN:") ni los "¿" que el SEACE deja
+ * donde iban comillas tipográficas (“…”): si el texto no trae ningún "?", un "¿" no es una pregunta.
+ */
+export function limpiarObjeto(texto: string): string {
+  let t = texto.replace(/\s+/g, " ").trim();
+  t = t.replace(/^(DENOMINACI[OÓ]N|OBJETO|NOMBRE|DESCRIPCI[OÓ]N)( DEL?| DE LA)? (REQUERIMIENTO|CONTRATACI[OÓ]N|PROCESO|SERVICIO|BIEN|OBRA)\s*:\s*/i, "");
+  if (!t.includes("?")) t = t.replace(/\s*¿\s*/g, " ").replace(/\s+/g, " ").trim();
+  return t.replace(/^["'“”\s]+|["'“”\s]+$/g, "") || texto;
+}

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Separador } from "@/components/ui/Partes";
 import type { CrucesEntidad } from "@/lib/contratos";
 import { soles } from "@/lib/formato";
+import { limpiarObjeto } from "./recortar";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 
@@ -29,7 +30,7 @@ export function CrucesEntidadTabla({ procesos, nombre }: { procesos: CrucesEntid
       celdas: {
         contrato: (
           <CeldaPrincipal
-            titulo={p.objeto || "Proceso sin objeto registrado"}
+            titulo={p.objeto ? limpiarObjeto(p.objeto) : "Proceso sin objeto registrado"}
             meta={
               <>
                 <span>{p.proveedor ?? "Ganador sin nombre"}</span>
