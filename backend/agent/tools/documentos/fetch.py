@@ -135,6 +135,24 @@ def _fetch_doc_bytes(document_url: str, tool_context: ToolContext) -> tuple[byte
     parts.append(direct_error)
     return None, "failed", " · ".join(parts)
 
+def _descargar_de_r2(gs_url: str) -> tuple[bytes | None, str | None]:
+    """gs://bucket/ruta → el mismo objeto en R2, por el Worker vigia-r2-sync (réplica de GCS)."""
+    base = os.getenv("R2_LECTOR_URL", "https://vigia-r2-sync.vigiaperu.workers.dev").rstrip("/")
+    token = os.getenv("R2_LECTOR_TOKEN", "")
+    rest = gs_url[5:]
+    if "/" not in rest:
+        return None, f"url GCS no parseable: {gs_url[:120]}"
+    bucket_name, key = rest.split("/", 1)
+    try:
+        r = requests.get(f"{base}/objeto", params={"bucket": bucket_name, "key": key},
+                         headers={"Authorization": f"Bearer {token}"}, timeout=120)
+        if r.status_code == 200 and len(r.content) > 100:
+            return r.content, None
+        return None, f"r2 HTTP {r.status_code}"
+    except Exception as e:
+        return None, f"r2_exception: {str(e)[:200]}"
+
+
 def _download_from_gcs(gcs_or_https_url: str) -> tuple[bytes | None, str | None]:
     """Descarga bytes desde GCS. Acepta dos formas de URL:
       · gs://bucket/path                          → usa google-cloud-storage SDK
@@ -156,6 +174,10 @@ def _download_from_gcs(gcs_or_https_url: str) -> tuple[bytes | None, str | None]
     # gs:// → SDK
     if not gcs_or_https_url.startswith("gs://"):
         return None, f"url GCS no parseable: {gcs_or_https_url[:120]}"
+    # Enchufe de almacenamiento: ALMACEN_DOCS=r2 lee el mismo objeto de la réplica en R2 (Worker vigia-r2-sync,
+    # GET /objeto con R2_LECTOR_TOKEN). Sin la variable, GCS como siempre.
+    if os.getenv("ALMACEN_DOCS", "gcs").strip().lower() == "r2":
+        return _descargar_de_r2(gcs_or_https_url)
     try:
         from google.cloud import storage
     except Exception as e:

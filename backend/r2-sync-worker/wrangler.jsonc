@@ -12,7 +12,8 @@
     { "binding": "B_DOCUMENTOS", "bucket_name": "vigia-peru-documentos" },
     { "binding": "B_PRIVADO", "bucket_name": "vigia-peru-privado" },
     { "binding": "B_REPORTES", "bucket_name": "vigia-peru-reportes" },
-    { "binding": "B_RAG", "bucket_name": "vigia-peru-rag" }
+    { "binding": "B_RAG", "bucket_name": "vigia-peru-rag" },
+    { "binding": "B_BATCH", "bucket_name": "vigia-peru-batch" }
   ]
   // Secretos: GCP_SA_KEY (cuenta vigia-r2-sync, solo lectura en los 4 buckets) y SYNC_TOKEN.
 }

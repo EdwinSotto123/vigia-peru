@@ -19,8 +19,12 @@ interface Env {
   B_PRIVADO: R2Bucket;
   B_REPORTES: R2Bucket;
   B_RAG: R2Bucket;
+  /** Documentos de los expedientes que bajó vigia-batch (los que leen los agentes). */
+  B_BATCH: R2Bucket;
   GCP_SA_KEY?: string;
   SYNC_TOKEN?: string;
+  /** Sólo lectura de objetos (GET /objeto): lo usan los agentes que no leen de GCS. */
+  LECTOR_TOKEN?: string;
 }
 
 const BUCKETS: Record<string, keyof Env> = {
@@ -28,6 +32,7 @@ const BUCKETS: Record<string, keyof Env> = {
   "vigia-peru-privado": "B_PRIVADO",
   "vigia-peru-reportes": "B_REPORTES",
   "vigia-peru-rag": "B_RAG",
+  "vigia-peru-batch": "B_BATCH",
 };
 
 interface ObjetoGcs {
@@ -144,18 +149,33 @@ async function verificar(env: Env, bucket: string) {
   };
 }
 
-function autorizado(req: Request, env: Env): boolean {
-  const esperado = (env.SYNC_TOKEN || "").trim();
-  const dado = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+function iguales(dado: string, esperado: string): boolean {
   if (!esperado || dado.length !== esperado.length) return false;
   let d = 0;
   for (let i = 0; i < dado.length; i++) d |= dado.charCodeAt(i) ^ esperado.charCodeAt(i);
   return d === 0;
 }
 
+function autorizado(req: Request, env: Env): boolean {
+  return iguales((req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim(), (env.SYNC_TOKEN || "").trim());
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const u = new URL(req.url);
+    // GET /objeto?bucket=<nombre>&key=<ruta>: el archivo tal cual desde R2 (la réplica de GCS). Token propio de lectura.
+    if (req.method === "GET" && u.pathname === "/objeto") {
+      const tok = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+      if (!env.LECTOR_TOKEN || !iguales(tok.trim(), env.LECTOR_TOKEN.trim())) return Response.json({ detail: "unauthorized" }, { status: 401 });
+      const b = u.searchParams.get("bucket") || "";
+      const key = u.searchParams.get("key") || "";
+      if (!(b in BUCKETS) || !key) return Response.json({ detail: "bucket o key inválidos" }, { status: 400 });
+      const obj = await (env[BUCKETS[b]] as R2Bucket).get(key);
+      if (!obj) return Response.json({ detail: "no existe" }, { status: 404 });
+      return new Response(obj.body, {
+        headers: { "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream", "content-length": String(obj.size) },
+      });
+    }
     if (!autorizado(req, env)) return Response.json({ detail: "unauthorized" }, { status: 401 });
     const bucket = u.searchParams.get("bucket") || "";
     if (!(bucket in BUCKETS)) return Response.json({ detail: "bucket desconocido", buckets: Object.keys(BUCKETS) }, { status: 400 });
