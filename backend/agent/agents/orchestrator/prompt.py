@@ -199,7 +199,25 @@ PASO 5. CRÍTICO — PASOS OBLIGATORIOS EN SECUENCIA:
              sobreprecio (Δ > 15% = +12 pts, Δ > 50% = +25 pts). Sin
              este paso un sobreprecio del 60% queda invisible en el score.
 
-PASO 6. PRIMERO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
+PASO 6.0. ANTES DE CUALQUIER BÚSQUEDA, llama `query_registros_proceso(ocid=<ocid>)`.
+        Devuelve lo que la base YA tiene cruzado y al día (los scrapers lo actualizan
+        a diario o por semana; mira `datos_al_dia`): ganadores (un consorcio, abierto en
+        sus integrantes con RUC), `cruces` con ONPE (aportes, candidaturas, gastos de
+        campaña), JNE (autoridades, partido que gobierna la entidad), visitas previas,
+        sanciones y penalidades, socios comunes entre postores, `socios_rnp`,
+        `postores`, `historial` del ganador con la entidad, `contratos` (adicionales)
+        y `ordenes_mismo_dia` (posible fraccionamiento).
+        ⚠ Por CADA entrada de `senales[]` llama `add_contextual_flag(regla, severidad,
+        evidencia, norma)` con sus valores, tal cual.
+        ⚠ Lo que venga aquí NO se vuelve a buscar: si `cruces` ya trae sanciones, no
+        las busques en la web; si trae aportes o candidaturas, no consultes ONPE ni
+        JNE para esas personas; si `historial` trae los procesos con la entidad, no
+        busques "otros contratos con el Estado". Las búsquedas externas (web,
+        prensa, decolecta) quedan para lo que la base NO tiene: edad del RUC y CIIU,
+        prensa, expedientes judiciales y funcionarios designados.
+        Si devuelve `found:false`, sigue con el flujo de siempre.
+
+PASO 6. LUEGO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
         proveedor del OECE (gratis, sin cuota, vía downloader local). Trae
         estado/condición SUNAT, ubicación, conformación (socios), y lo MÁS
         valioso: **antecedentes** (sanciones, inhabilitaciones judiciales y
@@ -227,9 +245,12 @@ PASO 6. PRIMERO llama `query_oece_perfil(ruc=<ruc>)` — es el perfil de
         request='Investiga la empresa con RUC <ruc> y razón social <razon>.
         El perfil SUNAT ya está pre-cargado en tu instrucción — incorpóralo
         TAL CUAL en tu sección `empresa` y NO repitas la búsqueda SUNAT.
-        Usa google_search para complementar: gerentes/socios, prensa
-        (OjoPúblico, Convoca, IDL), sanciones (OSCE, Contraloría), aportes
-        ONPE Claridad, otros contratos con el Estado, expedientes judiciales.'
+        Las sanciones OSCE, los aportes ONPE, las candidaturas, los socios del
+        RNP y los otros contratos con la entidad YA están en la base (PASO 6.0):
+        NO los busques. Usa google_search sólo para lo que falta: prensa
+        (OjoPúblico, Convoca, IDL), informes de Contraloría y expedientes
+        judiciales.' Si el PASO 6.0 trajo cruces, resúmelos en una línea en el
+        mismo mensaje para que el sub-agente no los repita.
         NO pegues el JSON de decolecta en el mensaje — el sub-agente lo
         recibe vía instruction provider que lee state['sunat_decolecta'].
 

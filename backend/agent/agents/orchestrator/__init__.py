@@ -45,6 +45,7 @@ from tools import (
     add_contextual_flag_tool,
     persist_alert_from_flags_tool,
     query_autoridades_entidad_tool,
+    query_registros_proceso_tool,
 )
 
 # ── Sub-agentes (cada uno desde su paquete) ──
@@ -74,6 +75,8 @@ vigia_orchestrator = Agent(
         fetch_ocds_record_tool,
         get_ganador_tool,
         register_convocatoria_in_db_tool,
+        # Registros ya cruzados en la base (scrapers + refrescar_cruces): ANTES de buscar afuera.
+        query_registros_proceso_tool,
         query_sunat_decolecta_tool,
         query_oece_perfil_tool,   # perfil OECE: estado + sanciones/inhab + aptitud (sin cuota, vía downloader)
         query_edad_ciiu_web_tool, # fallback edad+CIIU (universidadperu) si decolecta sin cuota

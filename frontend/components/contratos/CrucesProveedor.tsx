@@ -11,6 +11,7 @@ import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import type { CruceProveedor } from "@/lib/contratos";
 import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { recortar } from "./recortar";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
 const SEVERIDAD = { alta: "Alta", media: "Media", baja: "Baja" } as const;
@@ -170,7 +171,7 @@ function Texto({ c }: { c: CruceProveedor }) {
           )}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}
           {tipo === "multa" && c.montoSoles ? ` de ${solesCompacto(c.montoSoles)}` : ""}
-          {txt(d.infraccion) ? `, por ${txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, "").slice(0, 180).toLowerCase()}` : ""}
+          {txt(d.infraccion) ? `, por ${recortar(txt(d.infraccion)!.replace(/^[-\s]*(i+\)\s*)?/i, ""), 260).toLowerCase()}` : ""}
           {txt(d.resolucion) ? ` (Res. ${d.resolucion})` : ""}.
         </>
       );
