@@ -83,7 +83,7 @@ POST /correr ─────────────────┘   un Workflo
 | Límite | Cómo se respeta |
 |---|---|
 | 128 MB de memoria por isolate | Los CSV grandes van de R2 a COPY en streaming. El XLS del JNE se lee con `src/xls.ts`, un lector propio que usa ~4 MB; SheetJS ocupaba ~150 MB. Los XLSX (~3-5 MB) sí van con SheetJS. |
-| 60 s por sentencia en Hyperdrive (documentado; el 2026-10-14 todavía no lo aplicaba) | El CSV de DJI va en varias sentencias COPY de ≤ 40 s, cortadas en fin de registro; la primera lleva `HEADER`. El `UPDATE … ruc_entidad` va por rangos de páginas (ctid). |
+| 60 s por sentencia en Hyperdrive (documentado). El 2026-10-14 no lo aplicaba, pero el 2026-10-15 cortó `refrescar_cruces` a los ~10 min ("Timed out while waiting for a message from another Hyperdrive node"): ninguna sentencia debe acercarse a eso (la migración 56 dejó los cruces en ~3 min) | El CSV de DJI va en varias sentencias COPY de ≤ 40 s, cortadas en fin de registro; la primera lleva `HEADER`. El `UPDATE … ruc_entidad` va por rangos de páginas (ctid). |
 | CPU por invocación | `limits.cpu_ms` = 300 000. Un release OCDS cuesta ~0,08 ms y el XLS del JNE ~0,3 s. |
 | Un paso devuelve ≤ 1 MiB | Las filas del OCDS de cada día se guardan en R2 y se unen en el paso de carga. |
 
