@@ -1,0 +1,35 @@
+# Imagen del agente para AWS Lambda (variante sin GCP). Es la misma imagen que Dockerfile más el Lambda Web
+# Adapter, que traduce las invocaciones de la Function URL a HTTP contra functions-framework y deja pasar el
+# streaming NDJSON (?stream=1) con InvokeMode=RESPONSE_STREAM.
+#
+#   docker build --platform linux/arm64 -f Dockerfile.lambda -t vigia-agente-lambda .
+#
+# Lambda sólo deja escribir en /tmp: HOME y las cachés de las librerías van ahí.
+
+FROM public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 AS adaptador
+
+FROM python:3.12-slim
+COPY --from=adaptador /lambda-adapter /opt/extensions/lambda-adapter
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        unar libarchive-tools antiword \
+        && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+ENV PORT=8080 \
+    AWS_LWA_PORT=8080 \
+    AWS_LWA_INVOKE_MODE=response_stream \
+    AWS_LWA_READINESS_CHECK_PATH=/ \
+    HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    HF_HOME=/tmp/hf \
+    ANONYMIZED_TELEMETRY=False \
+    LITELLM_LOCAL_MODEL_COST_MAP=True \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+CMD exec functions-framework --target=orchestrate --port=$PORT --host=0.0.0.0

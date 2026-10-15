@@ -359,6 +359,9 @@ def _gemini_client():
     if os.getenv("LLM_BACKEND", "").strip().lower() == "anthropic":  # sin Gemini/Vertex: ver tools/llm_anthropic.py
         from tools.llm_anthropic import ClienteAnthropic
         return ClienteAnthropic()
+    if os.getenv("LLM_BACKEND", "").strip().lower() == "compatible":  # endpoint tipo OpenAI (vigia-llm): tools/llm_compatible.py
+        from tools.llm_compatible import ClienteCompatible
+        return ClienteCompatible()
     from google import genai
     # GOOGLE_GENAI_USE_VERTEXAI=true fuerza Vertex aunque haya GOOGLE_API_KEY
     # (reversible por env, sin tocar código). Default: AI Studio si hay key.

@@ -73,6 +73,15 @@ def orchestrate(request):
     if request.method == "OPTIONS":
         return ("", 204, cors)
 
+    # Fuera de Cloud Run (p. ej. Lambda con Function URL pública) no hay IAM delante: AGENTE_TOKEN exige
+    # `Authorization: Bearer <token>`. Sin la variable no cambia nada.
+    token = os.getenv("AGENTE_TOKEN")
+    if token:
+        import hmac
+        dado = (request.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        if not hmac.compare_digest(dado.encode(), token.encode()):
+            return (json.dumps({"error": "no autorizado"}), 401, {"Content-Type": "application/json", **cors})
+
     # GET routing: sin action → health con perfil y modelos; ?action=list|load|random
     if request.method == "GET":
         action = request.args.get("action")
