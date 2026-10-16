@@ -12,7 +12,7 @@
  * compatible con OpenAI, configurado sólo con secretos: RESPALDO_URL (…/v1/chat/completions), RESPALDO_TOKEN
  * (Bearer), RESPALDO_MODELO y, si el proveedor las pide, RESPALDO_CABECERAS (JSON). Sin esos secretos no hay respaldo y el error se devuelve como antes. La cabecera
  * `x-vigia-modelo` de la respuesta dice quién contestó (`workers-ai:<id>` o `respaldo`); `x-vigia-respaldo:
- * forzar` en la petición salta Workers AI (para probar el respaldo).
+ * forzar` en la petición, o `model: "respaldo"`, salta Workers AI y usa sólo el respaldo.
  *
  * No registra el contenido de los mensajes (pueden traer datos de contratos).
  */
@@ -94,9 +94,10 @@ export default {
     if (!cuerpo || !Array.isArray(cuerpo.messages)) return json({ error: { message: "falta messages" } }, 400);
     let modelo = String(cuerpo.model ?? "").replace(/^openai\//, "");
     if (!modelo || modelo === "default") modelo = env.MODELO_DEFECTO ?? permitidos[0];
-    if (!permitidos.includes(modelo)) return json({ error: { message: `modelo no permitido: ${modelo}` } }, 400);
+    // model "respaldo" = lo mismo que la cabecera de forzar, para clientes que no pueden poner cabeceras (litellm).
+    if (modelo !== "respaldo" && !permitidos.includes(modelo)) return json({ error: { message: `modelo no permitido: ${modelo}` } }, 400);
 
-    if (req.headers.get("x-vigia-respaldo") === "forzar") {
+    if (modelo === "respaldo" || req.headers.get("x-vigia-respaldo") === "forzar") {
       return hayRespaldo(env) ? respaldo(env, cuerpo) : json({ error: { message: "sin respaldo configurado" } }, 503);
     }
 
