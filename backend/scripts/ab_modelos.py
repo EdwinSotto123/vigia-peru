@@ -185,19 +185,31 @@ PALABRAS_ACUSATORIAS = re.compile(r"\b(corrupt[oa]s?|delincuent\w*|ladr[oó]n\w*
 
 
 def _n(d, k):
-    v = (d or {}).get(k)
+    v = d.get(k) if isinstance(d, dict) else None
     return len(v) if isinstance(v, (list, dict)) else 0
 
 
 def _ok_n(d, k):
-    v = (d or {}).get(k) or {}
+    v = (d.get(k) if isinstance(d, dict) else None) or {}
     return (v.get("ok", 0), v.get("n", 0)) if isinstance(v, dict) else (0, 0)
+
+
+_SECCIONES = ("person_network", "legal_analysis", "compliance_extended", "market_analysis", "web_research",
+              "news_research", "document_analysis", "entity_personnel", "llm_metrics", "self_evals", "verificacion_dictamen")
 
 
 def extraer(r: dict) -> dict:
     """Resumen comparable de UNA corrida de pipeline, leído del estado final del orquestador."""
     fin = r.get("final") or {}
-    st = fin.get("state") or {}
+    st = dict(fin.get("state") or {})
+    # Un agente que devolvió texto en vez de JSON deja su sección como str: se intenta leer; si no, cuenta como vacía.
+    for k, v in list(st.items()):
+        if isinstance(v, str) and k in _SECCIONES:
+            try:
+                v = json.loads(v)
+            except ValueError:
+                v = None
+            st[k] = v if isinstance(v, dict) else {}
     llm = st.get("llm_metrics") or {}
     ev = st.get("self_evals") or {}
     ver = st.get("verificacion_dictamen") or {}
