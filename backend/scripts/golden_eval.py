@@ -21,6 +21,7 @@ import json
 import pathlib
 import statistics
 import sys
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from ab_modelos import extraer  # noqa: E402
@@ -29,7 +30,40 @@ from ab_modelos import extraer  # noqa: E402
 _JUICIO = {"legal": "red_flag_documental", "person_network": "red_personas_vinculada"}
 # Reglas que el pipeline guarda con otro nombre que el del catálogo.
 _ALIAS = {"sancion_historica_oece": "antecedentes_proveedor", "penalidades_oece_historicas": "antecedentes_proveedor",
-          "antecedente_proveedor_web": "antecedentes_proveedor", "sobreprecio_muy_elevado": "sobreprecio_elevado"}
+          "antecedente_proveedor_web": "antecedentes_proveedor", "sobreprecio_muy_elevado": "sobreprecio_elevado",
+          "vinculo_red_personas": "red_personas_vinculada"}
+# Dominios que la persistencia acepta como respaldo sin grounding (tools/verify.py::_CANONICAL_HOSTS).
+_HOSTS_OFICIALES = ("oece.gob.pe", "osce.gob.pe", "seace.gob.pe", "sunat.gob.pe")
+
+
+def _red_persistible(st: dict) -> bool:
+    """¿Alguna bandera de person_network pasaría el filtro de persist_analysis_outputs? Exige cita y una URL
+    respaldada (en grounding_urls o de dominio oficial). Una corrida sin escritura (rol de solo lectura) no
+    persiste, y sin este filtro se contaba todo lo que el agente dejó en el estado, cosa que producción no hace."""
+    pn = st.get("person_network")
+    if isinstance(pn, str):
+        try:
+            pn = json.loads(pn)
+        except ValueError:
+            return False
+    if not isinstance(pn, dict):
+        return False
+    g = st.get("grounding_urls") or []
+    g = {(x if isinstance(x, str) else (x.get("url") or x.get("uri") or "")).rstrip("/")
+         for x in (list(g) if not isinstance(g, dict) else list(g.keys()) + list(g.values())) if x}
+    for b in pn.get("banderas_red") or []:
+        if not isinstance(b, dict):
+            continue
+        estado = str(b.get("estado") or "").lower()
+        if str(b.get("confianza") or "").lower() != "alta" and estado not in ("hallado", "confirmado", "verificado"):
+            continue
+        evs = b.get("evidencia") or []
+        evs = [evs] if isinstance(evs, dict) else [{"cita": evs}] if isinstance(evs, str) else evs
+        citas = [e for e in evs if isinstance(e, dict) and str(e.get("cita") or "").strip()]
+        urls = [str(e.get("url") or "").rstrip("/") for e in evs if isinstance(e, dict) and e.get("url")]
+        if citas and any(u in g or urlparse(u).netloc.endswith(_HOSTS_OFICIALES) for u in urls):
+            return True
+    return False
 
 
 def nivel(score: float | None) -> str | None:
@@ -45,10 +79,14 @@ def reglas_de_corrida(r: dict, catalogo: set[str]) -> tuple[set[str], float | No
     # Los hechos de contexto (puntua=false) se muestran pero no son una alerta: no cuentan como predicción.
     ids: set[str] = {_ALIAS.get(b["regla"], b["regla"]) for b in st.get("banderas") or []
                      if isinstance(b, dict) and b.get("regla") and b.get("puntua", True)}
+    persistida = bool(st.get("banderas"))   # viene de la BD (desde_bd) o de una corrida que sí escribió
     for b in x["banderas"]:
         fam, _, tag = b.partition(":")
         if fam == "regla":
             ids.add(tag)
+        elif fam == "person_network" and not persistida:
+            if _red_persistible(st):
+                ids.add(_JUICIO[fam])
         elif fam in _JUICIO:
             ids.add(_JUICIO[fam])
         elif tag in catalogo:
