@@ -48,6 +48,13 @@ def tarifa(model) -> tuple[float, float]:
     m = str(getattr(model, "model", None) or model or "").lower()   # LiteLlm trae el id en `.model`
     if "/" in m:
         m = m.rsplit("/", 1)[-1]
+    # Alias del Worker vigia-llm ("respaldo"): su id no dice qué modelo es; la tarifa va por env "entrada,salida".
+    if m == "respaldo" and os.getenv("TARIFA_RESPALDO"):
+        try:
+            ent, sal = (float(x) for x in os.environ["TARIFA_RESPALDO"].split(","))
+            return ent, sal
+        except ValueError:
+            pass
     for key in sorted(TARIFAS, key=len, reverse=True):
         if m.startswith(key):
             return TARIFAS[key]

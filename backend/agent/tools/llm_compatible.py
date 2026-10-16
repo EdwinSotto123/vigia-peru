@@ -212,11 +212,16 @@ class _Modelos:
         return SimpleNamespace(text=texto, usage_metadata=um, candidates=[cand], parsed=None, prompt_feedback=None)
 
 
+# Modelos que rechazan `temperature` con HTTP 400 ("deprecated for this model"): se aprende en la primera
+# respuesta y ya no se manda. Antes cada llamada directa fallaba (mercado, jueces, saneo, estructurar).
+_SIN_TEMPERATURA: set[str] = set()
+
+
 def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple[str, dict]:
     import requests
     cuerpo = {"model": modelo(), "messages": mensajes, "max_tokens": tope}
     temp = getattr(config, "temperature", None)
-    if temp is not None:
+    if temp is not None and modelo() not in _SIN_TEMPERATURA:
         cuerpo["temperature"] = float(temp)
     if os.getenv("WORKERS_AI_REASONING"):
         cuerpo["reasoning_effort"] = os.environ["WORKERS_AI_REASONING"]
@@ -229,6 +234,13 @@ def _llamar(mensajes: list[dict], tope: int, config, intentos: int = 3) -> tuple
             d = r.json()
             msg = ((d.get("choices") or [{}])[0]).get("message") or {}
             return (msg.get("content") or ""), d
+        if r.status_code == 400 and "temperature" in cuerpo and "temperature" in r.text:
+            _SIN_TEMPERATURA.add(modelo())
+            cuerpo.pop("temperature")
+            r = requests.post(_url(), headers=headers, json=cuerpo, timeout=float(os.getenv("LLM_COMPAT_TIMEOUT_S", "180")))
+            if r.status_code < 400:
+                d = r.json()
+                return (((d.get("choices") or [{}])[0]).get("message") or {}).get("content") or "", d
         if r.status_code not in (429, 500, 502, 503, 504) or i == intentos - 1:
             raise RuntimeError(f"LLM compatible HTTP {r.status_code}: {r.text[:300]}")
         time.sleep(espera + random.uniform(0, 1))
