@@ -36,6 +36,51 @@ _ALIAS = {"sancion_historica_oece": "antecedentes_proveedor", "penalidades_oece_
 _HOSTS_OFICIALES = ("oece.gob.pe", "osce.gob.pe", "seace.gob.pe", "sunat.gob.pe")
 
 
+def _verificador():
+    """verify.verificar_bandera del agente (el mismo filtro determinista que aplica la persistencia), o None."""
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "agent"))
+        from tools import verify  # type: ignore
+        return verify.verificar_bandera
+    except Exception as e:  # noqa: BLE001
+        print(f"[golden_eval] sin verificador del agente ({e}); no se filtran banderas no persistidas", file=sys.stderr)
+        return None
+
+
+_VERIF = None
+
+
+def _pasa(flag: dict, st: dict) -> bool:
+    global _VERIF
+    if _VERIF is None:
+        _VERIF = _verificador() or (lambda f, s: {"ok": True})
+    try:
+        return bool(_VERIF(flag, st).get("ok"))
+    except Exception:  # noqa: BLE001  (como _verificar_o_descartar: un error de verificación no descarta)
+        return True
+
+
+def _doc_persistible(st: dict) -> bool:
+    """¿Alguna red_flag del legal pasaría persist_doc_flags_as_banderas (verificación determinista)?"""
+    la = st.get("legal_analysis")
+    if isinstance(la, str):
+        try:
+            la = json.loads(la)
+        except ValueError:
+            return False
+    for rf in (la or {}).get("red_flags_documentales") or [] if isinstance(la, dict) else []:
+        descr = rf if isinstance(rf, str) else (rf.get("descripcion") or rf.get("texto") or rf.get("evidencia") or str(rf))
+        flag = {"regla": "red_flag_documental", "evidencia": str(descr)[:500],
+                "norma": rf.get("norma_citada") if isinstance(rf, dict) else None}
+        if isinstance(rf, dict):
+            for k in ("evidencia_textual", "documento", "pagina", "cita", "evidencia"):
+                if rf.get(k) is not None and k not in flag:
+                    flag[k] = rf[k]
+        if _pasa(flag, st):
+            return True
+    return False
+
+
 def _red_persistible(st: dict) -> bool:
     """¿Alguna bandera de person_network pasaría el filtro de persist_analysis_outputs? Exige cita y una URL
     respaldada (en grounding_urls o de dominio oficial). Una corrida sin escritura (rol de solo lectura) no
@@ -80,12 +125,21 @@ def reglas_de_corrida(r: dict, catalogo: set[str]) -> tuple[set[str], float | No
     ids: set[str] = {_ALIAS.get(b["regla"], b["regla"]) for b in st.get("banderas") or []
                      if isinstance(b, dict) and b.get("regla") and b.get("puntua", True)}
     persistida = bool(st.get("banderas"))   # viene de la BD (desde_bd) o de una corrida que sí escribió
+    if not persistida:
+        # Sin escritura, las banderas de reglas de BD (antecedentes OECE, mercado) quedan en pending_* en vez de
+        # pasar a `banderas`; son las mismas que la persistencia guardaría.
+        for clave in ("pending_flags", "pending_market_flags"):
+            ids |= {_ALIAS.get(b["regla"], b["regla"]) for b in st.get(clave) or []
+                    if isinstance(b, dict) and b.get("regla") and b.get("puntua", True) and _pasa(dict(b), st)}
     for b in x["banderas"]:
         fam, _, tag = b.partition(":")
         if fam == "regla":
             ids.add(tag)
         elif fam == "person_network" and not persistida:
             if _red_persistible(st):
+                ids.add(_JUICIO[fam])
+        elif fam == "legal" and not persistida:
+            if _doc_persistible(st):
                 ids.add(_JUICIO[fam])
         elif fam in _JUICIO:
             ids.add(_JUICIO[fam])

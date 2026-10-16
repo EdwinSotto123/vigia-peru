@@ -48,7 +48,7 @@ _RUC_RE = re.compile(r"(?<!\d)(?:10|15|16|17|20)\d{9}(?!\d)")
 # teléfono o parte de un monto. "DNI 12345678", "D.N.I. N° 12345678", "DNI: 12345678".
 _DNI_CTX_RE = re.compile(r"\bD\.?\s?N\.?\s?I\.?\s*(?:N[°º\.]?\s*)?:?\s*(\d{8})(?!\d)", re.I)
 _MONTO_RE = re.compile(
-    r"S/\.?\s*(\d[\d.,]*)"                       # S/. 1,234.56  ·  S/ 1234
+    r"(?<![A-Za-z])S/\.?\s*(\d[\d.,]*)"           # S/. 1,234.56  ·  S/ 1234 (no "…publicaciones/6444155")
     r"|(\d[\d.,]*)\s*(?:nuevos\s+)?soles\b",     # 1234.56 soles
     re.I,
 )
@@ -143,7 +143,9 @@ def extraer_identificadores(texto: str) -> dict:
     rucs = sorted(set(_RUC_RE.findall(t)))
     dnis = sorted(set(_DNI_CTX_RE.findall(t)))
     montos: dict[str, list[float]] = {}
-    for m in _MONTO_RE.finditer(t):
+    # Los números de una URL no son montos (la ley citada como …/informes-publicaciones/6444155-ley-… se leía
+    # como S/ 6,444,155 y la bandera se descartaba por monto no respaldado).
+    for m in _MONTO_RE.finditer(_URL_RE.sub(" ", t)):
         raw = m.group(1) or m.group(2) or ""
         vals = _parse_monto(raw)
         if vals:

@@ -449,3 +449,12 @@ def test_safe_parse_json_marca_truncado():
     assert "_truncado" not in entero
     forzado = _safe_parse_json('{"a": 1}', truncated=True)
     assert forzado["_truncado"] is True and forzado["_truncado_motivo"] == "max_output_tokens"
+
+
+def test_numeros_de_url_no_son_montos():
+    """…/informes-publicaciones/6444155-ley-… se leía como S/ 6,444,155 ("publicacioneS/") y descartaba la bandera."""
+    from tools.verify import extraer_identificadores
+    t = ("Art. 5 de Ley N° 32069 (https://www.gob.pe/institucion/oece/informes-publicaciones/6444155-ley-n-32069) "
+         "exige S/ 800,000.00")
+    assert list(extraer_identificadores(t)["montos"]) == ["800,000.00"]
+    assert extraer_identificadores("revisar publicaciones/6444155")["montos"] == {}
