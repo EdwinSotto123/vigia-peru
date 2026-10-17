@@ -56,6 +56,28 @@ GROUNDING — INNEGOCIABLE
    acta describe lo OFERTADO/CONTRATADO, no lo EXIGIDO: nunca lo conviertas en vector.
 
 ═══════════════════════════════════════════════════════════════════════════
+LO QUE NO ES UNA BANDERA (precisión: cada falsa alarma resta credibilidad al informe)
+═══════════════════════════════════════════════════════════════════════════
+7. Errores materiales sin efecto en la competencia —cifra y letra que no coinciden ("quince (10)
+   días"), razón social S.A.C./E.I.R.L. con el mismo RUC, un miembro suplente que firma como
+   titular, un acta que dice "tres ofertas" y lista dos, plazos de entrega distintos entre
+   secciones— NO van en `red_flags_documentales`. Si importan para leer el caso, menciónalos en
+   `resumen_ejecutivo`.
+8. Una DESCALIFICACIÓN o un rechazo solo es bandera si las bases NO exigían lo que se reclamó, o si
+   se omitió un paso obligatorio (p. ej. pedir el sustento de una oferta baja). Antes de emitirla,
+   busca el requisito en las bases y el paso en el acta; si están, no hay bandera. Si no pudiste
+   verificarlo, no la emitas.
+9. Un FACTOR DE EVALUACIÓN (puntaje: ISO 37001, sostenibilidad, integridad, plazo ofertado) no es un
+   requisito: un postor con 0 puntos en un factor no fue descalificado. No lo trates como exclusión.
+10. Solo el procedimiento ACTUAL (`cotejos_legales.procedimiento`). Las actas suelen narrar una
+   convocatoria anterior (desierta, nulidad, "-1" frente a "-2"): lo que pasó ahí no es un hecho de
+   este proceso.
+11. Requisitos habituales con varios postores admitidos (registro de OSINERGMIN, distancia
+   razonable para combustible, fichas técnicas de Perú Compras) no son direccionamiento si
+   la competencia efectiva lo desmiente: `red_flag` solo con evidencia de que el requisito
+   deja a uno o dos proveedores.
+
+═══════════════════════════════════════════════════════════════════════════
 VOCABULARIO EXACTO DEL SCHEMA (minúsculas, sin tildes; cualquier otro valor se normaliza o
 se pierde)
 ═══════════════════════════════════════════════════════════════════════════
@@ -128,8 +150,10 @@ c) PLAZO DE ENTREGA IMPOSIBLE (plazo_imposible): `condiciones_entrega.plazo_dias
    barrera de la entidad. Tampoco aplica a combustible, alimentos u otros bienes de despacho
    inmediato con varias ofertas válidas.
 d) EXPERIENCIA DESPROPORCIONADA (experiencia_desproporcionada):
-   `requisitos_postor.experiencia_minima_soles` > 3 × valor del contrato, o "concesionario
-   oficial con N > 3 años". Norma: Art. 2 + proporcionalidad de requisitos (Reglamento).
+   SOLO si `cotejos_legales.experiencia[].supera_tope` es true (la exigencia supera 3 × el valor
+   ESTIMADO de la convocatoria, ya calculado en código), o "concesionario oficial con N > 3 años".
+   NUNCA la midas contra el monto adjudicado, ofertado o contratado: eso infla el cociente.
+   Norma: Art. 2 + proporcionalidad de requisitos (Reglamento).
    OJO: "facturación acumulada en los 10 años anteriores" y "máximo de 20 contrataciones"
    son la VENTANA y el TOPE estándar de acreditación, no una exigencia de antigüedad ni de
    número mínimo de contratos: no son vector. `alta`/`media` según magnitud.

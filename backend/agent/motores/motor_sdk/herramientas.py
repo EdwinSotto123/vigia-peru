@@ -12,7 +12,12 @@ import json
 from typing import Any, Callable
 
 # Tope del resultado que vuelve al modelo (los resultados de BD pueden ser enormes; el estado guarda el entero).
-MAX_RESULTADO = 60_000
+MAX_RESULTADO = 400_000
+# El CLI del SDK manda a un archivo (que el agente no puede leer: no tiene herramientas de archivos) todo resultado
+# de más de ~50 KB, y el agente se queda sin el dato (medido 2026-10-16: get_dictamen_context, ~52 KB, dejaba el
+# dictamen sin redactar en 15 de 20 contratos). Los resultados largos se entregan por partes de este tamaño.
+TAM_PARTE = 40_000
+CONTINUAR = "continuar_resultado"
 
 
 class ContextoHerramienta:
@@ -93,7 +98,7 @@ def nombres_mcp(tools: list) -> list[str]:
         if n == "google_search" and busqueda_integrada():
             continue
         out.append(n)
-    return out
+    return out + ([CONTINUAR] if out else [])
 
 
 def _serializar(res: Any) -> str:
@@ -117,12 +122,37 @@ async def ejecutar(func: Callable, args: dict, state: dict) -> Any:
     return await asyncio.to_thread(func, **kw)
 
 
+def partir(texto: str, almacen: dict, tam: int = TAM_PARTE) -> str:
+    """Texto entero si cabe; si no, la parte 1 con el aviso de cómo pedir el resto (las partes quedan en `almacen`)."""
+    if len(texto) <= tam:
+        return texto
+    partes = [texto[i:i + tam] for i in range(0, len(texto), tam)]
+    rid = f"r{len(almacen) + 1}"
+    almacen[rid] = partes
+    return (f"[Resultado largo: parte 1 de {len(partes)}. Para leer el resto llama `{CONTINUAR}` con "
+            f"resultado_id=\"{rid}\" y parte=2 … {len(partes)}; no respondas sin leer todas las partes que necesites.]\n"
+            + partes[0])
+
+
+def herramienta_continuar(sdk: Any, almacen: dict):
+    async def _c(args: dict) -> dict:
+        partes = almacen.get(str(args.get("resultado_id")))
+        n = int(args.get("parte") or 0)
+        if not partes or not 1 <= n <= len(partes):
+            return {"content": [{"type": "text", "text": "parte inexistente"}], "is_error": True}
+        return {"content": [{"type": "text", "text": f"[parte {n} de {len(partes)}]\n" + partes[n - 1]}]}
+    return sdk.tool(CONTINUAR, "Devuelve la parte N de un resultado largo de otra herramienta.",
+                    {"type": "object", "properties": {"resultado_id": {"type": "string"}, "parte": {"type": "integer"}},
+                     "required": ["resultado_id", "parte"]})(_c)
+
+
 def convertir(sdk: Any, tools: list, state: dict, agente: str, eventos: list) -> tuple[list, list[str]]:
     """Tools ADK de un agente → (tools MCP del SDK, nombres no soportados). Cada llamada deja su par
     tool_call/tool_result en `eventos`, con el mismo formato que el motor ADK (pipeline_runtime._parse_event)."""
     from pipeline_runtime import _truncate_result
 
     salida, omitidas = [], []
+    almacen: dict[str, list[str]] = {}
     for t in tools or []:
         func = getattr(t, "func", None)
         if func is None and inspect.isfunction(t):   # función suelta (ADK la envuelve sola): tools/busqueda.google_search
@@ -146,8 +176,11 @@ def convertir(sdk: Any, tools: list, state: dict, agente: str, eventos: list) ->
                     res, error = {"error": f"{type(e).__name__}: {str(e)[:300]}"}, True
                 eventos.append({"agent": agente, "kind": "tool_result", "name": nombre,
                                 "result_preview": _truncate_result(res)})
-                return {"content": [{"type": "text", "text": _serializar(res)}], **({"is_error": True} if error else {})}
+                return {"content": [{"type": "text", "text": partir(_serializar(res), almacen)}],
+                        **({"is_error": True} if error else {})}
             return _h
 
         salida.append(sdk.tool(nombre, desc[:1024], params)(_hacer()))
+    if salida:
+        salida.append(herramienta_continuar(sdk, almacen))
     return salida, omitidas

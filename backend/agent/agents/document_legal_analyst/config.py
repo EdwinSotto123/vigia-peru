@@ -16,7 +16,8 @@ MAX_OUTPUT_TOKENS = None
 OUTPUT_SCHEMA = 'LegalOutput'   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'legal_analysis'
 USES_TODAY_HEADER = False
-STATE_INJECTIONS = None
+# Cotejos numéricos calculados en código (tools/cotejos_legales.py, fase_legal): experiencia vs valor ESTIMADO.
+STATE_INJECTIONS = [('cotejos_legales', 'COTEJOS CALCULADOS EN CÓDIGO — úsalos tal cual, no recalcules')]
 
 TOOLS = [
     query_legal_rag_tool,

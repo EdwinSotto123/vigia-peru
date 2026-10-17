@@ -113,7 +113,8 @@ def test_run_agent_delta_con_sdk_falso(monkeypatch):
     assert delta["pending_flags"] == [{"regla": "previa"}, {"regla": "x", "ruc": "20100000001"}]
     assert base["pending_flags"] == [{"regla": "previa"}]            # el estado compartido no se toca
     assert reg["opciones"]["system_prompt"] == "Analiza 999."
-    assert reg["opciones"]["allowed_tools"] == ["mcp__vigia__consultar_ruc"] and reg["opciones"]["tools"] == []
+    assert reg["opciones"]["allowed_tools"] == ["mcp__vigia__consultar_ruc", "mcp__vigia__continuar_resultado"]
+    assert reg["opciones"]["tools"] == []
     assert [e["kind"] for e in evs if e["kind"] in ("tool_call", "tool_result")] == ["tool_call", "tool_result"]
     assert metr["prompt"] == 100 and metr["output"] == 20
     assert '"ok": true' in reg["resultado_tool"]["content"][0]["text"]
@@ -128,9 +129,9 @@ def test_funcion_suelta_y_busqueda_integrada(monkeypatch):
         return {}
 
     monkeypatch.delenv("MOTOR_SDK_BUSQUEDA", raising=False)
-    assert h.nombres_mcp([google_search, otra]) == ["google_search", "otra"]
+    assert h.nombres_mcp([google_search, otra]) == ["google_search", "otra", "continuar_resultado"]
     monkeypatch.setenv("MOTOR_SDK_BUSQUEDA", "WebSearch")
-    assert h.nombres_mcp([google_search, otra]) == ["otra"]
+    assert h.nombres_mcp([google_search, otra]) == ["otra", "continuar_resultado"]
 
 
 def test_publicar_busqueda_deja_urls_respaldadas():
@@ -139,3 +140,12 @@ def test_publicar_busqueda_deja_urls_respaldadas():
     motor_sdk._publicar_busqueda(st, "web", [{"type": "text", "text": "ver https://a.pe/x, y https://b.gob.pe/y."}], evs)
     assert st["grounding_urls"] == ["https://a.pe/x", "https://b.gob.pe/y"]
     assert evs[0]["result_preview"]["n_fuentes"] == 2
+
+
+def test_resultados_largos_por_partes():
+    alm: dict = {}
+    corto = h.partir("abc", alm)
+    assert corto == "abc" and alm == {}
+    largo = h.partir("x" * 85000, alm, tam=40000)
+    assert "parte 1 de 3" in largo and len(alm["r1"]) == 3
+    assert h.nombres_mcp([object()]) == []               # sin tools no se agrega continuar_resultado

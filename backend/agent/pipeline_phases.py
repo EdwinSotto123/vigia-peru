@@ -300,6 +300,12 @@ async def fase_legal(pc: PipelineCtx):
         yield omitido(pc, "document_legal_analyst")
         return
     yield {"kind": "phase", "name": "legal", "msg": "análisis legal del requerimiento"}
+    # Cotejos numéricos en código (experiencia vs valor ESTIMADO): el agente los recibe inyectados en su prompt.
+    try:
+        from tools.cotejos_legales import cotejos_legales
+        pc.state["cotejos_legales"] = cotejos_legales(pc.state)
+    except Exception as _e:  # noqa: BLE001
+        yield {"kind": "warn", "agent": "pipeline", "detail": f"cotejos_legales: {str(_e)[:160]}"}
     async for e in agent_call(pc, pc.A.document_legal_analyst_agent,
                           f"Analiza legalmente el documento extraído para el OCID {pc.ocid} (perfil "
                           f"{pc.profile.nombre}: vectores '{pc.profile.legal_vectores}'). Llamá "
