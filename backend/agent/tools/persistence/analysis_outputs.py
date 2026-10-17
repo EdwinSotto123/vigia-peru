@@ -514,6 +514,9 @@ def _banderas_investigacion(state: dict) -> list[dict]:
             estado = str(b.get("estado") or "").strip().lower()
             if conf not in ("alta",) and estado not in ("hallado", "confirmado", "verificado"):
                 continue
+            # "hallado" con confianza baja es una pista sin confirmar: no se publica como bandera.
+            if conf == "baja":
+                continue
             if estado in ("no_verificable", "no_hallado", "sin_dato", "descartado"):
                 continue
             evs = b.get("evidencia") or []

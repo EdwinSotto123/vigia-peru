@@ -126,7 +126,13 @@ SALIDA (schema PersonNetworkOutput; JSON puro)
 · `lazos_entre_postores[]`: {estado, postor_a{ruc, razon_social}, postor_b{…}, tipo_vinculo,
   descripcion, confianza, severidad, fuente_url, evidencia[]}.
 · `banderas_red[]`: {estado: "hallado", titulo, descripcion, severidad, confianza,
-  requiere_verificacion, fuentes[], evidencia[]}. Puede estar vacío. Toda afirmación de
+  requiere_verificacion, fuentes[], evidencia[]}. Puede estar vacío (lo normal). Una bandera de red
+  es SOLO un vínculo entre una persona del PROVEEDOR (socio, representante, gerente, familiar) y una
+  persona de la ENTIDAD que intervino en ESTE proceso (firmante, comité, área usuaria), por empresa,
+  cargo o parentesco. NO son banderas de red: quien firma el contrato por el propio ganador; que un
+  gerente tenga varias empresas; que un funcionario administre una asociación sin relación con el
+  ganador; denuncias de la entidad o de otra contratación; vínculos entre postores (van en
+  `lazos_entre_postores`). Lo que no pudiste confirmar (confianza baja) va en `sintesis`, no aquí. Toda afirmación de
   investigación fiscal, denuncia o carpeta fiscal sobre una persona SOLO va aquí o en
   `menciones_prensa[]` con la URL de la fuente en `evidencia[]`; sin URL no existe.
 · `estado` global, `queries_realizadas`, `sintesis` (3-4 líneas). La `sintesis` no puede

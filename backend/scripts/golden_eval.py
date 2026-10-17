@@ -102,6 +102,8 @@ def _red_persistible(st: dict) -> bool:
         estado = str(b.get("estado") or "").lower()
         if str(b.get("confianza") or "").lower() != "alta" and estado not in ("hallado", "confirmado", "verificado"):
             continue
+        if str(b.get("confianza") or "").lower() == "baja":   # como persist_analysis_outputs
+            continue
         evs = b.get("evidencia") or []
         evs = [evs] if isinstance(evs, dict) else [{"cita": evs}] if isinstance(evs, str) else evs
         citas = [e for e in evs if isinstance(e, dict) and str(e.get("cita") or "").strip()]

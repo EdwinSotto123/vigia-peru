@@ -724,3 +724,18 @@ def test_oferta_mas_barata_ignora_no_admitidas_y_subastas():
     assert r["triggered"] is False and r["estado"] == "hallado" and r["n_ofertas_validas"] == 2
     r2 = cr.check_oferta_mas_barata_no_gana_rule(OCID, _Ctx(st("admitido", metodo="Subasta Inversa Electrónica")))
     assert r2["triggered"] is False and r2["estado"] == "no_aplica"
+
+
+def test_firmante_del_propio_ganador_no_es_vinculo():
+    """1225299: el apoderado de la ganadora firma el contrato por ella; 'coincide' consigo mismo en el RNP."""
+    import types
+    from tools.compliance_rules import _rules_network as rn
+    st = {"ocds": {"awards": [{"suppliers": [{"id": "PE-RUC-20100000001", "name": "GANA S.A.C."}]}]},
+          "document_analysis": {"firmantes": [{"nombre_completo": "Juan Pérez Soto", "entidad": "GANA S.A.C."},
+                                              {"nombre_completo": "Ana Ruiz", "entidad": "MINISTERIO X"}]},
+          "person_network": {"cruce_firmantes_ganador": [
+              {"firmante": "JUAN PEREZ SOTO", "tipo_relacion": "codireccion_empresa", "severidad": "alta",
+               "confianza_match": "alta", "fuente_url": "https://x.pe/a"}]}}
+    assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is False
+    st["person_network"]["cruce_firmantes_ganador"][0]["firmante"] = "ANA RUIZ"
+    assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is True

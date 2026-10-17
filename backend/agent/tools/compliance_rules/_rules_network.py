@@ -1,7 +1,7 @@
 """compliance_rules._rules_network — reglas de red/relaciones: concentración, firmantes, testaferros."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _ganador_ruc, _norma_state, _perfil_reglas, _regla_omitida  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _ganador_ocds, _ganador_ruc, _norm_razon_cr, _norma_state, _perfil_reglas, _regla_omitida, _sin_tildes  # noqa: F401
 
 
 def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
@@ -80,6 +80,27 @@ def check_concentracion_entidad_rule(ocid: str, tool_context: ToolContext,
         tool_context.state.setdefault("pending_flags", []).append(result)
     return result
 
+def _nombre_norm(s) -> str:
+    return " ".join(_sin_tildes(str(s or "")).upper().replace(",", " ").split())
+
+
+def _firmantes_del_ganador(state: dict) -> set[str]:
+    """Nombres de los firmantes que el parser atribuye a la empresa ganadora (firman el contrato por ella)."""
+    ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
+    _ruc, nombre = _ganador_ocds(ocds)
+    gan = _norm_razon_cr(nombre or "")
+    if not gan:
+        return set()
+    da = _safe_parse_json(state.get("document_analysis")) or {}
+    out = set()
+    for f in (da.get("firmantes_consolidados") or da.get("firmantes") or []) if isinstance(da, dict) else []:
+        if isinstance(f, dict) and _norm_razon_cr(str(f.get("entidad") or "")) == gan:
+            n = _nombre_norm(f.get("nombre_completo") or f.get("nombre"))
+            if n:
+                out.add(n)
+    return out
+
+
 def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
                                     reglas_activas: frozenset[str] | None = None,
                                     topes_uit: dict | None = None) -> dict:
@@ -101,9 +122,14 @@ def check_recurrencia_firmante_rule(ocid: str, tool_context: ToolContext,
         return om
     person = _safe_parse_json(tool_context.state.get("person_network")) or {}
     cruces = person.get("cruce_firmantes_ganador") or []
+    del_ganador = _firmantes_del_ganador(tool_context.state)
     relevantes, no_verificables = [], []
     for c in cruces:
         if not isinstance(c, dict):
+            continue
+        # Quien firma el contrato POR el ganador es, por definición, persona del ganador: no es un vínculo
+        # entidad-proveedor (1225299: el apoderado de la ganadora "coincidía" consigo mismo).
+        if _nombre_norm(c.get("firmante")) in del_ganador:
             continue
         if not c.get("tipo_relacion") or c.get("tipo_relacion") == "sin_relacion":
             continue
