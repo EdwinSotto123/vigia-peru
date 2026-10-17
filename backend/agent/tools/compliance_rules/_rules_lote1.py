@@ -10,7 +10,9 @@ _ESTADOS_INVALIDOS = ("descalific", "no admit", "inadmit", "no valid", "invalid"
 
 
 def _oferta_invalida(p: dict) -> bool:
-    e = _sin_tildes(str(p.get("estado") or "")).lower()
+    # El parser escribe "no_admitido" / "no-admitido": sin normalizar no casaba con "no admit" y una oferta no
+    # admitida contaba como válida (1223907: oferta_mas_barata_no_gana disparó por una no admitida).
+    e = re.sub(r"[_\-]+", " ", _sin_tildes(str(p.get("estado") or "")).lower())
     return any(k in e for k in _ESTADOS_INVALIDOS)
 
 
@@ -549,6 +551,11 @@ def check_oferta_mas_barata_no_gana_rule(ocid: str, tool_context: ToolContext,
     state = tool_context.state
     postores = [p for p in _postores_parser(state) if p.get("monto") and not _oferta_invalida(p)]
     result = {"regla": "oferta_mas_barata_no_gana", "triggered": False, "n_ofertas_validas": len(postores)}
+    # Subasta inversa: gana el menor precio tras los LANCES; el monto que el parser lee de cada postor suele ser
+    # la oferta inicial, así que compararlos no dice nada (1225058: ganó el 1.º de la prelación por lances).
+    if _es_subasta(_procurement_method(state)):
+        result.update({"estado": "no_aplica", "motivo": "subasta inversa: la prelación sale de los lances, no de la oferta inicial"})
+        return result
     ganador = next((p for p in postores if p.get("es_ganador")), None)
     if len(postores) < 2 or ganador is None:
         result.update({"estado": "sin_dato", "motivo": "se requieren ≥ 2 ofertas válidas con monto y ganador identificado"})

@@ -710,3 +710,17 @@ def test_persistencia_no_ejecuta_alter_table_en_ningun_camino():
     src = inspect.getsource(persistence)
     # solo puede aparecer en comentarios/docstrings, nunca dentro de un cur.execute(...)
     assert 'execute("ALTER' not in src and "execute(\n            \"ALTER" not in src
+
+
+def test_oferta_mas_barata_ignora_no_admitidas_y_subastas():
+    """1223907: la más barata estaba 'no_admitido' (con guion bajo); 1225058: subasta inversa (gana por lances)."""
+    def st(estado_barata, metodo="Licitación Pública Abreviada"):
+        return {"ocds": _ocds(metodo=metodo), "parser_raw_consolidated": {"postores": [
+            {"razon_social": "GANA SAC", "monto_oferta": 159781.44, "es_ganador": True, "estado": "admitido"},
+            {"razon_social": "OTRA SAC", "monto_oferta": 338240.0, "estado": "admitido"},
+            {"razon_social": "BARATA SAC", "monto_oferta": 117600.0, "estado": estado_barata}]}}
+    assert cr.check_oferta_mas_barata_no_gana_rule(OCID, _Ctx(st("admitido")))["triggered"] is True   # control
+    r = cr.check_oferta_mas_barata_no_gana_rule(OCID, _Ctx(st("no_admitido")))
+    assert r["triggered"] is False and r["estado"] == "hallado" and r["n_ofertas_validas"] == 2
+    r2 = cr.check_oferta_mas_barata_no_gana_rule(OCID, _Ctx(st("admitido", metodo="Subasta Inversa Electrónica")))
+    assert r2["triggered"] is False and r2["estado"] == "no_aplica"
