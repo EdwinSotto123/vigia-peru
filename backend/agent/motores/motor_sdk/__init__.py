@@ -189,6 +189,14 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
         from tools import costo_llm
         metr["cost"] = round(costo_llm.costo("respaldo", um), 6)
         costo_llm.registrar_externo("respaldo", nombre, um)
+        if busquedas:   # la búsqueda integrada se cobra aparte por consulta (BUSQUEDA_USD_POR_BUSQUEDA)
+            por_una = float(os.getenv("BUSQUEDA_USD_POR_BUSQUEDA", "0.01"))
+            cero = SimpleNamespace(prompt_token_count=0, cached_content_token_count=0, candidates_token_count=0,
+                                   thoughts_token_count=0, traffic_type=None)
+            for _ in busquedas:
+                costo_llm.registrar_externo("respaldo", "busqueda_web", cero, extra_usd=por_una)
+            metr["cost"] = round(metr["cost"] + por_una * len(busquedas), 6)
+        metr["busquedas"] = len(busquedas)
     except Exception:
         pass
     ok = getattr(agent, "output_key", None)

@@ -411,13 +411,35 @@ def _mercado_goods_retail(state: dict) -> dict:
         items_estimar = ordenados[MARKET_ESTIMACION_DESDE:]
         _registrar_recorte(state, "market.goods_retail.estimacion_por_volumen", MARKET_ESTIMACION_DESDE, len(items_estimar))
 
-    precios, comentarios, sin_precios, chunks, n_chunks = _fanout_goods_retail(items_grounded, objeto, state, contexto)
+    # 1.er nivel (gratis): catálogos de tiendas (tools/market/catalogos.py). Los ítems con suficientes precios de
+    # catálogo no pasan a la búsqueda web, que es la parte que cuesta por consulta.
+    precios_cat, chunks_cat, items_web = [], [], items_grounded
+    if os.getenv("CATALOGO_TIENDAS_ACTIVO", "1") != "0":
+        try:
+            from .catalogos import precios_de_catalogo
+            precios_cat, info_cat = precios_de_catalogo(items_grounded)
+            for p in precios_cat:
+                p["item_numero"] = _norm_num(p["item_numero"])
+            por_item: dict[str, int] = {}
+            for p in precios_cat:
+                por_item[p["item_numero"]] = por_item.get(p["item_numero"], 0) + 1
+            cubiertos = {k for k, n in por_item.items() if n >= MARKET_MIN_PRECIOS}
+            items_web = [it for it in items_grounded if _norm_num(it.get("numero")) not in cubiertos]
+            chunks_cat = [f for p in precios_cat for f in p["fuentes"]]
+            state["market_catalogo"] = {**info_cat, "items_cubiertos": len(cubiertos), "items_a_busqueda_web": len(items_web)}
+        except Exception as e:  # noqa: BLE001
+            _registrar_descarte(state, "market.goods_retail.catalogo", "error_catalogo", str(e)[:200])
+
+    precios, comentarios, sin_precios, chunks, n_chunks = (
+        _fanout_goods_retail(items_web, objeto, state, contexto) if items_web else ([], {}, set(), [], 0))
+    precios = precios_cat + precios
+    chunks = chunks_cat + chunks
 
     # 2º pase: ítems sin ningún precio con grounding (solo entre los enviados a búsqueda real).
     n_retry = 0
     if MARKET_RETRY:
         con_precio = {p["item_numero"] for p in precios}
-        faltan = [it for it in items_grounded if _norm_num(it.get("numero")) not in con_precio]
+        faltan = [it for it in items_web if _norm_num(it.get("numero")) not in con_precio]
         if faltan:
             p2, c2, s2, ch2, n2 = _fanout_goods_retail(faltan, objeto, state, contexto)
             n_retry = len({p["item_numero"] for p in p2})

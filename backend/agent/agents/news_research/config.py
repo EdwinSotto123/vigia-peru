@@ -12,7 +12,8 @@ MAX_OUTPUT_TOKENS = None
 OUTPUT_SCHEMA = 'NewsOutput'   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'news_research'
 USES_TODAY_HEADER = False
-STATE_INJECTIONS = None
+# Notas ya buscadas (Google News) y leídas en código (tools/prensa.py, fase_research): ver el prompt.
+STATE_INJECTIONS = [('prensa_precargada', 'PRENSA PRE-CARGADA (notas ya buscadas y LEÍDAS en código)')]
 
 TOOLS = [
     herramienta_busqueda(),

@@ -19,6 +19,7 @@ ligadas, construidas allá.
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -399,6 +400,21 @@ async def fase_research(pc: PipelineCtx):
     # Objeto del proceso (lo usa el mensaje de prensa).
     tender = (pc.state.get("ocds") or {}).get("tender") or {}
     objeto = tender.get("description") or tender.get("title") or ""
+    # Prensa pre-cargada (tools/prensa.py): Google News sin costo + lectura de las ~10 notas más relevantes, una sola
+    # vez para todos los agentes. El agente de prensa la recibe inyectada y casi no necesita buscar.
+    if os.getenv("PRENSA_PRECARGA", "1") != "0" and "prensa_precargada" not in pc.state:
+        try:
+            from tools.prensa import precargar
+            from tools.compliance_rules._rules_network import _firmantes_del_ganador
+            personas = sorted(_firmantes_del_ganador(pc.state))[:2]
+            pre = await asyncio.to_thread(precargar, razon, entidad.get("nombre", ""), personas)
+            pc.state["prensa_precargada"] = pre
+            from tools.busqueda import _publicar
+            _publicar(pc.state, [{"url": n["url"]} for n in pre["leidas"] if n.get("url")])
+            yield {"kind": "phase", "name": "prensa",
+                   "msg": f"prensa: {len(pre['leidas'])} notas leídas de {pre['candidatas']} candidatas ({pre['segundos']} s, sin costo)"}
+        except Exception as _e:  # noqa: BLE001
+            yield {"kind": "warn", "agent": "pipeline", "detail": f"prensa precargada: {str(_e)[:160]}"}
     # Mensajes de los 3 agentes de investigación INDEPENDIENTES (empresa · prensa · funcionarios).
     _web_msg = (f"Investiga la empresa con RUC {ruc} y razón social {razon}. El perfil SUNAT ya está "
                 f"pre-cargado en tu instrucción — incorpóralo y complementa con prensa, sanciones, "
