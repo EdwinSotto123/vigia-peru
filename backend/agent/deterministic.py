@@ -76,6 +76,7 @@ from pipeline_phases import (
     fase_research,
     t_call,
 )
+import motores  # noqa: E402
 from pipeline_runtime import (
     _correr_dag,
     _DEFAULT_RATE,
@@ -387,6 +388,11 @@ async def _pipeline(input_str: str, runner, user_id: str, state: dict, metrics: 
     # de tests/test_dag.py — y de acá en más viajan como datos; `perm`/`validar` son los dos
     # casos que siguen atados a este módulo (permitido lee get_profile; _validar_schema lee
     # _schemas). ocid/alerta_codigo se completan abajo, apenas se conocen.
+    # Motor de agentes (motores/): ADK por defecto, con los nombres de este módulo para que el monkeypatch de
+    # los tests siga valiendo; MOTOR_AGENTES=sdk cambia solo quién ejecuta cada sub-agente.
+    _ra, _rai, _rad = _run_agent, _run_agent_isolated, _run_agent_delta
+    if motores.nombre() == "sdk":
+        _ra, _rai, _rad = motores.funciones()
     pc = PipelineCtx(
         state=state, metrics=metrics,
         ctx={"ganador": {}, "ruc": "", "razon": "", "entidad": {}, "postores": []},
@@ -396,7 +402,7 @@ async def _pipeline(input_str: str, runner, user_id: str, state: dict, metrics: 
         parse_documentos_lote=_parse_documentos_lote, analizar_mercado=_analizar_mercado,
         verificar_dictamen=_verificar_dictamen, reglas_por_nombre=_REGLAS_POR_NOMBRE,
         parallel_research=_PARALLEL_RESEARCH,
-        run_agent=_run_agent, run_agent_isolated=_run_agent_isolated, run_agent_delta=_run_agent_delta,
+        run_agent=_ra, run_agent_isolated=_rai, run_agent_delta=_rad,
         perm=lambda nombre: permitido(state, nombre, profile),
         validar=lambda key, schema_name: _validar_schema(state, key, schema_name),
     )

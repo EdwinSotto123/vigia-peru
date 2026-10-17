@@ -19,7 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Paquetes del motor de agentes por SDK (motores/motor_sdk): se pasan al construir, no viven en el repo.
+#   docker build --build-arg PAQUETES_EXTRA="<paquete>==<versión>" …
+# mcp queda en 1.x: ADK 1.19 importa `streamablehttp_client`, que mcp 2 ya no tiene, y el SDK acepta >=1.23.
+ARG PAQUETES_EXTRA=""
+RUN if [ -n "$PAQUETES_EXTRA" ]; then pip install --no-cache-dir $PAQUETES_EXTRA "mcp>=1.23,<2"; fi
 COPY . .
+RUN python -c "import google.adk, motores; print('adk', google.adk.__version__, '· motor', motores.nombre())"
 
 ENV PORT=8080 \
     AWS_LWA_PORT=8080 \

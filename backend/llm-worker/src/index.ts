@@ -4,6 +4,7 @@
  *   POST /v1/chat/completions   { model, messages, tools?, stream?, temperature?, max_tokens? }
  *   GET  /v1/models             modelos permitidos
  *   GET  /salud                 sin auth
+ *   *    /nativo/v1/…           API nativa del proveedor de respaldo, de paso (ver `nativo`)
  *
  * Auth: `Authorization: Bearer <LLM_TOKEN>`. El modelo debe estar en MODELOS_PERMITIDOS; sin modelo (o
  * "default") va MODELO_DEFECTO.
@@ -30,6 +31,33 @@ interface Env {
   RESPALDO_MODELO?: string;
   /** Cabeceras extra del proveedor de respaldo, como JSON ({"nombre": "valor"}). Opcional. */
   RESPALDO_CABECERAS?: string;
+  /** Base de la API NATIVA del proveedor de respaldo (sin /v1), para `/nativo/v1/*`. Sin ella no hay ruta nativa. */
+  RESPALDO_NATIVO_URL?: string;
+  /** Cabecera donde la API nativa espera la clave (por defecto `authorization: Bearer`). */
+  RESPALDO_NATIVO_CABECERA?: string;
+}
+
+/**
+ * `/nativo/v1/*` → la API nativa del proveedor de respaldo, tal cual (cuerpo y respuesta en streaming), con la
+ * clave del Worker. Es para el motor de agentes por SDK (backend/agent/motores/motor_sdk), que no habla el
+ * formato tipo OpenAI: así la clave del proveedor sigue viviendo solo aquí.
+ */
+async function nativo(req: Request, env: Env, url: URL): Promise<Response> {
+  if (!env.RESPALDO_NATIVO_URL || !env.RESPALDO_TOKEN) return json({ error: { message: "sin API nativa configurada" } }, 503);
+  const destino = env.RESPALDO_NATIVO_URL.replace(/\/+$/, "") + url.pathname.slice("/nativo".length) + url.search;
+  const h = new Headers();
+  for (const [k, v] of req.headers) {
+    const kl = k.toLowerCase();
+    if (kl === "authorization" || kl === "x-api-key" || kl === "host" || kl.startsWith("cf-") || kl.startsWith("x-forwarded")) continue;
+    h.set(k, v);
+  }
+  for (const [k, v] of Object.entries(extras(env))) h.set(k, v);
+  const cab = (env.RESPALDO_NATIVO_CABECERA ?? "authorization").toLowerCase();
+  h.set(cab, cab === "authorization" ? `Bearer ${env.RESPALDO_TOKEN}` : env.RESPALDO_TOKEN);
+  const r = await fetch(destino, { method: req.method, headers: h, body: ["GET", "HEAD"].includes(req.method) ? undefined : req.body });
+  const out = new Headers(r.headers);
+  out.set("x-vigia-modelo", "respaldo-nativo");
+  return new Response(r.body, { status: r.status, headers: out });
 }
 
 const json = (cuerpo: unknown, status = 200, extra: Record<string, string> = {}) =>
@@ -81,8 +109,10 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === "/salud") return json({ ok: true, respaldo: hayRespaldo(env) });
 
-    const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    // Bearer, o x-api-key para los clientes de la API nativa (el SDK de agentes manda la clave así).
+    const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "") || (req.headers.get("x-api-key") ?? "");
     if (!env.LLM_TOKEN || !igualesConstante(token, env.LLM_TOKEN)) return json({ error: { message: "no autorizado" } }, 401);
+    if (url.pathname.startsWith("/nativo/")) return nativo(req, env, url);
 
     const permitidos = env.MODELOS_PERMITIDOS.split(",").map((s) => s.trim()).filter(Boolean);
     if (url.pathname === "/v1/models") {
