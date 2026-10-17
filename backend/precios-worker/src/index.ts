@@ -164,9 +164,9 @@ async function combustible(env: Env, q: string, departamento: string, dias: numb
 }
 
 // ─── canasta semanal ──────────────────────────────────────────────────────────
-async function actualizarCanasta(env: Env) {
+async function actualizarCanasta(env: Env, max = CANASTA.length) {
   let consultas = 0, productos = 0;
-  for (const q of CANASTA) {
+  for (const q of CANASTA.slice(0, max)) {
     const termino = normalizarTermino(q);
     for (const t of TIENDAS) {             // una a la vez y con pausa: el cron no apura a ninguna tienda
       const r = await buscarEnTienda(env, t, termino, 6, "canasta", true);
@@ -198,8 +198,10 @@ export default {
       const que = p.get("que");
       if (que === "combustible") return json(await actualizarCombustible(env));
       if (que === "canasta") {
-        ctx.waitUntil(actualizarCanasta(env));          // ~3 min: corre en segundo plano
-        return json({ iniciado: "canasta", terminos: CANASTA.length, tiendas: TIENDAS.length });
+        // Se espera hasta terminar (~3 min con la canasta entera): desde una petición, waitUntil corta a los ~30 s
+        // de responder. `max` limita los términos para probar. El cron sí corre en segundo plano (hasta 15 min).
+        const max = Number(p.get("max") ?? CANASTA.length) || CANASTA.length;
+        return json(await actualizarCanasta(env, max));
       }
       return json({ error: "que=combustible|canasta" }, 400);
     }
