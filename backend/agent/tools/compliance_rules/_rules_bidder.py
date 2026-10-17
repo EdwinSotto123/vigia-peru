@@ -1,7 +1,7 @@
 """compliance_rules._rules_bidder — reglas de postor único / proceso no competitivo."""
 
 from tools._core import *  # noqa: F401,F403
-from tools.compliance_rules._base import _as_tool, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida, _sin_tildes  # noqa: F401
+from tools.compliance_rules._base import _as_tool, _norma_state, _perfil_reglas, _procurement_method, _regla_omitida, _sin_tildes, n_participantes_parser  # noqa: F401
 
 
 def _n_postores_ocds(ocds: dict) -> int | None:
@@ -52,6 +52,12 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
     ocds = state.get("ocds") or state.get("ocds_preloaded") or {}
     n_postores = _n_postores_ocds(ocds)
     fuente_n = "ocds" if n_postores is not None else None
+    # numberOfTenderers cuenta PARTICIPANTES registrados, no ofertas (1225299 y 1226228: 4 registrados, 1 oferta).
+    # Si el acta (vía parser) distingue a los que no ofertaron, manda el número de ofertas presentadas.
+    _pp = n_participantes_parser(state)
+    n_participantes = None
+    if _pp and _pp[1] >= 1 and (n_postores is None or _pp[1] < n_postores):
+        n_participantes, n_postores, fuente_n = _pp[0], _pp[1], "acta (ofertas presentadas)"
 
     pct = None
     conn = _pg()
@@ -100,8 +106,9 @@ def check_unique_bidder_rule(ocid: str, tool_context: ToolContext,
     if n_postores == 1 and pct is not None and pct >= 95:
         result.update({
             "triggered": True, "severidad": "alta",
-            "evidencia": (f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y "
-                          f"oferta ganadora al {pct}% del valor referencial."),
+            "evidencia": ((f"Una sola oferta presentada según el acta ({n_participantes} participantes registrados) y "
+                           if n_participantes else f"Un solo postor registrado ({fuente_n}: numberOfTenderers/tenderers) y ")
+                          + f"oferta ganadora al {pct}% del valor referencial."),
             "norma": _norma_state(state)["competencia"],
             "fuente_url": f"https://contratacionesabiertas.oece.gob.pe/proceso/{ocid}",
         })

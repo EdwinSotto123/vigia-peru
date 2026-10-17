@@ -739,3 +739,19 @@ def test_firmante_del_propio_ganador_no_es_vinculo():
     assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is False
     st["person_network"]["cruce_firmantes_ganador"][0]["firmante"] = "ANA RUIZ"
     assert rn.check_recurrencia_firmante_rule("1", types.SimpleNamespace(state=st))["triggered"] is True
+
+
+def test_participantes_sin_oferta_no_son_postores():
+    """1226064: 17 registrados, 3 ofertas, 1 admitida → única oferta válida; 1226228: 4 registrados y 1 oferta →
+    único postor (numberOfTenderers cuenta participantes, no ofertas)."""
+    from tools.compliance_rules._base import _postores_parser, n_participantes_parser
+    st = {"ocds": _ocds(ref=583200.0, awards=(570240.0,), ganador="20100000001", ganador_nombre="GANA SAC",
+                        metodo="Licitación Pública Abreviada"),
+          "parser_raw_consolidated": {"postores": (
+              [{"razon_social": "GANA SAC", "monto_oferta": 570240.0, "es_ganador": True, "estado": "admitido"},
+               {"razon_social": "B SAC", "monto_oferta": 560000.0, "estado": "no_admitido"},
+               {"razon_social": "C SAC", "monto_oferta": 590000.0, "estado": "no_admitido"}]
+              + [{"razon_social": f"P{i}", "estado": "participante_sin_oferta"} for i in range(14)])}}
+    assert len(_postores_parser(st)) == 3 and n_participantes_parser(st) == (17, 3)
+    r = cr.check_unica_oferta_valida_rule(OCID, _Ctx(st))
+    assert r["triggered"] is True and r["n_validas"] == 1

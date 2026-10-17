@@ -205,6 +205,25 @@ def _norm_razon_cr(s: str) -> str:
     return " ".join(re.sub(r"[^A-Z0-9 ]", " ", s).split())
 
 
+def _sin_oferta(estado) -> bool:
+    """`participante_sin_oferta`, "no presentó oferta", "sin propuesta"…: registrado sin ofertar."""
+    e = " ".join(_sin_tildes(str(estado or "")).lower().replace("_", " ").replace("-", " ").split())
+    return any(k in e for k in ("sin oferta", "no presento", "no oferto", "sin propuesta", "solo registro", "registrado sin"))
+
+
+def n_participantes_parser(state: dict) -> tuple[int, int] | None:
+    """(participantes registrados, ofertas presentadas) según el parser, si distingue a los que no ofertaron."""
+    raw = (state or {}).get("parser_raw_consolidated") or {}
+    da = _safe_parse_json((state or {}).get("document_analysis")) or {}
+    base = next((f for f in (raw.get("postores"), raw.get("postores_consolidados"), da.get("postores_extraidos"),
+                             da.get("postores_consolidados")) if isinstance(f, list) and f), [])
+    base = [p for p in base if isinstance(p, dict)]
+    if not base or not any(p.get("estado") or p.get("estado_oferta") for p in base):
+        return None
+    sin = sum(1 for p in base if _sin_oferta(p.get("estado") or p.get("estado_oferta")))
+    return len(base), len(base) - sin
+
+
 def _postores_parser(state: dict) -> list[dict]:
     """Postores con montos desde el parser (tolerante a las claves nuevas de R4):
     `parser_raw_consolidated.postores[]` > `postores_consolidados[]` > `document_analysis.
@@ -217,6 +236,10 @@ def _postores_parser(state: dict) -> list[dict]:
     out: list[dict] = []
     for p in base:
         if not isinstance(p, dict):
+            continue
+        # Quien se registró pero no ofertó no es postor: contaba como oferta "válida" (1226064: 17 registrados,
+        # 3 ofertas, 1 admitida → única oferta válida no disparaba).
+        if _sin_oferta(p.get("estado") or p.get("estado_oferta")):
             continue
         ruc = "".join(ch for ch in str(p.get("ruc") or "") if ch.isdigit())
         out.append({
