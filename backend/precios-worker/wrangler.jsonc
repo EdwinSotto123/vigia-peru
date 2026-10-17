@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vigia-precios",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 60000 },
+
+  "d1_databases": [{ "binding": "DB", "database_name": "vigia-precios", "database_id": "2d7627c8-00a7-4c2e-b726-5dd91f05c417" }],
+
+  // src/index.ts: CRON_COMBUSTIBLE (Osinergmin, a diario) y CRON_CANASTA (índice de tiendas, los lunes).
+  "triggers": { "crons": ["0 12 * * *", "0 13 * * 1"] },
+
+  // Secreto: PRECIOS_TOKEN (SSM /vigia/precios/token).
+  "vars": { "TTL_CACHE_DIAS": "7" }
+}

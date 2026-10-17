@@ -1,0 +1,17 @@
+{
+  "name": "vigia-precios-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8841",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260926.1",
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.3",
+    "wrangler": "4.151.0"
+  }
+}

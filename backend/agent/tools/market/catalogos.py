@@ -7,6 +7,10 @@ Las tiendas con plataforma VTEX publican su catálogo con precio vigente en una 
      presentación comparable (el texto de búsqueda trae ruido: "cemento" también devuelve fragua);
   3. los ítems con ≥ MARKET_MIN_PRECIOS precios elegidos ya no van a la búsqueda web pagada.
 Medido 2026-10-17: Promart, Plaza Vea, Oechsle, Metro y Wong responden; Sodimac, Tottus y las farmacias no.
+
+Con PRECIOS_URL + PRECIOS_TOKEN las consultas van al Worker vigia-precios (backend/precios-worker): caché de 7 días,
+pausa automática de la tienda que falla e historial propio. Sin ellas, directo a las tiendas.
+Combustibles: precios oficiales de Osinergmin vía el mismo Worker (`precios_combustible`).
 """
 from __future__ import annotations
 
@@ -72,9 +76,28 @@ def _de_tienda(base: str, termino: str) -> list[dict]:
     return out
 
 
+def _worker(ruta: str, params: dict) -> dict | None:
+    import httpx
+    url, token = os.getenv("PRECIOS_URL"), os.getenv("PRECIOS_TOKEN")
+    if not (url and token):
+        return None
+    r = httpx.get(url.rstrip("/") + ruta, params=params, headers={"authorization": f"Bearer {token}", **_UA},
+                  timeout=CATALOGO_TIMEOUT_S * 2)
+    r.raise_for_status()
+    return r.json()
+
+
 def candidatos(termino: str) -> list[dict]:
     if not termino:
         return []
+    try:
+        d = _worker("/tiendas/buscar", {"q": termino, "n": CATALOGO_POR_TIENDA})
+    except Exception:  # noqa: BLE001  (el Worker caído no deja al mercado sin catálogo: se va directo)
+        d = None
+    if d is not None:
+        return [{"producto": p["producto"], "marca": p.get("marca"), "precio": float(p["precio"]),
+                 "unidad_medida": p.get("unidad_medida"), "multiplicador": p.get("multiplicador"),
+                 "tienda": p["tienda"], "url": p["url"]} for p in d.get("productos") or [] if p.get("precio")]
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(TIENDAS) or 1) as ex:
         listas = list(ex.map(lambda b: _de_tienda(b, termino), TIENDAS))
     return [c for lista in listas for c in lista]
@@ -148,3 +171,55 @@ def precios_de_catalogo(items: list[dict]) -> tuple[list[dict], dict]:
             })
     return precios, {"tiendas": list(TIENDAS), "items_consultados": len(elegibles), "candidatos": n_cands,
                      "precios_elegidos": len(precios)}
+
+
+# ─── combustibles: precios oficiales de Osinergmin (vía vigia-precios) ──────────
+_COMBUSTIBLE = re.compile(r"\b(diesel|di[eé]sel|petr[oó]leo diesel|gasohol|gasolina|glp|gas licuado|petr[oó]leo industrial)\b", re.I)
+
+
+def es_combustible(it: dict) -> bool:
+    return bool(_COMBUSTIBLE.search(it.get("descripcion_corta") or ""))
+
+
+def departamento_de(ocds: dict) -> str:
+    """Región de la entidad compradora según el OCDS (parties[role=buyer].address.region)."""
+    for p in (ocds or {}).get("parties") or []:
+        if isinstance(p, dict) and "buyer" in (p.get("roles") or []):
+            return str(((p.get("address") or {}).get("region")) or "")
+    return ""
+
+
+def precios_combustible(items: list[dict], departamento: str) -> tuple[list[dict], dict]:
+    """Para cada ítem de combustible, las declaraciones oficiales más recientes del departamento (o nacionales si hay
+    pocas) como precios observados, con la fuente de Osinergmin. Sin Worker configurado, nada."""
+    precios, info = [], {"items": 0, "precios": 0}
+    for it in items:
+        if not es_combustible(it):
+            continue
+        try:
+            d = _worker("/combustible", {"producto": it.get("descripcion_corta") or "", "departamento": departamento, "dias": 120})
+        except Exception as e:  # noqa: BLE001
+            info["error"] = str(e)[:160]
+            continue
+        if not d or not d.get("observaciones"):
+            continue
+        info["items"] += 1
+        info.setdefault("estadisticas", {})[str(it.get("numero"))] = {**(d.get("estadistica") or {}), "ambito": d.get("ambito")}
+        fuente = (d.get("fuente") or {}).get("url") or "https://www.osinergmin.gob.pe"
+        est = d.get("estadistica") or {}
+        # La distribución de TODAS las declaraciones del período (p25, mediana, p75), no las 10 más recientes: esas
+        # suelen ser del mismo día y casi iguales, y sesgaban la mediana del mercado.
+        for etiqueta, clave in (("percentil 25", "p25"), ("mediana", "mediana"), ("percentil 75", "p75")):
+            if not est.get(clave):
+                continue
+            precios.append({
+                "item_numero": str(it.get("numero")),
+                "producto": (f"{it.get('descripcion_corta') or ''} · Osinergmin, {etiqueta} de {est.get('n')} declaraciones "
+                             f"({est.get('desde')} a {est.get('hasta')}, {d.get('departamento') or 'nacional'}, ámbito {d.get('ambito')})")[:300],
+                "precio": float(est[clave]), "moneda_origen": "PEN", "unidad": "galón",
+                "proveedor": "Osinergmin", "origen": "osinergmin",
+                "fuentes": [{"uri": fuente, "titulo": "Osinergmin · Registro de Precios de Distribuidores Minoristas",
+                             "dominio": "osinergmin.gob.pe"}],
+            })
+            info["precios"] += 1
+    return precios, info

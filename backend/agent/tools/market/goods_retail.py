@@ -416,8 +416,12 @@ def _mercado_goods_retail(state: dict) -> dict:
     precios_cat, chunks_cat, items_web = [], [], items_grounded
     if os.getenv("CATALOGO_TIENDAS_ACTIVO", "1") != "0":
         try:
-            from .catalogos import precios_de_catalogo
-            precios_cat, info_cat = precios_de_catalogo(items_grounded)
+            from .catalogos import departamento_de, es_combustible, precios_combustible, precios_de_catalogo
+            # Combustibles: precios oficiales de Osinergmin; el resto, catálogos de tiendas.
+            precios_comb, info_comb = precios_combustible(items_grounded, departamento_de(ocds))
+            precios_cat, info_cat = precios_de_catalogo([it for it in items_grounded if not es_combustible(it)])
+            precios_cat = precios_comb + precios_cat
+            info_cat = {**info_cat, "combustible": info_comb}
             for p in precios_cat:
                 p["item_numero"] = _norm_num(p["item_numero"])
             por_item: dict[str, int] = {}

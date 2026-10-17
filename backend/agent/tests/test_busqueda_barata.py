@@ -47,3 +47,31 @@ def test_precios_de_catalogo_con_juez(monkeypatch):
     assert [p["precio"] for p in precios] == [14.9, 15.0]          # el pack de 2 se lleva a precio por unidad
     assert precios[0]["fuentes"][0]["uri"] == "https://p/1" and precios[0]["origen"] == "catalogo_tienda"
     assert info["candidatos"] == 3 and info["precios_elegidos"] == 2
+
+
+def test_combustible_oficial_via_worker(monkeypatch):
+    llamadas = []
+
+    def worker(ruta, params):
+        llamadas.append((ruta, params))
+        return {"ambito": "departamento", "departamento": "LIMA",
+                "estadistica": {"n": 203, "p25": 20.15, "mediana": 22.42, "p75": 25.03, "desde": "2026-06-19", "hasta": "2026-10-13"},
+                "observaciones": [{"precio_min": 24, "precio_max": 25}], "fuente": {"url": "https://osinergmin/x.csv"}}
+
+    monkeypatch.setattr(catalogos, "_worker", worker)
+    items = [{"numero": "1", "descripcion_corta": "DIESEL B5 S-50"}, {"numero": "2", "descripcion_corta": "Casco"}]
+    assert [catalogos.es_combustible(i) for i in items] == [True, False]
+    precios, info = catalogos.precios_combustible(items, "LIMA")
+    assert [p["precio"] for p in precios] == [20.15, 22.42, 25.03]                # p25, mediana, p75: no las 10 últimas
+    assert all(p["unidad"] == "galón" and p["origen"] == "osinergmin" for p in precios)
+    assert llamadas == [("/combustible", {"producto": "DIESEL B5 S-50", "departamento": "LIMA", "dias": 120})]
+    assert info["items"] == 1 and info["estadisticas"]["1"]["n"] == 203
+
+
+def test_departamento_y_candidatos_via_worker(monkeypatch):
+    assert catalogos.departamento_de({"parties": [{"roles": ["supplier"]}, {"roles": ["buyer"], "address": {"region": "CUSCO"}}]}) == "CUSCO"
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: {"productos": [
+        {"producto": "Casco", "marca": "X", "precio": 14.9, "tienda": "promart.pe", "url": "https://p/1"},
+        {"producto": "Sin precio", "precio": 0, "tienda": "metro.pe", "url": "https://m/2"}]})
+    c = catalogos.candidatos("casco")
+    assert len(c) == 1 and c[0]["tienda"] == "promart.pe" and c[0]["precio"] == 14.9
