@@ -117,3 +117,25 @@ def test_run_agent_delta_con_sdk_falso(monkeypatch):
     assert [e["kind"] for e in evs if e["kind"] in ("tool_call", "tool_result")] == ["tool_call", "tool_result"]
     assert metr["prompt"] == 100 and metr["output"] == 20
     assert '"ok": true' in reg["resultado_tool"]["content"][0]["text"]
+
+
+def test_funcion_suelta_y_busqueda_integrada(monkeypatch):
+    async def google_search(consulta: str, tool_context=None) -> dict:
+        """Busca en la web."""
+        return {}
+
+    def otra(x: int) -> dict:
+        return {}
+
+    monkeypatch.delenv("MOTOR_SDK_BUSQUEDA", raising=False)
+    assert h.nombres_mcp([google_search, otra]) == ["google_search", "otra"]
+    monkeypatch.setenv("MOTOR_SDK_BUSQUEDA", "WebSearch")
+    assert h.nombres_mcp([google_search, otra]) == ["otra"]
+
+
+def test_publicar_busqueda_deja_urls_respaldadas():
+    st: dict = {}
+    evs: list = []
+    motor_sdk._publicar_busqueda(st, "web", [{"type": "text", "text": "ver https://a.pe/x, y https://b.gob.pe/y."}], evs)
+    assert st["grounding_urls"] == ["https://a.pe/x", "https://b.gob.pe/y"]
+    assert evs[0]["result_preview"]["n_fuentes"] == 2

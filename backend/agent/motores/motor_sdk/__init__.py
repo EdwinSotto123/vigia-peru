@@ -130,8 +130,13 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
     if omitidas:
         eventos.append({"agent": nombre, "kind": "warn", "detail": f"motor sdk: herramientas sin equivalente: {omitidas}"})
     servidor = sdk.create_sdk_mcp_server(_SERVIDOR, tools=tools) if tools else None
-    nombres = [_h.declaracion(t)[0] for t in (getattr(agent, "tools", None) or []) if getattr(t, "func", None)]
+    nombres = _h.nombres_mcp(getattr(agent, "tools", None) or [])
     sistema = await prompt_de(agent, state)
+    integrada = _h.busqueda_integrada()
+    if integrada and any(getattr(t, "__name__", getattr(t, "name", "")) == "google_search" for t in getattr(agent, "tools", None) or []):
+        sistema += (f"\n\nPara buscar en la web usa la herramienta `{integrada}` (reemplaza a `google_search`). "
+                    "Solo cita URLs que aparezcan en sus resultados.")
+    busquedas: dict[str, str] = {}
     esquema = esquema_de(agent)
 
     texto, salida, t0 = None, None, time.monotonic()
@@ -147,6 +152,16 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
                             texto = b.text
                         elif bt == "ThinkingBlock":
                             eventos.append({"agent": nombre, "kind": "thought", "text": str(getattr(b, "thinking", ""))[:8000]})
+                        elif bt in ("ToolUseBlock", "ServerToolUseBlock") and integrada and getattr(b, "name", "") == integrada:
+                            busquedas[getattr(b, "id", "")] = str((getattr(b, "input", None) or {}).get("query", ""))
+                            eventos.append({"agent": nombre, "kind": "tool_call", "name": "google_search",
+                                            "args": {"consulta": busquedas[getattr(b, "id", "")]}})
+                        elif bt == "ServerToolResultBlock" and getattr(b, "tool_use_id", None) in busquedas:
+                            _publicar_busqueda(state, nombre, getattr(b, "content", None), eventos)
+                elif tipo == "UserMessage":
+                    for b in getattr(m, "content", None) if isinstance(getattr(m, "content", None), list) else []:
+                        if type(b).__name__ == "ToolResultBlock" and getattr(b, "tool_use_id", None) in busquedas:
+                            _publicar_busqueda(state, nombre, getattr(b, "content", None), eventos)
                 elif tipo == "ResultMessage":
                     u = getattr(m, "usage", None) or {}
                     metr["prompt"] += int(u.get("input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0)
@@ -183,6 +198,23 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
         eventos.append({"agent": nombre, "kind": "final", "text": texto[:8000],
                         "segundos": round(time.monotonic() - t0, 1)})
     return eventos, texto, salida, metr
+
+
+_URL = re.compile(r"https?://[^\s\"'<>)\]]+")
+
+
+def _publicar_busqueda(state: dict, agente: str, contenido: Any, eventos: list) -> None:
+    """URLs de un resultado de la búsqueda integrada → state['grounding_urls'] (como tools/busqueda), para que el
+    verificador las reconozca como respaldadas."""
+    texto = json.dumps(contenido, ensure_ascii=False, default=str) if not isinstance(contenido, str) else contenido
+    urls = list(dict.fromkeys(u.rstrip(".,;") for u in _URL.findall(texto)))[:25]
+    try:
+        from tools.busqueda import _publicar
+        _publicar(state, [{"url": u} for u in urls])
+    except Exception:
+        pass
+    eventos.append({"agent": agente, "kind": "tool_result", "name": "google_search",
+                    "result_preview": {"n_fuentes": len(urls), "fuentes": urls[:10]}})
 
 
 def _delta(seed: dict, state: dict) -> dict:

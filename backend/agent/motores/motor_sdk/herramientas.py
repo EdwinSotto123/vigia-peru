@@ -74,6 +74,28 @@ def declaracion(tool: Any) -> tuple[str, str, dict]:
     return nombre, desc, params
 
 
+def busqueda_integrada() -> str | None:
+    """Nombre de la búsqueda web integrada del SDK (MOTOR_SDK_BUSQUEDA), si se usa en vez de tools/busqueda."""
+    import os
+    return os.getenv("MOTOR_SDK_BUSQUEDA") or None
+
+
+def nombres_mcp(tools: list) -> list[str]:
+    """Los nombres con que `convertir` registra las tools (mismo filtro)."""
+    out = []
+    for t in tools or []:
+        if getattr(t, "func", None) is None and inspect.isfunction(t):
+            from google.adk.tools import FunctionTool
+            t = FunctionTool(t)
+        if getattr(t, "func", None) is None:
+            continue
+        n = declaracion(t)[0]
+        if n == "google_search" and busqueda_integrada():
+            continue
+        out.append(n)
+    return out
+
+
 def _serializar(res: Any) -> str:
     try:
         txt = json.dumps(res, ensure_ascii=False, default=str)
@@ -103,10 +125,16 @@ def convertir(sdk: Any, tools: list, state: dict, agente: str, eventos: list) ->
     salida, omitidas = [], []
     for t in tools or []:
         func = getattr(t, "func", None)
+        if func is None and inspect.isfunction(t):   # función suelta (ADK la envuelve sola): tools/busqueda.google_search
+            from google.adk.tools import FunctionTool
+            t = FunctionTool(t)
+            func = t.func
         if func is None:          # tools nativas del modelo (p. ej. el grounding de Gemini): no existen acá
             omitidas.append(getattr(t, "name", type(t).__name__))
             continue
         nombre, desc, params = declaracion(t)
+        if nombre == "google_search" and busqueda_integrada():
+            continue              # la reemplaza la búsqueda del SDK (ver motor_sdk._correr)
 
         def _hacer(func=func, nombre=nombre):
             async def _h(args: dict) -> dict:
