@@ -1,6 +1,6 @@
 {
-  "version": "7929ab6",
-  "generado_at": "2026-09-16",
+  "version": "ccee6ae",
+  "generado_at": "2026-10-16",
   "agentes_canonicos": [
     "compliance",
     "document_parser",
@@ -597,8 +597,8 @@
   },
   "otras_senales": {
     "red_flag_documental": {
-      "etiqueta": "Requisito dirigido en las bases",
-      "descripcion": "El análisis legal halló especificaciones o requisitos que convergen en un solo proveedor."
+      "etiqueta": "Hallazgo en el expediente",
+      "descripcion": "El análisis legal halló en las bases o actas algo que amerita revisión (requisitos, descalificaciones, incoherencias), con la cita del documento."
     },
     "objeto_no_corresponde_documento": {
       "etiqueta": "Objeto vs. documentos",
@@ -608,6 +608,22 @@
       "etiqueta": "Sobreprecio frente al mercado",
       "descripcion": "Los precios unitarios superan con holgura la mediana de mercado hallada."
     },
+    "sobreprecio_muy_elevado": {
+      "etiqueta": "Sobreprecio muy alto",
+      "descripcion": "Los precios unitarios superan en 50 % o más la mediana de mercado hallada."
+    },
+    "sobreprecio_lote_elevado": {
+      "etiqueta": "Sobreprecio en el lote",
+      "descripcion": "El total del lote supera con holgura lo que costaría a precios de mercado."
+    },
+    "sobreprecio_lote_muy_elevado": {
+      "etiqueta": "Sobreprecio muy alto en el lote",
+      "descripcion": "El total del lote supera en 50 % o más lo que costaría a precios de mercado."
+    },
+    "spec_restrictiva": {
+      "etiqueta": "Especificación restrictiva",
+      "descripcion": "La especificación técnica deja a muy pocos productos o marcas en condiciones de cumplir."
+    },
     "cobertura_prensa_adversa": {
       "etiqueta": "Cobertura de prensa adversa",
       "descripcion": "Prensa verificable reporta problemas del proveedor o del proceso."
@@ -616,6 +632,30 @@
       "etiqueta": "Antecedentes del proveedor",
       "descripcion": "Investigación web con hallazgos verificables sobre la empresa."
     },
+    "antecedente_proveedor_web": {
+      "etiqueta": "Antecedentes del proveedor en la web",
+      "descripcion": "Fuentes públicas verificables reportan hechos relevantes sobre la empresa ganadora."
+    },
+    "sancion_historica_oece": {
+      "etiqueta": "Sanción previa en el OECE",
+      "descripcion": "El ganador tuvo sanciones del Tribunal de Contrataciones, aunque ya no estén vigentes."
+    },
+    "sancion_vigente_oece": {
+      "etiqueta": "Sanción vigente en el OECE",
+      "descripcion": "El ganador tiene una sanción vigente del Tribunal de Contrataciones."
+    },
+    "penalidades_oece_historicas": {
+      "etiqueta": "Penalidades en contratos previos",
+      "descripcion": "El ganador recibió penalidades en contratos anteriores con el Estado."
+    },
+    "conflicto_interes_funcionario_empresa": {
+      "etiqueta": "Funcionario con empresa vinculada",
+      "descripcion": "Un funcionario que intervino en el proceso figura ligado a una empresa relacionada con el ganador."
+    },
+    "capacidad_operativa_cuestionable": {
+      "etiqueta": "Capacidad operativa cuestionable",
+      "descripcion": "El tamaño, la antigüedad o el historial del ganador no guardan relación con lo que se le adjudicó."
+    },
     "funcionario_con_historial_politico": {
       "etiqueta": "Funcionario con historial político",
       "descripcion": "Funcionario de la entidad con vínculo político registrado con el proveedor."
@@ -623,6 +663,22 @@
     "red_personas_vinculada": {
       "etiqueta": "Red de personas vinculada",
       "descripcion": "Personas del proveedor y de la entidad conectadas por empresas o cargos previos."
+    },
+    "vinculo_red_personas": {
+      "etiqueta": "Red de personas vinculada",
+      "descripcion": "Personas del proveedor y de la entidad conectadas por empresas o cargos previos, con fuente verificable."
+    },
+    "cuantia_al_limite_del_tope": {
+      "etiqueta": "Cuantía al límite del tope",
+      "descripcion": "El monto queda apenas por debajo del tope que obligaría a un procedimiento más exigente."
+    },
+    "directa_emergencia_sin_acto_resolutivo": {
+      "etiqueta": "Directa por emergencia sin resolución",
+      "descripcion": "Se invocó emergencia sin el acto resolutivo que la aprueba."
+    },
+    "directa_causal_imprecisa": {
+      "etiqueta": "Causal de directa imprecisa",
+      "descripcion": "La causal citada no coincide con ninguna del reglamento."
     }
   }
 }

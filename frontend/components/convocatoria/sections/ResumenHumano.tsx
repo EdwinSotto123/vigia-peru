@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { CORTE_ALTA, CORTE_MEDIA } from "@/lib/severidad";
 import { plural } from "@/lib/formato";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
+import { ICONO_SEVERIDAD, Severidad } from "@/components/ui/Severidad";
+import { reglaLabel } from "@/lib/auditoria";
 import { redactDnis } from "../../Redact";
 import type { ConteoSeveridad, EstadoCorrida, NivelDossier } from "../dossier";
 import { NivelTituloDossier } from "./nivelTitulo";
@@ -21,6 +22,7 @@ import { NivelTituloDossier } from "./nivelTitulo";
  */
 export function ResumenHumano({
   conteo,
+  principales = [],
   score,
   nivel,
   corrida,
@@ -29,6 +31,9 @@ export function ResumenHumano({
   onLeerDictamen,
 }: {
   conteo: ConteoSeveridad;
+  /** Las señales por regla, de la más grave a la más leve (cuántas de cada una): se nombran aquí para que no
+   * haya que bajar a la tabla para saber qué se encontró. */
+  principales?: { regla: string; severidad: "alta" | "media" | "baja"; n: number }[];
   score: number | null;
   nivel: NivelDossier;
   corrida: EstadoCorrida;
@@ -100,6 +105,32 @@ export function ResumenHumano({
         )}
       </div>
 
+      {/* Qué se encontró, por nombre: las primeras reglas a la vista; el resto, en la tabla. */}
+      {principales.length > 0 && (
+        <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Señales encontradas">
+          {principales.slice(0, MAX_PRINCIPALES).map((p) => (
+            <li key={p.regla}>
+              <button
+                type="button"
+                onClick={onVerEvidencia}
+                className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-line bg-paperSoft px-2.5 text-[12.5px] text-ink hover:border-granate"
+              >
+                <Severidad bandera={p.severidad} formato="punto" />
+                {reglaLabel(p.regla)}
+                {p.n > 1 && <span className="tabular-nums text-mute">×{p.n}</span>}
+              </button>
+            </li>
+          ))}
+          {principales.length > MAX_PRINCIPALES && (
+            <li>
+              <button type="button" onClick={onVerEvidencia} className={ENLACE}>
+                y {plural(principales.length - MAX_PRINCIPALES, "regla más", "reglas más")}
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+
       {/* Qué se sabe, en palabras: el anticipo del dictamen, pasado por la redacción de datos personales. */}
       {resumenEjecutivo && (
         <p className="mt-2 line-clamp-2 max-w-[70ch] text-sm leading-relaxed text-inkSoft">{redactDnis(resumenEjecutivo)}</p>
@@ -117,4 +148,5 @@ export function ResumenHumano({
   );
 }
 
+const MAX_PRINCIPALES = 6;
 const ENLACE = "inline-flex min-h-[32px] items-center gap-1 rounded-full text-[13px] font-semibold text-granate hover:underline";

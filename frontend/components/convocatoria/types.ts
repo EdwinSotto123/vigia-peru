@@ -100,6 +100,10 @@ export type Bandera = {
   norma?: string;
   fuente_url?: string;
   agente_origen?: string;
+  /** false = hecho de contexto: se muestra, pero no suma al puntaje ni cuenta como señal. Sin el campo, true. */
+  puntua?: boolean;
+  /** Resultado del cotejo determinista de montos, RUC y URLs contra las fuentes (null = sin cotejo). */
+  verificada?: boolean | null;
   vector?: string;
   item_afectado?: string;
   opinion_oece_relacionada?: { num_opinion?: string; snippet?: string; url?: string };

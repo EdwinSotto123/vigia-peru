@@ -13,7 +13,7 @@ import { Pestanas, irAPestana } from "@/components/patrones/Pestanas";
 import { Indicadores } from "@/components/listado";
 import { ICONO_SEVERIDAD } from "@/components/ui/Severidad";
 import type { ApiResult } from "./types";
-import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas } from "./dossier";
+import { contarSeveridades, dossierEnRevision, estadoCorrida, nivelDelDossier, resumenDeTraza, separarBanderas, severidadDe } from "./dossier";
 import { IdentidadDossier, indicadoresDossier } from "./sections/IdentidadDossier";
 import { ResumenHumano } from "./sections/ResumenHumano";
 import { SeccionSegura } from "./sections/SeccionSegura";
@@ -113,9 +113,22 @@ export function ResultadoView({
 
   // ─── Qué corrió, qué señales se sostienen, qué nivel tiene ───
   const corrida = useMemo(() => estadoCorrida(result), [result]);
-  const { visibles: banderasArr, noVerificables } = useMemo(() => separarBanderas(result), [result]);
+  const { visibles: banderasArr, noVerificables, contexto } = useMemo(() => separarBanderas(result), [result]);
   // UNA lectura de severidad para la cabecera, los chips y la lista (ver ./dossier).
   const conteo = useMemo(() => contarSeveridades(banderasArr), [banderasArr]);
+  // Por regla, en el orden de la API (más grave y más nueva primero): la tarjeta del veredicto las nombra.
+  const principales = useMemo(() => {
+    const m = new Map<string, { regla: string; severidad: "alta" | "media" | "baja"; n: number }>();
+    for (const b of banderasArr) {
+      const regla = String(b.regla || "");
+      if (!regla) continue;
+      const p = m.get(regla);
+      if (p) p.n++;
+      else m.set(regla, { regla, severidad: severidadDe(b), n: 1 });
+    }
+    const peso = { alta: 0, media: 1, baja: 2 } as const;
+    return [...m.values()].sort((a, b) => peso[a.severidad] - peso[b.severidad]);
+  }, [banderasArr]);
   const nivel = nivelDelDossier(compl.score, banderasArr.length, corrida);
   // El puntaje nunca aparece sin las señales que lo explican (§10.4).
   const score = typeof compl.score === "number" && banderasArr.length > 0 ? compl.score : null;
@@ -225,6 +238,7 @@ export function ResultadoView({
           <SeccionSegura nombre="el veredicto">
             <ResumenHumano
               conteo={conteo}
+              principales={principales}
               score={score}
               nivel={nivel}
               corrida={corrida}
@@ -263,6 +277,7 @@ export function ResultadoView({
                       corrida={corrida}
                       banderasArr={banderasArr}
                       noVerificables={noVerificables}
+                      contexto={contexto}
                       nombresPrivados={nombresPrivados}
                       nombresSunat={nombresSunat}
                       ganador={ganador}

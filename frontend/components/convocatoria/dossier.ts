@@ -272,13 +272,22 @@ export const esReglaSobreprecio = (b: Pick<Bandera, "regla"> | null | undefined)
  * en ese mismo dossier ("+102.5 %" junto a "0 de 95 ítems con precio medido")
  * no se puede sostener: se aparta como no verificable, fuera de los conteos.
  */
-export function separarBanderas(result: ApiResult): { visibles: Bandera[]; noVerificables: Bandera[] } {
+export function separarBanderas(result: ApiResult): {
+  visibles: Bandera[];
+  noVerificables: Bandera[];
+  /** `puntua: false`: hechos de contexto (p. ej. un firmante socio de otra proveedora). Se muestran aparte y no
+   * cuentan como señal: antes inflaban "N señales" junto a un puntaje al que no suman. */
+  contexto: Bandera[];
+} {
   const todas = (result.compliance?.banderas || []) as Bandera[];
+  const contexto = todas.filter((b) => b.puntua === false);
+  const puntuan = todas.filter((b) => b.puntua !== false);
   const medido = result.market_analysis?.sobreprecio_pct != null;
-  if (medido) return { visibles: todas, noVerificables: [] };
+  if (medido) return { visibles: puntuan, noVerificables: [], contexto };
   return {
-    visibles: todas.filter((b) => !esReglaSobreprecio(b)),
-    noVerificables: todas.filter(esReglaSobreprecio),
+    visibles: puntuan.filter((b) => !esReglaSobreprecio(b)),
+    noVerificables: puntuan.filter(esReglaSobreprecio),
+    contexto,
   };
 }
 

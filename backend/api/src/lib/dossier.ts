@@ -126,9 +126,14 @@ export async function filaTraza(id: string): Promise<{ codigo: string; estado: s
  */
 export async function dossierCompleto(row: FilaDossier, opts: { sinTraza?: boolean; publico?: boolean } = {}) {
   const b = await pool.query(
-    `SELECT regla, severidad, evidencia, norma, fuente_url
+    // agente_origen: la web ya no tiene que adivinarlo por el id de la regla. puntua=false son hechos de contexto
+    // (no suman al puntaje) y van al final. Dentro de cada severidad, la más nueva primero: antes las reglas
+    // recién agregadas quedaban al fondo de su grupo. `verificada` sale del cotejo determinista, sin sus motivos
+    // (traen RUC y DNI).
+    `SELECT regla, severidad, evidencia, norma, fuente_url, agente_origen, COALESCE(puntua, true) AS puntua,
+            CASE WHEN verificacion->>'ok' IN ('true', 'false') THEN (verificacion->>'ok')::boolean END AS verificada
        FROM banderas WHERE alerta_id = $1
-      ORDER BY CASE severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, id`,
+      ORDER BY COALESCE(puntua, true) DESC, CASE severidad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, id DESC`,
     [row.id],
   );
 

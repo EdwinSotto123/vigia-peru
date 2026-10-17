@@ -13,7 +13,7 @@
  */
 
 import { useMemo } from "react";
-import { CircleSlash } from "lucide-react";
+import { CircleSlash, Info } from "lucide-react";
 import { reglaLabel } from "@/lib/auditoria";
 import { redactDnis, type NombreConocido } from "../../Redact";
 import { evidenciaComoTexto } from "./Evidencia";
@@ -75,6 +75,7 @@ export function BanderasAgrupadas({
   reglasDisparadas,
   fases,
   noVerificables = [],
+  contexto = [],
   nombresPrivados,
 }: {
   banderas: Bandera[];
@@ -91,11 +92,18 @@ export function BanderasAgrupadas({
    * verificables, y no cuentan en los totales.
    */
   noVerificables?: Bandera[];
+  /** Hechos de contexto (`puntua: false`): se muestran debajo, aparte y fuera de los conteos. */
+  contexto?: Bandera[];
   /** Personas privadas del dossier: su apellido va tapado también en la línea de cada señal. */
   nombresPrivados?: NombreConocido[];
 }) {
   const senales = useMemo(() => (banderas ?? []).map(desdeBandera), [banderas]);
-  const apartadas = noVerificables.length > 0 && <NoVerificables banderas={noVerificables} />;
+  const apartadas = (noVerificables.length > 0 || contexto.length > 0) && (
+    <>
+      {contexto.length > 0 && <HechosDeContexto banderas={contexto} />}
+      {noVerificables.length > 0 && <NoVerificables banderas={noVerificables} />}
+    </>
+  );
   // Sin `nota` al pie: "una señal no es una acusación" lo dice una sola vez el informe, al final.
   if (senales.length === 0) return apartadas || null;
   return (
@@ -108,6 +116,32 @@ export function BanderasAgrupadas({
       nombresPrivados={nombresPrivados}
       anexo={apartadas}
     />
+  );
+}
+
+/** Hechos que el análisis registra pero que no suman al puntaje: a la vista, con su evidencia, fuera de los conteos. */
+function HechosDeContexto({ banderas }: { banderas: Bandera[] }) {
+  return (
+    <details className="rounded-2xl border border-line bg-paperSoft px-4 py-3 text-[13px]">
+      <summary className="flex min-h-[24px] cursor-pointer items-center gap-2 text-ink">
+        <Info size={15} className="shrink-0 text-mute" aria-hidden />
+        <strong className="font-semibold">
+          {banderas.length} {banderas.length === 1 ? "hecho de contexto" : "hechos de contexto"}
+        </strong>
+        <span className="text-[12px] text-mute">no suman al puntaje</span>
+      </summary>
+      <p className="mt-2 text-[12px] leading-snug text-mute">
+        Datos ciertos que ayudan a leer el caso pero que, solos, no indican un riesgo: por eso no cuentan como señal.
+      </p>
+      <ul className="mt-3 space-y-2 border-t border-line pt-3">
+        {banderas.map((b, i) => (
+          <li key={`${b.regla}-${i}`} className="text-[12px] leading-relaxed text-inkSoft">
+            <span className="font-semibold text-ink">{reglaLabel(String(b.regla || "contexto"))}</span>
+            {evidenciaComoTexto(b.evidencia) && <span className="mt-0.5 block">{redactDnis(evidenciaComoTexto(b.evidencia))}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

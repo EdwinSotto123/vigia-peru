@@ -35,6 +35,8 @@ export interface PanelDossierProps {
   corrida: EstadoCorrida;
   banderasArr: Bandera[];
   noVerificables: Bandera[];
+  /** Hechos de contexto (`puntua: false`): aparte y fuera de los conteos. */
+  contexto: Bandera[];
   nombresPrivados: NombreConocido[];
   nombresSunat: string[];
   ganador: any;
@@ -92,7 +94,7 @@ export function PanelDossier(p: PanelDossierProps) {
 // ─── Señales: TODAS las señales con su evidencia (el anticipo del dictamen va en el veredicto) ───
 // La única pestaña que se dibuja en el servidor: es lo primero que se lee del informe.
 
-function PanelResumen({ result, banderasArr, noVerificables, corrida, nombresPrivados }: PanelDossierProps) {
+function PanelResumen({ result, banderasArr, noVerificables, contexto, corrida, nombresPrivados }: PanelDossierProps) {
   // Se registran otra vez las personas privadas justo antes de redactar: en el servidor el
   // registro de Redact es global del proceso y otro informe pudo cambiarlo en el medio.
   setRedactNames(nombresPrivados);
@@ -101,7 +103,7 @@ function PanelResumen({ result, banderasArr, noVerificables, corrida, nombresPri
   return (
     <div className="space-y-4">
       <div id="senales" className="scroll-mt-24">
-        {banderasArr.length > 0 || noVerificables.length > 0 ? (
+        {banderasArr.length > 0 || noVerificables.length > 0 || contexto.length > 0 ? (
           <SeccionSegura nombre="las señales">
             {/* `perfil` y `reglasDisparadas` destraban la matriz de reglas evaluadas; sin
                 ellas el componente dice que no tiene catálogo, en vez de inventar uno. */}
@@ -111,6 +113,7 @@ function PanelResumen({ result, banderasArr, noVerificables, corrida, nombresPri
               perfil={compl.perfil ?? null}
               reglasDisparadas={compl.reglas_disparadas ?? compl.reglasDisparadas ?? null}
               noVerificables={noVerificables}
+              contexto={contexto}
               nombresPrivados={nombresPrivados}
             />
           </SeccionSegura>

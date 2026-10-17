@@ -69,6 +69,46 @@ function diferencia(pct: number): string {
 export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracionMs, sharePath, compacto = false, className = "", revision = false }: Props) {
   const dossierId = r?.codigo?.replace(/^OECE-/, "") ?? ocid;
   const dossierHref = `/app/convocatoria/${encodeURIComponent(dossierId)}`;
+  const tope = compacto ? 4 : 8;
+  const fila = (s: SenalRiesgo, i: number) => (
+    <li key={`${s.regla}-${i}`} className="py-2">
+      {compacto ? (
+        <LineaSenal s={s} />
+      ) : (
+        <>
+          <Revelar
+            titulo={reglaLabel(s.regla)}
+            descripcion={s.norma ?? undefined}
+            etiqueta={`Ver la evidencia de la señal: ${reglaLabel(s.regla)}`}
+            ancho="md"
+            className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
+            detalle={<DetalleSenal s={s} />}
+            pie={
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+                <Link href={dossierHref} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
+                  Leer el dictamen completo <ArrowRight size={13} aria-hidden />
+                </Link>
+                {s.fuenteUrl && (
+                  <a href={s.fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">
+                    Fuente oficial <ExternalLink size={11} aria-hidden />
+                  </a>
+                )}
+              </span>
+            }
+          >
+            <LineaSenal s={s} conFlecha />
+          </Revelar>
+          {/* Una línea de evidencia, fuera del botón: los DNI van tras vidrio y el vidrio
+              es su propio control. Entera, en el panel. */}
+          {s.evidencia && (
+            <p className="mt-0.5 line-clamp-1 border-l-2 border-line pl-2 text-[12px] leading-snug text-inkSoft">
+              <EvidenciaRedactada texto={s.evidencia} />
+            </p>
+          )}
+        </>
+      )}
+    </li>
+  );
   const enRevision = revision || r?.estado === "revision";
 
   if (enRevision) {
@@ -125,47 +165,23 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
       {/* señales */}
       {senales.length > 0 && (
         <ol className="mt-4 divide-y divide-line border-t border-line" aria-label="Señales de riesgo">
-          {senales.slice(0, compacto ? 4 : 8).map((s, i) => (
-            <li key={`${s.regla}-${i}`} className="py-2">
+          {senales.slice(0, tope).map((s, i) => fila(s, i))}
+          {senales.length > tope && (
+            <li className="py-2">
               {compacto ? (
-                <LineaSenal s={s} />
+                <Link href={`${dossierHref}#senales`} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-granate hover:underline">
+                  Ver {plural(senales.length - tope, "señal más", "señales más")} <ArrowRight size={13} aria-hidden />
+                </Link>
               ) : (
-                <>
-                  <Revelar
-                    titulo={reglaLabel(s.regla)}
-                    descripcion={s.norma ?? undefined}
-                    etiqueta={`Ver la evidencia de la señal: ${reglaLabel(s.regla)}`}
-                    ancho="md"
-                    className="-mx-2 w-auto rounded-lg px-2 py-0.5 transition-colors duration-rapido hover:bg-paperSoft"
-                    detalle={<DetalleSenal s={s} />}
-                    pie={
-                      <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
-                        <Link href={dossierHref} className="inline-flex items-center gap-1 font-medium text-granate hover:underline">
-                          Leer el dictamen completo <ArrowRight size={13} aria-hidden />
-                        </Link>
-                        {s.fuenteUrl && (
-                          <a href={s.fuenteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-mute hover:text-ink hover:underline">
-                            Fuente oficial <ExternalLink size={11} aria-hidden />
-                          </a>
-                        )}
-                      </span>
-                    }
-                  >
-                    <LineaSenal s={s} conFlecha />
-                  </Revelar>
-                  {/* Una línea de evidencia, fuera del botón: los DNI van tras vidrio y el vidrio
-                      es su propio control. Entera, en el panel. */}
-                  {s.evidencia && (
-                    <p className="mt-0.5 line-clamp-1 border-l-2 border-line pl-2 text-[12px] leading-snug text-inkSoft">
-                      <EvidenciaRedactada texto={s.evidencia} />
-                    </p>
-                  )}
-                </>
+                // Antes: "y N señales más en el dictamen", sin enlace. Ahora se despliegan aquí mismo.
+                <details>
+                  <summary className="inline-flex min-h-[30px] cursor-pointer items-center gap-1 text-[12.5px] font-semibold text-granate hover:underline">
+                    Ver {plural(senales.length - tope, "señal más", "señales más")}
+                  </summary>
+                  <ol className="mt-1 divide-y divide-line">{senales.slice(tope).map((s, i) => fila(s, i + tope))}</ol>
+                </details>
               )}
             </li>
-          ))}
-          {senales.length > (compacto ? 4 : 8) && (
-            <li className="py-2 text-[12px] text-mute">y {plural(senales.length - (compacto ? 4 : 8), "señal más", "señales más")} en el dictamen</li>
           )}
         </ol>
       )}

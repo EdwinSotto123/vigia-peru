@@ -60,14 +60,27 @@ ETIQUETAS: dict[str, tuple[str, str]] = {
 }
 
 # Señales que emiten los agentes LLM (no son reglas deterministas del perfil, pero aparecen como banderas).
+# Los ids son los que la persistencia escribe en `banderas.regla` (tools/persistence/*.py): si no están acá, la web
+# los muestra como el id sin tildes y sin descripción.
 OTRAS_SENALES: dict[str, tuple[str, str]] = {
-    "red_flag_documental": ("Requisito dirigido en las bases", "El análisis legal halló especificaciones o requisitos que convergen en un solo proveedor."),
+    "red_flag_documental": ("Hallazgo en el expediente", "El análisis legal halló en las bases o actas algo que amerita revisión (requisitos, descalificaciones, incoherencias), con la cita del documento."),
     "objeto_no_corresponde_documento": ("Objeto vs. documentos", "El objeto convocado no corresponde a lo que describen los documentos del expediente."),
     "sobreprecio_elevado": ("Sobreprecio frente al mercado", "Los precios unitarios superan con holgura la mediana de mercado hallada."),
+    "sobreprecio_muy_elevado": ("Sobreprecio muy alto", "Los precios unitarios superan en 50 % o más la mediana de mercado hallada."),
+    "sobreprecio_lote_elevado": ("Sobreprecio en el lote", "El total del lote supera con holgura lo que costaría a precios de mercado."),
+    "sobreprecio_lote_muy_elevado": ("Sobreprecio muy alto en el lote", "El total del lote supera en 50 % o más lo que costaría a precios de mercado."),
+    "spec_restrictiva": ("Especificación restrictiva", "La especificación técnica deja a muy pocos productos o marcas en condiciones de cumplir."),
     "cobertura_prensa_adversa": ("Cobertura de prensa adversa", "Prensa verificable reporta problemas del proveedor o del proceso."),
     "antecedentes_proveedor": ("Antecedentes del proveedor", "Investigación web con hallazgos verificables sobre la empresa."),
+    "antecedente_proveedor_web": ("Antecedentes del proveedor en la web", "Fuentes públicas verificables reportan hechos relevantes sobre la empresa ganadora."),
+    "sancion_historica_oece": ("Sanción previa en el OECE", "El ganador tuvo sanciones del Tribunal de Contrataciones, aunque ya no estén vigentes."),
+    "sancion_vigente_oece": ("Sanción vigente en el OECE", "El ganador tiene una sanción vigente del Tribunal de Contrataciones."),
+    "penalidades_oece_historicas": ("Penalidades en contratos previos", "El ganador recibió penalidades en contratos anteriores con el Estado."),
+    "conflicto_interes_funcionario_empresa": ("Funcionario con empresa vinculada", "Un funcionario que intervino en el proceso figura ligado a una empresa relacionada con el ganador."),
+    "capacidad_operativa_cuestionable": ("Capacidad operativa cuestionable", "El tamaño, la antigüedad o el historial del ganador no guardan relación con lo que se le adjudicó."),
     "funcionario_con_historial_politico": ("Funcionario con historial político", "Funcionario de la entidad con vínculo político registrado con el proveedor."),
     "red_personas_vinculada": ("Red de personas vinculada", "Personas del proveedor y de la entidad conectadas por empresas o cargos previos."),
+    "vinculo_red_personas": ("Red de personas vinculada", "Personas del proveedor y de la entidad conectadas por empresas o cargos previos, con fuente verificable."),
 }
 
 
@@ -85,13 +98,17 @@ def construir() -> dict:
                 for r in reglas
             ],
         }
+    # Reglas con etiqueta que ya no están en ningún perfil pero siguen en `banderas` (p. ej. cuantia_al_limite_del_tope):
+    # sin esto la web las mostraba con el id.
+    en_perfil = {r["id"] for p in perfiles.values() for r in p["reglas"]}
+    sueltas = {k: v for k, v in ETIQUETAS.items() if k not in en_perfil and k not in OTRAS_SENALES}
     version = _git_short() or date.today().isoformat()
     return {
         "version": version,
         "generado_at": date.today().isoformat(),
         "agentes_canonicos": list(AGENTES_CANONICOS),
         "perfiles": perfiles,
-        "otras_senales": {k: {"etiqueta": v[0], "descripcion": v[1]} for k, v in OTRAS_SENALES.items()},
+        "otras_senales": {k: {"etiqueta": v[0], "descripcion": v[1]} for k, v in {**OTRAS_SENALES, **sueltas}.items()},
     }
 
 
