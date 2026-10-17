@@ -17,9 +17,9 @@ const CC_ORIGINAL = "X-Vigia-Cache-Control";
 /**
  * Subir este número descarta de golpe todo lo guardado (2026-10-11: saneado de datos personales;
  * 2026-10-13: DNI y RUC 10 como referencias, apellidos tapados en el servidor, traza pública sin datos;
- * "4": una candidatura del JNE ya no vuelve pública a una persona; "5": las fechas ya no salen como `{}`).
+ * "4": una candidatura del JNE ya no vuelve pública a una persona; "5": las fechas ya no salen como `{}`; "6": las señales del dossier traen agente, puntua y verificada).
  */
-const VERSION_CACHE = "5";
+const VERSION_CACHE = "6";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
