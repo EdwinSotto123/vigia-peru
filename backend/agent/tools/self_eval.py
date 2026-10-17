@@ -322,6 +322,12 @@ def degradar_mercado_implausible(per_precio: list, state: dict) -> dict:
                 f["veredicto"] = "no_verificable"
                 f["motivo_no_verificable"] = f"juez de plausibilidad de precio: {motivos[d] or 'comparación implausible'}"[:300]
                 res["items"].append(d)
+        fs = [f for f in ma.get("findings") or [] if isinstance(f, dict)]
+        if res["items"] and ma.get("sobreprecio_pct") is None and fs and all(f.get("veredicto") == "no_verificable" for f in fs):
+            # Sin lote (p. ej. un solo ítem): el global era la copia del veredicto del ítem y quedaba "muy_elevado"
+            # aunque el juez lo invalidó (1223907, cascos certificados vs cascos básicos de tienda).
+            ma["veredicto_global_original"] = ma.get("veredicto_global")
+            ma["veredicto_global"] = "no_verificable"
         if res["items"] and ma.get("sobreprecio_pct") is not None:
             ma["sobreprecio_pct_original"] = ma.get("sobreprecio_pct")
             ma["sobreprecio_pct"] = None

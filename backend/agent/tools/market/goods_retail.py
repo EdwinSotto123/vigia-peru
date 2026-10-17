@@ -565,6 +565,7 @@ def _mercado_goods_retail(state: dict) -> dict:
                 "tipo_cambio_aplicado": MARKET_USD_PEN if p["moneda_origen"] == "USD" else None,
                 "titulo_fuente": f0.get("titulo"), "dominio": f0.get("dominio"),
                 "urls_adicionales": [x["uri"] for x in p["fuentes"][1:]],
+                "origen": p.get("origen"),          # osinergmin | catalogo_tienda | None (búsqueda web)
                 # compat frontend (columna `valor`)
                 "valor": round(norm, 2) if norm is not None else None,
             }
@@ -592,7 +593,14 @@ def _mercado_goods_retail(state: dict) -> dict:
 
         # Combinación retail + ancla regional.
         veredicto, diff, diff_fuente, med_comparacion = veredicto_retail, diff_retail, "retail", mediana
-        if ancla.get("estado") == "hallado" and base_val is not None:
+        # Precios OFICIALES (Osinergmin) con suficientes declaraciones: mandan sobre el ancla regional, cuyo rango
+        # mín–máx de compras públicas es tan amplio que casi todo cae "dentro" (1225299: +20 % sobre la mediana
+        # oficial de 203 declaraciones salía "alineado_regional"). El ancla queda como contexto.
+        oficial = n >= MARKET_MIN_PRECIOS and all(x.get("origen") == "osinergmin" for x in precios_obs if x["precio"] in keep)
+        if oficial and veredicto_retail != "sin_dato":
+            if ancla.get("estado") == "hallado":
+                ancla["concuerda_con_retail"] = (ancla.get("veredicto_regional") == veredicto_retail)
+        elif ancla.get("estado") == "hallado" and base_val is not None:
             vr = ancla["veredicto_regional"]
             if ancla.get("posicion") == "dentro_rango":
                 veredicto, diff_fuente = "alineado_regional", "ancla_regional"

@@ -106,6 +106,9 @@ def candidatos(termino: str) -> list[dict]:
 _JUEZ = """Para cada ítem de una compra pública peruana tienes productos de catálogos de tiendas (id, producto, precio).
 Elige SOLO los que son el MISMO bien que el ítem (mismo tipo, misma especificación principal; la marca puede variar
 salvo que el ítem exija una). Descarta accesorios, repuestos, otros productos y presentaciones no comparables.
+Si el ítem exige certificaciones o especificaciones (`certificaciones`, `especificaciones`) y el nombre del producto no
+muestra que las cumple, NO es el mismo bien: un casco básico no equivale a uno certificado ANSI Z89.1, ni un guante
+común a uno dieléctrico. En compras públicas suele exigirse más que lo que vende una tienda: ante la duda, no elijas.
 Para cada elegido indica cuántas unidades del ítem trae ese producto (`unidades_item`): p. ej. el ítem es "galón" y el
 producto es un bidón de 5 galones → 5; si es la misma unidad → 1. Si dudas, no lo elijas.
 Responde SOLO JSON: {"items": [{"numero": "<n>", "elegidos": [{"id": "<id>", "unidades_item": <número>}]}]}"""
@@ -122,6 +125,8 @@ def _juzgar(items: list[dict], cands: dict[str, list[dict]]) -> dict[str, list[t
             continue
         entrada.append({"numero": num, "descripcion": (it.get("descripcion_corta") or "")[:300],
                         "unidad": it.get("unidad"), "marca_exigida": it.get("marca_o_modelo_exigido"),
+                        "certificaciones": (it.get("certificaciones_exigidas") or [])[:6],
+                        "especificaciones": str(it.get("requerimiento_tecnico_detallado") or it.get("valores_tecnicos_clave") or "")[:600],
                         "productos": [{"id": f"{num}-{i}", "producto": c["producto"], "marca": c.get("marca"),
                                        "precio": c["precio"]} for i, c in enumerate(lista)]})
     if not entrada:

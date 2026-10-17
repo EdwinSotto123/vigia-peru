@@ -75,3 +75,23 @@ def test_departamento_y_candidatos_via_worker(monkeypatch):
         {"producto": "Sin precio", "precio": 0, "tienda": "metro.pe", "url": "https://m/2"}]})
     c = catalogos.candidatos("casco")
     assert len(c) == 1 and c[0]["tienda"] == "promart.pe" and c[0]["precio"] == 14.9
+
+
+def test_juez_recibe_certificaciones(monkeypatch):
+    vistos = {}
+
+    class _Resp:
+        text = '{"items": []}'
+
+    class _Cli:
+        class models:
+            @staticmethod
+            def generate_content(model, contents, config):
+                vistos["prompt"] = contents
+                return _Resp()
+
+    import tools._core as core
+    monkeypatch.setattr(core, "_gemini_client", lambda: _Cli())
+    catalogos._juzgar([{"numero": "1", "descripcion_corta": "Casco", "certificaciones_exigidas": ["ANSI/ISEA Z89.1-2014"]}],
+                      {"1": [{"producto": "Casco básico", "precio": 7.0}]})
+    assert "ANSI/ISEA Z89.1-2014" in vistos["prompt"] and "ante la duda, no elijas" in vistos["prompt"]
