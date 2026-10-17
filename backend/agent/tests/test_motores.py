@@ -149,3 +149,18 @@ def test_resultados_largos_por_partes():
     largo = h.partir("x" * 85000, alm, tam=40000)
     assert "parte 1 de 3" in largo and len(alm["r1"]) == 3
     assert h.nombres_mcp([object()]) == []               # sin tools no se agrega continuar_resultado
+
+
+def test_tope_de_busquedas_por_agente(monkeypatch):
+    monkeypatch.delenv("MOTOR_SDK_MAX_BUSQUEDAS", raising=False)
+    monkeypatch.delenv("MOTOR_SDK_MAX_BUSQUEDAS_NEWS_RESEARCH", raising=False)
+    assert motor_sdk.max_busquedas("web_research_agent") == 3
+    assert motor_sdk.max_busquedas("news_research_agent") == 2
+    monkeypatch.setenv("MOTOR_SDK_MAX_BUSQUEDAS_PERSON_NETWORK", "1")
+    assert motor_sdk.max_busquedas("person_network_agent") == 1
+
+    import types as _t
+    sdk = _t.SimpleNamespace(HookMatcher=lambda matcher, hooks: _t.SimpleNamespace(matcher=matcher, hooks=hooks))
+    hk = motor_sdk._hook_tope(sdk, "WebSearch", 1, {})["PreToolUse"][0].hooks[0]
+    assert asyncio.run(hk({}, "a", None)) == {}
+    assert asyncio.run(hk({}, "b", None))["hookSpecificOutput"]["permissionDecision"] == "deny"

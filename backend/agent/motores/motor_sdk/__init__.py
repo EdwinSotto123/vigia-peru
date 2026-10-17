@@ -87,7 +87,27 @@ def esquema_de(agent: Any) -> dict | None:
 
 
 # ─── una corrida ──────────────────────────────────────────────────────────────
-def _opciones(sdk, sistema: str, servidor, nombres: list[str], esquema: dict | None):
+def max_busquedas(agente: str) -> int:
+    """Tope de búsquedas web por corrida de agente: MOTOR_SDK_MAX_BUSQUEDAS_<AGENTE> > MOTOR_SDK_MAX_BUSQUEDAS (3).
+    Medido 2026-10-17 sin tope: 22 búsquedas por contrato, el 70 % del costo (US$ 0,22 de 0,32)."""
+    clave = re.sub(r"\W+", "_", agente.removesuffix("_agent")).upper()
+    por_defecto = {"NEWS_RESEARCH": "2"}.get(clave, os.getenv("MOTOR_SDK_MAX_BUSQUEDAS", "3"))
+    return int(os.getenv(f"MOTOR_SDK_MAX_BUSQUEDAS_{clave}", por_defecto))
+
+
+def _hook_tope(sdk, integrada: str, tope: int, contador: dict):
+    """PreToolUse que rechaza la búsqueda integrada pasado el tope (el modelo sigue con lo que ya tiene)."""
+    async def _h(entrada, tool_use_id, contexto):
+        contador["n"] = contador.get("n", 0) + 1
+        if contador["n"] > tope:
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                           "permissionDecisionReason": f"Límite de {tope} búsquedas alcanzado: "
+                                                                       "responde con lo que ya encontraste."}}
+        return {}
+    return {"PreToolUse": [sdk.HookMatcher(matcher=integrada, hooks=[_h])]}
+
+
+def _opciones(sdk, sistema: str, servidor, nombres: list[str], esquema: dict | None, hooks: dict | None = None):
     kw: dict[str, Any] = dict(
         system_prompt=sistema,
         tools=[os.environ["MOTOR_SDK_BUSQUEDA"]] if os.getenv("MOTOR_SDK_BUSQUEDA") else [],
@@ -105,6 +125,8 @@ def _opciones(sdk, sistema: str, servidor, nombres: list[str], esquema: dict | N
         kw["thinking"] = {"type": "enabled", "budget_tokens": int(os.environ["MOTOR_SDK_PENSAR"])}
     if esquema:
         kw["output_format"] = {"type": "json_schema", "schema": esquema}
+    if hooks:
+        kw["hooks"] = hooks
     return _clase_opciones(sdk)(**{k: v for k, v in kw.items() if v is not None})
 
 
@@ -137,12 +159,17 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
         sistema += (f"\n\nPara buscar en la web usa la herramienta `{integrada}` (reemplaza a `google_search`). "
                     "Solo cita URLs que aparezcan en sus resultados.")
     busquedas: dict[str, str] = {}
+    hooks = None
+    if integrada:
+        tope = max_busquedas(nombre)
+        sistema += f"\n\nTienes como máximo {tope} búsquedas web: elige las consultas con cuidado."
+        hooks = _hook_tope(sdk, integrada, tope, {})
     esquema = esquema_de(agent)
 
     texto, salida, t0 = None, None, time.monotonic()
     for intento in (0, 1):
         try:
-            async for m in sdk.query(prompt=msg_text, options=_opciones(sdk, sistema, servidor, nombres, esquema)):
+            async for m in sdk.query(prompt=msg_text, options=_opciones(sdk, sistema, servidor, nombres, esquema, hooks)):
                 tipo = type(m).__name__
                 if tipo == "AssistantMessage":
                     metr["calls"] += 1
@@ -161,6 +188,9 @@ async def _correr(agent: Any, msg_text: str, state: dict) -> tuple[list[dict], s
                 elif tipo == "UserMessage":
                     for b in getattr(m, "content", None) if isinstance(getattr(m, "content", None), list) else []:
                         if type(b).__name__ == "ToolResultBlock" and getattr(b, "tool_use_id", None) in busquedas:
+                            if getattr(b, "is_error", False):   # rechazada por el tope: no se buscó ni se cobra
+                                busquedas.pop(getattr(b, "tool_use_id", None), None)
+                                continue
                             _publicar_busqueda(state, nombre, getattr(b, "content", None), eventos)
                 elif tipo == "ResultMessage":
                     u = getattr(m, "usage", None) or {}

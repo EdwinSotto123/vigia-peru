@@ -687,6 +687,17 @@ def run_reglas_lote1(ocid: str, tool_context: ToolContext, force: bool = False) 
             out[nombre] = fn(ocid, tool_context)
         except Exception as e:  # una regla nueva nunca tumba la corrida
             out[nombre] = {"regla": nombre, "triggered": False, "error": str(e)[:200]}
+    # unico_postor_alto es regla dura: corre en la rama de compliance, EN PARALELO con el parser, y ahí solo ve
+    # numberOfTenderers del OCDS (participantes, no ofertas). Con el acta ya leída se reevalúa con las ofertas
+    # presentadas (1225299, 1226228: 4 registrados y 1 oferta). Sin duplicar la bandera.
+    try:
+        from tools.compliance_rules._base import n_participantes_parser
+        from tools.compliance_rules._rules_bidder import check_unique_bidder_rule
+        ya_flag = any(isinstance(f, dict) and f.get("regla") == "unico_postor_alto" for f in state.get("pending_flags") or [])
+        if not ya_flag and n_participantes_parser(state):
+            out["unico_postor_alto"] = check_unique_bidder_rule(ocid, tool_context)
+    except Exception as e:  # noqa: BLE001
+        out["unico_postor_alto"] = {"regla": "unico_postor_alto", "triggered": False, "error": str(e)[:200]}
     out["_disparadas"] = [k for k, v in out.items() if isinstance(v, dict) and v.get("triggered")]
     state["reglas_lote1"] = out
     return out

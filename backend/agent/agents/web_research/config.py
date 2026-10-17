@@ -12,7 +12,7 @@ MAX_OUTPUT_TOKENS = None
 OUTPUT_SCHEMA = 'WebResearchOutput'   # nombre en agents/_shared/schemas.py (WS M); nativo solo con OUTPUT_SCHEMA_NATIVO=1
 OUTPUT_KEY = 'web_research'
 USES_TODAY_HEADER = False
-STATE_INJECTIONS = [('sunat_decolecta', 'PERFIL SUNAT PRE-CARGADO (decolecta) — incorporalo TAL CUAL en tu salida `empresa`, NO repitas la búsqueda SUNAT')]
+STATE_INJECTIONS = [('prensa_precargada', 'PRENSA YA BUSCADA Y LEÍDA sobre el proveedor y la entidad (úsala antes de buscar)'), ('sunat_decolecta', 'PERFIL SUNAT PRE-CARGADO (decolecta) — incorporalo TAL CUAL en tu salida `empresa`, NO repitas la búsqueda SUNAT')]
 
 TOOLS = [
     herramienta_busqueda(),
