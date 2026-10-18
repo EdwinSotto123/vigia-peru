@@ -39,7 +39,7 @@ import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
 import { fecha, fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import {
-  esPersonaNatural, etapaLabel, motivoLabel, tipoLabel, validacionLabel,
+  adjudicacionesVigentes, cambioDeGanador, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel, validacionLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -93,8 +93,10 @@ export function ContratoDetalle({
   // En revisión humana se dice "En revisión" y nada más (DESIGN_SYSTEM.md §10.4): ni señales ni
   // comparaciones de precio del análisis, que son los montos que la lectura cuestionaría.
   const enRevision = c.alerta?.estado === "revision";
-  // Lo adjudicado es la suma de las adjudicaciones del registro; el referencial, lo presupuestado.
-  const adjudicado = (c.adjudicaciones ?? []).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
+  // Lo adjudicado es la suma de las adjudicaciones VIGENTES del registro (una buena pro que pasó a otro postor no se
+  // suma dos veces); el referencial, lo presupuestado.
+  const adjudicado = adjudicacionesVigentes(c).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
+  const cambio = cambioDeGanador(c);
 
   // Dos columnas desde lg. Izquierda: qué se contrata, las cifras y las pestañas (el Resumen abre con la lectura y
   // sus señales). Derecha, siempre visible y pegada arriba: los datos del proceso, su línea de tiempo, qué partes del
@@ -133,6 +135,9 @@ export function ContratoDetalle({
 
           {/* 2. Lo que importa del objeto: cuánto y cuándo. */}
           <Indicadores items={indicadoresDe(c, adjudicado)} apilado />
+
+          {/* 2a. La buena pro pasó a otro postor (OCDS + CONOSCE): lo que explica cifras que no cuadran. */}
+          {cambio && <CambioGanador c={c} cambio={cambio} />}
 
           {/* 2b. El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. */}
           {c.cruces && c.cruces.length > 0 && (
@@ -220,7 +225,8 @@ function SinDato({ texto = "Sin dato" }: { texto?: string }) {
 /** Las cifras del contrato: número compacto → qué es → el monto exacto o la fecha que lo acompaña. */
 function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
   const nItems = c.items.length;
-  const nAdjudicaciones = (c.adjudicaciones ?? []).length;
+  const nAdjudicaciones = adjudicacionesVigentes(c).length;
+  const reemplazadas = (c.adjudicaciones ?? []).length - nAdjudicaciones;
   const conOferta = (c.postoresDetalle ?? []).filter((p) => p.montoOferta != null).length;
   const unir = (xs: (string | null | false)[]) => xs.filter(Boolean).join(" ") || undefined;
   return [
@@ -232,7 +238,13 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
     {
       valor: adjudicado ? cifra(adjudicado, c.moneda) : <SinDato texto="Sin adjudicar" />,
       etiqueta: "monto adjudicado",
-      contexto: adjudicado ? unir([exacto(adjudicado, c.moneda), nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`]) : undefined,
+      contexto: adjudicado
+        ? unir([
+            exacto(adjudicado, c.moneda),
+            nAdjudicaciones > 1 && `en ${numero(nAdjudicaciones)} adjudicaciones`,
+            reemplazadas > 0 && `(sin la${reemplazadas > 1 ? "s" : ""} buena${reemplazadas > 1 ? "s" : ""} pro reemplazada${reemplazadas > 1 ? "s" : ""})`,
+          ])
+        : undefined,
     },
     {
       valor: c.fecha ? fechaCorta(c.fecha) : <SinDato texto="Sin fecha" />,
@@ -249,7 +261,11 @@ function indicadoresDe(c: Detalle, adjudicado: number | null): Indicador[] {
 
 /** Datos del proceso (columna lateral, §14.2): quién ganó, la descripción y los códigos del registro. */
 function DatosProceso({ c }: { c: Detalle }) {
-  const natural = esPersonaNatural(c.proveedorRuc);
+  // Si la buena pro pasó a otro postor, "quién ganó" es con quien quedó (CONOSCE), no la primera adjudicación del OCDS.
+  const queda = cambioDeGanador(c)?.queda[0];
+  const proveedor = queda?.proveedor ?? c.proveedor;
+  const proveedorRuc = queda?.proveedorRuc ?? c.proveedorRuc;
+  const natural = esPersonaNatural(proveedorRuc);
   const descripcion = c.descripcion && c.descripcion !== c.titulo ? c.descripcion : null;
   return (
     <div className="rounded-2xl border border-line bg-paper">
@@ -258,15 +274,16 @@ function DatosProceso({ c }: { c: Detalle }) {
       </h2>
       <dl className="space-y-3 px-4 pb-3.5 pt-2.5 text-sm">
         <Dato k="Quién ganó">
-          {c.proveedor ? (
+          {proveedor ? (
             <>
               {/* El proveedor del OCDS viene en orden SUNAT (apellidos primero). */}
-              <span className="font-semibold">{natural ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}</span>
-              {c.proveedorRuc && (
+              <span className="font-semibold">{natural ? <PersonName name={proveedor} orden="sunat" /> : proveedor}</span>
+              {proveedorRuc && (
                 <span className="block font-mono text-[12px] text-mute">
-                  RUC <Ruc value={c.proveedorRuc} />
+                  RUC <Ruc value={proveedorRuc} />
                 </span>
               )}
+              {queda && <span className="block text-[12px] text-mute">Se le adjudicó después de otro postor (CONOSCE)</span>}
             </>
           ) : (
             <span className="text-mute">Sin adjudicar todavía</span>
@@ -509,5 +526,51 @@ function Descripcion({ texto }: { texto: string }) {
       </summary>
       <span className="mt-1 block">{texto}</span>
     </details>
+  );
+}
+
+/**
+ * La buena pro pasó a otro postor sobre los mismos ítems: el OCDS guarda las dos adjudicaciones y CONOSCE registra a
+ * quién se le adjudicó al final. Pasa cuando el ganador no firma o pierde la buena pro y se adjudica al siguiente en el
+ * orden de prelación, con su propia oferta. Es un dato, no una conclusión.
+ */
+function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnType<typeof cambioDeGanador>> }) {
+  const { original, queda, diferencia, porcentaje } = cambio;
+  const nombre = (a: { proveedor: string | null; proveedorRuc: string | null }) =>
+    a.proveedor ? (esPersonaNatural(a.proveedorRuc) ? <PersonName name={a.proveedor} orden="sunat" /> : a.proveedor) : "otro postor";
+  const sube = diferencia != null && diferencia > 0;
+  return (
+    <section aria-labelledby="cambio-ganador" className={cn("rounded-2xl border bg-paper px-4 py-3.5", sube ? "border-amber/40" : "border-line")}>
+      <div className="flex items-start justify-between gap-3">
+        <h2 id="cambio-ganador" className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+          <ShieldAlert size={16} className={sube ? "text-amberTexto" : "text-mute"} aria-hidden />
+          La buena pro pasó a otro postor
+        </h2>
+        <Ayuda titulo="¿Por qué hay dos adjudicaciones?">
+          El registro OCDS guarda la buena pro original y la que la reemplazó sobre los mismos ítems; CONOSCE registra a quién se
+          le adjudicó al final. Suele pasar cuando el ganador no firma el contrato o pierde la buena pro y se adjudica al siguiente
+          postor, con su propia oferta. El motivo está en el expediente.
+        </Ayuda>
+      </div>
+      <p className="mt-2 text-sm text-ink">
+        La buena pro fue primero para <span className="font-semibold">{nombre(original)}</span>
+        {original.montoPen != null && <> por {monto(original.montoPen, c.moneda)}</>}; según CONOSCE quedó con{" "}
+        {queda.map((q, i) => (
+          <span key={q.id ?? i}>
+            {i > 0 && ", "}
+            <span className="font-semibold">{nombre(q)}</span>
+            {q.montoPen != null && <> por {monto(q.montoPen, c.moneda)}</>}
+          </span>
+        ))}
+        {diferencia != null && diferencia !== 0 && (
+          <>
+            : <span className={cn("font-semibold", sube && "text-amberTexto")}>{sube ? "+" : "−"}{monto(Math.abs(diferencia), c.moneda)}</span>
+            {porcentaje != null && <> ({sube ? "+" : "−"}{numero(Math.abs(Math.round(porcentaje)))} %)</>}
+          </>
+        )}
+        .
+      </p>
+      <p className="mt-1.5 text-[12px] text-mute">Fuente: registro OCDS del OECE y CONOSCE · adjudicaciones</p>
+    </section>
   );
 }

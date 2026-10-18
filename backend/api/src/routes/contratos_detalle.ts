@@ -128,13 +128,16 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const docsGcsResumen = docsGcs
     ? { n: docsGcs.length, expiraAt: docsGcs.reduce<string | null>((m, v) => (!m || v.expiraAt > m ? v.expiraAt : m), null) }
     : null;
-  const adjudicaciones = (Array.isArray(awards_raw) ? awards_raw : []).map((aw: any) => ({
+  // Lo que CONOSCE registra como adjudicado/contratado por ítem: dice cuál de las adjudicaciones del OCDS quedó.
+  const conosce = await adjudicadoConosce(row.codigo ?? row.ocid);
+  const adjudicaciones = adjudicacionesVigentes((Array.isArray(awards_raw) ? awards_raw : []).map((aw: any) => ({
     id: aw?.id ?? null,
     fecha: aw?.date ? String(aw.date).slice(0, 10) : null,
     montoPen: typeof aw?.value?.amount === "number" ? aw.value.amount : null,
     proveedor: aw?.suppliers?.[0]?.name ?? null,
     proveedorRuc: aw?.suppliers?.[0]?.id ? String(aw.suppliers[0].id).replace(/^PE-RUC-/, "") : null,
-  }));
+    items: (Array.isArray(aw?.items) ? aw.items : []).map((i: any) => String(i?.id ?? "")).filter(Boolean),
+  })), conosce);
 
   // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
   const cruces = await crucesDeProceso(row.ocid, adjudicaciones);
@@ -179,6 +182,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
       // referencia = valor referencial del ítem en OCDS (total) / cantidad, cuando se puede
       referenciaTotal: ocds?.montoPen ?? null,
       referenciaUnitaria: ocds?.montoPen != null && typeof it?.cantidad === "number" && it.cantidad > 0 ? ocds.montoPen / it.cantidad : null,
+      // Lo contratado según CONOSCE (monto adjudicado del ítem ÷ cantidad), y a quién: puede no ser quien ganó en el acta.
+      ...contratadoDeItem(conosce, ocds?.posicion ?? Number(num)),
       marca: it?.marca_ofertada ?? null, origenPrecio: it?.origen_precio ?? null,
       citas: (Array.isArray(it?.evidencia) ? it.evidencia : []).slice(0, 2).map(cita),
     };
@@ -195,6 +200,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     items,
     documentos,
     adjudicaciones,
+    contratadoConosce: conosce.length ? conosce : null,
     cruces,
     postoresDetalle: postores,
     itemsAnalizados,
@@ -214,3 +220,51 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     },
   }));
 });
+
+// ─── Adjudicaciones vigentes ─────────────────────────────────────────────────
+
+export interface FilaConosce { item: number; ruc: string | null; proveedor: string | null; cantidad: number | null; montoPen: number | null; estado: string | null }
+
+/** Ítems adjudicados del proceso en CONOSCE (una fila por ítem y proveedor). Sin la tabla, vacío. */
+async function adjudicadoConosce(codigo: string): Promise<FilaConosce[]> {
+  if (!/^\d+$/.test(String(codigo))) return [];
+  const r = await pool.query(
+    `SELECT n_item::int AS item, ruc_proveedor AS ruc, proveedor, cantidad::float AS cantidad, monto_adjudicado::float AS "montoPen", estado_item AS estado
+       FROM conosce_adjudicaciones WHERE codigo_convocatoria = $1 ORDER BY n_item, proveedor`, [String(codigo)]).catch(() => null);
+  return (r?.rows ?? []) as FilaConosce[];
+}
+
+/**
+ * El OCDS a veces trae varias adjudicaciones sobre LOS MISMOS ítems: la buena pro original y la que la reemplazó (el
+ * ganador no firmó y pasó al siguiente), o a todos los calificados. Sumarlas daba un "adjudicado" mayor que el
+ * referencial (109 procesos). Dentro de cada grupo que se pisa queda vigente la del proveedor que CONOSCE registra; sin
+ * CONOSCE, la primera, marcada `sinConfirmar`. Las que no se pisan con otra quedan todas vigentes.
+ */
+export function adjudicacionesVigentes<T extends { proveedorRuc: string | null; items: string[] }>(
+  aws: T[], conosce: FilaConosce[],
+): (T & { vigente: boolean; sinConfirmar?: boolean })[] {
+  const enConosce = new Set(conosce.map((k) => k.ruc).filter(Boolean));
+  const grupo = aws.map((_, i) => i);
+  const raiz = (i: number): number => (grupo[i] === i ? i : (grupo[i] = raiz(grupo[i])));
+  for (let i = 0; i < aws.length; i++)
+    for (let j = i + 1; j < aws.length; j++)
+      if (aws[i].items.some((x) => aws[j].items.includes(x))) grupo[raiz(j)] = raiz(i);
+  const miembros = new Map<number, number[]>();
+  aws.forEach((_, i) => miembros.set(raiz(i), [...(miembros.get(raiz(i)) ?? []), i]));
+  const out = aws.map((a) => ({ ...a, vigente: true } as T & { vigente: boolean; sinConfirmar?: boolean }));
+  for (const ids of miembros.values()) {
+    if (ids.length < 2) continue;
+    const confirmados = ids.filter((i) => aws[i].proveedorRuc && enConosce.has(aws[i].proveedorRuc));
+    for (const i of ids) out[i].vigente = confirmados.length ? confirmados.includes(i) : i === ids[0];
+    if (!confirmados.length) for (const i of ids) out[i].sinConfirmar = true;
+  }
+  return out;
+}
+
+/** Precio unitario contratado del ítem según CONOSCE (si hay un solo proveedor para ese ítem). */
+function contratadoDeItem(conosce: FilaConosce[], posicion: number) {
+  const filas = conosce.filter((k) => k.item === posicion && k.montoPen != null && k.cantidad);
+  if (filas.length !== 1) return { precioUnitarioConosce: null, proveedorConosce: null, rucConosce: null };
+  const k = filas[0];
+  return { precioUnitarioConosce: Math.round((k.montoPen! / k.cantidad!) * 10000) / 10000, proveedorConosce: k.proveedor, rucConosce: k.ruc };
+}

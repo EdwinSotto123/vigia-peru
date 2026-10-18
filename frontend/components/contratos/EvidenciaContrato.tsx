@@ -22,7 +22,7 @@ import { TextoRedactado } from "./TextoRedactado";
 import { etiquetaRegla, type CatalogoReglas } from "@/lib/revision";
 import { fecha, numero, porcentaje, soles } from "@/lib/formato";
 import {
-  esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
+  cambioDeGanador, esPersonaNatural, formatoDoc, humanizarCodigo, ordenNombrePostor, personasNaturalesDe, tipoDocLabel,
   type ContratoDetalle as Detalle, type ContratoDocumento, type PostorContrato,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
@@ -101,9 +101,9 @@ export function pestanasEvidencia({ c, enRevision, catalogo }: { c: Detalle; enR
   return pestanas.filter((p): p is Pestana => !!p);
 }
 
-/** Ítems con precio unitario leído del expediente (contratado u ofertado). */
+/** Ítems con precio unitario: contratado según CONOSCE, o leído del expediente (contratado u ofertado). */
 const itemsConPrecio = (c: Detalle) =>
-  (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
+  (c.itemsAnalizados ?? []).filter((it) => it.precioUnitarioConosce != null || it.precioUnitarioContratado != null || it.precioUnitarioOfertado != null);
 
 /** Señales del dictamen con al menos una cita a una página del expediente. */
 const senalesConCita = (c: Detalle) => (c.alerta?.banderas ?? []).filter((b) => (b.citas?.length ?? 0) > 0);
@@ -192,11 +192,18 @@ function SeccionPostores({ c, enRevision }: { c: Detalle; enRevision: boolean })
     },
   ];
   const ordenados = [...postores].sort((a, b) => Number(b.esGanador) - Number(a.esGanador) || (a.ordenPrelacion ?? 99) - (b.ordenPrelacion ?? 99));
+  // Si la buena pro pasó a otro postor (OCDS + CONOSCE), el "ganador" del acta no es con quien se contrató.
+  const cambio = cambioDeGanador(c);
+  const rucsQuedan = new Set((cambio?.queda ?? []).map((a) => a.proveedorRuc));
   const filas: Fila[] = ordenados.map((p, i) => {
     const ref = referenciaDe(p, c);
     const dif = hayReferencia && p.montoOferta != null && ref ? ((p.montoOferta - ref) / ref) * 100 : null;
     const oferta = p.montoOferta != null ? monto(p.montoOferta, c.moneda) : null;
-    const estado = p.esGanador ? "Ganador" : humanizarCodigo(p.estado);
+    const estado = cambio && p.ruc === cambio.original.proveedorRuc
+      ? "No contrató"
+      : cambio && p.ruc && rucsQuedan.has(p.ruc)
+        ? "Contratado"
+        : p.esGanador ? "Ganador" : humanizarCodigo(p.estado);
     const nombre = p.razonSocial
       ? esPersonaNatural(p.ruc)
         ? <PersonName name={p.razonSocial} orden={ordenNombrePostor(p.razonSocial, p.ruc, c.proveedor, c.proveedorRuc)} />
@@ -264,7 +271,9 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
       alinear: "der",
       ayuda: (
         <Ayuda titulo="¿De dónde sale el precio contratado?">
-          Del contrato u orden de compra leída en el expediente. Si no la hay, se usa lo ofertado y se marca así.
+          Lo que registra CONOSCE para el ítem (monto adjudicado ÷ cantidad); si no, el contrato u orden de compra leída en el
+          expediente; si tampoco, lo ofertado por el ganador del acta, marcado así. Si la buena pro pasó a otro postor, debajo
+          va lo que había ofertado el primero.
         </Ayuda>
       ),
     },
@@ -272,17 +281,25 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
     { clave: "fuente", titulo: "Fuente", ancho: "88px", desde: "lg" },
   ];
   const filas: Fila[] = items.map((it, i) => {
-    const unit = it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
+    const unit = it.precioUnitarioConosce ?? it.precioUnitarioContratado ?? it.precioUnitarioOfertado;
     const d = unit != null && it.referenciaUnitaria ? ((unit - it.referenciaUnitaria) / it.referenciaUnitaria) * 100 : null;
-    const soloOfertado = it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null;
+    const deConosce = it.precioUnitarioConosce != null;
+    const soloOfertado = !deConosce && it.precioUnitarioContratado == null && it.precioUnitarioOfertado != null;
+    // CONOSCE registra otro precio que el que ofertó el ganador del acta: la buena pro pasó a otro postor.
+    const otroPostor = deConosce && it.precioUnitarioOfertado != null && Math.abs(it.precioUnitarioOfertado - (unit ?? 0)) > 0.005;
+    const origen = soloOfertado
+      ? "ofertado"
+      : deConosce
+        ? otroPostor ? `CONOSCE; el 1.º ofertó ${monto(it.precioUnitarioOfertado!, c.moneda)}` : "CONOSCE"
+        : null;
     // En el celular la columna Diferencia no entra: va debajo del precio.
     const sub =
-      soloOfertado || d != null ? (
+      origen || d != null ? (
         <>
-          {soloOfertado && "ofertado"}
+          {origen}
           {d != null && (
             <span className="md:hidden">
-              {soloOfertado && <Separador />}
+              {origen && <Separador />}
               {diferencia(d)}
             </span>
           )}
@@ -315,7 +332,7 @@ function SeccionPrecios({ c, items }: { c: Detalle; items: ReturnType<typeof ite
   return (
     <>
       <Tabla columnas={columnas} filas={filas} etiqueta="Ítems con su precio unitario ofertado o contratado frente al valor referencial" />
-      <FuenteDato fuente="registro OCDS (referencia) y contrato leído del expediente" className="mt-2" />
+      <FuenteDato fuente="registro OCDS (referencia), CONOSCE (contratado) y el expediente leído" className="mt-2" />
     </>
   );
 }

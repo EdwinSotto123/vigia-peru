@@ -113,6 +113,10 @@ export interface ItemAnalizado {
   precioUnitarioContratado: number | null;
   referenciaTotal: number | null;
   referenciaUnitaria: number | null;
+  /** Precio unitario contratado según CONOSCE (monto adjudicado del ítem ÷ cantidad) y a quién. */
+  precioUnitarioConosce?: number | null;
+  proveedorConosce?: string | null;
+  rucConosce?: string | null;
   marca: string | null;
   origenPrecio: string | null;
   citas: CitaDocumento[];
@@ -203,7 +207,14 @@ export interface ContratoDetalle extends ContratoResumen {
   postores: number | null;
   items: ContratoItem[];
   documentos: ContratoDocumento[];
-  adjudicaciones: { id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null }[];
+  /**
+   * Adjudicaciones del OCDS. Cuando varias recaen sobre los mismos ítems (la buena pro pasó a otro postor), sólo una
+   * queda `vigente` (la que CONOSCE registra; sin CONOSCE, la primera y `sinConfirmar`). La API vieja no manda `vigente`.
+   */
+  adjudicaciones: {
+    id: string | null; fecha: string | null; montoPen: number | null; proveedor: string | null; proveedorRuc: string | null;
+    items?: string[]; vigente?: boolean; sinConfirmar?: boolean;
+  }[];
   /** Cruces de los ganadores con ONPE, JNE, visitas, penalidades y sanciones. Falta en una API anterior. */
   cruces?: CruceProveedor[];
   /** Misma forma que `resultado` en auditoría (señales, mercado, documentos leídos); `estado` = 'revision' si la autoevaluación la bloqueó.
@@ -748,3 +759,27 @@ const MOTIVO: Record<string, string> = {
   planificacion: "El proceso está en planificación: no hay bases ni postores",
 };
 export const motivoLabel = (m: string | null | undefined) => (m ? MOTIVO[m] ?? m.replace(/_/g, " ") : "Pendiente de procesamiento");
+
+/** Las adjudicaciones que cuentan: las vigentes (con la API vieja, todas). */
+export const adjudicacionesVigentes = (c: Pick<ContratoDetalle, "adjudicaciones">) =>
+  (c.adjudicaciones ?? []).filter((a) => a.vigente !== false);
+
+/**
+ * La buena pro pasó de un postor a otro sobre los mismos ítems, confirmado por CONOSCE: quién la tuvo primero (la
+ * adjudicación que dejó de estar vigente), quién quedó y la diferencia de monto. `null` si no pasó o no se puede confirmar.
+ */
+export function cambioDeGanador(c: Pick<ContratoDetalle, "adjudicaciones">) {
+  const todas = c.adjudicaciones ?? [];
+  const antes = todas.filter((a) => a.vigente === false && !a.sinConfirmar);
+  const queda = todas.filter((a) => a.vigente && !a.sinConfirmar && antes.some((b) => (b.items ?? []).some((i) => (a.items ?? []).includes(i))));
+  if (!antes.length || !queda.length) return null;
+  // La primera buena pro: la de menor monto entre las reemplazadas (el 1.º del orden de prelación).
+  const original = [...antes].sort((a, b) => (a.montoPen ?? Infinity) - (b.montoPen ?? Infinity))[0];
+  const montoQueda = queda.reduce((s, a) => s + (a.montoPen ?? 0), 0);
+  return {
+    original,
+    queda,
+    diferencia: original.montoPen != null ? montoQueda - original.montoPen : null,
+    porcentaje: original.montoPen ? ((montoQueda - original.montoPen) / original.montoPen) * 100 : null,
+  };
+}
