@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import { useRef } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Building2, ChevronRight, ExternalLink, FileText, Info, Scale, Search, type LucideIcon } from "lucide-react";
@@ -104,7 +105,7 @@ export function CasoLeido({
 
   const sev = severidadDeBandera(caso.severidad);
   const titulo = regla ?? "Lo que encontró Vigía";
-  const analisis = `/app/convocatoria/${encodeURIComponent(caso.convocatoria)}`;
+  const analisis = rutaContrato(caso.convocatoria, "dictamen");
   const totalSenales = caso.otrasSenales + 1;
   // Las que no se nombran (de personas o del documento) se cuentan, no se esconden.
   const nombradas = otras.slice(0, 4);

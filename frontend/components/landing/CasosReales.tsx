@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ArrowUpRight, ExternalLink, Scale } from "lucide-react";
 import type { CasoPortada } from "@/lib/landing";
@@ -70,7 +71,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 lg:flex-col lg:items-start">
                 <Severidad bandera={c.severidad} />
                 <Link
-                  href={`/app/convocatoria/${encodeURIComponent(c.convocatoria)}`}
+                  href={rutaContrato(c.convocatoria, "dictamen")}
                   className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 text-[14px] font-semibold text-granate underline-offset-4 hover:underline"
                 >
                   Leer el análisis <ArrowUpRight size={14} aria-hidden />

@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
@@ -165,7 +166,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
           sel ? (
             <div className="flex flex-wrap items-center gap-3">
               <Link
-                href={selVivo ? `/app/auditoria/${encodeURIComponent(sel.ocid)}` : `/app/contratos/${encodeURIComponent(sel.ocid)}`}
+                href={selVivo ? rutaContrato(sel.ocid, "vivo") : `/app/contratos/${encodeURIComponent(sel.ocid)}`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-granate px-5 text-[15px] font-semibold text-paper hover:bg-granate-deep"
               >
                 {selVivo ? "Ver el análisis en vivo" : "Ver el dictamen"} <ArrowRight size={16} aria-hidden />

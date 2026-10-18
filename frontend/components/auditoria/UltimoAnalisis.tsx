@@ -24,6 +24,7 @@
  * Server component. `ReplayAnalisis` (cliente) recibe solo datos serializables.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Eye, Play } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
@@ -80,7 +81,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
   );
   const motivos = enRevision ? p.resultado?.revisionMotivos ?? [] : [];
   const titulo = p.titulo ?? p.ocid;
-  const href = `/app/auditoria/${encodeURIComponent(p.ocid)}`;
+  const href = rutaContrato(p.ocid, "vivo");
 
   return (
     <div className="rounded-2xl border border-line bg-paper px-4 py-3">

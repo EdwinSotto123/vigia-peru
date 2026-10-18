@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import { useMemo } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
@@ -70,7 +71,7 @@ export default function RevisionDetallePage({ params }: { params: { id: string }
         <>
           <Link href="/admin/revision" className={claseBoton("secundario")}><ArrowLeft size={12} aria-hidden /> Cola</Link>
           {d?.procesamientoOcid && (
-            <Link href={`/app/auditoria/${encodeURIComponent(d.procesamientoOcid)}`} target="_blank" className={claseBoton("secundario")}><ExternalLink size={12} aria-hidden /> Ver traza</Link>
+            <Link href={rutaContrato(d.procesamientoOcid, "vivo")} target="_blank" className={claseBoton("secundario")}><ExternalLink size={12} aria-hidden /> Ver traza</Link>
           )}
         </>
       }

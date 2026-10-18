@@ -72,8 +72,11 @@ export function ContratoDetalle({
   relacionados = null,
   entidadEnVigia = null,
   parecidos = null,
+  vistas = null,
 }: {
   c: Detalle;
+  /** El selector de vistas del contrato (ficha · dictamen · en vivo): arriba de todo, como en las otras dos vistas. */
+  vistas?: ReactNode;
   alcance?: AlcanceActivo | null;
   catalogo?: CatalogoReglas;
   /** Otros contratos de la misma entidad (solo en fichas cortas): hasta 5 y el total de la entidad. */
@@ -112,6 +115,7 @@ export function ContratoDetalle({
 
   return (
     <>
+      {vistas && <div className="mb-4">{vistas}</div>}
       <Volver href="/app/contratos">Contratos</Volver>
 
       <div className="grid items-start gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px]">

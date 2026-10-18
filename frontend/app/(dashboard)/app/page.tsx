@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon } from "lucide-react";
@@ -203,7 +204,7 @@ export default async function InicioApp() {
                 return (
                   <li key={a.codigo}>
                     <Link
-                      href={`/app/convocatoria/${encodeURIComponent(a.codigoconvocatoria)}`}
+                      href={rutaContrato(a.codigoconvocatoria, "dictamen")}
                       className="flex items-start justify-between gap-4 px-4 py-3 transition-colors duration-rapido hover:bg-granate-50 sm:px-5"
                     >
                       <span className="min-w-0">

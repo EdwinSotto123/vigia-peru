@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import { periodoTexto, type AnioGobierno } from "@/lib/partidosApi";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -243,7 +244,7 @@ export default async function ImpactoPage({
                     {/* Primer contrato leído. Tarjeta neutra: puede traer señales, y un verde de "logro" las taparía. */}
                     {primero && (
                       <Link
-                        href={`/app/auditoria/${encodeURIComponent(primero.ocid)}`}
+                        href={rutaContrato(primero.ocid, "vivo")}
                         className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-ink transition-colors duration-150 hover:border-granate/40 hover:bg-granate-50"
                       >
                         <span className="min-w-0">

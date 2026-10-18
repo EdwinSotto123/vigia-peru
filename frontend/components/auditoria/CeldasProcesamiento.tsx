@@ -13,6 +13,7 @@
  * §10.4: una alerta en revisión dice "En revisión" y nada más (ni puntaje ni señales).
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { CeldaNumero, CeldaPrincipal, type Columna } from "@/components/listado";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
@@ -188,4 +189,4 @@ export function CeldaTiempo({ p }: { p: Procesamiento }) {
 }
 
 /** La página del contrato en vivo: la única acción de cada fila. */
-export const hrefProcesamiento = (ocid: string) => `/app/auditoria/${encodeURIComponent(ocid)}`;
+export const hrefProcesamiento = (ocid: string) => rutaContrato(ocid, "vivo");

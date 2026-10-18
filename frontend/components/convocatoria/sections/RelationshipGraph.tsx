@@ -538,7 +538,7 @@ export function RelationshipGraph({
           <NodeDetailPanel
             node={node}
             onClose={() => setSelectedId(null)}
-            onVigiaSearch={(ruc) => router.push(`/app/convocatoria?q=${encodeURIComponent(ruc)}`)}
+            onVigiaSearch={(ruc) => router.push(`/app/contratos?q=${encodeURIComponent(ruc)}`)}
           />
         );
       })()}

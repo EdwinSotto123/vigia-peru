@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Ayuda, BloqueDetalle, ChipsDetalle, CuerpoDetalle, DatosClave, EstadoVacio } from "@/components/patrones";
@@ -114,7 +115,7 @@ export function EnRevision({ items, total = null }: { items: AnalisisEnRevision[
         ),
         contenido: <DetalleMotivos item={{ procesamiento: p, revision }} titulo={titulo} />,
         pie: (
-          <Link href={`/app/auditoria/${p.ocid}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
+          <Link href={rutaContrato(p.ocid, "vivo")} className="inline-flex items-center gap-1 text-[13px] font-medium text-granate hover:underline">
             Ver el análisis completo, fase por fase <ArrowRight size={13} aria-hidden />
           </Link>
         ),

@@ -130,7 +130,7 @@ export function FormularioPrivacidad({ enlaceInicial }: { enlaceInicial: string 
 
       <div>
         <label htmlFor="priv-enlace" className={ETIQUETA}>Página de Vigía donde apareces (opcional)</label>
-        <input id="priv-enlace" value={enlace} onChange={(e) => setEnlace(e.target.value)} maxLength={500} inputMode="url" placeholder="https://vigia-peru.web.app/app/convocatoria/…" className={CAMPO} aria-invalid={!!errores.enlace} aria-describedby={errores.enlace ? "priv-enlace-error" : undefined} />
+        <input id="priv-enlace" value={enlace} onChange={(e) => setEnlace(e.target.value)} maxLength={500} inputMode="url" placeholder="https://vigia-peru.web.app/app/contratos/…" className={CAMPO} aria-invalid={!!errores.enlace} aria-describedby={errores.enlace ? "priv-enlace-error" : undefined} />
         {errores.enlace && <ErrorCampo id="priv-enlace-error">{errores.enlace}</ErrorCampo>}
       </div>
 

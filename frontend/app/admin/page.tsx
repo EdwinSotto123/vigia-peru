@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ArrowRight, ChevronDown, ExternalLink, RefreshCw, ScrollText, ShieldCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -402,7 +403,7 @@ export default function AdminHome() {
                     <ul className="divide-y divide-line">
                       {op.ultimos.map((u) => (
                         <li key={u.ocid}>
-                          <Link href={`/app/auditoria/${encodeURIComponent(u.ocid)}`} target="_blank" className={cn(FILA, "block")}>
+                          <Link href={rutaContrato(u.ocid, "vivo")} target="_blank" className={cn(FILA, "block")}>
                             <span className="flex items-start justify-between gap-3">
                               <span className="line-clamp-1 min-w-0 text-[13px] font-medium text-ink" title={u.titulo ?? undefined}>{u.titulo ?? `Contrato ${u.ocid}`}</span>
                               <span className="shrink-0 text-[12px] text-mute" title={fmtFechaHora(u.finalizadoAt) ?? undefined}>{hace(u.finalizadoAt)}</span>

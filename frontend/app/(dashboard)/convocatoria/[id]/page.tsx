@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import { redirect } from "next/navigation";
 
 /**
@@ -6,5 +7,5 @@ import { redirect } from "next/navigation";
  * viejos; el antiguo visor OCDS en vivo se retiró.
  */
 export default function ConvocatoriaLegacyRedirect({ params }: { params: { id: string } }) {
-  redirect(`/app/convocatoria/${encodeURIComponent(params.id)}`);
+  redirect(rutaContrato(params.id, "dictamen"));
 }

@@ -84,8 +84,8 @@ export function DossierCliente({
     return (
       <Pagina>
         <div className="mx-auto max-w-2xl">
-          <Volver href="/app/convocatoria" className="mb-4">
-            Análisis publicados
+          <Volver href="/app/contratos" className="mb-4">
+            Contratos
           </Volver>
           {noExiste ? (
             <>

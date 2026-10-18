@@ -10,6 +10,7 @@
  * Al terminar navega al informe compartible.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { resolveOcid, fetchOcdsFromBrowserDetailed, fetchAllDocsFromOcds } from "@/lib/oece-bridge";
@@ -180,7 +181,7 @@ export function useDespacho(): Despacho {
         }
 
         // 4) Análisis persistido: al informe compartible.
-        router.push(`/app/convocatoria/${encodeURIComponent(codigoCorto(clean))}`);
+        router.push(rutaContrato(codigoCorto(clean), "dictamen"));
       } catch (err) {
         if (err instanceof SesionVencida) {
           setError(err.message);

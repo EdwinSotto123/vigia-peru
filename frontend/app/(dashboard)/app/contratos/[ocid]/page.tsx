@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ContratoDetalle } from "@/components/contratos/ContratoDetalle";
+import { VistasContrato } from "@/components/contratos/VistasContrato";
+import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
+import { DossierCliente } from "@/components/convocatoria/DossierCliente";
+import { ResultadoView } from "@/components/convocatoria/ResultadoView";
+import { getProcesamiento } from "@/lib/auditoria";
+import { cargarDossier, idLegible } from "@/lib/dossier-servidor";
+import { rutaContrato, type VistaContrato } from "@/lib/rutas";
 import { recortar as corto } from "@/components/contratos/recortar";
 import { Pagina } from "@/components/patrones";
 import { getContratos, getResumenContratos, getResumenVivo, resolverContrato } from "@/lib/contratos";
@@ -10,12 +17,25 @@ import { OG_BASE, TWITTER_BASE } from "@/lib/compartir";
 
 export const revalidate = 60;
 
-export async function generateMetadata({ params }: { params: { ocid: string } }): Promise<Metadata> {
+/** Las pestañas del dictamen que existen (`?tab=`); cualquier otra abre la primera. */
+const TABS_DICTAMEN = new Set(["resumen", "dictamen", "items", "proveedor", "documentos", "prensa", "trace"]);
+
+const vistaDe = (v: unknown): VistaContrato => (v === "dictamen" || v === "vivo" ? v : "ficha");
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: { ocid: string };
+  searchParams?: { vista?: string | string[] };
+}): Promise<Metadata> {
   const { contrato: c } = await resolverContrato(decodeURIComponent(params.ocid));
   if (!c) return { title: "Contrato no encontrado" };
+  const vista = vistaDe(searchParams?.vista);
   // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
   const objeto = corto(c.titulo ?? `Contrato ${c.codigo}`, 70);
-  const titulo = c.entidad ? `${objeto}, ${corto(c.entidad, 48)}` : objeto;
+  const base = c.entidad ? `${objeto}, ${corto(c.entidad, 48)}` : objeto;
+  const titulo = vista === "dictamen" ? `Análisis: ${base}` : vista === "vivo" ? `${base}, lectura en vivo` : base;
   const desc = [
     c.entidad,
     c.zona,
@@ -31,27 +51,48 @@ export async function generateMetadata({ params }: { params: { ocid: string } })
 }
 
 /**
- * /app/contratos/[ocid]: acepta el OCID (2026-425-9, 1249514), el OCID largo
+ * /app/contratos/[ocid]: LA página de un contrato. Acepta el OCID (2026-425-9, 1249514), el OCID largo
  * (ocds-dgv273-seacev3-1249514) o el código SEACE (1235259), que redirige a su OCID.
- * `?seccion=` abre esa pestaña de la ficha (items, postores, precios, citas, documentos).
+ *   · ficha (por defecto); `?seccion=` abre esa pestaña (items, postores, precios, citas, documentos);
+ *   · `?vista=dictamen` (`&tab=`): el informe de la lectura, armado en el servidor (antes /app/convocatoria/[id]);
+ *   · `?vista=vivo`: la lectura en vivo (antes /app/auditoria/[ocid]).
+ * Las tres llevan arriba el selector de vistas (VistasContrato) con las que existen.
  */
 export default async function ContratoPage({
   params,
   searchParams,
 }: {
   params: { ocid: string };
-  searchParams?: { seccion?: string | string[] };
+  searchParams?: { seccion?: string | string[]; vista?: string | string[]; tab?: string | string[] };
 }) {
   const param = decodeURIComponent(params.ocid);
   const seccion = typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined;
+  const vista = vistaDe(searchParams?.vista);
+  const tab = typeof searchParams?.tab === "string" && TABS_DICTAMEN.has(searchParams.tab) ? searchParams.tab : undefined;
   const [{ contrato: c, redirigirA }, vivo, catalogo] = await Promise.all([
     resolverContrato(param),
     getResumenVivo(),
     getCatalogoReglas().catch(() => ({}) as CatalogoReglas),
   ]);
   // La pestaña pedida sobrevive a la redirección del código SEACE a su OCID.
-  if (redirigirA) redirect(`/app/contratos/${encodeURIComponent(redirigirA)}${seccion ? `?seccion=${encodeURIComponent(seccion)}` : ""}`);
-  if (!c) notFound();
+  if (redirigirA) redirect(rutaContrato(redirigirA, vista, { seccion, tab }));
+  if (!c) {
+    // El dictamen también se pide por el código de la alerta (OECE-…): su propio estado de "no encontrado".
+    if (vista === "dictamen") return <VistaDictamen id={param} tab={tab ?? null} />;
+    notFound();
+  }
+  const selector = <VistasContrato ocid={c.ocid} actual={vista} dictamen={!!c.alerta} vivo={!!c.procesamiento} />;
+  if (vista === "dictamen") return <VistaDictamen id={c.ocid} tab={tab ?? null} selector={selector} />;
+  if (vista === "vivo") {
+    const data = await getProcesamiento(c.ocid);
+    if (!data) redirect(rutaContrato(c.ocid));
+    return (
+      <Pagina className="space-y-4">
+        {selector}
+        <ContratoEnVivo ocid={c.ocid} initial={{ ...data, eventos: Array.isArray(data.eventos) ? data.eventos : [] }} />
+      </Pagina>
+    );
+  }
   // La columna lateral trae los demás contratos de la misma entidad: datos reales, una línea cada uno.
   const provincia = c.ubigeo && c.ubigeo.length >= 4 ? c.ubigeo.slice(0, 4) : null;
   const [otros, resumenEntidad, parecidosPagina] = await Promise.all([
@@ -78,7 +119,29 @@ export default async function ContratoPage({
     : null;
   return (
     <Pagina>
-      <ContratoDetalle c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} relacionados={relacionados} entidadEnVigia={entidadEnVigia} parecidos={parecidos} />
+      <ContratoDetalle vistas={selector} c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} relacionados={relacionados} entidadEnVigia={entidadEnVigia} parecidos={parecidos} />
     </Pagina>
+  );
+}
+
+/** El informe de la lectura, armado en el servidor (lib/dossier-servidor.ts); sus estados de error, en DossierCliente. */
+async function VistaDictamen({ id, tab, selector }: { id: string; tab: string | null; selector?: React.ReactNode }) {
+  const carga = await cargarDossier(id);
+  if (carga.estado === "ok") {
+    return (
+      <Pagina className="space-y-4">
+        {selector}
+        <ResultadoView result={carga.result} tabInicial={tab} />
+      </Pagina>
+    );
+  }
+  // Sólo datos planos hacia el client component: nunca una función.
+  return (
+    <DossierCliente
+      id={idLegible(id)}
+      inicial={carga.estado === "error" ? "error" : carga.demo ? "demo" : "not_found"}
+      mensaje={carga.estado === "error" ? carga.mensaje : undefined}
+      tabInicial={tab}
+    />
   );
 }

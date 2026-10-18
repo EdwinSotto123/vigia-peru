@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, Eye, RefreshCw, Settings2, ShieldCheck, XCircle } from "lucide-react";
@@ -246,7 +247,7 @@ export default function RevisionPage() {
         <div className="inline-flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
           <Link href={`/admin/revision/${r.id}`} className={claseBoton("secundario", "xs")}><Eye size={11} aria-hidden /> Revisar</Link>
           {r.procesamientoOcid && (
-            <Link href={`/app/auditoria/${encodeURIComponent(r.procesamientoOcid)}`} target="_blank" className={claseBoton("secundario", "xs")} title="Traza: qué hizo cada revisión, paso a paso" aria-label={`Traza de ${r.codigo}`}>
+            <Link href={rutaContrato(r.procesamientoOcid, "vivo")} target="_blank" className={claseBoton("secundario", "xs")} title="Traza: qué hizo cada revisión, paso a paso" aria-label={`Traza de ${r.codigo}`}>
               <ExternalLink size={11} aria-hidden />
             </Link>
           )}

@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -372,7 +373,7 @@ function VistaPreviaVivo({ items }: { items: Procesamiento[] | null }) {
   const visibles = [...items].sort((a, b) => PRIORIDAD[estadoVisible(a)] - PRIORIDAD[estadoVisible(b)]).slice(0, FILAS_VIVO);
   const filas: Fila[] = visibles.map((p) => ({
     id: p.ocid,
-    href: `/app/auditoria/${encodeURIComponent(p.ocid)}`,
+    href: rutaContrato(p.ocid, "vivo"),
     celdas: {
       estado: <EstadoPill estado={estadoVisible(p)} intentos={p.intentos} />,
       contrato: <CeldaPrincipal titulo={p.titulo ?? p.ocid} meta={p.entidad ?? "Entidad no identificada"} />,

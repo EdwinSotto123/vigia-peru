@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
@@ -104,7 +105,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
       contenido: <SenalDetalle s={s} />,
       pie: (
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
-          <Link href={`/app/convocatoria/${s.ocid}`} className="font-medium text-granate hover:underline">
+          <Link href={rutaContrato(s.ocid, "dictamen")} className="font-medium text-granate hover:underline">
             Abrir el informe del contrato
           </Link>
           {s.fuenteUrl && (

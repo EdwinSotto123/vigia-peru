@@ -23,6 +23,7 @@
  * pestaña Señales los lista aparte, nombrados como lo que son.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { CORTE_MEDIA } from "@/lib/severidad";
 import { departamentoDe, zonaDe } from "./region-match";
 
@@ -55,7 +56,7 @@ export const departamentoDeAlerta = (a: AlertaLike): string | null => departamen
 /** Ruta del dossier de una alerta (misma regla que los puntos del mapa). */
 export function alertaHref(a: { codigoconvocatoria?: string | null; codigo?: string | null; id?: string | null }): string {
   const ocid = a.codigoconvocatoria || (typeof a.codigo === "string" ? a.codigo.replace("OECE-", "") : null) || a.id;
-  return `/app/convocatoria/${encodeURIComponent(String(ocid))}`;
+  return rutaContrato(String(ocid), "dictamen");
 }
 
 /**

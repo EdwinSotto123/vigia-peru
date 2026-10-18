@@ -19,6 +19,7 @@
  * Es seguro en SSR: `open` arranca en false y el portal sólo se crea tras abrirlo.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -163,7 +164,7 @@ export function BuscarGlobal({
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
     for (const c of res.contratos) out.push({ key: `c-${c.ocid}`, grupo: "Contratos", href: `/app/contratos/${encodeURIComponent(c.ocid)}`, titulo: c.titulo ?? c.codigo, detalle: [c.codigo, c.entidad, c.zona, c.montoPen ? soles(c.montoPen) : null], icon: <FileSearch size={14} aria-hidden /> });
-    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: `/app/convocatoria/${encodeURIComponent(a.codigo.replace(/^OECE-/, ""))}`, titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> });
+    for (const a of res.alertas) out.push({ key: `a-${a.codigo}`, grupo: "Dictámenes publicados", href: rutaContrato(a.codigo.replace(/^OECE-/, ""), "dictamen"), titulo: a.objeto ?? a.codigo, detalle: [a.codigo, a.region, plural(a.banderas, "señal", "señales")], icon: <Flag size={14} aria-hidden /> });
     for (const e of res.entidades) out.push({ key: `e-${e.ruc}`, grupo: "Entidades", href: `/entidad/${e.ruc}`, titulo: e.nombre, detalle: [`RUC ${e.ruc}`, e.region, plural(e.contratos, "contrato", "contratos")], icon: <Building2 size={14} aria-hidden /> });
     for (const z of res.zonas) {
       const regionId = UBIGEO_REGION[z.ubigeo.slice(0, 2)];

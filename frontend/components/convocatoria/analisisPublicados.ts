@@ -11,6 +11,7 @@
  * conteo de cada opción y el filtro usan la misma función, así que siempre suman lo mismo.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { API_BASE } from "@/lib/api-client";
 import { esAlertaDemo } from "@/lib/semillas";
 import type { CatFilter, SortKey } from "./types";
@@ -43,7 +44,7 @@ export const esAnalisisPublicado = (it: any): it is AnalisisPublicado => !!it &&
 export const codigoDe = (it: Pick<AnalisisPublicado, "codigo_convocatoria" | "ocid">) => codigoCorto(it.codigo_convocatoria || it.ocid);
 
 export const hrefAnalisis = (it: Pick<AnalisisPublicado, "codigo_convocatoria" | "ocid">) =>
-  `/app/convocatoria/${encodeURIComponent(codigoDe(it))}`;
+  rutaContrato(codigoDe(it), "dictamen");
 
 // ─── Lo que pide la URL ─────────────────────────────────────────────────────
 

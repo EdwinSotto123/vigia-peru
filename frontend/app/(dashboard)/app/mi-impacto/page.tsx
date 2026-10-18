@@ -16,6 +16,7 @@
  * §14.4. Antes las cuatro listas se apilaban y había que bajar hasta la que uno buscaba.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -314,7 +315,7 @@ function filaAporte(a: AporteMio, recargar: () => void): Fila {
       pie: (
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
           <Link href={`/impacto/${a.codigo}`} className="inline-flex min-h-[24px] items-center gap-1 font-semibold text-granate underline-offset-2 hover:underline">Comprobante público <ArrowRight size={13} aria-hidden /></Link>
-          {a.primerOcid && <Link href={`/app/auditoria/${encodeURIComponent(a.primerOcid)}`} className="min-h-[24px] text-inkSoft underline-offset-2 hover:text-ink hover:underline">Primer contrato leído</Link>}
+          {a.primerOcid && <Link href={rutaContrato(a.primerOcid, "vivo")} className="min-h-[24px] text-inkSoft underline-offset-2 hover:text-ink hover:underline">Primer contrato leído</Link>}
           {a.comprobanteUrl && <a href={a.comprobanteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[24px] items-center gap-1 text-inkSoft underline-offset-2 hover:text-ink hover:underline">Mi comprobante de pago <ExternalLink size={12} aria-hidden /></a>}
         </span>
       ),

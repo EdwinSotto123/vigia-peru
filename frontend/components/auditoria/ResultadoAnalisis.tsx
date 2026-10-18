@@ -22,6 +22,7 @@
  * `no_verificable`/`sin_dato` no muestra diferencia porcentual.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { BarraCompartir } from "@/components/patrones";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, ExternalLink, Eye, FileText, Scale, Scissors, ShieldCheck } from "lucide-react";
@@ -68,7 +69,7 @@ function diferencia(pct: number): string {
 
 export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracionMs, sharePath, compacto = false, className = "", revision = false }: Props) {
   const dossierId = r?.codigo?.replace(/^OECE-/, "") ?? ocid;
-  const dossierHref = `/app/convocatoria/${encodeURIComponent(dossierId)}`;
+  const dossierHref = rutaContrato(dossierId, "dictamen");
   const tope = compacto ? 4 : 8;
   const fila = (s: SenalRiesgo, i: number) => (
     <li key={`${s.regla}-${i}`} className="py-2">
@@ -225,7 +226,7 @@ export function ResultadoAnalisis({ resultado: r, ocid, score, banderas, duracio
         <Link href={dossierHref} className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-granate px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-granate-deep">
           Leer el dictamen completo <ArrowRight size={15} aria-hidden />
         </Link>
-        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} ruta={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} />
+        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto={titulo} ruta={sharePath ?? rutaContrato(ocid, "vivo")} />
       </div>
       {r && !r.dictamenListo && <p className="mt-2 text-[12px] text-mute">El dictamen se está publicando; si el enlace no muestra nada todavía, vuelve en un minuto.</p>}
     </section>
@@ -406,7 +407,7 @@ function EnRevision({ r, ocid, duracionMs, sharePath, compacto, className }: {
         <p className="mt-3 text-[12px] leading-snug text-mute">La autoevaluación no alcanzó el mínimo para publicar este análisis.</p>
       )}
       <div className="mt-4">
-        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" ruta={sharePath ?? `/app/auditoria/${encodeURIComponent(ocid)}`} />
+        <BarraCompartir compacto titulo={`Análisis ${r?.codigo ?? ocid} en Vigía Perú`} texto="En revisión" ruta={sharePath ?? rutaContrato(ocid, "vivo")} />
       </div>
     </section>
   );

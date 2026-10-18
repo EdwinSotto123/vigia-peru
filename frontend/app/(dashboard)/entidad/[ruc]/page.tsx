@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -183,7 +184,7 @@ export default async function EntidadProfile({
     const adjudicado = a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : null;
     return {
       id: a.id,
-      href: codigo ? `/app/convocatoria/${encodeURIComponent(codigo)}` : undefined,
+      href: codigo ? rutaContrato(codigo, "dictamen") : undefined,
       celdas: {
         peso: <Severidad score={Number(a.score) || 0} formato="pastilla" />,
         contrato: (

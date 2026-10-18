@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -161,7 +162,7 @@ export default async function DenunciaDetallePage({ params }: { params: { id: st
                     )}
                   </div>
                   <Link
-                    href={`/app/convocatoria/${encodeURIComponent(codigoAlerta)}`}
+                    href={rutaContrato(codigoAlerta, "dictamen")}
                     className="mt-3 inline-flex min-h-[36px] items-center gap-1 rounded-full bg-paper px-4 py-1.5 text-[13px] font-semibold text-granate transition-colors duration-rapido hover:bg-maiz-soft"
                   >
                     Ver el dossier del contrato <ChevronRight size={12} aria-hidden />

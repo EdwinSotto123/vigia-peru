@@ -5,6 +5,7 @@
  * Lo que no esté acá se muestra humanizado y con el detalle crudo plegado.
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { humanizar, plural } from "./formato";
 import { MOTIVO_NO_VISIBLE } from "./estados";
 import type { Tone } from "./tono";
@@ -73,7 +74,7 @@ function objetoDe(accion: string, objeto: string, d: Record<string, unknown>): P
   if (accion === "procesar_lote") return { objeto: `lote ${objeto}`, href: `/admin/procesamientos?lote=${encodeURIComponent(objeto)}` };
   switch (tipo) {
     case "contribucion": return { objeto: `aporte ${id}`, href: "/admin/contribuciones?estado=todas" };
-    case "procesamiento": return { objeto: `contrato ${id}`, href: `/app/auditoria/${encodeURIComponent(id)}`, externo: true };
+    case "procesamiento": return { objeto: `contrato ${id}`, href: rutaContrato(id, "vivo"), externo: true };
     case "alerta": return { objeto: txt(d.codigo) ? `alerta ${d.codigo}` : "una alerta", href: `/admin/revision/${encodeURIComponent(id)}` };
     case "financiador": return { objeto: `financiador n.º ${id}`, href: "/admin/financiadores" };
     case "pedido": return { objeto: txt(d.ocid) ? `contrato ${d.ocid}` : `pedido n.º ${id}`, href: "/admin/procesamientos" };

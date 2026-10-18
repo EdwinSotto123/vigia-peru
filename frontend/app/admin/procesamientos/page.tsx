@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -264,7 +265,7 @@ function Procesamientos() {
       celda: (p) => (
         <div className="inline-flex flex-wrap items-center justify-end gap-1">
           <Link
-            href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+            href={rutaContrato(p.ocid, "vivo")}
             target="_blank"
             className={claseBoton("secundario", "xs")}
             title="Qué hizo cada revisión, paso a paso"

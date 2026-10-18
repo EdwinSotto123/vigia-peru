@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import { redirect } from "next/navigation";
 
 /**
@@ -8,5 +9,5 @@ import { redirect } from "next/navigation";
  */
 export default function AlertaLegacyRedirect({ params }: { params: { id: string } }) {
   const ocid = decodeURIComponent(params.id).replace(/^OECE-/i, "");
-  redirect(`/app/convocatoria/${ocid}`);
+  redirect(rutaContrato(ocid, "dictamen"));
 }

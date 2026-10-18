@@ -6,6 +6,7 @@
  * entero aunque la alerta no esté publicada) y la misma adaptación (lib/dossier-adaptar).
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { useState } from "react";
 import { AlertTriangle, ChevronDown, ExternalLink, Eye, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -39,7 +40,7 @@ export function VistaPublicada({
   error: string | null;
   onReintentar: () => void;
 }) {
-  const ruta = ocid ? `/app/convocatoria/${encodeURIComponent(ocid)}` : null;
+  const ruta = ocid ? rutaContrato(ocid, "dictamen") : null;
   // El informe es largo (varios miles de píxeles): queda plegado con su resumen de una línea, y recién
   // al abrirlo se monta (así tampoco se baja su JavaScript si no se mira).
   const [abierto, setAbierto] = useState(false);

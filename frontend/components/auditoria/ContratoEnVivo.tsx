@@ -23,6 +23,7 @@
  * Datos: GET /financiamiento/procesamientos/:ocid
  */
 
+import { rutaContrato } from "@/lib/rutas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -236,7 +237,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
         )}
         <div className="flex items-center justify-between text-[11px] text-mute">
           {enVivoBadge}
-          <Link href={`/app/auditoria/${encodeURIComponent(p.ocid)}`} className="hover:underline">Ver en auditoría en vivo</Link>
+          <Link href={rutaContrato(p.ocid, "vivo")} className="hover:underline">Ver en auditoría en vivo</Link>
         </div>
       </div>
     );
@@ -318,7 +319,7 @@ export function ContratoEnVivo({ ocid, initial, pollMs = 3000, compacto = false 
               compacto
               titulo={`${p.titulo ?? p.ocid}: auditoría en vivo`}
               texto="Mira cómo se ejecuta el análisis de este contrato."
-              ruta={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+              ruta={rutaContrato(p.ocid, "vivo")}
             />
           )}
         </aside>

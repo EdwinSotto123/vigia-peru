@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaContrato } from "@/lib/rutas";
 import { useContext, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
@@ -51,7 +52,7 @@ export function IdentidadDossier({
   return (
     <header className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        {volver ? <Volver href="/app/convocatoria">Análisis publicados</Volver> : <span />}
+        {volver ? <Volver href="/app/contratos">Contratos</Volver> : <span />}
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <a href={oeceProcesoUrl(conv.ocid || codigo)} target="_blank" rel="noreferrer" className={accion}>
             <ExternalLink size={13} aria-hidden /> Ver en el OECE
@@ -186,7 +187,7 @@ function Compartir({ codigo, objeto }: { codigo: string; objeto?: string | null 
   const [copiado, setCopiado] = useState(false);
   const compartir = async () => {
     try {
-      const url = `${window.location.origin}/app/convocatoria/${codigo}`;
+      const url = `${window.location.origin}${rutaContrato(codigo, "dictamen")}`;
       if (navigator.share) {
         await navigator.share({
           title: `Vigía Perú: ${objeto?.slice(0, 80) || "análisis de un contrato"}`,

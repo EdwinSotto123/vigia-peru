@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { fechaLima, type Procesamiento } from "@/lib/auditoria";
@@ -31,7 +32,7 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
           return (
             <li key={p.ocid}>
               <Link
-                href={`/app/auditoria/${encodeURIComponent(p.ocid)}`}
+                href={rutaContrato(p.ocid, "vivo")}
                 className="group flex items-center gap-3 py-2 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
               >
                 <span className="min-w-0 flex-1">

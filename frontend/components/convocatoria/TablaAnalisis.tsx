@@ -1,3 +1,4 @@
+import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type OpcionFaceta } from "@/components/listado";
@@ -326,7 +327,7 @@ function SinResultados({ query, ruta }: { query: AnalisisQuery; ruta: string }) 
         <span className="flex flex-wrap justify-center gap-2">
           {/* La lista trae los más recientes: por su código, el informe dice si existe. */}
           {pareceCodigo && (
-            <Link href={`/app/convocatoria/${encodeURIComponent(codigoDe({ ocid: q.trim() }))}`} className={claseAccion("secundario")}>
+            <Link href={rutaContrato(codigoDe({ ocid: q.trim() }), "dictamen")} className={claseAccion("secundario")}>
               Abrir el informe de {codigoDe({ ocid: q.trim() })}
             </Link>
           )}
