@@ -95,3 +95,16 @@ def test_juez_recibe_certificaciones(monkeypatch):
     catalogos._juzgar([{"numero": "1", "descripcion_corta": "Casco", "certificaciones_exigidas": ["ANSI/ISEA Z89.1-2014"]}],
                       {"1": [{"producto": "Casco básico", "precio": 7.0}]})
     assert "ANSI/ISEA Z89.1-2014" in vistos["prompt"] and "ante la duda, no elijas" in vistos["prompt"]
+
+
+def test_herramienta_de_precios(monkeypatch):
+    from tools.market import precio_tool
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: {"termino": "papaya x kg", "productos": [
+        {"producto": "Papaya x kg", "precio": 5.69, "tienda": "metro.pe", "unidad_medida": "kg", "url": "https://m/1"},
+        {"producto": "Papaya en trozos 300 g", "precio": 7.7, "tienda": "plazavea.com.pe", "unidad_medida": "un", "url": "https://p/2"}]})
+    ctx = type("C", (), {"state": {}})()
+    r = precio_tool.consultar_precios_referencia("papaya x kg", tool_context=ctx)
+    assert [p["por_peso"] for p in r["productos"]] == [True, False]
+    assert ctx.state["grounding_urls"] == ["https://m/1", "https://p/2"]      # quedan como respaldadas
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: None)
+    assert "no configurado" in precio_tool.consultar_precios_referencia("x")["error"]

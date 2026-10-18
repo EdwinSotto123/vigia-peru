@@ -164,3 +164,9 @@ def test_tope_de_busquedas_por_agente(monkeypatch):
     hk = motor_sdk._hook_tope(sdk, "WebSearch", 1, {})["PreToolUse"][0].hooks[0]
     assert asyncio.run(hk({}, "a", None)) == {}
     assert asyncio.run(hk({}, "b", None))["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_esquema_de_salida_del_agente_armado_en_un_script():
+    import types as _t
+    esquema = {"type": "object", "properties": {"items": {"type": "array"}}}
+    assert motor_sdk.esquema_de(_t.SimpleNamespace(name="analista_precios", esquema_salida=esquema)) is esquema

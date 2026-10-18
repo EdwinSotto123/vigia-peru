@@ -73,6 +73,8 @@ def esquema_de(agent: Any) -> dict | None:
     """JSON Schema del esquema pydantic declarado en agents/<agente>/config.py (OUTPUT_SCHEMA), o None."""
     if os.getenv("MOTOR_SDK_ESQUEMA", "1") == "0":
         return None
+    if isinstance(getattr(agent, "esquema_salida", None), dict):   # agentes armados fuera de agents/ (scripts)
+        return agent.esquema_salida
     nombre = str(getattr(agent, "name", "")).removesuffix("_agent")
     try:
         cfg = importlib.import_module(f"agents.{nombre}.config")
