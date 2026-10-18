@@ -84,3 +84,20 @@ test("estadística: punto medio de cada declaración y percentiles", () => {
   ]);
   assert.deepEqual(e, { n: 3, p25: 19, mediana: 20, p75: 21, min: 18, max: 22, desde: "2026-09-20", hasta: "2026-10-05" });
 });
+
+test("Sodimac: resultados de __NEXT_DATA__, precio vigente y tachado", async () => {
+  const { normalizarSodimac } = await import("../src/tiendas.ts");
+  const S = TIENDAS.find((t) => t.plataforma === "sodimac")!;
+  assert.equal(urlBusqueda(S, "tornillo 8 x 1", 4), "https://www.sodimac.com.pe/sodimac-pe/buscar?Ntt=tornillo%208%20x%201");
+  const datos = { props: { pageProps: { results: [
+    { displayName: "Autorroscante Cabeza Pan N8 x 1\" 100Unid", brand: "MAMUT", skuId: "9", url: "https://www.sodimac.com.pe/sodimac-pe/articulo/1/x?exp=so_com",
+      prices: [{ crossed: false, type: "internetPrice", price: ["13.90"] }, { crossed: true, type: "normalPrice", price: ["1,015.90"] }] },
+    { displayName: "Sin precio", url: "https://x", prices: [] },
+    { displayName: "Laptop patrocinada", url: "https://y", isSponsored: true, prices: [{ crossed: false, price: ["3949"] }] },
+  ] } } };
+  const html = `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(datos)}</script></html>`;
+  const ps = normalizarSodimac(html, S, 4);
+  assert.equal(ps.length, 1);
+  assert.deepEqual([ps[0].precio, ps[0].precio_lista, ps[0].url], [13.9, 1015.9, "https://www.sodimac.com.pe/sodimac-pe/articulo/1/x"]);
+  assert.deepEqual(normalizarSodimac("<html>bloqueado</html>", S, 4), []);
+});

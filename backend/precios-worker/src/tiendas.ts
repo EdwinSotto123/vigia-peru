@@ -10,6 +10,8 @@ export interface Tienda {
   base: string;
   /** false: no vende alimentos, queda fuera de la canasta semanal (solo responde búsquedas). */
   canasta?: boolean;
+  /** Por defecto VTEX. "sodimac": la página de búsqueda (Next.js) trae los resultados en `__NEXT_DATA__`. */
+  plataforma?: "vtex" | "sodimac";
 }
 
 export const TIENDAS: Tienda[] = [
@@ -20,6 +22,7 @@ export const TIENDAS: Tienda[] = [
   { id: "wong.pe", base: "https://www.wong.pe" },
   { id: "cassinelli.com", base: "https://www.cassinelli.com", canasta: false },   // ferretería y construcción
   { id: "coolbox.pe", base: "https://www.coolbox.pe", canasta: false },           // tecnología y electrodomésticos
+  { id: "sodimac.com.pe", base: "https://www.sodimac.com.pe", canasta: false, plataforma: "sodimac" },
 ];
 
 export const USER_AGENT = "VigiaPeru-Precios/1.0 (+https://vigia-web.vigiaperu.workers.dev; consulta de precios de referencia)";
@@ -50,6 +53,7 @@ export function normalizarTermino(t: string): string {
 }
 
 export function urlBusqueda(t: Tienda, termino: string, n: number): string {
+  if (t.plataforma === "sodimac") return `${t.base}/sodimac-pe/buscar?Ntt=${encodeURIComponent(termino)}`;
   return `${t.base}/api/catalog_system/pub/products/search?ft=${encodeURIComponent(termino)}&_from=0&_to=${Math.max(0, n - 1)}`;
 }
 
@@ -75,6 +79,46 @@ export function normalizarVtex(datos: unknown, t: Tienda): Producto[] {
       multiplicador: Number(item.unitMultiplier) > 0 ? Number(item.unitMultiplier) : null,
       url: typeof p.link === "string" && p.link ? p.link : `${t.base}/${p.linkText}/p`,
     });
+  }
+  return out;
+}
+
+/**
+ * Sodimac: no tiene API de búsqueda abierta (su `/s/search/v1/…` responde vacío sin la sesión del navegador), pero la
+ * página de búsqueda es Next.js y trae los resultados en `<script id="__NEXT_DATA__">` → `props.pageProps.results`
+ * (~2-3 MB por página; si el término coincide con una categoría, redirige a la lista de esa categoría, con la misma
+ * forma). Precio: el menor de los no tachados; el tachado, como precio de lista.
+ */
+export function normalizarSodimac(html: string, t: Tienda, n: number): Producto[] {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return [];
+  let resultados: any[];
+  try {
+    resultados = JSON.parse(m[1])?.props?.pageProps?.results;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(resultados)) return [];
+  const out: Producto[] = [];
+  for (const p of resultados) {
+    const precios = (Array.isArray(p?.prices) ? p.prices : []).map((x: any) => ({
+      tachado: !!x?.crossed, valor: Number(String(x?.price?.[0] ?? "").replace(/,/g, "")),
+    })).filter((x: { valor: number }) => x.valor > 0);
+    const vigentes = precios.filter((x: { tachado: boolean }) => !x.tachado).map((x: { valor: number }) => x.valor);
+    const tachados = precios.filter((x: { tachado: boolean }) => x.tachado).map((x: { valor: number }) => x.valor);
+    if (p?.isSponsored || !vigentes.length || !p?.displayName || typeof p?.url !== "string") continue;   // los patrocinados no responden al término
+    out.push({
+      tienda: t.id,
+      producto: String(p.displayName).slice(0, 200),
+      marca: p.brand ? String(p.brand) : null,
+      sku: p.skuId ? String(p.skuId) : null,
+      precio: Math.min(...vigentes),
+      precio_lista: tachados.length ? Math.max(...tachados) : null,
+      unidad_medida: null,
+      multiplicador: null,
+      url: p.url.split("?")[0],
+    });
+    if (out.length >= n) break;
   }
   return out;
 }

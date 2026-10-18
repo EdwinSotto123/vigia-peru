@@ -19,6 +19,7 @@ import { URL_DATOS, URL_FORMULARIO, URL_PUBLICA, codigosDelFormulario, coincide,
 import { URL_DMIN, decodificar, estadistica, parsearDmin, percentil, productoDeConsulta } from "./combustible.ts";
 import {
   type EstadoTienda, type Producto, type Tienda, TIENDAS, USER_AGENT, bloqueada, estadoTrasExito, estadoTrasFallo,
+  normalizarSodimac,
   normalizarTermino, normalizarVtex, urlBusqueda,
 } from "./tiendas.ts";
 
@@ -83,14 +84,14 @@ async function buscarEnTienda(env: Env, t: Tienda, termino: string, n: number, o
   if (bloqueada(est, ahora)) return { productos: [], fuente: "pausada" };
   try {
     const r = await fetch(urlBusqueda(t, termino, n), {
-      headers: { "user-agent": USER_AGENT, accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
+      headers: { "user-agent": USER_AGENT, accept: t.plataforma === "sodimac" ? "text/html" : "application/json" },
+      signal: AbortSignal.timeout(t.plataforma === "sodimac" ? 15_000 : 10_000),
     });
     if (r.status >= 400) {
       await guardarEstado(env, t.id, estadoTrasFallo(est, ahora, r.status), `HTTP ${r.status}`);
       return { productos: [], fuente: "error", error: `HTTP ${r.status}` };
     }
-    const productos = normalizarVtex(await r.json(), t);
+    const productos = t.plataforma === "sodimac" ? normalizarSodimac(await r.text(), t, n) : normalizarVtex(await r.json(), t);
     await env.DB.prepare("INSERT OR REPLACE INTO cache_busqueda (clave, respuesta, creado) VALUES (?, ?, ?)")
       .bind(clave, JSON.stringify(productos), Date.now()).run();
     await guardarObservados(env, termino, productos, origen);
