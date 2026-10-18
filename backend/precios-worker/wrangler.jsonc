@@ -10,7 +10,8 @@
   "d1_databases": [{ "binding": "DB", "database_name": "vigia-precios", "database_id": "2d7627c8-00a7-4c2e-b726-5dd91f05c417" }],
 
   // src/index.ts: CRON_COMBUSTIBLE (Osinergmin, a diario) y CRON_CANASTA (índice de tiendas, los lunes).
-  "triggers": { "crons": ["0 12 * * *", "0 13 * * 1"] },
+  // CRON_RELLENO (cada 3 min): carga el historial de EMMSA hacia atrás hasta 2014 y después no hace nada.
+  "triggers": { "crons": ["0 12 * * *", "0 13 * * 1", "*/3 * * * *"] },
 
   // Secreto: PRECIOS_TOKEN (SSM /vigia/precios/token).
   "vars": { "TTL_CACHE_DIAS": "7" }

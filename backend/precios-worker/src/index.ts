@@ -172,7 +172,7 @@ function fechaLima(dias = 0): string {
 }
 
 /** Carga las fechas pedidas (idempotente por fecha). Una consulta por fecha, con pausa: no apurar a EMMSA. */
-async function actualizarMayorista(env: Env, fechas: string[]) {
+async function actualizarMayorista(env: Env, fechas: string[], registrar = true) {
   const f = await fetch(URL_FORMULARIO, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30_000) });
   if (!f.ok) throw new Error(`EMMSA formulario HTTP ${f.status}`);
   const codigos = codigosDelFormulario(await f.text());
@@ -193,9 +193,34 @@ async function actualizarMayorista(env: Env, fechas: string[]) {
     }
     if (fechas.length > 1) await dormir(1000);
   }
-  await env.DB.prepare("INSERT OR REPLACE INTO actualizacion (que, cuando, detalle) VALUES ('mayorista', ?, ?)")
-    .bind(Date.now(), JSON.stringify(resumen).slice(0, 500)).run();
+  if (registrar) {
+    await env.DB.prepare("INSERT OR REPLACE INTO actualizacion (que, cuando, detalle) VALUES ('mayorista', ?, ?)")
+      .bind(Date.now(), JSON.stringify(resumen).slice(0, 500)).run();
+  }
   return { fechas: resumen };
+}
+
+/**
+ * Relleno del historial de EMMSA hacia atrás (hay datos desde inicios de 2014): cada corrida del cron de relleno
+ * carga RELLENO_DIAS días anteriores al cursor y lo mueve. Al llegar a RELLENO_DESDE no hace nada más.
+ * Cursor: actualizacion.detalle de 'mayorista_historial' (fecha más antigua cargada).
+ */
+export const RELLENO_DESDE = "2014-01-01";
+const RELLENO_DIAS = 45;
+
+async function rellenarMayorista(env: Env) {
+  const fila = await env.DB.prepare("SELECT detalle FROM actualizacion WHERE que = 'mayorista_historial'").first<{ detalle: string }>();
+  const cursor = fila?.detalle || "2026-06-01";
+  if (cursor <= RELLENO_DESDE) return { listo: true, cursor };
+  const hasta = new Date(`${cursor}T12:00:00Z`);
+  hasta.setUTCDate(hasta.getUTCDate() - 1);
+  const desde = new Date(hasta);
+  desde.setUTCDate(desde.getUTCDate() - (RELLENO_DIAS - 1));
+  const d = desde.toISOString().slice(0, 10) < RELLENO_DESDE ? RELLENO_DESDE : desde.toISOString().slice(0, 10);
+  const r = await actualizarMayorista(env, rangoFechas(d, hasta.toISOString().slice(0, 10)), false);
+  await env.DB.prepare("INSERT OR REPLACE INTO actualizacion (que, cuando, detalle) VALUES ('mayorista_historial', ?, ?)")
+    .bind(Date.now(), d).run();
+  return { cursor: d, dias: Object.keys(r.fechas).length, con_datos: Object.values(r.fechas).filter(Boolean).length };
 }
 
 function rangoFechas(desde: string, hasta: string, max = 120): string[] {
@@ -259,11 +284,12 @@ export default {
     if (url.pathname === "/tiendas/buscar" && req.method === "GET") return buscar(env, p.get("q") ?? "", Math.min(Number(p.get("n") ?? 4) || 4, 10));
     if (url.pathname === "/combustible" && req.method === "GET")
       return combustible(env, p.get("producto") ?? "", p.get("departamento") ?? "", Math.min(Number(p.get("dias") ?? 120) || 120, 400));
-    if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 730));
+    if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 5000));
     if (url.pathname === "/historial" && req.method === "GET") return historial(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 180) || 180, 1000));
     if (url.pathname === "/admin/actualizar" && req.method === "POST") {
       const que = p.get("que");
       if (que === "combustible") return json(await actualizarCombustible(env));
+      if (que === "mayorista_relleno") return json(await rellenarMayorista(env));
       if (que === "mayorista") {
         const hasta = p.get("hasta") ?? fechaLima();
         return json(await actualizarMayorista(env, rangoFechas(p.get("desde") ?? hasta, hasta)));
@@ -280,7 +306,8 @@ export default {
   },
 
   async scheduled(ev: ScheduledController, env: Env, ctx: ExecutionContext) {
-    if (ev.cron === CRON_CANASTA) ctx.waitUntil(actualizarCanasta(env));
+    if (ev.cron === CRON_RELLENO) ctx.waitUntil(rellenarMayorista(env));
+    else if (ev.cron === CRON_CANASTA) ctx.waitUntil(actualizarCanasta(env));
     else {
       ctx.waitUntil(actualizarCombustible(env));
       ctx.waitUntil(actualizarMayorista(env, [fechaLima(-1), fechaLima()]));   // ayer y hoy: el reporte de hoy puede salir tarde
@@ -290,3 +317,4 @@ export default {
 
 export const CRON_COMBUSTIBLE = "0 12 * * *";   // 07:00 Lima, a diario
 export const CRON_CANASTA = "0 13 * * 1";       // 08:00 Lima, los lunes
+export const CRON_RELLENO = "*/3 * * * *";      // relleno del historial de EMMSA hasta 2014 (luego no hace nada)
