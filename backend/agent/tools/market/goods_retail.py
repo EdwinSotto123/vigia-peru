@@ -416,16 +416,18 @@ def _mercado_goods_retail(state: dict) -> dict:
     precios_cat, chunks_cat, items_web = [], [], items_grounded
     if os.getenv("CATALOGO_TIENDAS_ACTIVO", "1") != "0":
         try:
-            from .catalogos import departamento_de, es_combustible, precios_combustible, precios_de_catalogo, precios_mayorista
+            from .catalogos import (departamento_de, es_combustible, fecha_convocatoria, precios_combustible,
+                                    precios_de_catalogo, precios_mayorista)
+            fecha_ref = fecha_convocatoria(ocds)   # convocatorias pasadas: el precio oficial de ESE momento
             # Fuentes oficiales primero: combustibles → Osinergmin; frescos → Mercado Mayorista de Lima (EMMSA). Lo que
             # ninguna cubre va a los catálogos de tiendas y, al final, a la búsqueda web.
-            precios_comb, info_comb = precios_combustible(items_grounded, departamento_de(ocds))
+            precios_comb, info_comb = precios_combustible(items_grounded, departamento_de(ocds), fecha_ref)
             resto = [it for it in items_grounded if not es_combustible(it)]
-            precios_may, info_may = precios_mayorista(resto)
+            precios_may, info_may = precios_mayorista(resto, hasta=fecha_ref)
             con_may = {str(p["item_numero"]) for p in precios_may}
             precios_cat, info_cat = precios_de_catalogo([it for it in resto if str(it.get("numero")) not in con_may])
             precios_cat = precios_comb + precios_may + precios_cat
-            info_cat = {**info_cat, "combustible": info_comb, "mayorista": info_may}
+            info_cat = {**info_cat, "combustible": info_comb, "mayorista": info_may, "fecha_referencia": fecha_ref}
             for p in precios_cat:
                 p["item_numero"] = _norm_num(p["item_numero"])
             por_item: dict[str, int] = {}

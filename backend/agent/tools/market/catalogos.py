@@ -194,7 +194,17 @@ def departamento_de(ocds: dict) -> str:
     return ""
 
 
-def precios_combustible(items: list[dict], departamento: str) -> tuple[list[dict], dict]:
+def fecha_convocatoria(ocds: dict) -> str | None:
+    """YYYY-MM-DD de la convocatoria: inicio del período de ofertas > fecha del registro. Los precios de referencia se
+    toman de los días PREVIOS a esta fecha (al procesar procesos pasados, el precio de ese momento, no el de hoy)."""
+    t = (ocds or {}).get("tender") or {}
+    for v in ((t.get("tenderPeriod") or {}).get("startDate"), t.get("datePublished"), (ocds or {}).get("date")):
+        if isinstance(v, str) and re.match(r"\d{4}-\d{2}-\d{2}", v):
+            return v[:10]
+    return None
+
+
+def precios_combustible(items: list[dict], departamento: str, hasta: str | None = None) -> tuple[list[dict], dict]:
     """Para cada ítem de combustible, las declaraciones oficiales más recientes del departamento (o nacionales si hay
     pocas) como precios observados, con la fuente de Osinergmin. Sin Worker configurado, nada."""
     precios, info = [], {"items": 0, "precios": 0}
@@ -202,7 +212,8 @@ def precios_combustible(items: list[dict], departamento: str) -> tuple[list[dict
         if not es_combustible(it):
             continue
         try:
-            d = _worker("/combustible", {"producto": it.get("descripcion_corta") or "", "departamento": departamento, "dias": 120})
+            d = _worker("/combustible", {"producto": it.get("descripcion_corta") or "", "departamento": departamento, "dias": 120,
+                                         **({"hasta": hasta} if hasta else {})})
         except Exception as e:  # noqa: BLE001
             info["error"] = str(e)[:160]
             continue
@@ -235,7 +246,7 @@ def _palabras(s: str) -> set[str]:
     return set(termino_busqueda(s, max_palabras=8).split())
 
 
-def precios_mayorista(items: list[dict], dias: int = 30) -> tuple[list[dict], dict]:
+def precios_mayorista(items: list[dict], dias: int = 30, hasta: str | None = None) -> tuple[list[dict], dict]:
     """Para cada ítem con precio en el Mercado Mayorista de Lima: p25, mediana y p75 del precio promedio diario por kg
     de la variedad que mejor coincide con la descripción (últimos `dias`). Oficial y mayorista: es la referencia justa
     para frescos (el supermercado es un tope minorista). Ítems sin variedad en EMMSA (frutas que se venden en el
@@ -247,14 +258,14 @@ def precios_mayorista(items: list[dict], dias: int = 30) -> tuple[list[dict], di
         if not consulta:
             continue
         try:
-            d = _worker("/mayorista", {"q": consulta, "dias": dias})
+            d = _worker("/mayorista", {"q": consulta, "dias": dias, **({"hasta": hasta} if hasta else {})})
         except Exception as e:  # noqa: BLE001
             info["error"] = str(e)[:160]
             continue
         vars_ = [v for v in (d or {}).get("variedades") or [] if v.get("mediana")]
         if not vars_ and " " in consulta:          # "naranja valencia" no está → "naranja"
             try:
-                d = _worker("/mayorista", {"q": consulta.split()[0], "dias": dias})
+                d = _worker("/mayorista", {"q": consulta.split()[0], "dias": dias, **({"hasta": hasta} if hasta else {})})
                 vars_ = [v for v in (d or {}).get("variedades") or [] if v.get("mediana")]
             except Exception:  # noqa: BLE001
                 vars_ = []
@@ -269,7 +280,8 @@ def precios_mayorista(items: list[dict], dias: int = 30) -> tuple[list[dict], di
             if mejor.get(clave):
                 precios.append({
                     "item_numero": str(it.get("numero")),
-                    "producto": f"{mejor.get('variedad')} · Mercado Mayorista de Lima, {etiqueta} de {mejor.get('n_dias')} días"[:300],
+                    "producto": (f"{mejor.get('variedad')} · Mercado Mayorista de Lima, {etiqueta} de {mejor.get('n_dias')} días"
+                                 f" hasta {(d or {}).get('hasta')}")[:300],
                     "precio": float(mejor[clave]), "moneda_origen": "PEN", "unidad": "kg",
                     "proveedor": "EMMSA", "origen": "emmsa",
                     "fuentes": [{"uri": fuente, "titulo": "EMMSA · Gran Mercado Mayorista de Lima, precios diarios", "dominio": "emmsa.com.pe"}],

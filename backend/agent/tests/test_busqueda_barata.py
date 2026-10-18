@@ -127,3 +127,13 @@ def test_precios_mayorista(monkeypatch):
     assert llamadas == ["naranja valencia", "naranja"]                       # reintenta con la palabra principal
     assert info["variedades"]["1.05"]["variedad"] == "NARANJA VALENCIA (SELVA)"  # la que mejor coincide, no la de más días
     assert [p["precio"] for p in precios] == [1.1, 1.15, 1.25] and all(p["origen"] == "emmsa" and p["unidad"] == "kg" for p in precios)
+
+
+def test_fecha_de_la_convocatoria_para_precios_pasados(monkeypatch):
+    assert catalogos.fecha_convocatoria({"tender": {"tenderPeriod": {"startDate": "2024-08-17T09:00:00-05:00"}}}) == "2024-08-17"
+    assert catalogos.fecha_convocatoria({"date": "2023-01-05T00:00:00Z", "tender": {}}) == "2023-01-05"
+    assert catalogos.fecha_convocatoria({}) is None
+    vistos = []
+    monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: vistos.append(params) or {"variedades": []})
+    catalogos.precios_mayorista([{"numero": "1", "descripcion_corta": "LIMON"}], hasta="2024-08-17")
+    assert vistos[0]["hasta"] == "2024-08-17"

@@ -6,7 +6,8 @@
  *   GET  /combustible?producto=&departamento=&dias=120
  *                                                 precios oficiales de Osinergmin (distribuidores minoristas)
  *   GET  /historial?q=<término>&dias=180          precios vistos antes (canasta semanal + búsquedas)
- *   GET  /mayorista?q=<producto>&dias=30          Gran Mercado Mayorista de Lima (EMMSA): precio por kg por variedad
+ *   GET  /mayorista?q=<producto>&dias=30[&hasta=YYYY-MM-DD]   Gran Mercado Mayorista de Lima (EMMSA): precio por kg
+ *                                                 por variedad en los `dias` previos a `hasta` (por defecto, hoy)
  *   POST /admin/actualizar?que=combustible|canasta|mayorista[&desde=&hasta=]   corre ya lo que hace el cron
  *
  * Auth: `Authorization: Bearer <PRECIOS_TOKEN>`. Crons: combustible a diario, canasta los lunes.
@@ -140,14 +141,15 @@ async function actualizarCombustible(env: Env) {
   return { filas: filas.length };
 }
 
-async function combustible(env: Env, q: string, departamento: string, dias: number) {
+async function combustible(env: Env, q: string, departamento: string, dias: number, hasta: string | null) {
   const producto = productoDeConsulta(q);
   if (!producto) return json({ error: "producto no reconocido", q }, 400);
+  const fin = hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta) ? hasta : fechaLima();
   const consulta = (depto: string | null) =>
     env.DB.prepare(
       `SELECT fecha, departamento, razon_social, precio_min, precio_max, unidad FROM combustible
-        WHERE producto = ? AND fecha >= date('now', ?) ${depto ? "AND departamento = ?" : ""} ORDER BY fecha DESC`,
-    ).bind(...(depto ? [producto, `-${dias} days`, depto] : [producto, `-${dias} days`])).all<any>();
+        WHERE producto = ? AND fecha <= ? AND fecha > date(?, ?) ${depto ? "AND departamento = ?" : ""} ORDER BY fecha DESC`,
+    ).bind(...(depto ? [producto, fin, fin, `-${dias} days`, depto] : [producto, fin, fin, `-${dias} days`])).all<any>();
   const depto = departamento ? departamento.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim() : null;
   let filas = (await consulta(depto)).results;
   let ambito = depto ? "departamento" : "nacional";
@@ -157,7 +159,7 @@ async function combustible(env: Env, q: string, departamento: string, dias: numb
   }
   const act = await env.DB.prepare("SELECT cuando FROM actualizacion WHERE que = 'combustible'").first<{ cuando: number }>();
   return json({
-    producto, departamento: depto, ambito, dias, unidad: "galón",
+    producto, departamento: depto, ambito, dias, hasta: fin, unidad: "galón",
     estadistica: estadistica(filas),
     observaciones: filas.slice(0, 10),
     fuente: { nombre: "Osinergmin · Registro de Precios de Distribuidores Minoristas", url: URL_DMIN,
@@ -231,11 +233,14 @@ function rangoFechas(desde: string, hasta: string, max = 120): string[] {
   return out;
 }
 
-async function mayorista(env: Env, q: string, dias: number) {
+async function mayorista(env: Env, q: string, dias: number, hasta: string | null) {
   if (!q.trim()) return json({ error: "falta q" }, 400);
+  // `hasta` = fecha de la convocatoria al procesar procesos pasados: el precio de ESE momento, no el de hoy.
+  const fin = hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta) ? hasta : fechaLima();
   const filas = (await env.DB.prepare(
-    "SELECT fecha, producto, variedad, precio_min, precio_max, precio_prom FROM mayorista WHERE fecha >= date('now', ?) ORDER BY fecha DESC",
-  ).bind(`-${dias} days`).all<any>()).results.filter((f) => coincide(q, f));
+    `SELECT fecha, producto, variedad, precio_min, precio_max, precio_prom FROM mayorista
+      WHERE fecha <= ? AND fecha > date(?, ?) ORDER BY fecha DESC`,
+  ).bind(fin, fin, `-${dias} days`).all<any>()).results.filter((f) => coincide(q, f));
   const grupos = new Map<string, any[]>();
   for (const f of filas) {
     const k = `${f.producto}|${f.variedad}`;
@@ -251,7 +256,7 @@ async function mayorista(env: Env, q: string, dias: number) {
       ultimo: { fecha: g[0].fecha, precio_prom: g[0].precio_prom },
     };
   }).sort((a, b) => b.n_dias - a.n_dias);
-  return json({ q, dias, variedades, fuente: { nombre: "EMMSA · Gran Mercado Mayorista de Lima, precios diarios", url: URL_PUBLICA } });
+  return json({ q, dias, hasta: fin, variedades, fuente: { nombre: "EMMSA · Gran Mercado Mayorista de Lima, precios diarios", url: URL_PUBLICA } });
 }
 
 // ─── canasta semanal ──────────────────────────────────────────────────────────
@@ -283,8 +288,8 @@ export default {
     const p = url.searchParams;
     if (url.pathname === "/tiendas/buscar" && req.method === "GET") return buscar(env, p.get("q") ?? "", Math.min(Number(p.get("n") ?? 4) || 4, 10));
     if (url.pathname === "/combustible" && req.method === "GET")
-      return combustible(env, p.get("producto") ?? "", p.get("departamento") ?? "", Math.min(Number(p.get("dias") ?? 120) || 120, 400));
-    if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 5000));
+      return combustible(env, p.get("producto") ?? "", p.get("departamento") ?? "", Math.min(Number(p.get("dias") ?? 120) || 120, 400), p.get("hasta"));
+    if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 5000), p.get("hasta"));
     if (url.pathname === "/historial" && req.method === "GET") return historial(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 180) || 180, 1000));
     if (url.pathname === "/admin/actualizar" && req.method === "POST") {
       const que = p.get("que");
