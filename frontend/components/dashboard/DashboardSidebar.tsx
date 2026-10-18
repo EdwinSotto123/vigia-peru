@@ -22,6 +22,7 @@ import {
   Crown,
   Landmark,
   LayoutGrid,
+  GitCompareArrows,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -123,6 +124,13 @@ const SECTIONS: Section[] = [
         hint: "Qué revisar primero",
         match: (p) =>
           p.startsWith("/app/hallazgos") || p.startsWith("/app/alertas") || p.startsWith("/alerta"),
+      },
+      {
+        href: "/app/cruces",
+        label: "Cruces de datos",
+        icon: <GitCompareArrows size={16} />,
+        hint: "Ganadores en otros registros",
+        match: (p) => p.startsWith("/app/cruces"),
       },
       {
         href: "/app/denuncias",

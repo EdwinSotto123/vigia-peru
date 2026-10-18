@@ -14,6 +14,7 @@ import { EN_WORKERS } from "./lib/plataforma.js";
 import { errorInterno, registroPedidos } from "./lib/registro.js";
 import { alertasRouter } from "./routes/alertas.js";
 import { entidadesRouter } from "./routes/entidades.js";
+import { crucesRouter } from "./routes/cruces.js";
 import { partidosRouter } from "./routes/partidos.js";
 import { reportesRouter } from "./routes/reportes.js";
 import { uploadRouter } from "./routes/upload.js";
@@ -100,6 +101,7 @@ api.get("/livez", (c) => {
 api.route("/alertas", alertasRouter);
 api.route("/senales", senalesRouter);
 api.route("/entidades", entidadesRouter);
+api.route("/cruces", crucesRouter);
 api.route("/partidos", partidosRouter);
 api.route("/reportes", reportesRouter);
 api.route("/upload", uploadRouter);

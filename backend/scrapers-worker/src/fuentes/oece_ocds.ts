@@ -372,6 +372,9 @@ export async function correrOcds(env: Env, p: ParamsCorrida, step: WorkflowStep,
   // acá porque los procesos nuevos llegan por esta fuente; las demás cambian semanal o mensualmente.
   const cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
+  // Casos cruzados (migración 57): la lista nacional de /cruces, por proceso y ganador.
+  await step.do("refrescar_casos_cruce", CARGA, () =>
+    conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_casos_cruce() AS n"))[0]?.n ?? 0));
   registrar("INFO", `   → cruces: ${cruces.map((c) => `${c.tipo} ${c.filas}`).join(" · ")}`, { fuente: "oece_ocds", instancia: id });
   return { ...resumen, refresh_s: refresh, cruces };
 }

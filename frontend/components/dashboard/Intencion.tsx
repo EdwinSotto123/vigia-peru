@@ -24,6 +24,7 @@ const RUTAS: [prefijo: string, intencion: Intencion][] = [
   ["/app/partidos", "explorar"],
   ["/entidad", "explorar"],
   ["/app/hallazgos", "alertas"],
+  ["/app/cruces", "alertas"],
   ["/app/alertas", "alertas"],
   ["/alerta", "alertas"],
   ["/app/denuncias", "alertas"],

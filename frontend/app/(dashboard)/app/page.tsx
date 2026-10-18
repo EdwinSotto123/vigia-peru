@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Building2, Camera, Flag, Heart, Landmark, MapPin, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon } from "lucide-react";
 import { Pagina } from "@/components/patrones";
 import { EnVivoInicio } from "@/components/home/EnVivoInicio";
 import { HeroInicio, type CifrasInicio } from "@/components/home/HeroInicio";
@@ -22,7 +22,7 @@ export const metadata: Metadata = { title: "Inicio" };
  *
  *  1. La pregunta, el buscador y las cifras de hoy, cada una con su anillo (qué parte de qué).
  *  2. Rankings con pestañas (entidades, partidos, aliados, regiones) y, al lado, "se están analizando ahora".
- *  3. Seis caminos en palabras de persona y lo último que Vigía marcó.
+ *  3. Siete caminos en palabras de persona y lo último que Vigía marcó.
  *
  * Toda cifra sale de las mismas lecturas que usa el resto de la app. Si una falla, su bloque (o su pestaña)
  * no se dibuja: nunca se rellena con un número plausible. Cada destino tiene UNA entrada.
@@ -31,6 +31,7 @@ export const metadata: Metadata = { title: "Inicio" };
 const CAMINOS: { href: string; Icono: LucideIcon; titulo: string; texto: string }[] = [
   { href: "/app/mapa", Icono: MapPin, titulo: "Ver qué se contrata en mi región", texto: "Elige tu región en el mapa." },
   { href: "/app/hallazgos", Icono: Flag, titulo: "Revisar las señales de alerta", texto: "Con la norma y la evidencia." },
+  { href: "/app/cruces", Icono: GitCompareArrows, titulo: "Ver ganadores en otros registros", texto: "Aportes, sanciones, visitas, socios." },
   { href: "/app/entidades", Icono: Building2, titulo: "Buscar una empresa o entidad", texto: "Quién contrata y cuánto." },
   { href: "/app/partidos", Icono: Landmark, titulo: "Ver quién gobierna mi región", texto: "Y cuánto vigilamos en cada lugar." },
   { href: "/app/financiar", Icono: Heart, titulo: "Financiar la lectura de contratos", texto: "Tu aporte paga que Vigía lea más." },
@@ -172,7 +173,7 @@ export default async function InicioApp() {
 
         <section aria-labelledby="caminos-titulo">
           <h2 id="caminos-titulo" className="etiqueta-mono mb-3">Qué puedes hacer</h2>
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {CAMINOS.map(({ href, Icono, titulo, texto }) => (
               <li key={href}>
                 <Link
