@@ -27,3 +27,26 @@ test("adjudicaciones de ítems distintos: todas vigentes", () => {
   assert.deepEqual(r.map((x) => x.vigente), [true, true]);
   assert.ok(r.every((x) => !x.sinConfirmar));
 });
+
+test("reparto de un mismo ítem entre ganadores (CONOSCE registra a los dos): ambas vigentes", () => {
+  const a = { proveedorRuc: "20000000001", montoPen: 60, items: ["1"] };
+  const b = { proveedorRuc: "20000000002", montoPen: 40, items: ["1"] };
+  const r = adjudicacionesVigentes([a, b], [fila(1, "20000000001"), fila(1, "20000000002")]);
+  assert.deepEqual(r.map((x) => x.vigente), [true, true]);
+});
+
+test("sin CONOSCE: si juntas no pasan el referencial es un reparto (todas vigentes); si lo pasan, alternativas", () => {
+  const ref = new Map([["1", 1_549_400]]);
+  const reparto = adjudicacionesVigentes([
+    { proveedorRuc: "20000000001", montoPen: 148_350, items: ["1"] },
+    { proveedorRuc: "20000000002", montoPen: 1_277_340, items: ["1"] },
+  ], [], ref);
+  assert.deepEqual(reparto.map((x) => x.vigente), [true, true]);
+  assert.ok(reparto.every((x) => !x.sinConfirmar));
+  const alternativas = adjudicacionesVigentes([
+    { proveedorRuc: "20000000001", montoPen: 97_000, items: ["1"] },
+    { proveedorRuc: "20000000002", montoPen: 97_400, items: ["1"] },
+  ], [], new Map([["1", 97_500]]));
+  assert.deepEqual(alternativas.map((x) => x.vigente), [true, false]);
+  assert.ok(alternativas.every((x) => x.sinConfirmar));
+});

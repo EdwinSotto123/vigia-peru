@@ -137,7 +137,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
     proveedor: aw?.suppliers?.[0]?.name ?? null,
     proveedorRuc: aw?.suppliers?.[0]?.id ? String(aw.suppliers[0].id).replace(/^PE-RUC-/, "") : null,
     items: (Array.isArray(aw?.items) ? aw.items : []).map((i: any) => String(i?.id ?? "")).filter(Boolean),
-  })), conosce);
+  })), conosce, new Map(items.filter((it) => it.montoPen != null).map((it) => [it.id, it.montoPen as number])));
 
   // Migración 48: cruces del ganador con ONPE, JNE, visitas, penalidades y sanciones (lib/cruces.ts).
   const cruces = await crucesDeProceso(row.ocid, adjudicaciones);
@@ -235,13 +235,18 @@ async function adjudicadoConosce(codigo: string): Promise<FilaConosce[]> {
 }
 
 /**
- * El OCDS a veces trae varias adjudicaciones sobre LOS MISMOS ítems: la buena pro original y la que la reemplazó (el
- * ganador no firmó y pasó al siguiente), o a todos los calificados. Sumarlas daba un "adjudicado" mayor que el
- * referencial (109 procesos). Dentro de cada grupo que se pisa queda vigente la del proveedor que CONOSCE registra; sin
- * CONOSCE, la primera, marcada `sinConfirmar`. Las que no se pisan con otra quedan todas vigentes.
+ * Varios postores pueden ganar un mismo proceso: cada uno sus ítems, o un mismo ítem repartido en cantidades. Pero el
+ * OCDS también trae varias adjudicaciones sobre LOS MISMOS ítems cuando la buena pro pasó a otro postor (el ganador no
+ * firmó) o lista a todos los calificados; sumarlas daba un "adjudicado" mayor que el referencial (109 procesos).
+ *   · Las que no se pisan con otra (ítems distintos): todas vigentes.
+ *   · Un grupo que se pisa, con CONOSCE: vigentes las de los proveedores que CONOSCE registra (si registra a varios en
+ *     el mismo ítem, es un reparto y quedan todas).
+ *   · Sin CONOSCE: si juntas no pasan el referencial de sus ítems (+10 %), es un reparto y quedan todas; si lo pasan,
+ *     son alternativas: queda la primera, y el grupo va `sinConfirmar`.
+ * `refItem`: valor referencial de cada ítem del OCDS (id → monto).
  */
-export function adjudicacionesVigentes<T extends { proveedorRuc: string | null; items: string[] }>(
-  aws: T[], conosce: FilaConosce[],
+export function adjudicacionesVigentes<T extends { proveedorRuc: string | null; items: string[]; montoPen?: number | null }>(
+  aws: T[], conosce: FilaConosce[], refItem: Map<string, number> = new Map(),
 ): (T & { vigente: boolean; sinConfirmar?: boolean })[] {
   const enConosce = new Set(conosce.map((k) => k.ruc).filter(Boolean));
   const grupo = aws.map((_, i) => i);
@@ -255,8 +260,18 @@ export function adjudicacionesVigentes<T extends { proveedorRuc: string | null; 
   for (const ids of miembros.values()) {
     if (ids.length < 2) continue;
     const confirmados = ids.filter((i) => aws[i].proveedorRuc && enConosce.has(aws[i].proveedorRuc));
-    for (const i of ids) out[i].vigente = confirmados.length ? confirmados.includes(i) : i === ids[0];
-    if (!confirmados.length) for (const i of ids) out[i].sinConfirmar = true;
+    if (confirmados.length) {
+      for (const i of ids) out[i].vigente = confirmados.includes(i);
+      continue;
+    }
+    const itemsGrupo = new Set(ids.flatMap((i) => aws[i].items));
+    const ref = [...itemsGrupo].reduce((s, it) => s + (refItem.get(it) ?? 0), 0);
+    const suma = ids.reduce((s, i) => s + (aws[i].montoPen ?? 0), 0);
+    if (ref > 0 && suma <= ref * 1.1) continue;   // reparto: todas vigentes
+    for (const i of ids) {
+      out[i].vigente = i === ids[0];
+      out[i].sinConfirmar = true;
+    }
   }
   return out;
 }
