@@ -11,12 +11,22 @@ import { GRUPOS_CRUCE, TIPO_CRUCE } from "@/lib/cruces";
  * Es el filtro que la página existe para responder, así que no va escondido detrás de "Filtros". Se pueden marcar
  * varios (casos con cualquiera de ellos); `todos=1` pide los que tienen todos a la vez.
  */
-export function TiposCruce({ conteos }: { conteos: Record<string, number> | null }) {
+export function TiposCruce({
+  conteos,
+  param = "cruce",
+  permitirTodos = false,
+}: {
+  conteos: Record<string, number> | null;
+  /** Parámetro de la URL con los tipos elegidos, separados por coma. */
+  param?: string;
+  /** Ofrece "que tengan todos a la vez" (`todos=1`); sólo si el API de la lista lo entiende. */
+  permitirTodos?: boolean;
+}) {
   const { parametros, navegar } = useListado();
-  const activos = (parametros.tipo ?? "").split(",").filter(Boolean);
+  const activos = (parametros[param] ?? "").split(",").filter(Boolean);
   const alternar = (tipo: string) => {
     const nuevos = activos.includes(tipo) ? activos.filter((t) => t !== tipo) : [...activos, tipo];
-    navegar({ tipo: nuevos.join(",") || undefined, todos: nuevos.length > 1 ? parametros.todos : undefined });
+    navegar({ [param]: nuevos.join(",") || undefined, ...(permitirTodos ? { todos: nuevos.length > 1 ? parametros.todos : undefined } : {}) });
   };
 
   return (
@@ -26,7 +36,7 @@ export function TiposCruce({ conteos }: { conteos: Record<string, number> | null
           Qué se cruzó
         </h2>
         <div className="flex items-center gap-3 text-[12.5px]">
-          {activos.length > 1 && (
+          {permitirTodos && activos.length > 1 && (
             <label className="flex cursor-pointer items-center gap-1.5 text-inkSoft">
               <input
                 type="checkbox"
@@ -38,7 +48,7 @@ export function TiposCruce({ conteos }: { conteos: Record<string, number> | null
             </label>
           )}
           {activos.length > 0 && (
-            <button type="button" className="text-granate underline-offset-2 hover:underline" onClick={() => navegar({ tipo: undefined, todos: undefined })}>
+            <button type="button" className="text-granate underline-offset-2 hover:underline" onClick={() => navegar({ [param]: undefined, ...(permitirTodos ? { todos: undefined } : {}) })}>
               Ver todos los tipos
             </button>
           )}

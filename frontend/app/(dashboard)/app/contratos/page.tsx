@@ -12,6 +12,7 @@ import {
   type Parametros,
 } from "@/components/listado";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
+import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
 import { getEntidad } from "@/lib/api-client";
@@ -93,6 +94,8 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
       </Suspense>
 
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
+        {/* Con el filtro de cruces puesto, los tipos de cruce quedan a la vista (antes, la página /app/cruces). */}
+        {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
         <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} entidadNombre={entidadNombre} filas={[]} />}>
           <BarraConConteos
             resumen={resumen}
@@ -315,6 +318,15 @@ function filtros({
     ...(parametros.entidad
       ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
       : []),
+    {
+      param: "cruces",
+      etiqueta: "Ganador en otros registros",
+      todas: "Con o sin cruces",
+      opciones: [
+        { valor: "alta", etiqueta: "Con un cruce grave", conteo: resumen?.porCruces ? resumen.porCruces.alta : null },
+        { valor: "con", etiqueta: "Con algún cruce", conteo: resumen?.porCruces ? resumen.porCruces.con : null },
+      ],
+    },
     { param: "mes", etiqueta: "Mes de convocatoria", todas: "Todo el histórico", opciones: meses },
     { param: "monto_min", etiqueta: "Valor referencial desde", todas: "Sin mínimo", opciones: opcionesMonto(MONTOS_DESDE, parametros.monto_min) },
     { param: "monto_max", etiqueta: "Valor referencial hasta", todas: "Sin máximo", opciones: opcionesMonto(MONTOS_HASTA, parametros.monto_max) },

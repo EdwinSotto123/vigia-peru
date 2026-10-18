@@ -61,6 +61,8 @@ export interface ContratoResumen {
   enRevision?: boolean;
   proveedor: string | null;
   proveedorRuc: string | null;
+  /** Cruces de los ganadores con otros registros públicos (casos_cruce): cada tipo con su severidad más alta. */
+  cruces?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
 }
 
 export interface ContratoItem {
@@ -308,6 +310,10 @@ export interface ContratosQuery {
   estado?: EstadoContrato | "";
   operativo?: EstadoOperativo | "";
   orden?: OrdenContratos | "";
+  /** Ganador con cruces en otros registros: con alguno o con uno grave. */
+  cruces?: "con" | "alta" | "";
+  /** Tipos de cruce separados por coma (cualquiera de ellos). */
+  cruce?: string;
 }
 
 export const TIPOS: { value: TipoContrato; label: string }[] = [
@@ -552,6 +558,8 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     riesgo: RIESGOS_URL.includes(s("riesgo") ?? "") ? (s("riesgo") as ContratosQuery["riesgo"]) : undefined,
     operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
+    cruces: s("cruces") === "con" || s("cruces") === "alta" ? (s("cruces") as "con" | "alta") : undefined,
+    cruce: /^[a-z_]+(,[a-z_]+)*$/.test(s("cruce") ?? "") ? s("cruce")!.slice(0, 300) : undefined,
   };
 }
 
@@ -577,6 +585,8 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
     monto_min: txt(q.monto_min),
     monto_max: txt(q.monto_max),
     orden: q.orden && q.orden !== "fecha" ? q.orden : undefined,
+    cruces: txt(q.cruces),
+    cruce: txt(q.cruce),
   };
 }
 
@@ -600,6 +610,8 @@ export interface ResumenContratos {
   porTipo: Partial<Record<TipoContrato | "sin_clasificar", number>>;
   porOperativo: Partial<Record<EstadoOperativo, number>>;
   porRiesgo: Partial<Record<GrupoResumen, number>>;
+  /** Contratos cuyo ganador tiene cruces (y uno grave), con los demás filtros. Falta en la API vieja. */
+  porCruces?: { con: number; alta: number } | null;
 }
 export const getResumenContratos = (q: ContratosQuery = {}) =>
   getJson<ResumenContratos>(

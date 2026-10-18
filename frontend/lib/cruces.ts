@@ -1,40 +1,8 @@
 /**
- * Cruces de datos a escala nacional (GET /cruces, backend/api/src/routes/cruces.ts): procesos con buena pro cuyo
- * ganador aparece en otros registros públicos. Tipos, catálogo de cruces con su explicación y el parseo de la URL.
+ * Catálogo de los cruces del ganador con otros registros públicos (cruces_proveedor / casos_cruce): grupos, nombre corto
+ * y qué significa cada uno. Lo usan la columna de cruces de /app/contratos y su panel de tipos (TiposCruce).
  */
-import { baseApiNavegador } from "./api-client";
-
 export type Severidad = "alta" | "media" | "baja";
-
-export interface CasoCruce {
-  ocid: string;
-  codigo: string | null;
-  objeto: string | null;
-  tipoContratacion: string | null;
-  entidadRuc: string | null;
-  entidad: string | null;
-  departamento: string | null;
-  fechaBuenaPro: string | null;
-  montoSoles: number | null;
-  rucProveedor: string;
-  proveedor: string | null;
-  consorcio: string | null;
-  severidad: Severidad;
-  puntaje: number;
-  cruces: { tipo: string; severidad: Severidad; n: number; etiqueta: string }[];
-}
-
-export interface CrucesPagina {
-  total: number;
-  resumen: { total: number; procesos: number; entidades: number; proveedores: number; monto: number; altas: number } | null;
-  casos: CasoCruce[];
-  facetas: {
-    tipos: { valor: string; n: number; etiqueta: string }[];
-    severidad: { alta: number; media: number; baja: number };
-    departamentos: { valor: string; nombre: string | null; n: number }[];
-    contratacion: { valor: string; n: number }[];
-  } | null;
-}
 
 /** Grupos de cruces, en el orden en que se muestran; cada tipo con una explicación corta de qué se cruzó. */
 export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: string; explica: string }[] }[] = [
@@ -75,43 +43,3 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
 ];
 
 export const TIPO_CRUCE = Object.fromEntries(GRUPOS_CRUCE.flatMap((g) => g.tipos.map((t) => [t.tipo, t])));
-
-export const ORDENES_CRUCE = [
-  { valor: "puntaje", etiqueta: "Más cruces graves primero" },
-  { valor: "reciente", etiqueta: "Buena pro más reciente" },
-  { valor: "monto", etiqueta: "Mayor monto adjudicado" },
-];
-
-export const CONTRATACION: Record<string, string> = {
-  bienes: "Bienes", servicios: "Servicios", obras: "Obras", consultoria: "Consultoría", convenio: "Convenio", directa: "Contratación directa",
-};
-
-export const TAM_CRUCES = 25;
-
-/** Parámetros de la URL que entiende la página (y que pasan tal cual al API). */
-export const PARAMS_CRUCES = ["tipo", "severidad", "departamento", "contratacion", "entidad", "q", "desde", "hasta", "montoMin", "orden", "pagina"] as const;
-
-export function parseCrucesQuery(sp?: Record<string, string | string[] | undefined>): Record<string, string | undefined> {
-  const out: Record<string, string | undefined> = {};
-  for (const k of PARAMS_CRUCES) {
-    const v = sp?.[k];
-    const s = Array.isArray(v) ? v[0] : v;
-    if (s) out[k] = s.slice(0, 200);
-  }
-  return out;
-}
-
-export async function getCruces(query: Record<string, string | undefined>): Promise<CrucesPagina | null> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(query)) if (v && k !== "pagina") qs.set(k, v);
-  const pagina = Math.max(1, Number(query.pagina) || 1);
-  qs.set("limit", String(TAM_CRUCES));
-  qs.set("offset", String((pagina - 1) * TAM_CRUCES));
-  try {
-    const res = await fetch(`${baseApiNavegador()}/cruces?${qs}`, { next: { revalidate: 300 } } as RequestInit);
-    if (!res.ok) return null;
-    return (await res.json()) as CrucesPagina;
-  } catch {
-    return null;
-  }
-}

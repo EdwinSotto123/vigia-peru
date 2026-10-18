@@ -30,6 +30,8 @@ import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkelet
 import { numero, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
 import { etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
+import { Badge } from "@/components/ui/Badge";
+import { TIPO_CRUCE } from "@/lib/cruces";
 import { DetalleContrato } from "./DetalleContrato";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
@@ -56,6 +58,17 @@ const COLUMNAS: Columna[] = [
     ),
   },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
+  {
+    clave: "cruces", titulo: "Ganador en otros registros", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    ayuda: (
+      <Ayuda titulo="¿Qué son estos cruces?">
+        Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña (ONPE),
+        candidaturas y autoridades (JNE), sanciones y penalidades, visitas a entidades, socios comunes con otros postores y
+        órdenes del mismo día que juntas pasan 8 UIT (CONOSCE). No prueban una irregularidad: el dossier trae cada uno con
+        su fuente.
+      </Ayuda>
+    ),
+  },
   { clave: "tipo", titulo: "Tipo y etapa", ancho: "minmax(0,0.6fr)", desde: "xl" },
   { clave: "valor", titulo: "Valor referencial", ancho: "128px", alinear: "der", desde: "md" },
   { clave: "convocada", titulo: "Convocada", ancho: "96px", desde: "lg" },
@@ -191,6 +204,7 @@ function filaDe(c: ContratoResumen): Fila {
       estado: <EstadoContratoChip c={c} />,
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM).
       contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} />,
+      cruces: <CrucesCelda cruces={c.cruces} />,
       tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
       convocada: <CeldaFecha fecha={c.fecha?.slice(0, 10)} />,
@@ -224,6 +238,29 @@ function filaDe(c: ContratoResumen): Fila {
       ),
     },
   };
+}
+
+const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
+const MAX_CRUCES = 3;
+
+/** Los cruces del ganador: los más graves primero, hasta tres y "+n"; un guion si no tiene ninguno o aún no ganó nadie. */
+function CrucesCelda({ cruces }: { cruces: ContratoResumen["cruces"] }) {
+  if (!cruces?.length) return <span className="text-[12.5px] text-mute">—</span>;
+  const resto = cruces.length - MAX_CRUCES;
+  return (
+    <ul className="flex flex-wrap gap-1" aria-label="Registros donde aparece el ganador">
+      {cruces.slice(0, MAX_CRUCES).map((x) => (
+        <li key={x.tipo} title={TIPO_CRUCE[x.tipo]?.explica}>
+          <Badge variant={VARIANTE_CRUCE[x.severidad]}>{TIPO_CRUCE[x.tipo]?.corto ?? x.tipo}</Badge>
+        </li>
+      ))}
+      {resto > 0 && (
+        <li title={cruces.slice(MAX_CRUCES).map((x) => TIPO_CRUCE[x.tipo]?.corto ?? x.tipo).join(", ")}>
+          <Badge variant="neutral">+{resto}</Badge>
+        </li>
+      )}
+    </ul>
+  );
 }
 
 /** Mientras llega la primera página: la misma rejilla, sin saltos cuando entran los datos. */

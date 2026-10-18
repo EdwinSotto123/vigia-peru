@@ -154,6 +154,9 @@ export const ListQuery = z.object({
   estado: z.enum(["sin_analizar", "pendiente_de_procesamiento", "encolado", "procesando", "procesado", "error"]).optional(),
   operativo: z.enum(["en_cola", "documentos_listos", "sin_documentos"]).optional(),
   orden: z.enum(["fecha", "monto", "score"]).default("fecha"),
+  // Cruces del ganador con otros registros (migración 57, casos_cruce): con alguno, con uno grave, o de ciertos tipos.
+  cruces: z.enum(["con", "alta"]).optional(),
+  cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
 });
 
 /** Condiciones WHERE compartidas por /contratos, /contratos/geo y /contratos/resumen. Los alias

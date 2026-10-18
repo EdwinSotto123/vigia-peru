@@ -103,6 +103,12 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   if (q.riesgo && !excluir.has("riesgo")) ce(`ce.riesgo = ${add(q.riesgo)}`);
   if (q.estado && !excluir.has("estado")) ce(`ce.estado_proc = ${add(q.estado)}`);
   if (q.operativo && !excluir.has("operativo")) ce(`ce.operativo = ${add(q.operativo)}`);
+  if ((q.cruces || q.cruce) && !excluir.has("cruces")) {
+    const k = [`k.ocid = ${m.ocid}`];
+    if (q.cruces === "alta") k.push("k.n_alta > 0");
+    if (q.cruce) k.push(`k.tipos && ${add(q.cruce.split(","))}::text[]`);
+    conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
+  }
   return { conds, usaCe };
 }
 
@@ -114,7 +120,7 @@ function esFinDeMes(d: string): boolean {
 }
 /** Filtros que `contratos_agregado` responde exacto: sin q, entidad ni montos, y fechas en meses enteros. */
 const agregable = (q: Partial<Filtros>) =>
-  !q.q && !q.entidad && q.monto_min == null && q.monto_max == null
+  !q.q && !q.cruces && !q.cruce && !q.entidad && q.monto_min == null && q.monto_max == null
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
 /** WHERE sobre contratos_agregado (columnas: ubigeo, tipo, etapa, mes, riesgo, estado_proc, operativo). */
@@ -148,7 +154,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -174,8 +180,21 @@ contratosRouter.get("/resumen", async (c) => {
     fila[r] = (fila[r] ?? 0) + celda.n;
   }
   const total = celdas.reduce((s, celda) => s + (pasa(celda, null) ? celda.n : 0), 0);
-  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porTipoRiesgo }, CACHE_LISTA);
+  const porCruces = await crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null);
+  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porTipoRiesgo, porCruces }, CACHE_LISTA);
 });
+
+const crucesMemo = new Memo<{ con: number; alta: number }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
+
+/** Contratos con cruces del ganador (y con uno grave) bajo los demás filtros: los conteos del filtro "Cruces". */
+async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number }> {
+  const vals: unknown[] = [];
+  const { conds } = filtros({ ...q, cruces: undefined }, vals, MAPA_CE);
+  const r = await pool.query(
+    `SELECT count(DISTINCT k.ocid)::int AS con, count(DISTINCT k.ocid) FILTER (WHERE k.n_alta > 0)::int AS alta
+       FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`, vals);
+  return r.rows[0];
+}
 
 async function cubo(q: z.infer<typeof ResumenQuery>): Promise<Celda[]> {
   const sinFacetas = new Set<string>(FACETAS);
@@ -230,14 +249,21 @@ const COLS_FILA = `c.ocid, c.codigo, c.objeto AS titulo, e.nombre AS entidad, c.
   CASE WHEN ce.alerta_id IS NULL OR alerta_publicada(ce.alerta_estado) THEN COALESCE(b.n, 0)::int END AS banderas,
   COALESCE(ce.alerta_estado = 'revision', false) AS "enRevision",
   COALESCE(emp.razon_social, c.ocds_payload->'awards'->0->'suppliers'->0->>'name') AS proveedor,
-  COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(c.ocds_payload->'awards'->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')) AS "proveedorRuc"`;
+  COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(c.ocds_payload->'awards'->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')) AS "proveedorRuc",
+  kc.cruces`;
 
 const JOIN_FILA = `JOIN convocatorias c ON c.ocid = pag.ocid
   JOIN contrato_estado ce ON ce.ocid = pag.ocid
   LEFT JOIN zonas z ON z.ubigeo = c.ubigeo_zona
   LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
   LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc
-  LEFT JOIN LATERAL (SELECT count(*) AS n FROM banderas b WHERE b.alerta_id = ce.alerta_id) b ON TRUE`;
+  LEFT JOIN LATERAL (SELECT count(*) AS n FROM banderas b WHERE b.alerta_id = ce.alerta_id) b ON TRUE
+  -- Cruces de los ganadores (migración 57): cada tipo una vez, con su severidad más alta; null si no hay.
+  LEFT JOIN LATERAL (
+    SELECT jsonb_agg(jsonb_build_object('tipo', t.tipo, 'severidad', (ARRAY['alta', 'media', 'baja'])[t.r + 1]) ORDER BY t.r, t.tipo) AS cruces
+      FROM (SELECT x->>'tipo' AS tipo, min(CASE x->>'severidad' WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS r
+              FROM casos_cruce k, jsonb_array_elements(k.cruces) x WHERE k.ocid = c.ocid GROUP BY 1) t
+  ) kc ON TRUE`;
 
 interface Orden {
   /** SELECT de la página (ocid + claves tipadas k0..k2) con WHERE/ORDER/LIMIT ya puestos. */

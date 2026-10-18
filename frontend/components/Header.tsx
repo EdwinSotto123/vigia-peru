@@ -27,10 +27,15 @@ const DASHBOARD_PATHS = [
   "/preguntas",
 ];
 
-/** Navegación pública. El orden es el recorrido del producto: inicio → mapa → financiar → ver en vivo → aliados → denunciar. */
+/**
+ * Navegación pública. El orden es el recorrido del producto: inicio → mapa → los datos (contratos con los cruces de su
+ * ganador, señales de los leídos) → ver en vivo → partidos → aliados → denunciar. Financiar es el botón de la derecha.
+ */
 const NAV = [
   { href: "/", label: "Inicio" },
   { href: "/app/mapa", label: "Mapa" },
+  { href: "/app/contratos", label: "Contratos" },
+  { href: "/app/hallazgos", label: "Señales" },
   { href: "/app/auditoria", label: "Auditoría en vivo", vivo: true },
   { href: "/app/partidos", label: "Partidos" },
   // Dorado: el reconocimiento público a quienes financian la lectura (el ranking).
