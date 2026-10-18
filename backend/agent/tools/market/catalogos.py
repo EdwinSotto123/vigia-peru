@@ -103,7 +103,8 @@ def candidatos(termino: str) -> list[dict]:
     return [c for lista in listas for c in lista]
 
 
-_JUEZ = """Para cada ítem de una compra pública peruana tienes productos de catálogos de tiendas (id, producto, precio).
+_JUEZ = """Para cada ítem de una compra pública peruana tienes productos de catálogos de tiendas y compras de otras entidades
+públicas ya adjudicadas ("compra de …": precio unitario pagado) (id, producto, precio).
 Elige SOLO los que son el MISMO bien que el ítem (mismo tipo, misma especificación principal; la marca puede variar
 salvo que el ítem exija una). Descarta accesorios, repuestos, otros productos y presentaciones no comparables.
 Si el ítem exige certificaciones o especificaciones (`certificaciones`, `especificaciones`) y el nombre del producto no
@@ -155,10 +156,31 @@ def _juzgar(items: list[dict], cands: dict[str, list[dict]]) -> dict[str, list[t
     return out
 
 
-def precios_de_catalogo(items: list[dict]) -> tuple[list[dict], dict]:
-    """Precios en el formato de los workers de goods_retail (`precios[]`) + resumen para el informe."""
+def _compras_estado(items: list[dict], hasta: str | None, departamento: str) -> tuple[dict[str, list[dict]], str | None]:
+    """Candidatos de compras de otras entidades (OECE/CONOSCE) por ítem; una consulta por ítem, en paralelo."""
+    if os.getenv("COMPRAS_ESTADO_ACTIVO", "1") == "0" or not items:
+        return {}, None
+    from .compras_estado import candidatos_compras_estado
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        futs = {str(it.get("numero")): ex.submit(candidatos_compras_estado, it, hasta, departamento) for it in items}
+    out, error = {}, None
+    for num, f in futs.items():
+        try:
+            out[num] = f.result()
+        except Exception as e:  # noqa: BLE001  (sin base, el nivel queda fuera; los catálogos siguen)
+            error = str(e)[:160]
+    return out, error
+
+
+def precios_de_catalogo(items: list[dict], hasta: str | None = None, departamento: str = "") -> tuple[list[dict], dict]:
+    """Precios en el formato de los workers de goods_retail (`precios[]`) + resumen para el informe. A los candidatos
+    de las tiendas se suman las compras de otras entidades del mismo bien (precio unitario adjudicado, hasta la fecha
+    de la convocatoria): la referencia de los bienes específicos que no venden las tiendas. El mismo juez elige."""
     elegibles = items[:CATALOGO_MAX_ITEMS]
     cands = {str(it.get("numero")): candidatos(termino_busqueda(it.get("descripcion_corta") or "")) for it in elegibles}
+    del_estado, error_estado = _compras_estado(elegibles, hasta, departamento)
+    for num, extra in del_estado.items():
+        cands[num] = (cands.get(num) or []) + extra
     n_cands = sum(len(v) for v in cands.values())
     try:
         elegidos = _juzgar(elegibles, cands) if n_cands else {}
@@ -171,11 +193,15 @@ def precios_de_catalogo(items: list[dict]) -> tuple[list[dict], dict]:
             precios.append({
                 "item_numero": num, "producto": c["producto"], "precio": round(c["precio"] / n, 4),
                 "moneda_origen": "PEN", "unidad": it.get("unidad") or "Unidad", "proveedor": c["tienda"],
-                "fuentes": [{"uri": c["url"], "titulo": c["producto"], "dominio": c["tienda"]}],
-                "origen": "catalogo_tienda", "precio_publicado": c["precio"], "unidades_por_producto": n,
+                "fuentes": [{"uri": c["url"], "titulo": c["producto"],
+                             "dominio": c["url"].split("//")[-1].split("/")[0] if c.get("origen") == "conosce" else c["tienda"]}],
+                "origen": c.get("origen") or "catalogo_tienda", "precio_publicado": c["precio"], "unidades_por_producto": n,
             })
     return precios, {"tiendas": list(TIENDAS), "items_consultados": len(elegibles), "candidatos": n_cands,
-                     "precios_elegidos": len(precios)}
+                     "candidatos_compras_estado": sum(len(v) for v in del_estado.values()),
+                     **({"error_compras_estado": error_estado} if error_estado else {}),
+                     "precios_elegidos": len(precios),
+                     "precios_compras_estado": sum(1 for p in precios if p["origen"] == "conosce")}
 
 
 # ─── combustibles: precios oficiales de Osinergmin (vía vigia-precios) ──────────

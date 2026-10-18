@@ -174,3 +174,50 @@ def test_compras_estado_arma_la_consulta_y_marca_lotes(monkeypatch):
 def test_compras_estado_sin_palabras_no_consulta():
     from tools.market.compras_estado import consultar_compras_estado
     assert consultar_compras_estado("de la x")["compras"] == []
+
+
+def test_candidatos_compras_estado_filtra_lotes_unidad_y_moneda(monkeypatch):
+    from tools.market import compras_estado as ce
+    consultas = []
+
+    def _buscar(palabras, hasta, anios, departamento, solo=False):
+        consultas.append((palabras, hasta, departamento))
+        if len(palabras) == 3:        # tres palabras no encuentran nada → reintenta con dos
+            return []
+        base = {"fecha": "2025-05-01", "tipo_proceso": "Subasta", "departamento": "JUNIN", "entidad": "MUNI",
+                "descripcion": "CEMENTO PORTLAND TIPO I 42.5 KG", "proceso": "SIE-1", "proveedor": "X", "moneda": "PEN"}
+        return [{**base, "cantidad": 500, "unidad": "Unidad", "precio_unitario": 27.0, "posible_lote": False},
+                {**base, "cantidad": 1, "unidad": "Unidad", "precio_unitario": 90000.0, "posible_lote": True},
+                {**base, "cantidad": 900, "unidad": "Kilogramo", "precio_unitario": 0.7, "posible_lote": False},
+                {**base, "cantidad": 300, "unidad": "Unidad", "precio_unitario": 8.0, "posible_lote": False, "moneda": "USD"}]
+
+    monkeypatch.setattr(ce, "_buscar", _buscar)
+    c = ce.candidatos_compras_estado({"descripcion_corta": "Cemento Portland puzolánico", "unidad": "BOLSA"}, "2025-06-01", "JUNIN")
+    assert [x["precio"] for x in c] == [27.0] and c[0]["origen"] == "conosce"
+    assert [q[0] for q in consultas] == [["cemento", "portland", "puzolanico"], ["cemento", "portland"]]
+    assert consultas[-1][1:] == ("2025-06-01", "JUNIN")
+    assert ce.candidatos_compras_estado({"descripcion_corta": "Cemento", "unidad": "Servicio"}) == []
+
+
+def test_precios_de_catalogo_suma_compras_del_estado(monkeypatch):
+    from tools.market import catalogos
+    monkeypatch.setenv("COMPRAS_ESTADO_ACTIVO", "1")
+    tienda = {"producto": "Cemento Sol 42.5 kg", "precio": 31.0, "tienda": "promart.pe", "url": "https://www.promart.pe/c/p"}
+    estado = {"producto": "CEMENTO PORTLAND · compra de MUNI", "precio": 27.0, "tienda": "Compras del Estado (OECE)",
+              "url": "https://conosce.osce.gob.pe/buscador/", "origen": "conosce"}
+    monkeypatch.setattr(catalogos, "candidatos", lambda t: [tienda])
+    import tools.market.compras_estado as ce
+    monkeypatch.setattr(ce, "candidatos_compras_estado", lambda it, h, d: [estado])
+    vistos = {}
+
+    def _juez(items, cands):
+        vistos.update(cands)
+        return {"1": [(cands["1"][0], 1.0), (cands["1"][1], 1.0)]}
+
+    monkeypatch.setattr(catalogos, "_juzgar", _juez)
+    precios, info = catalogos.precios_de_catalogo([{"numero": "1", "descripcion_corta": "Cemento", "unidad": "Bolsa"}],
+                                                  hasta="2025-06-01")
+    assert len(vistos["1"]) == 2
+    assert [(p["origen"], p["precio"]) for p in precios] == [("catalogo_tienda", 31.0), ("conosce", 27.0)]
+    assert precios[1]["fuentes"][0]["dominio"] == "conosce.osce.gob.pe"
+    assert info["precios_compras_estado"] == 1

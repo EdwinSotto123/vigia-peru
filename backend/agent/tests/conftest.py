@@ -24,6 +24,7 @@ if not RUN_LIVE:
     # Fuentes gratuitas en red (Google News, catálogos de tiendas): los tests del pipeline no salen a internet.
     os.environ.setdefault("PRENSA_PRECARGA", "0")
     os.environ.setdefault("CATALOGO_TIENDAS_ACTIVO", "0")
+    os.environ.setdefault("COMPRAS_ESTADO_ACTIVO", "0")
 
 
 def pytest_configure(config):

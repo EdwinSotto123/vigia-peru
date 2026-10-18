@@ -425,7 +425,9 @@ def _mercado_goods_retail(state: dict) -> dict:
             resto = [it for it in items_grounded if not es_combustible(it)]
             precios_may, info_may = precios_mayorista(resto, hasta=fecha_ref)
             con_may = {str(p["item_numero"]) for p in precios_may}
-            precios_cat, info_cat = precios_de_catalogo([it for it in resto if str(it.get("numero")) not in con_may])
+            # Tiendas + compras de otras entidades (OECE/CONOSCE, hasta la fecha de la convocatoria), con un solo juez.
+            precios_cat, info_cat = precios_de_catalogo([it for it in resto if str(it.get("numero")) not in con_may],
+                                                        hasta=fecha_ref, departamento=departamento_de(ocds))
             precios_cat = precios_comb + precios_may + precios_cat
             info_cat = {**info_cat, "combustible": info_comb, "mayorista": info_may, "fecha_referencia": fecha_ref}
             for p in precios_cat:
@@ -571,7 +573,7 @@ def _mercado_goods_retail(state: dict) -> dict:
                 "tipo_cambio_aplicado": MARKET_USD_PEN if p["moneda_origen"] == "USD" else None,
                 "titulo_fuente": f0.get("titulo"), "dominio": f0.get("dominio"),
                 "urls_adicionales": [x["uri"] for x in p["fuentes"][1:]],
-                "origen": p.get("origen"),          # osinergmin | catalogo_tienda | None (búsqueda web)
+                "origen": p.get("origen"),          # osinergmin | emmsa | catalogo_tienda | conosce | None (búsqueda web)
                 # compat frontend (columna `valor`)
                 "valor": round(norm, 2) if norm is not None else None,
             }
