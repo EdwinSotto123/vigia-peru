@@ -6,14 +6,16 @@
  *   GET  /combustible?producto=&departamento=&dias=120
  *                                                 precios oficiales de Osinergmin (distribuidores minoristas)
  *   GET  /historial?q=<término>&dias=180          precios vistos antes (canasta semanal + búsquedas)
- *   POST /admin/actualizar?que=combustible|canasta   corre ya lo que hace el cron
+ *   GET  /mayorista?q=<producto>&dias=30          Gran Mercado Mayorista de Lima (EMMSA): precio por kg por variedad
+ *   POST /admin/actualizar?que=combustible|canasta|mayorista[&desde=&hasta=]   corre ya lo que hace el cron
  *
  * Auth: `Authorization: Bearer <PRECIOS_TOKEN>`. Crons: combustible a diario, canasta los lunes.
  * Las tiendas no ofrecen su API a terceros (tiendas.ts): caché, una consulta a la vez por tienda en el cron,
  * User-Agent propio y pausa automática de la tienda que falla.
  */
 import { CANASTA } from "./canasta.ts";
-import { URL_DMIN, decodificar, estadistica, parsearDmin, productoDeConsulta } from "./combustible.ts";
+import { URL_DATOS, URL_FORMULARIO, URL_PUBLICA, codigosDelFormulario, coincide, cuerpoConsulta, parsearReporte } from "./mayorista.ts";
+import { URL_DMIN, decodificar, estadistica, parsearDmin, percentil, productoDeConsulta } from "./combustible.ts";
 import {
   type EstadoTienda, type Producto, type Tienda, TIENDAS, USER_AGENT, bloqueada, estadoTrasExito, estadoTrasFallo,
   normalizarTermino, normalizarVtex, urlBusqueda,
@@ -163,6 +165,70 @@ async function combustible(env: Env, q: string, departamento: string, dias: numb
   });
 }
 
+// ─── mercado mayorista (EMMSA) ────────────────────────────────────────────────
+/** Fecha de Lima (UTC-5) desplazada `dias` días. */
+function fechaLima(dias = 0): string {
+  return new Date(Date.now() - 5 * 3_600_000 + dias * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Carga las fechas pedidas (idempotente por fecha). Una consulta por fecha, con pausa: no apurar a EMMSA. */
+async function actualizarMayorista(env: Env, fechas: string[]) {
+  const f = await fetch(URL_FORMULARIO, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30_000) });
+  if (!f.ok) throw new Error(`EMMSA formulario HTTP ${f.status}`);
+  const codigos = codigosDelFormulario(await f.text());
+  if (codigos.productos.length < 10) throw new Error(`EMMSA: formulario sin códigos (${codigos.productos.length})`);
+  const ins = env.DB.prepare(
+    "INSERT OR REPLACE INTO mayorista (fecha, producto, variedad, precio_min, precio_max, precio_prom) VALUES (?, ?, ?, ?, ?, ?)");
+  const resumen: Record<string, number> = {};
+  for (const fecha of fechas) {
+    const r = await fetch(URL_DATOS, {
+      method: "POST", body: cuerpoConsulta(codigos, fecha), signal: AbortSignal.timeout(60_000),
+      headers: { "user-agent": USER_AGENT, "content-type": "application/x-www-form-urlencoded", "x-requested-with": "XMLHttpRequest" },
+    });
+    const filas = r.ok ? parsearReporte(await r.text()) : [];
+    resumen[fecha] = filas.length;
+    if (filas.length) {   // un día sin mercado (feriado) no borra nada
+      await env.DB.batch([env.DB.prepare("DELETE FROM mayorista WHERE fecha = ?").bind(fecha),
+        ...filas.map((x) => ins.bind(fecha, x.producto, x.variedad, x.precio_min, x.precio_max, x.precio_prom))]);
+    }
+    if (fechas.length > 1) await dormir(1000);
+  }
+  await env.DB.prepare("INSERT OR REPLACE INTO actualizacion (que, cuando, detalle) VALUES ('mayorista', ?, ?)")
+    .bind(Date.now(), JSON.stringify(resumen).slice(0, 500)).run();
+  return { fechas: resumen };
+}
+
+function rangoFechas(desde: string, hasta: string, max = 120): string[] {
+  const out: string[] = [];
+  for (let d = new Date(`${desde}T12:00:00Z`); d <= new Date(`${hasta}T12:00:00Z`) && out.length < max; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+async function mayorista(env: Env, q: string, dias: number) {
+  if (!q.trim()) return json({ error: "falta q" }, 400);
+  const filas = (await env.DB.prepare(
+    "SELECT fecha, producto, variedad, precio_min, precio_max, precio_prom FROM mayorista WHERE fecha >= date('now', ?) ORDER BY fecha DESC",
+  ).bind(`-${dias} days`).all<any>()).results.filter((f) => coincide(q, f));
+  const grupos = new Map<string, any[]>();
+  for (const f of filas) {
+    const k = `${f.producto}|${f.variedad}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), f]);
+  }
+  const variedades = [...grupos.values()].map((g) => {
+    const proms = g.map((x) => x.precio_prom).filter((x: number | null) => x);
+    return {
+      producto: g[0].producto, variedad: g[0].variedad, unidad: "kg", n_dias: g.length,
+      promedio: proms.length ? Math.round((proms.reduce((a: number, b: number) => a + b, 0) / proms.length) * 100) / 100 : null,
+      p25: percentil(proms, 0.25), mediana: percentil(proms, 0.5), p75: percentil(proms, 0.75),
+      min: Math.min(...g.map((x) => x.precio_min ?? Infinity)), max: Math.max(...g.map((x) => x.precio_max ?? 0)),
+      ultimo: { fecha: g[0].fecha, precio_prom: g[0].precio_prom },
+    };
+  }).sort((a, b) => b.n_dias - a.n_dias);
+  return json({ q, dias, variedades, fuente: { nombre: "EMMSA · Gran Mercado Mayorista de Lima, precios diarios", url: URL_PUBLICA } });
+}
+
 // ─── canasta semanal ──────────────────────────────────────────────────────────
 async function actualizarCanasta(env: Env, max = CANASTA.length) {
   let consultas = 0, productos = 0;
@@ -193,24 +259,32 @@ export default {
     if (url.pathname === "/tiendas/buscar" && req.method === "GET") return buscar(env, p.get("q") ?? "", Math.min(Number(p.get("n") ?? 4) || 4, 10));
     if (url.pathname === "/combustible" && req.method === "GET")
       return combustible(env, p.get("producto") ?? "", p.get("departamento") ?? "", Math.min(Number(p.get("dias") ?? 120) || 120, 400));
+    if (url.pathname === "/mayorista" && req.method === "GET") return mayorista(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 30) || 30, 730));
     if (url.pathname === "/historial" && req.method === "GET") return historial(env, p.get("q") ?? "", Math.min(Number(p.get("dias") ?? 180) || 180, 1000));
     if (url.pathname === "/admin/actualizar" && req.method === "POST") {
       const que = p.get("que");
       if (que === "combustible") return json(await actualizarCombustible(env));
+      if (que === "mayorista") {
+        const hasta = p.get("hasta") ?? fechaLima();
+        return json(await actualizarMayorista(env, rangoFechas(p.get("desde") ?? hasta, hasta)));
+      }
       if (que === "canasta") {
         // Se espera hasta terminar (~3 min con la canasta entera): desde una petición, waitUntil corta a los ~30 s
         // de responder. `max` limita los términos para probar. El cron sí corre en segundo plano (hasta 15 min).
         const max = Number(p.get("max") ?? CANASTA.length) || CANASTA.length;
         return json(await actualizarCanasta(env, max));
       }
-      return json({ error: "que=combustible|canasta" }, 400);
+      return json({ error: "que=combustible|canasta|mayorista" }, 400);
     }
     return json({ error: "no encontrado" }, 404);
   },
 
   async scheduled(ev: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (ev.cron === CRON_CANASTA) ctx.waitUntil(actualizarCanasta(env));
-    else ctx.waitUntil(actualizarCombustible(env));
+    else {
+      ctx.waitUntil(actualizarCombustible(env));
+      ctx.waitUntil(actualizarMayorista(env, [fechaLima(-1), fechaLima()]));   // ayer y hoy: el reporte de hoy puede salir tarde
+    }
   },
 };
 

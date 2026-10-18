@@ -51,3 +51,15 @@ CREATE TABLE IF NOT EXISTS actualizacion (
   cuando INTEGER NOT NULL,
   detalle TEXT
 );
+
+-- EMMSA · Gran Mercado Mayorista de Lima: precio diario por kg de cada variedad (src/mayorista.ts).
+CREATE TABLE IF NOT EXISTS mayorista (
+  fecha TEXT NOT NULL,             -- YYYY-MM-DD
+  producto TEXT NOT NULL,
+  variedad TEXT NOT NULL,
+  precio_min REAL,
+  precio_max REAL,
+  precio_prom REAL,
+  PRIMARY KEY (fecha, producto, variedad)
+);
+CREATE INDEX IF NOT EXISTS ix_mayorista_fecha ON mayorista (fecha);

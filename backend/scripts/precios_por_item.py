@@ -30,6 +30,9 @@ INSTRUCCION = """Eres un analista de precios de compras públicas del Perú. Par
 3. Si no sale nada útil, reintenta con otro término (máx. 3 intentos por ítem).
 4. Lleva cada precio a la UNIDAD DEL ÍTEM: si el producto es "por peso" (`por_peso: true`) su precio ya es por kilo; si
    el ítem es por unidad (choclo) usa productos por unidad. No inventes conversiones: si no puedes, no lo incluyas.
+5. La herramienta también trae `mayorista_lima` (Gran Mercado Mayorista de Lima, oficial, por kg). Si una variedad es
+   el mismo bien, repórtala en `mayorista` con su `mediana` (solo si el ítem es por kg). Es la referencia principal
+   para compras al por mayor; `precios` (supermercado) queda como tope minorista.
 Devuelve todos los ítems, aunque alguno quede sin precios (con `precios: []` y el motivo)."""
 
 ESQUEMA = {
@@ -42,6 +45,7 @@ ESQUEMA = {
                 "type": "object", "required": ["precio", "tienda", "producto", "url"],
                 "properties": {"precio": {"type": "number"}, "tienda": {"type": "string"},
                                "producto": {"type": "string"}, "url": {"type": "string"}}}},
+            "mayorista": {"type": "object", "properties": {"variedad": {"type": "string"}, "mediana": {"type": "number"}}},
             "terminos_usados": {"type": "array", "items": {"type": "string"}},
             "comentario": {"type": "string"}}}}},
 }
@@ -73,10 +77,16 @@ def resumir(items: list[dict], salida: dict, periodos: float) -> dict:
         med = round(statistics.median(ps), 2) if ps else None
         valor = round(prom * it["cantidad"] * periodos, 2) if prom else None
         total += valor or 0
-        filas.append({**it, "n_precios": len(ps), "promedio": prom, "mediana": med,
+        may = (r.get("mayorista") or {}) if isinstance(r.get("mayorista"), dict) else {}
+        pm = may.get("mediana") if isinstance(may.get("mediana"), (int, float)) and may.get("mediana") > 0 else None
+        valor_may = round(pm * it["cantidad"] * periodos, 2) if pm else None
+        filas.append({**it, "mayorista": pm, "variedad_mayorista": may.get("variedad"), "valor_mayorista": valor_may,
+                      "n_precios": len(ps), "promedio": prom, "mediana": med,
                       "min": min(ps) if ps else None, "max": max(ps) if ps else None, "valor_mercado": valor,
                       "precios": r.get("precios") or [], "comentario": r.get("comentario")})
     return {"items": filas, "valor_mercado_total": round(total, 2),
+            "valor_mayorista_total": round(sum(f["valor_mayorista"] or 0 for f in filas), 2),
+            "items_con_mayorista": sum(1 for f in filas if f["mayorista"]),
             "items_con_precio": sum(1 for f in filas if f["promedio"]), "items_total": len(filas)}
 
 
@@ -96,15 +106,16 @@ def main() -> None:
     res["metricas"] = traza["metricas"]
     res["consultas"] = [c.get("args") for c in traza["llamadas"]]
     sys.stdout.reconfigure(encoding="utf-8")
-    print(f"{'ítem':6} {'descripción':38} {'n':>2} {'promedio':>9} {'mediana':>8} {'valor mercado':>14}")
+    print(f"{'ítem':6} {'descripción':34} {'mayorista':>9} {'variedad mayorista':26} {'súper':>7} {'n':>2}")
     for f in res["items"]:
-        print(f"{f['numero']:6} {f['descripcion'][:38]:38} {f['n_precios']:>2} {str(f['promedio'] or '—'):>9} "
-              f"{str(f['mediana'] or '—'):>8} {('S/ {:,.2f}'.format(f['valor_mercado']) if f['valor_mercado'] else '—'):>14}")
-    print(f"\nValor de mercado (ítems con precio: {res['items_con_precio']}/{res['items_total']}): S/ {res['valor_mercado_total']:,.2f}")
-    for nombre, v in (("valor referencial", a.valor_referencial), ("adjudicado", a.adjudicado)):
-        if v:
-            print(f"{nombre}: S/ {v:,.2f} → {(v / res['valor_mercado_total'] - 1) * 100:+.1f} % frente al mercado"
-                  if res["valor_mercado_total"] else f"{nombre}: S/ {v:,.2f}")
+        print(f"{f['numero']:6} {f['descripcion'][:34]:34} {str(f['mayorista'] or '—'):>9} "
+              f"{(f['variedad_mayorista'] or '—')[:26]:26} {str(f['promedio'] or '—'):>7} {f['n_precios']:>2}")
+    for nombre_ref, tot, n in (("MAYORISTA (EMMSA)", res["valor_mayorista_total"], res["items_con_mayorista"]),
+                               ("supermercado (tope)", res["valor_mercado_total"], res["items_con_precio"])):
+        print(f"\nValor a precio {nombre_ref}, {n}/{res['items_total']} ítems: S/ {tot:,.2f}")
+        for nombre, v in (("valor referencial", a.valor_referencial), ("adjudicado", a.adjudicado)):
+            if v and tot:
+                print(f"   {nombre}: S/ {v:,.2f} → {(v / tot - 1) * 100:+.1f} %")
     print(f"consultas a la herramienta: {len(res['consultas'])} · tokens {res['metricas'].get('prompt')}/{res['metricas'].get('output')} · US$ {res['metricas'].get('cost')}")
     if a.salida:
         a.salida.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")

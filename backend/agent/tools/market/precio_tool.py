@@ -38,5 +38,12 @@ def consultar_precios_referencia(producto: str, tool_context=None) -> dict:
         _publicar(getattr(tool_context, "state", None), [{"url": p["url"]} for p in productos if p.get("url")])
     except Exception:  # noqa: BLE001
         pass
-    return {"termino": d.get("termino"), "productos": productos,
-            "nota": "Precios de supermercado/tienda en Lima, hoy: referencia minorista (tope), no precio mayorista."}
+    mayorista = []
+    try:   # precio oficial mayorista (frescos): la referencia justa para compras al por mayor
+        m = _worker("/mayorista", {"q": producto, "dias": 30}) or {}
+        mayorista = [{k: v.get(k) for k in ("variedad", "unidad", "n_dias", "p25", "mediana", "p75", "ultimo")} for v in m.get("variedades") or []][:5]
+    except Exception:  # noqa: BLE001
+        pass
+    return {"termino": d.get("termino"), "productos": productos, "mayorista_lima": mayorista,
+            "nota": ("`productos`: supermercado/tienda en Lima, hoy (minorista: tope). `mayorista_lima`: Gran Mercado Mayorista "
+                     "de Lima (EMMSA), precio por kg de los últimos 30 días (oficial, mayorista): prefiérelo para frescos.")}

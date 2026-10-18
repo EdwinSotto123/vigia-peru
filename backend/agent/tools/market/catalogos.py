@@ -228,3 +228,51 @@ def precios_combustible(items: list[dict], departamento: str) -> tuple[list[dict
             })
             info["precios"] += 1
     return precios, info
+
+
+# ─── alimentos frescos: Gran Mercado Mayorista de Lima (EMMSA, vía vigia-precios) ─
+def _palabras(s: str) -> set[str]:
+    return set(termino_busqueda(s, max_palabras=8).split())
+
+
+def precios_mayorista(items: list[dict], dias: int = 30) -> tuple[list[dict], dict]:
+    """Para cada ítem con precio en el Mercado Mayorista de Lima: p25, mediana y p75 del precio promedio diario por kg
+    de la variedad que mejor coincide con la descripción (últimos `dias`). Oficial y mayorista: es la referencia justa
+    para frescos (el supermercado es un tope minorista). Ítems sin variedad en EMMSA (frutas que se venden en el
+    Mercado de Frutas, p. ej. papaya) no reciben nada y siguen a los demás niveles."""
+    precios, info = [], {"items": 0, "precios": 0, "variedades": {}}
+    for it in items:
+        desc = it.get("descripcion_corta") or ""
+        consulta = termino_busqueda(desc, max_palabras=2)
+        if not consulta:
+            continue
+        try:
+            d = _worker("/mayorista", {"q": consulta, "dias": dias})
+        except Exception as e:  # noqa: BLE001
+            info["error"] = str(e)[:160]
+            continue
+        vars_ = [v for v in (d or {}).get("variedades") or [] if v.get("mediana")]
+        if not vars_ and " " in consulta:          # "naranja valencia" no está → "naranja"
+            try:
+                d = _worker("/mayorista", {"q": consulta.split()[0], "dias": dias})
+                vars_ = [v for v in (d or {}).get("variedades") or [] if v.get("mediana")]
+            except Exception:  # noqa: BLE001
+                vars_ = []
+        if not vars_:
+            continue
+        pal = _palabras(desc)
+        mejor = max(vars_, key=lambda v: (len(pal & _palabras(v.get("variedad") or "")), v.get("n_dias") or 0))
+        info["items"] += 1
+        info["variedades"][str(it.get("numero"))] = {k: mejor.get(k) for k in ("variedad", "n_dias", "p25", "mediana", "p75")}
+        fuente = ((d or {}).get("fuente") or {}).get("url") or "https://www.emmsa.com.pe/index.php/precios-diarios/"
+        for etiqueta, clave in (("percentil 25", "p25"), ("mediana", "mediana"), ("percentil 75", "p75")):
+            if mejor.get(clave):
+                precios.append({
+                    "item_numero": str(it.get("numero")),
+                    "producto": f"{mejor.get('variedad')} · Mercado Mayorista de Lima, {etiqueta} de {mejor.get('n_dias')} días"[:300],
+                    "precio": float(mejor[clave]), "moneda_origen": "PEN", "unidad": "kg",
+                    "proveedor": "EMMSA", "origen": "emmsa",
+                    "fuentes": [{"uri": fuente, "titulo": "EMMSA · Gran Mercado Mayorista de Lima, precios diarios", "dominio": "emmsa.com.pe"}],
+                })
+                info["precios"] += 1
+    return precios, info

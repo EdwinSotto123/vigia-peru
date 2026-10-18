@@ -108,3 +108,22 @@ def test_herramienta_de_precios(monkeypatch):
     assert ctx.state["grounding_urls"] == ["https://m/1", "https://p/2"]      # quedan como respaldadas
     monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: None)
     assert "no configurado" in precio_tool.consultar_precios_referencia("x")["error"]
+
+
+def test_precios_mayorista(monkeypatch):
+    llamadas = []
+
+    def worker(ruta, params):
+        llamadas.append(params["q"])
+        if params["q"] == "naranja valencia":
+            return {"variedades": []}
+        return {"variedades": [
+            {"variedad": "NARANJA HUANDO", "n_dias": 30, "p25": 1.0, "mediana": 1.1, "p75": 1.2},
+            {"variedad": "NARANJA VALENCIA (SELVA)", "n_dias": 25, "p25": 1.1, "mediana": 1.15, "p75": 1.25}],
+            "fuente": {"url": "https://emmsa/x"}}
+
+    monkeypatch.setattr(catalogos, "_worker", worker)
+    precios, info = catalogos.precios_mayorista([{"numero": "1.05", "descripcion_corta": "NARANJA VALENCIA CATEGORÍA EXTRA"}])
+    assert llamadas == ["naranja valencia", "naranja"]                       # reintenta con la palabra principal
+    assert info["variedades"]["1.05"]["variedad"] == "NARANJA VALENCIA (SELVA)"  # la que mejor coincide, no la de más días
+    assert [p["precio"] for p in precios] == [1.1, 1.15, 1.25] and all(p["origen"] == "emmsa" and p["unidad"] == "kg" for p in precios)

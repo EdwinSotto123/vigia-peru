@@ -416,12 +416,16 @@ def _mercado_goods_retail(state: dict) -> dict:
     precios_cat, chunks_cat, items_web = [], [], items_grounded
     if os.getenv("CATALOGO_TIENDAS_ACTIVO", "1") != "0":
         try:
-            from .catalogos import departamento_de, es_combustible, precios_combustible, precios_de_catalogo
-            # Combustibles: precios oficiales de Osinergmin; el resto, catálogos de tiendas.
+            from .catalogos import departamento_de, es_combustible, precios_combustible, precios_de_catalogo, precios_mayorista
+            # Fuentes oficiales primero: combustibles → Osinergmin; frescos → Mercado Mayorista de Lima (EMMSA). Lo que
+            # ninguna cubre va a los catálogos de tiendas y, al final, a la búsqueda web.
             precios_comb, info_comb = precios_combustible(items_grounded, departamento_de(ocds))
-            precios_cat, info_cat = precios_de_catalogo([it for it in items_grounded if not es_combustible(it)])
-            precios_cat = precios_comb + precios_cat
-            info_cat = {**info_cat, "combustible": info_comb}
+            resto = [it for it in items_grounded if not es_combustible(it)]
+            precios_may, info_may = precios_mayorista(resto)
+            con_may = {str(p["item_numero"]) for p in precios_may}
+            precios_cat, info_cat = precios_de_catalogo([it for it in resto if str(it.get("numero")) not in con_may])
+            precios_cat = precios_comb + precios_may + precios_cat
+            info_cat = {**info_cat, "combustible": info_comb, "mayorista": info_may}
             for p in precios_cat:
                 p["item_numero"] = _norm_num(p["item_numero"])
             por_item: dict[str, int] = {}
@@ -596,7 +600,7 @@ def _mercado_goods_retail(state: dict) -> dict:
         # Precios OFICIALES (Osinergmin) con suficientes declaraciones: mandan sobre el ancla regional, cuyo rango
         # mín–máx de compras públicas es tan amplio que casi todo cae "dentro" (1225299: +20 % sobre la mediana
         # oficial de 203 declaraciones salía "alineado_regional"). El ancla queda como contexto.
-        oficial = n >= MARKET_MIN_PRECIOS and all(x.get("origen") == "osinergmin" for x in precios_obs if x["precio"] in keep)
+        oficial = n >= MARKET_MIN_PRECIOS and all(x.get("origen") in ("osinergmin", "emmsa") for x in precios_obs if x["precio"] in keep)
         if oficial and veredicto_retail != "sin_dato":
             if ancla.get("estado") == "hallado":
                 ancla["concuerda_con_retail"] = (ancla.get("veredicto_regional") == veredicto_retail)
