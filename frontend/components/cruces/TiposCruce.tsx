@@ -33,7 +33,7 @@ export function TiposCruce({
     <section aria-labelledby="tipos-cruce" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="tipos-cruce" className="text-[14px] font-semibold text-ink">
-          Qué se cruzó
+          Tipo de antecedente
         </h2>
         <div className="flex items-center gap-3 text-[12.5px]">
           {permitirTodos && activos.length > 1 && (

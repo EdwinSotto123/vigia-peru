@@ -6,6 +6,7 @@ import {
   IndicadoresSkeleton,
   Listado,
   ZonaResultados,
+  type FacetaChips,
   type FiltroSecundario,
   type Indicador,
   type OpcionFaceta,
@@ -18,6 +19,7 @@ import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
 import { getEntidad } from "@/lib/api-client";
 import {
   ETAPAS,
+  LECTURAS,
   OPERATIVOS,
   ORDENES,
   TIPOS,
@@ -28,6 +30,7 @@ import {
   type ContratoResumen,
   type ContratosPagina,
   type ContratosQuery,
+  type Lectura,
   type ResumenContratos,
 } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
@@ -161,7 +164,8 @@ function Barra({ resumen, parametros, regiones, entidadNombre, filas }: DatosBar
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
-      faceta={facetaEstado(resumen)}
+      faceta={facetaLectura(resumen)}
+      facetasExtra={facetasExtra(resumen, parametros)}
       filtros={filtros({ resumen, parametros, regiones, entidadNombre, filas })}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
@@ -212,7 +216,7 @@ function indicadores(resumen: ResumenContratos, recortada: boolean, universo: nu
       etiqueta: "con riesgo alto",
       tono: "alta",
       contexto: `de ${numero(conDictamen)} con dictamen`,
-      href: hrefCon(parametros, { riesgo: "alto" }),
+      href: hrefCon(parametros, { lectura: "publicado", riesgo: "alto" }),
     },
   ];
 }
@@ -227,35 +231,62 @@ function hrefCon(parametros: Parametros, cambio: Parametros): string {
 // ─── Faceta principal y filtros ──────────────────────────────────────────────
 
 /**
- * La faceta principal es el ESTADO del contrato (peso del riesgo, o sin leer), no la
- * cola: la pregunta que casi todos traen es "¿qué se encontró y qué falta leer?". Casi
- * todo lo publicado está sin leer, y esta faceta separa a los leídos por su resultado
- * con las mismas palabras que el chip de cada fila. La cola y los documentos
- * (`operativo`) son la pregunta de quien va a financiar: van en Filtros.
+ * La faceta principal responde UNA pregunta: ¿lo leyó Vigía? (aún no · leyéndose · leído y publicado · leído, en
+ * revisión humana). Antes eran cinco chips sueltos que mezclaban el estado de lectura con el riesgo encontrado; ahora el
+ * riesgo es la fila siguiente y sólo aparece con "Leído y publicado" (es lo único que tiene riesgo). La cola de
+ * financiamiento y los documentos (`operativo`) son la pregunta de quien va a financiar: van en Filtros.
  *
- * Los conteos salen del resumen, que cuenta la faceta sin su propio filtro; sin
- * resumen no hay conteo (nunca un 0 inventado).
+ * Los conteos salen del resumen, que cuenta cada pregunta sin su propio filtro; sin resumen no hay conteo (nunca un 0
+ * inventado).
  */
-function facetaEstado(resumen: ResumenContratos | null) {
+function facetaLectura(resumen: ResumenContratos | null): FacetaChips {
+  const r = resumen?.porLectura;
+  const c = (k: Lectura) => (r ? r[k] ?? 0 : null);
+  const ICONO: Record<Lectura, OpcionFaceta["icono"]> = { sin_leer: "vacio", leyendo: "espera", publicado: "ok", revision: "revision" };
+  return {
+    param: "lectura",
+    etiqueta: "¿Lo leyó Vigía?",
+    todas: "Todos",
+    conteoTodas: r ? Object.values(r).reduce<number>((s, v) => s + (v ?? 0), 0) : null,
+    opciones: LECTURAS.map((l) => ({ valor: l.value, etiqueta: l.label, conteo: c(l.value), icono: ICONO[l.value], tono: l.value === "publicado" ? "positivo" : "neutro" })),
+  };
+}
+
+/**
+ * Las preguntas que van a la vista bajo la principal:
+ *   · Riesgo encontrado: sólo con "Leído y publicado" (o un enlace que ya trae ?riesgo=).
+ *   · Antecedentes del ganador: aportes, sanciones, visitas, socios comunes… (casos_cruce); con alguno, el panel de
+ *     tipos se abre arriba de la lista.
+ */
+function facetasExtra(resumen: ResumenContratos | null, parametros: Parametros): FacetaChips[] {
   const r = resumen?.porRiesgo;
   const c = (k: keyof NonNullable<typeof r>) => (r ? r[k] ?? 0 : null);
-  const opciones: OpcionFaceta[] = [
-    { valor: "alto", etiqueta: "Riesgo alto", conteo: c("alto"), icono: "alerta", tono: "alta" },
-    { valor: "medio", etiqueta: "Riesgo medio", conteo: c("medio"), icono: "atencion", tono: "media" },
-    // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
-    { valor: "bajo", etiqueta: "Riesgo bajo o sin señales", conteo: c("bajo"), icono: "info", tono: "baja" },
-    { valor: "en_revision", etiqueta: "En revisión", conteo: c("en_revision"), icono: "revision", tono: "neutro" },
-    { valor: "sin_analizar", etiqueta: "Sin leer", conteo: c("sin_analizar"), icono: "vacio", tono: "neutro" },
-  ];
-  return {
-    param: "riesgo",
-    etiqueta: "Estado",
+  const filas: FacetaChips[] = [];
+  if (parametros.lectura === "publicado" || parametros.riesgo) {
+    filas.push({
+      param: "riesgo",
+      etiqueta: "Riesgo encontrado",
+      todas: "Cualquiera",
+      nombreEnChip: false,
+      opciones: [
+        { valor: "alto", etiqueta: "Riesgo alto", conteo: c("alto"), icono: "alerta", tono: "alta" },
+        { valor: "medio", etiqueta: "Riesgo medio", conteo: c("medio"), icono: "atencion", tono: "media" },
+        // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
+        { valor: "bajo", etiqueta: "Bajo o sin señales", conteo: c("bajo"), icono: "info", tono: "baja" },
+      ],
+    });
+  }
+  const k = resumen?.porCruces;
+  filas.push({
+    param: "cruces",
+    etiqueta: "Antecedentes del ganador",
     todas: "Todos",
-    // La opción ya se nombra sola ("Riesgo alto"): el chip activo no repite el nombre de la faceta.
-    nombreEnChip: false,
-    conteoTodas: r ? Object.values(r).reduce<number>((s, v) => s + (v ?? 0), 0) : null,
-    opciones,
-  };
+    opciones: [
+      { valor: "alta", etiqueta: "Con un antecedente grave", conteo: k ? k.alta : null, icono: "alerta", tono: "alta" },
+      { valor: "con", etiqueta: "Con algún antecedente", conteo: k ? k.con : null, icono: "atencion", tono: "media" },
+    ],
+  });
+  return filas;
 }
 
 const MONTOS_DESDE = [50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
@@ -318,15 +349,6 @@ function filtros({
     ...(parametros.entidad
       ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
       : []),
-    {
-      param: "cruces",
-      etiqueta: "Ganador en otros registros",
-      todas: "Con o sin cruces",
-      opciones: [
-        { valor: "alta", etiqueta: "Con un cruce grave", conteo: resumen?.porCruces ? resumen.porCruces.alta : null },
-        { valor: "con", etiqueta: "Con algún cruce", conteo: resumen?.porCruces ? resumen.porCruces.con : null },
-      ],
-    },
     { param: "mes", etiqueta: "Mes de convocatoria", todas: "Todo el histórico", opciones: meses },
     { param: "monto_min", etiqueta: "Valor referencial desde", todas: "Sin mínimo", opciones: opcionesMonto(MONTOS_DESDE, parametros.monto_min) },
     { param: "monto_max", etiqueta: "Valor referencial hasta", todas: "Sin máximo", opciones: opcionesMonto(MONTOS_HASTA, parametros.monto_max) },

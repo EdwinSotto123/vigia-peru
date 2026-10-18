@@ -323,6 +323,8 @@ export interface ContratosQuery {
   orden?: OrdenContratos | "";
   /** Ganador con cruces en otros registros: con alguno o con uno grave. */
   cruces?: "con" | "alta" | "";
+  /** ¿Lo leyó Vigía? Junta el riesgo y el estado de procesamiento en una sola pregunta. */
+  lectura?: Lectura | "";
   /** Tipos de cruce separados por coma (cualquiera de ellos). */
   cruce?: string;
 }
@@ -566,7 +568,11 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     monto_max: num("monto_max"),
     desde: mes?.desde ?? fecha("desde"),
     hasta: mes?.hasta ?? fecha("hasta"),
-    riesgo: RIESGOS_URL.includes(s("riesgo") ?? "") ? (s("riesgo") as ContratosQuery["riesgo"]) : undefined,
+    // Enlaces viejos: ?riesgo=sin_analizar / en_revision son ahora estados de lectura.
+    riesgo: ["alto", "medio", "bajo"].includes(s("riesgo") ?? "") ? (s("riesgo") as ContratosQuery["riesgo"]) : undefined,
+    lectura: LECTURAS.some((l) => l.value === s("lectura"))
+      ? (s("lectura") as Lectura)
+      : s("riesgo") === "sin_analizar" ? "sin_leer" : s("riesgo") === "en_revision" ? "revision" : undefined,
     operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
     cruces: s("cruces") === "con" || s("cruces") === "alta" ? (s("cruces") as "con" | "alta") : undefined,
@@ -584,6 +590,7 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
   const txt = (v: string | number | undefined) => (v == null || v === "" ? undefined : String(v));
   return {
     q: txt(q.q),
+    lectura: txt(q.lectura),
     riesgo: txt(q.riesgo),
     operativo: txt(q.operativo),
     tipo: txt(q.tipo),
@@ -623,6 +630,8 @@ export interface ResumenContratos {
   porRiesgo: Partial<Record<GrupoResumen, number>>;
   /** Contratos cuyo ganador tiene cruces (y uno grave), con los demás filtros. Falta en la API vieja. */
   porCruces?: { con: number; alta: number } | null;
+  /** Conteos de "¿Lo leyó Vigía?" con los demás filtros. Falta en la API vieja. */
+  porLectura?: Partial<Record<Lectura, number>> | null;
 }
 export const getResumenContratos = (q: ContratosQuery = {}) =>
   getJson<ResumenContratos>(
@@ -788,3 +797,13 @@ export function cambioDeGanador(c: Pick<ContratoDetalle, "adjudicaciones">) {
     porcentaje: original.montoPen ? ((montoQueda - original.montoPen) / original.montoPen) * 100 : null,
   };
 }
+
+export type Lectura = "sin_leer" | "leyendo" | "publicado" | "revision";
+
+/** ¿Lo leyó Vigía? Los estados de un contrato en una sola pregunta, en el orden en que pasan. */
+export const LECTURAS: { value: Lectura; label: string }[] = [
+  { value: "sin_leer", label: "Aún no" },
+  { value: "leyendo", label: "Leyéndose ahora" },
+  { value: "publicado", label: "Leído y publicado" },
+  { value: "revision", label: "Leído, en revisión humana" },
+];

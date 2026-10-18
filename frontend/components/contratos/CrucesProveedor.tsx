@@ -339,7 +339,7 @@ export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; 
     <section aria-labelledby="cruces-proveedor" className="rounded-2xl border border-line bg-paper">
       <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
         <h2 id="cruces-proveedor" className="text-[15px] font-semibold text-ink">
-          {varios ? "Quienes ganaron, en otros registros públicos" : "Quien ganó, en otros registros públicos"}
+          {varios ? "Antecedentes de quienes ganaron" : "Antecedentes de quien ganó"}
         </h2>
         <Ayuda titulo="¿De dónde salen estos cruces?">
           Cruces automáticos por DNI y RUC entre el ganador (y sus socios y representantes del RNP) y los registros de la ONPE, el JNE,

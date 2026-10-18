@@ -32,7 +32,7 @@ export const metadata: Metadata = { title: "Inicio" };
 const CAMINOS: { href: string; Icono: LucideIcon; titulo: string; texto: string }[] = [
   { href: "/app/mapa", Icono: MapPin, titulo: "Ver qué se contrata en mi región", texto: "Elige tu región en el mapa." },
   { href: "/app/hallazgos", Icono: Flag, titulo: "Revisar las señales de alerta", texto: "Con la norma y la evidencia." },
-  { href: "/app/contratos?cruces=alta", Icono: GitCompareArrows, titulo: "Ver ganadores en otros registros", texto: "Aportes, sanciones, visitas, socios." },
+  { href: "/app/contratos?cruces=alta", Icono: GitCompareArrows, titulo: "Ver ganadores con antecedentes", texto: "Aportes, sanciones, visitas, socios." },
   { href: "/app/entidades", Icono: Building2, titulo: "Buscar una empresa o entidad", texto: "Quién contrata y cuánto." },
   { href: "/app/partidos", Icono: Landmark, titulo: "Ver quién gobierna mi región", texto: "Y cuánto vigilamos en cada lugar." },
   { href: "/app/financiar", Icono: Heart, titulo: "Financiar la lectura de contratos", texto: "Tu aporte paga que Vigía lea más." },

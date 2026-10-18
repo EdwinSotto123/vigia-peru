@@ -67,9 +67,21 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
 const CAMPO =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
+/** Una faceta en chips: la principal o una de las filas extra. */
+export interface FacetaChips {
+  param: string;
+  etiqueta: string;
+  todas: string;
+  conteoTodas?: number | null;
+  opciones: OpcionFaceta[];
+  /** El chip activo dice "Severidad: Alta". `false` cuando la opción ya se nombra sola ("Riesgo alto"). */
+  nombreEnChip?: boolean;
+}
+
 export function BarraFiltros({
   busqueda,
   faceta,
+  facetasExtra = [],
   filtros = [],
   orden,
   className,
@@ -88,6 +100,11 @@ export function BarraFiltros({
     /** El chip activo dice "Severidad: Alta". `false` cuando la opción ya se nombra sola ("Riesgo alto"). */
     nombreEnChip?: boolean;
   };
+  /**
+   * Más preguntas en chips, a la vista bajo la fila principal, cada una con su nombre al costado ("Riesgo",
+   * "Antecedentes del ganador"): para las que casi todos hacen y no deben quedar detrás de "Filtros".
+   */
+  facetasExtra?: FacetaChips[];
   filtros?: FiltroSecundario[];
   orden?: Orden;
   className?: string;
@@ -104,6 +121,12 @@ export function BarraFiltros({
     const opcion = o?.etiqueta ?? valorFaceta;
     const texto = faceta.nombreEnChip === false ? opcion : `${faceta.etiqueta}: ${opcion}`;
     chipsActivos.push({ clave: faceta.param, texto, quitar: () => navegar({ [faceta.param]: undefined }) });
+  }
+  for (const fx of facetasExtra) {
+    const v = parametros[fx.param];
+    if (!v) continue;
+    const opcion = fx.opciones.find((x) => x.valor === v)?.etiqueta ?? v;
+    chipsActivos.push({ clave: fx.param, texto: fx.nombreEnChip === false ? opcion : `${fx.etiqueta}: ${opcion}`, quitar: () => navegar({ [fx.param]: undefined }) });
   }
   for (const f of activos) {
     const v = parametros[f.param]!;
@@ -129,6 +152,8 @@ export function BarraFiltros({
             aria-label={`Filtrar por ${faceta.etiqueta.toLowerCase()}`}
             className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0"
           >
+            {/* Con filas extra, cada fila dice su pregunta; la principal también. */}
+            {facetasExtra.length > 0 && <span className="mr-1 shrink-0 text-[13px] font-medium text-inkSoft">{faceta.etiqueta}</span>}
             <Chip activo={!valorFaceta} onClick={() => navegar({ [faceta.param]: undefined })}>
               {faceta.todas}
               {faceta.conteoTodas != null && <Conteo n={faceta.conteoTodas} />}
@@ -219,6 +244,35 @@ export function BarraFiltros({
         </div>
       </div>
 
+      {facetasExtra.map((fx) => {
+        const valor = parametros[fx.param];
+        return (
+          <div
+            key={fx.param}
+            role="group"
+            aria-label={`Filtrar por ${fx.etiqueta.toLowerCase()}`}
+            className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0"
+          >
+            <span className="mr-1 shrink-0 text-[13px] font-medium text-inkSoft">{fx.etiqueta}</span>
+            <Chip activo={!valor} onClick={() => navegar({ [fx.param]: undefined })} chico>
+              {fx.todas}
+              {fx.conteoTodas != null && <Conteo n={fx.conteoTodas} />}
+            </Chip>
+            {fx.opciones.map((o) => {
+              const activo = valor === o.valor;
+              const Icono = o.icono ? ICONOS_FACETA[o.icono] : null;
+              return (
+                <Chip key={o.valor} activo={activo} onClick={() => navegar({ [fx.param]: activo ? undefined : o.valor })} chico>
+                  {Icono && <Icono size={13} className={activo ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"]} aria-hidden />}
+                  {o.etiqueta}
+                  {o.conteo != null && <Conteo n={o.conteo} />}
+                </Chip>
+              );
+            })}
+          </div>
+        );
+      })}
+
       {chipsActivos.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
           <span className="text-mute">Filtrando por</span>
@@ -245,14 +299,15 @@ export function BarraFiltros({
   );
 }
 
-function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({ activo, onClick, children, chico = false }: { activo: boolean; onClick: () => void; children: React.ReactNode; chico?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition-colors duration-rapido active:translate-y-px",
+        "inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors duration-rapido active:translate-y-px",
+        chico ? "min-h-[34px] px-3 text-[13px]" : "min-h-[40px] px-3.5 text-[14px]",
         activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
       )}
     >

@@ -101,6 +101,7 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   if (q.desde && !excluir.has("fecha")) conds.push(`${m.fecha} >= ${add(q.desde)}::date`);
   if (q.hasta && !excluir.has("fecha")) conds.push(`${m.fecha} < (${add(q.hasta)}::date + 1)`);
   if (q.riesgo && !excluir.has("riesgo")) ce(`ce.riesgo = ${add(q.riesgo)}`);
+  if (q.lectura && !excluir.has("lectura")) ce(lecturaSql(q.lectura, "ce."));
   if (q.estado && !excluir.has("estado")) ce(`ce.estado_proc = ${add(q.estado)}`);
   if (q.operativo && !excluir.has("operativo")) ce(`ce.operativo = ${add(q.operativo)}`);
   if ((q.cruces || q.cruce) && !excluir.has("cruces")) {
@@ -110,6 +111,17 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
   return { conds, usaCe };
+}
+
+/** Condición de `lectura` sobre riesgo + estado_proc (columnas de contrato_estado y de contratos_agregado). */
+const LEYENDO = "('encolado', 'procesando')";
+function lecturaSql(l: NonNullable<Filtros["lectura"]>, p: string): string {
+  switch (l) {
+    case "sin_leer": return `(${p}riesgo = 'sin_analizar' AND ${p}estado_proc NOT IN ${LEYENDO})`;
+    case "leyendo": return `${p}estado_proc IN ${LEYENDO}`;
+    case "publicado": return `${p}riesgo IN ('alto', 'medio', 'bajo')`;
+    case "revision": return `${p}riesgo = 'en_revision'`;
+  }
 }
 
 // ─── ¿Sale del agregado? ─────────────────────────────────────────────────────
@@ -131,6 +143,7 @@ function filtrosAgregado(q: Partial<Filtros>, vals: unknown[], excluir = new Set
   if (q.etapa && !excluir.has("etapa")) w.push(`etapa = ${add(q.etapa)}`);
   if (q.ubigeo && !excluir.has("ubigeo")) w.push(`ubigeo LIKE ${add(`${q.ubigeo}%`)}`);
   if (q.riesgo && !excluir.has("riesgo")) w.push(`riesgo = ${add(q.riesgo)}`);
+  if (q.lectura && !excluir.has("lectura")) w.push(lecturaSql(q.lectura, ""));
   if (q.estado && !excluir.has("estado")) w.push(`estado_proc = ${add(q.estado)}`);
   if (q.operativo && !excluir.has("operativo")) w.push(`operativo = ${add(q.operativo)}`);
   if (q.desde) w.push(`mes >= date_trunc('month', ${add(q.desde)}::date)::date`);
@@ -154,7 +167,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -180,8 +193,11 @@ contratosRouter.get("/resumen", async (c) => {
     fila[r] = (fila[r] ?? 0) + celda.n;
   }
   const total = celdas.reduce((s, celda) => s + (pasa(celda, null) ? celda.n : 0), 0);
-  const porCruces = await crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null);
-  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porTipoRiesgo, porCruces }, CACHE_LISTA);
+  const [porCruces, porLectura] = await Promise.all([
+    crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
+    lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
+  ]);
+  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porTipoRiesgo, porCruces, porLectura }, CACHE_LISTA);
 });
 
 const crucesMemo = new Memo<{ con: number; alta: number }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
@@ -194,6 +210,25 @@ async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: num
     `SELECT count(DISTINCT k.ocid)::int AS con, count(DISTINCT k.ocid) FILTER (WHERE k.n_alta > 0)::int AS alta
        FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`, vals);
   return r.rows[0];
+}
+
+const lecturaMemo = new Memo<Record<string, number>>({ nombre: "contratos:resumen:lectura", ttlMs: 30_000, staleMs: 30_000, max: 300 });
+
+/** Conteos de "¿Lo leyó Vigía?" con los demás filtros (sin lectura ni riesgo, que son la misma pregunta). */
+async function contarLectura(q: z.infer<typeof ResumenQuery>): Promise<Record<string, number>> {
+  const base = { ...q, lectura: undefined, riesgo: undefined };
+  const vals: unknown[] = [];
+  const casos = (p: string) => `CASE WHEN ${p}estado_proc IN ${LEYENDO} THEN 'leyendo'
+                                    WHEN ${p}riesgo IN ('alto', 'medio', 'bajo') THEN 'publicado'
+                                    WHEN ${p}riesgo = 'en_revision' THEN 'revision'
+                                    WHEN ${p}riesgo = 'sin_analizar' THEN 'sin_leer' ELSE 'otro' END`;
+  const r = agregable(base)
+    ? await pool.query(`SELECT ${casos("")} AS k, sum(n)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(base, vals)} GROUP BY 1`, vals)
+    : await (async () => {
+        const { conds } = filtros(base, vals, MAPA_CE);
+        return pool.query(`SELECT ${casos("ce.")} AS k, count(*)::int AS n FROM contrato_estado ce WHERE ${conds.join(" AND ")} GROUP BY 1`, vals);
+      })();
+  return Object.fromEntries(r.rows.map((x) => [x.k, x.n]));
 }
 
 async function cubo(q: z.infer<typeof ResumenQuery>): Promise<Celda[]> {

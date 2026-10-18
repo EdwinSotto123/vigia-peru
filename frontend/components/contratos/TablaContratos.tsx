@@ -59,9 +59,9 @@ const COLUMNAS: Columna[] = [
   },
   { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   {
-    clave: "cruces", titulo: "Ganador en otros registros", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    clave: "cruces", titulo: "Antecedentes del ganador", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
     ayuda: (
-      <Ayuda titulo="¿Qué son estos cruces?">
+      <Ayuda titulo="¿Qué son estos antecedentes?">
         Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña (ONPE),
         candidaturas y autoridades (JNE), sanciones y penalidades, visitas a entidades, socios comunes con otros postores y
         órdenes del mismo día que juntas pasan 8 UIT (CONOSCE). No prueban una irregularidad: el dossier trae cada uno con

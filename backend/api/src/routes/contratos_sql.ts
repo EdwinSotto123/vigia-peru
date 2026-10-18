@@ -151,6 +151,8 @@ export const ListQuery = z.object({
   desde: fechaIso().optional(),
   hasta: fechaIso().optional(),
   riesgo: z.enum(RIESGOS).optional(),
+  // ¿Lo leyó Vigía? (une riesgo y estado de procesamiento): sin leer · leyéndose · leído y publicado · leído, en revisión.
+  lectura: z.enum(["sin_leer", "leyendo", "publicado", "revision"]).optional(),
   estado: z.enum(["sin_analizar", "pendiente_de_procesamiento", "encolado", "procesando", "procesado", "error"]).optional(),
   operativo: z.enum(["en_cola", "documentos_listos", "sin_documentos"]).optional(),
   orden: z.enum(["fecha", "monto", "score"]).default("fecha"),
