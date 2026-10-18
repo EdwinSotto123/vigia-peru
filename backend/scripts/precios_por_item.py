@@ -22,12 +22,20 @@ import types
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "agent"))
 
-INSTRUCCION = """Eres un analista de precios de compras públicas del Perú. Para CADA ítem de la lista:
-1. Llama `consultar_precios_referencia` con un término corto (p. ej. "limon x kg", "papaya", "choclo x und").
+INSTRUCCION = """Eres un analista de precios de compras públicas del Perú. Tienes tres fuentes, en este orden:
+  A. `consultar_precios_referencia`: catálogos de tiendas (minorista, tope) y `mayorista_lima` (oficial, frescos por kg).
+  B. `consultar_compras_estado`: lo que pagaron otras entidades (OECE/CONOSCE, desde 2018), precio unitario. La mejor
+     referencia para bienes específicos o de ficha técnica; descarta lotes (`posible_lote`) y otros bienes con el
+     mismo nombre ("madera tornillo" no es un tornillo).
+  C. La búsqueda web (si está disponible), SOLO para lo que A y B no cubren; cita la URL de donde sale el precio.
+Para CADA ítem de la lista:
+1. Empieza por A o B según el bien (frescos/consumo masivo → A; específicos, insumos, ficha técnica → B y A).
 2. Quédate SOLO con productos que son el mismo bien, fresco y a granel o por pieza: descarta jugos, pulpas, conservas,
    snacks, bandejas preparadas, productos de limpieza o de otro rubro. La variedad importa cuando el ítem la pide
    (mandarina satsuma, palta fuerte, naranja valencia); si no hay esa variedad, usa la más cercana y dilo.
 3. Si no sale nada útil, reintenta con otro término (máx. 3 intentos por ítem).
+   En `precios` van SOLO bienes equivalentes (misma medida, tipo y presentación). Una "referencia cercana" de otra
+   medida (3/8 en vez de 1/2, 3,5x30 en vez de 8x1) NO entra al promedio: menciónala en `comentario`.
 4. Lleva cada precio a la UNIDAD DEL ÍTEM: si el producto es "por peso" (`por_peso: true`) su precio ya es por kilo; si
    el ítem es por unidad (choclo) usa productos por unidad. No inventes conversiones: si no puedes, no lo incluyas.
 5. La herramienta también trae `mayorista_lima` (Gran Mercado Mayorista de Lima, oficial, por kg). Si una variedad es
@@ -44,7 +52,8 @@ ESQUEMA = {
             "precios": {"type": "array", "items": {
                 "type": "object", "required": ["precio", "tienda", "producto", "url"],
                 "properties": {"precio": {"type": "number"}, "tienda": {"type": "string"},
-                               "producto": {"type": "string"}, "url": {"type": "string"}}}},
+                               "producto": {"type": "string"}, "url": {"type": "string"},
+                               "fuente": {"type": "string", "enum": ["tienda", "mayorista", "compra_estado", "web"]}}}},
             "mayorista": {"type": "object", "properties": {"variedad": {"type": "string"}, "mediana": {"type": "number"}}},
             "terminos_usados": {"type": "array", "items": {"type": "string"}},
             "comentario": {"type": "string"}}}}},
@@ -54,10 +63,12 @@ ESQUEMA = {
 async def correr(items: list[dict], contexto: str) -> tuple[dict, dict]:
     from google.adk.tools import FunctionTool
     from motores import motor_sdk
+    from tools.market.compras_estado import consultar_compras_estado
     from tools.market.precio_tool import consultar_precios_referencia
     agente = types.SimpleNamespace(
         name="analista_precios", instruction=INSTRUCCION + (f"\n\nContexto de la compra: {contexto}" if contexto else ""),
-        tools=[FunctionTool(consultar_precios_referencia)], output_key="precios_items", esquema_salida=ESQUEMA)
+        tools=[FunctionTool(consultar_precios_referencia), FunctionTool(consultar_compras_estado)],
+        output_key="precios_items", esquema_salida=ESQUEMA)
     lista = [{"numero": it["numero"], "descripcion": it["descripcion"], "unidad": it["unidad"]} for it in items]
     evs, texto, delta, metr = await motor_sdk.run_agent_delta(
         agente, "Ítems a preciar:\n" + json.dumps(lista, ensure_ascii=False), {}, None, "u", "precios_items")
@@ -106,10 +117,11 @@ def main() -> None:
     res["metricas"] = traza["metricas"]
     res["consultas"] = [c.get("args") for c in traza["llamadas"]]
     sys.stdout.reconfigure(encoding="utf-8")
-    print(f"{'ítem':6} {'descripción':34} {'mayorista':>9} {'variedad mayorista':26} {'súper':>7} {'n':>2}")
+    print(f"{'ítem':6} {'descripción':34} {'mayorista':>9} {'variedad mayorista':26} {'precio':>7} {'n':>2}  fuentes")
     for f in res["items"]:
+        fuentes = ",".join(sorted({p.get("fuente") or "?" for p in f["precios"]})) or "—"
         print(f"{f['numero']:6} {f['descripcion'][:34]:34} {str(f['mayorista'] or '—'):>9} "
-              f"{(f['variedad_mayorista'] or '—')[:26]:26} {str(f['promedio'] or '—'):>7} {f['n_precios']:>2}")
+              f"{(f['variedad_mayorista'] or '—')[:26]:26} {str(f['promedio'] or '—'):>7} {f['n_precios']:>2}  {fuentes}")
     for nombre_ref, tot, n in (("MAYORISTA (EMMSA)", res["valor_mayorista_total"], res["items_con_mayorista"]),
                                ("supermercado (tope)", res["valor_mercado_total"], res["items_con_precio"])):
         print(f"\nValor a precio {nombre_ref}, {n}/{res['items_total']} ítems: S/ {tot:,.2f}")

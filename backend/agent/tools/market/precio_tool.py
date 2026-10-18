@@ -44,6 +44,16 @@ def consultar_precios_referencia(producto: str, tool_context=None) -> dict:
         mayorista = [{k: v.get(k) for k in ("variedad", "unidad", "n_dias", "p25", "mediana", "p75", "ultimo")} for v in m.get("variedades") or []][:5]
     except Exception:  # noqa: BLE001
         pass
+    combustible = None
+    try:   # combustibles: precio oficial de Osinergmin (distribuidores minoristas)
+        from tools.market.catalogos import es_combustible
+        if es_combustible({"descripcion_corta": producto}):
+            c = _worker("/combustible", {"producto": producto, "dias": 120}) or {}
+            combustible = {"estadistica": c.get("estadistica"), "ambito": c.get("ambito"), "unidad": "galón",
+                           "fuente": (c.get("fuente") or {}).get("nombre")}
+    except Exception:  # noqa: BLE001
+        pass
     return {"termino": d.get("termino"), "productos": productos, "mayorista_lima": mayorista,
+            **({"combustible_oficial": combustible} if combustible else {}),
             "nota": ("`productos`: supermercado/tienda en Lima, hoy (minorista: tope). `mayorista_lima`: Gran Mercado Mayorista "
                      "de Lima (EMMSA), precio por kg de los últimos 30 días (oficial, mayorista): prefiérelo para frescos.")}

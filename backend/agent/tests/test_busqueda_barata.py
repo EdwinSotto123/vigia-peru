@@ -137,3 +137,40 @@ def test_fecha_de_la_convocatoria_para_precios_pasados(monkeypatch):
     monkeypatch.setattr(catalogos, "_worker", lambda ruta, params: vistos.append(params) or {"variedades": []})
     catalogos.precios_mayorista([{"numero": "1", "descripcion_corta": "LIMON"}], hasta="2024-08-17")
     assert vistos[0]["hasta"] == "2024-08-17"
+
+
+def test_compras_estado_arma_la_consulta_y_marca_lotes(monkeypatch):
+    from datetime import date
+    from tools.market import compras_estado as ce
+    vistos = {}
+
+    class _Cur:
+        def execute(self, sql, params):
+            vistos["sql"], vistos["params"] = sql, params
+
+        def fetchall(self):
+            return [(date(2026, 9, 1), "Subasta Inversa Electrónica", "LIMA", "MUNI X", "CEMENTO PORTLAND TIPO I 42.5 KG",
+                     800, "BOLSA", 24000, "PEN", "SIE-1", "PROVEEDOR SAC"),
+                    (date(2026, 8, 1), "Adjudicación Simplificada", "CUSCO", "MUNI Y", "CEMENTO Y AGREGADOS",
+                     1, "GLOBAL", 90000, "PEN", "AS-2", "OTRA SAC")]
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+        def close(self):
+            pass
+
+    import tools._core as core
+    monkeypatch.setattr(core, "_pg", lambda: _Conn())
+    r = ce.consultar_compras_estado("Cemento Portland tipo I", hasta="2026-10-01", solo_subasta_inversa=True)
+    assert [c["precio_unitario"] for c in r["compras"]] == [30.0, 90000.0]
+    assert [c["posible_lote"] for c in r["compras"]] == [False, True]
+    assert r["resumen_orientativo"] == {"bolsa": {"n": 1, "mediana": 30.0}}   # el lote no entra al resumen
+    assert vistos["params"][:3] == ["%cemento%", "%portland%", "%tipo%"]
+    assert vistos["params"][3] == "2026-10-01" and "Subasta Inversa" in vistos["sql"]
+
+
+def test_compras_estado_sin_palabras_no_consulta():
+    from tools.market.compras_estado import consultar_compras_estado
+    assert consultar_compras_estado("de la x")["compras"] == []
