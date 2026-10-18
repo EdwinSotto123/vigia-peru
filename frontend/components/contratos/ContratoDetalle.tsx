@@ -97,6 +97,8 @@ export function ContratoDetalle({
   // suma dos veces); el referencial, lo presupuestado.
   const adjudicado = adjudicacionesVigentes(c).reduce((s, a) => s + (a.montoPen ?? 0), 0) || null;
   const cambio = cambioDeGanador(c);
+  // El cruce "otro_postor" dice lo mismo que el aviso de cambio de ganador: en la ficha va una sola vez, en el aviso.
+  const cruces = (c.cruces ?? []).filter((x) => !(cambio && x.tipo === "otro_postor"));
 
   // Dos columnas desde lg. Izquierda: qué se contrata, las cifras y las pestañas (el Resumen abre con la lectura y
   // sus señales). Derecha, siempre visible y pegada arriba: los datos del proceso, su línea de tiempo, qué partes del
@@ -140,8 +142,8 @@ export function ContratoDetalle({
           {cambio && <CambioGanador c={c} cambio={cambio} />}
 
           {/* 2b. El ganador en otros registros (ONPE, JNE, visitas, penalidades, sanciones): datos, no lectura. */}
-          {c.cruces && c.cruces.length > 0 && (
-            <CrucesProveedor cruces={c.cruces} varios={new Set(c.cruces.map((x) => x.rucProveedor)).size > 1} />
+          {cruces.length > 0 && (
+            <CrucesProveedor cruces={cruces} varios={new Set(cruces.map((x) => x.rucProveedor)).size > 1} />
           )}
 
           {/* 3. Resumen y evidencia oficial, una pestaña por sección (§14.3). */}

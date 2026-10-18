@@ -770,15 +770,20 @@ export const adjudicacionesVigentes = (c: Pick<ContratoDetalle, "adjudicaciones"
  */
 export function cambioDeGanador(c: Pick<ContratoDetalle, "adjudicaciones">) {
   const todas = c.adjudicaciones ?? [];
-  const antes = todas.filter((a) => a.vigente === false && !a.sinConfirmar);
-  const queda = todas.filter((a) => a.vigente && !a.sinConfirmar && antes.some((b) => (b.items ?? []).some((i) => (a.items ?? []).includes(i))));
+  // Sólo se comparan adjudicaciones sobre LOS MISMOS ítems y con RUC real (el OCDS trae a veces 99999999999).
+  const mismos = (a: { items?: string[] }, b: { items?: string[] }) =>
+    !!a.items?.length && a.items.length === (b.items ?? []).length && a.items.every((i) => b.items!.includes(i));
+  const rucReal = (a: { proveedorRuc: string | null }) => /^(10|20)\d{9}$/.test(a.proveedorRuc ?? "");
+  const queda = todas.filter((a) => a.vigente && !a.sinConfirmar);
+  const antes = todas.filter((a) => a.vigente === false && !a.sinConfirmar && rucReal(a) && queda.some((q) => mismos(a, q)));
   if (!antes.length || !queda.length) return null;
   // La primera buena pro: la de menor monto entre las reemplazadas (el 1.º del orden de prelación).
   const original = [...antes].sort((a, b) => (a.montoPen ?? Infinity) - (b.montoPen ?? Infinity))[0];
-  const montoQueda = queda.reduce((s, a) => s + (a.montoPen ?? 0), 0);
+  const quedaIgual = queda.filter((q) => mismos(original, q));
+  const montoQueda = quedaIgual.reduce((s, a) => s + (a.montoPen ?? 0), 0);
   return {
     original,
-    queda,
+    queda: quedaIgual,
     diferencia: original.montoPen != null ? montoQueda - original.montoPen : null,
     porcentaje: original.montoPen ? ((montoQueda - original.montoPen) / original.montoPen) * 100 : null,
   };

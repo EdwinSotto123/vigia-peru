@@ -28,6 +28,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   recurrente: "Proveedor frecuente de esta entidad",
   adicional: "Contrato con adicionales o prórrogas",
   fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
+  otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
 };
 
 const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;

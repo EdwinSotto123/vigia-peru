@@ -104,6 +104,7 @@ const POR_QUE: Record<string, string> = {
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
   recurrente: "Ganarle muchas veces a la misma entidad puede ser buena competencia o un proveedor cautivo. Vale mirar cuántos postores hubo en cada proceso.",
   adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
+  otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
 };
 
@@ -283,6 +284,23 @@ function Texto({ c }: { c: CruceProveedor }) {
           <b>{solesCompacto(c.montoSoles)}</b>
           {n(d.misma_descripcion) ? <>; en {numero(n(d.misma_descripcion)!)} de esos días, todas con <b>la misma descripción</b></> : ""}.
           {c.buenaPro && <> Además, en este proceso le dieron la buena pro{c.buenaPro.montoSoles != null ? ` por ${solesCompacto(c.buenaPro.montoSoles)}` : ""}.</>}
+        </>
+      );
+    }
+    case "otro_postor": {
+      const pct = n(d.porcentaje);
+      const original = txt(d.proveedor_original);
+      return (
+        <>
+          La buena pro fue primero para {original ? <b>{original}</b> : "otro postor"} por <b>{solesCompacto(n(d.monto_original))}</b>; se
+          adjudicó después a <Emp c={c} /> por <b>{solesCompacto(n(d.monto_contratado))}</b>
+          {pct != null && pct !== 0 && (
+            <>
+              {" "}
+              (<b>{pct > 0 ? "+" : "−"}{numero(Math.abs(pct))} %</b>)
+            </>
+          )}
+          .
         </>
       );
     }
