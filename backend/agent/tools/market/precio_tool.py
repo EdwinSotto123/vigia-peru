@@ -14,7 +14,7 @@ import os
 
 def consultar_precios_referencia(producto: str, tool_context=None) -> dict:
     """Busca el precio vigente de un producto en catálogos de supermercados y tiendas del Perú (Plaza Vea, Metro, Wong,
-    Promart, Oechsle) y lo ya visto antes. Devuelve productos con precio, tienda y URL; si se vende por peso
+    Promart, Oechsle, Cassinelli, Coolbox) y lo ya visto antes. Devuelve productos con precio, tienda y URL; si se vende por peso
     (`unidad_medida` "kg") el `precio` es por kilo. Usa términos cortos ("limon x kg", "papaya", "choclo x und");
     si salen productos de otro rubro, reintenta con otro término.
 

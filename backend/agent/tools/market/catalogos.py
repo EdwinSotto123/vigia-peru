@@ -7,6 +7,7 @@ Las tiendas con plataforma VTEX publican su catálogo con precio vigente en una 
      presentación comparable (el texto de búsqueda trae ruido: "cemento" también devuelve fragua);
   3. los ítems con ≥ MARKET_MIN_PRECIOS precios elegidos ya no van a la búsqueda web pagada.
 Medido 2026-10-17: Promart, Plaza Vea, Oechsle, Metro y Wong responden; Sodimac, Tottus y las farmacias no.
+2026-10-18: también Cassinelli (ferretería) y Coolbox (tecnología).
 
 Con PRECIOS_URL + PRECIOS_TOKEN las consultas van al Worker vigia-precios (backend/precios-worker): caché de 7 días,
 pausa automática de la tienda que falla e historial propio. Sin ellas, directo a las tiendas.
@@ -23,7 +24,8 @@ from urllib.parse import quote
 
 TIENDAS = tuple(t.strip() for t in os.getenv(
     "CATALOGO_TIENDAS",
-    "https://www.promart.pe,https://www.plazavea.com.pe,https://www.oechsle.pe,https://www.metro.pe,https://www.wong.pe",
+    "https://www.promart.pe,https://www.plazavea.com.pe,https://www.oechsle.pe,https://www.metro.pe,https://www.wong.pe,"
+    "https://www.cassinelli.com,https://www.coolbox.pe",
 ).split(",") if t.strip())
 CATALOGO_POR_TIENDA = int(os.getenv("CATALOGO_POR_TIENDA", "4"))
 CATALOGO_MAX_ITEMS = int(os.getenv("CATALOGO_MAX_ITEMS", "15"))

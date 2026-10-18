@@ -8,6 +8,8 @@
 export interface Tienda {
   id: string;
   base: string;
+  /** false: no vende alimentos, queda fuera de la canasta semanal (solo responde búsquedas). */
+  canasta?: boolean;
 }
 
 export const TIENDAS: Tienda[] = [
@@ -16,6 +18,8 @@ export const TIENDAS: Tienda[] = [
   { id: "oechsle.pe", base: "https://www.oechsle.pe" },
   { id: "metro.pe", base: "https://www.metro.pe" },
   { id: "wong.pe", base: "https://www.wong.pe" },
+  { id: "cassinelli.com", base: "https://www.cassinelli.com", canasta: false },   // ferretería y construcción
+  { id: "coolbox.pe", base: "https://www.coolbox.pe", canasta: false },           // tecnología y electrodomésticos
 ];
 
 export const USER_AGENT = "VigiaPeru-Precios/1.0 (+https://vigia-web.vigiaperu.workers.dev; consulta de precios de referencia)";

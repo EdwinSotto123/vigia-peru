@@ -264,7 +264,7 @@ async function actualizarCanasta(env: Env, max = CANASTA.length) {
   let consultas = 0, productos = 0;
   for (const q of CANASTA.slice(0, max)) {
     const termino = normalizarTermino(q);
-    for (const t of TIENDAS) {             // una a la vez y con pausa: el cron no apura a ninguna tienda
+    for (const t of TIENDAS.filter((x) => x.canasta !== false)) {   // una a la vez y con pausa: el cron no apura a ninguna tienda
       const r = await buscarEnTienda(env, t, termino, 6, "canasta", true);
       consultas++;
       productos += r.productos.length;
