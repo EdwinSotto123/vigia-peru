@@ -346,7 +346,10 @@ function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
         </span>
         <span aria-hidden className="text-mute transition-transform group-open:rotate-180">⌄</span>
       </summary>
-      <div className="border-t border-line px-3 py-3">
+      <div className="space-y-3 border-t border-line px-3 py-3">
+        <p className="text-[12px] text-mute">
+          Cada barra es lo que suman las órdenes de ese día; la marca, el tope de 8 UIT de ese año.
+        </p>
         {bloques.length > 4 ? (
           <ListaPaginada items={bloques} tam={4} nombre="días" className="space-y-4" />
         ) : (
@@ -370,13 +373,13 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
         <span className="font-semibold text-ink">{fecha(d.fecha)}</span>
         <span className="text-inkSoft">
           {numero(d.ordenes)} órdenes · <b className="font-mono tabular-nums text-ink">{soles(d.totalSoles)}</b>
+          <span className="text-mute"> · tope {solesCompacto(d.topeSoles)}</span>
           {d.mismaDescripcion && <span className="text-amberTexto"> · misma descripción</span>}
         </span>
       </div>
       <div className="relative h-2 w-full rounded-full bg-granate/70" role="img" aria-label={`Suman ${soles(d.totalSoles)}; el tope es ${soles(d.topeSoles)}`}>
         <span aria-hidden className="absolute -top-1 bottom-[-4px] w-0.5 bg-ink" style={{ left: `${marca}%` }} />
       </div>
-      <p className="text-[11px] text-mute">La marca es el tope de 8 UIT: {soles(d.topeSoles)}.</p>
       <ol className="divide-y divide-line rounded-lg border border-line bg-paper">
         {d.detalle.map((o, i) => (
           <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-[13px]">
