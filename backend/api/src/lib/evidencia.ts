@@ -45,6 +45,11 @@ export interface ProcesoCruce {
 const TOPE = 60;
 const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.slice(0, 10) : null);
 const num = (v: unknown) => (v == null ? null : Number(v));
+/** ONPE trae algunas fechas de aporte mal digitadas (año 0217, 2916): fuera de 1995 → hoy no se muestran. */
+const fechaPlausible = (v: unknown) => {
+  const f = fecha(v);
+  return f && f >= "1995-01-01" && f <= new Date().toISOString().slice(0, 10) ? f : null;
+};
 const filas = (sql: string, vals: unknown[]) => pool.query(sql, vals).then((r) => r.rows as Record<string, any>[]).catch(() => [] as Record<string, any>[]);
 
 const PERFIL_OSCE = (ruc: string) => `https://apps.osce.gob.pe/perfilprov-ui/ficha/${ruc}`;
@@ -96,7 +101,7 @@ async function aportes(f: FilaCruce): Promise<Evidencia> {
       { clave: "fuente", titulo: "Registro", tipo: "enlace" },
     ],
     filas: r.map((x) => ({
-      fecha: fecha(x.fecha_aporte), proceso: x.proceso ?? (x.anio ? String(x.anio) : null), partido: x.partido, tipo: x.tipo_aporte,
+      fecha: fechaPlausible(x.fecha_aporte), proceso: x.proceso ?? (x.anio ? String(x.anio) : null), partido: x.partido, tipo: x.tipo_aporte,
       monto: num(x.monto), fuente: x.fuente_url ? { texto: "ONPE", url: x.fuente_url } : null,
     })),
     total: r.length ? Number(r[0].n) : 0,
