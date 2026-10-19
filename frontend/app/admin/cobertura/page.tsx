@@ -86,7 +86,7 @@ function Almacen({ documentos, porFormato }: { documentos: Cobertura["documentos
           </ul>
         </>
       )}
-      <p className="mt-3 text-[11.5px] leading-snug text-mute">Pasan a almacenamiento frío a los 30 días y se borran a los 90. Si alguien financia un contrato con documentos vencidos, se vuelven a bajar esa noche.</p>
+      <p className="mt-3 text-[11.5px] leading-snug text-mute">Pasan a almacenamiento frío a los 30 días y se borran a los 90. Si alguien financia un contrato con documentos vencidos, se vuelven a bajar en la hora siguiente.</p>
     </Card>
   );
 }
@@ -167,8 +167,8 @@ export default function CoberturaPage() {
       }
     >
       <div className="space-y-5">
-        <PageSection titulo="Documentos del SEACE" descripcion="El lote nocturno los baja desde una conexión peruana (el SEACE no deja entrar a la nube) y los guarda en el almacén 90 días.">
-          <ErrorBanner error={pro.error} titulo="No se pudo leer el avance del lote nocturno" onReintentar={() => pro.mutate()} className="mb-3" />
+        <PageSection titulo="Documentos del SEACE" descripcion="Sólo los de contratos financiados: la fuente documentos (cada hora) los baja por el relay, porque el SEACE no deja entrar a la nube, y los guarda 90 días. Sus corridas están en Fuentes y procesos.">
+          <ErrorBanner error={pro.error} titulo="No se pudo leer el avance de las descargas" onReintentar={() => pro.mutate()} className="mb-3" />
           {pr ? <Progreso pr={pr} /> : pro.isLoading && <div className="space-y-3"><SkeletonPanel lineas={2} /><SkeletonStats n={4} /></div>}
           {d ? <div className="mt-2"><Almacen documentos={d.documentos} porFormato={d.porFormato} /></div> : cob.isLoading && <SkeletonPanel lineas={2} className="mt-3" />}
         </PageSection>

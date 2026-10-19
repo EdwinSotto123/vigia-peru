@@ -47,6 +47,7 @@ import { entidadDeAporteSql, partidoDeAporteSql } from "../lib/aportes.js";
 import { adminRevisionRouter } from "./admin_revision.js";
 import { adminOperacionRouter } from "./admin_operacion.js";
 import { adminProcesarRouter } from "./admin_procesar.js";
+import { adminFuentesRouter } from "./admin_fuentes.js";
 import { adminEquipoRouter } from "./admin_equipo.js";
 import { adminPrivacidadRouter } from "./admin_privacidad.js";
 
@@ -76,6 +77,8 @@ adminRouter.route("/", adminRevisionRouter);
 adminRouter.route("/", adminOperacionRouter);
 // U6: procesar un lote a nombre de Vigía Perú desde el panel, sin pasarela (admin_procesar.ts).
 adminRouter.route("/", adminProcesarRouter);
+// Fuentes y pipelines: agenda, corridas de vigia-scrapers (migración 74) y estado de cada pipeline (admin_fuentes.ts).
+adminRouter.route("/", adminFuentesRouter);
 // Equipo del panel: quién entra y con qué perfil (admin_equipo.ts, migración 29).
 adminRouter.route("/", adminEquipoRouter);
 // Pedidos de privacidad de las personas que aparecen en Vigía (admin_privacidad.ts, migración 45).

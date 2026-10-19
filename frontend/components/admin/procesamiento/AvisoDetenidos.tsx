@@ -8,8 +8,8 @@ import { type Estado, hace, loteNocturnoParado, plural } from "./tipos";
 /**
  * Lo que el panel tiene que decir antes que cualquier número: si hay contratos
  * que no avanzan, por qué, desde cuándo y cómo se destraba. La causa de los que
- * esperan documentos casi siempre es la misma: el lote nocturno baja los
- * documentos desde una conexión peruana (el SEACE bloquea a la nube) y si no
+ * esperan documentos casi siempre es la misma: la fuente documentos (cada hora, por el relay: el SEACE
+ * bloquea a la nube) baja los documentos de los financiados y si no
  * corre, se quedan esperando para siempre.
  */
 export function AvisoDetenidos({
@@ -49,7 +49,7 @@ export function AvisoDetenidos({
           }
         >
           <p>
-            Los documentos los baja el lote nocturno desde una conexión peruana, porque el SEACE no deja entrar a la nube.{" "}
+            Los documentos los baja cada hora la fuente documentos, por el relay, porque el SEACE no deja entrar a la nube.{" "}
             {cargandoOp ? (
               <span aria-hidden className="inline-block h-3 w-48 animate-shimmerSweep rounded bg-gradient-to-r from-paperDeep via-paper to-paperDeep bg-[length:200%_100%] align-middle" />
             ) : fin ? (

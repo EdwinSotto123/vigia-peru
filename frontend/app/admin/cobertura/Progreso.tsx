@@ -84,7 +84,7 @@ export function Progreso({ pr }: { pr: ProgresoDocumentos }) {
         {!pr.ritmo.length && (
           <p className="flex items-start gap-2 rounded-xl border border-line bg-paperSoft px-3 py-2.5 text-[13px] leading-snug text-inkSoft">
             <Moon size={15} className="mt-0.5 shrink-0 text-mute" aria-hidden />
-            <span><strong className="font-semibold text-ink">Ninguna descarga en la última semana.</strong> El lote nocturno no bajó documentos en estos 7 días.</span>
+            <span><strong className="font-semibold text-ink">Ninguna descarga en la última semana.</strong> No se bajaron documentos en estos 7 días: sólo se bajan los de contratos financiados.</span>
           </p>
         )}
         {!!pr.ritmo.length && (

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock } from "lucide-react";
+import { LayoutDashboard, Receipt, Users, Wallet, ScrollText, LogOut, ExternalLink, ShieldCheck, UserRound, FlaskConical, Grid3x3, Database, Activity, Eye, KeyRound, Lock, Workflow } from "lucide-react";
 import { FranjaTextil, Marca } from "@/components/marca";
 import { precargarAdmin } from "@/lib/useAdmin";
 import { useSesionEquipo } from "@/lib/useEquipo";
@@ -31,6 +31,7 @@ const NAV: { grupo: string; items: ItemNav[] }[] = [
       { href: "/admin/procesamientos", label: "Procesamiento", icon: Activity, precargar: ["/procesamientos", "/operacion", "/pedidos"] },
       { href: "/admin/clasificacion", label: "Clasificación", icon: Grid3x3, precargar: ["/clasificacion/resumen", "/config/procesamiento"] },
       { href: "/admin/cobertura", label: "Cobertura", icon: Database, precargar: ["/cobertura", "/cobertura/progreso"] },
+      { href: "/admin/fuentes", label: "Fuentes y procesos", icon: Workflow, precargar: ["/fuentes"] },
       { href: "/admin/analisis", label: "Análisis a demanda", icon: FlaskConical },
     ],
   },

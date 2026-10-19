@@ -45,7 +45,7 @@ export function puedeVerSeccion(rol: Rol, pathname: string): boolean {
  * escribir umbrales o el alcance del procesamiento, y el equipo.
  */
 const REVISOR_API: [metodo: string, ruta: RegExp][] = [
-  ["GET", /^\/(ping|resumen|operacion|salud|log|procesamientos|pedidos|cobertura|cobertura\/progreso|clasificacion\/resumen)$/],
+  ["GET", /^\/(ping|resumen|operacion|salud|log|procesamientos|pedidos|cobertura|cobertura\/progreso|clasificacion\/resumen|fuentes)$/],
   ["GET", /^\/revision$/],
   ["GET", /^\/revision\/[^/]+$/],
   ["GET", /^\/revision\/[^/]+\/informe$/],
