@@ -18,7 +18,7 @@ import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 
 const COLUMNAS: Columna[] = [
   { clave: "fecha", titulo: "Convocado", ancho: "96px", desde: "md" },
-  { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.6fr)" },
+  { clave: "proceso", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
   { clave: "objeto", titulo: "Objeto", ancho: "minmax(0,0.5fr)", desde: "xl" },
   { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
   { clave: "ganador", titulo: "Ganador", ancho: "minmax(0,0.9fr)", desde: "lg" },
@@ -58,10 +58,10 @@ export function TablaProcesos({
     return filtrado ? (
       <EstadoVacio compacto titulo="Ningún proceso coincide con estos filtros">Prueba otra palabra o quita el filtro más restrictivo.</EstadoVacio>
     ) : (
-      <EstadoVacio compacto titulo={deEntidad ? "Sin procesos adjudicados desde 2015" : "Sin procesos adjudicados en este período"}>
+      <EstadoVacio compacto titulo={deEntidad ? "Sin contratos adjudicados desde 2015" : "Sin contratos adjudicados en este período"}>
         {deEntidad
-          ? "El OECE no registra procesos adjudicados por esta entidad desde 2015."
-          : "CONOSCE no registra procesos adjudicados por los gobiernos de este partido en estos años."}
+          ? "El OECE no registra contratos adjudicados por esta entidad desde 2015."
+          : "El OECE no registra contratos adjudicados por los gobiernos de este partido en estos años."}
       </EstadoVacio>
     );
   }
@@ -137,7 +137,7 @@ function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
       contenido: <DatosClave items={datos} />,
       pie: (
         <span className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12px] text-mute">Fuente: CONOSCE (OECE), procesos adjudicados</span>
+          <span className="text-[12px] text-mute">Fuente: OECE (CONOSCE desde 2018; Contrataciones Abiertas antes), procesos adjudicados</span>
           {p.ocid ? (
             <Link
               href={`/app/contratos/${encodeURIComponent(p.ocid)}`}

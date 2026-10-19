@@ -139,15 +139,16 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
         pestanas={[
           {
             clave: "procesos",
-            etiqueta: "Procesos",
+            // "Contratos", como en la ficha de una entidad: son los adjudicados por sus gobiernos.
+            etiqueta: "Contratos",
             conteo: h?.procesos ?? null,
             contenido: (
               <div className="space-y-4">
                 <CabeceraPestana
                   ayuda={
-                    <Ayuda titulo="¿De dónde salen estos procesos?">
+                    <Ayuda titulo="¿De dónde salen estos contratos?">
                       <span className="block">
-                        Del OECE: los procesos adjudicados por las entidades de los gobiernos que este partido ganó, cada
+                        Del OECE: los contratos adjudicados por las entidades de los gobiernos que este partido ganó, cada
                         uno en el día en que se convocó. Desde 2018 salen de CONOSCE; de 2015 a 2017, de Contrataciones
                         Abiertas, la API pública del mismo OECE.
                       </span>
@@ -155,11 +156,11 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                     </Ayuda>
                   }
                 >
-                  Todos los procesos adjudicados de sus gobiernos en {periodoTexto(anio)}.
+                  Todos los contratos adjudicados de sus gobiernos en {periodoTexto(anio)}, con su ganador y su monto.
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
                   <BarraFiltros
-                    busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus procesos", min: 3 }}
+                    busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus contratos", min: 3 }}
                     visibles={visibles(d)}
                     filtros={[]}
                     orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
@@ -205,7 +206,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
               </div>
             ),
           },
-          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Contratos en Vigía", conteo: t.contratos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
+          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Lo que leyó Vigía", conteo: t.leidos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
         ]}
       />
       <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>
@@ -271,7 +272,7 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
   return [
     {
       valor: h ? numero(h.procesos) : null,
-      etiqueta: "procesos adjudicados",
+      etiqueta: "contratos adjudicados",
       contexto: h ? `de ${plural(h.entidades, "entidad", "entidades")}` : undefined,
       href: ruta + `?anio=${anio}`,
     },
@@ -283,7 +284,7 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
     {
       valor: numero(totalGobiernos),
       etiqueta: "gobiernos ganados",
-      contexto: h ? `${numero(h.gobiernosConProcesos)} con procesos` : undefined,
+      contexto: h ? `${numero(h.gobiernosConProcesos)} con contratos` : undefined,
       href: `${ruta}?anio=${anio}&seccion=gobiernos`,
     },
     {
