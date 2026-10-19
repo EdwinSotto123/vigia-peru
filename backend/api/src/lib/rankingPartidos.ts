@@ -10,7 +10,7 @@
  *            departamento (regional, provinciales y distritales), y las cifras del partido se recalculan
  *   q        parte del nombre, sin tildes ni mayúsculas
  *   conCola  solo los partidos con contratos esperando lectura
- *   orden    contratos (por defecto), cola, leidos o nombre
+ *   orden    contratos (por defecto), cola, leidos, nombre, procesos o monto (los dos últimos, de CONOSCE)
  *   limit    cuántos partidos devolver (1 a 100). SIN limit se devuelven todos, como antes de existir la paginación:
  *            así no se rompen la portada, el inicio ni /app/partidos
  *   offset   desde cuál
@@ -19,8 +19,17 @@
 import { z } from "zod";
 import { escaparLike } from "./db.js";
 
+/*
+ * Dos fuentes por partido (migración 65):
+ *   · la base de Vigía (contrato_partido): los contratos que Vigía puede leer, casi todos de 2026, con leídos,
+ *     señales y cola;
+ *   · CONOSCE (partido_proceso): los procesos adjudicados desde 2018, para los tres períodos. Antes, para 2019-2022,
+ *     ningún partido tenía "contratos" porque sólo se miraba la base de Vigía.
+ * Un partido aparece si tiene algo en cualquiera de las dos.
+ */
+
 export const ANIOS_GOBIERNO = [2014, 2018, 2022] as const;
-export const ORDENES_RANKING = ["contratos", "cola", "leidos", "nombre"] as const;
+export const ORDENES_RANKING = ["contratos", "cola", "leidos", "nombre", "procesos", "monto"] as const;
 export type OrdenRanking = (typeof ORDENES_RANKING)[number];
 
 /** Una cadena vacía en la URL ("?region=") es "sin filtro", no un valor inválido. */
@@ -52,10 +61,12 @@ export const CONTEOS = `count(*)::int AS contratos,
 
 /** ORDER BY de cada orden: lista cerrada (ningún texto del pedido entra en la SQL) y desempate estable por clave. */
 const ORDER_BY: Record<OrdenRanking, string> = {
-  contratos: `contratos DESC, clave`,
+  contratos: `contratos DESC, procesos DESC, clave`,
   cola: `"enCola" DESC, contratos DESC, clave`,
   leidos: `leidos DESC, contratos DESC, clave`,
   nombre: `immutable_unaccent(lower(nombre)), clave`,
+  procesos: `procesos DESC, contratos DESC, clave`,
+  monto: `"montoAdjudicadoPen" DESC, procesos DESC, clave`,
 };
 
 export interface Consulta {
@@ -79,15 +90,40 @@ export function consultaRanking(p: RankingParams, contar = false): Consulta {
   if (p.conCola) filtros.push(`"enCola" > 0`);
   const where = filtros.length ? ` WHERE ${filtros.join(" AND ")}` : "";
 
-  const base = `WITH base AS (
-  SELECT cp.org_clave AS clave, max(cp.org_nombre) AS nombre, max(cp.org_tipo) AS tipo,
+  let regionH = "";
+  if (p.region) regionH = ` AND left(pp.gobierno_ubigeo, 2) = $2`;
+  const base = `WITH vigia AS (
+  SELECT cp.org_clave AS clave,
          count(DISTINCT cp.nivel || ':' || cp.gobierno_ubigeo)::int AS "gobiernosConContratos",
-         array_agg(DISTINCT left(cp.gobierno_ubigeo, 2) ORDER BY left(cp.gobierno_ubigeo, 2)) AS regiones,
+         array_agg(DISTINCT left(cp.gobierno_ubigeo, 2)) AS regiones,
          ${CONTEOS}
     FROM contrato_partido cp
     JOIN contrato_estado ce ON ce.ocid = cp.ocid
    WHERE cp.anio_eleccion = $1${region}
    GROUP BY cp.org_clave
+), historia AS (
+  SELECT pp.org_clave AS clave, count(*)::int AS procesos,
+         COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen",
+         count(DISTINCT pp.nivel || ':' || pp.gobierno_ubigeo)::int AS "gobiernosConProcesos",
+         array_agg(DISTINCT left(pp.gobierno_ubigeo, 2)) AS regiones
+    FROM partido_proceso pp
+   WHERE pp.anio_eleccion = $1${regionH}
+   GROUP BY pp.org_clave
+), nombres AS (
+  SELECT org_clave AS clave, max(org_nombre) AS nombre, max(org_tipo) AS tipo FROM gobierno_periodo WHERE anio_eleccion = $1 GROUP BY 1
+), base AS (
+  SELECT n.clave, n.nombre, n.tipo,
+         COALESCE(v."gobiernosConContratos", 0) AS "gobiernosConContratos",
+         ARRAY(SELECT DISTINCT r FROM unnest(COALESCE(v.regiones, '{}') || COALESCE(h.regiones, '{}')) r ORDER BY r) AS regiones,
+         COALESCE(v.contratos, 0) AS contratos, COALESCE(v.leidos, 0) AS leidos, COALESCE(v."conSenales", 0) AS "conSenales",
+         COALESCE(v."enCola", 0) AS "enCola", COALESCE(v."documentosListos", 0) AS "documentosListos",
+         COALESCE(v."montoPen", 0)::float AS "montoPen",
+         COALESCE(h.procesos, 0) AS procesos, COALESCE(h."montoAdjudicadoPen", 0)::float AS "montoAdjudicadoPen",
+         COALESCE(h."gobiernosConProcesos", 0) AS "gobiernosConProcesos"
+    FROM nombres n
+    LEFT JOIN vigia v ON v.clave = n.clave
+    LEFT JOIN historia h ON h.clave = n.clave
+   WHERE v.clave IS NOT NULL OR h.clave IS NOT NULL
 )`;
   if (contar) return { sql: `${base} SELECT count(*)::int AS total FROM base${where}`, vals };
 

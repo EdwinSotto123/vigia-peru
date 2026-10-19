@@ -1,0 +1,157 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { Paginacion } from "@/components/ui/Paginacion";
+import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
+
+/**
+ * Los procesos adjudicados de los gobiernos de un partido en un período (CONOSCE, GET /partidos/:clave/procesos),
+ * en la `Tabla` del kit: fecha · proceso (qué se compró, entidad y lugar) · objeto · adjudicado · ganador. Cada fila
+ * abre su resumen en el panel; si el proceso también está en la base de Vigía, el panel lleva a su ficha.
+ * Paginado por URL (`?page=`), con los filtros de la barra. Server-safe.
+ */
+
+const COLUMNAS: Columna[] = [
+  { clave: "fecha", titulo: "Convocado", ancho: "96px", desde: "md" },
+  { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.6fr)" },
+  { clave: "objeto", titulo: "Objeto", ancho: "minmax(0,0.5fr)", desde: "xl" },
+  { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
+  { clave: "ganador", titulo: "Ganador", ancho: "minmax(0,0.9fr)", desde: "lg" },
+];
+
+const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
+
+/** "BIENES Y SERVICIOS…" → "Bienes y servicios…": el objeto como oración (los nombres propios del SEACE vienen en mayúsculas). */
+function oracion(t: string): string {
+  const b = t.trim().toLocaleLowerCase("es");
+  return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
+}
+
+const enSoles = (p: ProcesoPartido) => !p.moneda || /soles/i.test(p.moneda);
+const monto = (v: number | null, p: ProcesoPartido) =>
+  v == null ? "Sin dato" : enSoles(p) ? soles(v) : `${numero(Math.round(v))} ${p.moneda ?? ""}`.trim();
+
+export function TablaProcesosPartido({
+  pagina,
+  parametros,
+  ruta,
+  actual,
+}: {
+  pagina: ProcesosPartido | null;
+  parametros: Parametros;
+  ruta: string;
+  actual: number;
+}) {
+  if (!pagina) {
+    return (
+      <EstadoError titulo="No pudimos cargar los procesos" accion={<a href={ruta} className={ACCION}>Reintentar</a>}>
+        Suele ser momentáneo: vuelve a intentarlo en unos segundos.
+      </EstadoError>
+    );
+  }
+  const filtrado = Object.entries(parametros).some(([k, v]) => !["anio", "seccion", "orden"].includes(k) && !!v);
+  if (pagina.total === 0) {
+    return filtrado ? (
+      <EstadoVacio compacto titulo="Ningún proceso coincide con estos filtros">Prueba otra palabra o quita el filtro más restrictivo.</EstadoVacio>
+    ) : (
+      <EstadoVacio compacto titulo="Sin procesos adjudicados en este período">
+        CONOSCE no registra procesos adjudicados por los gobiernos de este partido en estos años.
+      </EstadoVacio>
+    );
+  }
+  const paginas = Math.max(1, Math.ceil(pagina.total / pagina.size));
+  const pag = (
+    <Paginacion
+      actual={actual}
+      paginas={paginas}
+      total={pagina.total}
+      tam={pagina.size}
+      navegacion="url"
+      hrefBase={ruta}
+      query={parametros}
+      paramPagina="page"
+      cargando={false}
+      nombre="procesos"
+    />
+  );
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[13px] text-inkSoft">
+          {plural(pagina.total, "proceso", "procesos")}
+          {filtrado ? " con estos filtros" : ""}, {solesCompacto(pagina.montoAdjudicadoPen)} adjudicados en soles.
+        </p>
+        {pag}
+      </div>
+      <Tabla columnas={COLUMNAS} filas={pagina.data.map(filaDe)} etiqueta="Procesos adjudicados de sus gobiernos" />
+      <div className="flex justify-end">{pag}</div>
+    </div>
+  );
+}
+
+function filaDe(p: ProcesoPartido): Fila {
+  const titulo = p.descripcion ? oracion(p.descripcion) : p.nomenclatura ?? `Proceso ${p.codigo}`;
+  const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
+  const datos: DatoClave[] = [
+    { etiqueta: "Nomenclatura", valor: p.nomenclatura ?? "Sin dato", mono: true },
+    { etiqueta: "Tipo de proceso", valor: p.tipoProceso ?? "Sin dato" },
+    { etiqueta: "Objeto", valor: p.objeto ?? "Sin dato" },
+    { etiqueta: "Convocado", valor: p.fecha },
+    { etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}`} className="text-granate underline-offset-2 hover:underline">{entidad}</Link> },
+    { etiqueta: "Gobierno", valor: [NIVEL[p.nivel], p.lugar].filter(Boolean).join(", ") },
+    { etiqueta: "Valor referencial", valor: monto(p.montoReferencial, p) },
+    { etiqueta: "Adjudicado", valor: monto(p.montoAdjudicado, p) },
+    { etiqueta: p.proveedores > 1 ? `Ganadores (${p.proveedores})` : "Ganador", valor: p.proveedor ? (p.proveedores > 1 ? `${p.proveedor} y otros` : p.proveedor) : "Sin dato" },
+    { etiqueta: "Ítems", valor: numero(p.items) },
+  ];
+  return {
+    id: `${p.codigo}-${p.entidadRuc}`,
+    celdas: {
+      fecha: <CeldaFecha fecha={p.fecha} />,
+      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={[entidad, p.lugar]} />,
+      objeto: <CeldaTexto sub={p.tipoProceso ?? undefined}>{p.objeto ?? "Sin dato"}</CeldaTexto>,
+      monto: <CeldaNumero>{p.montoAdjudicado == null ? <span className="font-sans text-mute">Sin dato</span> : enSoles(p) ? solesCompacto(p.montoAdjudicado) : monto(p.montoAdjudicado, p)}</CeldaNumero>,
+      ganador: (
+        <span className="line-clamp-2 text-[13px] text-inkSoft" title={p.proveedor ?? undefined}>
+          {p.proveedor ?? "Sin dato"}
+          {p.proveedores > 1 && <span className="text-mute"> y {p.proveedores - 1} más</span>}
+        </span>
+      ),
+    },
+    detalle: {
+      titulo,
+      etiqueta: `Ver el resumen del proceso ${p.nomenclatura ?? p.codigo}`,
+      descripcion: (
+        <span className="flex flex-wrap items-baseline gap-x-3">
+          <span className="font-mono">{p.codigo}</span>
+          <span>{entidad}</span>
+        </span>
+      ),
+      contenido: <DatosClave items={datos} />,
+      pie: (
+        <span className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[12px] text-mute">Fuente: CONOSCE (OECE), procesos adjudicados</span>
+          {p.ocid ? (
+            <Link
+              href={`/app/contratos/${encodeURIComponent(p.ocid)}`}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-granate px-4 py-1.5 text-[13px] font-semibold text-paper transition-colors duration-rapido hover:bg-granate-deep"
+            >
+              Ver su ficha en Vigía <ArrowRight size={14} aria-hidden />
+            </Link>
+          ) : (
+            <Link href={`/entidad/${p.entidadRuc}`} className="inline-flex min-h-[40px] items-center gap-1.5 text-[13px] font-semibold text-granate hover:underline">
+              Ver la entidad <ArrowRight size={14} aria-hidden />
+            </Link>
+          )}
+        </span>
+      ),
+    },
+  };
+}
+
+const ACCION =
+  "inline-flex min-h-[40px] items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50";

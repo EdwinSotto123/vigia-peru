@@ -311,5 +311,8 @@ export async function correrConosce(env: Env, p: ParamsCorrida, step: WorkflowSt
   // Casos cruzados (migración 57): la lista nacional de /cruces, por proceso y ganador.
   await step.do("refrescar_casos_cruce", CARGA, () =>
     conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_casos_cruce() AS n"))[0]?.n ?? 0));
+  // Los procesos de cada partido desde 2018 (migración 65): /app/partidos y la ficha de cada partido (≈ 50 s).
+  resumen.partidos = await step.do("refrescar_partido_proceso", CARGA, () =>
+    conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ entidades: number; procesos: number }>("SELECT * FROM refrescar_partido_proceso()"))[0]));
   return resumen;
 }

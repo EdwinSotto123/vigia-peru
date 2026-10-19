@@ -10,7 +10,7 @@ import { CifrasEnFila } from "@/components/ui/CifrasEnFila";
 import { EstadoVacio } from "@/components/ui/EstadoVacio";
 import { PaginacionNumerada } from "@/components/ui/PaginacionNumerada";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { numero } from "@/lib/formato";
+import { numero, solesCompacto } from "@/lib/formato";
 import {
   COLOR_OTRAS,
   PALETA_ORG,
@@ -48,6 +48,9 @@ export interface ContratosDeUnPartido {
   contratos: number;
   leidos: number;
   enCola: number;
+  /** Procesos adjudicados de sus gobiernos en el período (CONOSCE, migración 65) y lo adjudicado en soles. */
+  procesos?: number;
+  montoAdjudicadoPen?: number;
 }
 
 const TAM = 25;
@@ -768,12 +771,15 @@ function TodosLosPartidos({
                   <Link href={hrefGobiernos(c.clave, c.regional > 0 ? "regional" : c.provincial > 0 ? "provincial" : "distrital")} prefetch={false} className="inline-flex min-h-9 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
                     Ver sus gobiernos <ChevronRight size={14} aria-hidden />
                   </Link>
-                  {k ? (
+                  {k && ((k.procesos ?? 0) > 0 || k.contratos > 0) ? (
+                    // Sus procesos de CONOSCE (desde 2018); antes, sólo los contratos de la base de Vigía (2026), y los
+                    // períodos anteriores decían "Sin contratos en la base".
                     <Link href={`/app/partidos/${c.clave}?anio=${anio}`} prefetch={false} className="inline-flex min-h-9 items-center gap-1 text-inkSoft underline-offset-4 hover:text-ink hover:underline">
-                      <span className="font-mono tabular-nums text-ink">{numero(k.contratos)}</span> contratos
+                      <span className="font-mono tabular-nums text-ink">{numero(k.procesos ?? k.contratos)}</span> {(k.procesos ?? 0) > 0 ? "procesos" : "contratos"}
+                      {(k.montoAdjudicadoPen ?? 0) > 0 && <span className="text-mute">· {solesCompacto(k.montoAdjudicadoPen ?? 0)}</span>}
                     </Link>
                   ) : (
-                    contratos && <span className="text-mute">Sin contratos en la base</span>
+                    contratos && <span className="text-mute">Sin procesos registrados</span>
                   )}
                 </span>
               </li>

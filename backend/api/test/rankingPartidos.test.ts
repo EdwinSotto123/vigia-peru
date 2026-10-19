@@ -18,7 +18,9 @@ test("sin parámetros: período vigente, sin filtros y sin paginar (compatibilid
   const { sql, vals } = consultaRanking(p);
   assert.deepEqual(vals, [2022]);
   assert.doesNotMatch(sql, /LIMIT/);
-  assert.match(sql, /ORDER BY contratos DESC, clave/);
+  assert.match(sql, /ORDER BY contratos DESC, procesos DESC, clave/);
+  // Los procesos de CONOSCE (migración 65) entran en el ranking de todos los períodos.
+  assert.match(sql, /FROM partido_proceso pp/);
 });
 
 test("cadenas vacías de la URL cuentan como sin filtro", () => {

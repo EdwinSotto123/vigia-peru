@@ -1,13 +1,40 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarRange, ChevronRight } from "lucide-react";
+import { Suspense } from "react";
+import { CalendarRange } from "lucide-react";
 import { Aviso } from "@/components/partidos/AvisoPartido";
+import { GobiernosPartido } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
+import { TablaProcesosPartido } from "@/components/partidos/TablaProcesosPartido";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, EncabezadoPagina, EstadoError, Pagina, Volver } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
-import { numero, porcentaje, solesCompacto } from "@/lib/formato";
-import { AVISO_PARTIDO, anioDeUrl, getDetallePartido, periodoTexto } from "@/lib/partidosApi";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
+import {
+  BarraFiltros,
+  CeldaNumero,
+  CeldaPrincipal,
+  Indicadores,
+  Listado,
+  Tabla,
+  TablaSkeleton,
+  ZonaResultados,
+  type Columna,
+  type FiltroSecundario,
+  type Fila,
+  type Indicador,
+  type Parametros,
+} from "@/components/listado";
+import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import {
+  AVISO_PARTIDO,
+  PERIODOS_GOBIERNO,
+  anioDeUrl,
+  getDetallePartido,
+  getProcesosPartido,
+  periodoTexto,
+  type AnioGobierno,
+  type DetallePartido,
+  type ProcesosPartido,
+} from "@/lib/partidosApi";
 
 export const revalidate = 120;
 
@@ -16,44 +43,271 @@ export async function generateMetadata({ params, searchParams }: { params: { cla
   return { title: d ? `${d.partido.nombre}, contratos de sus gobiernos` : "Partido" };
 }
 
-/** "2023-01-01" → "enero de 2023". */
-const mesLargo = (iso: string) =>
-  new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
-
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
+const TAM = 20;
+
+/** Un parámetro de texto de la URL, o nada. */
+const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
- * /app/partidos/[clave]?anio=2022: los contratos de los gobiernos que ganó un partido en un período.
- * Cada contrato se asocia al partido que gobernaba la entidad el mes en que se convocó. Se asocia al
- * GANADOR de la elección: una vacancia o un reemplazo dentro del período no está registrado.
+ * /app/partidos/[clave]?anio=2018 — un partido en un período, con el esqueleto de las demás fichas (entidad, contrato):
+ *   volver → nombre, período (con los otros a un clic) y cuántos gobiernos ganó → cuatro cifras → pestañas (?seccion=):
+ *     · Procesos: TODOS los procesos adjudicados de sus gobiernos (CONOSCE, desde 2018), con búsqueda, nivel, región,
+ *       objeto y orden, de a 20. Antes la ficha listaba las 15 entidades con más contratos de la base de Vigía (2026).
+ *     · Gobiernos: TODOS los que ganó, con sus procesos y sus contratos en Vigía, filtrables.
+ *     · Por mes: los procesos convocados mes a mes.
+ *     · Lectura de Vigía: los contratos de la base de Vigía (leídos, señales, cola), si los hay.
+ * Se asocia al GANADOR de la elección: una vacancia o un reemplazo dentro del período no está registrado.
  */
-export default async function PartidoPage({ params, searchParams }: { params: { clave: string }; searchParams?: { anio?: string | string[] } }) {
+export default async function PartidoPage({ params, searchParams }: { params: { clave: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   const anio = anioDeUrl(searchParams?.anio);
+  const ruta = `/app/partidos/${params.clave}`;
+  const page = Math.max(1, Number(uno(searchParams?.page)) || 1);
+  const filtros = {
+    q: uno(searchParams?.q)?.slice(0, 80),
+    nivel: ["regional", "provincial", "distrital"].includes(uno(searchParams?.nivel) ?? "") ? uno(searchParams?.nivel) : undefined,
+    region: /^\d{2}$/.test(uno(searchParams?.region) ?? "") ? uno(searchParams?.region) : undefined,
+    objeto: uno(searchParams?.objeto)?.slice(0, 40),
+    orden: uno(searchParams?.orden) === "monto" ? ("monto" as const) : undefined,
+  };
+  // La búsqueda pide 3 letras (como la API): con menos, no filtra.
+  if (filtros.q && filtros.q.length < 3) filtros.q = undefined;
+  const parametros: Parametros = { anio: String(anio), ...filtros };
+
+  const procesosP = getProcesosPartido(params.clave, anio, { ...filtros, page, size: TAM });
   const d = await getDetallePartido(params.clave, anio);
   // Sin respuesta: puede ser un partido que no gobernó nada ese período o un servidor caído. Desde el cliente no
   // se distinguen (ambos son `null`), así que se dice con esas dos palabras y no se muestra nada inventado.
   if (!d) return <NoDisponible clave={params.clave} anio={anio} />;
   if (!d.partido) notFound();
 
-  const { partido, totales: t, porMes, entidades, regiones } = d;
-  const esperando = t.enCola + t.documentosListos;
-  const indicadores: Indicador[] = [
+  const { partido, totales: t } = d;
+  const h = d.historia;
+  const gobiernos = d.gobiernos ?? [];
+  const totalGobiernos = partido.gobiernos.regional + partido.gobiernos.provincial + partido.gobiernos.distrital;
+  const seccion = uno(searchParams?.seccion);
+
+  return (
+    <Pagina>
+      <Volver href={`/app/partidos?anio=${anio}`}>Partidos y gobiernos</Volver>
+
+      <EncabezadoPagina
+        titulo={partido.nombre}
+        bajada={
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {periodoTexto(anio)}
+            </span>
+            <span>
+              {plural(partido.gobiernos.regional, "región", "regiones")}, {plural(partido.gobiernos.provincial, "provincia", "provincias")},{" "}
+              {plural(partido.gobiernos.distrital, "distrito", "distritos")}
+            </span>
+          </span>
+        }
+        acciones={
+          t.contratos > 0 ? (
+            <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`} flecha>
+              Financiar la lectura de sus contratos
+            </EnlaceAccion>
+          ) : undefined
+        }
+      />
+
+      {/* Los otros períodos del mismo partido, a un clic: ¿qué gobernó antes? */}
+      <nav aria-label="Período de gobierno" className="flex flex-wrap items-center gap-2">
+        {PERIODOS_GOBIERNO.map((p) => (
+          <Link
+            key={p.anio}
+            href={`${ruta}?anio=${p.anio}`}
+            aria-current={p.anio === anio ? "page" : undefined}
+            className={
+              "inline-flex min-h-[36px] items-center rounded-full border px-3.5 text-[13.5px] font-semibold transition-colors " +
+              (p.anio === anio ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
+            }
+          >
+            {p.texto}
+          </Link>
+        ))}
+      </nav>
+
+      <Indicadores items={indicadores(d, anio, totalGobiernos, ruta)} />
+
+      <Pestanas
+        key={seccion ?? "procesos"}
+        etiqueta="Secciones del partido"
+        activa={seccion}
+        pestanas={[
+          {
+            clave: "procesos",
+            etiqueta: "Procesos",
+            conteo: h?.procesos ?? null,
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde salen estos procesos?">
+                      <span className="block">
+                        De CONOSCE (OECE): los procesos adjudicados por las entidades de los gobiernos que este partido ganó,
+                        cada uno en el día en que se convocó. CONOSCE empieza en 2018: del período 2015 a 2018 sólo está ese
+                        último año.
+                      </span>
+                      <span className="mt-2 block">{AVISO_PARTIDO}</span>
+                    </Ayuda>
+                  }
+                >
+                  Todos los procesos adjudicados de sus gobiernos en {periodoTexto(anio)}.
+                </CabeceraPestana>
+                <Listado ruta={ruta} parametros={parametros} paramPagina="page">
+                  <BarraFiltros
+                    busqueda={{ param: "q", placeholder: "Buscar qué se compró, entidad o ganador…", etiqueta: "Buscar en sus procesos", min: 3 }}
+                    visibles={visibles(d)}
+                    filtros={[]}
+                    orden={{ param: "orden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
+                  />
+                  <ZonaResultados>
+                    <Suspense fallback={<TablaSkeleton columnas={COLUMNAS_SKELETON} filas={10} />}>
+                      <Procesos pagina={procesosP} parametros={parametros} ruta={ruta} actual={page} />
+                    </Suspense>
+                  </ZonaResultados>
+                </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "gobiernos",
+            etiqueta: "Gobiernos",
+            conteo: gobiernos.length || totalGobiernos,
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana>
+                  Los {numero(gobiernos.length || totalGobiernos)} gobiernos que ganó para {periodoTexto(anio)}, con sus procesos y sus contratos en Vigía.
+                </CabeceraPestana>
+                {gobiernos.length > 0 ? (
+                  <GobiernosPartido gobiernos={gobiernos} partido={partido.nombre} />
+                ) : (
+                  <p className="text-sm text-inkSoft">No pudimos leer sus gobiernos en este momento.</p>
+                )}
+              </div>
+            ),
+          },
+          {
+            clave: "meses",
+            etiqueta: "Por mes",
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana>Cada proceso cuenta en el mes en que se convocó, con el partido que gobernaba la entidad ese día.</CabeceraPestana>
+                <GraficoMeses
+                  porMes={(h?.porMes ?? []).map((m) => ({ mes: m.mes, contratos: m.procesos, leidos: 0, conSenales: 0 }))}
+                  etiqueta={`Procesos de los gobiernos de ${partido.nombre} por mes, ${periodoTexto(anio)}`}
+                  unidad={{ singular: "proceso", plural: "procesos" }}
+                  conLectura={false}
+                />
+              </div>
+            ),
+          },
+          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Lectura de Vigía", conteo: t.contratos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
+        ]}
+      />
+      <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>
+    </Pagina>
+  );
+}
+
+async function Procesos({ pagina, parametros, ruta, actual }: { pagina: Promise<ProcesosPartido | null>; parametros: Parametros; ruta: string; actual: number }) {
+  return <TablaProcesosPartido pagina={await pagina} parametros={parametros} ruta={ruta} actual={actual} />;
+}
+
+const COLUMNAS_SKELETON: Columna[] = [
+  { clave: "fecha", titulo: "Convocado", ancho: "96px" },
+  { clave: "proceso", titulo: "Proceso", ancho: "minmax(0,1.6fr)" },
+  { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
+];
+
+/** Nivel, región y objeto, con cuántos procesos tiene cada opción (de la ficha del partido). */
+function visibles(d: DetallePartido): FiltroSecundario[] {
+  const g = d.gobiernos ?? [];
+  const porNivel = (n: string) => g.filter((x) => x.nivel === n).reduce((s, x) => s + x.procesos, 0);
+  const regiones = new Map<string, { nombre: string; procesos: number }>();
+  for (const x of g) {
+    const u = x.ubigeo.slice(0, 2);
+    const r = regiones.get(u) ?? { nombre: x.region ?? u, procesos: 0 };
+    r.procesos += x.procesos;
+    regiones.set(u, r);
+  }
+  return [
     {
-      valor: numero(t.contratos),
-      etiqueta: "contratos de sus gobiernos",
-      contexto: `${solesCompacto(t.montoPen)} de valor referencial convocado, no lo pagado`,
-      ayuda: <Ayuda titulo="¿Qué suma el monto?">La suma del valor referencial de las convocatorias del período. No es lo adjudicado ni lo pagado.</Ayuda>,
+      param: "nivel",
+      etiqueta: "Nivel de gobierno",
+      corta: "Nivel",
+      todas: "Todos",
+      opciones: (["regional", "provincial", "distrital"] as const)
+        .filter((n) => g.some((x) => x.nivel === n))
+        .map((n) => ({ valor: n, etiqueta: NIVEL[n], conteo: porNivel(n) })),
     },
-    { valor: numero(t.leidos), etiqueta: "ya leídos por Vigía", contexto: t.contratos > 0 ? `${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })} del total` : "ninguno" },
-    { valor: numero(t.conSenales), etiqueta: "con señal para revisar", contexto: "una señal no es una acusación" },
     {
-      valor: numero(esperando),
-      etiqueta: "esperando lectura",
-      contexto: `${numero(t.documentosListos)} ya con sus documentos`,
-      ayuda: <Ayuda titulo="¿Qué es “esperando lectura”?">Contratos que se leen cuando alguien financia su lectura.</Ayuda>,
+      param: "region",
+      etiqueta: "Región",
+      corta: "Región",
+      todas: "Todas",
+      opciones: [...regiones.entries()]
+        .filter(([, r]) => r.procesos > 0)
+        .sort((a, b) => a[1].nombre.localeCompare(b[1].nombre, "es"))
+        .map(([u, r]) => ({ valor: u, etiqueta: r.nombre, conteo: r.procesos })),
+    },
+    {
+      param: "objeto",
+      etiqueta: "Objeto",
+      corta: "Objeto",
+      todas: "Todos",
+      opciones: (d.historia?.porObjeto ?? []).map((o) => ({ valor: o.objeto, etiqueta: o.objeto, conteo: o.procesos })),
     },
   ];
+}
 
+/**
+ * Procesos y monto (CONOSCE), gobiernos con procesos y lo que leyó Vigía. Para el período 2015-2018 se aclara que
+ * CONOSCE sólo trae 2018.
+ */
+function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: number, ruta: string): Indicador[] {
+  const h = d.historia;
+  const t = d.totales;
+  return [
+    {
+      valor: h ? numero(h.procesos) : null,
+      etiqueta: "procesos adjudicados",
+      contexto: h ? (anio === 2014 ? "sólo 2018: CONOSCE empieza ese año" : `de ${plural(h.entidades, "entidad", "entidades")}`) : undefined,
+      href: ruta + `?anio=${anio}`,
+    },
+    {
+      valor: h ? solesCompacto(h.montoAdjudicadoPen) : null,
+      etiqueta: "adjudicados en soles",
+      contexto: h ? `a ${plural(h.proveedores, "proveedor", "proveedores")}` : undefined,
+    },
+    {
+      valor: numero(totalGobiernos),
+      etiqueta: "gobiernos ganados",
+      contexto: h ? `${numero(h.gobiernosConProcesos)} con procesos` : undefined,
+      href: `${ruta}?anio=${anio}&seccion=gobiernos`,
+    },
+    {
+      valor: numero(t.leidos),
+      etiqueta: "leídos por Vigía",
+      contexto: t.contratos > 0 ? `de ${plural(t.contratos, "contrato", "contratos")} en su base (${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })})` : "ninguno en su base para este período",
+      href: t.contratos > 0 ? `${ruta}?anio=${anio}&seccion=vigia` : undefined,
+    },
+  ];
+}
+
+/** Lo de la base de Vigía (lo que se puede leer): leídos, señales, cola y las entidades con más contratos. */
+function LecturaVigia({ d, anio }: { d: DetallePartido; anio: AnioGobierno }) {
+  const t = d.totales;
+  const esperando = t.enCola + t.documentosListos;
+  const items: Indicador[] = [
+    { valor: numero(t.contratos), etiqueta: "contratos en su base", contexto: `${solesCompacto(t.montoPen)} de valor referencial` },
+    { valor: numero(t.leidos), etiqueta: "ya leídos", contexto: t.contratos > 0 ? `${porcentaje((t.leidos / t.contratos) * 100, { decimales: 1 })} del total` : "ninguno" },
+    { valor: numero(t.conSenales), etiqueta: "con señal para revisar", contexto: "una señal no es una acusación" },
+    { valor: numero(esperando), etiqueta: "esperando lectura", contexto: `${numero(t.documentosListos)} ya con sus documentos` },
+  ];
   const columnas: Columna[] = [
     { clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)" },
     { clave: "contratos", titulo: "Contratos", ancho: "92px", alinear: "der" },
@@ -61,7 +315,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
     { clave: "senales", titulo: "Con señal", ancho: "92px", alinear: "der", desde: "lg" },
     { clave: "cola", titulo: "En cola", ancho: "84px", alinear: "der", desde: "lg" },
   ];
-  const filas: Fila[] = entidades.map((e) => ({
+  const filas: Fila[] = d.entidades.map((e) => ({
     id: e.ruc,
     href: `/entidad/${e.ruc}`,
     celdas: {
@@ -72,78 +326,22 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
       cola: <CeldaNumero>{numero(e.enCola)}</CeldaNumero>,
     },
   }));
-
   return (
-    <Pagina className="space-y-8">
-      <Volver href={`/app/partidos?anio=${anio}`}>Partidos y gobiernos</Volver>
-
-      <div className="space-y-4">
-        <EncabezadoPagina
-          titulo={partido.nombre}
-          bajada={
-            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarRange size={14} className="shrink-0 text-mute" aria-hidden /> Gobiernos de {mesLargo(d.desde)} a {mesLargo(d.hasta)}
-              </span>
-              <span>
-                {numero(partido.gobiernos.regional)} {partido.gobiernos.regional === 1 ? "región" : "regiones"}, {numero(partido.gobiernos.provincial)}{" "}
-                {partido.gobiernos.provincial === 1 ? "provincia" : "provincias"}, {numero(partido.gobiernos.distrital)}{" "}
-                {partido.gobiernos.distrital === 1 ? "distrito" : "distritos"}
-              </span>
-            </span>
-          }
-          acciones={
-            <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`}>
-              Financiar la lectura de contratos de este partido en este período
-            </EnlaceAccion>
-          }
-        />
-        <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>
-        <Indicadores items={indicadores} />
-      </div>
-
-      <section aria-labelledby="meses-titulo" className="space-y-3">
-        <div>
-          <h2 id="meses-titulo" className="font-display text-xl font-bold text-ink">Contratos por mes</h2>
-          <p className="text-[14px] text-inkSoft">Cada contrato cuenta en el mes en que se convocó, con el partido que gobernaba la entidad ese mes.</p>
+    <div className="space-y-5">
+      <CabeceraPestana>Los contratos de sus gobiernos que Vigía tiene para leer en {periodoTexto(anio)}, y lo que ya leyó.</CabeceraPestana>
+      <Indicadores items={items} />
+      <GraficoMeses porMes={d.porMes} etiqueta={`Contratos de la base de Vigía por mes, ${periodoTexto(anio)}`} />
+      {filas.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-[16px] font-semibold text-ink">Sus entidades con más contratos en la base</h3>
+          <Tabla columnas={columnas} filas={filas} etiqueta="Entidades con más contratos en la base de Vigía" />
         </div>
-        <GraficoMeses porMes={porMes} etiqueta={`Contratos de los gobiernos de ${partido.nombre} por mes, ${periodoTexto(anio)}`} />
-      </section>
-
-      <section aria-labelledby="entidades-titulo" className="space-y-3">
-        <h2 id="entidades-titulo" className="font-display text-xl font-bold text-ink">Las entidades con más contratos</h2>
-        {filas.length > 0 ? (
-          <Tabla columnas={columnas} filas={filas} etiqueta={`Entidades gobernadas por ${partido.nombre} con más contratos`} />
-        ) : (
-          <p className="text-sm text-inkSoft">Ninguna de sus entidades tiene contratos en la base de Vigía en este período.</p>
-        )}
-      </section>
-
-      {regiones.length > 0 && (
-        <section aria-labelledby="regiones-titulo" className="space-y-3">
-          <h2 id="regiones-titulo" className="font-display text-xl font-bold text-ink">Dónde gobernó</h2>
-          <ul className="flex flex-wrap gap-2">
-            {regiones.map((r) => (
-              <li key={r.ubigeo}>
-                <Link
-                  href={`/app/financiar/${r.ubigeo}`}
-                  className="inline-flex min-h-[36px] items-center gap-2 rounded-full border border-line bg-paper px-3.5 text-[13.5px] text-ink transition-colors hover:border-granate/40 hover:bg-granate-50"
-                >
-                  <span className="font-medium">{r.nombre ?? r.ubigeo}</span>
-                  <span className="font-mono text-[12.5px] tabular-nums text-granate">{numero(r.contratos)}</span>
-                  <ChevronRight size={13} className="text-mute" aria-hidden />
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[12.5px] text-mute">Por la región de cada gobierno. El número es de contratos convocados en el período.</p>
-        </section>
       )}
-    </Pagina>
+    </div>
   );
 }
 
-function NoDisponible({ clave, anio }: { clave: string; anio: 2014 | 2018 | 2022 }) {
+function NoDisponible({ clave, anio }: { clave: string; anio: AnioGobierno }) {
   return (
     <Pagina>
       <Volver href="/app/partidos">Partidos y gobiernos</Volver>

@@ -5,6 +5,10 @@
  * municipalidad provincial o distrital, según el período electoral). Se asocia al GANADOR de la elección:
  * una vacancia o un reemplazo dentro del período no está registrado, y la pantalla lo dice.
  *
+ * Desde la migración 65 hay una segunda fuente: los procesos adjudicados de CONOSCE desde 2018 (`procesos`,
+ * `historia`, `gobiernos`, getProcesosPartido), para los tres períodos. La base de Vigía (`contratos`, leídos, cola) es
+ * casi toda de 2026: sola, dejaba a los períodos anteriores sin nada.
+ *
  * Los GET devuelven `null` si la API no responde (mismo contrato que lib/contratos.ts): quien llama
  * no dibuja lo que no pudo leer. Funcionan en server components (fetch cacheado) y en el cliente.
  */
@@ -42,8 +46,13 @@ export interface FilaPartido extends ConteosPartido {
   gobiernos: { regional: number; provincial: number; distrital: number };
   /** Gobiernos que tienen contratos en la base de Vigía (con filtro de región: solo los de esa región). */
   gobiernosConContratos: number;
-  /** Departamentos (ubigeo de 2 dígitos) donde el partido tiene contratos. */
+  /** Departamentos (ubigeo de 2 dígitos) donde el partido tiene contratos o procesos. */
   regiones?: string[];
+  /** Procesos adjudicados de sus gobiernos en el período (CONOSCE). Falta en la API vieja. */
+  procesos?: number;
+  /** Lo adjudicado en esos procesos, en soles (los procesos en otras monedas cuentan, pero no se suman). */
+  montoAdjudicadoPen?: number;
+  gobiernosConProcesos?: number;
 }
 
 export interface RankingPartidos {
@@ -59,11 +68,13 @@ export interface RankingPartidos {
   data: FilaPartido[];
 }
 
-export type OrdenPartidos = "contratos" | "cola" | "leidos" | "nombre";
+export type OrdenPartidos = "contratos" | "cola" | "leidos" | "nombre" | "procesos" | "monto";
 export const ORDENES_PARTIDOS: { valor: OrdenPartidos; etiqueta: string }[] = [
   { valor: "cola", etiqueta: "Más en cola" },
   { valor: "contratos", etiqueta: "Más contratos" },
   { valor: "leidos", etiqueta: "Más leídos" },
+  { valor: "procesos", etiqueta: "Más procesos" },
+  { valor: "monto", etiqueta: "Más adjudicado" },
   { valor: "nombre", etiqueta: "Nombre, de la A a la Z" },
 ];
 export const esOrdenPartidos = (v: unknown): v is OrdenPartidos => ORDENES_PARTIDOS.some((o) => o.valor === v);
@@ -93,6 +104,78 @@ export interface DetallePartido {
   entidades: (ConteosPartido & { ruc: string; nombre: string; nivel: "regional" | "provincial" | "distrital"; lugar: string | null; autoridad: string | null })[];
   /** Por región (departamento): ubigeo de 2 dígitos. */
   regiones: (ConteosPartido & { ubigeo: string; nombre: string | null })[];
+  /** Sus procesos adjudicados del período (CONOSCE, migración 65). Falta en la API vieja. */
+  historia?: {
+    procesos: number;
+    montoAdjudicadoPen: number;
+    entidades: number;
+    proveedores: number;
+    gobiernosConProcesos: number;
+    desde: string | null;
+    hasta: string | null;
+    porMes: { mes: string; procesos: number; montoAdjudicadoPen: number }[];
+    porObjeto: { objeto: string; procesos: number; montoAdjudicadoPen: number }[];
+  };
+  /** TODOS los gobiernos que ganó en el período, con sus procesos y sus contratos en la base de Vigía. */
+  gobiernos?: GobiernoDePartido[];
+}
+
+export interface GobiernoDePartido {
+  nivel: "regional" | "provincial" | "distrital";
+  ubigeo: string;
+  autoridad: string | null;
+  lugar: string | null;
+  provincia: string | null;
+  region: string | null;
+  procesos: number;
+  montoAdjudicadoPen: number;
+  contratos: number;
+  leidos: number;
+  conSenales: number;
+  /** La entidad que abre ese gobierno (la de más procesos; en un gobierno regional, casi siempre la sede). */
+  ruc: string | null;
+}
+
+/** Un proceso adjudicado de CONOSCE (GET /partidos/:clave/procesos). */
+export interface ProcesoPartido {
+  codigo: string;
+  nomenclatura: string | null;
+  descripcion: string | null;
+  objeto: string | null;
+  tipoProceso: string | null;
+  fecha: string;
+  entidad: string | null;
+  entidadRuc: string;
+  nivel: "regional" | "provincial" | "distrital";
+  lugar: string | null;
+  items: number;
+  montoReferencial: number | null;
+  montoAdjudicado: number | null;
+  moneda: string | null;
+  proveedores: number;
+  proveedor: string | null;
+  rucProveedor: string | null;
+  /** Si el proceso también está en la base de Vigía: abre su ficha. */
+  ocid: string | null;
+}
+
+export interface ProcesosPartido {
+  total: number;
+  montoAdjudicadoPen: number;
+  page: number;
+  size: number;
+  data: ProcesoPartido[];
+}
+
+export interface FiltrosProcesos {
+  nivel?: string;
+  region?: string;
+  ubigeo?: string;
+  q?: string;
+  objeto?: string;
+  orden?: "fecha" | "monto";
+  page?: number;
+  size?: number;
 }
 
 async function leer<T>(ruta: string, revalidate = 120): Promise<T | null> {
@@ -118,6 +201,13 @@ export function getRankingPartidos(anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE, o
 
 export const getDetallePartido = (clave: string, anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE) =>
   leer<DetallePartido>(`/partidos/${encodeURIComponent(clave)}?anio=${anio}`);
+
+/** Sus procesos adjudicados del período (CONOSCE), paginados y filtrados. */
+export function getProcesosPartido(clave: string, anio: AnioGobierno, f: FiltrosProcesos = {}) {
+  const p = new URLSearchParams({ anio: String(anio) });
+  for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v));
+  return leer<ProcesosPartido>(`/partidos/${encodeURIComponent(clave)}/procesos?${p.toString()}`, 300);
+}
 
 /** "2024-03" → "mar. 2024" (para el eje de contratos por mes). */
 export function mesCorto(mes: string): string {

@@ -9,7 +9,11 @@
  *   GET /partidos/ranking?anio=2022   los partidos de ese período, con sus contratos, lo leído y lo que falta.
  *                                     Filtros y paginación (lib/rankingPartidos.ts): region, q, conCola, orden, limit, offset;
  *                                     responde también `total` (cuántos partidos cumplen, sin paginar)
- *   GET /partidos/:clave?anio=2022    un partido: totales, contratos por mes, sus entidades y sus regiones
+ *   GET /partidos/:clave?anio=2022    un partido: totales, contratos por mes, sus entidades y sus regiones; y desde la
+ *                                     migración 65, `historia` (sus procesos de CONOSCE: totales, por mes, por objeto) y
+ *                                     `gobiernos`: TODOS los que ganó en el período, con sus procesos y contratos
+ *   GET /partidos/:clave/procesos     todos sus procesos adjudicados del período (CONOSCE), paginados y filtrables:
+ *                                     anio, nivel, region, ubigeo, q, objeto, orden (fecha|monto), page, size
  *
  * Lo que dice y lo que no: se asocia al GANADOR de la elección. Una vacancia, una revocatoria o un
  * reemplazo dentro del período no se registra. Una señal es para revisar, nunca una acusación: acá no
@@ -19,6 +23,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../lib/db.js";
+import { publicar } from "../lib/privacidad.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { CONTEOS, RankingQuery, claveRanking, consultaGobiernos, consultaRanking } from "../lib/rankingPartidos.js";
@@ -71,6 +76,61 @@ partidosRouter.get("/ranking", async (c) => {
   }, cachePublico(120, { maxAge: 60, swr: 60 }));
 });
 
+// ─── GET /partidos/:clave/procesos — todos sus procesos adjudicados del período (CONOSCE, migración 65) ─
+const ProcesosQuery = z.object({
+  anio: Anio.default(2022),
+  nivel: z.enum(["regional", "provincial", "distrital"]).optional(),
+  region: z.string().regex(/^\d{2}$/).optional(),
+  ubigeo: z.string().regex(/^\d{2}(\d{2}(\d{2})?)?$/).optional(),
+  q: z.string().trim().min(3).max(80).optional(),
+  objeto: z.string().max(40).optional(),
+  orden: z.enum(["fecha", "monto"]).default("fecha"),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+const procesosMemo = new Memo<Record<string, unknown>>({ nombre: "partidos:procesos", ttlMs: 120_000, staleMs: 120_000, max: 500 });
+
+partidosRouter.get("/:clave/procesos", async (c) => {
+  const clave = c.req.param("clave");
+  if (!/^[a-z0-9-]{1,80}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  // Cadenas vacías de la URL ("?nivel=") son "sin filtro".
+  const crudos = Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null));
+  const parsed = ProcesosQuery.safeParse(crudos);
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const q = parsed.data;
+  const cuerpo = await procesosMemo.obtener(`procesos:${clave}:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [clave, q.anio];
+    const conds = ["pp.org_clave = $1", "pp.anio_eleccion = $2"];
+    if (q.nivel) { vals.push(q.nivel); conds.push(`pp.nivel = $${vals.length}`); }
+    if (q.region) { vals.push(q.region); conds.push(`left(pp.gobierno_ubigeo, 2) = $${vals.length}`); }
+    if (q.ubigeo) { vals.push(q.ubigeo); conds.push(`pp.gobierno_ubigeo = $${vals.length}`); }
+    if (q.objeto) { vals.push(q.objeto); conds.push(`pp.objeto = $${vals.length}`); }
+    if (q.q) {
+      // Objeto, nomenclatura, entidad y ganador; el nombre de una persona natural (RUC 10) no se busca (como en casos_cruce).
+      vals.push(q.q);
+      conds.push(`mef_norm(coalesce(pp.descripcion, '') || ' ' || coalesce(pp.nomenclatura, '') || ' ' || coalesce(pp.entidad, '') || ' ' ||
+                  CASE WHEN pp.ruc_proveedor LIKE '10%' THEN '' ELSE coalesce(pp.proveedor, '') END) LIKE '%' || mef_norm($${vals.length}) || '%'`);
+    }
+    const where = conds.join(" AND ");
+    const orden = q.orden === "monto" ? "pp.monto_adjudicado_pen DESC NULLS LAST, pp.fecha_convocatoria DESC" : "pp.fecha_convocatoria DESC, pp.monto_adjudicado_pen DESC NULLS LAST";
+    const [filas, total] = await Promise.all([
+      pool.query(
+        `SELECT pp.codigo_convocatoria AS codigo, pp.nomenclatura, pp.descripcion, pp.objeto, pp.tipo_proceso AS "tipoProceso",
+                to_char(pp.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, pp.entidad, pp.entidad_ruc AS "entidadRuc", pp.nivel,
+                z.nombre AS lugar, pp.items, pp.monto_referencial::float AS "montoReferencial", pp.monto_adjudicado::float AS "montoAdjudicado",
+                pp.moneda, pp.proveedores, pp.proveedor, pp.ruc_proveedor AS "rucProveedor", pp.ocid
+           FROM partido_proceso pp LEFT JOIN zonas z ON z.ubigeo = pp.gobierno_ubigeo
+          WHERE ${where} ORDER BY ${orden}, pp.codigo_convocatoria
+          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+      pool.query(`SELECT count(*)::int AS n, COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS monto FROM partido_proceso pp WHERE ${where}`, vals),
+    ]);
+    // El ganador puede ser una persona natural: publicar() la reconoce por su RUC 10 y tapa su nombre.
+    return publicar({ total: total.rows[0].n, montoAdjudicadoPen: total.rows[0].monto, page: q.page, size: q.size, data: filas.rows });
+  });
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  return c.json(cuerpo);
+});
+
 partidosRouter.get("/:clave", async (c) => {
   const clave = c.req.param("clave");
   if (!/^[a-z0-9-]{1,80}$/.test(clave)) return c.json({ error: "not_found" }, 404);
@@ -78,7 +138,7 @@ partidosRouter.get("/:clave", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
   const { anio } = parsed.data;
   const cuerpo = await detalleMemo.obtener(`detalle:${clave}:${anio}`, async () => {
-    const [org, tot, meses, entidades, regiones] = await Promise.all([
+    const [org, tot, meses, entidades, regiones, historia, historiaMes, historiaObjeto, gobiernos] = await Promise.all([
       pool.query(
         `SELECT org_clave AS clave, max(org_nombre) AS nombre, max(org_tipo) AS tipo,
                 count(*) FILTER (WHERE nivel = 'regional')::int AS regional,
@@ -112,6 +172,48 @@ partidosRouter.get("/:clave", async (c) => {
            LEFT JOIN zonas z ON z.ubigeo = left(cp.gobierno_ubigeo, 2)
           WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
           GROUP BY 1, 2 ORDER BY count(*) DESC`, [clave, anio]),
+      // CONOSCE (migración 65): sus procesos adjudicados en el período, aunque no estén en la base de Vigía.
+      pool.query(
+        `SELECT count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen",
+                count(DISTINCT entidad_ruc)::int AS entidades, count(DISTINCT ruc_proveedor)::int AS proveedores,
+                count(DISTINCT nivel || ':' || gobierno_ubigeo)::int AS "gobiernosConProcesos",
+                to_char(min(fecha_convocatoria), 'YYYY-MM-DD') AS desde, to_char(max(fecha_convocatoria), 'YYYY-MM-DD') AS hasta
+           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2`, [clave, anio]),
+      pool.query(
+        `SELECT to_char(date_trunc('month', fecha_convocatoria), 'YYYY-MM') AS mes, count(*)::int AS procesos,
+                COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen"
+           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1 ORDER BY 1`, [clave, anio]),
+      pool.query(
+        `SELECT COALESCE(objeto, 'Sin dato') AS objeto, count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen"
+           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1 ORDER BY 3 DESC`, [clave, anio]),
+      // TODOS sus gobiernos del período (antes, las 15 entidades con más contratos), con lo de las dos fuentes y la
+      // entidad que abre cada uno: la de más procesos de ese gobierno (en un gobierno regional, casi siempre la sede).
+      pool.query(
+        `WITH g AS (SELECT nivel, ubigeo, autoridad FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2),
+              h AS (SELECT nivel, gobierno_ubigeo AS ubigeo, count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS monto
+                      FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1, 2),
+              v AS (SELECT cp.nivel, cp.gobierno_ubigeo AS ubigeo, count(*)::int AS contratos,
+                           count(*) FILTER (WHERE ce.estado_proc = 'procesado')::int AS leidos,
+                           count(*) FILTER (WHERE ce.riesgo IN ('alto','medio'))::int AS "conSenales"
+                      FROM contrato_partido cp JOIN contrato_estado ce ON ce.ocid = cp.ocid
+                     WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2 GROUP BY 1, 2),
+              e AS (SELECT DISTINCT ON (pp.nivel, pp.gobierno_ubigeo) pp.nivel, pp.gobierno_ubigeo AS ubigeo, pp.entidad_ruc AS ruc
+                      FROM partido_proceso pp WHERE pp.org_clave = $1 AND pp.anio_eleccion = $2
+                     GROUP BY pp.nivel, pp.gobierno_ubigeo, pp.entidad_ruc
+                     ORDER BY pp.nivel, pp.gobierno_ubigeo, count(*) DESC)
+         SELECT g.nivel, g.ubigeo, g.autoridad, z.nombre AS lugar,
+                CASE WHEN g.nivel = 'distrital' THEN (SELECT zp.nombre FROM zonas zp WHERE zp.ubigeo = left(g.ubigeo, 4)) END AS provincia,
+                (SELECT zd.nombre FROM zonas zd WHERE zd.ubigeo = left(g.ubigeo, 2)) AS region,
+                COALESCE(h.procesos, 0) AS procesos, COALESCE(h.monto, 0)::float AS "montoAdjudicadoPen",
+                COALESCE(v.contratos, 0) AS contratos, COALESCE(v.leidos, 0) AS leidos, COALESCE(v."conSenales", 0) AS "conSenales",
+                COALESCE(e.ruc, (SELECT eg.ruc FROM entidad_gobierno_amplia eg WHERE eg.nivel = g.nivel AND eg.ubigeo = g.ubigeo LIMIT 1)) AS ruc
+           FROM g
+           LEFT JOIN zonas z ON z.ubigeo = g.ubigeo
+           LEFT JOIN h ON h.nivel = g.nivel AND h.ubigeo = g.ubigeo
+           LEFT JOIN v ON v.nivel = g.nivel AND v.ubigeo = g.ubigeo
+           LEFT JOIN e ON e.nivel = g.nivel AND e.ubigeo = g.ubigeo
+          ORDER BY CASE g.nivel WHEN 'regional' THEN 0 WHEN 'provincial' THEN 1 ELSE 2 END, COALESCE(h.monto, 0) DESC, z.nombre`,
+        [clave, anio]),
     ]);
     if (!org.rows.length) return null;
     const periodo = PERIODOS_GOBIERNO.find((p) => p.anio === anio)!;
@@ -120,6 +222,8 @@ partidosRouter.get("/:clave", async (c) => {
       partido: { clave: org.rows[0].clave, nombre: org.rows[0].nombre, tipo: org.rows[0].tipo,
                  gobiernos: { regional: org.rows[0].regional, provincial: org.rows[0].provincial, distrital: org.rows[0].distrital } },
       totales: tot.rows[0], porMes: meses.rows, entidades: entidades.rows, regiones: regiones.rows,
+      historia: { ...historia.rows[0], porMes: historiaMes.rows, porObjeto: historiaObjeto.rows },
+      gobiernos: gobiernos.rows,
     };
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);

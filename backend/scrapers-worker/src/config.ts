@@ -14,6 +14,10 @@ export interface ParamsCorrida {
   hasta?: string;
   /** Quién la pidió: `cron <expresión>` o `manual`. */
   origen: string;
+  /** mef_detalle: qué lectura del ZIP (índice de MIRADAS_POR_PASO, 1 en adelante). */
+  paso?: number;
+  /** mef_cargar_gasto: la clave en R2 del CSV que se carga. */
+  archivo?: string;
 }
 
 export interface Env {

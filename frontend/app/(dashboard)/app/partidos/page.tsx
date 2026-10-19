@@ -25,11 +25,13 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
   const pedida = Array.isArray(searchParams?.vista) ? searchParams?.vista[0] : searchParams?.vista;
   const vista = (VISTAS.find((v) => v === pedida) ?? "gobiernos") as Vista;
 
-  const [ranking, cobertura] = await Promise.all([getRankingPartidos(anio), vista === "mapa" ? leerCobertura() : Promise.resolve(null)]);
+  const [ranking, cobertura] = await Promise.all([getRankingPartidos(anio, { orden: "monto" }), vista === "mapa" ? leerCobertura() : Promise.resolve(null)]);
 
   // Solo datos planos hacia el cliente: contratos asociados por partido (la clave es la misma de la ficha).
   const contratos: Record<string, ContratosDeUnPartido> | null = ranking
-    ? Object.fromEntries(ranking.data.map((f) => [f.clave, { contratos: f.contratos, leidos: f.leidos, enCola: f.enCola }]))
+    ? Object.fromEntries(
+        ranking.data.map((f) => [f.clave, { contratos: f.contratos, leidos: f.leidos, enCola: f.enCola, procesos: f.procesos, montoAdjudicadoPen: f.montoAdjudicadoPen }]),
+      )
     : null;
 
   return (
@@ -40,7 +42,7 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
           <p className="etiqueta-mono text-granate">Quién gobernó el Perú</p>
           <h1 className="mt-1 font-display text-[28px] font-bold leading-tight tracking-tight text-ink sm:text-[34px]">Partidos y gobiernos</h1>
           <p className="mt-1.5 max-w-3xl text-[15px] leading-snug text-inkSoft">
-            Quién ganó cada región, provincia y distrito del país en 2014, 2018 y 2022, y qué contratos se firmaron bajo los gobiernos de cada partido.
+            Quién ganó cada región, provincia y distrito del país en 2014, 2018 y 2022, y qué se contrató bajo los gobiernos de cada partido desde 2018.
           </p>
         </div>
         {/* Las elecciones y su mandato, de un vistazo: lo que hay cargado y lo que falta. */}

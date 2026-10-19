@@ -10,9 +10,11 @@
  * 10 MB de heap y 36 MB fuera del heap, dentro de un paso (limits.cpu_ms = 300 000). Un año por paso; el
  * agregado (~1,5 MB) se carga en el mismo paso y queda en R2 como CSV.
  *
- * El desglose de en qué gasta cada unidad ejecutora (migraciones 63 y 64) no cabe en un solo paso: el primero carga,
- * además de lo de siempre, partida, función y proyecto; después, otros pasos vuelven a leer el ZIP para las demás
- * miradas (MIRADAS_POR_PASO), cada uno con su memoria. Sólo corren si el primero cargó un archivo nuevo (o con `forzar`).
+ * El desglose de en qué gasta cada unidad ejecutora (migraciones 63 y 64) no cabe en una sola lectura: esta corrida
+ * carga, además de lo de siempre, partida, función y proyecto; las demás miradas (MIRADAS_POR_PASO) las carga
+ * `mef_detalle`, una corrida APARTE por lectura, que ésta lanza al terminar. Aparte y no como otro paso: la CPU de los
+ * pasos de una misma instancia se suma (medido el 2026-10-19: el primer paso detalle cayó con "Worker exceeded CPU time
+ * limit" tras uno de 133 s), y cada instancia tiene sus propios 300 s.
  *
  * Semanal (lunes). Entre enero y marzo corre también el año anterior: el MEF cierra diciembre recién en febrero.
  * Con `desde`/`hasta` (AAAA) se elige el rango de años.
@@ -56,6 +58,54 @@ async function cargarGasto(
   await db.ejecutar("DELETE FROM mef_ejecutora_gasto WHERE anio = $1 AND tipo = ANY($2::text[])", [anio, [...miradas]]);
   await db.copiar("COPY mef_ejecutora_gasto (anio, sec_ejec, tipo, codigo, nombre, grupo, pia, pim, devengado) FROM STDIN WITH (FORMAT csv)",
     flujoGasto(a));
+}
+
+/**
+ * `mef_detalle`: UNA lectura del ZIP del año (`desde`) con las miradas del `paso` (MIRADAS_POR_PASO[paso]). Deja el CSV
+ * en R2 y lanza `mef_cargar_gasto`, otra corrida, que lo copia a mef_ejecutora_gasto. Separadas porque agregar y cargar
+ * en la misma instancia caía siempre al empezar el COPY ("Connection terminated unexpectedly" y, al reintentar, "Worker
+ * exceeded CPU time limit"), y la sola agregación (`seco`) pasaba. La lanza mef_presupuesto; también se puede pedir a
+ * mano (POST /correr).
+ */
+export async function correrMefDetalle(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
+  const anio = Number((p.desde ?? fechaLima()).slice(0, 4));
+  const paso = p.paso ?? 1;
+  const miradas = MIRADAS_POR_PASO[paso];
+  if (!miradas || paso < 1) throw new Error(`paso de detalle inválido: ${p.paso}`);
+  return step.do(`detalle ${anio} · ${miradas.join(", ")}`, { retries: { limit: 1, delay: "2 minutes" }, timeout: "30 minutes" }, async () => {
+    const r = await fetch(zipDelAnio(anio), { headers: { "User-Agent": UA } });
+    if (!r.ok || !r.body) throw new Error(`HTTP ${r.status} en ${zipDelAnio(anio)}`);
+    const t0 = Date.now();
+    const a = await agregarZip(r.body, miradas);
+    if (a.anio !== anio) throw new Error(`el archivo de ${anio} trae ANO_EJE ${a.anio}`);
+    const claves = a.gasto.size;
+    if (p.seco) return { anio, miradas, claves, seco: true };
+    const archivo = `raw/${FUENTE}/${anio}/${fechaLima()}-gasto-paso${paso}.csv`;
+    await env.CRUDOS.put(archivo, await new Response(flujoGasto(a)).text(), { httpMetadata: { contentType: "text/csv" } });
+    const carga = await env.CORRER.create({
+      id: `mef_cargar_gasto-${anio}-${paso}-${id.slice(-4)}`,
+      params: { fuente: "mef_cargar_gasto", desde: String(anio), paso, archivo, origen: `mef_detalle ${id}` },
+    });
+    registrar("INFO", `   ${anio}: ${claves} claves de ${miradas.join(", ")} → ${archivo}, carga en ${carga.id}`, { fuente: "mef_detalle", instancia: id });
+    return { anio, miradas, claves, archivo, carga: carga.id };
+  });
+}
+
+/** `mef_cargar_gasto`: copia a mef_ejecutora_gasto el CSV que dejó `mef_detalle` en R2 (`archivo`), reemplazando esas miradas. */
+export async function correrMefCargarGasto(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
+  const anio = Number((p.desde ?? fechaLima()).slice(0, 4));
+  const miradas = MIRADAS_POR_PASO[p.paso ?? 0];
+  if (!miradas || !p.archivo?.startsWith(`raw/${FUENTE}/`)) throw new Error(`carga inválida: paso ${p.paso}, archivo ${p.archivo}`);
+  return step.do(`cargar ${anio} · ${miradas.join(", ")}`, CARGA, async () => {
+    const obj = await env.CRUDOS.get(p.archivo!);
+    if (!obj) throw new Error(`no está en R2: ${p.archivo}`);
+    const filas = await conDb(env.HYPERDRIVE, (db) => db.transaccion(async () => {
+      await db.ejecutar("DELETE FROM mef_ejecutora_gasto WHERE anio = $1 AND tipo = ANY($2::text[])", [anio, [...miradas]]);
+      return db.copiar("COPY mef_ejecutora_gasto (anio, sec_ejec, tipo, codigo, nombre, grupo, pia, pim, devengado) FROM STDIN WITH (FORMAT csv)", obj.body);
+    }));
+    registrar("INFO", `   ${anio}: ${filas} filas de ${miradas.join(", ")} cargadas desde ${p.archivo}`, { fuente: "mef_cargar_gasto", instancia: id });
+    return { anio, miradas, filas };
+  });
 }
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -135,23 +185,20 @@ export async function correrMef(env: Env, p: ParamsCorrida, step: WorkflowStep, 
     });
     if (!(resumen[anio] as { ya_cargado?: boolean }).ya_cargado) {
       cargados++;
-      // Las demás miradas del desglose, cada una en su paso (otra lectura del ZIP, con su propia memoria).
+      // Las demás miradas del desglose: una corrida aparte por lectura del ZIP, cada una con su CPU.
       if (!p.seco) {
-        for (let k = 1; k < MIRADAS_POR_PASO.length; k++) {
-          const miradas = MIRADAS_POR_PASO[k];
-          resumen[`${anio} · ${miradas.join(", ")}`] = await step.do(`detalle ${anio} · ${miradas.join(", ")}`,
-            { retries: { limit: 1, delay: "2 minutes" }, timeout: "30 minutes" }, async () => {
-              const r = await fetch(zipDelAnio(anio), { headers: { "User-Agent": UA } });
-              if (!r.ok || !r.body) throw new Error(`HTTP ${r.status} en ${zipDelAnio(anio)}`);
-              const t0 = Date.now();
-              const a = await agregarZip(r.body, miradas);
-              if (a.anio !== anio) throw new Error(`el archivo de ${anio} trae ANO_EJE ${a.anio}`);
-              await conDb(env.HYPERDRIVE, (db) => db.transaccion(() => cargarGasto(db, anio, miradas, a)));
-              registrar("INFO", `   ${anio}: ${a.gasto.size} claves de ${miradas.join(", ")} (${Math.round((Date.now() - t0) / 1000)}s)`,
-                { fuente: FUENTE, instancia: id });
-              return { claves: a.gasto.size, segundos: Math.round((Date.now() - t0) / 1000) };
+        resumen[`${anio} · detalle`] = await step.do(`lanzar detalle ${anio}`, LECTURA, async () => {
+          const ids: string[] = [];
+          for (let k = 1; k < MIRADAS_POR_PASO.length; k++) {
+            const inst = await env.CORRER.create({
+              id: `mef_detalle-${anio}-${k}-${id.slice(-4)}`,
+              params: { fuente: "mef_detalle", desde: String(anio), hasta: String(anio), paso: k, origen: `mef_presupuesto ${id}` },
             });
-        }
+            ids.push(inst.id);
+          }
+          registrar("INFO", `   ${anio}: detalle en ${ids.join(", ")}`, { fuente: FUENTE, instancia: id });
+          return ids;
+        });
       }
     }
   }
