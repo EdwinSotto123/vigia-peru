@@ -48,7 +48,7 @@ export function TablaProcesos({
 }) {
   if (!pagina) {
     return (
-      <EstadoError titulo="No pudimos cargar los procesos" accion={<a href={ruta} className={ACCION}>Reintentar</a>}>
+      <EstadoError titulo="No pudimos cargar los contratos" accion={<a href={ruta} className={ACCION}>Reintentar</a>}>
         Suele ser momentáneo: vuelve a intentarlo en unos segundos.
       </EstadoError>
     );
@@ -77,14 +77,14 @@ export function TablaProcesos({
       query={parametros}
       paramPagina={paramPagina}
       cargando={false}
-      nombre="procesos"
+      nombre="contratos"
     />
   );
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] text-inkSoft">
-          {plural(pagina.total, "proceso", "procesos")}
+          {plural(pagina.total, "contrato", "contratos")}
           {filtrado ? " con estos filtros" : ""}, {solesCompacto(pagina.montoAdjudicadoPen)} adjudicados en soles.
         </p>
         {pag}

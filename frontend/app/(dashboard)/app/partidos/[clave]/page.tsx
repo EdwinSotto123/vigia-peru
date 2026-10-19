@@ -105,7 +105,9 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
           </span>
         }
         acciones={
-          t.contratos > 0 ? (
+          // Sólo con contratos en la cola (como en la ficha de una entidad): los de períodos anteriores a la ventana de
+          // la cola están en la base pero no se financian, y el aporte no tendría qué asignar.
+          t.enCola > 0 ? (
             <EnlaceAccion href={`/app/financiar/partido/${partido.clave}?anio=${anio}`} flecha>
               Financiar la lectura de sus contratos
             </EnlaceAccion>
