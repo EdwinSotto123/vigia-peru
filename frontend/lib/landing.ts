@@ -44,7 +44,22 @@ export interface AlertaReal {
  * perdió se reponen (lib/tildes: "HUANUCO" → "Huánuco").
  */
 const MENORES = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "en", "para", "por", "con", "al", "a", "o", "u", "su", "sus"]);
-const SIGLA = /^(?:s\.?a\.?c?\.?|e\.?i\.?r\.?l\.?|s\.?r\.?l\.?|seace|ruc|oece|osce|dni|uit|igv|onpe|jne|mef|pnp|ii|iii|iv|vi|vii|viii|ix|xi|xii|n°|nº)$/i;
+// Siglas que se respetan, también las de las entidades que el SEACE pone al final ("… - ESSALUD", "… - SUNAT").
+// Sin palabras comunes ("RED", "ACTIVOS", "ANA" de Santa Ana): esas van a título.
+const SIGLAS_ENTIDAD = [
+  "sunat", "essalud", "sunarp", "sedapal", "osinergmin", "osiptel", "ositran", "sunass", "sunafil", "sunedu", "indecopi", "reniec",
+  "inpe", "minsa", "minedu", "minam", "minagri", "midagri", "mtc", "mtpe", "mvcs", "mimp", "midis", "minem", "mincetur", "mininter",
+  "mindef", "minjus", "pcm", "sis", "ugel", "diresa", "geresa", "diris", "senamhi", "senasa", "sanipes", "senace", "sernanp", "serfor",
+  "ingemmet", "igp", "inei", "bcrp", "sbs", "cgr", "jnj", "fap", "provias", "foncodes", "pronabec", "pronied", "devida", "conadis",
+  "cenepred", "indeci", "copesco", "fonafe", "petroperu", "enapu", "corpac", "serpost", "sedalib", "epsel", "emapa", "electroperu",
+  "electrocentro", "electronoroeste", "electronorte", "electrosur", "enosa", "hidrandina", "egasa", "egemsa", "adinelsa", "cofide",
+  "agrobanco", "inen", "insn", "iiap", "imarpe", "itp", "concytec", "cenfotur", "sencico", "sineace", "sutran", "apn", "atu", "emape",
+  "emmsa", "serpar",
+];
+const SIGLA = new RegExp(
+  `^(?:s\\.?a\\.?c?\\.?|e\\.?i\\.?r\\.?l\\.?|s\\.?r\\.?l\\.?|seace|ruc|oece|osce|dni|uit|igv|onpe|jne|mef|pnp|ii|iii|iv|vi|vii|viii|ix|xi|xii|n°|nº|${SIGLAS_ENTIDAD.join("|")})$`,
+  "i",
+);
 
 function palabra(p: string, enMayuscula: boolean): string {
   if (!p) return p;
@@ -54,9 +69,21 @@ function palabra(p: string, enMayuscula: boolean): string {
   return baja;
 }
 
-/** "PROGRAMA NACIONAL DE CENTROS JUVENILES" → "Programa Nacional de Centros Juveniles". */
+/**
+ * "PROGRAMA NACIONAL DE CENTROS JUVENILES" → "Programa Nacional de Centros Juveniles". Un nombre casi todo en
+ * mayúsculas con un pedazo ya escrito ("GOBIERNO REGIONAL DE AREQUIPA Sede Central") se arregla palabra por palabra:
+ * las que vienen en mayúsculas se pasan a título y las demás quedan como vienen.
+ */
 export function tituloNatural(t: string): string {
-  if (t !== t.toLocaleUpperCase("es")) return t; // ya viene legible
+  if (t !== t.toLocaleUpperCase("es")) {
+    const letras = t.match(/\p{L}/gu) ?? [];
+    const mayus = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
+    if (letras.length === 0 || mayus / letras.length < 0.6) return t; // ya viene legible
+    return t
+      .split(/\s+/)
+      .map((p, i) => (p === p.toLocaleUpperCase("es") ? palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))) : p))
+      .join(" ");
+  }
   return t
     .split(/\s+/)
     .map((p, i) => palabra(p, i === 0 || !MENORES.has(p.toLocaleLowerCase("es"))))
