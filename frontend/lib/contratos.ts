@@ -524,6 +524,16 @@ const RIESGOS_URL: string[] = [...RIESGOS.map((r) => r.value), "en_revision"];
 export const PRIMER_ANIO_CONTRATOS = 2015;
 
 /**
+ * El año en curso en Lima: lo que Vigía lee (la cola empieza ahí). La base trae además la historia desde 2015, así
+ * que toda cifra de avance de lectura ("leídos de publicados", "financiados de publicados") se mide contra los
+ * publicados de este año; contra todos, "leídos" quedaba en 0,0 % de casi un millón.
+ */
+export function anioLectura(): number {
+  return new Date(Date.now() - 5 * 3600 * 1000).getUTCFullYear();
+}
+export const desdeLectura = () => `${anioLectura()}-01-01`;
+
+/**
  * "2026-08" → primer y último día de ese mes; "2022" → el año entero (el API filtra por [desde, hasta]). El filtro
  * "Mes de convocatoria" ofrece los últimos 12 meses y cada año desde 2015.
  */

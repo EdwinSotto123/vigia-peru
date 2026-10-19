@@ -149,15 +149,12 @@ export function EscalaDinero({
             <span>Juntos suman más de S/ {numero(milMillones)} mil millones.</span>
             <Ayuda titulo="¿De dónde salen estas cifras?" className="text-paper/60 hover:bg-paper/10 hover:text-maiz">
               <span className="block">
-                Son las convocatorias publicadas en el SEACE que Vigía tiene en su base. El monto es la suma del valor referencial de cada
-                convocatoria, no lo pagado.
+                Son las convocatorias publicadas en el SEACE{anio ? ` en ${anio.anio}` : ""}, las que Vigía lee. El monto es la suma del valor
+                referencial de cada convocatoria, no lo pagado.
               </span>
-              {anio && (
-                <span className="mt-2 block text-mute">
-                  {numero(anio.enAnio)} de {numero(publicados)} se convocaron en {anio.anio}; el resto no tiene fecha de convocatoria o es
-                  anterior.
-                </span>
-              )}
+              <span className="mt-2 block text-mute">
+                La base trae además las de años anteriores, desde 2015: se ven en Contratos, en cada entidad y en cada partido.
+              </span>
             </Ayuda>
           </p>
         </div>

@@ -10,7 +10,7 @@ import { clasificar, hrefPerfil } from "@/components/aliados/ranking";
 import { API_BASE } from "@/lib/api-client";
 import { esAnalisisPublicado, hrefAnalisis, type AnalisisPublicado } from "@/components/convocatoria/analisisPublicados";
 import { getProcesamientos } from "@/lib/auditoria";
-import { getContratosGeo, getResumenContratos, getResumenVivo } from "@/lib/contratos";
+import { anioLectura, desdeLectura, getContratosGeo, getResumenContratos, getResumenVivo } from "@/lib/contratos";
 import { getEntidadesFinanciables, getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
 import { numero, plural, relativo } from "@/lib/formato";
 import { contarLeidos, tituloNatural } from "@/lib/landing";
@@ -58,8 +58,12 @@ async function ultimasSenales(cuantos = 4): Promise<AnalisisPublicado[]> {
 }
 
 export default async function InicioApp() {
-  const [resumen, estado, ultimas, entidades, partidos, ranking, regiones, vivo] = await Promise.all([
+  // La base trae la historia del OECE desde 2015; lo que Vigía lee es lo del año en curso: los anillos se miden
+  // contra los contratos de este año (si no, "leídos" quedaba en 0,0 % de casi un millón).
+  const anio = anioLectura();
+  const [resumen, resumenAnio, estado, ultimas, entidades, partidos, ranking, regiones, vivo] = await Promise.all([
     getResumenContratos().catch(() => null),
+    getResumenContratos({ desde: desdeLectura() }).catch(() => null),
     getEstadoGlobal().catch(() => null),
     ultimasSenales(),
     getEntidadesFinanciables({ limit: TOPE }).catch(() => null),
@@ -75,6 +79,7 @@ export default async function InicioApp() {
     resumen && publicados > 0
       ? {
           publicados,
+          delAnio: resumenAnio ? { anio, publicados: resumenAnio.total } : null,
           leidos: contarLeidos(resumen.porRiesgo) ?? 0,
           conSenalAlta: resumen.porRiesgo.alto ?? null,
           enCola: estado?.colaGlobal ?? null,

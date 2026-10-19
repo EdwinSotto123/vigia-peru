@@ -26,7 +26,7 @@ import {
   type EstadoGlobal,
   type Zona,
 } from "@/lib/financiamiento";
-import { getResumenContratos } from "@/lib/contratos";
+import { anioLectura, desdeLectura, getResumenContratos } from "@/lib/contratos";
 
 const REPO = "https://github.com/EdwinSotto123/vigia-peru";
 
@@ -131,7 +131,8 @@ export default async function FinanciarPage({
     getZonas("departamento"),
     getEstadoGlobal(),
     getRecientes(),
-    getResumenContratos(),
+    // Los publicados del año en curso (lo que se lee); la base trae además la historia desde 2015.
+    getResumenContratos({ desde: desdeLectura() }),
     getPago(),
     buscaProvincias ? getZonas("provincia") : Promise.resolve(null),
     porEntidad
@@ -559,7 +560,7 @@ function CifrasFinanciar({
       etiqueta: "contratos leídos",
       contexto:
         publicados != null
-          ? `de ${numero(publicados)} publicados${pct != null ? ` (${porcentaje(pct, { decimales: pct < 1 ? 2 : 1 })})` : ""}`
+          ? `de ${numero(publicados)} publicados en ${anioLectura()}${pct != null ? ` (${porcentaje(pct, { decimales: pct < 1 ? 2 : 1 })})` : ""}`
           : undefined,
       ayuda: (
         <Ayuda titulo="¿Qué cuenta como leído?">

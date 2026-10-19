@@ -19,7 +19,7 @@ import { PausaFueraDePantalla } from "@/components/landing/PausaFueraDePantalla"
 import { getAlertas } from "@/lib/api-client";
 import { getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
 import { clasificar } from "@/components/aliados/ranking";
-import { getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
+import { anioLectura, desdeLectura, getContratosGeo, getResumenContratos, TIPOS } from "@/lib/contratos";
 import type { CifrasFlujo } from "@/components/landing/ExploradorFuentes";
 import { contarLeidos, elegirCasos, esReglaDeProceso, type AlertaReal, type AnioEscala, type CasoPortada, type OtraSenal, type TipoEscala } from "@/lib/landing";
 import { reglaLabel } from "@/lib/auditoria";
@@ -61,18 +61,20 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
   // Las lecturas en paralelo: son independientes, y en serie cada una le sumaba
   // su viaje de ida y vuelta al primer byte de la portada.
-  const anio = anioLima();
-  const [alertas, estado, resumen, regiones, resumenAnio, ranking, ...porTipo] = await Promise.all([
+  // Lo que Vigía lee es lo del año en curso: la base trae además la historia del OECE desde 2015, y contra todo
+  // eso "leídos" quedaba en 0,0 %. Las cifras de la portada (publicados, leídos, escala, regiones) son del año.
+  const anio = anioLectura();
+  const desde = desdeLectura();
+  const [alertas, estado, resumen, regiones, ranking, ...porTipo] = await Promise.all([
     getAlertas({ limit: 100 }).catch(() => []),
     getEstadoGlobal().catch(() => null),
-    getResumenContratos().catch(() => null),
-    getContratosGeo({ nivel: "departamento" }).catch(() => null),
-    getResumenContratos({ desde: `${anio}-01-01` }).catch(() => null),
+    getResumenContratos({ desde }).catch(() => null),
+    getContratosGeo({ nivel: "departamento", desde }).catch(() => null),
     // Los tres del podio, para la primera pantalla (el mismo pedido que usa el podio de más abajo).
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
     // Las cajitas de la escala: cuántos leyó Vigía de cada tipo (el resumen general
     // trae el total por tipo, pero no los leídos por tipo).
-    ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave }).catch(() => null)),
+    ...TIPOS_ESCALA.map((t) => getResumenContratos({ tipo: t.clave, desde }).catch(() => null)),
   ]);
 
   const montoTotal = (regiones ?? []).reduce((s, r) => s + (r.montoPen ?? 0), 0);
@@ -104,9 +106,8 @@ export default async function LandingPage() {
   };
 
   const tiposEscala = resumen ? armarTiposEscala(resumen.porTipo, publicados, leidos, porTipo) : [];
-  // "2026" sólo si casi todo lo publicado se convocó este año; el ⓘ dice cuántos exactamente.
-  const anioEscala: AnioEscala | null =
-    resumenAnio && publicados > 0 && resumenAnio.total / publicados >= 0.99 ? { anio, enAnio: resumenAnio.total } : null;
+  // La escala es del año en curso, como todas las cifras de la portada; el ⓘ lo dice.
+  const anioEscala: AnioEscala | null = resumen && publicados > 0 ? { anio, enAnio: publicados } : null;
 
   const [casoPrincipal, ...otrosCasos] = elegirCasos(alertas, 4);
   const reglaCaso = casoPrincipal ? reglaDelCaso(alertas, casoPrincipal) : null;
@@ -208,11 +209,6 @@ const TIPOS_ESCALA: { clave: Exclude<TipoEscala["clave"], "otros">; etiqueta: st
   { clave: "obras", etiqueta: "Obras" },
   { clave: "consultoria", etiqueta: "Consultorías" },
 ];
-
-/** El año en curso, en hora de Lima. */
-function anioLima(): number {
-  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Lima", year: "numeric" }).format(new Date()));
-}
 
 /**
  * Las cajitas de la escala: los cuatro tipos grandes y "Convenios y otros" con lo que

@@ -27,7 +27,7 @@ import {
   type EstadoGlobal,
   type Zona,
 } from "@/lib/financiamiento";
-import { getResumenContratos } from "@/lib/contratos";
+import { anioLectura, desdeLectura, getResumenContratos } from "@/lib/contratos";
 import { numero, soles } from "@/lib/formato";
 
 export const metadata = {
@@ -61,8 +61,9 @@ export default async function AliadosPage({
   const [estado, zonas, resumenPais, resumenZona, muestra, recientesPag] = await Promise.all([
     getEstadoGlobal(),
     getZonas("departamento"),
-    getResumenContratos(),
-    ubigeo ? getResumenContratos({ ubigeo }) : Promise.resolve(null),
+    // Los publicados del año en curso (lo que se lee); la base trae además la historia desde 2015.
+    getResumenContratos({ desde: desdeLectura() }),
+    ubigeo ? getResumenContratos({ ubigeo, desde: desdeLectura() }) : Promise.resolve(null),
     getRankingPaginado({ periodo, region: ubigeo, limit: MUESTRA_RANKING }),
     // Con pocos nombres, el ranking es corto: los últimos aportes llenan la pantalla con lo que sí pasó.
     getRecientesPagina(20, 0).catch(() => null),
@@ -236,7 +237,7 @@ function indicadoresAmbito({
     {
       valor: numero(financiados),
       etiqueta: "contratos financiados",
-      contexto: publicados ? `${pctProporcion(financiados, publicados)} de ${numero(publicados)} publicados` : undefined,
+      contexto: publicados ? `${pctProporcion(financiados, publicados)} de ${numero(publicados)} publicados en ${anioLectura()}` : undefined,
       ayuda: (
         <Ayuda titulo="¿Cómo se asignan?">
           {precio != null ? `${soles(precio)} por contrato. ` : ""}Se asignan por antigüedad en la cola: nadie elige

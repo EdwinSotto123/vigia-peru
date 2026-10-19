@@ -4,11 +4,14 @@ import { AnilloProgreso } from "./AnilloProgreso";
 
 /**
  * Cabecera de /app: la pregunta, el buscador grande y las cifras de hoy como tarjetas con su anillo.
- * Cada anillo dice "qué parte de qué": leídos de publicados, señales altas de leídos, esperando lectura de publicados.
+ * Cada anillo dice "qué parte de qué": leídos y esperando lectura de los publicados de este año (lo que Vigía lee;
+ * la base trae además la historia desde 2015), señales altas de los leídos.
  * Si una lectura falló, su tarjeta no se dibuja (nada se estima).
  */
 export interface CifrasInicio {
   publicados: number;
+  /** Los publicados del año en curso: la medida de los anillos. Sin él, se mide contra todos. */
+  delAnio?: { anio: number; publicados: number } | null;
   leidos: number;
   conSenalAlta: number | null;
   enCola: number | null;
@@ -17,11 +20,16 @@ export interface CifrasInicio {
 export function HeroInicio({ c }: { c: CifrasInicio | null }) {
   const tarjetas: { valor: string; etiqueta: string; detalle: string; pct?: number }[] = [];
   if (c && c.publicados > 0) {
-    tarjetas.push({ valor: numero(c.publicados), etiqueta: "contratos publicados", detalle: "En el SEACE, que Vigía tiene en su base" });
+    const base = c.delAnio && c.delAnio.publicados > 0 ? c.delAnio.publicados : c.publicados;
+    const deQue = c.delAnio && c.delAnio.publicados > 0 ? `de los ${numero(c.delAnio.publicados)} de ${c.delAnio.anio}` : "de los publicados";
+    tarjetas.push({
+      valor: numero(c.publicados), etiqueta: "contratos publicados",
+      detalle: c.delAnio ? `En el SEACE desde 2015; ${numero(c.delAnio.publicados)} de ${c.delAnio.anio}` : "En el SEACE, que Vigía tiene en su base",
+    });
     tarjetas.push({
       valor: numero(c.leidos), etiqueta: "ya leídos",
-      detalle: `${porcentaje((c.leidos / c.publicados) * 100, { decimales: 1 })} de los publicados`,
-      pct: (c.leidos / c.publicados) * 100,
+      detalle: `${porcentaje((c.leidos / base) * 100, { decimales: 1 })} ${deQue}`,
+      pct: (c.leidos / base) * 100,
     });
     if (c.conSenalAlta != null && c.leidos > 0) {
       tarjetas.push({
@@ -35,7 +43,7 @@ export function HeroInicio({ c }: { c: CifrasInicio | null }) {
       tarjetas.push({
         valor: numero(c.enCola), etiqueta: "esperando lectura",
         detalle: "Se leen cuando alguien los financia",
-        pct: (c.enCola / c.publicados) * 100,
+        pct: (c.enCola / base) * 100,
       });
     }
   }
