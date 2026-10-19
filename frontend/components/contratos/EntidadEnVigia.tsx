@@ -3,8 +3,9 @@ import { numero, plural } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
 /**
- * "Esta entidad en Vigía": una placa con sus contratos en la base y en qué va cada uno, en una barra partida (leídos,
- * en cola, con documentos listos, sin documentos) con su leyenda; los de riesgo medio o alto, dentro de los leídos.
+ * "Esta entidad en Vigía": una placa con sus contratos en la base (desde 2015) y en qué va cada uno, en una barra
+ * partida con su leyenda: leídos (y, dentro, los de riesgo medio o alto), en la cola esperando quien financie su
+ * lectura, y fuera de la cola (otro tipo, otra etapa o anteriores a la ventana de la cola), con o sin documentos.
  * Antes eran cuatro renglones de texto sueltos. Sale de /contratos/resumen?entidad=. Server-safe.
  */
 export function EntidadEnVigia({
@@ -21,16 +22,16 @@ export function EntidadEnVigia({
   conSenales: number;
   /** En cola: esperan quien financie su lectura. */
   esperando: number;
-  /** Con sus documentos ya bajados, la lectura en preparación. */
+  /** Fuera de la cola, pero con sus documentos ya bajados. */
   listos?: number;
 }) {
-  // Lo que queda (sin documentos todavía) se calcula: los estados de los no leídos suman el total.
-  const sinDocumentos = Math.max(0, total - leidos - esperando - listos);
+  // Lo que queda (fuera de la cola, sin documentos) se calcula: los estados de los no leídos suman el total.
+  const fuera = Math.max(0, total - leidos - esperando - listos);
   const tramos = [
     { clave: "leidos", etiqueta: "Leídos", n: leidos, clase: "bg-granate", detalle: conSenales > 0 ? `${numero(conSenales)} de riesgo medio o alto` : null },
-    { clave: "cola", etiqueta: "Esperan quien financie su lectura", n: esperando, clase: "bg-granate/45", detalle: null },
-    { clave: "listos", etiqueta: "Con documentos, lectura en preparación", n: listos, clase: "bg-granate/20", detalle: null },
-    { clave: "sin", etiqueta: "Sin documentos todavía", n: sinDocumentos, clase: "bg-paperDeep", detalle: null },
+    { clave: "cola", etiqueta: "En la cola: esperan quien financie su lectura", n: esperando, clase: "bg-granate/45", detalle: null },
+    { clave: "listos", etiqueta: "Fuera de la cola, con documentos", n: listos, clase: "bg-granate/20", detalle: null },
+    { clave: "sin", etiqueta: "Fuera de la cola", n: fuera, clase: "bg-paperDeep", detalle: "otro tipo, otra etapa o de años anteriores" },
   ].filter((t) => t.n > 0);
   return (
     <section aria-labelledby="entidad-en-vigia" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
@@ -67,7 +68,7 @@ export function EntidadEnVigia({
                   <span aria-hidden className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-sm", t.clase, t.clave === "sin" && "border border-line")} />
                   <span>
                     {t.etiqueta}
-                    {t.detalle && <span className="block text-[12px] text-amberTexto">{t.detalle}</span>}
+                    {t.detalle && <span className={cn("block text-[12px]", t.clave === "leidos" ? "text-amberTexto" : "text-mute")}>{t.detalle}</span>}
                   </span>
                 </dt>
                 <dd className="font-mono font-semibold tabular-nums text-ink">{numero(t.n)}</dd>
