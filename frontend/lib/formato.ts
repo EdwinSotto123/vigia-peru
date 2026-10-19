@@ -11,6 +11,8 @@
  * Todo es puro (sin React): sirve en server y client components.
  */
 
+import { conTildes } from "./tildes";
+
 const ZONA_LIMA = "America/Lima";
 const NUM = new Intl.NumberFormat("es-PE");
 const NUM_1 = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -57,11 +59,11 @@ export function listaY(xs: string[]): string {
   return xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`;
 }
 
-/** "1 contrato", "2 contratos". El número va formateado. */
 /**
- * Un texto del SEACE, del MEF o de CONOSCE escrito todo en mayúsculas, como oración: "ADQUISICIÓN DE VÍVERES PARA LA
- * TROPA" → "Adquisición de víveres para la tropa". Lo que ya trae minúsculas se deja como viene (lo escribió alguien
- * a mano). Las mismas palabras en todas las listas: contratos, procesos, partidas del presupuesto.
+ * Un texto del SEACE, del MEF o de CONOSCE escrito todo en mayúsculas, como oración: "ADQUISICION DE VIVERES PARA LA
+ * TROPA" → "Adquisición de víveres para la tropa", con las tildes que la fuente perdió (lib/tildes). Lo que ya trae
+ * minúsculas se deja como viene (lo escribió alguien a mano). Las mismas palabras en todas las listas: contratos,
+ * procesos, partidas del presupuesto.
  */
 export function oracion(t: string): string {
   const s = t.trim();
@@ -70,10 +72,11 @@ export function oracion(t: string): string {
   const mayusculas = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
   // Escrito a mano: se respeta, pero empieza con mayúscula ("contratación de la obra…" → "Contratación de la obra…").
   if (letras.length === 0 || mayusculas / letras.length < 0.8) return s.charAt(0).toLocaleUpperCase("es") + s.slice(1);
-  const b = s.toLocaleLowerCase("es");
+  const b = conTildes(s.toLocaleLowerCase("es"));
   return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
 }
 
+/** "1 contrato", "2 contratos". El número va formateado. */
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return `${NUM.format(n)} ${n === 1 ? singular : pluralTexto}`;
 }
