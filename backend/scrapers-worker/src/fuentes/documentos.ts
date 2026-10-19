@@ -1,14 +1,12 @@
 /**
- * Documentos de los expedientes (bases, actas, contratos) SÓLO de los contratos de la cola: lo que hacía
+ * Documentos de los expedientes (bases, actas, contratos) SÓLO de los contratos FINANCIADOS: lo que hacía
  * `vigia-batch` en GCP (backend/batch/descargar.py `pedidos` + ingestar.py), que quedó pausado con GCP.
  *
- * Qué se baja, en este orden y con un tope por corrida:
- *   1. `pedidos_descarga` abiertos (migración 15): contratos financiados (motivo financiado/admin/reintento) cuyos
- *      documentos no están o vencieron. TODOS sus documentos, como el batch (`--politica todo`).
- *   2. Si sobra lugar, contratos de `cola_auditoria` (la cola financiable, con su ventana de fechas: migración 69)
- *      sin documentos vigentes: se les abre un pedido con motivo `cola` y se bajan sólo los documentos CLAVE
- *      (bases, buena pro, contrato), para que queden "con documentos listos" cuando alguien los financie.
- * Nada fuera de la cola: la historia de la base (2015 en adelante) no se descarga.
+ * Qué se baja: los `pedidos_descarga` abiertos (migración 15), que se abren cuando alguien financia un contrato
+ * cuyos documentos no están o vencieron (asignar_contribucion, el dispatcher o el admin). TODOS sus documentos, como
+ * el batch (`--politica todo`), con un tope por corrida. Nada más: de la base (los contratos desde 2015, con su
+ * ganador y su monto) se guarda sólo el registro; el expediente se baja recién cuando el contrato se financia.
+ * Decisión del usuario (2026-10-19): ni la historia ni la cola sin financiar se descargan.
  *
  * Por contrato: el record OCDS completo por el relay (actualiza `ocds_payload` y la clasificación, como la ingesta),
  * cada documento por el relay a R2 `vigia-peru-batch` con la misma ruta que el batch
@@ -39,7 +37,6 @@ const MAX_BYTES = 1_000_000_000;
 /** Un archivo más grande no se baja (los hay de cientos de MB: planos escaneados). */
 const MAX_ARCHIVO = 300_000_000;
 const RETENCION_DIAS = 90;
-const TIPOS_CLAVE = new Set(["biddingDocuments", "awardNotice", "contractSigned"]);
 const ESPERAS_403_S = [20, 60];
 const MAX_403_SEGUIDOS = 8;
 const BUCKET = "vigia-peru-batch";
@@ -156,13 +153,13 @@ async function bajar(env: Env, d: Doc, clave: string, estado: { seguidos403: num
 }
 
 export async function correrDocumentos(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string): Promise<unknown> {
-  // 1. Pedidos abiertos (financiados primero) y, si sobra lugar, contratos de la cola sin documentos.
+  // 1. Los pedidos abiertos de los contratos financiados (motivo financiado, admin o reintento).
   const pedidos = await step.do("tomar pedidos", LECTURA, () =>
     conDb(env.HYPERDRIVE, async (db) => {
       if (p.seco) {
         return db.filas<Pedido>(
           `SELECT id::int, ocid, NULL AS completo, motivo FROM pedidos_descarga
-            WHERE estado = 'pendiente' ORDER BY (motivo = 'cola'), solicitado_at LIMIT $1`, [MAX_CONTRATOS]);
+            WHERE estado = 'pendiente' AND motivo <> 'cola' ORDER BY solicitado_at LIMIT $1`, [MAX_CONTRATOS]);
       }
       // La corrida es un lote, como los del batch (documentos_gcs.lote_id → lotes_ingesta).
       await db.ejecutar(
@@ -177,31 +174,18 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
           `UPDATE procesamientos SET estado = 'error', error = 'documentos no descargables tras 3 intentos'
             WHERE estado = 'esperando_documentos' AND ocid = ANY($1::text[])`, [fallidos.map((f) => f.ocid)]);
       }
-      const abiertos = await db.filas<{ n: number }>(
-        "SELECT count(*)::int AS n FROM pedidos_descarga WHERE estado = 'pendiente' AND motivo <> 'cola'");
-      const lugar = MAX_CONTRATOS - (abiertos[0]?.n ?? 0);
-      if (lugar > 0) {
-        // Lo más reciente de la cola primero; sin los que ya tuvieron un pedido en los últimos 30 días.
-        await db.ejecutar(
-          `SELECT pedir_descarga(q.ocid, 'cola')
-             FROM (SELECT q.ocid FROM cola_auditoria q
-                    WHERE NOT EXISTS (SELECT 1 FROM documentos_vigentes(q.ocid))
-                      AND NOT EXISTS (SELECT 1 FROM pedidos_descarga pd
-                                       WHERE ocid_corto(pd.ocid) = ocid_corto(q.ocid) AND pd.solicitado_at > now() - interval '30 days')
-                    ORDER BY q.fecha_convocatoria DESC NULLS LAST, q.ocid LIMIT $1) q`, [lugar]);
-      }
       return db.filas<Pedido>(
         `UPDATE pedidos_descarga p SET estado = 'descargando', tomado_at = now(), intentos = intentos + 1, lote_id = $2
            FROM (SELECT id FROM pedidos_descarga
-                  WHERE estado = 'pendiente' OR (estado = 'descargando' AND tomado_at < now() - interval '2 hours')
-                  ORDER BY (motivo = 'cola'), solicitado_at LIMIT $1 FOR UPDATE SKIP LOCKED) t
+                  WHERE motivo <> 'cola'
+                    AND (estado = 'pendiente' OR (estado = 'descargando' AND tomado_at < now() - interval '2 hours'))
+                  ORDER BY solicitado_at LIMIT $1 FOR UPDATE SKIP LOCKED) t
           WHERE p.id = t.id
           RETURNING p.id::int, p.ocid, p.motivo,
             (SELECT c.ocds_payload->>'ocid' FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto(p.ocid) LIMIT 1) AS completo`,
         [MAX_CONTRATOS, `cf-${id}`]);
     }));
-  registrar("INFO", `   ${pedidos.length} contratos: ${pedidos.filter((x) => x.motivo !== "cola").length} financiados, ` +
-    `${pedidos.filter((x) => x.motivo === "cola").length} de la cola`, { fuente: FUENTE, instancia: id });
+  registrar("INFO", `   ${pedidos.length} contratos financiados esperan documentos`, { fuente: FUENTE, instancia: id });
   if (p.seco) return { pedidos };
 
   // 2. Un paso por contrato: record, documentos a R2, filas en documentos_gcs.
@@ -219,7 +203,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
       const rel = dictDe(get(rec, "compiledRelease"));
       if (!Object.keys(rel).length) return { documentos: 0, bajados: 0, errores: 0, bytes: 0, error: "sin record", corte: null as string | null };
       const todos = documentosDe(rel);
-      const docs = ped.motivo === "cola" ? todos.filter((d) => d.tipo && TIPOS_CLAVE.has(d.tipo)) : todos;
+      const docs = todos;
       const aa = corto.slice(-2).padStart(2, "0");
       const estado = { seguidos403: 0 };
       const filas: unknown[][] = [];
@@ -266,7 +250,7 @@ export async function correrDocumentos(env: Env, p: ParamsCorrida, step: Workflo
                creado_at = now(), borrado_at = NULL, expira_at = now() + make_interval(days => ${RETENCION_DIAS})`,
             [...f, `cf-${id}`]);
         }
-        // Sin documentos que bajar (el record no trae, o ninguno clave): el pedido queda atendido igual y el
+        // Sin documentos que bajar (el record no trae): el pedido queda atendido igual y el
         // procesamiento que esperaba vuelve a la cola (el agente lee lo que haya), como cerrar_pedidos_atendidos().
         if (!docs.length) {
           await db.ejecutar(

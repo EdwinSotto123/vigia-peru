@@ -15,8 +15,8 @@
  *   conosce            sábados 08:00 (CONOSCE regenera │
  *   conosce_ordenes    los reportes los viernes)       ┘
  *
- *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos de
- *                      la cola y de los financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
+ *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos
+ *                      financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
  */
 
 export const CRON_DIARIO = "0 11 * * *";
