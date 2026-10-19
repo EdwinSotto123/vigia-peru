@@ -26,7 +26,7 @@ import type { Db } from "../db.ts";
 import { UA } from "../http.ts";
 import { registrar } from "../registro.ts";
 import { xlsxComoCsv } from "../xlsx_flujo.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, fechaLima, refrescarCasosCruce } from "./comun.ts";
 import { copiarEnTramos } from "./pnda_dji.ts";
 
 const FUENTE = "conosce";
@@ -308,9 +308,8 @@ export async function correrConosce(env: Env, p: ParamsCorrida, step: WorkflowSt
   if (p.seco || !cargados) return resumen;
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
-  // Casos cruzados (migración 57): la lista nacional de /cruces, por proceso y ganador.
-  await step.do("refrescar_casos_cruce", CARGA, () =>
-    conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_casos_cruce() AS n"))[0]?.n ?? 0));
+  // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).
+  await refrescarCasosCruce(env, step);
   // Los procesos de cada partido desde 2018 (migración 65): /app/partidos y la ficha de cada partido (≈ 50 s).
   resumen.partidos = await step.do("refrescar_partido_proceso", CARGA, () =>
     conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ entidades: number; procesos: number }>("SELECT * FROM refrescar_partido_proceso()"))[0]));

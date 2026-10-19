@@ -21,7 +21,7 @@ import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { UA } from "../http.ts";
 import { registrar } from "../registro.ts";
-import { CARGA, fechaLima } from "./comun.ts";
+import { CARGA, fechaLima, refrescarCasosCruce } from "./comun.ts";
 import { BASE, copiarATemporal, selectDestino } from "./conosce.ts";
 import type { Mapa } from "./conosce.ts";
 import { mesesEntre } from "./pnda_visitas.ts";
@@ -141,8 +141,7 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
     conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_fraccionamiento() AS n"))[0]?.n ?? 0));
   resumen.cruces = await step.do("refrescar_cruces", CARGA, () =>
     conDb(env.HYPERDRIVE, (db) => db.filas<{ tipo: string; filas: number }>("SELECT * FROM refrescar_cruces()")));
-  // Casos cruzados (migración 57): la lista nacional de /cruces, por proceso y ganador.
-  await step.do("refrescar_casos_cruce", CARGA, () =>
-    conDb(env.HYPERDRIVE, async (db) => (await db.filas<{ n: number }>("SELECT refrescar_casos_cruce() AS n"))[0]?.n ?? 0));
+  // Casos cruzados (migración 57) y lo que los alimenta, en pasos separados (comun.ts: refrescarCasosCruce).
+  await refrescarCasosCruce(env, step);
   return resumen;
 }
