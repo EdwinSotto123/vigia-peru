@@ -145,17 +145,16 @@ partidosRouter.get("/:clave", async (c) => {
                 count(*) FILTER (WHERE nivel = 'provincial')::int AS provincial,
                 count(*) FILTER (WHERE nivel = 'distrital')::int AS distrital
            FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY org_clave`, [clave, anio]),
+      // Del resumen por región (migración 78), sumado: lo mismo que CONTEOS sobre contrato_partido × contrato_estado.
       pool.query(
-        `SELECT ${CONTEOS} FROM contrato_partido cp JOIN contrato_estado ce ON ce.ocid = cp.ocid
-          WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2`, [clave, anio]),
+        `SELECT COALESCE(sum(contratos), 0)::int AS contratos, COALESCE(sum(leidos), 0)::int AS leidos,
+                COALESCE(sum(con_senales), 0)::int AS "conSenales", COALESCE(sum(en_cola), 0)::int AS "enCola",
+                COALESCE(sum(documentos_listos), 0)::int AS "documentosListos", COALESCE(sum(monto_pen), 0)::float AS "montoPen"
+           FROM partido_resumen_vigia WHERE org_clave = $1 AND anio_eleccion = $2`, [clave, anio]),
+      // Mes a mes, ya calculado (migración 80).
       pool.query(
-        `SELECT to_char(date_trunc('month', cp.fecha_convocatoria), 'YYYY-MM') AS mes,
-                count(*)::int AS contratos,
-                count(*) FILTER (WHERE ce.estado_proc = 'procesado')::int AS leidos,
-                count(*) FILTER (WHERE ce.riesgo IN ('alto','medio'))::int AS "conSenales"
-           FROM contrato_partido cp JOIN contrato_estado ce ON ce.ocid = cp.ocid
-          WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
-          GROUP BY 1 ORDER BY 1`, [clave, anio]),
+        `SELECT mes, contratos, leidos, con_senales AS "conSenales"
+           FROM partido_resumen_mes WHERE org_clave = $1 AND anio_eleccion = $2 AND contratos > 0 ORDER BY mes`, [clave, anio]),
       pool.query(
         `SELECT e.ruc, e.nombre, cp.nivel, z.nombre AS lugar, cp.autoridad, ${CONTEOS}
            FROM contrato_partido cp
@@ -173,46 +172,36 @@ partidosRouter.get("/:clave", async (c) => {
           WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2
           GROUP BY 1, 2 ORDER BY count(*) DESC`, [clave, anio]),
       // CONOSCE (migración 65): sus procesos adjudicados en el período, aunque no estén en la base de Vigía.
+      // Ya calculados (migración 79): con count DISTINCT sobre las filas de partido_proceso tardaba 4,6 s en un partido
+      // grande y las demás consultas se quedaban sin conexión. Siempre una fila (en cero si no tiene procesos).
       pool.query(
-        `SELECT count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen",
-                count(DISTINCT entidad_ruc)::int AS entidades, count(DISTINCT ruc_proveedor)::int AS proveedores,
-                count(DISTINCT nivel || ':' || gobierno_ubigeo)::int AS "gobiernosConProcesos",
-                to_char(min(fecha_convocatoria), 'YYYY-MM-DD') AS desde, to_char(max(fecha_convocatoria), 'YYYY-MM-DD') AS hasta
-           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2`, [clave, anio]),
+        `SELECT COALESCE(t.procesos, 0) AS procesos, COALESCE(t.monto_pen, 0)::float AS "montoAdjudicadoPen",
+                COALESCE(t.entidades, 0) AS entidades, COALESCE(t.proveedores, 0) AS proveedores,
+                COALESCE(t.gobiernos, 0) AS "gobiernosConProcesos",
+                to_char(t.desde, 'YYYY-MM-DD') AS desde, to_char(t.hasta, 'YYYY-MM-DD') AS hasta
+           FROM (SELECT 1) x LEFT JOIN partido_resumen_total t ON t.org_clave = $1 AND t.anio_eleccion = $2`, [clave, anio]),
       pool.query(
-        `SELECT to_char(date_trunc('month', fecha_convocatoria), 'YYYY-MM') AS mes, count(*)::int AS procesos,
-                COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen"
-           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1 ORDER BY 1`, [clave, anio]),
+        `SELECT mes, procesos, monto_pen::float AS "montoAdjudicadoPen"
+           FROM partido_resumen_mes WHERE org_clave = $1 AND anio_eleccion = $2 AND procesos > 0 ORDER BY mes`, [clave, anio]),
       pool.query(
-        `SELECT COALESCE(objeto, 'Sin dato') AS objeto, count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen"
-           FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1 ORDER BY 3 DESC`, [clave, anio]),
+        // Ya calculado (migración 81): contarlo de partido_proceso tardaba hasta 11 s en frío en un partido grande.
+        `SELECT objeto, procesos, monto_pen::float AS "montoAdjudicadoPen"
+           FROM partido_resumen_objeto WHERE org_clave = $1 AND anio_eleccion = $2 ORDER BY monto_pen DESC`, [clave, anio]),
       // TODOS sus gobiernos del período (antes, las 15 entidades con más contratos), con lo de las dos fuentes y la
       // entidad que abre cada uno: la de más procesos de ese gobierno (en un gobierno regional, casi siempre la sede).
       pool.query(
-        `WITH g AS (SELECT nivel, ubigeo, autoridad FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2),
-              h AS (SELECT nivel, gobierno_ubigeo AS ubigeo, count(*)::int AS procesos, COALESCE(sum(monto_adjudicado_pen), 0)::float AS monto
-                      FROM partido_proceso WHERE org_clave = $1 AND anio_eleccion = $2 GROUP BY 1, 2),
-              v AS (SELECT cp.nivel, cp.gobierno_ubigeo AS ubigeo, count(*)::int AS contratos,
-                           count(*) FILTER (WHERE ce.estado_proc = 'procesado')::int AS leidos,
-                           count(*) FILTER (WHERE ce.riesgo IN ('alto','medio'))::int AS "conSenales"
-                      FROM contrato_partido cp JOIN contrato_estado ce ON ce.ocid = cp.ocid
-                     WHERE cp.org_clave = $1 AND cp.anio_eleccion = $2 GROUP BY 1, 2),
-              e AS (SELECT DISTINCT ON (pp.nivel, pp.gobierno_ubigeo) pp.nivel, pp.gobierno_ubigeo AS ubigeo, pp.entidad_ruc AS ruc
-                      FROM partido_proceso pp WHERE pp.org_clave = $1 AND pp.anio_eleccion = $2
-                     GROUP BY pp.nivel, pp.gobierno_ubigeo, pp.entidad_ruc
-                     ORDER BY pp.nivel, pp.gobierno_ubigeo, count(*) DESC)
+        // Sus procesos, contratos y entidad principal por gobierno, ya calculados (migración 81).
+        `WITH g AS (SELECT nivel, ubigeo, autoridad FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2)
          SELECT g.nivel, g.ubigeo, g.autoridad, z.nombre AS lugar,
                 CASE WHEN g.nivel = 'distrital' THEN (SELECT zp.nombre FROM zonas zp WHERE zp.ubigeo = left(g.ubigeo, 4)) END AS provincia,
                 (SELECT zd.nombre FROM zonas zd WHERE zd.ubigeo = left(g.ubigeo, 2)) AS region,
-                COALESCE(h.procesos, 0) AS procesos, COALESCE(h.monto, 0)::float AS "montoAdjudicadoPen",
-                COALESCE(v.contratos, 0) AS contratos, COALESCE(v.leidos, 0) AS leidos, COALESCE(v."conSenales", 0) AS "conSenales",
-                COALESCE(e.ruc, (SELECT eg.ruc FROM entidad_gobierno_amplia eg WHERE eg.nivel = g.nivel AND eg.ubigeo = g.ubigeo LIMIT 1)) AS ruc
+                COALESCE(r.procesos, 0) AS procesos, COALESCE(r.monto_pen, 0)::float AS "montoAdjudicadoPen",
+                COALESCE(r.contratos, 0) AS contratos, COALESCE(r.leidos, 0) AS leidos, COALESCE(r.con_senales, 0) AS "conSenales",
+                COALESCE(r.ruc_principal, (SELECT eg.ruc FROM entidad_gobierno_amplia eg WHERE eg.nivel = g.nivel AND eg.ubigeo = g.ubigeo LIMIT 1)) AS ruc
            FROM g
            LEFT JOIN zonas z ON z.ubigeo = g.ubigeo
-           LEFT JOIN h ON h.nivel = g.nivel AND h.ubigeo = g.ubigeo
-           LEFT JOIN v ON v.nivel = g.nivel AND v.ubigeo = g.ubigeo
-           LEFT JOIN e ON e.nivel = g.nivel AND e.ubigeo = g.ubigeo
-          ORDER BY CASE g.nivel WHEN 'regional' THEN 0 WHEN 'provincial' THEN 1 ELSE 2 END, COALESCE(h.monto, 0) DESC, z.nombre`,
+           LEFT JOIN partido_resumen_gobierno r ON r.org_clave = $1 AND r.anio_eleccion = $2 AND r.nivel = g.nivel AND r.ubigeo = g.ubigeo
+          ORDER BY CASE g.nivel WHEN 'regional' THEN 0 WHEN 'provincial' THEN 1 ELSE 2 END, COALESCE(r.monto_pen, 0) DESC, z.nombre`,
         [clave, anio]),
     ]);
     if (!org.rows.length) return null;

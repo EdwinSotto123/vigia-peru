@@ -19,8 +19,9 @@ test("sin parámetros: período vigente, sin filtros y sin paginar (compatibilid
   assert.deepEqual(vals, [2022]);
   assert.doesNotMatch(sql, /LIMIT/);
   assert.match(sql, /ORDER BY contratos DESC, procesos DESC, clave/);
-  // Los procesos de CONOSCE (migración 65) entran en el ranking de todos los períodos.
-  assert.match(sql, /FROM partido_proceso pp/);
+  // Los procesos (migración 65) y la base de Vigía entran por su resumen por período y región (migración 78).
+  assert.match(sql, /FROM partido_resumen_historia/);
+  assert.match(sql, /FROM partido_resumen_vigia/);
 });
 
 test("cadenas vacías de la URL cuentan como sin filtro", () => {
@@ -35,7 +36,8 @@ test("region, q, conCola, orden y paginación: parámetros numerados y orden de 
   const p = parse({ anio: "2018", region: "15", q: "Alianza", conCola: "1", orden: "cola", limit: "25", offset: "50" });
   const { sql, vals } = consultaRanking(p);
   assert.deepEqual(vals, [2018, "15", "%alianza%", 25, 50]);
-  assert.match(sql, /left\(cp\.gobierno_ubigeo, 2\) = \$2/);
+  // La región filtra las dos partes del resumen con el mismo $2.
+  assert.equal(sql.match(/AND region = \$2/g)?.length, 2);
   assert.match(sql, /immutable_unaccent\(lower\(nombre\)\) LIKE immutable_unaccent\(\$3\)/);
   assert.match(sql, /"enCola" > 0/);
   assert.match(sql, /ORDER BY "enCola" DESC, contratos DESC, clave LIMIT \$4 OFFSET \$5/);

@@ -77,11 +77,8 @@ export interface Consulta {
 /** Los partidos del período, con sus conteos, ya filtrados. `contar` = solo cuántos cumplen (sin paginar). */
 export function consultaRanking(p: RankingParams, contar = false): Consulta {
   const vals: unknown[] = [p.anio];
-  let region = "";
-  if (p.region) {
-    vals.push(p.region);
-    region = ` AND left(cp.gobierno_ubigeo, 2) = $${vals.length}`;
-  }
+  // La región va siempre como $2 (la usan las dos partes del resumen).
+  if (p.region) vals.push(p.region);
   const filtros: string[] = [];
   if (p.q) {
     vals.push(`%${escaparLike(p.q.toLowerCase())}%`);
@@ -90,25 +87,23 @@ export function consultaRanking(p: RankingParams, contar = false): Consulta {
   if (p.conCola) filtros.push(`"enCola" > 0`);
   const where = filtros.length ? ` WHERE ${filtros.join(" AND ")}` : "";
 
-  let regionH = "";
-  if (p.region) regionH = ` AND left(pp.gobierno_ubigeo, 2) = $2`;
+  // Del resumen por período, partido y región (migración 78): sumar cientos de filas en vez de agregar cientos de
+  // miles en cada pedido (9,7 s con la historia, al borde de los 10 s del rol). Cada gobierno es de una sola región:
+  // sumar "gobiernos" por región da el total sin repetir.
+  const regionR = p.region ? ` AND region = $2` : "";
   const base = `WITH vigia AS (
-  SELECT cp.org_clave AS clave,
-         count(DISTINCT cp.nivel || ':' || cp.gobierno_ubigeo)::int AS "gobiernosConContratos",
-         array_agg(DISTINCT left(cp.gobierno_ubigeo, 2)) AS regiones,
-         ${CONTEOS}
-    FROM contrato_partido cp
-    JOIN contrato_estado ce ON ce.ocid = cp.ocid
-   WHERE cp.anio_eleccion = $1${region}
-   GROUP BY cp.org_clave
+  SELECT org_clave AS clave, sum(gobiernos)::int AS "gobiernosConContratos", array_agg(region) AS regiones,
+         sum(contratos)::int AS contratos, sum(leidos)::int AS leidos, sum(con_senales)::int AS "conSenales",
+         sum(en_cola)::int AS "enCola", sum(documentos_listos)::int AS "documentosListos", COALESCE(sum(monto_pen), 0)::float AS "montoPen"
+    FROM partido_resumen_vigia
+   WHERE anio_eleccion = $1${regionR}
+   GROUP BY org_clave
 ), historia AS (
-  SELECT pp.org_clave AS clave, count(*)::int AS procesos,
-         COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS "montoAdjudicadoPen",
-         count(DISTINCT pp.nivel || ':' || pp.gobierno_ubigeo)::int AS "gobiernosConProcesos",
-         array_agg(DISTINCT left(pp.gobierno_ubigeo, 2)) AS regiones
-    FROM partido_proceso pp
-   WHERE pp.anio_eleccion = $1${regionH}
-   GROUP BY pp.org_clave
+  SELECT org_clave AS clave, sum(procesos)::int AS procesos, COALESCE(sum(monto_pen), 0)::float AS "montoAdjudicadoPen",
+         sum(gobiernos)::int AS "gobiernosConProcesos", array_agg(region) AS regiones
+    FROM partido_resumen_historia
+   WHERE anio_eleccion = $1${regionR}
+   GROUP BY org_clave
 ), nombres AS (
   SELECT org_clave AS clave, max(org_nombre) AS nombre, max(org_tipo) AS tipo FROM gobierno_periodo WHERE anio_eleccion = $1 GROUP BY 1
 ), base AS (
