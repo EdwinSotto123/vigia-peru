@@ -2,7 +2,8 @@ import { rutaContrato } from "@/lib/rutas";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { fechaLima, type Procesamiento } from "@/lib/auditoria";
-import { solesCompacto, plural } from "@/lib/formato";
+import { oracion, plural, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 
 /**
  * Las lecturas que vinieron antes de "Lo último que se leyó": hasta cinco filas de una línea (objeto, entidad y zona,
@@ -36,9 +37,9 @@ export function LecturasAnteriores({ items, total }: { items: Procesamiento[]; t
                 className="group flex items-center gap-3 py-2 transition-colors hover:bg-paperSoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-1 text-[13.5px] font-medium text-ink group-hover:text-granate">{p.titulo ?? p.ocid}</span>
+                  <span className="line-clamp-1 text-[13.5px] font-medium text-ink group-hover:text-granate">{p.titulo ? oracion(p.titulo) : p.ocid}</span>
                   <span className="line-clamp-1 text-[12px] text-mute">
-                    {[p.entidad, p.zona, p.montoPen ? solesCompacto(p.montoPen) : null].filter(Boolean).join(", ")}
+                    {[p.entidad ? tituloNatural(p.entidad) : null, p.zona, p.montoPen ? solesCompacto(p.montoPen) : null].filter(Boolean).join(", ")}
                   </span>
                 </span>
                 <span className="hidden shrink-0 text-right text-[12px] tabular-nums text-mute sm:block">

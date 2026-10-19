@@ -30,7 +30,7 @@ import { ArrowUpRight, CheckCircle2, Eye, Play } from "lucide-react";
 import { Revelar } from "@/components/ui/Revelar";
 import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones";
-import { plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { oracion, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import {
   duracion,
   estadoVisible,
@@ -42,6 +42,7 @@ import {
 } from "@/lib/auditoria";
 import { TOTAL_AGENTES, TOTAL_PASOS } from "@/components/agentes/catalogo";
 import { ReplayAnalisis } from "./ReplayAnalisis";
+import { tituloNatural } from "@/lib/landing";
 
 const pct = (x: number | null) => (x == null ? null : porcentaje(x * 100));
 
@@ -80,7 +81,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
     null,
   );
   const motivos = enRevision ? p.resultado?.revisionMotivos ?? [] : [];
-  const titulo = p.titulo ?? p.ocid;
+  const titulo = p.titulo ? oracion(p.titulo) : p.ocid;
   const href = rutaContrato(p.ocid, "vivo");
 
   return (
@@ -120,7 +121,7 @@ export function UltimoAnalisis({ p, hayFiltros = false }: { p: ProcesamientoDeta
           {titulo}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-mute">
-          <span className="min-w-0 truncate">{p.entidad ?? "Entidad no identificada"}</span>
+          <span className="min-w-0 truncate">{p.entidad ? tituloNatural(p.entidad) : "Entidad no identificada"}</span>
           <span>{p.zona}</span>
           {p.montoPen != null && p.montoPen > 0 && <span className="font-mono tabular-nums">{solesCompacto(p.montoPen)}</span>}
           <span title={p.contribucionCodigo ? `Aporte ${p.contribucionCodigo}` : undefined}>

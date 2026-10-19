@@ -68,7 +68,8 @@ export function EstadoAuditoria({
       valor: numero(c.enRevision),
       etiqueta: "financiados en revisión",
       marca: "bg-clay",
-      contexto: `de ${numero(c.leidos)} leídos`,
+      // "financiados leídos": los leídos de todo Vigía (Inicio, Financiar) son más, porque también se leen contratos sin aporte.
+      contexto: `de ${numero(c.leidos)} financiados leídos`,
       // La lista de esos mismos contratos, con el motivo de cada uno.
       href: "/app/hallazgos?vista=revision",
     },
