@@ -1,0 +1,509 @@
+-- 73 · Los cruces también para los contratos sin record completo: la historia desde 2015 y lo que trae oece_ocds.
+--
+-- Los cruces (ONPE, JNE, visitas, penalidades, sanciones, fraccionamiento, socio común…), los casos cruzados, la
+-- buena pro que pasó a otro postor, el adjudicado vigente y los registros del proceso leían sólo
+-- `ocds_payload->'awards'`, que tienen nada más los contratos con su record completo (los de la cola que se bajaron).
+-- Con la migración 71, `convocatorias.adjudicaciones` guarda las adjudicaciones recortadas de todos los contratos
+-- (ganador, monto, fecha, ítems): estas funciones leen COALESCE(ocds_payload->'awards', adjudicaciones). Son las
+-- definiciones vigentes en la base (pg_get_functiondef) con ese único cambio. El usuario pidió cruzar también la
+-- historia (2026-10-19).
+--
+-- Cómo aplicarla: psql "$DSN" -v ON_ERROR_STOP=1 -f backend/db/migrations/73_cruces_con_adjudicaciones.sql
+-- y después: SELECT * FROM refrescar_cruces(); SELECT refrescar_casos_cruce();
+
+-- refrescar_cruces(): 1 uso(s) de c.ocds_payload->'awards'
+CREATE OR REPLACE FUNCTION public.refrescar_cruces()
+ RETURNS TABLE(tipo text, filas integer)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Ganadores: un proveedor por adjudicación (los consorcios llegan como varios suppliers). Un consorcio con
+  -- código del SEACE (no RUC) se abre en sus integrantes (conosce_consorcios, migración 53): cada integrante
+  -- con RUC cuenta como ganador, con el consorcio al lado.
+  DROP TABLE IF EXISTS _cg;
+  -- Integrantes de consorcios y ganadores del OCDS, cada uno materializado antes del join (migración 56): sin
+  -- esto el planificador recorría los ~200 mil integrantes una vez por convocatoria y tardaba horas.
+  DROP TABLE IF EXISTS _cmiem;
+  CREATE TEMP TABLE _cmiem ON COMMIT DROP AS
+    SELECT DISTINCT ruc_consorcio, ruc_miembro, miembro FROM conosce_consorcios WHERE ruc_miembro ~ '^(10|20)\d{9}$';
+  CREATE INDEX ON _cmiem (ruc_consorcio);
+  DROP TABLE IF EXISTS _csup;
+  CREATE TEMP TABLE _csup ON COMMIT DROP AS
+    SELECT c.ocid, c.entidad_ruc::text AS entidad_ruc, regexp_replace(s->>'id', '^PE-RUC-', '') AS sup, s->>'name' AS nombre,
+           NULLIF(aw->>'date', '')::date AS f
+    FROM convocatorias c,
+         jsonb_array_elements(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) aw,
+         jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
+    WHERE c.ocid NOT LIKE 'ocds-vigia-%';
+  ANALYZE _cmiem;
+  ANALYZE _csup;
+  CREATE TEMP TABLE _cg ON COMMIT DROP AS
+    SELECT DISTINCT x.ocid, x.entidad_ruc, COALESCE(m.ruc_miembro, x.sup) AS ruc, COALESCE(m.miembro, x.nombre) AS nombre, x.f,
+           CASE WHEN m.ruc_miembro IS NOT NULL THEN x.sup END AS consorcio_ruc,
+           CASE WHEN m.ruc_miembro IS NOT NULL THEN x.nombre END AS consorcio
+    FROM _csup x
+    LEFT JOIN _cmiem m ON m.ruc_consorcio = x.sup AND x.sup !~ '^(10|20)\d{9}$'
+    WHERE COALESCE(m.ruc_miembro, x.sup) ~ '^(10|20)\d{9}$';
+  CREATE INDEX ON _cg (ruc);
+
+  -- Personas detrás de cada ganador: socios / representantes / directivos con DNI en el RNP, y el titular
+  -- de un RUC 10 (sus dígitos 3 a 10 son el DNI).
+  DROP TABLE IF EXISTS _cp;
+  CREATE TEMP TABLE _cp ON COMMIT DROP AS
+    SELECT ruc, dni, max(nombre) AS nombre, string_agg(DISTINCT rol, ', ' ORDER BY rol) AS rol FROM (
+      SELECT r.ruc_empresa::text AS ruc, r.numero_documento AS dni, r.nombre, r.tipo_rol AS rol
+      FROM rnp_conformacion_juridica r
+      WHERE r.tipo_documento LIKE 'DOC. NACIONAL%' AND r.numero_documento ~ '^\d{8}$'
+        AND r.ruc_empresa::text IN (SELECT ruc FROM _cg)
+      UNION ALL
+      SELECT DISTINCT g.ruc, substr(g.ruc, 3, 8), g.nombre, 'TITULAR' FROM _cg g WHERE g.ruc LIKE '10%'
+    ) x GROUP BY ruc, dni;
+  CREATE INDEX ON _cp (dni);
+
+  DELETE FROM cruces_proveedor;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, fecha, monto, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT 'aporte', p.ruc, 'media', max(a.fecha_aporte), sum(a.monto), p.dni, p.nombre, p.rol,
+         jsonb_build_object('partido', a.partido, 'aportes', count(*), 'desde', min(a."año"), 'hasta', max(a."año")),
+         'onpe_aportantes', 'https://claridad.onpe.gob.pe/'
+  FROM _cp p JOIN onpe_aportantes a ON a.numero_documento = p.dni
+  GROUP BY p.ruc, p.dni, p.nombre, p.rol, a.partido;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'aporte_empresa', a.numero_documento, 'media', max(a.fecha_aporte), sum(a.monto),
+         jsonb_build_object('partido', a.partido, 'aportes', count(*), 'desde', min(a."año"), 'hasta', max(a."año")),
+         'onpe_aportantes', 'https://claridad.onpe.gob.pe/'
+  FROM onpe_aportantes a WHERE a.numero_documento LIKE '20%' AND a.numero_documento IN (SELECT ruc FROM _cg)
+  GROUP BY a.numero_documento, a.partido;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT DISTINCT 'candidato', p.ruc, 'media', p.dni, p.nombre, p.rol,
+         jsonb_build_object('organizacion', k.organizacion, 'proceso', k.proceso, 'departamento', k.departamento),
+         'onpe_candidatos', 'https://claridad.onpe.gob.pe/'
+  FROM _cp p JOIN onpe_candidatos k ON k.dni = p.dni;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, fecha, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT DISTINCT 'autoridad', p.ruc, 'alta', j.periodo_inicio, p.dni, j.nombre, p.rol,
+         jsonb_build_object('cargo', j.cargo, 'organizacion', j.organizacion_politica, 'departamento', j.departamento,
+                            'provincia', j.provincia, 'distrito', j.distrito, 'desde', j.periodo_inicio, 'hasta', j.periodo_fin),
+         'jne_autoridades', j.fuente_url
+  FROM _cp p JOIN jne_autoridades j ON j.dni = p.dni;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'penalidad', pe.empresa_ruc::text, 'media', max(pe.fecha), sum(pe.monto),
+         jsonb_build_object('penalidades', count(*), 'entidades', count(DISTINCT pe.entidad_contratante),
+                            'desde', min(pe.fecha), 'hasta', max(pe.fecha)),
+         'penalidades', 'https://www.datosabiertos.gob.pe/dataset/penalidades-aplicadas-contratos-oece'
+  FROM penalidades pe WHERE pe.empresa_ruc::text IN (SELECT ruc FROM _cg)
+  GROUP BY pe.empresa_ruc;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'sancion', s.ruc, CASE s.tipo WHEN 'definitivo' THEN 'alta' WHEN 'temporal' THEN 'media' ELSE 'baja' END,
+         COALESCE(s.fecha_desde, s.fecha_resolucion), s.monto_multa_soles,
+         jsonb_build_object('tipo', s.tipo, 'infraccion', s.infraccion, 'resolucion', s.resolucion,
+                            'desde', s.fecha_desde, 'hasta', s.fecha_hasta, 'estado', s.estado),
+         'osce_sancionados', 'https://www.datosabiertos.gob.pe/dataset/proveedores-sancionados-2025'
+  FROM osce_sancionados s WHERE s.ruc IN (SELECT ruc FROM _cg);
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT DISTINCT ON (g.ocid, g.ruc) 'sancion_vigente', g.ruc, g.ocid, 'alta', g.f, NULL::numeric,
+         jsonb_build_object('tipo', s.tipo, 'infraccion', s.infraccion, 'resolucion', s.resolucion,
+                            'desde', s.fecha_desde, 'hasta', s.fecha_hasta),
+         'osce_sancionados', 'https://www.datosabiertos.gob.pe/dataset/proveedores-sancionados-2025'
+  FROM _cg g JOIN osce_sancionados s ON s.ruc = g.ruc AND s.tipo IN ('temporal', 'definitivo')
+   AND g.f >= s.fecha_desde AND (s.fecha_hasta IS NULL OR g.f <= s.fecha_hasta)
+  ORDER BY g.ocid, g.ruc, s.fecha_desde DESC;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT 'visita_previa', g.ruc, g.ocid,
+         CASE WHEN mef_norm(v.entidad_visitada) = mef_norm(e.nombre) THEN 'alta' ELSE 'media' END,
+         v.fecha_visita, p.dni, p.nombre, p.rol,
+         jsonb_build_object('entidad_visitada', v.entidad_visitada, 'misma_entidad', mef_norm(v.entidad_visitada) = mef_norm(e.nombre),
+                            'funcionario', v.funcionario_nombre, 'cargo_funcionario', v.funcionario_cargo, 'motivo', v.motivo,
+                            'dias_antes', g.f - v.fecha_visita, 'buena_pro', g.f),
+         'visitas_entidades', 'https://www.datosabiertos.gob.pe/'
+  FROM _cg g JOIN _cp p ON p.ruc = g.ruc
+  JOIN visitas_entidades v ON v.numero_documento = p.dni AND v.fecha_visita BETWEEN g.f - 180 AND g.f
+  LEFT JOIN entidades e ON e.ruc::text = g.entidad_ruc;
+
+  -- Postores de cada proceso: los del expediente (postores) y los de CONOSCE (migración 49), sólo con RUC
+  -- (los códigos de consorcio del SEACE no cruzan con el RNP).
+  DROP TABLE IF EXISTS _pp;
+  CREATE TEMP TABLE _pp ON COMMIT DROP AS
+    SELECT DISTINCT ocid, ruc FROM (
+      SELECT p.ocid, p.empresa_ruc::text AS ruc FROM postores p WHERE p.ocid NOT LIKE 'ocds-vigia-%'
+      UNION ALL
+      SELECT c.ocid, cp.ruc_postor FROM conosce_postores cp JOIN convocatorias c ON c.ocid = cp.codigo_convocatoria
+      WHERE cp.ruc_postor ~ '^(10|20)\d{9}$'
+    ) x;
+  CREATE INDEX ON _pp (ocid);
+
+  -- Una fila por (proceso, postor, persona): con quién más compitió esa persona en el mismo proceso. Los
+  -- postores son ofertas separadas (no miembros de un mismo consorcio: comprobado el 2026-10-14, ninguno de
+  -- los pares figura junto en una misma adjudicación).
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT 'socio_comun', a.ruc, a.ocid, 'alta', ra.numero_documento, max(ra.nombre),
+         string_agg(DISTINCT ra.tipo_rol, ', ' ORDER BY ra.tipo_rol),
+         jsonb_build_object('otros_postores', jsonb_agg(DISTINCT b.ruc), 'rol_en_otros', jsonb_agg(DISTINCT rb.tipo_rol)),
+         'rnp_conformacion_juridica', 'https://www.datosabiertos.gob.pe/'
+  FROM _pp a JOIN _pp b ON b.ocid = a.ocid AND b.ruc <> a.ruc
+  JOIN rnp_conformacion_juridica ra ON ra.ruc_empresa = a.ruc AND ra.tipo_documento LIKE 'DOC. NACIONAL%'
+  JOIN rnp_conformacion_juridica rb ON rb.ruc_empresa = b.ruc AND rb.numero_documento = ra.numero_documento
+  GROUP BY a.ocid, a.ruc, ra.numero_documento;
+
+  -- Proveedor recurrente: cuántos otros procesos le ganó a la misma entidad desde 2018 (CONOSCE) y qué parte
+  -- de lo que adjudicó la entidad se llevó. Desde 3 procesos.
+  DROP TABLE IF EXISTS _ent;
+  CREATE TEMP TABLE _ent ON COMMIT DROP AS
+    SELECT a.entidad_ruc, count(DISTINCT a.codigo_convocatoria) AS procesos, sum(a.monto_adjudicado) AS monto
+    FROM conosce_adjudicaciones a WHERE a.entidad_ruc IN (SELECT entidad_ruc FROM _cg) GROUP BY a.entidad_ruc;
+  DROP TABLE IF EXISTS _rec;
+  CREATE TEMP TABLE _rec ON COMMIT DROP AS
+    SELECT a.entidad_ruc, a.ruc_proveedor AS ruc, array_agg(DISTINCT a.codigo_convocatoria) AS codigos,
+           sum(a.monto_adjudicado) AS monto, min(a.fecha_buenapro) AS primera, max(a.fecha_buenapro) AS ultima
+    FROM conosce_adjudicaciones a
+    JOIN (SELECT DISTINCT entidad_ruc, ruc FROM _cg) g ON g.entidad_ruc = a.entidad_ruc AND g.ruc = a.ruc_proveedor
+    GROUP BY a.entidad_ruc, a.ruc_proveedor;
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'recurrente', g.ruc, g.ocid,
+         CASE WHEN r.procesos >= 10 OR r.monto >= 0.25 * NULLIF(t.monto, 0) THEN 'media' ELSE 'baja' END,
+         r.ultima, r.monto,
+         jsonb_build_object('procesos', r.procesos, 'desde', r.primera, 'hasta', r.ultima,
+                            'participacion', round(r.monto / NULLIF(t.monto, 0), 4), 'procesos_entidad', t.procesos),
+         'conosce_adjudicaciones', 'https://conosce.osce.gob.pe/buscador/'
+  FROM (SELECT DISTINCT ocid, ruc, entidad_ruc FROM _cg) g
+  JOIN LATERAL (
+    -- Sin contar este proceso.
+    SELECT cardinality(array_remove(x.codigos, g.ocid)) AS procesos, x.monto, x.primera, x.ultima
+    FROM _rec x WHERE x.entidad_ruc = g.entidad_ruc AND x.ruc = g.ruc
+  ) r ON r.procesos >= 3
+  JOIN _ent t ON t.entidad_ruc = g.entidad_ruc;
+
+  -- Contrato con adicionales o prórrogas (CONOSCE): por contrato, lo adicional sobre lo contratado. Los
+  -- adicionales tienen tope legal (bienes y servicios 25 %; obras 15 % sin autorización de la Contraloría).
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'adicional', k.ruc, k.ocid,
+         CASE WHEN k.adicional > 0.25 * k.total THEN 'alta' WHEN k.adicional >= 0.15 * k.total THEN 'media' ELSE 'baja' END,
+         k.suscripcion, k.adicional,
+         jsonb_build_object('contrato', k.num_contrato, 'contratado', k.total, 'adicional', k.adicional,
+                            'reduccion', k.reduccion, 'prorroga', k.prorroga, 'complementario', k.complementario,
+                            'porcentaje', round(100 * k.adicional / NULLIF(k.total, 0), 1), 'url_contrato', k.url),
+         'conosce_contratos', COALESCE(k.url, 'https://conosce.osce.gob.pe/buscador/')
+  FROM (
+    SELECT c.ocid, k.ruc_contratista AS ruc, k.codigo_contrato, max(k.num_contrato) AS num_contrato,
+           max(k.monto_contratado_total) AS total, sum(COALESCE(k.monto_adicional, 0)) AS adicional,
+           sum(COALESCE(k.monto_reduccion, 0)) AS reduccion, sum(COALESCE(k.monto_prorroga, 0)) AS prorroga,
+           sum(COALESCE(k.monto_complementario, 0)) AS complementario, max(k.url_contrato) AS url,
+           max(k.fecha_suscripcion) AS suscripcion
+    FROM conosce_contratos k JOIN convocatorias c ON c.ocid = k.codigo_convocatoria
+    WHERE k.ruc_contratista ~ '^(10|20)\d{9}$' AND c.ocid NOT LIKE 'ocds-vigia-%'
+    GROUP BY c.ocid, k.ruc_contratista, k.codigo_contrato
+  ) k
+  WHERE k.total > 0 AND (k.adicional > 0 OR k.prorroga > 0);
+
+  -- Proveedor de campaña (ONPE, gastos de campaña): el ganador o un socio / representante le vendió a una
+  -- organización política en campaña.
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, severidad, monto, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT 'proveedor_campana', q.ruc, 'media', sum(x.monto), q.dni, max(q.nombre), max(q.rol),
+         jsonb_build_object('organizacion', x.organizacion, 'proceso', x.proceso),
+         'onpe_gastos_proveedores', 'https://claridadportal.onpe.gob.pe/'
+  FROM (
+    SELECT DISTINCT ruc, ruc AS doc, NULL::text AS dni, NULL::text AS nombre, NULL::text AS rol FROM _cg
+    UNION ALL
+    SELECT ruc, dni, dni, nombre, rol FROM _cp
+  ) q JOIN onpe_gastos_proveedores x ON x.documento = q.doc
+  GROUP BY q.ruc, q.dni, x.organizacion, x.proceso;
+
+  -- Quién gobernaba la entidad contratante cuando dio la buena pro (JNE): alcalde distrital o provincial,
+  -- o gobernador regional, con su organización política.
+  DROP TABLE IF EXISTS _cgob;
+  CREATE TEMP TABLE _cgob ON COMMIT DROP AS
+    SELECT DISTINCT g.ocid, g.ruc, j.organizacion_politica AS org, mef_norm(j.organizacion_politica) AS org_n, j.cargo
+    FROM _cg g JOIN entidades e ON e.ruc::text = g.entidad_ruc
+    JOIN jne_autoridades j ON (
+         (e.nombre ILIKE 'MUNICIPALIDAD DISTRITAL%' AND j.cargo = 'ALCALDE DISTRITAL' AND j.ubigeo = e.ubigeo::text)
+      OR (e.nombre ILIKE 'MUNICIPALIDAD PROVINCIAL%' AND j.cargo = 'ALCALDE PROVINCIAL' AND left(j.ubigeo, 4) = left(e.ubigeo::text, 4))
+      OR (e.nombre ILIKE 'GOBIERNO REGIONAL%' AND j.cargo = 'GOBERNADOR REGIONAL' AND left(j.ubigeo, 2) = left(e.ubigeo::text, 2)))
+     AND (j.periodo_inicio IS NULL OR g.f IS NULL OR g.f >= j.periodo_inicio)
+     AND (j.periodo_fin IS NULL OR g.f IS NULL OR g.f <= j.periodo_fin)
+    WHERE j.organizacion_politica IS NOT NULL;
+
+  -- Partido gobernante: el ganador (o un socio) aportó o le vendió en campaña a la organización que gobernaba
+  -- la entidad que le dio la buena pro. Nombres normalizados; uno puede ser prefijo del otro ("ALIANZA PARA
+  -- EL PROGRESO" / "ALIANZA PARA EL PROGRESO DEL PERÚ").
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, persona_doc, persona_nombre, persona_rol, detalle, fuente, fuente_url)
+  SELECT 'partido_gobernante', k.ruc_empresa, gb.ocid, 'alta', k.fecha, k.monto, k.persona_doc, k.persona_nombre, k.persona_rol,
+         k.detalle || jsonb_build_object('via', k.tipo, 'organizacion_gobernante', gb.org, 'cargo_gobernante', gb.cargo),
+         k.fuente, k.fuente_url
+  FROM (SELECT c.*, mef_norm(COALESCE(c.detalle->>'partido', c.detalle->>'organizacion')) AS org_n
+        FROM cruces_proveedor c WHERE c.tipo IN ('aporte', 'aporte_empresa', 'proveedor_campana')) k
+  JOIN _cgob gb ON gb.ruc = k.ruc_empresa
+  WHERE k.org_n = gb.org_n
+     OR (least(length(gb.org_n), length(k.org_n)) >= 15 AND (k.org_n LIKE gb.org_n || '%' OR gb.org_n LIKE k.org_n || '%'));
+
+  -- Fraccionamiento (migración 51): el ganador recibió de la misma entidad, en un mismo día, varias órdenes
+  -- "hasta 8 UIT" que juntas pasan el tope.
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'fraccionamiento', g.ruc, g.ocid, CASE WHEN bool_or(f.severidad = 'alta') THEN 'alta' ELSE 'media' END,
+         max(f.fecha), sum(f.total),
+         jsonb_build_object('dias', count(*), 'ordenes', sum(f.ordenes), 'total', sum(f.total), 'desde', min(f.fecha),
+                            'hasta', max(f.fecha), 'misma_descripcion', count(*) FILTER (WHERE f.misma_descripcion)),
+         'conosce_ordenes', 'https://conosce.osce.gob.pe/buscador/'
+  FROM (SELECT DISTINCT ocid, ruc, entidad_ruc FROM _cg) g
+  JOIN ordenes_fraccionadas f ON f.entidad_ruc = g.entidad_ruc AND f.ruc_contratista = g.ruc
+  GROUP BY g.ocid, g.ruc;
+
+  RETURN QUERY SELECT c.tipo, count(*)::int FROM cruces_proveedor c GROUP BY c.tipo ORDER BY c.tipo;
+END $function$;
+ALTER FUNCTION refrescar_cruces() OWNER TO vigia_jobs;
+
+-- registros_proceso(text): 1 uso(s) de c.ocds_payload->'awards'
+CREATE OR REPLACE FUNCTION public.registros_proceso(p_ocid text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+AS $function$
+  WITH c AS (
+    SELECT ocid, entidad_ruc::text AS entidad_ruc, ocds_payload, adjudicaciones FROM convocatorias
+    WHERE ocid_corto(ocid) = ocid_corto(p_ocid) LIMIT 1
+  ), g AS (
+    SELECT DISTINCT regexp_replace(s->>'id', '^PE-RUC-', '') AS sup, s->>'name' AS nombre,
+           NULLIF(aw->>'date', '')::date AS fecha, (aw->'value'->>'amount')::numeric AS monto
+    FROM c, jsonb_array_elements(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) aw,
+         jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
+  ), gm AS (
+    SELECT g.*, COALESCE(m.ruc_miembro, g.sup) AS ruc, COALESCE(m.miembro, g.nombre) AS razon_social,
+           CASE WHEN m.ruc_miembro IS NOT NULL THEN g.nombre END AS consorcio
+    FROM g LEFT JOIN (
+      SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro FROM conosce_consorcios
+      WHERE ruc_miembro ~ '^(10|20)\d{9}$' ORDER BY ruc_consorcio, ruc_miembro, anio DESC
+    ) m ON m.ruc_consorcio = g.sup AND g.sup !~ '^(10|20)\d{9}$'
+  ), r AS (SELECT DISTINCT ruc FROM gm WHERE ruc ~ '^(10|20)\d{9}$')
+  SELECT jsonb_build_object(
+    'ocid', (SELECT ocid FROM c),
+    'entidad_ruc', (SELECT entidad_ruc FROM c),
+    'ganadores', (SELECT jsonb_agg(jsonb_build_object('ruc', ruc, 'razon_social', razon_social, 'consorcio', consorcio,
+                                                       'codigo_consorcio', CASE WHEN consorcio IS NOT NULL THEN sup END,
+                                                       'fecha_buena_pro', fecha, 'monto', monto)) FROM gm),
+    'cruces', (SELECT jsonb_agg(jsonb_build_object('tipo', k.tipo, 'severidad', k.severidad, 'ruc', k.ruc_empresa, 'fecha', k.fecha,
+                                                    'monto', k.monto, 'persona', k.persona_nombre, 'dni', k.persona_doc,
+                                                    'rol', k.persona_rol, 'detalle', k.detalle, 'fuente', k.fuente,
+                                                    'fuente_url', k.fuente_url)
+                                 ORDER BY CASE k.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, k.tipo)
+               FROM cruces_proveedor k
+               WHERE k.ruc_empresa IN (SELECT ruc FROM r) AND (k.ocid IS NULL OR ocid_corto(k.ocid) = ocid_corto(p_ocid))),
+    'socios_rnp', (SELECT jsonb_agg(jsonb_build_object('ruc', x.ruc_empresa, 'nombre', x.nombre, 'tipo_documento', x.tipo_documento,
+                                                        'documento', x.numero_documento, 'rol', x.tipo_rol,
+                                                        'desde', x.fecha_inicio_vigencia))
+                   FROM (SELECT * FROM rnp_conformacion_juridica WHERE ruc_empresa::text IN (SELECT ruc FROM r) LIMIT 80) x),
+    'postores', (SELECT jsonb_agg(DISTINCT jsonb_build_object('ruc', p.ruc_postor, 'nombre', p.postor))
+                 FROM conosce_postores p WHERE p.codigo_convocatoria = ocid_corto(p_ocid)),
+    'historial', (SELECT jsonb_agg(h) FROM (
+                    SELECT a.ruc_proveedor AS ruc, count(DISTINCT a.codigo_convocatoria) AS procesos, sum(a.monto_adjudicado) AS monto,
+                           min(a.fecha_buenapro) AS desde, max(a.fecha_buenapro) AS hasta,
+                           (SELECT jsonb_agg(u) FROM (SELECT DISTINCT ON (b.codigo_convocatoria) b.codigo_convocatoria, b.fecha_buenapro,
+                                                             left(b.descripcion_proceso, 160) AS objeto, b.monto_adjudicado
+                                                      FROM conosce_adjudicaciones b
+                                                      WHERE b.ruc_proveedor = a.ruc_proveedor AND b.entidad_ruc = a.entidad_ruc
+                                                      ORDER BY b.codigo_convocatoria, b.fecha_buenapro DESC LIMIT 10) u) AS ultimos
+                    FROM conosce_adjudicaciones a
+                    WHERE a.entidad_ruc = (SELECT entidad_ruc FROM c) AND a.ruc_proveedor IN (SELECT ruc FROM r UNION SELECT sup FROM gm)
+                      AND a.codigo_convocatoria <> ocid_corto(p_ocid)
+                    GROUP BY a.ruc_proveedor, a.entidad_ruc) h),
+    'contratos', (SELECT jsonb_agg(jsonb_build_object('contrato', k.num_contrato, 'ruc', k.ruc_contratista,
+                                                       'monto_total', k.monto_contratado_total, 'adicional', k.monto_adicional,
+                                                       'reduccion', k.monto_reduccion, 'prorroga', k.monto_prorroga,
+                                                       'suscripcion', k.fecha_suscripcion, 'vigencia_fin', k.fecha_vigencia_fin_actualizada,
+                                                       'url', k.url_contrato))
+                  FROM conosce_contratos k WHERE k.codigo_convocatoria = ocid_corto(p_ocid)),
+    'ordenes_mismo_dia', (SELECT jsonb_agg(o) FROM (
+                            SELECT f.ruc_contratista AS ruc, f.fecha, f.objeto, f.ordenes, f.total, f.tope, f.misma_descripcion, f.detalle
+                            FROM ordenes_fraccionadas f
+                            WHERE f.entidad_ruc = (SELECT entidad_ruc FROM c) AND f.ruc_contratista IN (SELECT ruc FROM r)
+                            ORDER BY f.fecha DESC LIMIT 15) o),
+    'datos_al_dia', (SELECT jsonb_object_agg(fuente, ultima) FROM (
+                       SELECT fuente, max(descargado_at)::date AS ultima FROM datasets_cargas GROUP BY fuente) d)
+  )
+$function$;
+ALTER FUNCTION registros_proceso(text) OWNER TO vigia_jobs;
+
+-- refrescar_casos_cruce_base(): 1 uso(s) de c.ocds_payload->'awards'
+CREATE OR REPLACE FUNCTION public.refrescar_casos_cruce_base()
+ RETURNS integer
+ LANGUAGE plpgsql
+AS $function$
+DECLARE n INT;
+BEGIN
+  -- Ganadores como en refrescar_cruces() (migración 56): suppliers del OCDS, consorcios abiertos en sus integrantes.
+  DROP TABLE IF EXISTS _kc_sup;
+  CREATE TEMP TABLE _kc_sup ON COMMIT DROP AS
+    SELECT c.ocid, regexp_replace(s->>'id', '^PE-RUC-', '') AS sup, s->>'name' AS nombre,
+           (aw->'value'->>'amount')::numeric AS monto, NULLIF(aw->>'date', '')::date AS f
+    FROM convocatorias c,
+         jsonb_array_elements(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) aw,
+         jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
+    WHERE c.ocid NOT LIKE 'ocds-vigia-%';
+  DROP TABLE IF EXISTS _kc_miem;
+  CREATE TEMP TABLE _kc_miem ON COMMIT DROP AS
+    SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro
+    FROM conosce_consorcios WHERE ruc_miembro ~ '^(10|20)\d{9}$' ORDER BY ruc_consorcio, ruc_miembro, anio DESC;
+  CREATE INDEX ON _kc_miem (ruc_consorcio);
+  ANALYZE _kc_sup;
+  ANALYZE _kc_miem;
+  DROP TABLE IF EXISTS _kc_g;
+  CREATE TEMP TABLE _kc_g ON COMMIT DROP AS
+    SELECT x.ocid, COALESCE(m.ruc_miembro, x.sup) AS ruc, max(COALESCE(m.miembro, x.nombre)) AS proveedor,
+           max(CASE WHEN m.ruc_miembro IS NOT NULL THEN x.nombre END) AS consorcio, max(x.monto) AS monto, max(x.f) AS f
+    FROM _kc_sup x LEFT JOIN _kc_miem m ON m.ruc_consorcio = x.sup AND x.sup !~ '^(10|20)\d{9}$'
+    WHERE COALESCE(m.ruc_miembro, x.sup) ~ '^(10|20)\d{9}$'
+    GROUP BY 1, 2;
+  CREATE INDEX ON _kc_g (ruc);
+  ANALYZE _kc_g;
+
+  DELETE FROM casos_cruce;
+  INSERT INTO casos_cruce (ocid, ruc, proveedor, consorcio, codigo, objeto, tipo_contratacion, entidad_ruc, entidad,
+                           departamento, fecha_buena_pro, monto, tipos, cruces, n_alta, n_media, n_baja, severidad,
+                           puntaje, texto)
+  SELECT g.ocid, g.ruc, g.proveedor, g.consorcio, c.codigo, c.objeto,
+         COALESCE(c.tipo_contratacion, CASE c.categoria WHEN 'goods' THEN 'bienes' WHEN 'services' THEN 'servicios'
+                                                          WHEN 'works' THEN 'obras' END),
+         c.entidad_ruc::text, e.nombre, left(c.ubigeo_zona, 2),
+         COALESCE(c.fecha_buena_pro, g.f), g.monto,   -- la columna casi nunca viene: la fecha de la adjudicación del OCDS
+         k.tipos, k.cruces, k.n_alta, k.n_media, k.n_baja,
+         CASE WHEN k.n_alta > 0 THEN 'alta' WHEN k.n_media > 0 THEN 'media' ELSE 'baja' END,
+         10 * k.n_alta + 3 * k.n_media + k.n_baja,
+         -- Una persona natural (RUC 10) no se busca por su nombre ni su RUC: la API le tapa un apellido.
+         lower(unaccent(concat_ws(' ', CASE WHEN g.ruc LIKE '20%' THEN g.proveedor END, g.consorcio, e.nombre, c.objeto,
+                                  c.codigo, CASE WHEN g.ruc LIKE '20%' THEN g.ruc END, c.entidad_ruc)))
+  FROM _kc_g g
+  JOIN convocatorias c ON c.ocid = g.ocid
+  LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+  CROSS JOIN LATERAL (
+    -- Un tipo cuenta una vez, con su severidad más alta.
+    SELECT array_agg(t.tipo ORDER BY t.rango, t.tipo) AS tipos,
+           jsonb_agg(jsonb_build_object('tipo', t.tipo, 'severidad', t.severidad, 'n', t.n) ORDER BY t.rango, t.tipo) AS cruces,
+           count(*) FILTER (WHERE t.severidad = 'alta')::int AS n_alta,
+           count(*) FILTER (WHERE t.severidad = 'media')::int AS n_media,
+           count(*) FILTER (WHERE t.severidad = 'baja')::int AS n_baja
+    FROM (
+      SELECT p.tipo, min(CASE p.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS rango,
+             (ARRAY['alta', 'media', 'baja'])[1 + min(CASE p.severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END)] AS severidad,
+             count(*)::int AS n
+      FROM cruces_proveedor p
+      WHERE p.ruc_empresa = g.ruc AND (p.ocid IS NULL OR p.ocid = g.ocid)
+      GROUP BY p.tipo
+    ) t
+  ) k
+  WHERE k.tipos IS NOT NULL;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ANALYZE casos_cruce;
+  RETURN n;
+END $function$;
+ALTER FUNCTION refrescar_casos_cruce_base() OWNER TO vigia_jobs;
+
+-- refrescar_cruce_otro_postor(): 2 uso(s) de c.ocds_payload->'awards'
+CREATE OR REPLACE FUNCTION public.refrescar_cruce_otro_postor()
+ RETURNS integer
+ LANGUAGE plpgsql
+AS $function$
+DECLARE n INT;
+BEGIN
+  DELETE FROM cruces_proveedor WHERE tipo = 'otro_postor';
+  DROP TABLE IF EXISTS _op_aw;
+  CREATE TEMP TABLE _op_aw ON COMMIT DROP AS
+    SELECT c.ocid, c.codigo, a->>'id' AS aid,
+           regexp_replace(a->'suppliers'->0->>'id', '^PE-RUC-', '') AS ruc, a->'suppliers'->0->>'name' AS nombre,
+           (a->'value'->>'amount')::numeric AS monto, NULLIF(a->>'date', '')::date AS f,
+           ARRAY(SELECT i->>'id' FROM jsonb_array_elements(COALESCE(a->'items', '[]'::jsonb)) i) AS items
+    FROM convocatorias c, jsonb_array_elements(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) a
+    WHERE c.ocid NOT LIKE 'ocds-vigia-%' AND jsonb_array_length(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) > 1;
+  DROP TABLE IF EXISTS _op_k;
+  CREATE TEMP TABLE _op_k ON COMMIT DROP AS
+    SELECT DISTINCT codigo_convocatoria AS codigo, ruc_proveedor AS ruc FROM conosce_adjudicaciones
+    WHERE codigo_convocatoria IN (SELECT DISTINCT codigo FROM _op_aw);
+
+  INSERT INTO cruces_proveedor (tipo, ruc_empresa, ocid, severidad, fecha, monto, detalle, fuente, fuente_url)
+  SELECT 'otro_postor', q.ruc, q.ocid,
+         CASE WHEN o.monto > 0 AND q.monto >= o.monto * 1.10 THEN 'alta' WHEN q.monto > o.monto THEN 'media' ELSE 'baja' END,
+         q.f, q.monto,
+         jsonb_build_object(
+           'monto_original', o.monto, 'monto_contratado', q.monto, 'diferencia', q.monto - o.monto,
+           'porcentaje', CASE WHEN o.monto > 0 THEN round((q.monto - o.monto) / o.monto * 100, 1) END,
+           'ruc_original', CASE WHEN o.ruc LIKE '20%' THEN o.ruc END,
+           'proveedor_original', CASE WHEN o.ruc LIKE '20%' THEN o.nombre END),
+         'conosce_adjudicaciones', 'https://conosce.osce.gob.pe/buscador/'
+  FROM _op_aw q
+  JOIN _op_k kq ON kq.codigo = q.codigo AND kq.ruc = q.ruc
+  -- La original: entre las adjudicaciones del mismo proceso sobre LOS MISMOS ítems que CONOSCE no registra, la de
+  -- menor monto (el 1.º del orden de prelación). Con ítems distintos los montos no se comparan.
+  CROSS JOIN LATERAL (
+    SELECT o.ruc, o.nombre, o.monto FROM _op_aw o
+    WHERE o.ocid = q.ocid AND o.aid <> q.aid AND o.items @> q.items AND q.items @> o.items   -- los mismos ítems
+      AND o.ruc ~ '^(10|20)\d{9}$'                                                     -- sin RUC de relleno (99999999999)
+      AND NOT EXISTS (SELECT 1 FROM _op_k k WHERE k.codigo = o.codigo AND k.ruc = o.ruc)
+    ORDER BY o.monto NULLS LAST LIMIT 1
+  ) o
+  WHERE q.ruc ~ '^(10|20)\d{9}$';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $function$;
+ALTER FUNCTION refrescar_cruce_otro_postor() OWNER TO vigia_jobs;
+
+-- refrescar_adjudicado_vigente(): 2 uso(s) de c.ocds_payload->'awards'
+CREATE OR REPLACE FUNCTION public.refrescar_adjudicado_vigente()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE n INT;
+BEGIN
+  DROP TABLE IF EXISTS _av_aw;
+  CREATE TEMP TABLE _av_aw ON COMMIT DROP AS
+    SELECT c.ocid, c.codigo, a.pos, regexp_replace(a.aw->'suppliers'->0->>'id', '^PE-RUC-', '') AS ruc,
+           COALESCE((a.aw->'value'->>'amount')::numeric, 0) AS monto,
+           ARRAY(SELECT i->>'id' FROM jsonb_array_elements(COALESCE(a.aw->'items', '[]'::jsonb)) i) AS items
+    FROM convocatorias c, jsonb_array_elements(COALESCE(c.ocds_payload->'awards', c.adjudicaciones)) WITH ORDINALITY AS a(aw, pos)
+    WHERE c.ocid NOT LIKE 'ocds-vigia-%' AND jsonb_array_length(COALESCE(COALESCE(c.ocds_payload->'awards', c.adjudicaciones), '[]'::jsonb)) > 1;
+  CREATE INDEX ON _av_aw (ocid);
+  ANALYZE _av_aw;
+
+  DELETE FROM adjudicado_vigente;
+  INSERT INTO adjudicado_vigente (ocid, monto, n_vigentes, n_reemplazadas)
+  SELECT ocid, sum(monto) FILTER (WHERE vigente), count(*) FILTER (WHERE vigente), count(*) FILTER (WHERE NOT vigente)
+  FROM (
+    SELECT x.ocid, x.monto,
+           CASE
+             WHEN g.n_conflictos = 0 THEN true
+             WHEN x.ruc IN (SELECT k.ruc_proveedor FROM conosce_adjudicaciones k WHERE k.codigo_convocatoria = x.codigo) THEN true
+             WHEN g.alguno_en_k THEN false
+             WHEN g.ref > 0 AND g.suma <= g.ref * 1.1 THEN true
+             ELSE x.pos = g.primera
+           END AS vigente
+    FROM _av_aw x
+    CROSS JOIN LATERAL (
+      -- El grupo de x: x y las adjudicaciones del mismo proceso que comparten algún ítem con ella.
+      SELECT count(*) FILTER (WHERE y.pos <> x.pos) AS n_conflictos,
+             bool_or(y.ruc IN (SELECT k.ruc_proveedor FROM conosce_adjudicaciones k WHERE k.codigo_convocatoria = x.codigo)) AS alguno_en_k,
+             sum(y.monto) AS suma, min(y.pos) AS primera,
+             (SELECT COALESCE(sum((ti->'totalValue'->>'amount')::numeric), 0)
+                FROM convocatorias c, jsonb_array_elements(COALESCE(c.ocds_payload->'tender'->'items', '[]'::jsonb)) ti
+               WHERE c.ocid = x.ocid AND ti->>'id' = ANY (SELECT unnest(y2.items) FROM _av_aw y2 WHERE y2.ocid = x.ocid AND (y2.pos = x.pos OR y2.items && x.items))) AS ref
+      FROM _av_aw y WHERE y.ocid = x.ocid AND (y.pos = x.pos OR y.items && x.items)
+    ) g
+  ) v
+  GROUP BY ocid
+  HAVING count(*) FILTER (WHERE NOT vigente) > 0;
+  ANALYZE adjudicado_vigente;
+
+  -- Las alertas de esos procesos, con el monto vigente (se guarda el original la primera vez).
+  UPDATE alertas a
+     SET monto_adjudicado_ocds = COALESCE(a.monto_adjudicado_ocds, a.monto_adjudicado),
+         monto_adjudicado = av.monto
+    FROM adjudicado_vigente av
+   WHERE ocid_corto(av.ocid) = ocid_corto(a.ocid) AND a.monto_adjudicado IS DISTINCT FROM av.monto;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $function$;
+ALTER FUNCTION refrescar_adjudicado_vigente() OWNER TO postgres;
