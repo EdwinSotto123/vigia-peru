@@ -46,7 +46,7 @@ async function correr(req: Request, env: Env): Promise<Response> {
   if (c.paso !== undefined && !(Number.isInteger(c.paso) && c.paso >= 1 && c.paso <= 9)) return json({ error: "paso inválido" }, 400);
   const id = await lanzar(env, {
     fuente: c.fuente, seco: c.seco === true, forzar: c.forzar === true, desde: c.desde, hasta: c.hasta, paso: c.paso,
-    archivo: typeof c.archivo === "string" ? c.archivo : undefined, origen: "manual",
+    archivo: typeof c.archivo === "string" ? c.archivo : undefined, relleno: c.relleno === true, origen: "manual",
   });
   return json({ instancia: id });
 }

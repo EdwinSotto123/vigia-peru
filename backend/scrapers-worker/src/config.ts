@@ -18,6 +18,12 @@ export interface ParamsCorrida {
   paso?: number;
   /** mef_cargar_gasto: la clave en R2 del CSV que se carga. */
   archivo?: string;
+  /**
+   * oece_ocds: relleno histórico. Cada día se carga solo (no se junta la ventana en memoria), su crudo queda en
+   * raw/oece_ocds/relleno/<día>.ndjson y no se refresca nada al final (los tramos corren en paralelo; los
+   * refrescos se corren una vez, al terminar).
+   */
+  relleno?: boolean;
 }
 
 export interface Env {

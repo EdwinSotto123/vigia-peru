@@ -279,6 +279,45 @@ export interface ResumenOcds {
   sin_match?: [string, number][];
 }
 
+/**
+ * Relleno histórico (p.relleno): un paso por día que baja, guarda su crudo y carga ese mismo día. Así un tramo de un
+ * mes de 2024 (~25 páginas por día) no junta 100 MB en memoria, y un reintento rehace sólo su día. Un proceso que
+ * cae en dos días (cambió su tenderPeriod) queda con el primero que se cargó: el upsert no pisa objeto ni payload.
+ * Sin refrescos al final: los tramos corren en paralelo y refresh_financiamiento / cruces se corren una vez.
+ */
+async function rellenar(env: Env, p: ParamsCorrida, step: WorkflowStep, id: string, ix: ZonaIndex, lista: string[]): Promise<ResumenOcds> {
+  let paginas = 0;
+  let releases = 0;
+  let convocatorias = 0;
+  let conUbigeo = 0;
+  let cargadas = 0;
+  for (const dia of lista) {
+    const r = await step.do(`dia ${dia}`, { retries: { limit: 3, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" }, async () => {
+      const { paginas, releases, filas } = await recorrerDia(env, dia, ix, TOPE_PAGINAS);
+      const lista_ = [...filas.values()];
+      const conU = lista_.filter((f) => f.ubigeo).length;
+      if (p.seco || !lista_.length) return { paginas, releases, filas: lista_.length, conUbigeo: conU, cargadas: 0 };
+      await env.CRUDOS.put(`raw/oece_ocds/relleno/${dia}.ndjson`, lista_.map((f) => JSON.stringify(f)).join("\n") + "\n",
+        { httpMetadata: { contentType: "application/x-ndjson" } });
+      const c = await conDb(env.HYPERDRIVE, (db) => cargar(db, lista_));
+      return { paginas, releases, filas: lista_.length, conUbigeo: conU, cargadas: c.convocatorias };
+    });
+    paginas += r.paginas;
+    releases += r.releases;
+    convocatorias += r.filas;
+    conUbigeo += r.conUbigeo;
+    cargadas += r.cargadas;
+    if (r.releases) {
+      registrar("INFO", `   relleno ${dia} · ${String(r.paginas).padStart(3)} pág · ${String(r.releases).padStart(5)} releases · ${r.filas} convocatorias`,
+        { fuente: "oece_ocds", instancia: id });
+    }
+  }
+  return {
+    ventana: `${lista[0]} → ${lista[lista.length - 1]}`, dias: lista.length, paginas, releases, convocatorias, con_ubigeo: conUbigeo,
+    a_nivel_distrito: 0, crudo: "raw/oece_ocds/relleno/", ...(p.seco ? {} : { cargadas: { convocatorias: cargadas, entidades: 0 } }),
+  };
+}
+
 export function dias(desde: string, hasta: string): string[] {
   const out: string[] = [];
   for (let d = desde; d <= hasta; d = sumarDias(d, 1)) out.push(d);
@@ -297,6 +336,7 @@ export async function correrOcds(env: Env, p: ParamsCorrida, step: WorkflowStep,
   registrar("INFO", `   ventana ${desde} → ${hasta} (${lista.length} días) · tope ${TOPE_PAGINAS} páginas`, { fuente: "oece_ocds", instancia: id });
   const zonas = await step.do("zonas", LECTURA, () => leerZonas(env));
   const ix = ZonaIndex.desdeFilas(zonas);
+  if (p.relleno) return rellenar(env, p, step, id, ix, lista);
   const prefijo = `raw/oece_ocds/${hoy}/${id}`;
 
   // Un paso por día: el día se baja entero o se reintenta entero; sus filas quedan en R2 (un paso
