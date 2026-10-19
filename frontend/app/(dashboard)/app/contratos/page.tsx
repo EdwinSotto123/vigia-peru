@@ -6,10 +6,8 @@ import {
   IndicadoresSkeleton,
   Listado,
   ZonaResultados,
-  type FacetaChips,
   type FiltroSecundario,
   type Indicador,
-  type OpcionFaceta,
   type Parametros,
 } from "@/components/listado";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
@@ -30,7 +28,6 @@ import {
   type ContratoResumen,
   type ContratosPagina,
   type ContratosQuery,
-  type Lectura,
   type ResumenContratos,
 } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
@@ -164,8 +161,7 @@ function Barra({ resumen, parametros, regiones, entidadNombre, filas }: DatosBar
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
-      faceta={facetaLectura(resumen)}
-      facetasExtra={facetasExtra(resumen, parametros)}
+      visibles={visibles(resumen)}
       filtros={filtros({ resumen, parametros, regiones, entidadNombre, filas })}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
@@ -231,62 +227,49 @@ function hrefCon(parametros: Parametros, cambio: Parametros): string {
 // ─── Faceta principal y filtros ──────────────────────────────────────────────
 
 /**
- * La faceta principal responde UNA pregunta: ¿lo leyó Vigía? (aún no · leyéndose · leído y publicado · leído, en
- * revisión humana). Antes eran cinco chips sueltos que mezclaban el estado de lectura con el riesgo encontrado; ahora el
- * riesgo es la fila siguiente y sólo aparece con "Leído y publicado" (es lo único que tiene riesgo). La cola de
- * financiamiento y los documentos (`operativo`) son la pregunta de quien va a financiar: van en Filtros.
- *
+ * Tres preguntas a la vista, en desplegables, cada opción con su conteo:
+ *   · ¿Lo leyó Vigía? (aún no · leyéndose · leído y publicado · leído, en revisión humana). Antes eran cinco chips que
+ *     mezclaban el estado de lectura con el riesgo encontrado.
+ *   · Riesgo encontrado: sólo existe para lo leído y publicado (elegir uno ya filtra a esos).
+ *   · Antecedentes del ganador: aportes, sanciones, visitas, socios comunes… (casos_cruce); con alguno, el panel de
+ *     tipos se abre arriba de la lista.
+ * La cola de financiamiento y los documentos (`operativo`) son la pregunta de quien va a financiar: van en Filtros.
  * Los conteos salen del resumen, que cuenta cada pregunta sin su propio filtro; sin resumen no hay conteo (nunca un 0
  * inventado).
  */
-function facetaLectura(resumen: ResumenContratos | null): FacetaChips {
-  const r = resumen?.porLectura;
-  const c = (k: Lectura) => (r ? r[k] ?? 0 : null);
-  const ICONO: Record<Lectura, OpcionFaceta["icono"]> = { sin_leer: "vacio", leyendo: "espera", publicado: "ok", revision: "revision" };
-  return {
-    param: "lectura",
-    etiqueta: "¿Lo leyó Vigía?",
-    todas: "Todos",
-    conteoTodas: r ? Object.values(r).reduce<number>((s, v) => s + (v ?? 0), 0) : null,
-    opciones: LECTURAS.map((l) => ({ valor: l.value, etiqueta: l.label, conteo: c(l.value), icono: ICONO[l.value], tono: l.value === "publicado" ? "positivo" : "neutro" })),
-  };
-}
-
-/**
- * Las preguntas que van a la vista bajo la principal:
- *   · Riesgo encontrado: sólo con "Leído y publicado" (o un enlace que ya trae ?riesgo=).
- *   · Antecedentes del ganador: aportes, sanciones, visitas, socios comunes… (casos_cruce); con alguno, el panel de
- *     tipos se abre arriba de la lista.
- */
-function facetasExtra(resumen: ResumenContratos | null, parametros: Parametros): FacetaChips[] {
+function visibles(resumen: ResumenContratos | null): FiltroSecundario[] {
+  const l = resumen?.porLectura;
   const r = resumen?.porRiesgo;
-  const c = (k: keyof NonNullable<typeof r>) => (r ? r[k] ?? 0 : null);
-  const filas: FacetaChips[] = [];
-  if (parametros.lectura === "publicado" || parametros.riesgo) {
-    filas.push({
-      param: "riesgo",
-      etiqueta: "Riesgo encontrado",
-      todas: "Cualquiera",
-      nombreEnChip: false,
-      opciones: [
-        { valor: "alto", etiqueta: "Riesgo alto", conteo: c("alto"), icono: "alerta", tono: "alta" },
-        { valor: "medio", etiqueta: "Riesgo medio", conteo: c("medio"), icono: "atencion", tono: "media" },
-        // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
-        { valor: "bajo", etiqueta: "Bajo o sin señales", conteo: c("bajo"), icono: "info", tono: "baja" },
-      ],
-    });
-  }
   const k = resumen?.porCruces;
-  filas.push({
-    param: "cruces",
-    etiqueta: "Antecedentes del ganador",
-    todas: "Todos",
-    opciones: [
-      { valor: "alta", etiqueta: "Con un antecedente grave", conteo: k ? k.alta : null, icono: "alerta", tono: "alta" },
-      { valor: "con", etiqueta: "Con algún antecedente", conteo: k ? k.con : null, icono: "atencion", tono: "media" },
-    ],
-  });
-  return filas;
+  const deRiesgo = (x: "alto" | "medio" | "bajo") => (r ? r[x] ?? 0 : null);
+  return [
+    {
+      param: "lectura",
+      etiqueta: "¿Lo leyó Vigía?",
+      todas: "Todos",
+      opciones: LECTURAS.map((x) => ({ valor: x.value, etiqueta: x.label, conteo: l ? l[x.value] ?? 0 : null })),
+    },
+    {
+      param: "riesgo",
+      etiqueta: "Riesgo",
+      todas: "Cualquiera",
+      // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
+      opciones: [
+        { valor: "alto", etiqueta: "Alto", conteo: deRiesgo("alto") },
+        { valor: "medio", etiqueta: "Medio", conteo: deRiesgo("medio") },
+        { valor: "bajo", etiqueta: "Bajo o sin señales", conteo: deRiesgo("bajo") },
+      ],
+    },
+    {
+      param: "cruces",
+      etiqueta: "Antecedentes del ganador",
+      todas: "Todos",
+      opciones: [
+        { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },
+        { valor: "con", etiqueta: "Con alguno", conteo: k ? k.con : null },
+      ],
+    },
+  ];
 }
 
 const MONTOS_DESDE = [50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000];

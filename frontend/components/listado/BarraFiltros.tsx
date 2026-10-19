@@ -67,21 +67,10 @@ const TONO_ICONO: Record<TonoFaceta, string> = {
 const CAMPO =
   "h-10 w-full rounded-xl border border-line bg-paper px-3 text-[14px] text-ink transition-colors duration-rapido hover:border-paperEdge focus:border-granate";
 
-/** Una faceta en chips: la principal o una de las filas extra. */
-export interface FacetaChips {
-  param: string;
-  etiqueta: string;
-  todas: string;
-  conteoTodas?: number | null;
-  opciones: OpcionFaceta[];
-  /** El chip activo dice "Severidad: Alta". `false` cuando la opción ya se nombra sola ("Riesgo alto"). */
-  nombreEnChip?: boolean;
-}
-
 export function BarraFiltros({
   busqueda,
   faceta,
-  facetasExtra = [],
+  visibles = [],
   filtros = [],
   orden,
   className,
@@ -101,10 +90,10 @@ export function BarraFiltros({
     nombreEnChip?: boolean;
   };
   /**
-   * Más preguntas en chips, a la vista bajo la fila principal, cada una con su nombre al costado ("Riesgo",
-   * "Antecedentes del ganador"): para las que casi todos hacen y no deben quedar detrás de "Filtros".
+   * Filtros desplegables a la vista, en la misma barra (no detrás de "Filtros"): para las preguntas que casi todos
+   * hacen y que tienen varias respuestas ("¿Lo leyó Vigía?", "Antecedentes del ganador"). Cada opción con su conteo.
    */
-  facetasExtra?: FacetaChips[];
+  visibles?: FiltroSecundario[];
   filtros?: FiltroSecundario[];
   orden?: Orden;
   className?: string;
@@ -122,13 +111,7 @@ export function BarraFiltros({
     const texto = faceta.nombreEnChip === false ? opcion : `${faceta.etiqueta}: ${opcion}`;
     chipsActivos.push({ clave: faceta.param, texto, quitar: () => navegar({ [faceta.param]: undefined }) });
   }
-  for (const fx of facetasExtra) {
-    const v = parametros[fx.param];
-    if (!v) continue;
-    const opcion = fx.opciones.find((x) => x.valor === v)?.etiqueta ?? v;
-    chipsActivos.push({ clave: fx.param, texto: fx.nombreEnChip === false ? opcion : `${fx.etiqueta}: ${opcion}`, quitar: () => navegar({ [fx.param]: undefined }) });
-  }
-  for (const f of activos) {
+  for (const f of [...visibles.filter((x) => parametros[x.param]), ...activos]) {
     const v = parametros[f.param]!;
     const o = f.opciones.find((x) => x.valor === v);
     chipsActivos.push({ clave: f.param, texto: `${f.etiqueta}: ${o?.etiqueta ?? v}`, quitar: () => navegar({ [f.param]: undefined }) });
@@ -152,8 +135,6 @@ export function BarraFiltros({
             aria-label={`Filtrar por ${faceta.etiqueta.toLowerCase()}`}
             className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0"
           >
-            {/* Con filas extra, cada fila dice su pregunta; la principal también. */}
-            {facetasExtra.length > 0 && <span className="mr-1 shrink-0 text-[13px] font-medium text-inkSoft">{faceta.etiqueta}</span>}
             <Chip activo={!valorFaceta} onClick={() => navegar({ [faceta.param]: undefined })}>
               {faceta.todas}
               {faceta.conteoTodas != null && <Conteo n={faceta.conteoTodas} />}
@@ -171,6 +152,31 @@ export function BarraFiltros({
             })}
           </div>
         )}
+
+        {visibles.map((f) => (
+          <label key={f.param} className="inline-flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 text-[13px] font-medium text-inkSoft">{f.etiqueta}</span>
+            <select
+              value={parametros[f.param] ?? ""}
+              onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
+              className={cn(
+                "h-10 max-w-[15rem] rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
+                parametros[f.param] ? "border-granate/60 font-medium" : "border-line",
+              )}
+            >
+              <option value="">{f.todas}</option>
+              {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
+                <option value={parametros[f.param]}>{parametros[f.param]}</option>
+              )}
+              {f.opciones.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.etiqueta}
+                  {o.conteo != null ? ` (${numero(o.conteo)})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
 
         <div className="ml-auto flex items-center gap-2">
           {pendiente && (
@@ -244,35 +250,6 @@ export function BarraFiltros({
         </div>
       </div>
 
-      {facetasExtra.map((fx) => {
-        const valor = parametros[fx.param];
-        return (
-          <div
-            key={fx.param}
-            role="group"
-            aria-label={`Filtrar por ${fx.etiqueta.toLowerCase()}`}
-            className="-mx-4 flex w-[calc(100%+2rem)] items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>button]:shrink-0"
-          >
-            <span className="mr-1 shrink-0 text-[13px] font-medium text-inkSoft">{fx.etiqueta}</span>
-            <Chip activo={!valor} onClick={() => navegar({ [fx.param]: undefined })} chico>
-              {fx.todas}
-              {fx.conteoTodas != null && <Conteo n={fx.conteoTodas} />}
-            </Chip>
-            {fx.opciones.map((o) => {
-              const activo = valor === o.valor;
-              const Icono = o.icono ? ICONOS_FACETA[o.icono] : null;
-              return (
-                <Chip key={o.valor} activo={activo} onClick={() => navegar({ [fx.param]: activo ? undefined : o.valor })} chico>
-                  {Icono && <Icono size={13} className={activo ? "text-paper" : TONO_ICONO[o.tono ?? "neutro"]} aria-hidden />}
-                  {o.etiqueta}
-                  {o.conteo != null && <Conteo n={o.conteo} />}
-                </Chip>
-              );
-            })}
-          </div>
-        );
-      })}
-
       {chipsActivos.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
           <span className="text-mute">Filtrando por</span>
@@ -299,15 +276,14 @@ export function BarraFiltros({
   );
 }
 
-function Chip({ activo, onClick, children, chico = false }: { activo: boolean; onClick: () => void; children: React.ReactNode; chico?: boolean }) {
+function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors duration-rapido active:translate-y-px",
-        chico ? "min-h-[34px] px-3 text-[13px]" : "min-h-[40px] px-3.5 text-[14px]",
+        "inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition-colors duration-rapido active:translate-y-px",
         activo ? "border-granate bg-granate text-paper" : "border-line bg-paper text-ink hover:border-granate/40 hover:bg-granate-50",
       )}
     >
