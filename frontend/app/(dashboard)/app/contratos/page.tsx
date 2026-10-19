@@ -13,14 +13,10 @@ import {
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
-import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
+import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { getEntidad } from "@/lib/api-client";
 import {
-  ETAPAS,
-  LECTURAS,
-  OPERATIVOS,
   ORDENES,
-  TIPOS,
   contratosParametros,
   getContratos,
   getResumenContratos,
@@ -32,7 +28,7 @@ import {
 } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
-import { numero, soles } from "@/lib/formato";
+import { numero } from "@/lib/formato";
 
 export const metadata = {
   // Solo la parte de la página: el layout raíz agrega " | Vigía Perú".
@@ -167,7 +163,7 @@ function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
-      visibles={visibles(resumen)}
+      visibles={filtrosVisibles(resumen)}
       filtros={filtros({ resumen, parametros, regiones, partidos, entidadNombre, filas })}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
@@ -230,63 +226,9 @@ function hrefCon(parametros: Parametros, cambio: Parametros): string {
   return qs ? `${RUTA}?${qs}` : RUTA;
 }
 
-// ─── Faceta principal y filtros ──────────────────────────────────────────────
-
-/**
- * Tres preguntas a la vista, en desplegables, cada opción con su conteo:
- *   · ¿Lo leyó Vigía? (aún no · leyéndose · leído y publicado · leído, en revisión humana). Antes eran cinco chips que
- *     mezclaban el estado de lectura con el riesgo encontrado.
- *   · Riesgo encontrado: sólo existe para lo leído y publicado (elegir uno ya filtra a esos).
- *   · Antecedentes del ganador: aportes, sanciones, visitas, socios comunes… (casos_cruce); con alguno, el panel de
- *     tipos se abre arriba de la lista.
- * La cola de financiamiento y los documentos (`operativo`) son la pregunta de quien va a financiar: van en Filtros.
- * Los conteos salen del resumen, que cuenta cada pregunta sin su propio filtro; sin resumen no hay conteo (nunca un 0
- * inventado).
- */
-function visibles(resumen: ResumenContratos | null): FiltroSecundario[] {
-  const l = resumen?.porLectura;
-  const r = resumen?.porRiesgo;
-  const k = resumen?.porCruces;
-  const deRiesgo = (x: "alto" | "medio" | "bajo") => (r ? r[x] ?? 0 : null);
-  return [
-    {
-      param: "lectura",
-      etiqueta: "¿Lo leyó Vigía?",
-      todas: "Todos",
-      opciones: LECTURAS.map((x) => ({ valor: x.value, etiqueta: x.label, conteo: l ? l[x.value] ?? 0 : null })),
-    },
-    {
-      param: "riesgo",
-      etiqueta: "Riesgo",
-      todas: "Cualquiera",
-      // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
-      opciones: [
-        { valor: "alto", etiqueta: "Alto", conteo: deRiesgo("alto") },
-        { valor: "medio", etiqueta: "Medio", conteo: deRiesgo("medio") },
-        { valor: "bajo", etiqueta: "Bajo o sin señales", conteo: deRiesgo("bajo") },
-      ],
-    },
-    {
-      param: "cruces",
-      etiqueta: "Antecedentes del ganador",
-      todas: "Todos",
-      opciones: [
-        { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },
-        { valor: "con", etiqueta: "Con alguno", conteo: k ? k.con : null },
-      ],
-    },
-  ];
-}
-
-const MONTOS_DESDE = [50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
-const MONTOS_HASTA = [50_000, 100_000, 500_000, 1_000_000, 5_000_000];
-
-/** Un preset de monto; si la URL trae otro valor, se agrega con su formato (el select no queda en blanco). */
-function opcionesMonto(presets: number[], actual: string | undefined) {
-  const opciones = presets.map((m) => ({ valor: String(m), etiqueta: soles(m) }));
-  if (actual && !opciones.some((o) => o.valor === actual)) opciones.push({ valor: actual, etiqueta: soles(Number(actual)) });
-  return opciones;
-}
+// ─── Filtros ─────────────────────────────────────────────────────────────────
+// Las preguntas a la vista y los filtros comunes viven en components/contratos/filtros.ts (los usa también la ficha
+// de la entidad); aquí, lo propio de la lista de todo el Perú: zona, partido y entidad.
 
 /** Nombre de la zona elegida: departamento de la lista, provincia por su ubigeo, distrito por la fila. */
 function nombreZona(ubigeo: string, filas: ContratoResumen[]): string {
@@ -310,31 +252,14 @@ function filtros({
   entidadNombre: string | null;
   filas: ContratoResumen[];
 }): FiltroSecundario[] {
-  // Conteo de una opción: del resumen si respondió (0 es un dato); si no, sin número.
-  const conteo = (m: Partial<Record<string, number>> | undefined, k: string) => (resumen ? m?.[k] ?? 0 : null);
-
   const zonas = [...regiones].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((z) => ({ valor: z.ubigeo, etiqueta: z.nombre }));
   const ubigeo = parametros.ubigeo;
   if (ubigeo && !zonas.some((z) => z.valor === ubigeo)) zonas.unshift({ valor: ubigeo, etiqueta: nombreZona(ubigeo, filas) });
 
-  const meses = ultimosMeses(12).map((m) => ({ valor: m.desde.slice(0, 7), etiqueta: m.etiqueta }));
-  if (parametros.mes && !meses.some((m) => m.valor === parametros.mes)) meses.push({ valor: parametros.mes, etiqueta: etiquetaMes(parametros.mes) });
-
   return [
-    {
-      param: "operativo",
-      etiqueta: "Cola y documentos",
-      todas: "Todos",
-      opciones: OPERATIVOS.map((o) => ({ valor: o.value, etiqueta: o.label, conteo: conteo(resumen?.porOperativo, o.value) })),
-    },
-    {
-      param: "tipo",
-      etiqueta: "Tipo",
-      todas: "Todo tipo",
-      opciones: TIPOS.map((t) => ({ valor: t.value, etiqueta: t.label, conteo: conteo(resumen?.porTipo, t.value) })),
-    },
-    // Sin conteo: el resumen no cuenta por etapa.
-    { param: "etapa", etiqueta: "Etapa", todas: "Toda etapa", opciones: ETAPAS.map((e) => ({ valor: e.value, etiqueta: e.label })) },
+    filtroOperativo(resumen),
+    filtroTipo(resumen),
+    filtroEtapa(),
     { param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", opciones: zonas },
     {
       param: "partido",
@@ -347,8 +272,7 @@ function filtros({
     ...(parametros.entidad
       ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
       : []),
-    { param: "mes", etiqueta: "Mes de convocatoria", todas: "Todo el histórico", opciones: meses },
-    { param: "monto_min", etiqueta: "Valor referencial desde", todas: "Sin mínimo", opciones: opcionesMonto(MONTOS_DESDE, parametros.monto_min) },
-    { param: "monto_max", etiqueta: "Valor referencial hasta", todas: "Sin máximo", opciones: opcionesMonto(MONTOS_HASTA, parametros.monto_max) },
+    filtroMes(parametros),
+    ...filtrosMonto(parametros),
   ];
 }

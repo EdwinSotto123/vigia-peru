@@ -162,23 +162,6 @@ export interface CruceProveedor {
   fuenteUrl: string | null;
 }
 
-/** GET /entidades/:ruc/cruces: un proceso por ganador con cruces, con los tipos que le tocan. */
-export interface CrucesEntidad {
-  total: number;
-  procesos: {
-    ocid: string;
-    codigo: string | null;
-    objeto: string | null;
-    fechaBuenaPro: string | null;
-    proveedor: string | null;
-    rucProveedor: string;
-    /** Si ganó un consorcio: su nombre (`proveedor` es el integrante). */
-    consorcio?: string | null;
-    montoSoles: number | null;
-    cruces: { tipo: string; severidad: "alta" | "media" | "baja"; etiqueta: string }[];
-  }[];
-}
-
 /** GET /entidades/:ruc/fraccionamiento: órdenes "hasta 8 UIT" a una misma empresa en un día que juntas pasan el tope. */
 export interface FraccionamientoEntidad {
   total: number;

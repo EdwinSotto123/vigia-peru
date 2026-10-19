@@ -1,5 +1,5 @@
 /**
- * Ficha de entidad, pestaña "Órdenes del mismo día": días en que la entidad le emitió a una misma empresa
+ * Ficha de entidad, sección "Órdenes del mismo día": días en que la entidad le emitió a una misma empresa
  * varias órdenes "hasta 8 UIT" que juntas pasan el tope (GET /entidades/:ruc/fraccionamiento, CONOSCE).
  * Cada fila abre el panel con las órdenes de ese día.
  */
@@ -18,6 +18,9 @@ const COLUMNAS: Columna[] = [
 ];
 
 const capital = (s: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : "");
+
+/** Filas a la vista: el resto va plegado debajo (la ficha de la entidad sigue después). */
+const A_LA_VISTA = 8;
 
 export function FraccionamientoEntidadTabla({ casos, nombre }: { casos: FraccionamientoEntidad["casos"]; nombre: string }) {
   const filas: Fila[] = casos.map((c) => ({
@@ -91,5 +94,19 @@ export function FraccionamientoEntidadTabla({ casos, nombre }: { casos: Fraccion
       ),
     },
   }));
-  return <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Órdenes menores del mismo día de ${nombre} que juntas pasan 8 UIT`} />;
+  const etiqueta = `Órdenes menores del mismo día de ${nombre} que juntas pasan 8 UIT`;
+  if (filas.length <= A_LA_VISTA + 2) return <Tabla columnas={COLUMNAS} filas={filas} etiqueta={etiqueta} />;
+  const resto = filas.length - A_LA_VISTA;
+  return (
+    <div className="space-y-3">
+      <Tabla columnas={COLUMNAS} filas={filas.slice(0, A_LA_VISTA)} etiqueta={etiqueta} />
+      <details className="group/mas">
+        <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center rounded-full border border-line bg-paper px-4 py-1.5 text-[14px] font-semibold text-granate transition-colors duration-rapido hover:border-granate/40 hover:bg-granate-50 [&::-webkit-details-marker]:hidden">
+          <span className="group-open/mas:hidden">Ver {resto === 1 ? "el otro día" : `los otros ${numero(resto)} días`}</span>
+          <span className="hidden group-open/mas:inline">Ver menos</span>
+        </summary>
+        <Tabla columnas={COLUMNAS} filas={filas.slice(A_LA_VISTA)} etiqueta={`${etiqueta}, los demás`} className="mt-3" />
+      </details>
+    </div>
+  );
 }

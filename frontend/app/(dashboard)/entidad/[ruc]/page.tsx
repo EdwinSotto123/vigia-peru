@@ -1,78 +1,57 @@
-import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Building2, Flag, MapPin } from "lucide-react";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
-import { numero, plural, soles, solesCompacto } from "@/lib/formato";
-import { esAlertaReal } from "@/lib/semillas";
-import { ETIQUETA_PESO, nivelDeScore } from "@/lib/severidad";
+import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import { ejecucionPct, sinAnioRepetido, type MefBudgetRow } from "@/lib/mef";
+import { REGIONES } from "@/lib/peru-data";
+import { normalizar } from "@/lib/partidos";
+import {
+  ORDENES,
+  TIPOS,
+  contratosParametros,
+  getContratos,
+  getResumenContratos,
+  parseContratosQuery,
+  type ContratosPagina,
+  type ContratosQuery,
+  type ResumenContratos,
+} from "@/lib/contratos";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
-import { getCrucesEntidad, getEntidad, getFraccionamientoEntidad } from "@/lib/api-client";
-import { CrucesEntidadTabla } from "@/components/contratos/CrucesEntidad";
+import { getEntidad, getFraccionamientoEntidad } from "@/lib/api-client";
 import { FraccionamientoEntidadTabla } from "@/components/contratos/FraccionamientoEntidad";
+import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
+import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
+import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { CabeceraPestana, Ayuda, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { Ayuda, EncabezadoPagina, EstadoError, IndiceSecciones, Pagina, Seccion, Volver, type EntradaIndice } from "@/components/patrones";
+import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Separador } from "@/components/ui/Partes";
-import { Severidad } from "@/components/ui/Severidad";
-import { limpiarObjeto } from "@/components/contratos/recortar";
 
 /**
- * /entidad/[ruc] — la plantilla Ficha (DESIGN_SYSTEM.md §14.2):
- *   volver → identidad (nombre; tipo, RUC y zona en una línea; acciones) → Indicadores
- *   (con dictamen, con señales, adjudicado, en cola) → pestañas (§14.3): sus contratos con
- *   dictamen en la `Tabla` del kit (la misma fila que el listado de contratos: chip · objeto ·
- *   monto · fecha · ›) | la ejecución presupuestal del MEF, con sus cifras como Indicadores.
- *   El MEF antes iba plegado al pie: ahora es una pestaña, a un clic y sin bajar.
+ * /entidad/[ruc] — la ficha de una entidad, que se lee de arriba abajo en el orden de las preguntas:
+ *   volver → identidad (nombre; tipo, RUC y zona; seguir, denunciar, financiar) → cuatro cifras (contratos, leídos,
+ *   antecedentes de los ganadores, presupuesto) → índice fijo → secciones:
+ *     1. Contratos: TODOS los suyos, con los filtros de /app/contratos (¿lo leyó Vigía?, riesgo, antecedentes del
+ *        ganador, tipo, mes, monto…) y la misma tabla; la URL guarda el filtro (`/entidad/<ruc>?lectura=publicado`).
+ *     2. Cuánto gasta: el presupuesto del MEF de su unidad ejecutora (migración 62).
+ *     3. Denuncias: cómo denunciarla y qué pasa con la denuncia (no se publica).
+ *     4. Órdenes del mismo día: compras menores que juntas pasan 8 UIT (CONOSCE), si las hay.
  *
- * Antes las cuatro cifras iban en una frase gris y el peso del riesgo en una fila de chips
- * con conteo encima de una <table> propia; ahora cada cifra tiene su número, su nombre y su
- * contexto, y la tabla es la de todos los listados.
+ * Antes eran pestañas y la primera listaba sólo los contratos con dictamen (4 de 271): los demás estaban a un enlace,
+ * en otra página. "Antecedentes de los ganadores" era otra pestaña con los mismos contratos: ahora es una columna y
+ * un filtro de la lista. Y el presupuesto de una oficina regional era el de todo el gobierno regional.
  */
 
-/** Lo que devuelve `GET /entidades/:ruc` en `alertas[]` (snake_case, máximo 20, por score). */
-interface AlertaEntidad {
-  id: string;
-  codigo?: string | null;
-  codigo_convocatoria?: string | null;
-  score?: number | string | null;
-  fecha_buena_pro?: string | null;
-  monto_adjudicado?: number | string | null;
-  estado?: string | null;
-  objeto?: string | null;
-}
-
-/** DATE/TIMESTAMP a medianoche UTC → sólo el día (AAAA-MM-DD), que `fechaCorta` toma como día de Lima. */
-const diaDe = (v: string | null | undefined): string | null => {
-  const ymd = String(v ?? "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
-};
-
-
-/** La fila de un contrato, como en el listado de contratos: peso del riesgo (chip) · objeto · monto · fecha · ›. */
-const COLUMNAS: Columna[] = [
-  {
-    clave: "peso",
-    titulo: ETIQUETA_PESO,
-    ancho: "140px",
-    ayuda: (
-      <Ayuda titulo="¿Qué es el peso del riesgo?">
-        Cómo pesan las señales de cada contrato. Sale de su puntaje; no es una probabilidad de delito.
-      </Ayuda>
-    ),
-  },
-  { clave: "contrato", titulo: "Contrato", ancho: "minmax(0,1fr)" },
-  { clave: "adjudicado", titulo: "Adjudicado", ancho: "140px", alinear: "der", desde: "md" },
-  { clave: "buenaPro", titulo: "Buena pro", ancho: "96px", desde: "md" },
-];
+const TAM = 20;
 
 export async function generateMetadata({ params }: { params: { ruc: string } }): Promise<Metadata> {
   const r = await getEntidad(params.ruc).catch(() => null);
   const nombre = r?.entidad?.nombre as string | undefined;
-  return { title: nombre ?? `Entidad ${params.ruc}` };
+  return { title: nombre ? tituloNatural(nombre) : `Entidad ${params.ruc}` };
 }
 
 export default async function EntidadProfile({
@@ -80,138 +59,47 @@ export default async function EntidadProfile({
   searchParams,
 }: {
   params: { ruc: string };
-  /** `?seccion=presupuesto` abre la pestaña del MEF. */
-  searchParams?: { seccion?: string | string[] };
+  /** Los filtros de su lista de contratos (los mismos parámetros que /app/contratos). */
+  searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con
-  // lib/mock-entities y ALERTAS_MOCK: una entidad inventada con alertas
-  // inventadas. Ahora: sin respuesta, se dice; RUC desconocido, 404.
+  const ruc = params.ruc;
+  const ruta = `/entidad/${ruc}`;
+  // La entidad la fija la ruta: de la URL sólo se leen los demás filtros (zona y partido no aplican).
+  const query: ContratosQuery = { ...parseContratosQuery(searchParams), entidad: ruc, ubigeo: undefined, partido: undefined };
+  const parametros = contratosParametros({ ...query, entidad: undefined });
+  const filtrada = Object.entries(parametros).some(([k, v]) => k !== "orden" && !!v);
+
+  // Todo arranca a la vez; la lista y su barra esperan cada una lo suyo (`Suspense`).
+  const pagina = getContratos({ ...query, size: TAM });
+  const resumenFiltrado = getResumenContratos(query);
+  const resumenEntidadP = filtrada ? getResumenContratos({ entidad: ruc }) : resumenFiltrado;
+  const fraccP = getFraccionamientoEntidad(ruc);
+
+  // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con datos inventados. Ahora: sin respuesta, se
+  // dice; RUC desconocido, 404.
   let apiResp: Awaited<ReturnType<typeof getEntidad>> = null;
-  let fallo = false;
-  // Los cruces se piden a la vez: no dependen de la ficha y, si fallan, la pestaña no aparece.
-  const crucesP = getCrucesEntidad(params.ruc);
-  const fraccP = getFraccionamientoEntidad(params.ruc);
   try {
-    apiResp = await getEntidad(params.ruc);
+    apiResp = await getEntidad(ruc);
   } catch (e) {
     console.error("[entidad] el API no respondió:", (e as Error).message);
-    fallo = true;
+    return <NoSePudoLeer ruc={ruc} />;
   }
-  if (fallo) return <NoSePudoLeer ruc={params.ruc} />;
   if (!apiResp?.entidad) notFound();
 
-  const [cruces, fracc] = await Promise.all([crucesP, fraccP]);
+  const [resumenEntidad, fracc] = await Promise.all([resumenEntidadP, fraccP]);
   const e = apiResp.entidad;
-  const nombre: string = e.nombre;
+  const nombre = tituloNatural(String(e.nombre ?? ""));
   const region: string | null = e.region || null;
   const enCola = Number(e.contratosEnCola || 0);
-  const contratos = Number(e.contratos || 0);
+  const totalContratos = resumenEntidad?.total ?? Number(e.contratos || 0);
+  const regionDenuncias = region ? REGIONES.find((r) => normalizar(r.nombre) === normalizar(region))?.nombre : undefined;
 
-  // Sólo las alertas PUBLICADAS y reales: el endpoint también devuelve las que
-  // quedaron en revisión humana (no publicadas) y las de demo `ALT-…`.
-  const crudas = (apiResp.alertas ?? []) as AlertaEntidad[];
-  const publicadas = crudas.filter((a) => esAlertaReal({ codigo: a.codigo }) && (a.estado ?? "activa") === "activa");
-  const truncada = crudas.length >= 20; // el backend corta en 20, ordenadas por score de mayor a menor
-  const demo = crudas.filter((a) => !esAlertaReal({ codigo: a.codigo }) && (a.estado ?? "activa") === "activa");
-  const nAlertas = truncada ? Math.max(0, Number(e.alertas || 0) - demo.length) : publicadas.length;
-  const monto = truncada
-    ? Math.max(0, Number(e.monto || 0) - demo.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0))
-    : publicadas.reduce((s, a) => s + Number(a.monto_adjudicado || 0), 0);
-  // Se financia la entidad misma (sus contratos en cola, al azar): ya no depende de adivinar su zona.
-  const financiable = enCola > 0;
-
-  // "Con señales" = contratos con al menos una señal publicada (DESIGN_SYSTEM.md §10.1).
-  // El score es la suma de los pesos de las señales (todo peso ≥ 5), así que score > 0 ⇔ hay señales.
-  // Con la lista cortada en 20 (por score, de mayor a menor): si la última listada ya tiene
-  // score 0, las que no vinieron tampoco tienen señales y el conteo es exacto; si no, es un piso.
-  const scores = publicadas.map((a) => Number(a.score) || 0);
-  const ultimo = scores.length > 0 ? scores[scores.length - 1] : null;
-  const conSenales = scores.filter((x) => x > 0).length;
-  const conSenalesEsPiso = truncada && ultimo != null && ultimo > 0;
-  // Los de riesgo alto, con el mismo criterio: exactos si la última listada ya no es alta.
-  const altos = scores.filter((x) => nivelDeScore(x) === "alta").length;
-  const altosExacto = !truncada || (ultimo != null && nivelDeScore(ultimo) !== "alta");
-
-  const indicadores: Indicador[] = [
-    {
-      valor: numero(nAlertas),
-      etiqueta: "con dictamen publicado",
-      contexto: `de ${plural(contratos, "contrato registrado", "contratos registrados")}`,
-      ayuda: (
-        <Ayuda titulo="¿Qué cuenta esta cifra?">
-          Contratos de esta entidad en el SEACE que Vigía leyó y publicó, con o sin señales.
-        </Ayuda>
-      ),
-    },
-    {
-      valor: nAlertas === 0 ? null : numero(conSenales),
-      etiqueta: "con señales",
-      contexto:
-        nAlertas === 0
-          ? undefined
-          : `${conSenalesEsPiso ? "como mínimo, " : ""}de ${numero(nAlertas)} con dictamen${altos > 0 && altosExacto ? `, ${numero(altos)} de riesgo alto` : ""}`,
-      ayuda: (
-        <Ayuda titulo="¿Qué es un contrato con señales?">
-          Uno con al menos una señal publicada, de cualquier peso.
-          {conSenalesEsPiso && ` Se cuentan los ${numero(publicadas.length)} de mayor puntaje: el total puede ser mayor.`}
-        </Ayuda>
-      ),
-    },
-    {
-      valor: nAlertas === 0 ? null : solesCompacto(monto),
-      etiqueta: "adjudicado",
-      contexto: nAlertas === 0 ? undefined : "en sus contratos con dictamen",
-    },
-    {
-      valor: numero(enCola),
-      etiqueta: "en cola",
-      contexto: `de ${numero(contratos)} registrados`,
-      ayuda: (
-        <Ayuda titulo="¿Qué está en cola?">
-          <span className="block">Convocatorias que Vigía todavía no leyó y esperan financiamiento.</span>
-          {financiable && (
-            <span className="mt-2 block">
-              Puedes financiar la lectura de esta entidad: eliges la entidad, no los contratos, que se asignan al azar entre
-              los suyos en cola.
-            </span>
-          )}
-        </Ayuda>
-      ),
-    },
+  const entradas: EntradaIndice[] = [
+    { id: "contratos", etiqueta: "Contratos", conteo: totalContratos },
+    { id: "presupuesto", etiqueta: "Cuánto gasta" },
+    { id: "denuncias", etiqueta: "Denuncias" },
+    ...(fracc && fracc.total > 0 ? [{ id: "ordenes", etiqueta: "Órdenes del mismo día", conteo: fracc.total }] : []),
   ];
-
-  const filas: Fila[] = publicadas.map((a) => {
-    const codigo = String(a.codigo_convocatoria ?? a.codigo ?? "").replace(/^OECE-/, "");
-    const adjudicado = a.monto_adjudicado != null ? soles(Number(a.monto_adjudicado)) : null;
-    return {
-      id: a.id,
-      href: codigo ? rutaContrato(codigo, "dictamen") : undefined,
-      celdas: {
-        peso: <Severidad score={Number(a.score) || 0} formato="pastilla" />,
-        contrato: (
-          <CeldaPrincipal
-            titulo={a.objeto ? limpiarObjeto(a.objeto) : "Contrato sin objeto registrado"}
-            meta={
-              <>
-                <span className="font-mono" translate="no">
-                  {codigo || "Sin código"}
-                </span>
-                {/* En el celular la columna del monto no entra: va en la meta. */}
-                {adjudicado && (
-                  <span className="md:hidden">
-                    <Separador />
-                    {adjudicado}
-                  </span>
-                )}
-              </>
-            }
-          />
-        ),
-        adjudicado: adjudicado ? <CeldaNumero>{adjudicado}</CeldaNumero> : undefined,
-        buenaPro: <CeldaFecha fecha={diaDe(a.fecha_buena_pro)} />,
-      },
-    };
-  });
 
   return (
     <Pagina>
@@ -223,7 +111,7 @@ export default async function EntidadProfile({
         bajada={
           <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
-              <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, nombre)}
+              <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {etiquetaTipoEntidad(e.tipo ?? null, e.nombre)}
             </span>
             <span>
               RUC{" "}
@@ -242,10 +130,10 @@ export default async function EntidadProfile({
           <>
             <SeguirEntidadBoton ruc={e.ruc} nombre={nombre} />
             <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`} variante="secundario">
-              <Flag size={14} aria-hidden /> Denunciar a esta entidad
+              <Flag size={14} aria-hidden /> Denunciar
             </EnlaceAccion>
             {/* La única acción sobre su cola: financiar la lectura de ESTA entidad (sin cola, no hay botón). */}
-            {financiable && (
+            {enCola > 0 && (
               <EnlaceAccion href={`/app/financiar/entidad/${e.ruc}`} flecha>
                 Financiar su auditoría
               </EnlaceAccion>
@@ -254,129 +142,251 @@ export default async function EntidadProfile({
         }
       />
 
-      {/* 2. Lo que Vigía sabe de ella, cifra por cifra. */}
-      <Indicadores items={indicadores} />
+      {/* 2. Lo que se sabe de ella, en cuatro cifras; cada una lleva a su sección. */}
+      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
 
-      {/* 3. Sus contratos con dictamen | el presupuesto del MEF, cada uno en su pestaña. */}
-      <Pestanas
-        etiqueta="Secciones de la entidad"
-        activa={typeof searchParams?.seccion === "string" ? searchParams.seccion : undefined}
-        pestanas={[
-          {
-            clave: "contratos",
-            etiqueta: "Contratos con dictamen",
-            conteo: nAlertas,
-            contenido: (
-              <>
-                {/* La bajada de la pestaña (una línea + ⓘ) y su acción: el h2 de antes ya lo dice la pestaña. */}
-                {(publicadas.length > 0 || contratos > 0) && (
-                  <CabeceraPestana
-                    ayuda={
-                      publicadas.length > 0 ? (
-                        <Ayuda titulo="¿Qué abre cada contrato?">
-                          Su dictamen, con las señales y la norma que las respalda. Se listan los leídos y publicados, con o
-                          sin señales.
-                        </Ayuda>
-                      ) : undefined
-                    }
-                    acciones={
-                      contratos > 0 ? (
-                        <EnlaceAccion href={`/app/contratos?entidad=${e.ruc}`} variante="secundario" flecha>
-                          Ver sus {plural(contratos, "contrato", "contratos")}
-                        </EnlaceAccion>
-                      ) : undefined
-                    }
-                  >
-                    {publicadas.length > 0 &&
-                      (truncada
-                        ? `Los ${numero(publicadas.length)} de mayor puntaje, de ${numero(nAlertas)} con dictamen publicado.`
-                        : "Del mayor peso del riesgo al menor; cada uno abre su dictamen.")}
-                  </CabeceraPestana>
-                )}
-                <DisclaimerBanner className="mb-3" />
-                {publicadas.length === 0 ? (
-                  // Sin llamita: esta pestaña habla de una entidad, y la llamita no acompaña a nadie señalado.
-                  <p className="rounded-2xl border border-dashed border-line bg-paperSoft px-4 py-5 text-sm text-mute">
-                    Todavía no hay contratos de esta entidad con dictamen publicado. Aparecen aquí cuando Vigía lee uno.
-                  </p>
-                ) : (
-                  <Tabla columnas={COLUMNAS} filas={filas} etiqueta={`Contratos de ${nombre} con dictamen publicado`} />
-                )}
-              </>
-            ),
-          },
-          ...(cruces && cruces.total > 0
-            ? [
-                {
-                  clave: "cruces",
-                  etiqueta: "Antecedentes de los ganadores",
-                  conteo: cruces.total,
-                  contenido: (
-                    <>
-                      <CabeceraPestana
-                        ayuda={
-                          <Ayuda titulo="¿Qué son estos cruces?">
-                            Cruces automáticos por DNI y RUC entre quienes ganaron (y sus socios y representantes del RNP) y los
-                            registros de la ONPE, el JNE, las visitas, las penalidades y las sanciones del Tribunal. Son datos
-                            oficiales: no prueban por sí solos una irregularidad.
-                          </Ayuda>
-                        }
-                      >
-                        Procesos de esta entidad cuyo ganador aparece en otros registros públicos.
-                      </CabeceraPestana>
-                      <CrucesEntidadTabla procesos={cruces.procesos} nombre={nombre} />
-                    </>
-                  ),
-                },
-              ]
-            : []),
-          ...(fracc && fracc.total > 0
-            ? [
-                {
-                  clave: "ordenes",
-                  etiqueta: "Órdenes del mismo día",
-                  conteo: fracc.total,
-                  contenido: (
-                    <>
-                      <CabeceraPestana
-                        ayuda={
-                          <Ayuda titulo="¿Qué es esto?">
-                            Las compras de hasta 8 UIT se hacen con una orden, sin procedimiento de selección. La ley prohíbe
-                            partir una contratación para quedar bajo ese tope. Aquí van los días en que esta entidad le emitió a
-                            una misma empresa varias de esas órdenes que juntas lo pasan (registro de órdenes de CONOSCE). Es un
-                            patrón en los datos oficiales, no la prueba de un fraccionamiento.
-                          </Ayuda>
-                        }
-                      >
-                        {fracc.total === 1 ? "Un día" : `${numero(fracc.total)} días`} en que esta entidad le emitió a una misma
-                        empresa varias órdenes de hasta 8 UIT que juntas pasan el tope: {plural(fracc.empresas, "empresa", "empresas")},{" "}
-                        {solesCompacto(fracc.montoTotal)} en total.
-                        {fracc.total > fracc.casos.length ? ` Se muestran los ${fracc.casos.length} más fuertes y recientes.` : ""}
-                      </CabeceraPestana>
-                      <FraccionamientoEntidadTabla casos={fracc.casos} nombre={nombre} />
-                    </>
-                  ),
-                },
-              ]
-            : []),
-          {
-            // Sin conteo: los años del MEF se saben recién cuando responde (puede tardar más de 20 s).
-            clave: "presupuesto",
-            etiqueta: "Presupuesto MEF",
-            contenido: (
-              <>
-                <p className="mb-3 text-sm text-inkSoft">Gasto real frente al presupuesto asignado, según el MEF.</p>
-                {/* El MEF llega por streaming: la pestaña muestra su esqueleto hasta que responde. */}
-                <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
-                  <EjecucionPresupuestal query={mefSearchKeywordFor(nombre)} ruc={e.ruc} />
-                </Suspense>
-              </>
-            ),
-          },
-        ]}
-      />
+      {/* 3. El índice: todo está en la página, el índice sólo lleva. */}
+      <IndiceSecciones etiqueta="Secciones de la entidad" entradas={entradas} />
+
+      <Seccion
+        id="contratos"
+        titulo="Contratos"
+        descripcion="Sus convocatorias en el SEACE. Filtra por lo que leyó Vigía, el riesgo que encontró o los antecedentes de quien ganó."
+        ayuda={
+          <Ayuda titulo="¿Qué contratos hay aquí?">
+            Cada convocatoria de esta entidad que Vigía tiene en su base, leída o no. Cada fila abre su resumen; el dossier
+            completo, con el dictamen si ya se leyó, está en el pie del resumen.
+          </Ayuda>
+        }
+      >
+        <div className="space-y-4">
+          <Listado ruta={ruta} parametros={parametros} paramPagina="page">
+            {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
+            <Suspense fallback={<BarraEntidad resumen={null} parametros={parametros} />}>
+              <BarraConConteos resumen={resumenFiltrado} parametros={parametros} />
+            </Suspense>
+            <DisclaimerBanner />
+            <ZonaResultados>
+              <Suspense fallback={<TablaContratosSkeleton />}>
+                <Resultados pagina={pagina} parametros={parametros} query={query} ruta={ruta} />
+              </Suspense>
+            </ZonaResultados>
+          </Listado>
+        </div>
+      </Seccion>
+
+      <Seccion
+        id="presupuesto"
+        titulo="Cuánto gasta"
+        descripcion="Su presupuesto de cada año y cuánto de eso ya gastó, según el MEF."
+      >
+        {/* El MEF llega por streaming: la sección muestra su esqueleto hasta que responde. */}
+        <Suspense fallback={<EjecucionPresupuestalSkeleton />}>
+          <EjecucionPresupuestal query={mefSearchKeywordFor(String(e.nombre ?? ""))} ruc={e.ruc} />
+        </Suspense>
+      </Seccion>
+
+      <Seccion id="denuncias" titulo="Denuncias" descripcion="¿Viste algo irregular en esta entidad? Cuéntalo.">
+        <div className="flex flex-col gap-4 rounded-2xl border border-line bg-paperSoft p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="max-w-prose space-y-1.5 text-sm text-inkSoft">
+            <p>
+              Una denuncia sobre una entidad <strong className="font-semibold text-ink">no se publica</strong>: queda en
+              reserva y la revisa el equipo de Vigía. Si los datos la respaldan, lo que se publica es un dictamen en esta
+              ficha, nunca la denuncia ni quién la hizo.
+            </p>
+            <p>Si es una obra que se puede ver y fotografiar, denúnciala como obra: esa sí aparece en el mapa.</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <EnlaceAccion href={`/reporte/nuevo?modo=entidad&ruc=${e.ruc}`}>
+              <Flag size={14} aria-hidden /> Denunciar a esta entidad
+            </EnlaceAccion>
+            {regionDenuncias && (
+              <EnlaceAccion href={`/app/denuncias?region=${encodeURIComponent(regionDenuncias)}`} variante="secundario" flecha>
+                Obras denunciadas en {regionDenuncias}
+              </EnlaceAccion>
+            )}
+          </div>
+        </div>
+      </Seccion>
+
+      {fracc && fracc.total > 0 && (
+        <Seccion
+          id="ordenes"
+          titulo="Órdenes del mismo día"
+          descripcion={
+            <>
+              {fracc.total === 1 ? "Un día" : `${numero(fracc.total)} días`} en que le emitió a una misma empresa varias
+              órdenes de hasta 8 UIT que juntas pasan el tope: {plural(fracc.empresas, "empresa", "empresas")},{" "}
+              {solesCompacto(fracc.montoTotal)} en total.
+              {fracc.total > fracc.casos.length ? ` Se muestran los ${fracc.casos.length} más fuertes y recientes.` : ""}
+            </>
+          }
+          ayuda={
+            <Ayuda titulo="¿Qué es esto?">
+              Las compras de hasta 8 UIT se hacen con una orden, sin procedimiento de selección. La ley prohíbe partir una
+              contratación para quedar bajo ese tope. Aquí van los días en que esta entidad le emitió a una misma empresa
+              varias de esas órdenes que juntas lo pasan (registro de órdenes de CONOSCE). Es un patrón en los datos
+              oficiales, no la prueba de un fraccionamiento.
+            </Ayuda>
+          }
+        >
+          <FraccionamientoEntidadTabla casos={fracc.casos} nombre={nombre} />
+        </Seccion>
+      )}
     </Pagina>
   );
+}
+
+// ─── Lista de contratos ──────────────────────────────────────────────────────
+
+async function BarraConConteos({ resumen, parametros }: { resumen: Promise<ResumenContratos | null>; parametros: Parametros }) {
+  return <BarraEntidad resumen={await resumen} parametros={parametros} />;
+}
+
+/** La barra de /app/contratos sin zona, partido ni entidad (los fija la ficha). Sin resumen, sin números. */
+function BarraEntidad({ resumen, parametros }: { resumen: ResumenContratos | null; parametros: Parametros }) {
+  return (
+    <BarraFiltros
+      busqueda={{ param: "q", placeholder: "Buscar en sus contratos por objeto o código…", etiqueta: "Buscar en sus contratos", min: 3 }}
+      visibles={filtrosVisibles(resumen)}
+      filtros={[filtroOperativo(resumen), filtroTipo(resumen), filtroEtapa(), filtroMes(parametros), ...filtrosMonto(parametros)]}
+      orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
+    />
+  );
+}
+
+async function Resultados({
+  pagina,
+  parametros,
+  query,
+  ruta,
+}: {
+  pagina: Promise<ContratosPagina | null>;
+  parametros: Parametros;
+  query: ContratosQuery;
+  ruta: string;
+}) {
+  const p = await pagina;
+  return (
+    <TablaContratos
+      pagina={p}
+      parametros={parametros}
+      actual={query.page ?? 1}
+      cursor={query.cursor}
+      antes={query.antes}
+      tam={TAM}
+      ruta={ruta}
+      ancla="contratos"
+      deEntidad
+    />
+  );
+}
+
+// ─── Las cuatro cifras ───────────────────────────────────────────────────────
+
+/** Los tipos con más contratos, de mayor a menor: "Bienes 221 · Servicios 37 · Consultoría 12". */
+function porTipoTexto(resumen: ResumenContratos | null): string | undefined {
+  const t = resumen?.porTipo;
+  if (!t) return undefined;
+  const filas = TIPOS.map((x) => [x.label, t[x.value] ?? 0] as const)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  return filas.length > 0 ? filas.slice(0, 3).map(([l, n]) => `${l} ${numero(n)}`).join(" · ") : undefined;
+}
+
+/** El último año del MEF con datos propios (sin el que repite al anterior). */
+function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | null | undefined): MefBudgetRow | null {
+  if (!mef || mef.kind !== "ok" || !mef.by_year?.length) return null;
+  const { years } = sinAnioRepetido(mef.by_year.map((r) => ({ ...r, pia: Number(r.pia), pim: Number(r.pim), devengado: Number(r.devengado), girado: Number(r.girado) })));
+  return years[years.length - 1] ?? null;
+}
+
+/**
+ * Contratos, leídos, antecedentes y presupuesto: todas del mismo resumen que cuenta la lista de abajo (antes "con
+ * dictamen" salía de otra consulta, cortada en 20, y "antecedentes" de una tercera que contaba distinto).
+ */
+function indicadores({
+  resumen,
+  totalContratos,
+  enCola,
+  mef,
+  ruta,
+}: {
+  resumen: ResumenContratos | null;
+  totalContratos: number;
+  enCola: number;
+  ruta: string;
+  mef: { by_year?: MefBudgetRow[] | null; kind?: string; keyword?: string | null } | null;
+}): Indicador[] {
+  const lect = resumen?.porLectura;
+  const publicados = lect?.publicado ?? 0;
+  const leidos = publicados + (lect?.revision ?? 0);
+  const altos = resumen?.porRiesgo?.alto ?? 0;
+  const cruces = resumen?.porCruces;
+  const anio = ultimoAnio(mef);
+  const deTodoElGobierno = (mef?.keyword ?? "").startsWith("pliego ");
+
+  return [
+    {
+      valor: numero(totalContratos),
+      etiqueta: "contratos en el SEACE",
+      contexto: porTipoTexto(resumen),
+      href: `${ruta}#contratos`,
+    },
+    {
+      valor: resumen ? numero(leidos) : null,
+      etiqueta: "leídos por Vigía",
+      contexto: resumen
+        ? leidos === 0
+          ? enCola > 0
+            ? `${numero(enCola)} esperan quien financie su lectura`
+            : "todavía ninguno"
+          : `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
+        : undefined,
+      href: leidos > 0 ? `${ruta}?lectura=publicado#contratos` : `${ruta}#contratos`,
+      ayuda: (
+        <Ayuda titulo="¿Qué es un contrato leído?">
+          <span className="block">
+            Uno cuyo expediente ya revisó Vigía. Con dictamen publicado: su resultado es público, con o sin señales; el
+            resto está en revisión humana.
+          </span>
+          {enCola > 0 && (
+            <span className="mt-2 block">
+              {plural(enCola, "contrato espera", "contratos esperan")} que alguien financie su lectura: eliges la entidad,
+              no el contrato, que se asigna al azar entre los suyos.
+            </span>
+          )}
+        </Ayuda>
+      ),
+    },
+    {
+      valor: cruces ? numero(cruces.con) : null,
+      etiqueta: "con antecedentes del ganador",
+      contexto: cruces
+        ? cruces.alta > 0
+          ? plural(cruces.alta, "con un antecedente grave", "con antecedentes graves")
+          : `de ${numero(totalContratos)}, ninguno grave`
+        : undefined,
+      href: cruces && cruces.con > 0 ? `${ruta}?cruces=con#contratos` : undefined,
+      ayuda: (
+        <Ayuda titulo="¿Qué son los antecedentes del ganador?">
+          Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes de campaña, candidaturas,
+          sanciones, penalidades, visitas a entidades, socios comunes con otros postores. No prueban por sí solos una
+          irregularidad.
+        </Ayuda>
+      ),
+    },
+    {
+      valor: anio ? solesCompacto(anio.pim) : null,
+      etiqueta: anio ? `presupuesto ${anio.year}${deTodoElGobierno ? " del gobierno regional" : ""}` : "presupuesto",
+      contexto: anio
+        ? anio.pim > 0
+          ? `${porcentaje(ejecucionPct(anio), { decimales: 0 })} ya gastado (devengado)`
+          : undefined
+        : "sin dato del MEF",
+      href: `${ruta}#presupuesto`,
+    },
+  ];
 }
 
 function NoSePudoLeer({ ruc }: { ruc: string }) {

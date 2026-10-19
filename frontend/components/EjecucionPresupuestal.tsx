@@ -4,6 +4,7 @@ import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
 import { Ayuda, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 
 const CONSULTA_AMIGABLE = "https://apps5.mineco.gob.pe/transparencia/Navegador/default.aspx";
@@ -14,8 +15,9 @@ const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejec
  * el archivo oficial de Datos Abiertos (presupuesto y ejecución de gasto) y sirve su API, cruzando la
  * entidad con sus unidades ejecutoras (por ubigeo, pliego regional o nombre).
  *
- * Vive en la pestaña "Presupuesto MEF" de la ficha de una entidad (§14.3), que ya le pone
- * nombre y bajada: aquí va el dato, sin repetir el encabezado. Plantilla Ficha (§14.2):
+ * Vive en la sección "Cuánto gasta" de la ficha de una entidad, que ya le pone nombre y
+ * bajada: aquí va el dato, sin repetir el encabezado. Primero, de dónde salen las cifras (su
+ * unidad ejecutora, o todo el gobierno regional si no se identificó: migración 62). Plantilla Ficha (§14.2):
  * el último año como `Indicadores` (número → qué es → contexto), los avisos en una línea
  * + ⓘ, y cada año en la `Tabla` del kit, con la ejecución como chip. Sus estados (caído,
  * sin registros) van alineados a la izquierda y sin la llamita: la llamita no
@@ -188,6 +190,7 @@ function EjecucionView({ data }: { data: MefBudgetSummary }) {
 
   return (
     <div className="space-y-4">
+      <OrigenCifras data={data} />
       <Indicadores items={indicadores} />
 
       {/* Avisos: una línea + ⓘ cada uno. Las observaciones del presupuesto van en ámbar: no son señales de Vigía. */}
@@ -224,30 +227,50 @@ function EjecucionView({ data }: { data: MefBudgetSummary }) {
         </div>
       )}
 
-      {/* Pliegos que coincidieron con la búsqueda, como chips. */}
-      {data.matchedPliegos.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
-          <span>
-            {numero(data.matchedPliegos.length)} {data.matchedPliegos.length === 1 ? "pliego" : "pliegos"},{" "}
-            {numero(data.totalRows)} registros sumados:
-          </span>
-          {data.matchedPliegos.slice(0, 6).map((p, i) => (
-            <span key={i} className="pill border-line bg-paperSoft text-ink">
-              {p}
-            </span>
-          ))}
-        </div>
-      )}
-
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
         <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
-        <span>
-          Suma de PIA, PIM, devengado y girado.
-          {data.fechaDescarga ? "" : " La copia no registró su fecha de descarga."}
-        </span>
+        {!data.fechaDescarga && <span>La copia no registró su fecha de descarga.</span>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * De dónde salen las cifras, antes de las cifras. El MEF registra el presupuesto por unidad ejecutora y sin RUC: si la
+ * entidad cruzó con la suya, se nombra; si es un gobierno regional que no se identificó, las cifras son las de TODO el
+ * gobierno regional y se dice en ámbar, para que nadie las lea como el presupuesto de esta oficina.
+ */
+function OrigenCifras({ data }: { data: MefBudgetSummary }) {
+  const unidades = data.matchedPliegos;
+  if (data.cruce === "pliego") {
+    return (
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-amber/40 bg-amber-soft px-3 py-2 text-[13px] text-ink">
+        <AlertCircle size={14} className="shrink-0 text-amberTexto" aria-hidden />
+        <strong className="font-semibold text-amberTexto">
+          Son las cifras de todo el {data.pliego ? tituloNatural(data.pliego) : "gobierno regional"}
+        </strong>
+        ({numero(unidades.length)} unidades ejecutoras juntas): no identificamos cuál de ellas es esta entidad.
+        <Ayuda titulo="¿Por qué no se ve el presupuesto de esta entidad?">
+          El MEF publica el presupuesto por unidad ejecutora y sin RUC. Cada entidad regional se cruza con la suya por el
+          código que trae su nombre, por ser la sede central o por un nombre casi igual; esta no coincidió con seguridad con
+          ninguna, así que se muestra el total del gobierno regional como referencia.
+        </Ayuda>
+      </p>
+    );
+  }
+  if (unidades.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
+      <span>{unidades.length === 1 ? "Unidad ejecutora del MEF:" : `${numero(unidades.length)} unidades ejecutoras del MEF, sumadas:`}</span>
+      {unidades.slice(0, 6).map((u) => (
+        // Como lo escribe el MEF: es el nombre con que se la encuentra en su consulta.
+        <span key={u} className="pill border-line bg-paperSoft text-ink">
+          {u}
+        </span>
+      ))}
+      {unidades.length > 6 && <span>y {numero(unidades.length - 6)} más</span>}
     </div>
   );
 }

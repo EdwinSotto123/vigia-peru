@@ -21,6 +21,14 @@ export interface MefBudgetSummary {
   query: string;
   /** Las unidades ejecutoras del MEF que se cruzaron con la entidad. */
   matchedPliegos: string[];
+  /**
+   * Cómo se cruzó la entidad con el MEF (migraciones 47 y 62): por ubigeo (municipalidades), por su unidad ejecutora
+   * (gobiernos regionales), por nombre (el resto) o, si no se identificó su unidad, el pliego regional entero: entonces
+   * las cifras son las de todo el gobierno regional y la ficha lo dice.
+   */
+  cruce?: "ubigeo" | "ejecutora" | "nombre" | "pliego" | null;
+  /** Con `cruce = "pliego"`: el pliego cuyas cifras se muestran ("GOBIERNO REGIONAL DEL DEPARTAMENTO DE CUSCO"). */
+  pliego?: string | null;
   totalRows: number;
   byYear: MefBudgetRow[];
   /** Fecha del archivo del MEF (ISO). `null` si no se registró. */

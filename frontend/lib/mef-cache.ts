@@ -56,8 +56,9 @@ interface FilaMefEntidad {
 }
 
 /**
- * Presupuesto de una entidad: la fila `mef` de GET /entidades/:ruc (unidad ejecutora cruzada por ubigeo,
- * pliego regional o nombre; ver la migración 47). Sin fila → "empty".
+ * Presupuesto de una entidad: la fila `mef` de GET /entidades/:ruc (unidad ejecutora cruzada por ubigeo, por su
+ * nombre o, en los gobiernos regionales que no se identifican, el pliego entero; ver las migraciones 47 y 62).
+ * Sin fila → "empty".
  */
 export async function getEntityBudget(keyword: string, ruc?: string): Promise<MefBudgetResult> {
   if (!ruc) return { kind: "empty", query: keyword };
@@ -68,10 +69,15 @@ export async function getEntityBudget(keyword: string, ruc?: string): Promise<Me
     return { kind: "error", query: keyword, message: (e as Error).message };
   }
   if (!fila || fila.kind !== "ok" || !fila.by_year?.length) return { kind: "empty", query: keyword };
+  // `keyword` dice cómo cruzó: "ubigeo 080101", "ejecutora REGION CUSCO-SEDE CENTRAL", "nombre …" o "pliego GOBIERNO …".
+  const [como, ...resto] = (fila.keyword ?? "").split(" ");
+  const cruce = (["ubigeo", "ejecutora", "nombre", "pliego"] as const).find((c) => c === como) ?? null;
   return {
     kind: "ok",
     data: {
       query: fila.keyword ?? keyword,
+      cruce,
+      pliego: cruce === "pliego" ? resto.join(" ") : null,
       matchedPliegos: fila.matched_pliegos ?? [],
       totalRows: Number(fila.total_rows ?? 0),
       byYear: fila.by_year,

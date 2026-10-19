@@ -15,6 +15,10 @@
  * Componente cliente porque usa `estadoLecturaDe` (módulo cliente): llamada desde un
  * server component sería una referencia, no una función.
  *
+ * También es la lista de contratos de la ficha de una entidad (/entidad/[ruc]): con `ruta` y `ancla` los enlaces de
+ * página y "quitar filtros" se quedan en esa ficha, y con `deEntidad` la fila dice quién ganó en vez de repetir la
+ * entidad en cada fila.
+ *
  * Paginación: por cursor cuando el API lo trae (`siguiente`/`anterior`, tokens opacos que
  * van a la URL como `?cursor=` / `?antes=`), con "Anterior / Siguiente" y sin números de
  * página inventados. COMPAT-API-VIEJA: sin la clave `siguiente` en la respuesta, pagina
@@ -29,7 +33,8 @@ import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { numero, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
-import { etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
+import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
+import { PersonName } from "@/components/Redact";
 import { Badge } from "@/components/ui/Badge";
 import { TIPO_CRUCE } from "@/lib/cruces";
 import { DetalleContrato } from "./DetalleContrato";
@@ -81,6 +86,9 @@ export function TablaContratos({
   cursor,
   antes,
   tam,
+  ruta = RUTA,
+  ancla,
+  deEntidad = false,
 }: {
   /** La página que trajo el servidor; `null` = el API no respondió. */
   pagina: ContratosPagina | null;
@@ -91,14 +99,21 @@ export function TablaContratos({
   cursor?: string;
   antes?: string;
   tam: number;
+  /** Dónde vive la lista (los enlaces de página y de "quitar filtros" vuelven ahí). */
+  ruta?: string;
+  /** Id de la sección a la que vuelve cada enlace de página (la ficha de la entidad es larga). */
+  ancla?: string;
+  /** La lista de UNA entidad: la fila dice quién ganó en vez de la entidad y su zona. */
+  deEntidad?: boolean;
 }) {
+  const hash = ancla ? `#${ancla}` : "";
   /** Los filtros de la URL más un paso de paginación (página por número o token de cursor). */
   const hrefCon = (paso: Record<string, string>) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(parametros)) if (v) q.set(k, v);
     for (const [k, v] of Object.entries(paso)) q.set(k, v);
     const qs = q.toString();
-    return qs ? `${RUTA}?${qs}` : RUTA;
+    return `${qs ? `${ruta}?${qs}` : ruta}${hash}`;
   };
   const href = (n: number) => hrefCon(n > 1 ? { page: String(n) } : {});
   // Esta misma página, tal como se pidió (para reintentar sin perder el lugar).
@@ -125,11 +140,11 @@ export function TablaContratos({
 
   if (total === 0) {
     return filtrado ? (
-      <EstadoVacio titulo="Ningún contrato coincide con tu búsqueda" compacto accion={<Link href={RUTA} className={ACCION}>Quitar búsqueda y filtros</Link>}>
+      <EstadoVacio titulo="Ningún contrato coincide con tu búsqueda" compacto accion={<Link href={`${ruta}${hash}`} scroll={!ancla} className={ACCION}>Quitar búsqueda y filtros</Link>}>
         Prueba otra palabra del objeto, el código o la entidad. Si usas filtros, se suman: quita el más restrictivo.
       </EstadoVacio>
     ) : (
-      <EstadoVacio titulo="Todavía no hay contratos en la base">
+      <EstadoVacio titulo={deEntidad ? "Todavía no hay contratos de esta entidad en la base" : "Todavía no hay contratos en la base"}>
         Las convocatorias del SEACE aparecen aquí cuando entran a la base de Vigía.
       </EstadoVacio>
     );
@@ -176,20 +191,20 @@ export function TablaContratos({
     );
   } else {
     pag = (
-      <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={RUTA} query={parametros} paramPagina="page" cargando={false} nombre="contratos" />
+      <Paginacion actual={pagina.page || actual} paginas={paginas} total={total} tam={tam} navegacion="url" hrefBase={ruta} query={parametros} paramPagina="page" cargando={false} nombre="contratos" />
     );
   }
 
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{pag}</div>
-      <Tabla columnas={COLUMNAS} filas={data.map(filaDe)} etiqueta="Contratos" />
+      <Tabla columnas={COLUMNAS} filas={data.map((c) => filaDe(c, deEntidad))} etiqueta="Contratos" />
       <div className="flex justify-end">{pag}</div>
     </div>
   );
 }
 
-function filaDe(c: ContratoResumen): Fila {
+function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
   const titulo = c.titulo ? limpiarObjeto(c.titulo) : "Sin objeto registrado";
   const entidad = c.entidad ?? "Entidad no identificada";
   const monto = formatMonto(c.montoPen, c.moneda);
@@ -197,13 +212,20 @@ function filaDe(c: ContratoResumen): Fila {
   const estado = c.enRevision || c.score != null ? severidadDeContrato(c).etiqueta : estadoLecturaDe(c).label;
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4): la meta dice cuántas hay.
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
-  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona];
+  // En la ficha de una entidad, la entidad y su zona son las mismas en todas las filas: va quién ganó.
+  const ganador = c.proveedor ? (
+    <span key="ganador">
+      Ganó {esPersonaNatural(c.proveedorRuc) ? <PersonName name={c.proveedor} orden="sunat" /> : c.proveedor}
+    </span>
+  ) : null;
+  const meta = deEntidad ? [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, ganador] : [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, entidad, c.zona];
   return {
     id: c.ocid,
     celdas: {
       estado: <EstadoContratoChip c={c} />,
       // Recortado en una palabra: el objeto entero va en el panel (títulos de 300 caracteres en el DOM).
-      contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} />,
+      // En la ficha de una entidad la fila no repite la entidad: el objeto puede ocupar dos líneas.
+      contrato: <CeldaPrincipal titulo={recortar(titulo, 160)} meta={meta} dosLineas={deEntidad} />,
       cruces: <CrucesCelda cruces={c.cruces} />,
       tipo: <CeldaTexto sub={etapaLabel(c.etapa) ?? undefined}>{tipoLabel(c.tipo) ?? "Sin clasificar"}</CeldaTexto>,
       valor: <CeldaNumero>{c.montoPen ? monto : <span className="font-sans text-mute">Sin dato</span>}</CeldaNumero>,
