@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { getAlertas } from "@/lib/api-client";
-import { formatSoles, plural } from "@/lib/formato";
+import { formatSoles, oracion, plural } from "@/lib/formato";
 import { nivelDeScore, type NivelSeveridad } from "@/lib/severidad";
 import { Ayuda, EstadoVacio } from "@/components/patrones";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -171,7 +171,7 @@ function FilaSenal({ a }: { a: any }) {
           <span className="mt-0.5 text-[10px] leading-none">de 100</span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto}</span>
+          <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{a.objeto ? oracion(a.objeto) : null}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
             <PesoRiesgo score={score} banderas={nBanderas} className="text-[11px]" />
             {nBanderas > 0 && <span className="tabular-nums text-inkSoft">{plural(nBanderas, "señal", "señales")}</span>}

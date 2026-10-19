@@ -5,7 +5,7 @@ import { CalendarRange } from "lucide-react";
 import { Aviso } from "@/components/partidos/AvisoPartido";
 import { GobiernosPartido } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
-import { TablaProcesosPartido } from "@/components/partidos/TablaProcesosPartido";
+import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import {
@@ -214,7 +214,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
 }
 
 async function Procesos({ pagina, parametros, ruta, actual }: { pagina: Promise<ProcesosPartido | null>; parametros: Parametros; ruta: string; actual: number }) {
-  return <TablaProcesosPartido pagina={await pagina} parametros={parametros} ruta={ruta} actual={actual} />;
+  return <TablaProcesos pagina={await pagina} parametros={parametros} ruta={ruta} actual={actual} />;
 }
 
 const COLUMNAS_SKELETON: Columna[] = [

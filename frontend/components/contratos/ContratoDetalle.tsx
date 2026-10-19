@@ -37,12 +37,13 @@ import type { ContratoResumen } from "@/lib/contratos";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import { FASES } from "@/lib/auditoria";
 import type { CatalogoReglas } from "@/lib/revision";
-import { fecha, fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { fecha, fechaCorta, numero, oracion, solesCompacto } from "@/lib/formato";
 import {
   adjudicacionesVigentes, cambioDeGanador, esPersonaNatural, etapaLabel, motivoLabel, tipoLabel, validacionLabel,
   type ContratoDetalle as Detalle,
 } from "@/lib/contratos";
 import { cn } from "@/lib/utils";
+import { tituloNatural } from "@/lib/landing";
 
 /** Qué se analiza hoy, tal como lo informa la API (`procesamientoActivo` del resumen de procesamientos). */
 export interface AlcanceActivo {
@@ -133,7 +134,7 @@ export function ContratoDetalle({
         <div className="min-w-0 space-y-5">
           {/* 1. Identidad: qué se contrata, su código, quién compra y dónde; debajo, sus chips. */}
           <div className="space-y-3">
-            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ? limpiarObjeto(c.titulo) : "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
+            <EncabezadoPagina titulo={<TituloContrato texto={c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Contrato sin objeto registrado"} />} bajada={<LineaIdentidad c={c} mapaHref={mapaHref} />} />
             <ul className="flex flex-wrap items-center gap-1.5" aria-label="Tipo, etapa y estado de lectura">
               <li><span className="pill border-transparent bg-paperDeep text-ink">{tipoLabel(c.tipo) ?? "Tipo sin clasificar"}</span></li>
               <li><span className="pill border-line text-inkSoft">{etapaLabel(c.etapa) ?? "Etapa sin clasificar"}</span></li>
@@ -218,11 +219,11 @@ function LineaIdentidad({ c, mapaHref }: { c: Detalle; mapaHref: string }) {
       </span>
       {c.entidadRuc ? (
         <Link href={`/entidad/${c.entidadRuc}`} className={enlace}>
-          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ?? c.entidadRuc}
+          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ? tituloNatural(c.entidad) : c.entidadRuc}
         </Link>
       ) : (
         <span className="inline-flex items-center gap-1.5">
-          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ?? "Entidad no identificada"}
+          <Building2 size={14} className="shrink-0 text-mute" aria-hidden /> {c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada"}
         </span>
       )}
       {c.zona && (

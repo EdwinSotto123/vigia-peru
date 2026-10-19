@@ -7,7 +7,7 @@ import { PesoRiesgo } from "@/components/contratos/PesoRiesgo";
 import { ChipAporte } from "@/components/financiar/EstadoAporte";
 import { indicadoresAporte } from "@/components/financiar/indicadoresAporte";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
-import { fecha, numero } from "@/lib/formato";
+import { fecha, numero, oracion } from "@/lib/formato";
 
 /**
  * La cadena completa de un aliado: aporte → contratos asignados → señal. Es lo que
@@ -179,7 +179,7 @@ function filaContrato(d: ComprobanteContrato): Fila {
     href: `/app/contratos/${encodeURIComponent(d.ocid)}`,
     celdas: {
       estado,
-      contrato: <CeldaPrincipal titulo={d.titulo ?? "Sin objeto declarado en el expediente"} meta={d.entidad ?? undefined} />,
+      contrato: <CeldaPrincipal titulo={d.titulo ? oracion(d.titulo) : "Sin objeto declarado en el expediente"} meta={d.entidad ?? undefined} />,
       // Sin leer o en revisión todavía no hay señales publicadas: "Sin dato", no un 0.
       senales: leido && !enRevision ? <CeldaNumero>{num(sev ? d.banderas : 0)}</CeldaNumero> : undefined,
     },

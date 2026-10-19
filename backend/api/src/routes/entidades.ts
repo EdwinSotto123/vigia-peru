@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
 import { cachePublico, parametros } from "../lib/http.js";
+import { Memo } from "../lib/cache.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { crucesDeEntidad, fraccionamientoDeEntidad } from "../lib/cruces.js";
 import { publicar } from "../lib/privacidad.js";
@@ -243,6 +244,83 @@ entidadesRouter.get("/:ruc/gasto", async (c) => {
     })),
     programas: [...programas.values()].sort(porPim),
   });
+});
+
+// ─── GET /entidades/:ruc/procesos — sus procesos adjudicados desde 2018 (CONOSCE, migración 66) ─
+// La base de Vigía (GET /contratos?entidad=) es casi toda de 2026; CONOSCE trae la historia. Un proceso por fila
+// (código de convocatoria; ítems repetidos entre años, una vez), con el ganador de mayor monto, como
+// GET /partidos/:clave/procesos. `resumen` va siempre sin filtros: las cifras de la ficha y los conteos de los filtros.
+const ProcesosEntidadQuery = z.object({
+  q: z.string().trim().min(3).max(80).optional(),
+  objeto: z.string().max(40).optional(),
+  anio: z.coerce.number().int().min(2000).max(2100).optional(),
+  orden: z.enum(["fecha", "monto"]).default("fecha"),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  size: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+const PROCESOS_DE_ENTIDAD = `
+  WITH a AS (SELECT DISTINCT ON (codigo_convocatoria, n_item) * FROM conosce_adjudicaciones WHERE entidad_ruc = $1
+              ORDER BY codigo_convocatoria, n_item, anio DESC)
+  SELECT a.codigo_convocatoria AS codigo, min(a.fecha_convocatoria) AS fecha, max(a.objeto) AS objeto, max(a.tipo_proceso) AS "tipoProceso",
+         max(a.nomenclatura) AS nomenclatura, max(a.descripcion_proceso) AS descripcion, max(a.entidad) AS entidad, count(*)::int AS items,
+         sum(a.monto_referencial)::float AS "montoReferencial", sum(a.monto_adjudicado)::float AS "montoAdjudicado",
+         (sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')))::float AS pen, max(a.moneda) AS moneda,
+         count(DISTINCT a.ruc_proveedor)::int AS proveedores,
+         (array_agg(a.proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS proveedor,
+         (array_agg(a.ruc_proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS "rucProveedor"
+    FROM a GROUP BY a.codigo_convocatoria`;
+
+const procesosEntidadMemo = new Memo<Record<string, unknown>>({ nombre: "entidades:procesos", ttlMs: 300_000, staleMs: 300_000, max: 500 });
+
+entidadesRouter.get("/:ruc/procesos", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  const crudos = Object.fromEntries(Object.entries(parametros(c)).filter(([, v]) => v !== "" && v != null));
+  const parsed = ProcesosEntidadQuery.safeParse(crudos);
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const q = parsed.data;
+  const cuerpo = await procesosEntidadMemo.obtener(`procesos:${ruc}:${JSON.stringify(q)}`, async () => {
+    const vals: unknown[] = [ruc];
+    const conds: string[] = [];
+    if (q.objeto) { vals.push(q.objeto); conds.push(`p.objeto = $${vals.length}`); }
+    if (q.anio) { vals.push(q.anio); conds.push(`extract(year FROM p.fecha) = $${vals.length}`); }
+    if (q.q) {
+      // El nombre de una persona natural (RUC 10) no se busca (como en casos_cruce y partido_proceso).
+      vals.push(q.q);
+      conds.push(`mef_norm(coalesce(p.descripcion, '') || ' ' || coalesce(p.nomenclatura, '') || ' ' ||
+                  CASE WHEN p."rucProveedor" LIKE '10%' THEN '' ELSE coalesce(p.proveedor, '') END) LIKE '%' || mef_norm($${vals.length}) || '%'`);
+    }
+    const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    const orden = q.orden === "monto" ? `p.pen DESC NULLS LAST, p.fecha DESC` : `p.fecha DESC, p.pen DESC NULLS LAST`;
+    const [filas, resumen] = await Promise.all([
+      pool.query(
+        `WITH p AS (${PROCESOS_DE_ENTIDAD})
+         SELECT p.codigo, p.nomenclatura, p.descripcion, p.objeto, p."tipoProceso", to_char(p.fecha, 'YYYY-MM-DD') AS fecha, p.entidad,
+                $1::text AS "entidadRuc", p.items, p."montoReferencial", p."montoAdjudicado", p.moneda, p.proveedores, p.proveedor,
+                p."rucProveedor", cv.ocid, count(*) OVER ()::int AS total, (sum(p.pen) OVER ())::float AS monto
+           FROM p LEFT JOIN convocatorias cv ON cv.ocid = p.codigo
+           ${where}
+          ORDER BY ${orden}, p.codigo
+          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+      pool.query(
+        `WITH p AS (${PROCESOS_DE_ENTIDAD})
+         SELECT count(*)::int AS procesos, COALESCE(sum(pen), 0)::float AS "montoAdjudicadoPen", count(DISTINCT "rucProveedor")::int AS proveedores,
+                to_char(min(fecha), 'YYYY-MM-DD') AS desde,
+                COALESCE((SELECT json_agg(x ORDER BY x.anio) FROM (SELECT extract(year FROM fecha)::int AS anio, count(*)::int AS procesos,
+                                  COALESCE(sum(pen), 0)::float AS "montoAdjudicadoPen" FROM p GROUP BY 1) x), '[]') AS "porAnio",
+                COALESCE((SELECT json_agg(x ORDER BY x.procesos DESC) FROM (SELECT COALESCE(objeto, 'Sin dato') AS objeto, count(*)::int AS procesos,
+                                  COALESCE(sum(pen), 0)::float AS "montoAdjudicadoPen" FROM p GROUP BY 1) x), '[]') AS "porObjeto"
+           FROM p`, [ruc]),
+    ]);
+    const total = filas.rows[0]?.total ?? 0;
+    const monto = filas.rows[0]?.monto ?? 0;
+    const data = filas.rows.map(({ total: _t, monto: _m, ...x }) => ({ ...x, nivel: null, lugar: null }));
+    // El ganador puede ser una persona natural: publicar() la reconoce por su RUC 10 y tapa su nombre.
+    return publicar({ total, montoAdjudicadoPen: monto, page: q.page, size: q.size, data, resumen: resumen.rows[0] });
+  });
+  c.header("Cache-Control", cachePublico(600, { maxAge: 120, swr: 600 }));
+  return c.json(cuerpo);
 });
 
 entidadesRouter.get("/:ruc", async (c) => {

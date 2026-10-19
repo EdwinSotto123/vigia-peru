@@ -146,7 +146,8 @@ export interface ProcesoPartido {
   fecha: string;
   entidad: string | null;
   entidadRuc: string;
-  nivel: "regional" | "provincial" | "distrital";
+  /** El gobierno (en la lista de un partido); `null` en la de una entidad. */
+  nivel: "regional" | "provincial" | "distrital" | null;
   lugar: string | null;
   items: number;
   montoReferencial: number | null;
@@ -165,6 +166,18 @@ export interface ProcesosPartido {
   page: number;
   size: number;
   data: ProcesoPartido[];
+}
+
+/** Los procesos de UNA entidad desde 2018 (GET /entidades/:ruc/procesos): `resumen`, sin filtros, para las cifras. */
+export interface ProcesosEntidad extends ProcesosPartido {
+  resumen: {
+    procesos: number;
+    montoAdjudicadoPen: number;
+    proveedores: number;
+    desde: string | null;
+    porAnio: { anio: number; procesos: number; montoAdjudicadoPen: number }[];
+    porObjeto: { objeto: string; procesos: number; montoAdjudicadoPen: number }[];
+  };
 }
 
 export interface FiltrosProcesos {
@@ -201,6 +214,13 @@ export function getRankingPartidos(anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE, o
 
 export const getDetallePartido = (clave: string, anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE) =>
   leer<DetallePartido>(`/partidos/${encodeURIComponent(clave)}?anio=${anio}`);
+
+/** Los procesos adjudicados de una entidad desde 2018 (CONOSCE), paginados y filtrados; con su resumen. */
+export function getProcesosEntidad(ruc: string, f: { q?: string; objeto?: string; anio?: number; orden?: "fecha" | "monto"; page?: number; size?: number } = {}) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v));
+  return leer<ProcesosEntidad>(`/entidades/${ruc}/procesos?${p.toString()}`, 600);
+}
 
 /** Sus procesos adjudicados del período (CONOSCE), paginados y filtrados. */
 export function getProcesosPartido(clave: string, anio: AnioGobierno, f: FiltrosProcesos = {}) {

@@ -58,6 +58,18 @@ export function listaY(xs: string[]): string {
 }
 
 /** "1 contrato", "2 contratos". El número va formateado. */
+/**
+ * Un texto del SEACE, del MEF o de CONOSCE escrito todo en mayúsculas, como oración: "ADQUISICIÓN DE VÍVERES PARA LA
+ * TROPA" → "Adquisición de víveres para la tropa". Lo que ya trae minúsculas se deja como viene (lo escribió alguien
+ * a mano). Las mismas palabras en todas las listas: contratos, procesos, partidas del presupuesto.
+ */
+export function oracion(t: string): string {
+  const s = t.trim();
+  if (s !== s.toLocaleUpperCase("es")) return s;
+  const b = s.toLocaleLowerCase("es");
+  return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
+}
+
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return `${NUM.format(n)} ${n === 1 ? singular : pluralTexto}`;
 }

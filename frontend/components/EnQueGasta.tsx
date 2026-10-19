@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { Ayuda, Pestanas, type Pestana } from "@/components/patrones";
 import { ListaPaginada } from "@/components/listado";
 import type { DatoGasto, GastoEntidad } from "@/lib/mef";
-import { numero, plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { numero, oracion, plural, porcentaje, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 
@@ -125,12 +125,6 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
 
 const SIN_PROYECTO = "2999999";
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "oct", "nov", "dic"];
-
-/** "BIENES Y SERVICIOS" → "Bienes y servicios": categorías del clasificador, no nombres propios. */
-function oracion(t: string): string {
-  const b = t.trim().toLocaleLowerCase("es");
-  return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
-}
 
 function Leyenda() {
   return (

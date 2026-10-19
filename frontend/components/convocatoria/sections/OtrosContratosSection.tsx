@@ -1,7 +1,7 @@
 "use client";
 
 import { Building2, ExternalLink } from "lucide-react";
-import { plural } from "@/lib/formato";
+import { oracion, plural } from "@/lib/formato";
 import { fechaDossier } from "../dossier";
 import { redactDnis } from "../../Redact";
 import { Evidencia } from "./Evidencia";
@@ -36,7 +36,7 @@ export function OtrosContratosSection({ otros, relacion, fmtMoney }: { otros: an
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-ink">{c.entidad}</div>
-                <div className="mt-0.5 text-xs text-inkSoft">{c.objeto}</div>
+                <div className="mt-0.5 text-xs text-inkSoft">{c.objeto ? oracion(c.objeto) : null}</div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-mute">
                   {c.fecha && <span>{fechaDossier(c.fecha, true)}</span>}
                   {c.ocid_o_contrato && <span>{c.ocid_o_contrato}</span>}

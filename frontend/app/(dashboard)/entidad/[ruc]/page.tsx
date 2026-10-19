@@ -21,13 +21,15 @@ import {
 } from "@/lib/contratos";
 import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/components/EjecucionPresupuestal";
 import { getEntidad, getFraccionamientoEntidad } from "@/lib/api-client";
+import { getProcesosEntidad, type ProcesosEntidad } from "@/lib/partidosApi";
+import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { FraccionamientoEntidadTabla } from "@/components/contratos/FraccionamientoEntidad";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
-import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
+import { BarraFiltros, Indicadores, Listado, ZonaResultados, type FiltroSecundario, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 
 /**
@@ -72,6 +74,28 @@ export default async function EntidadProfile({
   const resumenFiltrado = getResumenContratos(query);
   const resumenEntidadP = filtrada ? getResumenContratos({ entidad: ruc }) : resumenFiltrado;
   const fraccP = getFraccionamientoEntidad(ruc);
+  // Sus procesos desde 2018 (CONOSCE). En la URL con prefijo `p` (pq, panio, pobjeto, porden, ppage): las dos listas
+  // conviven en la misma página y sus filtros no deben pisarse.
+  const uno = (k: string) => {
+    const v = searchParams?.[k];
+    return typeof v === "string" && v.trim() ? v.trim() : undefined;
+  };
+  const pq = uno("pq");
+  const fProc = {
+    q: pq && pq.length >= 3 ? pq.slice(0, 80) : undefined,
+    objeto: uno("pobjeto")?.slice(0, 40),
+    anio: /^\d{4}$/.test(uno("panio") ?? "") ? Number(uno("panio")) : undefined,
+    orden: uno("porden") === "monto" ? ("monto" as const) : undefined,
+  };
+  const pagProc = Math.max(1, Number(uno("ppage")) || 1);
+  const procesosP = getProcesosEntidad(ruc, { ...fProc, page: pagProc, size: TAM });
+  const parametrosProc: Parametros = {
+    seccion: "procesos",
+    pq: fProc.q,
+    pobjeto: fProc.objeto,
+    panio: fProc.anio ? String(fProc.anio) : undefined,
+    porden: fProc.orden,
+  };
 
   // Antes, si el API fallaba o no conocía el RUC, la ficha se armaba con datos inventados. Ahora: sin respuesta, se
   // dice; RUC desconocido, 404.
@@ -84,7 +108,7 @@ export default async function EntidadProfile({
   }
   if (!apiResp?.entidad) notFound();
 
-  const [resumenEntidad, fracc] = await Promise.all([resumenEntidadP, fraccP]);
+  const [resumenEntidad, fracc, procesos] = await Promise.all([resumenEntidadP, fraccP, procesosP]);
   const e = apiResp.entidad;
   const nombre = tituloNatural(String(e.nombre ?? ""));
   const region: string | null = e.region || null;
@@ -137,7 +161,7 @@ export default async function EntidadProfile({
       />
 
       {/* 2. Lo que se sabe de ella, en cuatro cifras; cada una abre su pestaña. */}
-      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta })} />
+      <Indicadores items={indicadores({ resumen: resumenEntidad, totalContratos, enCola, mef: apiResp.mef, ruta, historia: procesos?.resumen ?? null })} />
 
       {/* 3. Pestañas, como la ficha de un contrato (?seccion=): Contratos | Cuánto gasta | Denuncias. `key`: un enlace
           de las cifras de arriba a otra pestaña la abre (sin la clave, la pestaña ya montada no cambiaba). */}
@@ -166,7 +190,8 @@ export default async function EntidadProfile({
                     </Ayuda>
                   }
                 >
-                  Sus convocatorias en el SEACE, con lo que leyó Vigía y los antecedentes de quien ganó.
+                  Sus convocatorias en la base de Vigía (las que puede leer), con lo leído y los antecedentes de quien ganó.
+                  Su historia completa está en «Procesos desde 2018».
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
                   {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
@@ -177,6 +202,37 @@ export default async function EntidadProfile({
                     <Suspense fallback={<TablaContratosSkeleton />}>
                       <Resultados pagina={pagina} parametros={parametros} query={query} ruta={ruta} />
                     </Suspense>
+                  </ZonaResultados>
+                </Listado>
+              </div>
+            ),
+          },
+          {
+            clave: "procesos",
+            etiqueta: "Procesos desde 2018",
+            conteo: procesos?.resumen.procesos ?? null,
+            contenido: (
+              <div className="space-y-4">
+                <CabeceraPestana
+                  ayuda={
+                    <Ayuda titulo="¿De dónde salen estos procesos?">
+                      De CONOSCE (OECE): los procesos que esta entidad adjudicó desde 2018, con su ganador y su monto. Son
+                      más que los contratos de la pestaña anterior, que son los que Vigía tiene en su base para leer (casi
+                      todos de 2026). Si un proceso también está ahí, su resumen lleva a su ficha.
+                    </Ayuda>
+                  }
+                >
+                  Todos sus procesos adjudicados desde 2018, con su ganador y su monto, según CONOSCE.
+                </CabeceraPestana>
+                <Listado ruta={ruta} parametros={parametrosProc} paramPagina="ppage">
+                  <BarraFiltros
+                    busqueda={{ param: "pq", placeholder: "Buscar qué se compró o el ganador…", etiqueta: "Buscar en sus procesos", min: 3 }}
+                    visibles={visiblesProcesos(procesos?.resumen ?? null)}
+                    filtros={[]}
+                    orden={{ param: "porden", porDefecto: "fecha", opciones: [{ valor: "fecha", etiqueta: "Más recientes" }, { valor: "monto", etiqueta: "Mayor monto" }] }}
+                  />
+                  <ZonaResultados>
+                    <TablaProcesos pagina={procesos} parametros={parametrosProc} ruta={ruta} actual={pagProc} paramPagina="ppage" deEntidad />
                   </ZonaResultados>
                 </Listado>
               </div>
@@ -317,9 +373,30 @@ function ultimoAnio(mef: { by_year?: MefBudgetRow[] | null; kind?: string } | nu
   return years[years.length - 1] ?? null;
 }
 
+/** Año y objeto de sus procesos, con cuántos tiene cada uno (del resumen sin filtros). */
+function visiblesProcesos(r: ProcesosEntidad["resumen"] | null): FiltroSecundario[] {
+  return [
+    {
+      param: "panio",
+      etiqueta: "Año de convocatoria",
+      corta: "Año",
+      todas: "Todos",
+      opciones: [...(r?.porAnio ?? [])].reverse().map((a) => ({ valor: String(a.anio), etiqueta: String(a.anio), conteo: a.procesos })),
+    },
+    {
+      param: "pobjeto",
+      etiqueta: "Objeto",
+      corta: "Objeto",
+      todas: "Todos",
+      opciones: (r?.porObjeto ?? []).map((o) => ({ valor: o.objeto, etiqueta: o.objeto, conteo: o.procesos })),
+    },
+  ];
+}
+
 /**
- * Contratos, leídos, antecedentes y presupuesto: todas del mismo resumen que cuenta la lista de abajo (antes "con
- * dictamen" salía de otra consulta, cortada en 20, y "antecedentes" de una tercera que contaba distinto).
+ * Cuatro cifras, cada una con su fuente dicha en su nombre: sus procesos desde 2018 (CONOSCE), sus contratos en la
+ * base de Vigía (los que se pueden leer: leídos y riesgo, del mismo resumen que la lista), los antecedentes de los
+ * ganadores y su presupuesto. Antes la primera decía "contratos en el SEACE" y eran sólo los de la base de Vigía.
  */
 function indicadores({
   resumen,
@@ -327,12 +404,14 @@ function indicadores({
   enCola,
   mef,
   ruta,
+  historia,
 }: {
   resumen: ResumenContratos | null;
   totalContratos: number;
   enCola: number;
-  ruta: string;
   mef: { by_year?: MefBudgetRow[] | null; kind?: string; keyword?: string | null } | null;
+  ruta: string;
+  historia: ProcesosEntidad["resumen"] | null;
 }): Indicador[] {
   const lect = resumen?.porLectura;
   const publicados = lect?.publicado ?? 0;
@@ -344,27 +423,27 @@ function indicadores({
 
   return [
     {
-      valor: numero(totalContratos),
-      etiqueta: "contratos en el SEACE",
-      contexto: porTipoTexto(resumen),
-      href: ruta,
+      valor: historia ? numero(historia.procesos) : null,
+      etiqueta: "procesos adjudicados desde 2018",
+      contexto: historia ? `${solesCompacto(historia.montoAdjudicadoPen)} en soles, según CONOSCE` : undefined,
+      href: `${ruta}?seccion=procesos`,
     },
     {
-      valor: resumen ? numero(leidos) : null,
-      etiqueta: "leídos por Vigía",
+      valor: numero(totalContratos),
+      etiqueta: "contratos en la base de Vigía",
       contexto: resumen
         ? leidos === 0
           ? enCola > 0
-            ? `${numero(enCola)} esperan quien financie su lectura`
-            : "todavía ninguno"
-          : `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
-        : undefined,
+            ? `ninguno leído, ${numero(enCola)} esperan quien financie su lectura`
+            : "ninguno leído todavía"
+          : `${plural(leidos, "leído", "leídos")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
+        : porTipoTexto(resumen),
       href: leidos > 0 ? `${ruta}?lectura=publicado` : ruta,
       ayuda: (
-        <Ayuda titulo="¿Qué es un contrato leído?">
+        <Ayuda titulo="¿Qué contratos puede leer Vigía?">
           <span className="block">
-            Uno cuyo expediente ya revisó Vigía. Con dictamen publicado: su resultado es público, con o sin señales; el
-            resto está en revisión humana.
+            Los de su base, casi todos convocados en 2026: los que se leen con sus documentos y pueden tener dictamen. Leído:
+            el expediente ya lo revisó Vigía; con dictamen publicado o en revisión humana.
           </span>
           {enCola > 0 && (
             <span className="mt-2 block">

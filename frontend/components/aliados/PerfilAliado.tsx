@@ -2,7 +2,7 @@ import { Severidad } from "@/components/ui/Severidad";
 import { Ayuda } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import type { Comprobante, ComprobanteContrato } from "@/lib/financiamiento";
-import { numero, plural } from "@/lib/formato";
+import { numero, oracion, plural } from "@/lib/formato";
 import { pctProporcion } from "./proporcion";
 import type { RegionAlcanzada, ResumenPerfil } from "./perfil";
 
@@ -173,7 +173,7 @@ export function TablaSenales({
       severidad: <Severidad bandera={s.severidad as "alta" | "media" | "baja"} />,
       contrato: (
         <CeldaPrincipal
-          titulo={s.titulo ?? "Sin objeto declarado en el expediente"}
+          titulo={s.titulo ? oracion(s.titulo) : "Sin objeto declarado en el expediente"}
           meta={[s.entidad, s.zona].filter(Boolean).join(", ")}
         />
       ),

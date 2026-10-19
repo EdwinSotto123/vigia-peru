@@ -4,15 +4,16 @@ import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
-import { numero, plural, soles, solesCompacto } from "@/lib/formato";
+import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 
 /**
- * Los procesos adjudicados de los gobiernos de un partido en un período (CONOSCE, GET /partidos/:clave/procesos),
- * en la `Tabla` del kit: fecha · proceso (qué se compró, entidad y lugar) · objeto · adjudicado · ganador. Cada fila
- * abre su resumen en el panel; si el proceso también está en la base de Vigía, el panel lleva a su ficha.
- * Paginado por URL (`?page=`), con los filtros de la barra. Server-safe.
+ * Procesos adjudicados de CONOSCE en la `Tabla` del kit: fecha · proceso (qué se compró, entidad y lugar) · objeto ·
+ * adjudicado · ganador. La usan la ficha de un partido (los de sus gobiernos, GET /partidos/:clave/procesos) y la de
+ * una entidad (los suyos desde 2018, GET /entidades/:ruc/procesos); en la de la entidad no se repite la entidad en
+ * cada fila. Cada fila abre su resumen en el panel; si el proceso también está en la base de Vigía, el panel lleva a
+ * su ficha. Paginado por URL (`paramPagina`), con los filtros de la barra. Server-safe.
  */
 
 const COLUMNAS: Columna[] = [
@@ -25,26 +26,25 @@ const COLUMNAS: Columna[] = [
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
 
-/** "BIENES Y SERVICIOS…" → "Bienes y servicios…": el objeto como oración (los nombres propios del SEACE vienen en mayúsculas). */
-function oracion(t: string): string {
-  const b = t.trim().toLocaleLowerCase("es");
-  return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
-}
-
 const enSoles = (p: ProcesoPartido) => !p.moneda || /soles/i.test(p.moneda);
 const monto = (v: number | null, p: ProcesoPartido) =>
   v == null ? "Sin dato" : enSoles(p) ? soles(v) : `${numero(Math.round(v))} ${p.moneda ?? ""}`.trim();
 
-export function TablaProcesosPartido({
+export function TablaProcesos({
   pagina,
   parametros,
   ruta,
   actual,
+  paramPagina = "page",
+  deEntidad = false,
 }: {
   pagina: ProcesosPartido | null;
   parametros: Parametros;
   ruta: string;
   actual: number;
+  paramPagina?: string;
+  /** La lista de UNA entidad: sin la entidad en cada fila y con el texto vacío de una entidad. */
+  deEntidad?: boolean;
 }) {
   if (!pagina) {
     return (
@@ -53,13 +53,15 @@ export function TablaProcesosPartido({
       </EstadoError>
     );
   }
-  const filtrado = Object.entries(parametros).some(([k, v]) => !["anio", "seccion", "orden"].includes(k) && !!v);
+  const filtrado = Object.entries(parametros).some(([k, v]) => !["anio", "seccion", "orden", "porden"].includes(k) && !!v);
   if (pagina.total === 0) {
     return filtrado ? (
       <EstadoVacio compacto titulo="Ningún proceso coincide con estos filtros">Prueba otra palabra o quita el filtro más restrictivo.</EstadoVacio>
     ) : (
-      <EstadoVacio compacto titulo="Sin procesos adjudicados en este período">
-        CONOSCE no registra procesos adjudicados por los gobiernos de este partido en estos años.
+      <EstadoVacio compacto titulo={deEntidad ? "Sin procesos adjudicados desde 2018" : "Sin procesos adjudicados en este período"}>
+        {deEntidad
+          ? "CONOSCE no registra procesos adjudicados por esta entidad desde 2018."
+          : "CONOSCE no registra procesos adjudicados por los gobiernos de este partido en estos años."}
       </EstadoVacio>
     );
   }
@@ -73,7 +75,7 @@ export function TablaProcesosPartido({
       navegacion="url"
       hrefBase={ruta}
       query={parametros}
-      paramPagina="page"
+      paramPagina={paramPagina}
       cargando={false}
       nombre="procesos"
     />
@@ -87,13 +89,13 @@ export function TablaProcesosPartido({
         </p>
         {pag}
       </div>
-      <Tabla columnas={COLUMNAS} filas={pagina.data.map(filaDe)} etiqueta="Procesos adjudicados de sus gobiernos" />
+      <Tabla columnas={COLUMNAS} filas={pagina.data.map((p) => filaDe(p, deEntidad))} etiqueta={deEntidad ? "Procesos adjudicados de la entidad" : "Procesos adjudicados de sus gobiernos"} />
       <div className="flex justify-end">{pag}</div>
     </div>
   );
 }
 
-function filaDe(p: ProcesoPartido): Fila {
+function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
   const titulo = p.descripcion ? oracion(p.descripcion) : p.nomenclatura ?? `Proceso ${p.codigo}`;
   const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
   const datos: DatoClave[] = [
@@ -102,7 +104,7 @@ function filaDe(p: ProcesoPartido): Fila {
     { etiqueta: "Objeto", valor: p.objeto ?? "Sin dato" },
     { etiqueta: "Convocado", valor: p.fecha },
     { etiqueta: "Entidad", valor: <Link href={`/entidad/${p.entidadRuc}`} className="text-granate underline-offset-2 hover:underline">{entidad}</Link> },
-    { etiqueta: "Gobierno", valor: [NIVEL[p.nivel], p.lugar].filter(Boolean).join(", ") },
+    ...(p.nivel ? [{ etiqueta: "Gobierno", valor: [NIVEL[p.nivel], p.lugar].filter(Boolean).join(", ") }] : []),
     { etiqueta: "Valor referencial", valor: monto(p.montoReferencial, p) },
     { etiqueta: "Adjudicado", valor: monto(p.montoAdjudicado, p) },
     { etiqueta: p.proveedores > 1 ? `Ganadores (${p.proveedores})` : "Ganador", valor: p.proveedor ? (p.proveedores > 1 ? `${p.proveedor} y otros` : p.proveedor) : "Sin dato" },
@@ -112,7 +114,8 @@ function filaDe(p: ProcesoPartido): Fila {
     id: `${p.codigo}-${p.entidadRuc}`,
     celdas: {
       fecha: <CeldaFecha fecha={p.fecha} />,
-      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={[entidad, p.lugar]} />,
+      // En la ficha de una entidad la entidad es la misma en todas las filas: va la nomenclatura.
+      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={deEntidad ? [p.nomenclatura] : [entidad, p.lugar]} />,
       objeto: <CeldaTexto sub={p.tipoProceso ?? undefined}>{p.objeto ?? "Sin dato"}</CeldaTexto>,
       monto: <CeldaNumero>{p.montoAdjudicado == null ? <span className="font-sans text-mute">Sin dato</span> : enSoles(p) ? solesCompacto(p.montoAdjudicado) : monto(p.montoAdjudicado, p)}</CeldaNumero>,
       ganador: (

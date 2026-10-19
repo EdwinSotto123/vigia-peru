@@ -13,7 +13,7 @@ import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Indicador } from "@/components/listado";
 import { etiquetaTipoEntidad, tipoEntidad } from "@/lib/entidad-tipo";
 import { getEntidadFinanciable, getPago, tiposEnPalabras, type EntidadFinanciableDetalle } from "@/lib/financiamiento";
-import { numero, plural, soles } from "@/lib/formato";
+import { numero, oracion, plural, soles } from "@/lib/formato";
 
 export const revalidate = 60;
 
@@ -294,7 +294,7 @@ function filasCola(d: EntidadFinanciableDetalle): Fila[] {
         contrato: (
           <CeldaPrincipal
             dosLineas
-            titulo={c.objeto || "Contrato sin objeto registrado"}
+            titulo={c.objeto ? oracion(c.objeto) : "Contrato sin objeto registrado"}
             meta={[
               c.codigo ? (
                 <span key="codigo" className="font-mono" translate="no">

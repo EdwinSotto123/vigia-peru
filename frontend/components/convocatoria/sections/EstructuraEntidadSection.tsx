@@ -4,6 +4,7 @@ import { ExternalLink, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fechaDossier } from "../dossier";
 import { PersonName, redactDnis } from "../../Redact";
+import { oracion } from "@/lib/formato";
 
 export function EstructuraEntidadSection({
   autoridades, entityPersonnel, entidad,
@@ -173,7 +174,7 @@ export function EstructuraEntidadSection({
                   <li key={i} className="text-ink">
                     <strong className="font-mono">{r.numero}</strong>
                     {r.fecha && <span className="ml-1 text-mute">({fechaDossier(r.fecha, true)})</span>}
-                    {r.objeto && <div className="italic text-inkSoft">{r.objeto}</div>}
+                    {r.objeto && <div className="italic text-inkSoft">{oracion(r.objeto)}</div>}
                     {r.url && (
                       <a href={r.url} target="_blank" rel="noreferrer" aria-label={`Abrir la resolución ${r.numero ?? ""}`}
                          className="ml-1 inline-flex min-h-[24px] min-w-[24px] items-center justify-center text-granate hover:underline">

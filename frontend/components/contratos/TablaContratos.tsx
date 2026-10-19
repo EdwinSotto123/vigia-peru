@@ -31,7 +31,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { PaginacionCursor } from "@/components/ui/PaginacionCursor";
 import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, TablaSkeleton, type Columna, type Fila, type Parametros } from "@/components/listado";
-import { numero, plural } from "@/lib/formato";
+import { numero, oracion, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
@@ -40,6 +40,7 @@ import { TIPO_CRUCE } from "@/lib/cruces";
 import { DetalleContrato } from "./DetalleContrato";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
+import { tituloNatural } from "@/lib/landing";
 
 const RUTA = "/app/contratos";
 
@@ -205,8 +206,10 @@ export function TablaContratos({
 }
 
 function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
-  const titulo = c.titulo ? limpiarObjeto(c.titulo) : "Sin objeto registrado";
-  const entidad = c.entidad ?? "Entidad no identificada";
+  // En oración, como los procesos y el presupuesto: el SEACE manda casi todo en mayúsculas.
+  const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
+  // Con su nombre propio, como en su ficha ("Seguro Social de Salud"), no en las mayúsculas del SEACE.
+  const entidad = c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada";
   const monto = formatMonto(c.montoPen, c.moneda);
   // Lo mismo que dice el chip: el peso del riesgo si ya se leyó, si no, el estado de lectura.
   const estado = c.enRevision || c.score != null ? severidadDeContrato(c).etiqueta : estadoLecturaDe(c).label;

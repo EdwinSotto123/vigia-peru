@@ -26,7 +26,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EstadoError, EstadoVacio } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal } from "@/components/listado";
-import { numero, plural } from "@/lib/formato";
+import { numero, oracion, plural } from "@/lib/formato";
 import {
   contratosQueryString,
   etapaLabel,
@@ -210,7 +210,7 @@ function SkeletonFila() {
 function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; selected: boolean; onSelect?: FilasProps["onSelect"]; onHover?: FilasProps["onHover"] }) {
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => { if (selected) ref.current?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  const titulo = c.titulo ? limpiarObjeto(c.titulo) : "Sin objeto registrado";
+  const titulo = c.titulo ? oracion(limpiarObjeto(c.titulo)) : "Sin objeto registrado";
   const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(", ") || "Sin clasificar";
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4).
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;

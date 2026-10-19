@@ -4,6 +4,7 @@ import { ArrowUpRight, ExternalLink, Scale } from "lucide-react";
 import type { CasoPortada } from "@/lib/landing";
 import { Severidad } from "@/components/ui/Severidad";
 import { EnlaceAccion } from "./EnlaceAccion";
+import { oracion } from "@/lib/formato";
 
 /**
  * Lo que ya encontró: casos de verdad, uno debajo del otro.
@@ -59,7 +60,7 @@ export function CasosReales({ casos }: { casos: CasoPortada[] }) {
               {/* Qué encontró */}
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-inkSoft">{c.entidad}</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-mute">{c.objeto}</p>
+                <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-mute">{oracion(c.objeto)}</p>
                 <p className="mt-3 max-w-[72ch] text-[16px] leading-relaxed text-ink">{c.hallazgo}</p>
                 <p className="mt-3 flex items-start gap-2 text-[13px] leading-relaxed text-inkSoft">
                   <Scale size={14} className="mt-0.5 shrink-0 text-granate" aria-hidden />
