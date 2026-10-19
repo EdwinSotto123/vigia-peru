@@ -113,6 +113,12 @@ const POR_QUE: Record<string, string> = {
 };
 
 /** Una línea de texto por cruce, con los datos del registro: quién, de qué empresa, qué hizo y qué ganó después. */
+/** Lo que la empresa sumó después de que se convocó este proceso (no cuenta como antecedente): sólo se menciona. */
+function Despues({ n: k, uno, varios }: { n: number | null; uno: string; varios: string }) {
+  if (!k) return null;
+  return <span className="text-mute"> Después de este proceso, {numero(k)} {k === 1 ? uno : varios} más (marcadas en la evidencia).</span>;
+}
+
 function Texto({ c }: { c: CruceProveedor }) {
   const d = c.detalle;
   switch (c.tipo) {
@@ -125,6 +131,7 @@ function Texto({ c }: { c: CruceProveedor }) {
           <b>{txt(d.partido) ?? "una organización política"}</b>
           {veces && veces > 1 ? ` en ${numero(veces)} aportes` : ""}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
+          <Despues n={n(d.posteriores)} uno="aporte" varios="aportes" />
           <Gano c={c} />
         </>
       );
@@ -153,9 +160,11 @@ function Texto({ c }: { c: CruceProveedor }) {
     case "penalidad":
       return (
         <>
-          <Emp c={c} /> ya recibió <b>{numero(n(d.penalidades) ?? 0)} penalidades</b> por <b>{solesCompacto(c.montoSoles)}</b> en{" "}
+          {c.posterior ? <><Emp c={c} /> recibió</> : <>Antes de este proceso, <Emp c={c} /> ya había recibido</>}{" "}
+          <b>{numero(n(d.penalidades) ?? 0)} {n(d.penalidades) === 1 ? "penalidad" : "penalidades"}</b> por <b>{solesCompacto(c.montoSoles)}</b> en{" "}
           {numero(n(d.entidades) ?? 0)} {n(d.entidades) === 1 ? "entidad" : "entidades"}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}.
+          <Despues n={n(d.posteriores)} uno="penalidad" varios="penalidades" />
         </>
       );
     case "sancion":
@@ -245,9 +254,9 @@ function Texto({ c }: { c: CruceProveedor }) {
       const part = n(d.participacion);
       return (
         <>
-          Aparte de este, <Emp c={c} /> le ganó <b>{numero(n(d.procesos) ?? 0)} procesos</b> a esta entidad
+          Antes de este proceso, <Emp c={c} /> ya le había ganado <b>{numero(n(d.procesos) ?? 0)} procesos</b> a esta entidad
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} por {solesCompacto(c.montoSoles)}
-          {part != null ? <>: el <b>{(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b> de lo que adjudicó la entidad</> : ""}
+          {part != null ? <>: el <b>{(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b> de lo que la entidad había adjudicado hasta entonces</> : ""}
           {n(d.procesos_entidad) ? ` en ${numero(n(d.procesos_entidad)!)} procesos` : ""}.
         </>
       );
@@ -282,7 +291,7 @@ function Texto({ c }: { c: CruceProveedor }) {
       const dias = n(d.dias) ?? 1;
       return (
         <>
-          En <b>{numero(dias)}</b> {dias === 1 ? "día" : "días distintos"}
+          Antes de este proceso, en <b>{numero(dias)}</b> {dias === 1 ? "día" : "días distintos"}
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""}, esta entidad le emitió a <Emp c={c} /> varias órdenes de hasta 8 UIT
           (sin proceso de selección) que ese mismo día juntas pasaron el tope: <b>{numero(n(d.ordenes) ?? 0)} órdenes</b> por{" "}
           <b>{solesCompacto(c.montoSoles)}</b>
@@ -316,6 +325,14 @@ function Texto({ c }: { c: CruceProveedor }) {
 function Fila({ c }: { c: CruceProveedor }) {
   return (
     <li className="text-[13px] leading-relaxed text-ink">
+      <FilaContenido c={c} />
+    </li>
+  );
+}
+
+function FilaContenido({ c }: { c: CruceProveedor }) {
+  return (
+    <>
       <Texto c={c} />{" "}
       <span className="text-[12px] text-mute">
         Fuente:{" "}
@@ -329,7 +346,7 @@ function Fila({ c }: { c: CruceProveedor }) {
       </span>
       {c.tipo === "fraccionamiento" && c.ordenesDias && c.ordenesDias.length > 0 && <OrdenesFraccionadas dias={c.ordenesDias} />}
       {c.evidencia && c.evidencia.length > 0 && <EvidenciaDelCruce evidencia={c.evidencia} />}
-    </li>
+    </>
   );
 }
 
@@ -339,10 +356,14 @@ function Fila({ c }: { c: CruceProveedor }) {
  */
 function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
   const n = evidencia.reduce((s, e) => s + (e.total ?? e.filas.length), 0);
+  const despues = evidencia.reduce((s, e) => s + e.filas.filter((f) => f.posterior).length, 0);
   return (
     <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
-        <span>Ver la evidencia · {n === 1 ? "1 registro" : `${numero(n)} registros`}</span>
+        <span>
+          Ver la evidencia · {n === 1 ? "1 registro" : `${numero(n)} registros`}
+          {despues > 0 && <span className="font-normal text-mute"> · {numero(despues)} después de este proceso</span>}
+        </span>
         <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="space-y-4 border-t border-line px-3 py-3">
@@ -368,10 +389,11 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {e.filas.map((f, i) => (
-                    <tr key={i} className="align-top">
+                    <tr key={i} className={`align-top ${f.posterior ? "opacity-55" : ""}`}>
                       {e.columnas.map((col) => (
                         <td key={col.clave} className={`px-3 py-1.5 text-ink ${col.tipo === "soles" || col.tipo === "pct" ? "whitespace-nowrap text-right font-mono tabular-nums" : ""} ${col.tipo === "fecha" ? "whitespace-nowrap" : ""}`}>
                           <Celda tipo={col.tipo} valor={f[col.clave]} />
+                          {col.tipo === "fecha" && f.posterior === true && <MarcaDespues />}
                         </td>
                       ))}
                     </tr>
@@ -382,13 +404,14 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
             {/* Teléfono: un registro por tarjeta. */}
             <ul className="space-y-2 sm:hidden">
               {e.filas.map((f, i) => (
-                <li key={i} className="rounded-lg border border-line bg-paper px-3 py-2">
+                <li key={i} className={`rounded-lg border border-line bg-paper px-3 py-2 ${f.posterior ? "opacity-55" : ""}`}>
                   <dl className="space-y-1 text-[12.5px]">
                     {e.columnas.map((col) => (
                       <div key={col.clave} className="flex items-baseline justify-between gap-3">
                         <dt className="shrink-0 text-mute">{col.titulo}</dt>
                         <dd className="min-w-0 text-right text-ink">
                           <Celda tipo={col.tipo} valor={f[col.clave]} />
+                          {col.tipo === "fecha" && f.posterior === true && <MarcaDespues />}
                         </dd>
                       </div>
                     ))}
@@ -411,6 +434,11 @@ function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
       </div>
     </details>
   );
+}
+
+/** Junto a la fecha de un registro posterior a la convocatoria: no era un antecedente cuando se adjudicó. */
+function MarcaDespues() {
+  return <span className="ml-1.5 whitespace-nowrap rounded bg-paperDeep px-1.5 py-px text-[10.5px] font-medium text-inkSoft">después</span>;
 }
 
 /** Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. */
@@ -508,8 +536,11 @@ function DiaOrdenes({ d }: { d: DiaFraccionado }) {
   );
 }
 
-export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
-  if (!cruces.length) return null;
+export function CrucesProveedor({ cruces: todos, varios }: { cruces: CruceProveedor[]; varios?: boolean }) {
+  if (!todos.length) return null;
+  // Un antecedente es lo que ya había pasado cuando se convocó el proceso (migración 83); lo de después va aparte.
+  const cruces = todos.filter((c) => !c.posterior);
+  const posteriores = todos.filter((c) => c.posterior);
   // Un grupo por tipo, en orden de severidad (la más alta del grupo) y luego por cuántas filas tiene.
   const grupos = new Map<string, CruceProveedor[]>();
   for (const c of cruces) grupos.set(c.tipo, [...(grupos.get(c.tipo) ?? []), c]);
@@ -525,9 +556,15 @@ export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; 
         <Ayuda titulo="¿De dónde salen estos cruces?">
           Cruces automáticos por DNI y RUC entre el ganador (y sus socios y representantes del RNP) y los registros de la ONPE, el JNE,
           las visitas a entidades, CONOSCE, las penalidades y las sanciones del Tribunal. Son datos oficiales verificables en cada fuente: no prueban
-          por sí solos una irregularidad.
+          por sí solos una irregularidad. Sólo cuenta como antecedente lo que ya había pasado cuando se convocó el proceso; lo
+          posterior se muestra aparte.
         </Ayuda>
       </div>
+      {!cruces.length && (
+        <p className="px-4 pb-3 pt-2 text-[13px] leading-relaxed text-inkSoft">
+          Cuando se convocó este proceso, {varios ? "quienes ganaron no tenían" : "quien ganó no tenía"} antecedentes en estos registros.
+        </p>
+      )}
       <ul className="divide-y divide-line px-4 pb-1">
         {orden.map((grupo) => {
           const sev = grupo.reduce((m, x) => (ORDEN[x.severidad] < ORDEN[m] ? x.severidad : m), grupo[0].severidad);
@@ -557,6 +594,30 @@ export function CrucesProveedor({ cruces, varios }: { cruces: CruceProveedor[]; 
           );
         })}
       </ul>
+      {posteriores.length > 0 && (
+        <details className="group border-t border-line">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+            <span className="text-[13px] text-inkSoft">
+              <span className="font-semibold text-ink">Después de este proceso · {numero(posteriores.length)}</span> — no eran antecedentes
+              cuando se convocó
+            </span>
+            <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
+          </summary>
+          <div className="px-4 pb-3">
+            <p className="mb-2 text-[12.5px] leading-relaxed text-inkSoft">
+              Pasó después de la convocatoria: quien adjudicó no podía saberlo. Se muestra como contexto de la empresa, no como señal sobre
+              este proceso.
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              {[...posteriores].sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? "")).map((c, i) => (
+                <li key={i} className="text-[13px] leading-relaxed text-inkSoft">
+                  <span className="font-medium text-ink">{c.etiqueta}:</span> <FilaContenido c={c} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
     </section>
   );
 }

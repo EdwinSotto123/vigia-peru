@@ -59,6 +59,11 @@ export interface Cruce {
   ordenesDias?: DiaFraccionado[];
   /** Los registros oficiales que sostienen el cruce (lib/evidencia.ts): sin DNI ni nombres de personas naturales. */
   evidencia?: Evidencia[];
+  /**
+   * Todo lo del cruce pasó después de que se convocó este proceso (migración 83: cruce_es_antecedente): no es un
+   * antecedente; la ficha lo muestra aparte. Sólo en la ficha del contrato.
+   */
+  posterior?: boolean;
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -164,7 +169,10 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
   for (const g of await abrirConsorcios(ganadores)) if (g.proveedorRuc && /^\d{11}$/.test(g.proveedorRuc) && !porRuc.has(g.proveedorRuc)) porRuc.set(g.proveedorRuc, g);
   if (!porRuc.size) return [];
   const q = await pool.query(
-    `SELECT ${COLS} FROM cruces_proveedor
+    // `antecedente` (migración 83): lo de la empresa que ya había pasado cuando se convocó; lo demás es posterior.
+    `SELECT ${COLS}, (ocid IS NOT NULL OR cruce_es_antecedente(tipo, fecha, detalle,
+              (SELECT c.fecha_convocatoria FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto($2) LIMIT 1))) AS antecedente
+       FROM cruces_proveedor
      WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
      ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
   const crudas = q?.rows ?? [];
@@ -177,6 +185,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     const f = await pool.query(
       `SELECT f.* FROM ordenes_fraccionadas f
         WHERE f.ruc_contratista = ANY($1::text[]) AND f.entidad_ruc = (SELECT entidad_ruc FROM convocatorias WHERE ocid = $2)
+          -- Sólo los días anteriores a la convocatoria, como el cruce (migración 83).
+          AND f.fecha < COALESCE((SELECT fecha_convocatoria FROM convocatorias WHERE ocid = $2), 'infinity'::date)
         ORDER BY f.fecha DESC, f.total DESC LIMIT 500`, [conFracc, ocid]).catch(() => null);
     for (const r of f?.rows ?? []) fracc.set(r.ruc_contratista, [...(fracc.get(r.ruc_contratista) ?? []), aDia(r)]);
   }
@@ -204,7 +214,9 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),
       ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
-      ...(evidencias[i]?.length ? { evidencia: evidencias[i] } : {}),
+      ...(evidencias[i]?.length ? { evidencia: marcarPosteriores(evidencias[i], proceso.fecha) } : {}),
+      ...(crudas[i]?.antecedente === false ? { posterior: true } : {}),
+      ...soloAnteriores(c, evidencias[i], proceso.fecha),
     };
   });
 }
@@ -216,16 +228,17 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
 export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total: number; procesos: Record<string, unknown>[] }> {
   const q = await pool.query(
     `WITH g AS (
-       SELECT DISTINCT c.ocid, c.codigo, c.objeto, c.fecha_buena_pro,
+       SELECT DISTINCT c.ocid, c.codigo, c.objeto, c.fecha_buena_pro, c.fecha_convocatoria AS fconv,
               regexp_replace(s->>'id', '^PE-RUC-', '') AS ruc, s->>'name' AS proveedor,
               (aw->'value'->>'amount')::numeric AS monto
        FROM convocatorias c,
-            jsonb_array_elements(COALESCE(c.ocds_payload->'awards', '[]'::jsonb)) aw,
+            -- Los contratos de la historia traen el ganador en adjudicaciones (migración 71).
+            jsonb_array_elements(COALESCE(c.ocds_payload->'awards', c.adjudicaciones, '[]'::jsonb)) aw,
             jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
        WHERE c.entidad_ruc = $1 AND c.ocid NOT LIKE 'ocds-vigia-%'
      ), gm AS (
        -- Los consorcios (código del SEACE) se abren en sus integrantes con RUC (migración 53).
-       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, COALESCE(m.ruc_miembro, g.ruc) AS ruc,
+       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.fconv, COALESCE(m.ruc_miembro, g.ruc) AS ruc,
               COALESCE(m.miembro, g.proveedor) AS proveedor, CASE WHEN m.ruc_miembro IS NOT NULL THEN g.proveedor END AS consorcio, g.monto
        FROM g LEFT JOIN (SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro FROM conosce_consorcios
                          WHERE ruc_miembro ~ '^(10|20)[0-9]{9}$' ORDER BY ruc_consorcio, ruc_miembro, anio DESC) m
@@ -234,7 +247,9 @@ export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total:
        SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio, max(g.monto) AS monto,
               jsonb_agg(DISTINCT jsonb_build_object('tipo', k.tipo, 'severidad', k.severidad)) AS tipos,
               count(*) FILTER (WHERE k.severidad = 'alta') AS altas
-       FROM gm g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc AND (k.ocid IS NULL OR k.ocid = g.ocid)
+       -- Sólo los antecedentes: lo de la empresa que ya había pasado cuando se convocó (migración 83).
+       FROM gm g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc
+        AND (k.ocid = g.ocid OR (k.ocid IS NULL AND cruce_es_antecedente(k.tipo, k.fecha, k.detalle, g.fconv)))
        GROUP BY g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio
      )
      SELECT *, count(*) OVER () AS total FROM x ORDER BY altas DESC, fecha_buena_pro DESC NULLS LAST, ocid LIMIT $2`,
@@ -270,4 +285,39 @@ export async function fraccionamientoDeEntidad(ruc: string, limit = 50): Promise
     empresas: filas.length ? Number(filas[0].empresas) : 0,
     casos: filas.map((r) => ({ ...aDia(r), rucProveedor: r.ruc_contratista, proveedor: r.contratista, objeto: r.objeto })),
   };
+}
+
+/** Las filas de la evidencia con fecha posterior a la convocatoria llevan `posterior: true` (la ficha las atenúa). */
+function marcarPosteriores(ev: Evidencia[], fecha: string | null): Evidencia[] {
+  if (!fecha) return ev;
+  return ev.map((e) =>
+    e.columnas.some((c) => c.clave === "fecha")
+      ? { ...e, filas: e.filas.map((f) => (typeof f.fecha === "string" && f.fecha >= fecha ? { ...f, posterior: true } : f)) }
+      : e);
+}
+
+/**
+ * Penalidades y aportes de la empresa son agregados (cuántos, entre qué fechas): si parte pasó después de la
+ * convocatoria, el texto del cruce cuenta sólo lo anterior, con la evidencia completa (menos de 60 registros).
+ */
+function soloAnteriores(c: Cruce, ev: Evidencia[] | undefined, fecha: string | null): Partial<Cruce> {
+  if (!fecha || !ev?.length || !["penalidad", "aporte", "aporte_empresa"].includes(c.tipo)) return {};
+  const e = ev[0];
+  if (e.total != null && e.total > e.filas.length) return {};
+  // Sin fecha, el registro queda como anterior (la fuente no dice cuándo).
+  const despues = e.filas.filter((f) => typeof f.fecha === "string" && f.fecha >= fecha).length;
+  const antes = e.filas.filter((f) => !(typeof f.fecha === "string" && f.fecha >= fecha));
+  if (!despues) return {};
+  // Un aporte del mismo año pero posterior a la convocatoria: el cruce entero es posterior.
+  if (!antes.length) return { posterior: true };
+  const fechas = antes.map((f) => f.fecha).filter((f): f is string => typeof f === "string").sort();
+  if (!fechas.length) return {};
+  const monto = antes.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+  const detalle: Record<string, unknown> = { ...c.detalle, posteriores: despues };
+  if (c.tipo === "penalidad") {
+    Object.assign(detalle, { penalidades: antes.length, entidades: new Set(antes.map((f) => f.entidad)).size, desde: fechas[0], hasta: fechas[fechas.length - 1] });
+  } else {
+    Object.assign(detalle, { aportes: antes.length, desde: Number(fechas[0].slice(0, 4)), hasta: Number(fechas[fechas.length - 1].slice(0, 4)) });
+  }
+  return { detalle, montoSoles: monto };
 }

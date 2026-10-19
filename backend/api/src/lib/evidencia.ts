@@ -220,7 +220,8 @@ async function sanciones(f: FilaCruce): Promise<Evidencia> {
 async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | null> {
   if (!p.entidadRuc) return null;
   const r = await filas(
-    `SELECT a.codigo_convocatoria AS codigo, min(a.fecha_convocatoria) AS fecha, max(a.descripcion_proceso) AS descripcion,
+    `SELECT a.codigo_convocatoria AS codigo, min(a.fecha_convocatoria) AS fecha, min(a.fecha_buenapro) AS buenapro,
+            max(a.descripcion_proceso) AS descripcion,
             max(a.objeto) AS objeto, sum(a.monto_adjudicado) AS monto,
             (SELECT c.ocid FROM convocatorias c WHERE c.codigo = a.codigo_convocatoria AND c.entidad_ruc = $1 LIMIT 1) AS ocid,
             count(*) OVER () AS n
@@ -238,6 +239,8 @@ async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
     ],
     filas: r.map((x) => ({
       fecha: fecha(x.fecha), objeto: x.objeto, monto: num(x.monto),
+      // El cruce cuenta los que ya tenían buena pro cuando se convocó este (migración 83): los demás, marcados.
+      ...(p.fecha && fecha(x.buenapro) != null && fecha(x.buenapro)! >= p.fecha ? { posterior: true } : {}),
       proceso: { texto: x.descripcion ?? `Proceso ${x.codigo}`, url: x.ocid ? `/app/contratos/${x.ocid}` : PROCESO_OECE(String(x.codigo)) },
     })),
     total: r.length ? Number(r[0].n) : 0,

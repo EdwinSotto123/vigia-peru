@@ -156,6 +156,8 @@ export interface CruceProveedor {
   ordenesDias?: DiaFraccionado[];
   /** Los registros oficiales que sostienen el cruce (sin DNI ni nombres de personas). Falta en la API vieja. */
   evidencia?: EvidenciaCruce[];
+  /** Pasó después de que se convocó este proceso: no era un antecedente (migración 83). Sólo en la ficha. */
+  posterior?: boolean;
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
