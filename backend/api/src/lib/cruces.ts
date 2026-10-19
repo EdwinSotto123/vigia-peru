@@ -12,6 +12,7 @@
  */
 
 import { pool } from "./db.js";
+import { evidenciasDe, type Evidencia, type FilaCruce, type ProcesoCruce } from "./evidencia.js";
 
 export const ETIQUETA_CRUCE: Record<string, string> = {
   aporte: "Aportó a una organización política",
@@ -56,6 +57,8 @@ export interface Cruce {
   otrosPostores?: { ruc: string; nombre: string | null }[];
   /** fraccionamiento: cada día con sus órdenes (número, descripción, monto, estado), de ordenes_fraccionadas. */
   ordenesDias?: DiaFraccionado[];
+  /** Los registros oficiales que sostienen el cruce (lib/evidencia.ts): sin DNI ni nombres de personas naturales. */
+  evidencia?: Evidencia[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -164,7 +167,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
     `SELECT ${COLS} FROM cruces_proveedor
      WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
      ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
-  const cruces = (q?.rows ?? []).map(aCruce);
+  const crudas = q?.rows ?? [];
+  const cruces = crudas.map(aCruce);
   const otros = [...new Set(cruces.flatMap((c) => (c.tipo === "socio_comun" && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
   // Fraccionamiento: los días y sus órdenes, de la entidad de ESTE proceso (el cruce sólo trae cuántos y cuánto).
   const fracc = new Map<string, DiaFraccionado[]>();
@@ -176,13 +180,20 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
         ORDER BY f.fecha DESC, f.total DESC LIMIT 500`, [conFracc, ocid]).catch(() => null);
     for (const r of f?.rows ?? []) fracc.set(r.ruc_contratista, [...(fracc.get(r.ruc_contratista) ?? []), aDia(r)]);
   }
+  // La evidencia de cada cruce: los registros de la fuente (gastos y aportes de campaña, cargos, penalidades,
+  // sanciones, los otros procesos que ganó). Necesita la entidad, el código y la fecha de este proceso.
+  const proc = await pool.query(
+    `SELECT c.ocid, c.codigo, c.entidad_ruc::text AS "entidadRuc", e.ubigeo::text AS ubigeo, to_char(c.fecha_convocatoria, 'YYYY-MM-DD') AS fecha
+       FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc WHERE ocid_corto(c.ocid) = ocid_corto($1) LIMIT 1`, [ocid]).catch(() => null);
+  const proceso: ProcesoCruce = proc?.rows[0] ?? { ocid, codigo: null, entidadRuc: null, ubigeo: null, fecha: null };
+  const evidencias = crudas.length ? await evidenciasDe(crudas as FilaCruce[], proceso) : [];
   const nombres = new Map<string, string>();
   if (otros.length) {
     const n = await pool.query(
       `SELECT ruc_postor AS ruc, max(postor) AS nombre FROM conosce_postores WHERE ruc_postor = ANY($1::text[]) GROUP BY ruc_postor`, [otros]).catch(() => null);
     for (const r of n?.rows ?? []) nombres.set(r.ruc, r.nombre);
   }
-  return cruces.map((c) => {
+  return cruces.map((c, i) => {
     const g = porRuc.get(c.rucProveedor);
     return {
       ...c,
@@ -193,6 +204,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),
       ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
+      ...(evidencias[i]?.length ? { evidencia: evidencias[i] } : {}),
     };
   });
 }

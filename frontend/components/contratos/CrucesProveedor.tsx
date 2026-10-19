@@ -10,8 +10,11 @@ import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
 import { ListaPaginada } from "@/components/listado";
-import type { CruceProveedor, DiaFraccionado } from "@/lib/contratos";
-import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
+import Link from "next/link";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
+import type { CruceProveedor, DiaFraccionado, EvidenciaCruce } from "@/lib/contratos";
+import { tituloNatural } from "@/lib/landing";
+import { fecha, fechaCorta, numero, oracion, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { recortar } from "./recortar";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -325,8 +328,112 @@ function Fila({ c }: { c: CruceProveedor }) {
         )}
       </span>
       {c.tipo === "fraccionamiento" && c.ordenesDias && c.ordenesDias.length > 0 && <OrdenesFraccionadas dias={c.ordenesDias} />}
+      {c.evidencia && c.evidencia.length > 0 && <EvidenciaDelCruce evidencia={c.evidencia} />}
     </li>
   );
+}
+
+/**
+ * La evidencia de un cruce, plegada debajo de él: cada registro de la fuente en una tabla (en el teléfono, una tarjeta
+ * por registro), cómo verificarlo y el enlace a la fuente. Sin DNI ni nombres de personas: los trae así la API.
+ */
+function EvidenciaDelCruce({ evidencia }: { evidencia: EvidenciaCruce[] }) {
+  const n = evidencia.reduce((s, e) => s + (e.total ?? e.filas.length), 0);
+  return (
+    <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+        <span>Ver la evidencia · {n === 1 ? "1 registro" : `${numero(n)} registros`}</span>
+        <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <div className="space-y-4 border-t border-line px-3 py-3">
+        {evidencia.map((e) => (
+          <section key={e.titulo} className="space-y-2">
+            <h4 className="text-[13px] font-semibold text-ink">
+              {e.titulo}
+              {e.total != null && e.total > e.filas.length && (
+                <span className="font-normal text-mute"> · los {numero(e.filas.length)} más recientes de {numero(e.total)}</span>
+              )}
+            </h4>
+            {/* Escritorio: tabla. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-line bg-paper sm:block">
+              <table className="w-full text-left text-[12.5px]">
+                <thead className="bg-paperDeep/60 text-[11.5px] text-mute">
+                  <tr>
+                    {e.columnas.map((col) => (
+                      <th key={col.clave} scope="col" className={`px-3 py-1.5 font-medium ${col.tipo === "soles" || col.tipo === "pct" ? "text-right" : ""}`}>
+                        {col.titulo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {e.filas.map((f, i) => (
+                    <tr key={i} className="align-top">
+                      {e.columnas.map((col) => (
+                        <td key={col.clave} className={`px-3 py-1.5 text-ink ${col.tipo === "soles" || col.tipo === "pct" ? "whitespace-nowrap text-right font-mono tabular-nums" : ""} ${col.tipo === "fecha" ? "whitespace-nowrap" : ""}`}>
+                          <Celda tipo={col.tipo} valor={f[col.clave]} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Teléfono: un registro por tarjeta. */}
+            <ul className="space-y-2 sm:hidden">
+              {e.filas.map((f, i) => (
+                <li key={i} className="rounded-lg border border-line bg-paper px-3 py-2">
+                  <dl className="space-y-1 text-[12.5px]">
+                    {e.columnas.map((col) => (
+                      <div key={col.clave} className="flex items-baseline justify-between gap-3">
+                        <dt className="shrink-0 text-mute">{col.titulo}</dt>
+                        <dd className="min-w-0 text-right text-ink">
+                          <Celda tipo={col.tipo} valor={f[col.clave]} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            {(e.verificar || e.enlace) && (
+              <p className="text-[12px] leading-relaxed text-mute">
+                {e.verificar}{" "}
+                {e.enlace && (
+                  <a href={e.enlace.url} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink">
+                    {e.enlace.texto} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" />
+                  </a>
+                )}
+              </p>
+            )}
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/** Un valor de la evidencia según su columna: fecha, soles, porcentaje, enlace (interno o a la fuente) o texto. */
+function Celda({ tipo, valor }: { tipo?: EvidenciaCruce["columnas"][number]["tipo"]; valor: unknown }) {
+  if (valor == null || valor === "") return <span className="text-mute">—</span>;
+  if (tipo === "fecha") return <>{fechaCorta(String(valor))}</>;
+  if (tipo === "soles") return <>{soles(Number(valor))}</>;
+  if (tipo === "pct") {
+    const v = Number(valor);
+    return <>{porcentaje(v, { decimales: v < 1 ? 2 : 1 })}</>;
+  }
+  if (tipo === "enlace" && typeof valor === "object") {
+    const { texto, url } = valor as { texto: string; url: string };
+    const etiqueta = texto.length > 30 ? oracion(texto) : texto;
+    return url.startsWith("/") ? (
+      <Link href={url} className="text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta}</Link>
+    ) : (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" /></a>
+    );
+  }
+  const t = String(valor);
+  // Los textos de las fuentes vienen en mayúsculas: nombres cortos a título, descripciones como oración.
+  return <>{t === t.toUpperCase() ? (t.length > 60 ? oracion(t) : tituloNatural(t)) : t}</>;
 }
 
 /**
@@ -344,7 +451,7 @@ function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
           Ver {total === 1 ? "la orden" : `las ${numero(total)} órdenes`}
           {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días`}
         </span>
-        <span aria-hidden className="text-mute transition-transform group-open:rotate-180">⌄</span>
+        <ChevronDown size={14} aria-hidden className="shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="space-y-3 border-t border-line px-3 py-3">
         <p className="text-[12px] text-mute">

@@ -154,6 +154,8 @@ export interface CruceProveedor {
   consorcio?: { codigo: string; nombre: string | null } | null;
   /** fraccionamiento: cada día con sus órdenes. Falta en la API vieja. */
   ordenesDias?: DiaFraccionado[];
+  /** Los registros oficiales que sostienen el cruce (sin DNI ni nombres de personas). Falta en la API vieja. */
+  evidencia?: EvidenciaCruce[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -162,6 +164,16 @@ export interface CruceProveedor {
   visitas: { visitante: string | null; rol?: string | null; funcionario: string | null; cargoFuncionario: string | null; entidad: string | null; fecha: string | null; motivo: string | null }[];
   fuente: string;
   fuenteUrl: string | null;
+}
+
+/** La evidencia de un cruce (backend/api/src/lib/evidencia.ts): registros de la fuente, cómo verificarlos y su enlace. */
+export interface EvidenciaCruce {
+  titulo: string;
+  columnas: { clave: string; titulo: string; tipo?: "texto" | "fecha" | "soles" | "pct" | "enlace" }[];
+  filas: Record<string, unknown>[];
+  total?: number;
+  verificar?: string;
+  enlace?: { texto: string; url: string } | null;
 }
 
 /** Un día en que una entidad le emitió a una empresa varias órdenes "hasta 8 UIT" que juntas pasan el tope. */

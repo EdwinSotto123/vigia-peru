@@ -19,7 +19,7 @@ const CC_ORIGINAL = "X-Vigia-Cache-Control";
  * 2026-10-13: DNI y RUC 10 como referencias, apellidos tapados en el servidor, traza pública sin datos;
  * "4": una candidatura del JNE ya no vuelve pública a una persona; "5": las fechas ya no salen como `{}`; "6": las señales del dossier traen agente, puntua y verificada; "7": /entidades/:ruc/gasto con específicas, fuentes, meses y programas).
  */
-const VERSION_CACHE = "8";
+const VERSION_CACHE = "9";
 
 function cacheable(req: Request): boolean {
   if (req.method !== "GET") return false;
