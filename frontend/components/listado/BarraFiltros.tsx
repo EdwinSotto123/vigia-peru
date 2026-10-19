@@ -168,7 +168,7 @@ export function BarraFiltros({
               className={cn(
                 "h-10 truncate rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
                 // Ancho fijo con nombre corto: el desplegable no crece con su opción más larga y la barra cabe en una fila.
-                f.corta ? "w-[10rem]" : "max-w-[15rem]",
+                f.corta ? "w-[11.5rem]" : "max-w-[15rem]",
                 parametros[f.param] ? "border-granate font-semibold text-granate" : "border-line",
               )}
             >
