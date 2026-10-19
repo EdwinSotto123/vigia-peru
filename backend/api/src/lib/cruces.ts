@@ -32,6 +32,12 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
 };
 
+/** La etiqueta de un cruce posterior a la convocatoria, donde la de siempre diría "anteriores". */
+const ETIQUETA_POSTERIOR: Record<string, string> = {
+  penalidad: "Penalidades en otros contratos",
+  autoridad: "Fue elegido autoridad",
+};
+
 const ORDEN_SEVERIDAD = `CASE severidad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`;
 
 const ROL: Record<string, string> = {
@@ -205,6 +211,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
   }
   return cruces.map((c, i) => {
     const g = porRuc.get(c.rucProveedor);
+    const anteriores = soloAnteriores(c, evidencias[i], proceso.fecha);
+    const posterior = crudas[i]?.antecedente === false || anteriores.posterior === true;
     return {
       ...c,
       proveedor: g?.proveedor ?? null,
@@ -215,8 +223,8 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
         : {}),
       ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
       ...(evidencias[i]?.length ? { evidencia: marcarPosteriores(evidencias[i], proceso.fecha) } : {}),
-      ...(crudas[i]?.antecedente === false ? { posterior: true } : {}),
-      ...soloAnteriores(c, evidencias[i], proceso.fecha),
+      ...anteriores,
+      ...(posterior ? { posterior: true, etiqueta: ETIQUETA_POSTERIOR[c.tipo] ?? c.etiqueta } : {}),
     };
   });
 }
