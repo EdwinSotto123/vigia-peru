@@ -74,8 +74,8 @@ export default async function EntidadProfile({
   const resumenFiltrado = getResumenContratos(query);
   const resumenEntidadP = filtrada ? getResumenContratos({ entidad: ruc }) : resumenFiltrado;
   const fraccP = getFraccionamientoEntidad(ruc);
-  // Sus procesos desde 2018 (CONOSCE). En la URL con prefijo `p` (pq, panio, pobjeto, porden, ppage): las dos listas
-  // conviven en la misma página y sus filtros no deben pisarse.
+  // Sus procesos desde 2015 (CONOSCE desde 2018; antes, la API OCDS del OECE). En la URL con prefijo `p` (pq, panio,
+  // pobjeto, porden, ppage): las dos listas conviven en la misma página y sus filtros no deben pisarse.
   const uno = (k: string) => {
     const v = searchParams?.[k];
     return typeof v === "string" && v.trim() ? v.trim() : undefined;
@@ -192,7 +192,7 @@ export default async function EntidadProfile({
                   }
                 >
                   Sus convocatorias en la base de Vigía (las que puede leer), con lo leído y los antecedentes de quien ganó.
-                  Su historia completa, desde 2018, está en «Procesos desde 2018».
+                  Su historia completa, desde 2015, está en «Procesos desde 2015».
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
                   {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
@@ -210,20 +210,21 @@ export default async function EntidadProfile({
           },
           {
             clave: "procesos",
-            etiqueta: "Procesos desde 2018",
+            etiqueta: "Procesos desde 2015",
             conteo: procesos?.resumen.procesos ?? null,
             contenido: (
               <div className="space-y-4">
                 <CabeceraPestana
                   ayuda={
                     <Ayuda titulo="¿De dónde salen estos procesos?">
-                      De CONOSCE (OECE): los procesos que esta entidad adjudicó desde 2018, con su ganador y su monto. Son
-                      más que los contratos de la pestaña anterior, que son los que Vigía tiene en su base para leer (casi
-                      todos de 2026). Si un proceso también está ahí, su resumen lleva a su ficha.
+                      Los procesos que esta entidad adjudicó, con su ganador y su monto: desde 2018, de CONOSCE (OECE);
+                      de 2015 a 2017, de Contrataciones Abiertas, la API pública del mismo OECE. Son más que los contratos
+                      de la pestaña anterior, que son los que Vigía tiene en su base para leer (casi todos de 2026). Si un
+                      proceso también está ahí, su resumen lleva a su ficha.
                     </Ayuda>
                   }
                 >
-                  Todos sus procesos adjudicados desde 2018, con su ganador y su monto, según CONOSCE.
+                  Todos sus procesos adjudicados desde 2015, con su ganador y su monto, según el OECE.
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametrosProc} paramPagina="ppage">
                   <BarraFiltros
@@ -395,7 +396,7 @@ function visiblesProcesos(r: ProcesosEntidad["resumen"] | null): FiltroSecundari
 }
 
 /**
- * Cuatro cifras, cada una con su fuente dicha en su nombre: sus procesos desde 2018 (CONOSCE), sus contratos en la
+ * Cuatro cifras, cada una con su fuente dicha en su nombre: sus procesos desde 2015 (OECE), sus contratos en la
  * base de Vigía (los que se pueden leer: leídos y riesgo, del mismo resumen que la lista), los antecedentes de los
  * ganadores y su presupuesto. Antes la primera decía "contratos en el SEACE" y eran sólo los de la base de Vigía.
  */
@@ -425,8 +426,8 @@ function indicadores({
   return [
     {
       valor: historia ? numero(historia.procesos) : null,
-      etiqueta: "procesos adjudicados desde 2018",
-      contexto: historia ? `${solesCompacto(historia.montoAdjudicadoPen)} en soles, según CONOSCE` : undefined,
+      etiqueta: "procesos adjudicados desde 2015",
+      contexto: historia ? `${solesCompacto(historia.montoAdjudicadoPen)} en soles, según el OECE` : undefined,
       href: `${ruta}?seccion=procesos`,
     },
     {

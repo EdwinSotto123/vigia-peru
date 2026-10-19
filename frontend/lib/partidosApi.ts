@@ -5,7 +5,7 @@
  * municipalidad provincial o distrital, según el período electoral). Se asocia al GANADOR de la elección:
  * una vacancia o un reemplazo dentro del período no está registrado, y la pantalla lo dice.
  *
- * Desde la migración 65 hay una segunda fuente: los procesos adjudicados de CONOSCE desde 2018 (`procesos`,
+ * Desde la migración 65 hay una segunda fuente: los procesos adjudicados del OECE desde 2015 (CONOSCE desde 2018, migración 68 antes; `procesos`,
  * `historia`, `gobiernos`, getProcesosPartido), para los tres períodos. La base de Vigía (`contratos`, leídos, cola) es
  * casi toda de 2026: sola, dejaba a los períodos anteriores sin nada.
  *
@@ -168,7 +168,7 @@ export interface ProcesosPartido {
   data: ProcesoPartido[];
 }
 
-/** Los procesos de UNA entidad desde 2018 (GET /entidades/:ruc/procesos): `resumen`, sin filtros, para las cifras. */
+/** Los procesos de UNA entidad desde 2015 (GET /entidades/:ruc/procesos): `resumen`, sin filtros, para las cifras. */
 export interface ProcesosEntidad extends ProcesosPartido {
   resumen: {
     procesos: number;
@@ -215,7 +215,7 @@ export function getRankingPartidos(anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE, o
 export const getDetallePartido = (clave: string, anio: AnioGobierno = ANIO_GOBIERNO_VIGENTE) =>
   leer<DetallePartido>(`/partidos/${encodeURIComponent(clave)}?anio=${anio}`);
 
-/** Los procesos adjudicados de una entidad desde 2018 (CONOSCE), paginados y filtrados; con su resumen. */
+/** Los procesos adjudicados de una entidad desde 2015 (OECE), paginados y filtrados; con su resumen. */
 export function getProcesosEntidad(ruc: string, f: { q?: string; objeto?: string; anio?: number; orden?: "fecha" | "monto"; page?: number; size?: number } = {}) {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) if (v != null && v !== "") p.set(k, String(v));

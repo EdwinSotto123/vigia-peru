@@ -52,7 +52,7 @@ const uno = (v: string | string[] | undefined) => (typeof v === "string" && v.tr
 /**
  * /app/partidos/[clave]?anio=2018 — un partido en un período, con el esqueleto de las demás fichas (entidad, contrato):
  *   volver → nombre, período (con los otros a un clic) y cuántos gobiernos ganó → cuatro cifras → pestañas (?seccion=):
- *     · Procesos: TODOS los procesos adjudicados de sus gobiernos (CONOSCE, desde 2018), con búsqueda, nivel, región,
+ *     · Procesos: TODOS los procesos adjudicados de sus gobiernos (OECE, desde 2015), con búsqueda, nivel, región,
  *       objeto y orden, de a 20. Antes la ficha listaba las 15 entidades con más contratos de la base de Vigía (2026).
  *     · Gobiernos: TODOS los que ganó, con sus procesos y sus contratos en Vigía, filtrables.
  *     · Por mes: los procesos convocados mes a mes.
@@ -147,9 +147,9 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
                   ayuda={
                     <Ayuda titulo="¿De dónde salen estos procesos?">
                       <span className="block">
-                        De CONOSCE (OECE): los procesos adjudicados por las entidades de los gobiernos que este partido ganó,
-                        cada uno en el día en que se convocó. CONOSCE empieza en 2018: del período 2015 a 2018 sólo está ese
-                        último año.
+                        Del OECE: los procesos adjudicados por las entidades de los gobiernos que este partido ganó, cada
+                        uno en el día en que se convocó. Desde 2018 salen de CONOSCE; de 2015 a 2017, de Contrataciones
+                        Abiertas, la API pública del mismo OECE.
                       </span>
                       <span className="mt-2 block">{AVISO_PARTIDO}</span>
                     </Ayuda>
@@ -264,10 +264,7 @@ function visibles(d: DetallePartido): FiltroSecundario[] {
   ];
 }
 
-/**
- * Procesos y monto (CONOSCE), gobiernos con procesos y lo que leyó Vigía. Para el período 2015-2018 se aclara que
- * CONOSCE sólo trae 2018.
- */
+/** Procesos y monto (OECE: CONOSCE desde 2018, la API OCDS antes), gobiernos con procesos y lo que leyó Vigía. */
 function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: number, ruta: string): Indicador[] {
   const h = d.historia;
   const t = d.totales;
@@ -275,7 +272,7 @@ function indicadores(d: DetallePartido, anio: AnioGobierno, totalGobiernos: numb
     {
       valor: h ? numero(h.procesos) : null,
       etiqueta: "procesos adjudicados",
-      contexto: h ? (anio === 2014 ? "sólo 2018: CONOSCE empieza ese año" : `de ${plural(h.entidades, "entidad", "entidades")}`) : undefined,
+      contexto: h ? `de ${plural(h.entidades, "entidad", "entidades")}` : undefined,
       href: ruta + `?anio=${anio}`,
     },
     {

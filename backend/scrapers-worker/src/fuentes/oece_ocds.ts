@@ -27,8 +27,8 @@ import { ZonaIndex, resolverUbigeo } from "../ubigeo.ts";
 import type { FilaZona } from "../ubigeo.ts";
 import { CARGA, LECTURA, fechaLima, sumarDias } from "./comun.ts";
 
-const BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
-const PAGINA = 100;                        // máximo que acepta `size` en /releasesAfter
+export const BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
+export const PAGINA = 100;                        // máximo que acepta `size` en /releasesAfter
 const OCID_PREFIJO = "ocds-dgv273-seacev3-";
 const VENTANA_DIAS = 7;                    // el release sale días después del inicio del tenderPeriod
 const ESPERAS_S = [2, 5, 10, 20, 40];      // entre reintentos ante 429/5xx/timeout
@@ -57,7 +57,7 @@ export function sinEscapes(s: string): string {
   return s.replace(/\\[nrt]/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
-function partyComprador(rel: Dict): Dict {
+export function partyComprador(rel: Dict): Dict {
   for (const p of iterar(get(rel, "parties"))) {
     const roles = get(dictDe(p), "roles");
     if (contiene(roles, "buyer") || contiene(roles, "procuringEntity")) return dictDe(p);
@@ -65,7 +65,7 @@ function partyComprador(rel: Dict): Dict {
   return {};
 }
 
-function rucComprador(party: Dict): string | null {
+export function rucComprador(party: Dict): string | null {
   for (const ai of iterar(get(party, "additionalIdentifiers"))) {
     const id = esDict(ai) && Object.hasOwn(ai, "id") ? ai.id : "";
     if (get(ai, "scheme") === "PE-RUC" && Array.from(str(id)).length === 11) return str(id);
@@ -137,7 +137,7 @@ export function normalizarRelease(rel: Dict, ix: ZonaIndex): Fila | null {
  * GET con reintentos progresivos ante 429/5xx/timeouts. null si la API responde un error definitivo
  * (4xx distinto de 429), como `_get_json`.
  */
-async function obtenerJson(env: Env, url: string, params?: Record<string, string | number>): Promise<Dict | null> {
+export async function obtenerJson(env: Env, url: string, params?: Record<string, string | number>): Promise<Dict | null> {
   for (let i = 0; ; i++) {
     const pausa = ESPERAS_S[i];
     let r: Response;
@@ -279,7 +279,7 @@ export interface ResumenOcds {
   sin_match?: [string, number][];
 }
 
-function dias(desde: string, hasta: string): string[] {
+export function dias(desde: string, hasta: string): string[] {
   const out: string[] = [];
   for (let d = desde; d <= hasta; d = sumarDias(d, 1)) out.push(d);
   return out;

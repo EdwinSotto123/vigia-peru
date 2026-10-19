@@ -246,7 +246,7 @@ entidadesRouter.get("/:ruc/gasto", async (c) => {
   });
 });
 
-// ─── GET /entidades/:ruc/procesos — sus procesos adjudicados desde 2018 (CONOSCE, migración 66) ─
+// ─── GET /entidades/:ruc/procesos — sus procesos adjudicados desde 2015 (CONOSCE desde 2018, migración 66; OCDS antes, 68) ─
 // La base de Vigía (GET /contratos?entidad=) es casi toda de 2026; CONOSCE trae la historia. Un proceso por fila
 // (código de convocatoria; ítems repetidos entre años, una vez), con el ganador de mayor monto, como
 // GET /partidos/:clave/procesos. `resumen` va siempre sin filtros: las cifras de la ficha y los conteos de los filtros.
@@ -261,15 +261,25 @@ const ProcesosEntidadQuery = z.object({
 
 const PROCESOS_DE_ENTIDAD = `
   WITH a AS (SELECT DISTINCT ON (codigo_convocatoria, n_item) * FROM conosce_adjudicaciones WHERE entidad_ruc = $1
-              ORDER BY codigo_convocatoria, n_item, anio DESC)
-  SELECT a.codigo_convocatoria AS codigo, min(a.fecha_convocatoria) AS fecha, max(a.objeto) AS objeto, max(a.tipo_proceso) AS "tipoProceso",
-         max(a.nomenclatura) AS nomenclatura, max(a.descripcion_proceso) AS descripcion, max(a.entidad) AS entidad, count(*)::int AS items,
-         sum(a.monto_referencial)::float AS "montoReferencial", sum(a.monto_adjudicado)::float AS "montoAdjudicado",
-         (sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')))::float AS pen, max(a.moneda) AS moneda,
-         count(DISTINCT a.ruc_proveedor)::int AS proveedores,
-         (array_agg(a.proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS proveedor,
-         (array_agg(a.ruc_proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS "rucProveedor"
-    FROM a GROUP BY a.codigo_convocatoria`;
+              ORDER BY codigo_convocatoria, n_item, anio DESC),
+       c AS (SELECT a.codigo_convocatoria AS codigo, min(a.fecha_convocatoria) AS fecha, max(a.objeto) AS objeto, max(a.tipo_proceso) AS "tipoProceso",
+                    max(a.nomenclatura) AS nomenclatura, max(a.descripcion_proceso) AS descripcion, max(a.entidad) AS entidad, count(*)::int AS items,
+                    sum(a.monto_referencial)::float AS "montoReferencial", sum(a.monto_adjudicado)::float AS "montoAdjudicado",
+                    (sum(a.monto_adjudicado) FILTER (WHERE a.moneda IN ('Soles', 'Nuevos Soles')))::float AS pen, max(a.moneda) AS moneda,
+                    count(DISTINCT a.ruc_proveedor)::int AS proveedores,
+                    (array_agg(a.proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS proveedor,
+                    (array_agg(a.ruc_proveedor ORDER BY a.monto_adjudicado DESC NULLS LAST))[1] AS "rucProveedor"
+               FROM a GROUP BY a.codigo_convocatoria)
+  SELECT * FROM c
+  UNION ALL
+  -- Antes de 2018, de la API OCDS (migración 68): CONOSCE empieza ese año.
+  SELECT h.codigo, h.fecha_convocatoria, h.objeto, h.tipo_proceso, h.nomenclatura, h.descripcion, h.entidad, 1,
+         h.monto_referencial::float, h.monto_adjudicado::float,
+         CASE WHEN h.moneda IS NULL OR h.moneda = 'PEN' THEN h.monto_adjudicado::float END,
+         CASE COALESCE(h.moneda, 'PEN') WHEN 'PEN' THEN 'Soles' WHEN 'USD' THEN 'Dólar Norteamericano' WHEN 'EUR' THEN 'Euro' ELSE h.moneda END,
+         h.proveedores, h.proveedor, h.ruc_proveedor
+    FROM procesos_historicos h
+   WHERE h.entidad_ruc = $1 AND h.fecha_convocatoria < DATE '2018-01-01' AND NOT EXISTS (SELECT 1 FROM c WHERE c.codigo = h.codigo)`;
 
 const procesosEntidadMemo = new Memo<Record<string, unknown>>({ nombre: "entidades:procesos", ttlMs: 300_000, staleMs: 300_000, max: 500 });
 

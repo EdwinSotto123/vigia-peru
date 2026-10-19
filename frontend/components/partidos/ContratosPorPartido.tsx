@@ -8,7 +8,7 @@ import { Aviso } from "./AvisoPartido";
 
 /**
  * "Contratos por partido" en /app/partidos: TODOS los partidos de un período (antes, los 12 primeros) por los procesos
- * adjudicados de sus gobiernos (CONOSCE, desde 2018: migración 65) y, si tienen, sus contratos en la base de Vigía.
+ * adjudicados de sus gobiernos (OECE, desde 2015: migraciones 65 y 68) y, si tienen, sus contratos en la base de Vigía.
  * Antes contaba sólo la base de Vigía, que es de 2026: para 2019-2022 decía que ningún contrato se asociaba a un partido.
  * La barra mide lo adjudicado contra el partido con más. Cada fila lleva a /app/partidos/[clave]?anio=. De a 20.
  * Server-safe: llega todo como datos planos (la paginación es un componente cliente que recibe nodos ya armados).
@@ -30,7 +30,7 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
         <div className="max-w-2xl">
           <h2 id="contratos-partido-titulo" className="font-display text-2xl font-bold leading-tight text-ink">Contratos por partido</h2>
           <p className="mt-1 text-[14.5px] leading-snug text-inkSoft">
-            Los procesos adjudicados por los gobiernos de cada partido (SEACE, vía CONOSCE), cada uno con el partido que gobernaba la entidad el día en que se convocó.
+            Los procesos adjudicados por los gobiernos de cada partido (SEACE, vía el OECE), cada uno con el partido que gobernaba la entidad el día en que se convocó.
           </p>
         </div>
         {!sinNavegacion && (
@@ -61,8 +61,7 @@ export function ContratosPorPartido({ ranking, anio, sinNavegacion = false }: { 
       ) : (
         <>
           <p className="text-[13px] text-inkSoft">
-            {numero(filas.length)} partidos y movimientos, {numero(totalProcesos)} procesos, {solesCompacto(totalMonto)} adjudicados en soles
-            {anio === 2014 ? " (sólo 2018: CONOSCE empieza ese año)" : ""}.
+            {numero(filas.length)} partidos y movimientos, {numero(totalProcesos)} procesos, {solesCompacto(totalMonto)} adjudicados en soles.
           </p>
           <ListaPaginada
             tam={20}

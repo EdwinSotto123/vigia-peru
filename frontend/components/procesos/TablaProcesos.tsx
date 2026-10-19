@@ -11,7 +11,7 @@ import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 /**
  * Procesos adjudicados de CONOSCE en la `Tabla` del kit: fecha · proceso (qué se compró, entidad y lugar) · objeto ·
  * adjudicado · ganador. La usan la ficha de un partido (los de sus gobiernos, GET /partidos/:clave/procesos) y la de
- * una entidad (los suyos desde 2018, GET /entidades/:ruc/procesos); en la de la entidad no se repite la entidad en
+ * una entidad (los suyos desde 2015, GET /entidades/:ruc/procesos); en la de la entidad no se repite la entidad en
  * cada fila. Cada fila abre su resumen en el panel; si el proceso también está en la base de Vigía, el panel lleva a
  * su ficha. Paginado por URL (`paramPagina`), con los filtros de la barra. Server-safe.
  */
@@ -58,9 +58,9 @@ export function TablaProcesos({
     return filtrado ? (
       <EstadoVacio compacto titulo="Ningún proceso coincide con estos filtros">Prueba otra palabra o quita el filtro más restrictivo.</EstadoVacio>
     ) : (
-      <EstadoVacio compacto titulo={deEntidad ? "Sin procesos adjudicados desde 2018" : "Sin procesos adjudicados en este período"}>
+      <EstadoVacio compacto titulo={deEntidad ? "Sin procesos adjudicados desde 2015" : "Sin procesos adjudicados en este período"}>
         {deEntidad
-          ? "CONOSCE no registra procesos adjudicados por esta entidad desde 2018."
+          ? "El OECE no registra procesos adjudicados por esta entidad desde 2015."
           : "CONOSCE no registra procesos adjudicados por los gobiernos de este partido en estos años."}
       </EstadoVacio>
     );

@@ -42,7 +42,7 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
           <p className="etiqueta-mono text-granate">Quién gobernó el Perú</p>
           <h1 className="mt-1 font-display text-[28px] font-bold leading-tight tracking-tight text-ink sm:text-[34px]">Partidos y gobiernos</h1>
           <p className="mt-1.5 max-w-3xl text-[15px] leading-snug text-inkSoft">
-            Quién ganó cada región, provincia y distrito del país en 2014, 2018 y 2022, y qué se contrató bajo los gobiernos de cada partido desde 2018.
+            Quién ganó cada región, provincia y distrito del país en 2014, 2018 y 2022, y qué se contrató bajo los gobiernos de cada partido desde 2015.
           </p>
         </div>
         {/* Las elecciones y su mandato, de un vistazo: lo que hay cargado y lo que falta. */}
