@@ -110,7 +110,9 @@ export default async function ContratoPage({
                 total: r.total,
                 leidos: r.total - (r.porRiesgo.sin_analizar ?? 0),
                 conSenales: (r.porRiesgo.alto ?? 0) + (r.porRiesgo.medio ?? 0),
-                esperando: r.porOperativo.en_cola ?? 0,
+                // De los no leídos (la API vieja sólo trae porOperativo, que cuenta también a los leídos).
+                esperando: (r.porOperativoSinLeer ?? r.porOperativo).en_cola ?? 0,
+                listos: r.porOperativoSinLeer?.documentos_listos ?? 0,
               }
             : null,
         )

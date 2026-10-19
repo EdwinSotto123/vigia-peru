@@ -83,7 +83,7 @@ export function ContratoDetalle({
   /** Otros contratos de la misma entidad (solo en fichas cortas): hasta 5 y el total de la entidad. */
   relacionados?: Llega<{ contratos: ContratoResumen[]; total: number } | null>;
   /** Cifras de la entidad que contrata (publicados, leídos, riesgo medio o alto, esperando lectura). */
-  entidadEnVigia?: Llega<{ total: number; leidos: number; conSenales: number; esperando: number } | null>;
+  entidadEnVigia?: Llega<{ total: number; leidos: number; conSenales: number; esperando: number; listos?: number } | null>;
   /** Contratos del mismo tipo en la misma provincia, de otras entidades (con qué comparar este). */
   parecidos?: Llega<{ contratos: ContratoResumen[]; total: number; provincia: string | null } | null>;
   /** La pestaña abierta al cargar (`?seccion=` de la URL). */

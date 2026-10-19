@@ -9,8 +9,9 @@
 import type { ReactNode } from "react";
 import { Ayuda } from "@/components/patrones";
 import { Badge } from "@/components/ui/Badge";
-import type { CruceProveedor } from "@/lib/contratos";
-import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
+import { ListaPaginada } from "@/components/listado";
+import type { CruceProveedor, DiaFraccionado } from "@/lib/contratos";
+import { fecha, fechaCorta, numero, oracion, soles, solesCompacto } from "@/lib/formato";
 import { recortar } from "./recortar";
 
 const VARIANTE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
@@ -323,7 +324,74 @@ function Fila({ c }: { c: CruceProveedor }) {
           FUENTE[c.fuente] ?? c.fuente
         )}
       </span>
+      {c.tipo === "fraccionamiento" && c.ordenesDias && c.ordenesDias.length > 0 && <OrdenesFraccionadas dias={c.ordenesDias} />}
     </li>
+  );
+}
+
+/**
+ * Fraccionamiento: las órdenes de cada día, que el texto sólo cuenta. Plegado debajo del cruce; cada día con lo que
+ * suman contra el tope (una barra con la marca del tope) y sus órdenes: descripción, número, estado y monto. Con más
+ * de cuatro días, paginado.
+ */
+function OrdenesFraccionadas({ dias }: { dias: DiaFraccionado[] }) {
+  const total = dias.reduce((s, d) => s + d.ordenes, 0);
+  const bloques = dias.map((d, i) => ({ id: `${d.fecha}-${i}`, contenido: <DiaOrdenes d={d} /> }));
+  return (
+    <details className="group mt-2 rounded-xl border border-line bg-paperSoft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-granate [&::-webkit-details-marker]:hidden">
+        <span>
+          Ver {total === 1 ? "la orden" : `las ${numero(total)} órdenes`}
+          {dias.length === 1 ? ` del ${fechaCorta(dias[0].fecha)}` : ` de los ${numero(dias.length)} días`}
+        </span>
+        <span aria-hidden className="text-mute transition-transform group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="border-t border-line px-3 py-3">
+        {bloques.length > 4 ? (
+          <ListaPaginada items={bloques} tam={4} nombre="días" className="space-y-4" />
+        ) : (
+          <ul className="space-y-4">
+            {bloques.map((b) => (
+              <li key={b.id}>{b.contenido}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function DiaOrdenes({ d }: { d: DiaFraccionado }) {
+  // La barra es lo que suman; la marca, dónde queda el tope (siempre adentro: suman más que el tope).
+  const marca = d.totalSoles > 0 ? Math.min(100, (d.topeSoles / d.totalSoles) * 100) : 100;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[13px]">
+        <span className="font-semibold text-ink">{fecha(d.fecha)}</span>
+        <span className="text-inkSoft">
+          {numero(d.ordenes)} órdenes · <b className="font-mono tabular-nums text-ink">{soles(d.totalSoles)}</b>
+          {d.mismaDescripcion && <span className="text-amberTexto"> · misma descripción</span>}
+        </span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-granate/70" role="img" aria-label={`Suman ${soles(d.totalSoles)}; el tope es ${soles(d.topeSoles)}`}>
+        <span aria-hidden className="absolute -top-1 bottom-[-4px] w-0.5 bg-ink" style={{ left: `${marca}%` }} />
+      </div>
+      <p className="text-[11px] text-mute">La marca es el tope de 8 UIT: {soles(d.topeSoles)}.</p>
+      <ol className="divide-y divide-line rounded-lg border border-line bg-paper">
+        {d.detalle.map((o, i) => (
+          <li key={`${o.orden}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-[13px]">
+            <div className="min-w-0">
+              <p className="text-ink">{o.descripcion ? oracion(o.descripcion) : "Sin descripción"}</p>
+              <p className="mt-0.5 font-mono text-[11px] text-mute" translate="no">
+                {o.orden}
+                {o.estado ? <span className="font-sans"> · {o.estado.charAt(0) + o.estado.slice(1).toLowerCase()}</span> : null}
+              </p>
+            </div>
+            <span className="font-mono tabular-nums text-ink">{soles(o.montoSoles)}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

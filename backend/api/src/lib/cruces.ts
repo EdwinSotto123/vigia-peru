@@ -54,6 +54,8 @@ export interface Cruce {
   consorcio?: { codigo: string; nombre: string | null } | null;
   /** socio_comun: los otros postores del proceso con el mismo socio, con su razón social. */
   otrosPostores?: { ruc: string; nombre: string | null }[];
+  /** fraccionamiento: cada día con sus órdenes (número, descripción, monto, estado), de ordenes_fraccionadas. */
+  ordenesDias?: DiaFraccionado[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -95,6 +97,26 @@ export function aCruce(r: Record<string, any>): Cruce {
     visitas,
     fuente: r.fuente,
     fuenteUrl: r.fuente_url ?? null,
+  };
+}
+
+export interface DiaFraccionado {
+  fecha: string | null;
+  ordenes: number;
+  totalSoles: number;
+  topeSoles: number;
+  mismaDescripcion: boolean;
+  severidad: string;
+  detalle: { orden: string; montoSoles: number; descripcion: string | null; estado: string | null }[];
+}
+
+/** Una fila de ordenes_fraccionadas para la API (la ficha del contrato y la de la entidad). */
+function aDia(r: Record<string, any>): DiaFraccionado {
+  return {
+    fecha: fecha(r.fecha), ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,
+    severidad: r.severidad,
+    detalle: (r.detalle as { orden: string; monto: number; descripcion: string | null; estado: string | null }[])
+      .map((o) => ({ orden: o.orden, montoSoles: Number(o.monto), descripcion: o.descripcion, estado: o.estado })),
   };
 }
 
@@ -144,6 +166,16 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
      ORDER BY ${ORDEN_SEVERIDAD}, tipo, fecha DESC NULLS LAST LIMIT 200`, [[...porRuc.keys()], ocid]).catch(() => null);
   const cruces = (q?.rows ?? []).map(aCruce);
   const otros = [...new Set(cruces.flatMap((c) => (c.tipo === "socio_comun" && Array.isArray(c.detalle.otros_postores) ? c.detalle.otros_postores as string[] : [])))];
+  // Fraccionamiento: los días y sus órdenes, de la entidad de ESTE proceso (el cruce sólo trae cuántos y cuánto).
+  const fracc = new Map<string, DiaFraccionado[]>();
+  const conFracc = [...new Set(cruces.filter((c) => c.tipo === "fraccionamiento").map((c) => c.rucProveedor))];
+  if (conFracc.length) {
+    const f = await pool.query(
+      `SELECT f.* FROM ordenes_fraccionadas f
+        WHERE f.ruc_contratista = ANY($1::text[]) AND f.entidad_ruc = (SELECT entidad_ruc FROM convocatorias WHERE ocid = $2)
+        ORDER BY f.fecha DESC, f.total DESC LIMIT 500`, [conFracc, ocid]).catch(() => null);
+    for (const r of f?.rows ?? []) fracc.set(r.ruc_contratista, [...(fracc.get(r.ruc_contratista) ?? []), aDia(r)]);
+  }
   const nombres = new Map<string, string>();
   if (otros.length) {
     const n = await pool.query(
@@ -160,6 +192,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       ...(c.tipo === "socio_comun"
         ? { otrosPostores: ((c.detalle.otros_postores as string[] | undefined) ?? []).map((ruc) => ({ ruc, nombre: nombres.get(ruc) ?? null })) }
         : {}),
+      ...(c.tipo === "fraccionamiento" ? { ordenesDias: fracc.get(c.rucProveedor) ?? [] } : {}),
     };
   });
 }
@@ -223,12 +256,6 @@ export async function fraccionamientoDeEntidad(ruc: string, limit = 50): Promise
     total: filas.length ? Number(filas[0].n) : 0,
     montoTotal: filas.length ? Number(filas[0].monto_total) : 0,
     empresas: filas.length ? Number(filas[0].empresas) : 0,
-    casos: filas.map((r) => ({
-      fecha: fecha(r.fecha), rucProveedor: r.ruc_contratista, proveedor: r.contratista, objeto: r.objeto,
-      ordenes: r.ordenes, totalSoles: Number(r.total), topeSoles: Number(r.tope), mismaDescripcion: r.misma_descripcion,
-      severidad: r.severidad,
-      detalle: (r.detalle as { orden: string; monto: number; descripcion: string | null; estado: string | null }[])
-        .map((o) => ({ orden: o.orden, montoSoles: Number(o.monto), descripcion: o.descripcion, estado: o.estado })),
-    })),
+    casos: filas.map((r) => ({ ...aDia(r), rucProveedor: r.ruc_contratista, proveedor: r.contratista, objeto: r.objeto })),
   };
 }

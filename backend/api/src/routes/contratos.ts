@@ -18,7 +18,7 @@
  *         score (score público DESC NULLS LAST, fecha DESC, alta DESC, ocid DESC).
  *       (alto/medio/bajo y `score` solo cuentan alertas PUBLICADAS; una alerta en revisión humana o
  *        descartada sale con score/banderas = null y riesgo en_revision/descartado — lib/publicacion.ts)
- *   GET /contratos/resumen?…  → { total, porTipo, porOperativo, porRiesgo, porTipoRiesgo }
+ *   GET /contratos/resumen?…  → { total, porTipo, porOperativo, porRiesgo, porOperativoSinLeer, porTipoRiesgo }
  *   GET /contratos/geo?nivel=distrito|provincia|departamento&ubigeo=15&tipo=&etapa=&riesgo=
  *       → { nivel, data: { ubigeo, nombre, nivel, lat, lon, total, sinAnalizar, pendientes, enProceso, procesados,
  *                          conSenales, enCola, documentosListos, enRevision, montoPen }[] }
@@ -197,11 +197,19 @@ contratosRouter.get("/resumen", async (c) => {
     fila[r] = (fila[r] ?? 0) + celda.n;
   }
   const total = celdas.reduce((s, celda) => s + (pasa(celda, null) ? celda.n : 0), 0);
+  // El estado operativo de los que Vigía aún no leyó: en cola, con documentos o sin ellos suman, con los leídos, el
+  // total (porOperativo cuenta también a los leídos, que siguen "en cola" por su tipo y etapa).
+  const porOperativoSinLeer: Record<string, number> = {};
+  for (const celda of celdas) {
+    if (!pasa(celda, null) || celda.riesgo !== "sin_analizar") continue;
+    const k = celda.operativo ?? "sin_clasificar";
+    porOperativoSinLeer[k] = (porOperativoSinLeer[k] ?? 0) + celda.n;
+  }
   const [porCruces, porLectura] = await Promise.all([
     crucesMemo.obtener(JSON.stringify({ ...q, cruces: undefined }), () => contarCruces(q)).catch(() => null),
     lecturaMemo.obtener(JSON.stringify({ ...q, lectura: undefined, riesgo: undefined }), () => contarLectura(q)).catch(() => null),
   ]);
-  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porTipoRiesgo, porCruces, porLectura }, CACHE_LISTA);
+  return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura }, CACHE_LISTA);
 });
 
 const crucesMemo = new Memo<{ con: number; alta: number }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });

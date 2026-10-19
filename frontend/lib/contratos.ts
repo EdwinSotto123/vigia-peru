@@ -152,6 +152,8 @@ export interface CruceProveedor {
   otrosPostores?: { ruc: string; nombre: string | null }[];
   /** El ganador es un consorcio y el cruce es de este integrante. */
   consorcio?: { codigo: string; nombre: string | null } | null;
+  /** fraccionamiento: cada día con sus órdenes. Falta en la API vieja. */
+  ordenesDias?: DiaFraccionado[];
   ocid: string | null;
   fecha: string | null;
   montoSoles: number | null;
@@ -160,6 +162,17 @@ export interface CruceProveedor {
   visitas: { visitante: string | null; rol?: string | null; funcionario: string | null; cargoFuncionario: string | null; entidad: string | null; fecha: string | null; motivo: string | null }[];
   fuente: string;
   fuenteUrl: string | null;
+}
+
+/** Un día en que una entidad le emitió a una empresa varias órdenes "hasta 8 UIT" que juntas pasan el tope. */
+export interface DiaFraccionado {
+  fecha: string | null;
+  ordenes: number;
+  totalSoles: number;
+  topeSoles: number;
+  mismaDescripcion: boolean;
+  severidad: string;
+  detalle: { orden: string; montoSoles: number; descripcion: string | null; estado: string | null }[];
 }
 
 /** GET /entidades/:ruc/fraccionamiento: órdenes "hasta 8 UIT" a una misma empresa en un día que juntas pasan el tope. */
@@ -615,6 +628,8 @@ export interface ResumenContratos {
   porTipo: Partial<Record<TipoContrato | "sin_clasificar", number>>;
   porOperativo: Partial<Record<EstadoOperativo, number>>;
   porRiesgo: Partial<Record<GrupoResumen, number>>;
+  /** El estado operativo de los aún no leídos (sin los leídos, que porOperativo también cuenta). Falta en la API vieja. */
+  porOperativoSinLeer?: Partial<Record<EstadoOperativo, number>> | null;
   /** Contratos cuyo ganador tiene cruces (y uno grave), con los demás filtros. Falta en la API vieja. */
   porCruces?: { con: number; alta: number } | null;
   /** Conteos de "¿Lo leyó Vigía?" con los demás filtros. Falta en la API vieja. */

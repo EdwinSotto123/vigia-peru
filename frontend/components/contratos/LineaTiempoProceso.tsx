@@ -1,51 +1,100 @@
 import { dia } from "./EvidenciaContrato";
-import { fechaCorta } from "@/lib/formato";
+import { fechaCorta, plural } from "@/lib/formato";
+import { cn } from "@/lib/utils";
 import type { ContratoDetalle } from "@/lib/contratos";
 
 /**
- * Los hitos del proceso con fecha, en orden: convocatoria, buena pro, adjudicaciones del registro y,
- * si Vigía lo leyó, cuándo. Solo lo que el registro trae (nada se calcula ni se estima); con menos de
- * dos hitos no se dibuja. Server-safe.
+ * Los hitos del proceso con fecha, en orden: convocatoria, buena pro, adjudicaciones del registro y, si Vigía lo leyó,
+ * cuándo. Una placa con los hitos unidos por una línea y, en cada uno, cuántos días pasaron desde el anterior; los del mismo día van
+ * juntos ("Buena pro y adjudicación"). Arriba, cuánto tardó de la convocatoria a la buena pro. Solo lo que el registro
+ * trae (nada se estima); con menos de dos hitos no se dibuja. Server-safe.
  */
 interface Hito {
   fecha: string;
-  texto: string;
-  detalle?: string;
+  textos: string[];
+  vigia: boolean;
 }
 
+const DIA_MS = 86_400_000;
+const dias = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / DIA_MS);
+
 export function LineaTiempoProceso({ c }: { c: ContratoDetalle }) {
-  const hitos: Hito[] = [];
-  const agregar = (valor: string | null | undefined, texto: string) => {
+  const crudos: { fecha: string; texto: string; vigia?: boolean }[] = [];
+  const agregar = (valor: string | null | undefined, texto: string, vigia = false) => {
     const d = valor ? dia(valor) : null;
-    if (d) hitos.push({ fecha: d, texto });
+    if (d) crudos.push({ fecha: d, texto, vigia });
   };
   agregar(c.fecha, "Convocatoria");
   agregar(c.fechaBuenaPro, "Buena pro");
   for (const a of c.adjudicaciones ?? []) agregar(a.fecha, "Adjudicación");
-  if (c.alerta && c.alerta.estado !== "revision") agregar(c.alerta.analizadoEn, "Leído por Vigía");
-  const vistos = new Set<string>();
-  const unicos = hitos
-    .filter((h) => {
-      const k = `${h.fecha}|${h.texto}`;
-      if (vistos.has(k)) return false;
-      vistos.add(k);
-      return true;
-    })
-    .sort((a, b) => a.fecha.localeCompare(b.fecha));
-  if (unicos.length < 2) return null;
+  if (c.alerta && c.alerta.estado !== "revision") agregar(c.alerta.analizadoEn, "Leído por Vigía", true);
+
+  // Un hito por día, con sus textos sin repetir.
+  const porDia = new Map<string, Hito>();
+  for (const h of crudos) {
+    const x = porDia.get(h.fecha) ?? { fecha: h.fecha, textos: [], vigia: false };
+    if (!x.textos.includes(h.texto)) x.textos.push(h.texto);
+    x.vigia ||= !!h.vigia;
+    porDia.set(h.fecha, x);
+  }
+  const hitos = [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (hitos.length < 2) return null;
+
+  const conv = dia(c.fecha);
+  const bp = dia(c.fechaBuenaPro);
+  const hastaBuenaPro = conv && bp && bp >= conv ? dias(conv, bp) : null;
+
   return (
-    <section aria-labelledby="linea-tiempo" className="space-y-1.5">
-      <h2 id="linea-tiempo" className="text-[13px] font-semibold text-ink">
-        Línea de tiempo
-      </h2>
-      <ol className="space-y-1 border-l-2 border-line pl-3">
-        {unicos.map((h, i) => (
-          <li key={`${h.texto}-${i}`} className="flex items-baseline justify-between gap-3 text-[13px]">
-            <span className="text-inkSoft">{h.texto}</span>
-            <span className="font-mono tabular-nums text-ink">{fechaCorta(h.fecha)}</span>
-          </li>
-        ))}
+    <section aria-labelledby="linea-tiempo" className="rounded-2xl border border-line bg-paper px-4 py-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <h2 id="linea-tiempo" className="text-[15px] font-semibold text-ink">
+          Línea de tiempo
+        </h2>
+        {hastaBuenaPro !== null && (
+          <span className="text-[12px] text-mute">
+            {hastaBuenaPro === 0 ? "buena pro el mismo día" : `${plural(hastaBuenaPro, "día", "días")} hasta la buena pro`}
+          </span>
+        )}
+      </div>
+      <ol className="mt-3">
+        {hitos.map((h, i) => {
+          const ultimo = i === hitos.length - 1;
+          const salto = i === 0 ? null : dias(hitos[i - 1].fecha, h.fecha);
+          return (
+            <li key={h.fecha} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-3">
+              {/* El punto del hito y, hasta el siguiente, la línea que los une. */}
+              <span aria-hidden className="relative flex justify-center">
+                <span
+                  className={cn(
+                    "relative z-10 mt-1 h-3 w-3 rounded-full border-2",
+                    h.vigia ? "border-granate bg-granate" : "border-granate bg-paper",
+                  )}
+                />
+                {!ultimo && <span className="absolute bottom-0 top-4 w-0.5 bg-line" />}
+              </span>
+              <div className={cn("min-w-0", !ultimo && "pb-3")}>
+                <div className="flex items-baseline justify-between gap-3 text-[13px]">
+                  <span className={cn("font-medium", h.vigia ? "text-granate" : "text-ink")}>{unir(h.textos)}</span>
+                  <time dateTime={h.fecha} className="shrink-0 font-mono text-[12px] tabular-nums text-inkSoft">
+                    {fechaCorta(h.fecha)}
+                  </time>
+                </div>
+                {salto !== null && salto > 0 && (
+                  <span className="mt-1 inline-block rounded-full bg-paperDeep px-2 py-0.5 text-[11px] text-mute">
+                    {plural(salto, "día", "días")} después
+                  </span>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
+}
+
+/** "Buena pro", "Buena pro y adjudicación": el primero con mayúscula, los demás en minúscula. */
+function unir(textos: string[]): string {
+  const t = textos.map((x, i) => (i === 0 ? x : x.charAt(0).toLocaleLowerCase("es") + x.slice(1)));
+  return t.length <= 1 ? t.join("") : `${t.slice(0, -1).join(", ")} y ${t[t.length - 1]}`;
 }
