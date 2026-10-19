@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
+import { BotonModo } from "@/components/ui/BotonModo";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { BuscarGlobal } from "@/components/BuscarGlobal";
@@ -288,7 +289,8 @@ export function DashboardSidebar() {
           <Link href="/" prefetch={false} aria-label="Vigía Perú, ir al inicio" className="ml-1 rounded-lg">
             <Marca tamano="sm" />
           </Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <BotonModo />
             {/* La barra lateral ya escucha Ctrl+K: esta instancia sólo pone el botón. */}
             <BuscarGlobal variant="boton" atajo={false} />
           </div>
@@ -414,6 +416,7 @@ export function DashboardSidebar() {
             )}
             {/* Un solo menú de usuario: Mi impacto, Configuración y Salir (o Entrar). */}
             <UserMenu variant="sidebar" />
+            <BotonModo conTexto className="w-full" />
             <div className="flex flex-col">
               <Link
                 href="/preguntas"
@@ -491,7 +494,7 @@ function SidebarLink({
                 ? "bg-paper/15 text-paper"
                 : "bg-granate-soft text-granate"
               : dorado
-              ? "bg-maiz text-[#0B0F0F] shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
+              ? "bg-maiz text-[rgb(var(--sobre-maiz))] shadow-[0_0_0_2px_theme(colors.maiz.soft)]"
               : active
               ? "bg-acento text-paper"
               : "bg-acento/10 text-acento-texto group-hover:bg-acento/20",

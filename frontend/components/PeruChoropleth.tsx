@@ -1,11 +1,12 @@
 "use client";
 
+import { useModo } from "@/lib/modo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { geoMercator, geoPath } from "d3-geo";
 import type { Feature } from "geojson";
 import { ContratoPin } from "./contratos/ContratoPin";
-import { nivelDeEtiqueta, tintaSobre, SIN_DATO, SIN_DATO_TRAMA } from "./mapa/escala";
+import { nivelDeEtiqueta, paletaMapa, tintaSobre } from "./mapa/escala";
 import { nombreDepartamento } from "./mapa/region-match";
 import { colocarEtiquetas, posicionesEnEspiral } from "./mapa/geometria";
 import { useGeoPeru, type DeptFeature, type ProvFeature } from "./mapa/useGeoPeru";
@@ -21,13 +22,22 @@ const VB_H = 700;
  * lugar y con el nombre de su token de tailwind.config. Neutros cálidos: los
  * grises fríos que había (#E7EAEE, #D2D7DE, #5B6B7A) eran de otra paleta.
  */
-const COLOR = {
+const COLOR_NOCHE = {
   ink: "#E7F0EE",
   paper: "#0B0F0F",
   paperDeep: "#192121",
   paperEdge: "#2C3939",
   mute: "#8FA3A0",
   granate: "#D4FF3F",
+} as const;
+/** Modo día (lib/modo.ts): los mismos roles con los valores claros de globals.css. */
+const COLOR_DIA = {
+  ink: "#111817",
+  paper: "#FFFFFF",
+  paperDeep: "#ECF1EF",
+  paperEdge: "#BECAC7",
+  mute: "#5E6E6B",
+  granate: "#2F6B10",
 } as const;
 
 export interface MapPoint {
@@ -132,6 +142,9 @@ export function PeruChoropleth({
   pulsos,
   ola = 0,
 }: PeruChoroplethProps) {
+  const modo = useModo();
+  const COLOR = modo === "dia" ? COLOR_DIA : COLOR_NOCHE;
+  const { sinDato: SIN_DATO, trama: SIN_DATO_TRAMA } = paletaMapa(modo);
   const router = useRouter();
   const [focoPunto, setFocoPunto] = useState<string | null>(null);
   const [reducido, setReducido] = useState(false);

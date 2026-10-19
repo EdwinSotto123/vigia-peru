@@ -11,6 +11,7 @@ import { BuscarGlobal } from "./BuscarGlobal";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
 import { LinkIntencion } from "@/components/ui/LinkIntencion";
+import { BotonModo } from "@/components/ui/BotonModo";
 
 /**
  * Rutas donde el Header pasa a modo "dashboard": minimal, porque el sidebar manda.
@@ -143,6 +144,7 @@ export function Header() {
         {showNav && <NavDeslizante pathname={pathname} oscuro={oscuro} leyendo={leyendo} />}
 
         <div className="flex items-center gap-2">
+          <BotonModo className={oscuro ? "border-paper/15 bg-transparent text-paper hover:bg-paper/10" : undefined} />
           {!isAuth && <BuscarGlobal variant="boton" />}
           {/* En /login y /signup el botón "Entrar" llevaba a la misma página. */}
           {!isAuth && <UserMenu />}
@@ -160,7 +162,8 @@ export function Header() {
                 aria-hidden
                 className={cn("motion-safe:group-hover:animate-latir", oscuro ? "fill-ink text-ink" : "fill-paper text-paper")}
               />
-              Financiar una auditoría
+              {/* Con el botón de modo día / noche, el texto completo sólo entra desde 2xl. */}
+              Financiar<span className="hidden 2xl:inline"> una auditoría</span>
             </Link>
           )}
           {showNav && (
@@ -314,8 +317,8 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
           >
             {"dorado" in n && n.dorado ? (
               // Pastilla de maíz con texto tinta (legible sobre claro y sobre oscuro).
-              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-[#0B0F0F] shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
-                <Crown size={13} aria-hidden className="text-[#0B0F0F]" />
+              <span className="-mx-1 inline-flex items-center gap-1 rounded-full bg-maiz px-2.5 py-1 font-semibold text-[rgb(var(--sobre-maiz))] shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)] transition-colors duration-rapido group-hover:bg-maiz/90">
+                <Crown size={13} aria-hidden className="text-[rgb(var(--sobre-maiz))]" />
                 {n.label}
               </span>
             ) : (

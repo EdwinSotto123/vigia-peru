@@ -48,6 +48,13 @@
   --moss-texto: 98 232 173;
   --clay-texto: 240 164 118;
   --crimson-texto: 255 139 126;
+
+  /* La firma (Marca, OjoPixel) y el texto sobre un relleno maiz: cada contexto los redefine (modo día, bandas). */
+  --marca-texto: 231 240 238;
+  --marca-acento: 212 255 63;
+  --marca-pupila: 255 255 255;
+  --marca-nota: 143 163 160;
+  --sobre-maiz: 11 15 15;
 }
 
 /* ── Color por intención (2026-10) ─────────────────────────────────────────
@@ -167,6 +174,120 @@
   --clay-texto: 138 79 30;
 }
 
+/* ── Modo día (2026-10-19) ────────────────────────────────────────────────
+   `<html data-modo="dia">` (lib/modo.ts, botón BotonModo): fondo claro, texto oscuro y verde profundo en vez del
+   lima neón. Mismos roles que arriba, así ningún componente cambia: `bg-paper` sigue siendo "el fondo", `text-ink`
+   "el texto", `bg-granate` "la acción principal". Pares texto/fondo AA: mute 5,1:1 sobre paper, granate 6,5:1 con
+   texto blanco y sobre blanco. Las bandas de marca (.sobre-oscuro, bg-ink) pasan de carbón a verde bosque, con el
+   lima pálido como acento: siguen marcando la sección sin volver a lo oscuro ni al neón. */
+html[data-modo="dia"] {
+  color-scheme: light;
+
+  --paper: 246 248 247;       /* #F6F8F7  fondo de la página */
+  --paper-soft: 255 255 255;  /* #FFFFFF  tarjetas y paneles */
+  --paper-deep: 236 241 239;  /* #ECF1EF  campos, filtros, hundidos */
+  --paper-edge: 190 202 199;  /* #BECAC7  borde marcado */
+  --line: 220 228 226;        /* #DCE4E2  borde por defecto */
+
+  --ink: 17 24 23;            /* #111817  principal  · 17:1 */
+  --ink-soft: 55 68 66;       /* #374442  secundario · 10:1 */
+  --mute: 94 110 107;         /* #5E6E6B  terciario  · 5,1:1 */
+
+  --granate: 47 107 16;       /* #2F6B10  verde profundo: botón con texto blanco 6,5:1 */
+  --granate-50: 242 248 234;
+  --granate-soft: 226 240 204;
+  --granate-200: 178 214 130;
+  --granate-300: 120 170 60;
+  --granate-400: 76 135 30;
+  --granate-500: 36 86 10;    /* hover del texto verde: más oscuro */
+  --granate-700: 38 90 12;
+  --granate-deep: 33 79 10;   /* hover de un botón verde */
+  --granate-900: 22 58 30;    /* #163A1E  banda de marca (pie) */
+  --maiz: 47 107 16;
+  --maiz-soft: 226 240 204;
+
+  --rust: 196 43 31;          /* #C42B1F */
+  --amber: 176 108 0;         /* #B06C00 */
+  --amber-soft: 254 243 214;
+  --crimson: 196 43 31;
+  --crimson-soft: 253 232 229;
+  --moss: 22 140 90;
+  --clay: 176 88 38;
+  --amber-texto: 138 90 21;   /* #8A5A15  6,2:1 */
+  --moss-texto: 21 110 70;    /* #156E46  6,1:1 */
+  --clay-texto: 150 75 25;
+  --crimson-texto: 160 32 24; /* #A02018  7,4:1 */
+
+  --acento: 47 107 16;
+  --acento-soft: 236 245 224;
+  --acento-borde: 170 205 130;
+  --acento-texto: 17 24 23;
+  --acento-cifra: 17 24 23;
+
+  --marca-texto: 17 24 23;
+  --marca-acento: 47 107 16;
+  --marca-pupila: 22 58 30;
+  --marca-nota: 94 110 107;
+  --sobre-maiz: 255 255 255;
+}
+html[data-modo="dia"] [data-intencion="explorar"] {
+  --acento: 37 99 200;         /* #2563C8 */
+  --acento-soft: 232 240 252;
+  --acento-borde: 160 190 235;
+  --acento-texto: 29 78 160;   /* 7,9:1 */
+  --acento-cifra: 29 78 160;
+}
+html[data-modo="dia"] [data-intencion="alertas"] {
+  --acento: 200 50 40;
+  --acento-soft: 252 235 233;
+  --acento-borde: 235 170 162;
+  --acento-texto: 168 36 26;   /* 6,9:1 */
+}
+html[data-modo="dia"] [data-intencion="participar"] {
+  --acento: 47 107 16;
+  --acento-soft: 236 245 224;
+  --acento-borde: 170 205 130;
+  --acento-texto: 38 90 12;
+  --acento-cifra: 38 90 12;
+}
+html[data-modo="dia"] [data-intencion="cuenta"] {
+  --acento: 110 80 200;
+  --acento-soft: 240 236 252;
+  --acento-borde: 190 175 240;
+  --acento-texto: 90 60 170;
+  --acento-cifra: 90 60 170;
+}
+html[data-modo="dia"] [data-intencion="admin"] {
+  --acento: 47 107 16;
+  --acento-soft: 236 245 224;
+  --acento-borde: 170 205 130;
+  --acento-texto: 38 90 12;
+  --acento-cifra: 17 24 23;
+}
+/* Bandas de marca en modo día: verde bosque en vez de carbón; el acento sobre ellas, lima pálido (no neón). */
+html[data-modo="dia"] :is(.bg-ink, .bg-granate-deep, .sobre-oscuro) {
+  --ink: 22 58 30;            /* #163A1E  el fondo de la banda */
+  --granate-deep: 22 58 30;
+  --granate-900: 22 58 30;
+  --maiz: 214 240 160;        /* #D6F0A0 */
+  --maiz-soft: 236 248 210;
+  --marca-texto: 241 248 238;
+  --marca-acento: 214 240 160;
+  --marca-pupila: 255 255 255;
+  --marca-nota: 190 210 196;
+  --sobre-maiz: 22 58 30;
+}
+/* La franja de puntos de la cabecera y el pie (components/marca/FranjaTextil): una baldosa por modo. */
+.franja-textil { background-image: var(--franja-noche); }
+html[data-modo="dia"] .franja-textil { background-image: var(--franja-dia); }
+
+/* En modo día el lavado de color de cada pantalla es más tenue: sobre blanco el 14 % ya pesa. */
+html[data-modo="dia"] .fondo-intencion {
+  background-image:
+    radial-gradient(ellipse 60% 340px at 12% 0%, rgb(var(--acento) / 0.07), transparent 72%),
+    linear-gradient(180deg, rgb(var(--acento) / 0.025), transparent 520px);
+}
+
 /* Una placa clara dentro de una banda oscura (.sobre-claro): el rojo y el ámbar de estado pasan a tonos
    oscuros. Con el rojo claro de la página (#FF5A4D) sobre la placa el texto daba 2,65:1. */
 .sobre-claro {
@@ -191,16 +312,16 @@
   /* Selección, caret, foco y scrollbar tematizados: lo más barato que distingue una
      página construida de una ensamblada. */
   ::selection {
-    background-color: rgba(212, 255, 63, 0.9);
-    color: #0B0F0F;
+    background-color: rgb(var(--granate) / 0.9);
+    color: rgb(var(--paper));
   }
   input, textarea, [contenteditable] {
-    caret-color: #D4FF3F;
+    caret-color: rgb(var(--granate));
   }
 
   /* Un solo anillo de foco. Solo :focus-visible: el teclado siempre, el clic no. */
   :focus-visible {
-    outline: 2px solid #D4FF3F;
+    outline: 2px solid rgb(var(--granate));
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -215,6 +336,14 @@
   * {
     scrollbar-color: rgba(143, 163, 160, 0.35) transparent;
     scrollbar-width: thin;
+  }
+
+  /* La lista abierta de un <select>: con fondo transparente el navegador ponía su gris y el texto quedaba en el
+     claro del sitio (gris sobre gris, «Todo el histórico» del mapa). Fondo y texto del modo, en todos los selects. */
+  select option,
+  select optgroup {
+    background-color: rgb(var(--paper-soft));
+    color: rgb(var(--ink));
   }
 
   a {
@@ -255,7 +384,7 @@
 
 /* Rejilla de puntos de fondo. Sólo en portada y bandas de marca: nunca en tablas ni formularios. */
 .fondo-puntos {
-  background-image: radial-gradient(rgba(212, 255, 63, 0.16) 1.2px, transparent 1.4px);
+  background-image: radial-gradient(rgb(var(--granate) / 0.16) 1.2px, transparent 1.4px);
   background-size: 22px 22px;
 }
 /* Los puntos de la marca como capa de un bloque (pseudo-elemento: no es una caja más en la página). */
@@ -265,7 +394,7 @@
   inset: 0;
   pointer-events: none;
   opacity: 0.5;
-  background-image: radial-gradient(rgba(212, 255, 63, 0.16) 1.2px, transparent 1.4px);
+  background-image: radial-gradient(rgb(var(--granate) / 0.16) 1.2px, transparent 1.4px);
   background-size: 22px 22px;
 }
 .fondo-puntos-tenue {
@@ -352,7 +481,7 @@
   inset: -1px;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(212, 255, 63, 0.65), 0 0 26px -4px rgba(212, 255, 63, 0.75);
+  box-shadow: 0 0 0 1px rgb(var(--granate) / 0.65), 0 0 26px -4px rgb(var(--granate) / 0.75);
   opacity: 0;
   animation: pasoBrillo 7s ease-in-out infinite;
   animation-delay: inherit;

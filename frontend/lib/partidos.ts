@@ -193,9 +193,10 @@ export function conteos(d: AutoridadesDatos): Conteo[] {
 
 /**
  * Colores de las organizaciones más grandes del nivel mirado; el resto, un gris. Se asignan por
- * orden de tamaño y no por partido, a propósito.
+ * orden de tamaño y no por partido, a propósito. Sirven en los dos modos de color (lib/modo.ts): sin el lima neón ni
+ * el casi blanco (#E7F0EE) de antes, que en modo día no se veía sobre el fondo claro.
  */
-export const PALETA_ORG = ["#D4FF3F", "#FF6B5B", "#6C8CFF", "#FFB020", "#3DDC97", "#E7F0EE", "#C08CFF", "#FF8FA3", "#4FD1C5", "#F6AD55", "#9F9CFF", "#B5E04A"] as const;
+export const PALETA_ORG = ["#8DB82B", "#FF6B5B", "#6C8CFF", "#FFB020", "#3DDC97", "#8C9A98", "#C08CFF", "#FF8FA3", "#4FD1C5", "#F6AD55", "#9F9CFF", "#5E8C1F"] as const;
 export const COLOR_OTRAS = "#566663";
 
 /** Colores para un conjunto de gobiernos: las organizaciones con más puestos en ESE conjunto, en orden. */

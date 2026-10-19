@@ -60,8 +60,9 @@ interface Punto {
   anillo?: number;
 }
 
-const LIMA = "#D4FF3F";
-const BLANCO = "#FFFFFF";
+// Por variable (globals.css: --marca-*): lima y blanco de noche, verde profundo de día. En SVG, sólo por `style`.
+const LIMA = "rgb(var(--marca-acento))";
+const BLANCO = "rgb(var(--marca-pupila))";
 
 function construir(): { fijos: Punto[]; iris: Punto[]; ceja: Punto[] } {
   const fijos: Punto[] = [];
@@ -141,7 +142,7 @@ const anim = (p: Punto) =>
   }) as const;
 
 const circulo = (p: Punto, k: number) => (
-  <circle key={k} cx={p.x} cy={p.y} r={p.r} fill={p.fill} fillOpacity={p.o < 1 ? p.o : undefined} style={anim(p)} />
+  <circle key={k} cx={p.x} cy={p.y} r={p.r} fillOpacity={p.o < 1 ? p.o : undefined} style={{ fill: p.fill, ...anim(p) }} />
 );
 
 const suave = (a: number, b: number, v: number) => {

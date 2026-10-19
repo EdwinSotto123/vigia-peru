@@ -1,5 +1,6 @@
 "use client";
 
+import { useModo } from "@/lib/modo";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { CON_MOVIMIENTO, useEscenaGsap } from "@/lib/gsap";
@@ -116,6 +117,9 @@ export interface RegionMapa extends CifrasZona {
   cy: number;
   colorMonto: string;
   colorLeido: string;
+  /** Los mismos, para el modo día (lib/modo.ts). */
+  colorMontoDia?: string;
+  colorLeidoDia?: string;
 }
 
 interface Resumen {
@@ -143,9 +147,10 @@ export function MapaRegionesEscena({
   regiones,
   pais,
   resumen,
-  coloresMonto,
-  colorLeido,
-  colorSinLeer,
+  coloresMonto: coloresMontoNoche,
+  colorLeido: colorLeidoNoche,
+  colorSinLeer: colorSinLeerNoche,
+  dia,
 }: {
   ancho: number;
   alto: number;
@@ -155,7 +160,13 @@ export function MapaRegionesEscena({
   coloresMonto: string[];
   colorLeido: string;
   colorSinLeer: string;
+  /** Los colores del modo día; sin ellos, el mapa usa los de noche en los dos modos. */
+  dia?: { coloresMonto: string[]; colorLeido: string; colorSinLeer: string };
 }) {
+  const esDia = useModo() === "dia" && !!dia;
+  const coloresMonto = esDia ? dia!.coloresMonto : coloresMontoNoche;
+  const colorLeido = esDia ? dia!.colorLeido : colorLeidoNoche;
+  const colorSinLeer = esDia ? dia!.colorSinLeer : colorSinLeerNoche;
   const raiz = useRef<HTMLElement>(null);
   const idSelector = useId();
   const [elegida, setElegida] = useState<string | null>(null);
@@ -357,9 +368,9 @@ export function MapaRegionesEscena({
                       key={r.codigo}
                       className="zona cursor-pointer stroke-paper"
                       d={trazos[r.codigo] ?? ""}
-                      data-monto={r.colorMonto}
-                      data-leido={r.colorLeido}
-                      fill={r.colorLeido}
+                      data-monto={esDia ? r.colorMontoDia ?? r.colorMonto : r.colorMonto}
+                      data-leido={esDia ? r.colorLeidoDia ?? r.colorLeido : r.colorLeido}
+                      fill={esDia ? r.colorLeidoDia ?? r.colorLeido : r.colorLeido}
                       strokeWidth={0.9}
                       strokeLinejoin="round"
                       onMouseEnter={() => setEncima(r.codigo)}

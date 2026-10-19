@@ -3,10 +3,14 @@
 import { Popover } from "@/components/ui/Flotante";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { ContratoPinLeyenda } from "@/components/contratos/ContratoPin";
-import { SIN_DATO, SIN_DATO_TRAMA, type Escala, type Medida } from "./escala";
+import { useModo } from "@/lib/modo";
+import { paletaMapa, type Escala, type Medida } from "./escala";
 
-/** Mismo rayado que el patrón `sin-dato` del SVG, para que la leyenda y el mapa coincidan. */
-const RAYADO = `repeating-linear-gradient(45deg, ${SIN_DATO} 0 3px, ${SIN_DATO_TRAMA} 3px 4px)`;
+/** Mismo rayado que el patrón `sin-dato` del SVG, para que la leyenda y el mapa coincidan (y su modo de color). */
+function useRayado(): string {
+  const { sinDato, trama } = paletaMapa(useModo());
+  return `repeating-linear-gradient(45deg, ${sinDato} 0 3px, ${trama} 3px 4px)`;
+}
 
 /**
  * Leyenda del coropleto. Vive **en la barra de filtros**, no flotando sobre el
@@ -36,6 +40,7 @@ export function LeyendaEscala({
   conPines?: boolean;
   cargando?: boolean;
 }) {
+  const RAYADO = useRayado();
   return (
     // El ⓘ va pegado al rótulo y "Puntos por distrito" al costado, nunca en una
     // fila propia: en 390 px esa fila sola empujaba el mapa 40 px más abajo.

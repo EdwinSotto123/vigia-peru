@@ -51,8 +51,10 @@ export function OjoPixel({
    *  `actual`: todo en `currentColor` (la pupila más tenue), para estados vacíos y de carga. */
   tono?: "oscuro" | "claro" | "actual";
 }) {
-  const marca = tono === "actual" ? "currentColor" : tono === "oscuro" ? "#D4FF3F" : "#0B0F0F";
-  const pupila = tono === "actual" ? "currentColor" : tono === "oscuro" ? "#FFFFFF" : "#3E5C08";
+  // `oscuro` (el de siempre): por variable, así sigue al modo día / noche y a las bandas (globals.css: --marca-*).
+  // En SVG la variable sólo entra por `style`.
+  const marca = tono === "actual" ? "currentColor" : tono === "oscuro" ? "rgb(var(--marca-acento))" : "#0B0F0F";
+  const pupila = tono === "actual" ? "currentColor" : tono === "oscuro" ? "rgb(var(--marca-pupila))" : "#3E5C08";
   return (
     <svg
       viewBox={`0 0 ${COLS} ${ALTO}`}
@@ -69,18 +71,18 @@ export function OjoPixel({
           cx={p.x}
           cy={p.y}
           r={0.42}
-          fill={p.pupila ? pupila : marca}
           fillOpacity={tono === "actual" && p.pupila ? 0.55 : undefined}
           style={
             animado
               ? {
+                  fill: p.pupila ? pupila : marca,
                   transformBox: "fill-box",
                   transformOrigin: "center",
                   animation: p.pupila
                     ? `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms backwards, pupilaLatido 2.4s ease-in-out ${p.retardo + 1400}ms infinite`
                     : `puntoEntra 480ms cubic-bezier(0.22,1,0.36,1) ${p.retardo}ms backwards`,
                 }
-              : undefined
+              : { fill: p.pupila ? pupila : marca }
           }
         />
       ))}

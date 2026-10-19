@@ -1,7 +1,7 @@
 // Proyección ya hecha (scripts/generar-mapa-portada.mjs): de acá sólo se leen códigos,
 // nombres y centroides; los recorridos los baja el navegador por su lado.
 import geometria from "@/public/assets/mapa/portada-departamentos.v1.json";
-import { construirEscala, RAMPA, SIN_DATO } from "@/components/mapa/escala";
+import { construirEscala, paletaMapa, RAMPA, RAMPA_DIA, SIN_DATO, SIN_DATO_DIA } from "@/components/mapa/escala";
 import { UBIGEO_REGION } from "@/components/mapa/region-match";
 import type { ContratoZona } from "@/lib/contratos";
 import { solesCompacto } from "@/lib/formato";
@@ -35,10 +35,14 @@ const ALTO = geometria.alto;
  */
 const COLOR_LEIDO = RAMPA[3];
 const COLOR_SIN_LEER = SIN_DATO;
+// Modo día (lib/modo.ts): la escena elige en el navegador; acá se calculan las dos.
+const COLOR_LEIDO_DIA = RAMPA_DIA[3];
+const COLOR_SIN_LEER_DIA = SIN_DATO_DIA;
 
 export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
   const porCodigo = new Map(zonas.map((z) => [z.ubigeo, z]));
   const escala = construirEscala(zonas.map((z) => z.montoPen ?? 0));
+  const escalaDia = construirEscala(zonas.map((z) => z.montoPen ?? 0), paletaMapa("dia"));
 
   const regiones: RegionMapa[] = geometria.zonas
     .map((g) => {
@@ -57,6 +61,8 @@ export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
         enCola: z?.enCola ?? 0,
         colorMonto: escala.color(z ? z.montoPen ?? 0 : null),
         colorLeido: z && z.procesados > 0 ? COLOR_LEIDO : COLOR_SIN_LEER,
+        colorMontoDia: escalaDia.color(z ? z.montoPen ?? 0 : null),
+        colorLeidoDia: z && z.procesados > 0 ? COLOR_LEIDO_DIA : COLOR_SIN_LEER_DIA,
       };
     })
     // De norte a sur: así el barrido del segundo paso baja por el mapa.
@@ -98,6 +104,7 @@ export function MapaRegiones({ zonas }: { zonas: ContratoZona[] }) {
       coloresMonto={escala.colores}
       colorLeido={COLOR_LEIDO}
       colorSinLeer={COLOR_SIN_LEER}
+      dia={{ coloresMonto: escalaDia.colores, colorLeido: COLOR_LEIDO_DIA, colorSinLeer: COLOR_SIN_LEER_DIA }}
     />
   );
 }

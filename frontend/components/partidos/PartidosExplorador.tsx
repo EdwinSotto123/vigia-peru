@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Search, Swords, Trophy } from "lucide-react";
 import { PeruChoropleth, type ZonaPintada } from "@/components/PeruChoropleth";
 import { nombreDepartamento } from "@/components/mapa/region-match";
-import { RAMPA, construirEscala } from "@/components/mapa/escala";
+import { construirEscala, paletaMapa } from "@/components/mapa/escala";
+import { useModo } from "@/lib/modo";
 import { numero, solesCompacto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import {
@@ -108,6 +109,11 @@ export function PartidosExplorador({
     setProvSel(null);
   };
 
+  // La rampa de lectura y de monto sigue al modo de color de la página (lib/modo.ts).
+  const modoColor = useModo();
+  const paleta = useMemo(() => paletaMapa(modoColor), [modoColor]);
+  const RAMPA = paleta.rampa;
+
   // Con una región abierta, los colores se reparten entre las organizaciones de ESA región:
   // si no, la leyenda nombra organizaciones que el mapa pinta de gris.
   const colores = useMemo(() => {
@@ -121,13 +127,13 @@ export function PartidosExplorador({
   // Modo "cuánto se contrata": el valor referencial convocado en la sede de cada región (misma cuenta que /app/mapa).
   const conDinero = modo === "dinero" && !!cobertura && !seleccion;
   const escalaDinero = useMemo(
-    () => (cobertura ? construirEscala(Object.values(cobertura.porRegion).map((r) => r.monto)) : null),
-    [cobertura],
+    () => (cobertura ? construirEscala(Object.values(cobertura.porRegion).map((r) => r.monto), paleta) : null),
+    [cobertura, paleta],
   );
   // Por PARTE de los contratos de la región que ya se leyó (no por cantidad): una región con 2 leídos de
   // 1.416 no está vigilada, aunque 2 sea más que 0. Los tramos son fijos, así todas se ven por lo que son.
   const colorLectura = (leidos: number, total: number) => {
-    if (leidos === 0 || total === 0) return "#1F2A2A";
+    if (leidos === 0 || total === 0) return paleta.sinDato;
     const p = (leidos / total) * 100;
     return p < 0.5 ? RAMPA[0] : p < 1 ? RAMPA[1] : p < 2 ? RAMPA[2] : p < 3 ? RAMPA[3] : RAMPA[4];
   };

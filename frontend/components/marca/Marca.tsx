@@ -43,12 +43,14 @@ export function Marca({
     <span className={cn("inline-flex items-center gap-2.5 leading-none", className)} aria-label="Vigía Perú" role="img">
       {isotipo && <Isotipo tamano={t.iso} tono={sobreClaro ? "claro" : "oscuro"} />}
       <span className="inline-flex flex-col" aria-hidden>
-        <span className={cn("font-mono font-bold tracking-[-0.06em]", t.texto, sobreClaro ? "text-[#0B0F0F]" : "text-[#E7F0EE]")}>
-          vigía<span className={cn("cursor-parpadeo", sobreClaro ? "text-[#3E5C08]" : "text-[#D4FF3F]")}>_</span>
-          <span className="ml-1.5 align-middle text-[0.5em] font-medium uppercase tracking-[0.16em] text-[#8FA3A0]">perú</span>
+        {/* Colores por variable (globals.css: --marca-*): carbón y lima de noche, tinta y verde de día, claros sobre
+            las bandas de marca. */}
+        <span className={cn("font-mono font-bold tracking-[-0.06em]", t.texto, sobreClaro ? "text-[#0B0F0F]" : "text-[rgb(var(--marca-texto))]")}>
+          vigía<span className={cn("cursor-parpadeo", sobreClaro ? "text-[#3E5C08]" : "text-[rgb(var(--marca-acento))]")}>_</span>
+          <span className="ml-1.5 align-middle text-[0.5em] font-medium uppercase tracking-[0.16em] text-[rgb(var(--marca-nota))]">perú</span>
         </span>
         {nota && (
-          <span className={cn("mt-1.5 font-mono font-medium uppercase tracking-[0.14em]", t.nota, "text-[#8FA3A0]")}>
+          <span className={cn("mt-1.5 font-mono font-medium uppercase tracking-[0.14em]", t.nota, "text-[rgb(var(--marca-nota))]")}>
             {nota}
           </span>
         )}

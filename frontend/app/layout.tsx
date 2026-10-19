@@ -15,6 +15,7 @@ import type { Viewport } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlotante";
 import { OG_BASE, SITIO, TWITTER_BASE } from "@/lib/compartir";
+import { SCRIPT_MODO } from "@/lib/modoScript";
 
 export const metadata: Metadata = {
   // Sin esto, las URLs relativas de og:image y compañía se resolvían contra
@@ -32,7 +33,14 @@ export const metadata: Metadata = {
   twitter: TWITTER_BASE,
 };
 
-export const viewport: Viewport = { themeColor: "#0B0F0F", colorScheme: "dark" };
+// Modo día / noche (lib/modo.ts): la barra del navegador sigue al sistema en la primera visita; BotonModo la ajusta.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F6F8F7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0F0F" },
+  ],
+  colorScheme: "dark light",
+};
 
 export default function RootLayout({
   children,
@@ -40,7 +48,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es-PE" className={`${inter.variable} ${display.variable} ${mono.variable}`}>
+    // suppressHydrationWarning: SCRIPT_MODO pone `data-modo` en <html> antes de que React hidrate.
+    <html lang="es-PE" className={`${inter.variable} ${display.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_MODO }} />
+      </head>
       <body>
         <AuthProvider>
           {children}

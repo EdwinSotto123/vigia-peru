@@ -161,7 +161,7 @@ export function BarraFiltros({
               onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
               className={cn(
                 "h-10 max-w-[15rem] rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
-                parametros[f.param] ? "border-granate/60 font-medium" : "border-line",
+                parametros[f.param] ? "border-granate font-semibold text-granate" : "border-line",
               )}
             >
               <option value="">{f.todas}</option>

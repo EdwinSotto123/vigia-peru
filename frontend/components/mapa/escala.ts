@@ -139,6 +139,27 @@ export const SIN_DATO = "#1A2323";
 export const SIN_DATO_TRAMA = "#2C3939";
 export const ESCALONES = RAMPA.length;
 
+/* Modo día (lib/modo.ts): sobre blanco la rampa se invierte en brillo, de verde muy claro (poco) a verde bosque
+   (mucho): lo más oscuro es lo más alto, como se lee un mapa impreso. Sin lima neón. El rojo de las señales sigue
+   separándose por matiz. Contraste contra el lienzo claro: el escalón más claro 1,3:1 (con borde), el más oscuro
+   6,5:1. */
+export const RAMPA_DIA = ["#E3F1CF", "#BFDF92", "#8EC157", "#5A962B", "#2F6B10"] as const;
+export const SIN_DATO_DIA = "#EEF2F1";
+export const SIN_DATO_TRAMA_DIA = "#CFD8D6";
+
+export interface PaletaMapa {
+  rampa: readonly string[];
+  sinDato: string;
+  trama: string;
+}
+
+/** Los colores del mapa para el modo de color de la página. */
+export function paletaMapa(modo: "dia" | "noche"): PaletaMapa {
+  return modo === "dia"
+    ? { rampa: RAMPA_DIA, sinDato: SIN_DATO_DIA, trama: SIN_DATO_TRAMA_DIA }
+    : { rampa: RAMPA, sinDato: SIN_DATO, trama: SIN_DATO_TRAMA };
+}
+
 /**
  * Cortes por cuantil sobre los valores presentes. Devuelve como máximo
  * `ESCALONES - 1` cortes; si hay empates (p. ej. muchos ceros) se colapsan,
@@ -175,7 +196,7 @@ export interface Escala {
 }
 
 /** Construye la escala completa a partir de los valores reales de las zonas visibles. */
-export function construirEscala(valores: number[]): Escala {
+export function construirEscala(valores: number[], paleta: PaletaMapa = paletaMapa("noche")): Escala {
   const limpios = valores.filter((n) => Number.isFinite(n));
   const cortes = cortesPorCuantil(limpios);
   const min = limpios.length ? Math.min(...limpios) : 0;
@@ -183,7 +204,7 @@ export function construirEscala(valores: number[]): Escala {
   const n = cortes.length + 1;
   // Con menos de 5 escalones reales se usan los tonos de los extremos hacia
   // adentro, así el más brillante siempre significa "lo más alto que hay".
-  const colores = RAMPA.slice(RAMPA.length - n);
+  const colores = paleta.rampa.slice(paleta.rampa.length - n);
   const tramos = colores.map((color, i) => ({
     desde: i === 0 ? min : cortes[i - 1],
     hasta: i === colores.length - 1 ? max : cortes[i],
@@ -196,7 +217,7 @@ export function construirEscala(valores: number[]): Escala {
     colores: [...colores],
     tramos,
     vacia: limpios.length === 0,
-    color: (valor) => (valor == null ? SIN_DATO : colores[escalonDe(valor, cortes)] ?? SIN_DATO),
+    color: (valor) => (valor == null ? paleta.sinDato : colores[escalonDe(valor, cortes)] ?? paleta.sinDato),
   };
 }
 

@@ -1,8 +1,9 @@
 "use client";
 
+import { useModo } from "@/lib/modo";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2, SearchX } from "lucide-react";
 import { useCuenta } from "@/lib/cuentas";
 import { REGIONES } from "@/lib/peru-data";
 import { getAlertas, getAlertasPagina, getAlertasPuntos, getReportes } from "@/lib/api-client";
@@ -19,7 +20,7 @@ import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosL
 import { colorPorEstado, radioPorTotal } from "./contratos/ContratoPin";
 import { RegionDetailPanel, type FilaPais } from "./RegionDetailPanel";
 import { REGION_UBIGEO, UBIGEO_REGION } from "./mapa/region-match";
-import { type RangoMes } from "./mapa/FiltroMes";
+import { type RangoMes } from "./mapa/meses";
 import { BarraMapa } from "./mapa/BarraMapa";
 import { FichaRegion } from "./mapa/FichaRegion";
 import { indicadoresPais, indicadoresRegion } from "./mapa/indicadoresMapa";
@@ -28,7 +29,7 @@ import { RastroMapa } from "./mapa/RastroMapa";
 import { PanelZonaMovil } from "./mapa/PanelZonaMovil";
 import { fraseEnCurso, useEnCurso } from "./mapa/useEnCurso";
 import { alertaMapaDesdeLista, alertaMapaDesdePunto, puntosDeDenuncias, puntosDeSenales, type AlertasMapa } from "./mapa/puntos";
-import { construirEscala, formatoSoles, medidaPorId, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
+import { construirEscala, formatoSoles, medidaPorId, paletaMapa, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
 import type { ZonaTab } from "./mapa/ZonaHubPanel";
 import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
 
@@ -330,7 +331,8 @@ export function MapaWrapper({
     if (z) setZonaSel({ ubigeo: z.ubigeo, nombre: z.nombre });
   }, [geoProv, geoDist, zonaSel]);
 
-  // La ola de recoloreo: cada cambio de medida o de mes (no el primer render).
+  // La ola de recoloreo: cada cambio de medida, de mes o de filtros (no el primer render). Es la señal visual de
+  // que el mapa cambió.
   const [ola, setOla] = useState(0);
   const primeraOla = useRef(true);
   useEffect(() => {
@@ -339,16 +341,25 @@ export function MapaWrapper({
       return;
     }
     setOla((o) => o + 1);
-  }, [medida, mes]);
+  }, [medida, mes, filtrosMapa]);
 
   // ─── Escalas y relleno ───────────────────────────────────────────────────
   const m = medidaPorId(medida);
   const geoPais = mes || hayFiltros ? geoMes : geoBase;
   const cargandoPais = geoPais === null;
   const cargandoProv = regionUb != null && geoProv === null;
+  // Cuántos contratos cumplen todo lo elegido en lo que se ve (país o región): "Lo que estás viendo" de la barra.
+  const nContratos = useMemo(() => {
+    const fuente = regionUb ? geoProv : geoPais;
+    return fuente ? fuente.reduce((s, z) => s + (z.total ?? 0), 0) : null;
+  }, [regionUb, geoProv, geoPais]);
+  const cargandoVista = regionUb ? cargandoProv : cargandoPais;
 
-  const escalaPais = useMemo(() => construirEscala((geoPais ?? []).map(m.valor)), [geoPais, m]);
-  const escalaProv = useMemo(() => construirEscala((geoProv ?? []).map(m.valor)), [geoProv, m]);
+  // Los colores del mapa siguen al modo de color de la página (lib/modo.ts).
+  const modo = useModo();
+  const paleta = useMemo(() => paletaMapa(modo), [modo]);
+  const escalaPais = useMemo(() => construirEscala((geoPais ?? []).map(m.valor), paleta), [geoPais, m, paleta]);
+  const escalaProv = useMemo(() => construirEscala((geoProv ?? []).map(m.valor), paleta), [geoProv, m, paleta]);
   const escalaActiva = regionUb ? escalaProv : escalaPais;
 
   const zonaPorUbigeo = useMemo(() => {
@@ -661,6 +672,7 @@ export function MapaWrapper({
               regiones={(geoBase ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))}
               region={regionUb}
               onRegion={elegirRegion}
+              nContratos={nContratos}
               alertas={verSenales}
               onAlertas={() => setVerSenales((v) => !v)}
               nAlertas={puntosSenal ? puntosSenal.length : null}
@@ -690,7 +702,34 @@ export function MapaWrapper({
                   área sobrante del encuadre y el área dibujada son el mismo color. En
                   móvil la altura sigue al ancho (130vw, tope 560 px) para que el país
                   entre en el primer pantallazo. */}
-              <div className="h-[min(560px,130vw)] w-full overflow-hidden bg-paper lg:h-[680px]">
+              <div className="relative h-[min(560px,130vw)] w-full overflow-hidden bg-paper lg:h-[680px]">
+                {/* Respuesta visual a un filtro: el mapa se atenúa con "Actualizando…" mientras llega, y si nada cumple
+                    lo dice encima del mapa (antes quedaba gris sin explicación). */}
+                {(cargandoVista && (mes || hayFiltros)) || (!cargandoVista && nContratos === 0) ? (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-paper/55 pt-10 backdrop-blur-[1px]">
+                    <span className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-line bg-paperSoft px-4 py-2 text-[13px] font-semibold text-ink shadow-sm">
+                      {cargandoVista ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin text-granate" aria-hidden /> Actualizando el mapa…
+                        </>
+                      ) : (
+                        <>
+                          <SearchX size={15} className="text-amberTexto" aria-hidden /> Ningún contrato cumple estos filtros
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFiltrosMapa({});
+                              setMes(null);
+                            }}
+                            className="ml-1 font-semibold text-granate hover:underline"
+                          >
+                            Quitar filtros
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ) : null}
                 <PeruChoropleth
                   regiones={regiones}
                   provincias={provincias}

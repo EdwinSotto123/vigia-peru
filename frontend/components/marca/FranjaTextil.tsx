@@ -15,7 +15,15 @@ const BALDOSA = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='12' 
 <circle cx='7' cy='4.5' r='2.6' fill='#D4FF3F'/><circle cx='21' cy='7.5' r='1.4' fill='#E7F0EE'/>
 </svg>`;
 
-const FONDO = `url("data:image/svg+xml,${encodeURIComponent(BALDOSA.replace(/\n/g, ""))}")`;
+// Modo día (lib/modo.ts): la misma baldosa en claro, con el verde profundo en vez del lima.
+const BALDOSA_DIA = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='12' viewBox='0 0 28 12'>
+<rect width='28' height='12' fill='#ECF1EF'/>
+<circle cx='7' cy='4.5' r='2.6' fill='#2F6B10'/><circle cx='21' cy='7.5' r='1.4' fill='#8EC157'/>
+</svg>`;
+
+const url = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg.replace(/\n/g, ""))}")`;
+const FONDO = url(BALDOSA);
+const FONDO_DIA = url(BALDOSA_DIA);
 
 const ALTOS = { 4: "h-1", 8: "h-2", 12: "h-3", 16: "h-4" } as const;
 
@@ -23,8 +31,9 @@ export function FranjaTextil({ alto = 8, className }: { alto?: keyof typeof ALTO
   return (
     <div
       aria-hidden
-      className={cn("w-full bg-repeat-x", ALTOS[alto], className)}
-      style={{ backgroundImage: FONDO, backgroundSize: "auto 100%" }}
+      // `.franja-textil` (globals.css) elige la baldosa del modo: --franja-noche o --franja-dia.
+      className={cn("franja-textil w-full bg-repeat-x", ALTOS[alto], className)}
+      style={{ "--franja-noche": FONDO, "--franja-dia": FONDO_DIA, backgroundSize: "auto 100%" } as React.CSSProperties}
     />
   );
 }

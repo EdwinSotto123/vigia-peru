@@ -34,7 +34,8 @@ export const ESTADO_OPERATIVO_LABEL: Record<EstadoOperativoZona, string> = {
   procesado: "Leído",
   en_revision: "En revisión",
 };
-export const COLOR_SELECCION = "#FFFFFF"; // ink (sobre carbón)
+// Anillos y borde por variable de color (globals.css): siguen al modo día / noche. En SVG la variable sólo entra por `style`.
+export const COLOR_SELECCION = "rgb(var(--ink))";
 
 /**
  * Estado operativo dominante de una zona. Prioridad: lo ya hecho (procesado / en revisión) →
@@ -125,17 +126,17 @@ export function ContratoPin({ px, py, r, color, total, nombre, zoom, escalaPanta
           seleccionado se retiró: era movimiento perpetuo sobre un dato y sobre
           la selección, justo donde el usuario necesita leer una cifra quieta.
           La selección ya se distingue por grosor y opacidad del anillo. */}
-      {foco && <circle r={rr + 3.6 / zoom} fill="none" stroke="#D4FF3F" strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
+      {foco && <circle r={rr + 3.6 / zoom} fill="none" style={{ stroke: "rgb(var(--granate))" }} strokeWidth={2.2 / ((escalaPantalla || 1) * zoom)} />}
       {(selected || hovered) && (
         <circle
           r={rr + 2.4 / zoom}
           fill="none"
-          stroke={COLOR_SELECCION}
+          style={{ stroke: COLOR_SELECCION }}
           strokeWidth={(selected ? 1.8 : 1.1) / zoom}
           strokeOpacity={selected ? 0.9 : 0.5}
         />
       )}
-      <circle r={rr} fill={color} fillOpacity={0.9} stroke="#0B0F0F" strokeWidth={sw}>
+      <circle r={rr} fill={color} fillOpacity={0.9} style={{ stroke: "rgb(var(--paper))" }} strokeWidth={sw}>
         <title>{`${nombre}: ${plural(total, "contrato", "contratos")}`}</title>
       </circle>
       {rr >= 6 / zoom && (
