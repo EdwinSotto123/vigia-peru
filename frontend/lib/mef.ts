@@ -40,6 +40,26 @@ export type MefBudgetResult =
   | { kind: "empty"; query: string }   // la entidad no cruzó con ninguna unidad ejecutora del MEF
   | { kind: "error"; query: string; message: string };
 
+/** Una línea del desglose del gasto de una entidad (GET /entidades/:ruc/gasto, migración 63). */
+export interface DatoGasto {
+  codigo: string;
+  nombre: string;
+  pim: number;
+  devengado: number;
+}
+
+/**
+ * En qué gasta una entidad, en el último año cargado: por genérica (con sus partidas), por función y sus proyectos de
+ * inversión (los 15 de mayor PIM, y el total). `cruce = "pliego"`: son las cifras de todo el gobierno regional.
+ */
+export interface GastoEntidad {
+  anio: number | null;
+  cruce: string | null;
+  genericas: { nombre: string; pim: number; devengado: number; partidas: DatoGasto[] }[];
+  funciones: DatoGasto[];
+  proyectos: { total: number; pim: number; devengado: number; lista: DatoGasto[] };
+}
+
 export interface BreakdownRow {
   nombre: string;
   pim: number;

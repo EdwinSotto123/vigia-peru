@@ -1,5 +1,5 @@
 /**
- * MEF — Presupuesto y Ejecución de Gasto → mef_ejecutora_anual + mef_departamento_desglose →
+ * MEF — Presupuesto y Ejecución de Gasto → mef_ejecutora_anual + mef_departamento_desglose + mef_ejecutora_gasto →
  * `refrescar_mef_presupuesto()` (migración 47) → mef_region_budget / mef_entity_budget, que lee la web.
  * Mismo pipeline que backend/scrapers/mef_presupuesto/pipeline.py.
  *
@@ -20,7 +20,7 @@ import { registrarCarga } from "../cargas.ts";
 import type { Env, ParamsCorrida } from "../config.ts";
 import { conDb } from "../db.ts";
 import { UA } from "../http.ts";
-import { agregarZip, csvAgregado } from "../mef_agregado.ts";
+import { agregarZip, csvAgregado, flujoGasto } from "../mef_agregado.ts";
 import { registrar } from "../registro.ts";
 import { CARGA, LECTURA, fechaLima } from "./comun.ts";
 
@@ -93,7 +93,7 @@ export async function correrMef(env: Env, p: ParamsCorrida, step: WorkflowStep, 
       await env.CRUDOS.put(`${base}-desglose.csv`, desglose, { httpMetadata: { contentType: "text/csv" } });
       const totales = [...a.ejecutoras.values()].reduce((s, e) => [s[0] + e.montos[0], s[1] + e.montos[1], s[2] + e.montos[5]], [0, 0, 0]);
       const stats = {
-        anio, corte, filas: a.filas, ejecutoras: a.ejecutoras.size, desglose: a.desglose.size, mb: Math.round(bytes / 1e6),
+        anio, corte, filas: a.filas, ejecutoras: a.ejecutoras.size, desglose: a.desglose.size, gasto: a.gasto.size, mb: Math.round(bytes / 1e6),
         segundos: Math.round((Date.now() - t0) / 1000),
         millones: { pia: +(totales[0] / 1e6).toFixed(2), pim: +(totales[1] / 1e6).toFixed(2), devengado: +(totales[2] / 1e6).toFixed(2) },
       };
@@ -106,6 +106,11 @@ export async function correrMef(env: Env, p: ParamsCorrida, step: WorkflowStep, 
         await db.ejecutar("DELETE FROM mef_departamento_desglose WHERE anio = $1", [anio]);
         await db.copiar("COPY mef_departamento_desglose (anio, departamento_nombre, tipo, nombre, pia, pim, devengado) FROM STDIN WITH (FORMAT csv)",
           new Blob([desglose]).stream());
+        // En qué gasta cada unidad ejecutora (migración 63): partida, función y proyecto. Sale del agregado como flujo
+        // (≈ 28 MB con 2026) y no se guarda en R2: se rehace del ZIP, que es la fuente.
+        await db.ejecutar("DELETE FROM mef_ejecutora_gasto WHERE anio = $1", [anio]);
+        await db.copiar("COPY mef_ejecutora_gasto (anio, sec_ejec, tipo, codigo, nombre, grupo, pia, pim, devengado) FROM STDIN WITH (FORMAT csv)",
+          flujoGasto(a));
         await registrarCarga(db, {
           fuente: FUENTE, clave: String(anio), tabla: "mef_ejecutora_anual", archivo: `${anio}-Gasto-Diario.zip`,
           gcs_uri: `r2://${BUCKET}/${base}-ejecutoras.csv`, sha256: sha256 || `sin-sha-${hoy}`, bytes, filas: a.filas,

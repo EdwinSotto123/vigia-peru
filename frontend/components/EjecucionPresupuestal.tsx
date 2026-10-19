@@ -1,5 +1,8 @@
 import { ejecucionPct, sinAnioRepetido, type MefBudgetSummary, type MefBudgetRow } from "@/lib/mef";
 import { getEntityBudget } from "@/lib/mef-cache";
+import { getGastoEntidad } from "@/lib/api-client";
+import type { GastoEntidad } from "@/lib/mef";
+import { EnQueGasta } from "@/components/EnQueGasta";
 import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
 import { Ayuda, FuenteDato } from "@/components/patrones";
 import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
@@ -33,7 +36,8 @@ export async function EjecucionPresupuestal({
   /** La entidad se busca por RUC en la API (GET /entidades/:ruc → `mef`); sin RUC no hay dato. */
   ruc?: string;
 }) {
-  const result = await getEntityBudget(query, ruc);
+  // El desglose (en qué gasta) se pide a la vez: si falla, la sección sigue sin él.
+  const [result, gasto] = await Promise.all([getEntityBudget(query, ruc), ruc ? getGastoEntidad(ruc) : Promise.resolve(null)]);
 
   if (result.kind === "error") {
     return (
@@ -69,7 +73,7 @@ export async function EjecucionPresupuestal({
     );
   }
 
-  return <EjecucionView data={result.data} />;
+  return <EjecucionView data={result.data} gasto={gasto} />;
 }
 
 /**
@@ -135,7 +139,7 @@ const COLUMNAS: Columna[] = [
   { clave: "girado", titulo: "Girado", ancho: "140px", alinear: "der", desde: "lg" },
 ];
 
-function EjecucionView({ data }: { data: MefBudgetSummary }) {
+function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEntidad | null }) {
   // El año que el MEF todavía no publica (repite al anterior al centavo) no se muestra como dato.
   const { years: last5, repetido } = sinAnioRepetido(data.byYear);
   const current = last5[last5.length - 1];
@@ -226,6 +230,9 @@ function EjecucionView({ data }: { data: MefBudgetSummary }) {
           )}
         </div>
       )}
+
+      {/* En qué gasta: lo que la gente pregunta después de "cuánto". */}
+      <EnQueGasta gasto={gasto} />
 
       <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
 

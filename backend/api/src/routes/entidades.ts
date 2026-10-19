@@ -120,6 +120,70 @@ entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
   return c.json(publicar(await fraccionamientoDeEntidad(ruc)));
 });
 
+// ─── GET /entidades/:ruc/gasto — en qué gasta: por partida, función y proyecto (migración 63) ─
+// Suma las unidades ejecutoras con que cruzó la entidad (`mef_entity_budget.sec_ejecs`) en el último año cargado. Si la
+// entidad cruzó con el pliego regional entero (`keyword` 'pliego …'), son las cifras de todo el gobierno regional:
+// `cruce` lo dice y la ficha lo avisa.
+interface FilaGasto { tipo: "partida" | "funcion" | "proyecto"; codigo: string; nombre: string | null; grupo: string | null; pim: number; devengado: number }
+const PROYECTOS_A_LA_VISTA = 15;
+
+entidadesRouter.get("/:ruc/gasto", async (c) => {
+  const ruc = c.req.param("ruc");
+  if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  const r = await pool.query<FilaGasto & { anio: number; cruce: string | null }>(
+    `WITH e AS (SELECT sec_ejecs, split_part(keyword, ' ', 1) AS cruce FROM mef_entity_budget WHERE entidad_ruc = $1),
+          u AS (SELECT max(g.anio) AS anio FROM mef_ejecutora_gasto g, e WHERE g.sec_ejec = ANY(e.sec_ejecs))
+     SELECT u.anio, e.cruce, g.tipo, g.codigo, max(g.nombre) AS nombre, max(g.grupo) AS grupo,
+            sum(g.pim)::float AS pim, sum(g.devengado)::float AS devengado
+       FROM mef_ejecutora_gasto g, e, u
+      WHERE g.anio = u.anio AND g.sec_ejec = ANY(e.sec_ejecs)
+      GROUP BY u.anio, e.cruce, g.tipo, g.codigo
+     HAVING sum(g.pim) > 0 OR sum(g.devengado) > 0`,
+    [ruc],
+  );
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 300, swr: 3600 }));
+  const filas = r.rows;
+  const porPim = (a: { pim: number }, b: { pim: number }) => b.pim - a.pim;
+  // 2999999 es el "proyecto" del MEF para las inversiones sin código propio (su actividad dice sólo "ACCIONES DE
+  // INVERSIÓN" u "OBRAS"): sin nombre en el archivo.
+  const dato = (f: FilaGasto) => ({
+    codigo: f.codigo,
+    nombre: f.nombre || (f.tipo === "proyecto" && f.codigo === "2999999" ? "OTRAS INVERSIONES, SIN CÓDIGO DE PROYECTO EN EL MEF" : f.codigo),
+    pim: f.pim,
+    devengado: f.devengado,
+  });
+  // Partidas agrupadas por su genérica, las dos de mayor a menor PIM. Dos códigos con el mismo nombre en una genérica
+  // ("GASTOS VARIABLES Y OCASIONALES" del personal activo y del CAS) van juntos: en la ficha serían dos filas iguales.
+  const genericas = new Map<string, { nombre: string; pim: number; devengado: number; partidas: ReturnType<typeof dato>[] }>();
+  for (const f of filas.filter((x) => x.tipo === "partida")) {
+    const g = f.grupo || "OTROS";
+    let x = genericas.get(g);
+    if (!x) genericas.set(g, (x = { nombre: g, pim: 0, devengado: 0, partidas: [] }));
+    x.pim += f.pim;
+    x.devengado += f.devengado;
+    const d = dato(f);
+    const igual = x.partidas.find((p) => p.nombre.trim() === d.nombre.trim());
+    if (igual) {
+      igual.pim += d.pim;
+      igual.devengado += d.devengado;
+    } else x.partidas.push(d);
+  }
+  for (const g of genericas.values()) g.partidas.sort(porPim);
+  const proyectos = filas.filter((x) => x.tipo === "proyecto").map(dato).sort(porPim);
+  return c.json({
+    anio: filas[0]?.anio ?? null,
+    cruce: filas[0]?.cruce ?? null,
+    genericas: [...genericas.values()].sort(porPim),
+    funciones: filas.filter((x) => x.tipo === "funcion").map(dato).sort(porPim),
+    proyectos: {
+      total: proyectos.length,
+      pim: proyectos.reduce((s, p) => s + p.pim, 0),
+      devengado: proyectos.reduce((s, p) => s + p.devengado, 0),
+      lista: proyectos.slice(0, PROYECTOS_A_LA_VISTA),
+    },
+  });
+});
+
 entidadesRouter.get("/:ruc", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "not_found" }, 404);

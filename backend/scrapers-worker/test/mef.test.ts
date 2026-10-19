@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { CRON_DATOS, fuentesDelCron } from "../src/calendario.ts";
 import { aniosPedidos } from "../src/fuentes/mef_presupuesto.ts";
-import { agregar, agregarZip, csvAgregado, entradaZip } from "../src/mef_agregado.ts";
+import { agregar, agregarZip, csvAgregado, entradaZip, flujoGasto, montosGasto } from "../src/mef_agregado.ts";
 
 interface VectorMef {
   zip_b64: string;
@@ -86,4 +86,37 @@ test("años del MEF: el actual, el anterior hasta marzo, o el rango pedido; corr
   assert.deepEqual(aniosPedidos({ desde: "2025" }, "2026-10-14"), [2025]);
   assert.ok(fuentesDelCron(CRON_DATOS, Date.parse("2026-10-19T13:00:00Z")).includes("mef_presupuesto"));   // lunes
   assert.ok(!fuentesDelCron(CRON_DATOS, Date.parse("2026-10-14T13:00:00Z")).includes("mef_presupuesto"));  // martes
+});
+
+test("agregar: en qué gasta cada unidad ejecutora (partida, función y proyecto; sin claves para filas en cero)", async () => {
+  const cab = V.texto.split("\n")[0];
+  const cols = cab.split('","').map((c) => c.replaceAll('"', ""));
+  const fila = (v: Record<string, string>) => cols.map((c) => `"${(v[c] ?? "X").replaceAll('"', '""')}"`).join(",");
+  const base = { ANO_EJE: "2026", SEC_EJEC: "470", EJECUTORA_NOMBRE: "EJERCITO PERUANO", GENERICA: "3", GENERICA_NOMBRE: "BIENES Y SERVICIOS",
+    SUBGENERICA: "1", SUBGENERICA_DET: "1", SUBGENERICA_DET_NOMBRE: "ALIMENTOS Y BEBIDAS", FUNCION: "18", FUNCION_NOMBRE: "DEFENSA Y SEGURIDAD NACIONAL",
+    TIPO_ACT_PROY: "3", PRODUCTO_PROYECTO: "3999999", PRODUCTO_PROYECTO_NOMBRE: "SIN PRODUCTO", MONTO_PIA: "0", MONTO_PIM: "0",
+    MONTO_CERTIFICADO: "0", MONTO_COMPROMETIDO_ANUAL: "0", MONTO_COMPROMETIDO: "0", MONTO_DEVENGADO: "0", MONTO_GIRADO: "0" };
+  const texto = [cab,
+    fila({ ...base, MES_EJE: "0", MONTO_PIA: "100", MONTO_PIM: "120" }),
+    fila({ ...base, MES_EJE: "3", MONTO_DEVENGADO: "30" }),
+    // Un proyecto de inversión, con comillas en el nombre.
+    fila({ ...base, MES_EJE: "0", GENERICA: "6", GENERICA_NOMBRE: "ADQUISICION DE ACTIVOS NO FINANCIEROS", SUBGENERICA: "2",
+      SUBGENERICA_DET: "2", SUBGENERICA_DET_NOMBRE: "CONSTRUCCION DE EDIFICIOS Y ESTRUCTURAS", TIPO_ACT_PROY: "2",
+      PRODUCTO_PROYECTO: "2512345", PRODUCTO_PROYECTO_NOMBRE: 'MEJORAMIENTO DEL CUARTEL "SAN MARTIN"', MONTO_PIM: "500" }),
+    // Toda en cero: no crea clave (la función 03 no debería aparecer).
+    fila({ ...base, MES_EJE: "5", FUNCION: "03", FUNCION_NOMBRE: "PLANEAMIENTO" }),
+  ].join("\n") + "\n";
+  const a = await agregar(new Blob([texto]).stream().pipeThrough(new TextDecoderStream()));
+  const g = (k: string) => montosGasto(a, k);
+  assert.deepEqual(g("470\tpartida\t3.1.1"), [100, 120, 30]);
+  assert.deepEqual(g("470\tpartida\t6.2.2"), [0, 500, 0]);
+  assert.deepEqual(g("470\tfuncion\t18"), [100, 620, 30]);
+  assert.deepEqual(g("470\tproyecto\t2512345"), [0, 500, 0]);
+  assert.equal(a.gasto.has("470\tproyecto\t3999999"), false, "las actividades no son proyectos");
+  assert.equal(a.gasto.has("470\tfuncion\t03"), false, "una fila en cero no crea clave");
+  assert.deepEqual(a.nombres.get("partida\t3.1.1"), ["ALIMENTOS Y BEBIDAS", "BIENES Y SERVICIOS"]);
+  assert.deepEqual(a.nombres.get("proyecto\t2512345"), ['MEJORAMIENTO DEL CUARTEL "SAN MARTIN"', ""]);
+  const gasto = await new Response(flujoGasto(a, 3)).text();
+  assert.equal(gasto.trim().split("\n").length, 4, "una línea por clave, en lotes de 3");
+  assert.match(gasto, /"2026","470","proyecto","2512345","MEJORAMIENTO DEL CUARTEL ""SAN MARTIN""",,"0.00","500.00","0.00"/, "sin grupo: NULL");
 });

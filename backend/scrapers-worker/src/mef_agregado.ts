@@ -3,6 +3,12 @@
  * ejecutora y por departamento × sector/pliego/programa/genérica. Mismo resultado que `agregar_zip` de
  * backend/scrapers/mef_presupuesto/pipeline.py (lo prueba test/mef.test.ts con vectores de Python).
  *
+ * Además (sólo aquí, no en el Python): en qué gasta cada unidad ejecutora (`gasto`, migración 63), por partida
+ * (genérica › detalle de subgenérica: "BIENES Y SERVICIOS › ALIMENTOS Y BEBIDAS"), por función ("DEFENSA Y
+ * SEGURIDAD NACIONAL") y por proyecto de inversión (TIPO_ACT_PROY = 2, con su nombre). Con el archivo de 2026 son
+ * ≈ 172 000 claves y 55 000 nombres: los montos van en UN arreglo compartido (un Float64Array por clave retenía 88 MB,
+ * cerca de los 128 MB del isolate) y el CSV sale como flujo directo al COPY, sin armarse entero en memoria.
+ *
  * El CSV del MEF trae todos los campos entre comillas y 63 columnas, de las cuales las 7 últimas son los
  * montos. Para no partir 9 millones de líneas enteras, se buscan solo los campos que hacen falta.
  */
@@ -15,6 +21,11 @@ export const ATRIBUTOS = ["SEC_EJEC", "EJECUTORA", "EJECUTORA_NOMBRE", "PLIEGO",
   "DEPARTAMENTO_EJECUTORA", "DEPARTAMENTO_EJECUTORA_NOMBRE", "PROVINCIA_EJECUTORA", "PROVINCIA_EJECUTORA_NOMBRE",
   "DISTRITO_EJECUTORA", "DISTRITO_EJECUTORA_NOMBRE"] as const;
 const MONTOS = ["MONTO_PIA", "MONTO_PIM", "MONTO_CERTIFICADO", "MONTO_COMPROMETIDO_ANUAL", "MONTO_COMPROMETIDO", "MONTO_DEVENGADO", "MONTO_GIRADO"];
+/** Lo que hace falta para el desglose del gasto de cada unidad ejecutora. */
+const CAMPOS_GASTO = ["TIPO_ACT_PROY", "PRODUCTO_PROYECTO", "PRODUCTO_PROYECTO_NOMBRE", "FUNCION", "FUNCION_NOMBRE", "GENERICA",
+  "GENERICA_NOMBRE", "SUBGENERICA", "SUBGENERICA_DET", "SUBGENERICA_DET_NOMBRE"];
+/** Las tres miradas del desglose: partida de gasto, función y proyecto de inversión. */
+export type TipoGasto = "partida" | "funcion" | "proyecto";
 
 /**
  * Del cuerpo de un ZIP de UNA entrada sin descriptor de datos (el del MEF: deflate, flag 0), los bytes
@@ -85,12 +96,25 @@ export function entradaZip(cuerpo: ReadableStream<Uint8Array>): ReadableStream<U
 const copiar = (s: string): string => JSON.parse(JSON.stringify(s));
 
 /**
- * Campo `n` de una línea "a","b",… sin partirla entera. Un nombre puede traer comillas escapadas
+ * Dónde empieza cada campo de la línea actual, hasta el último que se lee: se recorre UNA vez por línea (antes cada
+ * campo volvía a contar los separadores desde el principio).
+ */
+const inicios = new Int32Array(64);
+function indexar(linea: string, hasta: number): void {
+  let i = 1;
+  inicios[0] = 1;
+  for (let k = 1; k <= hasta; k++) {
+    i = linea.indexOf(SEP, i) + 3;
+    inicios[k] = i;
+  }
+}
+
+/**
+ * Campo `n` de la línea ya indexada (`indexar`), sin partirla entera. Un nombre puede traer comillas escapadas
  * (`""SAN LUIS""`): el campo termina en la primera comilla que no está duplicada.
  */
 function campo(linea: string, n: number): string {
-  let i = 1;
-  for (let k = 0; k < n; k++) i = linea.indexOf(SEP, i) + 3;
+  let i = inicios[n];
   let j = linea.indexOf('"', i);
   if (j < 0) return linea.slice(i);
   if (linea.charCodeAt(j + 1) !== 34) return linea.slice(i, j);
@@ -119,24 +143,57 @@ export interface Agregado {
   ejecutoras: Map<string, Ejecutora>;
   /** `${dep}\t${tipo}\t${nombre}` → pia, pim, devengado */
   desglose: Map<string, Float64Array>;
+  /** En qué gasta cada unidad ejecutora: `${sec_ejec}\t${tipo}\t${codigo}` (tipo: TipoGasto) → posición. */
+  gasto: Map<string, number>;
+  /** De a 3 por posición de `gasto`: pia, pim, devengado. Crece al doble cuando se llena. */
+  gastoMontos: Float64Array;
+  /** `${tipo}\t${codigo}` → [nombre, grupo]; el grupo de una partida es su genérica. */
+  nombres: Map<string, [string, string]>;
 }
 
 /** Procesa línea por línea el CSV del MEF (la primera es la cabecera) sobre el agregado `a`. */
 function procesador(a: Agregado): (linea: string) => void {
   let ix: Record<string, number> | null = null;
+  let hasta = 0;
   const m = new Float64Array(N_MONTOS);
+  /** Suma la fila en (unidad ejecutora, tipo, código); el nombre se lee sólo la primera vez que aparece el código. */
+  const sumarGasto = (sec: string, tipo: TipoGasto, codigo: string, nombre: () => [string, string]) => {
+    const clave = `${sec}\t${tipo}\t${codigo}`;
+    let i = a.gasto.get(clave);
+    if (i === undefined) {
+      i = a.gasto.size * 3;
+      // La clave, plana (no una cadena compuesta de trozos): pesa menos retenida.
+      a.gasto.set(copiar(clave), i);
+      if (i + 3 > a.gastoMontos.length) {
+        const mas = new Float64Array(a.gastoMontos.length * 2);
+        mas.set(a.gastoMontos);
+        a.gastoMontos = mas;
+      }
+      const n = `${tipo}\t${codigo}`;
+      if (!a.nombres.has(n)) {
+        const [x, g] = nombre();
+        a.nombres.set(copiar(n), [copiar(x.trim()), copiar(g.trim())]);
+      }
+    }
+    const d = a.gastoMontos;
+    d[i] += m[0];
+    d[i + 1] += m[1];
+    d[i + 2] += m[5];
+  };
   const procesar = (linea: string) => {
     if (!ix) {
       const cab = linea.replace(/^﻿/, "").split(SEP).map((c) => c.replaceAll('"', ""));
       ix = Object.fromEntries(cab.map((c, i) => [c, i]));
-      const falta = [...ATRIBUTOS, ...MONTOS, "ANO_EJE", "PROGRAMA_PPTO_NOMBRE", "GENERICA_NOMBRE"].filter((c) => !(c in ix!));
+      const falta = [...ATRIBUTOS, ...MONTOS, ...CAMPOS_GASTO, "ANO_EJE", "PROGRAMA_PPTO_NOMBRE"].filter((c) => !(c in ix!));
       if (falta.length) throw new Error(`el CSV del MEF cambió: faltan ${falta.join(", ")}`);
+      hasta = Math.max(...[...ATRIBUTOS, ...CAMPOS_GASTO, "ANO_EJE", "PROGRAMA_PPTO_NOMBRE"].map((c) => ix![c]));
       const ultimos = cab.slice(-N_MONTOS);
       if (ultimos.join() !== MONTOS.join()) throw new Error(`el CSV del MEF cambió: las 7 últimas columnas son ${ultimos.join(", ")}`);
       return;
     }
     const x = ix;
     a.filas++;
+    indexar(linea, hasta);
     const sec = campo(linea, x.SEC_EJEC);
     let e = a.ejecutoras.get(sec);
     if (!e) {
@@ -171,11 +228,27 @@ function procesador(a: Agregado): (linea: string) => void {
       d[1] += m[1];
       d[2] += m[5];
     }
+    // En qué gasta la unidad ejecutora: sólo filas con algún monto (las de ejecución en cero no crean claves).
+    if (m[0] === 0 && m[1] === 0 && m[5] === 0) return;
+    const partida = `${campo(linea, x.GENERICA)}.${campo(linea, x.SUBGENERICA)}.${campo(linea, x.SUBGENERICA_DET)}`;
+    sumarGasto(sec, "partida", partida, () => [campo(linea, x.SUBGENERICA_DET_NOMBRE), campo(linea, x.GENERICA_NOMBRE)]);
+    sumarGasto(sec, "funcion", campo(linea, x.FUNCION), () => [campo(linea, x.FUNCION_NOMBRE), ""]);
+    if (campo(linea, x.TIPO_ACT_PROY) === "2") {
+      sumarGasto(sec, "proyecto", campo(linea, x.PRODUCTO_PROYECTO), () => [campo(linea, x.PRODUCTO_PROYECTO_NOMBRE), ""]);
+    }
   };
   return procesar;
 }
 
-const nuevo = (): Agregado => ({ anio: 0, filas: 0, ejecutoras: new Map(), desglose: new Map() });
+const nuevo = (): Agregado => ({
+  anio: 0, filas: 0, ejecutoras: new Map(), desglose: new Map(), gasto: new Map(), gastoMontos: new Float64Array(3 * 65_536), nombres: new Map(),
+});
+
+/** Los montos (pia, pim, devengado) de una clave de `gasto`, o `null` si no está. */
+export function montosGasto(a: Agregado, clave: string): [number, number, number] | null {
+  const i = a.gasto.get(clave);
+  return i === undefined ? null : [a.gastoMontos[i], a.gastoMontos[i + 1], a.gastoMontos[i + 2]];
+}
 
 /** Corta el texto en líneas (\n o \r\n) entre trozos y las pasa a `procesar`. */
 class Cortador {
@@ -247,4 +320,32 @@ export function csvAgregado(a: Agregado, corte: string | null): { ejecutoras: st
   const desglose = [...a.desglose.entries()].map(([k, d]) =>
     [a.anio, ...k.split("\t"), d[0].toFixed(2), d[1].toFixed(2), d[2].toFixed(2)].map(celda).join(",")).join("\n");
   return { ejecutoras: ejecutoras + "\n", desglose: desglose + "\n" };
+}
+
+/**
+ * El gasto por unidad ejecutora como CSV para `COPY mef_ejecutora_gasto (anio, sec_ejec, tipo, codigo, nombre, grupo, pia,
+ * pim, devengado)`, en un flujo de a `lote` filas: con 2026 son ≈ 28 MB de texto que no hace falta tener enteros.
+ */
+export function flujoGasto(a: Agregado, lote = 2_000): ReadableStream<Uint8Array> {
+  const cod = new TextEncoder();
+  const claves = a.gasto.entries();
+  return new ReadableStream<Uint8Array>({
+    pull(c) {
+      let texto = "";
+      for (let k = 0; k < lote; k++) {
+        const sig = claves.next();
+        if (sig.done) {
+          if (texto) c.enqueue(cod.encode(texto));
+          c.close();
+          return;
+        }
+        const [clave, i] = sig.value;
+        const [sec, tipo, codigo] = clave.split("\t");
+        const [nombre, grupo] = a.nombres.get(`${tipo}\t${codigo}`) ?? ["", ""];
+        const d = a.gastoMontos;
+        texto += [a.anio, sec, tipo, codigo, nombre, grupo, d[i].toFixed(2), d[i + 1].toFixed(2), d[i + 2].toFixed(2)].map(celda).join(",") + "\n";
+      }
+      c.enqueue(cod.encode(texto));
+    },
+  });
 }

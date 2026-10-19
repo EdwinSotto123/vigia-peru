@@ -239,6 +239,15 @@ export async function getMefRegion(dept: string) {
   return get<import("./mef").RegionBudgetSummary>(`/mef/region/${encodeURIComponent(dept)}`);
 }
 
+/** En qué gasta la entidad según el MEF (migración 63). null si la API no responde o no lo tiene. */
+export async function getGastoEntidad(ruc: string) {
+  try {
+    return await get<import("./mef").GastoEntidad>(`/entidades/${ruc}/gasto`);
+  } catch {
+    return null;
+  }
+}
+
 export async function getFraccionamientoEntidad(ruc: string) {
   try {
     return await get<import("./contratos").FraccionamientoEntidad>(`/entidades/${ruc}/fraccionamiento`);
