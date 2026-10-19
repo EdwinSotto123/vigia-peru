@@ -94,6 +94,26 @@ export interface Fila {
   estado_tender: unknown;
   clasificacion: Clasificacion;
   payload: Dict;
+  /** Las adjudicaciones recortadas (migración 71): el payload guardado no trae `awards`. null si no hay. */
+  adjudicaciones: Dict[] | null;
+}
+
+/** awards del release → lo que la ficha necesita: id, fecha, estado, monto, proveedores (id, nombre) e ids de ítems. */
+export function recortarAdjudicaciones(rel: Dict): Dict[] | null {
+  const out: Dict[] = [];
+  for (const a of iterar(get(rel, "awards"))) {
+    if (!esDict(a)) continue;
+    const valor = dictDe(get(a, "value"));
+    out.push({
+      id: get(a, "id"),
+      date: get(a, "date"),
+      status: get(a, "status"),
+      value: Object.keys(valor).length ? { amount: get(valor, "amount"), currency: get(valor, "currency"), amount_PEN: get(valor, "amount_PEN") } : null,
+      suppliers: iterar(get(a, "suppliers")).filter(esDict).map((s) => ({ id: get(s, "id"), name: get(s, "name") })),
+      items: iterar(get(a, "items")).filter(esDict).map((i) => ({ id: get(i, "id") })),
+    });
+  }
+  return out.length ? out : null;
 }
 
 /** Release OCDS → fila de convocatorias (+ entidad). null si no hay ocid o RUC del comprador. */
@@ -129,6 +149,7 @@ export function normalizarRelease(rel: Dict, ix: ZonaIndex): Fila | null {
     estado_tender: get(tender, "status"),
     clasificacion: clas,
     payload,
+    adjudicaciones: recortarAdjudicaciones(rel),
   };
 }
 
@@ -191,7 +212,7 @@ async function recorrerDia(env: Env, dia: string, ix: ZonaIndex, tope: number): 
 }
 
 // ── carga ───────────────────────────────────────────────────────────────────
-const COLS_CONV = 21;
+const COLS_CONV = 22;
 
 /** Upsert de entidades y convocatorias (mismo SQL que load() de Python, en tandas de 500). */
 async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; entidades: number }> {
@@ -226,11 +247,12 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
         const c = f.clasificacion;
         vals.push(f.ocid, f.codigo, f.entidad_ruc, f.objeto, f.cuantia ?? null, f.fecha, f.region, f.ubigeo, f.categoria ?? null,
           f.estado_tender ?? null, "ocds_api", JSON.stringify(f.payload), c.tipo, c.etapa, c.modalidad, c.procesable,
-          c.motivo_no_procesable, c.agentes, c.validaciones_pendientes, c.proveedor_ruc);
+          c.motivo_no_procesable, c.agentes, c.validaciones_pendientes, c.proveedor_ruc,
+          f.adjudicaciones ? JSON.stringify(f.adjudicaciones) : null);
         const b = vals.length - (COLS_CONV - 1);
         const p = (k: number) => `$${b + k}`;
         return `(${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}::numeric, ${p(6)}::date, ${p(7)}, ${p(8)}, ${p(9)}, ${p(10)}, ${p(11)}, ` +
-          `${p(12)}::jsonb, ${p(13)}, ${p(14)}, ${p(15)}, ${p(16)}::boolean, ${p(17)}, ${p(18)}::text[], ${p(19)}::text[], ${p(20)}, now())`;
+          `${p(12)}::jsonb, ${p(13)}, ${p(14)}, ${p(15)}, ${p(16)}::boolean, ${p(17)}, ${p(18)}::text[], ${p(19)}::text[], ${p(20)}, ${p(21)}::jsonb, now())`;
       });
       // No se pisa lo que ya cargó el orquestador (objeto, cuantía, payload completo).
       // La clasificación SÍ se actualiza siempre: el release nuevo trae la etapa más reciente.
@@ -238,7 +260,7 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
         INSERT INTO convocatorias (ocid, codigo, entidad_ruc, objeto, cuantia_referencial, fecha_convocatoria,
                                    region, ubigeo, categoria, estado_tender, fuente, ocds_payload,
                                    tipo_contratacion, etapa, modalidad, procesable, motivo_no_procesable,
-                                   agentes_aplicables, validaciones_pendientes, proveedor_ruc, clasificado_at)
+                                   agentes_aplicables, validaciones_pendientes, proveedor_ruc, adjudicaciones, clasificado_at)
         VALUES ${tuplas.join(", ")}
         ON CONFLICT (ocid) DO UPDATE SET
           ubigeo              = COALESCE(convocatorias.ubigeo, EXCLUDED.ubigeo),
@@ -256,6 +278,7 @@ async function cargar(db: Db, filas: Fila[]): Promise<{ convocatorias: number; e
           agentes_aplicables  = EXCLUDED.agentes_aplicables,
           validaciones_pendientes = EXCLUDED.validaciones_pendientes,
           proveedor_ruc       = COALESCE(EXCLUDED.proveedor_ruc, convocatorias.proveedor_ruc),
+          adjudicaciones      = COALESCE(EXCLUDED.adjudicaciones, convocatorias.adjudicaciones),
           clasificado_at      = now(),
           updated_at          = now()`, vals);
     }

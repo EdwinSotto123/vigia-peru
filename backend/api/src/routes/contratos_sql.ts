@@ -96,7 +96,7 @@ export function alcanceActivo(): Promise<{ tipos: string[]; etapas: string[] }> 
 const sqlArray = (xs: string[]) => `ARRAY[${xs.map((x) => `'${x}'`).join(",")}]::text[]`;
 
 export function exprs(cols: Set<string>, alcance?: { tipos: string[]; etapas: string[] }): Exprs {
-  const supplier = `c.ocds_payload->'awards'->0->'suppliers'->0`;
+  const supplier = `COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0`;
   const proveedorRuc = cols.has("proveedor_ruc")
     ? `COALESCE(c.proveedor_ruc::text, NULLIF(regexp_replace(${supplier}->>'id', '^PE-RUC-', ''), ''))`
     : `NULLIF(regexp_replace(${supplier}->>'id', '^PE-RUC-', ''), '')`;
@@ -262,7 +262,7 @@ export async function listaAnterior(q: z.infer<typeof ListQuery>) {
   vals.push(q.size, (q.page - 1) * q.size);
   const emp = cols.has("proveedor_ruc")
     ? `LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc`
-    : `LEFT JOIN empresas emp ON emp.ruc = NULLIF(regexp_replace(c.ocds_payload->'awards'->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')`;
+    : `LEFT JOIN empresas emp ON emp.ruc = NULLIF(regexp_replace(COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')`;
   const r = await pool.query(
     `WITH pag AS (
        SELECT c.ocid, (count(*) OVER())::int AS total

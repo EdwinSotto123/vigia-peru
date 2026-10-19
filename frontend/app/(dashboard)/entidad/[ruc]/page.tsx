@@ -181,8 +181,9 @@ export default async function EntidadProfile({
                   ayuda={
                     <Ayuda titulo="¿Qué contratos hay aquí?">
                       <span className="block">
-                        Cada convocatoria de esta entidad que Vigía tiene en su base, leída o no. Cada fila abre su resumen;
-                        el dossier completo, con el dictamen si ya se leyó, está en el pie del resumen.
+                        Cada convocatoria de esta entidad desde 2015, leída o no (del registro OCDS del OECE). Las de 2026
+                        entran a la cola de lectura; las anteriores se ven con sus datos, sin lectura. Cada fila abre su
+                        resumen; el dossier completo, con el dictamen si ya se leyó, está en el pie del resumen.
                       </span>
                       <span className="mt-2 block">
                         Vigía no acusa a nadie: las señales y los antecedentes salen del cruce automático de datos
@@ -191,8 +192,8 @@ export default async function EntidadProfile({
                     </Ayuda>
                   }
                 >
-                  Sus convocatorias en la base de Vigía (las que puede leer), con lo leído y los antecedentes de quien ganó.
-                  Su historia completa, desde 2015, está en «Procesos desde 2015».
+                  Todas sus convocatorias desde 2015, con lo que leyó Vigía y los antecedentes de quien ganó. Lo
+                  adjudicado, con su ganador y su monto, está en «Procesos desde 2015».
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
                   {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
@@ -218,9 +219,9 @@ export default async function EntidadProfile({
                   ayuda={
                     <Ayuda titulo="¿De dónde salen estos procesos?">
                       Los procesos que esta entidad adjudicó, con su ganador y su monto: desde 2018, de CONOSCE (OECE);
-                      de 2015 a 2017, de Contrataciones Abiertas, la API pública del mismo OECE. Son más que los contratos
-                      de la pestaña anterior, que son los que Vigía tiene en su base para leer (casi todos de 2026). Si un
-                      proceso también está ahí, su resumen lleva a su ficha.
+                      de 2015 a 2017, de Contrataciones Abiertas, la API pública del mismo OECE. La pestaña anterior trae
+                      todas sus convocatorias (adjudicadas o no) con lo que leyó Vigía; ésta, sólo lo adjudicado, con lo
+                      que se pagó a cada ganador. Si un proceso también está ahí, su resumen lleva a su ficha.
                     </Ayuda>
                   }
                 >
@@ -445,7 +446,8 @@ function indicadores({
       ayuda: (
         <Ayuda titulo="¿Qué contratos puede leer Vigía?">
           <span className="block">
-            Los de su base, casi todos convocados en 2026: los que se leen con sus documentos y pueden tener dictamen.
+            Todas sus convocatorias desde 2015. Las de 2026 entran a la cola de lectura: se leen con sus documentos y
+            pueden tener dictamen; las anteriores se ven con sus datos, sin lectura.
             {leidos > publicados ? ` Leídos: ${numero(leidos)}; ${numero(leidos - publicados)} siguen en revisión humana.` : ""}
           </span>
           {enCola > 0 && (

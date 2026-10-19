@@ -52,7 +52,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const ex = exprs(cols, await alcanceActivo());
   const emp = cols.has("proveedor_ruc")
     ? `LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc`
-    : `LEFT JOIN empresas emp ON emp.ruc = NULLIF(regexp_replace(c.ocds_payload->'awards'->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')`;
+    : `LEFT JOIN empresas emp ON emp.ruc = NULLIF(regexp_replace(COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'suppliers'->0->>'id', '^PE-RUC-', ''), '')`;
   const r = await pool.query(
     `SELECT ${selectResumen(ex)},
             to_char(c.fecha_buena_pro, 'YYYY-MM-DD') AS "fechaBuenaPro",
@@ -60,7 +60,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
             c.ocds_payload->'tender'->>'title' AS "nomenclatura",
             c.ocds_payload->'tender'->>'description' AS descripcion,
             (c.ocds_payload->'tender'->>'numberOfTenderers')::int AS "postores",
-            COALESCE(c.ocds_payload->'tender'->'items', c.ocds_payload->'awards'->0->'items', '[]'::jsonb) AS items_raw,
+            COALESCE(c.ocds_payload->'tender'->'items', COALESCE(c.ocds_payload->'awards', c.adjudicaciones)->0->'items', '[]'::jsonb) AS items_raw,
             -- documentos de tender + awards + contracts (el record completo trae los tres niveles)
             (SELECT COALESCE(jsonb_agg(d || jsonb_build_object('seccion', s)), '[]'::jsonb) FROM (
                SELECT d, 'tender' AS s FROM jsonb_array_elements(COALESCE(c.ocds_payload->'tender'->'documents', '[]'::jsonb)) d
@@ -68,7 +68,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
                                              jsonb_array_elements(COALESCE(a->'documents', '[]'::jsonb)) d
                UNION ALL SELECT d, 'contract' FROM jsonb_array_elements(COALESCE(c.ocds_payload->'contracts', '[]'::jsonb)) k,
                                                 jsonb_array_elements(COALESCE(k->'documents', '[]'::jsonb)) d) x) AS docs_raw,
-            c.ocds_payload->'awards' AS awards_raw,
+            -- Sin record completo, las adjudicaciones recortadas que guarda oece_ocds (migración 71).
+            COALESCE(c.ocds_payload->'awards', c.adjudicaciones) AS awards_raw,
             a.id AS alerta_id, a.codigo AS "alertaCodigo",
             ${ex.motivo} AS "motivoNoProcesable", ${ex.agentes} AS "agentesAplicables", ${ex.validaciones} AS "validacionesPendientes",
             ${col(cols, "clasificado_at", "timestamptz")} AS "clasificadoAt"

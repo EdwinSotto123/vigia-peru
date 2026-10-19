@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { clasificar } from "../src/clasificacion.ts";
-import { normalizarRelease, ocidCorto, sinEscapes, slugRegion } from "../src/fuentes/oece_ocds.ts";
+import { normalizarRelease, recortarAdjudicaciones, ocidCorto, sinEscapes, slugRegion } from "../src/fuentes/oece_ocds.ts";
 import type { Dict } from "../src/py.ts";
 import { ZonaIndex, norm, resolverUbigeo } from "../src/ubigeo.ts";
 import { zonasSemilla } from "./zonas.ts";
@@ -41,11 +41,25 @@ test("normalize_release da la misma fila que Python (ubigeo, región, payload, c
   for (const v of V.ocds) {
     if (v.fila.error) continue;
     const fila = normalizarRelease(v.release, IX);
-    assert.deepEqual(fila, v.fila.ok, JSON.stringify(v.release).slice(0, 400));
+    // `adjudicaciones` (migración 71) no existe en Python: se compara el resto y se prueba aparte.
+    const sinAdj = fila && (({ adjudicaciones: _a, ...resto }) => resto)(fila);
+    assert.deepEqual(sinAdj, v.fila.ok, JSON.stringify(v.release).slice(0, 400));
     n++;
     if (fila === null) nulas++;
   }
   assert.ok(n > 450 && nulas > 20 && nulas < n - 200, `${n} filas, ${nulas} sin ocid/RUC`);
+});
+
+test("recortarAdjudicaciones: id, fecha, monto, proveedores e ids de ítems; null sin awards", () => {
+  const rel = {
+    awards: [{ id: "304014-20479929077", date: "2016-10-18T00:00:00-05:00", value: { amount: 2006088, currency: "PEN", currencyName: "Nuevos Soles" },
+      suppliers: [{ id: "PE-RUC-20479929077", name: "SG&COURIER S.R.L.", extra: 1 }], items: [{ id: "689904", description: "x" }], documents: [{ url: "u" }] }],
+  };
+  assert.deepEqual(recortarAdjudicaciones(rel), [{
+    id: "304014-20479929077", date: "2016-10-18T00:00:00-05:00", status: null, value: { amount: 2006088, currency: "PEN", amount_PEN: null },
+    suppliers: [{ id: "PE-RUC-20479929077", name: "SG&COURIER S.R.L." }], items: [{ id: "689904" }],
+  }]);
+  assert.equal(recortarAdjudicaciones({ tender: {} }), null);
 });
 
 test("slug_region, norm y short_ocid", () => {
