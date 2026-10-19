@@ -24,6 +24,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LinkIntencion } from "@/components/ui/LinkIntencion";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { BuscarGlobal } from "@/components/BuscarGlobal";
@@ -466,7 +467,7 @@ function SidebarLink({
   hint?: string;
 }) {
   return (
-    <Link
+    <LinkIntencion
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -526,6 +527,6 @@ function SidebarLink({
         // "Financiar" ya lo cargan el borde granate y el peso del texto.
         <ArrowRight size={14} className="shrink-0 opacity-70" aria-hidden />
       ) : null}
-    </Link>
+    </LinkIntencion>
   );
 }

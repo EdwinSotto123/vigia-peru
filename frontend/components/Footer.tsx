@@ -81,6 +81,7 @@ export function Footer() {
           <div>
             <Link
               href="/"
+              prefetch={false}
               aria-label="Vigía Perú, ir al inicio"
               className="inline-flex rounded-lg transition-opacity duration-rapido hover:opacity-80"
             >
@@ -95,6 +96,7 @@ export function Footer() {
           <div className="flex flex-col gap-2.5 sm:flex-row lg:flex-col">
             <Link
               href="/app/financiar"
+              prefetch={false}
               className="group flex min-h-12 items-center sm:flex-1 lg:flex-none justify-between gap-3 rounded-full bg-paper px-5 py-3 text-granate transition-colors duration-rapido hover:bg-maiz-soft"
             >
               <span className="flex items-center gap-2.5">
@@ -194,7 +196,7 @@ function ColumnaEnlaces({ titulo, enlaces }: { titulo: string; enlaces: Enlace[]
                 </span>
               </a>
             ) : (
-              <Link href={e.href} className={clase}>
+              <Link href={e.href} prefetch={false} className={clase}>
                 {e.label}
               </Link>
             )}

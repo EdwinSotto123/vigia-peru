@@ -1,4 +1,3 @@
-import { rutaContrato } from "@/lib/rutas";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Building2, Camera, Flag, GitCompareArrows, Heart, Landmark, MapPin, type LucideIcon } from "lucide-react";
@@ -8,12 +7,13 @@ import { HeroInicio, type CifrasInicio } from "@/components/home/HeroInicio";
 import { RankingsInicio, type PestanaRank } from "@/components/home/RankingsInicio";
 import { aFilaLeida, aFilaVivo, type FotoVivo } from "@/components/home/vivo";
 import { clasificar, hrefPerfil } from "@/components/aliados/ranking";
-import { getAlertas } from "@/lib/api-client";
+import { API_BASE } from "@/lib/api-client";
+import { esAnalisisPublicado, hrefAnalisis, type AnalisisPublicado } from "@/components/convocatoria/analisisPublicados";
 import { getProcesamientos } from "@/lib/auditoria";
 import { getContratosGeo, getResumenContratos, getResumenVivo } from "@/lib/contratos";
 import { getEntidadesFinanciables, getEstadoGlobal, getRankingPaginado } from "@/lib/financiamiento";
 import { numero, plural, relativo } from "@/lib/formato";
-import { contarLeidos, tituloNatural, type AlertaReal } from "@/lib/landing";
+import { contarLeidos, tituloNatural } from "@/lib/landing";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos, periodoTexto } from "@/lib/partidosApi";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -41,19 +41,27 @@ const CAMINOS: { href: string; Icono: LucideIcon; titulo: string; texto: string 
 
 const TOPE = 5;
 
-/** Lo último: contratos con señales, del más reciente al más antiguo. Sin nombres de personas. */
-function ultimasSenales(alertas: AlertaReal[], cuantos = 4): AlertaReal[] {
-  return alertas
-    .filter((a) => !!a.codigo && !!a.codigoconvocatoria && (a.banderas?.length ?? 0) > 0)
-    .sort((a, b) => (b.fechaBuenaPro ?? "").localeCompare(a.fechaBuenaPro ?? ""))
-    .slice(0, cuantos);
+/**
+ * Lo último que Vigía marcó: los análisis publicados más recientes con señales, de `GET /alertas/analizadas` (~3 KB:
+ * objeto, entidad, región, conteo de señales y fechas). Antes se bajaban 60 alertas completas (~190 KB, con cada señal
+ * y su evidencia) para mostrar cuatro. Sin nombres de personas.
+ */
+async function ultimasSenales(cuantos = 4): Promise<AnalisisPublicado[]> {
+  try {
+    const res = await fetch(`${API_BASE}/alertas/analizadas?limit=${cuantos * 3}&orden=reciente`, { next: { revalidate: 120 } } as RequestInit);
+    if (!res.ok) return [];
+    const j = (await res.json()) as { items?: unknown[] };
+    return (j.items ?? []).filter(esAnalisisPublicado).filter((a) => (a.n_banderas ?? 0) > 0).slice(0, cuantos);
+  } catch {
+    return [];
+  }
 }
 
 export default async function InicioApp() {
-  const [resumen, estado, alertas, entidades, partidos, ranking, regiones, vivo] = await Promise.all([
+  const [resumen, estado, ultimas, entidades, partidos, ranking, regiones, vivo] = await Promise.all([
     getResumenContratos().catch(() => null),
     getEstadoGlobal().catch(() => null),
-    getAlertas({ limit: 60 }).catch(() => []),
+    ultimasSenales(),
     getEntidadesFinanciables({ limit: TOPE }).catch(() => null),
     getRankingPartidos(ANIO_GOBIERNO_VIGENTE).catch(() => null),
     getRankingPaginado({ periodo: "todo", limit: 12 }).catch(() => null),
@@ -158,8 +166,6 @@ export default async function InicioApp() {
     };
   }
 
-  const ultimas = ultimasSenales(alertas as unknown as AlertaReal[]);
-
   return (
     <div className="min-h-screen bg-paperSoft">
       <Pagina className="space-y-8">
@@ -200,11 +206,11 @@ export default async function InicioApp() {
             <h2 id="ultimo-titulo" className="etiqueta-mono mb-3">Lo último que Vigía marcó</h2>
             <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-paper">
               {ultimas.map((a) => {
-                const n = a.banderas?.length ?? 0;
+                const n = a.n_banderas ?? 0;
                 return (
-                  <li key={a.codigo}>
+                  <li key={a.ocid}>
                     <Link
-                      href={rutaContrato(a.codigoconvocatoria, "dictamen")}
+                      href={hrefAnalisis(a)}
                       className="flex items-start justify-between gap-4 px-4 py-3 transition-colors duration-rapido hover:bg-granate-50 sm:px-5"
                     >
                       <span className="min-w-0">
@@ -215,7 +221,7 @@ export default async function InicioApp() {
                       </span>
                       <span className="shrink-0 text-right text-[13px] leading-snug text-mute">
                         <span className="block font-semibold text-ink">{n} {n === 1 ? "señal" : "señales"}</span>
-                        {a.fechaBuenaPro && <span className="block">{relativo(a.fechaBuenaPro)}</span>}
+                        <span className="block">{relativo(a.analizado_en)}</span>
                       </span>
                     </Link>
                   </li>

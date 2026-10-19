@@ -93,30 +93,38 @@ export default async function ContratoPage({
       </Pagina>
     );
   }
-  // La columna lateral trae los demás contratos de la misma entidad: datos reales, una línea cada uno.
+  // La columna lateral (otros contratos de la entidad, sus cifras y contratos parecidos de la provincia) se pide YA,
+  // pero no se espera: ContratoDetalle la pinta por streaming cuando llega. Antes la ficha esperaba esta segunda
+  // ronda de consultas antes de mandar el primer byte.
   const provincia = c.ubigeo && c.ubigeo.length >= 4 ? c.ubigeo.slice(0, 4) : null;
-  const [otros, resumenEntidad, parecidosPagina] = await Promise.all([
-    c.entidadRuc ? getContratos({ entidad: c.entidadRuc, size: 9, orden: "fecha" }).catch(() => null) : null,
-    c.entidadRuc ? getResumenContratos({ entidad: c.entidadRuc }).catch(() => null) : null,
-    // Contratos del mismo tipo en la misma provincia, de otras entidades: con qué se puede comparar este.
-    provincia && c.tipo ? getContratos({ ubigeo: provincia, tipo: c.tipo, size: 9, orden: "fecha" }).catch(() => null) : null,
-  ]);
-  const parecidos = parecidosPagina
-    ? {
-        contratos: parecidosPagina.data.filter((x) => x.ocid !== c.ocid && x.entidadRuc !== c.entidadRuc).slice(0, 5),
-        total: parecidosPagina.total,
-        provincia,
-      }
+  const relacionados = c.entidadRuc
+    ? getContratos({ entidad: c.entidadRuc, size: 9, orden: "fecha" })
+        .then((otros) => (otros ? { contratos: otros.data.filter((x) => x.ocid !== c.ocid).slice(0, 8), total: Math.max(0, otros.total - 1) } : null))
+        .catch(() => null)
     : null;
-  const relacionados = otros ? { contratos: otros.data.filter((x) => x.ocid !== c.ocid).slice(0, 8), total: Math.max(0, otros.total - 1) } : null;
-  const entidadEnVigia = resumenEntidad
-    ? {
-        total: resumenEntidad.total,
-        leidos: resumenEntidad.total - (resumenEntidad.porRiesgo.sin_analizar ?? 0),
-        conSenales: (resumenEntidad.porRiesgo.alto ?? 0) + (resumenEntidad.porRiesgo.medio ?? 0),
-        esperando: resumenEntidad.porOperativo.en_cola ?? 0,
-      }
+  const entidadEnVigia = c.entidadRuc
+    ? getResumenContratos({ entidad: c.entidadRuc })
+        .then((r) =>
+          r
+            ? {
+                total: r.total,
+                leidos: r.total - (r.porRiesgo.sin_analizar ?? 0),
+                conSenales: (r.porRiesgo.alto ?? 0) + (r.porRiesgo.medio ?? 0),
+                esperando: r.porOperativo.en_cola ?? 0,
+              }
+            : null,
+        )
+        .catch(() => null)
     : null;
+  // Contratos del mismo tipo en la misma provincia, de otras entidades: con qué se puede comparar este.
+  const parecidos =
+    provincia && c.tipo
+      ? getContratos({ ubigeo: provincia, tipo: c.tipo, size: 9, orden: "fecha" })
+          .then((pp) =>
+            pp ? { contratos: pp.data.filter((x) => x.ocid !== c.ocid && x.entidadRuc !== c.entidadRuc).slice(0, 5), total: pp.total, provincia } : null,
+          )
+          .catch(() => null)
+      : null;
   return (
     <Pagina>
       <ContratoDetalle vistas={selector} c={c} alcance={vivo?.procesamientoActivo ?? null} catalogo={catalogo} seccion={seccion} relacionados={relacionados} entidadEnVigia={entidadEnVigia} parecidos={parecidos} />

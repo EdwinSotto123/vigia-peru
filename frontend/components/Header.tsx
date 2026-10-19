@@ -10,6 +10,7 @@ import { UserMenu } from "./auth/UserMenu";
 import { BuscarGlobal } from "./BuscarGlobal";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
 import { cn } from "@/lib/utils";
+import { LinkIntencion } from "@/components/ui/LinkIntencion";
 
 /**
  * Rutas donde el Header pasa a modo "dashboard": minimal, porque el sidebar manda.
@@ -296,7 +297,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
       {NAV.map((n) => {
         const active = esActivo(pathname, n.href);
         return (
-          <Link
+          <LinkIntencion
             key={n.href}
             href={n.href}
             aria-current={active ? "page" : undefined}
@@ -321,7 +322,7 @@ function NavDeslizante({ pathname, oscuro, leyendo }: { pathname: string; oscuro
               n.label
             )}
             {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
-          </Link>
+          </LinkIntencion>
         );
       })}
     </nav>
@@ -387,7 +388,7 @@ function MobileNavPanel({
           {NAV.map((n) => {
             const active = esActivo(pathname, n.href);
             return (
-              <Link
+              <LinkIntencion
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
@@ -403,7 +404,7 @@ function MobileNavPanel({
                 {"dorado" in n && n.dorado && <Crown size={16} aria-hidden className="text-medalla-oroOscuro" />}
                 {n.label}
                 {n.vivo && leyendo != null && leyendo > 0 && <PuntoVivo n={leyendo} />}
-              </Link>
+              </LinkIntencion>
             );
           })}
         </nav>

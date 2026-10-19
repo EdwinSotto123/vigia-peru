@@ -16,7 +16,7 @@
  */
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Building2, Clock, MapPin, ShieldAlert } from "lucide-react";
 import { ContratoEnVivo } from "@/components/auditoria/ContratoEnVivo";
 import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
@@ -80,11 +80,11 @@ export function ContratoDetalle({
   alcance?: AlcanceActivo | null;
   catalogo?: CatalogoReglas;
   /** Otros contratos de la misma entidad (solo en fichas cortas): hasta 5 y el total de la entidad. */
-  relacionados?: { contratos: ContratoResumen[]; total: number } | null;
+  relacionados?: Llega<{ contratos: ContratoResumen[]; total: number } | null>;
   /** Cifras de la entidad que contrata (publicados, leídos, riesgo medio o alto, esperando lectura). */
-  entidadEnVigia?: { total: number; leidos: number; conSenales: number; esperando: number } | null;
+  entidadEnVigia?: Llega<{ total: number; leidos: number; conSenales: number; esperando: number } | null>;
   /** Contratos del mismo tipo en la misma provincia, de otras entidades (con qué comparar este). */
-  parecidos?: { contratos: ContratoResumen[]; total: number; provincia: string | null } | null;
+  parecidos?: Llega<{ contratos: ContratoResumen[]; total: number; provincia: string | null } | null>;
   /** La pestaña abierta al cargar (`?seccion=` de la URL). */
   seccion?: string;
 }) {
@@ -103,9 +103,16 @@ export function ContratoDetalle({
   // Dos columnas desde lg. Izquierda: qué se contrata, las cifras y las pestañas (el Resumen abre con la lectura y
   // sus señales). Derecha, siempre visible y pegada arriba: los datos del proceso, su línea de tiempo, qué partes del
   // análisis aplican y más contratos de la misma entidad. Así la primera pantalla se llena con datos reales.
+  // Lo de la entidad y la provincia llega después (streaming): no frena la ficha.
   const otros =
-    relacionados && c.entidadRuc && relacionados.contratos.length > 0 ? (
-      <OtrosContratosEntidad entidad={c.entidad} entidadRuc={c.entidadRuc} contratos={relacionados.contratos} total={relacionados.total} />
+    relacionados && c.entidadRuc ? (
+      <Esperar p={relacionados}>
+        {(r) =>
+          r && r.contratos.length > 0 ? (
+            <OtrosContratosEntidad entidad={c.entidad} entidadRuc={c.entidadRuc!} contratos={r.contratos} total={r.total} />
+          ) : null
+        }
+      </Esperar>
     ) : null;
   // En una ficha corta (sin lectura) la columna izquierda es una línea: los contratos de la entidad van ahí, con ancho
   // para leerse; con la lectura hecha, la izquierda ya es larga y esa lista va en la columna lateral.
@@ -158,21 +165,29 @@ export function ContratoDetalle({
         <aside className="space-y-5 lg:sticky lg:top-4" aria-labelledby="datos-proceso">
           <DatosProceso c={c} />
           <LineaTiempoProceso c={c} />
-          {entidadEnVigia && c.entidadRuc && <EntidadEnVigia ruc={c.entidadRuc} {...entidadEnVigia} />}
+          {entidadEnVigia && c.entidadRuc && (
+            <Esperar p={entidadEnVigia}>{(e) => (e ? <EntidadEnVigia ruc={c.entidadRuc!} {...e} /> : null)}</Esperar>
+          )}
           {/* Con procesamiento en vivo los carriles ya muestran qué agente aplica y cuál se omitió. */}
           {!c.procesamiento && <ClasificacionCard c={c} />}
           {!otrosAbajo && otros}
-          {parecidos && parecidos.contratos.length > 0 && parecidos.provincia && (
-            <OtrosContratosEntidad
-              entidad={c.entidad}
-              entidadRuc={c.entidadRuc ?? ""}
-              contratos={parecidos.contratos}
-              total={parecidos.total}
-              titulo={`${tipoLabel(c.tipo) ?? "Contratos"} de otras entidades de la provincia`}
-              verHref={`/app/contratos?ubigeo=${parecidos.provincia}&tipo=${c.tipo ?? ""}`}
-              idSeccion="contratos-parecidos"
-              compacta
-            />
+          {parecidos && (
+            <Esperar p={parecidos}>
+              {(pr) =>
+                pr && pr.contratos.length > 0 && pr.provincia ? (
+                  <OtrosContratosEntidad
+                    entidad={c.entidad}
+                    entidadRuc={c.entidadRuc ?? ""}
+                    contratos={pr.contratos}
+                    total={pr.total}
+                    titulo={`${tipoLabel(c.tipo) ?? "Contratos"} de otras entidades de la provincia`}
+                    verHref={`/app/contratos?ubigeo=${pr.provincia}&tipo=${c.tipo ?? ""}`}
+                    idSeccion="contratos-parecidos"
+                    compacta
+                  />
+                ) : null
+              }
+            </Esperar>
           )}
         </aside>
       </div>
@@ -575,4 +590,20 @@ function CambioGanador({ c, cambio }: { c: Detalle; cambio: NonNullable<ReturnTy
       <p className="mt-1.5 text-[12px] text-mute">Fuente: registro OCDS del OECE y CONOSCE · adjudicaciones</p>
     </section>
   );
+}
+
+/** Un dato que puede llegar ya resuelto o como promesa (se pinta por streaming cuando llega). */
+type Llega<T> = T | Promise<T>;
+
+/** Pinta `children(valor)` cuando la promesa se resuelve, dentro de su propio <Suspense> (sin esqueleto: es apoyo). */
+function Esperar<T>({ p, children }: { p: Llega<T>; children: (v: T) => ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <Resuelto p={p}>{children}</Resuelto>
+    </Suspense>
+  );
+}
+
+async function Resuelto<T>({ p, children }: { p: Llega<T>; children: (v: T) => ReactNode }) {
+  return <>{children(await p)}</>;
 }
