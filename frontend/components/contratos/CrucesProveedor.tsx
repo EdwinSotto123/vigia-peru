@@ -256,7 +256,14 @@ function Texto({ c }: { c: CruceProveedor }) {
         <>
           Antes de este proceso, <Emp c={c} /> ya le había ganado <b>{numero(n(d.procesos) ?? 0)} procesos</b> a esta entidad
           {rango(d.desde, d.hasta) ? ` (${rango(d.desde, d.hasta)})` : ""} por {solesCompacto(c.montoSoles)}
-          {part != null ? <>: el <b>{(part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b> de lo que la entidad había adjudicado hasta entonces</> : ""}
+          {part != null ? (
+            <>
+              {/* 0,03 % no es "0 %": la entidad adjudicó algo y le tocó una parte mínima. */}
+              : {part > 0 && part < 0.001 ? "menos del " : "el "}
+              <b>{part > 0 && part < 0.001 ? "0.1" : (part * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %</b> de lo que la entidad había
+              adjudicado hasta entonces
+            </>
+          ) : ""}
           {n(d.procesos_entidad) ? ` en ${numero(n(d.procesos_entidad)!)} procesos` : ""}.
         </>
       );
