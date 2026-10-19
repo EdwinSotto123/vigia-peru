@@ -5,7 +5,7 @@ import type { GastoEntidad } from "@/lib/mef";
 import { EnQueGasta } from "@/components/EnQueGasta";
 import { AlertCircle, Database, ExternalLink, WifiOff } from "lucide-react";
 import { Ayuda, FuenteDato } from "@/components/patrones";
-import { CeldaNumero, CeldaPrincipal, Indicadores, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila, type Indicador } from "@/components/listado";
+import { CeldaNumero, CeldaPrincipal, IndicadoresSkeleton, Tabla, TablaSkeleton, type Columna, type Fila } from "@/components/listado";
 import { numero, porcentaje, soles, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,10 @@ const DATASET_MEF = "https://datosabiertos.mef.gob.pe/dataset/presupuesto-y-ejec
  *
  * Vive en la sección "Cuánto gasta" de la ficha de una entidad, que ya le pone nombre y
  * bajada: aquí va el dato, sin repetir el encabezado. Primero, de dónde salen las cifras (su
- * unidad ejecutora, o todo el gobierno regional si no se identificó: migración 62). Plantilla Ficha (§14.2):
- * el último año como `Indicadores` (número → qué es → contexto), los avisos en una línea
- * + ⓘ, y cada año en la `Tabla` del kit, con la ejecución como chip. Sus estados (caído,
+ * unidad ejecutora, o todo el gobierno regional si no se identificó: migración 62). Después, el año en curso en una
+ * sola barra (el presupuesto vigente, con lo pagado, lo gastado sin pagar, lo que falta y la marca del inicial):
+ * antes eran cuatro cifras del mismo peso que no decían que son una misma cuenta. Luego en qué gasta, y al final
+ * cada año en la `Tabla` del kit, con la ejecución como chip. Los avisos van en una línea + ⓘ. Sus estados (caído,
  * sin registros) van alineados a la izquierda y sin la llamita: la llamita no
  * acompaña a nadie señalado (§2.3). Una ejecución baja o por encima del PIM es una
  * observación del presupuesto, no una señal de Vigía: va en ámbar con ícono y palabra,
@@ -152,50 +153,13 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
 
   // Crecimiento del PIM frente al año anterior (null si no hay con qué comparar).
   const growth = prevYear && prevYear.pim > 0 ? ((current.pim - prevYear.pim) / prevYear.pim) * 100 : null;
-  const tonoDevengado: Indicador["tono"] = isUnderExecuted || isOverExecuted ? "media" : ejPct >= 90 ? "positivo" : "neutro";
-  const sinPim = "sin PIM con qué comparar";
-
-  // El último año con datos propios, cifra por cifra; la tabla de abajo trae todos.
-  const indicadores: Indicador[] = [
-    {
-      valor: solesCompacto(current.pia),
-      etiqueta: `PIA ${current.year}`,
-      contexto: "presupuesto inicial",
-      ayuda: (
-        <Ayuda titulo="¿Qué son PIA, PIM, devengado y girado?">
-          PIA: el presupuesto aprobado al inicio del año. PIM: el presupuesto modificado durante el año. Devengado: el gasto
-          que la entidad ya reconoció como obligación de pago. Girado: lo que ya pagó.
-        </Ayuda>
-      ),
-    },
-    {
-      valor: solesCompacto(current.pim),
-      etiqueta: `PIM ${current.year}`,
-      contexto:
-        growth != null && Math.round(growth * 10) !== 0
-          ? `${growth > 0 ? "+" : "−"}${porcentaje(Math.abs(growth), { decimales: 1 })} frente a ${current.year - 1}`
-          : "presupuesto modificado",
-    },
-    {
-      valor: solesCompacto(current.devengado),
-      etiqueta: `devengado en ${current.year}`,
-      contexto: current.pim > 0 ? `${porcentaje(ejPct, { decimales: 1 })} del PIM` : sinPim,
-      tono: tonoDevengado,
-    },
-    {
-      valor: solesCompacto(current.girado),
-      etiqueta: `girado en ${current.year}`,
-      contexto: current.pim > 0 ? `${porcentaje((current.girado / current.pim) * 100, { decimales: 1 })} del PIM` : sinPim,
-    },
-  ];
-
   // El año más reciente arriba: la primera fila es la de las cifras de cabecera.
   const filas: Fila[] = [...last5].reverse().map((row) => filaAnio(row, anioActual));
 
   return (
     <div className="space-y-4">
       <OrigenCifras data={data} />
-      <Indicadores items={indicadores} />
+      <BarraAnio row={current} growth={growth} alerta={isUnderExecuted || isOverExecuted} />
 
       {/* Avisos: una línea + ⓘ cada uno. Las observaciones del presupuesto van en ámbar: no son señales de Vigía. */}
       {(repetido || isUnderExecuted || isOverExecuted) && (
@@ -234,7 +198,12 @@ function EjecucionView({ data, gasto }: { data: MefBudgetSummary; gasto: GastoEn
       {/* En qué gasta: lo que la gente pregunta después de "cuánto". */}
       <EnQueGasta gasto={gasto} />
 
-      <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
+      <section aria-labelledby="mef-por-anio" className="space-y-2">
+        <h3 id="mef-por-anio" className="text-[15px] font-semibold text-ink">
+          Año por año
+        </h3>
+        <Tabla columnas={COLUMNAS} filas={filas} etiqueta="Presupuesto y ejecución por año, en soles" />
+      </section>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
         <FuenteDato fuente="MEF, Datos Abiertos (presupuesto y ejecución de gasto)" fecha={data.fechaDescarga} href={DATASET_MEF} />
@@ -312,5 +281,87 @@ function PildoraEjecucion({ pct, sinPim, baja }: { pct: number; sinPim: boolean;
       {porcentaje(pct)}
       {baja && <span className="sr-only"> (ejecución baja)</span>}
     </span>
+  );
+}
+
+/**
+ * El año en una barra: es el presupuesto vigente (PIM). Lo pagado (girado) en el tono más fuerte, lo gastado que falta
+ * pagar (devengado − girado) en uno medio y lo que queda por gastar en la pista; la marca vertical es el presupuesto
+ * inicial (PIA), que el PIM suele pasar. Debajo, las cuatro cifras de la cuenta, cada una con su parte del PIM. Si la
+ * ejecución es baja en un año cerrado o pasa el PIM, el porcentaje va en ámbar (observación, no señal).
+ */
+function BarraAnio({ row, growth, alerta }: { row: MefBudgetRow; growth: number | null; alerta: boolean }) {
+  const pim = row.pim;
+  const parte = (v: number) => (pim > 0 ? Math.max(0, Math.min(100, (v / pim) * 100)) : 0);
+  const pagado = parte(row.girado);
+  const gastado = parte(row.devengado);
+  const marcaPia = pim > 0 && row.pia > 0 && row.pia <= pim ? (row.pia / pim) * 100 : null;
+  const porGastar = Math.max(0, pim - row.devengado);
+  const sinPagar = Math.max(0, row.devengado - row.girado);
+  const pctDe = (v: number) => (pim > 0 ? (v / pim) * 100 : null);
+  // Los tres tramos de la barra suman el PIM, en el orden en que se ven; el inicial es la marca.
+  const cifras: { clave: string; etiqueta: string; valor: number; pct: number | null; muestra: string }[] = [
+    { clave: "pagado", etiqueta: "Pagado (girado)", valor: row.girado, pct: pctDe(row.girado), muestra: "bg-granate" },
+    { clave: "sinpagar", etiqueta: "Gastado, falta pagar", valor: sinPagar, pct: pctDe(sinPagar), muestra: "bg-granate/60" },
+    { clave: "falta", etiqueta: "Por gastar", valor: porGastar, pct: pctDe(porGastar), muestra: "bg-granate/15 border border-line" },
+    { clave: "inicial", etiqueta: "Inicial (PIA)", valor: row.pia, pct: null, muestra: "w-0.5 h-3 bg-ink" },
+  ];
+  return (
+    <section aria-labelledby="mef-anio" className="rounded-2xl border border-line bg-paper px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 id="mef-anio" className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+          Presupuesto {row.year}
+          <Ayuda titulo="¿Qué son PIA, PIM, devengado y girado?">
+            PIA: el presupuesto aprobado al inicio del año. PIM: el presupuesto modificado durante el año, el que vale. Devengado:
+            el gasto que la entidad ya reconoció como obligación de pago. Girado: lo que ya pagó.
+          </Ayuda>
+        </h3>
+        {growth != null && Math.round(growth * 10) !== 0 && (
+          <span className="text-[12px] text-mute">
+            {growth > 0 ? "+" : "−"}
+            {porcentaje(Math.abs(growth), { decimales: 1 })} frente a {row.year - 1}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className="font-display text-[28px] font-bold leading-tight tabular-nums text-ink sm:text-[32px]">{solesCompacto(pim)}</span>
+        <span className="text-[13px] text-inkSoft">
+          presupuesto vigente ·{" "}
+          {pim > 0 ? (
+            <>
+              <span className="font-semibold text-ink">{solesCompacto(row.devengado)}</span> gastado (devengado),{" "}
+              <span className={cn("font-semibold", alerta ? "text-amberTexto" : "text-ink")}>{porcentaje((row.devengado / pim) * 100, { decimales: 1 })}</span>
+            </>
+          ) : (
+            "sin PIM con qué comparar"
+          )}
+        </span>
+      </p>
+      {pim > 0 && (
+        <div
+          className="relative mt-3 h-3.5 w-full overflow-hidden rounded-full bg-granate/15"
+          role="img"
+          aria-label={`De ${solesCompacto(pim)}: ${solesCompacto(row.girado)} pagado, ${solesCompacto(row.devengado)} gastado, ${solesCompacto(porGastar)} por gastar; el inicial fue ${solesCompacto(row.pia)}`}
+        >
+          <span className="absolute inset-y-0 left-0 bg-granate/60" style={{ width: `${gastado}%` }} />
+          <span className="absolute inset-y-0 left-0 bg-granate" style={{ width: `${pagado}%` }} />
+          {marcaPia != null && <span aria-hidden className="absolute inset-y-0 w-0.5 bg-ink/80" style={{ left: `calc(${marcaPia}% - 1px)` }} />}
+        </div>
+      )}
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+        {cifras.map((c) => (
+          <div key={c.clave} className="min-w-0">
+            <dt className="flex items-center gap-1.5 text-[12px] text-mute">
+              <span aria-hidden className={cn("inline-block shrink-0 rounded-sm", c.clave === "inicial" ? c.muestra : `h-2.5 w-2.5 ${c.muestra}`)} />
+              {c.etiqueta}
+            </dt>
+            <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+              {solesCompacto(c.valor)}
+              {c.pct != null && <span className="ml-1.5 font-sans text-[12px] font-normal text-mute">{porcentaje(c.pct, { decimales: 1 })}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

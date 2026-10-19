@@ -55,6 +55,8 @@ const SIGLAS_ENTIDAD = [
   "electrocentro", "electronoroeste", "electronorte", "electrosur", "enosa", "hidrandina", "egasa", "egemsa", "adinelsa", "cofide",
   "agrobanco", "inen", "insn", "iiap", "imarpe", "itp", "concytec", "cenfotur", "sencico", "sineace", "sutran", "apn", "atu", "emape",
   "emmsa", "serpar",
+  // Las elecciones como las escribe la ONPE: ERM 2022 (regionales y municipales), EG 2026 (generales), EMC…
+  "erm", "eg", "emc", "epm",
 ];
 const SIGLA = new RegExp(
   `^(?:s\\.?a\\.?c?\\.?|e\\.?i\\.?r\\.?l\\.?|s\\.?r\\.?l\\.?|seace|ruc|oece|osce|dni|uit|igv|onpe|jne|mef|pnp|ii|iii|iv|vi|vii|viii|ix|xi|xii|n°|nº|${SIGLAS_ENTIDAD.join("|")})$`,

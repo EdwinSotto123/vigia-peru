@@ -16,8 +16,10 @@ import { cn } from "@/lib/utils";
  *   · Proyectos de inversión: todos, paginados, con su código único (CUI).
  *   · De dónde viene: fuente de financiamiento › rubro (recursos ordinarios, canon, regalías…).
  *   · Mes a mes: lo devengado cada mes.
- * Cada barra es su parte del PIM de la entidad; el tramo oscuro, lo que ya se devengó. Son datos del presupuesto, no
- * señales: sin rojos ni juicios.
+ * Cada fila en columnas fijas (rubro · su parte del PIM en una barra · el PIM · % gastado), alineadas a la derecha en
+ * todos los niveles, con su encabezado: antes la barra corría bajo cada nombre a todo el ancho y doce pistas grises
+ * competían con el texto. El tramo oscuro de la barra es lo ya devengado. Son datos del presupuesto, no señales: sin
+ * rojos ni juicios.
  */
 export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
   if (!gasto?.anio || gasto.genericas.length === 0) return null;
@@ -33,6 +35,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
       etiqueta: "Tipo de gasto",
       contenido: (
         <ul className="space-y-1">
+          <li aria-hidden><Columnas /></li>
           {gasto.genericas.map((g, i) => (
             <li key={g.nombre}>
               <Plegable abierta={i === 0} cabeza={<Fila nombre={oracion(g.nombre)} pim={g.pim} devengado={g.devengado} total={total} destacada />}>
@@ -54,7 +57,12 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
     {
       clave: "funcion",
       etiqueta: "Para qué",
-      contenido: <Barras filas={gasto.funciones} total={total} />,
+      contenido: (
+        <>
+          <Columnas sangria={false} />
+          <Barras filas={gasto.funciones} total={total} />
+        </>
+      ),
     },
     ...(programas.length > 0
       ? [
@@ -64,6 +72,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
             conteo: programas.length,
             contenido: (
               <ul className="space-y-1">
+                <li aria-hidden><Columnas /></li>
                 {programas.map((p) => (
                   <li key={p.codigo}>
                     <Plegable cabeza={<Fila nombre={oracion(p.nombre)} pim={p.pim} devengado={p.devengado} total={total} destacada />}>
@@ -89,6 +98,7 @@ export function EnQueGasta({ gasto }: { gasto: GastoEntidad | null }) {
             etiqueta: "De dónde viene",
             contenido: (
               <ul className="space-y-1">
+                <li aria-hidden><Columnas /></li>
                 {fuentes.map((f, i) => (
                   <li key={f.nombre}>
                     <Plegable abierta={i === 0} cabeza={<Fila nombre={oracion(f.nombre)} pim={f.pim} devengado={f.devengado} total={total} destacada />}>
@@ -156,7 +166,29 @@ function Plegable({ cabeza, abierta = false, children }: { cabeza: React.ReactNo
   );
 }
 
-/** Un rubro: nombre, monto y % gastado; debajo, su barra (parte del PIM total, con lo devengado en oscuro). */
+/**
+ * Las columnas de cada fila, las mismas en todos los niveles: el nombre se lleva lo que sobra y las otras tres tienen
+ * ancho fijo, así quedan alineadas a la derecha aunque el nivel tenga sangría. En el teléfono: nombre y monto arriba,
+ * la barra debajo a todo el ancho.
+ */
+const GRILLA = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[minmax(0,1fr)_11rem_6.5rem_4.5rem] lg:grid-cols-[minmax(0,1fr)_15rem_7rem_4.5rem]";
+
+/**
+ * El encabezado de las columnas (sólo desde sm: en el teléfono, cada fila dice su monto y su %). `sangria`: la lista
+ * tiene la flecha de los niveles que se abren a la izquierda.
+ */
+function Columnas({ sangria = true }: { sangria?: boolean }) {
+  return (
+    <div className={cn(GRILLA, "hidden border-b border-line pb-1.5 pr-2 text-[11.5px] font-medium text-mute sm:grid", sangria ? "pl-[31px]" : "pl-2")}>
+      <span>Rubro</span>
+      <span>Parte del presupuesto</span>
+      <span className="text-right">Presupuesto</span>
+      <span className="text-right">Gastado</span>
+    </div>
+  );
+}
+
+/** Un rubro: nombre · su barra (parte del PIM total, con lo devengado en oscuro) · PIM · % gastado. */
 function Fila({
   nombre,
   pim,
@@ -175,35 +207,34 @@ function Fila({
   recortar?: boolean;
   extra?: React.ReactNode;
 }) {
-  const ancho = total > 0 ? Math.max(0.6, Math.min(100, (pim / total) * 100)) : 0;
+  const ancho = total > 0 ? Math.max(0.8, Math.min(100, (pim / total) * 100)) : 0;
   const gastado = pim > 0 ? Math.min(100, (devengado / pim) * 100) : 0;
+  const pct = pim > 0 ? porcentaje(gastado) : "sin PIM";
   return (
-    <div className="min-w-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <span
-          className={cn("min-w-0", destacada ? "text-[14px] font-semibold text-ink" : "text-[13px] text-ink", recortar && "line-clamp-2")}
-          title={recortar ? nombre : undefined}
-        >
-          {nombre}
-          {extra}
-        </span>
-        <span className="shrink-0 text-right text-[13px] tabular-nums text-inkSoft">
-          <span className="font-semibold text-ink">{solesCompacto(pim)}</span>
-          <span className="block text-[12px] sm:inline sm:text-[13px]">
-            <span className="hidden sm:inline"> · </span>
-            {pim > 0 ? `${porcentaje(gastado)} gastado` : `${solesCompacto(devengado)} gastado, sin PIM`}
-          </span>
-        </span>
-      </div>
-      <div
-        className="mt-1 h-2 overflow-hidden rounded-full bg-paperDeep"
-        role="img"
-        aria-label={`${solesCompacto(pim)} de presupuesto, ${pim > 0 ? porcentaje(gastado) : "0 %"} gastado`}
+    <div className={GRILLA}>
+      <span
+        className={cn("order-1 min-w-0", destacada ? "text-[14px] font-semibold text-ink" : "text-[13px] text-ink", recortar && "line-clamp-2")}
+        title={recortar ? nombre : undefined}
       >
-        <div className="h-full rounded-full bg-granate/25" style={{ width: `${ancho}%` }}>
-          <div className="h-full rounded-full bg-granate" style={{ width: `${gastado}%` }} />
-        </div>
-      </div>
+        {nombre}
+        {extra}
+      </span>
+      <span
+        className="order-3 col-span-2 block h-2 overflow-hidden rounded-full bg-paperDeep/70 sm:order-2 sm:col-span-1"
+        role="img"
+        aria-label={`${solesCompacto(pim)} de presupuesto, ${pct} gastado`}
+      >
+        <span className="block h-full rounded-full bg-granate/25" style={{ width: `${ancho}%` }}>
+          <span className="block h-full rounded-full bg-granate" style={{ width: `${gastado}%` }} />
+        </span>
+      </span>
+      <span className="order-2 text-right sm:order-3">
+        <span className={cn("block font-mono tabular-nums", destacada ? "text-[13.5px] font-semibold text-ink" : "text-[13px] text-ink")}>
+          {solesCompacto(pim)}
+        </span>
+        <span className="block text-[11.5px] text-mute sm:hidden">{pct} gastado</span>
+      </span>
+      <span className="order-4 hidden text-right font-mono text-[12.5px] tabular-nums text-inkSoft sm:block">{pct}</span>
     </div>
   );
 }
@@ -234,10 +265,11 @@ function Proyectos({ p, total }: { p: GastoEntidad["proyectos"]; total: number }
         {total > 0 ? porcentaje((p.pim / total) * 100) : "0 %"} de su presupuesto), {p.pim > 0 ? porcentaje((p.devengado / p.pim) * 100) : "0 %"}{" "}
         ya gastado. De mayor a menor presupuesto; la barra compara con el más grande.
       </p>
+      <Columnas sangria={false} />
       <ListaPaginada
         tam={10}
         nombre="proyectos"
-        className="space-y-3"
+        className="space-y-3 px-2"
         items={p.lista.map((x) => ({
           id: x.codigo,
           contenido: (

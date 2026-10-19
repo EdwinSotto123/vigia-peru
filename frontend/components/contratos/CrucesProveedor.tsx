@@ -420,15 +420,18 @@ function Celda({ tipo, valor }: { tipo?: EvidenciaCruce["columnas"][number]["tip
   if (tipo === "soles") return <>{soles(Number(valor))}</>;
   if (tipo === "pct") {
     const v = Number(valor);
+    // S/ 4 mil de una campaña de S/ 127 M es 0,0035 %: decir "0 %" haría pensar que no hubo nada.
+    if (v > 0 && v < 0.01) return <>menos de 0.01 %</>;
     return <>{porcentaje(v, { decimales: v < 1 ? 2 : 1 })}</>;
   }
   if (tipo === "enlace" && typeof valor === "object") {
     const { texto, url } = valor as { texto: string; url: string };
     const etiqueta = texto.length > 30 ? oracion(texto) : texto;
+    // Las descripciones del SEACE llegan a 600 caracteres: tres líneas y el resto en el title.
     return url.startsWith("/") ? (
-      <Link href={url} className="text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta}</Link>
+      <Link href={url} title={etiqueta} className="line-clamp-3 text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta}</Link>
     ) : (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" /></a>
+      <a href={url} target="_blank" rel="noopener noreferrer" title={etiqueta} className="line-clamp-3 text-ink underline decoration-line underline-offset-2 hover:decoration-ink">{etiqueta} <ArrowUpRight size={11} aria-hidden className="inline align-baseline" /></a>
     );
   }
   const t = String(valor);
