@@ -101,6 +101,8 @@ const NOMBRE_DERIVADO: Record<string, string> = {
   vencimientos: "Vencimiento de documentos",
 };
 
+const POR_PAGINA = 20;
+
 const MOTIVO: Record<string, string> = { financiado: "Financiado", admin: "Pedido del admin", reintento: "Reintento", cola: "Cola (ya no se usa)" };
 
 function EstadoBadge({ e }: { e: Corrida["estado"] | undefined }) {
@@ -147,8 +149,13 @@ export default function FuentesPage() {
   const d = q.data;
   const [filtro, setFiltro] = useState<"todas" | "error" | "corriendo">("todas");
   const [elegida, setElegida] = useState<string | null>(null);
+  const [pagina, setPagina] = useState(1);
 
   const corridas = useMemo(() => (d?.corridas ?? []).filter((c) => filtro === "todas" || c.estado === filtro), [d, filtro]);
+  // De a 20, como las demás listas del panel.
+  const paginas = Math.max(1, Math.ceil(corridas.length / POR_PAGINA));
+  const actual = Math.min(pagina, paginas);
+  const visibles = corridas.slice((actual - 1) * POR_PAGINA, actual * POR_PAGINA);
   const detalle = (d?.corridas ?? []).find((c) => c.instancia === elegida) ?? null;
   const conError = (d?.corridas ?? []).filter((c) => c.estado === "error").length;
   const corriendo = (d?.corridas ?? []).filter((c) => c.estado === "corriendo").length;
@@ -296,7 +303,7 @@ export default function FuentesPage() {
               <FilterChips
                 etiqueta="Estado de la corrida"
                 valor={filtro}
-                onCambiar={setFiltro}
+                onCambiar={(v) => { setFiltro(v); setPagina(1); }}
                 opciones={[
                   { valor: "todas", etiqueta: "Todas", cuenta: d.corridas.length },
                   { valor: "error", etiqueta: "Fallaron", cuenta: conError, tono: "danger" },
@@ -306,13 +313,27 @@ export default function FuentesPage() {
               <DataTable
                 etiqueta="Corridas de vigia-scrapers"
                 columnas={colCorridas}
-                filas={corridas}
+                filas={visibles}
                 claveFila={(c) => c.instancia}
                 onFila={(c) => setElegida(c.instancia === elegida ? null : c.instancia)}
                 filaActiva={(c) => c.instancia === elegida}
                 apilarHasta="lg"
                 vacio={<EmptyState titulo="Ninguna corrida con ese estado" />}
               />
+              {paginas > 1 && (
+                <nav aria-label="Páginas de corridas" className="flex items-center justify-end gap-2 text-[12px] text-mute">
+                  <span className="font-mono tabular-nums">
+                    {fmtNum((actual - 1) * POR_PAGINA + 1)}–{fmtNum(Math.min(actual * POR_PAGINA, corridas.length))} de {fmtNum(corridas.length)}
+                  </span>
+                  <button type="button" onClick={() => setPagina(actual - 1)} disabled={actual <= 1} className={claseBoton("secundario")}>
+                    Anterior
+                  </button>
+                  <span className="font-mono tabular-nums text-ink">{actual} / {paginas}</span>
+                  <button type="button" onClick={() => setPagina(actual + 1)} disabled={actual >= paginas} className={claseBoton("secundario")}>
+                    Siguiente
+                  </button>
+                </nav>
+              )}
               {detalle && (
                 <Card>
                   <div className="flex flex-wrap items-baseline justify-between gap-2">

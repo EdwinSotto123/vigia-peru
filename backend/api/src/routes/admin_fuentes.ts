@@ -65,17 +65,18 @@ adminFuentesRouter.get("/fuentes", async (c) => {
                   count(DISTINCT ocid) FILTER (WHERE borrado_at IS NULL AND expira_at > now())::int AS contratos,
                   count(*) FILTER (WHERE lote_id LIKE 'cf-%')::int AS "deCloudflare"
              FROM documentos_gcs`),
-    // Por año: lo de la vista contratos_agregado (al día cada 10 min) y, aparte, cuántos tienen ganador (sin abrir el
-    // jsonb: adjudicaciones o proveedor_ruc). Juntos sobre convocatorias × contrato_estado tardaba ~45 s con la historia.
-    filas(`SELECT a.anio, a.contratos, a."enCola", a.leidos, g."conGanador" FROM
-             (SELECT extract(year FROM mes)::int AS anio, sum(n)::int AS contratos,
-                     COALESCE(sum(n) FILTER (WHERE operativo = 'en_cola'), 0)::int AS "enCola",
-                     COALESCE(sum(n) FILTER (WHERE riesgo <> 'sin_analizar'), 0)::int AS leidos
-                FROM contratos_agregado GROUP BY 1) a
-             LEFT JOIN (SELECT extract(year FROM fecha_convocatoria)::int AS anio,
-                               count(*) FILTER (WHERE adjudicaciones IS NOT NULL OR proveedor_ruc IS NOT NULL)::int AS "conGanador"
-                          FROM convocatorias WHERE ocid NOT LIKE 'ocds-vigia-%' GROUP BY 1) g ON g.anio IS NOT DISTINCT FROM a.anio
-            ORDER BY a.anio DESC NULLS LAST`),
+    // Por año: contratos y cuántos tienen ganador, de convocatorias en vivo (sin abrir el jsonb: adjudicaciones o
+    // proveedor_ruc); la cola y lo leído, de la vista contratos_agregado (al día cada 10 min). Contratos y ganador de la
+    // misma tabla: si salían de fuentes distintas, durante una carga "con ganador" pasaba del 100 %.
+    filas(`SELECT g.anio, g.contratos, COALESCE(a."enCola", 0) AS "enCola", COALESCE(a.leidos, 0) AS leidos, g."conGanador" FROM
+             (SELECT extract(year FROM fecha_convocatoria)::int AS anio, count(*)::int AS contratos,
+                     count(*) FILTER (WHERE adjudicaciones IS NOT NULL OR proveedor_ruc IS NOT NULL)::int AS "conGanador"
+                FROM convocatorias WHERE ocid NOT LIKE 'ocds-vigia-%' GROUP BY 1) g
+             LEFT JOIN (SELECT extract(year FROM mes)::int AS anio,
+                               COALESCE(sum(n) FILTER (WHERE operativo = 'en_cola'), 0)::int AS "enCola",
+                               COALESCE(sum(n) FILTER (WHERE riesgo <> 'sin_analizar'), 0)::int AS leidos
+                          FROM contratos_agregado GROUP BY 1) a ON a.anio IS NOT DISTINCT FROM g.anio
+            ORDER BY g.anio DESC NULLS LAST`),
     filas(`SELECT anio, sum(n)::int AS procesos, string_agg(DISTINCT fuente, ' y ') AS fuente FROM (
              SELECT anio::int AS anio, count(DISTINCT codigo_convocatoria) AS n, 'CONOSCE' AS fuente FROM conosce_adjudicaciones GROUP BY 1
              UNION ALL
