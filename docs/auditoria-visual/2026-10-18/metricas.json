@@ -1,0 +1,654 @@
+{
+ "portada|pc": {
+  "alto": 14509,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 42,
+  "texto_total": 676,
+  "toques_chicos": 35,
+  "toques_total": 189,
+  "truncados": 4,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿En qué se gasta el dinero de tu región?"
+  ],
+  "primer_pantallazo_con_contenido": 31,
+  "errores_js": []
+ },
+ "inicio|pc": {
+  "alto": 1690,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 19,
+  "texto_total": 125,
+  "toques_chicos": 1,
+  "toques_total": 46,
+  "truncados": 9,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿Qué quieres revisar hoy?"
+  ],
+  "primer_pantallazo_con_contenido": 59,
+  "errores_js": []
+ },
+ "mapa|pc": {
+  "alto": 1605,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 54,
+  "texto_total": 161,
+  "toques_chicos": 19,
+  "toques_total": 80,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Elige tu región"
+  ],
+  "primer_pantallazo_con_contenido": 55,
+  "errores_js": []
+ },
+ "mapa-region|pc": {
+  "alto": 1645,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 55,
+  "texto_total": 167,
+  "toques_chicos": 115,
+  "toques_total": 190,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Cusco"
+  ],
+  "primer_pantallazo_con_contenido": 45,
+  "errores_js": []
+ },
+ "contratos|pc": {
+  "alto": 3742,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 66,
+  "texto_total": 419,
+  "toques_chicos": 6,
+  "toques_total": 80,
+  "truncados": 36,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Todos los contratos"
+  ],
+  "primer_pantallazo_con_contenido": 67,
+  "errores_js": []
+ },
+ "contratos-filtrados|pc": {
+  "alto": 4580,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 66,
+  "texto_total": 500,
+  "toques_chicos": 9,
+  "toques_total": 83,
+  "truncados": 47,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Todos los contratos"
+  ],
+  "primer_pantallazo_con_contenido": 63,
+  "errores_js": []
+ },
+ "ficha|pc": {
+  "alto": 2645,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 95,
+  "texto_total": 266,
+  "toques_chicos": 14,
+  "toques_total": 45,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "ADQUISICIÓN DE DISPOSITIVOS MÉDICOS PARA EL ABASTECIMIENTO C"
+  ],
+  "primer_pantallazo_con_contenido": 45,
+  "errores_js": []
+ },
+ "dictamen|pc": {
+  "alto": 1234,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 37,
+  "texto_total": 218,
+  "toques_chicos": 19,
+  "toques_total": 80,
+  "truncados": 3,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 36,
+  "h1": [
+   "ADQUISICION DE INSUMOS ODONTOLOGICOS PARA LOS SERVICIOS BASI"
+  ],
+  "primer_pantallazo_con_contenido": 41,
+  "errores_js": []
+ },
+ "en-vivo|pc": {
+  "alto": 1345,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 101,
+  "texto_total": 248,
+  "toques_chicos": 5,
+  "toques_total": 46,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 1,
+  "h1": [
+   "ADQUISICION DE INSUMOS ODONTOLOGICOS PARA LOS SERVICIOS BASI"
+  ],
+  "primer_pantallazo_con_contenido": 49,
+  "errores_js": []
+ },
+ "senales|pc": {
+  "alto": 2133,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 41,
+  "texto_total": 249,
+  "toques_chicos": 3,
+  "toques_total": 55,
+  "truncados": 47,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Señales"
+  ],
+  "primer_pantallazo_con_contenido": 62,
+  "errores_js": []
+ },
+ "entidades|pc": {
+  "alto": 1490,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 36,
+  "texto_total": 208,
+  "toques_chicos": 3,
+  "toques_total": 46,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Entidades del Estado"
+  ],
+  "primer_pantallazo_con_contenido": 67,
+  "errores_js": []
+ },
+ "entidad|pc": {
+  "alto": 949,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 96,
+  "toques_chicos": 7,
+  "toques_total": 36,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "CENTRO NACIONAL DE ABASTECIMIENTO DE RECURSOS ESTRATEGICOS E"
+  ],
+  "primer_pantallazo_con_contenido": 56,
+  "errores_js": []
+ },
+ "partidos|pc": {
+  "alto": 1823,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 17,
+  "texto_total": 209,
+  "toques_chicos": 21,
+  "toques_total": 70,
+  "truncados": 8,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 19,
+  "h1": [
+   "Partidos y gobiernos"
+  ],
+  "primer_pantallazo_con_contenido": 56,
+  "errores_js": []
+ },
+ "financiar|pc": {
+  "alto": 2499,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 291,
+  "toques_chicos": 48,
+  "toques_total": 98,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿Qué contratos de tu zona quieres que se lean?"
+  ],
+  "primer_pantallazo_con_contenido": 61,
+  "errores_js": []
+ },
+ "auditoria|pc": {
+  "alto": 988,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 124,
+  "toques_chicos": 7,
+  "toques_total": 44,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Auditoría en vivo"
+  ],
+  "primer_pantallazo_con_contenido": 50,
+  "errores_js": []
+ },
+ "aliados|pc": {
+  "alto": 1209,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 21,
+  "texto_total": 273,
+  "toques_chicos": 7,
+  "toques_total": 63,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Ranking de aliados"
+  ],
+  "primer_pantallazo_con_contenido": 42,
+  "errores_js": []
+ },
+ "denunciar|pc": {
+  "alto": 1089,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 24,
+  "texto_total": 93,
+  "toques_chicos": 4,
+  "toques_total": 41,
+  "truncados": 2,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 1,
+  "h1": [
+   "Denuncia lo que viste"
+  ],
+  "primer_pantallazo_con_contenido": 58,
+  "errores_js": []
+ },
+ "denuncias|pc": {
+  "alto": 1020,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 114,
+  "toques_chicos": 19,
+  "toques_total": 36,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Denuncias ciudadanas"
+  ],
+  "primer_pantallazo_con_contenido": 59,
+  "errores_js": []
+ },
+ "preguntas|pc": {
+  "alto": 900,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 78,
+  "toques_chicos": 10,
+  "toques_total": 28,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 8,
+  "h1": [
+   "¿Cómo funciona Vigía Perú?"
+  ],
+  "primer_pantallazo_con_contenido": 41,
+  "errores_js": []
+ },
+ "portada|movil": {
+  "alto": 20834,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 37,
+  "texto_total": 647,
+  "toques_chicos": 25,
+  "toques_total": 178,
+  "truncados": 6,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿En qué se gasta el dinero de tu región?"
+  ],
+  "primer_pantallazo_con_contenido": 59,
+  "errores_js": []
+ },
+ "inicio|movil": {
+  "alto": 2816,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 18,
+  "texto_total": 126,
+  "toques_chicos": 2,
+  "toques_total": 50,
+  "truncados": 19,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿Qué quieres revisar hoy?"
+  ],
+  "primer_pantallazo_con_contenido": 45,
+  "errores_js": []
+ },
+ "mapa|movil": {
+  "alto": 1870,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 32,
+  "texto_total": 114,
+  "toques_chicos": 8,
+  "toques_total": 71,
+  "truncados": 6,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Elige tu región"
+  ],
+  "primer_pantallazo_con_contenido": 44,
+  "errores_js": []
+ },
+ "mapa-region|movil": {
+  "alto": 1944,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 55,
+  "texto_total": 166,
+  "toques_chicos": 108,
+  "toques_total": 195,
+  "truncados": 7,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Cusco"
+  ],
+  "primer_pantallazo_con_contenido": 45,
+  "errores_js": []
+ },
+ "contratos|movil": {
+  "alto": 7681,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 214,
+  "toques_chicos": 5,
+  "toques_total": 82,
+  "truncados": 38,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Todos los contratos"
+  ],
+  "primer_pantallazo_con_contenido": 41,
+  "errores_js": []
+ },
+ "contratos-filtrados|movil": {
+  "alto": 8687,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 295,
+  "toques_chicos": 8,
+  "toques_total": 85,
+  "truncados": 47,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Todos los contratos"
+  ],
+  "primer_pantallazo_con_contenido": 38,
+  "errores_js": []
+ },
+ "ficha|movil": {
+  "alto": 4465,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 95,
+  "texto_total": 268,
+  "toques_chicos": 13,
+  "toques_total": 49,
+  "truncados": 3,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "ADQUISICIÓN DE DISPOSITIVOS MÉDICOS PARA EL ABASTECIMIENTO C"
+  ],
+  "primer_pantallazo_con_contenido": 44,
+  "errores_js": []
+ },
+ "dictamen|movil": {
+  "alto": 2100,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 37,
+  "texto_total": 216,
+  "toques_chicos": 26,
+  "toques_total": 84,
+  "truncados": 3,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 36,
+  "h1": [
+   "ADQUISICION DE INSUMOS ODONTOLOGICOS PARA LOS SERVICIOS BASI"
+  ],
+  "primer_pantallazo_con_contenido": 52,
+  "errores_js": []
+ },
+ "en-vivo|movil": {
+  "alto": 2317,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 100,
+  "texto_total": 249,
+  "toques_chicos": 6,
+  "toques_total": 50,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 1,
+  "h1": [
+   "ADQUISICION DE INSUMOS ODONTOLOGICOS PARA LOS SERVICIOS BASI"
+  ],
+  "primer_pantallazo_con_contenido": 39,
+  "errores_js": []
+ },
+ "senales|movil": {
+  "alto": 3117,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 147,
+  "toques_chicos": 4,
+  "toques_total": 59,
+  "truncados": 26,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Señales"
+  ],
+  "primer_pantallazo_con_contenido": 47,
+  "errores_js": []
+ },
+ "entidades|movil": {
+  "alto": 2043,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 36,
+  "texto_total": 136,
+  "toques_chicos": 4,
+  "toques_total": 50,
+  "truncados": 21,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Entidades del Estado"
+  ],
+  "primer_pantallazo_con_contenido": 54,
+  "errores_js": []
+ },
+ "entidad|movil": {
+  "alto": 1500,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 91,
+  "toques_chicos": 8,
+  "toques_total": 40,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "CENTRO NACIONAL DE ABASTECIMIENTO DE RECURSOS ESTRATEGICOS E"
+  ],
+  "primer_pantallazo_con_contenido": 39,
+  "errores_js": []
+ },
+ "partidos|movil": {
+  "alto": 2867,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [
+   "DIV.absolute.left-0.z-20",
+   "LABEL.relative.block",
+   "INPUT.h-9.w-full.rounded-lg",
+   "UL.mt-1.5.max-h-64.overflow-y-auto",
+   "LI."
+  ],
+  "texto_menor_12px": 17,
+  "texto_total": 183,
+  "toques_chicos": 22,
+  "toques_total": 74,
+  "truncados": 37,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 19,
+  "h1": [
+   "Partidos y gobiernos"
+  ],
+  "primer_pantallazo_con_contenido": 42,
+  "errores_js": []
+ },
+ "financiar|movil": {
+  "alto": 4869,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 266,
+  "toques_chicos": 47,
+  "toques_total": 101,
+  "truncados": 8,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "¿Qué contratos de tu zona quieres que se lean?"
+  ],
+  "primer_pantallazo_con_contenido": 46,
+  "errores_js": []
+ },
+ "auditoria|movil": {
+  "alto": 1550,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 121,
+  "toques_chicos": 8,
+  "toques_total": 48,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Auditoría en vivo"
+  ],
+  "primer_pantallazo_con_contenido": 36,
+  "errores_js": []
+ },
+ "aliados|movil": {
+  "alto": 1822,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 22,
+  "texto_total": 267,
+  "toques_chicos": 8,
+  "toques_total": 67,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Ranking de aliados"
+  ],
+  "primer_pantallazo_con_contenido": 42,
+  "errores_js": []
+ },
+ "denunciar|movil": {
+  "alto": 1206,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 20,
+  "texto_total": 66,
+  "toques_chicos": 5,
+  "toques_total": 30,
+  "truncados": 3,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Denuncia lo que viste"
+  ],
+  "primer_pantallazo_con_contenido": 46,
+  "errores_js": []
+ },
+ "denuncias|movil": {
+  "alto": 2052,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 116,
+  "toques_chicos": 20,
+  "toques_total": 40,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 0,
+  "h1": [
+   "Denuncias ciudadanas"
+  ],
+  "primer_pantallazo_con_contenido": 53,
+  "errores_js": []
+ },
+ "preguntas|movil": {
+  "alto": 1540,
+  "desborde_horizontal": 0,
+  "salen_por_derecha": [],
+  "texto_menor_12px": 16,
+  "texto_total": 84,
+  "toques_chicos": 8,
+  "toques_total": 36,
+  "truncados": 1,
+  "img_sin_alt": 0,
+  "botones_sin_nombre": 8,
+  "h1": [
+   "¿Cómo funciona Vigía Perú?"
+  ],
+  "primer_pantallazo_con_contenido": 63,
+  "errores_js": []
+ }
+}
