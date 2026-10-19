@@ -15,7 +15,11 @@
   // Rol vigia_jobs (el de los jobs de Cloud Run), pooling en modo transacción (PgBouncer del proxy EC2).
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "5bdb50278763459a898f3bafc59470cc" }],
   // Crudos de cada descarga (antes gs://vigia-peru-batch/raw/): raw/<fuente>/<clave>/<archivo>.
-  "r2_buckets": [{ "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos" }],
+  "r2_buckets": [
+    { "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos" },
+    // Los documentos de los expedientes (fuente `documentos`): la misma réplica que leen los agentes (vigia-r2-sync).
+    { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch" }
+  ],
   // La API OCDS del OECE solo responde desde Zúrich o Buenos Aires: el relay corre fijo en Zúrich.
   "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
   // ONPE Claridad: el challenge de Cloudflare solo deja pasar un navegador (src/fuentes/onpe_claridad.ts).
@@ -24,7 +28,7 @@
   "workflows": [{ "name": "vigia-scrapers-correr", "binding": "CORRER", "class_name": "CorrerFuente" }],
 
   // En UTC (Lima = UTC-5): 06:00 Lima el OECE; 08:00 Lima las de la PNDA según el día (src/calendario.ts).
-  "triggers": { "crons": ["0 11 * * *", "0 13 * * *"] },
+  "triggers": { "crons": ["0 11 * * *", "0 13 * * *", "40 * * * *"] },
 
   "vars": {
     // "1" = los crons lanzan corridas. Con "0" solo registran qué habría corrido (POST /correr sigue andando).

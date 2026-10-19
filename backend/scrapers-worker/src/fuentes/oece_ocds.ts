@@ -29,7 +29,7 @@ import { CARGA, LECTURA, fechaLima, sumarDias } from "./comun.ts";
 
 export const BASE = "https://contratacionesabiertas.oece.gob.pe/api/v1";
 export const PAGINA = 100;                        // máximo que acepta `size` en /releasesAfter
-const OCID_PREFIJO = "ocds-dgv273-seacev3-";
+export const OCID_PREFIJO = "ocds-dgv273-seacev3-";
 const VENTANA_DIAS = 7;                    // el release sale días después del inicio del tenderPeriod
 const ESPERAS_S = [2, 5, 10, 20, 40];      // entre reintentos ante 429/5xx/timeout
 const UMBRAL_UBIGEO = 0.85;                // bajo esto se listan los tríos sin match

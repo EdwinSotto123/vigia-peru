@@ -15,16 +15,18 @@
  *   conosce            sábados 08:00 (CONOSCE regenera │
  *   conosce_ordenes    los reportes los viernes)       ┘
  *
- * Sin portar: vigia-batch (documentos de contratos financiados para los agentes, que siguen en GCP y
- * están pausados).
+ *   documentos         cada hora, al minuto 40         → cron "40 * * * *" (los documentos de los contratos de
+ *                      la cola y de los financiados: lo que hacía vigia-batch en GCP; src/fuentes/documentos.ts)
  */
 
 export const CRON_DIARIO = "0 11 * * *";
 export const CRON_DATOS = "0 13 * * *";
+export const CRON_DOCUMENTOS = "40 * * * *";
 
 /** Fuentes que corren en `cron` (expresión de wrangler.jsonc) en el instante `ms`. */
 export function fuentesDelCron(cron: string, ms: number): string[] {
   if (cron === CRON_DIARIO) return ["oece_ocds"];
+  if (cron === CRON_DOCUMENTOS) return ["documentos"];
   if (cron !== CRON_DATOS) return [];
   const lima = new Date(ms - 5 * 3600 * 1000);
   const dia = lima.getUTCDate();

@@ -31,6 +31,8 @@ export interface Env {
   HYPERDRIVE: Hyperdrive;
   /** R2 `vigia-peru-crudos`: el crudo de cada descarga, en raw/<fuente>/<clave>/<archivo> (antes gs://vigia-peru-batch/raw/). */
   CRUDOS: R2Bucket;
+  /** R2 `vigia-peru-batch`: los documentos de los expedientes (fuente `documentos`), donde los leen los agentes. */
+  DOCUMENTOS: R2Bucket;
   /** Worker `vigia-relay` (Zúrich): la API OCDS del OECE responde 403 desde EE.UU. */
   RELAY: Fetcher;
   /** Workflow `CorrerFuente`: una corrida de una fuente (src/workflow.ts). */

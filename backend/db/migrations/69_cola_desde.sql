@@ -7,7 +7,8 @@
 -- contrato a la cola; sin el campo, todos (lo de antes). Se edita en /admin/clasificacion.
 --
 -- Lo mismo para `contrato_estado.operativo = 'en_cola'` (los conteos "esperando lectura", el mapa, los partidos).
--- El valor inicial, 2025-01-01, es anterior a todos los contratos que había: la cola queda igual que antes.
+-- El valor inicial fue 2025-01-01 (anterior a todo lo que había); con la historia cargada quedó en 2026-01-01: el año
+-- en curso, como era la base (el aporte por zona toma los más antiguos primero y se iría a 2025).
 --
 -- Cómo aplicarla: psql "$DSN" -v ON_ERROR_STOP=1 -f backend/db/migrations/69_cola_desde.sql
 
@@ -69,7 +70,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN procesamientos p ON p.ocid = c.ocid;
 
 -- El valor inicial. El trigger de ajustes (migración 35) recalcula contrato_estado con la vista nueva.
-UPDATE ajustes SET valor = valor || jsonb_build_object('cola_desde', '2025-01-01'), updated_at = now(), updated_by = 'migracion-69'
+UPDATE ajustes SET valor = valor || jsonb_build_object('cola_desde', '2026-01-01'), updated_at = now(), updated_by = 'migracion-69'
  WHERE clave = 'procesamiento' AND NOT (valor ? 'cola_desde');
 
 SELECT refresh_financiamiento();

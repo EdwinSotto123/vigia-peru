@@ -16,6 +16,7 @@ import { correrOrdenes } from "./fuentes/conosce_ordenes.ts";
 import { correrGastos } from "./fuentes/onpe_gastos.ts";
 import { correrOcds } from "./fuentes/oece_ocds.ts";
 import { correrHistorico } from "./fuentes/oece_historico.ts";
+import { correrDocumentos } from "./fuentes/documentos.ts";
 import { correrOnpe } from "./fuentes/onpe_claridad.ts";
 import { correrDji } from "./fuentes/pnda_dji.ts";
 import { correrPndaOece } from "./fuentes/pnda_oece.ts";
@@ -28,6 +29,7 @@ type Corredor = (env: Env, p: ParamsCorrida, step: WorkflowStep, id: string) => 
 export const FUENTES: Record<string, Corredor> = {
   oece_ocds: correrOcds,
   oece_historico: correrHistorico,
+  documentos: correrDocumentos,
   pnda_sancionados: correrSancionados,
   pnda_visitas: correrVisitas,
   pnda_dji: correrDji,
