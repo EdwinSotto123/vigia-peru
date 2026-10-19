@@ -10,6 +10,7 @@ import { SenalDetalle } from "@/components/alertas/SenalDetalle";
 import { ResumenEvidencia } from "@/components/agentes/ListaSenales";
 import { TOTAL_FASES } from "@/lib/auditoria";
 import { plural, soles } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 import { hayFiltrosSenales, type Senal, type SenalesQuery } from "@/lib/revision";
 
 /**
@@ -89,7 +90,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
           meta={s.evidencia ? <ResumenEvidencia texto={s.evidencia} nombres={s.personasPrivadas} /> : "Sin evidencia registrada"}
         />
       ),
-      contrato: <CeldaTexto sub={<span className="font-mono">{s.ocid}</span>}>{s.entidad}</CeldaTexto>,
+      contrato: <CeldaTexto sub={<span className="font-mono">{s.ocid}</span>}>{s.entidad ? tituloNatural(s.entidad) : null}</CeldaTexto>,
       monto: <CeldaNumero>{s.montoSoles > 0 ? soles(s.montoSoles) : "Sin dato"}</CeldaNumero>,
       cotejo: <SelloCotejo verificada={s.verificada} />,
     },
@@ -98,7 +99,7 @@ export function ListaSenales({ senales, total, query, fallo, contratosSinDetalle
       etiqueta: `Ver la señal ${s.etiqueta} del contrato ${s.ocid}`,
       descripcion: (
         <span className="flex flex-wrap gap-x-3">
-          <span>{s.entidad}</span>
+          <span>{s.entidad ? tituloNatural(s.entidad) : null}</span>
           <span className="font-mono">{s.ocid}</span>
         </span>
       ),

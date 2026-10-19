@@ -245,7 +245,7 @@ export function BarraFiltros({
               <select
                 value={parametros[orden.param] ?? orden.porDefecto}
                 onChange={(e) => navegar({ [orden.param]: e.target.value === orden.porDefecto ? undefined : e.target.value })}
-                className="h-10 w-[11.5rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
+                className="h-10 min-w-[11.5rem] max-w-[18rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
               >
                 {orden.opciones.map((o) => (
                   <option key={o.valor} value={o.valor}>

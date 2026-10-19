@@ -65,7 +65,10 @@ export function listaY(xs: string[]): string {
  */
 export function oracion(t: string): string {
   const s = t.trim();
-  if (s !== s.toLocaleUpperCase("es")) return s;
+  // "Casi todo en mayúsculas" también cuenta ("DERIVADA DE LA SUBASTA… Nº 001-2026-ítems"): 80 % de las letras.
+  const letras = s.match(/\p{L}/gu) ?? [];
+  const mayusculas = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
+  if (letras.length === 0 || mayusculas / letras.length < 0.8) return s;
   const b = s.toLocaleLowerCase("es");
   return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
 }

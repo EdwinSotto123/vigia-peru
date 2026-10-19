@@ -196,8 +196,19 @@ async function VistaPublicadas({ query }: { query: SenalesQuery }) {
       ? // Sin lista de entidades en el API: la elegida (desde un enlace) se ve y se quita.
         [{ valor: query.entidad, etiqueta: senales.find((s) => s.rucEntidad === query.entidad)?.entidad ?? `RUC ${query.entidad}` }]
       : [];
+  // Las dos preguntas a la vista, en desplegables como en Contratos (antes la severidad iba en cuatro chips): la
+  // severidad y la regla. Entidad, agente y cotejo, en "Filtros".
+  const visibles: FiltroSecundario[] = [
+    {
+      param: "severidad",
+      etiqueta: "Severidad",
+      corta: "Severidad",
+      todas: "Todas",
+      opciones: facetas.severidad.map((f) => ({ valor: f.valor, etiqueta: ETIQUETA_NIVEL[f.valor as NivelBandera] ?? f.etiqueta, conteo: f.n })),
+    },
+    { param: "regla", etiqueta: "Regla", corta: "Regla", todas: "Toda regla", opciones: facetas.regla.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) },
+  ];
   const filtros: FiltroSecundario[] = [
-    { param: "regla", etiqueta: "Regla", todas: "Toda regla", opciones: facetas.regla.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) },
     ...(opcionesEntidad.length ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: opcionesEntidad }] : []),
     { param: "agente", etiqueta: "Agente que la encontró", todas: "Todo agente", opciones: facetas.agente.map((f) => ({ valor: f.valor, etiqueta: f.etiqueta, conteo: f.n })) },
     ...(facetas.cotejo.length
@@ -236,17 +247,7 @@ async function VistaPublicadas({ query }: { query: SenalesQuery }) {
       <Listado ruta={RUTA} parametros={params}>
         <BarraFiltros
           busqueda={{ param: "q", placeholder: "Buscar por entidad, objeto o código…", etiqueta: "Buscar en las señales", min: 3 }}
-          faceta={{
-            param: "severidad",
-            etiqueta: "Severidad",
-            todas: "Todas",
-            // Todas las severidades con los otros filtros: la suma de la faceta cruzada.
-            conteoTodas: facetas.severidad.length ? facetas.severidad.reduce((s, f) => s + f.n, 0) : total,
-            opciones: facetas.severidad.map((f) => {
-              const nivel = f.valor as NivelBandera;
-              return { valor: f.valor, etiqueta: ETIQUETA_NIVEL[nivel] ?? f.etiqueta, conteo: f.n, icono: SEVERIDAD[nivel].icono, tono: nivel };
-            }),
-          }}
+          visibles={visibles}
           filtros={filtros}
         />
         <ZonaResultados>

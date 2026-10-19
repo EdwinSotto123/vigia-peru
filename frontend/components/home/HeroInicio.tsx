@@ -25,7 +25,8 @@ export function HeroInicio({ c }: { c: CifrasInicio | null }) {
     });
     if (c.conSenalAlta != null && c.leidos > 0) {
       tarjetas.push({
-        valor: numero(c.conSenalAlta), etiqueta: "con señal alta",
+        // "Riesgo alto", como en Contratos y en la ficha de cada entidad (antes aquí decía "señal alta").
+        valor: numero(c.conSenalAlta), etiqueta: "con riesgo alto",
         detalle: `${porcentaje((c.conSenalAlta / c.leidos) * 100)} de los leídos, para revisar`,
         pct: (c.conSenalAlta / c.leidos) * 100,
       });

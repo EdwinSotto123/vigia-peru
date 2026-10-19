@@ -8,7 +8,7 @@ import { Panel } from "@/components/ui/Panel";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { PUBLIC_API_BASE, faseHumana, faseProgreso, type Procesamiento } from "@/lib/auditoria";
 import { aFilaLeida, aFilaVivo, type FilaLeida, type FilaVivo, type FotoVivo } from "./vivo";
-import { soles, relativo } from "@/lib/formato";
+import { oracion, relativo, soles } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 
 /**
@@ -123,7 +123,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
           ? foto.enAnalisis.map((f) => (
               <li key={f.ocid}>
                 <button type="button" onClick={() => setSel({ tipo: "vivo", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? tituloNatural(f.titulo) : "Contrato sin título"}</span>
+                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
                   <span className="mt-0.5 flex items-center justify-between gap-3 text-[13px] text-mute">
                     <span className="truncate">{faseDe(f)}</span>
                     <span className="shrink-0 tabular-nums">{duracion(f.desdeSeg + extra)}</span>
@@ -137,7 +137,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
           : foto.ultimosLeidos.slice(0, MAX_FILAS).map((f) => (
               <li key={f.ocid}>
                 <button type="button" onClick={() => setSel({ tipo: "leido", ocid: f.ocid })} aria-haspopup="dialog" className={filaCls}>
-                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? tituloNatural(f.titulo) : "Contrato sin título"}</span>
+                  <span className="block truncate text-[15px] font-semibold text-ink">{f.titulo ? oracion(f.titulo) : "Contrato sin título"}</span>
                   <span className="mt-0.5 flex items-center justify-between gap-3 text-[13px] text-mute">
                     <span className="truncate">{f.zona ?? "Sin zona"}</span>
                     <span className="shrink-0">{f.finalizadoAt ? relativo(f.finalizadoAt) : "Sin fecha"}</span>
@@ -159,7 +159,7 @@ export function EnVivoInicio({ inicial }: { inicial: FotoVivo }) {
       <Panel
         abierto={sel != null}
         onCerrar={() => setSel(null)}
-        titulo={tituloSel ? tituloNatural(tituloSel) : "Contrato"}
+        titulo={tituloSel ? oracion(tituloSel) : "Contrato"}
         descripcion={selVivo ? "Se está analizando ahora" : "Ya se leyó"}
         ancho="md"
         pie={

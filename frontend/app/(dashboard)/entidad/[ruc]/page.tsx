@@ -436,14 +436,15 @@ function indicadores({
           ? enCola > 0
             ? `ninguno leído, ${numero(enCola)} esperan quien financie su lectura`
             : "ninguno leído todavía"
-          : `${plural(leidos, "leído", "leídos")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
+          : // La misma medida que la lista de entidades ("Con dictamen 13 de 331"): con dictamen publicado.
+            `${plural(publicados, "con dictamen publicado", "con dictamen publicado")}${altos > 0 ? `, ${numero(altos)} de riesgo alto` : ""}`
         : porTipoTexto(resumen),
       href: leidos > 0 ? `${ruta}?lectura=publicado` : ruta,
       ayuda: (
         <Ayuda titulo="¿Qué contratos puede leer Vigía?">
           <span className="block">
-            Los de su base, casi todos convocados en 2026: los que se leen con sus documentos y pueden tener dictamen. Leído:
-            el expediente ya lo revisó Vigía; con dictamen publicado o en revisión humana.
+            Los de su base, casi todos convocados en 2026: los que se leen con sus documentos y pueden tener dictamen.
+            {leidos > publicados ? ` Leídos: ${numero(leidos)}; ${numero(leidos - publicados)} siguen en revisión humana.` : ""}
           </span>
           {enCola > 0 && (
             <span className="mt-2 block">

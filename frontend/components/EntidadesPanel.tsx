@@ -5,6 +5,7 @@ import { Paginacion } from "@/components/ui/Paginacion";
 import { etiquetaTipoEntidad } from "@/lib/entidad-tipo";
 import type { ApiEntidad, EntidadesPagina } from "@/lib/api-client";
 import { numero, soles } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
 
 /**
  * El ranking de entidades sobre la plantilla Listado (§14.1): la `Tabla` compartida
@@ -157,7 +158,8 @@ function filaEntidad(e: ApiEntidad, puesto: number): Fila {
       puesto: <span className="font-mono text-[12px] tabular-nums text-mute">{numero(puesto)}</span>,
       entidad: (
         <CeldaPrincipal
-          titulo={e.nombre}
+          // Con su nombre propio, como en su ficha: no en las mayúsculas del SEACE.
+          titulo={tituloNatural(e.nombre)}
           meta={[
             tipo,
             e.region,
