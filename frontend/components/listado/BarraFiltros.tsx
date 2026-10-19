@@ -48,6 +48,12 @@ export interface FiltroSecundario {
   /** Texto de la opción vacía: "Toda regla", "Todo el Perú". */
   todas: string;
   opciones: { valor: string; etiqueta: string; conteo?: number | null }[];
+  /**
+   * En `visibles`: el nombre corto que va DENTRO del desplegable cuando no hay nada elegido ("Riesgo"), como un botón de filtro.
+   * Así las tres preguntas, la búsqueda, "Filtros" y el orden caben en una fila (antes, con la etiqueta afuera, la
+   * barra se partía en dos renglones). Lo elegido se nombra completo en "Filtrando por".
+   */
+  corta?: string;
 }
 
 export interface Orden {
@@ -155,16 +161,18 @@ export function BarraFiltros({
 
         {visibles.map((f) => (
           <label key={f.param} className="inline-flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 text-[13px] font-medium text-inkSoft">{f.etiqueta}</span>
+            <span className={f.corta ? "sr-only" : "shrink-0 text-[13px] font-medium text-inkSoft"}>{f.etiqueta}</span>
             <select
               value={parametros[f.param] ?? ""}
               onChange={(e) => navegar({ [f.param]: e.target.value || undefined })}
               className={cn(
-                "h-10 max-w-[15rem] rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
+                "h-10 truncate rounded-full border bg-paper pl-3.5 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate",
+                // Ancho fijo con nombre corto: el desplegable no crece con su opción más larga y la barra cabe en una fila.
+                f.corta ? "w-[10rem]" : "max-w-[15rem]",
                 parametros[f.param] ? "border-granate font-semibold text-granate" : "border-line",
               )}
             >
-              <option value="">{f.todas}</option>
+              <option value="">{f.corta ?? f.todas}</option>
               {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
                 <option value={parametros[f.param]}>{parametros[f.param]}</option>
               )}
@@ -237,7 +245,7 @@ export function BarraFiltros({
               <select
                 value={parametros[orden.param] ?? orden.porDefecto}
                 onChange={(e) => navegar({ [orden.param]: e.target.value === orden.porDefecto ? undefined : e.target.value })}
-                className="h-10 rounded-full border border-line bg-paper pl-8 pr-8 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
+                className="h-10 w-[11.5rem] truncate rounded-full border border-line bg-paper pl-8 pr-7 text-[14px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate"
               >
                 {orden.opciones.map((o) => (
                   <option key={o.valor} value={o.valor}>
@@ -335,7 +343,7 @@ function Buscador({
   return (
     <form
       role="search"
-      className="relative w-full sm:w-auto sm:min-w-[18rem] sm:flex-1 lg:max-w-md"
+      className="relative w-full sm:w-auto sm:min-w-[12rem] sm:flex-1 lg:max-w-sm"
       onSubmit={(e) => {
         e.preventDefault();
         const t = texto.trim();

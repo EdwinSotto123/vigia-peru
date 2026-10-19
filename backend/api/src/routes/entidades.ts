@@ -116,16 +116,34 @@ entidadesRouter.get("/:ruc/cruces", async (c) => {
 entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
+  // `?limit=` hasta 1000: la ficha las pide todas y las pagina (antes cortaba en 50 y decía "se muestran los 50").
+  const limit = Math.min(1000, Math.max(1, Number(c.req.query("limit")) || 50));
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
-  return c.json(publicar(await fraccionamientoDeEntidad(ruc)));
+  return c.json(publicar(await fraccionamientoDeEntidad(ruc, limit)));
 });
 
-// ─── GET /entidades/:ruc/gasto — en qué gasta: por partida, función y proyecto (migración 63) ─
+// ─── GET /entidades/:ruc/gasto — en qué gasta, según el MEF (migraciones 63 y 64) ─
 // Suma las unidades ejecutoras con que cruzó la entidad (`mef_entity_budget.sec_ejecs`) en el último año cargado. Si la
 // entidad cruzó con el pliego regional entero (`keyword` 'pliego …'), son las cifras de todo el gobierno regional:
-// `cruce` lo dice y la ficha lo avisa.
-interface FilaGasto { tipo: "partida" | "funcion" | "proyecto"; codigo: string; nombre: string | null; grupo: string | null; pim: number; devengado: number }
-const PROYECTOS_A_LA_VISTA = 15;
+// `cruce` lo dice y la ficha lo avisa. Ocho miradas, armadas en árbol donde corresponde:
+//   genéricas › partidas › específicas · funciones · proyectos · fuentes › rubros · meses · programas › productos
+type TipoGasto = "partida" | "funcion" | "proyecto" | "especifica" | "rubro" | "mes" | "programa" | "producto";
+interface FilaGasto { tipo: TipoGasto; codigo: string; nombre: string | null; grupo: string | null; pim: number; devengado: number }
+interface Dato { codigo: string; nombre: string; pim: number; devengado: number }
+
+const porPim = (a: { pim: number }, b: { pim: number }) => b.pim - a.pim;
+
+/** Junta en `lista` el dato con el mismo nombre (dos códigos que el clasificador llama igual son, en la ficha, uno). */
+function sumarPorNombre<T extends Dato>(lista: T[], d: T): T {
+  const igual = lista.find((p) => p.nombre.trim() === d.nombre.trim());
+  if (!igual) {
+    lista.push(d);
+    return d;
+  }
+  igual.pim += d.pim;
+  igual.devengado += d.devengado;
+  return igual;
+}
 
 entidadesRouter.get("/:ruc/gasto", async (c) => {
   const ruc = c.req.param("ruc");
@@ -143,44 +161,87 @@ entidadesRouter.get("/:ruc/gasto", async (c) => {
   );
   c.header("Cache-Control", cachePublico(3600, { maxAge: 300, swr: 3600 }));
   const filas = r.rows;
-  const porPim = (a: { pim: number }, b: { pim: number }) => b.pim - a.pim;
+  const de = (t: TipoGasto) => filas.filter((x) => x.tipo === t);
   // 2999999 es el "proyecto" del MEF para las inversiones sin código propio (su actividad dice sólo "ACCIONES DE
   // INVERSIÓN" u "OBRAS"): sin nombre en el archivo.
-  const dato = (f: FilaGasto) => ({
+  const dato = (f: FilaGasto): Dato => ({
     codigo: f.codigo,
     nombre: f.nombre || (f.tipo === "proyecto" && f.codigo === "2999999" ? "OTRAS INVERSIONES, SIN CÓDIGO DE PROYECTO EN EL MEF" : f.codigo),
     pim: f.pim,
     devengado: f.devengado,
   });
-  // Partidas agrupadas por su genérica, las dos de mayor a menor PIM. Dos códigos con el mismo nombre en una genérica
-  // ("GASTOS VARIABLES Y OCASIONALES" del personal activo y del CAS) van juntos: en la ficha serían dos filas iguales.
-  const genericas = new Map<string, { nombre: string; pim: number; devengado: number; partidas: ReturnType<typeof dato>[] }>();
-  for (const f of filas.filter((x) => x.tipo === "partida")) {
+
+  // Genéricas › partidas › específicas. Dos partidas con el mismo nombre en una genérica ("GASTOS VARIABLES Y
+  // OCASIONALES" del personal activo y del CAS) van juntas; sus específicas, también.
+  type Partida = Dato & { especificas: Dato[] };
+  const genericas = new Map<string, { nombre: string; pim: number; devengado: number; partidas: Partida[] }>();
+  const partidaPorCodigo = new Map<string, Partida>();
+  for (const f of de("partida")) {
     const g = f.grupo || "OTROS";
     let x = genericas.get(g);
     if (!x) genericas.set(g, (x = { nombre: g, pim: 0, devengado: 0, partidas: [] }));
     x.pim += f.pim;
     x.devengado += f.devengado;
-    const d = dato(f);
-    const igual = x.partidas.find((p) => p.nombre.trim() === d.nombre.trim());
-    if (igual) {
-      igual.pim += d.pim;
-      igual.devengado += d.devengado;
-    } else x.partidas.push(d);
+    partidaPorCodigo.set(f.codigo, sumarPorNombre<Partida>(x.partidas, { ...dato(f), especificas: [] }));
   }
-  for (const g of genericas.values()) g.partidas.sort(porPim);
-  const proyectos = filas.filter((x) => x.tipo === "proyecto").map(dato).sort(porPim);
+  for (const f of de("especifica")) {
+    const p = partidaPorCodigo.get(f.grupo ?? "");
+    if (p) sumarPorNombre(p.especificas, dato(f));
+  }
+  for (const g of genericas.values()) {
+    g.partidas.sort(porPim);
+    for (const p of g.partidas) {
+      p.especificas.sort(porPim);
+      // Una sola específica que se llama como su partida no agrega nada.
+      if (p.especificas.length === 1 && p.especificas[0].nombre.trim() === p.nombre.trim()) p.especificas = [];
+    }
+  }
+
+  // Fuentes › rubros: de dónde viene la plata.
+  const fuentes = new Map<string, { nombre: string; pim: number; devengado: number; rubros: Dato[] }>();
+  for (const f of de("rubro")) {
+    const k = f.grupo || "OTRAS FUENTES";
+    let x = fuentes.get(k);
+    if (!x) fuentes.set(k, (x = { nombre: k, pim: 0, devengado: 0, rubros: [] }));
+    x.pim += f.pim;
+    x.devengado += f.devengado;
+    sumarPorNombre(x.rubros, dato(f));
+  }
+  for (const x of fuentes.values()) {
+    x.rubros.sort(porPim);
+    // "RECURSOS ORDINARIOS" › "RECURSOS ORDINARIOS": un solo rubro con el nombre de su fuente no agrega nada.
+    if (x.rubros.length === 1 && x.rubros[0].nombre.trim() === x.nombre.trim()) x.rubros = [];
+  }
+
+  // Programas › productos.
+  type Programa = Dato & { productos: Dato[] };
+  const programas = new Map<string, Programa>(de("programa").map((f) => [f.codigo, { ...dato(f), productos: [] }]));
+  for (const f of de("producto")) {
+    const p = programas.get(f.grupo ?? "");
+    if (p) sumarPorNombre(p.productos, { ...dato(f), codigo: f.codigo.split(".").pop() ?? f.codigo });
+  }
+  for (const p of programas.values()) p.productos.sort(porPim);
+
+  const proyectos = de("proyecto").map(dato).sort(porPim);
   return c.json({
     anio: filas[0]?.anio ?? null,
     cruce: filas[0]?.cruce ?? null,
     genericas: [...genericas.values()].sort(porPim),
-    funciones: filas.filter((x) => x.tipo === "funcion").map(dato).sort(porPim),
+    funciones: de("funcion").map(dato).sort(porPim),
     proyectos: {
       total: proyectos.length,
       pim: proyectos.reduce((s, p) => s + p.pim, 0),
       devengado: proyectos.reduce((s, p) => s + p.devengado, 0),
-      lista: proyectos.slice(0, PROYECTOS_A_LA_VISTA),
+      // Todos: la ficha los pagina.
+      lista: proyectos,
     },
+    fuentes: [...fuentes.values()].sort(porPim),
+    // Los doce meses, con cero los que no tienen devengado (la serie no salta).
+    meses: Array.from({ length: 12 }, (_, i) => ({
+      mes: i + 1,
+      devengado: de("mes").filter((f) => Number(f.codigo) === i + 1).reduce((s, f) => s + f.devengado, 0),
+    })),
+    programas: [...programas.values()].sort(porPim),
   });
 });
 

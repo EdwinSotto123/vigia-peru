@@ -49,15 +49,20 @@ export interface DatoGasto {
 }
 
 /**
- * En qué gasta una entidad, en el último año cargado: por genérica (con sus partidas), por función y sus proyectos de
- * inversión (los 15 de mayor PIM, y el total). `cruce = "pliego"`: son las cifras de todo el gobierno regional.
+ * En qué gasta una entidad, en el último año cargado (migraciones 63 y 64): por genérica › partida › específica, por
+ * función, por programa › producto, sus proyectos de inversión (todos), de dónde viene la plata (fuente › rubro) y el
+ * devengado mes a mes. `cruce = "pliego"`: son las cifras de todo el gobierno regional.
  */
 export interface GastoEntidad {
   anio: number | null;
   cruce: string | null;
-  genericas: { nombre: string; pim: number; devengado: number; partidas: DatoGasto[] }[];
+  genericas: { nombre: string; pim: number; devengado: number; partidas: (DatoGasto & { especificas?: DatoGasto[] })[] }[];
   funciones: DatoGasto[];
   proyectos: { total: number; pim: number; devengado: number; lista: DatoGasto[] };
+  /** Desde la migración 64 (falta en respuestas viejas). */
+  fuentes?: { nombre: string; pim: number; devengado: number; rubros: DatoGasto[] }[];
+  meses?: { mes: number; devengado: number }[];
+  programas?: (DatoGasto & { productos: DatoGasto[] })[];
 }
 
 export interface BreakdownRow {

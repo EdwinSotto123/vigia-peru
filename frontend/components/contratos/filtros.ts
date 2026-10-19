@@ -32,12 +32,14 @@ export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecunda
     {
       param: "lectura",
       etiqueta: "¿Lo leyó Vigía?",
+      corta: "Lectura",
       todas: "Todos",
       opciones: LECTURAS.map((x) => ({ valor: x.value, etiqueta: x.label, conteo: l ? l[x.value] ?? 0 : null })),
     },
     {
       param: "riesgo",
       etiqueta: "Riesgo",
+      corta: "Riesgo",
       todas: "Cualquiera",
       // El API junta "bajo" y "sin señales" (score < 40): la etiqueta lo dice.
       opciones: [
@@ -49,6 +51,7 @@ export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecunda
     {
       param: "cruces",
       etiqueta: "Antecedentes del ganador",
+      corta: "Antecedentes",
       todas: "Todos",
       opciones: [
         { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },

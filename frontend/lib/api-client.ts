@@ -248,9 +248,9 @@ export async function getGastoEntidad(ruc: string) {
   }
 }
 
-export async function getFraccionamientoEntidad(ruc: string) {
+export async function getFraccionamientoEntidad(ruc: string, limit = 1000) {
   try {
-    return await get<import("./contratos").FraccionamientoEntidad>(`/entidades/${ruc}/fraccionamiento`);
+    return await get<import("./contratos").FraccionamientoEntidad>(`/entidades/${ruc}/fraccionamiento?limit=${limit}`);
   } catch {
     return null;
   }

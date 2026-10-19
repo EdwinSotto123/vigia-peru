@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// Fuentes autoalojadas por next/font: sin CSS bloqueante de fonts.googleapis (Lighthouse móvil).
+// Fuentes autoalojadas: sin CSS bloqueante de fonts.googleapis (Lighthouse móvil). Los archivos están en app/fuentes
+// (variables, subconjunto latino, de @fontsource-variable, licencia SIL OFL 1.1): antes `next/font/google` las bajaba
+// en cada build y en Cloud Build fallaba a ratos ("An error occurred in `next/font`"), tumbando el despliegue.
 // Chakra Petch (font-techno) no se usa en ningún componente: se retiró.
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-sans" });
+const inter = localFont({ src: "./fuentes/inter.woff2", weight: "100 900", display: "swap", variable: "--font-sans" });
 // Títulos en Space Grotesk: la grotesca de la identidad Píxel (carbón y lima).
-const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"], display: "swap", variable: "--font-display" });
+const display = localFont({ src: "./fuentes/space-grotesk.woff2", weight: "300 700", display: "swap", variable: "--font-display" });
 // `font-mono` (códigos de contrato, RUC, cifras) nombraba JetBrains Mono pero nunca
 // se cargaba: cada sistema caía en su propia monoespaciada. Sin preload: es
 // secundaria y no debe competir con la fuente del texto.
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-mono", preload: false });
+const mono = localFont({ src: "./fuentes/jetbrains-mono.woff2", weight: "100 800", display: "swap", variable: "--font-mono", preload: false });
 import type { Viewport } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { PagoPendienteFlotante } from "@/components/financiar/PagoPendienteFlotante";

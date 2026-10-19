@@ -9,6 +9,12 @@
  * ≈ 172 000 claves y 55 000 nombres: los montos van en UN arreglo compartido (un Float64Array por clave retenía 88 MB,
  * cerca de los 128 MB del isolate) y el CSV sale como flujo directo al COPY, sin armarse entero en memoria.
  *
+ * Migración 64: más miradas, para decir EN QUÉ con detalle: la específica de gasto bajo cada partida ("VIAJES" ›
+ * "PASAJES Y GASTOS DE TRANSPORTE"), de dónde viene la plata (fuente › rubro: "RECURSOS DETERMINADOS" › "CANON Y
+ * SOBRECANON…"), el devengado mes a mes y los programas presupuestales con sus productos. No caben con las tres
+ * primeras en un paso (≈ 370 000 claves más): `agregarZip(cuerpo, miradas)` agrega sólo las pedidas, y el scraper
+ * lee el ZIP en tres pasos (MIRADAS_POR_PASO).
+ *
  * El CSV del MEF trae todos los campos entre comillas y 63 columnas, de las cuales las 7 últimas son los
  * montos. Para no partir 9 millones de líneas enteras, se buscan solo los campos que hacen falta.
  */
@@ -22,10 +28,27 @@ export const ATRIBUTOS = ["SEC_EJEC", "EJECUTORA", "EJECUTORA_NOMBRE", "PLIEGO",
   "DISTRITO_EJECUTORA", "DISTRITO_EJECUTORA_NOMBRE"] as const;
 const MONTOS = ["MONTO_PIA", "MONTO_PIM", "MONTO_CERTIFICADO", "MONTO_COMPROMETIDO_ANUAL", "MONTO_COMPROMETIDO", "MONTO_DEVENGADO", "MONTO_GIRADO"];
 /** Lo que hace falta para el desglose del gasto de cada unidad ejecutora. */
-const CAMPOS_GASTO = ["TIPO_ACT_PROY", "PRODUCTO_PROYECTO", "PRODUCTO_PROYECTO_NOMBRE", "FUNCION", "FUNCION_NOMBRE", "GENERICA",
-  "GENERICA_NOMBRE", "SUBGENERICA", "SUBGENERICA_DET", "SUBGENERICA_DET_NOMBRE"];
-/** Las tres miradas del desglose: partida de gasto, función y proyecto de inversión. */
-export type TipoGasto = "partida" | "funcion" | "proyecto";
+const CAMPOS_GASTO = ["MES_EJE", "PROGRAMA_PPTO", "PROGRAMA_PPTO_NOMBRE", "TIPO_ACT_PROY", "PRODUCTO_PROYECTO", "PRODUCTO_PROYECTO_NOMBRE",
+  "FUNCION", "FUNCION_NOMBRE", "FUENTE_FINANCIAMIENTO_NOMBRE", "RUBRO", "RUBRO_NOMBRE", "GENERICA", "GENERICA_NOMBRE", "SUBGENERICA",
+  "SUBGENERICA_DET", "SUBGENERICA_DET_NOMBRE", "ESPECIFICA", "ESPECIFICA_DET", "ESPECIFICA_DET_NOMBRE"];
+/**
+ * Las miradas del desglose de cada unidad ejecutora (código · nombre · grupo):
+ *   partida     "3.1.1" · ALIMENTOS Y BEBIDAS · su genérica
+ *   funcion     "18" · DEFENSA Y SEGURIDAD NACIONAL
+ *   proyecto    CUI · nombre del proyecto de inversión (TIPO_ACT_PROY = 2)
+ *   especifica  "3.1.1.1.1" · ALIMENTOS Y BEBIDAS PARA CONSUMO HUMANO · el código de su partida ("3.1.1")
+ *   rubro       "18" · CANON Y SOBRECANON, REGALIAS… · su fuente de financiamiento
+ *   mes         "1".."12" · (sin nombre): sólo el devengado del mes
+ *   programa    "0068" · REDUCCION DE VULNERABILIDAD Y ATENCION DE EMERGENCIAS POR DESASTRES
+ *   producto    "0068.3000001" · ACCIONES COMUNES · el código de su programa (un producto se repite entre programas)
+ */
+export type TipoGasto = "partida" | "funcion" | "proyecto" | "especifica" | "rubro" | "mes" | "programa" | "producto";
+/** Qué miradas agrega cada lectura del ZIP: así ninguna pasa de ≈ 45 MB retenidos (medido con 2026). */
+export const MIRADAS_POR_PASO: readonly (readonly TipoGasto[])[] = [
+  ["partida", "funcion", "proyecto"],
+  ["especifica"],
+  ["rubro", "mes", "programa", "producto"],
+];
 
 /**
  * Del cuerpo de un ZIP de UNA entrada sin descriptor de datos (el del MEF: deflate, flag 0), los bytes
@@ -152,7 +175,7 @@ export interface Agregado {
 }
 
 /** Procesa línea por línea el CSV del MEF (la primera es la cabecera) sobre el agregado `a`. */
-function procesador(a: Agregado): (linea: string) => void {
+function procesador(a: Agregado, miradas: ReadonlySet<TipoGasto>): (linea: string) => void {
   let ix: Record<string, number> | null = null;
   let hasta = 0;
   const m = new Float64Array(N_MONTOS);
@@ -184,9 +207,9 @@ function procesador(a: Agregado): (linea: string) => void {
     if (!ix) {
       const cab = linea.replace(/^﻿/, "").split(SEP).map((c) => c.replaceAll('"', ""));
       ix = Object.fromEntries(cab.map((c, i) => [c, i]));
-      const falta = [...ATRIBUTOS, ...MONTOS, ...CAMPOS_GASTO, "ANO_EJE", "PROGRAMA_PPTO_NOMBRE"].filter((c) => !(c in ix!));
+      const falta = [...ATRIBUTOS, ...MONTOS, ...CAMPOS_GASTO, "ANO_EJE"].filter((c) => !(c in ix!));
       if (falta.length) throw new Error(`el CSV del MEF cambió: faltan ${falta.join(", ")}`);
-      hasta = Math.max(...[...ATRIBUTOS, ...CAMPOS_GASTO, "ANO_EJE", "PROGRAMA_PPTO_NOMBRE"].map((c) => ix![c]));
+      hasta = Math.max(...[...ATRIBUTOS, ...CAMPOS_GASTO, "ANO_EJE"].map((c) => ix![c]));
       const ultimos = cab.slice(-N_MONTOS);
       if (ultimos.join() !== MONTOS.join()) throw new Error(`el CSV del MEF cambió: las 7 últimas columnas son ${ultimos.join(", ")}`);
       return;
@@ -230,11 +253,33 @@ function procesador(a: Agregado): (linea: string) => void {
     }
     // En qué gasta la unidad ejecutora: sólo filas con algún monto (las de ejecución en cero no crean claves).
     if (m[0] === 0 && m[1] === 0 && m[5] === 0) return;
-    const partida = `${campo(linea, x.GENERICA)}.${campo(linea, x.SUBGENERICA)}.${campo(linea, x.SUBGENERICA_DET)}`;
-    sumarGasto(sec, "partida", partida, () => [campo(linea, x.SUBGENERICA_DET_NOMBRE), campo(linea, x.GENERICA_NOMBRE)]);
-    sumarGasto(sec, "funcion", campo(linea, x.FUNCION), () => [campo(linea, x.FUNCION_NOMBRE), ""]);
-    if (campo(linea, x.TIPO_ACT_PROY) === "2") {
+    const partida = miradas.has("partida") || miradas.has("especifica")
+      ? `${campo(linea, x.GENERICA)}.${campo(linea, x.SUBGENERICA)}.${campo(linea, x.SUBGENERICA_DET)}`
+      : "";
+    if (miradas.has("partida")) {
+      sumarGasto(sec, "partida", partida, () => [campo(linea, x.SUBGENERICA_DET_NOMBRE), campo(linea, x.GENERICA_NOMBRE)]);
+    }
+    if (miradas.has("funcion")) sumarGasto(sec, "funcion", campo(linea, x.FUNCION), () => [campo(linea, x.FUNCION_NOMBRE), ""]);
+    const tipoActividad = miradas.has("proyecto") || miradas.has("producto") ? campo(linea, x.TIPO_ACT_PROY) : "";
+    if (miradas.has("proyecto") && tipoActividad === "2") {
       sumarGasto(sec, "proyecto", campo(linea, x.PRODUCTO_PROYECTO), () => [campo(linea, x.PRODUCTO_PROYECTO_NOMBRE), ""]);
+    }
+    if (miradas.has("especifica")) {
+      sumarGasto(sec, "especifica", `${partida}.${campo(linea, x.ESPECIFICA)}.${campo(linea, x.ESPECIFICA_DET)}`,
+        () => [campo(linea, x.ESPECIFICA_DET_NOMBRE), partida]);
+    }
+    if (miradas.has("rubro")) {
+      sumarGasto(sec, "rubro", campo(linea, x.RUBRO), () => [campo(linea, x.RUBRO_NOMBRE), campo(linea, x.FUENTE_FINANCIAMIENTO_NOMBRE)]);
+    }
+    if (miradas.has("mes") && m[5] !== 0) {
+      // El devengado por mes (las filas del mes 0 traen PIA y PIM, no ejecución).
+      const mes = campo(linea, x.MES_EJE);
+      if (mes !== "0") sumarGasto(sec, "mes", mes, () => ["", ""]);
+    }
+    const programa = miradas.has("programa") || miradas.has("producto") ? campo(linea, x.PROGRAMA_PPTO) : "";
+    if (miradas.has("programa")) sumarGasto(sec, "programa", programa, () => [campo(linea, x.PROGRAMA_PPTO_NOMBRE), ""]);
+    if (miradas.has("producto") && tipoActividad === "3") {
+      sumarGasto(sec, "producto", `${programa}.${campo(linea, x.PRODUCTO_PROYECTO)}`, () => [campo(linea, x.PRODUCTO_PROYECTO_NOMBRE), programa]);
     }
   };
   return procesar;
@@ -277,10 +322,10 @@ class Cortador {
   }
 }
 
-/** Agrega el CSV del MEF ya como texto. */
-export async function agregar(texto: ReadableStream<string>): Promise<Agregado> {
+/** Agrega el CSV del MEF ya como texto (con las miradas del primer paso, salvo que se pidan otras). */
+export async function agregar(texto: ReadableStream<string>, miradas: readonly TipoGasto[] = MIRADAS_POR_PASO[0]): Promise<Agregado> {
   const a = nuevo();
-  const c = new Cortador(procesador(a));
+  const c = new Cortador(procesador(a, new Set(miradas)));
   for await (const trozo of texto) c.agregar(trozo);
   c.fin();
   return a;
@@ -292,9 +337,9 @@ export async function agregar(texto: ReadableStream<string>): Promise<Agregado> 
  * DecompressionStream el inflado nativo corre por delante del procesamiento y acumula texto inflado
  * (> 1 GB medido en Node; en Workers pasa los 128 MB del isolate).
  */
-export async function agregarZip(cuerpo: ReadableStream<Uint8Array>): Promise<Agregado> {
+export async function agregarZip(cuerpo: ReadableStream<Uint8Array>, miradas: readonly TipoGasto[] = MIRADAS_POR_PASO[0]): Promise<Agregado> {
   const a = nuevo();
-  const c = new Cortador(procesador(a));
+  const c = new Cortador(procesador(a, new Set(miradas)));
   const dec = new TextDecoder("utf-8");
   const inflador = new Inflate((datos, final) => {
     c.agregar(dec.decode(datos, { stream: !final }));

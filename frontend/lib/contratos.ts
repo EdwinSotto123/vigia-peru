@@ -351,7 +351,7 @@ export const RIESGOS: { value: RiesgoContrato; label: string }[] = [
 export const ORDENES: { value: OrdenContratos; label: string }[] = [
   { value: "fecha", label: "Más recientes" },
   { value: "monto", label: "Mayor monto" },
-  { value: "score", label: "Mayor peso del riesgo" },
+  { value: "score", label: "Mayor riesgo" },
 ];
 
 export const tipoLabel = (t: string | null | undefined) => TIPOS.find((x) => x.value === t)?.label ?? null;
