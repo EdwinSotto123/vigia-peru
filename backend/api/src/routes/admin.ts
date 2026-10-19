@@ -370,6 +370,9 @@ const ProcesamientoSchema = z.object({
   tipos_activos: z.array(z.enum(["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro"])).min(1),
   etapas_activas: z.array(z.enum(["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada"])).min(1),
   nota: z.string().max(300).optional().default(""),
+  // Desde qué fecha de convocatoria entra un contrato a la cola (migración 69); null = todas. Sin el campo, se
+  // conserva el que había: un PUT viejo no debe abrir la cola a toda la historia.
+  cola_desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 adminRouter.get("/config/procesamiento", async (c) => {
@@ -384,13 +387,15 @@ adminRouter.get("/config/procesamiento", async (c) => {
 adminRouter.put("/config/procesamiento", async (c) => {
   const body = ProcesamientoSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_body", issues: body.error.issues }, 400);
+  const previo = await pool.query("SELECT valor->>'cola_desde' AS d FROM ajustes WHERE clave = 'procesamiento'").catch(() => null);
+  const valor = { ...body.data, cola_desde: body.data.cola_desde === undefined ? (previo?.rows[0]?.d ?? null) : body.data.cola_desde };
   await pool.query(
     `INSERT INTO ajustes (clave, valor, updated_at, updated_by) VALUES ('procesamiento', $1, now(), $2)
      ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = now(), updated_by = EXCLUDED.updated_by`,
-    [JSON.stringify(body.data), actor(c)]);
+    [JSON.stringify(valor), actor(c)]);
   await pool.query("SELECT refresh_financiamiento()").catch(() => null);
-  await log(actor(c), "editar_procesamiento", "ajustes:procesamiento", body.data);
-  return c.json({ ok: true, valor: body.data });
+  await log(actor(c), "editar_procesamiento", "ajustes:procesamiento", valor);
+  return c.json({ ok: true, valor });
 });
 
 // ─── Bitácora ────────────────────────────────────────────────────────────────

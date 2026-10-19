@@ -9,6 +9,7 @@ import { refrescarAdmin, useAdmin } from "@/lib/useAdmin";
 import { useSesionEquipo } from "@/lib/useEquipo";
 import { puede } from "@/lib/permisos";
 import { etapaLabel, motivoLabel, tipoLabel } from "@/lib/contratos";
+import { fecha } from "@/lib/formato";
 import {
   Aviso,
   Badge,
@@ -47,7 +48,7 @@ interface Resumen {
   motivosNoProcesable: { motivo: string; n: number }[];
   validacionesPendientes: { validacion: string; n: number }[];
 }
-interface ProcConfig { valor: { tipos_activos: string[]; etapas_activas: string[]; nota?: string }; updatedAt?: string; updatedBy?: string; cola: number | null }
+interface ProcConfig { valor: { tipos_activos: string[]; etapas_activas: string[]; nota?: string; cola_desde?: string | null }; updatedAt?: string; updatedBy?: string; cola: number | null }
 
 const TIPOS = ["bienes", "servicios", "consultoria", "obras", "convenio", "directa", "otro", "sin_clasificar"];
 const ETAPAS = ["planificacion", "convocada", "adjudicada", "contratada", "en_ejecucion", "finalizada", "desierta", "cancelada", "nula", "desconocida", "sin_clasificar"];
@@ -89,7 +90,7 @@ function ProcesamientoActivo() {
     if (!v) return;
     setSaving(true); setMsg(null);
     try {
-      await adminFetch("/config/procesamiento", { method: "PUT", body: JSON.stringify({ tipos_activos: v.tipos_activos, etapas_activas: v.etapas_activas, nota: v.nota ?? "" }) });
+      await adminFetch("/config/procesamiento", { method: "PUT", body: JSON.stringify({ tipos_activos: v.tipos_activos, etapas_activas: v.etapas_activas, nota: v.nota ?? "", cola_desde: v.cola_desde ?? null }) });
       await mutate({ ...data!, valor: v }, { revalidate: false });
       setSucio(false); setMsg({ ok: true });
       refrescarAdmin("/config/procesamiento");
@@ -112,6 +113,22 @@ function ProcesamientoActivo() {
             {ETAPAS_CFG.map((e) => editable
               ? <Chip key={e} activo={!!v.etapas_activas?.includes(e)} onClick={() => toggle("etapas_activas", e)}>{etapaTxt(e)}</Chip>
               : <Badge key={e} tono={v.etapas_activas?.includes(e) ? "ok" : "muted"} punto={!!v.etapas_activas?.includes(e)}>{etapaTxt(e)}</Badge>)}
+          </div>
+          {/* Migración 69: la base trae contratos desde 2015; a la cola sólo entran los convocados desde esta fecha. */}
+          <div role="group" aria-label="Desde qué fecha entra a la cola" className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 w-14 text-[12px] font-medium text-inkSoft">Desde</span>
+            {editable ? (
+              <input
+                type="date"
+                value={v.cola_desde ?? ""}
+                onChange={(e) => { setV({ ...v, cola_desde: e.target.value || null }); setSucio(true); setMsg(null); }}
+                className="rounded-lg border border-line bg-paper px-2 py-1 font-mono text-[12px] text-ink"
+                aria-label="Fecha de convocatoria desde la que un contrato entra a la cola"
+              />
+            ) : (
+              <Badge tono="muted">{v.cola_desde ? fecha(v.cola_desde) : "Todas las fechas"}</Badge>
+            )}
+            <span className="text-[11.5px] text-mute">Los contratos anteriores se ven en la base, pero no se financian ni se descargan.</span>
           </div>
           {v.nota && <p className="text-[12px] text-mute">{v.nota}</p>}
         </div>
