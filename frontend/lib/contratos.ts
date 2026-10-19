@@ -520,17 +520,28 @@ export function contratosQueryString(q: ContratosQuery = {}): string {
 /** Riesgos que acepta la URL: los cuatro tramos y "en revisión". */
 const RIESGOS_URL: string[] = [...RIESGOS.map((r) => r.value), "en_revision"];
 
-/** "2026-08" → primer y último día de ese mes (el API filtra por [desde, hasta]). */
+/** El primer año con contratos en la base (el relleno del OECE desde 2015). */
+export const PRIMER_ANIO_CONTRATOS = 2015;
+
+/**
+ * "2026-08" → primer y último día de ese mes; "2022" → el año entero (el API filtra por [desde, hasta]). El filtro
+ * "Mes de convocatoria" ofrece los últimos 12 meses y cada año desde 2015.
+ */
 export function rangoDeMes(mes: string): { desde: string; hasta: string } | null {
+  if (/^\d{4}$/.test(mes)) {
+    const a = Number(mes);
+    return a >= PRIMER_ANIO_CONTRATOS && a <= 2100 ? { desde: `${mes}-01-01`, hasta: `${mes}-12-31` } : null;
+  }
   const m = mes.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
   if (!m) return null;
   const ultimo = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0)).getUTCDate();
   return { desde: `${mes}-01`, hasta: `${mes}-${String(ultimo).padStart(2, "0")}` };
 }
 
-/** Lo inverso: "2026-08" si [desde, hasta] es exactamente un mes calendario; si no, null. */
+/** Lo inverso: "2026-08" si [desde, hasta] es exactamente un mes calendario, "2022" si es un año; si no, null. */
 export function mesDeRango(desde: string | undefined, hasta: string | undefined): string | null {
   if (!desde || !hasta) return null;
+  if (desde.endsWith("-01-01") && hasta === `${desde.slice(0, 4)}-12-31` && rangoDeMes(desde.slice(0, 4))) return desde.slice(0, 4);
   const r = rangoDeMes(desde.slice(0, 7));
   return r && r.desde === desde && r.hasta === hasta ? desde.slice(0, 7) : null;
 }

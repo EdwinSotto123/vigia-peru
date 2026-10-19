@@ -8,7 +8,7 @@
 
 import type { FiltroSecundario, Parametros } from "@/components/listado";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
-import { ETAPAS, LECTURAS, OPERATIVOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
+import { ETAPAS, LECTURAS, OPERATIVOS, PRIMER_ANIO_CONTRATOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { soles } from "@/lib/formato";
 
 /** Conteo de una opción: del resumen si respondió (0 es un dato); si no, sin número. */
@@ -87,8 +87,12 @@ export const filtroEtapa = (): FiltroSecundario => ({
 /** Los últimos 12 meses; si la URL trae uno más viejo, se agrega para que el select no quede en blanco. */
 export function filtroMes(parametros: Parametros): FiltroSecundario {
   const meses = ultimosMeses(12).map((m) => ({ valor: m.desde.slice(0, 7), etiqueta: m.etiqueta }));
-  if (parametros.mes && !meses.some((m) => m.valor === parametros.mes)) meses.push({ valor: parametros.mes, etiqueta: etiquetaMes(parametros.mes) });
-  return { param: "mes", etiqueta: "Mes de convocatoria", todas: "Todo el histórico", opciones: meses };
+  // Y cada año entero desde 2015 (la base trae la historia del OECE): "Todo 2022".
+  const hoy = new Date().getUTCFullYear();
+  const anios = Array.from({ length: hoy - PRIMER_ANIO_CONTRATOS + 1 }, (_, i) => String(hoy - i)).map((a) => ({ valor: a, etiqueta: `Todo ${a}` }));
+  const opciones = [...meses, ...anios];
+  if (parametros.mes && !opciones.some((m) => m.valor === parametros.mes)) opciones.push({ valor: parametros.mes, etiqueta: etiquetaMes(parametros.mes) });
+  return { param: "mes", etiqueta: "Mes o año de convocatoria", todas: "Todo el histórico", opciones };
 }
 
 const MONTOS_DESDE = [50_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
