@@ -205,7 +205,7 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
               </div>
             ),
           },
-          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Lectura de Vigía", conteo: t.contratos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
+          ...(t.contratos > 0 ? [{ clave: "vigia", etiqueta: "Contratos en Vigía", conteo: t.contratos, contenido: <LecturaVigia d={d} anio={anio} /> }] : []),
         ]}
       />
       <Aviso tono="neutro">{AVISO_PARTIDO}</Aviso>

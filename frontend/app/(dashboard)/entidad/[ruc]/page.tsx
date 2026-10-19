@@ -172,7 +172,8 @@ export default async function EntidadProfile({
         pestanas={[
           {
             clave: "contratos",
-            etiqueta: "Contratos",
+            // El mismo nombre que en la ficha de un partido: los contratos que Vigía tiene para leer.
+            etiqueta: "Contratos en Vigía",
             conteo: totalContratos,
             contenido: (
               <div className="space-y-4">
@@ -191,7 +192,7 @@ export default async function EntidadProfile({
                   }
                 >
                   Sus convocatorias en la base de Vigía (las que puede leer), con lo leído y los antecedentes de quien ganó.
-                  Su historia completa está en «Procesos desde 2018».
+                  Su historia completa, desde 2018, está en «Procesos desde 2018».
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
                   {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}

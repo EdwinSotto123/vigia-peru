@@ -258,7 +258,7 @@ function indicadoresAmbito({
     {
       valor: numero(conSenal),
       etiqueta: "con señales",
-      contexto: `de ${numero(leidos)} leídos${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`,
+      contexto: `de ${numero(leidos)} financiados leídos${enRevision > 0 ? `, ${numero(enRevision)} en revisión` : ""}`,
       ayuda: (
         <Ayuda titulo="¿Se publica todo?">
           Sí: se publican igual, señalen a quien señalen, también a quien financió. Los que están en revisión no cuentan
@@ -297,7 +297,7 @@ function indicadoresPeriodo(ranking: Ranking, periodo: Periodo): Indicador[] {
       valor: v(sumas.conSenal),
       etiqueta: "con señales",
       contexto: completa
-        ? `de ${numero(sumas.leidos)} leídos${sumas.enRevision > 0 ? `, ${numero(sumas.enRevision)} en revisión` : ""}`
+        ? `de ${numero(sumas.leidos)} financiados leídos${sumas.enRevision > 0 ? `, ${numero(sumas.enRevision)} en revisión` : ""}`
         : undefined,
     },
     {
