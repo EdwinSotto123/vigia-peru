@@ -9,6 +9,8 @@ import { getAlertas, getAlertasPagina, getAlertasPuntos, getReportes } from "@/l
 import { apiNueva } from "@/lib/capacidades";
 import { getZonas, getEstadoGlobal, type EstadoGlobal, type Zona } from "@/lib/financiamiento";
 import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
+import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
+import { CLAVES_FILTRO, filtrosDeUrl, type FiltrosMapa } from "./mapa/filtrosMapa";
 import { numero } from "@/lib/formato";
 import { EncabezadoPagina } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
@@ -73,6 +75,11 @@ export function MapaWrapper({
   const [activa, setActiva] = useState<{ ubigeo: string; nombre: string; nivel: "departamento" | "provincia" } | null>(null);
   const [ancla, setAncla] = useState<DOMRect | null>(null);
   const [mes, setMes] = useState<RangoMes | null>(null);
+  /** Filtros del mapa (partido que gobierna, tipo, lectura, antecedentes): repintan con lo que cumple. En la URL. */
+  const [filtrosMapa, setFiltrosMapa] = useState<FiltrosMapa>({});
+  const hayFiltros = Object.values(filtrosMapa).some(Boolean);
+  /** Partidos que gobiernan hoy, para el desplegable (una vez). */
+  const [partidos, setPartidos] = useState<{ clave: string; nombre: string }[] | null>(null);
   /** La pestaña del panel vive acá (no en el panel) para poder escribirla en `?tab=`. */
   const [panelTab, setPanelTab] = useState<ZonaTab>(initialTab ?? "resumen");
   const [drawerAbierto, setDrawerAbierto] = useState(false);
@@ -137,11 +144,11 @@ export function MapaWrapper({
 
   const geoCache = useRef<Map<string, ContratoZona[]>>(new Map());
   const pedirGeo = useCallback(
-    async (nivel: "departamento" | "provincia" | "distrito", ubigeo?: string, desde?: string, hasta?: string) => {
-      const key = `${nivel}|${ubigeo ?? ""}|${desde ?? ""}`;
+    async (nivel: "departamento" | "provincia" | "distrito", ubigeo?: string, desde?: string, hasta?: string, f: FiltrosMapa = {}) => {
+      const key = `${nivel}|${ubigeo ?? ""}|${desde ?? ""}|${JSON.stringify(f)}`;
       const cached = geoCache.current.get(key);
       if (cached) return cached;
-      const d = await getContratosGeo({ nivel, ubigeo, desde, hasta });
+      const d = await getContratosGeo({ nivel, ubigeo, desde, hasta, ...f });
       if (d) geoCache.current.set(key, d);
       return d;
     },
@@ -222,14 +229,15 @@ export function MapaWrapper({
     };
   }, [intento, pedirGeo, reintentar]);
 
+  // Con mes o con filtros: los departamentos con lo que cumple (color y encabezado); el panel sigue con el histórico.
   useEffect(() => {
-    if (!mes) {
+    if (!mes && !hayFiltros) {
       setGeoMes(null);
       return;
     }
     let vivo = true;
     setGeoMes(null);
-    pedirGeo("departamento", undefined, mes.desde, mes.hasta).then((d) => {
+    pedirGeo("departamento", undefined, mes?.desde, mes?.hasta, filtrosMapa).then((d) => {
       if (!vivo) return;
       if (d) setGeoMes(d);
       else {
@@ -240,7 +248,7 @@ export function MapaWrapper({
     return () => {
       vivo = false;
     };
-  }, [mes, intento, pedirGeo, reintentar]);
+  }, [mes, filtrosMapa, hayFiltros, intento, pedirGeo, reintentar]);
 
   // Con un departamento abierto: sus provincias (relleno) y sus distritos (puntos).
   useEffect(() => {
@@ -260,12 +268,23 @@ export function MapaWrapper({
         reintentar();
       }
     };
-    pedirGeo("provincia", regionUb, mes?.desde, mes?.hasta).then(recibir(setGeoProv));
-    pedirGeo("distrito", regionUb, mes?.desde, mes?.hasta).then(recibir(setGeoDist));
+    pedirGeo("provincia", regionUb, mes?.desde, mes?.hasta, filtrosMapa).then(recibir(setGeoProv));
+    pedirGeo("distrito", regionUb, mes?.desde, mes?.hasta, filtrosMapa).then(recibir(setGeoDist));
     return () => {
       vivo = false;
     };
-  }, [regionUb, mes, intento, pedirGeo, reintentar]);
+  }, [regionUb, mes, filtrosMapa, intento, pedirGeo, reintentar]);
+
+  // La lista de partidos para el desplegable "Partido que gobierna".
+  useEffect(() => {
+    let vivo = true;
+    getRankingPartidos(ANIO_GOBIERNO_VIGENTE, { limit: 100 })
+      .then((r) => vivo && setPartidos((r?.data ?? []).map((p) => ({ clave: p.clave, nombre: p.nombre }))))
+      .catch(() => vivo && setPartidos([]));
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   // ─── Estado ↔ URL (sin navegar) ──────────────────────────────────────────
   const urlLeida = useRef(false);
@@ -275,6 +294,7 @@ export function MapaWrapper({
     const sp = new URLSearchParams(window.location.search);
     const u = sp.get("ubigeo");
     const o = sp.get("ocid");
+    setFiltrosMapa(filtrosDeUrl(sp));
     if (u && /^\d{4}(\d{2})?$/.test(u)) {
       setZonaSel({ ubigeo: u, nombre: "" });
       setRegionUb((r) => r ?? u.slice(0, 2));
@@ -294,12 +314,13 @@ export function MapaWrapper({
     set("tab", regionUb && panelTab !== "resumen" ? panelTab : null);
     set("ubigeo", regionUb ? zonaSel?.ubigeo : null);
     set("ocid", regionUb ? ocidSel : null);
+    for (const k of CLAVES_FILTRO) set(k, filtrosMapa[k]);
     const qs = sp.toString();
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     if (url !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, "", url);
     }
-  }, [regionUb, panelTab, zonaSel, ocidSel]);
+  }, [regionUb, panelTab, zonaSel, ocidSel, filtrosMapa]);
 
   // Nombre de la zona cuando llegó sólo el ubigeo por URL.
   useEffect(() => {
@@ -322,7 +343,7 @@ export function MapaWrapper({
 
   // ─── Escalas y relleno ───────────────────────────────────────────────────
   const m = medidaPorId(medida);
-  const geoPais = mes ? geoMes : geoBase;
+  const geoPais = mes || hayFiltros ? geoMes : geoBase;
   const cargandoPais = geoPais === null;
   const cargandoProv = regionUb != null && geoProv === null;
 
@@ -634,6 +655,12 @@ export function MapaWrapper({
               cargando={regionUb ? cargandoProv : cargandoPais}
               mes={mes}
               onMes={setMes}
+              filtros={filtrosMapa}
+              onFiltros={setFiltrosMapa}
+              partidos={partidos}
+              regiones={(geoBase ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))}
+              region={regionUb}
+              onRegion={elegirRegion}
               alertas={verSenales}
               onAlertas={() => setVerSenales((v) => !v)}
               nAlertas={puntosSenal ? puntosSenal.length : null}

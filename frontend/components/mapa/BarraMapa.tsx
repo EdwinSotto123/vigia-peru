@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { AlertTriangle, Bell, MessageSquareWarning, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { FiltroMes, type RangoMes } from "./FiltroMes";
 import { LeyendaEscala } from "./LeyendaEscala";
 import { FILTROS, MEDIDAS, type Escala, type FiltroZona, type Medida, type MedidaId } from "./escala";
+import { hrefContratos, type FiltrosMapa } from "./filtrosMapa";
+import { LECTURAS, TIPOS } from "@/lib/contratos";
 
 /**
  * Barra de control del mapa: qué se pinta, de qué mes, qué capas se ven y qué
@@ -28,6 +31,12 @@ export function BarraMapa({
   cargando,
   mes,
   onMes,
+  filtros,
+  onFiltros,
+  partidos,
+  regiones,
+  region,
+  onRegion,
   alertas,
   onAlertas,
   nAlertas,
@@ -51,6 +60,15 @@ export function BarraMapa({
   cargando: boolean;
   mes: RangoMes | null;
   onMes: (r: RangoMes | null) => void;
+  /** Filtros de contratos (partido que gobierna, tipo, lectura, antecedentes): el mapa pinta sólo lo que cumple. */
+  filtros: FiltrosMapa;
+  onFiltros: (f: FiltrosMapa) => void;
+  /** Partidos que gobiernan hoy; `null` = cargando. */
+  partidos: { clave: string; nombre: string }[] | null;
+  /** Departamentos, para ir a uno sin buscarlo en el mapa. */
+  regiones: { ubigeo: string; nombre: string }[];
+  region: string | null;
+  onRegion: (ubigeo: string | null) => void;
   alertas: boolean;
   onAlertas: () => void;
   /** Puntos de señal que se dibujan. `null` = cargando. */
@@ -150,6 +168,70 @@ export function BarraMapa({
         )}
       </div>
 
+      {/* Qué contratos cuentan: los mismos filtros de la lista de contratos, en desplegables. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="Filtrar los contratos del mapa">
+        <Desplegable
+          etiqueta="Región"
+          valor={region ?? ""}
+          todas="Todo el Perú"
+          opciones={regiones.map((r) => ({ valor: r.ubigeo, etiqueta: r.nombre }))}
+          onCambio={(v) => onRegion(v || null)}
+        />
+        <Desplegable
+          etiqueta="Partido que gobierna"
+          valor={filtros.partido ?? ""}
+          todas={partidos === null ? "Cargando…" : "Cualquiera"}
+          opciones={(partidos ?? []).map((p) => ({ valor: p.clave, etiqueta: p.nombre }))}
+          onCambio={(v) => onFiltros({ ...filtros, partido: v || undefined })}
+          ancho="sm:max-w-[16rem]"
+        />
+        <Desplegable
+          etiqueta="Tipo"
+          valor={filtros.tipo ?? ""}
+          todas="Todos"
+          opciones={TIPOS.map((t) => ({ valor: t.value, etiqueta: t.label }))}
+          onCambio={(v) => onFiltros({ ...filtros, tipo: (v || undefined) as FiltrosMapa["tipo"] })}
+        />
+        <Desplegable
+          etiqueta="¿Lo leyó Vigía?"
+          valor={filtros.lectura ?? ""}
+          todas="Todos"
+          opciones={LECTURAS.map((l) => ({ valor: l.value, etiqueta: l.label }))}
+          onCambio={(v) => onFiltros({ ...filtros, lectura: (v || undefined) as FiltrosMapa["lectura"] })}
+        />
+        <Desplegable
+          etiqueta="Antecedentes del ganador"
+          valor={filtros.cruces ?? ""}
+          todas="Todos"
+          opciones={[
+            { valor: "alta", etiqueta: "Con uno grave" },
+            { valor: "con", etiqueta: "Con alguno" },
+          ]}
+          onCambio={(v) => onFiltros({ ...filtros, cruces: (v || undefined) as FiltrosMapa["cruces"] })}
+        />
+        {Object.values(filtros).some(Boolean) && (
+          <span className="flex items-center gap-3 text-[12px]">
+            <button type="button" className="font-medium text-granate hover:underline" onClick={() => onFiltros({})}>
+              Quitar filtros
+            </button>
+            <Link href={hrefContratos(filtros, region)} prefetch={false} className="font-medium text-granate hover:underline">
+              Ver estos contratos →
+            </Link>
+          </span>
+        )}
+      </div>
+
+      {Object.values(filtros).some(Boolean) && (
+        <p className="flex items-center gap-1 text-[12px] text-inkSoft" role="status">
+          <span>El color y las cifras cuentan sólo los contratos que cumplen los filtros.</span>
+          <Ayuda titulo="¿Qué cambia con los filtros?">
+            El color del mapa, el encabezado y la ficha de cada zona cuentan sólo los contratos que cumplen. El partido es el
+            que ganó la elección del gobierno regional, provincial o distrital que contrató (JNE, período 2023–2026). El
+            panel de la zona y los puntos de riesgo siguen mostrando todo.
+          </Ayuda>
+        </p>
+      )}
+
       {/* Aviso inevitable = una línea + ⓘ (§10.7): qué se acota por mes y qué no. */}
       {mes && (
         <p className="flex items-center gap-1 text-[12px] text-inkSoft" role="status">
@@ -232,5 +314,45 @@ function BotonCapa({
       )}
       {cargando && <span className="sr-only">, cargando</span>}
     </button>
+  );
+}
+
+/** Un filtro del mapa: su pregunta y un desplegable compacto (granate cuando está puesto). */
+function Desplegable({
+  etiqueta,
+  valor,
+  todas,
+  opciones,
+  onCambio,
+  ancho = "sm:max-w-[12rem]",
+}: {
+  etiqueta: string;
+  valor: string;
+  todas: string;
+  opciones: { valor: string; etiqueta: string }[];
+  onCambio: (v: string) => void;
+  ancho?: string;
+}) {
+  return (
+    // En el celular cada filtro ocupa la fila (la etiqueta a la izquierda, el desplegable lo que queda); desde sm, compactos.
+    <label className="flex w-full min-w-0 items-center gap-1.5 sm:inline-flex sm:w-auto">
+      <span className="w-28 shrink-0 text-[11px] font-medium text-mute sm:w-auto">{etiqueta}</span>
+      <select
+        value={valor}
+        onChange={(e) => onCambio(e.target.value)}
+        className={cn(
+          "h-9 min-w-0 flex-1 rounded-full border bg-paper pl-3 pr-7 text-[12.5px] text-ink transition-colors duration-rapido hover:bg-paperSoft focus:border-granate sm:h-8 sm:flex-none",
+          ancho,
+          valor ? "border-granate/60 font-medium" : "border-line",
+        )}
+      >
+        <option value="">{todas}</option>
+        {opciones.map((o) => (
+          <option key={o.valor} value={o.valor}>
+            {o.etiqueta}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

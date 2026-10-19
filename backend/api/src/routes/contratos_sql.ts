@@ -159,6 +159,8 @@ export const ListQuery = z.object({
   // Cruces del ganador con otros registros (migración 57, casos_cruce): con alguno, con uno grave, o de ciertos tipos.
   cruces: z.enum(["con", "alta"]).optional(),
   cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
+  // Partido u organización que gobernaba la entidad al convocar (contrato_partido, migración 41): su clave.
+  partido: z.string().max(120).regex(/^[a-z0-9-]+$/).optional(),
 });
 
 /** Condiciones WHERE compartidas por /contratos, /contratos/geo y /contratos/resumen. Los alias

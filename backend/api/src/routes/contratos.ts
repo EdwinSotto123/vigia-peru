@@ -104,6 +104,10 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   if (q.lectura && !excluir.has("lectura")) ce(lecturaSql(q.lectura, "ce."));
   if (q.estado && !excluir.has("estado")) ce(`ce.estado_proc = ${add(q.estado)}`);
   if (q.operativo && !excluir.has("operativo")) ce(`ce.operativo = ${add(q.operativo)}`);
+  if (q.partido && !excluir.has("partido")) {
+    // contrato_partido_idx (migración 59): la vista contrato_partido materializada, con índice por partido.
+    conds.push(`EXISTS (SELECT 1 FROM contrato_partido_idx cp WHERE cp.org_clave = ${add(q.partido)} AND cp.ocid = ${m.ocid})`);
+  }
   if ((q.cruces || q.cruce) && !excluir.has("cruces")) {
     const k = [`k.ocid = ${m.ocid}`];
     if (q.cruces === "alta") k.push("k.n_alta > 0");
@@ -132,7 +136,7 @@ function esFinDeMes(d: string): boolean {
 }
 /** Filtros que `contratos_agregado` responde exacto: sin q, entidad ni montos, y fechas en meses enteros. */
 const agregable = (q: Partial<Filtros>) =>
-  !q.q && !q.cruces && !q.cruce && !q.entidad && q.monto_min == null && q.monto_max == null
+  !q.q && !q.cruces && !q.cruce && !q.partido && !q.entidad && q.monto_min == null && q.monto_max == null
   && (!q.desde || esPrimeroDeMes(q.desde)) && (!q.hasta || esFinDeMes(q.hasta));
 
 /** WHERE sobre contratos_agregado (columnas: ubigeo, tipo, etapa, mes, riesgo, estado_proc, operativo). */
@@ -167,7 +171,7 @@ const geoTextoMemo = new Memo<Serializado>({ nombre: "contratos:geo:texto", ttlM
 // operativo ni riesgo (auditoría M1: la portada calculaba 5 cubos idénticos). El reparto es en memoria.
 // `porTipoRiesgo[tipo][riesgo]` = lo que daría `porRiesgo` con ese `tipo` elegido (respeta operativo):
 // la matriz tipo × riesgo de una sola llamada.
-const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true });
+const ResumenQuery = ListQuery.pick({ q: true, ubigeo: true, entidad: true, monto_min: true, monto_max: true, desde: true, hasta: true, tipo: true, etapa: true, riesgo: true, operativo: true, cruces: true, cruce: true, lectura: true, partido: true });
 type Faceta = "tipo" | "operativo" | "riesgo";
 type Celda = Record<Faceta, string | null> & { n: number };
 const FACETAS: Faceta[] = ["tipo", "operativo", "riesgo"];
@@ -463,7 +467,11 @@ async function lista(q: ListaQ) {
 }
 
 // ─── GET /contratos/geo ──────────────────────────────────────────────────────
-const GeoQuery = ListQuery.pick({ tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true, desde: true, hasta: true }).extend({
+const GeoQuery = ListQuery.pick({
+  tipo: true, etapa: true, riesgo: true, ubigeo: true, entidad: true, q: true, desde: true, hasta: true,
+  // Los filtros del mapa: lectura, antecedentes del ganador y partido que gobierna.
+  lectura: true, cruces: true, cruce: true, partido: true,
+}).extend({
   nivel: z.enum(["distrito", "provincia", "departamento"]).default("distrito"),
 });
 

@@ -325,6 +325,8 @@ export interface ContratosQuery {
   cruces?: "con" | "alta" | "";
   /** ¿Lo leyó Vigía? Junta el riesgo y el estado de procesamiento en una sola pregunta. */
   lectura?: Lectura | "";
+  /** Clave del partido u organización que gobernaba la entidad al convocar ("alianza-para-el-progreso"). */
+  partido?: string;
   /** Tipos de cruce separados por coma (cualquiera de ellos). */
   cruce?: string;
 }
@@ -577,6 +579,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
     cruces: s("cruces") === "con" || s("cruces") === "alta" ? (s("cruces") as "con" | "alta") : undefined,
     cruce: /^[a-z_]+(,[a-z_]+)*$/.test(s("cruce") ?? "") ? s("cruce")!.slice(0, 300) : undefined,
+    partido: /^[a-z0-9-]{2,120}$/.test(s("partido") ?? "") ? s("partido") : undefined,
   };
 }
 
@@ -605,6 +608,7 @@ export function contratosParametros(q: ContratosQuery): Record<string, string | 
     orden: q.orden && q.orden !== "fecha" ? q.orden : undefined,
     cruces: txt(q.cruces),
     cruce: txt(q.cruce),
+    partido: txt(q.partido),
   };
 }
 
@@ -660,7 +664,11 @@ export async function resolverContrato(param: string): Promise<{ contrato: Contr
   return { contrato: null, redirigirA: fila.ocid };
 }
 
-export const getContratosGeo = (q: Pick<ContratosQuery, "tipo" | "etapa" | "riesgo" | "ubigeo" | "entidad" | "q" | "desde" | "hasta"> & { nivel?: "distrito" | "provincia" | "departamento" } = {}) =>
+export const getContratosGeo = (
+  q: Pick<ContratosQuery, "tipo" | "etapa" | "riesgo" | "ubigeo" | "entidad" | "q" | "desde" | "hasta" | "lectura" | "cruces" | "partido"> & {
+    nivel?: "distrito" | "provincia" | "departamento";
+  } = {},
+) =>
   getJson<{ nivel: string; data: ContratoZona[] }>(`/contratos/geo?${contratosQueryString(q as ContratosQuery)}`, 300).then((r) => r?.data ?? null);
 
 // ─── Resumen de procesamiento enriquecido (PanelProcesamiento) ───────────────

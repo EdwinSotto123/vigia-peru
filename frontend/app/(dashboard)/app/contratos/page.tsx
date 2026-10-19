@@ -31,6 +31,7 @@ import {
   type ResumenContratos,
 } from "@/lib/contratos";
 import { getZonas } from "@/lib/financiamiento";
+import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { numero, soles } from "@/lib/formato";
 
 export const metadata = {
@@ -69,11 +70,14 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
   const resumenGlobal = recortada ? getResumenContratos({}) : Promise.resolve(null);
   // Nombres de zona y de entidad para la barra: consultas cacheadas que casi nunca tardan;
   // se esperan acá para que la barra, aun sin conteos, nombre bien lo filtrado.
-  const [zonas, entidad] = await Promise.all([
+  const [zonas, entidad, ranking] = await Promise.all([
     getZonas("departamento"),
     query.entidad ? getEntidad(query.entidad).catch(() => null) : Promise.resolve(null),
+    // Partidos que gobiernan hoy (período 2023–2026), por número de contratos: el filtro "Partido que gobierna".
+    getRankingPartidos(ANIO_GOBIERNO_VIGENTE, { limit: 100 }).catch(() => null),
   ]);
   const regiones = (zonas ?? []).map((z) => ({ ubigeo: z.ubigeo, nombre: z.nombre }));
+  const partidos = (ranking?.data ?? []).map((p) => ({ clave: p.clave, nombre: p.nombre, contratos: p.contratos }));
   const entidadNombre = entidad?.entidad?.nombre ?? null;
 
   return (
@@ -96,12 +100,13 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
         {/* Con el filtro de cruces puesto, los tipos de cruce quedan a la vista (antes, la página /app/cruces). */}
         {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
-        <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} entidadNombre={entidadNombre} filas={[]} />}>
+        <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} partidos={partidos} entidadNombre={entidadNombre} filas={[]} />}>
           <BarraConConteos
             resumen={resumen}
             pagina={parametros.ubigeo?.length === 6 ? pagina : null}
             parametros={parametros}
             regiones={regiones}
+            partidos={partidos}
             entidadNombre={entidadNombre}
           />
         </Suspense>
@@ -142,6 +147,7 @@ async function IndicadoresContratos({
 interface DatosBarra {
   parametros: Parametros;
   regiones: { ubigeo: string; nombre: string }[];
+  partidos: { clave: string; nombre: string; contratos: number }[];
   entidadNombre: string | null;
 }
 
@@ -156,13 +162,13 @@ async function BarraConConteos({
 }
 
 /** Con `resumen = null` es la misma barra sin números: lo que se ve mientras cuentan (o si no respondió). */
-function Barra({ resumen, parametros, regiones, entidadNombre, filas }: DatosBarra & { resumen: ResumenContratos | null; filas: ContratoResumen[] }) {
+function Barra({ resumen, parametros, regiones, partidos, entidadNombre, filas }: DatosBarra & { resumen: ResumenContratos | null; filas: ContratoResumen[] }) {
   return (
     <BarraFiltros
       // 1 o 2 caracteres no buscan: cada búsqueda es un render completo en el servidor y una consulta al API.
       busqueda={{ param: "q", placeholder: "Buscar por objeto, código o entidad…", etiqueta: "Buscar contratos", min: 3 }}
       visibles={visibles(resumen)}
-      filtros={filtros({ resumen, parametros, regiones, entidadNombre, filas })}
+      filtros={filtros({ resumen, parametros, regiones, partidos, entidadNombre, filas })}
       orden={{ param: "orden", porDefecto: "fecha", opciones: ORDENES.map((o) => ({ valor: o.value, etiqueta: o.label })) }}
     />
   );
@@ -293,12 +299,14 @@ function filtros({
   resumen,
   parametros,
   regiones,
+  partidos,
   entidadNombre,
   filas,
 }: {
   resumen: ResumenContratos | null;
   parametros: Parametros;
   regiones: { ubigeo: string; nombre: string }[];
+  partidos: { clave: string; nombre: string; contratos: number }[];
   entidadNombre: string | null;
   filas: ContratoResumen[];
 }): FiltroSecundario[] {
@@ -328,6 +336,13 @@ function filtros({
     // Sin conteo: el resumen no cuenta por etapa.
     { param: "etapa", etiqueta: "Etapa", todas: "Toda etapa", opciones: ETAPAS.map((e) => ({ valor: e.value, etiqueta: e.label })) },
     { param: "ubigeo", etiqueta: "Zona", todas: "Todo el Perú", opciones: zonas },
+    {
+      param: "partido",
+      etiqueta: "Partido que gobierna la entidad",
+      todas: "Cualquiera",
+      // Conteo: contratos de sus gobiernos en el período (no cruzado con los demás filtros).
+      opciones: partidos.map((p) => ({ valor: p.clave, etiqueta: `${p.nombre} · ${numero(p.contratos)}` })),
+    },
     // La entidad llega por enlace (su ficha, un dictamen): sólo aparece si está puesta, para poder quitarla.
     ...(parametros.entidad
       ? [{ param: "entidad", etiqueta: "Entidad", todas: "Toda entidad", opciones: [{ valor: parametros.entidad, etiqueta: entidadNombre ?? `RUC ${parametros.entidad}` }] }]
