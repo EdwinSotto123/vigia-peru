@@ -10,7 +10,7 @@ import { LeyendaEscala } from "./LeyendaEscala";
 import { ultimosMeses, type RangoMes } from "./meses";
 import { FILTROS, MEDIDAS, type Escala, type FiltroZona, type Medida, type MedidaId } from "./escala";
 import { hrefContratos, type FiltrosMapa } from "./filtrosMapa";
-import { LECTURAS, TIPOS } from "@/lib/contratos";
+import { anioLectura, LECTURAS, TIPOS } from "@/lib/contratos";
 
 /**
  * Barra de control del mapa, en cuatro bloques que se leen de arriba abajo:
@@ -202,7 +202,7 @@ export function BarraMapa({
           <Desplegable
             etiqueta="Mes de convocatoria"
             valor={mes?.desde ?? ""}
-            todas="Todo el histórico"
+            todas={`Todo ${anioLectura()}`}
             opciones={meses.map((m) => ({ valor: m.desde, etiqueta: m.etiqueta }))}
             onCambio={(v) => onMes(meses.find((m) => m.desde === v) ?? null)}
             bloque

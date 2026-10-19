@@ -9,7 +9,7 @@ import { REGIONES } from "@/lib/peru-data";
 import { getAlertas, getAlertasPagina, getAlertasPuntos, getReportes } from "@/lib/api-client";
 import { apiNueva } from "@/lib/capacidades";
 import { getZonas, getEstadoGlobal, type EstadoGlobal, type Zona } from "@/lib/financiamiento";
-import { getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
+import { desdeLectura, getContratosGeo, type ContratoResumen, type ContratoZona } from "@/lib/contratos";
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { CLAVES_FILTRO, filtrosDeUrl, type FiltrosMapa } from "./mapa/filtrosMapa";
 import { numero } from "@/lib/formato";
@@ -94,7 +94,7 @@ export function MapaWrapper({
   const [verMisZonas, setVerMisZonas] = useState(false);
 
   // ─── Datos (null = todavía no llegó; [] = llegó vacío) ───────────────────
-  /** Departamentos SIN filtro de mes: la fuente del panel, que muestra todo el histórico. */
+  /** Departamentos SIN filtro de mes: la fuente del panel, que muestra el año en curso. */
   const [geoBase, setGeoBase] = useState<ContratoZona[] | null>(null);
   /** Departamentos del mes elegido (sólo con un mes elegido). */
   const [geoMes, setGeoMes] = useState<ContratoZona[] | null>(null);
@@ -212,10 +212,11 @@ export function MapaWrapper({
     };
   }, [intento, reintentar]);
 
-  // Departamentos: siempre el histórico completo (panel) y, si hay mes, también el del mes (color y encabezado).
+  // Departamentos: siempre el año en curso (panel) y, si hay mes, también el del mes (color y encabezado). Sin mes,
+  // el año y no toda la base: la base trae la historia desde 2015 y el mapa es de lo que se lee y se financia.
   useEffect(() => {
     let vivo = true;
-    pedirGeo("departamento").then((d) => {
+    pedirGeo("departamento", undefined, desdeLectura()).then((d) => {
       if (!vivo) return;
       if (d) {
         setGeoBase(d);
@@ -230,7 +231,7 @@ export function MapaWrapper({
     };
   }, [intento, pedirGeo, reintentar]);
 
-  // Con mes o con filtros: los departamentos con lo que cumple (color y encabezado); el panel sigue con el histórico.
+  // Con mes o con filtros: los departamentos con lo que cumple (color y encabezado); el panel sigue con el año en curso.
   useEffect(() => {
     if (!mes && !hayFiltros) {
       setGeoMes(null);
@@ -238,7 +239,7 @@ export function MapaWrapper({
     }
     let vivo = true;
     setGeoMes(null);
-    pedirGeo("departamento", undefined, mes?.desde, mes?.hasta, filtrosMapa).then((d) => {
+    pedirGeo("departamento", undefined, mes?.desde ?? desdeLectura(), mes?.hasta, filtrosMapa).then((d) => {
       if (!vivo) return;
       if (d) setGeoMes(d);
       else {
@@ -269,8 +270,8 @@ export function MapaWrapper({
         reintentar();
       }
     };
-    pedirGeo("provincia", regionUb, mes?.desde, mes?.hasta, filtrosMapa).then(recibir(setGeoProv));
-    pedirGeo("distrito", regionUb, mes?.desde, mes?.hasta, filtrosMapa).then(recibir(setGeoDist));
+    pedirGeo("provincia", regionUb, mes?.desde ?? desdeLectura(), mes?.hasta, filtrosMapa).then(recibir(setGeoProv));
+    pedirGeo("distrito", regionUb, mes?.desde ?? desdeLectura(), mes?.hasta, filtrosMapa).then(recibir(setGeoDist));
     return () => {
       vivo = false;
     };
@@ -522,7 +523,7 @@ export function MapaWrapper({
 
   // ─── Encabezado que refleja el estado ────────────────────────────────────
   const region = regionUb ? REGIONES.find((r) => r.id === UBIGEO_REGION[regionUb]) ?? null : null;
-  /** Cifras del departamento abierto: las del mes si hay mes (encabezado), las del histórico para el panel. */
+  /** Cifras del departamento abierto: las del mes si hay mes (encabezado), las del año en curso para el panel. */
   const zPais = regionUb ? zonaPorUbigeo.get(regionUb) ?? (geoPais ? (CERO as ContratoZona) : undefined) : undefined;
   const zBase = regionUb && geoBase ? geoBase.find((z) => z.ubigeo === regionUb) ?? (CERO as ContratoZona) : undefined;
   const fPais = regionUb ? financiamientoPorUbigeo.get(regionUb) : undefined;
