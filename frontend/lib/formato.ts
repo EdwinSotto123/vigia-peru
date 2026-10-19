@@ -68,7 +68,8 @@ export function oracion(t: string): string {
   // "Casi todo en mayúsculas" también cuenta ("DERIVADA DE LA SUBASTA… Nº 001-2026-ítems"): 80 % de las letras.
   const letras = s.match(/\p{L}/gu) ?? [];
   const mayusculas = letras.filter((c) => c !== c.toLocaleLowerCase("es")).length;
-  if (letras.length === 0 || mayusculas / letras.length < 0.8) return s;
+  // Escrito a mano: se respeta, pero empieza con mayúscula ("contratación de la obra…" → "Contratación de la obra…").
+  if (letras.length === 0 || mayusculas / letras.length < 0.8) return s.charAt(0).toLocaleUpperCase("es") + s.slice(1);
   const b = s.toLocaleLowerCase("es");
   return b.charAt(0).toLocaleUpperCase("es") + b.slice(1);
 }
