@@ -32,7 +32,7 @@ export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecunda
     {
       param: "lectura",
       etiqueta: "¿Lo leyó Vigía?",
-      corta: "Lectura",
+      corta: "¿Lo leyó Vigía?",
       todas: "Todos",
       opciones: LECTURAS.map((x) => ({ valor: x.value, etiqueta: x.label, conteo: l ? l[x.value] ?? 0 : null })),
     },
