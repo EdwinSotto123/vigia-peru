@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { clasificar } from "../src/clasificacion.ts";
-import { normalizarRelease, ocidCorto, slugRegion } from "../src/fuentes/oece_ocds.ts";
+import { normalizarRelease, ocidCorto, sinEscapes, slugRegion } from "../src/fuentes/oece_ocds.ts";
 import type { Dict } from "../src/py.ts";
 import { ZonaIndex, norm, resolverUbigeo } from "../src/ubigeo.ts";
 import { zonasSemilla } from "./zonas.ts";
@@ -62,4 +62,10 @@ test("resolve_ubigeo con nombres deformados como los del OCDS", () => {
     niveles.set(u?.length ?? 0, (niveles.get(u?.length ?? 0) ?? 0) + 1);
   }
   assert.ok((niveles.get(6) ?? 0) > 400 && (niveles.get(4) ?? 0) > 20, JSON.stringify([...niveles]));
+});
+
+test("objeto: los saltos escritos como texto por el SEACE se vuelven espacios", () => {
+  const conEscapes = String.raw`ADQUISICIÓN E IMPLEMENTACIÓN DE PANEL LED \nPARA LA UNIVERSIDAD\t  NACIONAL`;
+  assert.equal(sinEscapes(conEscapes), "ADQUISICIÓN E IMPLEMENTACIÓN DE PANEL LED PARA LA UNIVERSIDAD NACIONAL");
+  assert.equal(sinEscapes("SIN NADA RARO"), "SIN NADA RARO");
 });

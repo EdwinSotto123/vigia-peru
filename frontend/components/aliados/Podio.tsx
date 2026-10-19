@@ -338,8 +338,10 @@ function EscalonLibre({ lugar, texto, destacado, conBoton }: { lugar: Lugar; tex
         </span>
         {texto && <span className="mt-0.5 hidden text-[12.5px] leading-snug text-paper/75 sm:block">{texto}</span>}
         {conBoton && (
-          <span className="mt-2.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-[12.5px] font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-[13.5px]">
-            Ocupa este puesto <span aria-hidden>→</span>
+          /* En el celular cada escalón mide ~110 px: el texto largo no entraba y el botón se salía por los costados. */
+          <span className="mt-2.5 inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full bg-maiz px-3 py-1.5 text-[12.5px] font-bold text-ink transition-colors group-hover/libre:bg-maiz/85 sm:text-[13.5px]">
+            <span className="sm:hidden">Ocúpalo</span>
+            <span className="hidden sm:inline">Ocupa este puesto</span> <span aria-hidden>→</span>
           </span>
         )}
       </span>

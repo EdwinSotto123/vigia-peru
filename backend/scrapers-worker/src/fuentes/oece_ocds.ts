@@ -52,6 +52,11 @@ export function slugRegion(nombre: unknown): string | null {
   return titulo(colapsar(str(nombre))).replaceAll("Ancash", "Áncash").replaceAll("Junin", "Junín");
 }
 
+/** Saltos y tabulaciones escritos como texto (`\n`, `\r`, `\t` literales) → un espacio; espacios repetidos → uno. */
+export function sinEscapes(s: string): string {
+  return s.replace(/\\[nrt]/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
 function partyComprador(rel: Dict): Dict {
   for (const p of iterar(get(rel, "parties"))) {
     const roles = get(dictDe(p), "roles");
@@ -113,7 +118,8 @@ export function normalizarRelease(rel: Dict, ix: ZonaIndex): Fila | null {
     date: str(o(get(rel, "date"), "")),
     entidad_ruc: ruc,
     entidad_nombre: o(get(dictDe(get(rel, "buyer")), "name"), get(party, "name")),
-    objeto: cortar(str(o(o(get(tender, "description"), get(tender, "title")), "")), 600),
+    // El SEACE manda a veces los saltos de línea escritos como texto ("…PANEL LED \nPARA…"): se vuelven espacios.
+    objeto: cortar(sinEscapes(str(o(o(get(tender, "description"), get(tender, "title")), ""))), 600),
     cuantia: o(get(valor, "amount_PEN"), get(valor, "amount")),
     fecha,
     region: slugRegion(o(provincia, departamento)),

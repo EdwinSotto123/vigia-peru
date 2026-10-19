@@ -18,6 +18,7 @@ import { CeldaFecha, CeldaNumero, CeldaPrincipal, Indicadores, Tabla, type Colum
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { Separador } from "@/components/ui/Partes";
 import { Severidad } from "@/components/ui/Severidad";
+import { limpiarObjeto } from "@/components/contratos/recortar";
 
 /**
  * /entidad/[ruc] — la plantilla Ficha (DESIGN_SYSTEM.md §14.2):
@@ -189,7 +190,7 @@ export default async function EntidadProfile({
         peso: <Severidad score={Number(a.score) || 0} formato="pastilla" />,
         contrato: (
           <CeldaPrincipal
-            titulo={a.objeto || "Contrato sin objeto registrado"}
+            titulo={a.objeto ? limpiarObjeto(a.objeto) : "Contrato sin objeto registrado"}
             meta={
               <>
                 <span className="font-mono" translate="no">
@@ -308,7 +309,7 @@ export default async function EntidadProfile({
             ? [
                 {
                   clave: "cruces",
-                  etiqueta: "Ganadores en otros registros",
+                  etiqueta: "Antecedentes de los ganadores",
                   conteo: cruces.total,
                   contenido: (
                     <>

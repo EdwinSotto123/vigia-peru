@@ -41,5 +41,5 @@ BEGIN
 END $$;
 ALTER FUNCTION refrescar_casos_cruce() OWNER TO vigia_jobs;
 
-GRANT SELECT ON entidad_gobierno, gobierno_periodo TO vigia_jobs;
+GRANT SELECT ON contrato_partido, entidad_gobierno, gobierno_periodo TO vigia_jobs;
 SELECT refrescar_contrato_partido();

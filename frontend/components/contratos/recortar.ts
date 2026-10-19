@@ -19,10 +19,12 @@ export function recortar(texto: string, max: number): string {
 /**
  * Objeto de contratación tal como lo escribe la entidad, sin el rótulo del formulario
  * ("DENOMINACIÓN DEL REQUERIMIENTO:", "OBJETO DE LA CONTRATACIÓN:") ni los "¿" que el SEACE deja
- * donde iban comillas tipográficas (“…”): si el texto no trae ningún "?", un "¿" no es una pregunta.
+ * donde iban comillas tipográficas (“…”): si el texto no trae ningún "?", un "¿" no es una pregunta. Tampoco los
+ * saltos de línea que el SEACE manda escritos como texto (`\n`, `\t`): la base ya los limpia (migración 61), esto
+ * cubre lo que llegue antes de la próxima carga.
  */
 export function limpiarObjeto(texto: string): string {
-  let t = texto.replace(/\s+/g, " ").trim();
+  let t = texto.replace(/\\[nrt]/g, " ").replace(/\s+/g, " ").trim();
   t = t.replace(/^(DENOMINACI[OÓ]N|OBJETO|NOMBRE|DESCRIPCI[OÓ]N)( DEL?| DE LA)? (REQUERIMIENTO|CONTRATACI[OÓ]N|PROCESO|SERVICIO|BIEN|OBRA)\s*:\s*/i, "");
   if (!t.includes("?")) t = t.replace(/\s*¿\s*/g, " ").replace(/\s+/g, " ").trim();
   return t.replace(/^["'“”\s]+|["'“”\s]+$/g, "") || texto;
