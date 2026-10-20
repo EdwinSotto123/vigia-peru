@@ -33,5 +33,25 @@
   "observability": { "enabled": true },
   // Junto a la API y los agentes (us-central1), como el frontend de Cloud Run: cada fetch del
   // servidor queda local y al usuario le llega una sola respuesta.
-  "placement": { "region": "gcp:us-central1" }
+  "placement": { "region": "gcp:us-central1" },
+
+  // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh web` → vigia-web-dev, que habla con vigia-api-dev.
+  // Entra por worker-dev.js (pide usuario y clave, noindex y una franja "DEV"), con su propia caché en R2.
+  // Secretos (dev.sh secretos): ADMIN_TOKEN, ADMIN_SESSION_SECRET, ADMIN_EMAILS, TURNSTILE_SECRET_KEY, DEV_USUARIO, DEV_CLAVE.
+  "env": {
+    "dev": {
+      "main": "worker-dev.js",
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "images": { "binding": "IMAGES" },
+      "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "vigia-web-cache-dev" }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "vigia-web-dev" }],
+      "ratelimits": [{ "name": "LIMITE_SUBIDAS", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } }],
+      "vars": {
+        "VIGIA_ENTORNO": "dev",
+        "VIGIA_API_URL": "https://vigia-api-dev.vigiaperu.workers.dev",
+        "VIGIA_AGENT_URL": "https://agent-orchestrator-adk-753067078557.us-central1.run.app",
+        "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev"
+      }
+    }
+  }
 }

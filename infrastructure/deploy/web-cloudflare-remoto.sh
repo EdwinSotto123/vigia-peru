@@ -18,13 +18,13 @@ tar -rf web.tar -C "$REPO_ROOT" frontend/.env.production
 gzip web.tar
 
 # 2. Build en Cloud Build (~10 min en E2_HIGHCPU_8); deja open-next.tgz en el bucket de migración.
-SALIDA="gs://vigia-migracion-$(numero_proyecto)/web"
-gcloud builds submit web.tar.gz --config "${CONFIG_BUILD:-$REPO_ROOT/frontend/cloudbuild-cf.yaml}" --region "$REGION" \
+SALIDA="$(salida_build web)"
+gcb builds submit web.tar.gz --config "${CONFIG_BUILD:-$REPO_ROOT/frontend/cloudbuild-cf.yaml}" --region "$REGION" \
   --substitutions "_SALIDA=${SALIDA}"
 
 # 3. Deploy desde una carpeta mínima: solo el adaptador y wrangler (versiones de frontend/package.json).
 mkdir deploy && cd deploy
-gcloud storage cp "${SALIDA}/open-next.tgz" .
+gcb storage cp "${SALIDA}/open-next.tgz" .
 tar -xzf open-next.tgz
 cp "$REPO_ROOT/frontend/wrangler.jsonc" "$REPO_ROOT/frontend/open-next.config.ts" .
 "${PYTHON:-python}" - "$REPO_ROOT/frontend/package.json" <<'PY'

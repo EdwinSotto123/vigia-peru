@@ -34,7 +34,24 @@
     // "1" = los crons lanzan corridas. Con "0" solo registran qué habría corrido (POST /correr sigue andando).
     // ENCENDIDO desde 2026-10-14: los Schedulers `scraper-*` de GCP quedaron pausados (no correr los dos).
     "SCRAPERS_ACTIVO": "1"
-  }
+  },
   // Secretos (wrangler secret put): SCRAPERS_TOKEN (endpoints manuales) y RELAY_TOKEN (el
   // `local-downloader-token` de los jobs: lo pide /raw del relay).
+
+  // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh scrapers` → vigia-scrapers-dev. Sin crons: sólo corre
+  // a mano (`dev.sh correr '{...}'`), contra vigia-db-dev y buckets *-dev. El relay es el de producción (sólo descarga).
+  "env": {
+    "dev": {
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "46eb8c5918884be3b401d1e0fecf7fc0" }],
+      "r2_buckets": [
+        { "binding": "CRUDOS", "bucket_name": "vigia-peru-crudos-dev" },
+        { "binding": "DOCUMENTOS", "bucket_name": "vigia-peru-batch-dev" }
+      ],
+      "services": [{ "binding": "RELAY", "service": "vigia-relay" }],
+      "browser": { "binding": "BROWSER" },
+      "workflows": [{ "name": "vigia-scrapers-correr-dev", "binding": "CORRER", "class_name": "CorrerFuente" }],
+      "triggers": { "crons": [] },
+      "vars": { "SCRAPERS_ACTIVO": "0" }
+    }
+  }
 }

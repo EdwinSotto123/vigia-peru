@@ -40,5 +40,27 @@
     "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app",
     // "Correr el dispatcher ahora" (lib/dispatcher.ts): POST /ejecutar del Worker, con el secreto DISPATCHER_TOKEN.
     "DISPATCHER_URL": "https://vigia-dispatcher.vigiaperu.workers.dev"
+  },
+
+  // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh api` → vigia-api-dev, contra la base vigia-db-dev
+  // (roles dev_*, que no existen en producción). Sin cron, sin dispatcher y sin GCS: nada sale de DEV.
+  // Secretos (dev.sh secretos): ADMIN_TOKEN, PRIVACIDAD_CLAVE y TURNSTILE_SECRET_KEY propios de DEV.
+  "env": {
+    "dev": {
+      "triggers": { "crons": [] },
+      "hyperdrive": [
+        { "binding": "HYPERDRIVE", "id": "7baa210be4c346a2b74440fbbdb55826" },
+        { "binding": "HYPERDRIVE_ADMIN", "id": "b89caaf04e304186b27f9cf4e43ffa2b" }
+      ],
+      "services": [],
+      "ratelimits": [{ "name": "LIMITE_ESCRITURA", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }],
+      "vars": {
+        "VIGIA_ENTORNO": "dev",
+        "FIREBASE_PROJECT_ID": "simplia-project",
+        "ALLOWED_ORIGINS": "http://localhost:3000,https://vigia-web-dev.vigiaperu.workers.dev",
+        "LOCAL_DOWNLOADER_URL": "https://vigia-relay.vigiaperu.workers.dev",
+        "AGENT_HOST_SUFFIX": "753067078557.us-central1.run.app"
+      }
+    }
   }
 }

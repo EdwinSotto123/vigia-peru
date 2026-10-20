@@ -76,6 +76,13 @@ gcloud_entrada() {
 
 # Sufijo de las URLs de Cloud Run de PROJECT_ID: <servicio>-<número>.<región>.run.app
 numero_proyecto() { gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)'; }
+
+# Dónde se construye la web (Cloud Build) para Cloudflare: desde 2026-10-20 en el proyecto de la entrada, porque el de
+# la plataforma quedó con la facturación "delinquent" y Cloud Build ya no puede subir el código ahí.
+export BUILD_PROJECT_ID="${BUILD_PROJECT_ID:-vivid-spot-480905-a4}"
+export BUILD_CUENTA="${BUILD_CUENTA:-hello@simplia.store}"
+gcb() { gcloud "$@" --project "$BUILD_PROJECT_ID" --account "$BUILD_CUENTA"; }
+salida_build() { echo "gs://vigia-migracion-$(gcloud projects describe "$BUILD_PROJECT_ID" --account "$BUILD_CUENTA" --format='value(projectNumber)')/$1"; }
 sufijo_run() { echo "$(numero_proyecto).${REGION}.run.app"; }
 
 # IP pública de la instancia (scripts que corren desde la PC: batch, scrapers locales).

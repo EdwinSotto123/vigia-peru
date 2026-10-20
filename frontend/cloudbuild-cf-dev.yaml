@@ -1,0 +1,28 @@
+# Build de vigia-web-dev (OpenNext para Cloudflare) en Cloud Build: el mismo que cloudbuild-cf.yaml, con la API
+# de DEV y el Turnstile de prueba de Cloudflare (siempre pasa; el widget de producción no acepta el dominio DEV).
+# Lo usa `bash infrastructure/deploy/dev.sh web` (docs/DEV.md). Máquina estándar: sin cuota para E2_HIGHCPU_8.
+substitutions:
+  _SALIDA: gs://vigia-migracion-${PROJECT_NUMBER}/web-dev
+  _SITE_URL: https://vigia-web-dev.vigiaperu.workers.dev
+  _API_URL: https://vigia-api-dev.vigiaperu.workers.dev
+  _TURNSTILE: 1x00000000000000000000AA
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+steps:
+  - name: node:22
+    dir: frontend
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        npm ci --no-audit --no-fund
+        NEXT_PUBLIC_SITE_URL=${_SITE_URL} NEXT_PUBLIC_VIGIA_API_URL=${_API_URL} NEXT_PUBLIC_TURNSTILE_SITE_KEY=${_TURNSTILE} \
+          NEXT_PUBLIC_VIGIA_ENTORNO=dev npx opennextjs-cloudflare build
+        tar -czf /workspace/open-next.tgz .open-next
+artifacts:
+  objects:
+    location: ${_SALIDA}/
+    paths: ['open-next.tgz']
+timeout: 2400s
