@@ -87,7 +87,9 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
     } else {
       const p = add(q.q);
       const like = add(`%${escaparLike(q.q.toLowerCase())}%`);
-      conds.push(`${m.ocid} IN (SELECT c2.ocid FROM convocatorias c2 WHERE c2.texto_busqueda @@ websearch_to_tsquery('spanish', ${p})
+      // convocatoria_busqueda (migración 86): sólo ocid + vector, cabe en memoria; leer convocatorias por cada
+      // coincidencia eran 19 mil lecturas de disco con "cemento".
+      conds.push(`${m.ocid} IN (SELECT b.ocid FROM convocatoria_busqueda b WHERE b.texto @@ websearch_to_tsquery('spanish', ${p})
                                UNION SELECT c3.ocid FROM entidad_stats es JOIN convocatorias c3 ON c3.entidad_ruc = es.ruc
                                       WHERE es.nombre_norm LIKE immutable_unaccent(${like}))`);
     }

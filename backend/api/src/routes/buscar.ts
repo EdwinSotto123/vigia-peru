@@ -73,11 +73,15 @@ buscarRouter.get("/", async (c) => {
               ORDER BY (ocid_corto(c.ocid) = ocid_corto($1)) DESC, c.fecha_convocatoria DESC NULLS LAST LIMIT 5`, [q])
       ).catch(vacio("contratos"))
       : pool.query(
-          `SELECT ${COLS_CONTRATO}
-             FROM convocatorias c LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
+          // Rankea en convocatoria_busqueda (migración 86, angosta y en memoria) y recién lee convocatorias para los 5.
+          `WITH top AS (
+             SELECT b.ocid, ts_rank(b.texto, websearch_to_tsquery('spanish', $1)) AS r FROM convocatoria_busqueda b
+              WHERE b.texto @@ websearch_to_tsquery('spanish', $1) ORDER BY r DESC LIMIT 40)
+           SELECT ${COLS_CONTRATO}
+             FROM top JOIN convocatorias c ON c.ocid = top.ocid LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
              LEFT JOIN zonas z ON z.ubigeo = ${modelos ? "c.ubigeo_zona" : "(SELECT cz.ubigeo::text FROM convocatoria_zona cz WHERE cz.ocid = c.ocid)"}
-            WHERE c.texto_busqueda @@ websearch_to_tsquery('spanish', $1) AND ${convocatoriaNoDemo("c")}
-            ORDER BY ts_rank(c.texto_busqueda, websearch_to_tsquery('spanish', $1)) DESC, c.fecha_convocatoria DESC NULLS LAST, c.ocid LIMIT 5`,
+            WHERE ${convocatoriaNoDemo("c")}
+            ORDER BY top.r DESC, c.fecha_convocatoria DESC NULLS LAST, c.ocid LIMIT 5`,
           [q]).catch(vacio("contratos")),
     // Entidades: RUC exacto o nombre (sin tildes), con sus contratos ya contados.
     (modelos

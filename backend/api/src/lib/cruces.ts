@@ -235,33 +235,16 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
  * le tocan, ordenados por cuántos de severidad alta y por fecha de buena pro.
  */
 export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total: number; procesos: Record<string, unknown>[] }> {
+  // De casos_cruce (migración 57, una fila por proceso y ganador, sólo con antecedentes, migración 83): ya trae los
+  // tipos con su severidad. Antes se armaba desde los payloads de todas las convocatorias de la entidad y, con la
+  // historia desde 2015, tardaba más que los 10 s del rol (respondía vacío).
   const q = await pool.query(
-    `WITH g AS (
-       SELECT DISTINCT c.ocid, c.codigo, c.objeto, c.fecha_buena_pro, c.fecha_convocatoria AS fconv,
-              regexp_replace(s->>'id', '^PE-RUC-', '') AS ruc, s->>'name' AS proveedor,
-              (aw->'value'->>'amount')::numeric AS monto
-       FROM convocatorias c,
-            -- Los contratos de la historia traen el ganador en adjudicaciones (migración 71).
-            jsonb_array_elements(COALESCE(c.ocds_payload->'awards', c.adjudicaciones, '[]'::jsonb)) aw,
-            jsonb_array_elements(COALESCE(aw->'suppliers', '[]'::jsonb)) s
-       WHERE c.entidad_ruc = $1 AND c.ocid NOT LIKE 'ocds-vigia-%'
-     ), gm AS (
-       -- Los consorcios (código del SEACE) se abren en sus integrantes con RUC (migración 53).
-       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.fconv, COALESCE(m.ruc_miembro, g.ruc) AS ruc,
-              COALESCE(m.miembro, g.proveedor) AS proveedor, CASE WHEN m.ruc_miembro IS NOT NULL THEN g.proveedor END AS consorcio, g.monto
-       FROM g LEFT JOIN (SELECT DISTINCT ON (ruc_consorcio, ruc_miembro) ruc_consorcio, ruc_miembro, miembro FROM conosce_consorcios
-                         WHERE ruc_miembro ~ '^(10|20)[0-9]{9}$' ORDER BY ruc_consorcio, ruc_miembro, anio DESC) m
-              ON m.ruc_consorcio = g.ruc AND g.ruc !~ '^(10|20)[0-9]{9}$'
-     ), x AS (
-       SELECT g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio, max(g.monto) AS monto,
-              jsonb_agg(DISTINCT jsonb_build_object('tipo', k.tipo, 'severidad', k.severidad)) AS tipos,
-              count(*) FILTER (WHERE k.severidad = 'alta') AS altas
-       -- Sólo los antecedentes: lo de la empresa que ya había pasado cuando se convocó (migración 83).
-       FROM gm g JOIN cruces_proveedor k ON k.ruc_empresa = g.ruc
-        AND (k.ocid = g.ocid OR (k.ocid IS NULL AND cruce_es_antecedente(k.tipo, k.fecha, k.detalle, g.fconv)))
-       GROUP BY g.ocid, g.codigo, g.objeto, g.fecha_buena_pro, g.ruc, g.proveedor, g.consorcio
-     )
-     SELECT *, count(*) OVER () AS total FROM x ORDER BY altas DESC, fecha_buena_pro DESC NULLS LAST, ocid LIMIT $2`,
+    `SELECT k.ocid, k.codigo, k.objeto, k.fecha_buena_pro, k.ruc, k.proveedor, k.consorcio, k.monto, k.cruces, k.n_alta,
+            count(*) OVER () AS total
+       FROM casos_cruce k
+      WHERE k.entidad_ruc = $1
+      ORDER BY k.n_alta DESC, k.fecha_buena_pro DESC NULLS LAST, k.ocid
+      LIMIT $2`,
     [ruc, limit]).catch(() => null);
   const filas = q?.rows ?? [];
   return {
@@ -269,8 +252,8 @@ export async function crucesDeEntidad(ruc: string, limit = 50): Promise<{ total:
     procesos: filas.map((r) => ({
       ocid: r.ocid, codigo: r.codigo, objeto: r.objeto, fechaBuenaPro: fecha(r.fecha_buena_pro),
       proveedor: r.proveedor, rucProveedor: r.ruc, consorcio: r.consorcio ?? null, montoSoles: r.monto == null ? null : Number(r.monto),
-      cruces: (r.tipos as { tipo: string; severidad: string }[])
-        .map((t) => ({ ...t, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
+      cruces: ((r.cruces ?? []) as { tipo: string; severidad: string }[])
+        .map((t) => ({ tipo: t.tipo, severidad: t.severidad, etiqueta: ETIQUETA_CRUCE[t.tipo] ?? t.tipo }))
         .sort((a, b) => "amb".indexOf(a.severidad[0]) - "amb".indexOf(b.severidad[0])),
     })),
   };
