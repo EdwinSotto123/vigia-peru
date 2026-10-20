@@ -111,6 +111,7 @@ function filtros(q: Partial<Filtros>, vals: unknown[], m: Mapa, excluir = new Se
   if ((q.cruces || q.cruce) && !excluir.has("cruces")) {
     const k = [`k.ocid = ${m.ocid}`];
     if (q.cruces === "alta") k.push("k.n_alta > 0");
+    else if (q.cruces && q.cruces !== "con") k.push(`${add(q.cruces)} = ANY(k.tipos)`);
     if (q.cruce) k.push(`k.tipos && ${add(q.cruce.split(","))}::text[]`);
     conds.push(`EXISTS (SELECT 1 FROM casos_cruce k WHERE ${k.join(" AND ")})`);
   }
@@ -212,15 +213,22 @@ contratosRouter.get("/resumen", async (c) => {
   return responderConEtag(c, { total, porTipo: contar("tipo"), porOperativo: contar("operativo"), porRiesgo: contar("riesgo"), porOperativoSinLeer, porTipoRiesgo, porCruces, porLectura }, CACHE_LISTA);
 });
 
-const crucesMemo = new Memo<{ con: number; alta: number }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
+const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, number> }>({ nombre: "contratos:resumen:cruces", ttlMs: 60_000, staleMs: 60_000, max: 200 });
 
-/** Contratos con cruces del ganador (y con uno grave) bajo los demás filtros: los conteos del filtro "Cruces". */
-async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number }> {
+/**
+ * Contratos con cruces del ganador (con alguno, con uno grave y con cada tipo) bajo los demás filtros: los conteos del
+ * desplegable "Antecedentes". Una sola pasada: cada caso suma a sus tipos.
+ */
+async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number; tipos: Record<string, number> }> {
   const vals: unknown[] = [];
   const { conds } = filtros({ ...q, cruces: undefined }, vals, MAPA_CE);
   const r = await pool.query(
-    `SELECT count(DISTINCT k.ocid)::int AS con, count(DISTINCT k.ocid) FILTER (WHERE k.n_alta > 0)::int AS alta
-       FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`, vals);
+    `WITH k AS (SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid
+                 WHERE ${conds.join(" AND ")})
+     SELECT (SELECT count(DISTINCT ocid)::int FROM k) AS con,
+            (SELECT count(DISTINCT ocid)::int FROM k WHERE n_alta > 0) AS alta,
+            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb)
+               FROM (SELECT t, count(DISTINCT ocid)::int AS n FROM k, unnest(k.tipos) t GROUP BY t) x) AS tipos`, vals);
   return r.rows[0];
 }
 

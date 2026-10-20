@@ -11,7 +11,6 @@ import {
   type Parametros,
 } from "@/components/listado";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
-import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { PROVINCIA_NOMBRE } from "@/components/mapa/provincias";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { getEntidad } from "@/lib/api-client";
@@ -94,8 +93,6 @@ export default async function ContratosPage({ searchParams }: { searchParams?: R
       </Suspense>
 
       <Listado ruta={RUTA} parametros={parametros} paramPagina="page">
-        {/* Con el filtro de cruces puesto, los tipos de cruce quedan a la vista (antes, la página /app/cruces). */}
-        {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
         <Suspense fallback={<Barra resumen={null} parametros={parametros} regiones={regiones} partidos={partidos} entidadNombre={entidadNombre} filas={[]} />}>
           <BarraConConteos
             resumen={resumen}
@@ -186,9 +183,12 @@ async function Resultados({ pagina, parametros, query }: { pagina: Promise<Contr
  * "En cola" no va aquí: el balde `en_cola` del resumen también cuenta a los ya leídos.
  */
 function indicadores(resumen: ResumenContratos, recortada: boolean, universo: number | null, parametros: Parametros): Indicador[] {
+  // porRiesgo es una faceta: cuenta SIN el filtro de riesgo. Con un riesgo elegido, las cifras sólo cuentan ese, y el
+  // total es el del resumen (todos los filtros): el mismo número que la lista. Antes, "500 contratos" con 30 en la lista.
   const r = resumen.porRiesgo;
-  const n = (k: keyof typeof r) => r[k] ?? 0;
-  const base = Object.values(r).reduce<number>((s, v) => s + (v ?? 0), 0);
+  const elegido = parametros.riesgo;
+  const n = (k: keyof typeof r) => (!elegido || elegido === k ? r[k] ?? 0 : 0);
+  const base = resumen.total;
   const conDictamen = n("alto") + n("medio") + n("bajo");
   const leidos = conDictamen + n("en_revision") + n("descartado");
   return [

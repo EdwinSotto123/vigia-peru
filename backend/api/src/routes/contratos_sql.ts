@@ -157,7 +157,8 @@ export const ListQuery = z.object({
   operativo: z.enum(["en_cola", "documentos_listos", "sin_documentos"]).optional(),
   orden: z.enum(["fecha", "monto", "score"]).default("fecha"),
   // Cruces del ganador con otros registros (migración 57, casos_cruce): con alguno, con uno grave, o de ciertos tipos.
-  cruces: z.enum(["con", "alta"]).optional(),
+  // "con" (alguno), "alta" (uno grave) o un tipo de cruce (el desplegable "Antecedentes" los ofrece todos).
+  cruces: z.string().max(40).regex(/^[a-z_]+$/).optional(),
   cruce: z.string().max(300).regex(/^[a-z_]+(,[a-z_]+)*$/).optional(),
   // Partido u organización que gobernaba la entidad al convocar (contrato_partido, migración 41): su clave.
   partido: z.string().max(120).regex(/^[a-z0-9-]+$/).optional(),

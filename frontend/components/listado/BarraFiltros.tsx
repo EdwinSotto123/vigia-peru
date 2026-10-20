@@ -47,7 +47,8 @@ export interface FiltroSecundario {
   etiqueta: string;
   /** Texto de la opción vacía: "Toda regla", "Todo el Perú". */
   todas: string;
-  opciones: { valor: string; etiqueta: string; conteo?: number | null }[];
+  /** Las opciones con `grupo` se dibujan juntas bajo su título (<optgroup>), en el orden en que llegan. */
+  opciones: { valor: string; etiqueta: string; conteo?: number | null; grupo?: string }[];
   /**
    * En `visibles`: el nombre corto que va DENTRO del desplegable cuando no hay nada elegido ("Riesgo"), como un botón de filtro.
    * Así las tres preguntas, la búsqueda, "Filtros" y el orden caben en una fila (antes, con la etiqueta afuera, la
@@ -60,6 +61,29 @@ export interface Orden {
   param: string;
   porDefecto: string;
   opciones: { valor: string; etiqueta: string }[];
+}
+
+/** Las opciones de un desplegable, con su conteo; las que traen `grupo`, juntas en su <optgroup>. */
+function Opciones({ opciones }: { opciones: FiltroSecundario["opciones"] }) {
+  const op = (o: FiltroSecundario["opciones"][number]) => (
+    <option key={o.valor} value={o.valor}>
+      {o.etiqueta}
+      {o.conteo != null ? ` (${numero(o.conteo)})` : ""}
+    </option>
+  );
+  const bloques: { grupo?: string; opciones: FiltroSecundario["opciones"] }[] = [];
+  for (const o of opciones) {
+    const ultimo = bloques[bloques.length - 1];
+    if (ultimo && ultimo.grupo === o.grupo) ultimo.opciones.push(o);
+    else bloques.push({ grupo: o.grupo, opciones: [o] });
+  }
+  return (
+    <>
+      {bloques.map((b, i) =>
+        b.grupo ? <optgroup key={`${b.grupo}-${i}`} label={b.grupo}>{b.opciones.map(op)}</optgroup> : b.opciones.map(op),
+      )}
+    </>
+  );
 }
 
 const TONO_ICONO: Record<TonoFaceta, string> = {
@@ -176,12 +200,7 @@ export function BarraFiltros({
               {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
                 <option value={parametros[f.param]}>{parametros[f.param]}</option>
               )}
-              {f.opciones.map((o) => (
-                <option key={o.valor} value={o.valor}>
-                  {o.etiqueta}
-                  {o.conteo != null ? ` (${numero(o.conteo)})` : ""}
-                </option>
-              ))}
+              <Opciones opciones={f.opciones} />
             </select>
           </label>
         ))}
@@ -226,12 +245,7 @@ export function BarraFiltros({
                       {parametros[f.param] && !f.opciones.some((o) => o.valor === parametros[f.param]) && (
                         <option value={parametros[f.param]}>{parametros[f.param]}</option>
                       )}
-                      {f.opciones.map((o) => (
-                        <option key={o.valor} value={o.valor}>
-                          {o.etiqueta}
-                          {o.conteo != null ? ` (${numero(o.conteo)})` : ""}
-                        </option>
-                      ))}
+                      <Opciones opciones={f.opciones} />
                     </select>
                   </label>
                 ))}

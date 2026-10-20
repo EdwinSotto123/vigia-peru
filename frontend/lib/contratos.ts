@@ -351,7 +351,8 @@ export interface ContratosQuery {
   operativo?: EstadoOperativo | "";
   orden?: OrdenContratos | "";
   /** Ganador con cruces en otros registros: con alguno o con uno grave. */
-  cruces?: "con" | "alta" | "";
+  /** "con" (alguno), "alta" (uno grave) o un tipo de cruce (lib/cruces.ts). */
+  cruces?: string;
   /** ¿Lo leyó Vigía? Junta el riesgo y el estado de procesamiento en una sola pregunta. */
   lectura?: Lectura | "";
   /** Clave del partido u organización que gobernaba la entidad al convocar ("alianza-para-el-progreso"). */
@@ -627,7 +628,7 @@ export function parseContratosQuery(sp: Record<string, string | string[] | undef
       : s("riesgo") === "sin_analizar" ? "sin_leer" : s("riesgo") === "en_revision" ? "revision" : undefined,
     operativo: OPERATIVOS.some((t) => t.value === s("operativo")) ? (s("operativo") as EstadoOperativo) : undefined,
     orden: ORDENES.some((t) => t.value === s("orden")) ? (s("orden") as OrdenContratos) : undefined,
-    cruces: s("cruces") === "con" || s("cruces") === "alta" ? (s("cruces") as "con" | "alta") : undefined,
+    cruces: /^[a-z_]{2,40}$/.test(s("cruces") ?? "") ? s("cruces") : undefined,
     cruce: /^[a-z_]+(,[a-z_]+)*$/.test(s("cruce") ?? "") ? s("cruce")!.slice(0, 300) : undefined,
     partido: /^[a-z0-9-]{2,120}$/.test(s("partido") ?? "") ? s("partido") : undefined,
   };
@@ -685,7 +686,8 @@ export interface ResumenContratos {
   /** El estado operativo de los aún no leídos (sin los leídos, que porOperativo también cuenta). Falta en la API vieja. */
   porOperativoSinLeer?: Partial<Record<EstadoOperativo, number>> | null;
   /** Contratos cuyo ganador tiene cruces (y uno grave), con los demás filtros. Falta en la API vieja. */
-  porCruces?: { con: number; alta: number } | null;
+  /** Con alguno, con uno grave y por tipo (`tipos`, falta en la API vieja), bajo los demás filtros. */
+  porCruces?: { con: number; alta: number; tipos?: Record<string, number> } | null;
   /** Conteos de "¿Lo leyó Vigía?" con los demás filtros. Falta en la API vieja. */
   porLectura?: Partial<Record<Lectura, number>> | null;
 }

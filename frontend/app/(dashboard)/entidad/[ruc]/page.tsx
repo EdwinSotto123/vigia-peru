@@ -23,7 +23,6 @@ import { EjecucionPresupuestal, EjecucionPresupuestalSkeleton } from "@/componen
 import { getEntidad } from "@/lib/api-client";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
-import { TiposCruce } from "@/components/cruces/TiposCruce";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
 import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
@@ -169,7 +168,6 @@ export default async function EntidadProfile({
                   Todas sus convocatorias desde 2015, con su ganador, lo que leyó Vigía y los antecedentes de quien ganó.
                 </CabeceraPestana>
                 <Listado ruta={ruta} parametros={parametros} paramPagina="page">
-                  {(parametros.cruces || parametros.cruce) && <TiposCruce conteos={null} />}
                   <Suspense fallback={<BarraEntidad resumen={null} parametros={parametros} />}>
                     <BarraConConteos resumen={resumenFiltrado} parametros={parametros} />
                   </Suspense>

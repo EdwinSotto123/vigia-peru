@@ -10,6 +10,7 @@ import type { FiltroSecundario, Parametros } from "@/components/listado";
 import { etiquetaMes, ultimosMeses } from "@/components/mapa/meses";
 import { ETAPAS, LECTURAS, OPERATIVOS, PRIMER_ANIO_CONTRATOS, TIPOS, type ResumenContratos } from "@/lib/contratos";
 import { soles } from "@/lib/formato";
+import { GRUPOS_CRUCE } from "@/lib/cruces";
 
 /** Conteo de una opción: del resumen si respondió (0 es un dato); si no, sin número. */
 const conteoDe = (resumen: ResumenContratos | null, m: Partial<Record<string, number>> | undefined, k: string) =>
@@ -20,8 +21,8 @@ const conteoDe = (resumen: ResumenContratos | null, m: Partial<Record<string, nu
  *   · ¿Lo leyó Vigía? (aún no · leyéndose · leído y publicado · leído, en revisión humana). Antes eran cinco chips que
  *     mezclaban el estado de lectura con el riesgo encontrado.
  *   · Riesgo encontrado: sólo existe para lo leído y publicado (elegir uno ya filtra a esos).
- *   · Antecedentes del ganador: aportes, sanciones, visitas, socios comunes… (casos_cruce); con alguno, el panel de
- *     tipos se abre arriba de la lista.
+ *   · Antecedentes del ganador: con uno grave, con alguno y cada tipo (aportes, sanciones, visitas, socios comunes…),
+ *     agrupados en el mismo desplegable. Antes los tipos eran un panel de chips que se abría arriba de la lista.
  */
 export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecundario[] {
   const l = resumen?.porLectura;
@@ -56,6 +57,8 @@ export function filtrosVisibles(resumen: ResumenContratos | null): FiltroSecunda
       opciones: [
         { valor: "alta", etiqueta: "Con uno grave", conteo: k ? k.alta : null },
         { valor: "con", etiqueta: "Con alguno", conteo: k ? k.con : null },
+        ...GRUPOS_CRUCE.flatMap((g) =>
+          g.tipos.map((t) => ({ valor: t.tipo, etiqueta: t.corto, grupo: g.titulo, conteo: k?.tipos ? k.tipos[t.tipo] ?? 0 : null }))),
       ],
     },
   ];
