@@ -26,7 +26,8 @@ const ListQuery = z.object({
 // ─── GET /entidades — lista con contadores agregados (paginada) ─
 // Fase 2 (auditoría C9): desde la vista materializada `entidad_stats` (migración 35), una fila por
 // entidad con sus conteos ya hechos; antes cada pedido agrupaba TODAS las convocatorias. Mismas
-// filas y mismo orden (alertas activas DESC, nombre, ruc). Va hasta un refresco detrás.
+// filas. Orden: dictámenes publicados, después las que más contratos tienen desde 2015, nombre. La provincia sale de
+// `zonas` (con tildes, migración 72) y no del texto del SEACE. Va hasta un refresco detrás.
 entidadesRouter.get("/", async (c) => {
   const parsed = ListQuery.safeParse(parametros(c));
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
@@ -47,7 +48,9 @@ entidadesRouter.get("/", async (c) => {
   vals.push(limit, offset);
   const [r, total] = await Promise.all([
     pool.query(modelos
-      ? `SELECT es.ruc, es.nombre, es.tipo, es.region, es.provincia, es.distrito,
+      ? `SELECT es.ruc, es.nombre, es.tipo, es.region,
+                COALESCE((SELECT z.nombre FROM entidades e2 JOIN zonas z ON z.ubigeo = left(e2.ubigeo::text, 4) WHERE e2.ruc = es.ruc), es.provincia) AS provincia,
+                es.distrito,
                 es.pliego_nombre_mef AS "pliegoNombreMef",
                 es.alertas_activas AS alertas,
                 es.monto_alertas_activas::float AS monto,
@@ -58,10 +61,11 @@ entidadesRouter.get("/", async (c) => {
                 NULL::jsonb AS serie
            FROM entidad_stats es
            ${where}
-           ORDER BY es.alertas_activas DESC, es.nombre, es.ruc
+           ORDER BY es.alertas_activas DESC, es.contratos DESC NULLS LAST, es.nombre, es.ruc
            LIMIT $${vals.length - 1} OFFSET $${vals.length}`
       : `SELECT
-           e.ruc, e.nombre, e.tipo, e.region, e.provincia, e.distrito,
+           e.ruc, e.nombre, e.tipo, e.region,
+           COALESCE((SELECT z.nombre FROM zonas z WHERE z.ubigeo = left(e.ubigeo::text, 4)), e.provincia) AS provincia, e.distrito,
            e.pliego_nombre_mef AS "pliegoNombreMef",
            COALESCE(a.alertas, 0)      AS alertas,
            COALESCE(a.monto, 0)::float AS monto,
@@ -80,7 +84,7 @@ entidadesRouter.get("/", async (c) => {
            GROUP BY a.entidad_ruc
          ) a ON a.entidad_ruc = e.ruc
          ${where}
-         ORDER BY a.alertas DESC NULLS LAST, e.nombre, e.ruc
+         ORDER BY a.alertas DESC NULLS LAST, cv.contratos DESC NULLS LAST, e.nombre, e.ruc
          LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
       vals,
     ),

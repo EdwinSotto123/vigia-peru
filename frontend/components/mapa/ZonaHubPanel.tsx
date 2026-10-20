@@ -448,6 +448,7 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
     <CuerpoDetalle>
       {zona.totalCola > 0 ? (
         <>
+          {/* Tres cifras y filas cortas; lo que explica cada una va en su "?" (antes, frases largas en cada fila). */}
           <Indicadores
             items={[
               {
@@ -462,25 +463,43 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
                 ),
               },
               {
-                valor: enteros(zona.pendientes),
-                etiqueta: "esperando financiamiento",
-                contexto: `y ${enteros(zona.financiados)} ${zona.financiados === 1 ? "financiado" : "financiados"}`,
+                valor: enteros(zona.financiados),
+                etiqueta: zona.financiados === 1 ? "financiado" : "financiados",
+                contexto: `${enteros(zona.pendientes)} esperan`,
+              },
+              {
+                valor: soles(Math.max(0, costoEsperando)),
+                etiqueta: "para leerlos",
+                contexto: `${soles(zona.precioPen)} por contrato`,
+                ayuda: (
+                  <Ayuda titulo="¿Cuánto cuesta leerlos?">
+                    Lo que costaría que los agentes lean todos los contratos que esperan, a {soles(zona.precioPen)} cada uno. Cada
+                    aporte paga los más antiguos de la cola.
+                  </Ayuda>
+                ),
               },
             ]}
           />
           <DatosClave
             items={[
-              { etiqueta: "Qué entra en la cola", valor: alcanceCorto(detalle.alcance) },
-              {
-                etiqueta: "Valor referencial",
-                valor: cola.montoReferencial > 0 ? <DeTotal n={solesCompacto(cola.montoReferencial)} de={`en ${enteros(cola.contratos)} contratos`} /> : null,
-              },
-              {
-                etiqueta: "Costo de leer lo que espera",
-                valor: <DeTotal n={soles(Math.max(0, costoEsperando))} de={`a ${soles(zona.precioPen)} por contrato`} />,
-              },
-              { etiqueta: "Documentos listos", valor: <DeTotal n={enteros(cola.documentosListos ?? 0)} de="de otros tipos, con el análisis en preparación" /> },
-              { etiqueta: "Financiados en revisión", valor: <DeTotal n={enteros(zona.enRevision ?? 0)} de="leídos con la publicación en pausa" /> },
+              ...(cola.montoReferencial > 0
+                ? [{
+                    etiqueta: "Valor referencial", valor: solesCompacto(cola.montoReferencial), mono: true,
+                    ayuda: <Ayuda titulo="¿Qué suma?">El valor referencial de los {enteros(cola.contratos)} contratos en cola.</Ayuda>,
+                  }]
+                : []),
+              ...((cola.documentosListos ?? 0) > 0
+                ? [{
+                    etiqueta: "Documentos listos", valor: enteros(cola.documentosListos ?? 0), mono: true,
+                    ayuda: <Ayuda titulo="¿Qué son?">Contratos de otros tipos con los documentos ya bajados: su análisis está en preparación.</Ayuda>,
+                  }]
+                : []),
+              ...((zona.enRevision ?? 0) > 0
+                ? [{
+                    etiqueta: "En revisión", valor: enteros(zona.enRevision ?? 0), mono: true,
+                    ayuda: <Ayuda titulo="¿Qué es?">Financiados que ya se leyeron, con la publicación en pausa mientras el equipo los revisa.</Ayuda>,
+                  }]
+                : []),
             ]}
           />
         </>
@@ -499,12 +518,11 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
               <button type="button" onClick={mapa.limpiarDistrito} className="min-h-[24px] shrink-0 text-[12px] font-medium text-granate underline-offset-2 hover:underline">
                 Ver todo {nombre}
               </button>
+            ) : mapa?.activa ? (
+              <Ayuda titulo="¿Cómo acotar la lista?">Toca una provincia del mapa, o un punto, y la lista muestra sólo esos contratos.</Ayuda>
             ) : undefined
           }
         >
-          {!zonaUb && mapa?.activa && (
-            <p className="mb-2 text-[12px] text-mute">Toca una provincia del mapa, o un punto, para acotar esta lista.</p>
-          )}
           <ContratosLista
             key={query.ubigeo}
             query={query}
@@ -532,8 +550,8 @@ function ColaTab({ nombre, ubigeo, detalle }: { nombre: string; ubigeo: string; 
                 <Link href={`/app/financiar/${h.ubigeo}`} className="group flex items-baseline justify-between gap-3 py-2 transition-colors duration-rapido hover:bg-paper">
                   <span className="min-w-0 truncate text-[13px] text-ink group-hover:text-granate">{h.nombre}</span>
                   <span className="shrink-0 font-mono text-[12px] text-mute tabular-nums">
-                    <span className="font-semibold text-ink">{enteros(h.financiados)}</span> financiados,{" "}
-                    {enteros(h.pendientes)} esperando
+                    <span className="font-semibold text-ink">{enteros(h.totalCola)}</span> en cola
+                    {h.financiados > 0 && <> · {enteros(h.financiados)} financiados</>}
                   </span>
                 </Link>
               </li>
@@ -685,8 +703,18 @@ function datosAlcance(alcance: ZonaDetalle["alcance"] | undefined, documentosLis
         </Ayuda>
       ),
     },
-    ...(documentosListos > 0 ? [{ etiqueta: "Documentos listos", valor: <DeTotal n={enteros(documentosListos)} de="de otros tipos" /> }] : []),
-    ...(enRevision > 0 ? [{ etiqueta: "Financiados en revisión", valor: <DeTotal n={enteros(enRevision)} de="con la publicación en pausa" /> }] : []),
+    ...(documentosListos > 0
+      ? [{
+          etiqueta: "Documentos listos", valor: enteros(documentosListos), mono: true,
+          ayuda: <Ayuda titulo="¿Qué son?">Contratos de otros tipos con los documentos ya bajados: su análisis está en preparación.</Ayuda>,
+        }]
+      : []),
+    ...(enRevision > 0
+      ? [{
+          etiqueta: "En revisión", valor: enteros(enRevision), mono: true,
+          ayuda: <Ayuda titulo="¿Qué es?">Financiados que ya se leyeron, con la publicación en pausa mientras el equipo los revisa.</Ayuda>,
+        }]
+      : []),
   ];
 }
 

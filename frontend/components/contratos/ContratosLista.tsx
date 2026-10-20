@@ -39,6 +39,7 @@ import {
 } from "@/lib/contratos";
 import { EstadoContratoPill as PildoraEstadoContrato, EstadoContratoChip } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
+import { tituloNatural } from "@/lib/landing";
 import { cn } from "@/lib/utils";
 
 /**
@@ -214,7 +215,8 @@ function FilaCompacta({ c, selected, onSelect, onHover }: { c: ContratoResumen; 
   const tipoEtapa = [tipoLabel(c.tipo), etapaLabel(c.etapa)].filter(Boolean).join(", ") || "Sin clasificar";
   // El peso del riesgo nunca va sin las señales que lo explican (§10.4).
   const nSenales = c.enRevision ? 0 : c.banderas ?? 0;
-  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, c.entidad ?? "Entidad no identificada", c.zona];
+  // La entidad como en la tabla de contratos (tituloNatural): el SEACE la manda en mayúsculas.
+  const meta = [nSenales > 0 ? plural(nSenales, "señal", "señales") : null, c.entidad ? tituloNatural(c.entidad) : "Entidad no identificada", c.zona];
   return (
     <li
       ref={ref}

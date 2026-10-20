@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Building2, Search, ArrowUpRight } from "lucide-react";
 import type { ApiEntidad } from "@/lib/api-client";
 import { PUBLIC_API_BASE } from "@/lib/auditoria";
-import { formatSoles, numero, plural } from "@/lib/formato";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
+import { numero, plural } from "@/lib/formato";
+import { tituloNatural } from "@/lib/landing";
+import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 const TIPO_LABEL: Record<string, string> = {
@@ -65,7 +66,8 @@ interface Pagina {
 
 /**
  * Entidades contratantes de un departamento (`/entidades?region=`), ordenadas
- * como las ordena la API (más dictámenes publicados primero). La búsqueda va al
+ * como las ordena la API: las que tienen dictámenes publicados, después las que más
+ * contratos tienen desde 2015 (antes, el resto iba en orden alfabético). La búsqueda va al
  * servidor, así que encuentra entre TODAS las entidades de la zona, no sólo
  * entre las 100 de la primera página. El contador dice cuántas se ven de cuántas hay.
  *
@@ -123,11 +125,15 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
       </label>
 
       {pagina && pagina.total > 0 && (
-        <p className="text-[12px] tabular-nums text-inkSoft" aria-live="polite">
-          <strong className="font-semibold text-ink">{numero(visibles.length)}</strong> de{" "}
-          <strong className="font-semibold text-ink">{numero(pagina.total)}</strong>{" "}
-          {qDebounced ? `entidades de ${nombre} que coinciden` : `entidades de ${nombre}`}, primero las que tienen más
-          dictámenes publicados
+        <p className="flex items-center gap-1 text-[12px] tabular-nums text-inkSoft" aria-live="polite">
+          <span>
+            <strong className="font-semibold text-ink">{numero(visibles.length)}</strong> de{" "}
+            <strong className="font-semibold text-ink">{numero(pagina.total)}</strong> {qDebounced ? "que coinciden" : "entidades"}
+          </span>
+          <Ayuda titulo="¿En qué orden van?">
+            Primero las que tienen dictámenes publicados de Vigía; después, las que más contratos tienen desde 2015 en el
+            OECE. La búsqueda encuentra entre todas las entidades de {nombre}, no sólo entre las que se ven.
+          </Ayuda>
         </p>
       )}
 
@@ -164,16 +170,14 @@ export function EntidadesDeZona({ ubigeo, nombre }: { ubigeo: string; nombre: st
                   <Building2 size={13} aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{e.nombre}</span>
+                  <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{tituloNatural(e.nombre)}</span>
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[11px] text-mute">
-                    <span>{TIPO_LABEL[e.tipo] ?? e.tipo ?? "Entidad"}</span>
+                    {TIPO_LABEL[e.tipo] && <span>{TIPO_LABEL[e.tipo]}</span>}
                     {e.provincia && <span>{e.provincia}</span>}
+                    {(e.contratos ?? 0) > 0 && <span className="tabular-nums text-inkSoft">{plural(e.contratos!, "contrato", "contratos")}</span>}
                     {e.alertas > 0 && (
-                      <span className="tabular-nums text-inkSoft">
-                        {plural(e.alertas, "dictamen publicado", "dictámenes publicados")}
-                      </span>
+                      <span className="font-medium tabular-nums text-granate">{plural(e.alertas, "dictamen", "dictámenes")}</span>
                     )}
-                    {e.monto > 0 && <span className="font-mono tabular-nums text-inkSoft">{formatSoles(e.monto)}</span>}
                   </span>
                 </span>
                 <ArrowUpRight size={13} className="mt-1 shrink-0 text-mute transition-colors duration-rapido group-hover:text-granate" aria-hidden />
