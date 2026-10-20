@@ -446,6 +446,21 @@ async function contarTotal(q: ListaQ): Promise<{ total: number; totalExacto: boo
     const r = await pool.query(`SELECT COALESCE(sum(n), 0)::int AS n FROM contratos_agregado WHERE ${filtrosAgregado(q, vals)}`, vals);
     return { total: r.rows[0].n, totalExacto: true };
   }
+  // Sólo texto (sin otros filtros): se cuenta sobre las coincidencias mismas (convocatoria_busqueda, en memoria), sin
+  // buscar cada una en contrato_estado: con "cemento" eran 10 mil lecturas sueltas en frío (8,6 s, la API daba 500).
+  const soloTexto = q.q && !esCodigo(q.q) && !q.tipo && !q.etapa && !q.ubigeo && !q.entidad && q.monto_min == null && q.monto_max == null
+    && !q.desde && !q.hasta && !q.riesgo && !q.lectura && !q.estado && !q.operativo && !q.partido && !q.cruces && !q.cruce;
+  if (soloTexto) {
+    const r = await pool.query(
+      `SELECT count(*)::int AS n FROM (
+         SELECT u.ocid FROM (SELECT b.ocid FROM convocatoria_busqueda b WHERE b.texto @@ websearch_to_tsquery('spanish', $1)
+                             UNION SELECT c3.ocid FROM entidad_stats es JOIN convocatorias c3 ON c3.entidad_ruc = es.ruc
+                                    WHERE es.nombre_norm LIKE immutable_unaccent($2)) u
+          WHERE u.ocid NOT LIKE 'ocds-vigia-%' LIMIT ${TOPE_CONTEO + 1}) x`,
+      [q.q, `%${escaparLike(q.q!.toLowerCase())}%`]);
+    const n = r.rows[0].n as number;
+    return { total: n, totalExacto: n <= TOPE_CONTEO };
+  }
   const d = driverDe(q);
   const { conds, usaCe } = filtros(q, vals, d.m);
   const r = await pool.query(
