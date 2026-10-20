@@ -57,29 +57,37 @@ const PERFIL_OSCE = (ruc: string) => `https://apps.osce.gob.pe/perfilprov-ui/fic
 const PROCESO_OECE = (codigo: string) => `https://contratacionesabiertas.oece.gob.pe/proceso/${encodeURIComponent(codigo)}`;
 const CLARIDAD = "https://claridadportal.onpe.gob.pe/";
 
-/** Quién: la empresa o una persona vinculada (sin nombre: el nombre, tapado, ya va en el cruce). */
-const quien = (f: FilaCruce) => (f.persona_doc ? "una persona vinculada a la empresa (socio o representante)" : "la empresa");
+/** Quién: la empresa, el proveedor persona natural (RUC 10) o una persona vinculada (sin nombre: ya va, tapado, en el cruce). */
+const quien = (f: FilaCruce) =>
+  f.persona_doc ? "una persona vinculada a la empresa (socio o representante)" : f.ruc_empresa.startsWith("10") ? "el proveedor" : "la empresa";
+/** Cómo buscarlo en la fuente: por RUC si es una empresa; una persona natural, por su nombre (Vigía no publica su documento). */
+const comoBuscar = (f: FilaCruce) =>
+  f.persona_doc ? "el documento de la persona vinculada" : f.ruc_empresa.startsWith("10") ? "al proveedor por su nombre" : `el RUC ${f.ruc_empresa}`;
 
 async function gastosCampana(f: FilaCruce): Promise<Evidencia> {
   const doc = f.persona_doc ?? f.ruc_empresa;
   const org = String(f.detalle?.organizacion ?? "");
+  // El total de la campaña es lo que declaró ESA organización en ese proceso (migración 85): `total_op` es el de
+  // todas las organizaciones de la elección.
   const r = await filas(
-    `SELECT proceso, organizacion, monto, total_op FROM onpe_gastos_proveedores
-      WHERE documento = $1 AND ($2 = '' OR organizacion = $2) ORDER BY anio DESC, monto DESC LIMIT ${TOPE}`, [doc, org]);
+    `SELECT g.proceso, g.organizacion, g.monto,
+            (SELECT sum(t.monto) FROM onpe_gastos_proveedores t WHERE t.proceso = g.proceso AND t.organizacion = g.organizacion) AS total_org
+       FROM onpe_gastos_proveedores g
+      WHERE g.documento = $1 AND ($2 = '' OR g.organizacion = $2) ORDER BY g.anio DESC, g.monto DESC LIMIT ${TOPE}`, [doc, org]);
   return {
     titulo: `Lo que ${quien(f)} le vendió a la campaña`,
     columnas: [
       { clave: "proceso", titulo: "Elección" },
       { clave: "organizacion", titulo: "Organización política" },
       { clave: "monto", titulo: "Le vendió", tipo: "soles" },
-      { clave: "total", titulo: "Gasto total de la campaña", tipo: "soles" },
+      { clave: "total", titulo: "Lo que gastó la organización", tipo: "soles" },
       { clave: "parte", titulo: "Parte del gasto", tipo: "pct" },
     ],
     filas: r.map((x) => ({
-      proceso: x.proceso, organizacion: x.organizacion, monto: num(x.monto), total: num(x.total_op),
-      parte: x.total_op ? (100 * Number(x.monto)) / Number(x.total_op) : null,
+      proceso: x.proceso, organizacion: x.organizacion, monto: num(x.monto), total: num(x.total_org),
+      parte: Number(x.total_org) > 0 ? (100 * Number(x.monto)) / Number(x.total_org) : null,
     })),
-    verificar: `En Claridad (ONPE): Gastos de campaña › ${org || "la organización"} › Proveedores, buscando el ${f.persona_doc ? "documento de la persona vinculada" : `RUC ${f.ruc_empresa}`}.`,
+    verificar: `En Claridad (ONPE): Gastos de campaña › ${org || "la organización"} › Proveedores, buscando ${comoBuscar(f)}. ONPE publica a quién le compró cada campaña y cuánto, pero no qué compró.`,
     enlace: { texto: "ONPE · Claridad, gastos de campaña", url: CLARIDAD },
   };
 }
