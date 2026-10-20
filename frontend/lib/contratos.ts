@@ -74,6 +74,25 @@ export interface ContratoItem {
   montoPen: number | null;
   cubso: string | null;
   estado: string | null;
+  /** Precio por unidad y su comparación con otras entidades (migración 84). Falta en la API vieja. */
+  precio?: PrecioItem | null;
+}
+
+/** El precio de un ítem frente a lo que pagan (o presupuestan) las demás entidades por el mismo CUBSO y unidad. */
+export interface PrecioItem {
+  unitarioAdjudicado: number | null;
+  unitarioReferencial: number | null;
+  fuenteAdjudicado: "conosce" | "ocds" | "proceso" | null;
+  comparacion: {
+    base: "adjudicado" | "referencial";
+    anio: number | null;
+    entidades: number | null;
+    compras: number | null;
+    p25: number | null;
+    mediana: number;
+    p75: number | null;
+    razon: number | null;
+  } | null;
 }
 
 export interface ContratoDocumento {

@@ -2,7 +2,7 @@
 # Entorno DEV de Vigía (docs/DEV.md): probar cambios con datos reales sin que se vean en producción.
 #
 #   bash infrastructure/deploy/dev.sh api            # backend/api (copia de trabajo) → vigia-api-dev
-#   bash infrastructure/deploy/dev.sh web            # frontend (copia de trabajo)    → vigia-web-dev
+#   bash infrastructure/deploy/dev.sh web            # frontend (copia de trabajo)    → vigia-web-dev (SIN_BUILD=1: el último build)
 #   bash infrastructure/deploy/dev.sh scrapers       # backend/scrapers-worker        → vigia-scrapers-dev (sin crons)
 #   bash infrastructure/deploy/dev.sh todo           # los tres
 #   bash infrastructure/deploy/dev.sh migrar backend/db/migrations/84_precio_item.sql
@@ -30,10 +30,13 @@ web() {
   tar -cf "$W/web.tar" -C "$REPO_ROOT" --exclude='frontend/node_modules' --exclude='frontend/.next*' \
     --exclude='frontend/.open-next' --exclude='frontend/.env.local' --exclude='frontend/.dev.vars' --exclude='frontend/.wrangler' frontend
   gzip "$W/web.tar"
-  # 2. Build en Cloud Build con la API y el Turnstile de DEV.
+  # 2. Build en Cloud Build con la API y el Turnstile de DEV. Con SIN_BUILD=1 se despliega el último build (cuando sólo
+  #    cambió worker-dev.js o wrangler.jsonc: segundos en vez de ~10 min).
   local SALIDA; SALIDA="$(salida_build web-dev)"
-  gcb builds submit "$W/web.tar.gz" --config "$REPO_ROOT/frontend/cloudbuild-cf-dev.yaml" --region "$REGION" \
-    --substitutions "_SALIDA=${SALIDA}"
+  if [[ -z "${SIN_BUILD:-}" ]]; then
+    gcb builds submit "$W/web.tar.gz" --config "$REPO_ROOT/frontend/cloudbuild-cf-dev.yaml" --region "$REGION" \
+      --substitutions "_SALIDA=${SALIDA}"
+  fi
   # 3. Deploy con env.dev de wrangler.jsonc (entra por worker-dev.js: clave, noindex y franja DEV).
   mkdir "$W/deploy" && cd "$W/deploy"
   gcb storage cp "${SALIDA}/open-next.tgz" .

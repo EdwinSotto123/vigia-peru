@@ -112,11 +112,29 @@ const senalesConCita = (c: Detalle) => (c.alerta?.banderas ?? []).filter((b) => 
 
 function SeccionItems({ c }: { c: Detalle }) {
   const conEstado = c.items.some((it) => it.estado);
+  const conPrecio = c.items.some((it) => it.precio && (it.precio.unitarioAdjudicado != null || it.precio.unitarioReferencial != null));
+  // Con precios, la columna central de la ficha (~600 px) no entra con todo: el estado, la cantidad y el valor referencial
+  // pasan a la línea de abajo del ítem y quedan el precio por unidad y la comparación.
   const columnas: Columna[] = [
-    ...(conEstado ? [{ clave: "estado", titulo: "Estado", ancho: "120px", desde: "md" } satisfies Columna] : []),
+    ...(conEstado && !conPrecio ? [{ clave: "estado", titulo: "Estado", ancho: "120px", desde: "md" } satisfies Columna] : []),
     { clave: "item", titulo: "Ítem", ancho: "minmax(0,1fr)" },
-    { clave: "cantidad", titulo: "Cantidad", ancho: "120px", alinear: "der", desde: "lg" },
-    { clave: "monto", titulo: "Valor referencial", ancho: "140px", alinear: "der" },
+    ...(conPrecio ? [] : [
+      { clave: "cantidad", titulo: "Cantidad", ancho: "120px", alinear: "der", desde: "lg" } satisfies Columna,
+      { clave: "monto", titulo: "Valor referencial", ancho: "140px", alinear: "der" } satisfies Columna,
+    ]),
+    ...(conPrecio ? [
+      { clave: "unitario", titulo: "Por unidad", ancho: "112px", alinear: "der" } satisfies Columna,
+      {
+        clave: "frente", titulo: "Frente a otras entidades", ancho: "172px", desde: "md",
+        ayuda: (
+          <Ayuda titulo="¿Contra qué se compara?">
+            Contra lo que pagaron otras entidades del Estado por el mismo código CUBSO y la misma unidad, ese año y el anterior
+            (desde 5 entidades). La franja es el rango habitual (del 25 % al 75 % de esas compras) y la raya, la mediana.
+            Si el ítem ya se adjudicó, se compara lo pagado; si no, lo presupuestado contra lo que presupuestan las demás.
+          </Ayuda>
+        ),
+      } satisfies Columna,
+    ] : []),
   ];
   const filas: Fila[] = c.items.map((it) => {
     const cantidad = it.cantidad != null ? `${numero(it.cantidad)}${it.unidad ? ` ${it.unidad}` : ""}` : null;
@@ -130,11 +148,23 @@ function SeccionItems({ c }: { c: Detalle }) {
             meta={
               <>
                 <Partes partes={[`Ítem ${it.posicion}`, it.cubso && `CUBSO ${it.cubso}`]} />
-                {/* Debajo de lg la columna Cantidad no entra: la cantidad va en la meta. */}
+                {/* Debajo de lg la columna Cantidad no entra (con precios, nunca): la cantidad va en la meta. */}
                 {cantidad && (
-                  <span className="lg:hidden">
+                  <span className={conPrecio ? undefined : "lg:hidden"}>
                     <Separador />
                     {cantidad}
+                  </span>
+                )}
+                {conPrecio && it.montoPen != null && (
+                  <span>
+                    <Separador />
+                    {monto(it.montoPen, c.moneda)} referencial
+                  </span>
+                )}
+                {conPrecio && it.estado && (
+                  <span>
+                    <Separador />
+                    {humanizarCodigo(it.estado)}
                   </span>
                 )}
               </>
@@ -143,6 +173,8 @@ function SeccionItems({ c }: { c: Detalle }) {
         ),
         cantidad: it.cantidad != null ? <CeldaNumero sub={it.unidad ?? undefined}>{numero(it.cantidad)}</CeldaNumero> : undefined,
         monto: it.montoPen ? <CeldaNumero>{monto(it.montoPen, c.moneda)}</CeldaNumero> : undefined,
+        unitario: it.precio ? <PrecioUnidad p={it.precio} unidad={it.unidad} /> : undefined,
+        frente: it.precio?.comparacion ? <FrenteOtras p={it.precio} /> : it.precio ? <span className="text-[12px] text-mute">Sin con qué comparar</span> : undefined,
       },
     };
   });
@@ -155,6 +187,46 @@ function SeccionItems({ c }: { c: Detalle }) {
       )}
       <FuenteDato fuente={OCDS} className="mt-2" />
     </>
+  );
+}
+
+/** Precio por unidad del ítem: el adjudicado si lo hay (con el presupuestado debajo) o el presupuestado. */
+function PrecioUnidad({ p, unidad }: { p: NonNullable<Detalle["items"][number]["precio"]>; unidad: string | null }) {
+  const u = unidad ? `por ${unidad.toLowerCase()}` : undefined;
+  if (p.unitarioAdjudicado != null) {
+    return <CeldaNumero sub={p.unitarioReferencial != null ? `presupuesto ${soles(p.unitarioReferencial)}` : u}>{soles(p.unitarioAdjudicado)}</CeldaNumero>;
+  }
+  return p.unitarioReferencial != null ? <CeldaNumero sub={`presupuestado${u ? ` ${u}` : ""}`}>{soles(p.unitarioReferencial)}</CeldaNumero> : null;
+}
+
+/**
+ * Dónde cae el precio del ítem frente a las demás entidades: la franja va del p25 al p75, la raya es la mediana y el
+ * punto, este ítem. Escala logarítmica: un precio 10 veces mayor no aplasta la franja. El color del punto sigue la
+ * razón con la mediana (hasta 1.5, tinta; desde 1.5, ámbar; desde 3, carmesí) y siempre va con el texto.
+ */
+function FrenteOtras({ p }: { p: NonNullable<Detalle["items"][number]["precio"]> }) {
+  const k = p.comparacion!;
+  const precio = k.base === "adjudicado" ? p.unitarioAdjudicado : p.unitarioReferencial;
+  if (precio == null || !k.mediana) return null;
+  const p25 = k.p25 ?? k.mediana, p75 = k.p75 ?? k.mediana;
+  const min = Math.min(p25, precio) / 1.6, max = Math.max(p75, precio) * 1.6;
+  const W = 150, x = (v: number) => (Math.log(v / min) / Math.log(max / min)) * W;
+  const r = k.razon ?? precio / k.mediana;
+  const tono = r >= 3 ? "fill-crimson" : r >= 1.5 ? "fill-amber" : "fill-ink";
+  const texto = r >= 1.15 ? `${r.toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces la mediana`
+    : r <= 0.87 ? `${Math.round((1 - r) * 100)} % bajo la mediana` : "en la mediana";
+  return (
+    <span className="block">
+      <svg viewBox={`-4 0 ${W + 8} 14`} width={W + 8} height={14} role="img" aria-label={`${texto}; mediana ${soles(k.mediana)}`} className="block">
+        <line x1={0} x2={W} y1={7} y2={7} className="stroke-line" strokeWidth={1} />
+        <rect x={x(p25)} y={3} width={Math.max(2, x(p75) - x(p25))} height={8} rx={2} className="fill-paperEdge" />
+        <line x1={x(k.mediana)} x2={x(k.mediana)} y1={1} y2={13} className="stroke-mute" strokeWidth={1.5} />
+        <circle cx={x(precio)} cy={7} r={4.5} className={`${tono} stroke-paper`} strokeWidth={1.5} />
+      </svg>
+      <span className="mt-0.5 block text-[11.5px] text-mute">
+        {texto} · {k.base === "adjudicado" ? "pagado" : "presupuestado"} en {numero(k.entidades)} entidades
+      </span>
+    </span>
   );
 }
 

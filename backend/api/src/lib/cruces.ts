@@ -30,6 +30,7 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   adicional: "Contrato con adicionales o prórrogas",
   fraccionamiento: "Recibió de esta entidad órdenes menores el mismo día que juntas pasan 8 UIT",
   otro_postor: "Se le adjudicó después de que la buena pro fuera de otro postor",
+  sobreprecio: "Pagó más que otras entidades por lo mismo",
 };
 
 /** La etiqueta de un cruce posterior a la convocatoria, donde la de siempre diría "anteriores". */

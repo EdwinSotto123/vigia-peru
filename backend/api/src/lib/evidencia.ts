@@ -29,6 +29,7 @@ export interface Evidencia {
 export interface FilaCruce {
   tipo: string;
   ruc_empresa: string;
+  ocid?: string | null;
   persona_doc: string | null;
   detalle: Record<string, unknown> | null;
 }
@@ -254,6 +255,66 @@ async function recurrente(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia | nu
   };
 }
 
+/**
+ * Sobreprecio (migración 84): los ítems de este proceso que pasan la mediana de lo que pagaron otras entidades por el
+ * mismo CUBSO y unidad, y, del peor, esas otras compras una por una (cada una abre su contrato en Vigía).
+ */
+async function sobreprecio(f: FilaCruce, p: ProcesoCruce): Promise<Evidencia[]> {
+  const ocid = f.ocid ?? p.ocid;
+  const items = await filas(
+    `SELECT i.posicion, i.descripcion, i.cantidad, i.unidad, i.unit_adj, r.mediana, r.p25, r.p75, r.entidades,
+            (i.unit_adj - r.p75) * i.cantidad AS exceso
+       FROM precio_item i
+       JOIN precio_referencia r ON r.cubso = i.cubso AND r.unidad = i.unidad AND r.anio = i.anio AND r.base = 'adjudicado'
+      WHERE i.ocid = $1 AND i.unit_adj >= 1.5 * r.mediana
+      ORDER BY exceso DESC NULLS LAST LIMIT ${TOPE}`, [ocid]);
+  const peor = (f.detalle?.peor ?? {}) as Record<string, unknown>;
+  const otras = peor.cubso
+    ? await filas(
+      `SELECT i.ocid, i.fecha, i.cantidad, i.unit_adj, e.nombre AS entidad, i.departamento
+         FROM precio_item i LEFT JOIN entidades e ON e.ruc = i.entidad_ruc
+        WHERE i.cubso = $1 AND i.unidad = $2 AND i.anio IN ($3::int, $3::int - 1) AND i.unit_adj > 0
+          AND i.entidad_ruc IS DISTINCT FROM $4
+        ORDER BY abs(ln(i.unit_adj / NULLIF($5::numeric, 0))) LIMIT 15`,
+      [peor.cubso, peor.unidad, Number(peor.anio), p.entidadRuc, Number(peor.mediana)])
+    : [];
+  const ev: Evidencia[] = [{
+    titulo: "Los ítems que pagaron más que otras entidades",
+    columnas: [
+      { clave: "item", titulo: "Ítem" },
+      { clave: "cantidad", titulo: "Cantidad" },
+      { clave: "unitario", titulo: "Pagó por unidad", tipo: "soles" },
+      { clave: "mediana", titulo: "Mediana de otras entidades", tipo: "soles" },
+      { clave: "rango", titulo: "Rango habitual (p25–p75)" },
+      { clave: "exceso", titulo: "Por encima del p75", tipo: "soles" },
+    ],
+    filas: items.map((x) => ({
+      item: x.descripcion, cantidad: x.cantidad != null ? `${Number(x.cantidad).toLocaleString("es-PE")} ${x.unidad ?? ""}`.trim() : null,
+      unitario: num(x.unit_adj), mediana: num(x.mediana),
+      rango: `S/ ${Number(x.p25).toLocaleString("es-PE", { maximumFractionDigits: 2 })} – ${Number(x.p75).toLocaleString("es-PE", { maximumFractionDigits: 2 })} · ${x.entidades} entidades`,
+      exceso: x.exceso != null && Number(x.exceso) > 0 ? num(x.exceso) : null,
+    })),
+    verificar: "El precio por unidad es lo adjudicado del ítem (CONOSCE) entre su cantidad (OCDS). La referencia son las compras de otras entidades con el mismo código CUBSO y la misma unidad, ese año y el anterior.",
+    enlace: { texto: "OECE · Contrataciones Abiertas", url: "https://contratacionesabiertas.oece.gob.pe/" },
+  }];
+  if (otras.length) ev.push({
+    titulo: `Lo que pagaron otras entidades por ${String(peor.descripcion ?? "el mismo ítem").toLowerCase().slice(0, 80)}`,
+    columnas: [
+      { clave: "fecha", titulo: "Convocado", tipo: "fecha" },
+      { clave: "entidad", titulo: "Entidad", tipo: "enlace" },
+      { clave: "cantidad", titulo: "Cantidad" },
+      { clave: "unitario", titulo: "Pagó por unidad", tipo: "soles" },
+    ],
+    filas: otras.map((x) => ({
+      fecha: fecha(x.fecha), cantidad: x.cantidad != null ? `${Number(x.cantidad).toLocaleString("es-PE")} ${String(peor.unidad ?? "")}`.trim() : null,
+      unitario: num(x.unit_adj), entidad: { texto: x.entidad ?? "Entidad", url: `/app/contratos/${x.ocid}` },
+    })),
+    verificar: "Las 15 compras con el precio más cercano a la mediana. Cada una abre su contrato en Vigía.",
+    enlace: null,
+  });
+  return ev;
+}
+
 /** La evidencia de cada fila (mismo orden), [] donde no hay nada que agregar a lo que el cruce ya trae. */
 export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<Evidencia[][]> {
   return Promise.all(rows.map(async (f): Promise<Evidencia[]> => {
@@ -274,6 +335,7 @@ export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<
       case "sancion":
       case "sancion_vigente": ev.push(await sanciones(f)); break;
       case "recurrente": ev.push(await recurrente(f, p)); break;
+      case "sobreprecio": ev.push(...(await sobreprecio(f, p))); break;
       default: break;
     }
     return ev.filter((e): e is Evidencia => !!e && e.filas.length > 0);

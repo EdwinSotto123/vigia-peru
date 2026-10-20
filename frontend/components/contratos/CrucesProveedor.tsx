@@ -32,6 +32,7 @@ const FUENTE: Record<string, string> = {
   conosce_adjudicaciones: "CONOSCE · adjudicaciones",
   conosce_contratos: "CONOSCE · contratos",
   conosce_ordenes: "CONOSCE · órdenes de compra y servicio",
+  precio_item: "OECE · ítems (OCDS) y CONOSCE",
 };
 /** Cuántas filas de un mismo tipo se ven antes de "ver más". */
 const VISIBLES = 3;
@@ -107,6 +108,7 @@ const POR_QUE: Record<string, string> = {
   partido_gobernante: "La empresa, o una persona detrás de ella, financió o atendió la campaña del partido que gobierna la entidad que le dio el contrato: posible conflicto de interés.",
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
   recurrente: "Ganarle muchas veces a la misma entidad puede ser buena competencia o un proveedor cautivo. Vale mirar cuántos postores hubo en cada proceso.",
+  sobreprecio: "Comparado con lo que pagaron otras entidades del Estado por el mismo código CUBSO y la misma unidad, ese año y el anterior, desde 5 entidades. Puede tener explicación (poca cantidad, transporte a zonas lejanas, otra calidad): no prueba por sí solo un sobreprecio.",
   adicional: "Los adicionales tienen topes legales: 25 % en bienes y servicios, y 15 % en obras sin autorización de la Contraloría. Cerca del tope merece revisión.",
   otro_postor: "Cuando el ganador no firma o pierde la buena pro, se adjudica al siguiente postor con su propia oferta: el Estado paga más. Vale ver en el expediente por qué no firmó el primero.",
   fraccionamiento: "Partir una compra en órdenes pequeñas para no hacer un proceso de selección está prohibido. Varias órdenes el mismo día, al mismo proveedor y por encima del tope, son el patrón que se busca.",
@@ -265,6 +267,22 @@ function Texto({ c }: { c: CruceProveedor }) {
             </>
           ) : ""}
           {n(d.procesos_entidad) ? ` en ${numero(n(d.procesos_entidad)!)} procesos` : ""}.
+        </>
+      );
+    }
+    case "sobreprecio": {
+      const p = (d.peor ?? {}) as Record<string, unknown>;
+      const items = n(d.items) ?? 1;
+      const razon = n(p.razon);
+      return (
+        <>
+          {items > 1 ? <>En <b>{numero(items)} ítems</b>, el precio por unidad</> : "El precio por unidad"} pasa lo que pagaron otras entidades
+          {txt(p.descripcion) ? <>: el de <b>{oracion(String(p.descripcion)).slice(0, 90)}</b></> : ""} fue de{" "}
+          <b>{soles(n(p.unitario))}</b>{txt(p.unidad) ? ` por ${String(p.unidad).toLowerCase()}` : ""}, frente a una mediana de {soles(n(p.mediana))}
+          {n(p.entidades) ? ` en ${numero(n(p.entidades)!)} entidades` : ""}
+          {razon ? <> (<b>{razon.toLocaleString("es-PE", { maximumFractionDigits: 1 })} veces</b>)</> : ""}. Por encima del rango habitual suma{" "}
+          <b>{solesCompacto(c.montoSoles)}</b>.
+          <Gano c={c} />
         </>
       );
     }

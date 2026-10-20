@@ -30,11 +30,13 @@ export function sumarDias(fecha: string, n: number): string {
  * Lo que hacía `refrescar_casos_cruce()` en una sola sentencia, en cuatro pasos: con la historia del OECE en la base
  * la cadena tardaba ~21 min y Hyperdrive corta una sentencia a los ~10. Cada paso es su propia sentencia (contrato ↔
  * partido ~3,5 min, otro postor ~40 s con la migración 77, adjudicado vigente ~1,5 min, casos cruzados ~2,5 min).
+ * Antes va el precio por ítem (migración 84): rehace precio_item y el cruce `sobreprecio`, que refrescar_cruces() borra.
  * Devuelve cuántos casos cruzados quedaron.
  */
 export async function refrescarCasosCruce(env: Env, step: WorkflowStep): Promise<number> {
   const uno = (nombre: string, sql: string) =>
     step.do(nombre, CARGA, () => conDb(env.HYPERDRIVE, async (db) => Number((await db.filas<{ n: number }>(sql))[0]?.n ?? 0)));
+  await uno("refrescar_precio_item", "SELECT refrescar_precio_item() AS n");
   await uno("refrescar_contrato_partido", "SELECT refrescar_contrato_partido() AS n");
   await uno("refrescar_cruce_otro_postor", "SELECT refrescar_cruce_otro_postor() AS n");
   await uno("refrescar_adjudicado_vigente", "SELECT refrescar_adjudicado_vigente() AS n");

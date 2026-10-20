@@ -84,7 +84,7 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const row = r.rows[0];
   const { items_raw, docs_raw, awards_raw, alerta_id, alertaCodigo, motivoNoProcesable, agentesAplicables, validacionesPendientes, clasificadoAt, ...resumen } = row;
 
-  const [alerta, proc, docsGcs, pedido, expedienteRaw] = await Promise.all([
+  const [alerta, proc, docsGcs, pedido, expedienteRaw, precios] = await Promise.all([
     // Misma forma que `resultado` en /financiamiento/procesamientos/:ocid (señales + mercado + documentos).
     alerta_id ? pool.query(RESULTADO_SQL, [alerta_id]) : Promise.resolve(null),
     // Mismas columnas que el tablero (score/banderas en null si la alerta no está publicada).
@@ -96,6 +96,8 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
       .then((q) => q.rows[0] ?? null).catch(() => null),
     // U5: postores con ofertas, ítems con precio contratado y citas con página (document_analysis / legal_analysis).
     alerta_id ? pool.query(EXPEDIENTE_SQL, [alerta_id]).then((q) => q.rows[0] ?? null).catch(() => null) : Promise.resolve(null),
+    // Migración 84: precio unitario de cada ítem y la referencia de su CUBSO y unidad (sin la migración, sin precios).
+    pool.query(PRECIOS_SQL, [row.ocid]).then((q) => q.rows as FilaPrecio[]).catch(() => [] as FilaPrecio[]),
   ]);
 
   // Alerta no publicada (revision/descartada): sin score, señales, mercado ni reglas, y sin lo que los
@@ -103,7 +105,9 @@ contratosDetalleRouter.get("/:ocid", async (c) => {
   const alertaRow: Record<string, any> | null = redactarResultado(alerta?.rows[0] ?? null);
   const expediente = alertaRow && esPublicada(alertaRow.estado) ? expedienteRaw : null;
 
+  const preciosPorItem = new Map(precios.map((p) => [Number(p.posicion), p]));
   const items = (Array.isArray(items_raw) ? items_raw : []).map((it: any, i: number) => ({
+    precio: precioDe(preciosPorItem.get(Number(it?.position ?? i + 1))),
     id: String(it?.id ?? i + 1),
     posicion: Number(it?.position ?? i + 1),
     descripcion: it?.description ?? it?.classification?.description ?? null,
@@ -283,4 +287,52 @@ function contratadoDeItem(conosce: FilaConosce[], posicion: number) {
   if (filas.length !== 1) return { precioUnitarioConosce: null, proveedorConosce: null, rucConosce: null };
   const k = filas[0];
   return { precioUnitarioConosce: Math.round((k.montoPen! / k.cantidad!) * 10000) / 10000, proveedorConosce: k.proveedor, rucConosce: k.ruc };
+}
+
+// ─── Precios por ítem (migración 84) ─────────────────────────────────────────────────────────────
+
+interface FilaPrecio {
+  posicion: number; unidad: string | null; cantidad: string | null; adjudicado: string | null; fuente: string | null;
+  unit_ref: string | null; unit_adj: string | null; anio: number | null;
+  a_n: number | null; a_ent: number | null; a_p25: string | null; a_med: string | null; a_p75: string | null;
+  r_n: number | null; r_ent: number | null; r_p25: string | null; r_med: string | null; r_p75: string | null;
+}
+
+/** Cada ítem con su referencia: lo adjudicado contra lo adjudicado y lo presupuestado contra lo presupuestado. */
+const PRECIOS_SQL = `
+  SELECT p.posicion, p.unidad, p.cantidad, p.adjudicado, p.fuente_adjudicado AS fuente, p.unit_ref, p.unit_adj, p.anio,
+         ra.n AS a_n, ra.entidades AS a_ent, ra.p25 AS a_p25, ra.mediana AS a_med, ra.p75 AS a_p75,
+         rr.n AS r_n, rr.entidades AS r_ent, rr.p25 AS r_p25, rr.mediana AS r_med, rr.p75 AS r_p75
+    FROM precio_item p
+    LEFT JOIN precio_referencia ra ON ra.cubso = p.cubso AND ra.unidad = p.unidad AND ra.anio = p.anio AND ra.base = 'adjudicado'
+    LEFT JOIN precio_referencia rr ON rr.cubso = p.cubso AND rr.unidad = p.unidad AND rr.anio = p.anio AND rr.base = 'referencial'
+   WHERE p.ocid = $1
+   ORDER BY p.posicion`;
+
+const num = (v: string | number | null | undefined) => (v == null ? null : Number(v));
+
+/**
+ * El precio de un ítem para la ficha: unitario adjudicado (CONOSCE, el OCDS o la única adjudicación del proceso) y
+ * presupuestado, y con qué se compara. Si hay precio adjudicado y referencia de lo adjudicado, se compara eso; si no,
+ * lo presupuestado contra lo que presupuestan las demás entidades. Sin referencia (menos de 5 entidades, servicios),
+ * `comparacion` es null.
+ */
+function precioDe(p: FilaPrecio | undefined) {
+  if (!p) return null;
+  const adj = num(p.unit_adj), ref = num(p.unit_ref);
+  const base = adj != null && p.a_med != null ? "adjudicado" : ref != null && p.r_med != null ? "referencial" : null;
+  const r = base === "adjudicado"
+    ? { n: p.a_n, entidades: p.a_ent, p25: num(p.a_p25), mediana: num(p.a_med), p75: num(p.a_p75), unitario: adj }
+    : base === "referencial"
+      ? { n: p.r_n, entidades: p.r_ent, p25: num(p.r_p25), mediana: num(p.r_med), p75: num(p.r_p75), unitario: ref }
+      : null;
+  return {
+    unitarioAdjudicado: adj,
+    unitarioReferencial: ref,
+    fuenteAdjudicado: p.fuente,
+    comparacion: r && r.mediana
+      ? { base, anio: p.anio, entidades: r.entidades, compras: r.n, p25: r.p25, mediana: r.mediana, p75: r.p75,
+          razon: r.unitario != null ? Math.round((r.unitario / r.mediana) * 100) / 100 : null }
+      : null,
+  };
 }

@@ -5,7 +5,8 @@
  *
  *   · Pide usuario y clave (Basic). Los secretos son DEV_USUARIO y DEV_CLAVE; sin ellos, no deja pasar a nadie.
  *   · `X-Robots-Tag: noindex`: que ningún buscador indexe la copia.
- *   · Una franja "DEV" arriba de cada página HTML, para no confundirla con producción.
+ *   · Una franja "DEV" arriba de cada página HTML, para no confundirla con producción. Va como fondo del <body> (atributo
+ *     style), no como un nodo nuevo: un nodo que React no renderizó rompe la hidratación (errores 418/423) y React lo borra.
  *
  * Desplegar: `bash infrastructure/deploy/dev.sh web` (ver docs/DEV.md).
  */
@@ -13,10 +14,11 @@ import abierto from "./.open-next/worker.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
-const FRANJA =
-  '<div style="position:sticky;top:0;z-index:2147483647;display:flex;gap:10px;align-items:center;justify-content:center;' +
-  'padding:4px 12px;background:#F2B84B;color:#0B0F0F;font:600 12px/1.4 ui-monospace,Consolas,monospace;letter-spacing:.08em">' +
-  "ENTORNO DEV · base vigia-db-dev · nada de esto se ve en producción</div>";
+const FRANJA = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="22"><rect width="640" height="22" fill="#F2B84B"/>' +
+  '<text x="320" y="15" text-anchor="middle" font-family="Consolas,monospace" font-size="12" font-weight="700" fill="#0B0F0F">' +
+  "ENTORNO DEV · base vigia-db-dev · no es producción</text></svg>");
+const ESTILO = `background-image:url("data:image/svg+xml,${FRANJA}");background-repeat:repeat-x;background-position:top center;padding-top:22px`;
 
 function iguales(a, b) {
   const x = new TextEncoder().encode(a);
@@ -53,7 +55,9 @@ export default {
     const res = new Response(r.body, r);
     res.headers.set("X-Robots-Tag", "noindex, nofollow");
     if ((res.headers.get("content-type") ?? "").includes("text/html")) {
-      return new HTMLRewriter().on("body", { element(e) { e.prepend(FRANJA, { html: true }); } }).transform(res);
+      return new HTMLRewriter().on("body", {
+        element(e) { e.setAttribute("style", [e.getAttribute("style"), ESTILO].filter(Boolean).join(";")); },
+      }).transform(res);
     }
     return res;
   },
