@@ -9,7 +9,8 @@ export const GRUPOS_CRUCE: { titulo: string; tipos: { tipo: string; corto: strin
   {
     titulo: "Política",
     tipos: [
-      { tipo: "partido_gobernante", corto: "Partido que gobierna", explica: "El ganador o un socio aportó a la campaña del partido que gobierna la entidad, o le vendió a esa campaña (ONPE × JNE)." },
+      { tipo: "partido_gobernante", corto: "Financió al que gobierna", explica: "El ganador o un socio aportó al partido que gobierna la entidad (ONPE × JNE)." },
+      { tipo: "vendio_gobernante", corto: "Vendió al que gobierna", explica: "El ganador o un socio le vendió a la campaña del partido que gobierna la entidad (ONPE × JNE)." },
       { tipo: "aporte", corto: "Aportó a un partido", explica: "El proveedor, o un socio o representante suyo, figura como aportante de una organización política (ONPE)." },
       { tipo: "aporte_empresa", corto: "La empresa aportó", explica: "La empresa ganadora aportó con su RUC a una organización política (ONPE)." },
       { tipo: "proveedor_campana", corto: "Vendió a una campaña", explica: "La empresa le facturó a una campaña electoral (gastos de campaña, ONPE Claridad)." },

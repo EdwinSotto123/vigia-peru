@@ -90,7 +90,7 @@ entidadesRouter.get("/", async (c) => {
     ),
     pool.query(`SELECT count(*)::int AS n FROM ${modelos ? "entidad_stats es" : "entidades e"} ${where}`, totalVals),
   ]);
-  c.header("Cache-Control", cachePublico(120, { maxAge: 60, swr: 60 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json({ data: r.rows, total: total.rows[0].n, limit, offset });
 });
 
@@ -104,7 +104,7 @@ entidadesRouter.get("/summary", async (c) => {
        ) AS con_alertas,
        (SELECT COALESCE(SUM(a.monto_adjudicado), 0)::float FROM alertas a WHERE ${ALERTAS_ACTIVAS}) AS monto`,
   );
-  c.header("Cache-Control", cachePublico(120, { maxAge: 60, swr: 60 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(r.rows[0]);
 });
 
@@ -113,7 +113,7 @@ entidadesRouter.get("/summary", async (c) => {
 entidadesRouter.get("/:ruc/cruces", async (c) => {
   const ruc = c.req.param("ruc");
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
-  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(publicar(await crucesDeEntidad(ruc)));
 });
 
@@ -123,7 +123,7 @@ entidadesRouter.get("/:ruc/fraccionamiento", async (c) => {
   if (!/^\d{11}$/.test(ruc)) return c.json({ error: "invalid_ruc" }, 400);
   // `?limit=` hasta 1000: la ficha las pide todas y las pagina (antes cortaba en 50 y decía "se muestran los 50").
   const limit = Math.min(1000, Math.max(1, Number(c.req.query("limit")) || 50));
-  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(publicar(await fraccionamientoDeEntidad(ruc, limit)));
 });
 
@@ -391,7 +391,7 @@ entidadesRouter.get("/:ruc", async (c) => {
     for (const k of ENTIDAD_METADATA_MOCK) delete limpia[k];
     entidad.metadata = limpia;
   }
-  c.header("Cache-Control", cachePublico(120, { maxAge: 60, swr: 60 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json({
     entidad,
     mef: mef.rows[0] ?? null,

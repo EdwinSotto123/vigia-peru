@@ -21,7 +21,7 @@ import {
 
 export const contratosDetalleRouter = new Hono();
 
-const cache = (c: { header: (k: string, v: string) => void }, s: number) => c.header("Cache-Control", cachePublico(s, { maxAge: 30, swr: 30 }));
+const cache = (c: { header: (k: string, v: string) => void }, s: number) => c.header("Cache-Control", cachePublico(s, { maxAge: 30, swr: 1800 }));
 
 // ─── GET /contratos/:ocid ────────────────────────────────────────────────────
 // URL firmada (15 min) para ver/descargar un documento guardado en el almacén de Vigía.

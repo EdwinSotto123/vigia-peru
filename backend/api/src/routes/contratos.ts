@@ -40,7 +40,8 @@ import { contratosDetalleRouter } from "./contratos_detalle.js";
 
 export const contratosRouter = new Hono();
 
-const CACHE_LISTA = cachePublico(60, { maxAge: 30, swr: 30 });
+// 5 min frescas y 1 h de margen (cdn.ts las sirve al instante y las renueva detrás): la base cambia con la carga diaria.
+const CACHE_LISTA = cachePublico(300, { maxAge: 60, swr: 3600 });
 
 type Filtros = z.infer<typeof ListQuery>;
 
@@ -224,9 +225,13 @@ const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, n
 async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number; tipos: Record<string, number> }> {
   const vals: unknown[] = [];
   const { conds } = filtros({ ...q, cruces: undefined }, vals, MAPA_CE);
+  // Sin otros filtros (sólo el de las convocatorias de demo), casos_cruce alcanza: sin juntarlo con los 828 mil de
+  // contrato_estado (2,8 s en frío).
+  const base = conds.length === 1
+    ? `SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM casos_cruce k WHERE k.ocid NOT LIKE 'ocds-vigia-%'`
+    : `SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(
-    `WITH k AS (SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid
-                 WHERE ${conds.join(" AND ")})
+    `WITH k AS (${base})
      SELECT (SELECT count(DISTINCT ocid)::int FROM k) AS con,
             (SELECT count(DISTINCT ocid)::int FROM k WHERE n_alta > 0) AS alta,
             (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb)
@@ -499,7 +504,7 @@ contratosRouter.get("/geo", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
   const q = { ...parsed.data, q: parsed.data.q || undefined };
   return responderJson(c, q.q ? geoTextoMemo : geoMemo, JSON.stringify(q), async () => ({ nivel: q.nivel, data: await geo(q) }),
-    cachePublico(300, { maxAge: 60, swr: 30 }));
+    cachePublico(300, { maxAge: 60, swr: 3600 }));
 });
 
 const COLS_GEO_AGREGADO = `sum(n)::int AS total,

@@ -73,7 +73,7 @@ partidosRouter.get("/ranking", async (c) => {
       region: p.region ?? null, total: t.rows[0]?.total ?? 0, limit: p.limit ?? null, offset: p.offset ?? 0,
       data: r.rows.map((x) => ({ ...x, gobiernos: gobiernos.get(x.clave) ?? { regional: 0, provincial: 0, distrital: 0 } })),
     };
-  }, cachePublico(120, { maxAge: 60, swr: 60 }));
+  }, cachePublico(300, { maxAge: 60, swr: 3600 }));
 });
 
 // ─── GET /partidos/:clave/procesos — todos sus procesos adjudicados del período (CONOSCE, migración 65) ─
@@ -127,7 +127,7 @@ partidosRouter.get("/:clave/procesos", async (c) => {
     // El ganador puede ser una persona natural: publicar() la reconoce por su RUC 10 y tapa su nombre.
     return publicar({ total: total.rows[0].n, montoAdjudicadoPen: total.rows[0].monto, page: q.page, size: q.size, data: filas.rows });
   });
-  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 300 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(cuerpo);
 });
 
@@ -216,6 +216,6 @@ partidosRouter.get("/:clave", async (c) => {
     };
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
-  c.header("Cache-Control", cachePublico(120, { maxAge: 60, swr: 60 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   return c.json(cuerpo);
 });

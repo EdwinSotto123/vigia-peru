@@ -333,6 +333,7 @@ export async function evidenciasDe(rows: FilaCruce[], p: ProcesoCruce): Promise<
       case "aporte_empresa": ev.push(await aportes(f)); break;
       case "candidato": ev.push(await candidaturas(f)); break;
       case "autoridad": ev.push(await autoridad(f)); break;
+      case "vendio_gobernante": ev.push(await gastosCampana(f)); ev.push(await gobernante(f, p)); break;
       case "partido_gobernante": {
         const via = String(f.detalle?.via ?? "");
         ev.push(via === "proveedor_campana" ? await gastosCampana(f) : await aportes(f));

@@ -105,7 +105,8 @@ const POR_QUE: Record<string, string> = {
   sancion_vigente: "Con una inhabilitación vigente la empresa no podía contratar con el Estado: la entidad debía verificarlo en el RNP antes de dar la buena pro.",
   visita_previa: "Reunirse con funcionarios antes de la buena pro no es ilegal, pero el registro de visitas existe para transparentarlo. Una reunión con quien decide, o una visita «personal», merece revisión.",
   socio_comun: "Si dos postores que compiten comparten dueños o representantes, la competencia puede ser solo aparente (ofertas concertadas). Es una de las señales clásicas de colusión.",
-  partido_gobernante: "La empresa, o una persona detrás de ella, financió o atendió la campaña del partido que gobierna la entidad que le dio el contrato: posible conflicto de interés.",
+  partido_gobernante: "La empresa, o una persona detrás de ella, aportó dinero al partido que gobierna la entidad que le dio el contrato: un posible conflicto de interés, el más directo de estos cruces.",
+  vendio_gobernante: "La empresa, o una persona detrás de ella, le vendió a la campaña del partido que gobierna la entidad. Es una relación comercial, no un aporte: pesa según el monto.",
   proveedor_campana: "Es una relación comercial con un partido político. Pesa más cuando es el partido que gobierna la entidad, y menos en cadenas grandes que le venden a todos.",
   recurrente: "Ganarle muchas veces a la misma entidad puede ser buena competencia o un proveedor cautivo. Vale mirar cuántos postores hubo en cada proceso.",
   sobreprecio: "Comparado con lo que pagaron otras entidades del Estado por el mismo código CUBSO y la misma unidad, ese año y el anterior, desde 5 entidades. Puede tener explicación (poca cantidad, transporte a zonas lejanas, otra calidad): no prueba por sí solo un sobreprecio.",
@@ -238,8 +239,9 @@ function Texto({ c }: { c: CruceProveedor }) {
           {txt(d.proceso) ? ` (${d.proceso})` : ""}.
         </>
       );
+    case "vendio_gobernante":
     case "partido_gobernante": {
-      const via = txt(d.via);
+      const via = c.tipo === "vendio_gobernante" ? "proveedor_campana" : txt(d.via);
       const partido = txt(d.partido) ?? txt(d.organizacion);
       const accion = via === "proveedor_campana" ? "le vendió a la campaña de" : "aportó a";
       return (

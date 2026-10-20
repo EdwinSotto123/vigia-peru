@@ -392,7 +392,7 @@ financiamientoRouter.get("/entidades", async (c) => {
   const { limit, offset, region } = parsed.data;
   const q = parsed.data.q && [...parsed.data.q].length >= 2 ? parsed.data.q : undefined;
   return responderJson(c, q ? entidadesTextoMemo : entidadesMemo, JSON.stringify({ q, region, limit, offset }),
-    () => entidadesFinanciables(q, limit, offset, region), cachePublico(60, { swr: 60 }));
+    () => entidadesFinanciables(q, limit, offset, region), cachePublico(120, { swr: 600 }));
 });
 
 async function entidadesFinanciables(q: string | undefined, limit: number, offset: number, region?: string) {
@@ -460,7 +460,7 @@ financiamientoRouter.get("/entidades/:ruc", async (c) => {
     return v ? serializar(v) : null;
   });
   if (!s) return c.json({ error: "entidad_no_encontrada" }, 404);
-  return responderSerializado(c, s, cachePublico(60, { swr: 60 }));
+  return responderSerializado(c, s, cachePublico(120, { swr: 600 }));
 });
 
 async function detalleEntidad(ruc: string, noGuardar: () => void): Promise<Record<string, unknown> | null> {

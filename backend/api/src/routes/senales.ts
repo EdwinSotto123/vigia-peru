@@ -79,7 +79,7 @@ senalesRouter.get("/", async (c) => {
     if (!claves) return c.json({ error: "invalid_cursor" }, 400);
   }
   return responderJson(c, q.q ? memoTexto : memo, JSON.stringify(q), () => senales(q, claves),
-    cachePublico(120, { maxAge: 60, swr: 60 }));
+    cachePublico(300, { maxAge: 60, swr: 3600 }));
 });
 
 type Dim = "severidad" | "regla" | "agente" | "cotejo";

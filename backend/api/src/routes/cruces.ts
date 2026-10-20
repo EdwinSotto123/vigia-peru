@@ -102,7 +102,7 @@ crucesRouter.get("/", async (c) => {
     if (/casos_cruce/.test(String(e?.message))) return null;
     throw e;
   });
-  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 600 }));
+  c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
   if (!res) return c.json({ total: 0, casos: [], resumen: null, facetas: null });
   const [pagina, resumen, tipos, sev, dptos, contr] = res;
   const fecha = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : null);

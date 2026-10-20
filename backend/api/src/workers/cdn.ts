@@ -9,11 +9,16 @@
  * (`Vary: Origin`), y la caché de Workers no separa por Vary; sin esto, la respuesta guardada para
  * un origen le llegaría a otro y el navegador la rechazaría.
  *
- * `X-Vigia-Cdn: HIT | MISS` dice de dónde salió cada respuesta.
+ * `X-Vigia-Cdn: HIT | STALE | MISS` dice de dónde salió cada respuesta.
+ *
+ * stale-while-revalidate (2026-10-20): se guarda por `s-maxage` + `stale-while-revalidate`. Vencido el primero pero dentro
+ * del segundo, se responde lo guardado al instante (STALE) y se pide de nuevo en segundo plano. Antes, al vencer los
+ * 60 s, la siguiente visita pagaba la consulta entera a la base (hasta 8 s en frío con la historia desde 2015).
  */
 
 const PRIVADAS = /^\/(?:v1\/)?(?:admin|cuentas|upload)(?:\/|$)/;
 const CC_ORIGINAL = "X-Vigia-Cache-Control";
+const GUARDADO = "X-Vigia-Guardado";
 /**
  * Subir este número descarta de golpe todo lo guardado (2026-10-11: saneado de datos personales;
  * 2026-10-13: DNI y RUC 10 como referencias, apellidos tapados en el servidor, traza pública sin datos;
@@ -34,7 +39,7 @@ function clave(req: Request): Request {
   return new Request(u.toString(), { method: "GET" });
 }
 
-function marcar(r: Response, estado: "HIT" | "MISS"): Response {
+function marcar(r: Response, estado: "HIT" | "STALE" | "MISS"): Response {
   const out = new Response(r.body, r);
   out.headers.set("X-Vigia-Cdn", estado);
   return out;
@@ -46,7 +51,8 @@ function desdeCache(req: Request, guardada: Response): Response {
   const original = headers.get(CC_ORIGINAL);
   if (original) headers.set("Cache-Control", original);
   headers.delete(CC_ORIGINAL);
-  headers.set("X-Vigia-Cdn", "HIT");
+  headers.delete(GUARDADO);
+  headers.set("X-Vigia-Cdn", vencida(guardada) ? "STALE" : "HIT");
   const etag = headers.get("etag");
   const pedido = req.headers.get("if-none-match");
   if (etag && pedido && pedido.split(",").map((s) => s.trim()).includes(etag)) {
@@ -55,21 +61,39 @@ function desdeCache(req: Request, guardada: Response): Response {
   return new Response(guardada.body, { status: guardada.status, statusText: guardada.statusText, headers });
 }
 
+/** Pasó su `s-maxage` (sigue guardada sólo por el margen de stale-while-revalidate). */
+function vencida(guardada: Response): boolean {
+  const cc = guardada.headers.get(CC_ORIGINAL) ?? "";
+  const sMaxAge = Number(/s-maxage=(\d+)/.exec(cc)?.[1] ?? 0);
+  const desde = Number(guardada.headers.get(GUARDADO) ?? 0);
+  return desde > 0 && Date.now() - desde > sMaxAge * 1000;
+}
+
+/** Guarda la respuesta si la API la marcó pública, por s-maxage + stale-while-revalidate. */
+function guardar(ctx: ExecutionContext, cache: Cache, k: Request, r: Response): void {
+  const cc = r.headers.get("cache-control") ?? "";
+  const sMaxAge = Number(/s-maxage=(\d+)/.exec(cc)?.[1] ?? 0);
+  const swr = Number(/stale-while-revalidate=(\d+)/.exec(cc)?.[1] ?? 0);
+  if (r.status === 200 && /\bpublic\b/.test(cc) && sMaxAge > 0 && !r.headers.has("set-cookie")) {
+    const copia = new Response(r.clone().body, r);
+    copia.headers.set(CC_ORIGINAL, cc);
+    copia.headers.set(GUARDADO, String(Date.now()));
+    copia.headers.set("Cache-Control", `public, max-age=${sMaxAge + swr}`);   // TTL en el borde
+    ctx.waitUntil(cache.put(k, copia));
+  }
+}
+
 export async function conCdn(req: Request, ctx: ExecutionContext, atender: () => Promise<Response>): Promise<Response> {
   if (!cacheable(req)) return atender();
   const k = clave(req);
   const cache = (caches as unknown as { default: Cache }).default;
   const guardada = await cache.match(k);
-  if (guardada) return desdeCache(req, guardada);
-
-  const r = await atender();
-  const cc = r.headers.get("cache-control") ?? "";
-  const sMaxAge = Number(/s-maxage=(\d+)/.exec(cc)?.[1] ?? 0);
-  if (r.status === 200 && /\bpublic\b/.test(cc) && sMaxAge > 0 && !r.headers.has("set-cookie")) {
-    const copia = new Response(r.clone().body, r);
-    copia.headers.set(CC_ORIGINAL, cc);
-    copia.headers.set("Cache-Control", `public, max-age=${sMaxAge}`);   // TTL en el borde
-    ctx.waitUntil(cache.put(k, copia));
+  if (guardada) {
+    // Vencida pero en el margen: se responde ya y se renueva detrás (si falla, queda la anterior hasta su TTL).
+    if (vencida(guardada)) ctx.waitUntil(atender().then((r) => guardar(ctx, cache, k, r)).catch(() => undefined));
+    return desdeCache(req, guardada);
   }
+  const r = await atender();
+  guardar(ctx, cache, k, r);
   return marcar(r, "MISS");
 }

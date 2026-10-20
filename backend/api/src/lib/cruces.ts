@@ -24,7 +24,8 @@ export const ETIQUETA_CRUCE: Record<string, string> = {
   sancion_vigente: "Ganó con una inhabilitación vigente",
   visita_previa: "Visitó una entidad antes de la buena pro",
   socio_comun: "Comparte socio o representante con otro postor",
-  partido_gobernante: "Financió o le vendió a la campaña del partido que gobierna la entidad",
+  partido_gobernante: "Financió al partido que gobierna la entidad",
+  vendio_gobernante: "Le vendió a la campaña del partido que gobierna la entidad",
   proveedor_campana: "Le vendió a una campaña electoral",
   recurrente: "Proveedor frecuente de esta entidad",
   adicional: "Contrato con adicionales o prórrogas",
@@ -177,7 +178,9 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
   if (!porRuc.size) return [];
   const q = await pool.query(
     // `antecedente` (migración 83): lo de la empresa que ya había pasado cuando se convocó; lo demás es posterior.
-    `SELECT ${COLS}, (ocid IS NOT NULL OR cruce_es_antecedente(tipo, fecha, detalle,
+    // persona_doc: sólo para buscar la evidencia de un socio o representante (aCruce no lo copia a la respuesta). Sin
+    // él, la evidencia de una persona vinculada se buscaba con el RUC de la empresa.
+    `SELECT ${COLS}, persona_doc, (ocid IS NOT NULL OR cruce_es_antecedente(tipo, fecha, detalle,
               (SELECT c.fecha_convocatoria FROM convocatorias c WHERE ocid_corto(c.ocid) = ocid_corto($2) LIMIT 1))) AS antecedente
        FROM cruces_proveedor
      WHERE ruc_empresa = ANY($1::text[]) AND (ocid IS NULL OR ocid_corto(ocid) = ocid_corto($2))
@@ -210,6 +213,15 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       `SELECT ruc_postor AS ruc, max(postor) AS nombre FROM conosce_postores WHERE ruc_postor = ANY($1::text[]) GROUP BY ruc_postor`, [otros]).catch(() => null);
     for (const r of n?.rows ?? []) nombres.set(r.ruc, r.nombre);
   }
+  // La misma venta o aporte no va dos veces (migración 87): si ya está como "partido que gobierna", sin la genérica.
+  const clave = (r: Record<string, any>) =>
+    `${r.ruc_empresa}|${r.persona_doc ?? ""}|${String(r.detalle?.organizacion ?? r.detalle?.partido ?? "").toUpperCase()}|${r.detalle?.proceso ?? ""}`;
+  const gobernantes = new Set(crudas.filter((r) => r.tipo === "vendio_gobernante" || r.tipo === "partido_gobernante").map(clave));
+  const repetida = crudas.map((r) => {
+    if (r.tipo === "proveedor_campana") return gobernantes.has(clave(r));
+    if (r.tipo === "aporte" || r.tipo === "aporte_empresa") return gobernantes.has(clave({ ...r, detalle: { partido: r.detalle?.partido } }));
+    return false;
+  });
   return cruces.map((c, i) => {
     const g = porRuc.get(c.rucProveedor);
     const anteriores = soloAnteriores(c, evidencias[i], proceso.fecha);
@@ -227,7 +239,7 @@ export async function crucesDeProceso(ocid: string, ganadores: Ganador[]): Promi
       ...anteriores,
       ...(posterior ? { posterior: true, etiqueta: ETIQUETA_POSTERIOR[c.tipo] ?? c.etiqueta } : {}),
     };
-  });
+  }).filter((_, i) => !repetida[i]);
 }
 
 /**
