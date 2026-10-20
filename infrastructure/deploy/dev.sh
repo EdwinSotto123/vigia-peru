@@ -9,6 +9,8 @@
 #   bash infrastructure/deploy/dev.sh sql "SELECT count(*) FROM precio_item"
 #   bash infrastructure/deploy/dev.sh correr '{"fuente":"oece_ocds","seco":true}'
 #   bash infrastructure/deploy/dev.sh estado | detener | encender
+#   bash infrastructure/deploy/dev.sh tamano db.t4g.large  # medir tiempos como en producción (volver a db.t4g.micro)
+#   bash infrastructure/deploy/dev.sh precalentar          # tras clonar: baja de S3 todo el volumen una vez
 #   bash infrastructure/deploy/dev.sh clonar         # rehace la base DEV desde producción (~40 min; lo de DEV se pierde)
 #   bash infrastructure/deploy/dev.sh base           # roles, PgBouncer e Hyperdrive de DEV (idempotente)
 #   bash infrastructure/deploy/dev.sh secretos       # secretos de los Workers DEV (desde SSM /vigia/dev/)
@@ -64,7 +66,7 @@ case "${1:-}" in
   scrapers) (cd "$REPO_ROOT/backend/scrapers-worker" && wr deploy --env dev) ;;
   web) web ;;
   todo) "$0" api && "$0" scrapers && "$0" web ;;
-  base|secretos|clonar|estado|detener|encender) "$PY" "$AYUDA" "$1" ;;
-  migrar|sql|correr) accion="$1"; shift; "$PY" "$AYUDA" "$accion" "$@" ;;
+  base|secretos|clonar|estado|detener|encender|precalentar) "$PY" "$AYUDA" "$1" ;;
+  migrar|sql|correr|tamano) accion="$1"; shift; "$PY" "$AYUDA" "$accion" "$@" ;;
   *) sed -n '2,16p' "$0"; exit 2 ;;
 esac

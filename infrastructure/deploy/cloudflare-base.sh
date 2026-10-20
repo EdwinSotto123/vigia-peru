@@ -13,9 +13,10 @@
 # y van en los wrangler.jsonc; las contraseñas de los roles se leen de Secret Manager y no se imprimen.
 #
 # Medido 2026-09-26: consultas con parámetros, en paralelo y transacciones con SET LOCAL funcionan a
-# través de PgBouncer en modo transacción. Con el Worker en Lima cada consulta tardaba ~200 ms; con
-# `"placement": { "region": "gcp:us-central1" }` en el wrangler.jsonc, ~50 ms. Usar esa ubicación en
-# todo Worker que consulte la base.
+# través de PgBouncer en modo transacción. Desde 2026-10-12 la base y el proxy están en AWS us-east-2 (el túnel
+# entra por Chicago y Columbus): con `"placement": { "region": "aws:us-east-2" }` cada consulta tarda ~17 ms; con la
+# ubicación vieja, gcp:us-central1, ~177 ms (medido 2026-10-20). Usar esa ubicación en todo Worker que consulte
+# la base, y cambiarla si la base se muda.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"  # PROJECT_ID: dónde viven la VM y los secretos
 TUNEL="vigia-db"

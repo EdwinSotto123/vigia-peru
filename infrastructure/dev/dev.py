@@ -9,6 +9,8 @@ infrastructure/deploy/dev.sh; no hace falta usarla directo.
     python infrastructure/dev/dev.py sql "<consulta>"
     python infrastructure/dev/dev.py correr '{"fuente": "oece_ocds", "seco": true}'
     python infrastructure/dev/dev.py detener | encender | estado
+    python infrastructure/dev/dev.py tamano db.t4g.large   (para medir tiempos como en producción; volver a db.t4g.micro)
+    python infrastructure/dev/dev.py precalentar           (lee cada tabla una vez: baja de S3 el volumen recién clonado)
 
 Los secretos viven en SSM Parameter Store bajo /vigia/dev/ (se crean al azar la primera vez) y nunca se imprimen.
 Las credenciales de DEV (roles dev_*) existen sólo en vigia-db-dev: no sirven contra producción.
@@ -309,6 +311,23 @@ def estado():
             print(f"{url} → {e.__class__.__name__}")
 
 
+def precalentar():
+    """Un RDS restaurado de un snapshot baja cada bloque de S3 la primera vez que se lee (mucho más lento que el disco):
+    pg_prewarm 'read' de cada tabla, índice y TOAST los baja todos una vez. Lo que más usan las páginas, primero."""
+    with conectar() as c, c.cursor() as cur:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS pg_prewarm")
+        cur.execute("""SELECT c.oid::regclass::text, pg_relation_size(c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                       WHERE n.nspname IN ('public', 'pg_toast') AND c.relkind IN ('r', 'i', 'm', 't') AND pg_relation_size(c.oid) > 0
+                       ORDER BY (c.relname ~ '^(contrato_estado|casos_cruce|convocatoria_busqueda|precio_|cruces_proveedor|entidad_stats|contratos_agregado|partido_)') DESC,
+                                pg_relation_size(c.oid)""")
+        rels = cur.fetchall()
+        t0, total = time.time(), 0
+        for nombre, tam in rels:
+            cur.execute("SELECT pg_prewarm(%s, 'read')", (nombre,))
+            total += tam
+        print(f"  {len(rels)} tablas e índices, {total / 2**30:.1f} GB en {time.time() - t0:.0f} s")
+
+
 if __name__ == "__main__":
     accion, resto = (sys.argv[1] if len(sys.argv) > 1 else ""), sys.argv[2:]
     if accion == "base":
@@ -332,6 +351,15 @@ if __name__ == "__main__":
         print(f"{DEV}: encendida")
     elif accion == "estado":
         estado()
+    elif accion == "tamano" and resto:
+        i = instancia()
+        print(f"{DEV}: {i['DBInstanceClass']} → {resto[0]} (unos minutos sin base)")
+        rds.modify_db_instance(DBInstanceIdentifier=DEV, DBInstanceClass=resto[0], ApplyImmediately=True)
+        time.sleep(30)
+        esperar(DEV)
+        print(f"{DEV}: {instancia()['DBInstanceClass']}")
+    elif accion == "precalentar":
+        precalentar()
     else:
         print(__doc__)
         sys.exit(2)

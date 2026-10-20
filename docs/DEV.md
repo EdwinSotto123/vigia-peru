@@ -8,7 +8,7 @@ se ve en producción: tiene su propia base, sus propios Workers y sus propios se
 | Web | `vigia-web.vigiaperu.workers.dev` | `vigia-web-dev.vigiaperu.workers.dev` (pide usuario y clave) |
 | API | `vigia-api.vigiaperu.workers.dev` | `vigia-api-dev.vigiaperu.workers.dev` |
 | Scrapers | `vigia-scrapers` (con crons) | `vigia-scrapers-dev` (sin crons: sólo a mano) |
-| Base | RDS `vigia-db` (db.t4g.small) | RDS `vigia-db-dev` (db.t4g.micro), un clon de producción |
+| Base | RDS `vigia-db` (db.t4g.large, 8 GB) | RDS `vigia-db-dev` (db.t4g.micro), un clon de producción |
 | Roles de la base | `vigia_api`, `vigia_api_admin`, `vigia_jobs` | `dev_api`, `dev_api_admin`, `dev_jobs` (sólo existen en `vigia-db-dev`) |
 | Hyperdrive | `vigia-api`, `vigia-api-admin`, `vigia-jobs` | `vigia-dev-api`, `vigia-dev-api-admin`, `vigia-dev-jobs` |
 | R2 | `vigia-web-cache`, `vigia-peru-crudos`, `vigia-peru-batch` | los mismos con `-dev` |
@@ -43,6 +43,15 @@ bash infrastructure/deploy/dev.sh detener                                    # a
 bash infrastructure/deploy/dev.sh encender
 bash infrastructure/deploy/dev.sh clonar                                     # traer de nuevo los datos de producción (~40 min)
 ```
+
+## Por qué DEV es más lento que producción
+
+- **Es chica a propósito:** `vigia-db-dev` es db.t4g.micro (1 GB de RAM; producción, db.t4g.large con 8 GB). Lo que las
+  páginas usan no le cabe en memoria y va a disco: sirve para probar que algo funciona, no cuánto tarda.
+- **Recién clonada, cada bloque baja de S3 la primera vez que se lee**, mucho más lento que el disco. Después de `clonar`,
+  correr `dev.sh precalentar` (lee todo una vez, ~30-40 min).
+- **Para medir tiempos:** `dev.sh tamano db.t4g.large`, medir, y `dev.sh tamano db.t4g.micro` para volver (cada cambio son
+  unos minutos sin base; la grande cuesta unos US$0.13 por hora).
 
 ## Lo que DEV no hace (a propósito)
 

@@ -31,9 +31,9 @@
     "OECE_RELAY_URL": "https://oece-relay.vigia-peru.workers.dev"
   },
   "observability": { "enabled": true },
-  // Junto a la API y los agentes (us-central1), como el frontend de Cloud Run: cada fetch del
-  // servidor queda local y al usuario le llega una sola respuesta.
-  "placement": { "region": "gcp:us-central1" },
+  // Junto a la API, que está junto a la base (us-east-2): cada fetch del servidor queda local y al usuario le llega
+  // una sola respuesta.
+  "placement": { "region": "aws:us-east-2" },
 
   // Entorno DEV (docs/DEV.md): `bash infrastructure/deploy/dev.sh web` → vigia-web-dev, que habla con vigia-api-dev.
   // Entra por worker-dev.js (pide usuario y clave, noindex y una franja "DEV"), con su propia caché en R2.

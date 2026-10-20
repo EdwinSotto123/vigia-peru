@@ -8,8 +8,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Junto a la base y a los servicios de agentes: ~50 ms por consulta en vez de ~200 ms.
-  "placement": { "region": "gcp:us-central1" },
+  // Junto a la base (RDS en us-east-2): ~17 ms por consulta (infrastructure/deploy/cloudflare-base.sh).
+  "placement": { "region": "aws:us-east-2" },
   "minify": true,
   "upload_source_maps": true,
 

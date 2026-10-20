@@ -6,8 +6,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Junto a la base: ~50 ms por consulta en vez de ~200 ms desde Lima (infrastructure/deploy/cloudflare-base.sh).
-  "placement": { "region": "gcp:us-central1" },
+  // Junto a la base (RDS en us-east-2; el túnel entra por Chicago y Columbus): ~17 ms por consulta. Con la ubicación
+  // vieja, gcp:us-central1 (Omaha, de cuando la base era Cloud SQL), eran ~177 ms (medido 2026-10-20).
+  "placement": { "region": "aws:us-east-2" },
   // Asignación de aportes cada 10 min (src/worker.ts → scheduled); el Scheduler de GCP quedó pausado.
   "triggers": { "crons": ["*/10 * * * *"] },
 
