@@ -83,11 +83,15 @@ crucesRouter.get("/", async (c) => {
   const res = await Promise.all([
     pool.query(
       `SELECT k.* FROM casos_cruce k ${f.where} ORDER BY ${ORDEN[q.orden]} LIMIT ${q.limit} OFFSET ${q.offset}`, f.params),
+    // Los distintos por GROUP BY (hash): count(DISTINCT) ordena texto y sin filtros eran 1,3 s; así, 0,5 s.
     pool.query(
-      `SELECT count(*)::int AS total, count(DISTINCT k.ocid)::int AS procesos, count(DISTINCT k.entidad_ruc)::int AS entidades,
-              count(DISTINCT k.ruc)::int AS proveedores, COALESCE(sum(k.monto), 0)::float AS monto,
-              count(*) FILTER (WHERE k.n_alta > 0)::int AS altas
-         FROM casos_cruce k ${f.where}`, f.params),
+      `WITH k AS MATERIALIZED (SELECT k.ocid, k.entidad_ruc, k.ruc, k.monto, k.n_alta FROM casos_cruce k ${f.where})
+       SELECT (SELECT count(*)::int FROM k) AS total,
+              (SELECT count(*)::int FROM (SELECT ocid FROM k GROUP BY 1) x) AS procesos,
+              (SELECT count(*)::int FROM (SELECT entidad_ruc FROM k WHERE entidad_ruc IS NOT NULL GROUP BY 1) x) AS entidades,
+              (SELECT count(*)::int FROM (SELECT ruc FROM k WHERE ruc IS NOT NULL GROUP BY 1) x) AS proveedores,
+              (SELECT COALESCE(sum(monto), 0)::float FROM k) AS monto,
+              (SELECT count(*)::int FROM k WHERE n_alta > 0) AS altas`, f.params),
     pool.query(`SELECT t AS valor, count(*)::int AS n FROM casos_cruce k, unnest(k.tipos) t ${fT.where} GROUP BY t ORDER BY n DESC`, fT.params),
     pool.query(
       `SELECT count(*) FILTER (WHERE k.n_alta > 0)::int AS alta,

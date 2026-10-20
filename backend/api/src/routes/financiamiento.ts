@@ -422,11 +422,15 @@ async function entidadesFinanciables(q: string | undefined, limit: number, offse
   vals.push(limit, offset);
   // Una consulta: `base` se calcula una vez (CTE usado dos veces) para el total y para la página.
   const r = await pool.query(
-    `WITH cola AS (
-       SELECT c.entidad_ruc AS ruc, count(*)::int AS n,
-              count(*) FILTER (WHERE documentos_listos(q.ocid))::int AS listos
-         FROM cola_auditoria q JOIN convocatorias c ON c.ocid = q.ocid
-        WHERE c.entidad_ruc IS NOT NULL
+    // La entidad viene en la vista (migración 88) y los documentos por un solo hash (el criterio de documentos_listos):
+    // juntar otra vez con convocatorias y llamar la función por contrato eran 1,7 s; así, 0,2 s.
+    `WITH docs AS (
+       SELECT DISTINCT ocid_corto(d.ocid) AS corto FROM documentos_gcs d WHERE d.borrado_at IS NULL AND d.expira_at > now()
+     ),
+     cola AS (
+       SELECT q.entidad_ruc AS ruc, count(*)::int AS n, count(dl.corto)::int AS listos
+         FROM cola_auditoria q LEFT JOIN docs dl ON dl.corto = ocid_corto(q.ocid)
+        WHERE q.entidad_ruc IS NOT NULL
         GROUP BY 1
      ),
      base AS (

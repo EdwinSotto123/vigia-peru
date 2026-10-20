@@ -220,7 +220,8 @@ const crucesMemo = new Memo<{ con: number; alta: number; tipos: Record<string, n
 
 /**
  * Contratos con cruces del ganador (con alguno, con uno grave y con cada tipo) bajo los demás filtros: los conteos del
- * desplegable "Antecedentes". Una sola pasada: cada caso suma a sus tipos.
+ * desplegable "Antecedentes". Todo por GROUP BY (hash): count(DISTINCT) ordena los ocid como texto y sin filtros eran
+ * 2,2 s sobre los 161 mil casos; así, 0,8 s (con filtros, de 0,43 a 0,23 s). Mismos números (2026-10-20).
  */
 async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: number; alta: number; tipos: Record<string, number> }> {
   const vals: unknown[] = [];
@@ -228,14 +229,15 @@ async function contarCruces(q: z.infer<typeof ResumenQuery>): Promise<{ con: num
   // Sin otros filtros (sólo el de las convocatorias de demo), casos_cruce alcanza: sin juntarlo con los 828 mil de
   // contrato_estado (2,8 s en frío).
   const base = conds.length === 1
-    ? `SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM casos_cruce k WHERE k.ocid NOT LIKE 'ocds-vigia-%'`
-    : `SELECT DISTINCT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
+    ? `SELECT k.ocid, k.n_alta, k.tipos FROM casos_cruce k WHERE k.ocid NOT LIKE 'ocds-vigia-%'`
+    : `SELECT k.ocid, k.n_alta, k.tipos FROM contrato_estado ce JOIN casos_cruce k ON k.ocid = ce.ocid WHERE ${conds.join(" AND ")}`;
   const r = await pool.query(
-    `WITH k AS (${base})
-     SELECT (SELECT count(DISTINCT ocid)::int FROM k) AS con,
-            (SELECT count(DISTINCT ocid)::int FROM k WHERE n_alta > 0) AS alta,
-            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb)
-               FROM (SELECT t, count(DISTINCT ocid)::int AS n FROM k, unnest(k.tipos) t GROUP BY t) x) AS tipos`, vals);
+    `WITH k AS MATERIALIZED (${base}),
+          o AS (SELECT k.ocid, bool_or(k.n_alta > 0) AS alta FROM k GROUP BY 1),
+          t AS (SELECT x.t, count(*)::int AS n FROM (SELECT k.ocid, t FROM k, unnest(k.tipos) t GROUP BY 1, 2) x GROUP BY 1)
+     SELECT (SELECT count(*)::int FROM o) AS con,
+            (SELECT count(*)::int FROM o WHERE alta) AS alta,
+            (SELECT COALESCE(jsonb_object_agg(t, n), '{}'::jsonb) FROM t) AS tipos`, vals);
   return r.rows[0];
 }
 
