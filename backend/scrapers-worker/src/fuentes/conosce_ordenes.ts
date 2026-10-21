@@ -131,6 +131,8 @@ export async function correrOrdenes(env: Env, p: ParamsCorrida, step: WorkflowSt
           const { cols, select } = selectDestino(MAPA_ORDENES, new Set(columnas), { anio, mes });
           await db.ejecutar(`DELETE FROM ${TABLA} WHERE anio = $1 AND mes = $2`, [anio, mes]);
           const filas = await db.ejecutar(`INSERT INTO ${TABLA} (${cols}) SELECT ${select} FROM _st`);
+          // El RUC o el número de la orden escrito como monto (migración 97): queda NULL.
+          await db.ejecutar(`SELECT limpiar_montos_ordenes($1, $2)`, [anio, mes]);
           await registrarCarga(db, {
             fuente: FUENTE, clave, tabla: TABLA, archivo: nombreArchivo(e), gcs_uri: uri(e), sha256: e.sha256,
             bytes: e.bytes, filas, fuente_url: FUENTE_URL, descargado_at: e.downloaded_at,
