@@ -40,9 +40,9 @@ el doble o más que la mediana de su mismo cargo en la entidad), `apellidos_auto
 los apellidos, poco comunes, de un gerente o director de la misma planilla), `antes_locador` (baja).
 
 **Plazas CAS** (`servir_convocatoria`): `pide_experiencia_propia` (pide experiencia en la misma entidad),
-`pide_poco` (S/ 6,000 o más con menos de un año de experiencia o sin grado), `plazo_corto` (3 días o menos),
-`sueldo_alto` (el doble que la mediana de plazas parecidas), `ya_hay_locadores` (la entidad ya pagaba ese servicio por
-órdenes).
+`pide_poco` (S/ 6,000 o más sin pedir título ni grado), `plazo_corto` (3 días o menos), `ya_hay_locadores` (la entidad
+ya pagaba ese servicio por órdenes a 1 a 3 personas). `sueldo_alto` está apagado (migración 95): los tipos de servicio
+son demasiado amplios para comparar sueldos de plazas.
 
 **Cómo se cruza**: por el DNI del RUC 10 cuando la otra fuente lo trae (JNE parcial, ONPE, JNE autoridades, visitas,
 sanciones); si no, por el nombre completo y el departamento (el detalle dice `por: nombre`). La planilla no trae DNI:

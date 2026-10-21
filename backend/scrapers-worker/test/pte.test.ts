@@ -32,10 +32,21 @@ test("pte_personal: el id de la entidad sólo con el mismo nombre (o uno solo mu
   assert.equal(elegirId("MINISTERIO DE SALUD", []), null);
   assert.deepEqual(terminosDe("GOBIERNO REGIONAL DE LA LIBERTAD - HOSPITAL REGIONAL DOCENTE DE TRUJILLO"),
     ["GOBIERNO REGIONAL DE LA LIBERTAD HOSPITAL REGIONAL DOCENTE DE TRUJILLO", "HOSPITAL REGIONAL DOCENTE DE TRUJILLO"]);
+  assert.deepEqual(terminosDe("GOBIERNO REGIONAL DE ICA SEDE CENTRAL"), ["GOBIERNO REGIONAL DE ICA"]);
+  assert.deepEqual(terminosDe("MUNICIPALIDAD PROVINCIAL DE PADRE ABAD - AGUAYTIA"),
+    ["MUNICIPALIDAD PROVINCIAL DE PADRE ABAD AGUAYTIA", "AGUAYTIA", "MUNICIPALIDAD PROVINCIAL DE PADRE ABAD"]);
+  assert.deepEqual(terminosDe("GOBIERNO REGIONAL DE PUNO-SALUD PUNO"), ["GOBIERNO REGIONAL DE PUNO SALUD PUNO", "SALUD PUNO"]);
 });
 
 test("pte_personal: por defecto los dos meses anteriores; con desde/hasta, ese rango", () => {
   assert.deepEqual(mesesPte({}, "2026-10-20"), [[2026, 8], [2026, 9]]);
   assert.deepEqual(mesesPte({}, "2026-01-20"), [[2025, 11], [2025, 12]]);
   assert.deepEqual(mesesPte({ desde: "2025-11", hasta: "2026-01" }, "2026-10-20"), [[2025, 11], [2025, 12], [2026, 1]]);
+});
+
+test("pte_personal: sin caracteres de control (un NUL rompía el JSON de la carga)", () => {
+  const csv = CSV.replace("SECRETARIA GENERAL", "SECRETARIA\u0000 GENERAL");
+  const f = parsearPlanilla(csv);
+  assert.equal(f[0].dependencia, "SECRETARIA GENERAL");
+  assert.doesNotMatch(JSON.stringify(f), /\\u0000/);
 });

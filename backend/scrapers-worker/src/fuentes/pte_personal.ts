@@ -56,12 +56,20 @@ export function elegirId(nombre: string, resultados: { id: number; nombre: strin
   return parecidos.length === 1 ? parecidos[0] : null;
 }
 
-/** Qué buscar: el nombre entero y, si tiene " - " (sedes de un gobierno regional), lo que va después. */
+/**
+ * Qué buscar, en orden: el nombre entero (sin "SEDE CENTRAL"); si tiene un guion, lo que va después (la unidad
+ * ejecutora de un gobierno regional: "… - HOSPITAL REGIONAL DOCENTE DE TRUJILLO"); y, en una municipalidad, lo que va
+ * antes (CONOSCE le agrega la capital: "MUNICIPALIDAD PROVINCIAL DE PADRE ABAD - AGUAYTIA").
+ */
 export function terminosDe(nombre: string): string[] {
-  const t = [normal(nombre)];
-  const partes = nombre.split(/\s+-\s+/);
-  if (partes.length > 1) t.push(normal(partes[partes.length - 1]));
-  return t.filter((x) => x.length >= 4);
+  const limpio = nombre.replace(/\s*SEDE CENTRAL\s*$/i, "");
+  const t = [normal(limpio)];
+  const partes = limpio.split(/\s*-\s*/).filter(Boolean);
+  if (partes.length > 1) {
+    t.push(normal(partes[partes.length - 1]));
+    if (/^MUNICIPALIDAD/i.test(partes[0])) t.push(normal(partes[0]));
+  }
+  return [...new Set(t)].filter((x) => x.length >= 4);
 }
 
 async function buscar(term: string): Promise<{ id: number; nombre: string }[]> {
@@ -129,7 +137,8 @@ export interface FilaPlanilla {
   observaciones: string | null;
 }
 
-const txt = (v: string | null | undefined) => (v == null ? null : v.replace(/\s+/g, " ").trim() || null);
+// Sin caracteres de control: algunos CSV traen un NUL y Postgres rechaza "\u0000" dentro de un JSON.
+const txt = (v: string | null | undefined) => (v == null ? null : v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim() || null);
 const num = (v: string | null | undefined) => {
   const n = Number(String(v ?? "").replace(/,/g, ""));
   return v != null && v.trim() !== "" && Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
@@ -223,7 +232,8 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
 
   // 2. Cada mes, de a POR_PASO entidades.
   const entidades = await step.do("entidades con id", CARGA, () => conDb(env.HYPERDRIVE, (db) =>
-    db.filas<{ ruc: string; id_pte: number }>(`SELECT ruc, id_pte FROM pte_entidad WHERE id_pte IS NOT NULL ORDER BY id_pte`)));
+    // Un id una vez: dos RUC pueden dar con la misma entidad del PTE (y el CSV trae el RUC de la que publica).
+    db.filas<{ ruc: string; id_pte: number }>(`SELECT DISTINCT ON (id_pte) ruc, id_pte FROM pte_entidad WHERE id_pte IS NOT NULL ORDER BY id_pte, ruc`)));
   let cargadas = 0;
   for (const [anio, mes] of mesesPte(p, fechaLima())) {
     const clave = `${anio}-${String(mes).padStart(2, "0")}`;
@@ -250,16 +260,22 @@ export async function correrPte(env: Env, p: ParamsCorrida, step: WorkflowStep, 
           if (p.seco) { out.filas += filas.length; continue; }
           const hash = await sha256(csv);
           const claveCarga = `${ruc}-${clave}`;
-          await conDb(env.HYPERDRIVE, async (db) => {
-            if (!p.forzar && (await yaCargado(db, FUENTE, claveCarga, hash))) { out.sinCambios++; return; }
-            await db.transaccion(async () => {
-              await db.ejecutar(`DELETE FROM planilla_pte WHERE entidad_ruc = $1 AND anio = $2 AND mes = $3`, [ruc, anio, mes]);
-              for (let k = 0; k < filas.length; k += 2000) await db.ejecutar(SQL_INSERT, [JSON.stringify(filas.slice(k, k + 2000))]);
-              await registrarCarga(db, { fuente: FUENTE, clave: claveCarga, sha256: hash, tabla: "planilla_pte", bytes: csv!.length,
-                                         filas: filas.length, fuente_url: FUENTE_URL, descargado_at: new Date().toISOString() });
+          try {
+            await conDb(env.HYPERDRIVE, async (db) => {
+              if (!p.forzar && (await yaCargado(db, FUENTE, claveCarga, hash))) { out.sinCambios++; return; }
+              await db.transaccion(async () => {
+                await db.ejecutar(`DELETE FROM planilla_pte WHERE entidad_ruc = $1 AND anio = $2 AND mes = $3`, [ruc, anio, mes]);
+                for (let k = 0; k < filas.length; k += 2000) await db.ejecutar(SQL_INSERT, [JSON.stringify(filas.slice(k, k + 2000))]);
+                await registrarCarga(db, { fuente: FUENTE, clave: claveCarga, sha256: hash, tabla: "planilla_pte", bytes: csv!.length,
+                                           filas: filas.length, fuente_url: FUENTE_URL, descargado_at: new Date().toISOString() });
+              });
+              out.filas += filas.length;
             });
-            out.filas += filas.length;
-          });
+          } catch (err) {
+            // Una entidad con un CSV que la base no acepta no corta la carga de las demás.
+            out.errores++;
+            registrar("WARNING", `   PTE ${ruc} ${clave}: no se cargó (${String((err as Error)?.message ?? err).slice(0, 160)})`, { fuente: FUENTE, instancia: id });
+          }
         }
         return out;
       });
