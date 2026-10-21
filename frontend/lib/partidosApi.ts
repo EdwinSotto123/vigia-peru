@@ -137,7 +137,7 @@ export interface GobiernoDePartido {
 }
 
 /** Un proceso adjudicado de CONOSCE (GET /partidos/:clave/procesos). */
-export interface ProcesoPartido {
+export interface ProcesoPartido extends EstadoEnVigia {
   codigo: string;
   nomenclatura: string | null;
   descripcion: string | null;
@@ -158,6 +158,17 @@ export interface ProcesoPartido {
   rucProveedor: string | null;
   /** Si el proceso también está en la base de Vigía: abre su ficha. */
   ocid: string | null;
+}
+
+/** Lo que Vigía sabe de un proceso que también está en su base (mismos campos que una fila de /contratos). */
+export interface EstadoEnVigia {
+  estadoProcesamiento?: string | null;
+  estadoOperativo?: string | null;
+  score?: number | null;
+  banderas?: number | null;
+  enRevision?: boolean;
+  /** Antecedentes del ganador: cada tipo una vez, con su severidad más alta. */
+  cruces?: { tipo: string; severidad: "alta" | "media" | "baja" }[] | null;
 }
 
 export interface ProcesosPartido {
@@ -262,3 +273,31 @@ export const EXPLICACION_PARTIDO =
 
 export const AVISO_PARTIDO =
   "Estos contratos se asocian al partido que ganó la elección de ese período. Una señal es un motivo para revisar un contrato, nunca una acusación contra un partido ni una persona.";
+
+/** Un rubro del presupuesto (función, genérica, nivel): presupuesto modificado y lo ya gastado. */
+export interface RubroMef {
+  nombre: string;
+  pim: number;
+  devengado: number;
+}
+
+/**
+ * En qué gastan los gobiernos que ganó un partido (GET /partidos/:clave/gasto): el MEF de sus ejecutoras, sólo para
+ * el mandato que incluye el año cargado con desglose (hoy 2026). `disponible: false` en los demás.
+ */
+export interface GastoPartido {
+  anio: AnioGobierno;
+  mef: number | null;
+  desde: string;
+  hasta: string;
+  disponible: boolean;
+  totales?: { gobiernos: number; conMef: number; ejecutoras: number; pim: number; devengado: number };
+  porNivel?: { nivel: "regional" | "provincial" | "distrital"; gobiernos: number; pim: number; devengado: number }[];
+  funciones?: RubroMef[];
+  genericas?: RubroMef[];
+  proyectos?: { codigo: string; nombre: string; nivel: "regional" | "provincial" | "distrital"; ubigeo: string; lugar: string | null; pim: number; devengado: number }[];
+  gobiernos?: { nivel: "regional" | "provincial" | "distrital"; ubigeo: string; lugar: string | null; departamento: string; region: string | null; pim: number; devengado: number }[];
+}
+
+export const getGastoPartido = (clave: string, anio: AnioGobierno) =>
+  leer<GastoPartido>(`/partidos/${encodeURIComponent(clave)}/gasto?anio=${anio}`, 3600);

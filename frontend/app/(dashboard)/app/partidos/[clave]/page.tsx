@@ -7,7 +7,7 @@ import { GobiernosPartido } from "@/components/partidos/GobiernosPartido";
 import { GraficoMeses } from "@/components/partidos/GraficoMeses";
 import { TablaProcesos } from "@/components/procesos/TablaProcesos";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver } from "@/components/patrones";
 import {
   BarraFiltros,
   CeldaNumero,
@@ -99,7 +99,14 @@ export default async function PartidoPage({ params, searchParams }: { params: { 
 
   return (
     <Pagina>
-      <Volver href={`/app/partidos?anio=${anio}`}>Partidos y gobiernos</Volver>
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
+          { etiqueta: d.partido.nombre, href: `${ruta}?anio=${anio}` },
+        ]}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { procesos: "Contratos", gobiernos: "Gobiernos", meses: "Por mes", vigia: "Lo que leyó Vigía" } }}
+      />
 
       <EncabezadoPagina
         titulo={partido.nombre}

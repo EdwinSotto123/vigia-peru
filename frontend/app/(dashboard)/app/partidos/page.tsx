@@ -1,3 +1,4 @@
+import { Migas } from "@/components/patrones";
 import type { Metadata } from "next";
 import { Pagina } from "@/components/patrones";
 import { ContratosPorPartido } from "@/components/partidos/ContratosPorPartido";
@@ -20,6 +21,9 @@ const VISTAS: Vista[] = ["gobiernos", "partidos", "contratos", "mapa"];
  * El servidor solo prepara lo que necesita la vista pedida (el mapa y su cobertura solo cuando se abre "En el
  * mapa"); el directorio lo arma el navegador con el archivo público de autoridades del período.
  */
+/** El nombre de cada vista, como en sus pestañas (DirectorioGobiernos): el último paso de la ruta. */
+const NOMBRE_VISTA: Record<Vista, string> = { gobiernos: "Quién gobierna", partidos: "Todos los partidos", contratos: "Contratos por partido", mapa: "En el mapa" };
+
 export default async function PartidosPage({ searchParams }: { searchParams?: { anio?: string | string[]; vista?: string | string[] } }) {
   const anio = anioDeUrl(searchParams?.anio);
   const pedida = Array.isArray(searchParams?.vista) ? searchParams?.vista[0] : searchParams?.vista;
@@ -36,6 +40,13 @@ export default async function PartidosPage({ searchParams }: { searchParams?: { 
 
   return (
     <Pagina className="space-y-5">
+      <Migas
+        items={[
+          { etiqueta: "Inicio", href: "/app" },
+          { etiqueta: "Partidos y gobiernos", href: `/app/partidos?anio=${anio}` },
+          { etiqueta: NOMBRE_VISTA[vista] },
+        ]}
+      />
       {/* La cabecera lleva el color de la marca: un degradado suave de lima a carbón y una franja de tejido, no una página en blanco. */}
       <header className="grid items-center gap-x-8 gap-y-4 rounded-2xl border border-granate/30 bg-gradient-to-br from-granate/25 via-granate-50 to-paper px-5 py-5 sm:px-7 sm:py-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">

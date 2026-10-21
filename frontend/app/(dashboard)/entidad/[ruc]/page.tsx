@@ -24,7 +24,7 @@ import { getEntidad } from "@/lib/api-client";
 import { TablaContratos, TablaContratosSkeleton } from "@/components/contratos/TablaContratos";
 import { filtroEtapa, filtroMes, filtroOperativo, filtroTipo, filtrosMonto, filtrosVisibles } from "@/components/contratos/filtros";
 import { SeguirEntidadBoton } from "@/components/mapa/SeguirEntidadBoton";
-import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Pagina, Pestanas, Volver } from "@/components/patrones";
+import { Ayuda, CabeceraPestana, EncabezadoPagina, EstadoError, Migas, Pagina, Pestanas, Volver } from "@/components/patrones";
 import { BarraFiltros, Indicadores, Listado, ZonaResultados, type Indicador, type Parametros } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { InicioEntidad } from "@/components/inicio/InicioEntidad";
@@ -102,7 +102,10 @@ export default async function EntidadProfile({
 
   return (
     <Pagina>
-      <Volver href="/app/entidades">Entidades</Volver>
+      <Migas
+        items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades", href: "/app/entidades" }, { etiqueta: nombre, href: ruta }]}
+        pestanas={{ primera: "inicio", activa: seccion ?? "inicio", etiquetas: { contratos: "Contratos", presupuesto: "Cuánto gasta", denuncias: "Denuncias" } }}
+      />
 
       {/* 1. Identidad: nombre; tipo, RUC y zona en una línea; lo que se puede hacer con ella. */}
       <EncabezadoPagina

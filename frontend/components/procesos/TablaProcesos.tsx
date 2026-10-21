@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { EstadoError, EstadoVacio } from "@/components/patrones";
-import { CeldaFecha, CeldaNumero, CeldaPrincipal, CeldaTexto, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
+import { Ayuda, EstadoError, EstadoVacio } from "@/components/patrones";
+import { CrucesCelda } from "@/components/contratos/CrucesCelda";
+import { EstadoContratoChip } from "@/components/contratos/estadoLectura";
+import { limpiarObjeto } from "@/components/contratos/recortar";
+import { CeldaFecha, CeldaNumero, CeldaPrincipal, Tabla, type Columna, type Fila, type Parametros } from "@/components/listado";
 import { Paginacion } from "@/components/ui/Paginacion";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { numero, oracion, plural, soles, solesCompacto } from "@/lib/formato";
@@ -9,19 +12,39 @@ import { tituloNatural } from "@/lib/landing";
 import type { ProcesoPartido, ProcesosPartido } from "@/lib/partidosApi";
 
 /**
- * Procesos adjudicados de CONOSCE en la `Tabla` del kit: fecha · proceso (qué se compró, entidad y lugar) · objeto ·
- * adjudicado · ganador. La usan la ficha de un partido (los de sus gobiernos, GET /partidos/:clave/procesos) y la de
+ * Procesos adjudicados de CONOSCE en la `Tabla` del kit: convocado, estado en Vigía (leído o no y su peso del riesgo),
+ * el proceso (qué se compró, entidad y lugar), los antecedentes del ganador, lo adjudicado y el ganador. El estado y los
+ * antecedentes sólo existen para los procesos que también están en la base de Vigía (con ocid). La usan la ficha de un partido (los de sus gobiernos, GET /partidos/:clave/procesos) y la de
  * una entidad (los suyos desde 2015, GET /entidades/:ruc/procesos); en la de la entidad no se repite la entidad en
  * cada fila. Cada fila abre su resumen en el panel; si el proceso también está en la base de Vigía, el panel lleva a
  * su ficha. Paginado por URL (`paramPagina`), con los filtros de la barra. Server-safe.
  */
 
 const COLUMNAS: Columna[] = [
-  { clave: "fecha", titulo: "Convocado", ancho: "96px", desde: "md" },
+  { clave: "fecha", titulo: "Convocado", ancho: "92px", desde: "md" },
+  {
+    clave: "estado", titulo: "Estado en Vigía", ancho: "132px", desde: "md", apilar: true,
+    ayuda: (
+      <Ayuda titulo="¿Qué dice el estado?">
+        Si Vigía ya leyó el contrato, su peso del riesgo (alto, medio, bajo o sin señales) o «En revisión». Si no, en qué
+        punto está («En cola», «Docs listos», «Sin leer»). «No está en Vigía»: el OECE lo registra, pero no entró a la base
+        de Vigía, así que no se leyó ni se cruzó con otras fuentes.
+      </Ayuda>
+    ),
+  },
   { clave: "proceso", titulo: "Contrato", ancho: "minmax(0,1.6fr)" },
-  { clave: "objeto", titulo: "Objeto", ancho: "minmax(0,0.5fr)", desde: "xl" },
-  { clave: "monto", titulo: "Adjudicado", ancho: "128px", alinear: "der" },
-  { clave: "ganador", titulo: "Ganador", ancho: "minmax(0,0.9fr)", desde: "lg" },
+  {
+    clave: "cruces", titulo: "Antecedentes", ancho: "minmax(0,1fr)", desde: "md", apilar: true,
+    ayuda: (
+      <Ayuda titulo="¿Qué son los antecedentes del ganador?">
+        Datos oficiales donde aparece quien ganó (o sus socios y representantes): aportes y gastos de campaña, candidaturas,
+        sanciones, penalidades, visitas a entidades, socios comunes con otros postores, sobreprecios. En rojo, los graves.
+        No prueban una irregularidad.
+      </Ayuda>
+    ),
+  },
+  { clave: "monto", titulo: "Adjudicado", ancho: "116px", alinear: "der" },
+  { clave: "ganador", titulo: "Ganador", ancho: "minmax(0,0.8fr)", desde: "xl" },
 ];
 
 const NIVEL: Record<string, string> = { regional: "Gobierno regional", provincial: "Municipalidad provincial", distrital: "Municipalidad distrital" };
@@ -96,7 +119,8 @@ export function TablaProcesos({
 }
 
 function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
-  const titulo = p.descripcion ? oracion(p.descripcion) : p.nomenclatura ?? `Proceso ${p.codigo}`;
+  // Sin los "¿" que el SEACE deja donde iban comillas y en oración, como la lista de contratos.
+  const titulo = p.descripcion ? oracion(limpiarObjeto(p.descripcion)) : p.nomenclatura ?? `Proceso ${p.codigo}`;
   const entidad = p.entidad ? tituloNatural(p.entidad) : "Entidad sin nombre";
   const datos: DatoClave[] = [
     { etiqueta: "Nomenclatura", valor: p.nomenclatura ?? "Sin dato", mono: true },
@@ -114,9 +138,16 @@ function filaDe(p: ProcesoPartido, deEntidad: boolean): Fila {
     id: `${p.codigo}-${p.entidadRuc}`,
     celdas: {
       fecha: <CeldaFecha fecha={p.fecha} />,
+      estado: p.ocid && p.estadoProcesamiento ? (
+        <EstadoContratoChip
+          c={{ estadoProcesamiento: p.estadoProcesamiento as never, estadoOperativo: p.estadoOperativo as never, enRevision: !!p.enRevision, score: p.score ?? null, banderas: p.banderas ?? 0 }}
+        />
+      ) : (
+        <span className="text-[12px] text-mute">No está en Vigía</span>
+      ),
+      cruces: <CrucesCelda cruces={p.cruces} />,
       // En la ficha de una entidad la entidad es la misma en todas las filas: va la nomenclatura.
-      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={deEntidad ? [p.nomenclatura] : [entidad, p.lugar]} />,
-      objeto: <CeldaTexto sub={p.tipoProceso ?? undefined}>{p.objeto ?? "Sin dato"}</CeldaTexto>,
+      proceso: <CeldaPrincipal titulo={titulo} dosLineas meta={deEntidad ? [p.objeto, p.nomenclatura] : [p.objeto, entidad, p.lugar]} />,
       monto: <CeldaNumero>{p.montoAdjudicado == null ? <span className="font-sans text-mute">Sin dato</span> : enSoles(p) ? solesCompacto(p.montoAdjudicado) : monto(p.montoAdjudicado, p)}</CeldaNumero>,
       ganador: (
         <span className="line-clamp-2 text-[13px] text-inkSoft" title={p.proveedor ?? undefined}>

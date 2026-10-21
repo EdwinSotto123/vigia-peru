@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { Ayuda } from "@/components/patrones/Ayuda";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Indicadores } from "@/components/listado";
 import { baseApiNavegador } from "@/lib/api-client";
-import { getCorrupcionRegion, type Corrupcion } from "@/lib/corrupcion";
+import { getCorrupcionRegion, rutaCorrupcion, type Corrupcion } from "@/lib/corrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
-import { numero, plural, solesCompacto } from "@/lib/formato";
+import { plural, porcentaje, solesCompacto } from "@/lib/formato";
 import type { RegionBudgetSummary } from "@/lib/mef";
-import { Banderas, BarrasGasto, BloqueInicio, SinDato } from "./BloquesInicio";
+import { Banderas, BarrasGasto, BloqueInicio, Fichas, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
 
 /**
@@ -68,11 +69,19 @@ export function InicioRegion({
         { etiqueta: "Desde 2015", valor: plural(resumen.total, "contrato", "contratos") },
         {
           etiqueta: "Por tipo",
-          valor: TIPOS.map((t) => [t.label, resumen.porTipo[t.value] ?? 0] as const).filter(([, n]) => n > 0).map(([e, n]) => `${e} ${numero(n)}`).join(" · ") || null,
+          valor: <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} />,
         },
         {
           etiqueta: "¿Lo leyó Vigía?",
-          valor: l ? `${numero((l.publicado ?? 0) + (l.revision ?? 0))} leídos · ${numero(l.leyendo ?? 0)} leyéndose · ${numero(l.sin_leer ?? 0)} aún no` : null,
+          valor: l ? (
+            <Fichas
+              items={[
+                { etiqueta: "Leídos", n: (l.publicado ?? 0) + (l.revision ?? 0), href: contratos({ lectura: "publicado" }), destacada: true },
+                { etiqueta: "Leyéndose", n: l.leyendo ?? 0, href: contratos({ lectura: "leyendo" }) },
+                { etiqueta: "Aún no", n: l.sin_leer ?? 0, href: contratos({ lectura: "sin_leer" }) },
+              ]}
+            />
+          ) : null,
         },
       ]
     : [];
@@ -91,12 +100,16 @@ export function InicioRegion({
         {mef === undefined ? (
           cargando
         ) : mef && anio && (mef.topGenericas?.length ?? 0) > 0 ? (
-          <>
-            <p className="mb-3 text-[13.5px] text-inkSoft">
-              {solesCompacto(anio.pim)} de presupuesto, {solesCompacto(anio.devengado)} ya gastado.
-            </p>
+          <div className="space-y-4">
+            <Indicadores
+              apilado
+              items={[
+                { valor: solesCompacto(anio.pim), etiqueta: "de presupuesto" },
+                { valor: porcentaje(anio.pim > 0 ? (anio.devengado / anio.pim) * 100 : 0), etiqueta: "ya gastado", contexto: solesCompacto(anio.devengado) },
+              ]}
+            />
             <BarrasGasto rubros={mef.topGenericas!} total={anio.pim} />
-          </>
+          </div>
         ) : (
           <SinDato>{mefDept ? "Sin dato del MEF: el servicio no respondió." : "El MEF publica el presupuesto por departamento."}</SinDato>
         )}
@@ -119,7 +132,7 @@ export function InicioRegion({
         {resumen === undefined ? cargando : <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />}
       </BloqueInicio>
 
-      <CasosCorrupcion datos={corrupcion} ambito="region" nombreRegion={nombre} mostrarEntidad visibles={4} />
+      <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.region(ubigeo)} ambito="region" nombreRegion={nombre} />
     </div>
   );
 }

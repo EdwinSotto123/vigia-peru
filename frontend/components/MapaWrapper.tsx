@@ -13,7 +13,7 @@ import { desdeLectura, getContratosGeo, type ContratoResumen, type ContratoZona 
 import { ANIO_GOBIERNO_VIGENTE, getRankingPartidos } from "@/lib/partidosApi";
 import { CLAVES_FILTRO, filtrosDeUrl, type FiltrosMapa } from "./mapa/filtrosMapa";
 import { numero } from "@/lib/formato";
-import { EncabezadoPagina } from "@/components/patrones";
+import { EncabezadoPagina, Migas } from "@/components/patrones";
 import { Indicadores } from "@/components/listado";
 import { Llamita } from "@/components/marca";
 import { MapaContratosContext, type MapaContratos } from "./contratos/ContratosLista";
@@ -30,7 +30,7 @@ import { PanelZonaMovil } from "./mapa/PanelZonaMovil";
 import { fraseEnCurso, useEnCurso } from "./mapa/useEnCurso";
 import { alertaMapaDesdeLista, alertaMapaDesdePunto, puntosDeDenuncias, puntosDeSenales, type AlertasMapa } from "./mapa/puntos";
 import { construirEscala, formatoSoles, medidaPorId, paletaMapa, pasaFiltro, type FiltroZona, type MedidaId } from "./mapa/escala";
-import type { ZonaTab } from "./mapa/ZonaHubPanel";
+import { TAB_LABEL, type ZonaTab } from "./mapa/ZonaHubPanel";
 import type { MapPoint, ZonaPintada } from "./PeruChoropleth";
 
 const PeruChoropleth = dynamic(() => import("./PeruChoropleth").then((m) => m.PeruChoropleth), {
@@ -626,6 +626,15 @@ export function MapaWrapper({
   return (
     <MapaContratosContext.Provider value={mapaContratos}>
       <div className="space-y-4 sm:space-y-5">
+        {/* Dónde se está: Inicio › Mapa › la región › su pestaña (la primera, "Inicio", no se repite). */}
+        <Migas
+          items={[
+            { etiqueta: "Inicio", href: "/app" },
+            { etiqueta: "Mapa", href: region ? "/app/mapa" : undefined },
+            ...(region ? [{ etiqueta: region.nombre }] : []),
+            ...(region && panelTab !== "resumen" ? [{ etiqueta: TAB_LABEL[panelTab] }] : []),
+          ]}
+        />
         <EncabezadoPagina
           titulo={region ? region.nombre : "Elige tu región"}
           bajada={

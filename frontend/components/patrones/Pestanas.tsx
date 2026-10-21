@@ -23,6 +23,8 @@ import { numero } from "@/lib/formato";
  */
 
 const EVENTO = "vigia:pestana";
+/** Lo que avisa Pestanas cada vez que cambia la pestaña abierta (lo escucha la ruta de navegación, Migas). */
+export const EVENTO_ACTIVA = "vigia:pestana-activa";
 
 /** Cambia de pestaña desde cualquier botón de la página: `irAPestana("senales")`. */
 export function irAPestana(clave: string, param = "seccion") {
@@ -75,6 +77,7 @@ export function Pestanas({
       /* sin URL no se comparte la vista, pero la pestaña cambia igual */
     }
     if (enfocar) botones.current[pestanas.findIndex((p) => p.clave === clave)]?.focus();
+    window.dispatchEvent(new CustomEvent(EVENTO_ACTIVA, { detail: { param, clave } }));
   };
 
   // `irAPestana()` desde cualquier botón de la página.

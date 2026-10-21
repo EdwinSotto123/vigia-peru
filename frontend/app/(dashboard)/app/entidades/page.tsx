@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Flag } from "lucide-react";
 import { EntidadesPanel, hrefEntidades, ORDENES_ENTIDADES, type OrdenEntidades } from "@/components/EntidadesPanel";
 import { BarraFiltros, Listado, ZonaResultados } from "@/components/listado";
-import { Ayuda, EncabezadoPagina, Pagina } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, Migas, Pagina } from "@/components/patrones";
 import {
   getEntidadesPagina,
   getEntidadesResumen,
@@ -69,6 +69,7 @@ export default async function EntidadesPage({
   // entidades mientras /app/hallazgos, que sí cuenta señales, decía 61.
   return (
     <Pagina className="space-y-5">
+      <Migas items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Entidades" }]} />
       <EncabezadoPagina
         titulo="Entidades del Estado"
         bajada="Ordenadas por cuántos de sus contratos ya tienen dictamen publicado."

@@ -86,9 +86,16 @@ export function BarrasGasto({ rubros, total, maximo = 5 }: { rubros: RubroGasto[
                 <div className="h-full rounded-full bg-granate" style={{ width: `${Math.min(100, gastado)}%` }} />
               </div>
             </div>
-            <p className="mt-0.5 text-[12px] text-mute">
-              {porcentaje(gastado)} ya gastado · {porcentaje(total > 0 ? (r.pim / total) * 100 : 0)} del presupuesto
-            </p>
+            <dl className="mt-1 flex flex-wrap gap-x-5 text-[12px]">
+              <div className="flex gap-1">
+                <dt className="text-mute">Gastado</dt>
+                <dd className="font-mono tabular-nums text-ink">{porcentaje(gastado)}</dd>
+              </div>
+              <div className="flex gap-1">
+                <dt className="text-mute">Del total</dt>
+                <dd className="font-mono tabular-nums text-ink">{porcentaje(total > 0 ? (r.pim / total) * 100 : 0)}</dd>
+              </div>
+            </dl>
           </li>
         );
       })}
@@ -193,5 +200,36 @@ export function BarrasMonto({ items, maximo = 6 }: { items: { nombre: string; mo
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * Un reparto en fichas: cada parte con su nombre y su número, cada ficha su propio enlace (si lo tiene). Para "por tipo"
+ * y "¿lo leyó Vigía?": datos distintos lado a lado, no una frase con separadores.
+ */
+export function Fichas({ items }: { items: { etiqueta: string; n: number; href?: string; destacada?: boolean }[] }) {
+  const visibles = items.filter((i) => i.n > 0);
+  if (!visibles.length) return <span className="text-mute">Ninguno</span>;
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {visibles.map((i) => {
+        const cuerpo = (
+          <>
+            <span className={i.destacada ? "font-semibold text-ink" : "text-inkSoft"}>{i.etiqueta}</span>
+            <span className="font-mono text-[12.5px] tabular-nums text-ink">{numero(i.n)}</span>
+          </>
+        );
+        const clase = "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[13px]";
+        return (
+          <li key={i.etiqueta}>
+            {i.href ? (
+              <Link href={i.href} prefetch={false} className={`${clase} transition-colors hover:border-granate/40 hover:bg-granate-50`}>{cuerpo}</Link>
+            ) : (
+              <span className={clase}>{cuerpo}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

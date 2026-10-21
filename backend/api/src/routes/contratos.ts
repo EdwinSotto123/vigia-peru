@@ -36,6 +36,7 @@ import { cachePublico, parametros } from "../lib/http.js";
 import { codificarCursor, decodificarCursor } from "../lib/cursor.js";
 import { hayModelosLectura } from "../lib/esquema.js";
 import { casoLectura, lecturaSql } from "../lib/lectura.js";
+import { BANDERAS_DE_FILA, crucesDeFila } from "../lib/estadoFila.js";
 import { ListQuery, cuboAnterior, geoAnterior, listaAnterior } from "./contratos_sql.js";
 import { contratosDetalleRouter } from "./contratos_detalle.js";
 
@@ -310,13 +311,8 @@ const JOIN_FILA = `JOIN convocatorias c ON c.ocid = pag.ocid
   LEFT JOIN zonas z ON z.ubigeo = c.ubigeo_zona
   LEFT JOIN entidades e ON e.ruc = c.entidad_ruc
   LEFT JOIN empresas emp ON emp.ruc = c.proveedor_ruc
-  LEFT JOIN LATERAL (SELECT count(*) AS n FROM banderas b WHERE b.alerta_id = ce.alerta_id) b ON TRUE
-  -- Cruces de los ganadores (migración 57): cada tipo una vez, con su severidad más alta; null si no hay.
-  LEFT JOIN LATERAL (
-    SELECT jsonb_agg(jsonb_build_object('tipo', t.tipo, 'severidad', (ARRAY['alta', 'media', 'baja'])[t.r + 1]) ORDER BY t.r, t.tipo) AS cruces
-      FROM (SELECT x->>'tipo' AS tipo, min(CASE x->>'severidad' WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END) AS r
-              FROM casos_cruce k, jsonb_array_elements(k.cruces) x WHERE k.ocid = c.ocid GROUP BY 1) t
-  ) kc ON TRUE`;
+  ${BANDERAS_DE_FILA}
+  ${crucesDeFila("c.ocid")}`;
 
 interface Orden {
   /** SELECT de la página (ocid + claves tipadas k0..k2) con WHERE/ORDER/LIMIT ya puestos. */

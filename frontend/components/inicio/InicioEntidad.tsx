@@ -1,11 +1,12 @@
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
+import { Indicadores } from "@/components/listado";
 import { getGastoEntidad } from "@/lib/api-client";
-import { getCorrupcionEntidad } from "@/lib/corrupcion";
-import { CasosCorrupcion } from "./CasosCorrupcion";
+import { getCorrupcionEntidad, rutaCorrupcion } from "@/lib/corrupcion";
 import { TIPOS, type ResumenContratos } from "@/lib/contratos";
-import { numero, plural, solesCompacto } from "@/lib/formato";
-import { Banderas, BarrasGasto, BloqueInicio, RejillaInicio, SinDato } from "./BloquesInicio";
+import { plural, porcentaje, solesCompacto } from "@/lib/formato";
+import { Banderas, BarrasGasto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
+import { CasosCorrupcion } from "./CasosCorrupcion";
 
 /**
  * Inicio de una entidad (/entidad/[ruc], primera pestaña): en qué gasta (MEF), sus contratos, las banderas levantadas
@@ -31,26 +32,28 @@ export async function InicioEntidad({
   const contratos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ seccion: "contratos", ...f })}`;
   const totalGasto = (gasto?.funciones ?? []).reduce((s, f) => s + f.pim, 0);
   const devengado = (gasto?.funciones ?? []).reduce((s, f) => s + f.devengado, 0);
-
   const l = resumen?.porLectura;
-  const porTipo = resumen
-    ? TIPOS.map((t) => [t.label, resumen.porTipo[t.value] ?? 0] as const).filter(([, n]) => n > 0).map(([e, n]) => `${e} ${numero(n)}`).join(" · ")
-    : null;
+
   const datosContratos: DatoClave[] = [
     { etiqueta: "Desde 2015", valor: plural(totalContratos, "contrato", "contratos") },
-    { etiqueta: "Por tipo", valor: porTipo || null },
+    {
+      etiqueta: "Por tipo",
+      valor: resumen ? <Fichas items={TIPOS.map((t) => ({ etiqueta: t.label, n: resumen.porTipo[t.value] ?? 0, href: contratos({ tipo: t.value }) }))} /> : null,
+    },
     {
       etiqueta: "¿Lo leyó Vigía?",
-      valor: l
-        ? [
-            l.publicado ? `${numero(l.publicado)} con dictamen` : null,
-            l.revision ? `${numero(l.revision)} en revisión humana` : null,
-            l.leyendo ? `${numero(l.leyendo)} leyéndose` : null,
-            `${numero(l.sin_leer ?? 0)} aún no`,
-          ].filter(Boolean).join(" · ")
-        : null,
+      valor: l ? (
+        <Fichas
+          items={[
+            { etiqueta: "Con dictamen", n: l.publicado ?? 0, href: contratos({ lectura: "publicado" }), destacada: true },
+            { etiqueta: "En revisión humana", n: l.revision ?? 0, href: contratos({ lectura: "revision" }) },
+            { etiqueta: "Leyéndose", n: l.leyendo ?? 0, href: contratos({ lectura: "leyendo" }) },
+            { etiqueta: "Aún no", n: l.sin_leer ?? 0, href: contratos({ lectura: "sin_leer" }) },
+          ]}
+        />
+      ) : null,
     },
-    { etiqueta: "Esperan lectura", valor: enCola > 0 ? plural(enCola, "contrato en la cola", "contratos en la cola") : "ninguno en la cola" },
+    { etiqueta: "Esperan lectura", valor: enCola > 0 ? plural(enCola, "contrato en la cola", "contratos en la cola") : "Ninguno en la cola" },
   ];
 
   return (
@@ -66,12 +69,15 @@ export async function InicioEntidad({
         enlace={{ href: `${ruta}?seccion=presupuesto`, texto: "Todo el presupuesto" }}
       >
         {gasto && totalGasto > 0 ? (
-          <>
-            <p className="mb-3 text-[13.5px] text-inkSoft">
-              {solesCompacto(totalGasto)} de presupuesto, {solesCompacto(devengado)} ya gastado.
-            </p>
+          <div className="space-y-4">
+            <Indicadores
+              items={[
+                { valor: solesCompacto(totalGasto), etiqueta: "de presupuesto" },
+                { valor: porcentaje(totalGasto > 0 ? (devengado / totalGasto) * 100 : 0), etiqueta: "ya gastado", contexto: solesCompacto(devengado) },
+              ]}
+            />
             <BarrasGasto rubros={gasto.funciones} total={totalGasto} />
-          </>
+          </div>
         ) : (
           <SinDato>Sin dato del MEF para esta entidad.</SinDato>
         )}
@@ -95,7 +101,8 @@ export async function InicioEntidad({
         <Banderas porRiesgo={resumen?.porRiesgo} porCruces={resumen?.porCruces} href={contratos} />
       </BloqueInicio>
 
-      <CasosCorrupcion datos={corrupcion} ambito="entidad" nombreRegion={region} />
+      <CasosCorrupcion datos={corrupcion} ruta={rutaCorrupcion.entidad(ruc)} ambito="entidad" nombreRegion={region} />
     </RejillaInicio>
   );
 }
+

@@ -5,7 +5,7 @@ import { useContext, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, MapPin, Share2 } from "lucide-react";
 import type { Indicador } from "@/components/listado";
-import { Volver } from "@/components/patrones";
+import { Migas, Volver } from "@/components/patrones";
 import { cn } from "@/lib/utils";
 import { listaY, numero, porcentaje, solesCompacto } from "@/lib/formato";
 import { PersonName, Ruc, esPersonaNatural } from "../../Redact";
@@ -30,6 +30,7 @@ export function IdentidadDossier({
   chips,
   volver = true,
   compartible = true,
+  ruta,
 }: {
   conv: any;
   ganador: any;
@@ -39,6 +40,8 @@ export function IdentidadDossier({
   chips?: ReactNode;
   /** false en la vista previa del panel: no hay listado al que volver. */
   volver?: boolean;
+  /** Las pestañas del informe, para el último paso de la ruta (Inicio › Contratos › <código> › <pestaña>). */
+  ruta?: { param: string; primera: string; activa?: string; etiquetas: Record<string, string> };
   /** false: sin "Compartir" (una alerta en revisión todavía no tiene enlace público). */
   compartible?: boolean;
 }) {
@@ -52,7 +55,14 @@ export function IdentidadDossier({
   return (
     <header className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        {volver ? <Volver href="/app/contratos">Contratos</Volver> : <span />}
+        {volver ? (
+          <Migas
+            items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${codigo}` }]}
+            pestanas={ruta}
+          />
+        ) : (
+          <span />
+        )}
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <a href={oeceProcesoUrl(conv.ocid || codigo)} target="_blank" rel="noreferrer" className={accion}>
             <ExternalLink size={13} aria-hidden /> Ver en el OECE

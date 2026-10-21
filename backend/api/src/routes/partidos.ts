@@ -25,6 +25,7 @@ import { z } from "zod";
 import { pool } from "../lib/db.js";
 import { publicar } from "../lib/privacidad.js";
 import { LECTURAS, casoLectura, lecturaSql } from "../lib/lectura.js";
+import { COLS_ESTADO_FILA, joinsEstadoFila } from "../lib/estadoFila.js";
 import { Memo, responderJson, type Serializado } from "../lib/cache.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { CONTEOS, RankingQuery, claveRanking, consultaGobiernos, consultaRanking } from "../lib/rankingPartidos.js";
@@ -138,14 +139,18 @@ partidosRouter.get("/:clave/procesos", async (c) => {
     const fC = armar(["cruces"]);
     const orden = q.orden === "monto" ? "pp.monto_adjudicado_pen DESC NULLS LAST, pp.fecha_convocatoria DESC" : "pp.fecha_convocatoria DESC, pp.monto_adjudicado_pen DESC NULLS LAST";
     const [filas, total, lecturas, cruces] = await Promise.all([
+      // La página primero (pag) y después, sólo para esas filas, lo que Vigía sabe de cada una (lib/estadoFila.ts).
       pool.query(
-        `SELECT pp.codigo_convocatoria AS codigo, pp.nomenclatura, pp.descripcion, pp.objeto, pp.tipo_proceso AS "tipoProceso",
-                to_char(pp.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, pp.entidad, pp.entidad_ruc AS "entidadRuc", pp.nivel,
-                z.nombre AS lugar, pp.items, pp.monto_referencial::float AS "montoReferencial", pp.monto_adjudicado::float AS "montoAdjudicado",
-                pp.moneda, pp.proveedores, pp.proveedor, pp.ruc_proveedor AS "rucProveedor", pp.ocid
-           FROM partido_proceso pp LEFT JOIN zonas z ON z.ubigeo = pp.gobierno_ubigeo
-          WHERE ${where} ORDER BY ${orden}, pp.codigo_convocatoria
-          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+        `WITH pag AS (
+           SELECT pp.* FROM partido_proceso pp WHERE ${where} ORDER BY ${orden}, pp.codigo_convocatoria
+            LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size})
+         SELECT pag.codigo_convocatoria AS codigo, pag.nomenclatura, pag.descripcion, pag.objeto, pag.tipo_proceso AS "tipoProceso",
+                to_char(pag.fecha_convocatoria, 'YYYY-MM-DD') AS fecha, pag.entidad, pag.entidad_ruc AS "entidadRuc", pag.nivel,
+                z.nombre AS lugar, pag.items, pag.monto_referencial::float AS "montoReferencial", pag.monto_adjudicado::float AS "montoAdjudicado",
+                pag.moneda, pag.proveedores, pag.proveedor, pag.ruc_proveedor AS "rucProveedor", pag.ocid, ${COLS_ESTADO_FILA}
+           FROM pag LEFT JOIN zonas z ON z.ubigeo = pag.gobierno_ubigeo
+           ${joinsEstadoFila("pag.ocid")}
+          ORDER BY ${orden.replace(/pp\./g, "pag.")}, pag.codigo_convocatoria`, vals),
       pool.query(`SELECT count(*)::int AS n, COALESCE(sum(pp.monto_adjudicado_pen), 0)::float AS monto FROM partido_proceso pp WHERE ${where}`, vals),
       pool.query(
         `SELECT ${casoLectura("ce.")} AS k, ce.riesgo, count(*)::int AS n
@@ -262,5 +267,81 @@ partidosRouter.get("/:clave", async (c) => {
   });
   if (!cuerpo) return c.json({ error: "not_found" }, 404);
   c.header("Cache-Control", cachePublico(300, { maxAge: 60, swr: 3600 }));
+  return c.json(cuerpo);
+});
+
+// ─── GET /partidos/:clave/gasto?anio= — en qué gastan los gobiernos que ganó, según el MEF ───────────
+// Cada gobierno (gobierno_periodo) a sus ejecutoras del MEF por ubigeo: uno regional, todas las del departamento (sede,
+// salud, educación, UGEL…); uno provincial o distrital, su municipalidad. El desglose por función, genérica y proyecto
+// sólo existe para el año cargado en mef_ejecutora_gasto (hoy 2026): responde con `disponible: false` para los
+// mandatos que no lo incluyen, en vez de mostrar el gasto de otros gobiernos.
+const gastoMemo = new Memo<Record<string, unknown>>({ nombre: "partidos:gasto", ttlMs: 600_000, staleMs: 600_000, max: 300 });
+
+partidosRouter.get("/:clave/gasto", async (c) => {
+  const clave = c.req.param("clave");
+  if (!/^[a-z0-9-]{1,80}$/.test(clave)) return c.json({ error: "not_found" }, 404);
+  const parsed = DetalleQuery.safeParse(parametros(c));
+  if (!parsed.success) return c.json({ error: "invalid_query", issues: parsed.error.issues }, 400);
+  const periodo = PERIODOS_GOBIERNO.find((p) => p.anio === parsed.data.anio)!;
+  const cuerpo = await gastoMemo.obtener(`gasto:${clave}:${periodo.anio}`, async () => {
+    const mef = (await pool.query(`SELECT max(anio)::int AS anio FROM mef_ejecutora_gasto`)).rows[0]?.anio ?? null;
+    const base = { anio: periodo.anio, mef, desde: periodo.desde, hasta: periodo.hasta };
+    if (!mef || `${mef}-01-01` < periodo.desde || `${mef}-01-01` > periodo.hasta) return { ...base, disponible: false };
+    const EJ = `g AS (SELECT nivel, ubigeo, autoridad FROM gobierno_periodo WHERE org_clave = $1 AND anio_eleccion = $2),
+      ej AS (
+        SELECT DISTINCT a.sec_ejec, g.nivel, g.ubigeo
+          FROM g JOIN mef_ejecutora_anual a ON a.anio = $3 AND (
+               (g.nivel = 'regional' AND a.nivel_gobierno = 'R' AND a.departamento = g.ubigeo)
+            OR (g.nivel = 'provincial' AND a.nivel_gobierno = 'M' AND a.departamento || a.provincia = g.ubigeo AND a.distrito = '01'
+                AND a.ejecutora_nombre LIKE 'MUNICIPALIDAD PROVINCIAL%')
+            OR (g.nivel = 'distrital' AND a.nivel_gobierno = 'M' AND a.departamento || a.provincia || a.distrito = g.ubigeo
+                AND a.ejecutora_nombre LIKE 'MUNICIPALIDAD%')))`;
+    const vals = [clave, periodo.anio, mef];
+    const porRubro = (tipo: string, nombre: string, limite = 20) => pool.query(
+      `WITH ${EJ}
+       SELECT ${nombre} AS nombre, sum(x.pim)::float AS pim, sum(x.devengado)::float AS devengado
+         FROM mef_ejecutora_gasto x JOIN ej USING (sec_ejec)
+        WHERE x.anio = $3 AND x.tipo = '${tipo}'
+        GROUP BY 1 HAVING sum(x.pim) > 0 ORDER BY 2 DESC LIMIT ${limite}`, vals);
+    const [totales, niveles, funciones, genericas, proyectos, gobiernos] = await Promise.all([
+      pool.query(
+        `WITH ${EJ}
+         SELECT (SELECT count(*) FROM g)::int AS gobiernos, (SELECT count(DISTINCT (nivel, ubigeo)) FROM ej)::int AS "conMef",
+                count(*)::int AS ejecutoras, COALESCE(sum(a.pim), 0)::float AS pim, COALESCE(sum(a.devengado), 0)::float AS devengado
+           FROM ej JOIN mef_ejecutora_anual a ON a.anio = $3 AND a.sec_ejec = ej.sec_ejec`, vals),
+      pool.query(
+        `WITH ${EJ}
+         SELECT ej.nivel, count(DISTINCT ej.ubigeo)::int AS gobiernos, sum(a.pim)::float AS pim, sum(a.devengado)::float AS devengado
+           FROM ej JOIN mef_ejecutora_anual a ON a.anio = $3 AND a.sec_ejec = ej.sec_ejec
+          GROUP BY 1 ORDER BY 3 DESC`, vals),
+      porRubro("funcion", "x.nombre"),
+      porRubro("partida", "COALESCE(NULLIF(x.grupo, ''), 'OTROS')"),
+      // Los proyectos con más presupuesto, con el gobierno que los ejecuta. Sin los códigos genéricos del MEF ("Estudios
+      // de pre-inversión", "Operación y mantenimiento", "Proyectos para el desarrollo local"…): los comparten cinco o más
+      // ejecutoras del país; una inversión de verdad tiene su CUI en una sola.
+      pool.query(
+        `WITH ${EJ},
+         genericos AS (SELECT codigo FROM mef_ejecutora_gasto WHERE anio = $3 AND tipo = 'proyecto' GROUP BY 1 HAVING count(DISTINCT sec_ejec) >= 5)
+         SELECT x.codigo, COALESCE(NULLIF(x.nombre, ''), 'Otras inversiones, sin código de proyecto en el MEF') AS nombre,
+                ej.nivel, ej.ubigeo, z.nombre AS lugar, sum(x.pim)::float AS pim, sum(x.devengado)::float AS devengado
+           FROM mef_ejecutora_gasto x JOIN ej USING (sec_ejec) LEFT JOIN zonas z ON z.ubigeo = ej.ubigeo
+          WHERE x.anio = $3 AND x.tipo = 'proyecto' AND x.codigo <> '2999999' AND x.codigo NOT IN (SELECT codigo FROM genericos)
+          GROUP BY 1, 2, 3, 4, 5 HAVING sum(x.pim) > 0 ORDER BY 6 DESC LIMIT 25`, vals),
+      // Cada gobierno con su presupuesto (todos: la web los pagina).
+      pool.query(
+        `WITH ${EJ}
+         SELECT g.nivel, g.ubigeo, z.nombre AS lugar, left(g.ubigeo, 2) AS departamento, d.nombre AS region,
+                COALESCE(sum(a.pim), 0)::float AS pim, COALESCE(sum(a.devengado), 0)::float AS devengado
+           FROM g LEFT JOIN ej ON ej.nivel = g.nivel AND ej.ubigeo = g.ubigeo
+           LEFT JOIN mef_ejecutora_anual a ON a.anio = $3 AND a.sec_ejec = ej.sec_ejec
+           LEFT JOIN zonas z ON z.ubigeo = g.ubigeo LEFT JOIN zonas d ON d.ubigeo = left(g.ubigeo, 2)
+          GROUP BY 1, 2, 3, 4, 5 ORDER BY 6 DESC`, vals),
+    ]);
+    return {
+      ...base, disponible: true, totales: totales.rows[0], porNivel: niveles.rows, funciones: funciones.rows,
+      genericas: genericas.rows, proyectos: proyectos.rows, gobiernos: gobiernos.rows,
+    };
+  });
+  c.header("Cache-Control", cachePublico(3600, { maxAge: 600, swr: 86400 }));
   return c.json(cuerpo);
 });

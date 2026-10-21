@@ -23,7 +23,7 @@ import { ResultadoAnalisis } from "@/components/auditoria/ResultadoAnalisis";
 import { EstadoPill } from "@/components/auditoria/EstadoPill";
 import { PersonName, Ruc } from "@/components/Redact";
 import { NotaPrivacidad } from "@/components/privacidad/NotaPrivacidad";
-import { Ayuda, EncabezadoPagina, FuenteDato, Pestanas, Volver } from "@/components/patrones";
+import { Ayuda, EncabezadoPagina, FuenteDato, Migas, Pestanas } from "@/components/patrones";
 import { Indicadores, type Indicador } from "@/components/listado";
 import { EnlaceAccion } from "@/components/ui/EnlaceAccion";
 import { EstadoContratoPill } from "./ContratosLista";
@@ -125,10 +125,15 @@ export function ContratoDetalle({
     </div>
   );
 
+  const pestanas = [{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })];
+
   return (
     <>
       {vistas && <div className="mb-4">{vistas}</div>}
-      <Volver href="/app/contratos">Contratos</Volver>
+      <Migas
+        items={[{ etiqueta: "Inicio", href: "/app" }, { etiqueta: "Contratos", href: "/app/contratos" }, { etiqueta: `Contrato ${c.codigo ?? c.ocid}` }]}
+        pestanas={{ primera: "resumen", activa: seccion ?? "resumen", etiquetas: Object.fromEntries(pestanas.map((p) => [p.clave, p.etiqueta])) }}
+      />
 
       <div className="grid items-start gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-5">
@@ -158,7 +163,7 @@ export function ContratoDetalle({
           <Pestanas
             etiqueta="Secciones del contrato"
             activa={seccion}
-            pestanas={[{ clave: "resumen", etiqueta: "Resumen", contenido: resumen }, ...pestanasEvidencia({ c, enRevision, catalogo })]}
+            pestanas={pestanas}
           />
           <NotaPrivacidad />
         </div>

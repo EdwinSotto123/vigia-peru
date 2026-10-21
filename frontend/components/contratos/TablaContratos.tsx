@@ -35,9 +35,8 @@ import { numero, oracion, plural } from "@/lib/formato";
 import { severidadDeContrato } from "@/lib/severidad";
 import { esPersonaNatural, etapaLabel, formatFecha, formatMonto, tipoLabel, totalContratosTexto, type ContratoResumen, type ContratosPagina } from "@/lib/contratos";
 import { PersonName } from "@/components/Redact";
-import { Badge } from "@/components/ui/Badge";
-import { TIPO_CRUCE } from "@/lib/cruces";
 import { DetalleContrato } from "./DetalleContrato";
+import { CrucesCelda } from "./CrucesCelda";
 import { EstadoContratoChip, estadoLecturaDe } from "./estadoLectura";
 import { recortar, limpiarObjeto } from "./recortar";
 import { tituloNatural } from "@/lib/landing";
@@ -263,29 +262,6 @@ function filaDe(c: ContratoResumen, deEntidad: boolean): Fila {
       ),
     },
   };
-}
-
-const VARIANTE_CRUCE = { alta: "crimson", media: "amber", baja: "neutral" } as const;
-const MAX_CRUCES = 3;
-
-/** Los cruces del ganador: los más graves primero, hasta tres y "+n"; un guion si no tiene ninguno o aún no ganó nadie. */
-function CrucesCelda({ cruces }: { cruces: ContratoResumen["cruces"] }) {
-  if (!cruces?.length) return <span className="text-[12.5px] text-mute">—</span>;
-  const resto = cruces.length - MAX_CRUCES;
-  return (
-    <ul className="flex flex-wrap gap-1" aria-label="Registros donde aparece el ganador">
-      {cruces.slice(0, MAX_CRUCES).map((x) => (
-        <li key={x.tipo} title={TIPO_CRUCE[x.tipo]?.explica}>
-          <Badge variant={VARIANTE_CRUCE[x.severidad]}>{TIPO_CRUCE[x.tipo]?.corto ?? x.tipo}</Badge>
-        </li>
-      ))}
-      {resto > 0 && (
-        <li title={cruces.slice(MAX_CRUCES).map((x) => TIPO_CRUCE[x.tipo]?.corto ?? x.tipo).join(", ")}>
-          <Badge variant="neutral">+{resto}</Badge>
-        </li>
-      )}
-    </ul>
-  );
 }
 
 /** Mientras llega la primera página: la misma rejilla, sin saltos cuando entran los datos. */

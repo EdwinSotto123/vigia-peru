@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { escaparLike, pool } from "../lib/db.js";
+import { COLS_ESTADO_FILA, joinsEstadoFila } from "../lib/estadoFila.js";
 import { cachePublico, parametros } from "../lib/http.js";
 import { Memo } from "../lib/cache.js";
 import { hayModelosLectura } from "../lib/esquema.js";
@@ -308,15 +309,21 @@ entidadesRouter.get("/:ruc/procesos", async (c) => {
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     const orden = q.orden === "monto" ? `p.pen DESC NULLS LAST, p.fecha DESC` : `p.fecha DESC, p.pen DESC NULLS LAST`;
     const [filas, resumen] = await Promise.all([
+      // La página primero (pag) y después, sólo para esas filas, lo que Vigía sabe de cada una (lib/estadoFila.ts).
       pool.query(
-        `WITH p AS (${PROCESOS_DE_ENTIDAD})
-         SELECT p.codigo, p.nomenclatura, p.descripcion, p.objeto, p."tipoProceso", to_char(p.fecha, 'YYYY-MM-DD') AS fecha, p.entidad,
-                $1::text AS "entidadRuc", p.items, p."montoReferencial", p."montoAdjudicado", p.moneda, p.proveedores, p.proveedor,
-                p."rucProveedor", cv.ocid, count(*) OVER ()::int AS total, (sum(p.pen) OVER ())::float AS monto
-           FROM p LEFT JOIN convocatorias cv ON cv.ocid = p.codigo
-           ${where}
-          ORDER BY ${orden}, p.codigo
-          LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size}`, vals),
+        `WITH p AS (${PROCESOS_DE_ENTIDAD}),
+         pag AS (
+           SELECT p.*, cv.ocid, count(*) OVER ()::int AS total, (sum(p.pen) OVER ())::float AS monto
+             FROM p LEFT JOIN convocatorias cv ON cv.ocid = p.codigo
+             ${where}
+            ORDER BY ${orden}, p.codigo
+            LIMIT ${q.size} OFFSET ${(q.page - 1) * q.size})
+         SELECT pag.codigo, pag.nomenclatura, pag.descripcion, pag.objeto, pag."tipoProceso", to_char(pag.fecha, 'YYYY-MM-DD') AS fecha,
+                pag.entidad, $1::text AS "entidadRuc", pag.items, pag."montoReferencial", pag."montoAdjudicado", pag.moneda, pag.proveedores,
+                pag.proveedor, pag."rucProveedor", pag.ocid, pag.total, pag.monto, ${COLS_ESTADO_FILA}
+           FROM pag
+           ${joinsEstadoFila("pag.ocid")}
+          ORDER BY ${orden.replace(/p\./g, "pag.")}, pag.codigo`, vals),
       pool.query(
         `WITH p AS (${PROCESOS_DE_ENTIDAD})
          SELECT count(*)::int AS procesos, COALESCE(sum(pen), 0)::float AS "montoAdjudicadoPen", count(DISTINCT "rucProveedor")::int AS proveedores,

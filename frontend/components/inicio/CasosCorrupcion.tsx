@@ -1,41 +1,40 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Ayuda } from "@/components/patrones/Ayuda";
-import { TIPO_RESPONSABILIDAD, type Corrupcion } from "@/lib/corrupcion";
-import { fechaCorta, numero, plural, solesCompacto } from "@/lib/formato";
+import { CeldaFecha, CeldaPrincipal, Indicadores, Tabla, type Columna, type Fila } from "@/components/listado";
+import { Badge } from "@/components/ui/Badge";
+import { Paginacion } from "@/components/ui/Paginacion";
+import { TAM_INFORMES, TIPO_RESPONSABILIDAD, paginaCorrupcion, type Corrupcion, type PaginaInformes, type TipoInforme } from "@/lib/corrupcion";
+import { fechaCorta, numero, solesCompacto } from "@/lib/formato";
 import { tituloNatural } from "@/lib/landing";
 import { BloqueInicio, SinDato } from "./BloquesInicio";
 
 /**
- * "Casos de corrupción" del Inicio (entidad, región, partido), con los rótulos de docs/CORRUPCION.md:
- *   · Procuraduría Anticorrupción: "Sentencia firme" (casos en ejecución de sentencia: lo COMPROBADO) y "Casos en
- *     trámite". Son cifras por sede (región), nunca de una entidad.
- *   · Contraloría: informes de control con responsabilidad PRESUNTA; "no es una condena", siempre a la vista.
- * Las dos fuentes van en cajas separadas y no se suman. Cada informe enlaza a su PDF oficial (que nombra a los
- * funcionarios: se enlaza, no se copia).
+ * "Casos de corrupción" del Inicio (entidad, región, partido), con los rótulos de docs/CORRUPCION.md y en dos partes
+ * que nunca se suman:
+ *   · Procuraduría Anticorrupción: lo COMPROBADO (casos con sentencia firme, en ejecución de sentencia) y los casos en
+ *     trámite, en cifras; por sede, que es casi siempre un departamento. Con su tabla de sedes si hay más de una.
+ *   · Contraloría: sus cifras y TODOS los informes con responsabilidad PRESUNTA en una tabla paginada, filtrable por
+ *     tipo; cada fila abre el informe oficial (el PDF nombra a los funcionarios: se enlaza, no se copia).
+ * `ruta` es la de la API (lib/corrupcion.ts, rutaCorrupcion): la tabla pide ahí las páginas siguientes.
  */
 export function CasosCorrupcion({
   datos,
+  ruta,
   ambito,
   nombreRegion,
-  mostrarEntidad = false,
-  visibles = 5,
   nota,
 }: {
   datos: Corrupcion | null | undefined;
-  /** De quién es la sección: cambia los textos ("esta entidad", "esta región", "las entidades que gobernó"). */
+  ruta: string;
+  /** De quién es la sección: cambia los textos y si se muestra la Procuraduría (no hay cifras por partido). */
   ambito: "entidad" | "region" | "partido";
   nombreRegion?: string | null;
-  /** En la región y el partido cada informe dice de qué entidad es. */
-  mostrarEntidad?: boolean;
-  visibles?: number;
-  /** Una advertencia bajo el título de la Contraloría. */
+  /** Una advertencia bajo el título de la Contraloría (la usa el partido). */
   nota?: string;
 }) {
-  const inf = datos?.informes;
-  const pp = datos?.procuraduria ?? null;
-  const de = ambito === "entidad" ? "esta entidad" : ambito === "region" ? `${nombreRegion ?? "esta región"}` : "las entidades que gobernó en el período";
-
   return (
     <BloqueInicio
       ancho
@@ -43,16 +42,16 @@ export function CasosCorrupcion({
       ayuda={
         <Ayuda titulo="¿De dónde salen y qué significan?">
           <span className="block">
-            <strong>Procuraduría Anticorrupción</strong> (Procuraduría General del Estado): los casos penales por corrupción
-            en los que el Estado es la parte agraviada. «Sentencia firme» son los que están en ejecución de sentencia: ya
-            hay condena o una decisión firme y se cobra la reparación. Cuenta por sede, que es casi siempre un departamento.
+            <strong>Procuraduría Anticorrupción</strong> (Procuraduría General del Estado): los casos penales por
+            corrupción en los que el Estado es la parte agraviada. «Con sentencia firme» son los que están en ejecución de
+            sentencia: ya hay una decisión firme y se cobra la reparación. Publica sus cifras por sede, casi siempre un
+            departamento.
           </span>
           <span className="mt-2 block">
             <strong>Contraloría</strong>: informes de control que señalan una responsabilidad presunta (penal, civil o
-            administrativa) de funcionarios y la derivan a quien corresponde. No es una condena: la decide un juez o la
-            entidad después.
+            administrativa) de funcionarios y la derivan a quien corresponde. No es una condena.
           </span>
-          <span className="mt-2 block">Las dos fuentes se muestran por separado y nunca se suman.</span>
+          <span className="mt-2 block">Las dos fuentes van por separado y nunca se suman.</span>
         </Ayuda>
       }
     >
@@ -61,108 +60,206 @@ export function CasosCorrupcion({
       ) : datos === null ? (
         <SinDato>Sin dato: el servicio no respondió.</SinDato>
       ) : (
-        // Dos columnas según el ancho del BLOQUE (container query), no de la pantalla: en el panel angosto de la región
-        // van una sobre otra aunque la pantalla sea ancha.
-        <div className="[container-type:inline-size]">
-        <div className="grid gap-4 [@container(min-width:44rem)]:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-          {ambito !== "partido" && (
-            <div className="rounded-xl border border-line bg-paperDeep/50 p-4">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-mute">
-                Procuraduría Anticorrupción{ambito === "entidad" && nombreRegion ? ` · ${nombreRegion}` : ""}
-              </p>
-              {pp ? (
-                <>
-                  <p className="mt-2 font-mono text-[28px] font-semibold tabular-nums leading-none text-ink">{numero(pp.en_ejecucion)}</p>
-                  <p className="mt-1 text-[13.5px] font-semibold text-ink">con sentencia firme</p>
-                  <p className="text-[12.5px] text-inkSoft">en ejecución de sentencia</p>
-                  <p className="mt-3 text-[13.5px] text-ink">
-                    <span className="font-mono tabular-nums">{numero(pp.en_tramite)}</span> casos en trámite
-                    {pp.reparacion_civil ? <span className="text-inkSoft"> · {solesCompacto(pp.reparacion_civil)} de reparación cobrada en el año</span> : null}
-                  </p>
-                  {ambito === "entidad" && (
-                    <p className="mt-2 text-[12px] text-mute">Son de todo el departamento, no sólo de esta entidad: la Procuraduría publica sus cifras por sede.</p>
-                  )}
-                  <p className="mt-2 text-[12px] text-mute">
-                    Corte {fechaCorta(pp.corte)}
-                    {pp.sedes.length > 1 ? ` · ${pp.sedes.length} sedes` : ""}
-                    {pp.url_fuente && (
-                      <>
-                        {" · "}
-                        <a href={pp.url_fuente} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-granate underline-offset-4 hover:underline">
-                          boletín <ExternalLink size={11} aria-hidden />
-                        </a>
-                      </>
-                    )}
-                  </p>
-                </>
-              ) : (
-                <SinDato>La Procuraduría no publica una sede para este departamento en su último boletín.</SinDato>
-              )}
-            </div>
-          )}
-
-          <div className={ambito === "partido" ? "[@container(min-width:44rem)]:col-span-2" : undefined}>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-mute">Contraloría · presunta responsabilidad, no es una condena</p>
-            {nota && <p className="mt-1 text-[12px] text-mute">{nota}</p>}
-            {inf && inf.total > 0 ? (
-              <>
-                <p className="mt-2 text-[13.5px] text-ink">
-                  {plural(inf.total, "informe de control", "informes de control")} sobre {de}
-                  {inf.desde ? <span className="text-inkSoft"> ({inf.desde.slice(0, 4)} a {inf.hasta?.slice(0, 4)})</span> : null}:{" "}
-                  <strong className="font-semibold">{numero(inf.penal)}</strong> con presunta responsabilidad penal,{" "}
-                  <strong className="font-semibold">{numero(inf.civil)}</strong> civil y {numero(inf.administrativa)} administrativa
-                  {inf.funcionarios > 0 ? `, ${plural(inf.funcionarios, "funcionario comprendido", "funcionarios comprendidos")}` : ""}.
-                </p>
-                <ul className="mt-3 divide-y divide-line/70 rounded-xl border border-line">
-                  {inf.ultimos.slice(0, visibles).map((i) => (
-                    <li key={i.numero} className="px-3.5 py-2.5">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <span className="text-[12px] text-mute">
-                          {i.fecha ? fechaCorta(i.fecha) : "Sin fecha"} · Informe <span className="font-mono">{i.numero}</span>
-                        </span>
-                        <span className="flex flex-wrap gap-1">
-                          {i.responsabilidades.map((r) => (
-                            <span key={r} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r === "penal" ? "bg-granate-50 text-granate" : "bg-paperDeep text-inkSoft"}`}>
-                              {TIPO_RESPONSABILIDAD[r] ?? r}
-                            </span>
-                          ))}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-[13.5px] text-ink" title={i.titulo ?? undefined}>{i.titulo ? tituloNatural(i.titulo) : "Sin título"}</p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px]">
-                        {mostrarEntidad && i.entidad && (
-                          i.entidadRuc ? (
-                            <Link href={`/entidad/${i.entidadRuc}`} prefetch={false} className="text-inkSoft underline-offset-4 hover:text-ink hover:underline">{tituloNatural(i.entidad)}</Link>
-                          ) : (
-                            <span className="text-inkSoft">{tituloNatural(i.entidad)}</span>
-                          )
-                        )}
-                        {i.urlPdf && (
-                          <a href={i.urlPdf} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-granate underline-offset-4 hover:underline">
-                            Ver el informe <ExternalLink size={11} aria-hidden />
-                          </a>
-                        )}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-                {inf.total > visibles && (
-                  <p className="mt-2 text-[12px] text-mute">
-                    Los {Math.min(visibles, inf.ultimos.length)} más recientes de {numero(inf.total)}. Todos están en el{" "}
-                    <a href="https://buscadorinformes.contraloria.gob.pe/" target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
-                      buscador de la Contraloría
-                    </a>
-                    .
-                  </p>
-                )}
-              </>
-            ) : (
-              <SinDato>La Contraloría no tiene informes con responsabilidad sobre {de} en su buscador.</SinDato>
-            )}
-          </div>
-        </div>
+        <div className="space-y-6">
+          {ambito !== "partido" && <Procuraduria datos={datos} ambito={ambito} nombreRegion={nombreRegion} />}
+          <Contraloria datos={datos} ruta={ruta} ambito={ambito} nota={nota} />
         </div>
       )}
     </BloqueInicio>
+  );
+}
+
+function Subtitulo({ titulo, bajada }: { titulo: string; bajada: string }) {
+  return (
+    <div className="mb-3">
+      <h4 className="text-[14px] font-semibold text-ink">{titulo}</h4>
+      <p className="text-[12.5px] text-mute">{bajada}</p>
+    </div>
+  );
+}
+
+function Procuraduria({ datos, ambito, nombreRegion }: { datos: Corrupcion; ambito: "entidad" | "region"; nombreRegion?: string | null }) {
+  const pp = datos.procuraduria;
+  const bajada = ambito === "entidad" && nombreRegion
+    ? `Lo comprobado en ${nombreRegion}: la Procuraduría publica cifras por sede, no por entidad.`
+    : "Lo comprobado: casos con sentencia firme.";
+  return (
+    <section>
+      <Subtitulo titulo="Procuraduría Anticorrupción" bajada={bajada} />
+      {!pp ? (
+        <SinDato>La Procuraduría no publica una sede para este departamento en su último boletín.</SinDato>
+      ) : (
+        <div className="space-y-3">
+          <Indicadores
+            items={[
+              { valor: numero(pp.en_ejecucion), etiqueta: "con sentencia firme", contexto: "en ejecución de sentencia", tono: "alta" },
+              { valor: numero(pp.en_tramite), etiqueta: "casos en trámite", contexto: "incluye los de sentencia firme" },
+              { valor: pp.sentencias != null ? numero(pp.sentencias) : null, etiqueta: "sentencias en el año", contexto: "condenas o decisiones firmes nuevas" },
+              { valor: pp.reparacion_civil != null ? solesCompacto(pp.reparacion_civil) : null, etiqueta: "reparación cobrada", contexto: "en el año" },
+            ]}
+          />
+          {pp.sedes.length > 1 && (
+            <Tabla
+              etiqueta="Casos de la Procuraduría por sede"
+              densidad="compacta"
+              medida="contenedor"
+              columnas={COLUMNAS_SEDES}
+              filas={pp.sedes.map((s) => ({
+                id: s.sede,
+                celdas: {
+                  sede: <CeldaPrincipal titulo={s.sede} enLinea />,
+                  firme: <span className="font-mono text-[13px] tabular-nums text-ink">{numero(s.en_ejecucion)}</span>,
+                  tramite: <span className="font-mono text-[13px] tabular-nums text-inkSoft">{numero(s.en_tramite)}</span>,
+                },
+              }))}
+            />
+          )}
+          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[12.5px]">
+            <div className="flex gap-1.5">
+              <dt className="text-mute">Corte</dt>
+              <dd className="text-ink">{fechaCorta(pp.corte)}</dd>
+            </div>
+            {pp.sedes.length > 1 && (
+              <div className="flex gap-1.5">
+                <dt className="text-mute">Sedes</dt>
+                <dd className="text-ink">{numero(pp.sedes.length)}</dd>
+              </div>
+            )}
+            {pp.url_fuente && (
+              <a href={pp.url_fuente} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 font-semibold text-granate underline-offset-4 hover:underline">
+                Boletín oficial (PDF) <ExternalLink size={12} aria-hidden />
+              </a>
+            )}
+          </dl>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const COLUMNAS_SEDES: Columna[] = [
+  { clave: "sede", titulo: "Sede", ancho: "minmax(0,1fr)" },
+  { clave: "firme", titulo: "Con sentencia firme", ancho: "150px", alinear: "der" },
+  { clave: "tramite", titulo: "En trámite", ancho: "110px", alinear: "der" },
+];
+
+const VARIANTE: Record<string, "crimson" | "amber" | "neutral"> = { penal: "crimson", civil: "amber" };
+
+function Contraloria({ datos, ruta, ambito, nota }: { datos: Corrupcion; ruta: string; ambito: "entidad" | "region" | "partido"; nota?: string }) {
+  const inf = datos.informes;
+  const [tipo, setTipo] = useState<TipoInforme | null>(null);
+  const [pagina, setPagina] = useState<PaginaInformes>(inf.pagina);
+  const [cargando, setCargando] = useState(false);
+  const [fallo, setFallo] = useState(false);
+
+  const pedir = async (page: number, t: TipoInforme | null) => {
+    setCargando(true);
+    setFallo(false);
+    const r = await paginaCorrupcion(ruta, page, t);
+    if (r) setPagina(r);
+    else setFallo(true);
+    setCargando(false);
+  };
+  const filtrar = (t: TipoInforme | null) => {
+    setTipo(t);
+    void pedir(1, t);
+  };
+
+  const conEntidad = ambito !== "entidad";
+  const columnas: Columna[] = [
+    { clave: "fecha", titulo: "Fecha", ancho: "92px", desde: "md" },
+    { clave: "numero", titulo: "Informe", ancho: "148px", desde: "lg" },
+    { clave: "asunto", titulo: "Asunto", ancho: "minmax(0,1.5fr)" },
+    ...(conEntidad ? [{ clave: "entidad", titulo: "Entidad", ancho: "minmax(0,1fr)", desde: "lg" as const }] : []),
+    { clave: "tipo", titulo: "Responsabilidad presunta", ancho: "minmax(0,1fr)", desde: "md", apilar: true },
+  ];
+  const filas: Fila[] = pagina.filas.map((i) => ({
+    id: i.numero,
+    href: i.urlPdf ?? undefined,
+    externo: true,
+    celdas: {
+      fecha: <CeldaFecha fecha={i.fecha} />,
+      numero: <span className="font-mono text-[12.5px] text-inkSoft">{i.numero}</span>,
+      asunto: <CeldaPrincipal titulo={i.titulo ? tituloNatural(i.titulo) : "Sin asunto registrado"} dosLineas meta={[i.funcionarios ? `${numero(i.funcionarios)} funcionarios comprendidos` : null]} />,
+      entidad: <span className="line-clamp-2 text-[13px] text-inkSoft" title={i.entidad ?? undefined}>{i.entidad ? tituloNatural(i.entidad) : "Sin dato"}</span>,
+      tipo: (
+        <ul className="flex flex-wrap gap-1" aria-label="Tipos de responsabilidad">
+          {i.responsabilidades.map((r) => (
+            <li key={r}><Badge variant={VARIANTE[r] ?? "neutral"}>{TIPO_RESPONSABILIDAD[r] ?? r}</Badge></li>
+          ))}
+        </ul>
+      ),
+    },
+  }));
+  const opciones: { t: TipoInforme | null; etiqueta: string; n: number }[] = [
+    { t: null, etiqueta: "Todos", n: inf.total },
+    { t: "penal", etiqueta: "Penal", n: inf.penal },
+    { t: "civil", etiqueta: "Civil", n: inf.civil },
+    { t: "administrativa", etiqueta: "Administrativa", n: inf.administrativa },
+  ];
+  const paginas = Math.max(1, Math.ceil(pagina.total / TAM_INFORMES));
+
+  return (
+    <section>
+      <Subtitulo titulo="Contraloría" bajada="Presunta responsabilidad de funcionarios: no es una condena." />
+      {nota && <p className="-mt-1 mb-3 max-w-3xl text-[12.5px] text-mute">{nota}</p>}
+      {inf.total === 0 ? (
+        <SinDato>La Contraloría no tiene informes con responsabilidad en su buscador para este alcance.</SinDato>
+      ) : (
+        <div className="space-y-4">
+          <Indicadores
+            items={[
+              { valor: numero(inf.total), etiqueta: "informes de control", contexto: inf.desde ? `de ${inf.desde.slice(0, 4)} a ${inf.hasta?.slice(0, 4)}` : undefined },
+              { valor: numero(inf.penal), etiqueta: "con presunta responsabilidad penal", tono: "alta" },
+              { valor: numero(inf.civil), etiqueta: "con presunta responsabilidad civil", tono: "media" },
+              { valor: numero(inf.funcionarios), etiqueta: "funcionarios comprendidos", contexto: conEntidad ? `en ${numero(inf.entidades)} entidades` : undefined },
+            ]}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div role="group" aria-label="Filtrar por tipo de responsabilidad" className="inline-flex flex-wrap gap-1.5">
+              {opciones.map((o) => (
+                <button
+                  key={o.etiqueta}
+                  type="button"
+                  aria-pressed={tipo === o.t}
+                  onClick={() => filtrar(o.t)}
+                  className={
+                    "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors " +
+                    (tipo === o.t ? "border-granate bg-granate text-paper" : "border-line bg-paper text-inkSoft hover:border-granate/40 hover:text-ink")
+                  }
+                >
+                  {o.etiqueta}
+                  <span className={"font-mono text-[12px] tabular-nums " + (tipo === o.t ? "text-paper/80" : "text-mute")}>{numero(o.n)}</span>
+                </button>
+              ))}
+            </div>
+            <Paginacion
+              actual={pagina.page}
+              paginas={paginas}
+              total={pagina.total}
+              tam={TAM_INFORMES}
+              navegacion="interna"
+              onChange={(n) => void pedir(n, tipo)}
+              cargando={cargando}
+              nombre="informes"
+            />
+          </div>
+          {fallo ? (
+            <SinDato>No pudimos traer esa página. Vuelve a intentarlo.</SinDato>
+          ) : (
+            <div className={cargando ? "opacity-60 transition-opacity" : undefined} aria-busy={cargando}>
+              <Tabla columnas={columnas} filas={filas} etiqueta="Informes de control de la Contraloría" medida="contenedor" />
+            </div>
+          )}
+          <p className="text-[12px] text-mute">
+            Cada fila abre el informe oficial en la Contraloría. Todos están también en su{" "}
+            <a href="https://buscadorinformes.contraloria.gob.pe/" target="_blank" rel="noopener noreferrer" className="font-semibold text-granate underline-offset-4 hover:underline">
+              buscador de informes
+            </a>
+            .
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

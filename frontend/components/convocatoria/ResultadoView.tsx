@@ -214,6 +214,7 @@ export function ResultadoView({
         nGanadores={ganadores.length}
         volver={!vistaPrevia}
         compartible={!vistaPrevia}
+        ruta={{ param: PARAM_TAB, primera: TABS[0].key, activa: tabElegida, etiquetas: Object.fromEntries(TABS.map((t) => [t.key, t.label])) }}
         chips={
           <>
             <span className={cn("pill font-semibold", nivel.ui.fondo, nivel.ui.texto, nivel.ui.borde)}>

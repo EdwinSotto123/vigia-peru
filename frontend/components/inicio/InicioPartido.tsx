@@ -1,29 +1,24 @@
 import { Ayuda } from "@/components/patrones";
 import { DatosClave, type DatoClave } from "@/components/patrones/Detalle";
-import { numero, plural, solesCompacto } from "@/lib/formato";
-import { AVISO_PARTIDO, getProcesosPartido, periodoTexto, type AnioGobierno, type DetallePartido } from "@/lib/partidosApi";
-import { getCorrupcionPartido } from "@/lib/corrupcion";
-import { Banderas, BarrasMonto, BloqueInicio, RejillaInicio, SinDato } from "./BloquesInicio";
+import { plural, solesCompacto } from "@/lib/formato";
+import { AVISO_PARTIDO, getGastoPartido, getProcesosPartido, periodoTexto, type AnioGobierno, type DetallePartido } from "@/lib/partidosApi";
+import { getCorrupcionPartido, rutaCorrupcion } from "@/lib/corrupcion";
+import { Banderas, BarrasMonto, BloqueInicio, Fichas, RejillaInicio, SinDato } from "./BloquesInicio";
 import { CasosCorrupcion } from "./CasosCorrupcion";
+import { GastoGobiernos } from "./GastoGobiernos";
 
 /**
- * Inicio de un partido (/app/partidos/[clave], primera pestaña) en un período: en qué contrataron sus gobiernos,
- * dónde, sus contratos y las banderas levantadas. El MEF no se suma por partido (cada gobierno tiene su presupuesto):
- * "en qué" sale de lo adjudicado (OECE). Y los informes de control de la Contraloría sobre las entidades que gobernó.
+ * Inicio de un partido (/app/partidos/[clave], primera pestaña) en un período: en qué gastan sus gobiernos (MEF), en
+ * qué contrataron (OECE), dónde, sus contratos, las banderas levantadas y los informes de la Contraloría sobre las
+ * entidades que gobernó.
  */
-export async function InicioPartido({
-  clave,
-  anio,
-  ruta,
-  d,
-}: {
-  clave: string;
-  anio: AnioGobierno;
-  ruta: string;
-  d: DetallePartido;
-}) {
+export async function InicioPartido({ clave, anio, ruta, d }: { clave: string; anio: AnioGobierno; ruta: string; d: DetallePartido }) {
   // Los conteos de lectura y antecedentes de TODOS sus procesos del período (sin los filtros de la pestaña de procesos).
-  const [procesosTodos, corrupcion] = await Promise.all([getProcesosPartido(clave, anio, { size: 1 }), getCorrupcionPartido(clave, anio)]);
+  const [procesosTodos, corrupcion, gasto] = await Promise.all([
+    getProcesosPartido(clave, anio, { size: 1 }),
+    getCorrupcionPartido(clave, anio),
+    getGastoPartido(clave, anio),
+  ]);
   const facetas = procesosTodos?.facetas ?? null;
   const procesos = (f: Record<string, string> = {}) => `${ruta}?${new URLSearchParams({ anio: String(anio), seccion: "procesos", ...f })}`;
   const h = d.historia;
@@ -31,20 +26,37 @@ export async function InicioPartido({
   const g = d.partido.gobiernos;
 
   const datos: DatoClave[] = [
-    { etiqueta: "Contratos adjudicados", valor: h ? `${numero(h.procesos)} · ${solesCompacto(h.montoAdjudicadoPen)}` : null },
-    { etiqueta: "Gobiernos que ganó", valor: [g.regional && plural(g.regional, "región", "regiones"), g.provincial && plural(g.provincial, "provincia", "provincias"), g.distrital && plural(g.distrital, "distrito", "distritos")].filter(Boolean).join(", ") || null },
-    { etiqueta: "Entidades y proveedores", valor: h ? `${plural(h.entidades, "entidad", "entidades")}, ${plural(h.proveedores, "proveedor", "proveedores")}` : null },
-    { etiqueta: "En la base de Vigía", valor: t.contratos > 0 ? `${plural(t.contratos, "contrato", "contratos")}, ${numero(t.leidos)} leídos, ${numero(t.enCola)} en cola` : "ninguno en este período" },
+    { etiqueta: "Contratos adjudicados", valor: h ? plural(h.procesos, "contrato", "contratos") : null },
+    { etiqueta: "Monto adjudicado", valor: h ? solesCompacto(h.montoAdjudicadoPen) : null },
+    {
+      etiqueta: "Gobiernos que ganó",
+      valor: <Fichas items={[{ etiqueta: "Regiones", n: g.regional }, { etiqueta: "Provincias", n: g.provincial }, { etiqueta: "Distritos", n: g.distrital }]} />,
+    },
+    {
+      etiqueta: "Entidades y proveedores",
+      valor: h ? <Fichas items={[{ etiqueta: "Entidades", n: h.entidades }, { etiqueta: "Proveedores", n: h.proveedores }]} /> : null,
+    },
+    {
+      etiqueta: "En la base de Vigía",
+      valor:
+        t.contratos > 0 ? (
+          <Fichas items={[{ etiqueta: "Contratos", n: t.contratos }, { etiqueta: "Leídos", n: t.leidos, destacada: true }, { etiqueta: "En cola", n: t.enCola }]} />
+        ) : (
+          "Ninguno en este período"
+        ),
+    },
   ];
 
   return (
     <RejillaInicio>
+      <GastoGobiernos gasto={gasto} ruta={ruta} anio={anio} />
+
       <BloqueInicio
         titulo="En qué contrataron sus gobiernos"
         ayuda={
           <Ayuda titulo="¿De dónde sale?">
-            De lo adjudicado por las entidades que gobernó en {periodoTexto(anio)} (OECE), por objeto. El presupuesto del MEF
-            es de cada gobierno, no del partido: está en la ficha de cada entidad.
+            De lo adjudicado por las entidades que gobernó en {periodoTexto(anio)} (OECE), por objeto. Cada barra abre esos
+            contratos.
           </Ayuda>
         }
         enlace={{ href: procesos(), texto: "Ver los contratos" }}
@@ -63,7 +75,7 @@ export async function InicioPartido({
       </BloqueInicio>
 
       <BloqueInicio titulo="Dónde contrataron" enlace={{ href: procesos(), texto: "Filtrar por región" }}>
-        {d.regiones.length > 0 || (d.gobiernos ?? []).length > 0 ? (
+        {(d.gobiernos ?? []).length > 0 ? (
           <BarrasMonto
             items={regiones(d).map((r) => ({ nombre: r.nombre, monto: r.monto, detalle: plural(r.procesos, "contrato", "contratos"), href: procesos({ region: r.ubigeo }) }))}
           />
@@ -88,9 +100,9 @@ export async function InicioPartido({
 
       <CasosCorrupcion
         datos={corrupcion}
+        ruta={rutaCorrupcion.partido(clave, anio)}
         ambito="partido"
-        mostrarEntidad
-        nota={`Informes sobre las entidades que gobernó, emitidos de ${periodoTexto(anio)}. No dicen que la responsabilidad sea de sus autoridades: el informe nombra a cada funcionario, de carrera o de confianza.`}
+        nota={`Informes sobre las entidades que gobernó, emitidos de ${periodoTexto(anio)}. No dicen que la responsabilidad sea de sus autoridades: cada informe nombra a los funcionarios comprendidos, de carrera o de confianza.`}
       />
     </RejillaInicio>
   );
@@ -108,3 +120,4 @@ function regiones(d: DetallePartido): { ubigeo: string; nombre: string; procesos
   }
   return [...m.values()];
 }
+
