@@ -256,6 +256,9 @@ function DetalleSenal({ tipo, d }: { tipo: TipoPlanilla; d: Record<string, unkno
       { etiqueta: "Su sueldo", valor: n(d.total) != null ? soles(n(d.total)) : null, mono: true },
       { etiqueta: "Mediana de su cargo", valor: n(d.mediana) != null ? `${soles(n(d.mediana))} (${numero(n(d.personas) ?? 0)} personas)` : null },
       { etiqueta: "Diferencia", valor: n(d.veces) != null ? `${String(n(d.veces)).replace(".", ",")} veces` : null },
+      ...(n(d.ganan_tanto) != null
+        ? [{ etiqueta: "Con su cargo ganan tanto", valor: n(d.ganan_tanto) === 1 ? "Sólo esta persona" : `${numero(n(d.ganan_tanto) ?? 0)} personas` }]
+        : []),
       // Tanta diferencia suele ser un pago acumulado (devengados de varios meses) cargado como sueldo.
       ...((n(d.veces) ?? 0) >= 5
         ? [{ etiqueta: "Ojo", valor: "Una diferencia así suele ser un pago acumulado de varios meses registrado como sueldo: verifícalo en el portal de la entidad." }]

@@ -36,7 +36,8 @@ Son **indicios para revisar**. Ninguna prueba un delito ni un parentesco; la web
 | `paso_a_planilla` | baja | después de sus órdenes entró a la planilla de la entidad |
 
 **En planilla** (`planilla_persona`): `tambien_ordenes` (alta), `candidato_gobierna` (alta), `brecha_cargo` (media:
-el sueldo, doble o más que la mediana de su mismo cargo en la entidad), `apellidos_autoridad`, `apellidos_directivo`
+el sueldo, doble o más que la mediana de su mismo cargo en la entidad, y a lo más 10 con ese cargo ganan tanto: si son
+más, es otro nivel de la escala), `apellidos_autoridad`, `apellidos_directivo`
 (media: los apellidos, poco comunes, de un gerente o director de la misma planilla), `antes_locador` y
 `pago_extraordinario` (baja: S/ 20,000 o más fuera del sueldo, el triple o más; suele ser una liquidación o un bono).
 

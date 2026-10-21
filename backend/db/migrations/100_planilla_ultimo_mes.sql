@@ -10,6 +10,11 @@
 -- 2018-2024: 674 s de lecturas al azar en conosce_ordenes, para 3 mil coincidencias). Ahora sólo los pares con alguna
 -- orden desde el primer mes de planilla (~5 mil), y sólo esas órdenes.
 --
+-- brecha_cargo pide además que pocos con ese cargo ganen tanto (a lo más 10, y no más del 5 %): si son muchos, es otro
+-- nivel de la escala, no una persona que se aparta. El Ministerio Público pagaba S/ 8,185 a 909 fiscales adjuntos
+-- provinciales con una mediana de S/ 3,505; EsSalud llama "PROFESIONAL" a médicos y a otros. Fuera los cargos vacíos
+-- ("SIN CARGO", "NINGUNO", "NO FISCALIZADO"). De 5,882 señales quedan ~540.
+--
 -- Un refresco a la vez (candado de la transacción): dos corridas de pte_personal que terminan juntas borraban y volvían
 -- a llenar cargo_referencia a la vez, y la segunda chocaba con las filas que la primera acababa de insertar (su DELETE
 -- no las ve).
@@ -90,13 +95,18 @@ BEGIN
   ANALYZE _pl; ANALYZE _plg;
   RAISE NOTICE 'planilla: gobierno (% s)', round(extract(epoch FROM clock_timestamp() - t0));
 
-  -- brecha_cargo: el doble o más que la mediana de su cargo en la entidad ese mes (5 o más con ese cargo), y S/ 5,000+.
+  -- brecha_cargo: el doble o más que la mediana de su cargo en la entidad ese mes (5 o más con ese cargo), S/ 5,000+, y
+  -- pocos con ese cargo ganan tanto (a lo más 10 y el 5 %; si son más, es otro nivel de la escala).
   INSERT INTO _pls
-  SELECT l.entidad_ruc, l.nombre_norm, 'brecha_cargo', 'media',
-         jsonb_build_object('anio', l.anio, 'mes', l.mes, 'cargo', l.cargo, 'total', l.base, 'mediana', r.mediana, 'p75', r.p75,
-                            'personas', r.personas, 'veces', round(l.base / r.mediana, 1))
-    FROM _pl l JOIN cargo_referencia r ON r.entidad_ruc = l.entidad_ruc AND r.anio = l.anio AND r.mes = l.mes AND r.cargo = mef_norm(l.cargo)
-   WHERE r.personas >= 5 AND r.mediana > 0 AND l.base >= 2 * r.mediana AND l.base >= 5000;
+  SELECT x.entidad_ruc, x.nombre_norm, 'brecha_cargo', 'media',
+         jsonb_build_object('anio', x.anio, 'mes', x.mes, 'cargo', x.cargo, 'total', x.base, 'mediana', x.mediana, 'p75', x.p75,
+                            'personas', x.personas, 'veces', round(x.base / x.mediana, 1), 'ganan_tanto', x.altos)
+    FROM (SELECT l.entidad_ruc, l.nombre_norm, l.anio, l.mes, l.cargo, l.base, r.mediana, r.p75, r.personas,
+                 count(*) OVER (PARTITION BY l.entidad_ruc, r.cargo) AS altos
+            FROM _pl l JOIN cargo_referencia r ON r.entidad_ruc = l.entidad_ruc AND r.anio = l.anio AND r.mes = l.mes AND r.cargo = mef_norm(l.cargo)
+           WHERE r.personas >= 5 AND r.mediana > 0 AND l.base >= 2 * r.mediana AND l.base >= 5000
+             AND r.cargo !~ '^(SIN ?CARGO|NINGUN|SIN ESPECIFICAR|NO REGISTRA|NO FISCALIZADO|OTROS?$)') x
+   WHERE x.altos <= greatest(2, least(10, 0.05 * x.personas));
 
   -- pago_extraordinario: el mes trae S/ 20,000 o más fuera del sueldo (otros beneficios, gratificación, incentivo) y al
   -- menos el triple del sueldo: una liquidación, un retiro incentivado, un bono. No es irregular por sí mismo.

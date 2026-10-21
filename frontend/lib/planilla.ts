@@ -116,7 +116,8 @@ export const SENAL_PLANILLA: Record<TipoPlanilla, { corto: string; titulo: strin
   brecha_cargo: {
     corto: "Gana el doble que su cargo",
     titulo: "Gana el doble o más que otros con su mismo cargo",
-    explica: "Su sueldo (sin gratificaciones, liquidaciones ni otros beneficios del mes) es el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad.",
+    explica:
+      "Su sueldo (sin gratificaciones, liquidaciones ni otros beneficios del mes) es el doble o más que la mediana de quienes tienen su mismo cargo en la misma entidad, y muy pocos con ese cargo ganan tanto (10 o menos): no es otro nivel de la escala.",
   },
   pago_extraordinario: {
     corto: "Pago extraordinario",
